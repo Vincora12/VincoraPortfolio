@@ -1,15 +1,17 @@
 # VINZ.VERCE — prototipo v1
 
-Prototipo eseguibile della MASTER SPEC v1.2. Non è una demo visiva: serve a
-verificare che il modello di prodotto — schema Character Data, logica Mindline,
-Heritage, slot asset — regga **prima** che esistano le API reali, così che
-sostituire i cheat di prototipo con i servizi veri non richieda di
-riprogettare niente (§25).
+Prototipo eseguibile di due documenti:
+
+- **MASTER SPEC v1.2** — prodotto, schermate, design system, Mindline, pipeline asset.
+- **GENERATION BIBLE v2.1** — tassonomie, motore di generazione, rarità, prompt compiler.
+
+Non è una demo visiva: serve a verificare che il modello regga **prima** che
+esistano le API reali, così che sostituire i cheat di prototipo con i servizi
+veri non richieda di riprogettare niente (MS §25).
 
 ```
 npm install
 npm run dev          # http://localhost:5173
-npm run dev -- --open
 ```
 
 Il pannello sviluppatore è nascosto: si apre solo con `?dev=1`.
@@ -27,9 +29,11 @@ http://localhost:5173/?dev=1
 | `npm run dev` | Avvia il prototipo |
 | `npm run build` | Typecheck + build di produzione |
 | `npm run typecheck` | Solo controllo dei tipi |
-| `npm run verify` | Percorre l'app end-to-end in Chromium headless, cattura 28 screenshot in `screenshots/` e fallisce su qualunque errore di console |
-| `npm run verify:package` | Controlla il pacchetto Asset Request contro §22.2, §24.2, §24.4, §13 e §21.1 |
-| `npm run verify:batch` | QA del generatore: distribuzioni, varianza, genoma dei nomi, coerenza Heritage |
+| `npm run verify` | Percorre l'app end-to-end in Chromium headless, cattura 32 screenshot in `screenshots/` e fallisce su qualunque errore di console |
+| `npm run verify:batch` | QA del generatore su 3000 `.mon`: tabelle di rarità di GB §26, distribuzioni, genoma dei nomi, Heritage, copertura dei frammenti |
+| `npm run verify:package` | Controlla il pacchetto Asset Request contro MS §22.2/§24.4/§13 e GB §30/§45/§48 |
+
+`verify:batch` accetta un numero: `node scripts/batch-check.mjs 400` per un giro rapido.
 
 ---
 
@@ -37,44 +41,101 @@ http://localhost:5173/?dev=1
 
 1. Apri `?dev=1`.
 2. **Incubazione**: premi `+ 7 GIORNI` quattro volte, poi `HATCH`.
-   Nasce il primo .mon, con dati completi e **zero immagini**.
-3. **Home**: scrivi qualcosa nel composer. Il .mon risponde con la sua voce
+   Nasce **`Vz.mon`** — SLIME // ROOT, la radice canonica di GB §3, con dati
+   completi e **zero immagini**. È l'unico `.mon` che non viene estratto.
+3. **Home**: scrivi qualcosa nel composer. Il `.mon` risponde con la sua voce
    (fallback deterministico, dichiarato come tale in interfaccia).
-4. **DEV → TEMPO**: `+7 DAYS` un paio di volte. Guarda **ME**: i trend si
+4. **DAILY SCAN**: dichiara fino a 3 umori del giorno fra i 13 di GB §11.
+   La schermata dice a chiare lettere che un singolo giorno **non** assegna mai
+   il Mood della creatura: entra in una finestra mobile di 14 giorni.
+5. **DEV → TEMPO**: `+7 DAYS` un paio di volte. Guarda **ME**: i trend si
    muovono, i dati mai rilevati restano `UNKNOWN` e non diventano zero.
-5. **DEV → MINDLINE**: spunta *forza CONTINUE*, poi `APRI MINDLINE SHIFT` →
+6. **DEV → MINDLINE**: spunta *forza CONTINUE*, poi `APRI MINDLINE SHIFT` →
    `EVOLVE`. La stessa identità cambia forma: nome, Family, Affinity e
    Character DNA restano invariati e la schermata lo dichiara.
-6. Torna in DEV, spunta *forza BRANCH*, riapri lo shift → `NUOVO SEGNALE`.
+7. Torna in DEV, spunta *forza BRANCH*, riapri lo shift → `NUOVO SEGNALE`.
    La schermata mostra i tratti che passeranno **senza** anticipare la nuova
-   identità: a quel punto il nuovo .mon non è ancora stato generato.
-7. Conferma: nasce un .mon nuovo. Apri **MINDLINE**: la deviazione si vede come
-   deviazione. Apri **HERITAGE DNA**: per ogni tratto c'è la forma d'origine e
-   quella tradotta nella nuova anatomia.
-8. **Profilo → ASSET → ESPORTA ASSET REQUEST**: scarichi uno zip con i 7 prompt
-   completi, i Character Data e `ASSET_MANIFEST.json`.
-9. Genera le immagini con ChatGPT, poi **DEV → ASSET** e trascinale dentro:
-   gli slot si risolvono da soli e nessun campo di identità cambia.
+   identità: a quel punto il nuovo `.mon` non è ancora stato generato.
+8. Conferma: nasce un `.mon` nuovo. Apri **MINDLINE**: la deviazione si vede
+   come deviazione. Apri **HERITAGE DNA**: per ogni tratto c'è la forma
+   d'origine e quella tradotta nella nuova anatomia (GB §23).
+9. **DEV → PROMPT**: il prompt compilato, con la **provenienza espandibile** di
+   ogni frammento — quale asse, quale priorità, quale voce di catalogo.
+10. **Profilo → ASSET → ESPORTA ASSET REQUEST**: scarichi uno zip con i 7 prompt
+    completi, i Character Data, `compiled_prompt.txt`, `fragment_ids.json` e
+    `ASSET_MANIFEST.json`.
+11. Genera le immagini con ChatGPT, poi **DEV → ASSET** e trascinale dentro:
+    gli slot si risolvono da soli e nessun campo di identità cambia.
 
 ---
 
-## Perché non ci sono immagini dei .mon
+## Come nasce un `.mon`
 
-§18A vieta di sostituire l'arte canonica con disegni CSS, icone generiche o
+L'ordine è quello autorevole a 20 passi di GB §24, e non è negoziabile: gli assi
+di creatura si decidono **prima** di quelli di styling (GB §31, «CREATURE FIRST.
+STYLING SECOND.»).
+
+```
+segnali reali          salute · umori dichiarati · personality seed ·
+(engine/signals.ts)    profondità Mindline · novelty · affinità culturali
+        │
+        ▼
+FAMILY  ·  ARCHETIPO  ·  AFFINITY  ·  SIZE      ← la creatura
+        │
+        ▼
+ROLE  ·  FASHION  ·  MARCATORI VINZ  ·  MOOD    ← lo styling
+        │
+        ▼
+RARITÀ    gate di sblocco → pool rinormalizzato →
+          punteggio a 7 componenti come TETTO → tiro pesato
+        │
+        ▼
+character_data.json    27 campi, tipo chiuso, seed e versione di config
+```
+
+Nessun numero vive nel motore: cataloghi, pesi e soglie stanno tutti in
+**`src/engine/generation-config.ts`**, come impone GB §29. Sono 19 Family,
+113 archetipi, 16 Affinity, 24 Role, 18 Fashion, 16 Mood, 16 preset di voce e
+6 rarità.
+
+Ogni generazione è **riproducibile**: stesso seed e stessa versione di config
+danno lo stesso `.mon`. Cambiare i pesi non riscrive i `.mon` già nati, che
+conservano la versione con cui sono venuti al mondo.
+
+---
+
+## Come nasce un prompt
+
+GB §30: *«The website must not ask an image model to invent a VINZ.MON from a
+short label. It must compile one deterministic image-generation prompt from
+modular fragments.»*
+
+I frammenti sono materializzati nello schema esatto di GB §30.1 e assemblati
+secondo l'ordine di priorità 1–12 di GB §30.2. Il compilatore è una **funzione
+pura** di (Character Data, tipo di asset, versione compiler): stessi dati in
+ingresso, stesso prompt in uscita, sempre.
+
+Conseguenza verificata dalla macchina: i sette asset di uno stesso `.mon`
+compilano **dagli stessi frammenti di identità**. Non è una promessa scritta nel
+testo del prompt, è un controllo di `verify:package`.
+
+---
+
+## Perché non ci sono immagini dei `.mon`
+
+MS §18A vieta di sostituire l'arte canonica con disegni CSS, icone generiche o
 character art inventata. Non ho nessun asset canonico, quindi **non ne ho
 inventati**: ogni slot vuoto mostra `ASSET_nn // WAITING FOR IMAGE` con il tipo,
 lo scopo e come ottenerlo.
 
-È il comportamento richiesto da §21.2 e §26: un .mon è **valido come dato
+È il comportamento richiesto da MS §21.2 e §26: un `.mon` è **valido come dato
 strutturato anche a slot tutti vuoti**, e nessuna schermata si blocca per un
 asset mancante.
 
-Il percorso per riempirli è quello di §22:
-
 ```
-PROTOTIPO → CHARACTER DATA → ASSET REQUEST GENERATOR →
-PROMPT + ASSET_MANIFEST.json → CHATGPT → ASSET GENERATI →
-IMPORT → SLOT RISOLTI
+PROTOTIPO → CHARACTER DATA → PROMPT COMPILER →
+7 PROMPT + fragment_ids.json + ASSET_MANIFEST.json → CHATGPT →
+ASSET GENERATI → IMPORT → SLOT RISOLTI
 ```
 
 ---
@@ -84,52 +145,58 @@ IMPORT → SLOT RISOLTI
 ```
 src/
   engine/            Dominio puro. Nessun React. Sono i confini di servizio
-                     futuri (§25): sostituibili uno a uno con chiamate HTTP.
-    types.ts         Schema Character Data — tipo CHIUSO (§21.1, §13)
-    taxonomy.ts      Assi canonici (§4) — 🟡 provvisorio, vedi OPEN_ITEMS
-    taxonomyIt.ts    Rese brevi in italiano per la UI
+                     futuri (MS §25): sostituibili uno a uno con chiamate HTTP.
+    generation-config.ts  UNICA fonte di cataloghi, pesi e soglie (GB §29)
+    signals.ts       Personality seed, mood latents, novelty (GB §2, §11, §22)
+    types.ts         Character Data — i 27 campi di GB §27, tipo CHIUSO
     rng.ts           PRNG seminato: ogni generazione è riproducibile
-    characterGenerator.ts  Pipeline di §21, passi numerati
+    characterGenerator.ts  I 20 passi di GB §24, numerati nei commenti
+    rarity.ts        Gate, normalizzazione e tetto (GB §15, §16, §26)
     naming.ts        Genoma dei nomi V… Z… .mon
-    colorDna.ts      Palette adattiva + contrasto (§10.2)
-    voiceDna.ts      Genoma di scrittura + fallback (§14, §17)
-    rarity.ts        Rarità calcolata dalla configurazione (§4)
-    heritage.ts      Selezione e traduzione dei tratti (§7.3)
-    mindline.ts      Grafo dei nodi e layout topologico (§7.4)
-    health.ts        FORM/ATK/SPD/DEF/REC/CARE, CONDITION, DISC (§3)
+    colorDna.ts      palette_dna + contrasto (GB §27, MS §10.2)
+    voiceDna.ts      16 preset, 12 assi, fallback (GB §13, §14)
+    heritage.ts      Selezione e traduzione dei tratti (GB §23)
+    mindline.ts      Grafo dei nodi e layout topologico (MS §7.4)
+    health.ts        FORM/ATK/SPD/DEF/REC/CARE, CONDITION, DISC (MS §3)
     economy.ts       XP ed eleggibilità — 🟡 provvisorio
-    simulation.ts    Eventi, memorie, passaggio al branch (§8.2, §20)
-    assets.ts        I sette tipi di asset canonici (§23)
+    simulation.ts    Eventi, memorie, passaggio al branch (MS §8.2)
+    assets.ts        I sette tipi di asset canonici (MS §23)
 
-  assets-pipeline/   Pipeline manuale che sta al posto dell'image API (§22)
-    promptCompiler.ts  Prompt completi, non brief (§22.1, §24.3)
-    manifest.ts        ASSET_MANIFEST.json nella forma di §24.4
-    exportPackage.ts   Lo zip di §22.2
-    assetStore.ts      Import e persistenza in IndexedDB (§22.3)
+  assets-pipeline/   Pipeline manuale che sta al posto dell'image API (MS §22)
+    fragments.ts       Libreria dei frammenti nello schema di GB §30.1
+    compiler.ts        Resolver di GB §30.2 + template di GB §46
+    manifest.ts        ASSET_MANIFEST.json nella forma di MS §24.4
+    exportPackage.ts   Lo zip di MS §22.2 + i file di GB §48
+    assetStore.ts      Import e persistenza in IndexedDB (MS §22.3)
 
-  system/            Design system (§10.4) + slot asset e rotazione
-  screens/           Le 15 schermate di §12 implementate in v1
-  dev/               DEV://VINZ.VERCE (§20) — mai visibile senza dev mode
+  system/            Design system (MS §10.4), slot asset, resa di `.mon`
+  screens/           Le 16 schermate implementate
+  dev/               DEV://VINZ.VERCE — mai visibile senza dev mode
   state/store.ts     Orchestrazione e persistenza
   i18n/it.ts         Stringhe
 
 docs/
-  SPEC_MAP.md        Dove vive ogni regola della spec
+  SPEC_MAP.md        Dove vive ogni regola dei due documenti
   OPEN_ITEMS.md      Cosa NON è stato congelato, e perché
 ```
 
+**Doppia lingua, per scelta.** Le descrizioni lunghe in inglese finiscono nei
+prompt di generazione immagini; le rese brevi in italiano compaiono in UI. I
+nomi di sistema (Family, Archetipo, Affinity…) restano in maiuscolo inglese
+ovunque, perché sono identificatori.
+
 ---
 
-## Criteri di accettazione §26
+## Criteri di accettazione MS §26
 
 | # | Criterio | Come si verifica |
 |---|---|---|
 | 1 | Simulare più settimane senza attendere tempo reale | DEV → TEMPO → `+7 DAYS`, `+30 DAYS`, `NEXT MINDLINE SHIFT` |
 | 2 | Innescare entrambi i percorsi CONTINUE e BRANCH | DEV → MINDLINE → forzature, poi shift |
-| 3 | Generare .mon strutturati senza immagini | ogni .mon nasce con `assetStatus` tutto `waiting` |
-| 4 | Batch-generare candidati per QA | DEV → GENERA → `GENERATE 10/50/200`, con distribuzioni e controlli |
+| 3 | Generare `.mon` strutturati senza immagini | ogni `.mon` nasce con `asset_manifest_status` tutto `waiting` |
+| 4 | Batch-generare candidati per QA | DEV → GENERA → `GENERATE 10/50/200`; `npm run verify:batch` |
 | 5 | Esportare un pacchetto Asset Request completo | Profilo → ASSET → `ESPORTA ASSET REQUEST` |
-| 6 | Prompt di rotazione tecnicamente sufficiente | `02_ROTATION_SPRITE_PROMPT.txt`: griglia, angoli, consistenza assoluta, registrazione, output |
+| 6 | Prompt di rotazione tecnicamente sufficiente | `02_ROTATION_SPRITE_PROMPT.txt`: griglia 8×1, angoli espliciti, consistenza assoluta, ancoraggio, output |
 | 7 | Gli asset importati compaiono subito | DEV → ASSET → trascina; risolve contro il manifest |
 | 8 | Nessun asset mancante blocca il flusso | segnaposto espliciti ovunque; `npm run verify` percorre tutto a slot vuoti |
 | 9 | Nessun controllo DEV senza dev mode | il pannello e il suo trigger esistono solo con `?dev=1` |
@@ -142,15 +209,22 @@ errore di console.
 
 ## Cosa NON c'è in v1
 
-Schermate di §12 fuori scope in questa versione: **01** SYSTEM BOOT, **02** THE
-PACT, **03** PERSONALITY / SIGNAL SCAN, **08** DAILY SCAN, **10** WEEKLY REPORT,
-**21** SETTINGS. Non sono omissioni: sono scope concordato. Il campo
-`UserState.scanAnswers` esiste già e aspetta la schermata 03.
+Schermate di MS §12 fuori scope: **01** SYSTEM BOOT, **02** THE PACT,
+**03** PERSONALITY / SIGNAL SCAN, **10** WEEKLY REPORT, **21** SETTINGS.
+Non sono omissioni: sono scope concordato. La 03 è quella che pesa davvero —
+finché non esiste, il Personality Seed di GB §2 resta neutro e il motore lavora
+solo su salute e umori.
 
-Le voci che la spec marca 🟡 TO FINALIZE sono implementate come **configurazione
-tarabile**, non come canone. Sono elencate una per una in
-[`docs/OPEN_ITEMS.md`](docs/OPEN_ITEMS.md), con dove stanno e cosa serve per
-chiuderle.
+La generazione è **locale e deterministica**. Il generatore AI che scriverà i
+Character Data è il passo successivo, deciso: arriva dopo il documento
+canonico, e questo motore gli resta sotto come fallback (MS §17, «ogni
+superficie AI ha un fallback»).
+
+Quel che i due documenti lasciano ancora aperto — economia XP, durata
+dell'incubazione, trigger nascosto di SINGULAR, affinità culturali, il font
+VINZ-HEAD — è elencato voce per voce in
+[`docs/OPEN_ITEMS.md`](docs/OPEN_ITEMS.md), con dove sta e cosa serve per
+chiuderlo. Insieme alle poche interpretazioni che ho preso leggendo la bibbia.
 
 ---
 

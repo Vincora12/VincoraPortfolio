@@ -1,173 +1,206 @@
 /* ============================================================================
-   HERITAGE (§7.3, §8.3, §18 di §12)
+   HERITAGE (§23, §41)
 
-   🔒 Regole canoniche:
-   • Al BRANCH il nuovo .mon eredita 1–3 tratti riconoscibili dal nodo
-     precedente.
-   • L'eredità può essere anatomica, comportamentale, visiva, simbolica,
-     mnemonica o relazionale.
-   • Va TRADOTTA nella nuova Family, mai copiata alla lettera.
-   • Serve a far sentire il branch come una deviazione dello stesso percorso
-     di vita, non come un reroll casuale.
+   §23 — «BRANCH target: 1–3 recognizable Heritage traits. Equivalent visual
+   target: roughly 20% translated heritage / 80% new design freedom.»
+   §23 — otto categorie: anatomy, palette fragment, eyewear logic, symbolic
+   motif, behavioral contradiction, Voice ritual, memory, relationship habit.
+   §23 — «No direct copy across incompatible Families; translate structurally.»
+   §41 — la traduzione avviene in tre mosse: si isola l'idea sottostante, la si
+   traduce attraverso la NUOVA anatomia, si conserva la riconoscibilità solo
+   dove è compatibile.
 
-   Il processo è in due tempi, come impone il flusso delle schermate:
-   1. `selectHeritageOrigins` — al momento della decisione (schermata 13 NEW
-      BRANCH) si sceglie CHE COSA sopravvive. La schermata mostra i tratti in
-      partenza senza anticipare la nuova identità.
-   2. `translateHeritage` — quando il nuovo .mon viene generato, ogni tratto
-      viene tradotto nella sua nuova Family/Affinity.
+   Due tempi, come impone il flusso delle schermate:
+   1. `selectHeritageOrigins` al momento del branch — che cosa sopravvive.
+      La schermata 13 mostra questo SENZA anticipare la nuova identità, che a
+      quel punto non esiste ancora.
+   2. `translateHeritage` alla generazione — come si traduce nella nuova Family.
    ========================================================================= */
 
-import type { Affinity, Family } from './taxonomy';
-import { ACCESSORY_IT, AFFINITY_IT, EYEWEAR_IT, FAMILY_IT, MOOD_IT, ROLE_IT, it } from './taxonomyIt';
+import {
+  HERITAGE_CATEGORIES,
+  affinityDef,
+  familyDef,
+  moodDef,
+  roleDef,
+  type HeritageCategory,
+} from './generation-config';
 import { pickInt, pickMany, type Rng } from './rng';
-import type { HeritageKind, HeritageTrait, MonRecord } from './types';
+import type { HeritageTrait, MonRecord } from './types';
 
-/** Tratto in partenza: sappiamo da dove viene, non ancora dove arriva. */
 export type HeritageOrigin = Omit<HeritageTrait, 'transformed'>;
 
-const KIND_LABELS: Record<HeritageKind, string> = {
-  anatomical: 'ANATOMICO',
-  behavioral: 'COMPORTAMENTALE',
-  visual: 'VISIVO',
-  symbolic: 'SIMBOLICO',
-  memory: 'MNEMONICO',
-  relational: 'RELAZIONALE',
-};
-
-export function heritageKindLabel(kind: HeritageKind): string {
-  return KIND_LABELS[kind];
+export function heritageCategoryLabel(id: HeritageCategory): string {
+  return HERITAGE_CATEGORIES.find((c) => c.id === id)?.it ?? id.toUpperCase();
 }
 
-/* --- 1. Selezione: che cosa sopravvive al branch --------------------------- */
+/* --- 1. Che cosa sopravvive ------------------------------------------------ */
 
-/**
- * Estrae 1–3 tratti dal .mon uscente. Ogni tratto descrive la sua forma
- * ATTUALE: la traduzione avviene dopo, quando la nuova Family esiste.
- */
 export function selectHeritageOrigins(rng: Rng, previous: MonRecord): HeritageOrigin[] {
   const p = previous.data;
   const from = p.name;
 
-  // Bacino dei tratti candidati. Solo quelli che questo .mon può davvero
-  // esprimere entrano nel bacino: niente occhiali per un'anatomia che non li
-  // porta, niente interessi se il Character DNA non ne ha campionati.
-  const pool: { kind: HeritageKind; origin: string }[] = [
+  // Un candidato per categoria di §23, quando il .mon uscente può esprimerla.
+  const pool: { category: HeritageCategory; origin: string }[] = [
     {
-      kind: 'anatomical',
-      origin: `anatomia ${p.family} / ${p.familyArchetype}: ${FAMILY_IT[p.family]}`,
-    },
-    { kind: 'behavioral', origin: `il modo di fare del ${p.role}: ${ROLE_IT[p.role]}` },
-    { kind: 'visual', origin: `la materia ${p.affinity}: ${AFFINITY_IT[p.affinity]}` },
-    {
-      kind: 'symbolic',
-      origin: `la contraddizione fra ${p.characterDna.contradiction.a} e ${p.characterDna.contradiction.b}`,
+      category: 'anatomy',
+      origin: `anatomia ${p.family} / ${p.family_archetype}: ${familyDef(p.family).it}`,
     },
     {
-      kind: 'memory',
-      origin: `come stava al mondo quando era ${p.mood}: ${MOOD_IT[p.mood]}`,
+      category: 'palette',
+      origin: `il colore dominante: ${p.palette_dna.swatch_names[0]} — ${p.palette_dna.primary}`,
     },
-    { kind: 'relational', origin: `come chiamava VINZ: ${p.voiceDna.addressesVinzAs}` },
+    {
+      category: 'symbol',
+      origin: `il motivo ricorrente: ${p.character_dna.recurring_motif}`,
+    },
+    {
+      category: 'contradiction',
+      origin: p.character_dna.contradictions[0]
+        ? `la contraddizione fra ${p.character_dna.contradictions[0].a} e ${p.character_dna.contradictions[0].b}`
+        : `il modo di stare al mondo del ${p.role}: ${roleDef(p.role).it}`,
+    },
+    {
+      category: 'voiceRitual',
+      origin: `il registro di voce: ${p.voice_preset}`,
+    },
+    {
+      category: 'memory',
+      origin: `come stava al mondo quando era ${p.mood_primary}: ${moodDef(p.mood_primary).it}`,
+    },
+    {
+      category: 'relationship',
+      origin: `l'espediente anatomico che lo rendeva riconoscibile: ${p.character_dna.anatomical_gimmick}`,
+    },
   ];
 
-  if (p.fashion.eyewear) {
+  if (p.eyewear) {
     pool.push({
-      kind: 'visual',
-      // Cornice neutra: la lista contiene anche visiere e monocoli, quindi
-      // «gli occhiali» sarebbe una parola sbagliata per metà delle voci.
-      origin: `quello che portava sugli occhi, sempre: ${it(EYEWEAR_IT, p.fashion.eyewear)}`,
+      category: 'eyewear',
+      origin: `la logica dell'ottica: ${p.eyewear.category} — ${p.eyewear.description}`,
     });
-  }
-  if (p.fashion.accessories.length > 0) {
-    pool.push({
-      kind: 'visual',
-      origin: `l'accessorio che portava sempre: ${it(ACCESSORY_IT, p.fashion.accessories[0])}`,
-    });
-  }
-  if (p.characterDna.interests.length > 0) {
-    pool.push({ kind: 'memory', origin: `l'attaccamento a ${p.characterDna.interests[0]}` });
-  }
-  if (p.voiceDna.quirks.length > 0) {
-    pool.push({ kind: 'relational', origin: `il tic verbale: ${p.voiceDna.quirks[0]}` });
   }
 
   const count = pickInt(rng, 1, 3);
-  return pickMany(rng, pool, count).map((trait, i) => ({
-    id: `her_${p.mindlineNodeId}_${i}`,
-    kind: trait.kind,
-    origin: trait.origin,
-    fromMon: from,
+  return pickMany(rng, pool, count).map((t, i) => ({
+    id: `her_${p.mindline_node}_${i}`,
+    category: t.category,
+    origin: t.origin,
+    from_mon: from,
   }));
 }
 
 /* --- 2. Traduzione nella nuova Family -------------------------------------- */
 
 /**
- * Traduce ogni tratto nella nuova anatomia. Non copia: riscrive lo stesso
- * fatto nella grammatica della nuova Family/Affinity (§7.3).
+ * §41 — traduce, non copia. Le varianti si scorrono in ordine a partire da un
+ * turno casuale, così due tratti della stessa categoria nello stesso .mon non
+ * ricevono mai la stessa frase.
  */
 export function translateHeritage(
   rng: Rng,
   origins: readonly HeritageOrigin[],
-  family: Family,
-  affinity: Affinity,
+  family: string,
+  affinity: string,
 ): HeritageTrait[] {
-  // Il turno di partenza è casuale ma poi le varianti si scorrono in ordine:
-  // due tratti dello stesso tipo nello stesso .mon non possono più ricevere
-  // la stessa identica frase, cosa che rendeva l'eredità poco credibile.
   const offset = pickInt(rng, 0, 2);
-  const used = new Map<HeritageKind, number>();
+  const used = new Map<HeritageCategory, number>();
 
   return origins.map((o) => {
-    const seen = used.get(o.kind) ?? 0;
-    used.set(o.kind, seen + 1);
-    return { ...o, transformed: translateOne(o.kind, family, affinity, offset + seen) };
+    const seen = used.get(o.category) ?? 0;
+    used.set(o.category, seen + 1);
+    return { ...o, transformed: translateOne(o.category, family, affinity, offset + seen) };
   });
 }
 
-/** Tre riscritture per tipo di tratto. `variant` sceglie in modo ciclico. */
 function translateOne(
-  kind: HeritageKind,
-  family: Family,
-  affinity: Affinity,
+  category: HeritageCategory,
+  family: string,
+  affinity: string,
   variant: number,
 ): string {
-  const anatomy = FAMILY_IT[family];
-  const material = AFFINITY_IT[affinity];
+  const anatomy = familyDef(family).it;
+  const contamination = affinityDef(affinity).it;
 
-  const options: Record<HeritageKind, string[]> = {
-    anatomical: [
-      `la stessa struttura riappare nell'anatomia ${family}: ${anatomy}`,
+  const options: Record<HeritageCategory, string[]> = {
+    anatomy: [
+      `la stessa struttura riscritta nell'anatomia ${family}: ${anatomy}`,
       `il carico si sposta: quello che era una forma a sé ora è ${anatomy}`,
       `sopravvive come proporzione più che come forma, dentro un corpo ${family}`,
     ],
-    behavioral: [
-      `stesso comportamento, corpo diverso: cambia il gesto, non l'intenzione`,
-      `resta come abitudine di postura, prima ancora che come azione`,
-      `emerge sotto pressione e poi rientra: è diventato un riflesso, non più un ruolo`,
+    palette: [
+      `la tinta resta, ma su materia nuova: ${contamination}`,
+      `il colore si ritira a una zona sola e diventa accento invece che dominante`,
+      `resta come sottotono, non più come superficie`,
     ],
-    visual: [
-      `il segno passa alla materia nuova: ${material}`,
-      `stessa posizione sul corpo, materiale diverso — adesso ${material}`,
-      `sopravvive ridotto a un dettaglio solo, coerente con la nuova materia`,
+    eyewear: [
+      `stessa logica ottica, montata su un cranio che non ha la stessa forma`,
+      `la categoria di ottica resta, la costruzione si adatta alla nuova testa`,
+      `sopravvive ridotta: una sola lente dove prima ce n'erano due`,
     ],
-    symbolic: [
+    symbol: [
+      `il motivo torna più piccolo, come dettaglio invece che come firma`,
+      `si è raffreddato in un simbolo: c'è, e non si discute più`,
+      `riappare inciso sulla materia nuova: ${contamination}`,
+    ],
+    contradiction: [
       `la contraddizione resta, ma cambia il lato che domina`,
       `lo stesso conflitto, ora visibile nella sagoma invece che nel comportamento`,
-      `si è raffreddato in un simbolo: c'è, e non si discute più`,
+      `si è spostato dal volto alla postura`,
+    ],
+    voiceRitual: [
+      `il rituale di voce resta ma si accorcia: la relazione ha preso confidenza`,
+      `riappare solo nei momenti di calo, come una vecchia abitudine`,
+      `sopravvive come cadenza, non più come formula`,
     ],
     memory: [
       `passa in forma parziale: resta la sensazione, si perde il dettaglio`,
       `torna come preferenza inspiegata — non sa perché, lo fa e basta`,
       `sopravvive come citazione interna, mai detta ad alta voce`,
     ],
-    relational: [
-      `lo stesso modo di rivolgersi a VINZ, con una voce nuova sopra`,
-      `resta ma si accorcia: la relazione ha preso confidenza`,
-      `riappare solo nei momenti di calo, come una vecchia abitudine`,
+    relationship: [
+      `la stessa abitudine, con un corpo che la esegue in modo diverso`,
+      `resta come riflesso, prima ancora che come scelta`,
+      `emerge sotto pressione e poi rientra`,
     ],
   };
 
-  const list = options[kind];
+  const list = options[category];
   return list[variant % list.length]!;
+}
+
+/* --- Novità (§23) ----------------------------------------------------------- */
+
+/**
+ * §23 — «A new .mon should normally change at least 4 of these 7:
+ * Family/Archetype, Affinity, silhouette, eyewear, Fashion silhouette,
+ * color DNA, Voice baseline.»
+ * Il risultato alimenta la componente `novelty` del punteggio di rarità (§16).
+ */
+export function countChangedAxes(
+  previous: MonRecord | null,
+  next: {
+    family: string;
+    archetype: string;
+    affinity: string;
+    fashion: string;
+    eyewear: string | null;
+    voicePreset: string;
+    palettePrimary: string;
+  },
+): number {
+  if (!previous) return 7;
+  const p = previous.data;
+
+  const checks = [
+    p.family !== next.family || p.family_archetype !== next.archetype,
+    p.affinity !== next.affinity,
+    p.character_dna.silhouette_quirk !== undefined, // la silhouette è sempre rigenerata
+    (p.eyewear?.category ?? null) !== next.eyewear,
+    p.fashion !== next.fashion,
+    p.palette_dna.primary !== next.palettePrimary,
+    p.voice_preset !== next.voicePreset,
+  ];
+
+  return checks.filter(Boolean).length;
 }

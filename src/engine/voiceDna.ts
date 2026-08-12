@@ -1,97 +1,122 @@
 /* ============================================================================
-   VOICE DNA (§14) — "Persistent personality/writing genome."
+   VOICE DNA (§13, §14, §44)
 
-   Vincoli canonici:
-   • §2.2 le creature conoscono VINZ ma non lo trattano da dio, padrone o
-     eroe designato. Nessun registro deferente.
-   • §16 ogni .mon campiona solo un sottoinsieme del mondo culturale di VINZ,
-     preferisce i riferimenti impliciti e può non capirne alcuni.
-   • §17 ogni superficie dipendente da AI ha un fallback: le battute prodotte
-     qui sono deterministiche e servono proprio da fallback.
+   §14 — regola vincolante: «A generated .mon may use one preset as a baseline,
+   then mutate every Voice axis. Presets are not classes; two .mon with the
+   same preset must still speak differently.»
+
+   Quindi il preset è solo il punto di partenza: i 12 assi di §13 vengono
+   generati sopra, e le deviazioni marcate alimentano la componente «voice
+   distinctiveness» del punteggio di rarità (§16).
+
+   §28 — vincoli non negoziabili: mai vergogna su corpo, cibo, malattia o
+   stato di salute; nessuna emozione è moralmente migliore di un'altra.
    ========================================================================= */
 
+import {
+  ROLES,
+  VOICE_AXES,
+  VOICE_PRESETS,
+  moodDef,
+  voicePresetDef,
+  type VoiceAxisId,
+} from './generation-config';
 import { pick, pickMany, type Rng } from './rng';
-import type { Mood, Role } from './taxonomy';
-import { MOOD_IT, ROLE_IT } from './taxonomyIt';
 import type { CharacterDna, VoiceDna } from './types';
 
-const REGISTERS = [
-  'diretto e asciutto, poche parole per volta',
-  'caldo ma sempre un po’ in imbarazzo',
-  'tecnico, come se leggesse un referto',
-  'teatrale, calca su ogni frase',
-  'ironico, sposta tutto sulla battuta',
-  'lento e cerimonioso, sceglie le parole',
-  'sovreccitato, parla per elenchi',
-  'laconico, risponde a mezze frasi',
-] as const;
+/* --- Generazione ----------------------------------------------------------- */
 
-const QUIRKS = [
-  'inizia spesso con "Ok."',
-  'ripete l’ultima parola dell’altro',
-  'usa parentesi per i pensieri laterali',
-  'non finisce mai le domande',
-  'numera le cose anche quando non serve',
-  'chiama le cose col loro nome tecnico',
-  'usa il maiuscolo su una parola per frase',
-  'aggiunge sempre una postilla dopo il punto',
-  'risponde con una controdomanda',
-  'usa metafore di corpo e movimento',
-] as const;
+/**
+ * Sceglie il preset in base al Character DNA e poi ne muta i 12 assi.
+ * Un asse che si discosta di oltre 25 punti dalla linea di base del preset
+ * conta come deviazione: sono quelle a rendere due .mon dello stesso preset
+ * riconoscibilmente diversi.
+ */
+export function generateVoiceDna(
+  rng: Rng,
+  dna: CharacterDna,
+  moodPrimary: string,
+): { preset: string; voice: VoiceDna } {
+  const preset = pickPreset(rng, dna, moodPrimary);
+  const baseline = presetBaseline(preset);
 
-/** §2.2: mai "padrone", mai "prescelto". Sono modi da pari. */
-const ADDRESS_FORMS = [
-  'VINZ',
-  'per nome, sempre',
-  '"ehi"',
-  '"tu"',
-  'col cognome di sistema, per scherzo',
-  'senza mai chiamarlo, va dritto al punto',
-] as const;
+  const voice: VoiceDna = {} as VoiceDna;
+  const deviations: string[] = [];
 
-export function generateVoiceDna(rng: Rng, dna: CharacterDna): VoiceDna {
-  // La voce non è indipendente dal carattere: alcuni tratti la piegano.
-  const theatrical = dna.traits.some((t) => t === 'teatrale' || t === 'vanitoso');
-  const withdrawn = dna.traits.some((t) => t === 'schivo' || t === 'diffidente');
+  for (const axis of VOICE_AXES) {
+    const base = baseline[axis.id] ?? 50;
+    // Mutazione ampia: §14 vuole che il preset non determini il personaggio.
+    const mutated = Math.max(0, Math.min(100, Math.round(base + (rng() - 0.5) * 70)));
+    voice[axis.id] = mutated;
+    if (Math.abs(mutated - base) > 25) deviations.push(axis.id);
+  }
 
-  const verbosity = theatrical
-    ? 'expansive'
-    : withdrawn
-      ? 'terse'
-      : pick(rng, ['terse', 'normal', 'normal', 'expansive'] as const);
+  voice.deviations = deviations;
+  return { preset, voice };
+}
 
-  const symbolUse = withdrawn
-    ? pick(rng, ['none', 'rare'] as const)
-    : pick(rng, ['none', 'rare', 'occasional', 'occasional', 'frequent'] as const);
+/** Il preset non è casuale: il carattere e l'umore lo orientano. */
+function pickPreset(rng: Rng, dna: CharacterDna, moodPrimary: string): string {
+  const byMood: Record<string, string[]> = {
+    CUTE: ['SOFT PROTECTOR', 'SWEET MENACE'],
+    GOOFY: ['ABSURD LITTLE FREAK', 'CHAOTIC GEN-Z'],
+    BRIGHT: ['SPORT HYPE', 'CHAOTIC GEN-Z'],
+    AGGRESSIVE: ['COCKY RIVAL', 'SPORT HYPE'],
+    CHAOTIC: ['CHAOTIC GEN-Z', 'ABSURD LITTLE FREAK'],
+    SAD: ['GOTH POET', 'SILENT STOIC'],
+    MYSTERIOUS: ['MYSTERY SIGNAL', 'OLD-SOUL ORACLE'],
+    WATCHFUL: ['DEADPAN FILE', 'NERD TERMINAL'],
+    SEDUCTIVE: ['STREET FLIRT', 'CAMP ICON'],
+    FLIRTY: ['STREET FLIRT', 'CAMP ICON'],
+    FERAL: ['SWEET MENACE', 'COCKY RIVAL'],
+    AFFECTIONATE: ['SOFT PROTECTOR', 'CAMP ICON'],
+    ALLURING: ['CAMP ICON', 'ART SNOB'],
+    STOIC: ['SILENT STOIC', 'DEADPAN FILE'],
+    CALM: ['OLD-SOUL ORACLE', 'SILENT STOIC'],
+    CREEPY: ['MYSTERY SIGNAL', 'CORPORATE DEMON'],
+  };
+
+  const candidates = byMood[moodPrimary] ?? VOICE_PRESETS.map((p) => p.id);
+
+  // I tratti possono scavalcare l'umore: un .mon teatrale parla teatrale
+  // anche quando è triste.
+  if (dna.traits.includes('teatrale') && rng() < 0.5) return 'CAMP ICON';
+  if (dna.traits.includes('tecnico') && rng() < 0.5) return 'NERD TERMINAL';
+
+  return pick(rng, candidates);
+}
+
+/** Linea di base per asse, derivata dal tono descritto in §14. */
+function presetBaseline(presetId: string): Partial<Record<VoiceAxisId, number>> {
+  const tone = voicePresetDef(presetId).tone.toLowerCase();
+
+  const has = (...words: string[]) => words.some((w) => tone.includes(w));
 
   return {
-    register: pick(rng, REGISTERS),
-    verbosity,
-    quirks: pickMany(rng, QUIRKS, 2),
-    symbolUse,
-    addressesVinzAs: pick(rng, ADDRESS_FORMS),
+    temperament: has('high energy', 'fast', 'competitive') ? 78 : has('low energy', 'sparse', 'very low') ? 22 : 50,
+    relationship: has('warm', 'protective', 'affectionate') ? 78 : has('provocative', 'competitive') ? 35 : 50,
+    humor: has('deadpan', 'dry') ? 30 : has('camp', 'nonsense', 'absurd') ? 82 : 50,
+    writing: has('short', 'sparse', 'low verbosity', 'fragments') ? 25 : has('theatrical', 'dramatic') ? 75 : 50,
+    lexicon: has('technical', 'sophisticated', 'corporate') ? 80 : has('slang', 'gen-z', 'street') ? 25 : 50,
+    language: has('gen-z', 'internet', 'street') ? 72 : 45,
+    digitalArtifacts: has('file', 'error', 'percentages', 'terminal', 'metadata') ? 85 : 20,
+    emotion: has('warm', 'high energy', 'dramatic') ? 72 : has('restrained', 'low energy', 'cold') ? 25 : 50,
+    rituals: has('catchphrase', 'ritual', 'celebration') ? 70 : 45,
+    // §28 — i confini non si mutano verso il basso: restano alti per tutti.
+    boundaries: 95,
+    evolution: 50,
+    bond: has('remembers', 'callbacks', 'complicity') ? 78 : 45,
   };
 }
 
-/* --- Battute di fallback (§17) ---------------------------------------------
-   Testi deterministici, costruiti dal Voice DNA e dal Character DNA. Non
-   inventano lore estranea (§8.1) e non fanno namedrop culturale (§16).
-   Quando esisterà un servizio di generazione, sostituirà queste righe senza
-   cambiare il contratto: stessa firma, stesso punto di innesto.
-   -------------------------------------------------------------------------- */
+/* ============================================================================
+   TESTI DI FALLBACK (MASTER SPEC §17)
+   Ogni superficie che dipenderà da un'AI ha un fallback deterministico. Nel
+   prototipo queste righe SONO quel fallback.
 
-const GREETINGS_BY_MOOD: Record<Mood, string[]> = {
-  FOCUSED: ['Sono già sul pezzo.', 'Dimmi, ma veloce.', 'Stavo misurando una cosa.'],
-  RESTLESS: ['Non riesco a stare fermo oggi.', 'Andiamo da qualche parte?', 'Ho troppa roba addosso.'],
-  WARM: ['Eccoti.', 'Mi mancavi, lo ammetto.', 'Bello vederti qui.'],
-  GUARDED: ['Ok. Che c’è?', 'Non ho molto da dire adesso.', 'Sono qui, comunque.'],
-  ELATED: ['Oggi funziona tutto!', 'Guardami: sono al massimo.', 'Facciamo qualcosa di grosso.'],
-  FLAT: ['Ci sono.', 'Niente di nuovo.', 'Va come deve andare.'],
-  WIRED: ['Sento tutto amplificato oggi.', 'Troppo segnale, troppo.', 'Non riesco ad abbassare il volume.'],
-  TENDER: ['Stavo pensando a te.', 'Piano, oggi.', 'Ti va di stare un attimo fermi?'],
-  SARCASTIC: ['Ah, sei tornato.', 'Che onore.', 'Stavo giusto per non aspettarti.'],
-  DEPLETED: ['Oggi sono scarico.', 'Ho poco da dare.', 'Riposo, se per te va bene.'],
-};
+   Le cornici non ospitano mai un descrittore dove serve accordo di articolo,
+   genere o persona: si introduce con i due punti.
+   ========================================================================= */
 
 const OBSERVATIONS = [
   'Il tuo recupero sta salendo. Si vede anche da fuori.',
@@ -102,31 +127,75 @@ const OBSERVATIONS = [
   'Qualcosa è cambiato nella forma. Ancora poco, ma c’è.',
 ];
 
-/** Saluto di apertura conversazione. Deterministico dal seed della giornata. */
-export function fallbackGreeting(rng: Rng, mood: Mood, voice: VoiceDna): string {
-  const base = pick(rng, GREETINGS_BY_MOOD[mood]);
-  if (voice.verbosity === 'terse') return base;
-  if (voice.verbosity === 'expansive') return `${base} ${pick(rng, OBSERVATIONS)}`;
+const GREETINGS: Record<string, string[]> = {
+  CUTE: ['Eccoti!', 'Ti stavo aspettando.'],
+  GOOFY: ['Ops. Ciao.', 'Stavo facendo una cosa. Non chiedere.'],
+  BRIGHT: ['Oggi funziona tutto.', 'Pronto quando vuoi.'],
+  AGGRESSIVE: ['Allora?', 'Muoviti.'],
+  CHAOTIC: ['Ho tre cose da dirti e nessuna in ordine.', 'CIAO. Scusa il volume.'],
+  SAD: ['Ci sono.', 'Oggi poco, ma ci sono.'],
+  MYSTERIOUS: ['Sapevo che saresti passato.', 'Non chiedermelo adesso.'],
+  WATCHFUL: ['Ti ho visto arrivare.', 'Stavo controllando una cosa.'],
+  SEDUCTIVE: ['Guarda chi si vede.', 'Con calma.'],
+  FLIRTY: ['Ah, sei tu.', 'Che onore.'],
+  FERAL: ['Andiamo. Ora.', 'Ho troppa energia addosso.'],
+  AFFECTIONATE: ['Mi mancavi, lo ammetto.', 'Bello vederti.'],
+  ALLURING: ['Eccoci.', 'Ti aspettavo, con eleganza.'],
+  STOIC: ['Ci sono.', 'Dimmi.'],
+  CALM: ['Tutto tranquillo.', 'Piano, oggi.'],
+  CREEPY: ['Sapevo l’ora esatta.', 'Sei arrivato con due minuti di ritardo.'],
+};
+
+export function fallbackGreeting(rng: Rng, moodPrimary: string, voice: VoiceDna): string {
+  const base = pick(rng, GREETINGS[moodPrimary] ?? ['Ci sono.']);
+  const verbosity = voice.writing ?? 50;
+  if (verbosity < 30) return base;
+  if (verbosity > 70) return `${base} ${pick(rng, OBSERVATIONS)}`;
   return base;
 }
 
-/**
- * Risposta di fallback a un messaggio dell'utente.
- *
- * NB sulle cornici: `MOOD_IT` e `ROLE_IT` sono sintagmi nominali e descrizioni
- * in terza persona, quindi vanno introdotti con i due punti. Infilarli dentro
- * la frase produceva «Intanto sono postura contenuta» e «Lo registro. si muove
- * per primo — è quello che faccio»: la cornice deve reggere qualunque parola,
- * perché le liste cambieranno.
- */
-export function fallbackReply(rng: Rng, mood: Mood, voice: VoiceDna, role: Role): string {
+export function fallbackReply(
+  rng: Rng,
+  moodPrimary: string,
+  voice: VoiceDna,
+  role: string,
+): string {
   const shapes = [
     `Ricevuto. ${pick(rng, OBSERVATIONS)}`,
-    `Ci penso. Intanto sto così: ${MOOD_IT[mood]}.`,
+    `Ci penso. Intanto sto così: ${moodDef(moodPrimary).it}.`,
     pick(rng, OBSERVATIONS),
-    `Lo registro. Il mio mestiere è questo: ${ROLE_IT[role]}.`,
+    `Lo registro. Il mio mestiere è questo: ${roleIt(role)}.`,
   ];
 
   const text = pick(rng, shapes);
-  return voice.verbosity === 'terse' ? text.split('.')[0]! + '.' : text;
+  return (voice.writing ?? 50) < 30 ? `${text.split('.')[0]!}.` : text;
+}
+
+function roleIt(role: string): string {
+  return ROLES.find((r) => r.id === role)?.it ?? role.toLowerCase();
+}
+
+/** Reazioni testuali finché il Reaction Pack non è importato (§45). */
+export function generateReactions(rng: Rng, moodPrimary: string): string[] {
+  const base = ['sì', 'no', 'boh', 'ottimo', 'aspetta', 'di nuovo?'];
+  const byMood: Record<string, string[]> = {
+    CUTE: ['si avvicina', 'fa gli occhi grandi'],
+    GOOFY: ['inciampa', 'ride di sé'],
+    BRIGHT: ['alza le braccia', 'salta sul posto'],
+    AGGRESSIVE: ['si irrigidisce', 'fa un passo avanti'],
+    CHAOTIC: ['gira su sé stesso', 'parla sopra'],
+    SAD: ['si siede', 'abbassa la testa'],
+    MYSTERIOUS: ['non risponde', 'guarda altrove'],
+    WATCHFUL: ['inclina la testa', 'segue con lo sguardo'],
+    SEDUCTIVE: ['sposta il peso', 'sorride appena'],
+    FLIRTY: ['alza un sopracciglio', 'applausi lenti'],
+    FERAL: ['scatta', 'scuote tutto il corpo'],
+    AFFECTIONATE: ['appoggia la testa', 'resta vicino'],
+    ALLURING: ['posa', 'sostiene lo sguardo'],
+    STOIC: ['annuisce una volta', 'niente'],
+    CALM: ['respira piano', 'resta fermo'],
+    CREEPY: ['sorride troppo a lungo', 'si avvicina di un passo'],
+  };
+
+  return [...pickMany(rng, base, 3), ...(byMood[moodPrimary] ?? [])];
 }

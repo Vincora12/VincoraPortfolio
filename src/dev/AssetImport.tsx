@@ -75,7 +75,7 @@ export function AssetImport() {
   };
 
   const resolvedCount = ASSET_TYPES.filter(
-    (a) => mon.data.assetStatus[a.type] === 'resolved',
+    (a) => mon.data.asset_manifest_status[a.type] === 'resolved',
   ).length;
 
   return (
@@ -187,7 +187,7 @@ export function AssetImport() {
       <p className="t-meta dev__label">SLOT</p>
       <div className="rowlist">
         {ASSET_TYPES.map((a) => {
-          const resolved = mon.data.assetStatus[a.type] === 'resolved';
+          const resolved = mon.data.asset_manifest_status[a.type] === 'resolved';
           return (
             <Row
               key={a.type}

@@ -12,7 +12,7 @@ import { useApp, useActiveMon } from '../state/store';
 import { AssetSlot } from '../system/AssetSlot';
 import { MonName } from '../system/MonName';
 import { IconButton, SystemLabel } from '../system/components';
-import { heritageKindLabel } from '../engine/heritage';
+import { heritageCategoryLabel } from '../engine/heritage';
 import { displayName } from '../engine/types';
 import { t } from '../i18n/it';
 
@@ -24,7 +24,7 @@ export function HeritageDnaScreen({ onClose }: { onClose: () => void }) {
 
   const d = mon.data;
   const short = displayName(d.name);
-  const fromName = d.heritage[0]?.fromMon;
+  const fromName = d.heritage_traits[0]?.from_mon;
   const fromMon = fromName ? mons[fromName] : undefined;
 
   return (
@@ -39,7 +39,7 @@ export function HeritageDnaScreen({ onClose }: { onClose: () => void }) {
       </header>
 
       <div className="screen__body heritage__body">
-        {d.heritage.length === 0 ? (
+        {d.heritage_traits.length === 0 ? (
           <p className="t-small specimen__empty">{t.heritage.none}</p>
         ) : (
           <>
@@ -93,16 +93,16 @@ export function HeritageDnaScreen({ onClose }: { onClose: () => void }) {
             </div>
 
             <p className="t-small heritage__lead">
-              {d.heritage.length === 1
+              {d.heritage_traits.length === 1
                 ? '1 tratto ha attraversato la deviazione.'
-                : `${d.heritage.length} tratti hanno attraversato la deviazione.`}{' '}
+                : `${d.heritage_traits.length} tratti hanno attraversato la deviazione.`}{' '}
               Nessuno è stato copiato: ognuno è stato riscritto nell'anatomia {d.family}.
             </p>
 
             <ul className="stack heritage__traits">
-              {d.heritage.map((h) => (
+              {d.heritage_traits.map((h) => (
                 <li key={h.id} className="dnacard">
-                  <SystemLabel tone="character">{heritageKindLabel(h.kind)}</SystemLabel>
+                  <SystemLabel tone="character">{heritageCategoryLabel(h.category)}</SystemLabel>
 
                   <div className="dnacard__side">
                     <span className="t-micro dnacard__tag">{t.heritage.was}</span>

@@ -15,7 +15,7 @@ import { useApp, useActiveMon } from '../state/store';
 import { AssetSlot } from '../system/AssetSlot';
 import { MonName } from '../system/MonName';
 import { Button, ScreenHead, SystemLabel } from '../system/components';
-import { heritageKindLabel } from '../engine/heritage';
+import { heritageCategoryLabel } from '../engine/heritage';
 import { displayName } from '../engine/types';
 import { t } from '../i18n/it';
 
@@ -50,7 +50,7 @@ export function NewBranchScreen() {
               <MonName name={mon.data.name} />
             </p>
             <p className="t-micro branch__form">
-              {mon.data.evolutionState?.label ?? 'BASIC FORM'}
+              {mon.data.evolution_state?.label ?? 'BASIC FORM'}
             </p>
           </div>
         </div>
@@ -61,7 +61,7 @@ export function NewBranchScreen() {
         <ul className="branch__traits">
           {pending.map((h) => (
             <li key={h.id} className="traitcard">
-              <SystemLabel tone="character">{heritageKindLabel(h.kind)}</SystemLabel>
+              <SystemLabel tone="character">{heritageCategoryLabel(h.category)}</SystemLabel>
               <p className="traitcard__origin t-small">{h.origin}</p>
               <p className="traitcard__arrow t-micro">
                 → si tradurrà nell'anatomia del prossimo .mon

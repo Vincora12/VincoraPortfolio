@@ -36,7 +36,7 @@ export function BatchGenerator() {
     // esclusi gli assi di styling: due candidati con lo stesso concetto sono
     // di fatto la stessa idea.
     const concepts = new Set(
-      batch.map((c) => [c.family, c.familyArchetype, c.affinity, c.size, c.role].join('|')),
+      batch.map((c) => [c.family, c.archetype, c.affinity, c.size, c.role].join('|')),
     );
 
     const names = batch.map((c) => c.name);
@@ -121,7 +121,7 @@ export function BatchGenerator() {
                 <li key={c.name + c.seed} className="batch__item">
                   <span className="batch__name t-display">{c.name}</span>
                   <span className="t-micro">
-                    {c.family}/{c.familyArchetype} · {c.affinity} · {c.size} · {c.role} ·{' '}
+                    {c.family}/{c.archetype} · {c.affinity} · {c.size} · {c.role} ·{' '}
                     {c.appearance}
                   </span>
                   <span className="batch__tags">

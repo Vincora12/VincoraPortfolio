@@ -34,7 +34,7 @@ export function CompanionHomeScreen({ onGo }: { onGo: (o: Overlay) => void }) {
 
   const d = mon.data;
   const short = displayName(d.name);
-  const form = d.evolutionState?.label ?? 'BASIC FORM';
+  const form = d.evolution_state?.label ?? 'BASIC FORM';
   const syncFull = progression.evolutionSync >= 1;
 
   const submit = () => {
@@ -94,6 +94,7 @@ export function CompanionHomeScreen({ onGo }: { onGo: (o: Overlay) => void }) {
           <IconButton icon="dna" label="Apri la bio" light small onClick={() => onGo('bio')} />
           <IconButton icon="sticker" label="Apri le memorie" light small onClick={() => onGo('memories')} />
           <IconButton icon="camera" label="Apri gli input" light small onClick={() => onGo('input')} />
+          <IconButton icon="scan" label="Apri il daily scan" light small onClick={() => onGo('scan')} />
         </div>
       </div>
 

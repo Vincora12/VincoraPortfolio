@@ -13,7 +13,6 @@ import { useApp, useActiveMon } from '../state/store';
 import { AssetSlot, Sigil } from '../system/AssetSlot';
 import { MonName } from '../system/MonName';
 import { Button, SystemLabel } from '../system/components';
-import { APPEARANCE_LABELS } from '../engine/taxonomy';
 import { displayName } from '../engine/types';
 import { t } from '../i18n/it';
 
@@ -25,7 +24,7 @@ export function EncounterScreen({ variant }: { variant: 'first' | 'new' }) {
 
   const d = mon.data;
   const short = displayName(d.name);
-  const form = d.evolutionState?.label ?? 'BASIC FORM';
+  const form = d.evolution_state?.label ?? 'BASIC FORM';
 
   return (
     <div className="screen screen--ink encounter">
@@ -54,15 +53,15 @@ export function EncounterScreen({ variant }: { variant: 'first' | 'new' }) {
           <SystemLabel tone="character">{d.rarity}</SystemLabel>
           <SystemLabel>{d.affinity}</SystemLabel>
           <SystemLabel>{d.family}</SystemLabel>
-          <SystemLabel>{APPEARANCE_LABELS[d.appearance]}</SystemLabel>
+          <SystemLabel>{d.appearance}</SystemLabel>
         </div>
 
         {/* §13 di §12: al branch i tratti ereditati vanno mostrati. Qui la
             nuova identità esiste già, quindi si può dire da dove viene. */}
-        {d.heritage.length > 0 && (
+        {d.heritage_traits.length > 0 && (
           <p className="t-small encounter__heritage">
-            Porta {d.heritage.length} {d.heritage.length === 1 ? 'tratto' : 'tratti'} da{' '}
-            {displayName(d.heritage[0]!.fromMon)}.
+            Porta {d.heritage_traits.length} {d.heritage_traits.length === 1 ? 'tratto' : 'tratti'} da{' '}
+            {displayName(d.heritage_traits[0]!.from_mon)}.
           </p>
         )}
 

@@ -19,14 +19,16 @@ import type { StatKey } from '../engine/types';
 import { ASSET_TYPES } from '../engine/assets';
 import { BatchGenerator } from './BatchGenerator';
 import { AssetImport } from './AssetImport';
+import { PromptPreview } from './PromptPreview';
 
-type DevTab = 'time' | 'signals' | 'mindline' | 'generate' | 'assets' | 'economy';
+type DevTab = 'time' | 'signals' | 'mindline' | 'generate' | 'prompt' | 'assets' | 'economy';
 
 const TABS = [
   { id: 'time' as const, label: 'TEMPO' },
   { id: 'signals' as const, label: 'SEGNALI' },
   { id: 'mindline' as const, label: 'MINDLINE' },
   { id: 'generate' as const, label: 'GENERA' },
+  { id: 'prompt' as const, label: 'PROMPT' },
   { id: 'assets' as const, label: 'ASSET' },
   { id: 'economy' as const, label: 'ECONOMIA' },
 ];
@@ -51,6 +53,7 @@ export function DevPanel({ onClose }: { onClose: () => void }) {
         {tab === 'signals' && <SignalsSection />}
         {tab === 'mindline' && <MindlineSection onClose={onClose} />}
         {tab === 'generate' && <GenerateSection />}
+        {tab === 'prompt' && <PromptPreview />}
         {tab === 'assets' && <AssetsSection />}
         {tab === 'economy' && <EconomySection />}
       </div>
@@ -257,7 +260,7 @@ function MindlineSection({ onClose }: { onClose: () => void }) {
   const resetAll = useApp((s) => s.resetAll);
   const activeMonName = useApp((s) => s.activeMonName);
 
-  const activeNodeId = activeMonName ? mons[activeMonName]?.data.mindlineNodeId : null;
+  const activeNodeId = activeMonName ? mons[activeMonName]?.data.mindline_node : null;
 
   return (
     <div className="dev__section">
@@ -277,6 +280,16 @@ function MindlineSection({ onClose }: { onClose: () => void }) {
           onChange={(e) => setDev({ forceBranch: e.target.checked })}
         />
         FORZA BRANCH / NEW SIGNAL
+      </label>
+      {/* §25 DEV://UNLOCK_ALL — «For testing only; must never leak to
+          production behavior.» Sblocca tutti i livelli di rarità. */}
+      <label className="dev__check">
+        <input
+          type="checkbox"
+          checked={dev.unlockAll}
+          onChange={(e) => setDev({ unlockAll: e.target.checked })}
+        />
+        DEV://UNLOCK_ALL — tutti i livelli di rarità
       </label>
 
       {/* Un'azione DEV che porta a una schermata di prodotto chiude il
@@ -328,45 +341,123 @@ function MindlineSection({ onClose }: { onClose: () => void }) {
 
 function GenerateSection() {
   const mon = useActiveMon();
-  const lastRarity = useApp((s) => s.lastRarity);
+  const trace = useApp((s) => s.lastTrace);
   const [showJson, setShowJson] = useState(false);
 
   return (
     <div className="dev__section">
       <BatchGenerator />
 
-      {/* §20.1 — "Expose generated Character Data, rarity math, Heritage
-          selection and asset status for QA." */}
-      {lastRarity && (
+      {/* §29 — «The prototype must expose a GENERATION TRACE in DEV only
+          showing scores, penalties, chosen pool, rarity normalization and
+          final random seed.» §29 vieta di mostrarla in produzione. */}
+      {trace && (
         <>
-          <p className="t-meta dev__label">MATEMATICA DELLA RARITÀ</p>
+          <p className="t-meta dev__label">GENERATION TRACE (§24)</p>
+          <p className="t-micro dev__note">
+            seed {trace.seed} · config {trace.generation_config_version}
+          </p>
+
           <div className="rowlist">
-            {lastRarity.factors.map((f) => (
+            {trace.steps.map((s) => (
               <Row
-                key={f.label}
-                label={f.label}
+                key={`${s.step}-${s.stage}`}
+                label={`${String(s.step).padStart(2, '0')} ${s.stage}`}
                 value={
                   <span className="dev__factor">
-                    <strong>+{f.contribution.toFixed(2)}</strong>
-                    <em className="t-micro">{f.detail}</em>
+                    <strong>{s.outcome}</strong>
+                    {s.note && <em className="t-micro">{s.note}</em>}
+                  </span>
+                }
+              />
+            ))}
+          </div>
+
+          {/* §17 — i punteggi di fit per Family, con penalità e rumore.
+              È esattamente ciò che il giocatore non deve mai vedere. */}
+          {trace.steps
+            .filter((s) => s.candidates && s.candidates.length > 0)
+            .map((s) => (
+              <div key={`cand-${s.step}`}>
+                <p className="t-meta dev__label">CANDIDATI — {s.stage}</p>
+                <div className="rowlist">
+                  {s.candidates!.map((c) => (
+                    <Row
+                      key={c.id}
+                      label={`${c.chosen ? '▸ ' : '  '}${c.id}`}
+                      value={
+                        <span className="dev__factor">
+                          <strong>{c.total.toFixed(1)}</strong>
+                          <em className="t-micro">
+                            fit {c.fit.toFixed(1)} · novità {c.noveltyPenalty} · cultura{' '}
+                            {c.culturalModifier.toFixed(1)} · rumore {c.noise.toFixed(1)}
+                          </em>
+                        </span>
+                      }
+                    />
+                  ))}
+                </div>
+              </div>
+            ))}
+
+          <p className="t-meta dev__label">RARITÀ — PUNTEGGIO (§16)</p>
+          <div className="rowlist">
+            {trace.rarity.breakdown.map((b) => (
+              <Row
+                key={b.component}
+                label={b.component.toUpperCase()}
+                value={
+                  <span className="dev__factor">
+                    <strong>
+                      {b.points.toFixed(1)} / {b.max}
+                    </strong>
+                    <em className="t-micro">{b.it}</em>
                   </span>
                 }
               />
             ))}
             <Row
-              label="PUNTEGGIO"
-              value={`${lastRarity.score.toFixed(2)} → ${lastRarity.rarity}`}
+              label="TOTALE"
+              value={`${trace.rarity.score}/100 → tetto ${trace.rarity.cap}`}
             />
+          </div>
+
+          {/* §26 — normalizzazione: la quota dei livelli bloccati viene
+              ridistribuita, non persa. */}
+          <p className="t-meta dev__label">RARITÀ — POOL (§26)</p>
+          <div className="rowlist">
+            <Row
+              label="SBLOCCATI"
+              value={trace.rarity.unlockedPool
+                .map((p) => `${p.rarity} ${p.chance.toFixed(1)}%`)
+                .join(' · ')}
+            />
+            <Row
+              label="DOPO IL TETTO"
+              value={trace.rarity.eligiblePool
+                .map((p) => `${p.rarity} ${p.chance.toFixed(1)}%`)
+                .join(' · ')}
+            />
+            <Row label="ESTRATTA" value={trace.rarity.rolled} />
           </div>
         </>
       )}
 
-      {mon && mon.data.heritage.length > 0 && (
+      {mon && mon.data.heritage_traits.length > 0 && (
         <>
-          <p className="t-meta dev__label">SELEZIONE HERITAGE</p>
+          <p className="t-meta dev__label">SELEZIONE HERITAGE (§23)</p>
           <div className="rowlist">
-            {mon.data.heritage.map((h) => (
-              <Row key={h.id} label={h.kind.toUpperCase()} value={`${h.origin} → ${h.transformed}`} />
+            {mon.data.heritage_traits.map((h) => (
+              <Row
+                key={h.id}
+                label={h.category.toUpperCase()}
+                value={
+                  <span className="dev__factor">
+                    <strong>{h.transformed}</strong>
+                    <em className="t-micro">era: {h.origin}</em>
+                  </span>
+                }
+              />
             ))}
           </div>
         </>
@@ -404,7 +495,7 @@ function AssetsSection() {
                 key={a.type}
                 label={a.label}
                 value={
-                  mon.data.assetStatus[a.type] === 'resolved' ? (
+                  mon.data.asset_manifest_status[a.type] === 'resolved' ? (
                     <SystemLabel tone="positive">RISOLTO</SystemLabel>
                   ) : (
                     <SystemLabel tone="warning">WAITING</SystemLabel>

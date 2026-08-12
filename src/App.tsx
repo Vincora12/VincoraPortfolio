@@ -12,7 +12,7 @@
 
 import { useEffect, useState } from 'react';
 import { useApp, type Phase } from './state/store';
-import { applyColorDna } from './engine/colorDna';
+import { applyPaletteDna } from './engine/colorDna';
 import { preloadMonAssets } from './assets-pipeline/assetStore';
 import { Icon } from './system/Icon';
 import { t } from './i18n/it';
@@ -31,6 +31,7 @@ import { MindlineMapScreen } from './screens/MindlineMap';
 import { HeritageDnaScreen } from './screens/HeritageDna';
 import { MemoriesScreen } from './screens/Memories';
 import { HistoryScreen } from './screens/History';
+import { DailyScanScreen } from './screens/DailyScan';
 import { DevPanel } from './dev/DevPanel';
 
 export type Tab = 'mon' | 'me' | 'mindline';
@@ -42,6 +43,7 @@ export type Overlay =
   | 'history'
   | 'heritage'
   | 'input'
+  | 'scan'
   | 'dev';
 
 /** Le fasi su campo nero, lette dal board. */
@@ -50,8 +52,8 @@ const INK_PHASES: Phase[] = ['incubation', 'first-encounter', 'branch', 'new-enc
 export function App() {
   const phase = useApp((s) => s.phase);
   const activeMonName = useApp((s) => s.activeMonName);
-  const colorDna = useApp((s) =>
-    s.activeMonName ? (s.mons[s.activeMonName]?.data.colorDna ?? null) : null,
+  const paletteDna = useApp((s) =>
+    s.activeMonName ? (s.mons[s.activeMonName]?.data.palette_dna ?? null) : null,
   );
   const devEnabled = useApp((s) => s.dev.enabled);
   const setDev = useApp((s) => s.setDev);
@@ -61,8 +63,8 @@ export function App() {
 
   // §10.2 — cambiare .mon ritematizza gli accenti senza toccare l'architettura.
   useEffect(() => {
-    applyColorDna(colorDna);
-  }, [colorDna]);
+    applyPaletteDna(paletteDna);
+  }, [paletteDna]);
 
   // Gli asset importati vivono in IndexedDB: vanno ricaricati a ogni avvio.
   useEffect(() => {
@@ -162,6 +164,8 @@ function OverlayScreen({
       return <HeritageDnaScreen onClose={onClose} />;
     case 'input':
       return <UniversalInputScreen onClose={onClose} />;
+    case 'scan':
+      return <DailyScanScreen onClose={onClose} />;
     case 'dev':
       return <DevPanel onClose={onClose} />;
   }

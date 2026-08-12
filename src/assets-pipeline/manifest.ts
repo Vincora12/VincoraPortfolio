@@ -98,9 +98,9 @@ export function buildManifest(record: MonRecord): AssetManifest {
 
   return {
     mon: record.data.name,
-    mindline_node: record.data.mindlineNodeId,
+    mindline_node: record.data.mindline_node,
     appearance: record.data.appearance,
-    generated_at_day: record.data.generatedAtDay,
+    generated_at_day: record.data.generated_at_day,
     manifest_version: '1.2',
     assets,
   };

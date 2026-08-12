@@ -1,127 +1,242 @@
 /* ============================================================================
-   RARITÀ (§4, §18)
+   RARITÀ (§15, §16, §25, §26)
 
-   ┌───────────────────────────────────────────────────────────────────────┐
-   │  PROVISIONAL — NOT CANONICAL                                          │
-   │  §18 marca 🟡 "rarity weighting". Pesi e soglie qui sotto sono una     │
-   │  proposta di lavoro, regolabile a runtime dal pannello DEV.           │
-   └───────────────────────────────────────────────────────────────────────┘
+   Tre meccanismi distinti, che è facile confondere:
 
-   §4: la rarità è "rarity of the specific generated CONFIGURATION/OUTCOME",
-   non una proprietà appiccicata a una Family. Quindi non si estrae: si
-   CALCOLA da quanto è improbabile la combinazione uscita.
-   Il calcolo è ispezionabile in DEV (§20.1: "expose ... rarity math").
+   1. SBLOCCO (§15/§25) — quali livelli sono in gioco, in base a Mindline
+      Depth, Bond, Data Confidence, giorni attivi, branch e trigger nascosto.
+   2. NORMALIZZAZIONE (§26) — la probabilità dei livelli bloccati viene
+      RIDISTRIBUITA proporzionalmente su quelli sbloccati. Non va persa.
+   3. PUNTEGGIO (§16) — le sette componenti danno 0–100, che è un **TETTO**,
+      non una garanzia: il tiro pesato avviene comunque fra i livelli
+      eleggibili.
+
+   §15 — «Rarity is not power. A COMMON may be more visually appealing or
+   emotionally important than a MYTHIC.»
+   §15 — «The generator never exposes exact hidden trigger logic to the player.»
    ========================================================================= */
 
-import { RARITY_THRESHOLDS, type Rarity } from './taxonomy';
-import type { CharacterData } from './types';
+import {
+  RARITY_SCORE_COMPONENTS,
+  RARITY_TIERS,
+  type Rarity,
+  type RarityScoreComponentId,
+  type RarityTierDef,
+} from './generation-config';
+import type { Rng } from './rng';
 
-/** Contributo di un singolo fattore al punteggio, mostrato in DEV. */
-export interface RarityFactor {
-  label: string;
-  /** Contributo 0–1, già pesato. */
-  contribution: number;
-  /** Spiegazione leggibile per la vista di QA. */
-  detail: string;
+/* --- 1. Sblocco (§15, §25) ------------------------------------------------- */
+
+export interface UnlockContext {
+  mindlineDepth: number;
+  bond: number;
+  dataConfidence: number;
+  activeDays: number;
+  branchCount: number;
+  /** §15 — trigger nascosto per SINGULAR. Mai esposto al giocatore. */
+  hiddenTriggerFired: boolean;
+  /** §25 DEV://UNLOCK_ALL — solo in dev mode; §29 lo vieta in produzione. */
+  devUnlockAll?: boolean;
 }
 
-export interface RarityBreakdown {
-  score: number;
+export function isTierUnlocked(tier: RarityTierDef, ctx: UnlockContext): boolean {
+  if (ctx.devUnlockAll) return true;
+  if (!tier.unlock) return true;
+
+  const u = tier.unlock;
+
+  // §15 UNCOMMON: «Mindline Depth ≥ 2 OR 7 verified active days» — è un OR,
+  // ed è l'unico gate del documento che non sia una congiunzione.
+  if (u.minDepth !== undefined && u.minActiveDays !== undefined) {
+    return ctx.mindlineDepth >= u.minDepth || ctx.activeDays >= u.minActiveDays;
+  }
+
+  if (u.minDepth !== undefined && ctx.mindlineDepth < u.minDepth) return false;
+  if (u.minBond !== undefined && ctx.bond < u.minBond) return false;
+  if (u.minDataConfidence !== undefined && ctx.dataConfidence < u.minDataConfidence) return false;
+  if (u.minBranches !== undefined && ctx.branchCount < u.minBranches) return false;
+  if (u.hiddenTrigger && !ctx.hiddenTriggerFired) return false;
+
+  return true;
+}
+
+export function unlockedTiers(ctx: UnlockContext): RarityTierDef[] {
+  return RARITY_TIERS.filter((t) => isTierUnlocked(t, ctx));
+}
+
+/* --- 2. Normalizzazione (§26) ----------------------------------------------
+   Funzione pura e verificabile: le tabelle di §26 sono il test.
+   -------------------------------------------------------------------------- */
+
+export interface PoolEntry {
   rarity: Rarity;
-  factors: RarityFactor[];
+  /** Percentuale normalizzata 0–100. */
+  chance: number;
 }
 
-/* Coppie Family × Affinity che chiedono una trasformazione anatomica insolita:
-   più il materiale contraddice l'anatomia, più la configurazione è rara. */
-const TENSION_PAIRS: Record<string, string[]> = {
-  ANGEL: ['CHROME', 'BONE', 'CERAMIC'],
-  BEAST: ['GLASS', 'PAPER', 'NEON'],
-  INSECT: ['VELVET', 'LIQUID'],
-  AQUATIC: ['PAPER', 'SMOKE', 'CERAMIC'],
-  REPTILE: ['GLASS', 'VELVET'],
-  AVIAN: ['CHROME', 'MAGNETIC'],
-  CONSTRUCT: ['LIQUID', 'SMOKE', 'VELVET'],
-  PLANT: ['CHROME', 'STATIC', 'NEON'],
-  SPECTRE: ['CERAMIC', 'BONE'],
-  AMORPHOUS: ['BONE', 'PAPER'],
+/**
+ * Ridistribuisce proporzionalmente la quota dei livelli bloccati.
+ * §26: con COMMON + UNCOMMON si ottiene 64,0 / 36,0; aggiungendo RARE
+ * 53,3 / 30,0 / 16,7; e così via fino a 48/27/15/7/2,5/0,5.
+ */
+export function normalizePool(tiers: readonly RarityTierDef[]): PoolEntry[] {
+  const total = tiers.reduce((s, t) => s + t.baseChance, 0);
+  if (total === 0) return [];
+  return tiers.map((t) => ({ rarity: t.id, chance: (t.baseChance / total) * 100 }));
+}
+
+/* --- 3. Punteggio (§16) ----------------------------------------------------- */
+
+export interface RarityScoreInput {
+  /** Quanti assi sono cambiati rispetto ai nodi recenti, su 5 osservati. */
+  freshAxes: number;
+  /** L'Affinity coincide con la Family: ridondanza, non tensione (§19). */
+  affinityEqualsFamily: boolean;
+  /** Combinazione taglia/ruolo controcorrente. */
+  sizeRoleTension: boolean;
+  /** Archetipo raro dentro la sua Family. */
+  rareArchetype: boolean;
+  /** 0–100: quanto i segnali recenti sono un pattern e non rumore. */
+  dataConfidence: number;
+  /** Varianza dei segnali: un profilo piatto non è distintivo. */
+  signalSpread: number;
+  heritageCount: number;
+  /** Tratti ereditati davvero tradotti, non copiati. */
+  heritageTranslated: number;
+  /** Assi di voce che deviano dal preset di partenza (§14). */
+  voiceDeviations: number;
+  /** Categoria di ottica non usata di recente. */
+  freshEyewear: boolean;
+  freshSilhouette: boolean;
+  /** §16 — traguardo, ricorrenza o pattern raro. */
+  hiddenEvent: boolean;
+}
+
+export type RarityScoreBreakdown = {
+  component: RarityScoreComponentId;
+  points: number;
+  max: number;
+  it: string;
 };
 
-/** Ruoli che contraddicono la taglia: un GIANT SCOUT è una configurazione strana. */
-const SIZE_ROLE_TENSION: Record<string, string[]> = {
-  TINY: ['GUARD', 'BUILDER'],
-  GIANT: ['SCOUT', 'TRICKSTER'],
-  MEDIUM: [],
-};
+export interface RarityScoreResult {
+  score: number;
+  breakdown: RarityScoreBreakdown[];
+}
 
-export function computeRarity(
-  data: Omit<CharacterData, 'rarity' | 'name'> & Partial<Pick<CharacterData, 'name'>>,
-): RarityBreakdown {
-  const factors: RarityFactor[] = [];
+export function computeRarityScore(input: RarityScoreInput): RarityScoreResult {
+  const max = (id: RarityScoreComponentId) =>
+    RARITY_SCORE_COMPONENTS.find((c) => c.id === id)!.max;
+  const label = (id: RarityScoreComponentId) =>
+    RARITY_SCORE_COMPONENTS.find((c) => c.id === id)!.it;
 
-  // 1. Tensione Family × Affinity — il fattore più pesante: è l'asse che
-  //    trasforma davvero l'anatomia (§4).
-  const tense = TENSION_PAIRS[data.family]?.includes(data.affinity) ?? false;
-  factors.push({
-    label: 'FAMILY × AFFINITY',
-    contribution: tense ? 0.3 : 0.06,
-    detail: tense
-      ? `${data.affinity} contraddice l'anatomia ${data.family}: trasformazione insolita`
-      : `${data.affinity} è compatibile con l'anatomia ${data.family}`,
-  });
+  // §16 novelty 0–25 — distanza dalle ripetizioni recenti.
+  const novelty = (Math.min(5, input.freshAxes) / 5) * max('novelty');
 
-  // 2. Tensione SIZE × ROLE.
-  const sizeTense = SIZE_ROLE_TENSION[data.size]?.includes(data.role) ?? false;
-  factors.push({
-    label: 'SIZE × ROLE',
-    contribution: sizeTense ? 0.18 : 0.05,
-    detail: sizeTense
-      ? `un ${data.role} di taglia ${data.size} è una combinazione controcorrente`
-      : `${data.role} è coerente con la taglia ${data.size}`,
-  });
+  // §16 cross-axis synergy 0–20 — la ridondanza Affinity=Family toglie punti,
+  // la tensione fra assi ne aggiunge (§19).
+  let synergy = max('crossAxisSynergy') * 0.35;
+  if (input.affinityEqualsFamily) synergy -= max('crossAxisSynergy') * 0.25;
+  else synergy += max('crossAxisSynergy') * 0.25;
+  if (input.sizeRoleTension) synergy += max('crossAxisSynergy') * 0.2;
+  if (input.rareArchetype) synergy += max('crossAxisSynergy') * 0.2;
+  synergy = clamp(synergy, 0, max('crossAxisSynergy'));
 
-  // 3. Appearance: TOY ed ELASTIC sono più costosi da tenere coerenti in
-  //    rotazione, quindi la configurazione è più rara (§24.2).
-  const appearanceWeight: Record<string, number> = { TOY: 0.14, ELASTIC: 0.12, CEL: 0.07, INK: 0.05 };
-  factors.push({
-    label: 'APPEARANCE',
-    contribution: appearanceWeight[data.appearance] ?? 0.05,
-    detail: `resa ${data.appearance}`,
-  });
+  // §16 data specificity 0–15 — serve sia fiducia nel dato sia un profilo
+  // che abbia una forma: dati affidabili ma piatti non sono distintivi.
+  const specificity =
+    ((input.dataConfidence / 100) * 0.6 + Math.min(1, input.signalSpread / 30) * 0.4) *
+    max('dataSpecificity');
 
-  // 4. Heritage: più tratti sopravvivono al branch, più il nodo è denso (§7.3).
-  const h = data.heritage.length;
-  factors.push({
-    label: 'HERITAGE',
-    contribution: h === 0 ? 0.04 : h === 1 ? 0.08 : h === 2 ? 0.14 : 0.2,
-    detail: h === 0 ? 'nodo di origine, nessuna eredità' : `${h} tratti ereditati e tradotti`,
-  });
+  // §16 heritage transformation 0–15 — conta la traduzione, non l'eredità.
+  const heritage =
+    input.heritageCount === 0
+      ? 0
+      : (input.heritageTranslated / input.heritageCount) *
+        (Math.min(3, input.heritageCount) / 3) *
+        max('heritageTransformation');
 
-  // 5. Accessori e occhiali insoliti: contributo minore, è styling (§4 priorità).
-  const acc = data.fashion.accessories.length;
-  factors.push({
-    label: 'FASHION',
-    contribution: Math.min(0.1, 0.02 + acc * 0.03),
-    detail: `${data.fashion.attitude}, ${acc} accessori`,
-  });
+  // §16 voice distinctiveness 0–10 — quante deviazioni dal preset (§14).
+  const voice = (Math.min(6, input.voiceDeviations) / 6) * max('voiceDistinctiveness');
 
-  // 6. Season presente: contesto extra sulla configurazione.
-  factors.push({
-    label: 'SEASON',
-    contribution: data.season ? 0.07 : 0.02,
-    detail: data.season ? `influenza stagionale ${data.season}` : 'nessuna influenza stagionale',
-  });
+  // §16 visual distinctiveness 0–10.
+  const visual =
+    ((input.freshEyewear ? 0.5 : 0) + (input.freshSilhouette ? 0.5 : 0)) *
+    max('visualDistinctiveness');
 
-  // 7. Stadio evolutivo: una forma avanzata è una configurazione più rara.
-  const stage = data.evolutionState?.stage ?? 0;
-  factors.push({
-    label: 'EVOLUTION',
-    contribution: Math.min(0.14, stage * 0.045),
-    detail: stage === 0 ? 'forma iniziale' : `stadio evolutivo ${stage}`,
-  });
+  // §16 hidden-event modifier 0–5.
+  const hidden = input.hiddenEvent ? max('hiddenEvent') : 0;
 
-  const score = Math.max(0, Math.min(1, factors.reduce((s, f) => s + f.contribution, 0)));
-  const rarity =
-    RARITY_THRESHOLDS.find((t) => score >= t.min)?.rarity ?? ('COMMON' as Rarity);
+  const breakdown: RarityScoreBreakdown[] = [
+    { component: 'novelty', points: novelty, max: max('novelty'), it: label('novelty') },
+    { component: 'crossAxisSynergy', points: synergy, max: max('crossAxisSynergy'), it: label('crossAxisSynergy') },
+    { component: 'dataSpecificity', points: specificity, max: max('dataSpecificity'), it: label('dataSpecificity') },
+    { component: 'heritageTransformation', points: heritage, max: max('heritageTransformation'), it: label('heritageTransformation') },
+    { component: 'voiceDistinctiveness', points: voice, max: max('voiceDistinctiveness'), it: label('voiceDistinctiveness') },
+    { component: 'visualDistinctiveness', points: visual, max: max('visualDistinctiveness'), it: label('visualDistinctiveness') },
+    { component: 'hiddenEvent', points: hidden, max: max('hiddenEvent'), it: label('hiddenEvent') },
+  ];
 
-  return { score, rarity, factors };
+  const score = Math.round(breakdown.reduce((s, b) => s + b.points, 0));
+  return { score: clamp(score, 0, 100), breakdown };
+}
+
+/** §16 — il livello massimo consentito dal punteggio. È un tetto. */
+export function tierCapFromScore(score: number): Rarity {
+  const eligible = [...RARITY_TIERS].reverse().find((t) => score >= t.scoreMin);
+  return eligible?.id ?? 'COMMON';
+}
+
+/* --- Tiro finale ------------------------------------------------------------ */
+
+export interface RarityRoll {
+  rarity: Rarity;
+  score: number;
+  breakdown: RarityScoreBreakdown[];
+  /** Pool normalizzato dei soli livelli sbloccati (§26). */
+  unlockedPool: PoolEntry[];
+  /** Pool effettivo dopo il tetto di punteggio, su cui si tira davvero. */
+  eligiblePool: PoolEntry[];
+  cap: Rarity;
+}
+
+export function rollRarity(
+  rng: Rng,
+  ctx: UnlockContext,
+  scoreInput: RarityScoreInput,
+): RarityRoll {
+  const { score, breakdown } = computeRarityScore(scoreInput);
+  const cap = tierCapFromScore(score);
+  const capIndex = RARITY_TIERS.findIndex((t) => t.id === cap);
+
+  const unlocked = unlockedTiers(ctx);
+  const unlockedPool = normalizePool(unlocked);
+
+  // §16 — «If the score reaches a tier that is not yet unlocked … the result is
+  // capped at the highest unlocked tier.» E viceversa: uno sblocco senza
+  // punteggio non basta. Si tira sull'intersezione.
+  const eligible = unlocked.filter((t) => RARITY_TIERS.findIndex((x) => x.id === t.id) <= capIndex);
+  const pool = normalizePool(eligible.length > 0 ? eligible : [RARITY_TIERS[0]!]);
+
+  let r = rng() * 100;
+  let picked: Rarity = pool[pool.length - 1]!.rarity;
+  for (const entry of pool) {
+    r -= entry.chance;
+    if (r <= 0) {
+      picked = entry.rarity;
+      break;
+    }
+  }
+
+  return { rarity: picked, score, breakdown, unlockedPool, eligiblePool: pool, cap };
+}
+
+export function rarityDef(id: Rarity): RarityTierDef {
+  const t = RARITY_TIERS.find((x) => x.id === id);
+  if (!t) throw new Error(`Rarità sconosciuta: ${id}`);
+  return t;
+}
+
+function clamp(v: number, lo: number, hi: number): number {
+  return Math.max(lo, Math.min(hi, v));
 }

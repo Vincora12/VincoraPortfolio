@@ -200,6 +200,6 @@ export function groupMemoriesByAge(
 /** Riepilogo testuale di un .mon per la timeline della storia (§20 di §12). */
 export function monSummaryLine(record: MonRecord): string {
   const d = record.data;
-  const form = d.evolutionState?.label ?? 'BASIC FORM';
+  const form = d.evolution_state?.label ?? 'BASIC FORM';
   return `${displayName(d.name)} — ${form} · ${d.family} / ${d.affinity}`;
 }

@@ -1,121 +1,115 @@
-# VOCI APERTE — cosa NON è stato congelato
+# VOCI APERTE — cosa resta da decidere
 
-Questo file esiste per il contratto di §0A: *«TO FINALIZE means Claude may
-propose options, but must not silently choose one and make it canonical»* e
-*«Claude may explore, prototype or recommend, but must label assumptions and
-wait for approval before freezing the system»*.
-
-Tutto quello che segue è **implementato ma non canonico**. Ogni voce vive in un
-unico punto del codice, marcato `PROVISIONAL — NOT CANONICAL`, ed è modificabile
-senza toccare nient'altro.
+La **GENERATION BIBLE v2.1** ha chiuso quasi tutto quello che la MASTER SPEC §18
+lasciava 🟡. Questo file registra cosa è ora canonico, cosa resta aperto, e le
+poche interpretazioni che ho dovuto prendere leggendo il documento.
 
 ---
 
-## 🟡 Aperte in §18, decise in modo provvisorio per far girare il prototipo
+## ✅ Chiuse dalla bibbia
 
-### Tassonomie complete FAMILY e AFFINITY
-**Dove:** `src/engine/taxonomy.ts`
-**Cosa ho messo:** 10 Family (ANGEL, BEAST, INSECT, AQUATIC, REPTILE, AVIAN,
-CONSTRUCT, PLANT, SPECTRE, AMORPHOUS) con 4–5 archetipi ciascuna, e 12 Affinity
-(ELECTRIC, CHROME, GLASS, PAPER, SMOKE, MAGNETIC, CERAMIC, LIQUID, STATIC,
-VELVET, BONE, NEON).
-**Come l'ho costruita:** ogni Family descrive **anatomia primaria** e ogni
-Affinity descrive che cosa succede **al corpo**, mai un colore o un costume —
-è il vincolo di §4. Ogni Family dichiara anche se l'anatomia supporta capelli e
-occhiali, perché §6 rende gli occhiali obbligatori solo dove sono plausibili.
-**Serve da te:** la lista definitiva. Aggiungere o togliere voci non richiede
-modifiche altrove.
+| Voce | Era 🟡 in §18 | Ora |
+|---|---|---|
+| Tassonomia FAMILY | «final complete Family taxonomy» | **19 Family** (§3), 18 estraibili + SLIME riservata alla radice |
+| Archetipi | — | **113** (§4), 5–6 per Family |
+| Tassonomia AFFINITY | «final complete Affinity taxonomy» | **16** (§5), contaminazioni anatomiche cross-family |
+| Pesi di rarità | «rarity weighting» | §15 probabilità base + gate di sblocco, §16 punteggio a 7 componenti, §26 tabelle di normalizzazione |
+| Economia | «XP cost/economy, cadence for BRANCH» | §25 sblocchi; l'economia XP resta locale (vedi sotto) |
+| Estrazione colore | «adaptive colour extraction» | §27 `palette_dna`, derivata da Family + Affinity + Mood |
+| Icon set e motion | — | non trattati dalla bibbia: restano come sono |
 
-### Pesi e soglie di rarità
-**Dove:** `src/engine/rarity.ts` (pesi dei fattori), `taxonomy.ts`
-(`RARITY_THRESHOLDS`).
-**Cosa ho messo:** la rarità non si estrae, si **calcola** dalla configurazione
-uscita — §4 dice «rarity of the specific generated configuration/outcome».
-Sette fattori: tensione Family×Affinity, tensione Size×Role, Appearance,
-numero di tratti Heritage, Fashion, Season, stadio evolutivo.
-**Taratura attuale**, misurata con `node scripts/batch-check.mjs 3000`:
-≈55% COMMON · 27% UNCOMMON · 13% RARE · 4,5% ANOMALOUS · 0,6% SINGULAR.
-**Serve da te:** conferma della curva. Rimisura sempre col comando qui sopra
-dopo aver cambiato i pesi.
+Tutti i valori vivono in **`src/engine/generation-config.ts`**, come impone §29:
+«All probabilities and thresholds must be editable from one canonical
+generation-config file.» Versione corrente: `2.1.0`.
 
-### Costo XP di CONTINUE/EVOLVE e cadenza di BRANCH
+---
+
+## 🟡 Ancora aperte
+
+### Economia XP di CONTINUE/EVOLVE
 **Dove:** `src/engine/economy.ts` → `DEFAULT_ECONOMY`.
-**Cosa ho messo:** costo base 400 XP con crescita ×1,6 per stadio; 35 XP per
-giorno registrato, 45 per allenamento, 60 per memoria; 500 XP per livello;
-BRANCH disponibile dopo 14 giorni con lo stesso .mon, **oppure** subito se il
-Bond è rimasto sotto il 25% — l'idea è che un percorso che non ha attecchito
-possa chiudersi prima.
-**Come tararla senza codice:** DEV → ECONOMIA. Tutti i valori sono editabili a
-runtime.
+La bibbia definisce gli sblocchi di rarità (§25) ma non il costo in XP di
+un'evoluzione. Restano i valori provvisori: costo base 400 XP con crescita
+×1,6, 35 XP per giorno registrato, 500 XP per livello. Tarabili da DEV →
+ECONOMIA.
 
-### Algoritmo di estrazione del colore adattivo e sua accessibilità
-**Dove:** `src/engine/colorDna.ts`.
-**Il punto:** §10.2 dice che Character Primary e Accent sono **campionati dal
-Color DNA del .mon**. Ma l'immagine del .mon non esiste ancora, quindi qui il
-colore è **derivato dall'Affinity** invece che campionato da un pixel.
-**Quando arriveranno gli asset** questa funzione va sostituita da un
-campionamento reale sul Character Master, mantenendo la stessa firma e lo stesso
-contratto: `onPrimary` calcolato per contrasto, accento scurito fino a 3:1 sul
-bianco (`ensureContrastOnWhite`).
+### Durata dell'incubazione
+**Dove:** `src/state/store.ts` → `INCUBATION_DAYS = 28`.
+Presa dal board («DAY 18 / 28»). §25 dice solo che in simulazione non serve
+attendere davvero.
 
-### Terminologia di incubazione dopo l'abbandono di DIGIVINZ
-**Dove:** `src/i18n/it.ts` → blocco `incubation`; durata in
-`src/state/store.ts` → `INCUBATION_DAYS = 28`.
-**Cosa ho messo:** «PRIMO SEGNALE / INCUBAZIONE», 28 giorni, con «SIGNAL
-STABILITY» preso dal board. Non ho inventato un nome nuovo per l'oggetto: nella
-schermata è un contenitore di sistema, non un «uovo».
+### Trigger nascosto di SINGULAR
+**Dove:** `src/engine/rarity.ts` → `UnlockContext.hiddenTriggerFired`.
+§15 lo richiede ma dice esplicitamente che «the generator never exposes exact
+hidden trigger logic to the player». Il campo esiste ed è cablato; **quale
+evento lo faccia scattare non è definito da nessun documento**. Oggi si attiva
+solo da DEV.
+
+### Personality Seed
+**Dove:** `src/engine/signals.ts` → `neutralPersonality()`.
+§2 elenca i vettori latenti, ma la schermata **03 PERSONALITY / SIGNAL SCAN**
+che dovrebbe seminarli non è ancora implementata. Finché non c'è, il seme è
+neutro (tutto a 50) e le formule di fit di §17 lavorano solo su salute e umori.
+È la lacuna che più limita la varietà delle Family generate.
+
+### Affinità culturali
+**Dove:** `src/engine/generation-config.ts` → `CULTURAL_TAGS`.
+Gli 8 tag ci sono e alimentano i segnali, ma nessuna superficie li fa dichiarare
+all'utente. Oggi restano vuoti.
 
 ### Tipografia di produzione
-**Dove:** `src/styles/tokens.css` → `--font-display`.
-**Cosa ho messo:** **Archivo Variable** (asse di larghezza 62–125 + corsivo
-reale) al posto di **VINZ-HEAD**, che non esiste come file. È la scelta che più
-si avvicina alla grammatica di §10.3 — ultra-bold, largo, compatto, inclinato in
-avanti — e le varianti outline si ottengono con `-webkit-text-stroke`, senza un
-secondo file.
-Inter Variable e IBM Plex Mono coprono UI e metadata come indicato dal board.
-**Serve da te:** il `.woff2` di VINZ-HEAD. Sostituirlo è una riga in `tokens.css`
-più l'import in `main.tsx`.
-
-### Icon set e linguaggio di motion definitivi
-**Dove:** `src/system/Icon.tsx`, durate in `tokens.css`.
-**Cosa ho messo:** 33 pittogrammi disegnati a codice, 24×24, tratto 1,8,
-derivati dal vocabolario di §9.2 (globo wireframe senza continenti, cursore a
-freccia, cartella, floppy). Sostituibili uno per uno.
+Archivo Variable sostituisce **VINZ-HEAD**, che non esiste come file. Resta una
+proposta: sostituirlo è una riga in `tokens.css`.
 
 ---
 
-## Assunzioni che ho preso e che vale la pena rileggere
+## Interpretazioni che ho preso leggendo la bibbia
 
-**FASHION come asse composito.** §4 dice che l'asse FASHION copre «outfit logic,
-eyewear, haircut, footwear, accessories, material/styling attitude». Quindi
-occhiali e capelli stanno **dentro** `fashion`, come `FashionSolution`, invece di
-essere campi nuovi al livello superiore — che §13 vieterebbe.
+Sono i punti dove il documento ammetteva più di una lettura. Se una è sbagliata,
+si corregge in un posto solo.
 
-**Il campo nero per le superfici evento.** Il board mostra incubazione, hatch,
-new encounter e mindline su fondo nero, mentre le superfici quotidiane restano
-bianche. Ho replicato questa inversione come regola (`[data-field='ink']`),
-citando il board come fonte. Non è «dark mode»: §10.5 vieta il dark luxury
-sci-fi come default.
+**§21 Size Score.** «0.30 FORM + 0.20 ATK + 0.15 DEF + 0.10 energy + 0.10
+confidence + 0.15 archetype morphology modifier» — i primi cinque pesi sommano
+0.85. Ho normalizzato quei cinque a 1.00, perché §6 chiama MEDIUM «default
+center state»: con segnali a metà scala il punteggio deve dare 50, non 42.
+Il modificatore d'archetipo si somma dopo come scostamento −25…+25 («before
+normalization»). Con l'altra lettura GIANT era irraggiungibile.
 
-**Le memorie che sopravvivono al branch.** §8.2 dice che possono sopravvivere
-«in transformed/partial form». Ho scelto il 35% di sopravvivenza e una
-riscrittura che conserva la sensazione e perde il dettaglio
-(`carryMemoriesThroughBranch`). La percentuale è arbitraria.
+**§15 gate di UNCOMMON.** «Mindline Depth ≥ 2 **OR** 7 verified active days» è
+l'unico cancello disgiuntivo del documento; tutti gli altri sono congiunzioni.
+Implementato come tale.
 
-**Durata dell'incubazione a 28 giorni.** Presa dal board («DAY 18 / 28»).
+**§16 punteggio come tetto.** «Tier score is a CAP, not a guarantee. The
+weighted rarity roll still applies among eligible tiers.» Quindi si tira sul
+pool **intersezione** fra livelli sbloccati e livelli sotto il tetto, poi
+rinormalizzato.
+
+**§3 nome della radice.** Il documento scrive `Vz.mon` in minuscolo misto. La
+UI applica il maiuscolo display a tutti i nomi, quindi compare come `VZ.mon`.
+Se il minuscolo è voluto, va tolta la trasformazione per quel caso.
+
+**§32–§45 frammenti derivati.** I ~250 frammenti di prompt sono lo stesso testo
+con dentro un valore di catalogo diverso. Li genero dai cataloghi con sette
+forme di template invece di copiarli, così non possono divergere dai dati con
+cui il personaggio è stato generato. Sono comunque materializzati nello schema
+esatto di §30.1, e `npm run verify:batch` controlla che ogni voce di catalogo
+produca il suo frammento.
 
 ---
 
-## Cosa NON ho toccato perché 🔒 LOCKED
+## 🔒 Non toccabili senza cambio di documento
 
-- APPEARANCE: esattamente quattro (TOY / INK / CEL / ELASTIC). DOODLE non è un
-  Appearance ed è confinato alla BIO.
-- SIZE: TINY / MEDIUM / GIANT, con grammatica proporzionale e non scalatura.
-- Navigazione: MON / ME / MINDLINE, senza destinazioni aggiunte.
-- Genoma dei nomi: inizia per V, contiene Z, finisce in `.mon`, nessun duplicato
-  in lineage.
-- Heritage: 1–3 tratti, sempre tradotti nella nuova Family.
-- Sprite di rotazione: 8 frame, una riga, 0/45/…/315 in senso orario,
-  ancoraggio in basso al centro.
-- Contratto dati del Specimen Profile: nessun campo fuori dagli assi canonici.
-- Contenuto del pacchetto Asset Request: i file di §22.2.
+- **19 Family**, con SLIME esclusiva di `Vz.mon` (§3).
+- **APPEARANCE**: quattro canoniche; DOODLE è linguaggio della BIO, non un
+  Appearance (§12).
+- **SIZE**: TINY / MEDIUM / GIANT, grammatica proporzionale e mai scalatura (§6).
+- **Ordine di generazione** a 20 passi (§24) e priorità di lettura (§1).
+- **Genoma dei nomi**: inizia per V, contiene Z, finisce in `.mon`, unico in
+  lineage (§24 step 17).
+- **Heritage** 1–3, sempre tradotto, mai copiato (§23).
+- **Sprite di rotazione**: 8 frame su una riga, ancoraggio in basso al centro (§45).
+- **Contratto Character Data** di §27, e il divieto di campi fuori dagli assi.
+- **§28 sicurezza e tono**: nessuna vergogna su corpo, cibo, malattia o salute;
+  nessuna Family come premio o punizione.
+- **§29**: config unico e versionato, generation trace solo in DEV, probabilità
+  di Family mai esposte in produzione.

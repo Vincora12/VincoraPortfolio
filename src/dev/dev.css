@@ -307,3 +307,12 @@
   font-family: var(--font-mono);
   font-size: var(--type-meta);
 }
+
+/* L'anteprima del prompt è lunga: scorre da sola invece di allungare la
+   pagina, e resta selezionabile per il copia-incolla manuale. */
+.dev__prompt {
+  max-height: 420px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  user-select: text;
+}

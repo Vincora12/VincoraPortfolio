@@ -27,21 +27,18 @@ import {
   SystemLabel,
 } from '../system/components';
 import { ASSET_TYPES } from '../engine/assets';
-import { APPEARANCE_LABELS } from '../engine/taxonomy';
 import {
-  ACCESSORY_IT,
-  AFFINITY_IT,
-  BLEACH_IT,
-  EYEWEAR_IT,
-  FAMILY_IT,
-  FASHION_IT,
-  FOOTWEAR_IT,
-  HAIR_CUT_IT,
-  MOOD_IT,
-  ROLE_IT,
-  it,
-} from '../engine/taxonomyIt';
-import { heritageKindLabel } from '../engine/heritage';
+  SIZE_GRAMMAR,
+  VOICE_AXES,
+  affinityDef,
+  familyDef,
+  fashionDef,
+  moodDef,
+  roleDef,
+  voicePresetDef,
+} from '../engine/generation-config';
+import { rarityDef } from '../engine/rarity';
+import { heritageCategoryLabel } from '../engine/heritage';
 import { downloadPackage } from '../assets-pipeline/exportPackage';
 import { displayName } from '../engine/types';
 import { t } from '../i18n/it';
@@ -72,7 +69,7 @@ export function SpecimenProfileScreen({
 
   const d = mon.data;
   const short = displayName(d.name);
-  const originNode = nodes.find((n) => n.id === d.originNodeId);
+  const originNode = nodes.find((n) => n.id === d.origin_node);
 
   const exportPackage = async () => {
     setExporting(true);
@@ -92,7 +89,7 @@ export function SpecimenProfileScreen({
             <MonName name={d.name} />
           </h1>
           <p className="t-meta">
-            {d.family} · {d.familyArchetype}
+            {d.family} · {d.family_archetype}
           </p>
         </div>
         <span className="specimen__sigil">
@@ -126,95 +123,113 @@ export function SpecimenProfileScreen({
       <div className="screen__body specimen__body">
         {tab === 'stats' && (
           <div className="rowlist">
-            <Row label="STATO" value={d.evolutionState?.label ?? 'BASIC FORM'} />
-            <Row label="STADIO" value={String(d.evolutionState?.stage ?? 0)} />
+            <Row label="STATO" value={d.evolution_state?.label ?? 'BASIC FORM'} />
+            <Row label="STADIO" value={String(d.evolution_state?.stage ?? 0)} />
             <Row label="BOND" value={`${Math.round(progression.bond * 100)}%`} />
             <Row label="EVOLUTION SYNC" value={`${Math.round(progression.evolutionSync * 100)}%`} />
-            <Row label="MOOD" value={d.mood} />
-            <Row label="GENERATO AL GIORNO" value={String(d.generatedAtDay)} />
+            <Row label="MOOD" value={d.mood_primary} />
+            <Row label="RARITY SCORE" value={`${d.rarity_score}/100`} />
+            <Row label="DATA CONFIDENCE" value={`${d.data_confidence}%`} />
+            <Row label="GENERATO AL GIORNO" value={String(d.generated_at_day)} />
             <Row label="SEED" value={String(d.seed)} />
+            {/* §29 — ogni .mon conserva la versione di config con cui è nato:
+                cambiare i pesi non riscrive la storia. */}
+            <Row label="CONFIG" value={d.generation_config_version} />
           </div>
         )}
 
         {tab === 'identity' && (
           <>
             {/* Ogni riga è un asse canonico di §4. Niente di più. */}
+            {/* §27 CHARACTER DATA CONTRACT — ogni riga è un campo canonico.
+                §13 della MASTER SPEC vieta di aggiungerne di nuovi. */}
             <div className="rowlist">
               <Row label="NAME" value={d.name} />
-              <Row label="FAMILY" value={`${d.family} · ${FAMILY_IT[d.family]}`} />
-              <Row label="FAMILY ARCHETYPE" value={d.familyArchetype} />
-              <Row label="ROLE" value={`${d.role} · ${ROLE_IT[d.role]}`} />
-              <Row label="AFFINITY" value={`${d.affinity} · ${AFFINITY_IT[d.affinity]}`} />
-              <Row label="MOOD" value={`${d.mood} · ${MOOD_IT[d.mood]}`} />
-              <Row label="SIZE" value={d.size} />
-              <Row label="APPEARANCE" value={APPEARANCE_LABELS[d.appearance]} />
-              <Row label="RARITY" value={d.rarity} />
-              {d.season && <Row label="SEASON" value={d.season} />}
+              <Row label="FAMILY" value={`${d.family} · ${familyDef(d.family).it}`} />
+              <Row label="FAMILY ARCHETYPE" value={d.family_archetype} />
+              <Row label="AFFINITY" value={`${d.affinity} · ${affinityDef(d.affinity).it}`} />
+              <Row label="SIZE" value={`${d.size} · ${SIZE_GRAMMAR[d.size].it}`} />
+              <Row label="ROLE" value={`${d.role} · ${roleDef(d.role).it}`} />
+              <Row label="FASHION" value={`${d.fashion} · ${fashionDef(d.fashion).it}`} />
+              <Row label="MOOD PRIMARY" value={`${d.mood_primary} · ${moodDef(d.mood_primary).it}`} />
+              <Row
+                label="MOOD SECONDARY"
+                value={d.mood_secondary ? `${d.mood_secondary} · ${moodDef(d.mood_secondary).it}` : '—'}
+              />
+              <Row label="APPEARANCE" value={d.appearance} />
+              <Row label="RARITY" value={`${d.rarity} · ${rarityDef(d.rarity).it}`} />
+              <Row label="SEASON" value={d.season ?? '—'} />
             </div>
 
-            {/* FASHION è un asse composito (§4): outfit, occhiali, capelli,
-                scarpe, accessori. */}
+            {/* §9 — marcatori personali VINZ. */}
             <section className="specimen__block">
-              <p className="t-meta">FASHION</p>
+              <p className="t-meta">MARCATORI PERSONALI</p>
               <div className="rowlist">
-                <Row label="ATTITUDE" value={`${d.fashion.attitude} · ${FASHION_IT[d.fashion.attitude]}`} />
                 <Row
                   label="EYEWEAR"
                   value={
-                    d.fashion.eyewear
-                      ? it(EYEWEAR_IT, d.fashion.eyewear)
+                    d.eyewear
+                      ? `${d.eyewear.category} · ${d.eyewear.description}`
                       : 'non plausibile su questa anatomia'
                   }
                 />
-                <Row
-                  label="HAIR"
-                  value={
-                    d.fashion.hair
-                      ? `${it(HAIR_CUT_IT, d.fashion.hair.cut)} · ${it(BLEACH_IT, d.fashion.hair.bleach)}`
-                      : 'anatomia senza capelli'
-                  }
-                />
-                <Row label="FOOTWEAR" value={it(FOOTWEAR_IT, d.fashion.footwear)} />
-                <Row
-                  label="ACCESSORIES"
-                  value={d.fashion.accessories.map((a) => it(ACCESSORY_IT, a)).join(', ') || '—'}
-                />
+                <Row label="HAIR STATE" value={d.hair_state ?? 'anatomia senza capelli'} />
+                <Row label="HAIRCUT" value={d.haircut ?? '—'} />
               </div>
             </section>
 
+            {/* §40 — il Character DNA deve materializzarsi in elementi precisi. */}
             <section className="specimen__block">
               <p className="t-meta">CHARACTER DNA</p>
               <div className="rowlist">
-                <Row label="TRATTI" value={d.characterDna.traits.join(', ')} />
-                <Row label="SPINTE" value={d.characterDna.drives.join(', ')} />
+                <Row label="SAGOMA" value={d.character_dna.silhouette_quirk} />
+                <Row label="ESPEDIENTE" value={d.character_dna.anatomical_gimmick} />
+                <Row label="VOLTO" value={d.character_dna.face_logic} />
+                <Row label="POSTURA" value={d.character_dna.body_language} />
+                <Row label="MOTIVO RICORRENTE" value={d.character_dna.recurring_motif} />
                 <Row
-                  label="CONTRADDIZIONE"
-                  value={`${d.characterDna.contradiction.a} / ${d.characterDna.contradiction.b}`}
+                  label="CONTRADDIZIONI"
+                  value={d.character_dna.contradictions.map((c) => `${c.a} / ${c.b}`).join(' · ')}
                 />
-                <Row label="INTERESSI" value={d.characterDna.interests.join(' · ')} />
-                <Row label="NON GLI DICE NIENTE" value={d.characterDna.blindSpots.join(' · ')} />
+                <Row label="TRATTI" value={d.character_dna.traits.join(', ')} />
+                <Row label="SPINTE" value={d.character_dna.drives.join(', ')} />
               </div>
             </section>
 
+            {/* §13/§14 — preset di partenza e i dodici assi mutati sopra. */}
             <section className="specimen__block">
               <p className="t-meta">VOICE DNA</p>
               <div className="rowlist">
-                <Row label="REGISTRO" value={d.voiceDna.register} />
-                <Row label="LUNGHEZZA" value={d.voiceDna.verbosity} />
-                <Row label="TIC" value={d.voiceDna.quirks.join(' · ')} />
-                <Row label="SIMBOLI" value={d.voiceDna.symbolUse} />
-                <Row label="CHIAMA VINZ" value={d.voiceDna.addressesVinzAs} />
+                <Row
+                  label="PRESET"
+                  value={`${d.voice_preset} · ${voicePresetDef(d.voice_preset).it}`}
+                />
+                <Row
+                  label="DEVIAZIONI"
+                  value={
+                    d.voice_dna.deviations && d.voice_dna.deviations.length > 0
+                      ? d.voice_dna.deviations.join(' · ')
+                      : 'nessuna: parla come il preset'
+                  }
+                />
+                {VOICE_AXES.map((axis) => (
+                  <Row
+                    key={axis.id}
+                    label={axis.id.toUpperCase()}
+                    value={String(d.voice_dna[axis.id] ?? '—')}
+                  />
+                ))}
               </div>
             </section>
 
             <section className="specimen__block">
-              <p className="t-meta">COLOR DNA</p>
+              <p className="t-meta">PALETTE DNA</p>
               <div className="specimen__palette">
-                {d.colorDna.palette.map((hex, i) => (
+                {d.palette_dna.swatches.map((hex, i) => (
                   <div key={hex + i} className="swatch">
                     <span className="swatch__chip" style={{ background: hex }} />
                     <span className="t-micro">{hex}</span>
-                    <span className="t-micro swatch__name">{d.colorDna.paletteNames[i]}</span>
+                    <span className="t-micro swatch__name">{d.palette_dna.swatch_names[i]}</span>
                   </div>
                 ))}
               </div>
@@ -225,7 +240,7 @@ export function SpecimenProfileScreen({
         {tab === 'lineage' && (
           <>
             <div className="rowlist">
-              <Row label="NODO MINDLINE" value={d.mindlineNodeId} />
+              <Row label="NODO MINDLINE" value={d.mindline_node} />
               <Row
                 label="ORIGINE"
                 value={
@@ -239,20 +254,20 @@ export function SpecimenProfileScreen({
             <section className="specimen__block">
               <div className="specimen__blockhead">
                 <p className="t-meta">HERITAGE</p>
-                {d.heritage.length > 0 && (
+                {d.heritage_traits.length > 0 && (
                   <Button small variant="ghost" onClick={() => onGo('heritage')}>
                     DETTAGLIO
                   </Button>
                 )}
               </div>
 
-              {d.heritage.length === 0 ? (
+              {d.heritage_traits.length === 0 ? (
                 <p className="t-small specimen__empty">{t.heritage.none}</p>
               ) : (
                 <ul className="stack">
-                  {d.heritage.map((h) => (
+                  {d.heritage_traits.map((h) => (
                     <li key={h.id} className="traitcard traitcard--light">
-                      <SystemLabel>{heritageKindLabel(h.kind)}</SystemLabel>
+                      <SystemLabel>{heritageCategoryLabel(h.category)}</SystemLabel>
                       <p className="t-small traitcard__origin">{h.transformed}</p>
                     </li>
                   ))}
@@ -288,7 +303,7 @@ export function SpecimenProfileScreen({
                   key={a.type}
                   label={a.label}
                   value={
-                    d.assetStatus[a.type] === 'resolved' ? (
+                    d.asset_manifest_status[a.type] === 'resolved' ? (
                       <SystemLabel tone="positive">RISOLTO</SystemLabel>
                     ) : (
                       <SystemLabel tone="warning">WAITING</SystemLabel>

@@ -1,12 +1,12 @@
 /* ============================================================================
    STATO DELL'APPLICAZIONE
 
-   Qui vive la mutazione. Tutta la logica di dominio sta in engine/ come
-   funzioni pure: questo modulo la orchestra e la persiste.
+   Orchestra il dominio puro di `engine/` e lo persiste. Nessuna regola di
+   generazione vive qui: §29 impone che pesi e soglie stiano tutti in
+   `generation-config.ts`.
 
-   §25 — i confini di servizio restano intatti: sostituire il generatore locale
-   con un servizio remoto significa cambiare le chiamate dentro queste azioni,
-   non riprogettare lo stato.
+   §29 — riproducibilità: ogni .mon conserva seed e versione di config con cui
+   è nato. Cambiare i pesi non riscrive la storia.
    ========================================================================= */
 
 import { create } from 'zustand';
@@ -27,16 +27,27 @@ import {
   levelFromXp,
   type EconomyConfig,
 } from '../engine/economy';
-import { evolveMon, generateMon } from '../engine/characterGenerator';
+import { evolveMon, generateMon, generateRootMon } from '../engine/characterGenerator';
 import { selectHeritageOrigins, type HeritageOrigin } from '../engine/heritage';
 import { createNode, makeNodeId, nextChapter } from '../engine/mindline';
 import { carryMemoriesThroughBranch, makeMemory, rollDailyEvent } from '../engine/simulation';
 import { fallbackGreeting, fallbackReply } from '../engine/voiceDna';
 import { makeRng, randomSeed, seedFromString } from '../engine/rng';
-import type { RarityBreakdown } from '../engine/rarity';
+import {
+  EMPTY_NOVELTY,
+  aggregateDataConfidence,
+  buildNoveltyMemory,
+  neutralPersonality,
+  type CulturalAffinities,
+  type GeneratorInput,
+  type MoodDayEntry,
+  type PersonalitySeed,
+} from '../engine/signals';
+import { MOOD_INPUT_RULES, type MoodInputId } from '../engine/generation-config';
 import type {
   AssetType,
   ChatMessage,
+  GenerationTrace,
   HealthState,
   Memory,
   MindlineNode,
@@ -44,42 +55,39 @@ import type {
   Progression,
   Signal,
   StatKey,
-  UserState,
 } from '../engine/types';
 import { STAT_KEYS, UNKNOWN, isKnown } from '../engine/types';
 import { preloadMonAssets } from '../assets-pipeline/assetStore';
 
-/* --- Fasi del flusso -------------------------------------------------------
-   Corrispondono alle schermate di §12 che cambiano lo stato del sistema.
-   Le schermate di sola consultazione (ME, MINDLINE, BIO…) non sono fasi:
-   sono destinazioni di navigazione.
-   -------------------------------------------------------------------------- */
-
 export type Phase =
-  | 'incubation' // 04 FIRST SIGNAL / INCUBATION
-  | 'first-encounter' // 05 FIRST ENCOUNTER
-  | 'live' // 06 MON / COMPANION HOME e tutto il resto
-  | 'shift' // 11 MINDLINE SHIFT
-  | 'evolution' // 12 EVOLUTION
-  | 'branch' // 13 NEW BRANCH
-  | 'new-encounter'; // 14 NEW ENCOUNTER
+  | 'incubation'
+  | 'first-encounter'
+  | 'live'
+  | 'shift'
+  | 'evolution'
+  | 'branch'
+  | 'new-encounter';
 
-/** 🟡 PROVISIONAL (§18: terminologia e durata dell'incubazione da definire). */
+/** §25 — nel prototipo non serve attendere 28 giorni reali. */
 export const INCUBATION_DAYS = 28;
 
 export interface DevFlags {
   enabled: boolean;
   forceContinue: boolean;
   forceBranch: boolean;
+  /** §25 DEV://UNLOCK_ALL — solo test, §29 lo vieta in produzione. */
+  unlockAll: boolean;
 }
 
 export interface BatchCandidate {
   name: string;
   family: string;
-  familyArchetype: string;
+  archetype: string;
   affinity: string;
   size: string;
   role: string;
+  fashion: string;
+  mood: string;
   appearance: string;
   rarity: string;
   score: number;
@@ -93,12 +101,15 @@ interface AppState {
 
   health: HealthState;
   progression: Progression;
-  /** XP totali guadagnati: il livello ne deriva e non scende mai (§3). */
   totalXpEarned: number;
+  activeDays: number;
+  branchCount: number;
 
-  mood: string;
-  focus: string;
-  scanAnswers: string[];
+  /** §2 — seme di personalità, stabile. */
+  personality: PersonalitySeed;
+  /** §11 — umori dichiarati, max 3 al giorno. */
+  moodHistory: MoodDayEntry[];
+  cultural: CulturalAffinities;
 
   mons: Record<string, MonRecord>;
   activeMonName: string | null;
@@ -106,18 +117,16 @@ interface AppState {
   memories: Memory[];
   chat: ChatMessage[];
 
-  /** Tratti in partenza durante un BRANCH, prima che il nuovo .mon esista. */
   pendingHeritage: HeritageOrigin[];
 
-  /** Ultima matematica di rarità, esposta in DEV (§20.1). */
-  lastRarity: RarityBreakdown | null;
+  /** §29 — traccia dell'ultima generazione, visibile solo in DEV. */
+  lastTrace: GenerationTrace | null;
   batch: BatchCandidate[];
 
   dev: DevFlags;
   economy: EconomyConfig;
   bias: SimulationBias;
 
-  /* --- Azioni di flusso --- */
   advanceDays: (n: number) => void;
   endWeek: () => void;
   hatch: () => void;
@@ -127,11 +136,11 @@ interface AppState {
   startBranch: () => void;
   confirmBranch: () => void;
 
-  /* --- Interazione --- */
   sendMessage: (text: string) => void;
   logInput: (kind: 'camera' | 'tell' | 'measure' | 'workout', note?: string) => void;
+  /** §11 — dichiara gli umori del giorno, al massimo 3. */
+  setMoodInputs: (inputs: MoodInputId[]) => void;
 
-  /* --- DEV (§20.1) --- */
   setDev: (patch: Partial<DevFlags>) => void;
   setEconomy: (patch: Partial<EconomyConfig>) => void;
   setBias: (patch: Partial<SimulationBias>) => void;
@@ -152,50 +161,68 @@ interface AppState {
 
 /* --- Stato iniziale -------------------------------------------------------- */
 
-function initialProgression(): Progression {
-  return { xp: 0, level: 1, bond: 0, evolutionSync: 0 };
-}
-
 const INITIAL = {
   phase: 'incubation' as Phase,
   day: 1,
   health: initialHealthState(),
-  progression: initialProgression(),
+  progression: { xp: 0, level: 1, bond: 0, evolutionSync: 0 } as Progression,
   totalXpEarned: 0,
-  mood: 'non dichiarato',
-  focus: 'non dichiarato',
-  scanAnswers: [],
+  activeDays: 0,
+  branchCount: 0,
+  personality: neutralPersonality(),
+  moodHistory: [] as MoodDayEntry[],
+  cultural: {} as CulturalAffinities,
   mons: {} as Record<string, MonRecord>,
   activeMonName: null as string | null,
   nodes: [] as MindlineNode[],
   memories: [] as Memory[],
   chat: [] as ChatMessage[],
   pendingHeritage: [] as HeritageOrigin[],
-  lastRarity: null as RarityBreakdown | null,
+  lastTrace: null as GenerationTrace | null,
   batch: [] as BatchCandidate[],
-  dev: { enabled: false, forceContinue: false, forceBranch: false },
+  dev: { enabled: false, forceContinue: false, forceBranch: false, unlockAll: false },
   economy: DEFAULT_ECONOMY,
   bias: DEFAULT_BIAS,
 };
 
 /* --- Helper ---------------------------------------------------------------- */
 
-function userStateOf(s: AppState): UserState {
-  return {
-    day: s.day,
-    health: s.health,
-    progression: s.progression,
-    mood: s.mood,
-    focus: s.focus,
-    scanAnswers: s.scanAnswers,
-  };
-}
-
 function activeRecord(s: AppState): MonRecord | null {
   return s.activeMonName ? (s.mons[s.activeMonName] ?? null) : null;
 }
 
-/** Giorni passati con il .mon attivo, per l'eleggibilità del branch (§7.3). */
+/** Costruisce l'input del generatore da tutto ciò che il prodotto misura. */
+function generatorInput(s: AppState): GeneratorInput {
+  const novelty =
+    s.nodes.length === 0
+      ? EMPTY_NOVELTY
+      : buildNoveltyMemory(s.nodes, (monName) => {
+          const rec = s.mons[monName];
+          if (!rec) return null;
+          return {
+            family: rec.data.family,
+            archetype: rec.data.family_archetype,
+            affinity: rec.data.affinity,
+            eyewear: rec.data.eyewear?.category ?? null,
+            fashion: rec.data.fashion,
+          };
+        });
+
+  return {
+    day: s.day,
+    health: s.health,
+    personality: s.personality,
+    moodHistory: s.moodHistory,
+    cultural: s.cultural,
+    novelty,
+    mindlineDepth: s.nodes.length,
+    bond: Math.round(s.progression.bond * 100),
+    dataConfidence: aggregateDataConfidence(s.health),
+    activeDays: s.activeDays,
+    branchCount: s.branchCount,
+  };
+}
+
 function daysWithActiveMon(s: AppState): number {
   const rec = activeRecord(s);
   return rec ? Math.max(0, s.day - rec.bornOnDay) : 0;
@@ -206,11 +233,7 @@ export const useApp = create<AppState>()(
     (set, get) => ({
       ...INITIAL,
 
-      /* ======================================================================
-         AVANZAMENTO DEL TEMPO (§20.1)
-         Cheat di prototipo dichiarato: sta al posto dell'accumulo reale di
-         calendario e dati sanitari (§25).
-         =================================================================== */
+      /* --- Avanzamento del tempo (§25) --- */
 
       advanceDays: (n) => {
         for (let i = 0; i < n; i++) advanceOneDay(set, get);
@@ -221,42 +244,38 @@ export const useApp = create<AppState>()(
         for (let i = 0; i < remaining; i++) advanceOneDay(set, get);
       },
 
-      /* ======================================================================
-         05 FIRST ENCOUNTER — nasce il primo .mon
-         =================================================================== */
+      /* --- §3 — il primo .mon è Vz.mon, SLIME // ROOT, canonico --- */
 
       hatch: () => {
         const s = get();
         if (s.phase !== 'incubation') return;
 
         const nodeId = makeNodeId(0);
-        const seed = randomSeed();
-
-        const { record, rarity } = generateMon({
-          user: userStateOf(s),
+        const { record, trace } = generateRootMon({
+          input: generatorInput(s),
           mindlineNodeId: nodeId,
           originNodeId: null,
-          heritageOrigins: [],
-          lineageNames: Object.keys(s.mons),
-          seed,
-        });
-
-        const node = createNode({
-          index: 0,
-          kind: 'origin',
-          monName: record.data.name,
-          parentId: null,
-          day: s.day,
-          chapter: 1,
-          label: record.data.evolutionState?.label ?? 'BASIC FORM',
+          lineageNames: [],
+          seed: randomSeed(),
+          devUnlockAll: s.dev.unlockAll,
         });
 
         set({
           phase: 'first-encounter',
           mons: { [record.data.name]: record },
           activeMonName: record.data.name,
-          nodes: [node],
-          lastRarity: rarity,
+          nodes: [
+            createNode({
+              index: 0,
+              kind: 'origin',
+              monName: record.data.name,
+              parentId: null,
+              day: s.day,
+              chapter: 1,
+              label: 'ROOT',
+            }),
+          ],
+          lastTrace: trace,
           chat: [openingMessage(record, s.day)],
         });
 
@@ -264,24 +283,16 @@ export const useApp = create<AppState>()(
       },
 
       enterLive: () => set({ phase: 'live' }),
-
-      /* ======================================================================
-         11 MINDLINE SHIFT — superficie decisionale
-         =================================================================== */
-
       openShift: () => set({ phase: 'shift' }),
 
-      /* ======================================================================
-         12 EVOLUTION — CONTINUE/EVOLVE (§7.2)
-         La STESSA identità avanza. Si spende XP.
-         =================================================================== */
+      /* --- CONTINUE / EVOLVE --- */
 
       doContinue: () => {
         const s = get();
         const rec = activeRecord(s);
         if (!rec) return;
 
-        const stage = rec.data.evolutionState?.stage ?? 0;
+        const stage = rec.data.evolution_state?.stage ?? 0;
         const check = continueEligibility(
           s.economy,
           s.progression.xp,
@@ -294,52 +305,62 @@ export const useApp = create<AppState>()(
         const cost = s.dev.forceContinue ? 0 : evolveCost(s.economy, stage);
         const nodeId = makeNodeId(s.nodes.length);
 
-        const { record, rarity } = evolveMon(rec, userStateOf(s), nodeId, randomSeed());
-
-        const node = createNode({
-          index: s.nodes.length,
-          kind: 'evolution',
-          monName: record.data.name,
-          parentId: rec.data.mindlineNodeId,
-          day: s.day,
-          chapter: nextChapter(s.nodes, 'evolution'),
-          label: record.data.evolutionState?.label ?? 'BASIC FORM',
-        });
-
-        const memory = makeMemory({
-          id: `mem_evo_${s.day}_${s.nodes.length}`,
-          day: s.day,
-          event: {
-            kind: 'milestone',
-            title: `${record.data.evolutionState?.label ?? 'NUOVA FORMA'} sbloccata`,
-            text: `Ha raggiunto ${record.data.evolutionState?.label ?? 'una forma nuova'}. Stessa identità, forma nuova.`,
-            memorable: true,
+        const { record, trace } = evolveMon(
+          rec,
+          {
+            input: generatorInput(s),
+            mindlineNodeId: nodeId,
+            originNodeId: rec.data.mindline_node,
+            heritageOrigins: [],
+            lineageNames: Object.keys(s.mons),
+            previous: rec,
+            seed: randomSeed(),
           },
-          monName: record.data.name,
-        });
+          nodeId,
+        );
 
         set({
           phase: 'evolution',
           mons: { ...s.mons, [record.data.name]: record },
-          nodes: [...s.nodes, node],
+          nodes: [
+            ...s.nodes,
+            createNode({
+              index: s.nodes.length,
+              kind: 'evolution',
+              monName: record.data.name,
+              parentId: rec.data.mindline_node,
+              day: s.day,
+              chapter: nextChapter(s.nodes, 'evolution'),
+              label: record.data.evolution_state?.label ?? 'BASIC FORM',
+            }),
+          ],
           progression: {
             ...s.progression,
             xp: Math.max(0, s.progression.xp - cost),
             evolutionSync: 0,
           },
-          memories: [...s.memories, memory],
-          lastRarity: rarity,
+          memories: [
+            ...s.memories,
+            makeMemory({
+              id: `mem_evo_${s.day}_${s.nodes.length}`,
+              day: s.day,
+              event: {
+                kind: 'milestone',
+                title: `${record.data.evolution_state?.label ?? 'NUOVA FORMA'} sbloccata`,
+                text: 'Stessa identità, forma nuova.',
+                memorable: true,
+              },
+              monName: record.data.name,
+            }),
+          ],
+          lastTrace: trace,
           dev: { ...s.dev, forceContinue: false },
         });
 
         void preloadMonAssets(record.data.name);
       },
 
-      /* ======================================================================
-         13 NEW BRANCH — si sceglie che cosa sopravvive (§7.3)
-         La schermata mostra i tratti in partenza SENZA anticipare la nuova
-         identità: il nuovo .mon non esiste ancora, per costruzione.
-         =================================================================== */
+      /* --- BRANCH: prima si sceglie cosa sopravvive (§23) --- */
 
       startBranch: () => {
         const s = get();
@@ -358,38 +379,23 @@ export const useApp = create<AppState>()(
         set({ phase: 'branch', pendingHeritage: selectHeritageOrigins(rng, rec) });
       },
 
-      /* ======================================================================
-         14 NEW ENCOUNTER — nasce il .mon del nuovo ramo
-         =================================================================== */
-
       confirmBranch: () => {
         const s = get();
         const previous = activeRecord(s);
         if (!previous || s.phase !== 'branch') return;
 
         const nodeId = makeNodeId(s.nodes.length);
-        const seed = randomSeed();
-
-        const { record, rarity } = generateMon({
-          user: userStateOf(s),
+        const { record, trace } = generateMon({
+          input: generatorInput(s),
           mindlineNodeId: nodeId,
-          originNodeId: previous.data.mindlineNodeId,
+          originNodeId: previous.data.mindline_node,
           heritageOrigins: s.pendingHeritage,
           lineageNames: Object.keys(s.mons),
-          seed,
+          previous,
+          seed: randomSeed(),
+          devUnlockAll: s.dev.unlockAll,
         });
 
-        const node = createNode({
-          index: s.nodes.length,
-          kind: 'branch',
-          monName: record.data.name,
-          parentId: previous.data.mindlineNodeId,
-          day: s.day,
-          chapter: nextChapter(s.nodes, 'branch'),
-          label: 'BASIC FORM',
-        });
-
-        // §8.2 — parte delle memorie sopravvive al branch, in forma parziale.
         const rng = makeRng(seedFromString(`carry:${record.data.name}`));
         const carried = carryMemoriesThroughBranch(rng, s.memories, previous, record.data.name);
 
@@ -401,21 +407,31 @@ export const useApp = create<AppState>()(
             [record.data.name]: record,
           },
           activeMonName: record.data.name,
-          nodes: [...s.nodes, node],
+          branchCount: s.branchCount + 1,
+          nodes: [
+            ...s.nodes,
+            createNode({
+              index: s.nodes.length,
+              kind: 'branch',
+              monName: record.data.name,
+              parentId: previous.data.mindline_node,
+              day: s.day,
+              chapter: nextChapter(s.nodes, 'branch'),
+              label: 'BASIC FORM',
+            }),
+          ],
           memories: [...s.memories, ...carried],
           chat: [openingMessage(record, s.day)],
           pendingHeritage: [],
           progression: { ...s.progression, bond: 0, evolutionSync: 0 },
-          lastRarity: rarity,
+          lastTrace: trace,
           dev: { ...s.dev, forceBranch: false },
         });
 
         void preloadMonAssets(record.data.name);
       },
 
-      /* ======================================================================
-         INTERAZIONE
-         =================================================================== */
+      /* --- Interazione --- */
 
       sendMessage: (text) => {
         const s = get();
@@ -430,13 +446,10 @@ export const useApp = create<AppState>()(
           text: text.trim(),
           day: s.day,
         };
-
-        // §17 — ogni superficie dipendente da AI ha un fallback. Nel prototipo
-        // la risposta È il fallback: deterministica, dal Voice DNA.
         const theirs: ChatMessage = {
           id: `msg_${s.chat.length}_m`,
           from: 'mon',
-          text: fallbackReply(rng, rec.data.mood, rec.data.voiceDna, rec.data.role),
+          text: fallbackReply(rng, rec.data.mood_primary, rec.data.voice_dna, rec.data.role),
           day: s.day,
           fallback: true,
         };
@@ -457,21 +470,16 @@ export const useApp = create<AppState>()(
         const gained = kind === 'workout' ? s.economy.xpPerWorkout : s.economy.xpPerLoggedDay;
         const totalXpEarned = s.totalXpEarned + gained;
 
-        // Un input registrato migliora la metrica che gli compete.
-        const touched: Partial<Record<StatKey, number>> = {};
         const current = (k: StatKey) =>
           isKnown(s.health.stats[k].value) ? (s.health.stats[k].value as number) : 50;
+        const touched: Partial<Record<StatKey, number>> = {};
 
         if (kind === 'workout') {
           touched.ATK = Math.min(100, current('ATK') + 2.5);
           touched.SPD = Math.min(100, current('SPD') + 1.8);
-        } else if (kind === 'measure') {
-          touched.FORM = Math.min(100, current('FORM') + 1.2);
-        } else if (kind === 'camera') {
-          touched.CARE = Math.min(100, current('CARE') + 1.5);
-        } else {
-          touched.REC = Math.min(100, current('REC') + 1);
-        }
+        } else if (kind === 'measure') touched.FORM = Math.min(100, current('FORM') + 1.2);
+        else if (kind === 'camera') touched.CARE = Math.min(100, current('CARE') + 1.5);
+        else touched.REC = Math.min(100, current('REC') + 1);
 
         const health = applyDay(s.health, s.day, {
           touched,
@@ -510,9 +518,18 @@ export const useApp = create<AppState>()(
         });
       },
 
-      /* ======================================================================
-         PANNELLO DEV (§20.1)
-         =================================================================== */
+      /* --- §11 — umori dichiarati, mai più di 3 al giorno --- */
+
+      setMoodInputs: (inputs) =>
+        set((s) => {
+          const capped = inputs.slice(0, MOOD_INPUT_RULES.maxPerDay);
+          const rest = s.moodHistory.filter((d) => d.day !== s.day);
+          return {
+            moodHistory: capped.length > 0 ? [...rest, { day: s.day, inputs: capped }] : rest,
+          };
+        }),
+
+      /* --- DEV --- */
 
       setDev: (patch) => set((s) => ({ dev: { ...s.dev, ...patch } })),
       setEconomy: (patch) => set((s) => ({ economy: { ...s.economy, ...patch } })),
@@ -521,13 +538,7 @@ export const useApp = create<AppState>()(
       setSignal: (key, value) =>
         set((s) => {
           const stats = { ...s.health.stats };
-          stats[key] = {
-            value,
-            delta: UNKNOWN,
-            // Un valore imposto a mano è certo per definizione; UNKNOWN azzera
-            // la confidenza, com'è giusto.
-            confidence: value === UNKNOWN ? 0 : 1,
-          };
+          stats[key] = { value, delta: UNKNOWN, confidence: value === UNKNOWN ? 0 : 1 };
           return { health: { ...s.health, stats } };
         }),
 
@@ -539,8 +550,6 @@ export const useApp = create<AppState>()(
             progression: {
               ...s.progression,
               xp: Math.max(0, s.progression.xp + amount),
-              // §3 — il livello non scende mai: deriva dagli XP guadagnati,
-              // non da quelli attualmente in tasca.
               level: levelFromXp(s.economy, totalXpEarned),
             },
           };
@@ -576,47 +585,47 @@ export const useApp = create<AppState>()(
           };
         }),
 
-      /**
-       * §20.2 — genera solo DATI STRUTTURATI, nessun asset. Serve a valutare
-       * varianza, doppioni, distribuzione di rarità, bilanciamento
-       * Family/Affinity, coerenza Heritage e qualità dei nomi.
-       */
+      /** §25 DEV://GENERATE_10 — solo dati strutturati, nessuna immagine. */
       generateBatch: (n) => {
         const s = get();
         const previous = activeRecord(s);
         const lineage = [...Object.keys(s.mons)];
         const out: BatchCandidate[] = [];
+        const input = generatorInput(s);
 
         for (let i = 0; i < n; i++) {
           const seed = randomSeed();
-          // Un candidato su tre nasce da un branch, così l'Heritage entra
-          // davvero nel campione.
           const heritageOrigins =
             previous && i % 3 === 0
               ? selectHeritageOrigins(makeRng(seed ^ 0x9e3779b9), previous)
               : [];
 
-          const { record, rarity } = generateMon({
-            user: userStateOf(s),
+          const { record } = generateMon({
+            input,
             mindlineNodeId: `batch_${i}`,
-            originNodeId: previous?.data.mindlineNodeId ?? null,
+            originNodeId: previous?.data.mindline_node ?? null,
             heritageOrigins,
             lineageNames: lineage,
+            previous,
             seed,
+            devUnlockAll: s.dev.unlockAll,
           });
 
           lineage.push(record.data.name);
+          const d = record.data;
           out.push({
-            name: record.data.name,
-            family: record.data.family,
-            familyArchetype: record.data.familyArchetype,
-            affinity: record.data.affinity,
-            size: record.data.size,
-            role: record.data.role,
-            appearance: record.data.appearance,
-            rarity: record.data.rarity,
-            score: rarity.score,
-            heritageCount: record.data.heritage.length,
+            name: d.name,
+            family: d.family,
+            archetype: d.family_archetype,
+            affinity: d.affinity,
+            size: d.size,
+            role: d.role,
+            fashion: d.fashion,
+            mood: d.mood_primary,
+            appearance: d.appearance,
+            rarity: d.rarity,
+            score: d.rarity_score,
+            heritageCount: d.heritage_traits.length,
             seed,
           });
         }
@@ -626,24 +635,32 @@ export const useApp = create<AppState>()(
 
       clearBatch: () => set({ batch: [] }),
 
-      /** Rigenera il .mon del nodo corrente con un nuovo seed. */
       resetCurrentNode: () => {
         const s = get();
         const rec = activeRecord(s);
         if (!rec) return;
-
-        const node = s.nodes.find((n) => n.id === rec.data.mindlineNodeId);
+        const node = s.nodes.find((n) => n.id === rec.data.mindline_node);
         if (!node) return;
 
         const lineage = Object.keys(s.mons).filter((n) => n !== rec.data.name);
-        const { record, rarity } = generateMon({
-          user: userStateOf(s),
+        const isRoot = node.parentId === null;
+
+        const ctx = {
+          input: generatorInput(s),
           mindlineNodeId: node.id,
-          originNodeId: rec.data.originNodeId,
-          heritageOrigins: rec.data.heritage.map(({ transformed: _t, ...rest }) => rest),
+          originNodeId: rec.data.origin_node,
           lineageNames: lineage,
           seed: randomSeed(),
-        });
+          devUnlockAll: s.dev.unlockAll,
+        };
+
+        const { record, trace } = isRoot
+          ? generateRootMon(ctx)
+          : generateMon({
+              ...ctx,
+              heritageOrigins: rec.data.heritage_traits.map(({ transformed: _t, ...rest }) => rest),
+              previous: null,
+            });
 
         const mons = { ...s.mons };
         delete mons[rec.data.name];
@@ -654,11 +671,10 @@ export const useApp = create<AppState>()(
           activeMonName: record.data.name,
           nodes: s.nodes.map((n) => (n.id === node.id ? { ...n, monName: record.data.name } : n)),
           chat: [openingMessage(record, s.day)],
-          lastRarity: rarity,
+          lastTrace: trace,
         });
       },
 
-      /** Torna a un nodo precedente rendendolo di nuovo attivo. */
       restoreNode: (nodeId) => {
         const s = get();
         const node = s.nodes.find((n) => n.id === nodeId);
@@ -676,20 +692,21 @@ export const useApp = create<AppState>()(
         void preloadMonAssets(node.monName);
       },
 
-      /** Duplica lo scenario corrente su un nuovo nodo, per confronti a coppie. */
       cloneScenario: () => {
         const s = get();
         const rec = activeRecord(s);
         if (!rec) return;
 
         const nodeId = makeNodeId(s.nodes.length);
-        const { record, rarity } = generateMon({
-          user: userStateOf(s),
+        const { record, trace } = generateMon({
+          input: generatorInput(s),
           mindlineNodeId: nodeId,
-          originNodeId: rec.data.mindlineNodeId,
+          originNodeId: rec.data.mindline_node,
           heritageOrigins: [],
           lineageNames: Object.keys(s.mons),
+          previous: rec,
           seed: randomSeed(),
+          devUnlockAll: s.dev.unlockAll,
         });
 
         set({
@@ -700,62 +717,32 @@ export const useApp = create<AppState>()(
               index: s.nodes.length,
               kind: 'branch',
               monName: record.data.name,
-              parentId: rec.data.mindlineNodeId,
+              parentId: rec.data.mindline_node,
               day: s.day,
               chapter: nextChapter(s.nodes, 'branch'),
-              label: 'BASIC FORM (CLONE DEV)',
+              label: 'CLONE DEV',
             }),
           ],
-          lastRarity: rarity,
+          lastTrace: trace,
         });
       },
 
-      /* --- Import asset (§22.3) ---
-         Tocca SOLO `assetStatus`. Nessun campo di identità viene modificato:
-         il record sopravvive alla sostituzione degli asset. */
+      /* --- Import asset: tocca SOLO assetStatus --- */
 
-      markAssetResolved: (monName, type) =>
-        set((s) => {
-          const rec = s.mons[monName];
-          if (!rec) return {};
-          return {
-            mons: {
-              ...s.mons,
-              [monName]: {
-                ...rec,
-                data: {
-                  ...rec.data,
-                  assetStatus: { ...rec.data.assetStatus, [type]: 'resolved' },
-                },
-              },
-            },
-          };
+      markAssetResolved: (monName, type) => setAssetState(set, monName, type, 'resolved'),
+      markAssetWaiting: (monName, type) => setAssetState(set, monName, type, 'waiting'),
+
+      resetAll: () =>
+        set({
+          ...INITIAL,
+          health: initialHealthState(),
+          personality: neutralPersonality(),
+          dev: get().dev,
         }),
-
-      markAssetWaiting: (monName, type) =>
-        set((s) => {
-          const rec = s.mons[monName];
-          if (!rec) return {};
-          return {
-            mons: {
-              ...s.mons,
-              [monName]: {
-                ...rec,
-                data: {
-                  ...rec.data,
-                  assetStatus: { ...rec.data.assetStatus, [type]: 'waiting' },
-                },
-              },
-            },
-          };
-        }),
-
-      resetAll: () => set({ ...INITIAL, health: initialHealthState(), dev: get().dev }),
     }),
     {
-      name: 'vinzverce.prototype.v1',
-      version: 1,
-      // Le immagini stanno in IndexedDB: qui va solo il modello.
+      name: 'vinzverce.prototype.v2',
+      version: 2,
       partialize: (s) => {
         const { batch: _batch, ...rest } = s;
         return rest as AppState;
@@ -764,30 +751,25 @@ export const useApp = create<AppState>()(
   ),
 );
 
-/* ============================================================================
-   AVANZAMENTO DI UN GIORNO
-   ========================================================================= */
+/* --- Avanzamento di un giorno ---------------------------------------------- */
 
-function advanceOneDay(
-  set: (partial: Partial<AppState>) => void,
-  get: () => AppState,
-): void {
+function advanceOneDay(set: (p: Partial<AppState>) => void, get: () => AppState): void {
   const s = get();
   const day = s.day + 1;
   const rng = makeRng(seedFromString(`day:${day}:${s.activeMonName ?? 'incubation'}`));
 
   const input = simulateDayInput(rng, s.health, s.bias);
   const health = applyDay(s.health, day, input);
+  const activeDays = s.activeDays + (input.logged ? 1 : 0);
 
-  // Durante l'incubazione non c'è ancora un .mon: si accumulano solo segnali.
   if (s.phase === 'incubation') {
-    set({ day, health });
+    set({ day, health, activeDays });
     return;
   }
 
   const rec = activeRecord(s);
   if (!rec) {
-    set({ day, health });
+    set({ day, health, activeDays });
     return;
   }
 
@@ -801,12 +783,7 @@ function advanceOneDay(
 
   if (event?.memorable) {
     memories.push(
-      makeMemory({
-        id: `mem_${day}_${memories.length}`,
-        day,
-        event,
-        monName: rec.data.name,
-      }),
+      makeMemory({ id: `mem_${day}_${memories.length}`, day, event, monName: rec.data.name }),
     );
     bonusXp = s.economy.xpPerMemory;
   }
@@ -818,6 +795,7 @@ function advanceOneDay(
     health,
     memories,
     totalXpEarned,
+    activeDays,
     progression: {
       ...s.progression,
       xp: s.progression.xp + gained + bonusXp,
@@ -831,7 +809,31 @@ function advanceOneDay(
   });
 }
 
-/* --- Utilità --------------------------------------------------------------- */
+/* --- Utilità ---------------------------------------------------------------- */
+
+function setAssetState(
+  set: (fn: (s: AppState) => Partial<AppState>) => void,
+  monName: string,
+  type: AssetType,
+  state: 'resolved' | 'waiting',
+) {
+  set((s) => {
+    const rec = s.mons[monName];
+    if (!rec) return {};
+    return {
+      mons: {
+        ...s.mons,
+        [monName]: {
+          ...rec,
+          data: {
+            ...rec.data,
+            asset_manifest_status: { ...rec.data.asset_manifest_status, [type]: state },
+          },
+        },
+      },
+    };
+  });
+}
 
 const INPUT_TITLES: Record<'camera' | 'tell' | 'measure' | 'workout', string> = {
   camera: 'Foto registrata',
@@ -845,17 +847,15 @@ function openingMessage(record: MonRecord, day: number): ChatMessage {
   return {
     id: `msg_open_${record.data.name}`,
     from: 'mon',
-    text: fallbackGreeting(rng, record.data.mood, record.data.voiceDna),
+    text: fallbackGreeting(rng, record.data.mood_primary, record.data.voice_dna),
     day,
     fallback: true,
   };
 }
 
-/* --- Selettori -------------------------------------------------------------
-   NB: ogni selettore passato a `useApp` deve restituire un valore già presente
-   nello store o un primitivo. Restituire un oggetto costruito al volo manda
-   zustand in loop infinito, perché il confronto è per identità. I derivati si
-   calcolano fuori dal selettore, nel corpo dell'hook.
+/* --- Selettori --------------------------------------------------------------
+   Ogni selettore restituisce un valore già nello store o un primitivo:
+   costruire un oggetto dentro `useApp` manda zustand in loop infinito.
    -------------------------------------------------------------------------- */
 
 export function useActiveMon(): MonRecord | null {
@@ -869,7 +869,7 @@ export function useContinueCheck() {
   const sync = useApp((s) => s.progression.evolutionSync);
   const forced = useApp((s) => s.dev.forceContinue);
 
-  const stage = rec?.data.evolutionState?.stage ?? 0;
+  const stage = rec?.data.evolution_state?.stage ?? 0;
   return {
     check: continueEligibility(economy, xp, sync, stage, forced),
     cost: evolveCost(economy, stage),
@@ -887,20 +887,25 @@ export function useBranchCheck() {
   return { check: branchEligibility(economy, days, bond, forced), days };
 }
 
-/** Progresso dell'incubazione 0–1 (schermata 04). */
 export function useIncubation() {
   const day = useApp((s) => s.day);
   const stats = useApp((s) => s.health.stats);
 
   const elapsed = Math.min(INCUBATION_DAYS, day);
-  const knownSignals = STAT_KEYS.filter((k) => isKnown(stats[k].value)).length;
+  const known = STAT_KEYS.filter((k) => isKnown(stats[k].value)).length;
 
   return {
     day: elapsed,
     total: INCUBATION_DAYS,
     progress: elapsed / INCUBATION_DAYS,
-    // "SIGNAL STABILITY" del board: quanti segnali il sistema legge davvero.
-    stability: knownSignals / STAT_KEYS.length,
+    stability: known / STAT_KEYS.length,
     ready: elapsed >= INCUBATION_DAYS,
   };
+}
+
+/** Umori dichiarati oggi (§11). */
+export function useTodayMoods(): MoodInputId[] {
+  const day = useApp((s) => s.day);
+  const history = useApp((s) => s.moodHistory);
+  return history.find((d) => d.day === day)?.inputs ?? [];
 }

@@ -65,6 +65,22 @@ export const t = {
     cancel: 'ANNULLA',
   },
 
+  /* 08 DAILY SCAN — input mood di §11 */
+  scan: {
+    title: 'DAILY SCAN',
+    moodTitle: 'COME STAI OGGI',
+    rule: 'Fino a 3 al giorno. Un solo giorno non decide mai come sarà il tuo .mon: quello che dichiari entra in una finestra di 14 giorni, dove gli ultimi 3 pesano il doppio e nessun giorno singolo può contare più del 18%.',
+    latentTitle: 'FINESTRA LATENTE',
+    latentNote: 'È questo che il generatore legge, non il singolo giorno.',
+    confidenceTitle: 'DATA CONFIDENCE',
+    lowConfidence:
+      'Con pochi dati il sistema usa un umore neutro invece di inventarne uno forte.',
+    missingTitle: 'SEGNALI NON LETTI',
+    missingNote: 'Restano sconosciuti. Non contano come zero e non peggiorano niente.',
+    syncNow: 'SINCRONIZZA UN DATO',
+    confirm: 'REGISTRA',
+  },
+
   /* 09 ME OVERVIEW */
   me: {
     title: 'ME',

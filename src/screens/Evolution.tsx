@@ -25,8 +25,8 @@ export function EvolutionScreen() {
 
   const d = mon.data;
   const short = displayName(d.name);
-  const evo = d.evolutionState;
-  const from = evo?.previousLabels[evo.previousLabels.length - 1] ?? 'BASIC FORM';
+  const evo = d.evolution_state;
+  const from = evo?.previous_labels[evo.previous_labels.length - 1] ?? 'BASIC FORM';
   const to = evo?.label ?? 'BASIC FORM';
 
   return (
@@ -63,7 +63,7 @@ export function EvolutionScreen() {
           <p className="t-meta">RESTA INVARIATO</p>
           <div className="evolution__keptgrid">
             <Kept label="NOME" value={<MonName name={d.name} />} />
-            <Kept label="FAMILY" value={`${d.family} / ${d.familyArchetype}`} />
+            <Kept label="FAMILY" value={`${d.family} / ${d.family_archetype}`} />
             <Kept label="AFFINITY" value={d.affinity} />
             <Kept label="SIZE" value={d.size} />
             <Kept label="ROLE" value={d.role} />

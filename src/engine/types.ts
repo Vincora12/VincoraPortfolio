@@ -1,78 +1,43 @@
 /* ============================================================================
-   VINZ.VERCE — SCHEMA CANONICO
-   Fonte: MASTER SPEC §3, §4, §5, §7, §8, §13, §21, §23, §24.
+   VINZ.MON — SCHEMA CANONICO
 
-   ATTENZIONE (§13 SUPERSEDING RULE): questo schema è CHIUSO.
-   È vietato aggiungere campi fantasy non generati da uno degli assi canonici
-   — niente `species`, `class`, `protector`, `seraphim` o simili. Se serve un
-   campo nuovo, prima si aggiorna la spec, poi questo file.
+   Il blocco CHARACTER DATA segue §27 della GENERATION BIBLE v2.1 alla lettera,
+   nomi di campo compresi. È snake_case di proposito: così il record TypeScript
+   **è** il `character_data.json` esportato (§48), senza un livello di
+   mappatura che possa divergere.
+
+   Lo schema resta CHIUSO: la regola della MASTER SPEC §13 vale ancora —
+   niente `species`, `class`, `protector`, `seraphim` o altri campi fuori dagli
+   assi canonici. §28 aggiunge che nessuna Family è premio o punizione per lo
+   stato di salute.
    ========================================================================= */
 
 import type {
-  Affinity,
   Appearance,
-  Family,
-  FamilyArchetype,
-  FashionAttitude,
-  HairBleachState,
-  Mood,
+  HeritageCategory,
   Rarity,
-  Role,
-  Season,
   Size,
-} from './taxonomy';
+} from './generation-config';
+import type { RarityScoreBreakdown } from './rarity';
 
-/* --- SOLUZIONE FASHION (§4, §6) --------------------------------------------
-   L'asse FASHION di §4 copre esplicitamente "Outfit logic, eyewear, haircut,
-   footwear, accessories, material/styling attitude": occhiali e capelli
-   stanno QUI dentro, non come campi inventati fuori dagli assi canonici (§13).
-   -------------------------------------------------------------------------- */
-
-export interface FashionSolution {
-  attitude: FashionAttitude;
-  /** §6: obbligatori quando l'anatomia lo consente. `null` se non plausibile. */
-  eyewear: string | null;
-  /** §6: presenti solo dove l'anatomia supporta i capelli. */
-  hair: { cut: string; bleach: HairBleachState } | null;
-  footwear: string;
-  accessories: string[];
-}
-
-/* --- SEGNALI DI SALUTE (§3) ------------------------------------------------
-   Il dato mancante è *unknown*, mai negativo e mai zero. Il tipo lo impone:
-   la UI non può stampare uno 0 al posto di un buco senza passare da un check.
+/* --- SEGNALI DI SALUTE (MASTER SPEC §3) ------------------------------------
+   Il dato mancante è *unknown*, mai negativo e mai zero. Il tipo lo impone.
    -------------------------------------------------------------------------- */
 
 export type Signal = number | 'unknown';
-
 export const UNKNOWN = 'unknown' as const;
 
 export function isKnown(s: Signal): s is number {
   return s !== UNKNOWN;
 }
 
-/** Le sei metriche di §3. Sono trend, non punteggi di gioco. */
 export type StatKey = 'FORM' | 'ATK' | 'SPD' | 'DEF' | 'REC' | 'CARE';
-
 export const STAT_KEYS: readonly StatKey[] = ['FORM', 'ATK', 'SPD', 'DEF', 'REC', 'CARE'];
 
 export interface StatEntry {
-  /** 0–100. `unknown` quando non è stato rilevato nulla. */
   value: Signal;
-  /** Variazione rispetto alla rilevazione precedente; `unknown` se non calcolabile. */
   delta: Signal;
-  /** Confidenza del dato 0–1 (§9 ME: "data confidence"). */
   confidence: number;
-}
-
-export interface HealthState {
-  stats: Record<StatKey, StatEntry>;
-  /** CONDITION è lo stato del giorno, NON una stat permanente (§3). */
-  condition: Signal;
-  /** DISC = costanza/collaborazione col sistema. Separata dalle stat. */
-  disc: Signal;
-  /** Storico giornaliero per i trend di ME e del report settimanale. */
-  history: HealthSample[];
 }
 
 export interface HealthSample {
@@ -81,99 +46,82 @@ export interface HealthSample {
   condition: Signal;
 }
 
-/* --- PROGRESSIONE DI GIOCO (§3) --------------------------------------------
-   Tenuta separata dalla salute: "Health information and game scores remain
-   conceptually and technically separate."
-   -------------------------------------------------------------------------- */
+export interface HealthState {
+  stats: Record<StatKey, StatEntry>;
+  /** CONDITION è lo stato del giorno, NON una stat permanente. */
+  condition: Signal;
+  /** DISC = costanza; §2 «does NOT equal moral quality». */
+  disc: Signal;
+  history: HealthSample[];
+}
+
+/* --- PROGRESSIONE DI GIOCO -------------------------------------------------- */
 
 export interface Progression {
   xp: number;
-  /** Il livello non diminuisce mai (§3). */
+  /** Non diminuisce mai. */
   level: number;
-  /** Legame con il .mon attivo, 0–1. */
+  /** §2 BOND 0–100. */
   bond: number;
-  /** Avanzamento verso la prossima evoluzione, 0–1 (board: EVOLUTION SYNC). */
   evolutionSync: number;
 }
 
-/* --- COLOR DNA (§10.2) -----------------------------------------------------
-   Il personaggio è la sorgente del colore dell'interfaccia. Nessun arcobaleno.
-   -------------------------------------------------------------------------- */
+/* ============================================================================
+   §27 — CHARACTER DATA CONTRACT
+   ========================================================================= */
 
-export interface ColorDna {
-  /** Character Primary — accento dominante campionato dal .mon. */
+/** §27 palette_dna — la creatura è l'unica sorgente di colore della UI. */
+export interface PaletteDna {
   primary: string;
-  /** Character Secondary/Accent. */
   accent: string;
-  /** Colore del testo leggibile sopra `primary`, calcolato per contrasto. */
-  onPrimary: string;
-  /** Palette completa del .mon, per riferimento nei prompt asset. */
-  palette: string[];
-  /** Nomi leggibili della palette, usati nei prompt (§22.1). */
-  paletteNames: string[];
+  /** Colore leggibile sopra `primary`, calcolato per contrasto. */
+  on_primary: string;
+  swatches: string[];
+  /** Nomi leggibili, usati testualmente nei prompt (§40). */
+  swatch_names: string[];
 }
 
-/* --- VOICE DNA (§14) — genoma persistente di personalità e scrittura ------- */
-
-export interface VoiceDna {
-  /** Registro di base della voce. */
-  register: string;
-  /** Lunghezza tipica delle battute. */
-  verbosity: 'terse' | 'normal' | 'expansive';
-  /** Tic verbali e abitudini di scrittura. */
-  quirks: string[];
-  /** Uso di emoji/simboli: da 'none' a 'frequent'. */
-  symbolUse: 'none' | 'rare' | 'occasional' | 'frequent';
-  /** Come si rivolge a VINZ. Non è mai deferente: non lo tratta da dio (§2.2). */
-  addressesVinzAs: string;
+/** §27 eyewear — §9 la rende obbligatoria dove l'anatomia lo consente. */
+export interface EyewearSolution {
+  /** Una delle 16 categorie di §9. */
+  category: string;
+  /** Soluzione specifica, adattata a questa anatomia. */
+  description: string;
 }
 
-/* --- CHARACTER DNA (§4) ----------------------------------------------------
-   "Persistent personality, behavior, voice, visual and memory genome."
-   Ogni .mon è una verità parziale su VINZ, mai la personalità intera (§2.2),
-   e può incarnare una contraddizione.
-   -------------------------------------------------------------------------- */
-
+/**
+ * §27 character_dna — §40 impone che si materializzi in elementi precisi:
+ * un tic di sagoma, un espediente anatomico, la palette, la logica del volto,
+ * un motivo ricorrente e 1–3 contraddizioni comportamentali.
+ */
 export interface CharacterDna {
-  /** Tratti di personalità dominanti. */
+  silhouette_quirk: string;
+  anatomical_gimmick: string;
+  face_logic: string;
+  body_language: string;
+  recurring_motif: string;
+  /** §40 — 1–3 contraddizioni, tradotte visivamente quando possibile. */
+  contradictions: { a: string; b: string }[];
   traits: string[];
-  /** Spinte/motivazioni. */
   drives: string[];
-  /** La contraddizione che il .mon incarna (§2.2). Sempre presente. */
-  contradiction: { a: string; b: string };
-  /** Sottoinsieme del mondo culturale di VINZ campionato da questo .mon (§16). */
-  interests: string[];
-  /** Domini culturali verso cui questo .mon NON ha affinità (§16). */
-  blindSpots: string[];
 }
 
-/* --- HERITAGE (§7.3, §8.3) -------------------------------------------------
-   1–3 tratti riconoscibili ereditati dal nodo precedente, *tradotti* nella
-   nuova Family, mai copiati alla lettera. Conserviamo sia la forma d'origine
-   sia quella trasformata: la schermata 18 HERITAGE DNA deve mostrare il
-   passaggio, non solo il risultato.
-   -------------------------------------------------------------------------- */
+/** §13 — dodici assi parametrici, ognuno 0–100 sopra il preset di base. */
+export type VoiceDna = Record<string, number> & {
+  /** Assi che deviano marcatamente dal preset: alimentano §16. */
+  deviations?: string[];
+};
 
-export type HeritageKind =
-  | 'anatomical'
-  | 'behavioral'
-  | 'visual'
-  | 'symbolic'
-  | 'memory'
-  | 'relational';
-
+/** §23 — un tratto ereditato porta con sé origine e forma tradotta. */
 export interface HeritageTrait {
   id: string;
-  kind: HeritageKind;
-  /** Come si manifestava nel .mon precedente. */
+  category: HeritageCategory;
   origin: string;
-  /** Come si manifesta nel nuovo .mon, tradotto nella nuova Family. */
   transformed: string;
-  /** Nome canonico del .mon da cui proviene. */
-  fromMon: string;
+  from_mon: string;
 }
 
-/* --- ASSET (§21.1, §23, §24) ----------------------------------------------- */
+/* --- ASSET (§45, MASTER SPEC §23) ------------------------------------------ */
 
 export type AssetType =
   | 'character_master'
@@ -185,107 +133,98 @@ export type AssetType =
   | 'sigil';
 
 export type AssetState = 'waiting' | 'resolved';
-
-/** Mappa stato asset: sempre presente, anche a slot tutti vuoti (§21.2). */
 export type AssetStatusMap = Record<AssetType, AssetState>;
 
-/* --- EVOLUZIONE (§7.2, §12) ------------------------------------------------ */
+/* --- EVOLUZIONE ------------------------------------------------------------- */
 
 export interface EvolutionState {
-  /** Etichetta di stato corrente mostrata nel profilo (§13). */
   label: string;
-  /** Quante volte questa identità ha fatto CONTINUE/EVOLVE. */
   stage: number;
-  /** Storia delle forme attraversate da questa stessa identità. */
-  previousLabels: string[];
+  previous_labels: string[];
 }
 
 /* ============================================================================
-   CHARACTER DATA — output minimo strutturato di §21.1.
-   Questi campi sono l'identità. Devono sopravvivere invariati alla
-   sostituzione degli asset (§21.2): l'import di un'immagine tocca solo
-   `assetStatus`.
+   CHARACTER DATA — i campi di §27, nell'ordine del documento.
    ========================================================================= */
 
 export interface CharacterData {
-  /** Nome canonico: inizia per V, contiene Z, termina in `.mon` (§4). */
+  /** §24 step 17 — inizia per V, contiene Z, finisce in `.mon`, unico in lineage. */
   name: string;
 
-  family: Family;
-  familyArchetype: FamilyArchetype;
-  role: Role;
-  fashion: FashionSolution;
-  affinity: Affinity;
-  mood: Mood;
+  family: string;
+  family_archetype: string;
+  affinity: string;
   size: Size;
+  role: string;
+  fashion: string;
 
-  characterDna: CharacterDna;
-
-  /** Presente solo quando rilevante (§21.1). */
-  season?: Season;
+  mood_primary: string;
+  /** §22 — sfumatura secondaria, facoltativa. */
+  mood_secondary: string | null;
 
   appearance: Appearance;
   rarity: Rarity;
+  /** §16 — punteggio 0–100 che ha fatto da tetto. */
+  rarity_score: number;
 
-  colorDna: ColorDna;
-  voiceDna: VoiceDna;
+  season: string | null;
 
-  /** Nodo Mindline che questo .mon occupa. */
-  mindlineNodeId: string;
-  /** Nodo di origine / precedente. `null` solo per il primo .mon. */
-  originNodeId: string | null;
+  palette_dna: PaletteDna;
+  /** `null` quando l'anatomia non consente ottica (§9). */
+  eyewear: EyewearSolution | null;
+  /** `null` quando l'anatomia non ha capelli o equivalenti (§9). */
+  hair_state: string | null;
+  haircut: string | null;
 
-  /** 1–3 tratti, presenti quando il .mon nasce da un BRANCH (§7.3). */
-  heritage: HeritageTrait[];
+  character_dna: CharacterDna;
+  voice_preset: string;
+  voice_dna: VoiceDna;
 
-  /** Metadati di stato, presenti quando il .mon ha fatto CONTINUE (§7.2). */
-  evolutionState?: EvolutionState;
+  cultural_affinities: string[];
 
-  assetStatus: AssetStatusMap;
+  /** §23 — 1–3 al branch, vuoto altrove. */
+  heritage_traits: HeritageTrait[];
 
-  /* --- Tracciabilità di generazione (non è tassonomia) ---
-     Il seed rende ogni generazione riproducibile in QA (§20.2). */
+  mindline_node: string;
+  /** Nodo precedente. `null` solo per la radice. */
+  origin_node: string | null;
+
+  bond: number;
+  data_confidence: number;
+
+  /** §27 — perché è uscito così, in una riga leggibile. */
+  generation_reason_summary: string;
+
+  asset_manifest_status: AssetStatusMap;
+
+  /* --- §29 riproducibilità: seed + versione config + giorno --- */
   seed: number;
-  generatedAtDay: number;
+  generation_config_version: string;
+  generated_at_day: number;
+
+  /** Presente quando il .mon ha fatto CONTINUE/EVOLVE. */
+  evolution_state?: EvolutionState;
 }
 
-/* --- SIGILLO (§13, §23) ----------------------------------------------------
-   Marchio monocromo derivato dal Character DNA. Finché non arriva l'asset
-   disegnato, il prototipo mostra una costruzione geometrica deterministica:
-   è un segnaposto dichiarato, non character art inventata (§18A).
-   -------------------------------------------------------------------------- */
+/* --- SIGILLO ---------------------------------------------------------------- */
 
 export interface SigilSeed {
-  /** Numero di punte/bracci della costruzione. */
   arms: number;
-  /** Rotazione in gradi. */
   rotation: number;
-  /** Presenza del cerchio esterno. */
   ring: boolean;
-  /** Riempimento del nucleo. */
   solidCore: boolean;
 }
 
-/* --- BIO / PERSONAL FILE (§8.1, §16 di §12) --------------------------------
-   Linguaggio Doodle. Testo conciso e caratterizzato, che non inventa lore
-   estranea (§8.1).
-   -------------------------------------------------------------------------- */
+/* --- BIO / PERSONAL FILE ---------------------------------------------------- */
 
 export interface BioFile {
-  /** Storia breve generata dal contesto reale di creazione + Character DNA. */
   story: string;
-  /** Annotazioni sparse, come note a margine di un quaderno. */
   annotations: string[];
-  /** Dettagli ricordati, selezionati. */
   rememberedDetails: string[];
-  /** Hashtag scritti a mano nel file personale. */
   tags: string[];
 }
 
-/* --- MEMORIE (§8.2) --------------------------------------------------------
-   Appartengono alla relazione, non al singolo .mon: possono sopravvivere a un
-   branch in forma trasformata/parziale.
-   -------------------------------------------------------------------------- */
+/* --- MEMORIE ---------------------------------------------------------------- */
 
 export type MemoryKind = 'conversation' | 'milestone' | 'joke' | 'event' | 'gift' | 'workout';
 
@@ -295,73 +234,89 @@ export interface Memory {
   kind: MemoryKind;
   title: string;
   text: string;
-  /** .mon presente quando la memoria è nata. */
   monName: string;
-  /** Valorizzato quando la memoria è sopravvissuta a un branch in forma parziale. */
   carriedFrom?: string;
 }
 
-/* --- MINDLINE (§7, §17 di §12) --------------------------------------------- */
+/* --- MINDLINE ---------------------------------------------------------------- */
 
 export type NodeKind = 'origin' | 'evolution' | 'branch';
 
 export interface MindlineNode {
   id: string;
   kind: NodeKind;
-  /** Nome canonico del .mon che occupa il nodo. */
   monName: string;
-  /** Nodo padre nella topologia. `null` per il nodo di origine. */
   parentId: string | null;
-  /** Giorno di simulazione in cui il nodo è stato creato. */
   day: number;
-  /** Capitolo Mindline (board S12: "CHAPTER 2"). */
   chapter: number;
-  /** Etichetta di forma al momento della creazione del nodo. */
   label: string;
 }
 
-/* --- RECORD COMPLETO DI UN .MON -------------------------------------------- */
+/* --- RECORD COMPLETO --------------------------------------------------------- */
 
 export interface MonRecord {
   data: CharacterData;
   bio: BioFile;
   sigil: SigilSeed;
-  /** Reazioni testuali di fallback quando il Reaction Pack non è ancora arrivato. */
+  /** Reazioni testuali di fallback finché il Reaction Pack non è importato. */
   reactions: string[];
-  /** Giorno di simulazione in cui il .mon è comparso. */
   bornOnDay: number;
-  /** Giorno in cui il .mon ha lasciato il nodo attivo. `null` se ancora attivo. */
   retiredOnDay: number | null;
 }
 
-/* --- CONVERSAZIONE (§6 di §12) --------------------------------------------- */
+/* --- CONVERSAZIONE ----------------------------------------------------------- */
 
 export interface ChatMessage {
   id: string;
   from: 'mon' | 'vinz';
   text: string;
   day: number;
-  /** Vero quando il testo è un fallback deterministico e non generato (§17). */
   fallback?: boolean;
 }
 
-/* --- STATO UTENTE, input del generatore (§21) ------------------------------ */
+/* ============================================================================
+   §29 — TRACCIA DI GENERAZIONE
+   «The prototype must expose a GENERATION TRACE in DEV only showing scores,
+    penalties, chosen pool, rarity normalization and final random seed.»
+   §29 vieta di mostrare le probabilità di Family in produzione.
+   ========================================================================= */
 
-export interface UserState {
-  day: number;
-  health: HealthState;
-  progression: Progression;
-  /** Umore corrente dichiarato o dedotto. */
-  mood: string;
-  /** Focus dichiarato del periodo. */
-  focus: string;
-  /** Risposte del Signal Scan iniziale, seme latente di personalità (§3 di §12). */
-  scanAnswers: string[];
+export interface TraceCandidate {
+  id: string;
+  fit: number;
+  noveltyPenalty: number;
+  culturalModifier: number;
+  noise: number;
+  total: number;
+  chosen: boolean;
 }
 
-/* --- UTILITÀ --------------------------------------------------------------- */
+export interface TraceStep {
+  /** Numero del passo in §24. */
+  step: number;
+  stage: string;
+  outcome: string;
+  candidates?: TraceCandidate[];
+  note?: string;
+}
 
-/** Nome da mostrare: `VAZIEL.mon` → `VAZIEL`. */
+export interface GenerationTrace {
+  seed: number;
+  generation_config_version: string;
+  steps: TraceStep[];
+  rarity: {
+    score: number;
+    breakdown: RarityScoreBreakdown[];
+    cap: Rarity;
+    unlockedPool: { rarity: Rarity; chance: number }[];
+    eligiblePool: { rarity: Rarity; chance: number }[];
+    rolled: Rarity;
+  };
+}
+
+/* --- UTILITÀ ----------------------------------------------------------------- */
+
+/** Stem del nome, senza estensione: `VAZIEL.mon` → `VAZIEL`. */
 export function displayName(canonical: string): string {
   return canonical.replace(/\.mon$/i, '');
 }

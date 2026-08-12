@@ -33,7 +33,7 @@ export function MindlineMapScreen({ onGo }: { onGo: (o: Overlay) => void }) {
   const restoreNode = useApp((s) => s.restoreNode);
 
   const layout = layoutMindline(nodes);
-  const activeNodeId = activeMonName ? mons[activeMonName]?.data.mindlineNodeId : null;
+  const activeNodeId = activeMonName ? mons[activeMonName]?.data.mindline_node : null;
   const chapter = Math.max(1, ...nodes.map((n) => n.chapter));
 
   // Le etichette stanno a destra dei nodi: senza questo margine la colonna

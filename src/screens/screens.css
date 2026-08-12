@@ -1369,3 +1369,112 @@
   border: var(--border) solid var(--ink);
   overflow: hidden;
 }
+
+/* ============================================================================
+   08 DAILY SCAN — input mood di §11
+   ========================================================================= */
+
+.scan__body {
+  padding: var(--u4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--u5);
+}
+
+.scan__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--u2);
+  align-items: flex-start;
+}
+
+.scan__sectionhead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.scan__moods {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--u2);
+}
+
+.moodchip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--u);
+  min-height: 36px;
+  padding: 0 var(--u3);
+  border: var(--border) solid var(--ink);
+  background: var(--white);
+  font-family: var(--font-mono);
+  font-size: var(--type-meta);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.moodchip[aria-pressed='true'] {
+  background: var(--char-primary);
+  color: var(--char-on-primary);
+  box-shadow: var(--shadow-hard-sm);
+}
+
+.moodchip:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.moodchip__mark {
+  font-size: 10px;
+}
+
+/* La regola di §11 è la cosa più importante della schermata: sta in un
+   riquadro, non in una nota a piè di pagina. */
+.scan__rule {
+  margin: var(--u2) 0 0;
+  padding: var(--u3);
+  border-left: var(--border-thick) solid var(--char-accent);
+  background: var(--paper);
+  color: var(--muted-strong);
+  line-height: 1.5;
+}
+
+.scan__latents {
+  display: flex;
+  flex-direction: column;
+  gap: var(--u3);
+  width: 100%;
+}
+
+.scan__note {
+  color: var(--muted);
+  margin: 0;
+}
+
+.scan__warning {
+  display: flex;
+  align-items: center;
+  gap: var(--u2);
+  flex-wrap: wrap;
+  color: var(--muted-strong);
+  margin: 0;
+}
+
+.scan__missing {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--u);
+}
+
+.scan__missingchip {
+  padding: 3px var(--u2);
+  border: 1px dashed var(--hairline);
+  color: var(--muted-strong);
+}
+
+.scan__missingchip em {
+  font-style: normal;
+  color: var(--muted);
+}

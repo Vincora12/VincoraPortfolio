@@ -30,7 +30,7 @@ export function BioFileScreen({ onClose }: { onClose: () => void }) {
         <div>
           <h1 className="t-display bio__name">{short}</h1>
           <p className="t-meta">
-            {t.bio.subtitle} · {d.evolutionState?.label ?? 'BASIC FORM'}
+            {t.bio.subtitle} · {d.evolution_state?.label ?? 'BASIC FORM'}
           </p>
         </div>
         <IconButton icon="edit" label="Annota" light />

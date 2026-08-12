@@ -135,6 +135,14 @@ try {
   await click('.composer .btn-icon:last-child', 'invia');
   await shot('06-conversazione');
 
+  /* 08 — DAILY SCAN, la schermata degli umori di §11 */
+  await click('.home__side .btn-icon:nth-child(4)', 'daily scan');
+  await shot('08-daily-scan');
+  await click(byText('Cazzaro'), 'mood cazzaro');
+  await click(byText('Sicuro'), 'mood sicuro');
+  await shot('08-daily-scan-selezionato');
+  await click(byText('REGISTRA'), 'registra mood');
+
   /* 07 — UNIVERSAL INPUT */
   await click('.home__side .btn-icon:nth-child(3)', 'input universale');
   await shot('07-universal-input');
@@ -191,6 +199,11 @@ try {
   await click(byText('GENERA'), 'tab genera');
   await click(byText('GENERATE 50'), 'batch 50');
   await shot('dev-batch');
+
+  await click(byText('PROMPT'), 'tab prompt dev');
+  await shot('dev-prompt-compilato');
+  await click(byText('PROVENIENZA'), 'provenienza frammenti');
+  await shot('dev-prompt-provenienza');
 
   await click(byText('ASSET'), 'tab asset dev');
   await shot('dev-import-asset');

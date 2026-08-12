@@ -24,7 +24,7 @@ import JSZip from 'jszip';
 import { ASSET_TYPES } from '../engine/assets';
 import type { MonRecord } from '../engine/types';
 import { displayName } from '../engine/types';
-import { compilePrompt } from './promptCompiler';
+import { COMPILER_VERSION, compilePrompt } from './compiler';
 import { buildManifest, expectedFileName } from './manifest';
 
 export interface PackageFile {
@@ -32,20 +32,52 @@ export interface PackageFile {
   content: string;
 }
 
-/** Costruisce i file del pacchetto in memoria. Utile anche per l'anteprima. */
+/**
+ * Costruisce i file del pacchetto in memoria. Utile anche per l'anteprima.
+ *
+ * §48 SITE IMPLEMENTATION — «Every exported asset request must include:
+ * character_data.json, compiled_prompt.txt, fragment_ids.json and
+ * asset_manifest.json.» I prompt numerati di §22.2 restano, perché il
+ * pacchetto ne contiene uno per tipo di asset: `compiled_prompt.txt` raccoglie
+ * l'insieme e `fragment_ids.json` registra da quali frammenti atomici è nato.
+ */
 export function buildPackageFiles(record: MonRecord): PackageFile[] {
   const manifest = buildManifest(record);
 
   const files: PackageFile[] = [
-    {
-      name: '00_CHARACTER_DATA.json',
-      content: JSON.stringify(record.data, null, 2),
-    },
+    { name: '00_CHARACTER_DATA.json', content: JSON.stringify(record.data, null, 2) },
   ];
 
+  const fragmentIds: Record<string, string[]> = {};
+  const combined: string[] = [];
+
   for (const def of ASSET_TYPES) {
-    files.push({ name: def.promptFile, content: compilePrompt(record, def) });
+    const compiled = compilePrompt(record, def.type);
+    files.push({ name: def.promptFile, content: compiled.text });
+    fragmentIds[def.assetId] = compiled.fragmentIds;
+    combined.push(
+      `${'='.repeat(78)}\n${def.promptFile}  —  ${def.label}\n${'='.repeat(78)}\n\n${compiled.text}`,
+    );
   }
+
+  files.push({ name: 'compiled_prompt.txt', content: combined.join('\n\n') });
+
+  // §48 — «fragment_ids.json records exactly which atomic fragments were used,
+  // in order.» Con le versioni, perché §48 chiede la riproducibilità.
+  files.push({
+    name: 'fragment_ids.json',
+    content: JSON.stringify(
+      {
+        mon: record.data.name,
+        compiler_version: COMPILER_VERSION,
+        generation_config_version: record.data.generation_config_version,
+        seed: record.data.seed,
+        fragments_by_asset: fragmentIds,
+      },
+      null,
+      2,
+    ),
+  });
 
   files.push({ name: 'ASSET_MANIFEST.json', content: JSON.stringify(manifest, null, 2) });
   files.push({ name: 'README.txt', content: buildReadme(record) });
@@ -60,8 +92,8 @@ function buildReadme(record: MonRecord): string {
   return [
     `VINZ.VERCE — ASSET REQUEST PACKAGE`,
     `${short} (${record.data.name})`,
-    `Nodo Mindline: ${record.data.mindlineNodeId} · Appearance: ${record.data.appearance} · Rarità: ${record.data.rarity}`,
-    `Generato al giorno ${record.data.generatedAtDay} · seed ${record.data.seed}`,
+    `Nodo Mindline: ${record.data.mindline_node} · Appearance: ${record.data.appearance} · Rarità: ${record.data.rarity}`,
+    `Generato al giorno ${record.data.generated_at_day} · seed ${record.data.seed}`,
     ``,
     `───────────────────────────────────────────────────────────────────────`,
     `COME SI USA`,
