@@ -1,0 +1,309 @@
+/* ============================================================================
+   DEV://VINZ.VERCE
+   Deliberatamente diverso dal prodotto: è uno strumento, non una schermata.
+   Non deve mai essere scambiato per UI rivolta al giocatore (§26).
+   ========================================================================= */
+
+.devtrigger {
+  padding: 1px var(--u);
+  border: 1px solid var(--signal-alert);
+  background: transparent;
+  color: var(--signal-alert);
+  font-family: var(--font-mono);
+  font-size: var(--type-micro);
+  letter-spacing: 0.14em;
+  line-height: 1.4;
+}
+
+.devtrigger:hover {
+  background: var(--signal-alert);
+  color: var(--white);
+}
+
+.dev {
+  background: var(--white);
+}
+
+.dev__head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--u3);
+  padding: var(--u4);
+  border-bottom: var(--border-thick) solid var(--signal-alert);
+}
+
+.dev__title {
+  font-size: 22px;
+  margin: 0 0 2px;
+  color: var(--signal-alert);
+}
+
+.dev__body {
+  padding: var(--u4);
+}
+
+.dev__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--u3);
+}
+
+.dev__label {
+  color: var(--muted-strong);
+  padding-top: var(--u2);
+  border-top: 1px solid var(--hairline);
+}
+
+.dev__note {
+  color: var(--muted);
+  margin: 0;
+  line-height: 1.5;
+}
+
+.dev__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--u2);
+}
+
+.dev__check {
+  display: flex;
+  align-items: center;
+  gap: var(--u2);
+  font-family: var(--font-mono);
+  font-size: var(--type-meta);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: var(--u2);
+  border: 1px solid var(--hairline);
+}
+
+.dev__signal,
+.dev__control {
+  display: flex;
+  flex-direction: column;
+  gap: var(--u);
+}
+
+.dev__control--row {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--u3);
+}
+
+.dev__signalhead,
+.dev__controlhead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.dev__signalrow {
+  display: flex;
+  align-items: center;
+  gap: var(--u2);
+}
+
+.dev__signalrow input[type='range'],
+.dev__control input[type='range'] {
+  flex: 1;
+  min-width: 0;
+  accent-color: var(--char-primary);
+}
+
+.dev__numberinput {
+  width: 96px;
+  padding: var(--u) var(--u2);
+  border: var(--border) solid var(--ink);
+  background: var(--white);
+  font-family: var(--font-mono);
+  font-size: var(--type-small);
+  text-align: right;
+}
+
+.dev__json {
+  max-height: 320px;
+  overflow: auto;
+  padding: var(--u3);
+  border: 1px solid var(--hairline);
+  background: var(--paper);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1.5;
+  white-space: pre;
+}
+
+.dev__factor {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.dev__factor em {
+  font-style: normal;
+  color: var(--muted);
+  text-align: right;
+}
+
+/* --- Batch ----------------------------------------------------------------- */
+
+.batch {
+  display: flex;
+  flex-direction: column;
+  gap: var(--u3);
+}
+
+.batch__checks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--u2);
+}
+
+.batch__check {
+  display: flex;
+  align-items: center;
+  gap: var(--u2);
+  flex-wrap: wrap;
+}
+
+.batch__detail {
+  color: var(--muted);
+  margin-left: auto;
+}
+
+.dist {
+  display: flex;
+  flex-direction: column;
+  gap: var(--u);
+}
+
+.dist__row {
+  display: flex;
+  align-items: center;
+  gap: var(--u2);
+}
+
+.dist__key {
+  width: 92px;
+  flex: 0 0 auto;
+  color: var(--muted-strong);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dist__bar {
+  flex: 1;
+  height: 8px;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+}
+
+/* Nel pannello DEV il riempimento usa l'inchiostro, non il colore del .mon:
+   su campo nero un accento scuro renderebbe le barre illeggibili. */
+.dist__fill {
+  display: block;
+  height: 100%;
+  background: var(--ink);
+}
+
+.dist__n {
+  width: 32px;
+  flex: 0 0 auto;
+  text-align: right;
+  color: var(--muted-strong);
+}
+
+.batch__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 340px;
+  overflow-y: auto;
+  border: 1px solid var(--hairline);
+}
+
+.batch__item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--u2) var(--u3);
+  border-bottom: 1px solid var(--hairline);
+}
+
+.batch__name {
+  font-size: 14px;
+}
+
+.batch__tags {
+  display: flex;
+  gap: var(--u);
+  margin-top: var(--u);
+}
+
+/* --- Import ---------------------------------------------------------------- */
+
+.import {
+  display: flex;
+  flex-direction: column;
+  gap: var(--u3);
+}
+
+.dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--u2);
+  padding: var(--u5) var(--u4);
+  border: var(--border-thick) dashed var(--hairline);
+  text-align: center;
+}
+
+.dropzone--over {
+  border-color: var(--char-accent);
+  background: var(--paper);
+}
+
+.dropzone__label {
+  font-size: 16px;
+  margin: 0;
+}
+
+.import__expected summary {
+  cursor: pointer;
+  padding: var(--u2) 0;
+  color: var(--muted-strong);
+}
+
+.import__result {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.import__result em {
+  font-style: normal;
+  color: var(--muted);
+}
+
+.import__manual {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--u2);
+  padding: var(--u2);
+  border: 1px solid var(--hairline);
+}
+
+.import__manual select {
+  padding: var(--u) var(--u2);
+  border: var(--border) solid var(--ink);
+  background: var(--white);
+  font-family: var(--font-mono);
+  font-size: var(--type-meta);
+}

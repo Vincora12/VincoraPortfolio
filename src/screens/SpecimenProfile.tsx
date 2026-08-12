@@ -1,0 +1,325 @@
+/* ============================================================================
+   15 — SPECIMEN PROFILE (§12) + rotazione (§24)
+
+   🔒 §13 — CONTRATTO DATI. Il profilo mostra i dati canonici memorizzati e
+   NON inventa una nuova tassonomia all'apertura. I campi obbligatori sono
+   esattamente: NAME, FAMILY, FAMILY ARCHETYPE, ROLE, FASHION, AFFINITY, MOOD,
+   SIZE, CHARACTER DNA, SEASON (quando applicabile), APPEARANCE, RARITY, stato
+   evolutivo, SIGIL, BOND/progressione, HERITAGE, BIO/STORY, nodo Mindline di
+   origine, scorciatoie a memorie/reazioni.
+
+   🔒 §13 SUPERSEDING RULE — vietati campi non supportati come 'species',
+   'class', 'protector', 'seraphim'. Lo schema TS li rende impossibili; questa
+   schermata si limita a leggerlo.
+   ========================================================================= */
+
+import { useState } from 'react';
+import type { Overlay } from '../App';
+import { useApp, useActiveMon } from '../state/store';
+import { AssetSlot, RotationViewer, Sigil } from '../system/AssetSlot';
+import {
+  Button,
+  FolderTabs,
+  IconButton,
+  Row,
+  SegmentedBar,
+  SystemLabel,
+} from '../system/components';
+import { ASSET_TYPES } from '../engine/assets';
+import { APPEARANCE_LABELS } from '../engine/taxonomy';
+import {
+  ACCESSORY_IT,
+  AFFINITY_IT,
+  BLEACH_IT,
+  EYEWEAR_IT,
+  FAMILY_IT,
+  FASHION_IT,
+  FOOTWEAR_IT,
+  HAIR_CUT_IT,
+  MOOD_IT,
+  ROLE_IT,
+  it,
+} from '../engine/taxonomyIt';
+import { heritageKindLabel } from '../engine/heritage';
+import { downloadPackage } from '../assets-pipeline/exportPackage';
+import { displayName } from '../engine/types';
+import { t } from '../i18n/it';
+
+type TabId = 'stats' | 'identity' | 'lineage' | 'assets';
+
+const TABS = [
+  { id: 'stats' as const, label: t.specimen.tabs.stats },
+  { id: 'identity' as const, label: t.specimen.tabs.identity },
+  { id: 'lineage' as const, label: t.specimen.tabs.lineage },
+  { id: 'assets' as const, label: t.specimen.tabs.assets },
+];
+
+export function SpecimenProfileScreen({
+  onClose,
+  onGo,
+}: {
+  onClose: () => void;
+  onGo: (o: Overlay) => void;
+}) {
+  const mon = useActiveMon();
+  const progression = useApp((s) => s.progression);
+  const nodes = useApp((s) => s.nodes);
+  const [tab, setTab] = useState<TabId>('stats');
+  const [exporting, setExporting] = useState(false);
+
+  if (!mon) return null;
+
+  const d = mon.data;
+  const short = displayName(d.name);
+  const originNode = nodes.find((n) => n.id === d.originNodeId);
+
+  const exportPackage = async () => {
+    setExporting(true);
+    try {
+      await downloadPackage(mon);
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  return (
+    <div className="screen specimen">
+      <header className="specimen__head">
+        <IconButton icon="left" label={t.common.back} light onClick={onClose} />
+        <div className="specimen__titles">
+          <h1 className="t-display specimen__name">{short}</h1>
+          <p className="t-meta">
+            {d.family} · {d.familyArchetype}
+          </p>
+        </div>
+        <span className="specimen__sigil">
+          <Sigil seed={mon.sigil} size={28} monName={d.name} />
+        </span>
+      </header>
+
+      <div className="specimen__tags">
+        <SystemLabel tone="character">{d.rarity}</SystemLabel>
+        <SystemLabel>{d.affinity}</SystemLabel>
+        <SystemLabel>{d.size}</SystemLabel>
+        {d.season && <SystemLabel>{d.season}</SystemLabel>}
+      </div>
+
+      {/* --- Rotazione pseudo-3D (§24.5): drag orizzontale, con fallback --- */}
+      <div className="specimen__stage">
+        <RotationViewer monName={d.name} />
+      </div>
+
+      <div className="specimen__sync">
+        <SegmentedBar
+          value={progression.evolutionSync}
+          segments={16}
+          label={t.home.evolutionSync}
+          readout={`${Math.round(progression.evolutionSync * 100)}%`}
+        />
+      </div>
+
+      <FolderTabs tabs={TABS} active={tab} onChange={setTab} label="Sezioni del profilo" />
+
+      <div className="screen__body specimen__body">
+        {tab === 'stats' && (
+          <div className="rowlist">
+            <Row label="STATO" value={d.evolutionState?.label ?? 'BASIC FORM'} />
+            <Row label="STADIO" value={String(d.evolutionState?.stage ?? 0)} />
+            <Row label="BOND" value={`${Math.round(progression.bond * 100)}%`} />
+            <Row label="EVOLUTION SYNC" value={`${Math.round(progression.evolutionSync * 100)}%`} />
+            <Row label="MOOD" value={d.mood} />
+            <Row label="GENERATO AL GIORNO" value={String(d.generatedAtDay)} />
+            <Row label="SEED" value={String(d.seed)} />
+          </div>
+        )}
+
+        {tab === 'identity' && (
+          <>
+            {/* Ogni riga è un asse canonico di §4. Niente di più. */}
+            <div className="rowlist">
+              <Row label="NAME" value={d.name} />
+              <Row label="FAMILY" value={`${d.family} · ${FAMILY_IT[d.family]}`} />
+              <Row label="FAMILY ARCHETYPE" value={d.familyArchetype} />
+              <Row label="ROLE" value={`${d.role} · ${ROLE_IT[d.role]}`} />
+              <Row label="AFFINITY" value={`${d.affinity} · ${AFFINITY_IT[d.affinity]}`} />
+              <Row label="MOOD" value={`${d.mood} · ${MOOD_IT[d.mood]}`} />
+              <Row label="SIZE" value={d.size} />
+              <Row label="APPEARANCE" value={APPEARANCE_LABELS[d.appearance]} />
+              <Row label="RARITY" value={d.rarity} />
+              {d.season && <Row label="SEASON" value={d.season} />}
+            </div>
+
+            {/* FASHION è un asse composito (§4): outfit, occhiali, capelli,
+                scarpe, accessori. */}
+            <section className="specimen__block">
+              <p className="t-meta">FASHION</p>
+              <div className="rowlist">
+                <Row label="ATTITUDE" value={`${d.fashion.attitude} · ${FASHION_IT[d.fashion.attitude]}`} />
+                <Row
+                  label="EYEWEAR"
+                  value={
+                    d.fashion.eyewear
+                      ? it(EYEWEAR_IT, d.fashion.eyewear)
+                      : 'non plausibile su questa anatomia'
+                  }
+                />
+                <Row
+                  label="HAIR"
+                  value={
+                    d.fashion.hair
+                      ? `${it(HAIR_CUT_IT, d.fashion.hair.cut)} · ${it(BLEACH_IT, d.fashion.hair.bleach)}`
+                      : 'anatomia senza capelli'
+                  }
+                />
+                <Row label="FOOTWEAR" value={it(FOOTWEAR_IT, d.fashion.footwear)} />
+                <Row
+                  label="ACCESSORIES"
+                  value={d.fashion.accessories.map((a) => it(ACCESSORY_IT, a)).join(', ') || '—'}
+                />
+              </div>
+            </section>
+
+            <section className="specimen__block">
+              <p className="t-meta">CHARACTER DNA</p>
+              <div className="rowlist">
+                <Row label="TRATTI" value={d.characterDna.traits.join(', ')} />
+                <Row label="SPINTE" value={d.characterDna.drives.join(', ')} />
+                <Row
+                  label="CONTRADDIZIONE"
+                  value={`${d.characterDna.contradiction.a} / ${d.characterDna.contradiction.b}`}
+                />
+                <Row label="INTERESSI" value={d.characterDna.interests.join(' · ')} />
+                <Row label="NON GLI DICE NIENTE" value={d.characterDna.blindSpots.join(' · ')} />
+              </div>
+            </section>
+
+            <section className="specimen__block">
+              <p className="t-meta">VOICE DNA</p>
+              <div className="rowlist">
+                <Row label="REGISTRO" value={d.voiceDna.register} />
+                <Row label="LUNGHEZZA" value={d.voiceDna.verbosity} />
+                <Row label="TIC" value={d.voiceDna.quirks.join(' · ')} />
+                <Row label="SIMBOLI" value={d.voiceDna.symbolUse} />
+                <Row label="CHIAMA VINZ" value={d.voiceDna.addressesVinzAs} />
+              </div>
+            </section>
+
+            <section className="specimen__block">
+              <p className="t-meta">COLOR DNA</p>
+              <div className="specimen__palette">
+                {d.colorDna.palette.map((hex, i) => (
+                  <div key={hex + i} className="swatch">
+                    <span className="swatch__chip" style={{ background: hex }} />
+                    <span className="t-micro">{hex}</span>
+                    <span className="t-micro swatch__name">{d.colorDna.paletteNames[i]}</span>
+                  </div>
+                ))}
+              </div>
+            </section>
+          </>
+        )}
+
+        {tab === 'lineage' && (
+          <>
+            <div className="rowlist">
+              <Row label="NODO MINDLINE" value={d.mindlineNodeId} />
+              <Row
+                label="ORIGINE"
+                value={
+                  originNode
+                    ? `${originNode.id} · ${displayName(originNode.monName)}`
+                    : 'nodo di origine'
+                }
+              />
+            </div>
+
+            <section className="specimen__block">
+              <div className="specimen__blockhead">
+                <p className="t-meta">HERITAGE</p>
+                {d.heritage.length > 0 && (
+                  <Button small variant="ghost" onClick={() => onGo('heritage')}>
+                    DETTAGLIO
+                  </Button>
+                )}
+              </div>
+
+              {d.heritage.length === 0 ? (
+                <p className="t-small specimen__empty">{t.heritage.none}</p>
+              ) : (
+                <ul className="stack">
+                  {d.heritage.map((h) => (
+                    <li key={h.id} className="traitcard traitcard--light">
+                      <SystemLabel>{heritageKindLabel(h.kind)}</SystemLabel>
+                      <p className="t-small traitcard__origin">{h.transformed}</p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+
+            <section className="specimen__block">
+              <p className="t-meta">BIO / STORY</p>
+              <p className="t-small specimen__story">{mon.bio.story}</p>
+              <Button small variant="secondary" onClick={() => onGo('bio')}>
+                APRI IL FILE PERSONALE
+              </Button>
+            </section>
+
+            <section className="specimen__block">
+              <p className="t-meta">SCORCIATOIE</p>
+              <div className="rowlist">
+                <Row label="MEMORIE" value="apri →" onClick={() => onGo('memories')} />
+                <Row label="STORIA DELLE FORME" value="apri →" onClick={() => onGo('history')} />
+              </div>
+            </section>
+          </>
+        )}
+
+        {tab === 'assets' && (
+          <>
+            {/* §21.2 — mappa di stato degli asset, sempre presente e leggibile,
+                anche quando è tutta vuota. */}
+            <div className="rowlist">
+              {ASSET_TYPES.map((a) => (
+                <Row
+                  key={a.type}
+                  label={a.label}
+                  value={
+                    d.assetStatus[a.type] === 'resolved' ? (
+                      <SystemLabel tone="positive">RISOLTO</SystemLabel>
+                    ) : (
+                      <SystemLabel tone="warning">WAITING</SystemLabel>
+                    )
+                  }
+                />
+              ))}
+            </div>
+
+            <section className="specimen__block">
+              <p className="t-small">
+                Il pacchetto contiene i {ASSET_TYPES.length} prompt completi, i
+                Character Data e ASSET_MANIFEST.json. Generi le immagini con
+                ChatGPT e le reimporti da DEV: gli slot si risolvono da soli e
+                nessun campo di identità cambia.
+              </p>
+              <Button variant="primary" block icon="download" disabled={exporting} onClick={exportPackage}>
+                {exporting ? t.specimen.exporting : t.specimen.exportPackage}
+              </Button>
+            </section>
+
+            <section className="specimen__block">
+              <p className="t-meta">ANTEPRIMA CHARACTER MASTER</p>
+              <div className="specimen__preview">
+                <AssetSlot
+                  monName={d.name}
+                  type="character_master"
+                  alt={`${short}, character master`}
+                />
+              </div>
+            </section>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}

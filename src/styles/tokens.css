@@ -1,0 +1,111 @@
+/* ============================================================================
+   VINZ.VERCE — DESIGN TOKENS
+   Fonte: board "VINZ.VERCE DESIGN SYSTEM & SCREEN GUIDE v1.2" + MASTER SPEC §10
+   WHITE FIRST. BLACK STRUCTURAL. SIGNAL ALWAYS.
+   ========================================================================= */
+
+:root {
+  /* --- BASE (§10.1) — il bianco è il campo primario, il nero è struttura --- */
+  --white: #ffffff;
+  --paper: #f4f4f6;
+  --surface: #e8e8ec;
+  --ink: #111111;
+  --ink-deep: #000000;
+
+  /* Grigi derivati: solo per hairline, testo disattivato e stati unknown.
+     Non sono colori d'accento: l'unica sorgente di colore è il .mon (§10.2). */
+  --hairline: #d4d4da;
+  --muted: #8b8b93;
+  --muted-strong: #5a5a61;
+
+  /* --- SIGNAL (§10.2) — semantici, mai decorativi ---
+     Non veicolano mai da soli un'informazione critica (§17): ogni stato
+     colorato porta sempre anche una label testuale o una forma. */
+  --signal-positive: #30ff8b;
+  --signal-warning: #ffd800;
+  --signal-alert: #ff2b20;
+
+  /* --- ACCENTO ADATTIVO (§10.2) ---
+     Sovrascritti a runtime dal Color DNA del .mon attivo (applyColorDna()).
+     I default qui sotto sono neutri: senza .mon attivo la UI resta B/N. */
+  --char-primary: #111111;
+  --char-accent: #111111;
+  --char-on-primary: #ffffff;
+  --char-primary-soft: rgba(17, 17, 17, 0.08);
+
+  /* --- GRIGLIA (board: 4px BASE UNIT / 8PT GRID) --- */
+  --u: 4px;
+  --u2: 8px;
+  --u3: 12px;
+  --u4: 16px;
+  --u5: 20px;
+  --u6: 24px;
+  --u8: 32px;
+  --u10: 40px;
+  --u12: 48px;
+  --u16: 64px;
+
+  /* --- STRUTTURA (§10.4) — bordi spessi, geometria rettangolare --- */
+  --border: 2px;
+  --border-thick: 3px;
+  --radius: 0px;      /* geometria rettangolare: niente card arrotondate */
+  --radius-soft: 2px; /* unico ammorbidimento consentito, su input e badge */
+  --shadow-hard: 4px 4px 0 var(--ink);
+  --shadow-hard-sm: 2px 2px 0 var(--ink);
+
+  /* --- TIPOGRAFIA (§10.3) ---
+     PROPOSTA NON CANONICA: Archivo Variable sostituisce VINZ-HEAD, che non
+     esiste come file. Asse di larghezza 62–125 + corsivo reale → grammatica
+     Y2K "ultra-bold, wide, forward-leaning". Vedi docs/OPEN_ITEMS.md. */
+  --font-display: 'Archivo Variable', 'Archivo', system-ui, sans-serif;
+  --font-ui: 'Inter Variable', 'Inter', system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', monospace;
+
+  --type-display-xl: 44px;
+  --type-display-l: 32px;
+  --type-display-m: 24px;
+  --type-title: 17px;
+  --type-body: 15px;
+  --type-small: 13px;
+  --type-meta: 11px;
+  --type-micro: 9px;
+
+  /* --- MOTION (§18 🟡 linguaggio di motion non finalizzato) --- */
+  --ease-system: cubic-bezier(0.2, 0, 0, 1);
+  --dur-fast: 120ms;
+  --dur-base: 220ms;
+  --dur-event: 420ms;
+
+  /* --- VIEWPORT PROTOTIPO --- */
+  --frame-w: 390px;
+  --frame-h: 844px;
+}
+
+/* ---------------------------------------------------------------------------
+   SUPERFICI EVENTO — campo inchiostro
+   Il board mostra incubazione, hatch, new encounter e mindline su campo nero,
+   mentre le superfici quotidiane restano bianche. È una regola letta dal
+   board, non una scelta di art direction aggiunta qui.
+   NB: non è "dark mode" (§10.5 vieta il dark luxury sci-fi come default):
+   è l'inversione riservata agli eventi.
+   ------------------------------------------------------------------------ */
+[data-field='ink'] {
+  --white: #0b0b0c;
+  --paper: #141416;
+  --surface: #1d1d20;
+  --ink: #f4f4f6;
+  --ink-deep: #ffffff;
+  --hairline: #34343a;
+  --muted: #7d7d87;
+  --muted-strong: #a8a8b2;
+  --shadow-hard: 4px 4px 0 rgba(0, 0, 0, 0.6);
+  --shadow-hard-sm: 2px 2px 0 rgba(0, 0, 0, 0.6);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-fast: 0ms;
+    --dur-base: 0ms;
+    --dur-event: 0ms;
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "name": "vinz-verce-prototype",
+  "private": true,
+  "version": "1.2.0",
+  "type": "module",
+  "description": "VINZ.VERCE — prototipo v1 secondo MASTER SPEC v1.2",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "verify": "node scripts/verify-screens.mjs",
+    "verify:package": "node scripts/package-check.mjs",
+    "verify:batch": "node scripts/batch-check.mjs 3000"
+  },
+  "dependencies": {
+    "@fontsource-variable/archivo": "^5.3.0",
+    "@fontsource-variable/inter": "^5.3.0",
+    "@fontsource/ibm-plex-mono": "^5.3.0",
+    "idb-keyval": "^6.3.0",
+    "jszip": "^3.10.1",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "zustand": "^5.0.14"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "@vitejs/plugin-react": "^6.0.5",
+    "esbuild": "^0.28.0",
+    "playwright": "^1.62.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.2.1"
+  }
+}

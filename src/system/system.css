@@ -1,0 +1,532 @@
+/* ============================================================================
+   VINZ.VERCE — UI COMPONENTS (§10.4)
+   Bordi neri spessi, geometria rettangolare, hard offset shadow,
+   tab a cartella e window header al posto delle card arrotondate.
+   ========================================================================= */
+
+/* --- BUTTON ---------------------------------------------------------------- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--u2);
+  min-height: 44px; /* target di tocco accessibile (§17) */
+  padding: 0 var(--u5);
+  border: var(--border) solid var(--ink);
+  border-radius: var(--radius);
+  background: var(--white);
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-stretch: 112%;
+  font-size: 14px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  transition: transform var(--dur-fast) var(--ease-system),
+    box-shadow var(--dur-fast) var(--ease-system);
+}
+
+.btn:active:not(:disabled) {
+  transform: translate(2px, 2px);
+  box-shadow: none;
+}
+
+.btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.btn--primary {
+  background: var(--ink);
+  color: var(--white);
+  box-shadow: var(--shadow-hard-sm);
+}
+
+.btn--secondary {
+  background: var(--white);
+  color: var(--ink);
+}
+
+.btn--ghost {
+  border-color: transparent;
+  background: transparent;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Stato a colore-personaggio: ammesso solo quando è significativo (§10.4). */
+.btn--character {
+  background: var(--char-primary);
+  border-color: var(--ink);
+  color: var(--char-on-primary);
+  box-shadow: var(--shadow-hard-sm);
+}
+
+.btn--block {
+  width: 100%;
+}
+
+.btn--sm {
+  min-height: 32px;
+  padding: 0 var(--u3);
+  font-size: 11px;
+}
+
+.btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 auto;
+  border: var(--border) solid var(--ink);
+  border-radius: 50%;
+  background: var(--ink);
+  color: var(--white);
+}
+
+.btn-icon--light {
+  background: var(--white);
+  color: var(--ink);
+}
+
+.btn-icon--sm {
+  width: 32px;
+  height: 32px;
+}
+
+/* --- SEGMENTED BAR (§10.4) — XP, Bond, scan, signal ------------------------ */
+
+.segbar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--u);
+}
+
+.segbar__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--u2);
+  color: var(--muted-strong);
+}
+
+.segbar__track {
+  display: flex;
+  gap: 2px;
+  height: 10px;
+}
+
+.segbar__seg {
+  flex: 1;
+  border: 1px solid var(--ink);
+  background: transparent;
+}
+
+.segbar__seg--on {
+  background: var(--char-primary);
+}
+
+.segbar__seg--signal-positive {
+  background: var(--signal-positive);
+}
+.segbar__seg--signal-warning {
+  background: var(--signal-warning);
+}
+.segbar__seg--signal-alert {
+  background: var(--signal-alert);
+}
+
+/* Lo stato "unknown" non è uno zero: è tratteggiato e dichiarato (§3). */
+.segbar__seg--unknown {
+  background: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 2px,
+    var(--hairline) 2px,
+    var(--hairline) 4px
+  );
+}
+
+/* --- WINDOW HEADER --------------------------------------------------------- */
+
+.window {
+  border: var(--border) solid var(--ink);
+  background: var(--white);
+}
+
+.window__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--u2);
+  min-height: 28px;
+  padding: 0 var(--u2);
+  background: var(--ink);
+  color: var(--white);
+}
+
+.window__title {
+  font-family: var(--font-mono);
+  font-size: var(--type-meta);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.window__controls {
+  display: flex;
+  gap: 3px;
+}
+
+.window__control {
+  width: 9px;
+  height: 9px;
+  border: 1px solid var(--white);
+}
+
+.window__body {
+  padding: var(--u3);
+}
+
+/* --- FOLDER TABS ----------------------------------------------------------- */
+
+.ftabs {
+  display: flex;
+  gap: var(--u);
+  align-items: flex-end;
+  border-bottom: var(--border) solid var(--ink);
+  /* Con molte linguette la riga scorre invece di tagliare la prima. */
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.ftabs::-webkit-scrollbar {
+  display: none;
+}
+
+.ftab {
+  flex: 0 0 auto;
+}
+
+.ftab {
+  position: relative;
+  bottom: calc(var(--border) * -1);
+  padding: var(--u2) var(--u3);
+  border: var(--border) solid var(--ink);
+  border-bottom-color: transparent;
+  background: var(--surface);
+  color: var(--muted-strong);
+  font-family: var(--font-mono);
+  font-size: var(--type-meta);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  /* La linguetta della cartella: angolo superiore destro tagliato. */
+  clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%);
+}
+
+.ftab[aria-selected='true'] {
+  background: var(--white);
+  color: var(--ink);
+  font-weight: 700;
+}
+
+/* --- SYSTEM LABEL ---------------------------------------------------------- */
+
+.syslabel {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--u);
+  padding: 2px var(--u2);
+  border: 1px solid var(--ink);
+  background: var(--white);
+  font-family: var(--font-mono);
+  font-size: var(--type-micro);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.syslabel--solid {
+  background: var(--ink);
+  color: var(--white);
+}
+
+.syslabel--character {
+  background: var(--char-primary);
+  border-color: var(--ink);
+  color: var(--char-on-primary);
+}
+
+.syslabel--positive {
+  background: var(--signal-positive);
+  color: #05210f;
+}
+.syslabel--warning {
+  background: var(--signal-warning);
+  color: #2b2300;
+}
+.syslabel--alert {
+  background: var(--signal-alert);
+  color: #ffffff;
+}
+
+/* --- BADGE / TAG ----------------------------------------------------------- */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--u);
+  padding: 3px var(--u2);
+  border: 1px solid var(--ink);
+  border-radius: 999px;
+  background: var(--white);
+  font-family: var(--font-mono);
+  font-size: var(--type-micro);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.badge--solid {
+  background: var(--ink);
+  color: var(--white);
+}
+
+/* --- INPUT / COMPOSER ------------------------------------------------------ */
+
+.field {
+  display: flex;
+  align-items: center;
+  gap: var(--u2);
+  min-height: 44px;
+  padding: 0 var(--u3);
+  border: var(--border) solid var(--ink);
+  border-radius: var(--radius-soft);
+  background: var(--white);
+}
+
+.field input,
+.field textarea {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font-size: var(--type-body);
+  resize: none;
+}
+
+.field input::placeholder,
+.field textarea::placeholder {
+  color: var(--muted);
+}
+
+.field__clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 50%;
+  background: var(--ink);
+  color: var(--white);
+  font-size: 11px;
+  line-height: 1;
+}
+
+/* Il composer è un oggetto persistente maggiore (§10.4), non una toolbar. */
+.composer {
+  display: flex;
+  align-items: center;
+  gap: var(--u2);
+  padding: var(--u2) var(--u3);
+  border-top: var(--border) solid var(--ink);
+  background: var(--white);
+}
+
+/* --- NAVIGAZIONE PERSISTENTE MON / ME / MINDLINE (§11) --------------------- */
+
+.tabbar {
+  display: flex;
+  flex: 0 0 auto;
+  border-top: var(--border-thick) solid var(--ink);
+  background: var(--ink);
+}
+
+.tabbar__item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-height: 56px;
+  padding: var(--u) 0;
+  border: 0;
+  background: transparent;
+  color: var(--white);
+  opacity: 0.5;
+  font-family: var(--font-mono);
+  font-size: var(--type-micro);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.tabbar__item[aria-current='page'] {
+  opacity: 1;
+  font-weight: 700;
+}
+
+/* Lo stato attivo non è solo opacità: porta anche una barra (§17). */
+.tabbar__item[aria-current='page']::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  width: 34px;
+  height: 3px;
+  background: var(--char-accent);
+}
+
+.tabbar__item {
+  position: relative;
+}
+
+/* --- VISUAL LANGUAGE (board: SCANNER / SIGNAL / GLITCH / DATA) ------------- */
+
+.scanframe {
+  position: relative;
+}
+
+.scanframe__corner {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border: var(--border) solid var(--char-accent);
+}
+
+.scanframe__corner--tl {
+  top: 0;
+  left: 0;
+  border-right: 0;
+  border-bottom: 0;
+}
+.scanframe__corner--tr {
+  top: 0;
+  right: 0;
+  border-left: 0;
+  border-bottom: 0;
+}
+.scanframe__corner--bl {
+  bottom: 0;
+  left: 0;
+  border-right: 0;
+  border-top: 0;
+}
+.scanframe__corner--br {
+  bottom: 0;
+  right: 0;
+  border-left: 0;
+  border-top: 0;
+}
+
+.glitchbar {
+  display: flex;
+  gap: 2px;
+  height: 6px;
+}
+
+.glitchbar__slice {
+  flex: 1;
+}
+
+.datadots {
+  display: grid;
+  gap: 3px;
+  grid-auto-flow: column;
+}
+
+.datadots__dot {
+  width: 2px;
+  height: 2px;
+  background: var(--muted);
+}
+
+/* --- LISTA DI SISTEMA (righe tecniche, non card) --------------------------- */
+
+.rowlist {
+  display: flex;
+  flex-direction: column;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--u3);
+  padding: var(--u3) var(--u4);
+  border-bottom: 1px solid var(--hairline);
+  text-align: left;
+  background: transparent;
+  border-left: 0;
+  border-right: 0;
+  border-top: 0;
+  width: 100%;
+}
+
+.row__label {
+  font-family: var(--font-mono);
+  font-size: var(--type-meta);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted-strong);
+}
+
+.row__value {
+  font-size: var(--type-small);
+  font-weight: 600;
+  text-align: right;
+}
+
+/* --- INTESTAZIONE DI SCHERMATA --------------------------------------------- */
+
+.screenhead {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--u2);
+  padding: var(--u3) var(--u4);
+  border-bottom: var(--border) solid var(--ink);
+  background: var(--white);
+}
+
+.screenhead__titles {
+  min-width: 0;
+}
+
+.screenhead__title {
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-stretch: 118%;
+  font-style: italic;
+  font-size: var(--type-display-m);
+  line-height: 0.95;
+  text-transform: uppercase;
+  letter-spacing: -0.015em;
+}
+
+.screenhead__sub {
+  font-family: var(--font-mono);
+  font-size: var(--type-meta);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted-strong);
+  margin-top: 2px;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+}
