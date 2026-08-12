@@ -22,6 +22,38 @@ http://localhost:5173/?dev=1
 
 ---
 
+## Provalo online
+
+Il repository è pronto per il deploy: `netlify.toml` porta build command, cartella
+pubblicata e versione di Node. Su Netlify basta collegare il repository al progetto
+**vinz-verce-prototype** e puntarlo al branch `claude/project-prototype-jxjc3d` —
+da lì ogni push si pubblica da sé.
+
+In alternativa, dalla propria macchina:
+
+```
+npm install && npm run build
+npx netlify-cli deploy --prod --dir dist --site vinz-verce-prototype
+```
+
+**Sul telefono conviene aggiungerlo alla schermata Home**: `manifest.webmanifest`
+e i meta iOS fanno aprire il prototipo a tutto schermo, senza barra del browser.
+Sotto gli 860px la cornice finta sparisce e il frame diventa l'intera finestra.
+
+**`?dev=1` resta raggiungibile anche online, di proposito.** MS §29 vieta i
+controlli DEV *in produzione*, e questo non è un rilascio: senza DEV → TEMPO
+l'incubazione dura 28 giorni veri e non si arriva mai a vedere un `.mon`.
+Il sito porta `robots.txt` e `noindex`, quindi resta fuori dai motori di ricerca,
+ma chi ha l'URL entra.
+
+**Cosa aspettarsi al primo avvio.** Lo stato vive nel `localStorage` di quel
+browser: ogni dispositivo ha la sua partita, e svuotare i dati del sito ricomincia
+da capo. I dati del giorno sono **simulati**, il Personality Seed è neutro finché
+non esiste la schermata 03, e gli slot immagine sono vuoti per scelta (MS §18A).
+Si prova il motore e l'interfaccia, non ancora il prodotto sui propri dati veri.
+
+---
+
 ## Comandi
 
 | Comando | Cosa fa |
@@ -30,6 +62,7 @@ http://localhost:5173/?dev=1
 | `npm run build` | Typecheck + build di produzione |
 | `npm run typecheck` | Solo controllo dei tipi |
 | `npm run verify` | Percorre l'app end-to-end in Chromium headless, cattura 32 screenshot in `screenshots/` e fallisce su qualunque errore di console |
+| `VERIFY_BASE=<url> npm run verify` | La stessa camminata contro un sito già pubblicato (o `vite preview`), dove il bundle è minificato e i percorsi degli asset sono altri |
 | `npm run verify:batch` | QA del generatore su 3000 `.mon`: tabelle di rarità di GB §26, distribuzioni, genoma dei nomi, Heritage, copertura dei frammenti |
 | `npm run verify:package` | Controlla il pacchetto Asset Request contro MS §22.2/§24.4/§13 e GB §30/§45/§48 |
 

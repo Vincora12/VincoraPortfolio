@@ -10,7 +10,13 @@
    shift → evolve → shift → branch → new encounter → tutte le schermate di
    consultazione → pannello DEV.
 
-   Uso:  npm run verify        (avvia da solo il server di sviluppo)
+   Uso:  npm run verify                          (avvia da solo il server di sviluppo)
+         VERIFY_BASE=https://… npm run verify    (percorre un sito già pubblicato)
+
+   La seconda forma serve a non verificare un deploy «a occhio»: gira la stessa
+   camminata contro la produzione, dove il bundle è minificato e i percorsi
+   degli asset sono altri — cioè dove una build può rompersi senza che il
+   server di sviluppo se ne accorga.
    ========================================================================= */
 
 import { chromium } from 'playwright';
@@ -21,7 +27,10 @@ import { setTimeout as sleep } from 'node:timers/promises';
 
 const OUT = 'screenshots';
 const PORT = 5199;
-const BASE = `http://localhost:${PORT}`;
+
+// Con VERIFY_BASE si percorre un sito già pubblicato e non si avvia niente.
+const REMOTE = process.env.VERIFY_BASE?.replace(/\/$/, '');
+const BASE = REMOTE ?? `http://localhost:${PORT}`;
 
 rmSync(OUT, { recursive: true, force: true });
 mkdirSync(OUT, { recursive: true });
@@ -31,12 +40,15 @@ mkdirSync(OUT, { recursive: true });
 // `detached` mette il server in un suo gruppo di processi: alla fine si
 // abbatte l'intero gruppo, altrimenti vite sopravvive a npx e lo script non
 // termina mai.
-const server = spawn('npx', ['vite', '--port', String(PORT), '--strictPort'], {
-  stdio: ['ignore', 'pipe', 'pipe'],
-  detached: true,
-});
+const server = REMOTE
+  ? null
+  : spawn('npx', ['vite', '--port', String(PORT), '--strictPort'], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      detached: true,
+    });
 
 function stopServer() {
+  if (!server) return;
   try {
     process.kill(-server.pid, 'SIGTERM');
   } catch {
@@ -44,19 +56,25 @@ function stopServer() {
   }
 }
 
-let serverReady = false;
-server.stdout.on('data', (d) => {
-  if (d.toString().includes('ready in') || d.toString().includes('Local:')) serverReady = true;
-});
+if (server) {
+  let serverReady = false;
+  server.stdout.on('data', (d) => {
+    if (d.toString().includes('ready in') || d.toString().includes('Local:')) serverReady = true;
+  });
 
-for (let i = 0; i < 100 && !serverReady; i++) await sleep(100);
-await sleep(600);
+  for (let i = 0; i < 100 && !serverReady; i++) await sleep(100);
+  await sleep(600);
+}
 
 /* --- Browser ---------------------------------------------------------------- */
 
-// L'ambiente instrada le uscite HTTPS attraverso un proxy: senza questo il
-// browser proverebbe a raggiungere anche localhost passando di lì.
-const LAUNCH_ARGS = ['--no-proxy-server'];
+// Verso localhost il proxy va escluso: l'ambiente instrada le uscite HTTPS
+// attraverso un proxy e senza questo il browser proverebbe a passare di lì
+// anche per il server locale. Verso un host esterno serve il contrario.
+const PROXY = process.env.HTTPS_PROXY ?? process.env.https_proxy;
+const IS_LOCAL = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:|\/|$)/.test(BASE);
+const LAUNCH_ARGS = IS_LOCAL ? ['--no-proxy-server'] : [];
+const LAUNCH_PROXY = IS_LOCAL || !PROXY ? undefined : { server: PROXY };
 
 // Chromium è preinstallato nell'ambiente: non va mai scaricato.
 // La revisione nel nome della cartella cambia fra le versioni di Playwright,
@@ -65,7 +83,7 @@ const browser = await launchChromium();
 
 async function launchChromium() {
   try {
-    return await chromium.launch({ args: LAUNCH_ARGS });
+    return await chromium.launch({ args: LAUNCH_ARGS, proxy: LAUNCH_PROXY });
   } catch {
     const root = process.env.PLAYWRIGHT_BROWSERS_PATH ?? '/opt/pw-browsers';
     const candidates = readdirSync(root)
@@ -77,7 +95,11 @@ async function launchChromium() {
       .filter((p) => existsSync(p));
 
     if (candidates.length === 0) throw new Error(`Nessun Chromium trovato in ${root}`);
-    return chromium.launch({ executablePath: candidates[0], args: LAUNCH_ARGS });
+    return chromium.launch({
+      executablePath: candidates[0],
+      args: LAUNCH_ARGS,
+      proxy: LAUNCH_PROXY,
+    });
   }
 }
 const page = await browser.newPage({ viewport: { width: 460, height: 920 } });
@@ -108,7 +130,7 @@ const click = async (selector, label) => {
 const byText = (text) => `text="${text}"`;
 
 try {
-  console.log('\n═══ VERIFICA DELLE SCHERMATE ═══\n');
+  console.log(`\n═══ VERIFICA DELLE SCHERMATE — ${BASE} ═══\n`);
 
   await page.goto(`${BASE}/?dev=1`, { waitUntil: 'networkidle' });
   await page.evaluate(() => localStorage.clear());
