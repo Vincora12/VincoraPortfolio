@@ -24,15 +24,18 @@ della Family; *MS §12* sono le schermate, *GB §12* è APPEARANCE.
 
 Tutti in **`src/engine/generation-config.ts`**, come impone GB §29: *«All
 probabilities and thresholds must be editable from ONE canonical
-generation-config file.»* Versione corrente `GENERATION_CONFIG_VERSION = '2.1.0'`.
+generation-config file.»* Versione corrente `GENERATION_CONFIG_VERSION = '2.2.0'`.
+
+Le righe marcate 🔶 sono **scostamenti voluti** dalla bibbia, decisi dopo il
+documento: sono spiegati uno per uno in [`OPEN_ITEMS.md`](OPEN_ITEMS.md).
 
 | § | Regola | Simbolo |
 |---|---|---|
 | §2 | Segnali in ingresso normalizzati 0–100 | `SIGNAL_KEYS`, `SignalVector` |
 | §2 | Personality Seed, Mood Latents, Novelty Memory | `engine/signals.ts` → `PERSONALITY_KEYS`, `LATENT_KEYS`, `NoveltyMemory` |
-| §3 | 19 Family, con anatomia, driver, regola assoluta e formula di fit | `FAMILIES` |
-| §3 | SLIME è esclusiva della radice | `FamilyDef.rootOnly`; `SELECTABLE_FAMILIES`; `ROOT_MON` |
-| §4 | 113 archetipi, 5–6 per Family | `FamilyDef.archetypes` |
+| §3 | 18 Family, con anatomia, driver, regola assoluta e formula di fit | `FAMILIES` |
+| §3 | 🔶 SLIME esclusiva della radice — **rimossa**: niente radice canonica, niente Family SLIME | vedi OPEN_ITEMS; resta come Affinity in `AFFINITIES` |
+| §4 | 107 archetipi, 5–6 per Family | `FamilyDef.archetypes` |
 | §5 | 16 Affinity — contaminazione anatomica cross-family, non materiale | `AFFINITIES` |
 | §6 | TINY / MEDIUM / GIANT: grammatica proporzionale, mai scalatura | `SIZES`, `SIZE_GRAMMAR` |
 | §7 | 24 Role | `ROLES` |
@@ -66,7 +69,7 @@ generation-config file.»* Versione corrente `GENERATION_CONFIG_VERSION = '2.1.0
 | §23 | Almeno 4 dei 7 assi devono cambiare attraverso un branch | `heritage.ts` → `countChangedAxes` |
 | §24 | Ordine autorevole a 20 passi | `generateMon`, passi numerati 1–20 nei commenti |
 | §24 | Genoma dei nomi: inizia per V, contiene Z, finisce in `.mon`, unico in lineage | `engine/naming.ts` → `generateMonName`, `isValidMonName` |
-| §24 | Nodo radice `Vz.mon`, SLIME // ROOT: canonico, non estratto | `generateRootMon`; `ROOT_MON` |
+| §24 | 🔶 Primo nodo: **estratto come tutti gli altri**, senza eredità | `generateFirstMon` |
 
 ## Rarità (GB §15, §16, §25, §26)
 
@@ -154,6 +157,7 @@ generation-config file.»* Versione corrente `GENERATION_CONFIG_VERSION = '2.1.0
 | §17 | Ogni superficie AI ha un fallback | `voiceDna.ts` → `fallbackGreeting`, `fallbackReply` |
 | §17 | Target di tocco accessibili | `.btn`, `.btn-icon`, `.field` a 44px |
 | — | `.mon` è un'estensione di file: si legge in minuscolo light | `system/MonName.tsx` |
+| — | 🔶 `vinz.mon` è il nome comune della specie, accanto al nome proprio | `system/MonName.tsx` → `SpeciesName`; `SPECIES_NAME` |
 
 ## Schermate (MS §12)
 
@@ -214,7 +218,7 @@ e falliscono la build se si rompono:
 | Controllo | Comando |
 |---|---|
 | Le tabelle di normalizzazione di GB §26 si riproducono esatte | `npm run verify:batch` |
-| SLIME non compare mai fuori dalla radice | `npm run verify:batch` |
+| Il primo nodo varia fra le partite; SLIME non è più una Family | `npm run verify:batch` |
 | Ogni voce di catalogo produce il suo frammento di prompt | `npm run verify:batch` |
 | Genoma dei nomi e unicità in lineage | `npm run verify:batch` |
 | Heritage 1–3, sempre tradotto e mai copiato | `npm run verify:batch` |

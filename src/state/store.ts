@@ -27,7 +27,7 @@ import {
   levelFromXp,
   type EconomyConfig,
 } from '../engine/economy';
-import { evolveMon, generateMon, generateRootMon } from '../engine/characterGenerator';
+import { evolveMon, generateFirstMon, generateMon } from '../engine/characterGenerator';
 import { selectHeritageOrigins, type HeritageOrigin } from '../engine/heritage';
 import { createNode, makeNodeId, nextChapter } from '../engine/mindline';
 import { carryMemoriesThroughBranch, makeMemory, rollDailyEvent } from '../engine/simulation';
@@ -244,14 +244,15 @@ export const useApp = create<AppState>()(
         for (let i = 0; i < remaining; i++) advanceOneDay(set, get);
       },
 
-      /* --- §3 — il primo .mon è Vz.mon, SLIME // ROOT, canonico --- */
+      /* --- Il primo .mon si estrae come tutti gli altri: due partite non
+         cominciano dalla stessa creatura. --- */
 
       hatch: () => {
         const s = get();
         if (s.phase !== 'incubation') return;
 
         const nodeId = makeNodeId(0);
-        const { record, trace } = generateRootMon({
+        const { record, trace } = generateFirstMon({
           input: generatorInput(s),
           mindlineNodeId: nodeId,
           originNodeId: null,
@@ -655,7 +656,7 @@ export const useApp = create<AppState>()(
         };
 
         const { record, trace } = isRoot
-          ? generateRootMon(ctx)
+          ? generateFirstMon(ctx)
           : generateMon({
               ...ctx,
               heritageOrigins: rec.data.heritage_traits.map(({ transformed: _t, ...rest }) => rest),

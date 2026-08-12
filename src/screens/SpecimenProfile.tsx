@@ -17,7 +17,7 @@ import { useState } from 'react';
 import type { Overlay } from '../App';
 import { useApp, useActiveMon } from '../state/store';
 import { AssetSlot, RotationViewer, Sigil } from '../system/AssetSlot';
-import { MonName } from '../system/MonName';
+import { MonName, SpeciesName } from '../system/MonName';
 import {
   Button,
   FolderTabs,
@@ -145,6 +145,8 @@ export function SpecimenProfileScreen({
                 §13 della MASTER SPEC vieta di aggiungerne di nuovi. */}
             <div className="rowlist">
               <Row label="NAME" value={d.name} />
+              {/* La specie: il nome comune di tutte le creature. */}
+              <Row label="SPECIE" value={<SpeciesName />} />
               <Row label="FAMILY" value={`${d.family} · ${familyDef(d.family).it}`} />
               <Row label="FAMILY ARCHETYPE" value={d.family_archetype} />
               <Row label="AFFINITY" value={`${d.affinity} · ${affinityDef(d.affinity).it}`} />

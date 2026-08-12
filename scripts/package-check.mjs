@@ -25,7 +25,7 @@ const cwd = process.cwd();
 writeFileSync(
   entry,
   `
-export { generateMon, generateRootMon } from '${cwd}/src/engine/characterGenerator.ts';
+export { generateMon, generateFirstMon } from '${cwd}/src/engine/characterGenerator.ts';
 export { selectHeritageOrigins } from '${cwd}/src/engine/heritage.ts';
 export { neutralPersonality, EMPTY_NOVELTY } from '${cwd}/src/engine/signals.ts';
 export { initialHealthState, applyDay, simulateDayInput, DEFAULT_BIAS } from '${cwd}/src/engine/health.ts';
@@ -70,7 +70,7 @@ const input = {
   branchCount: 2,
 };
 
-const first = m.generateRootMon({
+const first = m.generateFirstMon({
   input,
   mindlineNodeId: 'node_000',
   originNodeId: null,

@@ -10,8 +10,8 @@ poche interpretazioni che ho dovuto prendere leggendo il documento.
 
 | Voce | Era 🟡 in §18 | Ora |
 |---|---|---|
-| Tassonomia FAMILY | «final complete Family taxonomy» | **19 Family** (§3), 18 estraibili + SLIME riservata alla radice |
-| Archetipi | — | **113** (§4), 5–6 per Family |
+| Tassonomia FAMILY | «final complete Family taxonomy» | **18 Family** (§3), tutte estraibili — vedi lo scostamento qui sotto |
+| Archetipi | — | **107** (§4), 5–6 per Family |
 | Tassonomia AFFINITY | «final complete Affinity taxonomy» | **16** (§5), contaminazioni anatomiche cross-family |
 | Pesi di rarità | «rarity weighting» | §15 probabilità base + gate di sblocco, §16 punteggio a 7 componenti, §26 tabelle di normalizzazione |
 | Economia | «XP cost/economy, cadence for BRANCH» | §25 sblocchi; l'economia XP resta locale (vedi sotto) |
@@ -20,7 +20,47 @@ poche interpretazioni che ho dovuto prendere leggendo il documento.
 
 Tutti i valori vivono in **`src/engine/generation-config.ts`**, come impone §29:
 «All probabilities and thresholds must be editable from one canonical
-generation-config file.» Versione corrente: `2.1.0`.
+generation-config file.» Versione corrente: `2.2.0`.
+
+---
+
+## 🔶 Scostamenti voluti dalla bibbia
+
+Decisioni di prodotto prese **dopo** il documento. Non sono errori di lettura e
+non vanno "corrette": la bibbia va aggiornata, o resta la fonte per tutto il
+resto tranne questi punti.
+
+### Via la radice canonica, via la Family SLIME
+**Versione:** `2.2.0`. **Dove:** `generation-config.ts`, `characterGenerator.ts`
+→ `generateFirstMon`, `store.ts` → `hatch`.
+
+La bibbia fissa un primo `.mon` uguale per tutti — `Vz.mon`, SLIME // ROOT (§3,
+§17 step 1, §24). Adesso **il primo `.mon` si estrae come qualunque altro**:
+due partite non cominciano dalla stessa creatura, e l'HATCH è già una sorpresa
+invece di essere una formalità.
+
+Caduta la radice, cade anche il motivo per cui SLIME esisteva come Family:
+non aveva formula di fit e non entrava mai nell'estrazione pesata. Le Family
+passano da 19 a **18**, tutte estraibili.
+
+La materia gelatinosa **non sparisce dal mondo**: resta come AFFINITY, che è
+esattamente quello che la regola assoluta di SLIME già prescriveva — «Later
+slime influence is AFFINITY only». Un `.mon` con zone gelatinose, gocce e
+membrane deformabili è ancora generabile; semplicemente non è più *di famiglia*
+gelatinosa.
+
+`verify:batch` controlla che dodici semi diversi diano almeno quattro Family
+diverse al primo nodo, e che SLIME non compaia più come Family.
+
+### `vinz.mon` è il nome della specie
+**Dove:** `generation-config.ts` → `SPECIES_NAME`, `system/MonName.tsx` →
+`SpeciesName`.
+
+Ogni creatura ha il suo nome proprio, generato col genoma di §24 step 17 —
+inizia per V, contiene Z, finisce in `.mon`. Ma si possono chiamare tutte
+`vinz.mon`, come si dice «un gatto» di un gatto che ha già un nome. Compare in
+minuscolo, perché è un nome comune, accanto alla forma nell'intestazione della
+home e dell'incontro, e come riga SPECIE nel profilo.
 
 ---
 
@@ -84,10 +124,6 @@ weighted rarity roll still applies among eligible tiers.» Quindi si tira sul
 pool **intersezione** fra livelli sbloccati e livelli sotto il tetto, poi
 rinormalizzato.
 
-**§3 nome della radice.** Il documento scrive `Vz.mon` in minuscolo misto. La
-UI applica il maiuscolo display a tutti i nomi, quindi compare come `VZ.mon`.
-Se il minuscolo è voluto, va tolta la trasformazione per quel caso.
-
 **§32–§45 frammenti derivati.** I ~250 frammenti di prompt sono lo stesso testo
 con dentro un valore di catalogo diverso. Li genero dai cataloghi con sette
 forme di template invece di copiarli, così non possono divergere dai dati con
@@ -99,7 +135,7 @@ produca il suo frammento.
 
 ## 🔒 Non toccabili senza cambio di documento
 
-- **19 Family**, con SLIME esclusiva di `Vz.mon` (§3).
+- **18 Family**, tutte estraibili (§3, con lo scostamento qui sopra).
 - **APPEARANCE**: quattro canoniche; DOODLE è linguaggio della BIO, non un
   Appearance (§12).
 - **SIZE**: TINY / MEDIUM / GIANT, grammatica proporzionale e mai scalatura (§6).

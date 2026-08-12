@@ -26,7 +26,6 @@ import {
   MOOD_CONFIDENCE_FLOOR,
   NEUTRAL_MOODS,
   ROLES,
-  ROOT_MON,
   SELECTABLE_FAMILIES,
   SIZE_ARCHETYPE_MODIFIER_RANGE,
   SIZE_SCORE_WEIGHTS,
@@ -296,39 +295,22 @@ export function generateMon(ctx: GenerationContext): GenerationResult {
 }
 
 /* ============================================================================
-   §3 — NODO RADICE
-   «Family SLIME is exclusive to Vz.mon.» Il primo .mon non si estrae: è
-   canonico. Tutto il resto viene comunque generato.
+   PRIMO NODO
+
+   🔶 Scostamento voluto dalla GENERATION BIBLE v2.1: non esiste più una radice
+   canonica. La bibbia fissava `Vz.mon`, SLIME // ROOT, uguale per tutti; adesso
+   il primo .mon si estrae come qualunque altro, quindi due partite non
+   cominciano dalla stessa creatura.
+
+   Resta una funzione a sé perché il primo nodo è l'unico senza eredità e senza
+   .mon precedente: chiamarla dice al lettore che quei due campi sono vuoti per
+   ragioni di posizione, non per un caso limite.
    ========================================================================= */
 
-export function generateRootMon(ctx: Omit<GenerationContext, 'heritageOrigins' | 'previous'>): GenerationResult {
-  const result = generateMon({ ...ctx, heritageOrigins: [], previous: null });
-  const family = familyDef(ROOT_MON.family);
-  const rng = makeRng(ctx.seed ^ 0x5eed);
-  const data: CharacterData = {
-    ...result.record.data,
-    name: ROOT_MON.name,
-    family: ROOT_MON.family,
-    family_archetype: ROOT_MON.archetype,
-    palette_dna: generatePaletteDna(rng, ROOT_MON.family, result.record.data.affinity, result.record.data.mood_primary),
-    eyewear: family.supportsEyewear ? result.record.data.eyewear : null,
-    hair_state: null,
-    haircut: null,
-    generation_reason_summary:
-      'Nodo radice della Mindline. SLIME // ROOT è canonico e riservato a Vz.mon: non è stato estratto.',
-  };
-
-  return {
-    record: { ...result.record, data },
-    trace: {
-      ...result.trace,
-      steps: [
-        { step: 4, stage: 'FAMILY', outcome: 'SLIME // ROOT — canonico, non estratto (§3)' },
-        ...result.trace.steps.filter((s) => s.step !== 4 && s.step !== 5 && s.step !== 17),
-        { step: 17, stage: 'NAME', outcome: `${ROOT_MON.name} — nome canonico della radice` },
-      ],
-    },
-  };
+export function generateFirstMon(
+  ctx: Omit<GenerationContext, 'heritageOrigins' | 'previous'>,
+): GenerationResult {
+  return generateMon({ ...ctx, heritageOrigins: [], previous: null });
 }
 
 /* ============================================================================

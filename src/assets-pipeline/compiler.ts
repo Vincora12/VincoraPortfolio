@@ -58,7 +58,7 @@ export interface CompiledPrompt {
 
 /** Famiglie la cui anatomia non regge un capo di abbigliamento convenzionale. */
 const NON_GARMENT_FAMILIES = [
-  'MICROBE', 'SLIME', 'FUNGUS', 'MINERAL', 'PSYCHIC', 'PLANT', 'FOOD', 'INSECT',
+  'MICROBE', 'FUNGUS', 'MINERAL', 'PSYCHIC', 'PLANT', 'FOOD', 'INSECT',
 ];
 
 /** Fashion che presuppongono un corpo vestibile in modo convenzionale. */

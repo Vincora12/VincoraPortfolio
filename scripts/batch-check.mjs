@@ -1,10 +1,11 @@
 /* ============================================================================
    QA DEL GENERATORE — controllo da riga di comando
 
-   Verifica il motore contro la GENERATION BIBLE v2.1:
-   • distribuzione sulle 19 Family e le 16 Affinity
+   Verifica il motore contro la GENERATION BIBLE v2.1, con lo scostamento
+   voluto sulla radice (vedi docs/OPEN_ITEMS.md):
+   • distribuzione sulle 18 Family e le 16 Affinity
    • §26 — la normalizzazione della rarità riproduce ESATTAMENTE le tabelle
-   • §3  — SLIME compare solo come radice, e la radice è sempre Vz.mon
+   • il primo .mon è estratto, non canonico: semi diversi danno creature diverse
    • §24 step 17 — genoma dei nomi e unicità in lineage
    • §23 — Heritage fra 1 e 3, sempre tradotto
    • §21.2 MASTER SPEC — un .mon nasce senza alcun asset
@@ -27,7 +28,7 @@ const out = join(dir, 'out.mjs');
 writeFileSync(
   entry,
   `
-export { generateMon, generateRootMon } from '${cwd}/src/engine/characterGenerator.ts';
+export { generateMon, generateFirstMon } from '${cwd}/src/engine/characterGenerator.ts';
 export { selectHeritageOrigins } from '${cwd}/src/engine/heritage.ts';
 export { neutralPersonality, EMPTY_NOVELTY, buildNoveltyMemory } from '${cwd}/src/engine/signals.ts';
 export { initialHealthState, applyDay, simulateDayInput, DEFAULT_BIAS } from '${cwd}/src/engine/health.ts';
@@ -99,7 +100,7 @@ console.log('\n═══ CATALOGHI (§3–§16) ═══\n');
 
 const archetypes = C.FAMILIES.reduce((s, f) => s + f.archetypes.length, 0);
 console.log(
-  `  ${C.FAMILIES.length} Family (${C.SELECTABLE_FAMILIES.length} estraibili) · ${archetypes} archetipi · ` +
+  `  ${C.FAMILIES.length} Family · ${archetypes} archetipi · ` +
     `${C.AFFINITIES.length} Affinity · ${C.ROLES.length} Role · ${C.FASHIONS.length} Fashion · ` +
     `${C.MOODS.length} Mood · ${C.RARITY_TIERS.length} Rarità · ${C.VOICE_PRESETS.length} preset di voce`,
 );
@@ -165,18 +166,41 @@ const input = {
   branchCount: 3,
 };
 
-const root = m.generateRootMon({
-  input,
-  mindlineNodeId: 'node_000',
-  originNodeId: null,
-  lineageNames: [],
-  seed: 1,
-});
+/* Il primo .mon non è più canonico: si estrae. Il controllo che conta è che
+   partite diverse comincino da creature diverse — se il primo nodo tornasse
+   sempre uguale, la modifica non avrebbe avuto effetto. */
 
-console.log('\n═══ §3 — NODO RADICE ═══\n');
-check(root.record.data.name === 'Vz.mon', 'la radice si chiama Vz.mon', root.record.data.name);
-check(root.record.data.family === 'SLIME', 'la radice è SLIME', root.record.data.family);
-check(root.record.data.family_archetype === 'ROOT', 'archetipo ROOT', root.record.data.family_archetype);
+const firstRuns = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((seed) =>
+  m.generateFirstMon({
+    input,
+    mindlineNodeId: 'node_000',
+    originNodeId: null,
+    lineageNames: [],
+    seed,
+  }).record.data,
+);
+const root = { record: { data: firstRuns[0] } };
+
+console.log('\n═══ PRIMO NODO ═══\n');
+console.log(
+  `  ${firstRuns
+    .slice(0, 4)
+    .map((d) => `${d.name} ${d.family}//${d.family_archetype}`)
+    .join('   ')}\n`,
+);
+check(
+  new Set(firstRuns.map((d) => d.family)).size >= 4,
+  'partite diverse cominciano da Family diverse',
+  `${new Set(firstRuns.map((d) => d.family)).size} Family su 12 semi`,
+);
+check(
+  new Set(firstRuns.map((d) => d.name)).size === firstRuns.length,
+  'ogni prima creatura ha un nome suo',
+);
+check(
+  firstRuns.every((d) => d.heritage_traits.length === 0),
+  'il primo nodo non eredita da nessuno',
+);
 
 const lineage = [root.record.data.name];
 const results = [];
@@ -226,10 +250,10 @@ console.log(
 
 console.log('\n═══ CONTROLLI ═══\n');
 
-const slimeElsewhere = results.filter((d) => d.family === 'SLIME');
-check(slimeElsewhere.length === 0, 'SLIME non compare mai fuori dalla radice (§3, §17)', `${slimeElsewhere.length} casi`);
+const slime = results.filter((d) => d.family === 'SLIME');
+check(slime.length === 0, 'la Family SLIME non esiste più', `${slime.length} casi`);
 
-const invalidNames = lineage.filter((n) => n !== 'Vz.mon' && !m.isValidMonName(n));
+const invalidNames = lineage.filter((n) => !m.isValidMonName(n));
 check(invalidNames.length === 0, 'genoma dei nomi V… Z… .mon (§24)', invalidNames.slice(0, 3).join(', '));
 
 const dupes = lineage.length - new Set(lineage).size;
@@ -277,7 +301,7 @@ const seenFamilies = new Set(results.map((d) => d.family));
 const unreachable = C.SELECTABLE_FAMILIES.filter((f) => !seenFamilies.has(f.id)).map((f) => f.id);
 check(
   unreachable.length === 0,
-  'tutte le Family estraibili sono raggiungibili',
+  'tutte le Family sono raggiungibili',
   unreachable.join(', ') || `${seenFamilies.size}/${C.SELECTABLE_FAMILIES.length}`,
 );
 

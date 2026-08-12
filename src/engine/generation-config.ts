@@ -21,7 +21,11 @@
    e non ne contengono al loro interno.
    ========================================================================= */
 
-export const GENERATION_CONFIG_VERSION = '2.1.0';
+/* 2.2.0 — via la Family SLIME e via la radice canonica: il primo .mon si
+   estrae. §29 impone di incrementare la versione quando cambiano tassonomie o
+   pesi, e i .mon già generati restano immutabili con la versione con cui sono
+   nati. */
+export const GENERATION_CONFIG_VERSION = '2.2.0';
 
 /* ============================================================================
    §2 — SEGNALI IN INGRESSO
@@ -55,8 +59,18 @@ export type FitFormula = Partial<Record<SignalKey, number>>;
 
 /* ============================================================================
    §3 + §4 + §17 — CATALOGO DELLE FAMILY
-   19 voci. SLIME è riservata al nodo radice: §3 «Family SLIME is exclusive to
-   Vz.mon», §17 step 1 «exclude SLIME except root/reset».
+   18 voci, tutte estraibili.
+
+   🔶 SCOSTAMENTO VOLUTO DALLA GENERATION BIBLE v2.1 — decisione di prodotto.
+   La bibbia ne elenca 19 e riserva SLIME al nodo radice: §3 «Family SLIME is
+   exclusive to Vz.mon», §17 step 1 «exclude SLIME except root/reset». La
+   radice fissa è stata tolta dal gioco — il primo .mon si estrae come tutti
+   gli altri — e con essa cade l'unico motivo per cui SLIME esisteva come
+   Family: non aveva formula di fit e non entrava mai nell'estrazione.
+
+   La materia gelatinosa non sparisce dal mondo: sopravvive come AFFINITY, che
+   è esattamente quello che la regola assoluta di SLIME già prescriveva —
+   «Later slime influence is AFFINITY only».
    ========================================================================= */
 
 export interface FamilyDef {
@@ -77,8 +91,6 @@ export interface FamilyDef {
   supportsHair: boolean;
   /** §9 — «eyewear is mandatory whenever anatomically possible». */
   supportsEyewear: boolean;
-  /** §3 — esclusa dall'estrazione normale; solo radice o reset esplicito. */
-  rootOnly?: boolean;
 }
 
 export const FAMILIES: FamilyDef[] = [
@@ -405,27 +417,6 @@ export const FAMILIES: FamilyDef[] = [
       { id: 'ORGANELLE', structure: 'One exaggerated intracellular structure becomes identity mass.' },
     ],
   },
-  {
-    id: 'SLIME',
-    coreAnatomy: 'Gelatinous root organism',
-    it: 'organismo gelatinoso primordiale',
-    drivers: 'First node / explicit reset only',
-    absoluteRule:
-      'Family SLIME is exclusive to Vz.mon. Later slime influence is AFFINITY only.',
-    // Nessuna formula di fit: SLIME non entra mai nell'estrazione pesata (§17).
-    fit: {},
-    supportsHair: false,
-    supportsEyewear: true,
-    rootOnly: true,
-    archetypes: [
-      { id: 'ROOT', structure: 'Canonical Vz.mon root state.' },
-      { id: 'SPLIT', structure: 'Several partially separated masses as one organism.' },
-      { id: 'HOLLOW', structure: 'Strong cavity/negative-space anatomy.' },
-      { id: 'MELTED', structure: 'Low flowing body.' },
-      { id: 'VERTICAL', structure: 'Tall unstable columnar body.' },
-      { id: 'MULTI-LOBE', structure: 'Several connected lobes with one identity.' },
-    ],
-  },
 ];
 
 export type FamilyId = string;
@@ -436,15 +427,16 @@ export function familyDef(id: FamilyId): FamilyDef {
   return f;
 }
 
-/** §17 step 1 — le Family estraibili escludono sempre SLIME. */
-export const SELECTABLE_FAMILIES = FAMILIES.filter((f) => !f.rootOnly);
+/** Tutte le Family sono estraibili: non esiste più una radice riservata. */
+export const SELECTABLE_FAMILIES = FAMILIES;
 
-/** §3 — il nodo radice è canonico, non generato. */
-export const ROOT_MON = {
-  name: 'Vz.mon',
-  family: 'SLIME',
-  archetype: 'ROOT',
-} as const;
+/**
+ * Nome comune della specie. Ogni creatura ha il suo nome proprio — generato
+ * col genoma di §24 step 17: inizia per V, contiene Z, finisce in `.mon` — ma
+ * si può chiamare tutte così, come si dice «un gatto» di un gatto che ha già
+ * un nome.
+ */
+export const SPECIES_NAME = 'vinz.mon';
 
 /* ============================================================================
    §5 — CATALOGO DELLE AFFINITY

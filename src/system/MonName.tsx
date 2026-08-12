@@ -20,6 +20,7 @@
    esistere apposta.
    ========================================================================= */
 
+import { SPECIES_NAME } from '../engine/generation-config';
 import { displayName } from '../engine/types';
 
 interface MonNameProps {
@@ -43,6 +44,25 @@ export function MonName({ name, hideExtension, className = '' }: MonNameProps) {
     <span className={`monname ${className}`} aria-label={name}>
       <span aria-hidden="true">{stem}</span>
       <span className="monname__ext" aria-hidden="true">
+        .mon
+      </span>
+    </span>
+  );
+}
+
+/* --- Nome comune della specie ----------------------------------------------
+
+   Ogni creatura ha il suo nome proprio, ma la specie si chiama `vinz.mon`: si
+   possono chiamare tutte così, come si dice «un gatto» di un gatto che ha già
+   un nome. Va in minuscolo perché è un nome comune, e tiene la grammatica
+   dell'estensione perché è comunque un file.
+   -------------------------------------------------------------------------- */
+
+export function SpeciesName({ className = '' }: { className?: string }) {
+  return (
+    <span className={`species ${className}`} aria-label={SPECIES_NAME}>
+      <span aria-hidden="true">vinz</span>
+      <span className="species__ext" aria-hidden="true">
         .mon
       </span>
     </span>

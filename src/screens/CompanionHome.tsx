@@ -21,7 +21,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { Overlay } from '../App';
 import { useApp, useActiveMon } from '../state/store';
 import { AssetSlot, Sigil } from '../system/AssetSlot';
-import { MonName } from '../system/MonName';
+import { MonName, SpeciesName } from '../system/MonName';
 import { IconButton, TextField } from '../system/components';
 import { Icon, type IconName } from '../system/Icon';
 import { displayName } from '../engine/types';
@@ -88,7 +88,10 @@ export function CompanionHomeScreen({ onGo }: { onGo: (o: Overlay) => void }) {
             <h1 className="home__name t-display">
               <MonName name={d.name} />
             </h1>
-            <p className="t-meta home__form">{form}</p>
+            {/* Nome proprio sopra, specie e forma sotto. */}
+            <p className="t-meta home__form">
+              <SpeciesName /> · {form}
+            </p>
           </div>
         </div>
         <IconButton icon="expand" label="Apri il profilo completo" light onClick={() => onGo('specimen')} />

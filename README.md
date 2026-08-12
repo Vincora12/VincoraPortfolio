@@ -61,7 +61,7 @@ Si prova il motore e l'interfaccia, non ancora il prodotto sui propri dati veri.
 | `npm run dev` | Avvia il prototipo |
 | `npm run build` | Typecheck + build di produzione |
 | `npm run typecheck` | Solo controllo dei tipi |
-| `npm run verify` | Percorre l'app end-to-end in Chromium headless, cattura 32 screenshot in `screenshots/` e fallisce su qualunque errore di console |
+| `npm run verify` | Percorre l'app end-to-end in Chromium headless, cattura 36 screenshot in `screenshots/` e fallisce su qualunque errore di console |
 | `VERIFY_BASE=<url> npm run verify` | La stessa camminata contro un sito già pubblicato (o `vite preview`), dove il bundle è minificato e i percorsi degli asset sono altri |
 | `npm run verify:batch` | QA del generatore su 3000 `.mon`: tabelle di rarità di GB §26, distribuzioni, genoma dei nomi, Heritage, copertura dei frammenti |
 | `npm run verify:package` | Controlla il pacchetto Asset Request contro MS §22.2/§24.4/§13 e GB §30/§45/§48 |
@@ -74,8 +74,8 @@ Si prova il motore e l'interfaccia, non ancora il prodotto sui propri dati veri.
 
 1. Apri `?dev=1`.
 2. **Incubazione**: premi `+ 7 GIORNI` quattro volte, poi `HATCH`.
-   Nasce **`Vz.mon`** — SLIME // ROOT, la radice canonica di GB §3, con dati
-   completi e **zero immagini**. È l'unico `.mon` che non viene estratto.
+   Nasce il primo `.mon`, **estratto come tutti gli altri**: due partite non
+   cominciano dalla stessa creatura. Ha dati completi e **zero immagini**.
 3. **Home**: scrivi qualcosa nel composer. Il `.mon` risponde con la sua voce
    (fallback deterministico, dichiarato come tale in interfaccia).
 4. **DAILY SCAN**: dichiara fino a 3 umori del giorno fra i 13 di GB §11.
@@ -127,9 +127,13 @@ character_data.json    27 campi, tipo chiuso, seed e versione di config
 ```
 
 Nessun numero vive nel motore: cataloghi, pesi e soglie stanno tutti in
-**`src/engine/generation-config.ts`**, come impone GB §29. Sono 19 Family,
-113 archetipi, 16 Affinity, 24 Role, 18 Fashion, 16 Mood, 16 preset di voce e
+**`src/engine/generation-config.ts`**, come impone GB §29. Sono 18 Family,
+107 archetipi, 16 Affinity, 24 Role, 18 Fashion, 16 Mood, 16 preset di voce e
 6 rarità.
+
+Ogni creatura ha il suo nome proprio — inizia per V, contiene Z, finisce in
+`.mon` — ma la specie si chiama **`vinz.mon`**: si possono chiamare tutte così,
+come si dice «un gatto» di un gatto che ha già un nome.
 
 Ogni generazione è **riproducibile**: stesso seed e stessa versione di config
 danno lo stesso `.mon`. Cambiare i pesi non riscrive i `.mon` già nati, che

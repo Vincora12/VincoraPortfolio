@@ -95,7 +95,6 @@ const FAMILY_HUES: Record<string, number[]> = {
   PSYCHIC: [280, 320, 240], MINERAL: [230, 30, 0], ALIEN: [155, 285, 75],
   FOOD: [30, 350, 55], INSECT: [70, 25, 190], AMPHIBIA: [160, 330, 185],
   FAIRY: [320, 275, 55], FUNGUS: [15, 285, 40], MICROBE: [130, 200, 305],
-  SLIME: [150, 190, 100],
 };
 
 const AFFINITY_HUE_SHIFT: Record<string, number> = {
