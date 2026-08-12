@@ -6,6 +6,7 @@
 
 import { useEffect, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
 import { Icon, type IconName } from './Icon';
+import { haptic, type HapticKind } from './haptics';
 
 /* --- BUTTON ---------------------------------------------------------------- */
 
@@ -16,6 +17,8 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   block?: boolean;
   small?: boolean;
   icon?: IconName;
+  /** Ritorno aptico al tocco. `false` per i comandi che non meritano un colpo. */
+  haptics?: HapticKind | false;
 }
 
 export function Button({
@@ -23,8 +26,10 @@ export function Button({
   block,
   small,
   icon,
+  haptics = 'tick',
   children,
   className = '',
+  onClick,
   ...rest
 }: ButtonProps) {
   const cls = [
@@ -37,7 +42,16 @@ export function Button({
     .filter(Boolean)
     .join(' ');
   return (
-    <button type="button" className={cls} {...rest}>
+    <button
+      type="button"
+      className={cls}
+      onClick={(e) => {
+        // Dentro il gestore del gesto: fuori di qui i browser lo ignorano.
+        if (haptics) haptic(haptics);
+        onClick?.(e);
+      }}
+      {...rest}
+    >
       {icon && <Icon name={icon} size={small ? 14 : 16} />}
       {children}
     </button>
@@ -92,6 +106,9 @@ export function HoldButton({
   const begin = () => {
     if (disabled || done || raf.current !== 0) return;
     start.current = performance.now();
+    // Un colpo quando il riempimento parte, uno più pieno quando arriva in
+    // fondo: si sente che è cominciato qualcosa e si sente che è compiuto.
+    haptic('tick');
 
     const tick = (now: number) => {
       const p = Math.min(1, (now - start.current) / HOLD_MS);
@@ -102,6 +119,7 @@ export function HoldButton({
       }
       stop();
       setDone(true);
+      haptic('impact');
       // Un istante di stato «pieno» prima di cambiare schermata: senza, il
       // riempimento non si vede mai arrivare in fondo.
       window.setTimeout(onComplete, 180);
@@ -125,6 +143,7 @@ export function HoldButton({
             e.preventDefault();
             setProgress(1);
             setDone(true);
+            haptic('impact');
             window.setTimeout(onComplete, 180);
           }
         }}
@@ -146,14 +165,34 @@ interface IconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   label: string;
   light?: boolean;
   small?: boolean;
+  haptics?: HapticKind | false;
 }
 
-export function IconButton({ icon, label, light, small, className = '', ...rest }: IconButtonProps) {
+export function IconButton({
+  icon,
+  label,
+  light,
+  small,
+  haptics = 'tick',
+  className = '',
+  onClick,
+  ...rest
+}: IconButtonProps) {
   const cls = ['btn-icon', light ? 'btn-icon--light' : '', small ? 'btn-icon--sm' : '', className]
     .filter(Boolean)
     .join(' ');
   return (
-    <button type="button" className={cls} aria-label={label} title={label} {...rest}>
+    <button
+      type="button"
+      className={cls}
+      aria-label={label}
+      title={label}
+      onClick={(e) => {
+        if (haptics) haptic(haptics);
+        onClick?.(e);
+      }}
+      {...rest}
+    >
       <Icon name={icon} size={small ? 14 : 18} />
     </button>
   );

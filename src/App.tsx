@@ -15,6 +15,7 @@ import { useApp, type Phase } from './state/store';
 import { applyPaletteDna } from './engine/colorDna';
 import { preloadMonAssets } from './assets-pipeline/assetStore';
 import { Icon } from './system/Icon';
+import { haptic } from './system/haptics';
 import { t } from './i18n/it';
 
 import { IncubationScreen } from './screens/Incubation';
@@ -188,7 +189,10 @@ function TabBar({ tab, onChange }: { tab: Tab; onChange: (t: Tab) => void }) {
           type="button"
           className="tabbar__item"
           aria-current={tab === item.id ? 'page' : undefined}
-          onClick={() => onChange(item.id)}
+          onClick={() => {
+            haptic('tick');
+            onChange(item.id);
+          }}
         >
           <Icon name={item.icon} size={20} strokeWidth={2} />
           {item.label}

@@ -25,6 +25,7 @@ import { MonName, SpeciesName } from '../system/MonName';
 import { IconButton, TextField } from '../system/components';
 import { Icon, type IconName } from '../system/Icon';
 import { displayName } from '../engine/types';
+import { haptic } from '../system/haptics';
 import { t } from '../i18n/it';
 
 const ACTIONS: { icon: IconName; label: string; overlay: Overlay }[] = [
@@ -101,7 +102,10 @@ export function CompanionHomeScreen({ onGo }: { onGo: (o: Overlay) => void }) {
       <button
         type="button"
         className={`home__stage ${expanded ? '' : 'home__stage--compact'}`}
-        onClick={() => setExpanded((v) => !v)}
+        onClick={() => {
+          haptic('tick');
+          setExpanded((v) => !v);
+        }}
         aria-expanded={expanded}
         aria-label={expanded ? `Riduci ${short}` : `Ingrandisci ${short}`}
       >
@@ -127,7 +131,14 @@ export function CompanionHomeScreen({ onGo }: { onGo: (o: Overlay) => void }) {
 
       {/* --- L'annuncio. È il momento che la schermata deve rendere grande. --- */}
       {syncFull && (
-        <button type="button" className="home__shift" onClick={openShift}>
+        <button
+          type="button"
+          className="home__shift"
+          onClick={() => {
+            haptic('impact');
+            openShift();
+          }}
+        >
           <span className="home__shiftpulse" aria-hidden="true" />
           <Icon name="branch" size={16} strokeWidth={2} />
           <span className="home__shifttext">
@@ -168,7 +179,10 @@ export function CompanionHomeScreen({ onGo }: { onGo: (o: Overlay) => void }) {
                 type="button"
                 role="menuitem"
                 className="home__action"
-                onClick={() => go(a.overlay)}
+                onClick={() => {
+                  haptic('tick');
+                  go(a.overlay);
+                }}
               >
                 <Icon name={a.icon} size={18} strokeWidth={2} />
                 <span className="t-meta">{a.label}</span>
@@ -193,7 +207,7 @@ export function CompanionHomeScreen({ onGo }: { onGo: (o: Overlay) => void }) {
           onSubmit={submit}
           onFocus={() => setExpanded(false)}
         />
-        <IconButton icon="send" label="Invia" onClick={submit} disabled={draft.trim().length === 0} />
+        <IconButton icon="send" label="Invia" haptics="confirm" onClick={submit} disabled={draft.trim().length === 0} />
       </div>
     </div>
   );

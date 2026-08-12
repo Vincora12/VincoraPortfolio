@@ -32,6 +32,7 @@ import {
 import { aggregateDataConfidence, computeMoodLatents } from '../engine/signals';
 import { STAT_KEYS, isKnown } from '../engine/types';
 import { formatSignal } from '../engine/health';
+import { haptic } from '../system/haptics';
 import { t } from '../i18n/it';
 
 /** Etichette leggibili: gli id di §11 sono già in italiano, in maiuscolo. */
@@ -99,7 +100,10 @@ export function DailyScanScreen({ onClose }: { onClose: () => void }) {
                   className="moodchip"
                   aria-pressed={on}
                   disabled={blocked}
-                  onClick={() => toggle(m.id)}
+                  onClick={() => {
+                    haptic('tick');
+                    toggle(m.id);
+                  }}
                 >
                   {/* Lo stato non è solo colore: c'è il segno (§17). */}
                   <span className="moodchip__mark" aria-hidden="true">

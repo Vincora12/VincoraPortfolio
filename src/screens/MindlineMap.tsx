@@ -19,6 +19,7 @@ import { MonName, MonNameTspan } from '../system/MonName';
 import { Button, Row, ScreenHead, SystemLabel } from '../system/components';
 import { layoutMindline, nodeKindLabel } from '../engine/mindline';
 import { displayName } from '../engine/types';
+import { haptic } from '../system/haptics';
 import { t } from '../i18n/it';
 
 const COL_W = 84;
@@ -133,7 +134,10 @@ export function MindlineMapScreen({ onGo }: { onGo: (o: Overlay) => void }) {
                   role="button"
                   tabIndex={0}
                   aria-label={`Nodo ${displayName(node.monName)}`}
-                  onClick={() => setSelectedId(picked ? null : node.id)}
+                  onClick={() => {
+                    haptic('tick');
+                    setSelectedId(picked ? null : node.id);
+                  }}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' || e.key === ' ') {
                       e.preventDefault();

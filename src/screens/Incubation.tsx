@@ -100,6 +100,7 @@ export function IncubationScreen() {
           variant="primary"
           block
           disabled={!inc.ready}
+          haptics="impact"
           onClick={hatch}
           aria-describedby="hatch-note"
         >
