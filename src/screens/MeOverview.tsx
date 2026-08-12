@@ -33,8 +33,9 @@ export function MeOverviewScreen() {
       <ScreenHead title={t.me.title} sub={t.me.subtitle} />
 
       <div className="screen__body me">
-        {/* --- CONDITION: stato del giorno, dichiarato come tale --- */}
-        <Window title="CONDITION">
+        {/* --- CONDITION: stato del giorno, con il nome di sistema accanto alla
+             domanda a cui risponde. «CONDITION» da solo non si capisce. --- */}
+        <Window title={`CONDITION · ${t.me.conditionTitle}`}>
           <div className="me__condition">
             <span className="me__big t-display">{formatSignal(health.condition)}</span>
             <div className="me__conditionbar">
@@ -52,7 +53,9 @@ export function MeOverviewScreen() {
                         : 'alert'
                 }
               />
-              <p className="t-micro me__note">{t.me.conditionNote}</p>
+              {/* Una spiegazione si legge come una frase: il maiuscoletto
+                  monospaziato è per le etichette, non per i periodi. */}
+              <p className="t-small me__note">{t.me.conditionNote}</p>
             </div>
           </div>
         </Window>
@@ -74,13 +77,13 @@ export function MeOverviewScreen() {
                   segments={16}
                 />
 
-                <p className="statcard__label t-small">{STAT_LABELS[key]}</p>
-
+                {/* Una riga sola invece di tre: cosa misura, come si muove,
+                    quanto è affidabile. Le etichette lunghe stavano ripetute
+                    sei volte e non aggiungevano niente dopo la prima lettura. */}
                 <div className="statcard__meta t-micro">
-                  <span>{t.me.trend7}: {formatDelta(t7)}</span>
-                  <span>
-                    {t.me.confidence}: {Math.round(entry.confidence * 100)}%
-                  </span>
+                  <span className="statcard__label">{STAT_LABELS[key]}</span>
+                  <span title={t.me.trend7}>7G {formatDelta(t7)}</span>
+                  <span title={t.me.confidence}>{Math.round(entry.confidence * 100)}%</span>
                 </div>
               </section>
             );
@@ -88,7 +91,7 @@ export function MeOverviewScreen() {
         </div>
 
         {/* --- DISC, tenuta fuori dalle stat di salute (§3) --- */}
-        <Window title="DISC">
+        <Window title={`DISC · ${t.me.discTitle}`}>
           <div className="me__disc">
             <span className="me__big t-display">{formatSignal(health.disc)}</span>
             <div>
@@ -96,7 +99,7 @@ export function MeOverviewScreen() {
                 value={isKnown(health.disc) ? health.disc / 100 : 'unknown'}
                 segments={20}
               />
-              <p className="t-micro me__note">{t.me.discNote}</p>
+              <p className="t-small me__note">{t.me.discNote}</p>
             </div>
           </div>
         </Window>
@@ -117,9 +120,6 @@ export function MeOverviewScreen() {
               <span className="t-display">{Math.round(progression.bond * 100)}%</span>
             </div>
           </div>
-          <p className="t-micro me__note">
-            I punteggi di gioco restano separati dalle informazioni di salute.
-          </p>
         </Window>
 
         <div className="me__confidence">

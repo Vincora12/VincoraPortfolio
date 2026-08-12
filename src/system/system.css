@@ -67,6 +67,47 @@
   width: 100%;
 }
 
+/* --- HOLD BUTTON ------------------------------------------------------------
+   Il riempimento è la conferma: cresce da sinistra sotto l'etichetta e, quando
+   arriva in fondo, il bottone si inverte per un istante prima di partire. --- */
+
+.hold {
+  display: flex;
+  flex-direction: column;
+  gap: var(--u);
+}
+
+.hold__btn {
+  position: relative;
+  overflow: hidden;
+  touch-action: none;
+  user-select: none;
+}
+
+.hold__fill {
+  position: absolute;
+  inset: 0;
+  transform-origin: left center;
+  background: var(--char-primary);
+}
+
+.hold__label {
+  position: relative;
+}
+
+.hold__btn--done {
+  background: var(--char-primary);
+  color: var(--char-on-primary);
+  transform: translate(2px, 2px);
+  box-shadow: none;
+}
+
+.hold__hint {
+  color: var(--muted);
+  text-align: center;
+  margin: 0;
+}
+
 .btn--sm {
   min-height: 32px;
   padding: 0 var(--u3);

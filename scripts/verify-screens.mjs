@@ -129,6 +129,20 @@ const click = async (selector, label) => {
 
 const byText = (text) => `text="${text}"`;
 
+/** Le azioni della home vivono nel «+» del composer, non più attorno alla creatura. */
+const openAction = async (label) => {
+  await click('.composer .btn-icon:first-child', 'apri le azioni');
+  await click(byText(label), label);
+};
+
+/** I bottoni che cambiano percorso si tengono premuti; da tastiera basta Invio. */
+const hold = async (label) => {
+  const el = page.locator(`.hold__btn:has-text("${label}")`).first();
+  if ((await el.count()) === 0) throw new Error(`Hold button non trovato: ${label}`);
+  await el.press('Enter');
+  await sleep(400);
+};
+
 try {
   console.log(`\n═══ VERIFICA DELLE SCHERMATE — ${BASE} ═══\n`);
 
@@ -157,8 +171,13 @@ try {
   await click('.composer .btn-icon:last-child', 'invia');
   await shot('06-conversazione');
 
+  /* Le azioni della home, condensate nel «+» */
+  await click('.composer .btn-icon:first-child', 'apri le azioni');
+  await shot('06-azioni');
+  await click('.home__scrim', 'chiudi le azioni');
+
   /* 08 — DAILY SCAN, la schermata degli umori di §11 */
-  await click('.home__side .btn-icon:nth-child(4)', 'daily scan');
+  await openAction('UMORE DI OGGI');
   await shot('08-daily-scan');
   await click(byText('Cazzaro'), 'mood cazzaro');
   await click(byText('Sicuro'), 'mood sicuro');
@@ -166,7 +185,7 @@ try {
   await click(byText('REGISTRA'), 'registra mood');
 
   /* 07 — UNIVERSAL INPUT */
-  await click('.home__side .btn-icon:nth-child(3)', 'input universale');
+  await openAction('REGISTRA UN DATO');
   await shot('07-universal-input');
   await click(byText('WORKOUT'), 'workout');
   await shot('07-input-selezionato');
@@ -184,12 +203,12 @@ try {
   await click('.specimen__head .btn-icon', 'indietro');
 
   /* 16 — BIO */
-  await click('.home__side .btn-icon:nth-child(1)', 'bio');
+  await openAction('BIO');
   await shot('16-bio');
   await click('.bio__head .btn-icon', 'indietro');
 
   /* 19 — MEMORIES */
-  await click('.home__side .btn-icon:nth-child(2)', 'memorie');
+  await openAction('MEMORIE');
   await shot('19-memorie');
   await click('.specimen__head .btn-icon', 'indietro');
 
@@ -197,9 +216,13 @@ try {
   await click('.tabbar__item:nth-child(2)', 'tab ME');
   await shot('09-me-overview');
 
-  /* 17 — MINDLINE */
+  /* 17 — MINDLINE: senza selezione si vede solo la topologia */
   await click('.tabbar__item:nth-child(3)', 'tab MINDLINE');
   await shot('17-mindline');
+
+  // Il dettaglio del nodo esiste solo dopo averlo toccato.
+  await click('.mindline__node--active', 'nodo attivo');
+  await shot('17-mindline-nodo');
 
   /* 20 — HISTORY */
   await click(byText('EVOLUTION TIMELINE'), 'timeline');
@@ -233,13 +256,32 @@ try {
   await click(byText('ECONOMIA'), 'tab economia');
   await shot('dev-economia');
 
+  // L'annuncio dello shift esiste solo a EVOLUTION SYNC pieno: si forza da DEV
+  // perché altrimenti non comparirebbe mai in una camminata automatica.
+  await click(byText('SEGNALI'), 'tab segnali');
+  const sync = page.locator('.dev__control input[type="range"]').last();
+  await sync.evaluate((el) => {
+    const setter = Object.getOwnPropertyDescriptor(
+      window.HTMLInputElement.prototype,
+      'value',
+    ).set;
+    setter.call(el, '1');
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await click('.dev__head .btn-icon', 'chiudi DEV');
+  await click('.tabbar__item:nth-child(1)', 'tab MON');
+  await shot('06-shift-disponibile');
+  await click('.devtrigger', 'riapri DEV');
+
   /* 11 — MINDLINE SHIFT */
   await click(byText('MINDLINE'), 'tab mindline dev');
   await click(byText('APRI MINDLINE SHIFT'), 'apri shift');
   await shot('11-mindline-shift');
 
   /* 12 — EVOLUTION */
-  await click(byText('EVOLVE'), 'evolve');
+  await hold('EVOLVE');
+  await shot('12-evolution-rivelazione');
+  await sleep(1600); // la rivelazione si toglie da sola
   await shot('12-evolution');
   await click(byText('CONTINUA'), 'continua');
 
@@ -248,7 +290,7 @@ try {
   await click(byText('MINDLINE'), 'tab mindline dev');
   await page.locator('.dev__check input').nth(1).check();
   await click(byText('APRI MINDLINE SHIFT'), 'apri shift');
-  await click(byText('NUOVO SEGNALE'), 'branch');
+  await hold('NUOVO SEGNALE');
   await shot('13-new-branch');
 
   /* 14 — NEW ENCOUNTER */
@@ -259,6 +301,7 @@ try {
   /* 18 — HERITAGE DNA */
   await click('.tabbar__item:nth-child(3)', 'tab MINDLINE');
   await shot('17-mindline-ramificata');
+  await click('.mindline__node--active', 'nodo attivo');
   await click(byText('HERITAGE DNA'), 'heritage');
   await shot('18-heritage-dna');
 

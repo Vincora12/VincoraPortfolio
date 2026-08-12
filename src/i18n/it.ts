@@ -86,12 +86,17 @@ export const t = {
     title: 'ME',
     subtitle: 'LIVELLO DI VERITÀ ANALITICA',
     condition: 'CONDITION',
-    conditionNote: 'Stato di oggi, non una statistica permanente.',
+    conditionTitle: 'COME STAI OGGI',
+    // Diceva cosa NON è. Chi legge per la prima volta ha bisogno di sapere
+    // cosa È, e da dove esce il numero.
+    conditionNote:
+      'Le sei letture qui sotto, riassunte in un numero. Pesa di più il recupero. Vale solo per oggi: domani si ricalcola da capo.',
     disc: 'DISC',
-    discNote: 'Costanza nel collaborare col sistema.',
+    discTitle: 'QUANTO SEI COSTANTE',
+    discNote: 'Sale quando registri qualcosa, scende piano quando sparisci. Non è salute.',
     confidence: 'CONFIDENZA DEL DATO',
     unknownNote: 'I dati mancanti restano sconosciuti. Non contano come zero.',
-    trend7: 'TREND 7 GIORNI',
+    trend7: '7 GIORNI',
   },
 
   /* 11 MINDLINE SHIFT */
@@ -99,14 +104,13 @@ export const t = {
     title: 'MINDLINE SHIFT',
     subtitle: 'IL PERCORSO SI DIVIDE QUI',
     continueTitle: 'CONTINUA',
-    continueBody:
-      'Resti con lo stesso .mon. La stessa identità evolve: sviluppo, mutazione, legame più profondo.',
+    continueBody: 'Stesso .mon, forma nuova.',
     continueAction: 'EVOLVE',
     branchTitle: 'DEVIA',
-    branchBody:
-      'Saluti il .mon attuale e segui una deviazione della Mindline. Nasce un nuovo .mon, che porta con sé 1–3 tratti riconoscibili.',
+    branchBody: 'Nuovo .mon, con 1–3 tratti di questo.',
     branchAction: 'NUOVO SEGNALE',
     notEligible: 'NON DISPONIBILE',
+    hold: 'tieni premuto',
     stay: 'NON ORA',
   },
 
@@ -117,6 +121,8 @@ export const t = {
     spent: 'XP SPESI',
     from: 'DA',
     to: 'A',
+    reveal: 'NUOVA FORMA',
+    assets: 'Gli asset visivi vanno rigenerati dal profilo.',
     done: 'CONTINUA',
   },
 
@@ -160,6 +166,8 @@ export const t = {
     current: 'NODO CORRENTE',
     viewChapter: 'APRI IL NODO',
     nodes: 'NODI',
+    hint: 'Tocca un nodo per aprirlo.',
+    restore: 'TORNA A QUESTO NODO',
   },
 
   /* 18 HERITAGE DNA */

@@ -2,48 +2,78 @@
    06 — MON / COMPANION HOME (§12)
 
    🔒 Vincoli espliciti di §12/06:
-   • Il .mon corrente occupa il 45–55% del viewport iniziale.
+   • Il .mon corrente occupa il 45–55% del viewport **iniziale**.
    • NESSUNA card generica attorno alla creatura.
    • Conversazione + composer + progressione compatta.
 
-   §11 — questa è la superficie della relazione: identità, stato, Bond/XP,
-   contesto di evoluzione, conversazione, scorciatoie verso Specimen e Bio.
+   «Iniziale» è la parola che regge questa schermata: a riposo la creatura
+   prende metà schermo come chiede la spec, ma appena si comincia a parlare si
+   ritira in una striscia e la conversazione prende il suo posto. Si torna
+   indietro toccandola. La spec fissa lo stato d'ingresso, non impone che
+   l'immagine occupi metà schermo mentre stai scrivendo.
+
+   Le azioni non stanno più attorno alla creatura: stanno dentro il «+» del
+   composer, che è dove si cercano in una conversazione e non costa nessuna
+   riga permanente.
    ========================================================================= */
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Overlay } from '../App';
 import { useApp, useActiveMon } from '../state/store';
 import { AssetSlot, Sigil } from '../system/AssetSlot';
 import { MonName } from '../system/MonName';
-import { IconButton, SegmentedBar, SystemLabel, TextField } from '../system/components';
-import { Icon } from '../system/Icon';
+import { IconButton, TextField } from '../system/components';
+import { Icon, type IconName } from '../system/Icon';
 import { displayName } from '../engine/types';
 import { t } from '../i18n/it';
+
+const ACTIONS: { icon: IconName; label: string; overlay: Overlay }[] = [
+  { icon: 'camera', label: 'REGISTRA UN DATO', overlay: 'input' },
+  { icon: 'scan', label: 'UMORE DI OGGI', overlay: 'scan' },
+  { icon: 'dna', label: 'BIO', overlay: 'bio' },
+  { icon: 'sticker', label: 'MEMORIE', overlay: 'memories' },
+];
 
 export function CompanionHomeScreen({ onGo }: { onGo: (o: Overlay) => void }) {
   const mon = useActiveMon();
   const chat = useApp((s) => s.chat);
-  const progression = useApp((s) => s.progression);
+  const evolutionSync = useApp((s) => s.progression.evolutionSync);
   const sendMessage = useApp((s) => s.sendMessage);
   const openShift = useApp((s) => s.openShift);
 
   const [draft, setDraft] = useState('');
+  const [expanded, setExpanded] = useState(true);
+  const [actionsOpen, setActionsOpen] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
+
+  const scrollToEnd = () => {
+    requestAnimationFrame(() => {
+      listRef.current?.scrollTo({ top: listRef.current.scrollHeight });
+    });
+  };
+
+  // Il collasso della creatura è una conseguenza della conversazione, non un
+  // comando: chi scrive vuole leggere le risposte.
+  useEffect(scrollToEnd, [chat.length, expanded]);
 
   if (!mon) return null;
 
   const d = mon.data;
   const short = displayName(d.name);
   const form = d.evolution_state?.label ?? 'BASIC FORM';
-  const syncFull = progression.evolutionSync >= 1;
+  const syncFull = evolutionSync >= 1;
 
   const submit = () => {
     if (draft.trim().length === 0) return;
     sendMessage(draft);
     setDraft('');
-    requestAnimationFrame(() => {
-      listRef.current?.scrollTo({ top: listRef.current.scrollHeight });
-    });
+    setExpanded(false);
+    scrollToEnd();
+  };
+
+  const go = (o: Overlay) => {
+    setActionsOpen(false);
+    onGo(o);
   };
 
   return (
@@ -65,38 +95,45 @@ export function CompanionHomeScreen({ onGo }: { onGo: (o: Overlay) => void }) {
       </header>
 
       {/* --- La creatura. Nessuna card: solo il campo e l'asset. --- */}
-      <div className="home__stage">
+      <button
+        type="button"
+        className={`home__stage ${expanded ? '' : 'home__stage--compact'}`}
+        onClick={() => setExpanded((v) => !v)}
+        aria-expanded={expanded}
+        aria-label={expanded ? `Riduci ${short}` : `Ingrandisci ${short}`}
+      >
         <AssetSlot
           monName={d.name}
           type="character_master"
           alt={`${short}, ritratto canonico`}
           className="home__art"
+          compactPlaceholder={!expanded}
         />
 
-        <div className="home__hud">
-          <SegmentedBar
-            value={progression.evolutionSync}
-            segments={16}
-            label={t.home.evolutionSync}
-            readout={`${Math.round(progression.evolutionSync * 100)}%`}
-          />
-        </div>
+        {/* EVOLUTION SYNC come linea sul bordo: informazione periferica finché
+            non è piena, e allora diventa il fatto principale della schermata. */}
+        <span
+          className="home__sync"
+          role="progressbar"
+          aria-label={t.home.evolutionSync}
+          aria-valuenow={Math.round(evolutionSync * 100)}
+        >
+          <span className="home__syncfill" style={{ width: `${Math.min(1, evolutionSync) * 100}%` }} />
+        </span>
+      </button>
 
-        {/* La scorciatoia verso lo shift compare solo quando ha senso. */}
-        {syncFull && (
-          <button type="button" className="home__shift" onClick={openShift}>
-            <Icon name="branch" size={14} strokeWidth={2} />
-            MINDLINE SHIFT DISPONIBILE
-          </button>
-        )}
-
-        <div className="home__side">
-          <IconButton icon="dna" label="Apri la bio" light small onClick={() => onGo('bio')} />
-          <IconButton icon="sticker" label="Apri le memorie" light small onClick={() => onGo('memories')} />
-          <IconButton icon="camera" label="Apri gli input" light small onClick={() => onGo('input')} />
-          <IconButton icon="scan" label="Apri il daily scan" light small onClick={() => onGo('scan')} />
-        </div>
-      </div>
+      {/* --- L'annuncio. È il momento che la schermata deve rendere grande. --- */}
+      {syncFull && (
+        <button type="button" className="home__shift" onClick={openShift}>
+          <span className="home__shiftpulse" aria-hidden="true" />
+          <Icon name="branch" size={16} strokeWidth={2} />
+          <span className="home__shifttext">
+            <strong className="t-display">MINDLINE SHIFT</strong>
+            <span className="t-micro">il percorso si divide — apri</span>
+          </span>
+          <span className="home__shiftgo" aria-hidden="true">→</span>
+        </button>
+      )}
 
       {/* --- Conversazione --- */}
       <div className="home__chat" ref={listRef}>
@@ -113,27 +150,47 @@ export function CompanionHomeScreen({ onGo }: { onGo: (o: Overlay) => void }) {
       </div>
 
       {/* --- Composer: oggetto persistente maggiore (§10.4) --- */}
+      {actionsOpen && (
+        <>
+          <button
+            type="button"
+            className="home__scrim"
+            aria-label={t.common.close}
+            onClick={() => setActionsOpen(false)}
+          />
+          <div className="home__actions" role="menu">
+            {ACTIONS.map((a) => (
+              <button
+                key={a.overlay}
+                type="button"
+                role="menuitem"
+                className="home__action"
+                onClick={() => go(a.overlay)}
+              >
+                <Icon name={a.icon} size={18} strokeWidth={2} />
+                <span className="t-meta">{a.label}</span>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+
       <div className="composer">
-        <IconButton icon="plus" label="Apri gli input universali" onClick={() => onGo('input')} />
+        <IconButton
+          icon="plus"
+          label="Altre azioni"
+          className={actionsOpen ? 'is-open' : ''}
+          onClick={() => setActionsOpen((v) => !v)}
+        />
         <TextField
           label={`Scrivi a ${short}`}
           placeholder={`${t.home.composerPlaceholder} ${short}…`}
           value={draft}
           onChange={setDraft}
           onSubmit={submit}
+          onFocus={() => setExpanded(false)}
         />
         <IconButton icon="send" label="Invia" onClick={submit} disabled={draft.trim().length === 0} />
-      </div>
-
-      <div className="home__meta t-micro">
-        <SystemLabel>{d.rarity}</SystemLabel>
-        <SystemLabel>{d.affinity}</SystemLabel>
-        <span>
-          {t.common.xp} {progression.xp}
-        </span>
-        <span>
-          {t.home.bond} {Math.round(progression.bond * 100)}%
-        </span>
       </div>
     </div>
   );

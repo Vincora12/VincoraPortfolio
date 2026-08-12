@@ -11,11 +11,12 @@
    monospaziate. Nessun terreno, nessuna prospettiva, nessuna decorazione.
    ========================================================================= */
 
+import { useState } from 'react';
 import type { Overlay } from '../App';
 import { useApp } from '../state/store';
 import { AssetSlot } from '../system/AssetSlot';
 import { MonName, MonNameTspan } from '../system/MonName';
-import { Row, ScreenHead, SystemLabel } from '../system/components';
+import { Button, Row, ScreenHead, SystemLabel } from '../system/components';
 import { layoutMindline, nodeKindLabel } from '../engine/mindline';
 import { displayName } from '../engine/types';
 import { t } from '../i18n/it';
@@ -32,9 +33,14 @@ export function MindlineMapScreen({ onGo }: { onGo: (o: Overlay) => void }) {
   const activeMonName = useApp((s) => s.activeMonName);
   const restoreNode = useApp((s) => s.restoreNode);
 
+  // Il pannello di dettaglio esiste solo quando si è scelto un nodo: senza
+  // selezione la topologia si guarda intera, che è il punto della schermata.
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
   const layout = layoutMindline(nodes);
   const activeNodeId = activeMonName ? mons[activeMonName]?.data.mindline_node : null;
   const chapter = Math.max(1, ...nodes.map((n) => n.chapter));
+  const selected = nodes.find((n) => n.id === selectedId) ?? null;
 
   // Le etichette stanno a destra dei nodi: senza questo margine la colonna
   // più a destra le vedrebbe tagliate dal bordo del canvas.
@@ -115,10 +121,28 @@ export function MindlineMapScreen({ onGo }: { onGo: (o: Overlay) => void }) {
             {layout.nodes.map(({ node, column, depth }) => {
               const { x, y } = pos(column, depth);
               const active = node.id === activeNodeId;
+              const picked = node.id === selectedId;
               const r = active ? 13 : 9;
 
               return (
-                <g key={node.id}>
+                <g
+                  key={node.id}
+                  className={`mindline__node ${active ? 'mindline__node--active' : ''} ${
+                    picked ? 'mindline__node--picked' : ''
+                  }`}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`Nodo ${displayName(node.monName)}`}
+                  onClick={() => setSelectedId(picked ? null : node.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setSelectedId(picked ? null : node.id);
+                    }
+                  }}
+                >
+                  {/* Bersaglio di tocco: il marcatore è piccolo, il dito no. */}
+                  <circle cx={x} cy={y} r={26} fill="transparent" />
                   {active && (
                     <circle cx={x} cy={y} r={r + 7} fill="none" stroke="var(--char-accent)" strokeWidth={1.5} />
                   )}
@@ -151,56 +175,58 @@ export function MindlineMapScreen({ onGo }: { onGo: (o: Overlay) => void }) {
           </svg>
         </div>
 
-        {/* Elenco dei nodi: la mappa non è l'unico modo di leggere la topologia. */}
-        <section className="mindline__list">
-          <p className="t-meta mindline__listhead">{t.mindline.current}</p>
-          <div className="rowlist">
-            {[...nodes].reverse().map((n) => {
-              const rec = mons[n.monName];
-              const active = n.id === activeNodeId;
-              return (
-                <button
-                  key={n.id}
-                  type="button"
-                  className={`noderow ${active ? 'noderow--active' : ''}`}
-                  onClick={() => (active ? onGo('specimen') : restoreNode(n.id))}
-                >
-                  <span className="noderow__portrait">
-                    {rec && (
-                      <AssetSlot
-                        monName={n.monName}
-                        type="profile_portrait"
-                        fallbackTypes={['character_master']}
-                        alt={displayName(n.monName)}
-                        fit="cover"
-                        compactPlaceholder
-                      />
-                    )}
-                  </span>
-                  <span className="noderow__text">
-                    <span className="noderow__name t-display">
-                      <MonName name={n.monName} />
-                    </span>
-                    <span className="t-micro">
-                      {n.id} · {nodeKindLabel(n.kind)} · {t.mindline.chapter} {n.chapter}
-                    </span>
-                  </span>
-                  {active ? (
-                    <SystemLabel tone="character">ATTIVO</SystemLabel>
-                  ) : (
-                    <SystemLabel>G{n.day}</SystemLabel>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </section>
+        {selected === null ? (
+          <p className="mindline__hint t-micro">{t.mindline.hint}</p>
+        ) : (
+          <section className="mindline__panel">
+            <button
+              type="button"
+              className="mindline__close"
+              aria-label={t.common.close}
+              onClick={() => setSelectedId(null)}
+            >
+              ×
+            </button>
 
-        <div className="rowlist mindline__shortcuts">
-          <Row label="HERITAGE DNA" value="apri →" onClick={() => onGo('heritage')} />
-          <Row label="EVOLUTION TIMELINE" value="apri →" onClick={() => onGo('history')} />
-          <Row label="MEMORIE" value="apri →" onClick={() => onGo('memories')} />
-        </div>
+            <div className="noderow noderow--static">
+              <span className="noderow__portrait">
+                {mons[selected.monName] && (
+                  <AssetSlot
+                    monName={selected.monName}
+                    type="profile_portrait"
+                    fallbackTypes={['character_master']}
+                    alt={displayName(selected.monName)}
+                    fit="cover"
+                    compactPlaceholder
+                  />
+                )}
+              </span>
+              <span className="noderow__text">
+                <span className="noderow__name t-display">
+                  <MonName name={selected.monName} />
+                </span>
+                <span className="t-micro">
+                  {nodeKindLabel(selected.kind)} · {t.mindline.chapter} {selected.chapter} · G
+                  {selected.day}
+                </span>
+              </span>
+              {selected.id === activeNodeId && <SystemLabel tone="character">ATTIVO</SystemLabel>}
+            </div>
+
+            {selected.id === activeNodeId ? (
+              <div className="rowlist">
+                <Row label="SPECIMEN" value="apri →" onClick={() => onGo('specimen')} />
+                <Row label="HERITAGE DNA" value="apri →" onClick={() => onGo('heritage')} />
+                <Row label="EVOLUTION TIMELINE" value="apri →" onClick={() => onGo('history')} />
+                <Row label="MEMORIE" value="apri →" onClick={() => onGo('memories')} />
+              </div>
+            ) : (
+              <Button variant="secondary" block onClick={() => restoreNode(selected.id)}>
+                {t.mindline.restore}
+              </Button>
+            )}
+          </section>
+        )}
       </div>
     </div>
   );

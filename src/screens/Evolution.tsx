@@ -9,7 +9,7 @@
    forma, non chi è.
    ========================================================================= */
 
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useApp, useActiveMon } from '../state/store';
 import { AssetSlot, Sigil } from '../system/AssetSlot';
 import { MonName } from '../system/MonName';
@@ -21,6 +21,15 @@ export function EvolutionScreen() {
   const mon = useActiveMon();
   const enterLive = useApp((s) => s.enterLive);
 
+  // La rivelazione: il nome della nuova forma arriva su campo nero, poi la
+  // schermata si scopre. Dura poco più di un secondo e non si può ripetere —
+  // è il premio del tenere premuto, non un'animazione d'ingresso.
+  const [revealing, setRevealing] = useState(true);
+  useEffect(() => {
+    const id = window.setTimeout(() => setRevealing(false), 1400);
+    return () => window.clearTimeout(id);
+  }, []);
+
   if (!mon) return null;
 
   const d = mon.data;
@@ -31,6 +40,13 @@ export function EvolutionScreen() {
 
   return (
     <div className="screen">
+      {revealing && (
+        <div className="reveal" role="presentation" onClick={() => setRevealing(false)}>
+          <span className="reveal__kicker t-meta">{t.evolution.reveal}</span>
+          <span className="reveal__label t-display">{to}</span>
+        </div>
+      )}
+
       <ScreenHead title={t.evolution.title} sub={`${short} · ${t.evolution.same}`} />
 
       <div className="screen__body evolution">
@@ -69,10 +85,6 @@ export function EvolutionScreen() {
             <Kept label="ROLE" value={d.role} />
             <Kept label="APPEARANCE" value={d.appearance} />
           </div>
-          <p className="t-micro evolution__note">
-            Il Character DNA non cambia con l'evoluzione: è la stessa identità a
-            uno stadio successivo.
-          </p>
         </section>
 
         <div className="evolution__tags">
@@ -85,10 +97,7 @@ export function EvolutionScreen() {
 
         {/* §21.2 — la nuova forma nasce con gli slot asset vuoti: vanno
             rigenerati. Lo diciamo, invece di mostrare la forma vecchia. */}
-        <p className="t-small evolution__assets">
-          La forma è cambiata: gli asset visivi vanno rigenerati. Esporta un
-          nuovo pacchetto Asset Request dal profilo.
-        </p>
+        <p className="t-micro evolution__assets">{t.evolution.assets}</p>
       </div>
 
       <footer className="screen__foot">

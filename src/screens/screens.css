@@ -265,15 +265,35 @@
   color: var(--muted-strong);
 }
 
-/* §12/06 — la creatura occupa il 45–55% del viewport iniziale e NON ha
-   nessuna card attorno: solo il campo. */
+/* §12/06 — la creatura occupa il 45–55% del viewport INIZIALE e NON ha nessuna
+   card attorno: solo il campo. Da lì in poi si ritira per lasciare la scena
+   alla conversazione, e torna grande al tocco. */
 .home__stage {
   position: relative;
   flex: 0 0 50%;
   min-height: 0;
-  padding: var(--u3) var(--u4) 0;
+  padding: var(--u3) var(--u4) var(--u3);
   display: flex;
   flex-direction: column;
+  width: 100%;
+  border: 0;
+  background: none;
+  text-align: inherit;
+  cursor: pointer;
+  transition: flex-basis var(--dur-base) var(--ease-system);
+}
+
+/* Da ritirata la creatura non diventa una fascia larga e vuota: diventa un
+   ritratto quadrato, che è la forma in cui un'immagine di personaggio regge
+   di essere piccola. */
+.home__stage--compact {
+  flex-basis: 96px;
+  align-items: center;
+}
+
+.home__stage--compact .home__art {
+  width: 72px;
+  flex: 0 0 72px;
 }
 
 .home__art {
@@ -281,35 +301,133 @@
   min-height: 0;
 }
 
-.home__hud {
-  flex: 0 0 auto;
-  padding: var(--u2) 0;
+/* Linea di EVOLUTION SYNC sul bordo inferiore del campo: si legge di sfuggita
+   e non costa una riga di interfaccia. */
+.home__sync {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  background: var(--hairline);
 }
+
+.home__syncfill {
+  display: block;
+  height: 100%;
+  background: var(--char-primary);
+  transition: width var(--dur-base) var(--ease-system);
+}
+
+/* --- L'annuncio dello shift: l'unico elemento che ha il permesso di gridare - */
 
 .home__shift {
-  position: absolute;
-  left: var(--u4);
-  top: var(--u3);
-  display: inline-flex;
+  position: relative;
+  flex: 0 0 auto;
+  display: flex;
   align-items: center;
-  gap: var(--u);
-  padding: var(--u) var(--u2);
-  border: var(--border) solid var(--ink);
+  gap: var(--u3);
+  margin: 0 var(--u4) var(--u2);
+  padding: var(--u2) var(--u3);
+  border: var(--border-thick) solid var(--ink);
   background: var(--char-primary);
   color: var(--char-on-primary);
-  font-family: var(--font-mono);
-  font-size: var(--type-micro);
-  letter-spacing: 0.1em;
   box-shadow: var(--shadow-hard-sm);
+  overflow: hidden;
+  animation: shift-enter var(--dur-event) var(--ease-system) backwards;
 }
 
-.home__side {
-  position: absolute;
-  right: var(--u4);
-  top: var(--u3);
+/* Non compare: arriva. Entra dal basso e si assesta. */
+@keyframes shift-enter {
+  from {
+    transform: translateY(16px) scaleY(0.6);
+    opacity: 0;
+  }
+}
+
+.home__shifttext {
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+}
+
+.home__shifttext strong {
+  font-size: var(--type-display-s);
+  line-height: 1;
+}
+
+.home__shiftgo {
+  margin-left: auto;
+  font-size: var(--type-display-s);
+  line-height: 1;
+}
+
+/* Il battito: una banda di luce che attraversa il pannello. Non lampeggia —
+   un lampeggio a contrasto pieno è una barriera di accessibilità. */
+.home__shiftpulse {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    100deg,
+    transparent 35%,
+    rgba(255, 255, 255, 0.42) 50%,
+    transparent 65%
+  );
+  transform: translateX(-100%);
+  animation: shift-sweep 2600ms var(--ease-system) infinite;
+  pointer-events: none;
+}
+
+@keyframes shift-sweep {
+  0%,
+  55% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+/* --- Azioni del composer: nessuna riga permanente, si aprono dal «+» ------- */
+
+.home__scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  border: 0;
+  background: rgba(17, 17, 17, 0.28);
+}
+
+.home__actions {
+  position: relative;
+  z-index: 5;
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: var(--u2);
+  margin: 0 var(--u4) var(--u2);
+  padding: var(--u3);
+  border: var(--border-thick) solid var(--ink);
+  background: var(--white);
+  box-shadow: var(--shadow-hard);
+}
+
+.home__action {
+  display: flex;
+  align-items: center;
+  gap: var(--u2);
+  min-height: 44px;
+  padding: var(--u2);
+  border: var(--border) solid var(--ink);
+  background: var(--white);
+  text-align: left;
+}
+
+.home__action:active {
+  background: var(--ink);
+  color: var(--white);
 }
 
 .home__chat {
@@ -352,16 +470,9 @@
   color: var(--muted);
 }
 
-.home__meta {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  gap: var(--u2);
-  padding: var(--u2) var(--u4);
-  border-top: 1px solid var(--hairline);
-  color: var(--muted-strong);
-  flex-wrap: wrap;
-}
+/* Rarità, Affinity, XP e Bond stavano qui in una riga sempre accesa. Sono dati
+   da profilo, non da conversazione: vivono in SPECIMEN, a un tocco di distanza
+   dall'intestazione. */
 
 /* ============================================================================
    07 UNIVERSAL INPUT
@@ -532,16 +643,23 @@
   font-size: 22px;
 }
 
-.statcard__label {
-  color: var(--muted-strong);
-  margin: 0;
-}
-
 .statcard__meta {
   display: flex;
-  justify-content: space-between;
-  gap: var(--u2);
+  align-items: baseline;
+  gap: var(--u3);
   color: var(--muted);
+}
+
+/* Cosa misura la stat: prende lo spazio che avanza, il trend e la confidenza
+   restano ancorati a destra. */
+.statcard__label {
+  flex: 1;
+  min-width: 0;
+  color: var(--muted-strong);
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .me__game {
@@ -599,6 +717,13 @@
   box-shadow: var(--shadow-hard);
 }
 
+/* §7 — le due strade hanno lo stesso peso: stessa cornice, stessa tipografia,
+   stesso spazio. Quando una è percorribile cambia solo il fondo, che è un
+   fatto sullo stato, non una spinta verso quella scelta. */
+.shiftcard--open {
+  background: var(--paper);
+}
+
 .shiftcard__head {
   display: flex;
   align-items: center;
@@ -624,6 +749,72 @@
 /* ============================================================================
    12 EVOLUTION
    ========================================================================= */
+
+/* La rivelazione. Campo nero pieno, il nome della forma che entra battendo,
+   poi il velo si alza. Chi non vuole aspettare tocca e passa. */
+.reveal {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--u2);
+  background: var(--ink);
+  color: var(--white);
+  animation: reveal-lift var(--dur-event) var(--ease-system) 1000ms forwards;
+}
+
+.reveal__kicker {
+  color: var(--char-accent);
+  animation: reveal-in 320ms var(--ease-system) backwards;
+}
+
+.reveal__label {
+  font-size: var(--type-display-l);
+  text-align: center;
+  padding: 0 var(--u4);
+  animation: reveal-snap 420ms var(--ease-system) 160ms backwards;
+}
+
+@keyframes reveal-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes reveal-snap {
+  from {
+    opacity: 0;
+    transform: scale(1.35);
+    letter-spacing: 0.3em;
+  }
+}
+
+@keyframes reveal-lift {
+  to {
+    clip-path: inset(0 0 100% 0);
+  }
+}
+
+/* Con il movimento ridotto resta il velo, senza sipario: appare e scompare. */
+@media (prefers-reduced-motion: reduce) {
+  .reveal,
+  .reveal__kicker,
+  .reveal__label {
+    animation: none;
+  }
+  .reveal {
+    animation: reveal-fade 1ms linear 1200ms forwards;
+  }
+  @keyframes reveal-fade {
+    to {
+      opacity: 0;
+      visibility: hidden;
+    }
+  }
+}
 
 .evolution {
   display: flex;
@@ -1002,13 +1193,72 @@
    ========================================================================= */
 
 .mindline__body {
-  padding: 0 0 var(--u4);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
 }
 
+/* Senza nodo selezionato la topologia si prende tutta l'altezza: è la mappa,
+   non l'antipasto di una lista. */
 .mindline__canvas {
+  flex: 1;
+  min-height: 0;
   overflow: auto;
   padding: var(--u4);
-  border-bottom: var(--border) solid var(--ink);
+}
+
+.mindline__node {
+  cursor: pointer;
+}
+
+.mindline__node:focus-visible {
+  outline: 2px solid var(--char-accent);
+  outline-offset: 2px;
+}
+
+.mindline__node--picked circle:nth-of-type(2) {
+  stroke: var(--char-accent);
+  stroke-width: 4;
+}
+
+.mindline__hint {
+  flex: 0 0 auto;
+  padding: var(--u3) var(--u4);
+  border-top: 1px solid var(--hairline);
+  color: var(--muted);
+  text-align: center;
+}
+
+.mindline__panel {
+  position: relative;
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--u3);
+  padding: var(--u4);
+  border-top: var(--border-thick) solid var(--ink);
+  background: var(--paper);
+  animation: panel-rise var(--dur-base) var(--ease-system);
+}
+
+@keyframes panel-rise {
+  from {
+    transform: translateY(12px);
+    opacity: 0;
+  }
+}
+
+.mindline__close {
+  position: absolute;
+  top: var(--u2);
+  right: var(--u2);
+  width: 32px;
+  height: 32px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font-size: 22px;
+  line-height: 1;
 }
 
 .mindline__label {
@@ -1033,15 +1283,6 @@
   font-family: var(--font-mono);
   font-size: 8px;
   letter-spacing: 0.1em;
-}
-
-.mindline__list {
-  padding: var(--u4) var(--u4) 0;
-}
-
-.mindline__listhead {
-  color: var(--muted-strong);
-  margin-bottom: var(--u2);
 }
 
 .noderow {
@@ -1080,8 +1321,11 @@
   font-size: 15px;
 }
 
-.mindline__shortcuts {
-  padding: var(--u4) var(--u4) 0;
+/* Dentro il pannello la riga non è più un bottone: la selezione è già avvenuta
+   toccando il nodo sulla mappa. */
+.noderow--static {
+  border-bottom: 0;
+  padding-top: 0;
 }
 
 /* ============================================================================

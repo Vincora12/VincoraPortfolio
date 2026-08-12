@@ -4,7 +4,7 @@
    badge, input, composer, linguaggio visivo (scanner / signal / glitch / data).
    ========================================================================= */
 
-import type { ButtonHTMLAttributes, ReactNode } from 'react';
+import { useEffect, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
 import { Icon, type IconName } from './Icon';
 
 /* --- BUTTON ---------------------------------------------------------------- */
@@ -41,6 +41,103 @@ export function Button({
       {icon && <Icon name={icon} size={small ? 14 : 16} />}
       {children}
     </button>
+  );
+}
+
+/* --- HOLD BUTTON ------------------------------------------------------------
+
+   Per le azioni che cambiano il percorso: si tiene premuto e la barra si
+   riempie. Due motivi, in quest'ordine: un'evoluzione non deve poter partire
+   per sbaglio, e il tempo di attesa è ciò che rende il momento un momento.
+
+   Da tastiera basta Invio: non si chiede a chi naviga da tastiera di tenere
+   premuto un tasto per attivare un comando.
+   ------------------------------------------------------------------------- */
+
+const HOLD_MS = 750;
+
+interface HoldButtonProps {
+  onComplete: () => void;
+  children: ReactNode;
+  hint?: string;
+  disabled?: boolean;
+  variant?: 'primary' | 'secondary';
+}
+
+export function HoldButton({
+  onComplete,
+  children,
+  hint,
+  disabled,
+  variant = 'primary',
+}: HoldButtonProps) {
+  const [progress, setProgress] = useState(0);
+  const [done, setDone] = useState(false);
+  const raf = useRef(0);
+  const start = useRef(0);
+
+  const stop = () => {
+    cancelAnimationFrame(raf.current);
+    raf.current = 0;
+  };
+
+  useEffect(() => stop, []);
+
+  const cancel = () => {
+    if (done) return;
+    stop();
+    setProgress(0);
+  };
+
+  const begin = () => {
+    if (disabled || done || raf.current !== 0) return;
+    start.current = performance.now();
+
+    const tick = (now: number) => {
+      const p = Math.min(1, (now - start.current) / HOLD_MS);
+      setProgress(p);
+      if (p < 1) {
+        raf.current = requestAnimationFrame(tick);
+        return;
+      }
+      stop();
+      setDone(true);
+      // Un istante di stato «pieno» prima di cambiare schermata: senza, il
+      // riempimento non si vede mai arrivare in fondo.
+      window.setTimeout(onComplete, 180);
+    };
+
+    raf.current = requestAnimationFrame(tick);
+  };
+
+  return (
+    <div className="hold">
+      <button
+        type="button"
+        className={`btn btn--${variant} btn--block hold__btn ${done ? 'hold__btn--done' : ''}`}
+        disabled={disabled}
+        onPointerDown={begin}
+        onPointerUp={cancel}
+        onPointerLeave={cancel}
+        onPointerCancel={cancel}
+        onKeyDown={(e) => {
+          if ((e.key === 'Enter' || e.key === ' ') && !disabled && !done) {
+            e.preventDefault();
+            setProgress(1);
+            setDone(true);
+            window.setTimeout(onComplete, 180);
+          }
+        }}
+      >
+        <span className="hold__fill" style={{ transform: `scaleX(${progress})` }} aria-hidden="true" />
+        <span className="hold__label">{children}</span>
+      </button>
+      {hint && !disabled && (
+        <p className="hold__hint t-micro" aria-hidden="true">
+          {progress > 0 && !done ? '…' : hint}
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -212,6 +309,7 @@ interface TextFieldProps {
   placeholder?: string;
   label: string;
   onSubmit?: () => void;
+  onFocus?: () => void;
   clearable?: boolean;
 }
 
@@ -221,6 +319,7 @@ export function TextField({
   placeholder,
   label,
   onSubmit,
+  onFocus,
   clearable = true,
 }: TextFieldProps) {
   return (
@@ -229,6 +328,7 @@ export function TextField({
         aria-label={label}
         value={value}
         placeholder={placeholder}
+        onFocus={onFocus}
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === 'Enter' && onSubmit) onSubmit();
