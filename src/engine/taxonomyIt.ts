@@ -13,6 +13,28 @@
 
    Le due restano allineate per `id`. Se aggiungi una voce alla tassonomia,
    aggiungila anche qui: il tipo `Record<...>` lo impone a compilazione.
+
+   ┌───────────────────────────────────────────────────────────────────────┐
+   │  CONTRATTO — come si usano queste stringhe in una frase                │
+   │                                                                        │
+   │  Sono SINTAGMI NOMINALI e descrizioni in TERZA PERSONA, senza          │
+   │  articolo. Vanno introdotte con i due punti o con una cornice neutra.  │
+   │                                                                        │
+   │  MAI inserirle dove la frase richiede un accordo di articolo, genere   │
+   │  o persona. Errori già visti e corretti:                               │
+   │    ✗ «non si toglie mai visiera a scudo»   → manca l'articolo          │
+   │    ✗ «Intanto sono postura contenuta»      → non è un predicato        │
+   │    ✗ «Lo registro. si muove per primo»     → terza persona, minuscola  │
+   │    ✓ «sugli occhi, sempre: visiera a scudo sugli occhi»                │
+   │    ✓ «Intanto sto così: postura contenuta, attenzione stretta»         │
+   │                                                                        │
+   │  La cornice deve reggere QUALUNQUE parola le si metta dentro: queste   │
+   │  liste sono destinate a essere sostituite dal documento canonico.      │
+   │                                                                        │
+   │  Corollario: nessuna voce contiene i due punti al suo interno, o si    │
+   │  ottiene «anatomia PLANT: corpo che cresce: fusto, foglie». Per un     │
+   │  inciso dentro la voce si usa il trattino lungo.                       │
+   └───────────────────────────────────────────────────────────────────────┘
    ========================================================================= */
 
 import type { Affinity, Family, FashionAttitude, Mood, Role } from './taxonomy';
@@ -25,7 +47,7 @@ export const FAMILY_IT: Record<Family, string> = {
   REPTILE: 'corpo squamato e piastrato, coda come contrappeso',
   AVIAN: 'cranio a becco, leggerezza, piume come struttura',
   CONSTRUCT: 'corpo assemblato, giunti e pannelli a vista',
-  PLANT: 'corpo che cresce: fusto, foglie e radici come arti',
+  PLANT: 'corpo che cresce, con fusto, foglie e radici come arti',
   SPECTRE: 'corpo che non si chiude, estremità che sfumano',
   AMORPHOUS: 'massa senza scheletro, la tensione superficiale fa la sagoma',
 };
@@ -127,7 +149,7 @@ export const HAIR_CUT_IT: Record<string, string> = {
 export const BLEACH_IT: Record<string, string> = {
   'FULL-BLEACH': 'decolorazione piena, tono uniforme',
   'VISIBLE-ROOTS': 'lunghezze decolorate, ricrescita scura evidente',
-  'GROWN-OUT-BLEACH': 'punte chiare superstiti: ricrescita, non ombré',
+  'GROWN-OUT-BLEACH': 'punte chiare superstiti — ricrescita, non ombré',
 };
 
 /** Ripiega sulla stringa originale se manca la traduzione: non rompe mai. */

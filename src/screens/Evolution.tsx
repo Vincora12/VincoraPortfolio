@@ -9,8 +9,10 @@
    forma, non chi è.
    ========================================================================= */
 
+import type { ReactNode } from 'react';
 import { useApp, useActiveMon } from '../state/store';
 import { AssetSlot, Sigil } from '../system/AssetSlot';
+import { MonName } from '../system/MonName';
 import { Button, ScreenHead, SystemLabel } from '../system/components';
 import { displayName } from '../engine/types';
 import { t } from '../i18n/it';
@@ -60,7 +62,7 @@ export function EvolutionScreen() {
         <section className="evolution__kept">
           <p className="t-meta">RESTA INVARIATO</p>
           <div className="evolution__keptgrid">
-            <Kept label="NOME" value={short} />
+            <Kept label="NOME" value={<MonName name={d.name} />} />
             <Kept label="FAMILY" value={`${d.family} / ${d.familyArchetype}`} />
             <Kept label="AFFINITY" value={d.affinity} />
             <Kept label="SIZE" value={d.size} />
@@ -98,7 +100,7 @@ export function EvolutionScreen() {
   );
 }
 
-function Kept({ label, value }: { label: string; value: string }) {
+function Kept({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="kept">
       <span className="t-micro kept__label">{label}</span>

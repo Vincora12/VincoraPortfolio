@@ -14,6 +14,7 @@
 import type { Overlay } from '../App';
 import { useApp } from '../state/store';
 import { AssetSlot } from '../system/AssetSlot';
+import { MonName, MonNameTspan } from '../system/MonName';
 import { Row, ScreenHead, SystemLabel } from '../system/components';
 import { layoutMindline, nodeKindLabel } from '../engine/mindline';
 import { displayName } from '../engine/types';
@@ -136,13 +137,10 @@ export function MindlineMapScreen({ onGo }: { onGo: (o: Overlay) => void }) {
                       strokeWidth={2}
                     />
                   )}
-                  <text
-                    x={x + r + 8}
-                    y={y + 4}
-                    className="mindline__label"
-                    fill="var(--ink)"
-                  >
-                    {displayName(node.monName)}
+                  {/* La Mindline è un albero di file: qui il nome porta la sua
+                      estensione. In SVG servono due tspan, non il componente. */}
+                  <text x={x + r + 8} y={y + 4} fill="var(--ink)">
+                    <MonNameTspan name={node.monName} size={11} />
                   </text>
                   <text x={x + r + 8} y={y + 16} className="mindline__sublabel" fill="var(--muted-strong)">
                     {nodeKindLabel(node.kind)} · G{node.day}
@@ -180,7 +178,9 @@ export function MindlineMapScreen({ onGo }: { onGo: (o: Overlay) => void }) {
                     )}
                   </span>
                   <span className="noderow__text">
-                    <span className="noderow__name t-display">{displayName(n.monName)}</span>
+                    <span className="noderow__name t-display">
+                      <MonName name={n.monName} />
+                    </span>
                     <span className="t-micro">
                       {n.id} · {nodeKindLabel(n.kind)} · {t.mindline.chapter} {n.chapter}
                     </span>

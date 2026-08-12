@@ -17,6 +17,7 @@ import { useState } from 'react';
 import type { Overlay } from '../App';
 import { useApp, useActiveMon } from '../state/store';
 import { AssetSlot, RotationViewer, Sigil } from '../system/AssetSlot';
+import { MonName } from '../system/MonName';
 import {
   Button,
   FolderTabs,
@@ -87,7 +88,9 @@ export function SpecimenProfileScreen({
       <header className="specimen__head">
         <IconButton icon="left" label={t.common.back} light onClick={onClose} />
         <div className="specimen__titles">
-          <h1 className="t-display specimen__name">{short}</h1>
+          <h1 className="t-display specimen__name">
+            <MonName name={d.name} />
+          </h1>
           <p className="t-meta">
             {d.family} · {d.familyArchetype}
           </p>

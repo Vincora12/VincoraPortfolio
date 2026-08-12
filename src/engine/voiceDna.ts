@@ -110,13 +110,21 @@ export function fallbackGreeting(rng: Rng, mood: Mood, voice: VoiceDna): string 
   return base;
 }
 
-/** Risposta di fallback a un messaggio dell'utente. */
+/**
+ * Risposta di fallback a un messaggio dell'utente.
+ *
+ * NB sulle cornici: `MOOD_IT` e `ROLE_IT` sono sintagmi nominali e descrizioni
+ * in terza persona, quindi vanno introdotti con i due punti. Infilarli dentro
+ * la frase produceva «Intanto sono postura contenuta» e «Lo registro. si muove
+ * per primo — è quello che faccio»: la cornice deve reggere qualunque parola,
+ * perché le liste cambieranno.
+ */
 export function fallbackReply(rng: Rng, mood: Mood, voice: VoiceDna, role: Role): string {
   const shapes = [
     `Ricevuto. ${pick(rng, OBSERVATIONS)}`,
-    `Ci penso. Intanto sono ${MOOD_IT[mood]}.`,
+    `Ci penso. Intanto sto così: ${MOOD_IT[mood]}.`,
     pick(rng, OBSERVATIONS),
-    `Lo registro. ${ROLE_IT[role]} — è quello che faccio.`,
+    `Lo registro. Il mio mestiere è questo: ${ROLE_IT[role]}.`,
   ];
 
   const text = pick(rng, shapes);

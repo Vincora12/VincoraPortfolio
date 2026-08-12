@@ -11,6 +11,7 @@
 
 import { useApp, useActiveMon } from '../state/store';
 import { AssetSlot, Sigil } from '../system/AssetSlot';
+import { MonName } from '../system/MonName';
 import { Button, SystemLabel } from '../system/components';
 import { APPEARANCE_LABELS } from '../engine/taxonomy';
 import { displayName } from '../engine/types';
@@ -43,7 +44,9 @@ export function EncounterScreen({ variant }: { variant: 'first' | 'new' }) {
           <p className="t-meta">
             {variant === 'first' ? t.encounter.firstTitle : t.encounter.newTitle}
           </p>
-          <h1 className="t-display encounter__name">{short}</h1>
+          <h1 className="t-display encounter__name">
+            <MonName name={d.name} />
+          </h1>
           <p className="t-meta encounter__form">{form}</p>
         </header>
 

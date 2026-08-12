@@ -11,6 +11,7 @@
 
 import { useApp } from '../state/store';
 import { AssetSlot } from '../system/AssetSlot';
+import { MonName } from '../system/MonName';
 import { IconButton, SystemLabel } from '../system/components';
 import { nodeKindLabel } from '../engine/mindline';
 import { displayName } from '../engine/types';
@@ -52,7 +53,7 @@ export function HistoryScreen({ onClose }: { onClose: () => void }) {
                   <div className="timeline__text">
                     <p className="timeline__label t-display">{n.label}</p>
                     <p className="t-micro timeline__meta">
-                      {displayName(n.monName)} · {nodeKindLabel(n.kind)} ·{' '}
+                      <MonName name={n.monName} /> · {nodeKindLabel(n.kind)} ·{' '}
                       {t.mindline.chapter} {n.chapter}
                     </p>
                     <p className="t-micro timeline__day">

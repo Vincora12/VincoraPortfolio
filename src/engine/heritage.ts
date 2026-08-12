@@ -73,7 +73,9 @@ export function selectHeritageOrigins(rng: Rng, previous: MonRecord): HeritageOr
   if (p.fashion.eyewear) {
     pool.push({
       kind: 'visual',
-      origin: `gli occhiali che non si toglieva mai: ${it(EYEWEAR_IT, p.fashion.eyewear)}`,
+      // Cornice neutra: la lista contiene anche visiere e monocoli, quindi
+      // «gli occhiali» sarebbe una parola sbagliata per metà delle voci.
+      origin: `quello che portava sugli occhi, sempre: ${it(EYEWEAR_IT, p.fashion.eyewear)}`,
     });
   }
   if (p.fashion.accessories.length > 0) {

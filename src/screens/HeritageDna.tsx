@@ -10,6 +10,7 @@
 
 import { useApp, useActiveMon } from '../state/store';
 import { AssetSlot } from '../system/AssetSlot';
+import { MonName } from '../system/MonName';
 import { IconButton, SystemLabel } from '../system/components';
 import { heritageKindLabel } from '../engine/heritage';
 import { displayName } from '../engine/types';
@@ -60,7 +61,7 @@ export function HeritageDnaScreen({ onClose }: { onClose: () => void }) {
                 <figcaption>
                   <span className="t-micro">{t.heritage.from}</span>
                   <span className="t-display heritage__endname">
-                    {fromName ? displayName(fromName) : '—'}
+                    {fromName ? <MonName name={fromName} /> : '—'}
                   </span>
                   <span className="t-micro">{fromMon?.data.family ?? ''}</span>
                 </figcaption>
@@ -83,7 +84,9 @@ export function HeritageDnaScreen({ onClose }: { onClose: () => void }) {
                 </div>
                 <figcaption>
                   <span className="t-micro">A</span>
-                  <span className="t-display heritage__endname">{short}</span>
+                  <span className="t-display heritage__endname">
+                    <MonName name={d.name} />
+                  </span>
                   <span className="t-micro">{d.family}</span>
                 </figcaption>
               </figure>

@@ -338,10 +338,12 @@ function generateBio(rng: Rng, data: CharacterData, user: UserState): BioFile {
 
   const story = [pick(rng, openings), pick(rng, middles), pick(rng, closings)].join(' ');
 
+  // Le rese italiane sono sintagmi nominali: si introducono con i due punti.
+  // «non si toglie mai visiera a scudo» era il difetto da evitare.
   const annotations = [
     `${traits[0]} più di quanto ammetta.`,
     data.fashion.eyewear
-      ? `non si toglie mai ${it(EYEWEAR_IT, data.fashion.eyewear)}`
+      ? `sugli occhi, sempre: ${it(EYEWEAR_IT, data.fashion.eyewear)}`
       : 'nessuna lente: guarda diretto',
     `${AFFINITY_IT[data.affinity]} — si sente al tatto`,
   ];

@@ -13,6 +13,7 @@
 
 import { useApp, useActiveMon } from '../state/store';
 import { AssetSlot } from '../system/AssetSlot';
+import { MonName } from '../system/MonName';
 import { Button, ScreenHead, SystemLabel } from '../system/components';
 import { heritageKindLabel } from '../engine/heritage';
 import { displayName } from '../engine/types';
@@ -45,7 +46,9 @@ export function NewBranchScreen() {
           </div>
           <div>
             <p className="t-micro">{t.branch.goodbye}</p>
-            <p className="t-display branch__name">{short}</p>
+            <p className="t-display branch__name">
+              <MonName name={mon.data.name} />
+            </p>
             <p className="t-micro branch__form">
               {mon.data.evolutionState?.label ?? 'BASIC FORM'}
             </p>

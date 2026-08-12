@@ -1018,6 +1018,17 @@
   text-transform: uppercase;
 }
 
+/* L'estensione del nome dentro l'SVG: stessi valori di .monname__ext, ma su
+   <tspan>, dove le classi HTML non arrivano. */
+.mindline__labelext {
+  font-family: var(--font-display);
+  font-weight: 300;
+  font-stretch: 100%;
+  font-style: normal;
+  text-transform: lowercase;
+  letter-spacing: 0;
+}
+
 .mindline__sublabel {
   font-family: var(--font-mono);
   font-size: 8px;
