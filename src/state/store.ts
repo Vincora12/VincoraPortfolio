@@ -127,6 +127,9 @@ interface AppState {
   economy: EconomyConfig;
   bias: SimulationBias;
 
+  /** ⚠️ Chiave API nel browser: prototipo di una persona sola. Vedi ai/client.ts. */
+  apiKey: string | null;
+
   advanceDays: (n: number) => void;
   endWeek: () => void;
   hatch: () => void;
@@ -142,6 +145,7 @@ interface AppState {
   setMoodInputs: (inputs: MoodInputId[]) => void;
 
   setDev: (patch: Partial<DevFlags>) => void;
+  setApiKey: (key: string | null) => void;
   setEconomy: (patch: Partial<EconomyConfig>) => void;
   setBias: (patch: Partial<SimulationBias>) => void;
   setSignal: (key: StatKey, value: Signal) => void;
@@ -183,6 +187,7 @@ const INITIAL = {
   dev: { enabled: false, forceContinue: false, forceBranch: false, unlockAll: false },
   economy: DEFAULT_ECONOMY,
   bias: DEFAULT_BIAS,
+  apiKey: null as string | null,
 };
 
 /* --- Helper ---------------------------------------------------------------- */
@@ -277,10 +282,11 @@ export const useApp = create<AppState>()(
             }),
           ],
           lastTrace: trace,
-          chat: [openingMessage(record, s.day)],
+          chat: [openingMessage(record, s.day, s.apiKey !== null)],
         });
 
         void preloadMonAssets(record.data.name);
+        requestIntroduction(set, get, record);
       },
 
       enterLive: () => set({ phase: 'live' }),
@@ -422,7 +428,7 @@ export const useApp = create<AppState>()(
             }),
           ],
           memories: [...s.memories, ...carried],
-          chat: [openingMessage(record, s.day)],
+          chat: [openingMessage(record, s.day, s.apiKey !== null)],
           pendingHeritage: [],
           progression: { ...s.progression, bond: 0, evolutionSync: 0 },
           lastTrace: trace,
@@ -430,6 +436,7 @@ export const useApp = create<AppState>()(
         });
 
         void preloadMonAssets(record.data.name);
+        requestIntroduction(set, get, record);
       },
 
       /* --- Interazione --- */
@@ -533,6 +540,7 @@ export const useApp = create<AppState>()(
       /* --- DEV --- */
 
       setDev: (patch) => set((s) => ({ dev: { ...s.dev, ...patch } })),
+      setApiKey: (key) => set({ apiKey: key && key.trim().length > 0 ? key.trim() : null }),
       setEconomy: (patch) => set((s) => ({ economy: { ...s.economy, ...patch } })),
       setBias: (patch) => set((s) => ({ bias: { ...s.bias, ...patch } })),
 
@@ -671,7 +679,7 @@ export const useApp = create<AppState>()(
           mons,
           activeMonName: record.data.name,
           nodes: s.nodes.map((n) => (n.id === node.id ? { ...n, monName: record.data.name } : n)),
-          chat: [openingMessage(record, s.day)],
+          chat: [openingMessage(record, s.day, s.apiKey !== null)],
           lastTrace: trace,
         });
       },
@@ -687,7 +695,7 @@ export const useApp = create<AppState>()(
           activeMonName: node.monName,
           phase: 'live',
           mons: { ...s.mons, [node.monName]: { ...rec, retiredOnDay: null } },
-          chat: [openingMessage(rec, s.day)],
+          chat: [openingMessage(rec, s.day, s.apiKey !== null)],
         });
 
         void preloadMonAssets(node.monName);
@@ -739,6 +747,8 @@ export const useApp = create<AppState>()(
           health: initialHealthState(),
           personality: neutralPersonality(),
           dev: get().dev,
+          // Ricominciare la partita non è motivo per far reincollare la chiave.
+          apiKey: get().apiKey,
         }),
     }),
     {
@@ -843,7 +853,12 @@ const INPUT_TITLES: Record<'camera' | 'tell' | 'measure' | 'workout', string> = 
   workout: 'Allenamento',
 };
 
-function openingMessage(record: MonRecord, day: number): ChatMessage {
+/**
+ * Il primo messaggio esiste SEMPRE, ed è sempre leggibile: nasce dalla voce
+ * deterministica (§17). Se c'è una chiave, l'AI sta già scrivendo la vera
+ * presentazione e questa riga verrà sostituita quando arriva.
+ */
+function openingMessage(record: MonRecord, day: number, pending: boolean): ChatMessage {
   const rng = makeRng(seedFromString(`greet:${record.data.name}:${day}`));
   return {
     id: `msg_open_${record.data.name}`,
@@ -851,7 +866,40 @@ function openingMessage(record: MonRecord, day: number): ChatMessage {
     text: fallbackGreeting(rng, record.data.mood_primary, record.data.voice_dna),
     day,
     fallback: true,
+    pending,
   };
+}
+
+/**
+ * Chiede all'AI la presentazione e sostituisce il messaggio d'apertura quando
+ * arriva. Non blocca niente e non lancia mai: se fallisce, resta il fallback,
+ * dichiarato come tale in interfaccia.
+ */
+function requestIntroduction(
+  set: (p: Partial<AppState>) => void,
+  get: () => AppState,
+  record: MonRecord,
+): void {
+  const apiKey = get().apiKey;
+  if (!apiKey) return;
+
+  const id = `msg_open_${record.data.name}`;
+
+  // L'SDK arriva solo a chi ha una chiave: import dinamico, chunk separato.
+  void import('../ai/client')
+    .then((m) => m.generateIntroduction(apiKey, record))
+    .then(({ result }) => {
+      const s = get();
+      const index = s.chat.findIndex((m) => m.id === id);
+      if (index === -1) return; // la partita è andata avanti: non si riscrive il passato
+
+      const chat = [...s.chat];
+      chat[index] = result
+        ? { ...chat[index]!, text: result.text, fallback: false, pending: false }
+        : { ...chat[index]!, pending: false };
+
+      set({ chat });
+    });
 }
 
 /* --- Selettori --------------------------------------------------------------

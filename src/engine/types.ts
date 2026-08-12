@@ -271,7 +271,10 @@ export interface ChatMessage {
   from: 'mon' | 'vinz';
   text: string;
   day: number;
+  /** §17 — vero quando il testo viene dalla voce deterministica, non dall'AI. */
   fallback?: boolean;
+  /** L'AI sta ancora scrivendo: intanto si legge il fallback. */
+  pending?: boolean;
 }
 
 /* ============================================================================

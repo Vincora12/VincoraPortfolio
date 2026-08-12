@@ -52,6 +52,19 @@ gelatinosa.
 `verify:batch` controlla che dodici semi diversi diano almeno quattro Family
 diverse al primo nodo, e che SLIME non compaia più come Family.
 
+### La chiave API vive nel browser
+**Dove:** `src/ai/client.ts`, `src/state/store.ts` → `apiKey`.
+
+Decisione di prototipo: la chiave la incolla l'utente da DEV → VOCE e resta
+nel `localStorage` del dispositivo. Non transita da nessun server nostro, ma
+chiunque apra quel browser può leggerla, e così può qualunque script caricato
+nella pagina.
+
+**Regge finché il prototipo è di una persona sola.** Prima di darlo a chiunque
+altro va spostata dietro una funzione serverless — il che richiede il deploy
+collegato a GitHub, perché con lo zip trascinato le funzioni non partono.
+Cambia un file solo: `client.ts` è l'unico punto che sa dove sta la chiave.
+
 ### `vinz.mon` è il nome della specie
 **Dove:** `generation-config.ts` → `SPECIES_NAME`, `system/MonName.tsx` →
 `SpeciesName`.

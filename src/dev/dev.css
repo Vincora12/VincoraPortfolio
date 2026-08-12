@@ -316,3 +316,28 @@
   word-break: break-word;
   user-select: text;
 }
+
+/* --- DEV → VOCE ------------------------------------------------------------ */
+
+/* La battuta di prova va letta come una battuta, non come un log: stesso peso
+   delle bolle della conversazione. */
+.dev__sample {
+  margin: var(--u2) 0 0;
+  padding: var(--u2) var(--u3);
+  border: var(--border) solid var(--ink);
+  background: var(--paper);
+}
+
+.dev__pre {
+  max-height: 320px;
+  overflow: auto;
+  margin: var(--u2) 0 0;
+  padding: var(--u2);
+  border: 1px solid var(--hairline);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  user-select: text;
+}

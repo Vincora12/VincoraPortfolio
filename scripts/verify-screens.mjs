@@ -245,6 +245,9 @@ try {
   await click(byText('GENERATE 50'), 'batch 50');
   await shot('dev-batch');
 
+  await click(byText('VOCE'), 'tab voce');
+  await shot('dev-voce');
+
   await click(byText('PROMPT'), 'tab prompt dev');
   await shot('dev-prompt-compilato');
   await click(byText('PROVENIENZA'), 'provenienza frammenti');

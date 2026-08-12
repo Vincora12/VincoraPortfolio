@@ -47,6 +47,7 @@ documento: sono spiegati uno per uno in [`OPEN_ITEMS.md`](OPEN_ITEMS.md).
 | §12 | APPEARANCE: quattro canoniche; DOODLE è linguaggio della BIO | `APPEARANCES`, `APPEARANCE_RULES` |
 | §13 | 12 assi parametrici di voce | `VOICE_AXES` |
 | §14 | 16 preset di voce | `VOICE_PRESETS` |
+| §13 §14 §41 | 🔶 La voce compilata in un system prompt per l'AI | `ai/voicePrompt.ts` → `buildVoiceSystemPrompt` |
 | §15 | 6 rarità con probabilità base e **gate di sblocco** | `RARITY_TIERS` |
 | §16 | Rarity score a 7 componenti | `RARITY_SCORE_COMPONENTS` |
 | §17–§23 | Ogni peso, penalità e finestra del motore | `ENGINE_WEIGHTS` |
@@ -154,7 +155,8 @@ documento: sono spiegati uno per uno in [`OPEN_ITEMS.md`](OPEN_ITEMS.md).
 | §10.5 | Divieti espliciti | `system.css`, `screens.css`; ripetuti nei frammenti globali |
 | §11 | Navigazione MON / ME / MINDLINE | `App.tsx` → `TabBar` |
 | §17 | Nessuna informazione critica veicolata dal solo colore | `SegmentedBar` con `readout` |
-| §17 | Ogni superficie AI ha un fallback | `voiceDna.ts` → `fallbackGreeting`, `fallbackReply` |
+| §17 | Ogni superficie AI ha un fallback | `voiceDna.ts` → `fallbackGreeting`, `fallbackReply`; `ai/client.ts` non lancia mai |
+| §17 | La UI dichiara quando sta usando il fallback | `CompanionHome.tsx` → `bubble__flag` |
 | §17 | Target di tocco accessibili | `.btn`, `.btn-icon`, `.field` a 44px |
 | — | `.mon` è un'estensione di file: si legge in minuscolo light | `system/MonName.tsx` |
 | — | 🔶 `vinz.mon` è il nome comune della specie, accanto al nome proprio | `system/MonName.tsx` → `SpeciesName`; `SPECIES_NAME` |

@@ -20,14 +20,16 @@ import { ASSET_TYPES } from '../engine/assets';
 import { BatchGenerator } from './BatchGenerator';
 import { AssetImport } from './AssetImport';
 import { PromptPreview } from './PromptPreview';
+import { VoiceSection } from './VoiceSection';
 
-type DevTab = 'time' | 'signals' | 'mindline' | 'generate' | 'prompt' | 'assets' | 'economy';
+type DevTab = 'time' | 'signals' | 'mindline' | 'generate' | 'voice' | 'prompt' | 'assets' | 'economy';
 
 const TABS = [
   { id: 'time' as const, label: 'TEMPO' },
   { id: 'signals' as const, label: 'SEGNALI' },
   { id: 'mindline' as const, label: 'MINDLINE' },
   { id: 'generate' as const, label: 'GENERA' },
+  { id: 'voice' as const, label: 'VOCE' },
   { id: 'prompt' as const, label: 'PROMPT' },
   { id: 'assets' as const, label: 'ASSET' },
   { id: 'economy' as const, label: 'ECONOMIA' },
@@ -53,6 +55,7 @@ export function DevPanel({ onClose }: { onClose: () => void }) {
         {tab === 'signals' && <SignalsSection />}
         {tab === 'mindline' && <MindlineSection onClose={onClose} />}
         {tab === 'generate' && <GenerateSection />}
+        {tab === 'voice' && <VoiceSection />}
         {tab === 'prompt' && <PromptPreview />}
         {tab === 'assets' && <AssetsSection />}
         {tab === 'economy' && <EconomySection />}

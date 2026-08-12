@@ -154,9 +154,12 @@ export function CompanionHomeScreen({ onGo }: { onGo: (o: Overlay) => void }) {
         {chat.map((m) => (
           <div key={m.id} className={`bubble bubble--${m.from}`}>
             <p className="bubble__text">{m.text}</p>
-            {m.fallback && m.from === 'mon' && (
-              // §17 — le superfici che dipenderanno da AI dichiarano quando
-              // stanno usando il fallback deterministico.
+            {/* §17 — le superfici che dipendono dall'AI dichiarano sempre cosa
+                stanno mostrando: la voce vera, o quella deterministica. */}
+            {m.from === 'mon' && m.pending && (
+              <span className="bubble__flag t-micro">{t.home.writing}</span>
+            )}
+            {m.from === 'mon' && m.fallback && !m.pending && (
               <span className="bubble__flag t-micro">{t.home.fallbackNotice}</span>
             )}
           </div>

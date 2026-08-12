@@ -61,7 +61,7 @@ Si prova il motore e l'interfaccia, non ancora il prodotto sui propri dati veri.
 | `npm run dev` | Avvia il prototipo |
 | `npm run build` | Typecheck + build di produzione |
 | `npm run typecheck` | Solo controllo dei tipi |
-| `npm run verify` | Percorre l'app end-to-end in Chromium headless, cattura 36 screenshot in `screenshots/` e fallisce su qualunque errore di console |
+| `npm run verify` | Percorre l'app end-to-end in Chromium headless, cattura 37 screenshot in `screenshots/` e fallisce su qualunque errore di console |
 | `VERIFY_BASE=<url> npm run verify` | La stessa camminata contro un sito già pubblicato (o `vite preview`), dove il bundle è minificato e i percorsi degli asset sono altri |
 | `npm run verify:batch` | QA del generatore su 3000 `.mon`: tabelle di rarità di GB §26, distribuzioni, genoma dei nomi, Heritage, copertura dei frammenti |
 | `npm run verify:package` | Controlla il pacchetto Asset Request contro MS §22.2/§24.4/§13 e GB §30/§45/§48 |
@@ -155,6 +155,33 @@ ingresso, stesso prompt in uscita, sempre.
 Conseguenza verificata dalla macchina: i sette asset di uno stesso `.mon`
 compilano **dagli stessi frammenti di identità**. Non è una promessa scritta nel
 testo del prompt, è un controllo di `verify:package`.
+
+---
+
+## La voce
+
+Il compilatore di prompt non serve solo alle immagini. Lo stesso principio —
+non chiedere a un modello di inventare un personaggio da un'etichetta, ma
+compilargli un briefing dai Character Data — vale per il testo:
+`voice_preset` (§14), i 12 assi parametrici (§13), il Character DNA (§41), il
+mood corrente e le regole di sicurezza di §28 diventano il system prompt di
+quella creatura. È in `src/ai/voicePrompt.ts`, funzione pura come tutto il
+resto, ed è leggibile da **DEV → VOCE**.
+
+Oggi ne passa una superficie sola: **la presentazione alla nascita**. Il primo
+messaggio esiste sempre e viene dalla voce deterministica; se c'è una chiave,
+l'AI sta già scrivendo la vera presentazione e quella riga viene sostituita
+quando arriva. Se la chiamata fallisce, resta il fallback, dichiarato come
+tale in interfaccia — è quello che impone MS §17.
+
+**La chiave sta nel browser.** La incolli da DEV → VOCE e resta nel
+`localStorage` di quel dispositivo. Non passa da nessun server nostro, ma
+chiunque apra quel browser può leggerla: va bene finché il prototipo è di una
+persona sola, e prima di darlo a qualcun altro va spostata dietro una funzione
+serverless. Cambia un file solo, `src/ai/client.ts`.
+
+L'SDK viene caricato con un import dinamico: chi non usa la voce non ne
+scarica i 156 kB.
 
 ---
 

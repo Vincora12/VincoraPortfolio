@@ -46,6 +46,7 @@ export const t = {
     bond: 'BOND',
     openProfile: 'PROFILO COMPLETO',
     fallbackNotice: 'risposta di fallback',
+    writing: 'sta trovando le parole…',
   },
 
   /* 07 UNIVERSAL INPUT */
