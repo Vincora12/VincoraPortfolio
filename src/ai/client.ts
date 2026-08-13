@@ -31,6 +31,8 @@ function recordUsage(subsystem: UsageSubsystem, response: Anthropic.Beta.BetaMes
       response.model,
       response.usage?.input_tokens ?? 0,
       response.usage?.output_tokens ?? 0,
+      response.usage?.cache_read_input_tokens ?? 0,
+      response.usage?.cache_creation_input_tokens ?? 0,
     );
   } catch {
     /* la telemetria non deve poter rompere una risposta */
@@ -62,18 +64,47 @@ function clientFor(apiKey: string): Anthropic {
   });
 }
 
+/* ============================================================================
+   🔷 v1.12 — DOVE VANNO DAVVERO I SOLDI
+
+   Il system prompt di una creatura misura ~1150 token e non cambia mai dentro
+   una conversazione; una risposta in voce sono due frasi, ~60 token. Con il
+   ragionamento acceso il modello ne produceva ~300, e su un modello che fa
+   pagare l'uscita cinque volte l'entrata quella era la voce grossa del conto.
+
+   Due correzioni, nessuna delle quali cambia modello:
+
+   • Il ragionamento si spegne dove non serve. Una battuta in personaggio non
+     è un problema da risolvere: il briefing dice già chi è, che tono ha e
+     cosa non può dire. Resta acceso dove la frase si rilegge — la
+     presentazione alla nascita, che si scrive una volta sola in ventotto
+     giorni e vale il suo costo.
+
+   • Il briefing si mette in cache. È identico a ogni turno, e sopra i 512
+     token questo modello lo accetta: dal secondo messaggio in poi l'entrata
+     costa un decimo.
+
+   ⚠️ La stima del risparmio (~5×) è aritmetica sui listini, non una misura:
+   i token di uscita reali non li ho contati, perché per contarli serve una
+   chiave. Il pannello DEV → COSTI li mostra veri appena l'app parla.
+   ========================================================================= */
+
 /**
  * Una battuta nella voce di un .mon.
  *
- * `max_tokens` è largo rispetto a due frasi perché su questo modello limita
- * il ragionamento **insieme** al testo: stretto, tronca la risposta a metà.
- * L'effort basso tiene corta la parte di ragionamento.
+ * `deliberate` accende il ragionamento: è per i momenti che restano — la
+ * nascita, l'evoluzione — non per la conversazione di tutti i giorni.
+ *
+ * `max_tokens` resta largo perché su questo modello limita il ragionamento
+ * **insieme** al testo: stretto, troncherebbe la risposta a metà. È un tetto,
+ * non un addebito: quello che non viene scritto non si paga.
  */
 async function speak(
   apiKey: string,
   record: MonRecord,
   userTurn: string,
   subsystem: UsageSubsystem,
+  deliberate = false,
 ): Promise<VoiceOutcome> {
   try {
     const client = clientFor(apiKey);
@@ -86,7 +117,18 @@ async function speak(
       betas: ['server-side-fallback-2026-07-01'],
       fallbacks: 'default',
       output_config: { effort: 'low' },
-      system: buildVoiceSystemPrompt(record),
+      ...(deliberate ? {} : { thinking: { type: 'disabled' as const } }),
+      system: [
+        {
+          type: 'text' as const,
+          text: buildVoiceSystemPrompt(record),
+          // Il briefing è lo stesso a ogni turno: dal secondo messaggio in poi
+          // si rilegge dalla cache. Se un giorno il prompt scendesse sotto i
+          // 512 token la cache smetterebbe di formarsi **senza dare errore** —
+          // il controllo sta in scripts/batch-check.mjs, non nella fiducia.
+          cache_control: { type: 'ephemeral' as const },
+        },
+      ],
       messages: [{ role: 'user', content: userTurn }],
     });
 
@@ -181,6 +223,10 @@ export async function readPhotoSignals(
       betas: ['server-side-fallback-2026-07-01'],
       fallbacks: 'default',
       output_config: { effort: 'low' },
+      // Niente ragionamento: il contratto è «guarda e dichiara, nel dubbio
+      // null». Non c'è un problema su cui pensare, e il pensiero si paga.
+      // Il prompt qui è corto e diverso a ogni foto: non si mette in cache.
+      thinking: { type: 'disabled' as const },
       system: PHOTO_SYSTEM,
       messages: [
         {
@@ -222,11 +268,17 @@ export async function readPhotoSignals(
   }
 }
 
-/** La prima frase di un .mon appena nato. */
+/**
+ * La prima frase di un .mon appena nato.
+ *
+ * È l'unica chiamata che ragiona. Succede una volta per creatura — cioè circa
+ * una volta ogni ventotto giorni — ed è la frase che si rilegge: qui il costo
+ * pieno è giustificato, nella conversazione di tutti i giorni no.
+ */
 export async function generateIntroduction(
   apiKey: string | null,
   record: MonRecord,
 ): Promise<VoiceOutcome> {
   if (!apiKey) return { result: null, failure: 'no-key' };
-  return speak(apiKey, record, introductionRequest(record), 'introduction');
+  return speak(apiKey, record, introductionRequest(record), 'introduction', true);
 }

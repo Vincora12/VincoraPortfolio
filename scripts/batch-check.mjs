@@ -44,6 +44,7 @@ export { parseDiet, parseTraining, adherenceOf, classifyFood, mealFromText, meal
 export { eggReply, allEggSounds } from '${cwd}/src/engine/eggVoice.ts';
 export { idleMotionFor, motionCoverage } from '${cwd}/src/engine/idleMotion.ts';
 export { compilePrompt } from '${cwd}/src/assets-pipeline/compiler.ts';
+export { buildVoiceSystemPrompt } from '${cwd}/src/ai/voicePrompt.ts';
 `,
 );
 
@@ -697,6 +698,33 @@ check(
 );
 const tense = m.eggReply(eggRng, m.extractFromMessage('sono stressatissimo', null), 0.5);
 check(tense.reaction === 'ALERT', 'la tensione cambia il suono', tense.reaction);
+
+/* ============================================================================
+   🔷 v1.12 — LA SOGLIA DI CACHE DEL BRIEFING DELLA VOCE
+
+   Il system prompt della voce è marcato `cache_control`: identico a ogni
+   turno, dal secondo messaggio in poi si rilegge a un decimo del prezzo. Ma
+   sotto i 512 token questo modello la cache NON la forma, e non dà errore —
+   restituisce zero token di cache e fa pagare tutto. Un risparmio che sparisce
+   in silenzio è esattamente il tipo di cosa che non ci si accorge mai.
+
+   Il margine qui è largo (~1150 contro 512), e serve che resti largo: chi un
+   giorno accorcia il briefing deve vedere fallire un controllo, non la
+   bolletta.
+   ========================================================================= */
+
+console.log('\n═══ VOCE — SOGLIA DI CACHE ═══\n');
+
+const CACHE_MIN_TOKENS = 512;
+const voicePrompt = m.buildVoiceSystemPrompt(idleMon);
+// ~3.6 caratteri per token è la stima prudente per l'inglese: sottostima il
+// conteggio vero, quindi se passa qui passa anche sull'API.
+const voiceTokens = Math.round(voicePrompt.length / 3.6);
+check(
+  voiceTokens > CACHE_MIN_TOKENS,
+  `il briefing della voce supera i ${CACHE_MIN_TOKENS} token minimi per la cache`,
+  `~${voiceTokens} token (${voicePrompt.length} caratteri)`,
+);
 
 console.log(
   failures === 0 ? '\n✓ Tutti i controlli superati.\n' : `\n✗ ${failures} controlli falliti.\n`,

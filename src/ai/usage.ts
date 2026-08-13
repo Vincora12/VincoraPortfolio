@@ -25,6 +25,16 @@ export interface UsageEntry {
   model: string;
   inputTokens: number;
   outputTokens: number;
+  /**
+   * 🔷 v1.12 — token letti dalla cache e token scritti in cache. L'API li
+   * conta SEPARATAMENTE da `inputTokens`: senza queste due righe, da quando
+   * il briefing va in cache il pannello DEV mostrerebbe un conto più basso
+   * del vero, perché la parte in cache sparirebbe dal totale invece di
+   * costare un decimo. Un contatore che sottostima è peggio di nessun
+   * contatore.
+   */
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
   /** Stima in dollari, con i prezzi qui sotto. */
   cost: number;
   at: number;
@@ -51,11 +61,20 @@ function priceFor(model: string): { input: number; output: number } {
 const entries: UsageEntry[] = [];
 const listeners = new Set<() => void>();
 
+/**
+ * Moltiplicatori di cache sul prezzo d'entrata. Sono listino, non stima:
+ * una lettura dalla cache costa un decimo, una scrittura un quarto in più.
+ */
+const CACHE_READ = 0.1;
+const CACHE_WRITE = 1.25;
+
 export function recordUsageEntry(
   subsystem: UsageSubsystem,
   model: string,
   inputTokens: number,
   outputTokens: number,
+  cacheReadTokens = 0,
+  cacheWriteTokens = 0,
 ): void {
   const p = priceFor(model);
   entries.push({
@@ -63,7 +82,13 @@ export function recordUsageEntry(
     model,
     inputTokens,
     outputTokens,
-    cost: (inputTokens / 1e6) * p.input + (outputTokens / 1e6) * p.output,
+    cacheReadTokens,
+    cacheWriteTokens,
+    cost:
+      (inputTokens / 1e6) * p.input +
+      (cacheReadTokens / 1e6) * p.input * CACHE_READ +
+      (cacheWriteTokens / 1e6) * p.input * CACHE_WRITE +
+      (outputTokens / 1e6) * p.output,
     at: Date.now(),
   });
   listeners.forEach((l) => l());
@@ -89,7 +114,10 @@ export function usageTotals(): UsageTotals {
   let cost = 0;
 
   for (const e of entries) {
-    inputTokens += e.inputTokens;
+    // I token di cache SONO token d'entrata: entrano nel conteggio, e il loro
+    // prezzo diverso è già dentro `e.cost`. Tenerli fuori farebbe leggere
+    // «1.150 token» a una conversazione che ne ha letti diecimila.
+    inputTokens += e.inputTokens + e.cacheReadTokens + e.cacheWriteTokens;
     outputTokens += e.outputTokens;
     cost += e.cost;
     const acc = bySubsystem.get(e.subsystem) ?? { calls: 0, cost: 0 };
