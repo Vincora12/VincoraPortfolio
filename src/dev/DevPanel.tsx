@@ -31,6 +31,7 @@ import { PromptPreview } from './PromptPreview';
 import { VoiceSection } from './VoiceSection';
 import { CostSection } from './CostSection';
 import { MemorySection } from './MemorySection';
+import { MoodSection } from './MoodSection';
 
 type DevTab =
   | 'time'
@@ -42,7 +43,8 @@ type DevTab =
   | 'assets'
   | 'progression'
   | 'cost'
-  | 'memory';
+  | 'memory'
+  | 'mood';
 
 const TABS = [
   { id: 'time' as const, label: 'TEMPO' },
@@ -59,6 +61,10 @@ const TABS = [
      Continuano a esistere e ad alimentare la voce; qui si controlla che ci
      siano, ed è l'unico posto dove si vedono. */
   { id: 'memory' as const, label: 'MEMORIA' },
+  /* 🔷 v1.12 §10.6 — l'umore non ha e non avrà una superficie di prodotto: si
+     sente solo in COME parla. Che è il progetto, ed è anche il modo perfetto
+     per non accorgersi mai che si è rotto. Questo è il posto dove si guarda. */
+  { id: 'mood' as const, label: 'UMORE' },
 ];
 
 export function DevPanel({ onClose }: { onClose: () => void }) {
@@ -87,6 +93,7 @@ export function DevPanel({ onClose }: { onClose: () => void }) {
         {tab === 'progression' && <ProgressionSection />}
         {tab === 'cost' && <CostSection />}
         {tab === 'memory' && <MemorySection />}
+        {tab === 'mood' && <MoodSection />}
       </div>
     </div>
   );

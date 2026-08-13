@@ -15,7 +15,7 @@
    ========================================================================= */
 
 import { build } from 'esbuild';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -46,6 +46,7 @@ export { idleMotionFor, motionCoverage } from '${cwd}/src/engine/idleMotion.ts';
 export { compilePrompt } from '${cwd}/src/assets-pipeline/compiler.ts';
 export { buildVoiceSystemPrompt } from '${cwd}/src/ai/voicePrompt.ts';
 export { typingRhythmFor, rhythmDurationMs } from '${cwd}/src/engine/typingRhythm.ts';
+export { initialMood, applyMoodEvent, decayMood, baselineFor, moodEventFromInputs, moodPhrase } from '${cwd}/src/engine/mood.ts';
 `,
 );
 
@@ -778,6 +779,101 @@ check(
   slowestStart - fastestStart >= 600,
   'fra il piu impulsivo e il piu misurato si sente la differenza',
   `${fastestStart}ms → ${slowestStart}ms`,
+);
+
+/* ============================================================================
+   §10.6 — L'UMORE CHE RESTA
+
+   Il controllo piu importante di questo file non riguarda la matematica
+   dell'umore: riguarda A COSA ha il diritto di reagire.
+
+   La cosa ovvia da costruire sarebbe «mangi male → si intristisce». E' anche
+   la cosa che §4 e §28 vietano, perche e' il senso di colpa con la faccia
+   carina. Il divieto non puo' vivere in un commento: se un giorno qualcuno
+   collega l'aderenza al protocollo all'umore, deve fallire una build.
+   ========================================================================= */
+
+console.log('\n═══ §10.6 — L\'UMORE CHE RESTA ═══\n');
+
+const moodSrc = readFileSync(new URL('../src/engine/mood.ts', import.meta.url), 'utf8');
+// Il file PARLA di cibo e allenamento nel commento che spiega il divieto, quindi
+// non si puo' cercare la parola: si cerca la forma in cui il divieto verrebbe
+// rotto davvero, cioe' un evento o un effetto che li nomina.
+const FORBIDDEN_EVENTS = [
+  /MANGIATO/i, /ALLENATO/i, /SALTAT[OA]/i, /ADERENZA/i, /ADHERENCE/i,
+  /FUORI_?PIANO/i, /adherenceOf/, /classifyFood/, /parseDiet/, /'FOOD'/, /'WORKOUT'/,
+];
+const leaks = FORBIDDEN_EVENTS.filter((re) => re.test(moodSrc.replace(/\/\*[\s\S]*?\*\//g, '')));
+check(
+  leaks.length === 0,
+  'nessun evento d\'umore legge come sei andato TU (§4, §28)',
+  leaks.map(String).join(', ') || 'solo il rapporto fra voi',
+);
+
+// I temperamenti non si riassestano tutti nello stesso posto: se lo facessero,
+// l'umore sarebbe un livello di prodotto e non un tratto della creatura.
+const bases = ['SAD', 'BRIGHT', 'STOIC', 'FERAL', 'CALM'].map((id) => m.baselineFor(id));
+check(
+  new Set(bases.map((b) => `${b.tone}|${b.charge}|${b.footing}`)).size === bases.length,
+  'ogni temperamento si riassesta su un umore suo',
+);
+check(
+  m.baselineFor('SAD').tone < m.baselineFor('BRIGHT').tone,
+  'un temperamento cupo riposa piu in basso di uno luminoso',
+  `${m.baselineFor('SAD').tone} < ${m.baselineFor('BRIGHT').tone}`,
+);
+
+// Il silenzio pesa sul tono ma NON toglie l'appiglio: rientrare deve costare
+// zero. E' la regola del no-shame applicata al tempo invece che al cibo.
+const calmStart = m.initialMood('CALM', 1);
+let silent = calmStart;
+for (let d = 2; d <= 8; d++) silent = m.applyMoodEvent(m.decayMood(silent, 'CALM', d), 'SILENZIO', 'CALM', d);
+check(silent.tone < calmStart.tone, 'una settimana di silenzio si sente nel tono', `${calmStart.tone} → ${silent.tone}`);
+check(
+  calmStart.footing - silent.footing <= 8,
+  'ma non lo lascia senza appiglio: tornare non deve costare',
+  `appiglio ${calmStart.footing} → ${silent.footing}`,
+);
+
+// Saturazione: dieci messaggi di fila non portano all'euforia.
+let chatty = calmStart;
+for (let i = 0; i < 10; i++) chatty = m.applyMoodEvent(chatty, 'PARLATO', 'CALM', 1);
+check(chatty.tone < 85, 'l\'umore non satura a forza di messaggi', `tono ${chatty.tone}`);
+check(chatty.tone > calmStart.tone, 'ma parlargli lo sposta davvero', `${calmStart.tone} → ${chatty.tone}`);
+
+// Il ritorno alla base: una giornata storta si sente ancora domani, non fra una settimana.
+const hit = m.applyMoodEvent(calmStart, 'MI_HAI_DETTO_CHE_STAI_MALE', 'CALM', 1);
+const tomorrow = m.decayMood(hit, 'CALM', 2);
+const nextWeek = m.decayMood(hit, 'CALM', 8);
+check(
+  Math.abs(tomorrow.tone - calmStart.tone) > 2,
+  'una giornata storta si sente ancora il giorno dopo',
+  `tono ${tomorrow.tone} contro base ${calmStart.tone}`,
+);
+check(
+  Math.abs(nextWeek.tone - calmStart.tone) <= 1,
+  'ma dopo una settimana e riassorbita',
+  `tono ${nextWeek.tone}`,
+);
+check(
+  m.decayMood(hit, 'CALM', 8).last === null,
+  'e non cita piu un evento di una settimana fa come se fosse appena successo',
+);
+
+// Dirgli che stai male non gli deve togliere sicurezza: altrimenti smetteresti
+// di dirglielo, che e' il contrario del punto dell'app.
+check(hit.footing >= calmStart.footing, 'dirgli che stai male non lo destabilizza');
+
+check(
+  m.moodEventFromInputs(['SCARICO', 'EUFORICO']) === 'MI_HAI_DETTO_CHE_STAI_MALE',
+  'se dici due cose opposte, vince quella pesante',
+);
+check(m.moodEventFromInputs([]) === null, 'se non dici come stai, non inventa niente');
+check(m.moodEventFromInputs(['ARRAPATO']) === null, 'e non tutto e uno stato d\'animo');
+
+check(
+  m.moodPhrase(hit).includes('TODAY') && !m.moodPhrase(hit).includes('How do you feel'),
+  'l\'umore entra nel prompt come fatto, non come domanda',
 );
 
 console.log('\n═══ VOCE — SOGLIA DI CACHE ═══\n');

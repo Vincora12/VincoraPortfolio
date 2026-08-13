@@ -20,6 +20,7 @@
 
 import Anthropic from '@anthropic-ai/sdk';
 import type { MonRecord } from '../engine/types';
+import type { MoodState } from '../engine/mood';
 import { PHOTO_MODEL, VOICE_MODEL, buildVoiceSystemPrompt, introductionRequest } from './voicePrompt';
 import { recordUsageEntry, type UsageSubsystem } from './usage';
 
@@ -104,6 +105,7 @@ async function speak(
   record: MonRecord,
   userTurn: string,
   subsystem: UsageSubsystem,
+  mood: MoodState | null,
   deliberate = false,
 ): Promise<VoiceOutcome> {
   try {
@@ -121,7 +123,7 @@ async function speak(
       system: [
         {
           type: 'text' as const,
-          text: buildVoiceSystemPrompt(record),
+          text: buildVoiceSystemPrompt(record, mood),
           // Il briefing è lo stesso a ogni turno: dal secondo messaggio in poi
           // si rilegge dalla cache. Se un giorno il prompt scendesse sotto i
           // 512 token la cache smetterebbe di formarsi **senza dare errore** —
@@ -173,10 +175,11 @@ export async function generateReply(
   record: MonRecord,
   userText: string,
   context: string | null,
+  mood: MoodState | null,
 ): Promise<VoiceOutcome> {
   if (!apiKey) return { result: null, failure: 'no-key' };
   const turn = context ? `${userText}\n\n[${context}]` : userText;
-  return speak(apiKey, record, turn, 'reply');
+  return speak(apiKey, record, turn, 'reply', mood);
 }
 
 /* ============================================================================
@@ -277,7 +280,8 @@ export async function readPhotoSignals(
 export async function generateIntroduction(
   apiKey: string | null,
   record: MonRecord,
+  mood: MoodState | null,
 ): Promise<VoiceOutcome> {
   if (!apiKey) return { result: null, failure: 'no-key' };
-  return speak(apiKey, record, introductionRequest(record), 'introduction', true);
+  return speak(apiKey, record, introductionRequest(record), 'introduction', mood, true);
 }

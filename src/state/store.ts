@@ -59,6 +59,14 @@ import {
 import { extractFromMessage, extractionLabels } from '../engine/chatExtract';
 import { eggReply } from '../engine/eggVoice';
 import {
+  applyMoodEvent,
+  decayMood,
+  initialMood,
+  moodEventFromInputs,
+  type MoodEvent,
+  type MoodState,
+} from '../engine/mood';
+import {
   ADHERENCE_EFFECT,
   EMPTY_PROTOCOL,
   hasUsableDiet,
@@ -170,6 +178,14 @@ interface AppState {
   nodes: MindlineNode[];
   memories: Memory[];
   chat: ChatMessage[];
+
+  /**
+   * 🔷 v1.12 §10.6 — l'umore di fondo del .mon attivo. Vive nello store, non
+   * in memoria volatile, perché il punto è esattamente che SOPRAVVIVA alla
+   * chiusura: se si azzerasse a ogni apertura sarebbe un'animazione, non uno
+   * stato d'animo. `null` finché non è nato nessuno.
+   */
+  mood: MoodState | null;
 
   pendingHeritage: HeritageOrigin[];
   /** Cosa sopravvive alla prossima Form Evolution. Deciso prima di confermare. */
@@ -287,6 +303,7 @@ const INITIAL = {
   nodes: [] as MindlineNode[],
   memories: [] as Memory[],
   chat: [] as ChatMessage[],
+  mood: null as MoodState | null,
   pendingHeritage: [] as HeritageOrigin[],
   pendingPlan: null as ContinuityPlan | null,
   lastTrace: null as GenerationTrace | null,
@@ -332,6 +349,37 @@ const PRE_HATCH = 'UOVO';
  * copiata in tre posti significherebbe che prima o poi due si comportano
  * diverso, e nessuno se ne accorge.
  */
+/**
+ * 🔷 v1.12 §10.6 — applica una sequenza di eventi all'umore corrente.
+ *
+ * Prima riporta l'umore al giorno di oggi (il decadimento verso la base è
+ * dovuto anche se non è stato aperto niente per una settimana), poi applica
+ * gli eventi in ordine. Gli `null` si saltano: chi chiama passa spesso un
+ * evento condizionale, ed è più leggibile lì che qui.
+ *
+ * Se non c'è ancora un .mon, non c'è umore: `null` resta `null`. L'uovo non
+ * ha stati d'animo — ha suoni, che è un'altra cosa (§7.2).
+ *
+ * ⚠️ Se invece un .mon c'è ma l'umore no, l'umore NASCE QUI. È il caso di una
+ * partita salvata prima che questa funzione esistesse: senza questa riga
+ * resterebbe senza umore per sempre, e l'unica persona che ha una partita in
+ * corso è quella per cui stiamo costruendo l'app. Vale più di una migrazione.
+ */
+function touchMood(
+  s: AppState,
+  moodPrimary: string,
+  events: (MoodEvent | null)[],
+): MoodState | null {
+  if (!s.mood && !s.activeMonName) return null;
+  let mood = s.mood
+    ? decayMood(s.mood, moodPrimary, s.day)
+    : initialMood(moodPrimary, s.day);
+  for (const e of events) {
+    if (e) mood = applyMoodEvent(mood, e, moodPrimary, s.day);
+  }
+  return mood;
+}
+
 function applyExtraction(
   s: AppState,
   found: ReturnType<typeof extractFromMessage>,
@@ -588,6 +636,15 @@ export const useApp = create<AppState>()(
           ],
           lastTrace: trace,
           chat: [openingMessage(record, s.day, s.apiKey !== null)],
+          // §10.6 — nasce sul punto di riposo del suo temperamento, e la
+          // nascita stessa e il primo evento: tono e carica su, appiglio
+          // GIU. Uno appena arrivato non e sicuro di stare qui.
+          mood: applyMoodEvent(
+            initialMood(record.data.mood_primary, s.day),
+            'NATO',
+            record.data.mood_primary,
+            s.day,
+          ),
         });
 
         void preloadMonAssets(record.data.name);
@@ -661,6 +718,7 @@ export const useApp = create<AppState>()(
             }),
           ],
           lastTrace: trace,
+          mood: touchMood(s, record.data.mood_primary, ['EVOLUTO']),
           dev: { ...s.dev, forceContinue: false },
         });
 
@@ -795,6 +853,13 @@ export const useApp = create<AppState>()(
             ...s.progression,
             bond: Math.min(1, s.progression.bond + BOND_PER_INTERACTION),
           },
+          // §10.6 — due eventi, in quest'ordine. Prima che ti sei fatto
+          // sentire, che vale sempre; poi, se hai detto come stai, la
+          // confidenza. Se non l'hai detto, il secondo semplicemente non c'è.
+          mood: touchMood(s, rec.data.mood_primary, [
+            'PARLATO',
+            moodEventFromInputs(found.moods),
+          ]),
         });
 
         requestReply(set, get, rec, theirs.id);
@@ -1027,6 +1092,11 @@ export const useApp = create<AppState>()(
                 sinceGrowth: s.progression.sync.sinceGrowth + 1,
               },
             },
+            // §10.6 — il cerchio si chiude, e lui lo sente. Nota bene COSA
+            // muove l'umore qui: che la giornata sia stata chiusa insieme,
+            // non che sia andata bene. Un giorno storto ma chiuso vale
+            // esattamente come uno perfetto.
+            mood: touchMood(s, activeRecord(s)?.data.mood_primary ?? 'CALM', ['GIORNO_CHIUSO']),
           };
         }),
 
@@ -1349,11 +1419,22 @@ function advanceOneDay(set: (p: Partial<AppState>) => void, get: () => AppState)
     );
   }
 
+  /* §10.6 — un giorno passato. Se in quel giorno non ti sei fatto sentire, è
+     SILENZIO; altrimenti il tempo passa e basta, e l'umore scivola verso la
+     sua base da solo.
+
+     ⚠️ `touchMood` legge `s.day`, che qui è ancora IERI: gli si passa quindi
+     lo stato con il giorno nuovo, altrimenti il decadimento conterebbe un
+     giorno in meno a ogni avanzamento e l'umore resterebbe appiccicato. */
+  const spoke = s.chat.some((m) => m.from === 'vinz' && m.day === s.day);
+  const mood = touchMood({ ...s, day }, rec.data.mood_primary, [spoke ? null : 'SILENZIO']);
+
   set({
     day,
     health,
     days,
     memories,
+    mood,
     // Nessun SYNC qui: il giorno lo chiude l'utente, non il passare del tempo.
     progression: {
       ...s.progression,
@@ -1431,7 +1512,7 @@ function requestIntroduction(
 
   // L'SDK arriva solo a chi ha una chiave: import dinamico, chunk separato.
   void import('../ai/client')
-    .then((m) => m.generateIntroduction(apiKey, record))
+    .then((m) => m.generateIntroduction(apiKey, record, get().mood))
     .then(({ result }) => {
       const s = get();
       const index = s.chat.findIndex((m) => m.id === id);
@@ -1471,7 +1552,7 @@ function requestReply(
   const userText = mine?.text ?? '';
 
   void import('../ai/client')
-    .then((m) => m.generateReply(apiKey, record, userText, context))
+    .then((m) => m.generateReply(apiKey, record, userText, context, get().mood))
     .then(({ result }) => {
       const s = get();
       const index = s.chat.findIndex((m) => m.id === messageId);

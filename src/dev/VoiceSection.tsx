@@ -18,6 +18,9 @@ export function VoiceSection() {
   const apiKey = useApp((s) => s.apiKey);
   const setApiKey = useApp((s) => s.setApiKey);
   const mon = useActiveMon();
+  // §10.6 — la prova di voce deve sentire l'umore vero: una prova che gira su
+  // uno stato neutro non prova la voce che poi ti risponde davvero.
+  const mood = useApp((s) => s.mood);
 
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
@@ -33,7 +36,7 @@ export function VoiceSection() {
 
     // Import dinamico: l'SDK pesa, e chi non usa la voce non deve scaricarlo.
     const { generateIntroduction } = await import('../ai/client');
-    const { result, failure } = await generateIntroduction(apiKey, mon);
+    const { result, failure } = await generateIntroduction(apiKey, mon, mood);
     setBusy(false);
 
     if (result) {

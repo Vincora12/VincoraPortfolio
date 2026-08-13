@@ -2763,6 +2763,61 @@
   color: var(--muted-strong);
 }
 
+/* --- DEV → UMORE (v1.12 §10.6) --------------------------------------------
+   Il trattino e' il punto di riposo del temperamento, il pallino e' adesso.
+   Le due cose devono essere distinguibili a colpo d'occhio anche quando
+   coincidono: percio' il trattino e' alto quanto la traccia e il pallino ci
+   sta sopra, invece di essere due segni della stessa forma.
+   -------------------------------------------------------------------------- */
+
+.moodbars {
+  display: flex;
+  flex-direction: column;
+  gap: var(--u3);
+  margin-top: var(--u3);
+}
+
+.moodbar__head {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.moodbar__track {
+  position: relative;
+  height: 10px;
+  border: 1px solid var(--hairline);
+}
+
+.moodbar__home {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 1px;
+  background: var(--muted);
+  transform: translateX(-50%);
+}
+
+.moodbar__dot {
+  position: absolute;
+  top: 50%;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--ink);
+  transform: translate(-50%, -50%);
+}
+
+.dev__prompt {
+  margin: 0;
+  padding: var(--u2);
+  border: 1px solid var(--hairline);
+  color: var(--muted-strong);
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: inherit;
+}
+
 .dev__imagestate,
 .dev__stage {
   display: flex;

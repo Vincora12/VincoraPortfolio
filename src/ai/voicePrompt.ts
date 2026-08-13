@@ -24,6 +24,7 @@ import {
   voicePresetDef,
 } from '../engine/generation-config';
 import { displayName, type MonRecord } from '../engine/types';
+import { moodPhrase, type MoodState } from '../engine/mood';
 
 /** §29 — versionato come tutto il resto: i .mon sanno con cosa sono nati. */
 export const VOICE_MODEL = 'claude-opus-5';
@@ -54,7 +55,7 @@ function axisLine(record: MonRecord, axis: (typeof VOICE_AXES)[number]): string 
  * lingua in cui i cataloghi sono scritti. La lingua della **risposta** è
  * l'italiano, ed è detto esplicitamente in fondo.
  */
-export function buildVoiceSystemPrompt(record: MonRecord): string {
+export function buildVoiceSystemPrompt(record: MonRecord, mood?: MoodState | null): string {
   const d = record.data;
   const dna = d.character_dna;
   const preset = voicePresetDef(d.voice_preset);
@@ -95,7 +96,8 @@ YOUR VOICE PARAMETERS (§13) — 0 is the absolute minimum of that axis, 100 the
 ${axes}
 
 RIGHT NOW
-- Your mood is ${d.mood_primary} (${moodDef(d.mood_primary).it})${d.mood_secondary ? `, with ${d.mood_secondary} underneath` : ''}.
+- Your TEMPERAMENT is ${d.mood_primary} (${moodDef(d.mood_primary).it})${d.mood_secondary ? `, with ${d.mood_secondary} underneath` : ''}. That is what you were born as and where you always settle back to.
+${mood ? moodPhrase(mood) : '- You have no particular state today: you are simply at your temperament.'}
 - Bond with VINZ: ${Math.round(d.bond)}/100. Speak at that level of familiarity — no more, no less.
 ${heritage}
 YOUR GENDER (MASTER SPEC v1.9 §2.4)
