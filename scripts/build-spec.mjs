@@ -181,6 +181,7 @@ body.push(
       ['§7.2 🔷', 'L\'uovo risponde, ma solo a suoni', 'sette giorni di registrazione senza nessuno dall\'altra parte'],
       ['§7.3 🔷', 'Il guscio cambia ogni giorno', 'un numero non si sente addosso, una crepa sì'],
       ['§13.5 🔷', 'Sette cancellature nell\'interfaccia', 'telemetria del motore e annunci doppi su superfici di prodotto'],
+      ['§13.6 🔷', 'Una cosa per schermata', 'l\'incubazione aveva otto blocchi e la chat stava in mezzo'],
     ],
   ),
 );
@@ -404,6 +405,27 @@ body.push(
   rule('🔒', 'In REGISTRA, quello che il sistema ha capito viene PRIMA del pulsante della foto: è la cosa che devi leggere, e stava sotto quella che usi di rado.'),
   rule('🔒', 'Le chip del profilo dichiarano di che asse sono — rarità, affinità, taglia — invece di essere tre parole in fila con lo stesso peso.'),
   rule('🔒', 'Un annuncio di sistema non può occupare il centro della schermata in modo permanente. Se non si può congedare, deve stare dove stava l\'informazione periferica che sostituisce.'),
+);
+
+/* --- 13.6 UNA COSA PER SCHERMATA 🔷 -----------------------------------------*/
+
+body.push(h1('13.6 · UNA COSA PER SCHERMATA 🔷'));
+
+body.push(
+  p('L\'incubazione era diventata una pila di otto blocchi: intestazione, uovo grande in cornice, chat, composer, riga della giornata, giorni raccontati, signal stability, sei chip di segnali, un tracciato decorativo e un piede fisso con HATCH disabilitato. Si scorreva, e la cosa che serviva davvero — parlare — stava schiacciata in mezzo.'),
+);
+
+body.push(
+  rule('🔒', 'MEGLIO PIÙ SCHERMATE CHE UNA PIENA. Se una superficie ha bisogno di scorrere per far vedere la cosa principale, la cosa principale è nel posto sbagliato.'),
+  rule('🔒', 'L\'incubazione ha tre blocchi: una barra compatta con l\'uovo e i giorni raccontati, la chat che prende tutto il resto, una striscia sopra il composer.'),
+  rule('🔒', 'UNO SLOT CHE CAMBIA LAVORO, non due elementi che si contendono lo spazio. La striscia dice lo stato della giornata finché non si è pronti, e diventa HATCH quando lo si è. È lo stesso schema della linea di SYNC sulla Home (§13.5).'),
+  rule('🔒', 'Un pulsante che per sette giorni dice «non ancora» non deve occupare il posto migliore dello schermo. Compare quando serve, e quando compare è l\'unica cosa che chiede di essere toccata.'),
+  rule('🔒', 'Le diagnostiche del motore — signal stability, i sei stat letti, i tracciati — non stanno su una superficie di prodotto. Non sono state spostate: erano duplicati di DEV → SEGNALI.'),
+  rule('🔒', 'I controlli di simulazione seguono la dev mode, sempre (§29). Quello dell\'incubazione era in chiaro per tutti.'),
+);
+
+body.push(
+  note('Il difetto che ha reso la riscrittura visibile solo a schermo: due regole `.incubation__chat` in punti diversi del foglio di stile, scritte in due momenti in cui la chat aveva due lavori diversi. Vinceva la seconda, con un `max-height` di un terzo di schermo. Non è un errore di scrittura — sono due regole giuste in momenti diversi, ed è il modo tipico in cui si rompe un CSS a sezioni.'),
 );
 
 /* --- 8.1 --------------------------------------------------------------------*/
@@ -647,6 +669,8 @@ body.push(
       ['Incubazione come pulsante verso un modulo', 'una chat con qualcuno che risponde (§7.2)'],
       ['Barra a segmenti dell\'incubazione', 'il guscio che si incrina (§7.3)'],
       ['Banner MINDLINE SHIFT', 'la linea di SYNC che si riempie (§13.5)'],
+      ['Piede fisso con HATCH disabilitato', 'una striscia che cambia lavoro (§13.6)'],
+      ['SIGNAL STABILITY e i sei chip in incubazione', 'erano duplicati di DEV → SEGNALI (§13.6)'],
     ],
   ),
 );

@@ -321,6 +321,40 @@ check(
   !/segments=\{inc\.total\}/.test(read('src/screens/Incubation.tsx') ?? ''),
 );
 
+/* 🔷 v1.10 §13.6 — «in una schermata c'è troppo». */
+
+const INC = 'src/screens/Incubation.tsx';
+
+check(
+  'INCUBAZIONE §13.6',
+  'la chat prende tutto lo spazio che avanza',
+  has('src/screens/screens.css', '.incubation__chat {') &&
+    count('src/screens/screens.css', /\.incubation__chat \{/g) === 1,
+  'una regola sola: due si contraddicevano e vinceva quella con max-height',
+);
+check(
+  'INCUBAZIONE §13.6',
+  'niente vocabolario del motore su schermo',
+  lacks(INC, 'STAT_KEYS') && lacks(INC, 'SEGNALI LETTI'),
+  'i sei chip FORM/ATK/SPD e SIGNAL STABILITY erano duplicati di DEV → SEGNALI',
+);
+check(
+  'INCUBAZIONE §13.6',
+  'HATCH compare solo quando è pronto',
+  has(INC, 'inc.ready ? (') && lacks(INC, 'notReady'),
+  'restava sette giorni a dire «non ancora», nel posto migliore dello schermo',
+);
+check(
+  'INCUBAZIONE §13.6',
+  'una striscia sola sopra il composer',
+  count(INC, /incubation__strip/g) >= 2,
+);
+check(
+  'INCUBAZIONE §13.6',
+  'la simulazione segue la dev mode (§29)',
+  has(INC, 'devEnabled && ('),
+);
+
 check(
   'INTERFACCIA',
   'nessuna sigla di espressione accanto alle battute',

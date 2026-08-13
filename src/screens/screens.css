@@ -22,130 +22,116 @@
 }
 
 /* ============================================================================
-   04 INCUBAZIONE
+   05 INCUBAZIONE (riscritta in v1.10 §13.6)
+
+   Tre blocchi: barra compatta, chat che prende tutto, striscia di stato. La
+   chat è l'unica cosa che cresce — tutto il resto è alto quanto basta.
    ========================================================================= */
 
 .incubation {
   display: flex;
   flex-direction: column;
-  gap: var(--u4);
-  padding: var(--u5) var(--u4) var(--u4);
   background: var(--white);
+  min-height: 0;
 }
 
-.incubation__head {
-  text-align: center;
-}
-
-.incubation__title {
-  font-size: var(--type-display-l);
-  margin: var(--u) 0 0;
-}
-
-.incubation__stage {
+/* 1. L'uovo piccolo e il solo numero che conta. */
+.incubation__bar {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
-  justify-content: center;
-  padding: var(--u6) 0;
+  gap: var(--u4);
+  padding: var(--u3) var(--u4);
+  border-bottom: var(--border) solid var(--ink);
 }
 
-.incubation .scanframe {
-  padding: var(--u6);
-}
-
-.incubation__vessel {
-  position: relative;
-  color: var(--ink);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.incubation__readouts {
+.incubation__count {
   display: flex;
   flex-direction: column;
-  gap: var(--u4);
+  gap: 2px;
+  min-width: 0;
 }
 
-.incubation__row {
+.incubation__phase {
+  color: var(--muted-strong);
+}
+
+.incubation__num {
+  font-size: var(--type-display-l);
+  line-height: 1;
   display: flex;
   align-items: baseline;
-  justify-content: space-between;
-}
-
-.incubation__day {
-  font-size: var(--type-display-l);
-}
-
-.incubation__total {
-  color: var(--muted);
-  font-size: var(--type-display-m);
-}
-
-.incubation__signals {
-  display: flex;
-  flex-direction: column;
-  gap: var(--u2);
-}
-
-.incubation__chips {
-  display: flex;
-  flex-wrap: wrap;
   gap: var(--u);
 }
 
-.incubation__chip {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--u);
-  padding: 3px var(--u2);
-  border: 1px solid var(--hairline);
-  font-family: var(--font-mono);
-  font-size: var(--type-micro);
-  letter-spacing: 0.1em;
-  color: var(--muted);
-}
-
-.incubation__chip--on {
-  border-color: var(--ink);
-  color: var(--ink);
-}
-
-.incubation__chip em {
+.incubation__of {
   font-style: normal;
-  opacity: 0.7;
+  font-size: var(--type-display-s);
+  color: var(--muted);
 }
 
-.incubation__trace {
-  display: flex;
-  flex-direction: column;
-  gap: var(--u2);
-  color: var(--char-accent);
-  opacity: 0.75;
-  overflow: hidden;
+.incubation__unit {
+  color: var(--muted);
 }
 
-.incubation__foot {
-  flex: 0 0 auto;
+/* 2. La chat. È la schermata. */
+.incubation__chat {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: var(--u2);
   padding: var(--u4);
-  border-top: var(--border) solid var(--ink);
-  text-align: center;
-  background: var(--white);
 }
 
-.incubation__note {
+.incubation__empty {
+  margin: auto 0;
+  color: var(--muted-strong);
+  text-align: center;
+  line-height: 1.5;
+  max-width: 30ch;
+  align-self: center;
+}
+
+/* 3. Una striscia sola, che cambia lavoro invece di moltiplicarsi. */
+.incubation__strip {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--u3);
+  padding: var(--u2) var(--u4);
+  border-top: 1px solid var(--hairline);
   color: var(--muted-strong);
 }
 
-.incubation__definitive {
-  color: var(--muted);
+.incubation__stripstate {
+  min-width: 0;
+}
+
+.incubation__strip--ready {
+  border-top: var(--border) solid var(--ink);
+  background: var(--paper);
+  color: var(--ink);
+  padding: var(--u3) var(--u4);
+}
+
+.incubation__stripline {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.incubation__stripline .t-micro {
+  color: var(--muted-strong);
 }
 
 .incubation__skip {
+  flex: 0 0 auto;
   border: 0;
+  border-top: 1px solid var(--hairline);
   background: transparent;
   color: var(--muted);
   text-decoration: underline;
@@ -2091,25 +2077,15 @@
    ha la bolla perché non è una battuta di dialogo.
    ========================================================================= */
 
-.incubation__chat {
-  flex: 1;
-  min-height: 96px;
-  max-height: 34vh;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: var(--u2);
-  padding: var(--u3);
-  border: var(--border) solid var(--ink);
-  background: var(--white);
-}
+/* ⚠️ Qui c'erano un secondo `.incubation__chat` e un secondo
+   `.incubation__empty`, scritti quando la chat era un riquadro dentro una
+   schermata piena di altro. Il primo aveva `max-height: 34vh` e, venendo dopo
+   nel foglio, vinceva su quello nuovo: la chat restava alta un terzo dello
+   schermo e sotto avanzava mezza schermata vuota.
 
-.incubation__empty {
-  margin: auto 0;
-  color: var(--muted-strong);
-  text-align: center;
-  line-height: 1.45;
-}
+   È il modo tipico in cui si rompe un CSS a sezioni — non un errore di
+   scrittura, due regole giuste in momenti diversi. Le definizioni valide
+   stanno tutte nella sezione 05 INCUBAZIONE, in cima al file. */
 
 /* Il suono. Nessun bordo, nessun fondo: non è un messaggio in una scatola, è
    una cosa che si sente attraverso il guscio. */
@@ -2147,19 +2123,11 @@
   opacity: 0.45;
 }
 
+/* Il composer dell'uovo è quello della Home: stessa forma, stesso posto. La
+   cornice che aveva serviva quando galleggiava in mezzo a una schermata
+   affollata. */
 .composer--egg {
-  border: var(--border) solid var(--ink);
   border-top: var(--border) solid var(--ink);
-}
-
-/* Chiudere la giornata resta un gesto esplicito, non un effetto collaterale
-   della conversazione (§6). */
-.incubation__day-close {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--u2);
-  color: var(--muted-strong);
 }
 
 /* ============================================================================
