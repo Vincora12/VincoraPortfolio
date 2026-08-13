@@ -14,6 +14,7 @@
    ========================================================================= */
 
 import { GENERATION_CONFIG_VERSION } from '../engine/generation-config';
+import { idleMotionFor } from '../engine/idleMotion';
 import {
   ASSET_FRAGMENTS,
   COMPILER_VERSION,
@@ -182,6 +183,14 @@ export function compilePrompt(record: MonRecord, assetType: AssetType): Compiled
     }
     if (f.id === 'heritage.compile') {
       text = text.replace('{{HERITAGE}}', renderHeritage(data));
+    }
+    /* 🔷 v1.11 §23.4 — il movimento di riposo si ricava dall'anatomia di
+       QUESTA creatura. Prima il frammento elencava le possibilità — «capelli,
+       frange, stoffa, antenne o quello che l'anatomia ha davvero» — e un
+       modello che legge un elenco di ipotesi sceglie la prima: tutti i .mon
+       finivano per respirare allo stesso modo. */
+    if (f.id === 'asset.idle_animation') {
+      text = text.replace('{{IDLE_MOTION}}', idleMotionFor(data.family, data.affinity).text);
     }
 
     blocks.push(text);

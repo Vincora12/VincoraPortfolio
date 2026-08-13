@@ -42,6 +42,8 @@ export { FRAGMENT_LIBRARY, slug } from '${cwd}/src/assets-pipeline/fragments.ts'
 export { extractFromMessage, extractionLabels } from '${cwd}/src/engine/chatExtract.ts';
 export { parseDiet, parseTraining, adherenceOf, classifyFood, mealFromText, mealFromClock, expectedMeals, plannedFor } from '${cwd}/src/engine/protocol.ts';
 export { eggReply, allEggSounds } from '${cwd}/src/engine/eggVoice.ts';
+export { idleMotionFor, motionCoverage } from '${cwd}/src/engine/idleMotion.ts';
+export { compilePrompt } from '${cwd}/src/assets-pipeline/compiler.ts';
 `,
 );
 
@@ -541,6 +543,57 @@ check(
 check(
   m.extractionLabels(full).some((l) => l.includes('fuori protocollo')),
   'la conferma dice come si colloca, non solo che ha capito',
+);
+
+console.log('\n═══ §23.4 — IL MOVIMENTO DI RIPOSO ═══\n');
+
+const coverage = m.motionCoverage();
+const allFamilies = C.FAMILIES.map((f) => f.id);
+const allAffinities = C.AFFINITIES.map((a) => a.id);
+
+check(
+  allFamilies.every((f) => coverage.families.includes(f)),
+  'ogni Family ha un movimento suo',
+  allFamilies.filter((f) => !coverage.families.includes(f)).join(', ') || `${allFamilies.length}/${allFamilies.length}`,
+);
+check(
+  allAffinities.every((a) => coverage.affinities.includes(a)),
+  'ogni Affinity ha un movimento suo',
+  allAffinities.filter((a) => !coverage.affinities.includes(a)).join(', ') || `${allAffinities.length}/${allAffinities.length}`,
+);
+
+/* Il punto di tutto questo: due creature diverse non devono ricevere la stessa
+   istruzione di movimento. Se le combinazioni collassassero su poche frasi, il
+   frammento generico di prima farebbe lo stesso lavoro a meno codice. */
+const combos = new Set();
+for (const f of allFamilies) for (const a of allAffinities) combos.add(m.idleMotionFor(f, a).text);
+check(
+  combos.size === allFamilies.length * allAffinities.length,
+  'ogni combinazione Family × Affinity produce un movimento distinto',
+  `${combos.size} su ${allFamilies.length * allAffinities.length}`,
+);
+
+check(
+  m.idleMotionFor('NON_ESISTE', 'NEMMENO').from.includes('fallback'),
+  'una Family sconosciuta non lascia il prompt senza movimento',
+  'quattro frame senza istruzione sono uno sprite che non si muove',
+);
+
+/* Il segnaposto DEVE sparire: un `{{IDLE_MOTION}}` che arriva al modello è un
+   prompt che chiede letteralmente due parentesi graffe. */
+const idleMon = m.generateFirstMon({
+  input,
+  mindlineNodeId: 'idle_test',
+  originNodeId: null,
+  lineageNames: [],
+  seed: 4242,
+}).record;
+const idlePrompt = m.compilePrompt(idleMon, 'idle_animation').text;
+check(!idlePrompt.includes('{{'), 'nessun segnaposto rimasto nel prompt compilato');
+check(
+  idlePrompt.includes(m.idleMotionFor(idleMon.data.family, idleMon.data.affinity).text),
+  'il prompt porta il movimento di QUESTA creatura',
+  `${idleMon.data.family} · ${idleMon.data.affinity}`,
 );
 
 console.log('\n═══ §5.4 — I PASTI E IL PIANO ═══\n');

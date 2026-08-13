@@ -344,6 +344,33 @@ check(
   !/segments=\{inc\.total\}/.test(read('src/screens/Incubation.tsx') ?? ''),
 );
 
+/* 🔷 v1.11 §23.4 — il movimento di riposo viene dall'anatomia. */
+
+check(
+  'MOVIMENTO §23.4',
+  'il movimento si ricava dalla creatura',
+  existsSync('src/engine/idleMotion.ts'),
+);
+check(
+  'MOVIMENTO §23.4',
+  'il prompt non elenca più ipotesi',
+  has('src/assets-pipeline/fragments.ts', '{{IDLE_MOTION}}') &&
+    lacks('src/assets-pipeline/fragments.ts', 'or whatever the FAMILY anatomy actually has'),
+  'un modello che legge un elenco di ipotesi sceglie la prima, e tutti i .mon respirano uguale',
+);
+check(
+  'MOVIMENTO §23.4',
+  'il compilatore riempie il segnaposto',
+  has('src/assets-pipeline/compiler.ts', "f.id === 'asset.idle_animation'"),
+);
+check(
+  'MOVIMENTO §23.4',
+  'il budget di movimento resta piccolo',
+  has('src/assets-pipeline/fragments.ts', 'Feet stay planted') &&
+    has('src/engine/idleMotion.ts', 'IL BUDGET DI MOVIMENTO RESTA PICCOLO'),
+  'un idle che recita stanca al terzo giro',
+);
+
 /* 🔷 v1.11 §14.3 — il timbro sul giorno chiuso. */
 
 check(
