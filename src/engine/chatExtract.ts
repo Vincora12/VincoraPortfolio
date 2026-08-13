@@ -35,14 +35,28 @@ export interface ExtractedSignal {
   note: string;
 }
 
+/** 🔶 v1.9 §5.2 — una misura riconosciuta nel testo. */
+export interface ExtractedMeasure {
+  stat: 'FORM' | 'REC' | 'ATK' | 'SPD';
+  label: string;
+  value: number;
+  unit: string;
+}
+
 export interface Extraction {
   signals: Partial<Record<DailySignalKey, ExtractedSignal>>;
   moods: MoodInputId[];
+  measures: ExtractedMeasure[];
   /** Un'assenza dichiarata al passato: giorni in cui non c'eri. */
   absence: string | null;
 }
 
-export const EMPTY_EXTRACTION: Extraction = { signals: {}, moods: [], absence: null };
+export const EMPTY_EXTRACTION: Extraction = {
+  signals: {},
+  moods: [],
+  measures: [],
+  absence: null,
+};
 
 /* --- Vocabolari -------------------------------------------------------------
    Sono in italiano perché è la lingua parlata dell'app. Stanno tutti qui: se
@@ -160,7 +174,48 @@ export function extractFromMessage(text: string): Extraction {
     signals.WORKOUT = { status: 'NOT_APPLICABLE', note: `dalla chat: «${ill}»` };
   }
 
-  return { signals, moods, absence: hits(h, ABSENCE) };
+  return { signals, moods, measures: extractMeasures(text), absence: hits(h, ABSENCE) };
+}
+
+/* --- Misure ------------------------------------------------------------------
+   🔶 v1.9 §5.2 — «registrare le mie misure ci sta». Non con un modulo: si
+   scrivono nella frase e basta, «peso 78» o «dormito 6 ore».
+
+   Le misure NON sono un quarto Daily Signal e non danno SYNC. Alimentano le
+   sei stat di salute di §4, che sono un'altra cosa: la salute forma la
+   creatura, non ne compra la crescita.
+   -------------------------------------------------------------------------- */
+
+const MEASURE_RULES: {
+  stat: ExtractedMeasure['stat'];
+  label: string;
+  unit: string;
+  re: RegExp;
+}[] = [
+  { stat: 'FORM', label: 'peso', unit: 'kg', re: /(?:peso|pesat[oi])\D{0,12}(\d{2,3}(?:[.,]\d)?)/ },
+  { stat: 'FORM', label: 'peso', unit: 'kg', re: /(\d{2,3}(?:[.,]\d)?)\s*(?:kg|chili)/ },
+  { stat: 'REC', label: 'sonno', unit: 'h', re: /(?:dormit[oi]|sonno)\D{0,12}(\d{1,2}(?:[.,]\d)?)/ },
+  { stat: 'REC', label: 'sonno', unit: 'h', re: /(\d{1,2}(?:[.,]\d)?)\s*ore\s*(?:di\s*)?(?:sonno|dormit)/ },
+  { stat: 'SPD', label: 'passi', unit: '', re: /(\d{3,6})\s*passi/ },
+  { stat: 'ATK', label: 'carico', unit: 'kg', re: /(?:panca|squat|stacco)\D{0,12}(\d{2,3})/ },
+];
+
+export function extractMeasures(text: string): ExtractedMeasure[] {
+  const h = normalise(text);
+  const out: ExtractedMeasure[] = [];
+
+  for (const rule of MEASURE_RULES) {
+    // Una misura sola per etichetta: «peso 78 kg» non deve contarsi due volte
+    // solo perché due regole diverse la riconoscono entrambe.
+    if (out.some((m) => m.label === rule.label)) continue;
+    const match = rule.re.exec(h);
+    if (!match?.[1]) continue;
+    const value = Number(match[1].replace(',', '.'));
+    if (!Number.isFinite(value)) continue;
+    out.push({ stat: rule.stat, label: rule.label, value, unit: rule.unit });
+  }
+
+  return out;
 }
 
 /** Etichette leggibili di cosa è stato registrato, per la riga sotto al messaggio. */
@@ -169,5 +224,13 @@ export function extractionLabels(e: Extraction): string[] {
   if (e.signals.FOOD) out.push('CIBO');
   if (e.signals.WORKOUT) out.push('ALLENAMENTO');
   if (e.signals.MOOD) out.push('UMORE');
+  for (const m of e.measures) out.push(m.label.toUpperCase());
   return out;
+}
+
+/** Vero quando dal testo non è uscito niente: serve a non fingere di aver capito. */
+export function isEmptyExtraction(e: Extraction): boolean {
+  return (
+    Object.keys(e.signals).length === 0 && e.measures.length === 0 && e.absence === null
+  );
 }

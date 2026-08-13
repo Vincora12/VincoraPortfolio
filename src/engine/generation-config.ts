@@ -453,22 +453,22 @@ export interface AffinityDef {
 }
 
 export const AFFINITIES: AffinityDef[] = [
-  { id: 'ANGEL', effect: 'Secondary wings, rings, feathers, multiple eyes, luminous/ritual symmetry.', it: 'ali secondarie, anelli, piume, occhi multipli' },
-  { id: 'DEMON', effect: 'Horns, sharp protrusions, infernal appendages, oni-like structures.', it: 'corna, protuberanze acuminate, appendici infernali' },
-  { id: 'MACHINE', effect: 'Panels, cables, apertures, hinges, mechanical replacement zones.', it: 'pannelli, cavi, cerniere, zone sostituite da meccanica' },
-  { id: 'PLANT', effect: 'Roots, leaves, sprouts, flowers, thorns, botanical growth.', it: 'radici, foglie, germogli, fiori, spine' },
-  { id: 'AQUA', effect: 'Gills, fins, membranes, aquatic appendages.', it: 'branchie, pinne, membrane, appendici acquatiche' },
-  { id: 'PSYCHIC', effect: 'Extra eyes, floating components, symbols, spatial distortion, impossible spacing.', it: 'occhi in più, parti fluttuanti, spaziature impossibili' },
-  { id: 'MINERAL', effect: 'Crystal growth, stone plates, ore/metallic raw structures.', it: 'cristalli, placche di pietra, minerale grezzo' },
-  { id: 'SLIME', effect: 'Gelatinous zones, droplets, deformable membranes, bubbles, flowing parts.', it: 'zone gelatinose, gocce, membrane deformabili, bolle' },
-  { id: 'BEAST', effect: 'Fur-like structures, claws, teeth, instinctive patterning.', it: 'strutture simili a pelo, artigli, zanne' },
-  { id: 'DRAGON', effect: 'Scales, crests, horns, reptilian membranes, draconic structures.', it: 'scaglie, creste, corna, membrane rettiliane' },
-  { id: 'UNDEAD', effect: 'Bones, missing structures, seams, spectral/dead motifs.', it: 'ossa, strutture mancanti, suture, motivi spettrali' },
-  { id: 'ALIEN', effect: 'Unknown organs, alien symmetry, non-terrestrial appendages.', it: 'organi ignoti, simmetrie aliene, appendici non terrestri' },
-  { id: 'ELECTRIC', effect: 'Charged fur/edges, lightning interruptions, conductive organs, glowing charge structures.', it: 'pelo carico, interruzioni di fulmine, organi conduttivi' },
-  { id: 'FIRE', effect: 'Heat vents, flame-like anatomy, charred/hot structures; not just orange palette.', it: 'sfiati di calore, anatomia di fiamma, strutture carbonizzate' },
-  { id: 'POISON', effect: 'Glands, toxic sacs, dripping/bulbous structures, warning markings.', it: 'ghiandole, sacche tossiche, strutture gocciolanti' },
-  { id: 'FISH', effect: 'Fins, gills, fish-bone/hollow aquatic structures applied to non-Aqua family.', it: 'pinne, branchie, lische applicate a un corpo non acquatico' },
+  { id: 'ANGEL', effect: 'Secondary wings, rings, feathers, multiple eyes, luminous/ritual symmetry.', it: 'qualcosa di celeste gli è cresciuto addosso' },
+  { id: 'DEMON', effect: 'Horns, sharp protrusions, infernal appendages, oni-like structures.', it: 'il corpo gli si è fatto appuntito dove non serviva' },
+  { id: 'MACHINE', effect: 'Panels, cables, apertures, hinges, mechanical replacement zones.', it: 'pezzi di lui sono stati sostituiti da meccanica' },
+  { id: 'PLANT', effect: 'Roots, leaves, sprouts, flowers, thorns, botanical growth.', it: 'gli sta crescendo addosso del verde, e non lo toglie' },
+  { id: 'AQUA', effect: 'Gills, fins, membranes, aquatic appendages.', it: 'è fatto per un’acqua che qui non c’è' },
+  { id: 'PSYCHIC', effect: 'Extra eyes, floating components, symbols, spatial distortion, impossible spacing.', it: 'certe sue parti non rispettano lo spazio' },
+  { id: 'MINERAL', effect: 'Crystal growth, stone plates, ore/metallic raw structures.', it: 'in alcuni punti ha smesso di essere morbido' },
+  { id: 'SLIME', effect: 'Gelatinous zones, droplets, deformable membranes, bubbles, flowing parts.', it: 'una parte di lui non tiene la forma' },
+  { id: 'BEAST', effect: 'Fur-like structures, claws, teeth, instinctive patterning.', it: 'l’istinto gli è rimasto nel corpo' },
+  { id: 'DRAGON', effect: 'Scales, crests, horns, reptilian membranes, draconic structures.', it: 'porta addosso un’armatura che gli è cresciuta da sola' },
+  { id: 'UNDEAD', effect: 'Bones, missing structures, seams, spectral/dead motifs.', it: 'gli manca qualcosa e non sembra dargli fastidio' },
+  { id: 'ALIEN', effect: 'Unknown organs, alien symmetry, non-terrestrial appendages.', it: 'ha organi che nessuno sa nominare' },
+  { id: 'ELECTRIC', effect: 'Charged fur/edges, lightning interruptions, conductive organs, glowing charge structures.', it: 'è sempre un po’ sotto carica' },
+  { id: 'FIRE', effect: 'Heat vents, flame-like anatomy, charred/hot structures; not just orange palette.', it: 'brucia piano anche da fermo' },
+  { id: 'POISON', effect: 'Glands, toxic sacs, dripping/bulbous structures, warning markings.', it: 'produce qualcosa che è meglio non toccare' },
+  { id: 'FISH', effect: 'Fins, gills, fish-bone/hollow aquatic structures applied to non-Aqua family.', it: 'ha pinne su un corpo che non nuota' },
 ];
 
 export function affinityDef(id: string): AffinityDef {

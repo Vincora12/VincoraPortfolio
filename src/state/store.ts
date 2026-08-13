@@ -121,6 +121,12 @@ export interface BatchCandidate {
 interface AppState {
   phase: Phase;
   day: number;
+  /**
+   * 🔶 v1.9 §14.1 — la data in cui è cominciata la partita. Serve al calendario
+   * per mostrare date vere invece di «GIORNO 8». Si fissa una volta e non si
+   * tocca più: spostarla riscriverebbe la storia.
+   */
+  startedAt: string;
 
   health: HealthState;
   progression: Progression;
@@ -183,6 +189,12 @@ interface AppState {
   confirmFormEvolution: () => void;
 
   sendMessage: (text: string) => void;
+  /**
+   * 🔶 v1.9 §5.2 — registra un racconto libero e/o una foto. Sostituisce le
+   * quattro voci a menu di `logInput`: uno sa cosa gli è successo, non in che
+   * casella il sistema lo mette.
+   */
+  captureEntry: (text: string, photoDataUrl: string | null) => void;
   logInput: (kind: 'camera' | 'tell' | 'measure' | 'workout', note?: string) => void;
   /** §11 — dichiara gli umori del giorno, al massimo 3. */
   setMoodInputs: (inputs: MoodInputId[]) => void;
@@ -221,6 +233,7 @@ interface AppState {
 const INITIAL = {
   phase: 'scan' as Phase,
   day: 1,
+  startedAt: new Date().toISOString(),
   health: initialHealthState(),
   progression: { bond: 0, sync: emptySync() } as Progression,
   days: {} as Record<number, DailySync>,
@@ -615,6 +628,90 @@ export const useApp = create<AppState>()(
         requestReply(set, get, rec, theirs.id);
       },
 
+      captureEntry: (text, photoDataUrl) => {
+        const s = get();
+        const rec = activeRecord(s);
+        const found = extractFromMessage(text);
+
+        /* I segnali estratti non sovrascrivono quelli già dichiarati a mano:
+           una parola pescata in una frase vale meno di un pulsante premuto. */
+        let days = s.days;
+        for (const [key, value] of Object.entries(found.signals)) {
+          const k = key as DailySignalKey;
+          if ((days[s.day]?.signals[k].status ?? 'UNKNOWN') === 'UNKNOWN') {
+            days = withSignal(days, s.day, k, value.status, value.note);
+          }
+        }
+
+        /* Una foto senza parole è quasi sempre un piatto. Lo si dichiara come
+           deduzione — «da una foto» — invece di farlo passare per un dato
+           raccontato: la provenienza resta leggibile nel calendario. */
+        if (photoDataUrl && (days[s.day]?.signals.FOOD.status ?? 'UNKNOWN') === 'UNKNOWN') {
+          days = withSignal(days, s.day, 'FOOD', 'KNOWN', 'da una foto');
+        }
+
+        /* Le misure toccano le sei stat di §4. Non sono un quarto segnale e
+           non danno SYNC: la salute forma la creatura, non ne compra la
+           crescita. */
+        const current = (k: StatKey) =>
+          isKnown(s.health.stats[k].value) ? (s.health.stats[k].value as number) : 50;
+        const touched: Partial<Record<StatKey, number>> = {};
+        for (const m of found.measures) {
+          touched[m.stat] = Math.max(0, Math.min(100, current(m.stat) + 2));
+        }
+        if (found.signals.WORKOUT?.status === 'KNOWN') {
+          touched.ATK = Math.min(100, current('ATK') + 2.5);
+          touched.SPD = Math.min(100, current('SPD') + 1.8);
+        }
+        if (photoDataUrl) touched.CARE = Math.min(100, current('CARE') + 1.5);
+
+        const health = applyDay(s.health, s.day, {
+          touched,
+          logged: true,
+          workout: found.signals.WORKOUT?.status === 'KNOWN',
+        });
+
+        const declared = s.moodHistory.find((d) => d.day === s.day)?.inputs ?? [];
+        const merged = [...declared];
+        for (const m of found.moods) {
+          if (merged.length >= MOOD_INPUT_RULES.maxPerDay) break;
+          if (!merged.includes(m)) merged.push(m);
+        }
+
+        const memories = [...s.memories];
+        if (rec && text.trim().length > 0) {
+          memories.push(
+            makeMemory({
+              id: `mem_capture_${s.day}_${memories.length}`,
+              day: s.day,
+              event: {
+                kind: found.signals.WORKOUT?.status === 'KNOWN' ? 'workout' : 'conversation',
+                title: 'Registrato',
+                text: text.trim(),
+                memorable: true,
+              },
+              monName: rec.data.name,
+            }),
+          );
+        }
+
+        set({
+          health,
+          days,
+          memories,
+          moodHistory:
+            merged.length > 0
+              ? [...s.moodHistory.filter((d) => d.day !== s.day), { day: s.day, inputs: merged }]
+              : s.moodHistory,
+          progression: {
+            ...s.progression,
+            bond: Math.min(1, s.progression.bond + BOND_PER_INTERACTION),
+          },
+        });
+
+        if (photoDataUrl) readPhoto(set, get, photoDataUrl);
+      },
+
       logInput: (kind, note) => {
         const s = get();
         const rec = activeRecord(s);
@@ -957,6 +1054,7 @@ export const useApp = create<AppState>()(
       resetAll: () =>
         set({
           ...INITIAL,
+          startedAt: new Date().toISOString(),
           health: initialHealthState(),
           personality: neutralPersonality(),
           scanAnswers: {},
@@ -1160,6 +1258,38 @@ function requestReply(
         : { ...chat[index]!, pending: false };
 
       set({ chat });
+    });
+}
+
+/**
+ * 🔶 v1.9 §5.2 — fa leggere la foto al modello e aggiunge quello che trova.
+ *
+ * Regola: può solo AGGIUNGERE segnali ancora sconosciuti, mai sovrascriverne
+ * uno già noto. Una lettura automatica non ha il diritto di correggere quello
+ * che hai detto tu — vale per i sensori (§5) e vale identico qui.
+ */
+function readPhoto(
+  set: (p: Partial<AppState>) => void,
+  get: () => AppState,
+  dataUrl: string,
+): void {
+  const apiKey = get().apiKey;
+  if (!apiKey) return;
+
+  void import('../ai/client')
+    .then((m) => m.readPhotoSignals(apiKey, dataUrl))
+    .then((found) => {
+      if (!found) return;
+      const s = get();
+      let days = s.days;
+      for (const [key, value] of Object.entries(found.signals)) {
+        const k = key as DailySignalKey;
+        const v = value as { status: SignalStatus; note: string };
+        if ((days[s.day]?.signals[k].status ?? 'UNKNOWN') === 'UNKNOWN') {
+          days = withSignal(days, s.day, k, v.status, v.note);
+        }
+      }
+      if (days !== s.days) set({ days });
     });
 }
 

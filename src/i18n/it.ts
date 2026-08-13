@@ -75,19 +75,22 @@ export const t = {
     writing: 'sta trovando le parole…',
   },
 
-  /* 07 UNIVERSAL INPUT */
+  /* 07 REGISTRA (MS v1.9 §5.2) — un campo solo, niente moduli */
   input: {
-    title: 'COSA VUOI FARE?',
-    subtitle: 'Scegli come interagire con il mondo.',
-    camera: 'CAMERA',
-    cameraHint: 'Scatta o carica una foto',
-    tell: 'TELL ME',
-    tellHint: 'Racconta qualcosa',
-    measure: 'MEASURE',
-    measureHint: 'Sincronizza un dato',
-    workout: 'WORKOUT',
-    workoutHint: 'Registra un allenamento',
-    notePlaceholder: 'Aggiungi una nota (facoltativo)',
+    title: 'REGISTRA UN DATO',
+    subtitle: 'Scrivi com’è andata, o fotografa. Al resto pensa lui.',
+    field: 'Cosa è successo',
+    placeholder: 'carbonara e poi palestra, peso 78, sono distrutto…',
+    addPhoto: 'SCATTA O CARICA UNA FOTO',
+    removePhoto: 'TOGLI LA FOTO',
+    understood: 'HA CAPITO QUESTO',
+    nothingYet: 'Ancora niente. Scrivi qualcosa o aggiungi una foto.',
+    notApplicable: 'non si applica oggi',
+    photoWithAi: 'la leggerà lui',
+    photoNoAi: 'salvata — senza chiave API non può leggerla',
+    /* La riga che rende l'interpretazione onesta: se ha capito male, si
+       riscrive e basta. Nessun campo da correggere, nessun menu da cercare. */
+    correctHint: 'Se ha capito male, riscrivi più chiaro: si aggiorna mentre scrivi.',
     confirm: 'REGISTRA',
     cancel: 'ANNULLA',
   },
@@ -135,9 +138,14 @@ export const t = {
     // cosa È, e da dove esce il numero.
     conditionNote:
       'Le sei letture qui sotto, riassunte in un numero. Pesa di più il recupero. Vale solo per oggi: domani si ricalcola da capo.',
-    disc: 'DISC',
-    discTitle: 'QUANTO SEI COSTANTE',
-    discNote: 'Sale quando registri qualcosa, scende piano quando sparisci. Non è salute.',
+    /* 🔶 v1.9 §4.1 — la distinzione che la schermata lasciava indovinare. */
+    preamble:
+      'Qui c’è come stai. Non è un punteggio e non fa crescere niente: i dati di salute danno forma a VINZ.MON, non ne comprano l’evoluzione.',
+    syncTitle: 'QUANTO TI HA LETTO',
+    syncTotal: 'GIORNI IN TUTTO',
+    syncInForm: 'IN QUESTA FORMA',
+    syncNote:
+      'Questa sì che fa crescere: è l’unica. Un giorno raccontato vale +1, che tu stia bene o male.',
     confidence: 'CONFIDENZA DEL DATO',
     unknownNote: 'I dati mancanti restano sconosciuti. Non contano come zero.',
     trend7: '7 GIORNI',
@@ -202,6 +210,10 @@ export const t = {
     remaining: (n: number) =>
       `Mancano ${n} ${n === 1 ? 'giorno sincronizzato' : 'giorni sincronizzati'}.`,
     hint: 'Tocca un giorno per vedere cosa si sapeva.',
+    todayOpen: (n: number) => `${n}/3 SEGNALI`,
+    todayClosed: 'CHIUSO',
+    todayGo: 'Raccontala →',
+    todayDone: 'Vale +1. A domani.',
     notKnown: 'non si sapeva',
     /* §14 — «No red punishment language for missed days.» */
     openDay: 'Giorno aperto. Non è un giorno perso: la crescita aspetta, non torna indietro.',
@@ -227,6 +239,7 @@ export const t = {
     tabs: {
       stats: 'STATS',
       identity: 'IDENTITÀ',
+      bio: 'BIO',
       lineage: 'LINEAGE',
       assets: 'ASSET',
     },
@@ -239,8 +252,9 @@ export const t = {
   bio: {
     title: 'BIO',
     subtitle: 'FILE PERSONALE',
-    remembered: 'DETTAGLI RICORDATI',
-    notes: 'ANNOTAZIONI',
+    remembered: 'COSE CHE MI PORTO DIETRO',
+    notes: 'APPUNTI',
+    doodleCaption: 'come mi vedo io',
   },
 
   /* 17 MINDLINE */

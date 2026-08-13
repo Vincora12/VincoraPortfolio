@@ -350,6 +350,8 @@ interface TextFieldProps {
   onSubmit?: () => void;
   onFocus?: () => void;
   clearable?: boolean;
+  /** Racconto libero invece di una riga: cresce con quello che scrivi. */
+  multiline?: boolean;
 }
 
 export function TextField({
@@ -360,9 +362,20 @@ export function TextField({
   onSubmit,
   onFocus,
   clearable = true,
+  multiline = false,
 }: TextFieldProps) {
   return (
-    <div className="field">
+    <div className={multiline ? 'field field--multi' : 'field'}>
+      {multiline ? (
+        <textarea
+          aria-label={label}
+          value={value}
+          placeholder={placeholder}
+          rows={4}
+          onFocus={onFocus}
+          onChange={(e) => onChange(e.target.value)}
+        />
+      ) : (
       <input
         aria-label={label}
         value={value}
@@ -373,6 +386,7 @@ export function TextField({
           if (e.key === 'Enter' && onSubmit) onSubmit();
         }}
       />
+      )}
       {clearable && value.length > 0 && (
         <button
           type="button"

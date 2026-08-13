@@ -21,6 +21,21 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { MonRecord } from '../engine/types';
 import { VOICE_MODEL, buildVoiceSystemPrompt, introductionRequest } from './voicePrompt';
+import { recordUsageEntry, type UsageSubsystem } from './usage';
+
+/** Registra la chiamata nel contatore di DEV (§18.1). Non lancia mai. */
+function recordUsage(subsystem: UsageSubsystem, response: Anthropic.Beta.BetaMessage): void {
+  try {
+    recordUsageEntry(
+      subsystem,
+      response.model,
+      response.usage?.input_tokens ?? 0,
+      response.usage?.output_tokens ?? 0,
+    );
+  } catch {
+    /* la telemetria non deve poter rompere una risposta */
+  }
+}
 
 export interface VoiceResult {
   text: string;
@@ -58,6 +73,7 @@ async function speak(
   apiKey: string,
   record: MonRecord,
   userTurn: string,
+  subsystem: UsageSubsystem,
 ): Promise<VoiceOutcome> {
   try {
     const client = clientFor(apiKey);
@@ -76,6 +92,8 @@ async function speak(
 
     // Va controllato PRIMA di leggere il contenuto: su un rifiuto `content`
     // può essere vuoto, e leggere `content[0]` si romperebbe.
+    recordUsage(subsystem, response);
+
     if (response.stop_reason === 'refusal') {
       return { result: null, failure: 'refused' };
     }
@@ -116,7 +134,92 @@ export async function generateReply(
 ): Promise<VoiceOutcome> {
   if (!apiKey) return { result: null, failure: 'no-key' };
   const turn = context ? `${userText}\n\n[${context}]` : userText;
-  return speak(apiKey, record, turn);
+  return speak(apiKey, record, turn, 'reply');
+}
+
+/* ============================================================================
+   🔶 v1.9 §5.2 — LETTURA DI UNA FOTO
+
+   Il modello guarda l'immagine e dice cosa ci vede in termini dei tre Daily
+   Signals. Contratto stretto e JSON: qui non serve una descrizione, serve un
+   dato, e una risposta libera andrebbe interpretata a sua volta.
+
+   Regola non negoziabile, ripetuta nel prompt e imposta dal chiamante: può
+   solo AGGIUNGERE segnali sconosciuti, mai correggerne uno che hai dichiarato.
+   ========================================================================= */
+
+export interface PhotoSignals {
+  signals: Partial<Record<'FOOD' | 'WORKOUT' | 'MOOD', { status: 'KNOWN'; note: string }>>;
+}
+
+const PHOTO_SYSTEM = `You look at one photo a person took during their day and report ONLY what is actually visible.
+
+Answer with a single JSON object, nothing else:
+{"food": "<short Italian description>" | null,
+ "workout": "<short Italian description>" | null}
+
+Rules:
+- "food" only if the photo shows something edible or a meal in progress. Describe it plainly in Italian, max 6 words. No judgement about whether it is healthy: that is forbidden by the product's safety rules.
+- "workout" only if the photo shows physical activity, a gym, equipment, a route or a tracker screen. Max 6 words, Italian.
+- If you are not sure, use null. Never guess. A wrong reading is worse than no reading.
+- Never infer mood from a face: subjective states are only ever declared by the person.`;
+
+export async function readPhotoSignals(
+  apiKey: string | null,
+  dataUrl: string,
+): Promise<PhotoSignals | null> {
+  if (!apiKey) return null;
+
+  const match = /^data:(image\/[a-z+]+);base64,(.+)$/i.exec(dataUrl);
+  if (!match) return null;
+  const [, mediaType, data] = match;
+
+  try {
+    const response = await clientFor(apiKey).beta.messages.create({
+      model: VOICE_MODEL,
+      max_tokens: 1200,
+      betas: ['server-side-fallback-2026-07-01'],
+      fallbacks: 'default',
+      output_config: { effort: 'low' },
+      system: PHOTO_SYSTEM,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'image',
+              source: { type: 'base64', media_type: mediaType as 'image/png', data: data! },
+            },
+            { type: 'text', text: 'Cosa vedi?' },
+          ],
+        },
+      ],
+    });
+
+    if (response.stop_reason === 'refusal') return null;
+
+    const text = response.content
+      .filter((b): b is Anthropic.Beta.BetaTextBlock => b.type === 'text')
+      .map((b) => b.text)
+      .join('');
+
+    recordUsage('photo', response);
+
+    // Il modello può incorniciare il JSON: si prende il primo oggetto e basta.
+    const json = /\{[\s\S]*\}/.exec(text)?.[0];
+    if (!json) return null;
+    const parsed = JSON.parse(json) as { food?: string | null; workout?: string | null };
+
+    const signals: PhotoSignals['signals'] = {};
+    if (parsed.food) signals.FOOD = { status: 'KNOWN', note: `dalla foto: ${parsed.food}` };
+    if (parsed.workout) {
+      signals.WORKOUT = { status: 'KNOWN', note: `dalla foto: ${parsed.workout}` };
+    }
+    return { signals };
+  } catch (err) {
+    console.warn('[ai] foto non leggibile, resta salvata', err);
+    return null;
+  }
 }
 
 /** La prima frase di un .mon appena nato. */
@@ -125,5 +228,5 @@ export async function generateIntroduction(
   record: MonRecord,
 ): Promise<VoiceOutcome> {
   if (!apiKey) return { result: null, failure: 'no-key' };
-  return speak(apiKey, record, introductionRequest(record));
+  return speak(apiKey, record, introductionRequest(record), 'introduction');
 }

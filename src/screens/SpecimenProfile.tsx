@@ -16,6 +16,7 @@
 import { useState } from 'react';
 import type { Overlay } from '../App';
 import { useApp, useActiveMon, useGrowth } from '../state/store';
+import { BioPanel } from './BioPanel';
 import { AssetSlot, RotationViewer, Sigil } from '../system/AssetSlot';
 import { MonName, SpeciesName } from '../system/MonName';
 import {
@@ -43,11 +44,13 @@ import { downloadPackage } from '../assets-pipeline/exportPackage';
 import { displayName } from '../engine/types';
 import { t } from '../i18n/it';
 
-type TabId = 'stats' | 'identity' | 'lineage' | 'assets';
+type TabId = 'stats' | 'identity' | 'bio' | 'lineage' | 'assets';
 
 const TABS = [
   { id: 'stats' as const, label: t.specimen.tabs.stats },
   { id: 'identity' as const, label: t.specimen.tabs.identity },
+  // 🔶 v1.9 §8.1 — la BIO vive qui, accanto alle altre cose che dicono chi è.
+  { id: 'bio' as const, label: t.specimen.tabs.bio },
   { id: 'lineage' as const, label: t.specimen.tabs.lineage },
   { id: 'assets' as const, label: t.specimen.tabs.assets },
 ];
@@ -139,6 +142,8 @@ export function SpecimenProfileScreen({
             <Row label="CONFIG" value={d.generation_config_version} />
           </div>
         )}
+
+        {tab === 'bio' && <BioPanel mon={mon} />}
 
         {tab === 'identity' && (
           <>
@@ -287,18 +292,12 @@ export function SpecimenProfileScreen({
               )}
             </section>
 
-            <section className="specimen__block">
-              <p className="t-meta">BIO / STORY</p>
-              <p className="t-small specimen__story">{mon.bio.story}</p>
-              <Button small variant="secondary" onClick={() => onGo('bio')}>
-                APRI IL FILE PERSONALE
-              </Button>
-            </section>
-
+            {/* 🔶 v1.9 — la BIO non è più una scorciatoia: è la scheda qui
+                accanto. E le MEMORIE non si aprono più — l'archivio esiste e
+                alimenta la voce, ma leggerlo rompe la magia (§15.1). */}
             <section className="specimen__block">
               <p className="t-meta">SCORCIATOIE</p>
               <div className="rowlist">
-                <Row label="MEMORIE" value="apri →" onClick={() => onGo('memories')} />
                 <Row label="STORIA DELLE FORME" value="apri →" onClick={() => onGo('history')} />
               </div>
             </section>

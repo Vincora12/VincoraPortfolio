@@ -1,9 +1,13 @@
 /* ============================================================================
-   CALENDARIO — superficie primaria (MASTER SPEC v1.8 §13, §14)
+   GIORNI — calendario (MASTER SPEC v1.8 §13/§14, v1.9 §14.1)
 
-   🔶 Promossa. Prima era un riquadro in fondo a ME; la v1.8 la elenca come
-   «NEW primary surface for Daily Sync and milestones» e le dà una sezione sua.
-   Adesso è la quarta voce della navigazione, accanto a MON / ME / MINDLINE.
+   🔶 Riscritto come calendario vero. Prima era una griglia di caselle numerate
+   1, 2, 3… che è il modo in cui il prototipo conta i giorni, non il modo in
+   cui una persona guarda il proprio tempo. Adesso è un mese, con i nomi dei
+   giorni in cima, le settimane allineate e le date reali.
+
+   In testa c'è **oggi, in grande**: è la cosa che si viene a cercare aprendo
+   questa schermata, ed è anche da lì che si apre la giornata per raccontarla.
 
    §14 chiede quattro cose, e ci sono tutte:
      • stati EMPTY / PARTIAL / SYNCED / GRACE
@@ -12,23 +16,25 @@
      • quanti giorni sincronizzati mancano al prossimo traguardo
 
    E una quinta, per negazione: «No red punishment language for missed days.»
-   Nessuna casella è rossa, nessuna frase dice che hai perso qualcosa. Un
-   giorno vuoto è un giorno non raccontato, e la crescita lo aspetta.
+   Nessuna casella è rossa. Un giorno vuoto è un giorno non raccontato.
 
-   🔶 GRACE — §14 lo dichiarava canonico senza dire cosa lo facesse scattare.
-   Deciso: è una **pausa dichiarata** — malattia, ricovero, giorni in cui non
-   c'eri — e NON dà SYNC. Il perché sta per intero in `progression.ts`; qui
-   basta la conseguenza: si marca da questa schermata, sui giorni ancora
-   aperti, ed è sempre reversibile.
+   🔶 GRACE è una **pausa dichiarata** — malattia, assenza — e NON dà SYNC.
+   Il perché sta per intero in `progression.ts`.
    ========================================================================= */
 
 import { useState } from 'react';
-import { useApp, useGrowth } from '../state/store';
+import type { Overlay } from '../App';
+import { useApp, useGrowth, useToday } from '../state/store';
 import { Button, ScreenHead, SystemLabel, TextField } from '../system/components';
 import {
   DAILY_SIGNALS,
   DAILY_SIGNAL_LABELS,
+  MONTH_NAMES,
+  WEEKDAY_LONG,
+  WEEKDAY_NAMES,
+  dateForDay,
   dayStatus,
+  mondayIndex,
   type DailySync,
   type DayStatus,
 } from '../engine/progression';
@@ -50,7 +56,6 @@ const STATUS_LABELS: Record<DayStatus, string> = {
   GRACE: 'in pausa',
 };
 
-/** I traguardi che §14 chiede di marcare, con il segno che li distingue. */
 const MILESTONES = {
   origin: { mark: '✦', it: 'prima forma' },
   evolution: { mark: '+', it: 'maturazione' },
@@ -59,17 +64,20 @@ const MILESTONES = {
 
 interface Cell {
   day: number;
+  date: Date;
   status: DayStatus;
   record: DailySync | null;
   milestone: keyof typeof MILESTONES | null;
 }
 
-export function CalendarScreen() {
+export function CalendarScreen({ onGo }: { onGo: (o: Overlay) => void }) {
   const days = useApp((s) => s.days);
   const today = useApp((s) => s.day);
+  const startedAt = useApp((s) => s.startedAt);
   const nodes = useApp((s) => s.nodes);
   const setDayGrace = useApp((s) => s.setDayGrace);
-  const { event, sync } = useGrowth();
+  const { event } = useGrowth();
+  const todayState = useToday();
 
   const [selected, setSelected] = useState<number | null>(null);
   const [reason, setReason] = useState('');
@@ -82,27 +90,68 @@ export function CalendarScreen() {
     const record = days[day] ?? null;
     return {
       day,
+      date: dateForDay(day, startedAt),
       status: record ? dayStatus(record) : 'EMPTY',
       record,
       milestone: milestones.get(day) ?? null,
     };
   });
 
+  const todayDate = dateForDay(today, startedAt);
   const synced = cells.filter((c) => c.status === 'SYNCED').length;
   const open = selected !== null ? cells.find((c) => c.day === selected) : undefined;
+
+  /* Il mese si costruisce dalle date vere: si parte dal primo del mese di
+     oggi e si riempie fino alla fine, marcando le caselle che corrispondono a
+     giorni vissuti. I giorni fuori partita restano vuoti e non cliccabili —
+     un calendario mostra anche i giorni in cui non è successo niente. */
+  const monthStart = new Date(todayDate.getFullYear(), todayDate.getMonth(), 1);
+  const daysInMonth = new Date(todayDate.getFullYear(), todayDate.getMonth() + 1, 0).getDate();
+  const leading = mondayIndex(monthStart);
+
+  const byDate = new Map<string, Cell>();
+  for (const c of cells) byDate.set(c.date.toDateString(), c);
 
   return (
     <div className="screen">
       <ScreenHead title={t.calendar.title} sub={t.calendar.subtitle} />
 
       <div className="screen__body cal">
+        {/* --- OGGI, in grande. È quello che si viene a cercare. --- */}
+        <button
+          type="button"
+          className="cal__today"
+          onClick={() => {
+            haptic('tick');
+            onGo('scan');
+          }}
+        >
+          <span className="cal__todayleft">
+            <span className="t-meta cal__todayweekday">
+              {WEEKDAY_LONG[todayDate.getDay()]}
+            </span>
+            <span className="cal__todaynum t-display">{todayDate.getDate()}</span>
+            <span className="t-meta cal__todaymonth">
+              {MONTH_NAMES[todayDate.getMonth()]} {todayDate.getFullYear()}
+            </span>
+          </span>
+          <span className="cal__todayright">
+            <SystemLabel tone={todayState.closed ? 'positive' : 'default'}>
+              {todayState.closed
+                ? t.calendar.todayClosed
+                : t.calendar.todayOpen(todayState.known)}
+            </SystemLabel>
+            <span className="t-small cal__todaycta">
+              {todayState.closed ? t.calendar.todayDone : t.calendar.todayGo}
+            </span>
+          </span>
+        </button>
+
         {/* §14 — «Show synced-days remaining to milestones.» In giorni, non in
             percentuale: «mancano 16 giorni» si capisce, «43%» no. */}
         <section className="cal__next">
           <SystemLabel tone="character">{t.calendar.nextTitle}</SystemLabel>
-          <p className="t-display cal__nextline">
-            {t.calendar.eventNames[event.kind]}
-          </p>
+          <p className="t-display cal__nextline">{t.calendar.eventNames[event.kind]}</p>
           <p className="t-small cal__nextnote">
             {event.ready
               ? t.calendar.ready
@@ -110,36 +159,74 @@ export function CalendarScreen() {
           </p>
         </section>
 
-        <div className="cal__grid">
-          {cells.map((c) => (
-            <button
-              key={c.day}
-              type="button"
-              className={`cal__cell cal__cell--${c.status.toLowerCase()} ${
-                c.day === today ? 'cal__cell--today' : ''
-              } ${c.day === selected ? 'cal__cell--open' : ''}`}
-              onClick={() => {
-                haptic('tick');
-                setSelected(c.day === selected ? null : c.day);
-              }}
-              aria-pressed={c.day === selected}
-            >
-              <span className="cal__mark" aria-hidden="true">
-                {MARKS[c.status]}
+        {/* --- Il mese --- */}
+        <section className="cal__month">
+          <p className="t-meta cal__monthname">
+            {MONTH_NAMES[todayDate.getMonth()]} {todayDate.getFullYear()}
+          </p>
+
+          <div className="cal__weekdays" aria-hidden="true">
+            {WEEKDAY_NAMES.map((w, i) => (
+              <span key={i} className="t-micro">
+                {w}
               </span>
-              <span className="cal__day t-micro">{c.day}</span>
-              {c.milestone && (
-                <span className="cal__event" aria-hidden="true">
-                  {MILESTONES[c.milestone].mark}
-                </span>
-              )}
-              <span className="sr-only">
-                Giorno {c.day}: {STATUS_LABELS[c.status]}
-                {c.milestone ? `, ${MILESTONES[c.milestone].it}` : ''}
-              </span>
-            </button>
-          ))}
-        </div>
+            ))}
+          </div>
+
+          <div className="cal__grid">
+            {Array.from({ length: leading }, (_, i) => (
+              <span key={`pad-${i}`} className="cal__pad" aria-hidden="true" />
+            ))}
+
+            {Array.from({ length: daysInMonth }, (_, i) => {
+              const date = new Date(todayDate.getFullYear(), todayDate.getMonth(), i + 1);
+              const cell = byDate.get(date.toDateString());
+              const isToday = date.toDateString() === todayDate.toDateString();
+
+              if (!cell) {
+                return (
+                  <span
+                    key={i}
+                    className="cal__cell cal__cell--outside"
+                    aria-hidden="true"
+                  >
+                    <span className="cal__day t-micro">{i + 1}</span>
+                  </span>
+                );
+              }
+
+              return (
+                <button
+                  key={i}
+                  type="button"
+                  className={`cal__cell cal__cell--${cell.status.toLowerCase()} ${
+                    isToday ? 'cal__cell--today' : ''
+                  } ${cell.day === selected ? 'cal__cell--open' : ''}`}
+                  onClick={() => {
+                    haptic('tick');
+                    setSelected(cell.day === selected ? null : cell.day);
+                  }}
+                  aria-pressed={cell.day === selected}
+                >
+                  <span className="cal__day t-micro">{date.getDate()}</span>
+                  <span className="cal__mark" aria-hidden="true">
+                    {MARKS[cell.status]}
+                  </span>
+                  {cell.milestone && (
+                    <span className="cal__event" aria-hidden="true">
+                      {MILESTONES[cell.milestone].mark}
+                    </span>
+                  )}
+                  <span className="sr-only">
+                    {date.getDate()} {MONTH_NAMES[date.getMonth()]}:{' '}
+                    {STATUS_LABELS[cell.status]}
+                    {cell.milestone ? `, ${MILESTONES[cell.milestone].it}` : ''}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
 
         <p className="t-micro cal__legend">
           {MARKS.SYNCED} sincronizzato · {MARKS.PARTIAL} parziale · {MARKS.EMPTY} vuoto ·{' '}
@@ -147,14 +234,12 @@ export function CalendarScreen() {
           {MILESTONES.evolution.mark} maturazione · {MILESTONES.branch.mark} cambio di forma
         </p>
 
-        {/* §14 — «Day detail shows FOOD / WORKOUT / MOOD and relevant source
-            provenance.» La provenienza è il campo `note` del segnale: dice se
-            il dato l'hai messo tu, se arriva dai dati automatici o da DEV. */}
+        {/* §14 — dettaglio del giorno con i tre segnali e la provenienza. */}
         {open ? (
           <section className="cal__detail">
             <header className="cal__detailhead">
               <span className="t-display">
-                {t.common.day} {open.day}
+                {open.date.getDate()} {MONTH_NAMES[open.date.getMonth()]}
               </span>
               <SystemLabel tone={open.status === 'SYNCED' ? 'positive' : 'default'}>
                 {STATUS_LABELS[open.status].toUpperCase()}
@@ -180,8 +265,6 @@ export function CalendarScreen() {
                     <span className="t-micro cal__signalstatus">
                       {status === 'UNKNOWN' ? t.calendar.notKnown : status}
                     </span>
-                    {/* La provenienza sta sotto e in grigio: serve a capire da
-                        dove viene il dato, non a giudicare la giornata. */}
                     {entry?.note && <span className="t-micro cal__source">{entry.note}</span>}
                   </li>
                 );
@@ -204,9 +287,6 @@ export function CalendarScreen() {
               open.status !== 'SYNCED' && (
                 <div className="cal__grace">
                   <p className="t-micro cal__nopunish">{t.calendar.openDay}</p>
-                  {/* La pausa si dichiara solo sui giorni aperti, e il motivo è
-                      facoltativo: chiedere perché stavi male come condizione
-                      sarebbe esattamente la vergogna che §4 vieta. */}
                   <TextField
                     label={t.calendar.graceReason}
                     placeholder={t.calendar.graceePlaceholder}
@@ -232,8 +312,7 @@ export function CalendarScreen() {
         )}
 
         <p className="t-small cal__total">
-          <strong>{synced}</strong> {t.calendar.syncedOf} {today}
-          {sync.lifetime !== synced && ` · ${sync.lifetime} SYNC totali`}. {t.calendar.noStreak}
+          <strong>{synced}</strong> {t.calendar.syncedOf} {today}. {t.calendar.noStreak}
         </p>
       </div>
     </div>

@@ -129,10 +129,9 @@ const click = async (selector, label) => {
 
 const byText = (text) => `text="${text}"`;
 
-/** Le azioni della home vivono nel «+» del composer, non più attorno alla creatura. */
-const openAction = async (label) => {
-  await click('.composer .btn-icon:first-child', 'apri le azioni');
-  await click(byText(label), label);
+/** Il «+» del composer apre direttamente la registrazione (v1.9 §13.3). */
+const openCapture = async () => {
+  await click('.composer .btn-icon:first-child', 'apri REGISTRA');
 };
 
 /** I bottoni che cambiano percorso si tengono premuti; da tastiera basta Invio. */
@@ -194,62 +193,45 @@ try {
   await click('.composer .btn-icon:last-child', 'invia');
   await shot('06-conversazione');
 
-  /* Le azioni della home, condensate nel «+» */
-  await click('.composer .btn-icon:first-child', 'apri le azioni');
-  await shot('06-azioni');
-  await click('.home__scrim', 'chiudi le azioni');
-
-  /* 08 — DAILY SCAN: i tre segnali di v1.5 più gli umori di §11 */
-  await openAction('UMORE DI OGGI');
-  await shot('08-daily-scan');
-  await click(byText('Cazzaro'), 'mood cazzaro');
-  await click(byText('Sicuro'), 'mood sicuro');
-  await shot('08-daily-scan-selezionato');
-  await click(byText('REGISTRA'), 'registra mood');
-
-  /* 07 — UNIVERSAL INPUT */
-  await openAction('REGISTRA UN DATO');
-  await shot('07-universal-input');
-  await click(byText('WORKOUT'), 'workout');
-  await shot('07-input-selezionato');
-  await click(byText('REGISTRA'), 'registra');
+  /* 07 — REGISTRA (v1.9 §5.2): un campo solo, e quello che ha capito */
+  await openCapture();
+  await shot('07-registra-vuoto');
+  await page.locator('.capture textarea').fill('nuotato mezz’ora, poi insalata. peso 78');
+  await shot('07-registra-capito');
+  await click(byText('REGISTRA'), 'conferma registrazione');
 
   /* 15 — SPECIMEN PROFILE + rotazione */
   await click('.home__head .btn-icon', 'profilo');
   await shot('15-specimen-stats');
   await click(byText('IDENTITÀ'), 'tab identità');
   await shot('15-specimen-identita');
+  /* 🔶 v1.9 §8.1 — la BIO è una scheda del profilo, in prima persona. */
+  await click(byText('BIO'), 'tab bio');
+  await shot('16-bio');
   await click(byText('LINEAGE'), 'tab lineage');
   await shot('15-specimen-lineage');
   await click(byText('ASSET'), 'tab asset');
   await shot('15-specimen-asset');
   await click('.specimen__head .btn-icon', 'indietro');
 
-  /* 16 — BIO */
-  await openAction('BIO');
-  await shot('16-bio');
-  await click('.bio__head .btn-icon', 'indietro');
-
-  /* 19 — MEMORIES */
-  await openAction('MEMORIE');
-  await shot('19-memorie');
-  await click('.specimen__head .btn-icon', 'indietro');
-
   /* 09 — ME */
   await click('.tabbar__item:nth-child(2)', 'tab ME');
   await shot('09-me-overview');
 
-  /* CALENDARIO — quarta voce di navigazione dalla v1.8 §13 */
+  /* GIORNI — calendario a date vere, oggi in grande (v1.9 §14.1) */
   await click('.tabbar__item:nth-child(3)', 'tab GIORNI');
   await shot('09b-calendario');
   // §14 vuole il dettaglio del giorno con i tre segnali e la provenienza.
-  await click('.cal__cell:last-child', 'dettaglio del giorno');
+  await click('.cal__cell--today', 'dettaglio di oggi');
   await shot('09c-calendario-giorno');
-  // 🔶 GRACE: una pausa dichiarata, che NON dà SYNC.
-  await page.locator('.cal__grace input').fill('ero malato');
-  await click(byText('SEGNA COME PAUSA'), 'segna pausa');
-  await shot('09d-calendario-pausa');
-  await click(byText('NON ERA UNA PAUSA'), 'togli pausa');
+
+  /* 08 — DAILY SCAN si apre da «oggi», che è dove si va a raccontare. */
+  await click('.cal__today', 'apri la giornata');
+  await shot('08-daily-scan');
+  await click(byText('Cazzaro'), 'mood cazzaro');
+  await shot('08-daily-scan-selezionato');
+  await click(byText('REGISTRA'), 'registra mood');
+  await click('.tabbar__item:nth-child(3)', 'torna a GIORNI');
 
   /* 17 — MINDLINE: senza selezione si vede solo la topologia */
   await click('.tabbar__item:nth-child(4)', 'tab MINDLINE');
@@ -293,6 +275,12 @@ try {
 
   await click(byText('PROGRESSIONE'), 'tab progressione');
   await shot('dev-progressione');
+
+  /* 🔶 v1.9 §18.1 — la spesa AI, e §15.1 — la memoria, che vive solo qui. */
+  await click(byText('COSTI'), 'tab costi');
+  await shot('dev-costi');
+  await click(byText('MEMORIA'), 'tab memoria');
+  await shot('dev-memoria');
 
   // L'annuncio dello shift esiste solo quando qualcosa è pronto. Le forzature
   // sono già attive (tab MINDLINE, poco sopra): basta uscire e guardare.

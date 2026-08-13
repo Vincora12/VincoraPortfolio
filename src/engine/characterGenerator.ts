@@ -769,46 +769,91 @@ function generateCharacterDna(
    BIO E SIGILLO
    ========================================================================= */
 
+/* ============================================================================
+   BIO / FILE PERSONALE (MASTER SPEC v1.9 §8.1)
+
+   🔶 Riscritta in PRIMA PERSONA. Prima diceva «È comparso al giorno 8, mentre
+   REC saliva e CARE restava indietro»: una scheda tecnica in terza persona,
+   scritta dal sistema su una creatura. Ma la BIO è il quaderno del .mon, non
+   il referto di un esame — e chi lo tiene è lui.
+
+   Adesso dice «Sono arrivato l'ottavo giorno. Avevi dormito troppo e mangiato
+   poco, e io sono venuto fuori da lì.» Stessa informazione, con dentro un
+   soggetto.
+
+   La regola che tiene onesto il racconto: **le frasi nascono dai segnali veri
+   che erano in campo alla generazione.** Non è colore aggiunto sopra — è la
+   traduzione romanzata di `describeMoment`, che legge le stat che il motore
+   aveva davanti. Se dice «avevi dormito troppo» è perché REC era alto.
+
+   §2.4 — tutto al maschile: è lui che scrive.
+   ========================================================================= */
+
+/** Come si dice, in italiano vivo, che una stat era alta o bassa quel giorno. */
+const STAT_STORY: Record<string, { high: string; low: string }> = {
+  FORM: { high: 'il tuo corpo teneva', low: 'il tuo corpo era una domanda aperta' },
+  ATK: { high: 'avevi forza da buttare via', low: 'la forza non era la tua priorità' },
+  SPD: { high: 'non stavi mai fermo', low: 'ti muovevi poco e lento' },
+  DEF: { high: 'stavi dritto', low: 'eri tutto storto' },
+  REC: { high: 'avevi dormito bene, forse troppo', low: 'non stavi recuperando niente' },
+  CARE: { high: 'ti stavi trattando bene', low: 'non ti stavi trattando bene' },
+};
+
 function generateBio(data: CharacterData, ctx: GenerationContext): BioFile {
   const { contradictions, drives, traits } = data.character_dna;
   const c = contradictions[0];
+  const day = ctx.input.day;
+
+  const known = STAT_KEYS.filter((k) => isKnown(ctx.input.health.stats[k].value));
+  const val = (k: (typeof STAT_KEYS)[number]) => ctx.input.health.stats[k].value as number;
+
+  /* Da dove vengo: il segnale più alto e il più basso di quel giorno, detti
+     come li direbbe uno che c'era. È la parte che l'utente deve riconoscere —
+     «sono nato perché avevo dormito troppo» — quindi cita cose vere. */
+  let origin: string;
+  if (known.length === 0) {
+    origin = 'Non sapevi ancora dirmi niente di te, e sono venuto fuori lo stesso.';
+  } else {
+    const best = known.reduce((a, b) => (val(a) >= val(b) ? a : b));
+    const worst = known.reduce((a, b) => (val(a) <= val(b) ? a : b));
+    origin =
+      best === worst
+        ? `${STAT_STORY[best]!.high.replace(/^./, (m) => m.toUpperCase())}, ed era l’unica cosa che sapevo di te.`
+        : `${STAT_STORY[best]!.high.replace(/^./, (m) => m.toUpperCase())} e ${STAT_STORY[worst]!.low}. Io sono venuto fuori da lì in mezzo.`;
+  }
 
   const story = [
-    `È comparso al giorno ${ctx.input.day}, mentre ${describeMoment(ctx)}.`,
+    `Sono arrivato il giorno ${day}.`,
+    origin,
     c
-      ? `Non sceglie fra ${c.a} e ${c.b}: le porta tutte e due.`
-      : `Tiene insieme cose che non stanno insieme.`,
-    `Quello che vuole davvero è ${drives[0]}.`,
+      ? `Non ho scelto fra ${c.a} e ${c.b}. Me le porto dietro tutte e due, e non ho intenzione di risolverlo.`
+      : 'Tengo insieme cose che non stanno insieme. Funziona.',
+    `Quello che voglio davvero, se me lo chiedi, è ${drives[0]}.`,
+    data.heritage_traits.length > 0
+      ? `Qualcosa di me viene da prima: ${data.heritage_traits[0]!.transformed}. Non ricordo dove l’ho preso.`
+      : 'Prima di me non c’era nessuno. Sono il primo nodo.',
   ].join(' ');
 
   return {
     story,
+    /* Annotazioni: righe brevi, come appunti a margine. Sempre sue. */
     annotations: [
-      `${traits[0]} più di quanto ammetta.`,
-      data.eyewear ? `sugli occhi, sempre: ${data.eyewear.description}` : 'niente lenti: guarda diretto',
-      `nel corpo: ${data.character_dna.anatomical_gimmick}`,
+      `Sono ${traits[0]} più di quanto ammetta.`,
+      data.eyewear
+        ? `Sugli occhi, sempre: ${data.eyewear.description}.`
+        : 'Niente lenti. Guardo diretto e a volte dà fastidio.',
+      `Nel corpo mi porto ${data.character_dna.anatomical_gimmick}.`,
+      `Quando non so cosa fare, ${data.character_dna.body_language}.`,
     ],
     rememberedDetails: [
-      `sagoma: ${data.character_dna.silhouette_quirk}`,
-      `modo di stare: ${data.character_dna.body_language}`,
+      `La mia sagoma: ${data.character_dna.silhouette_quirk}`,
+      `Torna sempre: ${data.character_dna.recurring_motif}`,
       data.heritage_traits.length > 0
-        ? `viene da ${displayName(data.heritage_traits[0]!.from_mon)}`
-        : 'primo nodo, nessun prima',
+        ? `Vengo anche da ${displayName(data.heritage_traits[0]!.from_mon)}`
+        : 'Primo nodo, nessun prima',
     ],
     tags: [`#${data.family}`, `#${data.affinity}`, `#${data.role}`, `#${displayName(data.name)}`],
   };
-}
-
-function describeMoment(ctx: GenerationContext): string {
-  const known = STAT_KEYS.filter((k) => isKnown(ctx.input.health.stats[k].value));
-  if (known.length === 0) return 'il sistema non aveva ancora nessun dato su di te';
-
-  const val = (k: (typeof STAT_KEYS)[number]) => ctx.input.health.stats[k].value as number;
-  const best = known.reduce((a, b) => (val(a) >= val(b) ? a : b));
-  const worst = known.reduce((a, b) => (val(a) <= val(b) ? a : b));
-
-  if (best === worst) return `${best} era l'unico segnale leggibile`;
-  return `${best} saliva e ${worst} restava indietro`;
 }
 
 function generateSigil(rng: Rng, data: CharacterData): SigilSeed {

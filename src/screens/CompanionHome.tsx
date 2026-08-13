@@ -12,9 +12,9 @@
    indietro toccandola. La spec fissa lo stato d'ingresso, non impone che
    l'immagine occupi metà schermo mentre stai scrivendo.
 
-   Le azioni non stanno più attorno alla creatura: stanno dentro il «+» del
-   composer, che è dove si cercano in una conversazione e non costa nessuna
-   riga permanente.
+   Il «+» del composer apre direttamente la registrazione: era un menu di
+   quattro voci, ma tre erano nel posto sbagliato e la quarta era l'unica che
+   si cercava davvero.
    ========================================================================= */
 
 import { useEffect, useRef, useState } from 'react';
@@ -25,17 +25,10 @@ import { MonName, SpeciesName } from '../system/MonName';
 import { MonFace } from '../system/LiveMon';
 import { expressionFor } from '../engine/assets';
 import { IconButton, TextField } from '../system/components';
-import { Icon, type IconName } from '../system/Icon';
+import { Icon } from '../system/Icon';
 import { displayName } from '../engine/types';
 import { haptic } from '../system/haptics';
 import { t } from '../i18n/it';
-
-const ACTIONS: { icon: IconName; label: string; overlay: Overlay }[] = [
-  { icon: 'camera', label: 'REGISTRA UN DATO', overlay: 'input' },
-  { icon: 'scan', label: 'UMORE DI OGGI', overlay: 'scan' },
-  { icon: 'dna', label: 'BIO', overlay: 'bio' },
-  { icon: 'sticker', label: 'MEMORIE', overlay: 'memories' },
-];
 
 export function CompanionHomeScreen({ onGo }: { onGo: (o: Overlay) => void }) {
   const mon = useActiveMon();
@@ -46,7 +39,6 @@ export function CompanionHomeScreen({ onGo }: { onGo: (o: Overlay) => void }) {
 
   const [draft, setDraft] = useState('');
   const [expanded, setExpanded] = useState(true);
-  const [actionsOpen, setActionsOpen] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
 
   const scrollToEnd = () => {
@@ -75,11 +67,6 @@ export function CompanionHomeScreen({ onGo }: { onGo: (o: Overlay) => void }) {
     setDraft('');
     setExpanded(false);
     scrollToEnd();
-  };
-
-  const go = (o: Overlay) => {
-    setActionsOpen(false);
-    onGo(o);
   };
 
   return (
@@ -195,41 +182,16 @@ export function CompanionHomeScreen({ onGo }: { onGo: (o: Overlay) => void }) {
       </div>
 
       {/* --- Composer: oggetto persistente maggiore (§10.4) --- */}
-      {actionsOpen && (
-        <>
-          <button
-            type="button"
-            className="home__scrim"
-            aria-label={t.common.close}
-            onClick={() => setActionsOpen(false)}
-          />
-          <div className="home__actions" role="menu">
-            {ACTIONS.map((a) => (
-              <button
-                key={a.overlay}
-                type="button"
-                role="menuitem"
-                className="home__action"
-                onClick={() => {
-                  haptic('tick');
-                  go(a.overlay);
-                }}
-              >
-                <Icon name={a.icon} size={18} strokeWidth={2} />
-                <span className="t-meta">{a.label}</span>
-              </button>
-            ))}
-          </div>
-        </>
-      )}
-
       <div className="composer">
-        <IconButton
-          icon="plus"
-          label="Altre azioni"
-          className={actionsOpen ? 'is-open' : ''}
-          onClick={() => setActionsOpen((v) => !v)}
-        />
+        {/* 🔶 v1.9 §13.3 — il «+» apre la registrazione, non un menu.
+
+            C'era un menu con quattro voci: REGISTRA UN DATO, UMORE DI OGGI,
+            BIO, MEMORIE. Tre erano posti sbagliati — la BIO appartiene al
+            profilo, le memorie non vanno lette (rompono la magia) e l'umore
+            non è una voce a parte, è una delle cose che si raccontano
+            registrando. Restava una voce sola: il menu era un tocco in più
+            per arrivare dove si voleva andare comunque. */}
+        <IconButton icon="plus" label={t.input.title} onClick={() => onGo('input')} />
         <TextField
           label={`Scrivi a ${short}`}
           placeholder={`${t.home.composerPlaceholder} ${short}…`}

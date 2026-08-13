@@ -29,11 +29,9 @@ import { MindlineShiftScreen } from './screens/MindlineShift';
 import { EvolutionScreen } from './screens/Evolution';
 import { NewBranchScreen } from './screens/NewBranch';
 import { SpecimenProfileScreen } from './screens/SpecimenProfile';
-import { BioFileScreen } from './screens/BioFile';
 import { MindlineMapScreen } from './screens/MindlineMap';
 import { CalendarScreen } from './screens/SyncCalendar';
 import { HeritageDnaScreen } from './screens/HeritageDna';
-import { MemoriesScreen } from './screens/Memories';
 import { HistoryScreen } from './screens/History';
 import { DailyScanScreen } from './screens/DailyScan';
 import { DevPanel } from './dev/DevPanel';
@@ -42,8 +40,8 @@ export type Tab = 'mon' | 'me' | 'calendar' | 'mindline';
 export type Overlay =
   | null
   | 'specimen'
-  | 'bio'
-  | 'memories'
+  /* 🔶 v1.9 — via 'bio' (adesso è una scheda del profilo) e via 'memories'
+     (leggere l'archivio rompe la magia: resta solo in DEV). */
   | 'history'
   | 'heritage'
   | 'input'
@@ -152,7 +150,7 @@ function PhaseScreen({
         case 'me':
           return <MeOverviewScreen />;
         case 'calendar':
-          return <CalendarScreen />;
+          return <CalendarScreen onGo={onGo} />;
         case 'mindline':
           return <MindlineMapScreen onGo={onGo} />;
       }
@@ -173,10 +171,6 @@ function OverlayScreen({
   switch (overlay) {
     case 'specimen':
       return <SpecimenProfileScreen onClose={onClose} onGo={onGo} />;
-    case 'bio':
-      return <BioFileScreen onClose={onClose} />;
-    case 'memories':
-      return <MemoriesScreen onClose={onClose} />;
     case 'history':
       return <HistoryScreen onClose={onClose} />;
     case 'heritage':

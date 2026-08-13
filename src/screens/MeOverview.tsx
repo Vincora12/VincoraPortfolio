@@ -1,30 +1,38 @@
 /* ============================================================================
    09 — ME OVERVIEW (§12)
 
-   "FORM / ATK / SPD / DEF / REC / CARE, Condition, DISC e scorciatoie di dominio."
+   "FORM / ATK / SPD / DEF / REC / CARE, Condition e scorciatoie di dominio."
 
    §11 — questo è il livello di verità analitica. La presenza della creatura è
    secondaria: qui non compare.
-   §3 — CONDITION è lo stato di oggi, DISC è separata, il dato mancante resta
-   UNKNOWN. Nessuna metrica inventata "per completezza" (§17).
+
+   🔶 v1.9 §4.1 — la schermata dichiara in testa la distinzione che prima
+   lasciava indovinare. Vedere CONDITION, DISC, CONFIDENZA e SYNC nella stessa
+   pagina faceva sembrare che fossero quattro punteggi dello stesso gioco,
+   quando §4 dice l'opposto: «Health truth and game progression stay separate».
+
+   Quindi: qui c'è **come stai**, e non fa crescere niente. SYNC — quanto
+   VINZ.MON ti ha potuto leggere — è l'unica cosa che fa crescere, e sta in
+   fondo, separata e detta a parole.
+
+   Via due numeri che nessuno sapeva leggere:
+   • **DISC** misurava la costanza, ed era l'ultimo residuo del modello a
+     valute: un punteggio su quanto sei bravo a presentarti. Adesso quella cosa
+     la dice il calendario, mostrando i giorni invece di riassumerli in un voto.
+   • **CONFIDENZA DEL DATO** è un concetto del motore — quanto il generatore si
+     fida della finestra recente — non un fatto sulla persona. È rimasto in DEV,
+     dove serve.
    ========================================================================= */
 
 import { useApp } from '../state/store';
 import { ScreenHead, SegmentedBar, SystemLabel, Window } from '../system/components';
-import {
-  STAT_LABELS,
-  formatDelta,
-  formatSignal,
-  overallConfidence,
-  trend,
-} from '../engine/health';
+import { STAT_LABELS, formatDelta, formatSignal, trend } from '../engine/health';
 import { STAT_KEYS, isKnown } from '../engine/types';
 import { t } from '../i18n/it';
 
 export function MeOverviewScreen() {
   const health = useApp((s) => s.health);
   const progression = useApp((s) => s.progression);
-  const confidence = overallConfidence(health);
 
   const anyUnknown = STAT_KEYS.some((k) => !isKnown(health.stats[k].value));
 
@@ -33,6 +41,10 @@ export function MeOverviewScreen() {
       <ScreenHead title={t.me.title} sub={t.me.subtitle} />
 
       <div className="screen__body me">
+        {/* 🔶 La riga che toglie l'ambiguità prima di mostrare qualunque
+             numero: quello che segue non è un punteggio. */}
+        <p className="t-small me__preamble">{t.me.preamble}</p>
+
         {/* --- CONDITION: stato del giorno, con il nome di sistema accanto alla
              domanda a cui risponde. «CONDITION» da solo non si capisce. --- */}
         <Window title={`CONDITION · ${t.me.conditionTitle}`}>
@@ -90,33 +102,15 @@ export function MeOverviewScreen() {
           })}
         </div>
 
-        {/* --- DISC, tenuta fuori dalle stat di salute (§3) --- */}
-        <Window title={`DISC · ${t.me.discTitle}`}>
-          <div className="me__disc">
-            <span className="me__big t-display">{formatSignal(health.disc)}</span>
-            <div>
-              <SegmentedBar
-                value={isKnown(health.disc) ? health.disc / 100 : 'unknown'}
-                segments={20}
-              />
-              <p className="t-small me__note">{t.me.discNote}</p>
-            </div>
-          </div>
-        </Window>
-
-        {/* --- Progressione di gioco, separata dalla salute (§3).
-
-            🔶 Niente livelli, niente XP: SYNC non misura quanto stai bene, ma
-            quanti giorni VINZ.MON ha potuto leggere. Stare male e raccontarlo
-            vale esattamente come stare bene e raccontarlo. --- */}
-        <Window title="PROGRESSIONE DI GIOCO">
+        {/* --- L'unica cosa che fa crescere. Separata, e detta a parole. --- */}
+        <Window title={`SYNC · ${t.me.syncTitle}`}>
           <div className="me__game">
             <div className="me__gameitem">
-              <span className="t-meta">{t.common.sync}</span>
+              <span className="t-meta">{t.me.syncTotal}</span>
               <span className="t-display">{progression.sync.lifetime}</span>
             </div>
             <div className="me__gameitem">
-              <span className="t-meta">IN QUESTA FORMA</span>
+              <span className="t-meta">{t.me.syncInForm}</span>
               <span className="t-display">{progression.sync.inForm}</span>
             </div>
             <div className="me__gameitem">
@@ -124,21 +118,14 @@ export function MeOverviewScreen() {
               <span className="t-display">{Math.round(progression.bond * 100)}%</span>
             </div>
           </div>
+          <p className="t-small me__note">{t.me.syncNote}</p>
         </Window>
 
-        <div className="me__confidence">
-          <SegmentedBar
-            value={confidence}
-            segments={20}
-            label={t.me.confidence}
-            readout={`${Math.round(confidence * 100)}%`}
-          />
-          {anyUnknown && (
-            <p className="me__unknown t-small">
-              <SystemLabel tone="warning">UNKNOWN</SystemLabel> {t.me.unknownNote}
-            </p>
-          )}
-        </div>
+        {anyUnknown && (
+          <p className="me__unknown t-small">
+            <SystemLabel tone="warning">UNKNOWN</SystemLabel> {t.me.unknownNote}
+          </p>
+        )}
       </div>
     </div>
   );

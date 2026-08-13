@@ -2372,3 +2372,311 @@
     animation: none;
   }
 }
+
+/* ============================================================================
+   v1.9 — REGISTRA, BIO, CALENDARIO A DATE, ME
+   ========================================================================= */
+
+/* --- 07 REGISTRA: un campo solo e quello che ha capito --- */
+
+.capture {
+  display: flex;
+  flex-direction: column;
+  gap: var(--u4);
+}
+
+.field--multi textarea {
+  width: 100%;
+  min-height: 96px;
+  padding: var(--u3);
+  border: 0;
+  background: transparent;
+  font-family: var(--font-body);
+  font-size: var(--type-body);
+  line-height: 1.45;
+  resize: vertical;
+}
+
+.capture__thumb {
+  display: flex;
+  align-items: center;
+  gap: var(--u3);
+  padding: var(--u2);
+  border: var(--border) solid var(--ink);
+}
+
+.capture__thumb img {
+  width: 56px;
+  height: 56px;
+  object-fit: cover;
+  border: 1px solid var(--hairline);
+}
+
+.capture__thumbname {
+  flex: 1;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Il riscontro sta dentro una cornice piena: è la parte che si guarda prima
+   di premere, non una nota a margine. */
+.capture__read {
+  display: flex;
+  flex-direction: column;
+  gap: var(--u2);
+  padding: var(--u3);
+  border: var(--border-thick) solid var(--ink);
+  background: var(--paper);
+}
+
+.capture__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--u2);
+}
+
+.capture__item {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  align-items: baseline;
+  gap: var(--u2);
+}
+
+.capture__mark {
+  font-size: 10px;
+}
+
+.capture__detail {
+  color: var(--muted);
+  text-align: right;
+}
+
+.capture__nothing,
+.capture__note {
+  margin: 0;
+  color: var(--muted);
+}
+
+/* --- BIO: quaderno --- */
+
+.bionote {
+  display: flex;
+  flex-direction: column;
+  gap: var(--u5);
+  padding: var(--u4) var(--u4) var(--u6);
+  /* Righe da quaderno, con il margine rosso a sinistra. Sono disegnate col
+     gradiente e non con un'immagine: restano nitide a ogni densità. */
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent 27px,
+    var(--hairline) 27px,
+    var(--hairline) 28px
+  );
+  background-position: 0 var(--u4);
+}
+
+.bionote__story {
+  border-left: var(--border-thick) solid var(--char-accent);
+  padding-left: var(--u3);
+}
+
+.bionote__lead {
+  margin: 0;
+  font-size: var(--type-body);
+  line-height: 28px;
+}
+
+.bionote__block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--u2);
+}
+
+.bionote__label {
+  color: var(--muted-strong);
+}
+
+.bionote__notes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.bionote__note {
+  display: flex;
+  gap: var(--u2);
+  line-height: 28px;
+  font-size: var(--type-small);
+}
+
+.bionote__arrow {
+  color: var(--char-accent);
+  flex: 0 0 auto;
+}
+
+/* Il disegno sta a metà pagina, non in cima: è qualcosa che è stato fatto
+   mentre si scriveva, non l'illustrazione di copertina. */
+.bionote__drawing {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--u2);
+  padding: var(--u3);
+  border: 1px dashed var(--hairline);
+  background: var(--white);
+  transform: rotate(-1.2deg);
+}
+
+.bionote__caption {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.bionote__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--u);
+}
+
+.bionote__tag {
+  padding: 2px var(--u2);
+  border: 1px solid var(--hairline);
+  font-family: var(--font-mono);
+  font-size: var(--type-micro);
+  color: var(--muted);
+}
+
+/* --- GIORNI: oggi in grande, mese vero --- */
+
+.cal__today {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--u3);
+  width: 100%;
+  padding: var(--u3) var(--u4);
+  border: var(--border-thick) solid var(--ink);
+  background: var(--white);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+  box-shadow: var(--shadow-hard-sm);
+}
+
+.cal__todayleft {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cal__todaynum {
+  font-size: 46px;
+  line-height: 0.95;
+}
+
+.cal__todayweekday,
+.cal__todaymonth {
+  color: var(--muted-strong);
+}
+
+.cal__todayright {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--u);
+}
+
+.cal__todaycta {
+  color: var(--char-accent);
+}
+
+.cal__month {
+  display: flex;
+  flex-direction: column;
+  gap: var(--u2);
+}
+
+.cal__monthname {
+  color: var(--muted-strong);
+}
+
+.cal__weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: var(--u);
+  text-align: center;
+  color: var(--muted);
+}
+
+.cal__pad {
+  aspect-ratio: 1;
+}
+
+/* I giorni fuori partita esistono ma non fanno niente: un calendario mostra
+   anche i giorni in cui non è successo nulla. */
+.cal__cell--outside {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  color: var(--hairline);
+}
+
+/* --- ME --- */
+
+.me__preamble {
+  margin: 0;
+  padding: var(--u3);
+  border-left: var(--border-thick) solid var(--char-accent);
+  background: var(--paper);
+  color: var(--muted-strong);
+  line-height: 1.5;
+}
+
+/* --- DEV --- */
+
+.dev__memories {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--u2);
+}
+
+.dev__memory {
+  padding: var(--u2);
+  border: 1px solid var(--hairline);
+}
+
+.dev__memoryhead {
+  display: flex;
+  align-items: center;
+  gap: var(--u2);
+  margin-bottom: 4px;
+}
+
+.dev__memoryform {
+  margin-left: auto;
+  color: var(--muted);
+}
+
+.dev__memorytext {
+  margin: 0;
+  color: var(--muted-strong);
+}
+
+.dev__imagestate,
+.dev__stage {
+  display: flex;
+  flex-direction: column;
+  gap: var(--u2);
+  align-items: flex-start;
+}

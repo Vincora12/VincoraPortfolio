@@ -28,6 +28,8 @@ import { BatchGenerator } from './BatchGenerator';
 import { AssetImport } from './AssetImport';
 import { PromptPreview } from './PromptPreview';
 import { VoiceSection } from './VoiceSection';
+import { CostSection } from './CostSection';
+import { MemorySection } from './MemorySection';
 
 type DevTab =
   | 'time'
@@ -37,7 +39,9 @@ type DevTab =
   | 'voice'
   | 'prompt'
   | 'assets'
-  | 'progression';
+  | 'progression'
+  | 'cost'
+  | 'memory';
 
 const TABS = [
   { id: 'time' as const, label: 'TEMPO' },
@@ -48,6 +52,12 @@ const TABS = [
   { id: 'prompt' as const, label: 'PROMPT' },
   { id: 'assets' as const, label: 'ASSET' },
   { id: 'progression' as const, label: 'PROGRESSIONE' },
+  { id: 'cost' as const, label: 'COSTI' },
+  /* 🔶 v1.9 §15.1 — le memorie NON sono più una schermata di prodotto: leggere
+     l'archivio rompe l'illusione che si stia ricordando invece di registrare.
+     Continuano a esistere e ad alimentare la voce; qui si controlla che ci
+     siano, ed è l'unico posto dove si vedono. */
+  { id: 'memory' as const, label: 'MEMORIA' },
 ];
 
 export function DevPanel({ onClose }: { onClose: () => void }) {
@@ -74,6 +84,8 @@ export function DevPanel({ onClose }: { onClose: () => void }) {
         {tab === 'prompt' && <PromptPreview />}
         {tab === 'assets' && <AssetsSection />}
         {tab === 'progression' && <ProgressionSection />}
+        {tab === 'cost' && <CostSection />}
+        {tab === 'memory' && <MemorySection />}
       </div>
     </div>
   );

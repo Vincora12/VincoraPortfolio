@@ -1,39 +1,57 @@
 /* ============================================================================
-   07 — UNIVERSAL INPUT (§12)
+   07 — REGISTRA (MASTER SPEC v1.9 §5.2)
 
-   "Camera, tell, measure, workout e natural-language input."
-   Board S08: sheet con quattro righe grandi e una X per chiudere.
+   🔶 Riscritta da capo. Prima erano quattro righe da scegliere — CAMERA, TELL,
+   MEASURE, WORKOUT — e poi una nota facoltativa. Il problema non era estetico:
+   **costringeva a classificare prima di raccontare.** Devi decidere che tipo di
+   dato stai per inserire, e solo dopo puoi dirlo. È l'ordine sbagliato: uno sa
+   cosa gli è successo, non in quale casella il sistema lo mette.
 
-   §1 — l'app deve ridurre l'attrito: prima i dati automatici, poi foto e
-   linguaggio naturale, i moduli solo quando non se ne può fare a meno. Qui la
-   nota testuale è sempre facoltativa.
+   Adesso c'è un campo solo. Scrivi «carbonara e poi palestra, peso 78, sono
+   distrutto» e il sistema riconosce quattro cose insieme. O fotografi il piatto
+   e non scrivi niente.
+
+   La cosa importante è che **quello che ha capito si vede prima di confermare**,
+   non dopo. Un sistema che interpreta in silenzio è un sistema di cui non ti
+   puoi fidare: se sbaglia devi poterlo vedere e correggere scrivendo meglio,
+   subito, senza cercare dove si modifica.
+
+   §1 — «prima i dati automatici, poi foto e linguaggio naturale, i moduli solo
+   quando non se ne può fare a meno». Qui i moduli non ci sono per niente.
    ========================================================================= */
 
-import { useState } from 'react';
-import { useApp, useActiveMon } from '../state/store';
+import { useMemo, useRef, useState } from 'react';
+import { useApp } from '../state/store';
 import { Button, IconButton, TextField } from '../system/components';
-import { Icon, type IconName } from '../system/Icon';
-import { displayName } from '../engine/types';
+import { extractFromMessage, isEmptyExtraction } from '../engine/chatExtract';
+import { DAILY_SIGNAL_LABELS } from '../engine/progression';
+import { haptic } from '../system/haptics';
 import { t } from '../i18n/it';
 
-type InputKind = 'camera' | 'tell' | 'measure' | 'workout';
-
-const OPTIONS: { kind: InputKind; icon: IconName; label: string; hint: string }[] = [
-  { kind: 'camera', icon: 'camera', label: t.input.camera, hint: t.input.cameraHint },
-  { kind: 'tell', icon: 'tell', label: t.input.tell, hint: t.input.tellHint },
-  { kind: 'measure', icon: 'measure', label: t.input.measure, hint: t.input.measureHint },
-  { kind: 'workout', icon: 'workout', label: t.input.workout, hint: t.input.workoutHint },
-];
-
 export function UniversalInputScreen({ onClose }: { onClose: () => void }) {
-  const mon = useActiveMon();
-  const logInput = useApp((s) => s.logInput);
-  const [selected, setSelected] = useState<InputKind | null>(null);
-  const [note, setNote] = useState('');
+  const captureEntry = useApp((s) => s.captureEntry);
+  const apiKey = useApp((s) => s.apiKey);
+
+  const [text, setText] = useState('');
+  const [photo, setPhoto] = useState<{ name: string; dataUrl: string } | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  // L'interpretazione gira mentre scrivi: deve essere istantanea, altrimenti
+  // non è un riscontro, è un'attesa.
+  const found = useMemo(() => extractFromMessage(text), [text]);
+  const nothing = isEmptyExtraction(found) && !photo;
+
+  const pickPhoto = (file: File | undefined) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => setPhoto({ name: file.name, dataUrl: String(reader.result) });
+    reader.readAsDataURL(file);
+  };
 
   const confirm = () => {
-    if (!selected) return;
-    logInput(selected, note);
+    if (nothing) return;
+    haptic('impact');
+    captureEntry(text, photo?.dataUrl ?? null);
     onClose();
   };
 
@@ -47,56 +65,103 @@ export function UniversalInputScreen({ onClose }: { onClose: () => void }) {
         <IconButton icon="close" label={t.common.close} light onClick={onClose} />
       </div>
 
-      <div className="screen__body sheet__body">
-        <div className="stack">
-          {OPTIONS.map((o) => (
-            <button
-              key={o.kind}
-              type="button"
-              className="inputrow"
-              aria-pressed={selected === o.kind}
-              onClick={() => setSelected(o.kind)}
+      <div className="screen__body sheet__body capture">
+        <TextField
+          label={t.input.field}
+          placeholder={t.input.placeholder}
+          value={text}
+          onChange={setText}
+          multiline
+        />
+
+        {/* La foto è un'alternativa allo scrivere, non un allegato: sta accanto
+            al campo e non sotto una voce di menu sua. */}
+        <div className="capture__photo">
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            className="sr-only"
+            onChange={(e) => pickPhoto(e.target.files?.[0])}
+          />
+          {photo ? (
+            <div className="capture__thumb">
+              <img src={photo.dataUrl} alt="" />
+              <span className="t-micro capture__thumbname">{photo.name}</span>
+              <Button small variant="ghost" onClick={() => setPhoto(null)}>
+                {t.input.removePhoto}
+              </Button>
+            </div>
+          ) : (
+            <Button
+              variant="secondary"
+              icon="camera"
+              block
+              onClick={() => fileRef.current?.click()}
             >
-              <span className="inputrow__icon">
-                <Icon name={o.icon} size={20} strokeWidth={2} />
-              </span>
-              <span className="inputrow__labels">
-                <span className="inputrow__label t-display">{o.label}</span>
-                <span className="inputrow__hint t-small">{o.hint}</span>
-              </span>
-              {/* Lo stato selezionato non è solo colore: c'è un segno (§17). */}
-              <span className="inputrow__mark" aria-hidden="true">
-                {selected === o.kind ? '■' : '□'}
-              </span>
-            </button>
-          ))}
+              {t.input.addPhoto}
+            </Button>
+          )}
         </div>
 
-        {selected && (
-          <div className="sheet__note">
-            <p className="t-meta">
-              NOTA PER {mon ? displayName(mon.data.name) : 'IL SISTEMA'}
-            </p>
-            <TextField
-              label={t.input.notePlaceholder}
-              placeholder={t.input.notePlaceholder}
-              value={note}
-              onChange={setNote}
-              onSubmit={confirm}
-            />
-            <p className="t-micro sheet__hint">
-              Una nota abbastanza significativa può diventare una memoria.
-            </p>
-          </div>
-        )}
+        {/* --- Cosa ha capito. Prima di confermare, non dopo. --- */}
+        <section className="capture__read">
+          <p className="t-meta">{t.input.understood}</p>
+
+          {nothing ? (
+            <p className="t-small capture__nothing">{t.input.nothingYet}</p>
+          ) : (
+            <ul className="capture__list">
+              {(['FOOD', 'WORKOUT', 'MOOD'] as const).map((key) => {
+                const entry = found.signals[key];
+                if (!entry) return null;
+                return (
+                  <li key={key} className="capture__item">
+                    <span className="capture__mark" aria-hidden="true">■</span>
+                    <span className="t-meta">{DAILY_SIGNAL_LABELS[key]}</span>
+                    <span className="t-micro capture__detail">
+                      {entry.status === 'NOT_APPLICABLE' ? t.input.notApplicable : entry.note}
+                    </span>
+                  </li>
+                );
+              })}
+
+              {found.measures.map((m) => (
+                <li key={m.label} className="capture__item">
+                  <span className="capture__mark" aria-hidden="true">■</span>
+                  <span className="t-meta">{m.label.toUpperCase()}</span>
+                  <span className="t-micro capture__detail">
+                    {m.value}
+                    {m.unit}
+                  </span>
+                </li>
+              ))}
+
+              {photo && (
+                <li className="capture__item">
+                  <span className="capture__mark" aria-hidden="true">
+                    {apiKey ? '■' : '◐'}
+                  </span>
+                  <span className="t-meta">FOTO</span>
+                  <span className="t-micro capture__detail">
+                    {apiKey ? t.input.photoWithAi : t.input.photoNoAi}
+                  </span>
+                </li>
+              )}
+            </ul>
+          )}
+
+          <p className="t-micro capture__note">{t.input.correctHint}</p>
+        </section>
       </div>
 
-      <footer className="sheet__foot">
-        <Button variant="ghost" onClick={onClose}>
-          {t.input.cancel}
-        </Button>
-        <Button variant="primary" disabled={!selected} onClick={confirm}>
+      <footer className="screen__foot screen__foot--stack">
+        <Button variant="primary" block disabled={nothing} onClick={confirm}>
           {t.input.confirm}
+        </Button>
+        <Button variant="ghost" block onClick={onClose}>
+          {t.input.cancel}
         </Button>
       </footer>
     </div>

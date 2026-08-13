@@ -129,6 +129,44 @@ export function dayStatus(day: DailySync): DayStatus {
   return knownSignals(day) > 0 ? 'PARTIAL' : 'EMPTY';
 }
 
+/* --- Date vere ---------------------------------------------------------------
+   🔶 v1.9 §14.1 — il calendario mostra date, non numeri di giorno.
+
+   Il prototipo conta i giorni da 1 perché la simulazione deve poterli far
+   scorrere; ma «GIORNO 8» non è una data, e un calendario che non dice mai
+   che giorno è non è un calendario. Quindi il giorno 1 si àncora a una data
+   di partenza e da lì si conta davvero, mesi e settimane compresi.
+
+   L'ancora è la data in cui la partita è cominciata, salvata nello store. Se
+   manca — partite nate prima di questa versione — si ripiega su oggi meno i
+   giorni passati, che è la ricostruzione più onesta possibile.
+   -------------------------------------------------------------------------- */
+
+export function dateForDay(day: number, startISO: string | null): Date {
+  const start = startISO ? new Date(startISO) : new Date();
+  const d = new Date(start);
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() + (day - 1));
+  return d;
+}
+
+export const MONTH_NAMES = [
+  'GENNAIO', 'FEBBRAIO', 'MARZO', 'APRILE', 'MAGGIO', 'GIUGNO',
+  'LUGLIO', 'AGOSTO', 'SETTEMBRE', 'OTTOBRE', 'NOVEMBRE', 'DICEMBRE',
+] as const;
+
+/** Lunedì primo, come ogni calendario italiano. */
+export const WEEKDAY_NAMES = ['L', 'M', 'M', 'G', 'V', 'S', 'D'] as const;
+
+export const WEEKDAY_LONG = [
+  'DOMENICA', 'LUNEDÌ', 'MARTEDÌ', 'MERCOLEDÌ', 'GIOVEDÌ', 'VENERDÌ', 'SABATO',
+] as const;
+
+/** Indice 0–6 con lunedì in testa: `getDay()` mette domenica a 0. */
+export function mondayIndex(date: Date): number {
+  return (date.getDay() + 6) % 7;
+}
+
 /* --- Cadenza ---------------------------------------------------------------- */
 
 export const PROGRESSION = {

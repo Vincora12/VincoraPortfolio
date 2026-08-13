@@ -222,7 +222,6 @@ export function MindlineMapScreen({ onGo }: { onGo: (o: Overlay) => void }) {
                 <Row label="SPECIMEN" value="apri →" onClick={() => onGo('specimen')} />
                 <Row label="HERITAGE DNA" value="apri →" onClick={() => onGo('heritage')} />
                 <Row label="EVOLUTION TIMELINE" value="apri →" onClick={() => onGo('history')} />
-                <Row label="MEMORIE" value="apri →" onClick={() => onGo('memories')} />
               </div>
             ) : (
               <Button variant="secondary" block onClick={() => restoreNode(selected.id)}>
