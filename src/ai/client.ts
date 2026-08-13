@@ -20,7 +20,7 @@
 
 import Anthropic from '@anthropic-ai/sdk';
 import type { MonRecord } from '../engine/types';
-import { VOICE_MODEL, buildVoiceSystemPrompt, introductionRequest } from './voicePrompt';
+import { PHOTO_MODEL, VOICE_MODEL, buildVoiceSystemPrompt, introductionRequest } from './voicePrompt';
 import { recordUsageEntry, type UsageSubsystem } from './usage';
 
 /** Registra la chiamata nel contatore di DEV (§18.1). Non lancia mai. */
@@ -218,15 +218,14 @@ export async function readPhotoSignals(
 
   try {
     const response = await clientFor(apiKey).beta.messages.create({
-      model: VOICE_MODEL,
+      // Il modello piccolo: qui il contratto è «guarda e dichiara, nel dubbio
+      // null», non c'è niente da ragionare, e il grande costa cinque volte
+      // tanto per lo stesso risultato. `effort` e `thinking` sono omessi
+      // perché questa generazione non li accetta (vedi PHOTO_MODEL).
+      model: PHOTO_MODEL,
       max_tokens: 1200,
       betas: ['server-side-fallback-2026-07-01'],
       fallbacks: 'default',
-      output_config: { effort: 'low' },
-      // Niente ragionamento: il contratto è «guarda e dichiara, nel dubbio
-      // null». Non c'è un problema su cui pensare, e il pensiero si paga.
-      // Il prompt qui è corto e diverso a ogni foto: non si mette in cache.
-      thinking: { type: 'disabled' as const },
       system: PHOTO_SYSTEM,
       messages: [
         {

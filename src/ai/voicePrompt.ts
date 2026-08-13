@@ -28,6 +28,20 @@ import { displayName, type MonRecord } from '../engine/types';
 /** §29 — versionato come tutto il resto: i .mon sanno con cosa sono nati. */
 export const VOICE_MODEL = 'claude-opus-5';
 
+/**
+ * 🔷 v1.12 — LEGGERE UNA FOTO NON È PARLARE.
+ *
+ * La voce sta sul modello grande perché è il prodotto: se le risposte non
+ * stanno in piedi non sta in piedi l'app. La lettura di una foto è un'altra
+ * cosa — «guarda e dichiara cosa vedi, nel dubbio niente» — e su un lavoro
+ * così il modello grande non legge meglio, costa solo cinque volte tanto.
+ *
+ * ⚠️ Questo modello è di una generazione precedente: NON accetta
+ * `output_config.effort` né `thinking`. La chiamata in `client.ts` li omette
+ * apposta. Se un giorno la foto tornasse sul modello grande, vanno rimessi.
+ */
+export const PHOTO_MODEL = 'claude-haiku-4-5';
+
 /** Rende un asse di voce come «nome: valore/100 — cosa governa». */
 function axisLine(record: MonRecord, axis: (typeof VOICE_AXES)[number]): string | null {
   const value = record.data.voice_dna[axis.id];
