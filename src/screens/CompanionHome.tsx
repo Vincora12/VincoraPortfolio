@@ -22,6 +22,8 @@ import type { Overlay } from '../App';
 import { useApp, useActiveMon, useGrowth } from '../state/store';
 import { AssetSlot, Sigil } from '../system/AssetSlot';
 import { MonName, SpeciesName } from '../system/MonName';
+import { MonFace } from '../system/LiveMon';
+import { expressionFor } from '../engine/assets';
 import { IconButton, TextField } from '../system/components';
 import { Icon, type IconName } from '../system/Icon';
 import { displayName } from '../engine/types';
@@ -158,16 +160,36 @@ export function CompanionHomeScreen({ onGo }: { onGo: (o: Overlay) => void }) {
       {/* --- Conversazione --- */}
       <div className="home__chat" ref={listRef}>
         {chat.map((m) => (
-          <div key={m.id} className={`bubble bubble--${m.from}`}>
-            <p className="bubble__text">{m.text}</p>
-            {/* §17 — le superfici che dipendono dall'AI dichiarano sempre cosa
-                stanno mostrando: la voce vera, o quella deterministica. */}
-            {m.from === 'mon' && m.pending && (
-              <span className="bubble__flag t-micro">{t.home.writing}</span>
+          <div key={m.id} className={`bubblerow bubblerow--${m.from}`}>
+            {/* 🔶 v1.9 §23.1 — il volto accanto a quello che dice. L'espressione
+                si sceglie dal testo appena scritto, non dall'umore di fondo:
+                è quello che ha appena detto a decidere che faccia fa. */}
+            {m.from === 'mon' && (
+              <MonFace
+                monName={d.name}
+                expression={expressionFor(m.text, d.mood_primary)}
+                alt={short}
+                size={38}
+              />
             )}
-            {m.from === 'mon' && m.fallback && !m.pending && (
-              <span className="bubble__flag t-micro">{t.home.fallbackNotice}</span>
-            )}
+            <div className={`bubble bubble--${m.from}`}>
+              <p className="bubble__text">{m.text}</p>
+              {/* §17 — le superfici che dipendono dall'AI dichiarano sempre cosa
+                  stanno mostrando: la voce vera, o quella deterministica. */}
+              {m.from === 'mon' && m.pending && (
+                <span className="bubble__flag t-micro">{t.home.writing}</span>
+              )}
+              {m.from === 'mon' && m.fallback && !m.pending && (
+                <span className="bubble__flag t-micro">{t.home.fallbackNotice}</span>
+              )}
+              {/* 🔶 v1.9 §5.1 — cosa è stato registrato da questo messaggio.
+                  Registrare in silenzio sarebbe peggio che non registrare. */}
+              {m.extracted && (
+                <span className="bubble__flag bubble__flag--rec t-micro">
+                  {t.home.recorded} {m.extracted.join(' · ')}
+                </span>
+              )}
+            </div>
           </div>
         ))}
       </div>

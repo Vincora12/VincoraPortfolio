@@ -119,6 +119,53 @@ export const GLOBAL_FRAGMENTS: PromptFragment[] = [
     tags: ['mandatory'],
   },
   {
+    /* 🔶 v1.9 §23.2 — l'istruzione che tiene in piedi l'intera pipeline.
+
+       Un modello di immagini NON riproduce lo stesso personaggio due volte
+       partendo dallo stesso testo, per quanto il testo sia dettagliato. La
+       consistenza si ottiene allegando il CHARACTER MASTER, non descrivendo
+       meglio. Il compiler lo esclude dal master stesso, dove il riferimento
+       non esiste ancora — ed è esattamente perché va generato per primo. */
+    id: 'global.master_reference',
+    axis: 'global',
+    priority: 0,
+    positive_prompt: [
+      'CONSISTENCY REFERENCE — MANDATORY:',
+      'Attach the previously generated CHARACTER MASTER image of this .mon and',
+      'treat it as the single source of visual truth.',
+      'The text below describes the character; the reference image IS the character.',
+      'Where they disagree, the reference image wins.',
+      'Reproduce silhouette, anatomy, eyewear, hair solution, palette and every',
+      'identity marker exactly. Change only what this asset type asks to change.',
+    ].join('\n'),
+    negative_prompt: 'no reinterpretation of the design, no alternative version of the character',
+    tags: ['mandatory', 'pipeline'],
+  },
+  {
+    /* 🔶 MASTER SPEC v1.9 §2.4 — il .mon è estratto dai segnali di VINZ, che è
+       un uomo: la creatura si legge come maschile. Vale sull'aspetto quanto
+       sulla voce, altrimenti l'immagine e il testo raccontano due persone
+       diverse. Non è un tratto di catalogo e non compare fra gli assi: è una
+       costante di identità, come i marcatori VINZ. */
+    id: 'global.gender',
+    axis: 'global',
+    priority: 0,
+    positive_prompt: [
+      'GENDER READ:',
+      'The creature reads as male.',
+      'Express it through proportion, posture, facial structure and presence,',
+      'translated into the anatomy of its FAMILY — never by adding human gender',
+      'signifiers to a non-human body, and never as a costume or a label.',
+      'A non-humanoid FAMILY still reads male through mass, stance and features.',
+    ].join('\n'),
+    negative_prompt: [
+      'feminine-coded styling used to soften the creature',
+      'gender ambiguity treated as the concept',
+      'human gender markers pasted onto non-human anatomy',
+    ].join(', '),
+    tags: ['mandatory', 'identity'],
+  },
+  {
     id: 'global.full_body',
     axis: 'global',
     priority: 0,
@@ -627,25 +674,55 @@ export const ASSET_FRAGMENTS: Record<string, PromptFragment> = {
     ].join('\n'),
     negative_prompt: 'Do not invent unrelated lore.',
   },
+  /* 🔶 v1.9 §23.1 — non più un «pacchetto» generico ma una GRIGLIA indicizzabile:
+     la chat legge il riquadro per posizione, quindi ordine e numero sono
+     vincolati esattamente come per lo sprite di rotazione. */
   reaction_pack: {
     id: 'asset.reaction_pack',
     axis: 'asset',
     priority: AXIS_PRIORITY.asset,
     positive_prompt: [
-      'ASSET TYPE: REACTION / STICKER PACK',
-      'Create a coherent sheet of 6 reaction states of the SAME canonical .mon.',
-      'Required states:',
-      '01 neutral',
-      '02 pleased / affectionate',
-      '03 annoyed',
-      '04 surprised',
-      '05 tired / low-energy',
-      '06 Character-specific signature reaction derived from Mood + Voice DNA',
-      'Keep anatomy, fashion, eyewear, palette and proportions consistent.',
-      'Allow pose/expression changes, not redesign.',
-      'Transparent background, separated figures.',
+      'ASSET TYPE: EXPRESSION SHEET',
+      'One sheet, 6 frames, strict 3 columns x 2 rows grid, read left-to-right,',
+      'top row first. Frame order is FIXED and must not be rearranged:',
+      '01 NEUTRAL  — resting presence, direct gaze, no strong emotion',
+      '02 WARM     — open and close, features softening',
+      '03 AMUSED   — entertained, ironic, asymmetric read',
+      '04 ALERT    — attentive, surprised or curious, whole body orienting',
+      '05 LOW      — dimmed, tired or melancholic; no pity, no melodrama',
+      '06 INTENSE  — charged, determined or tense, energy held back',
+      'Identical bust framing, identical scale and identical eye line in every frame.',
+      'Same anatomy, fashion, eyewear, palette and proportions throughout.',
+      'Expression and micro-pose change. The design never changes.',
+      'Transparent background. Even margins. No frame borders drawn.',
     ].join('\n'),
-    negative_prompt: 'No labels. No redesign between states.',
+    negative_prompt:
+      'No labels, no numbers, no captions. No redesign between frames. No varying crop or scale.',
+  },
+  /* 🔶 v1.9 §23.1 — nuovo: il ciclo di respiro. Senza, il .mon è
+     un'illustrazione ferma, e la differenza fra «c'è» ed «è disegnato» è
+     tutta lì. */
+  idle_animation: {
+    id: 'asset.idle_animation',
+    axis: 'asset',
+    priority: AXIS_PRIORITY.asset,
+    positive_prompt: [
+      'ASSET TYPE: IDLE ANIMATION STRIP',
+      'One sheet, 6 frames, single row, read left to right: a seamless breathing',
+      'loop of the SAME canonical .mon standing at rest.',
+      'The loop is played ping-pong, so frame 01 and frame 06 are the two',
+      'extremes of the motion, NOT a repeat of each other.',
+      'Motion budget is deliberately small: chest/mass rise and fall, a slight',
+      'weight shift, secondary motion on hair, frills, cloth, antennae or',
+      'whatever the FAMILY anatomy actually has. Feet stay planted.',
+      'Full body. Identical framing, scale and horizontal position in every frame.',
+      'Bottom-center anchor, transparent background.',
+    ].join('\n'),
+    negative_prompt: [
+      'no walking, no jumping, no turning, no camera movement',
+      'no frame where the character shifts position on the canvas',
+      'no labels, no numbers, no onion-skin ghosting',
+    ].join(', '),
   },
   sigil: {
     id: 'asset.sigil',

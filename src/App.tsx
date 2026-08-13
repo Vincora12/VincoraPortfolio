@@ -18,6 +18,7 @@ import { Icon } from './system/Icon';
 import { haptic } from './system/haptics';
 import { t } from './i18n/it';
 
+import { SplashScreen } from './screens/Splash';
 import { PersonalityScanScreen } from './screens/PersonalityScan';
 import { IncubationScreen } from './screens/Incubation';
 import { EncounterScreen } from './screens/Encounter';
@@ -64,6 +65,10 @@ export function App() {
   const [tab, setTab] = useState<Tab>('mon');
   const [overlay, setOverlay] = useState<Overlay>(null);
 
+  // 🔶 v1.9 §13.1 — l'ingresso. Non è persistito di proposito: si rivede a
+  // ogni apertura, perché è un saluto e non un onboarding.
+  const [entered, setEntered] = useState(false);
+
   // §10.2 — cambiare .mon ritematizza gli accenti senza toccare l'architettura.
   useEffect(() => {
     applyPaletteDna(paletteDna);
@@ -81,8 +86,13 @@ export function App() {
     }
   }, [setDev]);
 
+  // La splash ha senso solo quando c'è qualcuno da salutare: prima dell'HATCH
+  // non esiste ancora nessuna forma, e §12/01 vieta di anticiparla.
+  const showSplash = phase === 'live' && !entered && activeMonName !== null;
+
   // Il board mostra anche la MINDLINE su campo nero, non solo le fasi evento.
   const inkField =
+    showSplash ||
     INK_PHASES.includes(phase) ||
     overlay === 'dev' ||
     (phase === 'live' && tab === 'mindline' && !overlay);
@@ -95,13 +105,15 @@ export function App() {
           onOpenDev={() => setOverlay('dev')}
         />
 
-        {overlay ? (
+        {showSplash ? (
+          <SplashScreen onEnter={() => setEntered(true)} />
+        ) : overlay ? (
           <OverlayScreen overlay={overlay} onClose={() => setOverlay(null)} onGo={setOverlay} />
         ) : (
           <PhaseScreen phase={phase} tab={tab} onGo={setOverlay} />
         )}
 
-        {phase === 'live' && !overlay && <TabBar tab={tab} onChange={setTab} />}
+        {phase === 'live' && !overlay && !showSplash && <TabBar tab={tab} onChange={setTab} />}
       </div>
     </div>
   );
@@ -122,7 +134,7 @@ function PhaseScreen({
     case 'scan':
       return <PersonalityScanScreen />;
     case 'incubation':
-      return <IncubationScreen />;
+      return <IncubationScreen onGo={onGo} />;
     case 'first-encounter':
       return <EncounterScreen variant="first" />;
     case 'new-encounter':

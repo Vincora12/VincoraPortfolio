@@ -118,6 +118,12 @@ function presetBaseline(presetId: string): Partial<Record<VoiceAxisId, number>> 
    genere o persona: si introduce con i due punti.
    ========================================================================= */
 
+/* 🔶 MASTER SPEC v1.9 §2.4 — ogni riga qui sotto parla al MASCHILE del .mon.
+   La creatura è estratta dai segnali di VINZ, che è un uomo, e in italiano il
+   genere non è un dettaglio: si sente in ogni frase. «Sono arrivato», mai
+   «arrivata». Chi aggiunge una riga a questi cataloghi deve rispettarlo — il
+   controllo automatico non può accorgersene. */
+
 const OBSERVATIONS = [
   'Il tuo recupero sta salendo. Si vede anche da fuori.',
   'Hai saltato un giorno. Non è un dramma, ma l’ho notato.',

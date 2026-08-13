@@ -55,6 +55,7 @@ import {
   seedFromAnswers,
   type ScanAnswers,
 } from '../engine/personalityScan';
+import { extractFromMessage, extractionLabels } from '../engine/chatExtract';
 import { MOOD_INPUT_RULES, type MoodInputId } from '../engine/generation-config';
 import type {
   AssetType,
@@ -548,18 +549,29 @@ export const useApp = create<AppState>()(
 
       /* --- Interazione --- */
 
+      /**
+       * 🔶 v1.9 §5.1 — la chat è una superficie di REGISTRAZIONE, non solo di
+       * conversazione. Scrivere «oggi palestra e poi carbonara» riempie il
+       * giorno: non deve esistere un secondo posto dove dire le stesse cose.
+       */
       sendMessage: (text) => {
         const s = get();
         const rec = activeRecord(s);
         if (!rec || text.trim().length === 0) return;
 
         const rng = makeRng(seedFromString(`reply:${rec.data.name}:${s.chat.length}:${text}`));
+        const found = extractFromMessage(text);
+        const labels = extractionLabels(found);
 
         const mine: ChatMessage = {
           id: `msg_${s.chat.length}_v`,
           from: 'vinz',
           text: text.trim(),
           day: s.day,
+          // Quello che ha capito si vede subito, sotto al messaggio. Registrare
+          // in silenzio sarebbe peggio che non registrare: non sapresti mai se
+          // hai già detto una cosa o no.
+          extracted: labels.length > 0 ? labels : undefined,
         };
         const theirs: ChatMessage = {
           id: `msg_${s.chat.length}_m`,
@@ -567,15 +579,40 @@ export const useApp = create<AppState>()(
           text: fallbackReply(rng, rec.data.mood_primary, rec.data.voice_dna, rec.data.role),
           day: s.day,
           fallback: true,
+          pending: s.apiKey !== null,
         };
+
+        // I segnali estratti non sovrascrivono quelli che hai già dichiarato a
+        // mano: una parola pescata in una frase vale meno di un pulsante premuto.
+        let days = s.days;
+        for (const [key, value] of Object.entries(found.signals)) {
+          const k = key as DailySignalKey;
+          const current = days[s.day]?.signals[k].status ?? 'UNKNOWN';
+          if (current === 'UNKNOWN') days = withSignal(days, s.day, k, value.status, value.note);
+        }
+
+        // §11 — al massimo 3 umori al giorno, e quelli già dichiarati restano.
+        const declared = s.moodHistory.find((d) => d.day === s.day)?.inputs ?? [];
+        const merged = [...declared];
+        for (const m of found.moods) {
+          if (merged.length >= MOOD_INPUT_RULES.maxPerDay) break;
+          if (!merged.includes(m)) merged.push(m);
+        }
 
         set({
           chat: [...s.chat, mine, theirs].slice(-60),
+          days,
+          moodHistory:
+            merged.length > 0
+              ? [...s.moodHistory.filter((d) => d.day !== s.day), { day: s.day, inputs: merged }]
+              : s.moodHistory,
           progression: {
             ...s.progression,
             bond: Math.min(1, s.progression.bond + BOND_PER_INTERACTION),
           },
         });
+
+        requestReply(set, get, rec, theirs.id);
       },
 
       logInput: (kind, note) => {
@@ -1076,6 +1113,46 @@ function requestIntroduction(
       const s = get();
       const index = s.chat.findIndex((m) => m.id === id);
       if (index === -1) return; // la partita è andata avanti: non si riscrive il passato
+
+      const chat = [...s.chat];
+      chat[index] = result
+        ? { ...chat[index]!, text: result.text, fallback: false, pending: false }
+        : { ...chat[index]!, pending: false };
+
+      set({ chat });
+    });
+}
+
+/**
+ * Chiede all'AI la vera risposta e sostituisce il fallback quando arriva.
+ * Stessa forma di `requestIntroduction`: non blocca, non lancia, e se fallisce
+ * resta il testo deterministico dichiarato come tale (§17).
+ */
+function requestReply(
+  set: (p: Partial<AppState>) => void,
+  get: () => AppState,
+  record: MonRecord,
+  messageId: string,
+): void {
+  const s0 = get();
+  const apiKey = s0.apiKey;
+  if (!apiKey) return;
+
+  // Cosa il sistema ha già capito da solo: serve al modello per non richiedere
+  // una cosa appena letta, non per farlo ringraziare.
+  const mine = s0.chat.find((m) => m.id === messageId.replace(/_m$/, '_v'));
+  const context =
+    mine?.extracted && mine.extracted.length > 0
+      ? `the system already recorded from this message: ${mine.extracted.join(', ')}`
+      : null;
+  const userText = mine?.text ?? '';
+
+  void import('../ai/client')
+    .then((m) => m.generateReply(apiKey, record, userText, context))
+    .then(({ result }) => {
+      const s = get();
+      const index = s.chat.findIndex((m) => m.id === messageId);
+      if (index === -1) return;
 
       const chat = [...s.chat];
       chat[index] = result

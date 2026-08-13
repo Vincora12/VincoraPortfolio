@@ -11,14 +11,16 @@
    anticipa nessun .mon.
    ========================================================================= */
 
-import { useApp, useIncubation } from '../state/store';
+import type { Overlay } from '../App';
+import { useApp, useIncubation, useToday } from '../state/store';
 import { Button, DataDots, GlitchBar, ScannerFrame, SegmentedBar, SignalWave } from '../system/components';
 import { Icon } from '../system/Icon';
 import { STAT_KEYS, isKnown } from '../engine/types';
 import { t } from '../i18n/it';
 
-export function IncubationScreen() {
+export function IncubationScreen({ onGo }: { onGo: (o: Overlay) => void }) {
   const inc = useIncubation();
+  const today = useToday();
   const day = useApp((s) => s.day);
   const stats = useApp((s) => s.health.stats);
   const hatch = useApp((s) => s.hatch);
@@ -44,6 +46,25 @@ export function IncubationScreen() {
             </div>
           </ScannerFrame>
         </div>
+
+        {/* 🔶 v1.9 §7.1 — durante l'incubazione si registra come sempre.
+
+            Prima non si poteva: la tab bar esiste solo in `live`, quindi per
+            sette giorni non c'era nessun modo di dire com'era andata. Ma
+            l'incubazione conta i giorni SINCRONIZZATI, e un giorno lo chiude
+            l'utente: senza questa superficie la soglia era irraggiungibile se
+            non dal pannello DEV. Era un buco, non una scelta. */}
+        <button type="button" className="incubation__today" onClick={() => onGo('scan')}>
+          <span className="t-meta">{t.incubation.todayTitle}</span>
+          <span className="incubation__todaystate t-small">
+            {today.closed
+              ? t.incubation.todayClosed
+              : today.canClose
+                ? t.incubation.todayReady
+                : t.incubation.todayOpen(today.known)}
+          </span>
+          <span className="incubation__todaygo" aria-hidden="true">→</span>
+        </button>
 
         <div className="incubation__readouts">
           <div className="incubation__row">

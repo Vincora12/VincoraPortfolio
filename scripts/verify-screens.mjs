@@ -173,16 +173,24 @@ try {
   await click('.incubation__skip', '+7 giorni sincronizzati');
   await shot('04-incubazione-pronta');
 
-  /* 05 — FIRST ENCOUNTER */
+  /* 05 — FIRST ENCOUNTER: tre battute, non una (v1.9 §13.2) */
   await click(byText('HATCH'), 'HATCH');
+  await sleep(900);
+  await shot('05-first-encounter-nome');
+  await sleep(1600); // il sipario si alza da sé
   await shot('05-first-encounter');
 
-  /* 06 — COMPANION HOME */
+  /* 00 — INGRESSO: la splash con lo sprite di riposo (v1.9 §13.1) */
   await click(byText('BENVENUTO A CASA'), 'entra');
+  await shot('00-splash');
+  await click('.splash', 'entra dalla splash');
+
+  /* 06 — COMPANION HOME */
   await shot('06-companion-home');
 
-  // Conversazione
-  await page.locator('.composer input').fill('Come stai oggi?');
+  // Conversazione + estrazione naturale (v1.9 §5.1): questa frase deve
+  // riempire CIBO, ALLENAMENTO e UMORE da sola.
+  await page.locator('.composer input').fill('Oggi palestra e poi carbonara, sono distrutto');
   await click('.composer .btn-icon:last-child', 'invia');
   await shot('06-conversazione');
 
@@ -315,6 +323,7 @@ try {
 
   /* 14 — NEW ENCOUNTER */
   await click(byText('CAMBIA FORMA'), 'conferma cambio di forma');
+  await sleep(2600);
   await shot('14-new-encounter');
   await click(byText('BENVENUTO A CASA'), 'entra');
 

@@ -132,6 +132,8 @@ export type AssetType =
   | 'profile_portrait'
   | 'bio_doodle'
   | 'reaction_pack'
+  /** 🔶 v1.9 §23.1 — ciclo di riposo animato: splash d'ingresso e testa chat. */
+  | 'idle_animation'
   | 'encounter_hero'
   | 'sigil';
 
@@ -278,6 +280,8 @@ export interface ChatMessage {
   fallback?: boolean;
   /** L'AI sta ancora scrivendo: intanto si legge il fallback. */
   pending?: boolean;
+  /** 🔶 v1.9 — cosa il sistema ha registrato da questo messaggio (§5.1). */
+  extracted?: string[];
 }
 
 /* ============================================================================

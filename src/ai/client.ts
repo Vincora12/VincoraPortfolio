@@ -96,6 +96,29 @@ async function speak(
   }
 }
 
+/**
+ * Una risposta in conversazione.
+ *
+ * 🔶 v1.9 — prima l'AI serviva solo la presentazione alla nascita e tutte le
+ * altre battute restavano deterministiche. Adesso risponde davvero, perché
+ * «posso anche solo chattare» è il modo principale di usare l'app: se le
+ * risposte non stanno in piedi, non sta in piedi il prodotto.
+ *
+ * `context` dice al modello cosa il sistema ha già registrato da quel
+ * messaggio. Non è un ordine di ringraziare: è per non far chiedere una cosa
+ * che si è appena letta.
+ */
+export async function generateReply(
+  apiKey: string | null,
+  record: MonRecord,
+  userText: string,
+  context: string | null,
+): Promise<VoiceOutcome> {
+  if (!apiKey) return { result: null, failure: 'no-key' };
+  const turn = context ? `${userText}\n\n[${context}]` : userText;
+  return speak(apiKey, record, turn);
+}
+
 /** La prima frase di un .mon appena nato. */
 export async function generateIntroduction(
   apiKey: string | null,

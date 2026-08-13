@@ -114,7 +114,12 @@ function resolveConflicts(
    ========================================================================= */
 
 function selectFragmentIds(data: CharacterData, assetType: AssetType): string[] {
-  const ids: string[] = ['global.identity'];
+  const ids: string[] = ['global.identity', 'global.gender'];
+
+  // 🔶 v1.9 §23.2 — ogni asset derivato porta l'ordine di allegare il master.
+  // Sul master stesso non compare: lì il riferimento non esiste ancora, ed è
+  // esattamente il motivo per cui va generato per primo.
+  if (assetType !== 'character_master') ids.push('global.master_reference');
 
   ids.push(`family.${slug(data.family)}`);
   ids.push(`archetype.${slug(data.family)}.${slug(data.family_archetype)}`);

@@ -9,6 +9,7 @@
    e la schermata resta comunque percorribile (§26).
    ========================================================================= */
 
+import { useEffect, useState } from 'react';
 import { useApp, useActiveMon } from '../state/store';
 import { AssetSlot, Sigil } from '../system/AssetSlot';
 import { MonName, SpeciesName } from '../system/MonName';
@@ -20,6 +21,23 @@ export function EncounterScreen({ variant }: { variant: 'first' | 'new' }) {
   const mon = useActiveMon();
   const enterLive = useApp((s) => s.enterLive);
 
+  /* 🔶 v1.9 §13.2 — la rivelazione ha tre battute, non una.
+
+     Prima la schermata mostrava tutto insieme: arte, nome, rarità, tag. Dopo
+     sette giorni di attesa è poco. Adesso il nero regge un attimo, poi arriva
+     il nome, poi si scopre la creatura, e solo alla fine i dati. Nessuna delle
+     tre battute dura abbastanza da diventare un'attesa, e si saltano tutte al
+     primo tocco: un momento che non si può saltare diventa un ostacolo alla
+     seconda volta che lo vedi. */
+  const [beat, setBeat] = useState(0);
+  useEffect(() => {
+    const ids = [
+      window.setTimeout(() => setBeat(1), 700),
+      window.setTimeout(() => setBeat(2), 1900),
+    ];
+    return () => ids.forEach(window.clearTimeout);
+  }, []);
+
   if (!mon) return null;
 
   const d = mon.data;
@@ -27,7 +45,26 @@ export function EncounterScreen({ variant }: { variant: 'first' | 'new' }) {
   const form = d.evolution_state?.label ?? 'BASIC FORM';
 
   return (
-    <div className="screen screen--ink encounter">
+    <div
+      className={`screen screen--ink encounter encounter--beat${beat}`}
+      onClick={() => setBeat(2)}
+    >
+      {/* La battuta 0–1: campo nero e il nome che arriva battendo. */}
+      {beat < 2 && (
+        <div className="encounter__curtain" role="presentation">
+          {beat >= 1 && (
+            <>
+              <span className="encounter__kicker t-meta">
+                {variant === 'first' ? t.encounter.firstTitle : t.encounter.newTitle}
+              </span>
+              <span className="encounter__bigname t-display">
+                <MonName name={d.name} />
+              </span>
+            </>
+          )}
+        </div>
+      )}
+
       <div className="encounter__stage">
         <AssetSlot
           monName={d.name}

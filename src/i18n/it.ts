@@ -19,6 +19,11 @@ export const t = {
     mindline: 'MINDLINE',
   },
 
+  /* 00 INGRESSO (MS v1.9 §13.1) */
+  splash: {
+    enter: 'TOCCA PER ENTRARE',
+  },
+
   /* 03 PERSONALITY / SIGNAL SCAN (MS v1.8 §12) */
   scan03: {
     title: 'SIGNAL SCAN',
@@ -45,6 +50,10 @@ export const t = {
     hatch: 'HATCH',
     definitive: 'Questa scelta è definitiva.',
     notReady: 'Segnale non ancora stabile',
+    todayTitle: 'LA GIORNATA DI OGGI',
+    todayOpen: (n: number) => `${n}/3 segnali. Aprila per raccontarla.`,
+    todayReady: 'Pronta da chiudere. Vale +1 giorno.',
+    todayClosed: 'Chiusa. Conta.',
   },
 
   /* 05 / 14 ENCOUNTER */
@@ -62,6 +71,7 @@ export const t = {
     bond: 'BOND',
     openProfile: 'PROFILO COMPLETO',
     fallbackNotice: 'risposta di fallback',
+    recorded: 'registrato:',
     writing: 'sta trovando le parole…',
   },
 

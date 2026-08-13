@@ -103,7 +103,9 @@ const check = (ok, label, detail = '') => {
 console.log(`\n═══ PACCHETTO ASSET REQUEST — ${record.data.name} ═══\n`);
 console.log('CONTENUTO (§22.2)');
 
-// §22.2 elenca 7 prompt + character data + manifest + readme = 10 file.
+// 🔶 v1.9 §23.1 — gli asset sono OTTO: si è aggiunta la IDLE ANIMATION, che
+// serve alla splash e alla testa della chat. Con character data, manifest,
+// prompt compilato, id dei frammenti e readme fanno 13 file.
 const EXPECTED = [
   '00_CHARACTER_DATA.json',
   '01_CHARACTER_MASTER_PROMPT.txt',
@@ -111,8 +113,9 @@ const EXPECTED = [
   '03_PROFILE_PORTRAIT_PROMPT.txt',
   '04_BIO_DOODLE_PROMPT.txt',
   '05_REACTION_PACK_PROMPT.txt',
-  '06_ENCOUNTER_HERO_PROMPT.txt',
-  '07_SIGIL_PROMPT.txt',
+  '06_IDLE_ANIMATION_PROMPT.txt',
+  '07_ENCOUNTER_HERO_PROMPT.txt',
+  '08_SIGIL_PROMPT.txt',
   'compiled_prompt.txt',
   'fragment_ids.json',
   'ASSET_MANIFEST.json',
@@ -136,11 +139,11 @@ check(
 /* §30 — «The exact same Character Data must compile consistently across
    Character Master, Rotation Sprite, Portrait, Bio Doodle, Reactions and
    Reveal assets.» La consistenza non è una frase di cortesia dentro il testo:
-   è il fatto che gli stessi frammenti di identità entrino in tutti e sette. */
+   è il fatto che gli stessi frammenti di identità entrino in tutti quanti. */
 
 const ASSET_TYPES = [
   'character_master', 'rotation_sprite', 'profile_portrait', 'bio_doodle',
-  'reaction_pack', 'encounter_hero', 'sigil',
+  'reaction_pack', 'idle_animation', 'encounter_hero', 'sigil',
 ];
 
 const compiled = ASSET_TYPES.map((t) => ({ type: t, ...m.compilePrompt(record, t) }));
@@ -153,7 +156,7 @@ const reference = identityOf(compiled[0]);
 const drifting = compiled.filter((c) => identityOf(c) !== reference).map((c) => c.type);
 check(
   drifting.length === 0,
-  'i sette asset compilano dagli stessi frammenti di identità (§30)',
+  'tutti gli asset compilano dagli stessi frammenti di identità (§30)',
   drifting.join(', '),
 );
 
@@ -171,11 +174,11 @@ check(
 const brokenIds = compiled.flatMap((c) => m.validateFragmentIds(c.fragmentIds));
 check(brokenIds.length === 0, 'ogni fragment_id esiste in libreria (§48)', brokenIds.join(', '));
 
-// §48 — fragment_ids.json deve registrare tutti e sette gli asset con le versioni.
+// §48 — fragment_ids.json deve registrare TUTTI gli asset con le versioni.
 const fragmentIdsFile = JSON.parse(files.find((f) => f.name === 'fragment_ids.json').content);
 check(
-  Object.keys(fragmentIdsFile.fragments_by_asset).length === 7,
-  'fragment_ids.json copre tutti e sette gli asset (§48)',
+  Object.keys(fragmentIdsFile.fragments_by_asset).length === ASSET_TYPES.length,
+  'fragment_ids.json copre tutti gli asset (§48)',
   `${Object.keys(fragmentIdsFile.fragments_by_asset).length}`,
 );
 check(
@@ -226,7 +229,7 @@ check(rotEntry?.anchor === 'bottom-center', 'anchor = bottom-center');
 check(rotEntry?.background === 'transparent', 'background = transparent');
 check(rotEntry?.interaction === 'horizontal-drag', 'interaction = horizontal-drag');
 check(Array.isArray(rotEntry?.usage) && rotEntry.usage.length > 0, 'usage popolato');
-check(manifest.assets.length === 7, 'sette tipi di asset canonici (§23)', `${manifest.assets.length}`);
+check(manifest.assets.length === 8, 'otto tipi di asset canonici (§23 + v1.9 §23.1)', `${manifest.assets.length}`);
 
 /* --- §13 / §21.1: contratto dei Character Data ----------------------------- */
 

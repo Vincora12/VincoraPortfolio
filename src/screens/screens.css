@@ -2119,3 +2119,256 @@
   text-align: right;
   margin: 0;
 }
+
+/* Registrare durante l'incubazione (v1.9 §7.1): l'unica riga interattiva di
+   una schermata che per il resto si limita a leggere. */
+.incubation__today {
+  display: flex;
+  align-items: center;
+  gap: var(--u3);
+  width: 100%;
+  padding: var(--u3);
+  border: var(--border) solid var(--ink);
+  background: var(--white);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.incubation__todaystate {
+  flex: 1;
+  color: var(--muted-strong);
+}
+
+.incubation__todaygo {
+  color: var(--char-accent);
+}
+
+/* ============================================================================
+   00 INGRESSO (v1.9 §13.1)
+
+   Campo nero, il .mon al centro, due righe di identità. Nient'altro: è
+   l'unica schermata che non serve a fare qualcosa.
+   ========================================================================= */
+
+.splash {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--u4);
+  width: 100%;
+  padding: var(--u6) var(--u4);
+  border: 0;
+  background: var(--white);
+  color: var(--ink);
+  cursor: pointer;
+  animation: splash-in var(--dur-event) var(--ease-system);
+}
+
+@keyframes splash-in {
+  from { opacity: 0; }
+}
+
+.splash__stage {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+.splash__id {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.splash__name {
+  font-size: var(--type-display-xl);
+}
+
+.splash__form,
+.splash__hint {
+  color: var(--muted-strong);
+}
+
+/* Il suggerimento pulsa piano: dice che si può toccare senza gridarlo. */
+.splash__hint {
+  animation: splash-hint 2.4s var(--ease-system) infinite;
+}
+
+@keyframes splash-hint {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 1; }
+}
+
+/* ============================================================================
+   IL .MON VIVO (v1.9 §23.1)
+   ========================================================================= */
+
+/* Sprite: `steps()` fa scattare i frame senza interpolare, ed è l'unico modo
+   di animare una striscia con i CSS. `alternate` realizza il ping-pong di
+   IDLE_SPEC senza disegnare frame in più. */
+.idlemon--sprite {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background-repeat: no-repeat;
+  background-position: 0 center;
+  animation-name: idle-strip;
+  animation-timing-function: steps(var(--idle-frames), end);
+  animation-iteration-count: infinite;
+  animation-direction: alternate;
+}
+
+@keyframes idle-strip {
+  to { background-position: 100% center; }
+}
+
+/* Senza sprite si anima quello che c'è: il master respira. Non si disegna
+   niente che non esista già (§18A). */
+.idlemon--breathing {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  animation: mon-breathe 3.6s var(--ease-system) infinite;
+  transform-origin: bottom center;
+}
+
+.idlemon__art {
+  height: 100%;
+}
+
+@keyframes mon-breathe {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-1.5%) scale(1.015); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .idlemon--breathing,
+  .idlemon--sprite,
+  .splash__hint {
+    animation: none;
+  }
+}
+
+/* --- Il volto accanto alle battute --- */
+
+.monface {
+  position: relative;
+  flex: 0 0 auto;
+  overflow: hidden;
+  border: 1px solid var(--hairline);
+  background: var(--paper);
+}
+
+.monface--sheet {
+  background-repeat: no-repeat;
+}
+
+/* Finché il foglio delle espressioni non c'è, l'espressione si dichiara a
+   parole: la stessa regola dei segnaposto, si dice invece di fingere. */
+.monface__tag {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  text-align: center;
+  font-size: 7px;
+  letter-spacing: 0.08em;
+  background: var(--ink);
+  color: var(--white);
+  opacity: 0.85;
+}
+
+.bubblerow {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--u2);
+  width: 100%;
+}
+
+.bubblerow--vinz {
+  justify-content: flex-end;
+}
+
+.bubblerow--mon .bubble {
+  align-self: flex-start;
+}
+
+/* Cosa è stato registrato da un messaggio: sta sotto e non festeggia. */
+.bubble__flag--rec {
+  color: var(--char-accent);
+}
+
+/* --- La rivelazione a tre battute (v1.9 §13.2) ---
+
+   Il sipario copre tutto e si alza da sé. Non è un caricamento: la creatura è
+   già stata generata prima che la schermata esistesse, quindi qui non si sta
+   aspettando niente — si sta lasciando spazio. */
+.encounter__curtain {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--u2);
+  background: var(--white);
+  animation: curtain-lift 520ms var(--ease-system) 1400ms forwards;
+}
+
+.encounter__kicker {
+  color: var(--char-accent);
+  animation: reveal-in 300ms var(--ease-system) backwards;
+}
+
+.encounter__bigname {
+  font-size: var(--type-display-xl);
+  text-align: center;
+  padding: 0 var(--u4);
+  animation: reveal-snap 420ms var(--ease-system) 120ms backwards;
+}
+
+@keyframes curtain-lift {
+  to {
+    opacity: 0;
+    transform: translateY(-6%);
+    visibility: hidden;
+  }
+}
+
+/* La creatura non compare: sale. Solo dopo che il sipario si è alzato. */
+.encounter--beat2 .encounter__stage {
+  animation: encounter-rise 620ms var(--ease-system) backwards;
+}
+
+@keyframes encounter-rise {
+  from {
+    opacity: 0;
+    transform: translateY(4%) scale(0.97);
+  }
+}
+
+.encounter--beat2 .encounter__overlay {
+  animation: reveal-in 500ms var(--ease-system) 220ms backwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .encounter__curtain {
+    animation-delay: 0ms;
+    animation-duration: 1ms;
+  }
+  .encounter--beat2 .encounter__stage,
+  .encounter--beat2 .encounter__overlay {
+    animation: none;
+  }
+}
