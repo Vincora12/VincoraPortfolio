@@ -20,7 +20,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Overlay } from '../App';
 import { useApp, useActiveMon, useGrowth } from '../state/store';
-import { AssetSlot, Sigil } from '../system/AssetSlot';
 import { MonName, SpeciesName } from '../system/MonName';
 import { MonFace } from '../system/LiveMon';
 import { expressionFor } from '../engine/assets';
@@ -30,7 +29,7 @@ import { displayName } from '../engine/types';
 import { haptic } from '../system/haptics';
 import { t } from '../i18n/it';
 
-export function CompanionHomeScreen({ onGo }: { onGo: (o: Overlay) => void }) {
+export function CompanionHomeScreen({ onGo, onBack }: { onGo: (o: Overlay) => void; onBack: () => void }) {
   const mon = useActiveMon();
   const chat = useApp((s) => s.chat);
   const { event, progress, microGrowthReady, formEvolutionReady } = useGrowth();
@@ -38,8 +37,11 @@ export function CompanionHomeScreen({ onGo }: { onGo: (o: Overlay) => void }) {
   const openShift = useApp((s) => s.openShift);
 
   const [draft, setDraft] = useState('');
-  const [expanded, setExpanded] = useState(true);
   const listRef = useRef<HTMLDivElement>(null);
+
+  // L'espressione in alto è quella dell'ultima cosa che ha detto LUI, non di
+  // quella che hai scritto tu: è la sua faccia, non uno specchio.
+  const lastSaid = [...chat].reverse().find((m) => m.from === 'mon')?.text ?? '';
 
   const scrollToEnd = () => {
     requestAnimationFrame(() => {
@@ -49,7 +51,7 @@ export function CompanionHomeScreen({ onGo }: { onGo: (o: Overlay) => void }) {
 
   // Il collasso della creatura è una conseguenza della conversazione, non un
   // comando: chi scrive vuole leggere le risposte.
-  useEffect(scrollToEnd, [chat.length, expanded]);
+  useEffect(scrollToEnd, [chat.length]);
 
   if (!mon) return null;
 
@@ -65,7 +67,6 @@ export function CompanionHomeScreen({ onGo }: { onGo: (o: Overlay) => void }) {
     if (draft.trim().length === 0) return;
     sendMessage(draft);
     setDraft('');
-    setExpanded(false);
     scrollToEnd();
   };
 
@@ -78,15 +79,39 @@ export function CompanionHomeScreen({ onGo }: { onGo: (o: Overlay) => void }) {
             profilo: lo stesso difetto della matita già segnalato, un glifo
             che non dice dove porta. Adesso il nome È il pulsante, con la
             freccia dentro lo stesso bersaglio. */}
+        {/* 🔷 v1.10 §13.7 — LA FACCIA STA IN ALTO, non accanto a ogni battuta.
+
+            Era la richiesta originale — «nella chat c'è sempre lui in alto ma
+            cambia espressione a seconda di quello che scrive» — e io l'avevo
+            messa di fianco alle bolle. Da lì l'espressione si ripeteva una
+            volta per messaggio e non era più una faccia: era un'icona di
+            elenco. In alto è una faccia sola che reagisce a quello che ha
+            appena detto, ed è la differenza fra qualcuno che parla e una
+            trascrizione.
+
+            Toccarla riporta all'ingresso, dove sta in grande: è lo stesso
+            gesto di prima — toccare la creatura per vederla intera — con una
+            destinazione che adesso esiste. */}
+        <button
+          type="button"
+          className="home__face"
+          onClick={onBack}
+          aria-label={`Guarda ${short} in grande`}
+        >
+          <MonFace
+            monName={d.name}
+            expression={expressionFor(lastSaid, d.mood_primary)}
+            alt={short}
+            size={64}
+          />
+        </button>
+
         <button
           type="button"
           className="home__identity"
           onClick={() => onGo('specimen')}
           aria-label={`Apri il profilo di ${short}`}
         >
-          <span className="home__sigil">
-            <Sigil seed={mon.sigil} size={22} monName={d.name} />
-          </span>
           <span className="home__identitytext">
             <span className="home__name t-display">
               <MonName name={d.name} />
@@ -100,26 +125,13 @@ export function CompanionHomeScreen({ onGo }: { onGo: (o: Overlay) => void }) {
         </button>
       </header>
 
-      {/* --- La creatura. Nessuna card: solo il campo e l'asset. --- */}
-      <button
-        type="button"
-        className={`home__stage ${expanded ? '' : 'home__stage--compact'}`}
-        onClick={() => {
-          haptic('tick');
-          setExpanded((v) => !v);
-        }}
-        aria-expanded={expanded}
-        aria-label={expanded ? `Riduci ${short}` : `Ingrandisci ${short}`}
-      >
-        <AssetSlot
-          monName={d.name}
-          type="character_master"
-          alt={`${short}, ritratto canonico`}
-          className="home__art"
-          compactPlaceholder={!expanded}
-        />
-
-      </button>
+      {/* 🔷 v1.10 §13.7 — qui c'era la creatura a mezzo schermo, che si
+          ritirava in una striscia appena si cominciava a parlare. Faceva due
+          lavori male: era troppo grande per una chat e troppo piccola per
+          essere una presenza. Adesso i due lavori sono due schermate —
+          l'ingresso è la creatura, questa è la conversazione — e §12/06
+          («il .mon occupa il 45–55% del viewport iniziale») è rispettato
+          meglio di prima: all'apertura ne occupa tutto. */}
 
       {/* --- 🔷 v1.10 — UN ELEMENTO SOLO, dove prima ce n'erano due.
 
@@ -163,17 +175,6 @@ export function CompanionHomeScreen({ onGo }: { onGo: (o: Overlay) => void }) {
       <div className="home__chat" ref={listRef}>
         {chat.map((m) => (
           <div key={m.id} className={`bubblerow bubblerow--${m.from}`}>
-            {/* 🔶 v1.9 §23.1 — il volto accanto a quello che dice. L'espressione
-                si sceglie dal testo appena scritto, non dall'umore di fondo:
-                è quello che ha appena detto a decidere che faccia fa. */}
-            {m.from === 'mon' && (
-              <MonFace
-                monName={d.name}
-                expression={expressionFor(m.text, d.mood_primary)}
-                alt={short}
-                size={38}
-              />
-            )}
             <div className={`bubble bubble--${m.from}`}>
               <p className="bubble__text">{m.text}</p>
               {/* §17 — le superfici che dipendono dall'AI dichiarano sempre cosa
@@ -213,7 +214,6 @@ export function CompanionHomeScreen({ onGo }: { onGo: (o: Overlay) => void }) {
           value={draft}
           onChange={setDraft}
           onSubmit={submit}
-          onFocus={() => setExpanded(false)}
         />
         <IconButton icon="send" label="Invia" haptics="confirm" onClick={submit} disabled={draft.trim().length === 0} />
       </div>

@@ -425,6 +425,14 @@
   background: var(--white);
 }
 
+/* ⚠️ `.field` è un flex item con `flex: 0 1 auto`, quindi si stringeva sul
+   contenuto invece di prendere lo spazio fra i due pulsanti: il `flex: 1`
+   dentro `.field` distribuisce solo la larghezza che `.field` ha già. */
+.composer .field {
+  flex: 1;
+  min-width: 0;
+}
+
 /* --- NAVIGAZIONE PERSISTENTE MON / ME / MINDLINE (§11) --------------------- */
 
 .tabbar {

@@ -67,9 +67,15 @@ export function App() {
   const [tab, setTab] = useState<Tab>('mon');
   const [overlay, setOverlay] = useState<Overlay>(null);
 
-  // 🔶 v1.9 §13.1 — l'ingresso. Non è persistito di proposito: si rivede a
-  // ogni apertura, perché è un saluto e non un onboarding.
+  // 🔶 §13.1 — l'ingresso. Non è persistito di proposito: si rivede a ogni
+  // apertura, perché è un saluto e non un onboarding.
   const [entered, setEntered] = useState(false);
+
+  // 🔷 v1.10 §13.7 — e si rivede a ogni cambio di fase. Quando l'uovo si
+  // schiude, quello che ti aspetta all'ingresso non è più lo stesso: sarebbe
+  // strano entrare direttamente in chat con qualcuno che non hai ancora visto
+  // in piedi.
+  useEffect(() => setEntered(false), [phase]);
 
   // §10.2 — cambiare .mon ritematizza gli accenti senza toccare l'architettura.
   useEffect(() => {
@@ -88,9 +94,14 @@ export function App() {
     }
   }, [setDev]);
 
-  // La splash ha senso solo quando c'è qualcuno da salutare: prima dell'HATCH
-  // non esiste ancora nessuna forma, e §12/01 vieta di anticiparla.
-  const showSplash = phase === 'live' && !entered && activeMonName !== null;
+  // 🔷 v1.10 §13.7 — l'ingresso vale anche per l'incubazione, con l'uovo al
+  // centro. Prima esisteva solo dopo la nascita, e i sette giorni che decidono
+  // se l'app viene riaperta non avevano nessun momento di presenza.
+  //
+  // §12/01 resta rispettato: l'uovo non anticipa niente, ed è la stessa cosa
+  // che si vede in piccolo nella barra della chat.
+  const showSplash =
+    !entered && (phase === 'incubation' || (phase === 'live' && activeMonName !== null));
 
   // Il board mostra anche la MINDLINE su campo nero, non solo le fasi evento.
   const inkField =
@@ -107,12 +118,16 @@ export function App() {
           onOpenDev={() => setOverlay('dev')}
         />
 
-        {showSplash ? (
-          <SplashScreen onEnter={() => setEntered(true)} />
-        ) : overlay ? (
+        {/* ⚠️ L'ordine conta: l'ingresso stava PRIMA dell'overlay, quindi con
+            la splash aperta il pannello DEV si apriva sotto e non si vedeva.
+            Un overlay è una navigazione esplicita e vince sempre su un
+            saluto. */}
+        {overlay ? (
           <OverlayScreen overlay={overlay} onClose={() => setOverlay(null)} onGo={setOverlay} />
+        ) : showSplash ? (
+          <SplashScreen onEnter={() => setEntered(true)} />
         ) : (
-          <PhaseScreen phase={phase} tab={tab} onGo={setOverlay} />
+          <PhaseScreen phase={phase} tab={tab} onGo={setOverlay} onBack={() => setEntered(false)} />
         )}
 
         {phase === 'live' && !overlay && !showSplash && <TabBar tab={tab} onChange={setTab} />}
@@ -127,10 +142,13 @@ function PhaseScreen({
   phase,
   tab,
   onGo,
+  onBack,
 }: {
   phase: Phase;
   tab: Tab;
   onGo: (o: Overlay) => void;
+  /** Torna all'ingresso, dove la creatura sta in grande (§13.7). */
+  onBack: () => void;
 }) {
   switch (phase) {
     case 'scan':
@@ -152,7 +170,7 @@ function PhaseScreen({
     case 'live':
       switch (tab) {
         case 'mon':
-          return <CompanionHomeScreen onGo={onGo} />;
+          return <CompanionHomeScreen onGo={onGo} onBack={onBack} />;
         case 'me':
           return <MeOverviewScreen />;
         case 'calendar':

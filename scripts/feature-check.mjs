@@ -321,6 +321,54 @@ check(
   !/segments=\{inc\.total\}/.test(read('src/screens/Incubation.tsx') ?? ''),
 );
 
+/* 🔷 v1.10 §13.7 — DUE SCHERMATE, DUE LAVORI: l'ingresso è la creatura, la
+   chat è la conversazione. */
+
+check(
+  'INGRESSO §13.7',
+  'l’ingresso vale anche durante l’incubazione',
+  has(APP, "phase === 'incubation' ||") && has('src/screens/Splash.tsx', 'EggVessel'),
+);
+check(
+  'INGRESSO §13.7',
+  'si entra quando si decide, non dopo un timer',
+  lacks('src/screens/Splash.tsx', 'AUTO_ENTER_MS') &&
+    has('src/screens/Splash.tsx', 'splash__enter'),
+);
+check(
+  'INGRESSO §13.7',
+  'si rivede a ogni cambio di fase',
+  has(APP, 'useEffect(() => setEntered(false), [phase])'),
+);
+check(
+  'INGRESSO §13.7',
+  'un overlay vince sempre sull’ingresso',
+  (read(APP) ?? '').indexOf('overlay ? (') < (read(APP) ?? '').indexOf('showSplash ? ('),
+  'con la splash aperta il pannello DEV si apriva sotto e non si vedeva',
+);
+check(
+  'INGRESSO §13.7',
+  'la faccia sta in alto, non accanto a ogni battuta',
+  has('src/screens/CompanionHome.tsx', 'home__face') &&
+    !/bubblerow[\s\S]{0,200}<MonFace/.test(read('src/screens/CompanionHome.tsx') ?? ''),
+);
+check(
+  'INGRESSO §13.7',
+  'la Home non ha più la creatura a mezzo schermo',
+  lacks('src/screens/CompanionHome.tsx', 'home__stage'),
+  'quel lavoro è diventato una schermata sua',
+);
+check(
+  'INGRESSO §13.7',
+  'toccare la faccia riporta all’ingresso',
+  has('src/screens/CompanionHome.tsx', 'onClick={onBack}'),
+);
+check(
+  'INTERFACCIA',
+  'il campo del composer riempie la larghezza',
+  has('src/system/system.css', '.composer .field {'),
+);
+
 /* 🔷 v1.10 §13.6 — «in una schermata c'è troppo». */
 
 const INC = 'src/screens/Incubation.tsx';

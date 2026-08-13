@@ -182,6 +182,7 @@ body.push(
       ['§7.3 🔷', 'Il guscio cambia ogni giorno', 'un numero non si sente addosso, una crepa sì'],
       ['§13.5 🔷', 'Sette cancellature nell\'interfaccia', 'telemetria del motore e annunci doppi su superfici di prodotto'],
       ['§13.6 🔷', 'Una cosa per schermata', 'l\'incubazione aveva otto blocchi e la chat stava in mezzo'],
+      ['§13.7 🔷', 'L\'ingresso è la creatura, la chat è la conversazione', 'la Home faceva due lavori male'],
     ],
   ),
 );
@@ -428,6 +429,38 @@ body.push(
   note('Il difetto che ha reso la riscrittura visibile solo a schermo: due regole `.incubation__chat` in punti diversi del foglio di stile, scritte in due momenti in cui la chat aveva due lavori diversi. Vinceva la seconda, con un `max-height` di un terzo di schermo. Non è un errore di scrittura — sono due regole giuste in momenti diversi, ed è il modo tipico in cui si rompe un CSS a sezioni.'),
 );
 
+/* --- 13.7 DUE SCHERMATE, DUE LAVORI 🔷 --------------------------------------*/
+
+body.push(h1('13.7 · L\'INGRESSO È LA CREATURA, LA CHAT È LA CONVERSAZIONE 🔷'));
+
+body.push(
+  p('La Home teneva la creatura a mezzo schermo e la faceva ritirare in una striscia appena si cominciava a parlare. Faceva due lavori male: troppo grande per una chat, troppo piccola per essere una presenza. E l\'ingresso — la schermata dove la creatura sta davvero — esisteva solo dopo la nascita.'),
+);
+
+body.push(
+  rule('🔒', 'ALL\'APERTURA c\'è l\'INGRESSO: la creatura al centro, che si muove. L\'uovo durante l\'incubazione, il .mon dopo. Niente dati, niente barre.'),
+  rule('🔒', 'Si entra da una PORTA DICHIARATA — «CHAT →» — o toccando la creatura. Non si entra da soli dopo qualche secondo: §13.1 lo prevedeva perché la schermata non aveva nessuna via d\'uscita visibile, ed era un cartello, non una porta. Una schermata che ti butta fuori dopo quattro secondi non è un posto dove stare.'),
+  rule('🔒', 'L\'ingresso ricompare a ogni CAMBIO DI FASE, non solo a ogni apertura: quando l\'uovo si schiude, quello che ti aspetta non è più lo stesso.'),
+  rule('🔒', 'Un OVERLAY vince sempre sull\'ingresso. È una navigazione esplicita; l\'ingresso è un saluto.'),
+  rule('🔒', 'La chat ha la stessa forma in entrambe le fasi: barra compatta con la creatura piccola, conversazione, striscia di stato, composer.'),
+);
+
+body.push(h2('La faccia sta in alto'));
+
+body.push(
+  rule('🔒', 'Nella barra della chat c\'è UNA faccia sola, che cambia espressione in base all\'ultima cosa che il .mon ha detto. Durante l\'incubazione al suo posto c\'è l\'uovo, con le sue crepe.'),
+  rule('🔒', 'L\'espressione segue quello che ha detto LUI, non quello che hai scritto tu: è la sua faccia, non uno specchio.'),
+  rule('🔒', 'Toccarla riporta all\'ingresso, dove sta in grande.'),
+);
+
+body.push(
+  note('Correzione di una lettura sbagliata mia: la richiesta era «nella chat c\'è sempre lui IN ALTO ma cambia espressione a seconda di quello che scrive», e l\'avevo implementata mettendo il volto accanto a ogni bolla. Ripetuta una volta per messaggio, l\'espressione smetteva di essere una faccia e diventava un\'icona di elenco.'),
+);
+
+body.push(
+  note('§12/06 dice «il .mon corrente occupa il 45–55% del viewport iniziale». Con l\'ingresso il vincolo è rispettato meglio di prima, non aggirato: all\'apertura ne occupa tutto.'),
+);
+
 /* --- 8.1 --------------------------------------------------------------------*/
 
 body.push(h1('8.1 · BIO / FILE PERSONALE 🔶'));
@@ -671,6 +704,9 @@ body.push(
       ['Banner MINDLINE SHIFT', 'la linea di SYNC che si riempie (§13.5)'],
       ['Piede fisso con HATCH disabilitato', 'una striscia che cambia lavoro (§13.6)'],
       ['SIGNAL STABILITY e i sei chip in incubazione', 'erano duplicati di DEV → SEGNALI (§13.6)'],
+      ['La creatura a mezzo schermo dentro la Home', 'una schermata d\'ingresso sua (§13.7)'],
+      ['Il volto accanto a ogni bolla', 'un volto solo, in alto, che reagisce (§13.7)'],
+      ['L\'ingresso automatico dopo 4 secondi', 'una porta dichiarata (§13.7)'],
     ],
   ),
 );

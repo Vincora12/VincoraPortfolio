@@ -22,6 +22,9 @@ export const t = {
   /* 00 INGRESSO (MS v1.9 §13.1) */
   splash: {
     enter: 'TOCCA PER ENTRARE',
+    /* 🔷 v1.10 §13.7 — l'ingresso è dichiarato. Dice dove porta, non cosa
+       fare: «CHAT» è il posto, «tocca per entrare» era un'istruzione. */
+    chat: 'CHAT',
   },
 
   /* 03 PERSONALITY / SIGNAL SCAN (MS v1.8 §12) */

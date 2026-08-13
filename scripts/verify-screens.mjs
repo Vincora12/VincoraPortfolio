@@ -181,6 +181,21 @@ try {
   await shot('04-protocollo-letto');
   await click(byText('CONFERMA IL PROTOCOLLO'), 'conferma protocollo');
 
+  /* v1.10 §13.7 — l'ingresso compare a ogni cambio di fase, quindi il
+     percorso non può dare per scontato di trovarsi già dentro. */
+  const enterIfSplash = async () => {
+    const door = page.locator('.splash__enter');
+    if (await door.count()) {
+      await door.click();
+      await sleep(220);
+    }
+  };
+
+  /* 00 — INGRESSO CON L'UOVO (v1.10 §13.7): la creatura al centro, e una
+     porta dichiarata. Vale anche durante l'incubazione, adesso. */
+  await shot('05-ingresso-uovo');
+  await click('.splash__enter', 'entra nella chat');
+
   /* 05 — INCUBAZIONE: si parla all'uovo, e l'uovo risponde a suoni (§7.2) */
   await shot('05-incubazione');
 
@@ -200,10 +215,10 @@ try {
   await sleep(1600); // il sipario si alza da sé
   await shot('05-first-encounter');
 
-  /* 00 — INGRESSO: la splash con lo sprite di riposo (v1.9 §13.1) */
+  /* 00 — INGRESSO: la splash con lo sprite di riposo (§13.1) */
   await click(byText('BENVENUTO A CASA'), 'entra');
   await shot('00-splash');
-  await click('.splash', 'entra dalla splash');
+  await click('.splash__enter', 'entra dalla splash');
 
   /* 06 — COMPANION HOME */
   await shot('06-companion-home');
@@ -321,6 +336,7 @@ try {
   await sleep(1600); // la rivelazione si toglie da sola
   await shot('12-evolution');
   await click(byText('CONTINUA'), 'continua');
+  await enterIfSplash();
 
   /* 13 — CAMBIO DI FORMA */
   await click('.devtrigger', 'apri DEV');
@@ -335,6 +351,7 @@ try {
   await sleep(2600);
   await shot('14-new-encounter');
   await click(byText('BENVENUTO A CASA'), 'entra');
+  await enterIfSplash();
 
   /* 18 — HERITAGE DNA */
   await click('.tabbar__item:nth-child(4)', 'tab MINDLINE');

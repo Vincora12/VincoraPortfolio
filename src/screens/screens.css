@@ -263,40 +263,19 @@
   color: var(--muted-strong);
 }
 
-/* §12/06 — la creatura occupa il 45–55% del viewport INIZIALE e NON ha nessuna
-   card attorno: solo il campo. Da lì in poi si ritira per lasciare la scena
-   alla conversazione, e torna grande al tocco. */
-.home__stage {
-  position: relative;
-  flex: 0 0 50%;
-  min-height: 0;
-  padding: var(--u3) var(--u4) var(--u3);
-  display: flex;
-  flex-direction: column;
-  width: 100%;
+/* 🔷 v1.10 §13.7 — qui c'era `.home__stage`, la creatura a mezzo schermo che
+   si ritirava in una striscia appena si cominciava a parlare. Quella parte è
+   diventata una schermata sua — l'ingresso — e la Home è la conversazione.
+
+   La faccia in alto è piccola e reagisce: toccarla riporta all'ingresso. */
+.home__face {
+  flex: 0 0 auto;
+  padding: 0;
   border: 0;
   background: none;
-  text-align: inherit;
   cursor: pointer;
-  transition: flex-basis var(--dur-base) var(--ease-system);
-}
-
-/* Da ritirata la creatura non diventa una fascia larga e vuota: diventa un
-   ritratto quadrato, che è la forma in cui un'immagine di personaggio regge
-   di essere piccola. */
-.home__stage--compact {
-  flex-basis: 96px;
-  align-items: center;
-}
-
-.home__stage--compact .home__art {
-  width: 72px;
-  flex: 0 0 72px;
-}
-
-.home__art {
-  flex: 1;
-  min-height: 0;
+  display: flex;
+  line-height: 0;
 }
 
 /* Linea di SYNC sotto il campo: si legge di sfuggita e non costa una riga di
@@ -2238,11 +2217,9 @@
   justify-content: center;
   gap: var(--u4);
   width: 100%;
-  padding: var(--u6) var(--u4);
-  border: 0;
+  padding: var(--u6) var(--u4) var(--u4);
   background: var(--white);
   color: var(--ink);
-  cursor: pointer;
   animation: splash-in var(--dur-event) var(--ease-system);
 }
 
@@ -2250,6 +2227,8 @@
   from { opacity: 0; }
 }
 
+/* Tutto lo spazio va alla creatura: è il motivo per cui la schermata esiste.
+   Toccarla entra, perché è la cosa che si tocca per istinto. */
 .splash__stage {
   flex: 1;
   min-height: 0;
@@ -2257,6 +2236,11 @@
   align-items: center;
   justify-content: center;
   width: 100%;
+  border: 0;
+  background: none;
+  padding: 0;
+  color: inherit;
+  cursor: pointer;
 }
 
 .splash__id {
@@ -2264,25 +2248,39 @@
   flex-direction: column;
   align-items: center;
   gap: 2px;
+  text-align: center;
 }
 
 .splash__name {
   font-size: var(--type-display-xl);
 }
 
-.splash__form,
-.splash__hint {
+.splash__form {
   color: var(--muted-strong);
 }
 
-/* Il suggerimento pulsa piano: dice che si può toccare senza gridarlo. */
-.splash__hint {
-  animation: splash-hint 2.4s var(--ease-system) infinite;
+/* 🔷 v1.10 §13.7 — l'ingresso dichiarato. Prima c'era solo un suggerimento che
+   pulsava («TOCCA PER ENTRARE») e un timer che entrava da sé dopo quattro
+   secondi: era un cartello, non una porta. */
+.splash__enter {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--u3);
+  width: 100%;
+  padding: var(--u3) var(--u4);
+  border: var(--border) solid var(--ink);
+  background: var(--ink);
+  color: var(--white);
+  cursor: pointer;
+  letter-spacing: 0.06em;
 }
 
-@keyframes splash-hint {
-  0%, 100% { opacity: 0.35; }
-  50% { opacity: 1; }
+.splash__enter:active {
+  background: var(--char-primary);
+  color: var(--char-on-primary);
+  border-color: var(--char-primary);
 }
 
 /* ============================================================================
