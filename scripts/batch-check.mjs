@@ -36,6 +36,7 @@ export { makeRng, randomSeed } from '${cwd}/src/engine/rng.ts';
 export { isValidMonName } from '${cwd}/src/engine/naming.ts';
 export { normalizePool } from '${cwd}/src/engine/rarity.ts';
 export { planContinuity, EVOLVABLE_AXES, PROGRESSION } from '${cwd}/src/engine/progression.ts';
+export { SCAN_QUESTIONS, seedFromAnswers, seedSpread } from '${cwd}/src/engine/personalityScan.ts';
 export * as CONFIG from '${cwd}/src/engine/generation-config.ts';
 export { FRAGMENT_LIBRARY, slug } from '${cwd}/src/assets-pipeline/fragments.ts';
 `,
@@ -372,6 +373,66 @@ check(
 );
 console.log(
   `  ····  su ${PATTERNS.length * ANCHOR_TRIALS} trasformazioni il vincolo «qualcosa deve cambiare» è scattato ${forcedChanges} volte`,
+);
+
+/* --- Signal Scan §12 -------------------------------------------------------
+   La prova che serve non è che la schermata esista, ma che **cambi qualcosa**.
+   Un questionario che non sposta la Family estratta è decorazione.
+
+   Si costruiscono tre profili — sempre la prima risposta, sempre l'ultima,
+   alternate — e si guarda se le Family che escono sono diverse. Se lo scan
+   fosse scollegato, i tre profili darebbero la stessa distribuzione.
+   --------------------------------------------------------------------------- */
+
+const profile = (choose) => {
+  const answers = {};
+  for (const q of m.SCAN_QUESTIONS) answers[q.index] = choose(q).id;
+  return m.seedFromAnswers(answers);
+};
+
+const SCAN_PROFILES = {
+  primo: profile((q) => q.answers[0]),
+  ultimo: profile((q) => q.answers[q.answers.length - 1]),
+  alterno: profile((q) => q.answers[q.index % q.answers.length]),
+};
+
+const SCAN_DRAWS = 120;
+const scanFamilies = {};
+for (const [name, personality] of Object.entries(SCAN_PROFILES)) {
+  const seen = new Map();
+  for (let i = 0; i < SCAN_DRAWS; i++) {
+    const d = m.generateFirstMon({
+      input: { ...input, personality },
+      mindlineNodeId: `scan_${name}_${i}`,
+      originNodeId: null,
+      lineageNames: [],
+      seed: m.randomSeed(),
+    }).record.data;
+    seen.set(d.family, (seen.get(d.family) ?? 0) + 1);
+  }
+  scanFamilies[name] = seen;
+}
+
+const neutralSpread = m.seedSpread(m.neutralPersonality());
+check(neutralSpread === 0, 'il seme neutro è davvero neutro', `${neutralSpread}`);
+check(
+  Object.values(SCAN_PROFILES).every((p) => m.seedSpread(p) > 0.2),
+  'ogni profilo di risposte modella il seme',
+  Object.entries(SCAN_PROFILES)
+    .map(([k, p]) => `${k} ${Math.round(m.seedSpread(p) * 100)}%`)
+    .join(' · '),
+);
+
+// La Family più frequente deve differire fra i profili: è il modo più diretto
+// di dire «rispondere diversamente porta a una creatura diversa».
+const top = (map) => [...map.entries()].sort((a, b) => b[1] - a[1])[0][0];
+const tops = Object.fromEntries(Object.entries(scanFamilies).map(([k, v]) => [k, top(v)]));
+check(
+  new Set(Object.values(tops)).size >= 2,
+  'profili diversi portano a Family diverse (§12)',
+  Object.entries(tops)
+    .map(([k, v]) => `${k} → ${v}`)
+    .join(' · '),
 );
 
 const familyCounts = tally((d) => d.family).map(([, n]) => n);

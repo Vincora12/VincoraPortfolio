@@ -151,6 +151,21 @@ try {
   await page.reload({ waitUntil: 'networkidle' });
   await sleep(400);
 
+  /* 03 — SIGNAL SCAN (§12): dodici domande, una per schermata */
+  await shot('03-signal-scan');
+  // Le domande con i glifi sono quelle che §12 vuole non testuali: la 02
+  // (silhouette), la 03 (materiali), la 07 (ottica) e la 08 (costruzione).
+  for (let q = 1; q <= 12; q++) {
+    if (q === 2) await shot('03-signal-scan-silhouette');
+    if (q === 7) await shot('03-signal-scan-ottica');
+    // Risposte diverse a ogni domanda, così il seme non esce piatto.
+    const nth = (q % 3) + 1;
+    await click(`.scan03__answer:nth-child(${nth})`, `risposta ${q}`);
+    await sleep(260);
+  }
+  await shot('03-signal-scan-lock');
+  await click(byText('LOCK SIGNAL'), 'LOCK SIGNAL');
+
   /* 04 — INCUBAZIONE */
   await shot('04-incubazione');
 

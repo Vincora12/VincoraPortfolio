@@ -141,6 +141,11 @@ documento: sono spiegati uno per uno in [`OPEN_ITEMS.md`](OPEN_ITEMS.md).
 | VINZ.MON è **una entità sola**: non muore, non viene sostituita, non si saluta | `NewBranch.tsx`; nessuna stringa di addio in `i18n/it.ts` |
 | §14 — il calendario è una **superficie primaria**, con dettaglio e provenienza | `screens/SyncCalendar.tsx`, quarta voce di `TabBar` |
 | §14 — nessuna casella rossa, nessuna serie da difendere | `i18n/it.ts` → `calendar.openDay`, `calendar.noStreak` |
+| §12 — le 12 domande del Signal Scan, con le direzioni latenti | `engine/personalityScan.ts` → `SCAN_QUESTIONS` |
+| §12 — una domanda per schermata, `01/12`, 2–4 risposte, CTA `LOCK SIGNAL` | `screens/PersonalityScan.tsx` |
+| §12 — «Never ask the user to choose Family»: nessuna anteprima, nessun valore di catalogo | nessuna risposta nomina un asse; nessun feedback di direzione |
+| §12 — la domanda 12 non tocca mai la rarità | `SCAN_QUESTIONS[11]`, nessun nudge su gate o punteggio |
+| 🟡 §12 — i pesi numerici restano da tarare | `personalityScan.ts` → `NUDGE` |
 | §20 — scala di rarità COMMON…**MYTHIC / SINGULAR** | `generation-config.ts` → `RARITIES` |
 | 🔶 §14 — GRACE è una **pausa dichiarata** (malattia, assenza) e **non dà SYNC** | `store.ts` → `setDayGrace`; il perché in `progression.ts` |
 
@@ -191,6 +196,7 @@ documento: sono spiegati uno per uno in [`OPEN_ITEMS.md`](OPEN_ITEMS.md).
 
 | # | Schermata | File |
 |---|---|---|
+| 03 | PERSONALITY / SIGNAL SCAN | `screens/PersonalityScan.tsx` |
 | 04 | FIRST SIGNAL / INCUBATION | `screens/Incubation.tsx` |
 | 05 | FIRST ENCOUNTER | `screens/Encounter.tsx` (`variant="first"`) |
 | 06 | MON / COMPANION HOME | `screens/CompanionHome.tsx` |

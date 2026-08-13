@@ -50,6 +50,11 @@ import {
   type MoodDayEntry,
   type PersonalitySeed,
 } from '../engine/signals';
+import {
+  isScanComplete,
+  seedFromAnswers,
+  type ScanAnswers,
+} from '../engine/personalityScan';
 import { MOOD_INPUT_RULES, type MoodInputId } from '../engine/generation-config';
 import type {
   AssetType,
@@ -67,6 +72,8 @@ import { STAT_KEYS, UNKNOWN, isKnown } from '../engine/types';
 import { preloadMonAssets } from '../assets-pipeline/assetStore';
 
 export type Phase =
+  /** 🔶 §12 — il Signal Scan semina la personalità PRIMA che il tempo cominci. */
+  | 'scan'
   | 'incubation'
   /** Rivelazione della prima forma. */
   | 'first-encounter'
@@ -123,6 +130,8 @@ interface AppState {
 
   /** §2 — seme di personalità, stabile. */
   personality: PersonalitySeed;
+  /** §12 — le risposte del Signal Scan, conservate per poterle rileggere. */
+  scanAnswers: ScanAnswers;
   /** §11 — umori dichiarati, max 3 al giorno. */
   moodHistory: MoodDayEntry[];
   cultural: CulturalAffinities;
@@ -146,6 +155,13 @@ interface AppState {
 
   /** ⚠️ Chiave API nel browser: prototipo di una persona sola. Vedi ai/client.ts. */
   apiKey: string | null;
+
+  /** §12 — registra una risposta del Signal Scan. */
+  answerScan: (index: number, answerId: string) => void;
+  /** §12 CTA `LOCK SIGNAL`: chiude lo scan e semina la personalità. */
+  lockSignal: () => void;
+  /** DEV — rifà lo scan da capo, senza toccare il resto della partita. */
+  reopenScan: () => void;
 
   advanceDays: (n: number) => void;
   /**
@@ -202,13 +218,14 @@ interface AppState {
 /* --- Stato iniziale -------------------------------------------------------- */
 
 const INITIAL = {
-  phase: 'incubation' as Phase,
+  phase: 'scan' as Phase,
   day: 1,
   health: initialHealthState(),
   progression: { bond: 0, sync: emptySync() } as Progression,
   days: {} as Record<number, DailySync>,
   formsDiscovered: 0,
   personality: neutralPersonality(),
+  scanAnswers: {} as ScanAnswers,
   moodHistory: [] as MoodDayEntry[],
   cultural: {} as CulturalAffinities,
   mons: {} as Record<string, MonRecord>,
@@ -286,6 +303,23 @@ export const useApp = create<AppState>()(
   persist(
     (set, get) => ({
       ...INITIAL,
+
+      /* --- §12 SIGNAL SCAN --- */
+
+      answerScan: (index, answerId) =>
+        set((s) => ({ scanAnswers: { ...s.scanAnswers, [index]: answerId } })),
+
+      lockSignal: () => {
+        const s = get();
+        // Il seme si calcola una volta e resta: §2 lo vuole stabile. Non è
+        // l'umore, è il temperamento — non si ricalcola ogni giorno.
+        set({
+          personality: seedFromAnswers(s.scanAnswers),
+          phase: 'incubation',
+        });
+      },
+
+      reopenScan: () => set({ phase: 'scan' }),
 
       /* --- Avanzamento del tempo (§25) --- */
 
@@ -888,6 +922,7 @@ export const useApp = create<AppState>()(
           ...INITIAL,
           health: initialHealthState(),
           personality: neutralPersonality(),
+          scanAnswers: {},
           dev: get().dev,
           // Ricominciare la partita non è motivo per far reincollare la chiave.
           apiKey: get().apiKey,
@@ -1118,6 +1153,16 @@ export function useIncubation() {
 /** Il piano di continuità in attesa di conferma. */
 export function usePendingPlan(): ContinuityPlan | null {
   return useApp((s) => s.pendingPlan);
+}
+
+/** Lo stato del Signal Scan: a che punto è e se si può chiudere. */
+export function useScan() {
+  const answers = useApp((s) => s.scanAnswers);
+  return {
+    answers,
+    answered: Object.keys(answers).length,
+    complete: isScanComplete(answers),
+  };
 }
 
 /** Umori dichiarati oggi (§11). */

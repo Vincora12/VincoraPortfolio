@@ -18,6 +18,7 @@ import { Icon } from './system/Icon';
 import { haptic } from './system/haptics';
 import { t } from './i18n/it';
 
+import { PersonalityScanScreen } from './screens/PersonalityScan';
 import { IncubationScreen } from './screens/Incubation';
 import { EncounterScreen } from './screens/Encounter';
 import { CompanionHomeScreen } from './screens/CompanionHome';
@@ -49,7 +50,7 @@ export type Overlay =
   | 'dev';
 
 /** Le fasi su campo nero, lette dal board. */
-const INK_PHASES: Phase[] = ['incubation', 'first-encounter', 'new-encounter'];
+const INK_PHASES: Phase[] = ['scan', 'incubation', 'first-encounter', 'new-encounter'];
 
 export function App() {
   const phase = useApp((s) => s.phase);
@@ -118,6 +119,8 @@ function PhaseScreen({
   onGo: (o: Overlay) => void;
 }) {
   switch (phase) {
+    case 'scan':
+      return <PersonalityScanScreen />;
     case 'incubation':
       return <IncubationScreen />;
     case 'first-encounter':

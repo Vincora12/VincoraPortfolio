@@ -115,6 +115,25 @@ Le forme sono sue configurazioni, le memorie sono un archivio unico e la forma �
 un metadato sul ricordo. Per questo `carryMemoriesThroughBranch` è stato
 rimosso e nessuna schermata dice più «saluta».
 
+### Il Signal Scan semina la personalità
+**Versione:** MASTER SPEC v1.8 §12. **Dove:** `src/engine/personalityScan.ts`,
+`src/screens/PersonalityScan.tsx`.
+
+§12 nomina vettori latenti descrittivi — `presence`, `silhouette_tension`,
+`body_plan_bias`… — che non sono lo schema del motore: il generatore legge i 16
+assi di `PERSONALITY_KEYS` (GB §2). Ogni risposta quindi spinge quegli assi
+**nella direzione** che §12 descrive.
+
+È l'interpretazione che rende lo scan una cosa vera invece che un questionario
+decorativo, ed è verificata: `verify:batch` costruisce tre profili di risposte e
+controlla che la Family più probabile cambi fra loro.
+
+Due vincoli del documento che il codice tiene esplicitamente:
+- «Never ask the user to choose Family» — nessuna risposta nomina un valore di
+  catalogo, e la schermata non mostra nessuna anteprima di cosa sta spostando.
+  Se l'utente potesse ottimizzare, sceglierebbe la creatura.
+- La domanda 12 «never direct rarity» — non tocca né la rarità né i suoi gate.
+
 ### La chiave API vive nel browser
 **Dove:** `src/ai/client.ts`, `src/state/store.ts` → `apiKey`.
 
@@ -149,17 +168,18 @@ hidden trigger logic to the player». Il campo esiste ed è cablato; **quale
 evento lo faccia scattare non è definito da nessun documento**. Oggi si attiva
 solo da DEV.
 
-### Personality Seed — ora specificato, non ancora costruito
-**Dove:** `src/engine/signals.ts` → `neutralPersonality()`.
+### Pesi numerici del Signal Scan
+**Dove:** `src/engine/personalityScan.ts` → `NUDGE` e i campi `nudge`.
 
-**La MASTER SPEC v1.8 §12 ha chiuso la parte che mancava**: ci sono le 12
-domande vere, con le risposte e il vettore latente che ognuna alimenta. Restano
-🟡 solo i **coefficienti numerici**, che il documento stesso dichiara da tarare.
+La schermata 03 adesso c'è, e il seme non è più neutro. Ma §12 è esplicito:
+«Directional mappings below are canonical; **numeric weights require
+calibration**». Le direzioni sono quelle del documento; i numeri — quanto pesa
+ogni risposta su ogni asse — sono miei.
 
-Ma la schermata **03 PERSONALITY / SIGNAL SCAN** non esiste ancora nel
-prototipo, quindi il seme resta neutro (tutto a 50) e le formule di fit di
-GB §17 lavorano solo su salute e umori. È la lacuna che più limita la varietà
-delle Family generate, ed è adesso la cosa più costruibile del documento.
+Stanno tutti in un file solo, quindi tararli è una modifica sola. Oggi una
+risposta sposta un asse di 6, 10 o 15 punti da una base di 50: `verify:batch`
+misura lo scostamento dal neutro (~80–84% con risposte coerenti) e controlla
+che profili diversi portino a Family diverse.
 
 ### Affinità culturali
 **Dove:** `src/engine/generation-config.ts` → `CULTURAL_TAGS`.

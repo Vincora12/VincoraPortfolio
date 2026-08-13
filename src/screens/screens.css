@@ -2007,3 +2007,115 @@
 .cal__gracenote {
   margin: 0;
 }
+
+/* ============================================================================
+   03 SIGNAL SCAN (MS v1.8 §12)
+
+   Campo nero come tutte le fasi che precedono la creatura. Una domanda per
+   schermata e risposte grandi: §12 dice «2–4 large answers», e grande vuol
+   dire che si legge e si tocca senza mirare.
+   ========================================================================= */
+
+.scan03__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--u5);
+  padding: var(--u5) var(--u4);
+}
+
+.scan03__index {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--u3);
+  color: var(--muted-strong);
+}
+
+/* Tacche, non percentuale: dicono a che punto sei, non quanto manca a un
+   premio. Il documento non chiede una barra, e una barra qui suggerirebbe che
+   c'è qualcosa da completare invece di qualcosa da dire. */
+.scan03__ticks {
+  display: flex;
+  gap: 3px;
+}
+
+.scan03__tick {
+  width: 8px;
+  height: 3px;
+  background: var(--hairline);
+}
+
+.scan03__tick--done {
+  background: var(--muted-strong);
+}
+
+.scan03__tick--here {
+  background: var(--char-accent);
+}
+
+.scan03__question {
+  font-size: var(--type-display-l);
+  margin: 0;
+  line-height: 1.15;
+}
+
+.scan03__answers {
+  display: flex;
+  flex-direction: column;
+  gap: var(--u2);
+}
+
+.scan03__answer {
+  display: flex;
+  align-items: center;
+  gap: var(--u3);
+  width: 100%;
+  min-height: 56px;
+  padding: var(--u3);
+  border: var(--border) solid var(--ink);
+  background: var(--white);
+  color: var(--ink);
+  text-align: left;
+  font-family: var(--font-body);
+  font-size: var(--type-body);
+  cursor: pointer;
+}
+
+/* Inversione su `--ink`, non su `--char-primary`: qui il .mon non esiste
+   ancora, quindi l'accento di personaggio è quello di default e sul campo nero
+   non stacca. `--ink` si ribalta con il campo e funziona in tutti e due. */
+.scan03__answer--on {
+  background: var(--ink);
+  color: var(--white);
+  border-color: var(--char-accent);
+  box-shadow: var(--shadow-hard-sm);
+}
+
+.scan03__answertext {
+  flex: 1;
+}
+
+.scan03__mark {
+  font-size: 11px;
+  opacity: 0.8;
+}
+
+/* I glifi sono disegni di sistema, non illustrazioni: stesso tratto delle
+   icone, nessun riempimento, nessuna creatura anticipata (§18A). */
+.scan03__glyph {
+  flex: 0 0 auto;
+  color: currentColor;
+}
+
+.scan03__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--u3);
+}
+
+.scan03__note {
+  color: var(--muted);
+  text-align: right;
+  margin: 0;
+}

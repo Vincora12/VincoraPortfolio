@@ -341,3 +341,24 @@
   word-break: break-word;
   user-select: text;
 }
+
+/* Il seme di personalità in DEV: 16 assi, letti a colpo d'occhio. */
+.dev__seed {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--u);
+}
+
+.dev__seeditem {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  padding: 2px var(--u2);
+  border: 1px solid var(--hairline);
+  color: var(--muted);
+}
+
+.dev__seeditem em {
+  font-style: normal;
+  color: var(--ink);
+}

@@ -12,13 +12,15 @@
    ========================================================================= */
 
 import { useState } from 'react';
-import { useApp, useActiveMon, useGrowth, useToday } from '../state/store';
+import { useApp, useActiveMon, useGrowth, useScan, useToday } from '../state/store';
 import { Button, FolderTabs, IconButton, Row, SystemLabel, TextField } from '../system/components';
 import {
   DAILY_SIGNALS,
   DAILY_SIGNAL_LABELS,
   PROGRESSION,
 } from '../engine/progression';
+import { seedSpread } from '../engine/personalityScan';
+import { PERSONALITY_KEYS } from '../engine/signals';
 import { STAT_KEYS, UNKNOWN, isKnown } from '../engine/types';
 import type { StatKey } from '../engine/types';
 import { ASSET_TYPES } from '../engine/assets';
@@ -195,6 +197,9 @@ function SignalsSection() {
   const grantSync = useApp((s) => s.grantSync);
   const grantBond = useApp((s) => s.grantBond);
   const injectEvent = useApp((s) => s.injectEvent);
+  const personality = useApp((s) => s.personality);
+  const reopenScan = useApp((s) => s.reopenScan);
+  const scan = useScan();
 
   const [eventText, setEventText] = useState('');
 
@@ -248,6 +253,26 @@ function SignalsSection() {
         della giornata. Questi pulsanti scavalcano la regola per non dover
         aspettare 28 giorni a ogni prova.
       </p>
+
+      {/* §12 — il seme è la cosa che più cambia quale Family esce, e senza una
+          lettura in DEV non c'è modo di accorgersi se lo scan sta funzionando:
+          un seme piatto e un seme mai compilato producono la stessa creatura. */}
+      <p className="t-meta dev__label">SIGNAL SCAN (§12)</p>
+      <div className="rowlist">
+        <Row label="RISPOSTE" value={`${scan.answered}/12`} />
+        <Row label="SCOSTAMENTO DAL NEUTRO" value={`${Math.round(seedSpread(personality) * 100)}%`} />
+      </div>
+      <div className="dev__seed">
+        {PERSONALITY_KEYS.map((k) => (
+          <span key={k} className="dev__seeditem t-micro">
+            {k}
+            <em>{Math.round(personality[k])}</em>
+          </span>
+        ))}
+      </div>
+      <Button small block onClick={reopenScan}>
+        RIFAI IL SIGNAL SCAN
+      </Button>
 
       <p className="t-meta dev__label">INIETTA UN EVENTO</p>
       <TextField

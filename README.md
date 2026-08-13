@@ -61,7 +61,7 @@ Si prova il motore e l'interfaccia, non ancora il prodotto sui propri dati veri.
 | `npm run dev` | Avvia il prototipo |
 | `npm run build` | Typecheck + build di produzione |
 | `npm run typecheck` | Solo controllo dei tipi |
-| `npm run verify` | Percorre l'app end-to-end in Chromium headless, cattura 40 screenshot in `screenshots/` e fallisce su qualunque errore di console |
+| `npm run verify` | Percorre l'app end-to-end in Chromium headless, cattura 44 screenshot in `screenshots/` e fallisce su qualunque errore di console |
 | `VERIFY_BASE=<url> npm run verify` | La stessa camminata contro un sito già pubblicato (o `vite preview`), dove il bundle è minificato e i percorsi degli asset sono altri |
 | `npm run verify:batch` | QA del generatore su 3000 `.mon`: tabelle di rarità di GB §26, distribuzioni, genoma dei nomi, Heritage, ancore di continuità di MS §9.1, copertura dei frammenti |
 | `npm run verify:package` | Controlla il pacchetto Asset Request contro MS §22.2/§24.4/§13 e GB §30/§45/§48 |
@@ -73,17 +73,22 @@ Si prova il motore e l'interfaccia, non ancora il prodotto sui propri dati veri.
 ## Come si prova in due minuti
 
 1. Apri `?dev=1`.
-2. **Incubazione**: premi `+ 7 GIORNI SINCRONIZZATI`, poi `HATCH`.
+2. **SIGNAL SCAN**: dodici domande, una per schermata, poi `LOCK SIGNAL`
+   (MS §12). Nessuna risposta nomina una Family e la schermata non mostra mai
+   cosa stai spostando — se si potesse ottimizzare, sceglieresti la creatura
+   invece di essere letto. Le risposte seminano i 16 assi di personalità di
+   GB §2, ed è quello che più decide quale Family esce.
+3. **Incubazione**: premi `+ 7 GIORNI SINCRONIZZATI`, poi `HATCH`.
    Nasce la prima forma, **estratta come tutte le altre**: due partite non
    cominciano dalla stessa creatura. Ha dati completi e **zero immagini**.
-3. **Home**: scrivi qualcosa nel composer. Il `.mon` risponde con la sua voce
+4. **Home**: scrivi qualcosa nel composer. Il `.mon` risponde con la sua voce
    (fallback deterministico, dichiarato come tale in interfaccia).
-4. **DAILY SCAN**: rispondi ai tre segnali del giorno — CIBO, ALLENAMENTO,
+5. **DAILY SCAN**: rispondi ai tre segnali del giorno — CIBO, ALLENAMENTO,
    UMORE — e chiudi la giornata. È l'**unico** modo di guadagnare SYNC, e vale
    +1, una volta sola. La stessa schermata dichiara fino a 3 umori fra i 13 di
    GB §11, e dice a chiare lettere che un singolo giorno **non** assegna mai il
    Mood della creatura: entra in una finestra mobile di 14 giorni.
-5. **DEV → TEMPO**: `+7 DAYS` un paio di volte. Guarda **ME**: i trend si
+6. **DEV → TEMPO**: `+7 DAYS` un paio di volte. Guarda **ME**: i trend si
    muovono, i dati mai rilevati restano `UNKNOWN` e non diventano zero.
    Poi apri **GIORNI**: il calendario è una superficie primaria (MS §14).
    `●` sincronizzato, `◐` parziale, `○` vuoto, `◍` pausa; tocca un giorno e
@@ -93,24 +98,24 @@ Si prova il motore e l'interfaccia, non ancora il prodotto sui propri dati veri.
    assenza. **Una pausa non dà SYNC** (in quei giorni VINZ.MON non ha potuto
    leggerti) ma non toglie niente, e finisce nelle memorie. Un giorno in cui
    stai male *e lo racconti* non è una pausa: è un giorno normale, da chiudere.
-6. **DEV → MINDLINE**: spunta *forza MICRO-GROWTH*, poi `APRI MINDLINE SHIFT` →
+7. **DEV → MINDLINE**: spunta *forza MICRO-GROWTH*, poi `APRI MINDLINE SHIFT` →
    `LASCIA MATURARE`. La stessa identità matura: nome, Family, Affinity e
    Character DNA restano invariati e la schermata lo dichiara.
-7. Torna in DEV, spunta *forza FORM EVOLUTION*, riapri lo shift →
+8. Torna in DEV, spunta *forza FORM EVOLUTION*, riapri lo shift →
    `GUARDA COSA CAMBIA`. La schermata dichiara **l'ancora di continuità** —
    quale dei cinque schemi di MS §9.1 è uscito e cosa resta com'è — e i tratti
    che passeranno, **senza** anticipare la forma nuova: a quel punto non è
    ancora stata generata. Si può sempre dire `NON ORA` senza perdere niente.
-8. Conferma: la stessa entità prende una forma nuova. Apri **MINDLINE**: il
+9. Conferma: la stessa entità prende una forma nuova. Apri **MINDLINE**: il
    cambio di forma si vede come una diramazione. Apri **HERITAGE DNA**: per
    ogni tratto c'è la forma d'origine e quella tradotta nella nuova anatomia
    (GB §23).
-9. **DEV → PROMPT**: il prompt compilato, con la **provenienza espandibile** di
+10. **DEV → PROMPT**: il prompt compilato, con la **provenienza espandibile** di
    ogni frammento — quale asse, quale priorità, quale voce di catalogo.
-10. **Profilo → ASSET → ESPORTA ASSET REQUEST**: scarichi uno zip con i 7 prompt
+11. **Profilo → ASSET → ESPORTA ASSET REQUEST**: scarichi uno zip con i 7 prompt
     completi, i Character Data, `compiled_prompt.txt`, `fragment_ids.json` e
     `ASSET_MANIFEST.json`.
-11. Genera le immagini con ChatGPT, poi **DEV → ASSET** e trascinale dentro:
+12. Genera le immagini con ChatGPT, poi **DEV → ASSET** e trascinale dentro:
     gli slot si risolvono da soli e nessun campo di identità cambia.
 
 ---
@@ -286,11 +291,17 @@ errore di console.
 
 ## Cosa NON c'è in v1
 
-Schermate di MS §12 fuori scope: **01** SYSTEM BOOT, **02** THE PACT,
-**03** PERSONALITY / SIGNAL SCAN, **10** WEEKLY REPORT, **21** SETTINGS.
-Non sono omissioni: sono scope concordato. La 03 è quella che pesa davvero —
-finché non esiste, il Personality Seed di GB §2 resta neutro e il motore lavora
-solo su salute e umori.
+Schermate fuori scope: **01** SYSTEM BOOT, **02** THE PACT, **10** WEEKLY
+REPORT, **21** SETTINGS. Non sono omissioni: sono scope concordato.
+
+La **03 PERSONALITY / SIGNAL SCAN** era la lacuna che pesava — finché non
+esisteva, il Personality Seed di GB §2 restava neutro e il motore lavorava solo
+su salute e umori. Adesso c'è: MS v1.8 §12 ha fissato le dodici domande, e
+`verify:batch` controlla che profili di risposte diversi portino davvero a
+Family diverse.
+
+Restano fuori, per fase: architettura della memoria a cinque strati (MS §15),
+file e connettori (§16–§17), router multi-AI (§18), App Intents iOS (§22).
 
 La generazione è **locale e deterministica**. Il generatore AI che scriverà i
 Character Data è il passo successivo, deciso: arriva dopo il documento

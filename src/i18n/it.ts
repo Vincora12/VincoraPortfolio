@@ -19,6 +19,20 @@ export const t = {
     mindline: 'MINDLINE',
   },
 
+  /* 03 PERSONALITY / SIGNAL SCAN (MS v1.8 §12) */
+  scan03: {
+    title: 'SIGNAL SCAN',
+    subtitle: 'PRIMA CHE COMINCI',
+    next: 'AVANTI',
+    pick: 'SCEGLI UNA RISPOSTA',
+    back: 'INDIETRO',
+    /* La CTA è vincolata dal documento: «Final CTA: LOCK SIGNAL». */
+    lock: 'LOCK SIGNAL',
+    /* Dice due cose vere e nessuna promessa: non si torna indietro dopo il
+       lock, e non c'è una risposta giusta da indovinare. */
+    note: 'Nessuna risposta è migliore di un’altra. Dopo LOCK SIGNAL non si cambia.',
+  },
+
   /* 04 FIRST SIGNAL / INCUBATION — 🟡 terminologia provvisoria */
   incubation: {
     title: 'PRIMO SEGNALE',
