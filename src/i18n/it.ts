@@ -51,14 +51,9 @@ export const t = {
        RACCONTATI — che è tutt'altra cosa, perché il tempo che passa non fa
        schiudere niente (§7). */
     day: 'GIORNI RACCONTATI',
-    stability: 'SIGNAL STABILITY',
-    waiting:
-      'Il sistema sta ancora leggendo. Basta presentarsi: ogni giorno chiuso è un giorno che conta, e saltarne uno non azzera niente.',
     ready: 'Il segnale è stabile.',
     hatch: 'HATCH',
     definitive: 'Questa scelta è definitiva.',
-    notReady: 'Segnale non ancora stabile',
-    todayTitle: 'LA GIORNATA DI OGGI',
     todayOpen: (n: number) => `${n}/3 segnali di oggi. Raccontagli il resto.`,
     todayReady: 'La giornata è pronta da chiudere. Vale +1 giorno.',
     todayClosed: 'Giornata chiusa. Conta.',
@@ -107,7 +102,6 @@ export const t = {
     composerPlaceholder: 'Scrivi a',
     sync: 'SYNC',
     bond: 'BOND',
-    openProfile: 'PROFILO COMPLETO',
     fallbackNotice: 'risposta di fallback',
     recorded: 'registrato:',
     /* 🔷 v1.10 — l'annuncio adesso è la linea di SYNC piena, quindi il testo
@@ -145,7 +139,6 @@ export const t = {
     rule: 'Fino a 3 al giorno. Un solo giorno non decide mai come sarà il tuo .mon: quello che dichiari entra in una finestra di 14 giorni, dove gli ultimi 3 pesano il doppio e nessun giorno singolo può contare più del 18%.',
     latentTitle: 'FINESTRA LATENTE',
     latentNote: 'È questo che il generatore legge, non il singolo giorno.',
-    confidenceTitle: 'DATA CONFIDENCE',
     lowConfidence:
       'Con pochi dati il sistema usa un umore neutro invece di inventarne uno forte.',
     missingTitle: 'SEGNALI NON LETTI',
@@ -234,7 +227,6 @@ export const t = {
     anchorNote: 'Non cambia tutto. Questi assi restano come sono.',
     unknownAhead: 'Il resto si riconfigura. Non è ancora stato generato.',
     current: 'ORA',
-    becomes: 'DIVENTA',
     confirm: 'CAMBIA FORMA',
     back: 'NON ORA',
   },
@@ -288,7 +280,6 @@ export const t = {
     },
     exportPackage: 'ESPORTA ASSET REQUEST',
     exporting: 'PREPARO IL PACCHETTO…',
-    rotate: 'DRAG ORIZZONTALE PER RUOTARE',
   },
 
   /* 16 BIO / PERSONAL FILE */
@@ -305,7 +296,6 @@ export const t = {
     title: 'MINDLINE',
     chapter: 'CAPITOLO',
     current: 'NODO CORRENTE',
-    viewChapter: 'APRI IL NODO',
     nodes: 'NODI',
     hint: 'Tocca un nodo per aprirlo.',
     restore: 'TORNA A QUESTO NODO',
@@ -333,7 +323,6 @@ export const t = {
   history: {
     title: 'EVOLUTION TIMELINE',
     subtitle: 'FORME',
-    born: 'COMPARSO',
     retired: 'LASCIATO',
     active: 'ATTIVO',
   },
@@ -345,6 +334,5 @@ export const t = {
     back: 'Indietro',
     day: 'GIORNO',
     sync: 'SYNC',
-    waitingForImage: 'WAITING FOR IMAGE',
   },
 } as const;
