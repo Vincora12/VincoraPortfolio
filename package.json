@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "verify": "node scripts/verify-screens.mjs",
     "verify:package": "node scripts/package-check.mjs",
-    "verify:batch": "node scripts/batch-check.mjs 3000"
+    "verify:batch": "node scripts/batch-check.mjs 3000",
+    "verify:features": "node scripts/feature-check.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.116.0",

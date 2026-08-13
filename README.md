@@ -65,8 +65,25 @@ Si prova il motore e l'interfaccia, non ancora il prodotto sui propri dati veri.
 | `VERIFY_BASE=<url> npm run verify` | La stessa camminata contro un sito già pubblicato (o `vite preview`), dove il bundle è minificato e i percorsi degli asset sono altri |
 | `npm run verify:batch` | QA del generatore su 3000 `.mon`: tabelle di rarità di GB §26, distribuzioni, genoma dei nomi, Heritage, ancore di continuità di MS §9.1, copertura dei frammenti |
 | `npm run verify:package` | Controlla il pacchetto Asset Request contro MS §22.2/§24.4/§13 e GB §30/§45/§48 |
+| `npm run verify:features` | **Audit delle decisioni**: 61 controlli che ogni scelta presa in conversazione sia ancora nel codice. Fallisce se qualcuno rimette una cosa tolta o toglie una cosa messa |
 
 `verify:batch` accetta un numero: `node scripts/batch-check.mjs 400` per un giro rapido.
+
+**Perché quattro controlli e non uno.** I primi tre guardano che il prototipo
+*funzioni*: che non esploda, che il motore produca creature valide, che il
+pacchetto sia completo. Il quarto guarda una cosa diversa — che le **decisioni**
+siano ancora dove le avevamo messe. In un progetto costruito a conversazione,
+la regressione più probabile non è un errore di tipo: è che una scelta presa
+tre settimane fa venga silenziosamente disfatta. `verify:features` è il modo di
+accorgersene senza doversi fidare della memoria di nessuno.
+
+Un esempio di cosa protegge: le rese italiane dei cataloghi (`it`) parlano
+all'utente e possono essere evocative — «qualcosa di celeste gli è cresciuto
+addosso» — mentre i campi `effect` / `language` / `translation` finiscono nei
+prompt immagine e **devono restare descrittivi e concreti**, perché un modello
+di immagini legge quelli. Sono due testi sulla stessa cosa, ed è facilissimo
+accorciare il secondo pensando di star sistemando il primo. Il controllo lo
+impedisce.
 
 ---
 
