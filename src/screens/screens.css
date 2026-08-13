@@ -2928,3 +2928,26 @@
   border-top: 1px solid var(--hairline);
   padding-top: var(--u2);
 }
+
+/* 🔷 v1.11 §14.3 — IL TIMBRO.
+
+   Un giorno chiuso porta il sigillo del .mon che c'era allora, non un pallino.
+   Leggermente storto, come un timbro messo a mano: dritto sembrerebbe
+   un'icona di sistema. */
+.cal__stamp {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--char-primary);
+  transform: rotate(-7deg);
+  animation: stamp-in var(--dur-base) var(--ease-system) backwards;
+}
+
+@keyframes stamp-in {
+  from { transform: rotate(-7deg) scale(1.5); opacity: 0; }
+  60% { transform: rotate(-7deg) scale(0.94); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cal__stamp { animation: none; }
+}

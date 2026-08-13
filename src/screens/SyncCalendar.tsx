@@ -37,6 +37,8 @@ import {
   type DayStatus,
 } from '../engine/progression';
 import { haptic } from '../system/haptics';
+import { Sigil } from '../system/AssetSlot';
+import { Icon } from '../system/Icon';
 import { DaySummary } from '../system/DaySummary';
 import { t } from '../i18n/it';
 
@@ -67,11 +69,17 @@ interface Cell {
   status: DayStatus;
   record: DailySync | null;
   milestone: keyof typeof MILESTONES | null;
+  /** 🔷 v1.11 §14.3 — quale .mon c'era quel giorno: è il timbro. */
+  monName: string | null;
 }
 
 export function CalendarScreen({ onGo }: { onGo: (o: Overlay) => void }) {
   const days = useApp((s) => s.days);
+  const mons = useApp((s) => s.mons);
   const { protocol } = useProtocol();
+
+  /* Il seme del sigillo vive sul record del .mon: qui serve solo a disegnarlo. */
+  const sigilOf = (name: string) => mons[name]!.sigil;
   const today = useApp((s) => s.day);
   const startedAt = useApp((s) => s.startedAt);
   const nodes = useApp((s) => s.nodes);
@@ -85,6 +93,19 @@ export function CalendarScreen({ onGo }: { onGo: (o: Overlay) => void }) {
   const milestones = new Map<number, keyof typeof MILESTONES>();
   for (const n of nodes) milestones.set(n.day, n.kind);
 
+  /* Quale forma era in campo in un certo giorno: l'ultimo nodo nato prima o in
+     quel giorno. Serve al timbro — «lo sticker del mio .mon DI QUEL PERIODO» —
+     e la Mindline lo sa già, non c'è niente da conservare in più. */
+  const ordered = [...nodes].sort((a, b) => a.day - b.day);
+  const monOn = (day: number): string | null => {
+    let name: string | null = null;
+    for (const n of ordered) {
+      if (n.day > day) break;
+      name = n.monName;
+    }
+    return name;
+  };
+
   const cells: Cell[] = Array.from({ length: today }, (_, i) => {
     const day = i + 1;
     const record = days[day] ?? null;
@@ -94,6 +115,7 @@ export function CalendarScreen({ onGo }: { onGo: (o: Overlay) => void }) {
       status: record ? dayStatus(record) : 'EMPTY',
       record,
       milestone: milestones.get(day) ?? null,
+      monName: monOn(day),
     };
   });
 
@@ -215,9 +237,34 @@ export function CalendarScreen({ onGo }: { onGo: (o: Overlay) => void }) {
                   aria-pressed={cell.day === selected}
                 >
                   <span className="cal__day t-micro">{date.getDate()}</span>
-                  <span className="cal__mark" aria-hidden="true">
-                    {MARKS[cell.status]}
-                  </span>
+                  {/* 🔷 v1.11 §14.3 — IL TIMBRO.
+
+                      Un giorno chiuso non merita lo stesso pallino di un
+                      giorno vuoto: merita un segno che dice «fatto», e che sia
+                      SUO. Il sigillo è generato dal seme di ogni .mon, esiste
+                      sempre — anche senza nessuna immagine importata — e
+                      somiglia già a un marchio. Quando l'asset vero arriva,
+                      lo prende da sé.
+
+                      Il .mon è quello di QUEL periodo, non quello di adesso:
+                      guardando indietro il calendario racconta chi c'era. */}
+                  {cell.status === 'SYNCED' ? (
+                    <span className="cal__stamp" aria-hidden="true">
+                      {cell.monName ? (
+                        <Sigil seed={sigilOf(cell.monName)} size={22} monName={cell.monName} />
+                      ) : (
+                        /* Prima della schiusa il .mon di quel periodo è
+                           l'uovo. Lasciare il pallino avrebbe fatto sembrare
+                           i sette giorni che contano di più un antefatto
+                           senza timbro. */
+                        <Icon name="egg" size={18} strokeWidth={1.8} />
+                      )}
+                    </span>
+                  ) : (
+                    <span className="cal__mark" aria-hidden="true">
+                      {MARKS[cell.status]}
+                    </span>
+                  )}
                   {cell.milestone && (
                     <span className="cal__event" aria-hidden="true">
                       {MILESTONES[cell.milestone].mark}

@@ -17,7 +17,8 @@ import { useState } from 'react';
 import type { Overlay } from '../App';
 import { useApp, useActiveMon, useGrowth } from '../state/store';
 import { BioPanel } from './BioPanel';
-import { AssetSlot, RotationViewer, Sigil } from '../system/AssetSlot';
+import { AssetSlot, Sigil } from '../system/AssetSlot';
+import { IdleMon } from '../system/LiveMon';
 import { MonName, SpeciesName } from '../system/MonName';
 import {
   Button,
@@ -112,7 +113,10 @@ export function SpecimenProfileScreen({
 
       {/* --- Rotazione pseudo-3D (§24.5): drag orizzontale, con fallback --- */}
       <div className="specimen__stage">
-        <RotationViewer monName={d.name} />
+        {/* 🔷 v1.11 §23.3 — era la rotazione a trascinamento. Adesso è la
+            stessa creatura viva della schermata di casa: un ciclo leggero,
+            quattro frame invece di otto. */}
+        <IdleMon monName={d.name} alt={displayName(d.name)} />
       </div>
 
       <div className="specimen__sync">

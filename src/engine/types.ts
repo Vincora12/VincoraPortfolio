@@ -128,7 +128,6 @@ export interface HeritageTrait {
 
 export type AssetType =
   | 'character_master'
-  | 'rotation_sprite'
   | 'profile_portrait'
   | 'bio_doodle'
   | 'reaction_pack'

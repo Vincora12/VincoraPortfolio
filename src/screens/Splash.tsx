@@ -26,9 +26,10 @@
 
 import { useState } from 'react';
 import { useApp, useActiveMon, useIncubation } from '../state/store';
-import { RotationViewer } from '../system/AssetSlot';
+import { IdleMon } from '../system/LiveMon';
 import { EggVessel } from '../system/EggVessel';
 import { MonName, SpeciesName } from '../system/MonName';
+import { displayName } from '../engine/types';
 import { haptic } from '../system/haptics';
 import { t } from '../i18n/it';
 
@@ -89,11 +90,12 @@ export function SplashScreen({ onEnter }: { onEnter: () => void }) {
             />
           </button>
         ) : (
-          /* 🔷 v1.10 §13.9 — la rotazione a trascinamento vive QUI, non solo
-             sepolta nel profilo. È la schermata dove guardi la creatura: farla
-             girare è la cosa che si prova a fare per istinto, e prima non
-             rispondeva. Senza sprite resta il ritratto che respira. */
-          <RotationViewer monName={mon!.data.name} idleWhenStill />
+          /* 🔷 v1.11 §23.3 — la creatura non gira: respira. Qui c'era il
+             visore a trascinamento, uscito insieme al suo asset — otto viste
+             coerenti erano il pezzo più caro del pacchetto in cambio di un
+             gesto che si prova una volta. Un ciclo leggero in loop fa lo
+             stesso lavoro meglio, con quattro frame invece di otto. */
+          <IdleMon monName={mon!.data.name} alt={displayName(mon!.data.name)} />
         )}
       </div>
 

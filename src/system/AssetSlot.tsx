@@ -14,9 +14,9 @@
    ottenerlo. È informazione, non un surrogato dell'immagine.
    ========================================================================= */
 
-import { useEffect, useState, useSyncExternalStore } from 'react';
+import { useEffect, useSyncExternalStore } from 'react';
 import type { AssetType, SigilSeed } from '../engine/types';
-import { ROTATION_SPEC, assetTypeDef, placeholderLabel } from '../engine/assets';
+import { assetTypeDef, placeholderLabel } from '../engine/assets';
 import {
   getAssetUrlSync,
   loadAsset,
@@ -231,131 +231,13 @@ export function Sigil({
 }
 
 /* ============================================================================
-   ROTAZIONE (§24.5)
-   Il trascinamento orizzontale cambia l'indice del frame. Nessun modello 3D.
-   L'ordine dei frame segue il manifest. Se lo sprite non è disponibile si
-   ripiega sul Character Master, e se manca anche quello sul segnaposto: la
-   schermata non si blocca mai.
+   🔷 v1.11 §23.3 — QUI VIVEVA `RotationViewer`, il visore a trascinamento.
+
+   È uscito insieme all'asset che lo alimentava. Otto viste coerenti dello
+   stesso personaggio sono la cosa più cara e più fragile che si possa chiedere
+   a un modello di immagini — la sbagliano molto prima di sbagliare
+   un'espressione — e in cambio davano un gesto che si prova una volta e poi
+   mai più.
+
+   Dove c'era, adesso c'è `IdleMon`: la creatura non gira, respira.
    ========================================================================= */
-
-export function RotationViewer({
-  monName,
-  /**
-   * 🔷 v1.10 §13.9 — sulla schermata del personaggio la creatura non può stare
-   * ferma quando nessuno la trascina: sarebbe un ritaglio. Con questo il
-   * ripiego respira, e la scritta che spiega cosa manca sparisce — lì è un
-   * posto dove si guarda, non dove si diagnostica una pipeline.
-   */
-  idleWhenStill = false,
-}: {
-  monName: string;
-  idleWhenStill?: boolean;
-}) {
-  const sprite = useAssetUrl(monName, 'rotation_sprite');
-  const [frame, setFrame] = useState(0);
-  const [dragging, setDragging] = useState(false);
-
-  // Senza sprite, il fallback è il Character Master statico (§24.5).
-  if (!sprite) {
-    return (
-      <div className={`rotation ${idleWhenStill ? 'rotation--idle' : ''}`}>
-        {/* ⚠️ L'ordine dei tipi cambia in base a dove siamo, e non è un
-            dettaglio: il segnaposto mostrato è quello del tipo PRIMARIO.
-
-            Nel profilo la rotazione è la cosa promessa, quindi il segnaposto
-            giusto è quello dello sprite. Sulla schermata del personaggio la
-            cosa promessa è la creatura: dire lì «manca lo sprite di rotazione
-            a 8 frame» significa spiegare un pezzo di pipeline a chi voleva
-            solo guardarla. Senza sprite, quello che si vede è il master. */}
-        <AssetSlot
-          monName={monName}
-          type={idleWhenStill ? 'character_master' : 'rotation_sprite'}
-          fallbackTypes={idleWhenStill ? [] : ['character_master']}
-          alt="Vista del personaggio"
-          className="rotation__fallback"
-        />
-        {!idleWhenStill && (
-          <p className="rotation__hint t-micro">
-            ROTAZIONE NON DISPONIBILE — SERVE LO SPRITE A {ROTATION_SPEC.frames} FRAME
-          </p>
-        )}
-      </div>
-    );
-  }
-
-  const { frames, sequenceDegrees } = ROTATION_SPEC;
-
-  // Sensibilità: un giro completo ogni ~280 px di trascinamento.
-  const pxPerFrame = 280 / frames;
-  let startX = 0;
-  let startFrame = 0;
-
-  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    e.currentTarget.setPointerCapture(e.pointerId);
-    startX = e.clientX;
-    startFrame = frame;
-    setDragging(true);
-  };
-
-  const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!dragging) return;
-    const delta = Math.round((e.clientX - startX) / pxPerFrame);
-    // Avvolgimento circolare: la rotazione non ha inizio né fine.
-    setFrame((((startFrame - delta) % frames) + frames) % frames);
-  };
-
-  const onPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
-    e.currentTarget.releasePointerCapture(e.pointerId);
-    setDragging(false);
-  };
-
-  const step = (dir: number) => setFrame((f) => (((f + dir) % frames) + frames) % frames);
-
-  return (
-    <div className={`rotation ${idleWhenStill && !dragging ? 'rotation--idle' : ''}`}>
-      <div
-        className="rotation__stage"
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerCancel={onPointerUp}
-        role="slider"
-        tabIndex={0}
-        aria-label="Rotazione dello specimen"
-        aria-valuemin={0}
-        aria-valuemax={360}
-        aria-valuenow={sequenceDegrees[frame]}
-        aria-valuetext={`${sequenceDegrees[frame]} gradi`}
-        onKeyDown={(e) => {
-          if (e.key === 'ArrowRight') step(1);
-          if (e.key === 'ArrowLeft') step(-1);
-        }}
-        style={{
-          backgroundImage: `url(${sprite})`,
-          backgroundSize: `${frames * 100}% 100%`,
-          backgroundPosition: `${(frame / (frames - 1)) * 100}% center`,
-          cursor: dragging ? 'grabbing' : 'grab',
-          touchAction: 'none',
-        }}
-      />
-
-      <div className="rotation__controls">
-        <button type="button" className="btn-icon btn-icon--sm btn-icon--light" aria-label="Ruota a sinistra" onClick={() => step(-1)}>
-          ‹
-        </button>
-        <div className="rotation__track" aria-hidden="true">
-          {sequenceDegrees.map((deg, i) => (
-            <span key={deg} className={`rotation__tick ${i === frame ? 'rotation__tick--on' : ''}`} />
-          ))}
-        </div>
-        <button type="button" className="btn-icon btn-icon--sm btn-icon--light" aria-label="Ruota a destra" onClick={() => step(1)}>
-          ›
-        </button>
-      </div>
-
-      <p className="rotation__hint t-micro">
-        DRAG ORIZZONTALE PER RUOTARE — {sequenceDegrees[frame]}°
-      </p>
-    </div>
-  );
-}

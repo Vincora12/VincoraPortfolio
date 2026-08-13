@@ -50,21 +50,11 @@ export const ASSET_TYPES: readonly AssetTypeDef[] = [
     usage: ['companion-home', 'consistency-reference'],
   },
   {
-    type: 'rotation_sprite',
-    stage: 1,
-    dependsOn: ['character_master'],
-    assetId: 'rotation_01',
-    promptFile: '02_ROTATION_SPRITE_PROMPT.txt',
-    label: 'ROTATION SPRITE SHEET',
-    purpose: 'Rotazione pseudo-3D a trascinamento orizzontale: schermata del personaggio e profilo.',
-    usage: ['specimen-profile', 'character-inspection'],
-  },
-  {
     type: 'profile_portrait',
     stage: 1,
     dependsOn: ['character_master'],
     assetId: 'portrait_01',
-    promptFile: '03_PROFILE_PORTRAIT_PROMPT.txt',
+    promptFile: '02_PROFILE_PORTRAIT_PROMPT.txt',
     label: 'PROFILE PORTRAIT',
     purpose: 'Ritratto generato apposta per profilo, memorie, notifiche e nodi. Mai un ritaglio.',
     usage: ['specimen-profile', 'memories', 'mindline-node', 'notifications'],
@@ -74,7 +64,7 @@ export const ASSET_TYPES: readonly AssetTypeDef[] = [
     stage: 2,
     dependsOn: ['character_master'],
     assetId: 'doodle_01',
-    promptFile: '04_BIO_DOODLE_PROMPT.txt',
+    promptFile: '03_BIO_DOODLE_PROMPT.txt',
     label: 'BIO DOODLE',
     purpose: 'Interpretazione da quaderno, usata SOLO in BIO / PERSONAL FILE. Non è un Appearance.',
     usage: ['bio-personal-file'],
@@ -84,7 +74,7 @@ export const ASSET_TYPES: readonly AssetTypeDef[] = [
     stage: 1,
     dependsOn: ['character_master'],
     assetId: 'reactions_01',
-    promptFile: '05_REACTION_PACK_PROMPT.txt',
+    promptFile: '04_REACTION_PACK_PROMPT.txt',
     label: 'EXPRESSION SHEET',
     purpose:
       'Le sei espressioni canoniche, griglia 3×2. È quello che cambia in testa alla chat a ogni risposta.',
@@ -98,7 +88,7 @@ export const ASSET_TYPES: readonly AssetTypeDef[] = [
     stage: 1,
     dependsOn: ['character_master'],
     assetId: 'idle_01',
-    promptFile: '06_IDLE_ANIMATION_PROMPT.txt',
+    promptFile: '05_IDLE_ANIMATION_PROMPT.txt',
     label: 'IDLE ANIMATION',
     purpose: 'Ciclo di respiro a 6 frame. Schermata d’ingresso e presenza viva in chat.',
     usage: ['splash', 'chat-header', 'companion-home'],
@@ -108,7 +98,7 @@ export const ASSET_TYPES: readonly AssetTypeDef[] = [
     stage: 1,
     dependsOn: ['character_master'],
     assetId: 'hero_01',
-    promptFile: '07_ENCOUNTER_HERO_PROMPT.txt',
+    promptFile: '06_ENCOUNTER_HERO_PROMPT.txt',
     label: 'ENCOUNTER HERO',
     purpose: 'Asset di rivelazione per FIRST ENCOUNTER / NEW ENCOUNTER.',
     usage: ['first-encounter', 'new-encounter'],
@@ -118,7 +108,7 @@ export const ASSET_TYPES: readonly AssetTypeDef[] = [
     stage: 2,
     dependsOn: ['character_master'],
     assetId: 'sigil_01',
-    promptFile: '08_SIGIL_PROMPT.txt',
+    promptFile: '07_SIGIL_PROMPT.txt',
     label: 'SIGIL',
     purpose: 'Marchio monocromo derivato dal Character DNA, usabile dentro la UI.',
     usage: ['specimen-profile', 'mindline', 'history'],
@@ -149,18 +139,25 @@ export function placeholderLabel(type: AssetType): string {
   return `ASSET_${String(index).padStart(2, '0')} // WAITING FOR IMAGE`;
 }
 
-/* --- ROTATION SPRITE — parametri 🔒 LOCKED (§24.1) -------------------------- */
 
-export const ROTATION_SPEC = {
-  frames: 8,
-  columns: 8,
-  rows: 1,
-  /** Ordine orario per default, salvo diversa indicazione del manifest (§24.1). */
-  sequenceDegrees: [0, 45, 90, 135, 180, 225, 270, 315],
-  anchor: 'bottom-center',
-  background: 'transparent',
-  interaction: 'horizontal-drag',
-} as const;
+/* ============================================================================
+   🔷 v1.11 §23.3 — QUI VIVEVA LA ROTAZIONE, e non c'è più.
+
+   Otto frame per un giro completo del personaggio: era il singolo asset più
+   caro del pacchetto, ed era anche il più difficile da ottenere — otto viste
+   coerenti dello stesso soggetto sono la cosa che i modelli di immagini
+   sbagliano per prima, molto prima di sbagliare un'espressione.
+
+   In cambio dava un gesto che si usa una volta e poi mai più.
+
+   L'IDLE fa lo stesso lavoro meglio e a metà prezzo: la creatura sulla
+   schermata di casa dev'essere VIVA, non girevole. Quattro frame in
+   ping-pong bastano, e non chiedono al modello nessuna coerenza rotazionale.
+
+   Conto: 8 asset e 25 frame → 7 asset e 15 frame. Il 40% in meno da generare
+   per ogni .mon, senza perdere niente che si guardasse davvero.
+   ========================================================================= */
+
 
 /* ============================================================================
    🔶 v1.9 §23.1 — EXPRESSION SHEET
@@ -205,10 +202,10 @@ export const EXPRESSION_BRIEF: Record<Expression, string> = {
    -------------------------------------------------------------------------- */
 
 export const IDLE_SPEC = {
-  frames: 6,
-  columns: 6,
+  frames: 4,
+  columns: 4,
   rows: 1,
-  /** Ping-pong: 6 frame diventano 10 passi percepiti senza disegnarne altri. */
+  /** Ping-pong: 4 frame diventano 6 passi percepiti senza disegnarne altri. */
   playback: 'ping-pong',
   fps: 8,
   anchor: 'bottom-center',
@@ -221,7 +218,7 @@ export const IDLE_SPEC = {
    Il conto, per ogni .mon:
 
      STADIO 0   1 immagine    CHARACTER MASTER          — solo testo
-     STADIO 1   5 immagini    PORTRAIT · ROTATION · IDLE · EXPRESSIONS · HERO
+     STADIO 1   4 immagini    PORTRAIT · IDLE · EXPRESSIONS · HERO
      STADIO 2   2 immagini    BIO DOODLE · SIGIL
 
      = 8 generazioni, 25 frame disegnati
@@ -265,7 +262,6 @@ export function generationOrder(): AssetTypeDef[] {
 
 /** Quanti frame disegnati costa un asset: un foglio ne vale più di uno. */
 export function frameCount(type: AssetType): number {
-  if (type === 'rotation_sprite') return ROTATION_SPEC.frames;
   if (type === 'reaction_pack') return EXPRESSION_SPEC.frames;
   if (type === 'idle_animation') return IDLE_SPEC.frames;
   return 1;

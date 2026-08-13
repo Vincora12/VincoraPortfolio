@@ -161,7 +161,6 @@ export async function importAssetFile(
 function assetTypeFromId(assetId: string): AssetType | null {
   const map: Record<string, AssetType> = {
     master_01: 'character_master',
-    rotation_01: 'rotation_sprite',
     portrait_01: 'profile_portrait',
     doodle_01: 'bio_doodle',
     reactions_01: 'reaction_pack',

@@ -9,7 +9,7 @@
    come va usato ogni file restituito.
    ========================================================================= */
 
-import { ASSET_TYPES, ROTATION_SPEC } from '../engine/assets';
+import { ASSET_TYPES, IDLE_SPEC } from '../engine/assets';
 import type { MonRecord } from '../engine/types';
 import { displayName } from '../engine/types';
 
@@ -67,22 +67,24 @@ export function buildManifest(record: MonRecord): AssetManifest {
       background: def.type === 'bio_doodle' || def.type === 'encounter_hero' ? 'opaque' : 'transparent',
     };
 
-    if (def.type === 'rotation_sprite') {
-      // Forma esatta di §24.4.
-      return {
-        ...base,
-        frames: ROTATION_SPEC.frames,
-        columns: ROTATION_SPEC.columns,
-        rows: ROTATION_SPEC.rows,
-        sequence_degrees: [...ROTATION_SPEC.sequenceDegrees],
-        anchor: ROTATION_SPEC.anchor,
-        background: ROTATION_SPEC.background,
-        interaction: ROTATION_SPEC.interaction,
-      };
-    }
-
     if (def.type === 'reaction_pack') {
       return { ...base, frames: 6, columns: 3, rows: 2, anchor: 'center', aspect_ratio: '3:2' };
+    }
+
+    /* 🔷 v1.11 §23.3 — l'IDLE non dichiarava frame né griglia: il manifest lo
+       trattava come un'immagine singola. Chi lo genera non poteva sapere che è
+       una striscia da quattro, e l'app che lo indicizza per posizione avrebbe
+       letto un foglio sbagliato senza accorgersene. Era un buco rimasto
+       scoperto da quando l'asset è stato aggiunto (v1.9). */
+    if (def.type === 'idle_animation') {
+      return {
+        ...base,
+        frames: IDLE_SPEC.frames,
+        columns: IDLE_SPEC.columns,
+        rows: IDLE_SPEC.rows,
+        anchor: IDLE_SPEC.anchor,
+        playback: IDLE_SPEC.playback,
+      };
     }
 
     if (def.type === 'profile_portrait' || def.type === 'sigil') {
@@ -108,7 +110,7 @@ export function buildManifest(record: MonRecord): AssetManifest {
 
 /** Nome del tipo nel manifest: `sprite_rotation` è fissato da §24.4. */
 function manifestType(type: string): string {
-  return type === 'rotation_sprite' ? 'sprite_rotation' : type;
+  return type;
 }
 
 /**

@@ -3,7 +3,7 @@
 
    Controlla i criteri 5 e 6 di §26:
    • «Any generated .mon can export a COMPLETE Asset Request package.»
-   • «The Rotation Sprite prompt contains ENOUGH TECHNICAL INSTRUCTION for
+   • «Ogni prompt contiene ABBASTANZA ISTRUZIONE TECNICA per
       ChatGPT to generate an implementable sprite strip.»
 
    E i contratti di §22.2 (contenuto del pacchetto), §24.4 (forma del manifest)
@@ -109,13 +109,12 @@ console.log('CONTENUTO (§22.2)');
 const EXPECTED = [
   '00_CHARACTER_DATA.json',
   '01_CHARACTER_MASTER_PROMPT.txt',
-  '02_ROTATION_SPRITE_PROMPT.txt',
-  '03_PROFILE_PORTRAIT_PROMPT.txt',
-  '04_BIO_DOODLE_PROMPT.txt',
-  '05_REACTION_PACK_PROMPT.txt',
-  '06_IDLE_ANIMATION_PROMPT.txt',
-  '07_ENCOUNTER_HERO_PROMPT.txt',
-  '08_SIGIL_PROMPT.txt',
+  '02_PROFILE_PORTRAIT_PROMPT.txt',
+  '03_BIO_DOODLE_PROMPT.txt',
+  '04_REACTION_PACK_PROMPT.txt',
+  '05_IDLE_ANIMATION_PROMPT.txt',
+  '06_ENCOUNTER_HERO_PROMPT.txt',
+  '07_SIGIL_PROMPT.txt',
   'compiled_prompt.txt',
   'fragment_ids.json',
   'ASSET_MANIFEST.json',
@@ -137,12 +136,12 @@ check(
 );
 
 /* §30 — «The exact same Character Data must compile consistently across
-   Character Master, Rotation Sprite, Portrait, Bio Doodle, Reactions and
+   Character Master, Portrait, Bio Doodle, Reactions, Idle, Hero and
    Reveal assets.» La consistenza non è una frase di cortesia dentro il testo:
    è il fatto che gli stessi frammenti di identità entrino in tutti quanti. */
 
 const ASSET_TYPES = [
-  'character_master', 'rotation_sprite', 'profile_portrait', 'bio_doodle',
+  'character_master', 'profile_portrait', 'bio_doodle',
   'reaction_pack', 'idle_animation', 'encounter_hero', 'sigil',
 ];
 
@@ -188,48 +187,44 @@ check(
   'fragment_ids.json registra compiler, config e seed (§48)',
 );
 
-/* --- §45: sprite di rotazione ---------------------------------------------- */
+/* --- §23.3: il ciclo di riposo ---------------------------------------------
+   🔷 v1.11 — qui c'erano dodici controlli sullo SPRITE DI ROTAZIONE: griglia
+   8 × 1, otto angoli espliciti, nessuna deriva di camera, ancoraggio
+   bottom-center. Erano giusti, e l'asset non esiste più.
 
-console.log('\nSPRITE DI ROTAZIONE (§45)');
+   Otto viste coerenti dello stesso personaggio sono la cosa più cara e più
+   fragile che si possa chiedere a un modello di immagini, in cambio di un
+   gesto che si prova una volta. Al suo posto c'è l'IDLE, che fa il lavoro che
+   contava — la creatura è viva — con quattro frame invece di otto.
+   -------------------------------------------------------------------------- */
 
-const rot = files.find((f) => f.name === '02_ROTATION_SPRITE_PROMPT.txt').content;
+console.log('\nCICLO DI RIPOSO (§23.3)');
 
-const REQUIRED_IN_ROTATION = [
-  ['griglia 8 × 1', '8 columns × 1 row'],
-  ['otto angoli espliciti', '08 315° front-left'],
-  ['partenza dal fronte', '01 0° front'],
+const idle = files.find((f) => f.name === '05_IDLE_ANIMATION_PROMPT.txt').content;
+
+const REQUIRED_IN_IDLE = [
   ['consistenza assoluta', 'ABSOLUTE CONSISTENCY'],
-  ['stessa anatomia e proporzioni', 'same anatomy, proportions, face, eyewear, haircut, outfit, accessories'],
-  ['nessuna deriva di camera', 'camera height'],
-  ['dimensioni di frame identiche', 'Every frame equal dimensions'],
-  ['corpo intero in ogni frame', 'Full body in every frame'],
-  ['ancoraggio bottom-center', 'Same bottom-center registration anchor'],
   ['sfondo trasparente', 'Transparent background'],
-  ['divisibile in 8 frame', 'split into 8 equal sprite frames'],
-  ['niente testo, pavimento o crop', 'No text, labels, floor, environment or crop'],
+  ['inquadratura identica in ogni frame', 'Identical framing'],
+  ['divisibile in 4 frame uguali', 'split into 4 equal sprite frames'],
+  ['ping-pong dichiarato', 'ping-pong'],
 ];
 
-for (const [label, needle] of REQUIRED_IN_ROTATION) {
-  check(rot.includes(needle), label);
+for (const [label, needle] of REQUIRED_IN_IDLE) {
+  check(idle.includes(needle), label);
 }
 
 /* --- §24.4: forma del manifest --------------------------------------------- */
 
 console.log('\nMANIFEST (§24.4)');
 
-const rotEntry = manifest.assets.find((a) => a.asset_id === 'rotation_01');
-check(rotEntry?.type === 'sprite_rotation', 'type = sprite_rotation');
-check(rotEntry?.frames === 8, 'frames = 8');
-check(rotEntry?.columns === 8 && rotEntry?.rows === 1, 'columns = 8, rows = 1');
+const idleEntry = manifest.assets.find((a) => a.asset_id === 'idle_01');
+check(idleEntry?.frames === 4, 'idle: frames = 4', String(idleEntry?.frames));
+check(idleEntry?.columns === 4 && idleEntry?.rows === 1, 'idle: griglia 4 × 1');
 check(
-  JSON.stringify(rotEntry?.sequence_degrees) === JSON.stringify([0, 45, 90, 135, 180, 225, 270, 315]),
-  'sequence_degrees corretta',
+  !manifest.assets.some((a) => a.asset_id === 'rotation_01'),
+  'nessuna rotazione nel manifest (§23.3)',
 );
-check(rotEntry?.anchor === 'bottom-center', 'anchor = bottom-center');
-check(rotEntry?.background === 'transparent', 'background = transparent');
-check(rotEntry?.interaction === 'horizontal-drag', 'interaction = horizontal-drag');
-check(Array.isArray(rotEntry?.usage) && rotEntry.usage.length > 0, 'usage popolato');
-check(manifest.assets.length === 8, 'otto tipi di asset canonici (§23 + v1.9 §23.1)', `${manifest.assets.length}`);
 
 /* --- §13 / §21.1: contratto dei Character Data ----------------------------- */
 

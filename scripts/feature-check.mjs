@@ -158,7 +158,30 @@ check(
 
 const ASSETS = 'src/engine/assets.ts';
 
-check('ASSET §23', 'otto tipi', count(ASSETS, /^ {4}type: '/gm) === 8, `${count(ASSETS, /^ {4}type: '/gm)}`);
+check(
+  'ASSET §23',
+  'sette tipi, non otto',
+  count(ASSETS, /^ {4}type: '/gm) === 7,
+  `${count(ASSETS, /^ {4}type: '/gm)} — la rotazione è uscita in v1.11 §23.3`,
+);
+check(
+  'ASSET §23',
+  'nessuna rotazione da nessuna parte',
+  lacks('src/engine/types.ts', "'rotation_sprite'") &&
+    lacks('src/assets-pipeline/fragments.ts', 'rotation_sprite:') &&
+    lacks('src/system/AssetSlot.tsx', 'export function RotationViewer'),
+);
+check(
+  'ASSET §23',
+  'il ciclo di riposo è quattro frame',
+  has(ASSETS, 'frames: 4'),
+);
+check(
+  'ASSET §23',
+  'il manifest dichiara i frame del ciclo di riposo',
+  has('src/assets-pipeline/manifest.ts', "def.type === 'idle_animation'"),
+  'senza, chi genera non sa che è una striscia da quattro',
+);
 check('ASSET §23', 'idle animation', has('src/engine/types.ts', 'idle_animation'));
 check('ASSET §23', 'griglia espressioni indicizzabile', has(ASSETS, 'EXPRESSION_SPEC'));
 check('ASSET §23', 'ordine di produzione a stadi', has(ASSETS, 'GENERATION_STAGES'));
@@ -321,6 +344,25 @@ check(
   !/segments=\{inc\.total\}/.test(read('src/screens/Incubation.tsx') ?? ''),
 );
 
+/* 🔷 v1.11 §14.3 — il timbro sul giorno chiuso. */
+
+check(
+  'TIMBRO §14.3',
+  'un giorno chiuso porta il sigillo, non un pallino',
+  has('src/screens/SyncCalendar.tsx', 'cal__stamp'),
+);
+check(
+  'TIMBRO §14.3',
+  'è il .mon di QUEL periodo, non quello di adesso',
+  has('src/screens/SyncCalendar.tsx', 'const monOn ='),
+);
+check(
+  'TIMBRO §14.3',
+  'funziona senza nessuna immagine importata',
+  has('src/screens/SyncCalendar.tsx', '<Sigil seed='),
+  'il sigillo è generato dal seme: esiste sempre',
+);
+
 /* 🔷 v1.11 §5.4 — i pasti, il piano, il riepilogo. */
 
 check('PASTI §5.4', 'cinque fasce, non una casella sola', has(PROTOCOL, 'MEAL_SLOTS'));
@@ -392,9 +434,9 @@ check(
 check('VIVA §13.9', 'toccare l’uovo lo fa saltare', has('src/screens/Splash.tsx', 'splash__poke'));
 check(
   'VIVA §13.9',
-  'la creatura si trascina per ruotare, sulla home',
-  has('src/screens/Splash.tsx', 'RotationViewer') &&
-    has('src/system/AssetSlot.tsx', 'idleWhenStill'),
+  'la creatura sulla home è viva, non girevole',
+  has('src/screens/Splash.tsx', 'IdleMon'),
+  'la rotazione a trascinamento è uscita col suo asset (§23.3)',
 );
 check(
   'VIVA §13.9',
