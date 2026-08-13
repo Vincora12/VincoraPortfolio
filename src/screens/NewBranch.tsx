@@ -17,7 +17,7 @@
 import { useApp, useActiveMon, usePendingPlan } from '../state/store';
 import { AssetSlot } from '../system/AssetSlot';
 import { MonName, SpeciesName } from '../system/MonName';
-import { Button, ScreenHead, SystemLabel } from '../system/components';
+import { Button, HoldButton, ScreenHead, SystemLabel } from '../system/components';
 import { heritageCategoryLabel } from '../engine/heritage';
 import { AXIS_LABELS, PATTERN_LABELS, type ContinuityAxis } from '../engine/progression';
 import { displayName } from '../engine/types';
@@ -108,9 +108,12 @@ export function NewBranchScreen() {
       </div>
 
       <footer className="screen__foot screen__foot--stack">
-        <Button variant="primary" block onClick={confirmFormEvolution}>
+        {/* 🔷 v1.10 §13.8 — la conferma vera del cambio di forma si tiene
+            premuta. L'offerta a monte già lo faceva; questa, che è quella che
+            trasforma davvero, era un tocco secco. */}
+        <HoldButton onComplete={confirmFormEvolution} hint={t.shift.hold}>
           {t.branch.confirm}
-        </Button>
+        </HoldButton>
         <Button variant="ghost" block onClick={enterLive}>
           {t.branch.back}
         </Button>

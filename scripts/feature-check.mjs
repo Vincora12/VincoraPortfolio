@@ -321,6 +321,22 @@ check(
   !/segments=\{inc\.total\}/.test(read('src/screens/Incubation.tsx') ?? ''),
 );
 
+/* 🔷 v1.10 §13.8 — ogni trasformazione si tiene premuta. */
+
+for (const [file, what] of [
+  ['src/screens/Incubation.tsx', 'nascere'],
+  ['src/screens/NewBranch.tsx', 'cambiare forma'],
+  ['src/screens/MindlineShift.tsx', 'maturare'],
+]) {
+  check('TRASFORMAZIONI §13.8', `${what} si tiene premuto`, has(file, 'HoldButton'));
+}
+
+check(
+  'TRASFORMAZIONI §13.8',
+  'il riempimento arriva in fondo prima di cambiare schermata',
+  has('src/system/components.tsx', 'window.setTimeout(onComplete, 180)'),
+);
+
 /* 🔷 v1.10 §13.7 — DUE SCHERMATE, DUE LAVORI: l'ingresso è la creatura, la
    chat è la conversazione. */
 
@@ -337,13 +353,26 @@ check(
 );
 check(
   'INGRESSO §13.7',
-  'si rivede a ogni cambio di fase',
-  has(APP, 'useEffect(() => setEntered(false), [phase])'),
+  'la home è il personaggio, non una schermata da superare',
+  has(APP, "useState<'creature' | 'chat'>('creature')") &&
+    has(APP, "if (next === 'mon') setMonView('creature');"),
+  'rientrando nella tab MON si riparte sempre dalla creatura',
+);
+check(
+  'INGRESSO §13.7',
+  'si riparte dalla creatura a ogni cambio di fase',
+  has(APP, "useEffect(() => setMonView('creature'), [phase])"),
+);
+check(
+  'INGRESSO §13.7',
+  'la barra di navigazione resta anche sulla creatura',
+  has(APP, "{phase === 'live' && !overlay && <TabBar"),
+  'è una tab, non una schermata che copre tutto',
 );
 check(
   'INGRESSO §13.7',
   'un overlay vince sempre sull’ingresso',
-  (read(APP) ?? '').indexOf('overlay ? (') < (read(APP) ?? '').indexOf('showSplash ? ('),
+  (read(APP) ?? '').indexOf('overlay ? (') < (read(APP) ?? '').indexOf('onCreature ? ('),
   'con la splash aperta il pannello DEV si apriva sotto e non si vedeva',
 );
 check(

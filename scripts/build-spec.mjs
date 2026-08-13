@@ -182,7 +182,8 @@ body.push(
       ['§7.3 🔷', 'Il guscio cambia ogni giorno', 'un numero non si sente addosso, una crepa sì'],
       ['§13.5 🔷', 'Sette cancellature nell\'interfaccia', 'telemetria del motore e annunci doppi su superfici di prodotto'],
       ['§13.6 🔷', 'Una cosa per schermata', 'l\'incubazione aveva otto blocchi e la chat stava in mezzo'],
-      ['§13.7 🔷', 'L\'ingresso è la creatura, la chat è la conversazione', 'la Home faceva due lavori male'],
+      ['§13.7 🔷', 'La home è il personaggio, la chat è dove si va', 'la Home faceva due lavori male'],
+      ['§13.8 🔷', 'Ogni trasformazione si tiene premuta', 'nascere e cambiare forma erano tocchi secchi'],
     ],
   ),
 );
@@ -438,10 +439,12 @@ body.push(
 );
 
 body.push(
-  rule('🔒', 'ALL\'APERTURA c\'è l\'INGRESSO: la creatura al centro, che si muove. L\'uovo durante l\'incubazione, il .mon dopo. Niente dati, niente barre.'),
+  rule('🔒', 'LA HOME È IL PERSONAGGIO. Non è una schermata di benvenuto da superare: è dove stai. La tab MON ha due viste — la creatura e la conversazione — e quella di partenza è sempre la creatura.'),
+  rule('🔒', 'Alla chat CI SI VA, e ci si torna. Toccando la creatura, o rientrando nella tab MON.'),
+  rule('🔒', 'La barra di navigazione resta visibile sulla creatura: da lì si raggiungono ME, GIORNI e MINDLINE senza passare dalla chat. È una tab, non una schermata che copre tutto.'),
   rule('🔒', 'Si entra da una PORTA DICHIARATA — «CHAT →» — o toccando la creatura. Non si entra da soli dopo qualche secondo: §13.1 lo prevedeva perché la schermata non aveva nessuna via d\'uscita visibile, ed era un cartello, non una porta. Una schermata che ti butta fuori dopo quattro secondi non è un posto dove stare.'),
-  rule('🔒', 'L\'ingresso ricompare a ogni CAMBIO DI FASE, non solo a ogni apertura: quando l\'uovo si schiude, quello che ti aspetta non è più lo stesso.'),
-  rule('🔒', 'Un OVERLAY vince sempre sull\'ingresso. È una navigazione esplicita; l\'ingresso è un saluto.'),
+  rule('🔒', 'Si riparte dalla creatura a ogni CAMBIO DI FASE: quando l\'uovo si schiude, quello che ti aspetta non è più lo stesso.'),
+  rule('🔒', 'Un OVERLAY vince sempre sulla creatura. È una navigazione esplicita.'),
   rule('🔒', 'La chat ha la stessa forma in entrambe le fasi: barra compatta con la creatura piccola, conversazione, striscia di stato, composer.'),
 );
 
@@ -459,6 +462,39 @@ body.push(
 
 body.push(
   note('§12/06 dice «il .mon corrente occupa il 45–55% del viewport iniziale». Con l\'ingresso il vincolo è rispettato meglio di prima, non aggirato: all\'apertura ne occupa tutto.'),
+);
+
+/* --- 13.8 TENERE PREMUTO 🔷 --------------------------------------------------*/
+
+body.push(h1('13.8 · OGNI TRASFORMAZIONE SI TIENE PREMUTA 🔷'));
+
+body.push(
+  p('Il gesto esisteva già sull\'offerta di crescita: si tiene premuto, un riempimento avanza, e alla fine la cosa succede. Non era applicato ai due momenti più grandi.'),
+);
+
+body.push(spacer());
+body.push(
+  table(
+    ['MOMENTO', 'PRIMA', 'ADESSO'],
+    [
+      ['HATCH — la prima forma', 'un tocco secco', 'si tiene premuto'],
+      ['CAMBIA FORMA — la conferma', 'un tocco secco', 'si tiene premuto'],
+      ['LASCIA MATURARE', 'si teneva premuto', 'invariato'],
+      ['GUARDA COSA CAMBIA', 'si teneva premuto', 'invariato'],
+    ],
+  ),
+);
+body.push(spacer());
+
+body.push(
+  rule('🔒', 'Ogni azione che TRASFORMA il .mon si tiene premuta. Nessuna di queste può partire per sbaglio, e l\'attesa è ciò che rende il momento un momento.'),
+  rule('🔒', 'Il riempimento deve arrivare in fondo PRIMA che la schermata cambi. Senza quell\'istante di stato pieno, il gesto non si vede mai compiere.'),
+  rule('🔒', 'Da tastiera basta Invio: non si chiede a chi naviga da tastiera di tenere premuto un tasto.'),
+  rule('🔒', 'Due vibrazioni: una leggera quando il riempimento parte, una piena quando arriva in fondo.'),
+);
+
+body.push(
+  note('Il confine è netto e vale come regola: si tiene premuto ciò che TRASFORMA, si tocca ciò che NAVIGA. Chiudere una giornata è un tocco — succede ogni giorno e non cambia nessuna forma.'),
 );
 
 /* --- 8.1 --------------------------------------------------------------------*/

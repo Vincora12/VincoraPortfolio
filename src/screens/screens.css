@@ -2251,8 +2251,13 @@
   text-align: center;
 }
 
+/* I nomi sono generati e possono essere lunghi: meglio che vadano a capo che
+   toccare i bordi. */
 .splash__name {
   font-size: var(--type-display-xl);
+  line-height: 0.95;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .splash__form {

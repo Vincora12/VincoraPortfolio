@@ -35,7 +35,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Overlay } from '../App';
 import { useApp, useIncubation, useToday } from '../state/store';
-import { Button, IconButton, SignalWave, TextField } from '../system/components';
+import { Button, HoldButton, IconButton, SignalWave, TextField } from '../system/components';
 import { EggVessel } from '../system/EggVessel';
 import { t } from '../i18n/it';
 
@@ -118,9 +118,12 @@ export function IncubationScreen({ onGo }: { onGo: (o: Overlay) => void }) {
             <strong className="t-meta">{t.incubation.ready}</strong>
             <span className="t-micro">{t.incubation.definitive}</span>
           </span>
-          <Button variant="primary" haptics="impact" onClick={hatch}>
+          {/* 🔷 v1.10 §13.8 — si tiene premuto, come ogni trasformazione.
+              Nascere è la piu' grande di tutte e fino a qui era un tocco
+              secco: la stessa gravità di un pulsante qualsiasi. */}
+          <HoldButton onComplete={hatch} hint={t.shift.hold}>
             {t.incubation.hatch}
-          </Button>
+          </HoldButton>
         </div>
       ) : (
         <div className="incubation__strip">

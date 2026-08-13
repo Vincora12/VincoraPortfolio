@@ -209,18 +209,19 @@ try {
   await shot('05-incubazione-pronta');
 
   /* 05 — FIRST ENCOUNTER: tre battute, non una (v1.9 §13.2) */
-  await click(byText('HATCH'), 'HATCH');
+  // 🔷 v1.10 §13.8 — anche nascere si tiene premuto.
+  await hold('HATCH');
   await sleep(900);
   await shot('05-first-encounter-nome');
   await sleep(1600); // il sipario si alza da sé
   await shot('05-first-encounter');
 
-  /* 00 — INGRESSO: la splash con lo sprite di riposo (§13.1) */
+  /* 06 — LA HOME È IL PERSONAGGIO (v1.10 §13.7).
+     Non è una schermata di benvenuto da superare: è la tab MON, con la barra
+     di navigazione sotto. Alla chat ci si va. */
   await click(byText('BENVENUTO A CASA'), 'entra');
-  await shot('00-splash');
-  await click('.splash__enter', 'entra dalla splash');
-
-  /* 06 — COMPANION HOME */
+  await shot('06-home-personaggio');
+  await click('.splash__enter', 'vai in chat');
   await shot('06-companion-home');
 
   // Conversazione + estrazione naturale (v1.9 §5.1): questa frase deve
@@ -347,7 +348,7 @@ try {
   await shot('13-form-evolution');
 
   /* 14 — NEW ENCOUNTER */
-  await click(byText('CAMBIA FORMA'), 'conferma cambio di forma');
+  await hold('CAMBIA FORMA');
   await sleep(2600);
   await shot('14-new-encounter');
   await click(byText('BENVENUTO A CASA'), 'entra');

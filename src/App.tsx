@@ -67,15 +67,22 @@ export function App() {
   const [tab, setTab] = useState<Tab>('mon');
   const [overlay, setOverlay] = useState<Overlay>(null);
 
-  // 🔶 §13.1 — l'ingresso. Non è persistito di proposito: si rivede a ogni
-  // apertura, perché è un saluto e non un onboarding.
-  const [entered, setEntered] = useState(false);
+  /* 🔷 v1.10 §13.7 — LA HOME È IL PERSONAGGIO.
+     
+     Non è una schermata di benvenuto da superare: è dove stai. La tab MON ha
+     due viste — la creatura e la conversazione — e quella di partenza è
+     sempre la creatura. Alla chat ci si va, e ci si torna.
+     
+     Si riparte dalla creatura in tre casi: al primo avvio, a ogni cambio di
+     fase (quando l'uovo si schiude, quello che ti aspetta non è più lo
+     stesso) e ogni volta che si rientra nella tab MON. */
+  const [monView, setMonView] = useState<'creature' | 'chat'>('creature');
+  useEffect(() => setMonView('creature'), [phase]);
 
-  // 🔷 v1.10 §13.7 — e si rivede a ogni cambio di fase. Quando l'uovo si
-  // schiude, quello che ti aspetta all'ingresso non è più lo stesso: sarebbe
-  // strano entrare direttamente in chat con qualcuno che non hai ancora visto
-  // in piedi.
-  useEffect(() => setEntered(false), [phase]);
+  const goTab = (next: Tab) => {
+    if (next === 'mon') setMonView('creature');
+    setTab(next);
+  };
 
   // §10.2 — cambiare .mon ritematizza gli accenti senza toccare l'architettura.
   useEffect(() => {
@@ -94,18 +101,17 @@ export function App() {
     }
   }, [setDev]);
 
-  // 🔷 v1.10 §13.7 — l'ingresso vale anche per l'incubazione, con l'uovo al
-  // centro. Prima esisteva solo dopo la nascita, e i sette giorni che decidono
-  // se l'app viene riaperta non avevano nessun momento di presenza.
-  //
-  // §12/01 resta rispettato: l'uovo non anticipa niente, ed è la stessa cosa
-  // che si vede in piccolo nella barra della chat.
-  const showSplash =
-    !entered && (phase === 'incubation' || (phase === 'live' && activeMonName !== null));
+  /* Vale anche per l'incubazione, con l'uovo al centro: i sette giorni che
+     decidono se l'app viene riaperta non avevano nessun momento di presenza.
+     §12/01 resta rispettato — l'uovo non anticipa niente, ed è la stessa cosa
+     che si vede in piccolo nella barra della chat. */
+  const onCreature =
+    monView === 'creature' &&
+    (phase === 'incubation' || (phase === 'live' && tab === 'mon' && activeMonName !== null));
 
   // Il board mostra anche la MINDLINE su campo nero, non solo le fasi evento.
   const inkField =
-    showSplash ||
+    onCreature ||
     INK_PHASES.includes(phase) ||
     overlay === 'dev' ||
     (phase === 'live' && tab === 'mindline' && !overlay);
@@ -124,13 +130,21 @@ export function App() {
             saluto. */}
         {overlay ? (
           <OverlayScreen overlay={overlay} onClose={() => setOverlay(null)} onGo={setOverlay} />
-        ) : showSplash ? (
-          <SplashScreen onEnter={() => setEntered(true)} />
+        ) : onCreature ? (
+          <SplashScreen onEnter={() => setMonView('chat')} />
         ) : (
-          <PhaseScreen phase={phase} tab={tab} onGo={setOverlay} onBack={() => setEntered(false)} />
+          <PhaseScreen
+            phase={phase}
+            tab={tab}
+            onGo={setOverlay}
+            onBack={() => setMonView('creature')}
+          />
         )}
 
-        {phase === 'live' && !overlay && !showSplash && <TabBar tab={tab} onChange={setTab} />}
+        {/* 🔷 La barra resta anche sulla creatura: è una tab, non una
+            schermata che copre tutto. Da lì si va a ME, GIORNI e MINDLINE
+            senza dover prima entrare in chat. */}
+        {phase === 'live' && !overlay && <TabBar tab={tab} onChange={goTab} />}
       </div>
     </div>
   );
