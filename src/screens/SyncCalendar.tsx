@@ -148,16 +148,22 @@ export function CalendarScreen({ onGo }: { onGo: (o: Overlay) => void }) {
         </button>
 
         {/* §14 — «Show synced-days remaining to milestones.» In giorni, non in
-            percentuale: «mancano 16 giorni» si capisce, «43%» no. */}
-        <section className="cal__next">
-          <SystemLabel tone="character">{t.calendar.nextTitle}</SystemLabel>
-          <p className="t-display cal__nextline">{t.calendar.eventNames[event.kind]}</p>
-          <p className="t-small cal__nextnote">
-            {event.ready
-              ? t.calendar.ready
-              : t.calendar.remaining(Math.max(0, event.need - event.have))}
-          </p>
-        </section>
+            percentuale: «mancano 16 giorni» si capisce, «43%» no.
+
+            🔷 v1.10 — e SOLO quando manca ancora qualcosa. Quando l'evento è
+            disponibile lo annuncia la Home, sulla linea di SYNC piena: dirlo
+            anche qui significava leggere due volte la stessa notizia con
+            parole diverse, e la seconda volta non si capisce se sia nuova.
+            Questa schermata conta i giorni; l'altra dà la notizia. */}
+        {!event.ready && (
+          <section className="cal__next">
+            <SystemLabel tone="character">{t.calendar.nextTitle}</SystemLabel>
+            <p className="t-display cal__nextline">{t.calendar.eventNames[event.kind]}</p>
+            <p className="t-small cal__nextnote">
+              {t.calendar.remaining(Math.max(0, event.need - event.have))}
+            </p>
+          </section>
+        )}
 
         {/* --- Il mese --- */}
         <section className="cal__month">
@@ -228,10 +234,14 @@ export function CalendarScreen({ onGo }: { onGo: (o: Overlay) => void }) {
           </div>
         </section>
 
+        {/* 🔷 v1.10 — la legenda aveva sette voci in mono da 10px, e nessuno
+            legge una legenda di sette voci. Ne restano tre, che sono gli
+            stati veri di un giorno. I traguardi non sono stati: sono eventi,
+            e un evento si legge sul giorno in cui è successo — toccandolo si
+            apre e dice cosa era. Spiegare tre simboli in fondo alla pagina
+            per un fatto che capita tre volte in un mese era spesa in perdita. */}
         <p className="t-micro cal__legend">
-          {MARKS.SYNCED} sincronizzato · {MARKS.PARTIAL} parziale · {MARKS.EMPTY} vuoto ·{' '}
-          {MARKS.GRACE} pausa · {MILESTONES.origin.mark} prima forma ·{' '}
-          {MILESTONES.evolution.mark} maturazione · {MILESTONES.branch.mark} cambio di forma
+          {MARKS.SYNCED} raccontato · {MARKS.PARTIAL} a metà · {MARKS.GRACE} pausa
         </p>
 
         {/* §14 — dettaglio del giorno con i tre segnali e la provenienza. */}

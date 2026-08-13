@@ -102,6 +102,11 @@ export const t = {
     openProfile: 'PROFILO COMPLETO',
     fallbackNotice: 'risposta di fallback',
     recorded: 'registrato:',
+    /* 🔷 v1.10 — l'annuncio adesso è la linea di SYNC piena, quindi il testo
+       deve stare su una riga sola e dire cosa succede, non come si chiama la
+       funzione. «MINDLINE SHIFT» era il nome del sistema, non della notizia. */
+    readyGrowth: 'QUALCOSA È MATURATO',
+    readyForm: 'UNA FORMA NUOVA È POSSIBILE',
     writing: 'sta trovando le parole…',
   },
 

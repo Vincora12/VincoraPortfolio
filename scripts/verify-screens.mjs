@@ -222,7 +222,7 @@ try {
   await click(byText('REGISTRA'), 'conferma registrazione');
 
   /* 15 — SPECIMEN PROFILE + rotazione */
-  await click('.home__head .btn-icon', 'profilo');
+  await click('.home__identity', 'profilo');
   await shot('15-specimen-stats');
   await click(byText('IDENTITÀ'), 'tab identità');
   await shot('15-specimen-identita');

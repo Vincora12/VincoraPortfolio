@@ -14,8 +14,8 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Overlay } from '../App';
 import { useApp, useIncubation, useToday } from '../state/store';
-import { Button, DataDots, GlitchBar, IconButton, ScannerFrame, SegmentedBar, SignalWave, TextField } from '../system/components';
-import { Icon } from '../system/Icon';
+import { Button, DataDots, IconButton, ScannerFrame, SegmentedBar, SignalWave, TextField } from '../system/components';
+import { EggVessel } from '../system/EggVessel';
 import { STAT_KEYS, isKnown } from '../engine/types';
 import { t } from '../i18n/it';
 
@@ -53,15 +53,23 @@ export function IncubationScreen({ onGo }: { onGo: (o: Overlay) => void }) {
           <h1 className="t-display incubation__title">{t.incubation.title}</h1>
         </header>
 
-        {/* Il "guscio" è un oggetto di sistema, non un uovo illustrato: §18A
-            vieta di inventare arte, e qui non c'è ancora nessun personaggio. */}
+        {/* 🔷 v1.10 §7.3 — il guscio cambia a ogni giorno chiuso: una crepa
+            nuova, la massa dentro più densa, il respiro più corto. È lo stesso
+            valore che riempiva la barra a segmenti, disegnato invece che
+            contato — e infatti la barra è stata tolta.
+
+            Resta un oggetto di sistema, non un uovo illustrato (§18A), e la
+            massa dentro non deve MAI leggersi come una sagoma: §12/01 vieta di
+            anticipare la forma. */}
         <div className="incubation__stage">
           <ScannerFrame>
             <div className="incubation__vessel">
-              <Icon name="egg" size={148} strokeWidth={1.2} />
-              <div className="incubation__crack" style={{ opacity: inc.progress }} aria-hidden="true">
-                <GlitchBar seed={day} slices={18} />
-              </div>
+              <EggVessel
+                progress={inc.progress}
+                days={inc.day}
+                total={inc.total}
+                size={176}
+              />
             </div>
           </ScannerFrame>
         </div>
@@ -147,13 +155,6 @@ export function IncubationScreen({ onGo }: { onGo: (o: Overlay) => void }) {
               {inc.day} <span className="incubation__total">/ {inc.total}</span>
             </span>
           </div>
-
-          <SegmentedBar
-            value={inc.progress}
-            segments={inc.total}
-            label="INCUBAZIONE"
-            readout={`${inc.day} / ${inc.total}`}
-          />
 
           <SegmentedBar
             value={inc.stability}

@@ -73,21 +73,31 @@ export function CompanionHomeScreen({ onGo }: { onGo: (o: Overlay) => void }) {
     <div className="screen home">
       {/* --- Intestazione: identità e stato, senza scatola attorno --- */}
       <header className="home__head">
-        <div className="home__identity">
+        {/* 🔷 v1.10 — un bersaglio solo. C'era il blocco identità (muto) più
+            un'icona «espandi» in alto a destra che in realtà apriva il
+            profilo: lo stesso difetto della matita già segnalato, un glifo
+            che non dice dove porta. Adesso il nome È il pulsante, con la
+            freccia dentro lo stesso bersaglio. */}
+        <button
+          type="button"
+          className="home__identity"
+          onClick={() => onGo('specimen')}
+          aria-label={`Apri il profilo di ${short}`}
+        >
           <span className="home__sigil">
             <Sigil seed={mon.sigil} size={22} monName={d.name} />
           </span>
-          <div>
-            <h1 className="home__name t-display">
+          <span className="home__identitytext">
+            <span className="home__name t-display">
               <MonName name={d.name} />
-            </h1>
+            </span>
             {/* Nome proprio sopra, specie e forma sotto. */}
-            <p className="t-meta home__form">
+            <span className="t-meta home__form">
               <SpeciesName /> · {form}
-            </p>
-          </div>
-        </div>
-        <IconButton icon="expand" label="Apri il profilo completo" light onClick={() => onGo('specimen')} />
+            </span>
+          </span>
+          <span className="home__identitygo" aria-hidden="true">→</span>
+        </button>
       </header>
 
       {/* --- La creatura. Nessuna card: solo il campo e l'asset. --- */}
@@ -109,8 +119,35 @@ export function CompanionHomeScreen({ onGo }: { onGo: (o: Overlay) => void }) {
           compactPlaceholder={!expanded}
         />
 
-        {/* SYNC come linea sul bordo: informazione periferica finché non è
-            piena, e allora diventa il fatto principale della schermata. */}
+      </button>
+
+      {/* --- 🔷 v1.10 — UN ELEMENTO SOLO, dove prima ce n'erano due.
+
+           C'era una linea di SYNC sul bordo dello stage e, quando si riempiva,
+           compariva SOTTO un banner MINDLINE SHIFT: la cosa più rumorosa dello
+           schermo, piazzata fra la creatura e la conversazione, che spingeva
+           giù la chat e non si poteva chiudere finché non agivi. Un annuncio
+           che non si può congedare smette di essere un annuncio.
+
+           Adesso è la linea stessa a diventare l'annuncio: sta dov'era, non
+           sposta niente, e quando è piena cresce e si può toccare. --- */}
+      {somethingReady ? (
+        <button
+          type="button"
+          className="home__sync home__sync--ready"
+          onClick={() => {
+            haptic('impact');
+            openShift();
+          }}
+        >
+          <span className="home__syncpulse" aria-hidden="true" />
+          <Icon name="branch" size={14} strokeWidth={2} />
+          <span className="home__syncready t-meta">
+            {formEvolutionReady ? t.home.readyForm : t.home.readyGrowth}
+          </span>
+          <span className="home__identitygo" aria-hidden="true">→</span>
+        </button>
+      ) : (
         <span
           className="home__sync"
           role="progressbar"
@@ -120,28 +157,6 @@ export function CompanionHomeScreen({ onGo }: { onGo: (o: Overlay) => void }) {
         >
           <span className="home__syncfill" style={{ width: `${progress * 100}%` }} />
         </span>
-      </button>
-
-      {/* --- L'annuncio. È il momento che la schermata deve rendere grande. --- */}
-      {somethingReady && (
-        <button
-          type="button"
-          className="home__shift"
-          onClick={() => {
-            haptic('impact');
-            openShift();
-          }}
-        >
-          <span className="home__shiftpulse" aria-hidden="true" />
-          <Icon name="branch" size={16} strokeWidth={2} />
-          <span className="home__shifttext">
-            <strong className="t-display">MINDLINE SHIFT</strong>
-            <span className="t-micro">
-              {formEvolutionReady ? 'una forma nuova è possibile' : 'qualcosa è maturato'} — apri
-            </span>
-          </span>
-          <span className="home__shiftgo" aria-hidden="true">→</span>
-        </button>
       )}
 
       {/* --- Conversazione --- */}

@@ -291,6 +291,104 @@ check('SUPERFICI', 'niente DISC in ME', lacks('src/screens/MeOverview.tsx', 'dis
 check('SUPERFICI', 'ME dichiara che non è un punteggio', has('src/i18n/it.ts', 'preamble:'));
 
 /* ============================================================================
+   🔷 v1.10 §7.3 / §13.5 — INTERFACCIA
+
+   Le correzioni di questo giro sono quasi tutte CANCELLATURE, e una cancellatura
+   è la cosa più facile da annullare per sbaglio: basta che qualcuno rimetta
+   l'elemento «perché mancava». Ognuna diventa un controllo.
+   ========================================================================= */
+
+check('UOVO §7.3', 'il guscio cambia a ogni giorno chiuso', existsSync('src/system/EggVessel.tsx'));
+check(
+  'UOVO §7.3',
+  'una crepa per giorno sincronizzato',
+  has('src/system/EggVessel.tsx', 'crackPaths'),
+);
+check(
+  'UOVO §7.3',
+  'chiudere una giornata si vede',
+  has('src/system/EggVessel.tsx', 'egg--jolt') && has('src/system/system.css', 'egg-jolt'),
+);
+check(
+  'UOVO §7.3',
+  'niente sagoma dentro il guscio (§12/01)',
+  has('src/system/EggVessel.tsx', 'MASSA') || has('src/system/EggVessel.tsx', 'massa'),
+  'quello che cresce dentro non deve leggersi come una creatura',
+);
+check(
+  'UOVO §7.3',
+  'via la barra a segmenti: adesso lo dice l’uovo',
+  !/segments=\{inc\.total\}/.test(read('src/screens/Incubation.tsx') ?? ''),
+);
+
+check(
+  'INTERFACCIA',
+  'nessuna sigla di espressione accanto alle battute',
+  lacks('src/system/LiveMon.tsx', 'monface__tag'),
+  'si cerca la classe, non la frase: il commento che spiega la rimozione la nomina',
+);
+check(
+  'INTERFACCIA',
+  'niente seed né config su superfici di prodotto (§29)',
+  lacks('src/screens/SpecimenProfile.tsx', 'label="SEED"') &&
+    lacks('src/screens/SpecimenProfile.tsx', 'generation_config_version'),
+);
+check(
+  'INTERFACCIA',
+  'la telemetria di generazione sta in DEV',
+  has('src/dev/DevPanel.tsx', 'GenerationTelemetry'),
+);
+check(
+  'INTERFACCIA',
+  'DATA CONFIDENCE fuori dal prodotto, tutte e tre le volte',
+  ['src/screens/SpecimenProfile.tsx', 'src/screens/MeOverview.tsx', 'src/screens/DailyScan.tsx']
+    .every((f) => lacks(f, 'confidenceTitle') && lacks(f, 'label="DATA CONFIDENCE"')),
+  'ME, profilo e daily scan: la mostravano tutte e tre',
+);
+check(
+  'INTERFACCIA',
+  'un annuncio solo: via il banner MINDLINE SHIFT',
+  lacks('src/screens/CompanionHome.tsx', 'home__shift') &&
+    lacks('src/screens/screens.css', '.home__shift {'),
+);
+check(
+  'INTERFACCIA',
+  'l’annuncio è la linea di SYNC che si riempie',
+  has('src/screens/CompanionHome.tsx', 'home__sync--ready'),
+);
+check(
+  'INTERFACCIA',
+  'il calendario non ripete l’annuncio della Home',
+  has('src/screens/SyncCalendar.tsx', '{!event.ready && ('),
+);
+check(
+  'INTERFACCIA',
+  'la legenda del calendario ha tre voci, non sette',
+  lacks('src/screens/SyncCalendar.tsx', 'MILESTONES.origin.mark} prima forma'),
+);
+check(
+  'INTERFACCIA',
+  'il nome apre il profilo, senza icona muta',
+  has('src/screens/CompanionHome.tsx', 'className="home__identity"'),
+);
+check(
+  'INTERFACCIA',
+  'in REGISTRA la lettura viene prima della foto',
+  (read('src/screens/UniversalInput.tsx') ?? '').indexOf('capture__read') <
+    (read('src/screens/UniversalInput.tsx') ?? '').indexOf('capture__photo'),
+);
+check(
+  'INTERFACCIA',
+  'un solo modo per annullare la registrazione',
+  lacks('src/screens/UniversalInput.tsx', 't.input.cancel'),
+);
+check(
+  'INTERFACCIA',
+  'le chip del profilo dicono di cosa sono',
+  has('src/screens/SpecimenProfile.tsx', 'RARITÀ · '),
+);
+
+/* ============================================================================
    Costi — MASTER SPEC §18.1
    ========================================================================= */
 

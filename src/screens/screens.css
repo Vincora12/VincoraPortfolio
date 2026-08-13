@@ -61,15 +61,6 @@
   justify-content: center;
 }
 
-.incubation__crack {
-  position: absolute;
-  left: 12%;
-  right: 12%;
-  top: 52%;
-  color: var(--char-accent);
-  transition: opacity var(--dur-base) var(--ease-system);
-}
-
 .incubation__readouts {
   display: flex;
   flex-direction: column;
@@ -244,11 +235,32 @@
   border-bottom: var(--border) solid var(--ink);
 }
 
+/* 🔷 v1.10 — l'identità è un pulsante: apre il profilo. Prima era testo muto
+   più un'icona «espandi» dall'altra parte della barra. */
 .home__identity {
   display: flex;
   align-items: center;
   gap: var(--u3);
   min-width: 0;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.home__identitytext {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.home__identitygo {
+  color: var(--char-accent);
+  font-size: var(--type-small);
 }
 
 .home__sigil {
@@ -301,15 +313,17 @@
   min-height: 0;
 }
 
-/* Linea di EVOLUTION SYNC sul bordo inferiore del campo: si legge di sfuggita
-   e non costa una riga di interfaccia. */
+/* Linea di SYNC sotto il campo: si legge di sfuggita e non costa una riga di
+   interfaccia. Quando è piena diventa l'annuncio — stesso posto, stesso
+   elemento, niente che spinge giù la conversazione. */
 .home__sync {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  flex: 0 0 auto;
+  display: block;
   height: 3px;
   background: var(--hairline);
+  border: 0;
+  width: 100%;
+  padding: 0;
 }
 
 .home__syncfill {
@@ -319,116 +333,65 @@
   transition: width var(--dur-base) var(--ease-system);
 }
 
-/* --- L'annuncio dello shift: l'unico elemento che ha il permesso di gridare - */
-
-.home__shift {
-  position: relative;
-  flex: 0 0 auto;
+.home__sync--ready {
   display: flex;
   align-items: center;
-  gap: var(--u3);
-  margin: 0 var(--u4) var(--u2);
-  padding: var(--u2) var(--u3);
-  border: var(--border-thick) solid var(--ink);
+  gap: var(--u2);
+  height: auto;
+  padding: var(--u2) var(--u4);
   background: var(--char-primary);
   color: var(--char-on-primary);
-  box-shadow: var(--shadow-hard-sm);
+  cursor: pointer;
+  position: relative;
   overflow: hidden;
-  animation: shift-enter var(--dur-event) var(--ease-system) backwards;
+  animation: sync-ready var(--dur-event) var(--ease-system) backwards;
 }
 
-/* Non compare: arriva. Entra dal basso e si assesta. */
-@keyframes shift-enter {
-  from {
-    transform: translateY(16px) scaleY(0.6);
-    opacity: 0;
-  }
+/* Non compare: cresce dalla linea che era già lì. */
+@keyframes sync-ready {
+  from { max-height: 3px; padding-top: 0; padding-bottom: 0; }
+  to { max-height: 60px; }
 }
 
-.home__shifttext {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-  min-width: 0;
+.home__syncready {
+  flex: 1;
+  color: var(--char-on-primary);
 }
 
-.home__shifttext strong {
-  font-size: var(--type-display-s);
-  line-height: 1;
+/* La freccia eredita `.home__identitygo`, che è d'accento: sopra il fondo
+   primario del .mon sarebbe accento su accento, cioè invisibile. */
+.home__sync--ready .home__identitygo {
+  color: var(--char-on-primary);
 }
 
-.home__shiftgo {
-  margin-left: auto;
-  font-size: var(--type-display-s);
-  line-height: 1;
-}
-
-/* Il battito: una banda di luce che attraversa il pannello. Non lampeggia —
-   un lampeggio a contrasto pieno è una barriera di accessibilità. */
-.home__shiftpulse {
+.home__syncpulse {
   position: absolute;
   inset: 0;
-  background: linear-gradient(
-    100deg,
-    transparent 35%,
-    rgba(255, 255, 255, 0.42) 50%,
-    transparent 65%
-  );
+  background: var(--char-on-primary);
+  opacity: 0.14;
   transform: translateX(-100%);
-  animation: shift-sweep 2600ms var(--ease-system) infinite;
+  animation: sync-sweep 2.6s var(--ease-system) infinite;
   pointer-events: none;
 }
 
-@keyframes shift-sweep {
-  0%,
-  55% {
-    transform: translateX(-100%);
-  }
-  100% {
-    transform: translateX(100%);
-  }
+@keyframes sync-sweep {
+  0% { transform: translateX(-100%); }
+  60%, 100% { transform: translateX(100%); }
 }
 
-/* --- Azioni del composer: nessuna riga permanente, si aprono dal «+» ------- */
-
-.home__scrim {
-  position: absolute;
-  inset: 0;
-  z-index: 4;
-  border: 0;
-  background: rgba(17, 17, 17, 0.28);
+@media (prefers-reduced-motion: reduce) {
+  .home__sync--ready { animation: none; }
+  .home__syncpulse { animation: none; opacity: 0.1; transform: none; }
 }
 
-.home__actions {
-  position: relative;
-  z-index: 5;
-  flex: 0 0 auto;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--u2);
-  margin: 0 var(--u4) var(--u2);
-  padding: var(--u3);
-  border: var(--border-thick) solid var(--ink);
-  background: var(--white);
-  box-shadow: var(--shadow-hard);
-}
+/* 🔷 v1.10 — qui viveva `.home__shift`, il banner MINDLINE SHIFT: un blocco
+   colorato con ombra dura piazzato fra la creatura e la conversazione, che
+   restava finché non agivi e spingeva la chat verso il basso. Adesso
+   l'annuncio è la linea di SYNC che si riempie (vedi `.home__sync--ready`):
+   stesso posto, un elemento invece di due, e la conversazione non si sposta.
 
-.home__action {
-  display: flex;
-  align-items: center;
-  gap: var(--u2);
-  min-height: 44px;
-  padding: var(--u2);
-  border: var(--border) solid var(--ink);
-  background: var(--white);
-  text-align: left;
-}
-
-.home__action:active {
-  background: var(--ink);
-  color: var(--white);
-}
+   Anche la crepa dell'incubazione è sparita da qui: `.incubation__crack`
+   copriva l'uovo con una GlitchBar, e adesso le crepe sono l'uovo. */
 
 .home__chat {
   flex: 1;

@@ -74,38 +74,13 @@ export function UniversalInputScreen({ onClose }: { onClose: () => void }) {
           multiline
         />
 
-        {/* La foto è un'alternativa allo scrivere, non un allegato: sta accanto
-            al campo e non sotto una voce di menu sua. */}
-        <div className="capture__photo">
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/*"
-            capture="environment"
-            className="sr-only"
-            onChange={(e) => pickPhoto(e.target.files?.[0])}
-          />
-          {photo ? (
-            <div className="capture__thumb">
-              <img src={photo.dataUrl} alt="" />
-              <span className="t-micro capture__thumbname">{photo.name}</span>
-              <Button small variant="ghost" onClick={() => setPhoto(null)}>
-                {t.input.removePhoto}
-              </Button>
-            </div>
-          ) : (
-            <Button
-              variant="secondary"
-              icon="camera"
-              block
-              onClick={() => fileRef.current?.click()}
-            >
-              {t.input.addPhoto}
-            </Button>
-          )}
-        </div>
+        {/* --- Cosa ha capito. Prima di confermare, non dopo. ---
 
-        {/* --- Cosa ha capito. Prima di confermare, non dopo. --- */}
+            🔷 v1.10 — e prima del pulsante della foto, non dopo. Stava sotto,
+            cioè la cosa che DEVI leggere era più in basso di quella che usi di
+            rado, e il pulsante foto pesava di più graficamente. Adesso quello
+            che il sistema ha capito segue immediatamente quello che hai
+            scritto: sono la stessa conversazione. --- */}
         <section className="capture__read">
           <p className="t-meta">{t.input.understood}</p>
 
@@ -154,14 +129,47 @@ export function UniversalInputScreen({ onClose }: { onClose: () => void }) {
 
           <p className="t-micro capture__note">{t.input.correctHint}</p>
         </section>
+        {/* La foto è un'alternativa allo scrivere, non un allegato: sta accanto
+            al campo e non sotto una voce di menu sua. Sotto la lettura perché
+            è la strada meno battuta delle due. */}
+        <div className="capture__photo">
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            className="sr-only"
+            onChange={(e) => pickPhoto(e.target.files?.[0])}
+          />
+          {photo ? (
+            <div className="capture__thumb">
+              <img src={photo.dataUrl} alt="" />
+              <span className="t-micro capture__thumbname">{photo.name}</span>
+              <Button small variant="ghost" onClick={() => setPhoto(null)}>
+                {t.input.removePhoto}
+              </Button>
+            </div>
+          ) : (
+            <Button
+              variant="secondary"
+              icon="camera"
+              block
+              onClick={() => fileRef.current?.click()}
+            >
+              {t.input.addPhoto}
+            </Button>
+          )}
+        </div>
+
       </div>
 
-      <footer className="screen__foot screen__foot--stack">
+      {/* 🔷 v1.10 — c'erano due modi per annullare: la ✕ in alto a destra e un
+          ANNULLA a tutta larghezza qui sotto. Due uscite per la stessa porta
+          fanno esitare invece che rassicurare, e quella in basso rubava
+          spazio all'unica azione che conta. */}
+      <footer className="screen__foot">
         <Button variant="primary" block disabled={nothing} onClick={confirm}>
           {t.input.confirm}
-        </Button>
-        <Button variant="ghost" block onClick={onClose}>
-          {t.input.cancel}
         </Button>
       </footer>
     </div>

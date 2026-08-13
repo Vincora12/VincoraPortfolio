@@ -646,7 +646,39 @@ function ProgressionSection() {
         <Row label="FORM EVOLUTION" value={`a ${PROGRESSION.formEvolutionAt}, come offerta`} />
         <Row label="GIORNI CHIUSI FINORA" value={String(synced)} />
       </div>
+
+      {/* 🔷 v1.10 — arriva dal profilo, dove non doveva stare. §29 confina la
+          traccia di generazione in DEV, e il SEED era su una schermata di
+          prodotto. DATA CONFIDENCE è un concetto del motore — quanto il
+          generatore si fida della finestra recente — non un fatto sulla
+          persona: era già uscito da ME e questa è la seconda metà di quella
+          stessa correzione. */}
+      <GenerationTelemetry />
     </div>
+  );
+}
+
+function GenerationTelemetry() {
+  const mon = useActiveMon();
+  const sync = useApp((s) => s.progression.sync);
+  if (!mon) return null;
+  const d = mon.data;
+
+  return (
+    <>
+      <p className="t-meta dev__label">COME È STATO CALCOLATO</p>
+      <div className="rowlist">
+        <Row label="STADIO" value={String(d.evolution_state?.stage ?? 0)} />
+        <Row label="RARITY SCORE" value={`${d.rarity_score}/100`} />
+        <Row label="DATA CONFIDENCE" value={`${d.data_confidence}%`} />
+        <Row label="SYNC TOTALI" value={String(sync.lifetime)} />
+        <Row label="GENERATO AL GIORNO" value={String(d.generated_at_day)} />
+        <Row label="SEED" value={String(d.seed)} />
+        {/* §29 — ogni .mon conserva la versione di config con cui è nato:
+            cambiare i pesi non riscrive la storia. */}
+        <Row label="CONFIG" value={d.generation_config_version} />
+      </div>
+    </>
   );
 }
 

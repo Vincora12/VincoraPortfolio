@@ -102,9 +102,11 @@ export function SpecimenProfileScreen({
       </header>
 
       <div className="specimen__tags">
-        <SystemLabel tone="character">{d.rarity}</SystemLabel>
-        <SystemLabel>{d.affinity}</SystemLabel>
-        <SystemLabel>{d.size}</SystemLabel>
+        {/* 🔷 v1.10 — avevano tutte lo stesso peso e nessuna diceva di cosa
+            fosse: rarità, affinità e taglia erano tre parole in fila. */}
+        <SystemLabel tone="character">RARITÀ · {d.rarity}</SystemLabel>
+        <SystemLabel>AFFINITÀ · {d.affinity}</SystemLabel>
+        <SystemLabel>TAGLIA · {d.size}</SystemLabel>
         {d.season && <SystemLabel>{d.season}</SystemLabel>}
       </div>
 
@@ -127,19 +129,24 @@ export function SpecimenProfileScreen({
       <div className="screen__body specimen__body">
         {tab === 'stats' && (
           <div className="rowlist">
+            {/* 🔷 v1.10 — questa scheda diceva come il .mon era stato
+                CALCOLATO, non cosa fosse: STADIO, RARITY SCORE, DATA
+                CONFIDENCE, GENERATO AL GIORNO, e in fondo SEED e CONFIG.
+
+                Il seed su una superficie di prodotto era anche una violazione
+                netta di §29, che confina la traccia di generazione in DEV. E
+                DATA CONFIDENCE era già stato segnalato come incomprensibile:
+                era uscito da ME e rimasto qui, cioè la correzione era a metà.
+
+                Sono tutti in DEV → PROGRESSIONE, dove servono davvero. */}
             <Row label="STATO" value={d.evolution_state?.label ?? 'BASIC FORM'} />
-            <Row label="STADIO" value={String(d.evolution_state?.stage ?? 0)} />
-            <Row label="BOND" value={`${Math.round(progression.bond * 100)}%`} />
-            <Row label="SYNC IN QUESTA FORMA" value={String(progression.sync.inForm)} />
-            <Row label="SYNC TOTALI" value={String(progression.sync.lifetime)} />
-            <Row label="MOOD" value={d.mood_primary} />
-            <Row label="RARITY SCORE" value={`${d.rarity_score}/100`} />
-            <Row label="DATA CONFIDENCE" value={`${d.data_confidence}%`} />
-            <Row label="GENERATO AL GIORNO" value={String(d.generated_at_day)} />
-            <Row label="SEED" value={String(d.seed)} />
-            {/* §29 — ogni .mon conserva la versione di config con cui è nato:
-                cambiare i pesi non riscrive la storia. */}
-            <Row label="CONFIG" value={d.generation_config_version} />
+            <Row label="MOOD" value={`${d.mood_primary} · ${moodDef(d.mood_primary).it}`} />
+            <Row label="RARITÀ" value={`${d.rarity} · ${rarityDef(d.rarity).it}`} />
+            <Row label="LEGAME" value={`${Math.round(progression.bond * 100)}%`} />
+            {/* Un SYNC solo: era scritto tre volte nella stessa schermata,
+                contando la barra qui sopra. */}
+            <Row label="GIORNI IN QUESTA FORMA" value={String(progression.sync.inForm)} />
+            <Row label="NATO IL GIORNO" value={String(d.generated_at_day)} />
           </div>
         )}
 

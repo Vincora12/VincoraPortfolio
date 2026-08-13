@@ -97,8 +97,14 @@ export function MonFace({
     );
   }
 
-  // Senza foglio: il ritratto, con l'espressione dichiarata a parole. È la
-  // stessa regola dei segnaposto — si dice cosa manca invece di fingerlo.
+  /* Senza foglio: solo il ritratto.
+
+     🔷 v1.10 — qui sotto c'era `expression.slice(0, 3)`, che stampava NEU,
+     AMU, ALE accanto a ogni battuta. Era pensato come una dichiarazione
+     onesta di cosa mancava, ma nella pratica era una sigla di debug nel punto
+     più intimo del prodotto: nessuno può sapere cosa vuol dire «ALE», e
+     quando l'immagine arriverà non servirà comunque a niente. L'espressione
+     resta nel `title`, dove non disturba e resta ispezionabile. */
   return (
     <span
       className="monface monface--fallback"
@@ -113,9 +119,6 @@ export function MonFace({
         fit="cover"
         compactPlaceholder
       />
-      <span className="monface__tag t-micro" aria-hidden="true">
-        {expression.slice(0, 3)}
-      </span>
     </span>
   );
 }

@@ -220,22 +220,24 @@ export function DailyScanScreen({ onClose }: { onClose: () => void }) {
           </div>
         </section>
 
-        {/* --- Confidenza del dato (§2) --- */}
-        <section className="scan__section">
-          <p className="t-meta">{t.scan.confidenceTitle}</p>
-          <SegmentedBar
-            value={confidence / 100}
-            segments={20}
-            readout={`${confidence}%`}
-            tone={confidence >= MOOD_CONFIDENCE_FLOOR ? 'positive' : 'warning'}
-          />
-          {confidence < MOOD_CONFIDENCE_FLOOR && (
+        {/* 🔷 v1.10 — qui c'era la barra DATA CONFIDENCE, la TERZA superficie
+            di prodotto che la mostrava. Era già uscita da ME (§4.1) e dal
+            profilo, e questa è la volta buona: è un concetto del motore —
+            quanto il generatore si fida della finestra recente — non un fatto
+            sulla persona, e un numero che nessuno sa leggere.
+
+            Resta l'unica parte che serviva davvero all'utente: l'avviso che,
+            con pochi dati, il sistema usa un umore neutro invece di
+            inventarne uno forte. Quella è una promessa di onestà (§5), non
+            una metrica. */}
+        {confidence < MOOD_CONFIDENCE_FLOOR && (
+          <section className="scan__section">
             <p className="t-small scan__warning">
-              <SystemLabel tone="warning">SOTTO {MOOD_CONFIDENCE_FLOOR}</SystemLabel>{' '}
+              <SystemLabel tone="warning">POCHI DATI</SystemLabel>{' '}
               {t.scan.lowConfidence}
             </p>
-          )}
-        </section>
+          </section>
+        )}
 
         {/* --- Segnali mancanti: dichiarati, non trattati come zero (§3) --- */}
         {missing.length > 0 && (
