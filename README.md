@@ -84,11 +84,15 @@ Si prova il motore e l'interfaccia, non ancora il prodotto sui propri dati veri.
    GB §11, e dice a chiare lettere che un singolo giorno **non** assegna mai il
    Mood della creatura: entra in una finestra mobile di 14 giorni.
 5. **DEV → TEMPO**: `+7 DAYS` un paio di volte. Guarda **ME**: i trend si
-   muovono, i dati mai rilevati restano `UNKNOWN` e non diventano zero. In
+   muovono, i dati mai rilevati restano `UNKNOWN` e non diventano zero.
    Poi apri **GIORNI**: il calendario è una superficie primaria (MS §14).
-   `●` sincronizzato, `◐` parziale, `○` vuoto; tocca un giorno e vedi i tre
-   segnali con la loro provenienza. Nessuna casella è rossa e un giorno
-   saltato non azzera niente.
+   `●` sincronizzato, `◐` parziale, `○` vuoto, `◍` pausa; tocca un giorno e
+   vedi i tre segnali con la loro provenienza. Nessuna casella è rossa e un
+   giorno saltato non azzera niente.
+   Su un giorno ancora aperto puoi premere `SEGNA COME PAUSA` — malattia,
+   assenza. **Una pausa non dà SYNC** (in quei giorni VINZ.MON non ha potuto
+   leggerti) ma non toglie niente, e finisce nelle memorie. Un giorno in cui
+   stai male *e lo racconti* non è una pausa: è un giorno normale, da chiudere.
 6. **DEV → MINDLINE**: spunta *forza MICRO-GROWTH*, poi `APRI MINDLINE SHIFT` →
    `LASCIA MATURARE`. La stessa identità matura: nome, Family, Affinity e
    Character DNA restano invariati e la schermata lo dichiara.
