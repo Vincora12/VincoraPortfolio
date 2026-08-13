@@ -58,6 +58,8 @@ import {
 } from '../engine/personalityScan';
 import { extractFromMessage, extractionLabels } from '../engine/chatExtract';
 import { eggReply } from '../engine/eggVoice';
+import { typingRhythmFor } from '../engine/typingRhythm';
+import { planReveal, type RevealPlan } from '../engine/reveal';
 import {
   applyMoodEvent,
   decayMood,
@@ -187,6 +189,13 @@ interface AppState {
    */
   mood: MoodState | null;
 
+  /**
+   * 🔷 v1.12 §17.4 — l'indicatore «sta scrivendo» è acceso? Va a `false` per
+   * un attimo quando il .mon ESITA: qualcuno che inizia a scrivere, si ferma e
+   * ricomincia. Non lo fanno tutti — dipende dal Voice DNA (§17.3).
+   */
+  typingVisible: boolean;
+
   pendingHeritage: HeritageOrigin[];
   /** Cosa sopravvive alla prossima Form Evolution. Deciso prima di confermare. */
   pendingPlan: ContinuityPlan | null;
@@ -304,6 +313,7 @@ const INITIAL = {
   memories: [] as Memory[],
   chat: [] as ChatMessage[],
   mood: null as MoodState | null,
+  typingVisible: false,
   pendingHeritage: [] as HeritageOrigin[],
   pendingPlan: null as ContinuityPlan | null,
   lastTrace: null as GenerationTrace | null,
@@ -834,13 +844,26 @@ export const useApp = create<AppState>()(
           // hai già detto una cosa o no.
           extracted: labels.length > 0 ? labels : undefined,
         };
+        /* 🔷 v1.12 §17.4 — LA BOLLA NASCE VUOTA.
+           Prima nasceva con la frase deterministica dentro, e quando arrivava
+           la voce vera quella frase VENIVA SOSTITUITA: stavi leggendo e il
+           testo cambiava sotto gli occhi. Non è un compagno che ci ripensa, è
+           una macchina che si corregge, ed era la cosa più finta dell'app.
+
+           Adesso: se c'è una chiave la bolla resta vuota con i puntini, e il
+           fallback entra SOLO se la voce vera non arriva — quando non hai
+           ancora letto niente e non c'è niente da sostituire. Se la chiave non
+           c'è, il fallback è la risposta e compare col ritmo della creatura,
+           che è la stessa esperienza meno la qualità del testo. */
+        const spoken = fallbackReply(rng, rec.data.mood_primary, rec.data.voice_dna, rec.data.role);
+        const waiting = s.apiKey !== null;
         const theirs: ChatMessage = {
           id: `msg_${s.chat.length}_m`,
           from: 'mon',
-          text: fallbackReply(rng, rec.data.mood_primary, rec.data.voice_dna, rec.data.role),
+          text: '',
           day: s.day,
-          fallback: true,
-          pending: s.apiKey !== null,
+          fallback: !waiting,
+          pending: true,
         };
 
         const { days, moodHistory } = applyExtraction(s, found);
@@ -862,7 +885,13 @@ export const useApp = create<AppState>()(
           ]),
         });
 
-        requestReply(set, get, rec, theirs.id);
+        if (waiting) {
+          requestReply(set, get, rec, theirs.id);
+        } else {
+          // Nessuna chiamata da aspettare: si va dritti alla comparsa.
+          const rhythm = typingRhythmFor(rec.data.voice_dna);
+          playReveal(set, get, theirs.id, spoken, planReveal(spoken, rhythm), true);
+        }
       },
 
       /**
@@ -1495,6 +1524,117 @@ function openingMessage(record: MonRecord, day: number, pending: boolean): ChatM
   };
 }
 
+/* ============================================================================
+   🔷 v1.12 §17.4 — L'ESECUTORE DELLA COMPARSA
+
+   Il piano lo calcola `engine/reveal.ts`, che è puro e verificato da riga di
+   comando. Qui non c'è nessuna decisione: si rispettano degli orari.
+
+   ⚠️ NIENTE STREAMING, ed è una scelta, non una mancanza.
+
+   Lo streaming serve quando la risposta è lunga e l'attesa della fine sarebbe
+   insopportabile. Qui una risposta sono due frasi — una sessantina di token —
+   e con il ragionamento spento arriva in un paio di secondi, cioè dentro la
+   pausa di pensiero che il .mon si prende comunque. Lo streaming
+   guadagnerebbe quasi niente e costerebbe la parte più preziosa: un piano che
+   si può calcolare tutto insieme è un piano che si può CONTROLLARE tutto
+   insieme, e infatti lo si controlla.
+
+   Se un giorno le risposte diventassero lunghe — un racconto, un riepilogo
+   della settimana — la scelta va rifatta, e questo commento è il posto dove
+   scoprire perché era stata presa così.
+   ========================================================================= */
+
+/** I timer in volo. Un nuovo messaggio annulla la comparsa del precedente. */
+let revealTimers: ReturnType<typeof setTimeout>[] = [];
+
+function stopReveal(): void {
+  revealTimers.forEach(clearTimeout);
+  revealTimers = [];
+}
+
+/**
+ * Fa comparire `text` nella bolla `messageId` secondo il ritmo della creatura.
+ *
+ * La seconda bolla — quella di chi prima reagisce e poi argomenta — viene
+ * creata solo quando arriva il suo primo passo: una bolla vuota che aspetta
+ * in fondo alla chat non è una pausa, è un difetto.
+ */
+function playReveal(
+  set: (p: Partial<AppState>) => void,
+  get: () => AppState,
+  messageId: string,
+  text: string,
+  plan: RevealPlan,
+  fallback: boolean,
+): void {
+  stopReveal();
+
+  const secondId = `${messageId}_2`;
+  const patch = (id: string, fields: Partial<ChatMessage>) => {
+    const s = get();
+    const index = s.chat.findIndex((m) => m.id === id);
+    if (index === -1) return;
+    const chat = [...s.chat];
+    chat[index] = { ...chat[index]!, ...fields };
+    set({ chat });
+  };
+
+  set({ typingVisible: true });
+
+  if (plan.hesitation) {
+    revealTimers.push(setTimeout(() => set({ typingVisible: false }), plan.hesitation.from));
+    revealTimers.push(setTimeout(() => set({ typingVisible: true }), plan.hesitation.to));
+  }
+
+  for (const step of plan.steps) {
+    revealTimers.push(
+      setTimeout(() => {
+        if (step.bubble === 0) {
+          patch(messageId, { text: step.text, fallback, pending: true });
+          return;
+        }
+
+        const s = get();
+        if (!s.chat.some((m) => m.id === secondId)) {
+          const source = s.chat.find((m) => m.id === messageId);
+          if (!source) return;
+          set({
+            chat: [
+              ...s.chat,
+              { ...source, id: secondId, text: step.text, pending: true },
+            ].slice(-60),
+          });
+          return;
+        }
+        patch(secondId, { text: step.text });
+      }, step.at),
+    );
+  }
+
+  revealTimers.push(
+    setTimeout(() => {
+      patch(messageId, { pending: false });
+      patch(secondId, { pending: false });
+      set({ typingVisible: false });
+    }, plan.endsAt + 40),
+  );
+
+  /* Il testo intero è già deciso: se qualcosa andasse storto nei timer — la
+     scheda in background, il browser che rallenta — la bolla non deve restare
+     a metà per sempre. Questa è la rete, non il percorso normale. */
+  revealTimers.push(
+    setTimeout(() => {
+      const s = get();
+      const shown = s.chat.find((m) => m.id === messageId);
+      if (shown?.pending) {
+        patch(messageId, { text, pending: false, fallback });
+        set({ typingVisible: false });
+      }
+    }, plan.endsAt + 4000),
+  );
+}
+
 /**
  * Chiede all'AI la presentazione e sostituisce il messaggio d'apertura quando
  * arriva. Non blocca niente e non lancia mai: se fallisce, resta il fallback,
@@ -1551,19 +1691,27 @@ function requestReply(
       : null;
   const userText = mine?.text ?? '';
 
+  /* Il fallback si prepara PRIMA della chiamata e resta da parte: serve solo
+     se la voce vera non arriva. Preparandolo qui, il seme è quello del turno
+     — la stessa creatura, nello stesso punto della conversazione, ripiega
+     sempre sulla stessa frase invece che su una a caso. */
+  const spoken = fallbackReply(
+    makeRng(seedFromString(`reply:${record.data.name}:${messageId}`)),
+    record.data.mood_primary,
+    record.data.voice_dna,
+    record.data.role,
+  );
+  const rhythm = typingRhythmFor(record.data.voice_dna);
+
   void import('../ai/client')
     .then((m) => m.generateReply(apiKey, record, userText, context, get().mood))
     .then(({ result }) => {
-      const s = get();
-      const index = s.chat.findIndex((m) => m.id === messageId);
-      if (index === -1) return;
+      // La partita può essere andata avanti mentre il modello scriveva: se
+      // quella bolla non c'è più, non si riscrive il passato.
+      if (get().chat.findIndex((m) => m.id === messageId) === -1) return;
 
-      const chat = [...s.chat];
-      chat[index] = result
-        ? { ...chat[index]!, text: result.text, fallback: false, pending: false }
-        : { ...chat[index]!, pending: false };
-
-      set({ chat });
+      const text = result ? result.text : spoken;
+      playReveal(set, get, messageId, text, planReveal(text, rhythm), !result);
     });
 }
 

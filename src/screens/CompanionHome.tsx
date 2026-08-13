@@ -32,6 +32,7 @@ import { t } from '../i18n/it';
 export function CompanionHomeScreen({ onGo, onBack }: { onGo: (o: Overlay) => void; onBack: () => void }) {
   const mon = useActiveMon();
   const chat = useApp((s) => s.chat);
+  const typingVisible = useApp((s) => s.typingVisible);
   const { event, progress, microGrowthReady, formEvolutionReady } = useGrowth();
   const sendMessage = useApp((s) => s.sendMessage);
   const openShift = useApp((s) => s.openShift);
@@ -176,12 +177,25 @@ export function CompanionHomeScreen({ onGo, onBack }: { onGo: (o: Overlay) => vo
         {chat.map((m) => (
           <div key={m.id} className={`bubblerow bubblerow--${m.from}`}>
             <div className={`bubble bubble--${m.from}`}>
-              <p className="bubble__text">{m.text}</p>
+              {/* 🔷 v1.12 §17.4 — finché la bolla è vuota e sta arrivando
+                  qualcosa, al posto del testo ci sono i tre puntini. È il
+                  gesto che tutti riconoscono, e la ricerca dice che è quello
+                  che rende sopportabile l'attesa — molto più che accorciarla.
+
+                  I puntini si spengono per un attimo quando il .mon ESITA:
+                  qualcuno che inizia a scrivere, si ferma e ricomincia. Non lo
+                  fanno tutti, dipende dal loro Voice DNA (§17.3). */}
+              {m.from === 'mon' && m.pending && m.text.length === 0 ? (
+                typingVisible && (
+                  <span className="bubble__typing" role="status" aria-label={t.home.writing}>
+                    <i /><i /><i />
+                  </span>
+                )
+              ) : (
+                <p className="bubble__text">{m.text}</p>
+              )}
               {/* §17 — le superfici che dipendono dall'AI dichiarano sempre cosa
                   stanno mostrando: la voce vera, o quella deterministica. */}
-              {m.from === 'mon' && m.pending && (
-                <span className="bubble__flag t-micro">{t.home.writing}</span>
-              )}
               {m.from === 'mon' && m.fallback && !m.pending && (
                 <span className="bubble__flag t-micro">{t.home.fallbackNotice}</span>
               )}

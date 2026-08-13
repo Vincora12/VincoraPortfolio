@@ -46,6 +46,7 @@ export { idleMotionFor, motionCoverage } from '${cwd}/src/engine/idleMotion.ts';
 export { compilePrompt } from '${cwd}/src/assets-pipeline/compiler.ts';
 export { buildVoiceSystemPrompt } from '${cwd}/src/ai/voicePrompt.ts';
 export { typingRhythmFor, rhythmDurationMs } from '${cwd}/src/engine/typingRhythm.ts';
+export { planReveal, splitFirstSentence, bubbleCount } from '${cwd}/src/engine/reveal.ts';
 export { initialMood, applyMoodEvent, decayMood, baselineFor, moodEventFromInputs, moodPhrase } from '${cwd}/src/engine/mood.ts';
 `,
 );
@@ -792,6 +793,70 @@ check(
    carina. Il divieto non puo' vivere in un commento: se un giorno qualcuno
    collega l'aderenza al protocollo all'umore, deve fallire una build.
    ========================================================================= */
+
+/* ============================================================================
+   §17.4 — COME UNA RISPOSTA COMPARE
+
+   E' la parte che non si puo' provare a mano senza una chiave API, perche' la
+   strada vera passa dallo streaming. Per questo il piano di comparsa e' una
+   struttura dati invece che codice dentro un componente: qui si controlla che
+   il testo finale sia sempre quello giusto, che i tempi siano crescenti e che
+   nessun .mon esca dalla finestra.
+   ========================================================================= */
+
+console.log('\n═══ §17.4 — COME UNA RISPOSTA COMPARE ═══\n');
+
+const REPLY = 'Ah, oggi pesi. Lo sapevo che oggi non saresti stato fermo, te lo si legge addosso da ieri sera.';
+
+const R = {
+  word: { thinkMs: 900, reveal: 'word', paceMs: 90, hesitates: false, splitReply: false, from: [] },
+  block: { thinkMs: 1800, reveal: 'block', paceMs: 120, hesitates: false, splitReply: false, from: [] },
+  burst: { thinkMs: 400, reveal: 'burst', paceMs: 55, hesitates: true, splitReply: true, from: [] },
+};
+
+// Il testo finale non e' negoziabile: qualunque ritmo, alla fine deve esserci
+// esattamente quello che il modello ha detto. Un piano che perde una parola
+// e' peggio di nessun piano.
+for (const [name, rhythm] of Object.entries(R)) {
+  const plan = m.planReveal(REPLY, rhythm);
+  const finals = new Map();
+  for (const s of plan.steps) finals.set(s.bubble, s.text);
+  const rebuilt = [...finals.entries()].sort((a, b) => a[0] - b[0]).map(([, t]) => t).join(' ');
+  check(rebuilt === REPLY, `${name}: alla fine c'e' esattamente quello che ha detto`, rebuilt === REPLY ? '' : rebuilt);
+}
+
+const wordPlan = m.planReveal(REPLY, R.word);
+check(wordPlan.steps.length > 5, 'parola per parola produce davvero dei passi', `${wordPlan.steps.length}`);
+check(
+  wordPlan.steps.every((s, i) => i === 0 || s.at >= wordPlan.steps[i - 1].at),
+  'i tempi non tornano mai indietro',
+);
+check(wordPlan.steps[0].at >= R.word.thinkMs, 'niente compare prima della pausa di pensiero');
+
+const blockPlan = m.planReveal(REPLY, R.block);
+check(blockPlan.steps.length === 1, 'chi consegna a blocco non fa comparire il testo a pezzi', `${blockPlan.steps.length} passo`);
+
+const burstPlan = m.planReveal(REPLY, R.burst);
+check(m.bubbleCount(burstPlan) === 2, 'chi reagisce e poi argomenta usa due bolle');
+check(
+  burstPlan.steps.find((s) => s.bubble === 1).at > burstPlan.steps.filter((s) => s.bubble === 0).pop().at,
+  'la seconda bolla arriva DOPO che la prima ha finito',
+);
+check(burstPlan.hesitation !== null, 'chi esita ha una pausa dichiarata nel piano');
+check(
+  burstPlan.hesitation.from < burstPlan.steps[0].at,
+  'e l\'esitazione sta prima che compaia la prima parola',
+);
+
+// Nessun ritmo, su una risposta lunga, sfonda la finestra.
+const LONG = REPLY.repeat(4);
+for (const [name, rhythm] of Object.entries(R)) {
+  const plan = m.planReveal(LONG, rhythm);
+  check(plan.endsAt <= 9000, `${name}: anche una risposta lunga sta nella finestra`, `${(plan.endsAt / 1000).toFixed(1)}s`);
+}
+
+check(m.splitFirstSentence('Una frase sola senza seguito') === null, 'una frase sola non si spezza');
+check(m.planReveal('', R.word).steps.length === 1, 'una risposta vuota non manda in errore il piano');
 
 console.log('\n═══ §10.6 — L\'UMORE CHE RESTA ═══\n');
 

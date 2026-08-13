@@ -2763,6 +2763,47 @@
   color: var(--muted-strong);
 }
 
+/* --- I TRE PUNTINI (v1.12 §17.4) ------------------------------------------
+   Il gesto che tutti riconoscono. L'animazione e' volutamente lenta: dei
+   puntini frenetici sembrano un caricamento, dei puntini lenti sembrano
+   qualcuno che sta scrivendo.
+
+   Sotto prefers-reduced-motion non spariscono — sparirebbe l'informazione
+   «sta arrivando qualcosa», che e' l'unica cosa che quella bolla dice.
+   Restano fermi e visibili.
+   -------------------------------------------------------------------------- */
+
+.bubble__typing {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 0;
+}
+
+.bubble__typing i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.32;
+  animation: bubble-typing 1.25s ease-in-out infinite;
+}
+
+.bubble__typing i:nth-child(2) { animation-delay: 0.16s; }
+.bubble__typing i:nth-child(3) { animation-delay: 0.32s; }
+
+@keyframes bubble-typing {
+  0%, 62%, 100% { opacity: 0.32; transform: translateY(0); }
+  31% { opacity: 0.9; transform: translateY(-3px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bubble__typing i {
+    animation: none;
+    opacity: 0.55;
+  }
+}
+
 /* --- DEV → UMORE (v1.12 §10.6) --------------------------------------------
    Il trattino e' il punto di riposo del temperamento, il pallino e' adesso.
    Le due cose devono essere distinguibili a colpo d'occhio anche quando

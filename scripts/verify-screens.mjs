@@ -224,10 +224,47 @@ try {
   await click('.splash__enter', 'vai in chat');
   await shot('06-companion-home');
 
-  // Conversazione + estrazione naturale (v1.9 §5.1): questa frase deve
-  // riempire CIBO, ALLENAMENTO e UMORE da sola.
+  /* 🔷 v1.12 §17.4 — LA COMPARSA, PROVATA DAL VIVO.
+     `engine/reveal.ts` calcola il piano ed è verificato in batch-check, ma il
+     piano poteva anche essere eseguito male: i timer non partono, la bolla
+     resta vuota, i puntini non compaiono. Questi tre controlli guardano la
+     pagina vera mentre risponde — l'unico posto dove si vede la differenza
+     fra «il piano è giusto» e «l'app fa quello che dice il piano».
+
+     Gira SENZA chiave: quindi prova la strada del fallback, che è esattamente
+     quella in cui vive l'app oggi. */
   await page.locator('.composer input').fill('Oggi palestra e poi carbonara, sono distrutto');
   await click('.composer .btn-icon:last-child', 'invia');
+
+  const lengths = [];
+  let sawDots = false;
+  for (let i = 0; i < 34; i++) {
+    const snap = await page.evaluate(() => {
+      const rows = [...document.querySelectorAll('.bubblerow--mon .bubble')];
+      const last = rows[rows.length - 1];
+      return {
+        len: (last?.querySelector('.bubble__text')?.textContent ?? '').length,
+        dots: !!document.querySelector('.bubble__typing'),
+      };
+    });
+    if (snap.dots) sawDots = true;
+    lengths.push(snap.len);
+    await sleep(140);
+  }
+
+  const growth = [...new Set(lengths.filter((l) => l > 0))].length;
+  const settled = lengths[lengths.length - 1];
+
+  if (!sawDots) throw new Error('§17.4: i puntini di «sta scrivendo» non sono mai comparsi');
+  if (growth < 3) {
+    throw new Error(
+      `§17.4: la risposta è comparsa tutta insieme (${growth} lunghezze distinte). ` +
+        'Il piano di comparsa non viene eseguito.',
+    );
+  }
+  if (settled === 0) throw new Error('§17.4: la bolla è rimasta vuota alla fine');
+  console.log(`  §17.4  puntini visti, testo cresciuto in ${growth} passi fino a ${settled} caratteri`);
+
   await shot('06-conversazione');
 
   /* 07 — REGISTRA (v1.9 §5.2): un campo solo, e quello che ha capito */
