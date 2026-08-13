@@ -321,6 +321,52 @@ check(
   !/segments=\{inc\.total\}/.test(read('src/screens/Incubation.tsx') ?? ''),
 );
 
+/* 🔷 v1.10 §13.9 — «vorrei che l'app fosse viva». */
+
+check(
+  'VIVA §13.9',
+  'l’uovo salta, ma solo dove sta in grande',
+  has('src/system/EggVessel.tsx', 'lively = false') &&
+    has('src/screens/Splash.tsx', 'lively') &&
+    lacks('src/screens/Incubation.tsx', 'lively'),
+  'nella barra della chat sarebbe un elemento di interfaccia che si muove da solo',
+);
+check('VIVA §13.9', 'toccare l’uovo lo fa saltare', has('src/screens/Splash.tsx', 'splash__poke'));
+check(
+  'VIVA §13.9',
+  'la creatura si trascina per ruotare, sulla home',
+  has('src/screens/Splash.tsx', 'RotationViewer') &&
+    has('src/system/AssetSlot.tsx', 'idleWhenStill'),
+);
+check(
+  'VIVA §13.9',
+  'la creatura respira quando nessuno la tocca',
+  has('src/screens/screens.css', 'creature-breath'),
+);
+check(
+  'VIVA §13.9',
+  'il palco della creatura non è un pulsante',
+  lacks('src/screens/Splash.tsx', 'className="splash__stage" onClick'),
+  'un trascinamento dentro un pulsante finisce in un click involontario',
+);
+check(
+  'VIVA §13.9',
+  'ogni animazione rispetta chi ha chiesto meno movimento',
+  count('src/system/system.css', /prefers-reduced-motion/g) >= 2 &&
+    has('src/screens/screens.css', 'prefers-reduced-motion'),
+);
+check(
+  'VIVA §13.9',
+  'la vibrazione si può provare da DEV',
+  has('src/dev/DevPanel.tsx', 'HapticBench'),
+  'su iPhone è una scorciatoia che va verificata sul telefono, non nel codice',
+);
+check(
+  'VIVA §13.9',
+  'nessuna informazione passa solo dalla vibrazione (§17)',
+  has('src/system/haptics.ts', 'nessuna informazione critica passa solo dall'),
+);
+
 /* 🔷 v1.10 §13.8 — ogni trasformazione si tiene premuta. */
 
 for (const [file, what] of [

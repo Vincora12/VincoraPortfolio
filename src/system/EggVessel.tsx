@@ -56,11 +56,20 @@ export function EggVessel({
   days,
   total,
   size = 200,
+  /**
+   * 🔷 v1.10 §13.9 — l'uovo SALTA. Solo dove sta in grande: nella barra della
+   * chat sarebbe un elemento di interfaccia che si muove da solo, cioè un
+   * disturbo. Sulla schermata del personaggio è l'unica cosa in scena, e un
+   * guscio che ogni tanto sobbalza è la differenza fra un'illustrazione e
+   * qualcosa che è lì dentro.
+   */
+  lively = false,
 }: {
   progress: number;
   days: number;
   total: number;
   size?: number;
+  lively?: boolean;
 }) {
   const cracks = crackPaths(Math.min(days, 7));
   const ready = days >= total;
@@ -86,10 +95,22 @@ export function EggVessel({
   // Il respiro accelera avvicinandosi: 5.2s al primo giorno, 2.4s all'ultimo.
   const breath = 5.2 - progress * 2.8;
 
+  // E i salti si infittiscono: uno ogni 9 secondi all'inizio, ogni 3.5 alla
+  // fine. È lo stesso «manca poco» della barra che abbiamo tolto, sentito
+  // invece che letto.
+  const hop = 9 - progress * 5.5;
+
   return (
     <div
-      className={`egg ${jolt ? 'egg--jolt' : ''} ${ready ? 'egg--ready' : ''}`}
-      style={{ width: size, height: size, ['--egg-breath' as string]: `${breath}s` }}
+      className={`egg ${jolt ? 'egg--jolt' : ''} ${ready ? 'egg--ready' : ''} ${
+        lively ? 'egg--lively' : ''
+      }`}
+      style={{
+        width: size,
+        height: size,
+        ['--egg-breath' as string]: `${breath}s`,
+        ['--egg-hop' as string]: `${hop}s`,
+      }}
       role="img"
       aria-label={
         ready

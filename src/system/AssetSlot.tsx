@@ -238,7 +238,19 @@ export function Sigil({
    schermata non si blocca mai.
    ========================================================================= */
 
-export function RotationViewer({ monName }: { monName: string }) {
+export function RotationViewer({
+  monName,
+  /**
+   * 🔷 v1.10 §13.9 — sulla schermata del personaggio la creatura non può stare
+   * ferma quando nessuno la trascina: sarebbe un ritaglio. Con questo il
+   * ripiego respira, e la scritta che spiega cosa manca sparisce — lì è un
+   * posto dove si guarda, non dove si diagnostica una pipeline.
+   */
+  idleWhenStill = false,
+}: {
+  monName: string;
+  idleWhenStill?: boolean;
+}) {
   const sprite = useAssetUrl(monName, 'rotation_sprite');
   const [frame, setFrame] = useState(0);
   const [dragging, setDragging] = useState(false);
@@ -246,17 +258,27 @@ export function RotationViewer({ monName }: { monName: string }) {
   // Senza sprite, il fallback è il Character Master statico (§24.5).
   if (!sprite) {
     return (
-      <div className="rotation">
+      <div className={`rotation ${idleWhenStill ? 'rotation--idle' : ''}`}>
+        {/* ⚠️ L'ordine dei tipi cambia in base a dove siamo, e non è un
+            dettaglio: il segnaposto mostrato è quello del tipo PRIMARIO.
+
+            Nel profilo la rotazione è la cosa promessa, quindi il segnaposto
+            giusto è quello dello sprite. Sulla schermata del personaggio la
+            cosa promessa è la creatura: dire lì «manca lo sprite di rotazione
+            a 8 frame» significa spiegare un pezzo di pipeline a chi voleva
+            solo guardarla. Senza sprite, quello che si vede è il master. */}
         <AssetSlot
           monName={monName}
-          type="rotation_sprite"
-          fallbackTypes={['character_master']}
+          type={idleWhenStill ? 'character_master' : 'rotation_sprite'}
+          fallbackTypes={idleWhenStill ? [] : ['character_master']}
           alt="Vista del personaggio"
           className="rotation__fallback"
         />
-        <p className="rotation__hint t-micro">
-          ROTAZIONE NON DISPONIBILE — SERVE LO SPRITE A {ROTATION_SPEC.frames} FRAME
-        </p>
+        {!idleWhenStill && (
+          <p className="rotation__hint t-micro">
+            ROTAZIONE NON DISPONIBILE — SERVE LO SPRITE A {ROTATION_SPEC.frames} FRAME
+          </p>
+        )}
       </div>
     );
   }
@@ -290,7 +312,7 @@ export function RotationViewer({ monName }: { monName: string }) {
   const step = (dir: number) => setFrame((f) => (((f + dir) % frames) + frames) % frames);
 
   return (
-    <div className="rotation">
+    <div className={`rotation ${idleWhenStill && !dragging ? 'rotation--idle' : ''}`}>
       <div
         className="rotation__stage"
         onPointerDown={onPointerDown}

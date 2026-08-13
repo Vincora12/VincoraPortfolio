@@ -13,6 +13,7 @@
 
 import { useState } from 'react';
 import { useApp, useActiveMon, useGrowth, useScan, useToday } from '../state/store';
+import { haptic } from '../system/haptics';
 import { Button, FolderTabs, IconButton, Row, SystemLabel, TextField } from '../system/components';
 import {
   DAILY_SIGNALS,
@@ -669,6 +670,15 @@ function ProgressionSection() {
         <Row label="GIORNI CHIUSI FINORA" value={String(synced)} />
       </div>
 
+      {/* 🔷 v1.10 §13.9 — banco di prova dell'aptica.
+
+          Serve perché su iPhone la vibrazione NON si può verificare da qui:
+          Safari non implementa la Vibration API, e l'unica strada è un effetto
+          collaterale dello switch di iOS 17.4+. Funziona o no a seconda della
+          versione e delle impostazioni del telefono, e l'unico modo di saperlo
+          è premere e sentire. */}
+      <HapticBench />
+
       {/* 🔷 v1.10 — arriva dal profilo, dove non doveva stare. §29 confina la
           traccia di generazione in DEV, e il SEED era su una schermata di
           prodotto. DATA CONFIDENCE è un concetto del motore — quanto il
@@ -677,6 +687,26 @@ function ProgressionSection() {
           stessa correzione. */}
       <GenerationTelemetry />
     </div>
+  );
+}
+
+function HapticBench() {
+  return (
+    <>
+      <p className="t-meta dev__label">VIBRAZIONE</p>
+      <div className="dev__grid">
+        <Button small onClick={() => haptic('tick')}>TICK</Button>
+        <Button small onClick={() => haptic('confirm')}>CONFIRM</Button>
+        <Button small onClick={() => haptic('impact')}>IMPACT</Button>
+      </div>
+      <p className="t-micro dev__note">
+        Android vibra con la Vibration API. iPhone non ce l’ha: si usa lo
+        switch nascosto di iOS 17.4+, che è una scorciatoia e può smettere di
+        funzionare senza preavviso. Se qui non senti niente, l’aptica su questo
+        telefono non è disponibile — e va bene: §17 vieta che una vibrazione
+        sia l’unico modo di sapere una cosa.
+      </p>
+    </>
   );
 }
 

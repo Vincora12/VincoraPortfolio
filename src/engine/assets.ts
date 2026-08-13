@@ -56,7 +56,7 @@ export const ASSET_TYPES: readonly AssetTypeDef[] = [
     assetId: 'rotation_01',
     promptFile: '02_ROTATION_SPRITE_PROMPT.txt',
     label: 'ROTATION SPRITE SHEET',
-    purpose: 'Rotazione pseudo-3D a trascinamento orizzontale nel Specimen Profile.',
+    purpose: 'Rotazione pseudo-3D a trascinamento orizzontale: schermata del personaggio e profilo.',
     usage: ['specimen-profile', 'character-inspection'],
   },
   {

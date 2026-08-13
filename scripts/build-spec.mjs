@@ -184,6 +184,7 @@ body.push(
       ['§13.6 🔷', 'Una cosa per schermata', 'l\'incubazione aveva otto blocchi e la chat stava in mezzo'],
       ['§13.7 🔷', 'La home è il personaggio, la chat è dove si va', 'la Home faceva due lavori male'],
       ['§13.8 🔷', 'Ogni trasformazione si tiene premuta', 'nascere e cambiare forma erano tocchi secchi'],
+      ['§13.9 🔷', 'Che sia viva: salto, rotazione, vibrazione', 'un\'app di salute che sta ferma è un modulo'],
     ],
   ),
 );
@@ -495,6 +496,41 @@ body.push(
 
 body.push(
   note('Il confine è netto e vale come regola: si tiene premuto ciò che TRASFORMA, si tocca ciò che NAVIGA. Chiudere una giornata è un tocco — succede ogni giorno e non cambia nessuna forma.'),
+);
+
+/* --- 13.9 CHE SIA VIVA 🔷 ----------------------------------------------------*/
+
+body.push(h1('13.9 · CHE SIA VIVA 🔷'));
+
+body.push(
+  p('Un\'app di salute che sta ferma è un modulo. Quello che segue non è decorazione: è la differenza fra un\'illustrazione e qualcosa che è lì.'),
+);
+
+body.push(h2('Il movimento'));
+
+body.push(
+  rule('🔒', 'L\'UOVO SALTA, e i salti si infittiscono avvicinandosi alla schiusa: uno ogni nove secondi all\'inizio, ogni tre e mezzo alla fine. È lo stesso «manca poco» della barra che abbiamo tolto, sentito invece che letto.'),
+  rule('🔒', 'Salta SOLO dove sta in grande. Nella barra della chat sarebbe un elemento di interfaccia che si muove da solo, cioè un disturbo.'),
+  rule('🔒', 'Il grosso della linea temporale è fermo. Un uovo che saltella di continuo è un giocattolo; uno che ogni tanto sobbalza è una cosa viva che sta ferma.'),
+  rule('🔒', 'TOCCARE L\'UOVO lo fa saltare. Non porta da nessuna parte, ed è il punto: un\'app viva ha almeno una cosa che risponde per il gusto di rispondere.'),
+  rule('🔒', 'LA ROTAZIONE a trascinamento vive sulla schermata del personaggio, non solo sepolta nel profilo. È il gesto che si prova per istinto quando si guarda una creatura.'),
+  rule('🔒', 'Ferma, la creatura RESPIRA. Una creatura immobile è un ritaglio.'),
+  rule('🔒', 'Ogni animazione si spegne sotto `prefers-reduced-motion`. Non è un\'opzione: è la stessa preferenza che spegne anche l\'aptica.'),
+);
+
+body.push(
+  note('Vincolo di implementazione emerso costruendo: il palco della creatura NON può essere un pulsante. Lo era, e apriva la chat; ma dentro c\'è un visore che si trascina, e un trascinamento dentro un pulsante finisce sempre in un click involontario.'),
+);
+
+body.push(h2('La vibrazione'));
+
+body.push(
+  rule('🔒', 'Ogni gesto che conferma qualcosa dà un ritorno aptico: leggero quando si tocca, pieno quando qualcosa si compie.'),
+  rule('🔒', 'Va chiamata DENTRO il gestore di un gesto dell\'utente. Fuori da lì i browser la ignorano, ed è giusto così.'),
+  rule('🟡', 'SU iPHONE NON ESISTE UN\'API. Safari non ha mai implementato la Vibration API: l\'unica strada è un effetto collaterale dello switch introdotto da iOS 17.4, tenuto nascosto nel documento e commutato dentro il gesto. È una scorciatoia, non un contratto: Apple può chiuderla senza preavviso.'),
+  rule('🔒', 'Per questo il codice prova prima la strada legittima e usa lo switch solo come ripiego, e tutto è avvolto in try/catch: se smette di funzionare, smette di vibrare — non si rompe niente.'),
+  rule('🔒', '§17 — NESSUNA informazione passa solo dalla vibrazione. È sempre il rinforzo di qualcosa che si vede già. Un telefono che non vibra non perde niente.'),
+  rule('🔒', 'DEV ha un banco di prova con i tre tipi di colpo: su iPhone l\'unico modo di sapere se funziona è premere e sentire.'),
 );
 
 /* --- 8.1 --------------------------------------------------------------------*/

@@ -24,11 +24,11 @@
       secondi non è un posto dove stare.
    ========================================================================= */
 
+import { useState } from 'react';
 import { useApp, useActiveMon, useIncubation } from '../state/store';
-import { IdleMon } from '../system/LiveMon';
+import { RotationViewer } from '../system/AssetSlot';
 import { EggVessel } from '../system/EggVessel';
 import { MonName, SpeciesName } from '../system/MonName';
-import { displayName } from '../engine/types';
 import { haptic } from '../system/haptics';
 import { t } from '../i18n/it';
 
@@ -36,6 +36,15 @@ export function SplashScreen({ onEnter }: { onEnter: () => void }) {
   const phase = useApp((s) => s.phase);
   const mon = useActiveMon();
   const inc = useIncubation();
+
+  /* Il tocco sull'uovo. `pokes` rimonta il componente, e rimontarlo fa
+     ripartire l'animazione di salto dall'inizio: è il modo più semplice di
+     far succedere una cosa adesso invece che al prossimo ciclo.
+
+     ⚠️ Sta PRIMA del `return null` qui sotto. Uno `useState` dopo un'uscita
+     condizionale cambia l'ordine degli hook fra un render e l'altro, e React
+     se ne accorge solo a schermo — TypeScript no. */
+  const [pokes, setPokes] = useState(0);
 
   const incubating = phase === 'incubation';
   if (!incubating && !mon) return null;
@@ -45,17 +54,48 @@ export function SplashScreen({ onEnter }: { onEnter: () => void }) {
     onEnter();
   };
 
+  const poke = () => {
+    haptic('tick');
+    setPokes((n) => n + 1);
+  };
+
   return (
     <div className="splash">
       {/* Tutto lo spazio va alla creatura: è il motivo per cui la schermata
-          esiste. Toccarla entra, perché è la cosa che si tocca per istinto. */}
-      <button type="button" className="splash__stage" onClick={enter} aria-label={t.splash.enter}>
+          esiste.
+
+          ⚠️ NON è un pulsante. Lo era, e apriva la chat — ma dentro c'è un
+          visore che si trascina per ruotare, e un trascinamento dentro un
+          pulsante finisce sempre in un click involontario. Adesso la creatura
+          risponde al gesto che le appartiene, e alla chat si va dalla porta. */}
+      <div className="splash__stage">
         {incubating ? (
-          <EggVessel progress={inc.progress} days={inc.day} total={inc.total} size={260} />
+          /* Toccare l'uovo lo fa saltare. Non porta da nessuna parte, ed è il
+             punto: un'app viva ha almeno una cosa che risponde per il gusto
+             di rispondere. */
+          <button
+            type="button"
+            className="splash__poke"
+            onClick={poke}
+            aria-label="Tocca l’uovo"
+          >
+            <EggVessel
+              key={pokes}
+              progress={inc.progress}
+              days={inc.day}
+              total={inc.total}
+              size={260}
+              lively
+            />
+          </button>
         ) : (
-          <IdleMon monName={mon!.data.name} alt={displayName(mon!.data.name)} />
+          /* 🔷 v1.10 §13.9 — la rotazione a trascinamento vive QUI, non solo
+             sepolta nel profilo. È la schermata dove guardi la creatura: farla
+             girare è la cosa che si prova a fare per istinto, e prima non
+             rispondeva. Senza sprite resta il ritratto che respira. */
+          <RotationViewer monName={mon!.data.name} idleWhenStill />
         )}
-      </button>
+      </div>
 
       <div className="splash__id">
         {incubating ? (

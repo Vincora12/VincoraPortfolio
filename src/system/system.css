@@ -718,3 +718,30 @@
     stroke-dashoffset: 0;
   }
 }
+
+/* 🔷 v1.10 §13.9 — IL SALTO.
+
+   Sta sul contenitore e non sull'SVG apposta: dentro c'è già il respiro, e due
+   animazioni sulla stessa trasformazione si annullerebbero a vicenda.
+
+   Il grosso della linea temporale è fermo. Un uovo che saltella di continuo è
+   un giocattolo; uno che ogni tanto sobbalza è una cosa viva che sta ferma. */
+.egg--lively {
+  animation: egg-hop var(--egg-hop, 7s) var(--ease-system) infinite;
+}
+
+@keyframes egg-hop {
+  0%, 74% { transform: translateY(0) scale(1, 1); }
+  /* si carica */
+  78% { transform: translateY(2%) scale(1.05, 0.94); }
+  /* stacca */
+  84% { transform: translateY(-14%) scale(0.96, 1.05); }
+  /* atterra e assorbe */
+  90% { transform: translateY(0) scale(1.06, 0.93); }
+  95% { transform: translateY(0) scale(0.99, 1.01); }
+  100% { transform: translateY(0) scale(1, 1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .egg--lively { animation: none; }
+}
