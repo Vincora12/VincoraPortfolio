@@ -282,6 +282,11 @@ export interface ChatMessage {
   pending?: boolean;
   /** 🔶 v1.9 — cosa il sistema ha registrato da questo messaggio (§5.1). */
   extracted?: string[];
+  /**
+   * 🔶 v1.10 §7.2 — questo messaggio è un SUONO, non una frase: l'uovo non
+   * parla. Il valore dice che tipo di reazione era, e serve solo a disegnarla.
+   */
+  sound?: 'ACK' | 'WARM' | 'CURIOUS' | 'ALERT' | 'DORMANT';
 }
 
 /* ============================================================================

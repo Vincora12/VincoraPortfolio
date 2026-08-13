@@ -24,15 +24,18 @@
      dove serve.
    ========================================================================= */
 
-import { useApp } from '../state/store';
+import { useApp, useProtocol } from '../state/store';
 import { ScreenHead, SegmentedBar, SystemLabel, Window } from '../system/components';
 import { STAT_LABELS, formatDelta, formatSignal, trend } from '../engine/health';
+import { describeDiet, describeTraining } from '../engine/protocol';
 import { STAT_KEYS, isKnown } from '../engine/types';
 import { t } from '../i18n/it';
 
 export function MeOverviewScreen() {
   const health = useApp((s) => s.health);
   const progression = useApp((s) => s.progression);
+  const { protocol } = useProtocol();
+  const reopenProtocol = useApp((s) => s.reopenProtocol);
 
   const anyUnknown = STAT_KEYS.some((k) => !isKnown(health.stats[k].value));
 
@@ -119,6 +122,32 @@ export function MeOverviewScreen() {
             </div>
           </div>
           <p className="t-small me__note">{t.me.syncNote}</p>
+        </Window>
+
+        {/* 🔶 v1.10 §5.3 — il protocollo vive qui perché è l'unica cosa in
+             questa schermata che l'utente ha DICHIARATO invece che essere
+             stata misurata su di lui. Ed è modificabile: una dieta cambia, e
+             un metro che non si può aggiornare diventa una bugia in un mese. */}
+        <Window title={t.protocol.edit}>
+          <button type="button" className="me__protocol" onClick={reopenProtocol}>
+            <span className="me__protocolbody">
+              {describeDiet(protocol.diet) || describeTraining(protocol.training) ? (
+                <>
+                  {describeDiet(protocol.diet) && (
+                    <span className="t-small">{describeDiet(protocol.diet)}</span>
+                  )}
+                  {describeTraining(protocol.training) && (
+                    <span className="t-small me__protocoltraining">
+                      {describeTraining(protocol.training)}
+                    </span>
+                  )}
+                </>
+              ) : (
+                <span className="t-small me__protocolempty">{t.protocol.none}</span>
+              )}
+            </span>
+            <span className="me__protocolgo" aria-hidden="true">→</span>
+          </button>
         </Window>
 
         {anyUnknown && (

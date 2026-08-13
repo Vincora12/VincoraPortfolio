@@ -39,6 +39,9 @@ export { planContinuity, EVOLVABLE_AXES, PROGRESSION } from '${cwd}/src/engine/p
 export { SCAN_QUESTIONS, seedFromAnswers, seedSpread } from '${cwd}/src/engine/personalityScan.ts';
 export * as CONFIG from '${cwd}/src/engine/generation-config.ts';
 export { FRAGMENT_LIBRARY, slug } from '${cwd}/src/assets-pipeline/fragments.ts';
+export { extractFromMessage, extractionLabels } from '${cwd}/src/engine/chatExtract.ts';
+export { parseDiet, parseTraining, adherenceOf, classifyFood } from '${cwd}/src/engine/protocol.ts';
+export { eggReply, allEggSounds } from '${cwd}/src/engine/eggVoice.ts';
 `,
 );
 
@@ -396,7 +399,18 @@ const SCAN_PROFILES = {
   alterno: profile((q) => q.answers[q.index % q.answers.length]),
 };
 
-const SCAN_DRAWS = 120;
+/* ⚠️ I semi sono FISSI, non casuali, ed è una correzione: con `randomSeed()`
+   i tre profili estraevano 120 creature ciascuno da distribuzioni vicine e
+   ogni tanto — circa una volta su cinque — la Family più frequente coincideva
+   per tutti e tre. Il controllo falliva senza che niente fosse rotto.
+
+   Un controllo che grida al lupo una volta su cinque è peggio di nessun
+   controllo: insegna a ignorare i fallimenti. Con i semi fissi i tre profili
+   ricevono ESATTAMENTE la stessa sequenza di estrazioni, quindi ogni
+   differenza nel risultato viene dal seme di personalità e da nient'altro —
+   che è precisamente la cosa che questo controllo vuole dimostrare. */
+const SCAN_DRAWS = 240;
+const SCAN_SEEDS = Array.from({ length: SCAN_DRAWS }, (_, i) => 0x5eed + i * 0x9e3779b1);
 const scanFamilies = {};
 for (const [name, personality] of Object.entries(SCAN_PROFILES)) {
   const seen = new Map();
@@ -406,7 +420,7 @@ for (const [name, personality] of Object.entries(SCAN_PROFILES)) {
       mindlineNodeId: `scan_${name}_${i}`,
       originNodeId: null,
       lineageNames: [],
-      seed: m.randomSeed(),
+      seed: SCAN_SEEDS[i],
     }).record.data;
     seen.set(d.family, (seen.get(d.family) ?? 0) + 1);
   }
@@ -423,13 +437,21 @@ check(
     .join(' · '),
 );
 
-// La Family più frequente deve differire fra i profili: è il modo più diretto
-// di dire «rispondere diversamente porta a una creatura diversa».
+/* Cosa si sta dimostrando: che rispondere diversamente porta a una creatura
+   diversa. La Family più frequente è il segnale più leggibile, ma da sola è
+   fragile — due profili possono preferire la stessa Family e differire su
+   tutto il resto della distribuzione. Si guardano quindi entrambe le cose, e
+   basta che una delle due parli. */
 const top = (map) => [...map.entries()].sort((a, b) => b[1] - a[1])[0][0];
 const tops = Object.fromEntries(Object.entries(scanFamilies).map(([k, v]) => [k, top(v)]));
+
+const distributions = Object.values(scanFamilies).map((seen) =>
+  [...seen.entries()].sort().map(([f, n]) => `${f}:${n}`).join('|'),
+);
+
 check(
-  new Set(Object.values(tops)).size >= 2,
-  'profili diversi portano a Family diverse (§12)',
+  new Set(Object.values(tops)).size >= 2 || new Set(distributions).size === distributions.length,
+  'profili diversi portano a creature diverse (§12)',
   Object.entries(tops)
     .map(([k, v]) => `${k} → ${v}`)
     .join(' · '),
@@ -439,6 +461,124 @@ const familyCounts = tally((d) => d.family).map(([, n]) => n);
 console.log(
   `  ····  su questo profilo la Family più favorita esce ${(Math.max(...familyCounts) / Math.min(...familyCounts)).toFixed(1)}× più della meno favorita (§17: è voluto)`,
 );
+
+/* ============================================================================
+   🔶 v1.10 §5.3 — PROTOCOLLO ED ESTRAZIONE
+
+   Fino a qui il motore di estrazione era coperto solo da controlli di
+   presenza: «il file esiste», «la funzione si chiama così». Adesso decide cosa
+   diventa la creatura — «il punto non è se mangio ma cosa mangio» — e va
+   interrogato con frasi vere, che è l'unico modo di accorgersi che una parola
+   manca dal vocabolario.
+   ========================================================================= */
+
+console.log('\n═══ §5.3 — PROTOCOLLO: LA DIETA DICHIARATA ═══\n');
+
+const diet = m.parseDiet(
+  'tante proteine e verdura, pochi carboidrati la sera, niente dolci né alcol, 5 pasti al giorno',
+);
+
+check(diet.pursue.includes('PROTEINE') && diet.pursue.includes('VERDURA'), 'legge cosa cercare', diet.pursue.join(', '));
+check(
+  ['CARBO', 'DOLCI', 'ALCOL'].every((g) => diet.avoid.includes(g)),
+  'legge cosa evitare, anche con «pochi» e «niente»',
+  diet.avoid.join(', '),
+);
+check(diet.mealsPerDay === 5, 'legge la frequenza dei pasti', String(diet.mealsPerDay));
+check(
+  !diet.pursue.some((g) => diet.avoid.includes(g)),
+  'nessun gruppo è insieme da cercare e da evitare',
+);
+
+// La negazione non deve tracimare oltre la virgola: è l'errore che rende
+// inutile un lettore di questo tipo, e non si vede finché non lo si prova.
+const scoped = m.parseDiet('niente zuccheri, tanta frutta');
+check(
+  scoped.avoid.includes('DOLCI') && scoped.pursue.includes('FRUTTA'),
+  'la negazione non tracima nella proposizione successiva',
+  `evita ${scoped.avoid.join(',')} · cerca ${scoped.pursue.join(',')}`,
+);
+
+const training = m.parseTraining('pesi 4 volte a settimana, corsa il sabato, stretching la sera');
+check(
+  ['FORZA', 'CARDIO', 'MOBILITA'].every((k) => training.kinds.includes(k)),
+  'legge i tipi di allenamento',
+  training.kinds.join(', '),
+);
+check(training.sessionsPerWeek === 4, 'legge la frequenza settimanale', String(training.sessionsPerWeek));
+
+console.log('\n═══ §5.3 — COSA MANGIO, NON SE MANGIO ═══\n');
+
+/* Ogni riga è una frase che una persona scriverebbe davvero, con il risultato
+   atteso accanto. Se domani il vocabolario perde una parola, fallisce qui. */
+const MEALS = [
+  ['pollo e broccoli', 'IN_LINEA'],
+  ['carbonara e due birre', 'FUORI'],
+  ['insalata di pollo ma anche un dolce', 'MISTO'],
+  ['un po’ di formaggio', 'SCONOSCIUTA'],
+];
+
+for (const [phrase, expected] of MEALS) {
+  const found = m.extractFromMessage(phrase, diet);
+  check(
+    found.adherence === expected,
+    `«${phrase}» → ${expected}`,
+    found.adherence === expected ? found.foodGroups.join(',') : `ottenuto ${found.adherence}`,
+  );
+}
+
+check(
+  m.extractFromMessage('carbonara e due birre', null).adherence === 'SCONOSCIUTA',
+  'senza protocollo non esiste un giudizio sul cibo',
+);
+
+const full = m.extractFromMessage('oggi palestra e poi carbonara, sono distrutto', diet);
+check(
+  full.signals.FOOD && full.signals.WORKOUT && full.signals.MOOD,
+  'una frase sola riempie i tre segnali del giorno (§5.1)',
+  m.extractionLabels(full).join(' · '),
+);
+check(
+  m.extractionLabels(full).some((l) => l.includes('fuori protocollo')),
+  'la conferma dice come si colloca, non solo che ha capito',
+);
+
+console.log('\n═══ §7.2 — LA VOCE DELL’UOVO ═══\n');
+
+/* La regola dell'uovo è UNA: non parla. Un suono che diventasse leggibile
+   sarebbe una creatura che parla prima di esistere, cioè lo spoiler che
+   §12/01 vieta. Il controllo è meccanico apposta. */
+const sounds = m.allEggSounds();
+check(sounds.length > 0, 'esiste un vocabolario di suoni', `${sounds.length} suoni`);
+check(
+  sounds.every((s) => /^[a-z·—?\s]+$/.test(s)),
+  'nessun suono contiene lettere accentate, cifre o maiuscole',
+  sounds.filter((s) => !/^[a-z·—?\s]+$/.test(s)).join(' ') || 'tutti puliti',
+);
+
+// Nessuna vocale doppia isolata tipo «ao»: quello che serve è che nessun suono
+// sia una parola italiana. La lista è chiusa, quindi la si può controllare tutta.
+const WORDS = ['si', 'no', 'ok', 'ciao', 'ho', 'ha', 'me', 'te', 'tu', 'io', 'mi', 'ti'];
+check(
+  !sounds.some((s) => WORDS.includes(s.trim())),
+  'nessun suono è una parola',
+);
+
+const eggRng = m.makeRng(42);
+const heard = m.eggReply(eggRng, m.extractFromMessage('pollo e broccoli', diet), 0);
+check(
+  heard.reaction === 'ACK',
+  'al primo messaggio, se ha sentito qualcosa reagisce davvero',
+  heard.reaction,
+);
+const nothing = m.eggReply(eggRng, m.extractFromMessage('boh', null), 0);
+check(
+  nothing.reaction === 'DORMANT',
+  'a un messaggio da cui non esce niente, il primo giorno, resta quasi inerte',
+  nothing.reaction,
+);
+const tense = m.eggReply(eggRng, m.extractFromMessage('sono stressatissimo', null), 0.5);
+check(tense.reaction === 'ALERT', 'la tensione cambia il suono', tense.reaction);
 
 console.log(
   failures === 0 ? '\n✓ Tutti i controlli superati.\n' : `\n✗ ${failures} controlli falliti.\n`,

@@ -190,7 +190,85 @@ check(
 check(
   'REGISTRARE §5',
   'si registra anche durante l’incubazione',
-  has('src/screens/Incubation.tsx', 'incubation__today'),
+  has('src/screens/Incubation.tsx', 'composer--egg'),
+);
+
+/* ============================================================================
+   🔶 v1.10 §5.3 — COSA MANGIO, NON SE MANGIO
+
+   La differenza fra un contatore e un motore. `batch-check.mjs` verifica che
+   il lettore funzioni su frasi vere; qui si verifica che le DECISIONI attorno
+   ad esso non vengano smontate — soprattutto quella di tono, che è la più
+   facile da perdere riscrivendo una stringa.
+   ========================================================================= */
+
+const PROTOCOL = 'src/engine/protocol.ts';
+
+check('PROTOCOLLO §5.3', 'i gruppi alimentari esistono', has(PROTOCOL, 'FOOD_GROUPS'));
+check('PROTOCOLLO §5.3', 'si dichiara all’ingresso', existsSync('src/screens/ProtocolSetup.tsx'));
+check('PROTOCOLLO §5.3', 'è una fase, prima dell’incubazione', has(STORE, "phase: 'protocol'"));
+check('PROTOCOLLO §5.3', 'si può saltare', has(STORE, 'skipProtocol'));
+check('PROTOCOLLO §5.3', 'testo libero, nessun modulo', lacks('src/screens/ProtocolSetup.tsx', '<select'));
+check(
+  'PROTOCOLLO §5.3',
+  'il cibo porta con sé COSA era',
+  has('src/engine/chatExtract.ts', 'foodGroups'),
+);
+check(
+  'PROTOCOLLO §5.3',
+  'l’aderenza tocca la salute, mai il SYNC',
+  has(STORE, 'adherenceTouch') && lacks(PROTOCOL, 'sync'),
+);
+check(
+  'PROTOCOLLO §5.3',
+  'CARE sale sempre, anche fuori protocollo',
+  /FUORI: \{ FORM: -[\d.]+, CARE: \+[\d.]+ \}/.test(read(PROTOCOL) ?? ''),
+  'è il modo in cui il codice rispetta il divieto di vergogna (§4)',
+);
+/* Le quattro etichette dell'aderenza sono l'unico posto in cui il sistema
+   dice qualcosa su cosa hai mangiato, e devono DESCRIVERE. Non basta vietare
+   le parole nel file — «non esiste un giorno sbagliato» contiene «sbagliato»
+   ed è esattamente la frase giusta. Si guardano quindi solo le stringhe che
+   l'utente legge davvero. */
+const ADHERENCE = [...(read(PROTOCOL) ?? '').matchAll(/^ {2}(?:IN_LINEA|FUORI|MISTO|SCONOSCIUTA): '([^']+)'/gm)]
+  .map((x) => x[1]);
+const JUDGING = ['sbagliat', 'giust', 'bravo', 'male', 'sgarr', 'errore', 'colpa', 'peccato'];
+check(
+  'PROTOCOLLO §5.3',
+  'nessuna etichetta di aderenza giudica',
+  ADHERENCE.length === 4 && ADHERENCE.every((l) => !JUDGING.some((w) => l.includes(w))),
+  ADHERENCE.join(' / ') || 'etichette non trovate',
+);
+check(
+  'PROTOCOLLO §5.3',
+  'senza protocollo non esiste un giudizio',
+  has(PROTOCOL, "if (!diet || groups.length === 0) return 'SCONOSCIUTA'"),
+);
+
+/* ============================================================================
+   🔶 v1.10 §7.2 — L'UOVO NON PARLA
+   ========================================================================= */
+
+const EGG = 'src/engine/eggVoice.ts';
+
+check('UOVO §7.2', 'ha una voce fatta di suoni', existsSync(EGG));
+check('UOVO §7.2', 'si può scrivergli', has(STORE, 'sendToEgg'));
+check('UOVO §7.2', 'la chat sta nell’incubazione', has('src/screens/Incubation.tsx', 'eggsound'));
+check(
+  'UOVO §7.2',
+  'nessuna chiamata AI durante l’incubazione',
+  lacks(EGG, 'ai/client') && !/sendToEgg[\s\S]{0,2000}requestReply/.test(read(STORE) ?? ''),
+  'la cosa non ha ancora una voce: non c’è niente da far scrivere a un modello',
+);
+check(
+  'UOVO §7.2',
+  'registra come la chat normale',
+  /sendToEgg[\s\S]{0,2000}applyExtraction/.test(read(STORE) ?? ''),
+);
+check(
+  'UOVO §7.2',
+  'quello che gli dici prima di nascere non si perde',
+  has(STORE, 'Prima di nascere'),
 );
 
 /* ============================================================================

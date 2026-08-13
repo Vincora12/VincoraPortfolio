@@ -11,9 +11,10 @@
    anticipa nessun .mon.
    ========================================================================= */
 
+import { useEffect, useRef, useState } from 'react';
 import type { Overlay } from '../App';
 import { useApp, useIncubation, useToday } from '../state/store';
-import { Button, DataDots, GlitchBar, ScannerFrame, SegmentedBar, SignalWave } from '../system/components';
+import { Button, DataDots, GlitchBar, IconButton, ScannerFrame, SegmentedBar, SignalWave, TextField } from '../system/components';
 import { Icon } from '../system/Icon';
 import { STAT_KEYS, isKnown } from '../engine/types';
 import { t } from '../i18n/it';
@@ -25,6 +26,24 @@ export function IncubationScreen({ onGo }: { onGo: (o: Overlay) => void }) {
   const stats = useApp((s) => s.health.stats);
   const hatch = useApp((s) => s.hatch);
   const simulateSyncedDays = useApp((s) => s.simulateSyncedDays);
+  const chat = useApp((s) => s.chat);
+  const sendToEgg = useApp((s) => s.sendToEgg);
+  const syncDay = useApp((s) => s.syncDay);
+
+  const [draft, setDraft] = useState('');
+  const listRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    requestAnimationFrame(() => {
+      listRef.current?.scrollTo({ top: listRef.current.scrollHeight });
+    });
+  }, [chat.length]);
+
+  const submit = () => {
+    if (draft.trim().length === 0) return;
+    sendToEgg(draft);
+    setDraft('');
+  };
 
   return (
     <div className="screen screen--ink">
@@ -47,24 +66,79 @@ export function IncubationScreen({ onGo }: { onGo: (o: Overlay) => void }) {
           </ScannerFrame>
         </div>
 
-        {/* 🔶 v1.9 §7.1 — durante l'incubazione si registra come sempre.
+        {/* 🔶 v1.10 §7.2 — SI PARLA ALL'UOVO, e l'uovo risponde con dei suoni.
 
-            Prima non si poteva: la tab bar esiste solo in `live`, quindi per
-            sette giorni non c'era nessun modo di dire com'era andata. Ma
-            l'incubazione conta i giorni SINCRONIZZATI, e un giorno lo chiude
-            l'utente: senza questa superficie la soglia era irraggiungibile se
-            non dal pannello DEV. Era un buco, non una scelta. */}
-        <button type="button" className="incubation__today" onClick={() => onGo('scan')}>
-          <span className="t-meta">{t.incubation.todayTitle}</span>
-          <span className="incubation__todaystate t-small">
+            v1.9 §7.1 aveva aperto la registrazione durante l'incubazione, ma
+            con un pulsante che portava a una schermata di segnali: registravi
+            senza che ci fosse nessuno dall'altra parte. Sette giorni così sono
+            un modulo, non un rapporto.
+
+            Adesso è la stessa chat di dopo — stesso campo, stessa estrazione,
+            stessa riga di conferma — con l'unica differenza che conta: quello
+            che c'è dentro non sa ancora parlare. Vedi `eggVoice.ts` per il
+            perché i suoni non sono un vezzo grafico. */}
+        <div className="incubation__chat" ref={listRef}>
+          {chat.length === 0 && (
+            <p className="t-small incubation__empty">{t.incubation.chatEmpty}</p>
+          )}
+          {chat.map((m) => (
+            <div key={m.id} className={`bubblerow bubblerow--${m.from}`}>
+              {m.sound ? (
+                /* Un suono non è una battuta di dialogo: non ha la bolla, ha
+                   l'onda. Se sembrasse un messaggio, sembrerebbe che parli. */
+                <div className={`eggsound eggsound--${m.sound.toLowerCase()}`}>
+                  <SignalWave seed={m.id.length * 131 + m.day} width={64} height={18} />
+                  <span className="eggsound__text">{m.text}</span>
+                </div>
+              ) : (
+                <div className={`bubble bubble--${m.from}`}>
+                  <p className="bubble__text">{m.text}</p>
+                  {m.extracted && (
+                    <span className="bubble__flag bubble__flag--rec t-micro">
+                      {t.home.recorded} {m.extracted.join(' · ')}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+
+        <div className="composer composer--egg">
+          <IconButton icon="plus" label={t.input.title} onClick={() => onGo('input')} />
+          <TextField
+            label={t.incubation.chatLabel}
+            placeholder={t.incubation.chatPlaceholder}
+            value={draft}
+            onChange={setDraft}
+            onSubmit={submit}
+          />
+          <IconButton
+            icon="send"
+            label="Invia"
+            haptics="confirm"
+            onClick={submit}
+            disabled={draft.trim().length === 0}
+          />
+        </div>
+
+        {/* Chiudere la giornata resta un gesto esplicito: §6 vuole che sia
+            l'utente a dire «ecco, è andata così», e nessuna quantità di
+            messaggi lo fa al posto suo. */}
+        <div className="incubation__day-close">
+          <span className="t-micro">
             {today.closed
               ? t.incubation.todayClosed
               : today.canClose
                 ? t.incubation.todayReady
                 : t.incubation.todayOpen(today.known)}
           </span>
-          <span className="incubation__todaygo" aria-hidden="true">→</span>
-        </button>
+          {!today.closed && today.canClose && (
+            <Button variant="ghost" haptics="confirm" onClick={syncDay}>
+              {t.incubation.closeDay}
+            </Button>
+          )}
+        </div>
 
         <div className="incubation__readouts">
           <div className="incubation__row">

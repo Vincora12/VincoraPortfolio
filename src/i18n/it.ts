@@ -51,9 +51,39 @@ export const t = {
     definitive: 'Questa scelta è definitiva.',
     notReady: 'Segnale non ancora stabile',
     todayTitle: 'LA GIORNATA DI OGGI',
-    todayOpen: (n: number) => `${n}/3 segnali. Aprila per raccontarla.`,
-    todayReady: 'Pronta da chiudere. Vale +1 giorno.',
-    todayClosed: 'Chiusa. Conta.',
+    todayOpen: (n: number) => `${n}/3 segnali di oggi. Raccontagli il resto.`,
+    todayReady: 'La giornata è pronta da chiudere. Vale +1 giorno.',
+    todayClosed: 'Giornata chiusa. Conta.',
+    closeDay: 'CHIUDI LA GIORNATA',
+    /* 🔶 v1.10 §7.2 — la chat con l'uovo. Il testo non promette una risposta:
+       promette che qualcuno sente. È tutto quello che l'uovo può fare. */
+    chatEmpty:
+      'Non parla ancora. Ma sente: raccontagli la giornata e qualcosa si muove là dentro.',
+    chatLabel: 'Scrivi a quello che c’è dentro',
+    chatPlaceholder: 'Raccontagli com’è andata…',
+  },
+
+  /* 04 PROTOCOLLO — 🔶 v1.10 §5.3 */
+  protocol: {
+    title: 'PROTOCOLLO',
+    subtitle: 'COSA STAI PROVANDO A FARE',
+    intro:
+      'Il sistema deve sapere non se mangi, ma cosa. Scrivi la dieta che segui e come ti alleni: da qui in poi ogni pasto che racconti verrà letto rispetto a questo, e non a un’idea generica di salute.',
+    dietLabel: 'LA DIETA',
+    dietHint: 'Scrivila come ti viene, o incolla quella che hai già.',
+    dietPlaceholder:
+      'es. tante proteine e verdura, pochi carboidrati la sera, niente dolci né alcol, 5 pasti al giorno',
+    trainingLabel: 'L’ALLENAMENTO',
+    trainingHint: 'Che tipo di lavoro fai, e quanto spesso.',
+    trainingPlaceholder: 'es. pesi 4 volte a settimana, corsa il sabato, stretching la sera',
+    unread: 'Non ho riconosciuto niente qui dentro. Puoi lasciarlo così: lo leggerò come testo.',
+    note:
+      'Nessun giorno sarà «sbagliato». Fuori protocollo non toglie niente e non blocca niente: cambia la creatura che nasce, non il suo valore.',
+    confirm: 'CONFERMA IL PROTOCOLLO',
+    skip: 'Lo dirò dopo — comincia senza',
+    /* Usato in ME per rientrarci. */
+    edit: 'PROTOCOLLO',
+    none: 'Nessun protocollo dichiarato',
   },
 
   /* 05 / 14 ENCOUNTER */

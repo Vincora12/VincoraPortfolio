@@ -165,12 +165,33 @@ try {
   await shot('03-signal-scan-lock');
   await click(byText('LOCK SIGNAL'), 'LOCK SIGNAL');
 
-  /* 04 — INCUBAZIONE */
-  await shot('04-incubazione');
+  /* 04 — PROTOCOLLO (v1.10 §5.3): dieta e allenamento, a testo libero.
+     Il testo qui sotto NON è decorativo: contiene una negazione («niente
+     dolci»), un gruppo cercato («proteine») e una frequenza. Se il lettore si
+     rompe, la riga di interpretazione sotto al campo resta vuota e lo si vede
+     nello screenshot. */
+  await shot('04-protocollo-vuoto');
+  await page
+    .locator('.protocol__area').first()
+    .fill('tante proteine e verdura, pochi carboidrati la sera, niente dolci né alcol, 5 pasti al giorno');
+  await page
+    .locator('.protocol__area').nth(1)
+    .fill('pesi 4 volte a settimana, corsa il sabato');
+  await sleep(200);
+  await shot('04-protocollo-letto');
+  await click(byText('CONFERMA IL PROTOCOLLO'), 'conferma protocollo');
+
+  /* 05 — INCUBAZIONE: si parla all'uovo, e l'uovo risponde a suoni (§7.2) */
+  await shot('05-incubazione');
+
+  await page.locator('.composer--egg input').fill('oggi pollo e broccoli, poi palestra');
+  await click('.composer--egg .btn-icon:last-child', 'parla all’uovo');
+  await sleep(300);
+  await shot('05-incubazione-suono');
 
   // Sette giorni sincronizzati: è la nuova soglia di incubazione (v1.4).
   await click('.incubation__skip', '+7 giorni sincronizzati');
-  await shot('04-incubazione-pronta');
+  await shot('05-incubazione-pronta');
 
   /* 05 — FIRST ENCOUNTER: tre battute, non una (v1.9 §13.2) */
   await click(byText('HATCH'), 'HATCH');

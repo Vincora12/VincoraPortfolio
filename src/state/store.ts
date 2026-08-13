@@ -56,6 +56,15 @@ import {
   type ScanAnswers,
 } from '../engine/personalityScan';
 import { extractFromMessage, extractionLabels } from '../engine/chatExtract';
+import { eggReply } from '../engine/eggVoice';
+import {
+  ADHERENCE_EFFECT,
+  EMPTY_PROTOCOL,
+  hasUsableDiet,
+  parseDiet,
+  parseTraining,
+  type Protocol,
+} from '../engine/protocol';
 import { MOOD_INPUT_RULES, type MoodInputId } from '../engine/generation-config';
 import type {
   AssetType,
@@ -75,6 +84,11 @@ import { preloadMonAssets } from '../assets-pipeline/assetStore';
 export type Phase =
   /** 🔶 §12 — il Signal Scan semina la personalità PRIMA che il tempo cominci. */
   | 'scan'
+  /**
+   * 🔶 v1.10 §5.3 — la dieta e l'allenamento che segui. Senza questo, «hai
+   * mangiato?» è l'unica domanda possibile sul cibo, e non è quella giusta.
+   */
+  | 'protocol'
   | 'incubation'
   /** Rivelazione della prima forma. */
   | 'first-encounter'
@@ -139,6 +153,12 @@ interface AppState {
   personality: PersonalitySeed;
   /** §12 — le risposte del Signal Scan, conservate per poterle rileggere. */
   scanAnswers: ScanAnswers;
+  /**
+   * 🔶 v1.10 §5.3 — il riferimento contro cui si legge il cibo. Dichiarato
+   * all'ingresso, modificabile sempre: una dieta cambia, e un metro che non si
+   * può aggiornare diventa una bugia nel giro di un mese.
+   */
+  protocol: Protocol;
   /** §11 — umori dichiarati, max 3 al giorno. */
   moodHistory: MoodDayEntry[];
   cultural: CulturalAffinities;
@@ -170,6 +190,17 @@ interface AppState {
   /** DEV — rifà lo scan da capo, senza toccare il resto della partita. */
   reopenScan: () => void;
 
+  /**
+   * 🔶 v1.10 §5.3 — dichiara dieta e allenamento. Testo libero, come tutto il
+   * resto: §5.2 vieta i campi preimpostati, e una dieta è la cosa che uno ha
+   * già scritta da qualche parte e vuole solo incollare.
+   */
+  declareProtocol: (dietText: string, trainingText: string) => void;
+  /** Va avanti senza dichiarare niente. Il cibo resta registrabile, senza metro. */
+  skipProtocol: () => void;
+  /** Riapre la dichiarazione: una dieta cambia, e il metro deve poterla seguire. */
+  reopenProtocol: () => void;
+
   advanceDays: (n: number) => void;
   /**
    * Come `advanceDays`, ma chiude ogni giornata. Sta in piedi da sé perché il
@@ -189,6 +220,12 @@ interface AppState {
   confirmFormEvolution: () => void;
 
   sendMessage: (text: string) => void;
+  /**
+   * 🔶 v1.10 §7.2 — parlare all'uovo. Registra esattamente come `sendMessage`,
+   * ma la risposta è un suono e non una frase: durante l'incubazione non c'è
+   * ancora nessuno che possa parlare. Vedi `eggVoice.ts`.
+   */
+  sendToEgg: (text: string) => void;
   /**
    * 🔶 v1.9 §5.2 — registra un racconto libero e/o una foto. Sostituisce le
    * quattro voci a menu di `logInput`: uno sa cosa gli è successo, non in che
@@ -240,6 +277,7 @@ const INITIAL = {
   formsDiscovered: 0,
   personality: neutralPersonality(),
   scanAnswers: {} as ScanAnswers,
+  protocol: EMPTY_PROTOCOL as Protocol,
   moodHistory: [] as MoodDayEntry[],
   cultural: {} as CulturalAffinities,
   mons: {} as Record<string, MonRecord>,
@@ -274,6 +312,81 @@ function withSignal(
       signals: { ...current.signals, [key]: { status, note } },
     },
   };
+}
+
+/**
+ * 🔶 v1.10 §7.2 — l'etichetta di forma sui ricordi nati prima dell'HATCH.
+ * `Memory.monName` è «un'etichetta, non un contenitore» (types.ts): qui non c'è
+ * ancora nessuna forma da nominare, e inventarne una sarebbe uno spoiler.
+ */
+const PRE_HATCH = 'UOVO';
+
+/**
+ * Applica un'estrazione al giorno corrente: segnali e umori.
+ *
+ * Esiste per una ragione sola, ed è la ragione per cui ci sono tre superfici
+ * che registrano — chat, chat con l'uovo, registrazione — e una regola sola:
+ * **un segnale estratto non sovrascrive mai uno dichiarato a mano.** Tenerla
+ * copiata in tre posti significherebbe che prima o poi due si comportano
+ * diverso, e nessuno se ne accorge.
+ */
+function applyExtraction(
+  s: AppState,
+  found: ReturnType<typeof extractFromMessage>,
+): { days: Record<number, DailySync>; moodHistory: MoodDayEntry[] } {
+  let days = s.days;
+  for (const [key, value] of Object.entries(found.signals)) {
+    const k = key as DailySignalKey;
+    if ((days[s.day]?.signals[k].status ?? 'UNKNOWN') === 'UNKNOWN') {
+      days = withSignal(days, s.day, k, value.status, value.note);
+    }
+  }
+
+  // §11 — al massimo 3 umori al giorno, e quelli già dichiarati restano.
+  const declared = s.moodHistory.find((d) => d.day === s.day)?.inputs ?? [];
+  const merged = [...declared];
+  for (const m of found.moods) {
+    if (merged.length >= MOOD_INPUT_RULES.maxPerDay) break;
+    if (!merged.includes(m)) merged.push(m);
+  }
+
+  return {
+    days,
+    moodHistory:
+      merged.length > 0
+        ? [...s.moodHistory.filter((d) => d.day !== s.day), { day: s.day, inputs: merged }]
+        : s.moodHistory,
+  };
+}
+
+/**
+ * 🔶 v1.10 §5.3 — come «cosa ho mangiato» diventa un numero.
+ *
+ * È l'unico punto del sistema in cui l'aderenza al protocollo tocca qualcosa, e
+ * tocca solo le sei stat di salute: non il SYNC, non l'evoluzione, non un
+ * punteggio. Un giorno fuori protocollo produce una creatura diversa, non una
+ * creatura peggiore — vedi `ADHERENCE_EFFECT` per il perché CARE sale sempre.
+ */
+function adherenceTouch(
+  s: AppState,
+  found: ReturnType<typeof extractFromMessage>,
+): Partial<Record<StatKey, number>> {
+  const current = (k: StatKey) =>
+    isKnown(s.health.stats[k].value) ? (s.health.stats[k].value as number) : 50;
+  const touched: Partial<Record<StatKey, number>> = {};
+
+  if (found.signals.FOOD?.status === 'KNOWN') {
+    const effect = ADHERENCE_EFFECT[found.adherence];
+    touched.FORM = Math.max(0, Math.min(100, current('FORM') + effect.FORM));
+    touched.CARE = Math.max(0, Math.min(100, current('CARE') + effect.CARE));
+  }
+
+  if (found.signals.WORKOUT?.status === 'KNOWN') {
+    touched.ATK = Math.min(100, current('ATK') + 2.5);
+    touched.SPD = Math.min(100, current('SPD') + 1.8);
+  }
+
+  return touched;
 }
 
 function activeRecord(s: AppState): MonRecord | null {
@@ -329,11 +442,31 @@ export const useApp = create<AppState>()(
         // l'umore, è il temperamento — non si ricalcola ogni giorno.
         set({
           personality: seedFromAnswers(s.scanAnswers),
-          phase: 'incubation',
+          phase: 'protocol',
         });
       },
 
       reopenScan: () => set({ phase: 'scan' }),
+
+      /* --- 🔶 v1.10 §5.3 PROTOCOLLO --- */
+
+      declareProtocol: (dietText, trainingText) =>
+        set({
+          protocol: {
+            diet: parseDiet(dietText),
+            training: parseTraining(trainingText),
+            declaredAt: new Date().toISOString(),
+          },
+          phase: 'incubation',
+        }),
+
+      // Saltare è legittimo e non è un ripiego: senza protocollo il cibo si
+      // registra lo stesso, l'aderenza resta SCONOSCIUTA e nessuna schermata
+      // insiste. Obbligare a compilare qualcosa prima di cominciare è
+      // esattamente l'attrito che §5.2 è nato per togliere.
+      skipProtocol: () => set({ phase: 'incubation' }),
+
+      reopenProtocol: () => set({ phase: 'protocol' }),
 
       /* --- Avanzamento del tempo (§25) --- */
 
@@ -573,7 +706,7 @@ export const useApp = create<AppState>()(
         if (!rec || text.trim().length === 0) return;
 
         const rng = makeRng(seedFromString(`reply:${rec.data.name}:${s.chat.length}:${text}`));
-        const found = extractFromMessage(text);
+        const found = extractFromMessage(text, s.protocol.diet);
         const labels = extractionLabels(found);
 
         const mine: ChatMessage = {
@@ -595,30 +728,12 @@ export const useApp = create<AppState>()(
           pending: s.apiKey !== null,
         };
 
-        // I segnali estratti non sovrascrivono quelli che hai già dichiarato a
-        // mano: una parola pescata in una frase vale meno di un pulsante premuto.
-        let days = s.days;
-        for (const [key, value] of Object.entries(found.signals)) {
-          const k = key as DailySignalKey;
-          const current = days[s.day]?.signals[k].status ?? 'UNKNOWN';
-          if (current === 'UNKNOWN') days = withSignal(days, s.day, k, value.status, value.note);
-        }
-
-        // §11 — al massimo 3 umori al giorno, e quelli già dichiarati restano.
-        const declared = s.moodHistory.find((d) => d.day === s.day)?.inputs ?? [];
-        const merged = [...declared];
-        for (const m of found.moods) {
-          if (merged.length >= MOOD_INPUT_RULES.maxPerDay) break;
-          if (!merged.includes(m)) merged.push(m);
-        }
+        const { days, moodHistory } = applyExtraction(s, found);
 
         set({
           chat: [...s.chat, mine, theirs].slice(-60),
           days,
-          moodHistory:
-            merged.length > 0
-              ? [...s.moodHistory.filter((d) => d.day !== s.day), { day: s.day, inputs: merged }]
-              : s.moodHistory,
+          moodHistory,
           progression: {
             ...s.progression,
             bond: Math.min(1, s.progression.bond + BOND_PER_INTERACTION),
@@ -628,20 +743,83 @@ export const useApp = create<AppState>()(
         requestReply(set, get, rec, theirs.id);
       },
 
+      /**
+       * 🔶 v1.10 §7.2 — la stessa chat, ma l'altro capo non sa parlare.
+       *
+       * Registra identico a `sendMessage`: gli stessi segnali, gli stessi umori,
+       * la stessa riga di conferma. Cambiano due cose, ed è di proposito:
+       * la risposta è un suono, e non parte nessuna chiamata AI — non c'è
+       * ancora nessuna voce da far scrivere a un modello, e sette giorni di
+       * incubazione non devono costare niente.
+       */
+      sendToEgg: (text) => {
+        const s = get();
+        if (s.phase !== 'incubation' || text.trim().length === 0) return;
+
+        const found = extractFromMessage(text, s.protocol.diet);
+        const labels = extractionLabels(found);
+        const rng = makeRng(seedFromString(`egg:${s.day}:${s.chat.length}:${text}`));
+        const progress = Math.min(1, s.progression.sync.lifetime / PROGRESSION.incubationSyncDays);
+        const sound = eggReply(rng, found, progress);
+
+        const mine: ChatMessage = {
+          id: `msg_${s.chat.length}_v`,
+          from: 'vinz',
+          text: text.trim(),
+          day: s.day,
+          extracted: labels.length > 0 ? labels : undefined,
+        };
+        const theirs: ChatMessage = {
+          id: `msg_${s.chat.length}_e`,
+          from: 'mon',
+          text: sound.text,
+          day: s.day,
+          sound: sound.reaction,
+        };
+
+        const { days, moodHistory } = applyExtraction(s, found);
+        const health = applyDay(s.health, s.day, {
+          touched: adherenceTouch(s, found),
+          logged: true,
+          workout: found.signals.WORKOUT?.status === 'KNOWN',
+        });
+
+        set({
+          chat: [...s.chat, mine, theirs].slice(-60),
+          days,
+          moodHistory,
+          health,
+          // Quello che gli racconti prima che nasca non va perso: i suoni sono
+          // presenza e spariscono con l'HATCH, il contenuto resta e alimenta la
+          // voce che avrà dopo.
+          memories: [
+            ...s.memories,
+            makeMemory({
+              id: `mem_egg_${s.day}_${s.memories.length}`,
+              day: s.day,
+              event: {
+                kind: 'conversation',
+                title: 'Prima di nascere',
+                text: text.trim(),
+                memorable: true,
+              },
+              monName: PRE_HATCH,
+            }),
+          ],
+          progression: {
+            ...s.progression,
+            bond: Math.min(1, s.progression.bond + BOND_PER_INTERACTION),
+          },
+        });
+      },
+
       captureEntry: (text, photoDataUrl) => {
         const s = get();
         const rec = activeRecord(s);
-        const found = extractFromMessage(text);
+        const found = extractFromMessage(text, s.protocol.diet);
 
-        /* I segnali estratti non sovrascrivono quelli già dichiarati a mano:
-           una parola pescata in una frase vale meno di un pulsante premuto. */
-        let days = s.days;
-        for (const [key, value] of Object.entries(found.signals)) {
-          const k = key as DailySignalKey;
-          if ((days[s.day]?.signals[k].status ?? 'UNKNOWN') === 'UNKNOWN') {
-            days = withSignal(days, s.day, k, value.status, value.note);
-          }
-        }
+        const applied = applyExtraction(s, found);
+        let days = applied.days;
 
         /* Una foto senza parole è quasi sempre un piatto. Lo si dichiara come
            deduzione — «da una foto» — invece di farlo passare per un dato
@@ -650,18 +828,14 @@ export const useApp = create<AppState>()(
           days = withSignal(days, s.day, 'FOOD', 'KNOWN', 'da una foto');
         }
 
-        /* Le misure toccano le sei stat di §4. Non sono un quarto segnale e
-           non danno SYNC: la salute forma la creatura, non ne compra la
-           crescita. */
+        /* Le misure toccano le sei stat di §4, e con loro l'aderenza al
+           protocollo. Non sono un quarto segnale e non danno SYNC: la salute
+           forma la creatura, non ne compra la crescita. */
         const current = (k: StatKey) =>
           isKnown(s.health.stats[k].value) ? (s.health.stats[k].value as number) : 50;
-        const touched: Partial<Record<StatKey, number>> = {};
+        const touched = adherenceTouch(s, found);
         for (const m of found.measures) {
           touched[m.stat] = Math.max(0, Math.min(100, current(m.stat) + 2));
-        }
-        if (found.signals.WORKOUT?.status === 'KNOWN') {
-          touched.ATK = Math.min(100, current('ATK') + 2.5);
-          touched.SPD = Math.min(100, current('SPD') + 1.8);
         }
         if (photoDataUrl) touched.CARE = Math.min(100, current('CARE') + 1.5);
 
@@ -670,13 +844,6 @@ export const useApp = create<AppState>()(
           logged: true,
           workout: found.signals.WORKOUT?.status === 'KNOWN',
         });
-
-        const declared = s.moodHistory.find((d) => d.day === s.day)?.inputs ?? [];
-        const merged = [...declared];
-        for (const m of found.moods) {
-          if (merged.length >= MOOD_INPUT_RULES.maxPerDay) break;
-          if (!merged.includes(m)) merged.push(m);
-        }
 
         const memories = [...s.memories];
         if (rec && text.trim().length > 0) {
@@ -699,10 +866,7 @@ export const useApp = create<AppState>()(
           health,
           days,
           memories,
-          moodHistory:
-            merged.length > 0
-              ? [...s.moodHistory.filter((d) => d.day !== s.day), { day: s.day, inputs: merged }]
-              : s.moodHistory,
+          moodHistory: applied.moodHistory,
           progression: {
             ...s.progression,
             bond: Math.min(1, s.progression.bond + BOND_PER_INTERACTION),
@@ -1370,6 +1534,12 @@ export function useScan() {
     answered: Object.keys(answers).length,
     complete: isScanComplete(answers),
   };
+}
+
+/** 🔶 v1.10 §5.3 — il protocollo dichiarato, e se basta a misurare l'aderenza. */
+export function useProtocol() {
+  const protocol = useApp((s) => s.protocol);
+  return { protocol, usable: hasUsableDiet(protocol) };
 }
 
 /** Umori dichiarati oggi (§11). */

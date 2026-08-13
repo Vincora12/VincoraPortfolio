@@ -28,6 +28,17 @@
 
 import type { DailySignalKey, SignalStatus } from './progression';
 import type { MoodInputId } from './generation-config';
+import {
+  ADHERENCE_LABELS,
+  FOOD_GROUP_LABELS,
+  adherenceOf,
+  classifyFood,
+  classifyWorkout,
+  type Adherence,
+  type DietProtocol,
+  type FoodGroup,
+  type WorkoutKind,
+} from './protocol';
 
 export interface ExtractedSignal {
   status: SignalStatus;
@@ -49,6 +60,16 @@ export interface Extraction {
   measures: ExtractedMeasure[];
   /** Un'assenza dichiarata al passato: giorni in cui non c'eri. */
   absence: string | null;
+  /**
+   * 🔶 v1.10 §5.3 — COSA c'era nel piatto, non solo che hai mangiato. È la
+   * differenza fra un contatore e un motore: due giorni con lo stesso «sì, ho
+   * mangiato» ma cibi opposti devono produrre due creature diverse.
+   */
+  foodGroups: FoodGroup[];
+  /** Che tipo di allenamento: la stessa domanda, dall'altro lato. */
+  workoutKinds: WorkoutKind[];
+  /** Il confronto col protocollo dichiarato. Mai un voto: vedi `protocol.ts`. */
+  adherence: Adherence;
 }
 
 export const EMPTY_EXTRACTION: Extraction = {
@@ -56,6 +77,9 @@ export const EMPTY_EXTRACTION: Extraction = {
   moods: [],
   measures: [],
   absence: null,
+  foodGroups: [],
+  workoutKinds: [],
+  adherence: 'SCONOSCIUTA',
 };
 
 /* --- Vocabolari -------------------------------------------------------------
@@ -140,23 +164,47 @@ function hits(haystack: string, needles: readonly string[]): string | null {
  * sensori vale identica qui: «should not silently fabricate subjective
  * information such as Mood».
  */
-export function extractFromMessage(text: string): Extraction {
+export function extractFromMessage(text: string, diet: DietProtocol | null = null): Extraction {
   const h = normalise(text);
   const signals: Extraction['signals'] = {};
   const moods: MoodInputId[] = [];
 
-  /* CIBO */
+  /* CIBO — 🔶 v1.10 §5.3. Prima si guardava se la frase parlasse di cibo;
+     adesso si guarda COSA c'era dentro. I gruppi vengono prima delle parole
+     generiche perché sono più informativi: «pollo e broccoli» dice tutto senza
+     contenere nessuna delle parole di `FOOD_KNOWN`. */
+  const foodGroups = classifyFood(text);
+  const workoutKinds = classifyWorkout(text);
+  const adherence = adherenceOf(foodGroups, diet);
+
   const fastHit = hits(h, FOOD_NOT_APPLICABLE);
   const foodHit = hits(h, FOOD_KNOWN);
-  if (fastHit) signals.FOOD = { status: 'NOT_APPLICABLE', note: `dalla chat: «${fastHit}»` };
-  else if (foodHit) signals.FOOD = { status: 'KNOWN', note: `dalla chat: «${foodHit}»` };
+
+  if (fastHit) {
+    signals.FOOD = { status: 'NOT_APPLICABLE', note: `dalla chat: «${fastHit}»` };
+  } else if (foodGroups.length > 0) {
+    // La nota dice cosa hai mangiato e, se c'è un protocollo, come si colloca.
+    // Non dice se hai fatto bene: quella frase non esiste in questo prodotto.
+    const what = foodGroups.map((g) => FOOD_GROUP_LABELS[g]).join(', ');
+    signals.FOOD = {
+      status: 'KNOWN',
+      note: diet ? `${what} — ${ADHERENCE_LABELS[adherence]}` : what,
+    };
+  } else if (foodHit) {
+    signals.FOOD = { status: 'KNOWN', note: `dalla chat: «${foodHit}»` };
+  }
 
   /* ALLENAMENTO — il riposo vince sull'allenamento se compaiono entrambi:
      «oggi niente palestra» contiene «palestra», ma dice l'opposto. */
   const restHit = hits(h, WORKOUT_REST);
   const workoutHit = hits(h, WORKOUT_KNOWN);
-  if (restHit) signals.WORKOUT = { status: 'NOT_APPLICABLE', note: `dalla chat: «${restHit}»` };
-  else if (workoutHit) signals.WORKOUT = { status: 'KNOWN', note: `dalla chat: «${workoutHit}»` };
+  if (restHit) {
+    signals.WORKOUT = { status: 'NOT_APPLICABLE', note: `dalla chat: «${restHit}»` };
+  } else if (workoutKinds.length > 0) {
+    signals.WORKOUT = { status: 'KNOWN', note: workoutKinds.join(' · ').toLowerCase() };
+  } else if (workoutHit) {
+    signals.WORKOUT = { status: 'KNOWN', note: `dalla chat: «${workoutHit}»` };
+  }
 
   /* UMORE — fino a 3, come impone GB §11. */
   for (const [id, words] of Object.entries(MOOD_WORDS) as [MoodInputId, string[]][]) {
@@ -174,7 +222,15 @@ export function extractFromMessage(text: string): Extraction {
     signals.WORKOUT = { status: 'NOT_APPLICABLE', note: `dalla chat: «${ill}»` };
   }
 
-  return { signals, moods, measures: extractMeasures(text), absence: hits(h, ABSENCE) };
+  return {
+    signals,
+    moods,
+    measures: extractMeasures(text),
+    absence: hits(h, ABSENCE),
+    foodGroups,
+    workoutKinds,
+    adherence,
+  };
 }
 
 /* --- Misure ------------------------------------------------------------------
@@ -218,10 +274,25 @@ export function extractMeasures(text: string): ExtractedMeasure[] {
   return out;
 }
 
+/** Le stesse quattro parole di `ADHERENCE_LABELS`, accorciate per la riga di conferma. */
+const ADHERENCE_SHORT: Record<Adherence, string> = {
+  IN_LINEA: 'in linea',
+  FUORI: 'fuori protocollo',
+  MISTO: 'in parte fuori',
+  SCONOSCIUTA: '—',
+};
+
 /** Etichette leggibili di cosa è stato registrato, per la riga sotto al messaggio. */
 export function extractionLabels(e: Extraction): string[] {
   const out: string[] = [];
-  if (e.signals.FOOD) out.push('CIBO');
+  if (e.signals.FOOD) {
+    // 🔶 v1.10 — se c'è un protocollo, la conferma dice anche come si colloca.
+    // Fra parentesi e non come voce a sé: è una qualità del segnale CIBO, non
+    // un quarto segnale, e non deve sembrare una riga di punteggio.
+    out.push(
+      e.adherence === 'SCONOSCIUTA' ? 'CIBO' : `CIBO (${ADHERENCE_SHORT[e.adherence]})`,
+    );
+  }
   if (e.signals.WORKOUT) out.push('ALLENAMENTO');
   if (e.signals.MOOD) out.push('UMORE');
   for (const m of e.measures) out.push(m.label.toUpperCase());

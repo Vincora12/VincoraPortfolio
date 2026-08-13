@@ -2120,28 +2120,175 @@
   margin: 0;
 }
 
-/* Registrare durante l'incubazione (v1.9 §7.1): l'unica riga interattiva di
-   una schermata che per il resto si limita a leggere. */
-.incubation__today {
+/* ============================================================================
+   CHAT CON L'UOVO (v1.10 §7.2)
+
+   È la chat di dopo, ridotta all'osso: stesse bolle, stesso composer, stessa
+   riga di conferma. L'unica cosa che cambia è la risposta — un suono, che non
+   ha la bolla perché non è una battuta di dialogo.
+   ========================================================================= */
+
+.incubation__chat {
+  flex: 1;
+  min-height: 96px;
+  max-height: 34vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--u2);
+  padding: var(--u3);
+  border: var(--border) solid var(--ink);
+  background: var(--white);
+}
+
+.incubation__empty {
+  margin: auto 0;
+  color: var(--muted-strong);
+  text-align: center;
+  line-height: 1.45;
+}
+
+/* Il suono. Nessun bordo, nessun fondo: non è un messaggio in una scatola, è
+   una cosa che si sente attraverso il guscio. */
+.eggsound {
   display: flex;
   align-items: center;
-  gap: var(--u3);
+  gap: var(--u2);
+  align-self: flex-start;
+  padding: var(--u) 0;
+  color: var(--muted-strong);
+  opacity: 0.9;
+}
+
+.eggsound__text {
+  font-family: var(--font-mono, monospace);
+  font-size: var(--type-body);
+  letter-spacing: 0.14em;
+  color: var(--ink);
+}
+
+/* Le reazioni si distinguono a colpo d'occhio senza essere spiegate: §17 vuole
+   che il colore non sia mai l'unica differenza, e qui infatti la differenza
+   vera è il suono scritto — il colore lo accompagna e basta. */
+.eggsound--alert .eggsound__text {
+  color: var(--ink);
+  letter-spacing: 0.05em;
+}
+
+.eggsound--warm .eggsound__text {
+  color: var(--char-accent);
+  letter-spacing: 0.22em;
+}
+
+.eggsound--dormant {
+  opacity: 0.45;
+}
+
+.composer--egg {
+  border: var(--border) solid var(--ink);
+  border-top: var(--border) solid var(--ink);
+}
+
+/* Chiudere la giornata resta un gesto esplicito, non un effetto collaterale
+   della conversazione (§6). */
+.incubation__day-close {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--u2);
+  color: var(--muted-strong);
+}
+
+/* ============================================================================
+   04 PROTOCOLLO (v1.10 §5.3)
+
+   Due aree di testo e nient'altro. La schermata deve somigliare a un foglio su
+   cui incollare una dieta, non a un modulo da compilare.
+   ========================================================================= */
+
+.protocol {
+  display: flex;
+  flex-direction: column;
+}
+
+.protocol__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--u4);
+  overflow-y: auto;
+  padding: var(--u4);
+}
+
+.protocol__intro {
+  margin: 0;
+  line-height: 1.5;
+  color: var(--muted-strong);
+}
+
+.protocol__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--u);
+}
+
+.protocol__label {
+  color: var(--ink);
+}
+
+.protocol__hint {
+  color: var(--muted);
+}
+
+.protocol__area {
   width: 100%;
+  margin-top: var(--u);
   padding: var(--u3);
   border: var(--border) solid var(--ink);
   background: var(--white);
   color: var(--ink);
-  text-align: left;
-  cursor: pointer;
+  font: inherit;
+  font-size: var(--type-small);
+  line-height: 1.5;
+  resize: vertical;
 }
 
-.incubation__todaystate {
-  flex: 1;
-  color: var(--muted-strong);
+.protocol__area:focus-visible {
+  outline: var(--border-thick) solid var(--char-accent);
+  outline-offset: 2px;
 }
 
-.incubation__todaygo {
+/* Quello che il sistema ha capito, mentre scrivi. Stessa regola della chat:
+   interpretare in silenzio è peggio che non interpretare. */
+.protocol__read {
   color: var(--char-accent);
+  line-height: 1.4;
+}
+
+.protocol__read--empty {
+  color: var(--muted);
+}
+
+.protocol__note {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.protocol__foot {
+  display: flex;
+  flex-direction: column;
+  gap: var(--u2);
+  padding: var(--u4);
+  border-top: var(--border) solid var(--ink);
+}
+
+.protocol__skip {
+  background: none;
+  border: 0;
+  color: var(--muted-strong);
+  text-decoration: underline;
+  cursor: pointer;
+  padding: var(--u);
 }
 
 /* ============================================================================
@@ -2306,6 +2453,16 @@
 /* Cosa è stato registrato da un messaggio: sta sotto e non festeggia. */
 .bubble__flag--rec {
   color: var(--char-accent);
+}
+
+/* Le bolle dell'utente sono già dipinte col colore primario del .mon, e su
+   quel fondo l'accento — che è una variazione dello stesso colore — sparisce.
+   È il caso in cui il colore di sistema NON basta: qui serve il colore di
+   contrasto dichiarato per quel fondo, altrimenti la conferma di §5.1 esiste
+   nel DOM e non nell'occhio. Su campo nero era illeggibile del tutto. */
+.bubble--vinz .bubble__flag--rec {
+  color: var(--char-on-primary);
+  opacity: 0.8;
 }
 
 /* --- La rivelazione a tre battute (v1.9 §13.2) ---
@@ -2679,4 +2836,39 @@
   flex-direction: column;
   gap: var(--u2);
   align-items: flex-start;
+}
+
+/* Il protocollo dichiarato, dentro ME (v1.10 §5.3). Riga interattiva, non
+   scheda: si apre per cambiare la dieta, non per contemplarla. */
+.me__protocol {
+  display: flex;
+  align-items: center;
+  gap: var(--u3);
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.me__protocolbody {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--u);
+  min-width: 0;
+}
+
+.me__protocoltraining {
+  color: var(--muted-strong);
+}
+
+.me__protocolempty {
+  color: var(--muted);
+}
+
+.me__protocolgo {
+  color: var(--char-accent);
 }

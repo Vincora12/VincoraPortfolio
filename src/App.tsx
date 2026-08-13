@@ -20,6 +20,7 @@ import { t } from './i18n/it';
 
 import { SplashScreen } from './screens/Splash';
 import { PersonalityScanScreen } from './screens/PersonalityScan';
+import { ProtocolSetupScreen } from './screens/ProtocolSetup';
 import { IncubationScreen } from './screens/Incubation';
 import { EncounterScreen } from './screens/Encounter';
 import { CompanionHomeScreen } from './screens/CompanionHome';
@@ -49,6 +50,9 @@ export type Overlay =
   | 'dev';
 
 /** Le fasi su campo nero, lette dal board. */
+// 🔶 v1.10 — il PROTOCOLLO non è qui di proposito. §10.5 riserva l'inversione
+// agli eventi, e dichiarare la propria dieta non è un evento: è la superficie
+// più pratica del prodotto, e va su campo bianco come la registrazione.
 const INK_PHASES: Phase[] = ['scan', 'incubation', 'first-encounter', 'new-encounter'];
 
 export function App() {
@@ -131,6 +135,8 @@ function PhaseScreen({
   switch (phase) {
     case 'scan':
       return <PersonalityScanScreen />;
+    case 'protocol':
+      return <ProtocolSetupScreen />;
     case 'incubation':
       return <IncubationScreen onGo={onGo} />;
     case 'first-encounter':
