@@ -42,7 +42,12 @@ export const t = {
   incubation: {
     title: 'PRIMO SEGNALE',
     subtitle: 'INCUBAZIONE',
-    day: 'GIORNO',
+    /* ⚠️ Diceva «GIORNO», e la barra di stato in cima dice «GIORNO 3»: due
+       numeri diversi con la stessa parola sopra, sulla stessa schermata. Il
+       primo è il giorno di calendario della partita, questo sono i giorni
+       RACCONTATI — che è tutt'altra cosa, perché il tempo che passa non fa
+       schiudere niente (§7). */
+    day: 'GIORNI RACCONTATI',
     stability: 'SIGNAL STABILITY',
     waiting:
       'Il sistema sta ancora leggendo. Basta presentarsi: ogni giorno chiuso è un giorno che conta, e saltarne uno non azzera niente.',

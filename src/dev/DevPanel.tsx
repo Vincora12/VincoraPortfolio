@@ -99,6 +99,7 @@ function TimeSection() {
   const day = useApp((s) => s.day);
   const phase = useApp((s) => s.phase);
   const advanceDays = useApp((s) => s.advanceDays);
+  const simulateSyncedDays = useApp((s) => s.simulateSyncedDays);
   const endWeek = useApp((s) => s.endWeek);
   const bias = useApp((s) => s.bias);
   const setBias = useApp((s) => s.setBias);
@@ -136,11 +137,32 @@ function TimeSection() {
     <div className="dev__section">
       <p className="t-meta">GIORNO CORRENTE: {day} · FASE: {phase.toUpperCase()}</p>
 
+      {/* 🔷 v1.10 — «se aggiungo giorni si aggiunge SYNC ma non giorni».
+
+          I pulsanti qui sotto fanno passare il TEMPO, e il tempo da solo non
+          dà SYNC: lo dà presentarsi (§7). Chi prova l'app dal pannello se ne
+          accorge solo dopo aver premuto tre volte senza vedere cambiare
+          niente, il che rende il controllo più confuso della cosa che
+          controlla.
+
+          Questo invece vive un giorno per intero — racconta, chiude, passa a
+          domani — ed è quello che serve per vedere l'uovo incrinarsi un
+          giorno alla volta. */}
+      <Button block variant="primary" small onClick={() => simulateSyncedDays(1)}>
+        VIVI UN GIORNO (RACCONTA + CHIUDI + DOMANI)
+      </Button>
+
+      <p className="t-micro dev__note">
+        I pulsanti qui sotto fanno solo passare il tempo: non danno SYNC, non
+        chiudono niente e l’incubazione non avanza. È voluto — il tempo non fa
+        crescere nessuno.
+      </p>
+
       <div className="dev__grid">
-        <Button small onClick={() => advanceDays(1)}>+1 DAY</Button>
-        <Button small onClick={() => advanceDays(7)}>+7 DAYS</Button>
-        <Button small onClick={endWeek}>END WEEK</Button>
-        <Button small onClick={() => advanceDays(30)}>+30 DAYS</Button>
+        <Button small onClick={() => advanceDays(1)}>+1 GIORNO</Button>
+        <Button small onClick={() => advanceDays(7)}>+7 GIORNI</Button>
+        <Button small onClick={endWeek}>FINE SETTIMANA</Button>
+        <Button small onClick={() => advanceDays(30)}>+30 GIORNI</Button>
       </div>
 
       <Button block variant="primary" small onClick={toNextShift}>
