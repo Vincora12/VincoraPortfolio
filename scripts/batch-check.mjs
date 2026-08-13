@@ -45,6 +45,7 @@ export { eggReply, allEggSounds } from '${cwd}/src/engine/eggVoice.ts';
 export { idleMotionFor, motionCoverage } from '${cwd}/src/engine/idleMotion.ts';
 export { compilePrompt } from '${cwd}/src/assets-pipeline/compiler.ts';
 export { buildVoiceSystemPrompt } from '${cwd}/src/ai/voicePrompt.ts';
+export { typingRhythmFor, rhythmDurationMs } from '${cwd}/src/engine/typingRhythm.ts';
 `,
 );
 
@@ -712,6 +713,72 @@ check(tense.reaction === 'ALERT', 'la tensione cambia il suono', tense.reaction)
    giorno accorcia il briefing deve vedere fallire un controllo, non la
    bolletta.
    ========================================================================= */
+
+/* ============================================================================
+   §17.3 — IL RITMO DI SCRITTURA
+
+   Due cose vanno dimostrate, e sono in tensione fra loro:
+
+   • che i .mon scrivano DIVERSI l'uno dall'altro — altrimenti il ritmo è una
+     maschera uguale per tutti e tanto valeva non farlo;
+   • che nessuno esca dalla finestra in cui l'attesa è ancora carattere. Oltre
+     i ~4 secondi la ricerca dice che smette di leggersi come «sta pensando» e
+     inizia a leggersi come «l'app è rotta».
+   ========================================================================= */
+
+console.log('\n═══ §17.3 — IL RITMO DI SCRITTURA ═══\n');
+
+const rhythms = [];
+for (let seed = 1; seed <= 60; seed++) {
+  const mon = m.generateFirstMon({
+    input,
+    mindlineNodeId: `rhythm_${seed}`,
+    originNodeId: null,
+    lineageNames: [],
+    seed: seed * 137,
+  }).record;
+  rhythms.push({ voice: mon.data.voice_dna, r: m.typingRhythmFor(mon.data.voice_dna) });
+}
+
+const reveals = new Set(rhythms.map((x) => x.r.reveal));
+check(
+  reveals.size === 3,
+  'tutti e tre i modi di scrivere escono davvero dalle creature',
+  [...reveals].join(', '),
+);
+
+const shapes = new Set(
+  rhythms.map((x) => `${x.r.reveal}|${x.r.hesitates}|${x.r.splitReply}`),
+);
+check(shapes.size >= 5, 'i .mon non scrivono tutti allo stesso modo', `${shapes.size} ritmi distinti su 60`);
+
+// Determinismo: il ritmo e identita, non rumore. Stesso DNA, stesso ritmo.
+const first = rhythms[0];
+check(
+  JSON.stringify(m.typingRhythmFor(first.voice)) === JSON.stringify(first.r),
+  'stesso Voice DNA, stesso ritmo: il ritmo e identita, non caso',
+);
+
+// 30 parole e una risposta lunga per questo prodotto: due frasi piene.
+const worst = Math.max(...rhythms.map((x) => m.rhythmDurationMs(x.r, 30)));
+check(
+  worst <= 6500,
+  'anche il .mon piu lento consegna 30 parole entro la finestra',
+  `${(worst / 1000).toFixed(1)}s`,
+);
+
+const slowestStart = Math.max(...rhythms.map((x) => x.r.thinkMs));
+const fastestStart = Math.min(...rhythms.map((x) => x.r.thinkMs));
+check(
+  fastestStart >= 400,
+  'nessuno risponde cosi in fretta da sembrare automatico',
+  `il piu rapido parte a ${fastestStart}ms`,
+);
+check(
+  slowestStart - fastestStart >= 600,
+  'fra il piu impulsivo e il piu misurato si sente la differenza',
+  `${fastestStart}ms → ${slowestStart}ms`,
+);
 
 console.log('\n═══ VOCE — SOGLIA DI CACHE ═══\n');
 
