@@ -222,6 +222,11 @@ try {
   // §14 vuole il dettaglio del giorno con i tre segnali e la provenienza.
   await click('.cal__cell:last-child', 'dettaglio del giorno');
   await shot('09c-calendario-giorno');
+  // 🔶 GRACE: una pausa dichiarata, che NON dà SYNC.
+  await page.locator('.cal__grace input').fill('ero malato');
+  await click(byText('SEGNA COME PAUSA'), 'segna pausa');
+  await shot('09d-calendario-pausa');
+  await click(byText('NON ERA UNA PAUSA'), 'togli pausa');
 
   /* 17 — MINDLINE: senza selezione si vede solo la topologia */
   await click('.tabbar__item:nth-child(4)', 'tab MINDLINE');

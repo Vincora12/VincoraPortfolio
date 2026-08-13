@@ -173,6 +173,12 @@ interface AppState {
   setDailySignal: (key: DailySignalKey, status: SignalStatus, note?: string) => void;
   /** Chiude la giornata: +1 SYNC, una volta sola per giorno di calendario. */
   syncDay: () => void;
+  /**
+   * 🔶 Dichiara una giornata come pausa — malattia, ricovero, giorni in cui non
+   * c'eri. Vedi `progression.ts` per il perché NON dà SYNC. Reversibile: se poi
+   * quel giorno lo vuoi raccontare, si toglie.
+   */
+  setDayGrace: (day: number, on: boolean, note?: string) => void;
 
   setDev: (patch: Partial<DevFlags>) => void;
   setApiKey: (key: string | null) => void;
@@ -632,6 +638,51 @@ export const useApp = create<AppState>()(
                 sinceGrowth: s.progression.sync.sinceGrowth + 1,
               },
             },
+          };
+        }),
+
+      setDayGrace: (day, on, note) =>
+        set((s) => {
+          const record = s.days[day] ?? emptyDay(day);
+          // Un giorno che ha già dato SYNC non si marca: il SYNC è stato
+          // guadagnato e togliere un giorno dalla storia sarebbe una bugia.
+          if (record.syncAwarded) return {};
+
+          const rec = activeRecord(s);
+          const already = record.status === 'GRACE';
+          if (on === already) return {};
+
+          return {
+            days: {
+              ...s.days,
+              [day]: {
+                ...record,
+                status: on ? 'GRACE' : 'EMPTY',
+                graceNote: on ? note : undefined,
+              },
+            },
+            // Il punto di GRACE non è il calendario, è che VINZ.MON se ne
+            // accorga. Una pausa dichiarata entra nella memoria come qualunque
+            // altra cosa che gli hai raccontato.
+            memories:
+              on && rec
+                ? [
+                    ...s.memories,
+                    makeMemory({
+                      id: `mem_grace_${day}`,
+                      day,
+                      event: {
+                        kind: 'event',
+                        title: 'Una pausa',
+                        text: note?.trim()
+                          ? `Non c'eri: ${note.trim().toLowerCase()}`
+                          : 'Non c’eri. Nessun dato, e va bene così.',
+                        memorable: true,
+                      },
+                      monName: rec.data.name,
+                    }),
+                  ]
+                : s.memories.filter((m) => m.id !== `mem_grace_${day}`),
           };
         }),
 

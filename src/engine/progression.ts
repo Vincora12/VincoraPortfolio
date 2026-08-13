@@ -50,6 +50,33 @@ export interface DailySignalEntry {
   note?: string;
 }
 
+/**
+ * 🔶 GRACE — deciso dopo la v1.8, che lo elencava fra gli stati canonici (§14)
+ * senza dire mai cosa lo faccia scattare.
+ *
+ * **GRACE è una pausa dichiarata: malattia, ricovero, giorni in cui non ci
+ * sei stato. E NON dà SYNC.**
+ *
+ * La seconda metà è la parte che conta, ed è una scelta, non una svista:
+ *
+ * • SYNC misura quanti giorni VINZ.MON ha potuto leggerti, non quanto sei
+ *   stato bene. Se in quei giorni non c'eri, non ti ha letto: far avanzare il
+ *   contatore sarebbe raccontare una bugia sulla relazione — lo stesso peccato
+ *   che §5 vieta quando proibisce di dedurre l'umore dai sensori.
+ * • Se GRACE desse SYNC, la strada più corta per crescere diventerebbe
+ *   dichiararsi malati. Il numero perderebbe significato in una settimana.
+ *
+ * E allora a cosa serve, visto che §7 dice già che saltare un giorno non
+ * azzera niente? A questo: **un giorno vuoto e un giorno di pausa non sono la
+ * stessa cosa da guardare**. Il primo sembra abbandono, il secondo è un pezzo
+ * di vita. La progressione non cambia — aspetta, come già faceva — ma il
+ * calendario smette di essere un registro di buchi.
+ *
+ * ⚠️ Una giornata **in cui sei malato e lo racconti** non è GRACE: è una
+ * giornata normale e va sincronizzata. Stare male è esattamente il contesto
+ * che questo prodotto vuole. GRACE è per i giorni in cui non hai potuto nemmeno
+ * aprire l'app.
+ */
 export type DayStatus = 'EMPTY' | 'PARTIAL' | 'SYNCED' | 'GRACE';
 
 export interface DailySync {
@@ -58,6 +85,8 @@ export interface DailySync {
   signals: Record<DailySignalKey, DailySignalEntry>;
   /** Una volta sola per giorno di calendario: è la regola anti-farming. */
   syncAwarded: boolean;
+  /** Perché era una pausa. Compare nel dettaglio del giorno. */
+  graceNote?: string;
 }
 
 export function emptyDay(day: number): DailySync {
@@ -93,8 +122,10 @@ export function canCloseDay(day: DailySync): boolean {
 
 /** Lo stato di una casella del calendario. Nessun giorno è mai «cattivo». */
 export function dayStatus(day: DailySync): DayStatus {
-  if (day.status === 'GRACE') return 'GRACE';
+  // Un giorno che ha già dato SYNC resta SYNCED anche se poi lo si marca come
+  // pausa: il SYNC è stato guadagnato e non si toglie a posteriori.
   if (day.syncAwarded) return 'SYNCED';
+  if (day.status === 'GRACE') return 'GRACE';
   return knownSignals(day) > 0 ? 'PARTIAL' : 'EMPTY';
 }
 

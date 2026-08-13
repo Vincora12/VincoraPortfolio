@@ -183,6 +183,18 @@ export const t = {
     openDay: 'Giorno aperto. Non è un giorno perso: la crescita aspetta, non torna indietro.',
     syncedOf: 'giorni sincronizzati su',
     noStreak: 'Non c’è nessuna serie da difendere.',
+
+    /* 🔶 GRACE — una pausa dichiarata. Non dà SYNC, e la schermata lo dice
+       prima che uno lo scopra da sé, perché scoprirlo dopo sarebbe una
+       fregatura. Il tono non chiede scusa e non fa la predica. */
+    graceReason: 'Cosa è successo (facoltativo)',
+    graceePlaceholder: 'ero malato, ero via…',
+    graceMark: 'SEGNA COME PAUSA',
+    graceUndo: 'NON ERA UNA PAUSA',
+    graceWas: 'Pausa:',
+    graceGeneric: 'Una pausa. Non c’eri, e non serve dire perché.',
+    graceRule:
+      'Una pausa non dà SYNC: in quei giorni VINZ.MON non ha potuto leggerti, e far avanzare il contatore sarebbe una bugia. Ma non toglie niente e non azzera niente — la crescita aspetta.',
   },
 
   /* 15 SPECIMEN PROFILE */

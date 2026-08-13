@@ -1983,3 +1983,27 @@
   margin: 0;
   color: var(--muted-strong);
 }
+
+/* --- GRACE: la pausa dichiarata ---
+
+   Il tratteggio è la forma giusta: un contorno che c'è ma non è pieno. Non è
+   né un giorno vuoto né uno chiuso, ed è l'unico stato che il calendario
+   disegna con un bordo diverso invece che con un peso diverso. */
+.cal__cell--grace {
+  border-style: dashed;
+  border-color: var(--muted-strong);
+  color: var(--muted-strong);
+}
+
+.cal__grace {
+  display: flex;
+  flex-direction: column;
+  gap: var(--u2);
+  align-items: flex-start;
+  padding-top: var(--u2);
+  border-top: 1px solid var(--hairline);
+}
+
+.cal__gracenote {
+  margin: 0;
+}

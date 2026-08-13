@@ -90,6 +90,26 @@ Questo supera GB §23, che per i branch imponeva ≥4 assi su 7 cambiati: §23
 descriveva la nascita di una creatura diversa. §9.1 lo dice esplicitamente —
 «Update the Bible accordingly».
 
+**GRACE (§14).** Il documento lo elencava fra gli stati canonici del giorno
+senza dire mai cosa lo facesse scattare. Deciso: è una **pausa dichiarata** —
+malattia, ricovero, giorni in cui non c'eri — che **non dà SYNC**.
+
+La seconda metà è la parte che conta. SYNC misura quanti giorni VINZ.MON ha
+potuto leggerti, non quanto sei stato bene: se in quei giorni non c'eri, non ti
+ha letto, e far avanzare il contatore sarebbe una bugia sulla relazione — lo
+stesso peccato che §5 vieta quando proibisce di dedurre l'umore dai sensori. E
+se GRACE desse SYNC, la strada più corta per crescere diventerebbe dichiararsi
+malati.
+
+A cosa serve allora, visto che §7 dice già che saltare un giorno non azzera
+niente? A distinguere **un buco da un pezzo di vita**. La progressione non
+cambia — aspetta, come già faceva — ma il calendario smette di essere un
+registro di assenze, e la pausa entra nella memoria: VINZ.MON sa che non c'eri.
+
+⚠️ Una giornata in cui sei malato **e lo racconti** non è GRACE: è una giornata
+normale e va sincronizzata. Stare male è esattamente il contesto che questo
+prodotto vuole. GRACE è per i giorni in cui non hai potuto nemmeno aprire l'app.
+
 **Una entità sola.** VINZ.MON non muore e non passa la relazione a nessun altro.
 Le forme sono sue configurazioni, le memorie sono un archivio unico e la forma è
 un metadato sul ricordo. Per questo `carryMemoriesThroughBranch` è stato
@@ -121,19 +141,6 @@ home e dell'incontro, e come riga SPECIE nel profilo.
 ---
 
 ## 🟡 Ancora aperte
-
-### 🟡 Cosa fa scattare GRACE
-**Dove:** `src/engine/progression.ts` → `DayStatus`.
-La MASTER SPEC v1.8 §14 elenca **EMPTY / PARTIAL / SYNCED / GRACE** fra gli
-stati canonici di una giornata, ma non dice da nessuna parte quando un giorno
-diventa GRACE — malattia? viaggio? una pausa dichiarata? un limite di giorni
-saltati di fila?
-
-Il tipo esiste, il calendario sa disegnare la casella, e **nessuna riga di
-codice lo assegna**. Preferisco un buco dichiarato a una regola inventata: se
-GRACE significasse «giorno condonato che conta comunque come sincronizzato»,
-cambierebbe la matematica di tutta la progressione, e non è una cosa da
-indovinare.
 
 ### Trigger nascosto di SINGULAR
 **Dove:** `src/engine/rarity.ts` → `UnlockContext.hiddenTriggerFired`.

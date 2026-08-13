@@ -15,14 +15,16 @@
    Nessuna casella è rossa, nessuna frase dice che hai perso qualcosa. Un
    giorno vuoto è un giorno non raccontato, e la crescita lo aspetta.
 
-   🟡 GRACE è dichiarato canonico da §14 ma il documento non dice mai cosa lo
-   fa scattare. Il tipo esiste, la casella sa disegnarsi, e nessuna riga di
-   codice lo assegna: preferisco un buco dichiarato a una regola inventata.
+   🔶 GRACE — §14 lo dichiarava canonico senza dire cosa lo facesse scattare.
+   Deciso: è una **pausa dichiarata** — malattia, ricovero, giorni in cui non
+   c'eri — e NON dà SYNC. Il perché sta per intero in `progression.ts`; qui
+   basta la conseguenza: si marca da questa schermata, sui giorni ancora
+   aperti, ed è sempre reversibile.
    ========================================================================= */
 
 import { useState } from 'react';
 import { useApp, useGrowth } from '../state/store';
-import { ScreenHead, SystemLabel } from '../system/components';
+import { Button, ScreenHead, SystemLabel, TextField } from '../system/components';
 import {
   DAILY_SIGNALS,
   DAILY_SIGNAL_LABELS,
@@ -66,9 +68,11 @@ export function CalendarScreen() {
   const days = useApp((s) => s.days);
   const today = useApp((s) => s.day);
   const nodes = useApp((s) => s.nodes);
+  const setDayGrace = useApp((s) => s.setDayGrace);
   const { event, sync } = useGrowth();
 
   const [selected, setSelected] = useState<number | null>(null);
+  const [reason, setReason] = useState('');
 
   const milestones = new Map<number, keyof typeof MILESTONES>();
   for (const n of nodes) milestones.set(n.day, n.kind);
@@ -139,8 +143,8 @@ export function CalendarScreen() {
 
         <p className="t-micro cal__legend">
           {MARKS.SYNCED} sincronizzato · {MARKS.PARTIAL} parziale · {MARKS.EMPTY} vuoto ·{' '}
-          {MILESTONES.origin.mark} prima forma · {MILESTONES.evolution.mark} maturazione ·{' '}
-          {MILESTONES.branch.mark} cambio di forma
+          {MARKS.GRACE} pausa · {MILESTONES.origin.mark} prima forma ·{' '}
+          {MILESTONES.evolution.mark} maturazione · {MILESTONES.branch.mark} cambio di forma
         </p>
 
         {/* §14 — «Day detail shows FOOD / WORKOUT / MOOD and relevant source
@@ -184,8 +188,43 @@ export function CalendarScreen() {
               })}
             </ul>
 
-            {open.status !== 'SYNCED' && (
-              <p className="t-micro cal__nopunish">{t.calendar.openDay}</p>
+            {open.status === 'GRACE' ? (
+              <div className="cal__grace">
+                <p className="t-small cal__gracenote">
+                  {open.record?.graceNote?.trim()
+                    ? `${t.calendar.graceWas} ${open.record.graceNote}`
+                    : t.calendar.graceGeneric}
+                </p>
+                <p className="t-micro cal__nopunish">{t.calendar.graceRule}</p>
+                <Button small variant="ghost" onClick={() => setDayGrace(open.day, false)}>
+                  {t.calendar.graceUndo}
+                </Button>
+              </div>
+            ) : (
+              open.status !== 'SYNCED' && (
+                <div className="cal__grace">
+                  <p className="t-micro cal__nopunish">{t.calendar.openDay}</p>
+                  {/* La pausa si dichiara solo sui giorni aperti, e il motivo è
+                      facoltativo: chiedere perché stavi male come condizione
+                      sarebbe esattamente la vergogna che §4 vieta. */}
+                  <TextField
+                    label={t.calendar.graceReason}
+                    placeholder={t.calendar.graceePlaceholder}
+                    value={reason}
+                    onChange={setReason}
+                  />
+                  <Button
+                    small
+                    variant="secondary"
+                    onClick={() => {
+                      setDayGrace(open.day, true, reason);
+                      setReason('');
+                    }}
+                  >
+                    {t.calendar.graceMark}
+                  </Button>
+                </div>
+              )
             )}
           </section>
         ) : (

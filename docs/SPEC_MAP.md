@@ -142,7 +142,7 @@ documento: sono spiegati uno per uno in [`OPEN_ITEMS.md`](OPEN_ITEMS.md).
 | §14 — il calendario è una **superficie primaria**, con dettaglio e provenienza | `screens/SyncCalendar.tsx`, quarta voce di `TabBar` |
 | §14 — nessuna casella rossa, nessuna serie da difendere | `i18n/it.ts` → `calendar.openDay`, `calendar.noStreak` |
 | §20 — scala di rarità COMMON…**MYTHIC / SINGULAR** | `generation-config.ts` → `RARITIES` |
-| 🟡 §14 dichiara lo stato GRACE ma non dice mai cosa lo faccia scattare | tipo presente, nessuna riga lo assegna |
+| 🔶 §14 — GRACE è una **pausa dichiarata** (malattia, assenza) e **non dà SYNC** | `store.ts` → `setDayGrace`; il perché in `progression.ts` |
 
 ## Mondo, creature, salute
 

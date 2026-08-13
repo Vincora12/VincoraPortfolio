@@ -61,7 +61,7 @@ Si prova il motore e l'interfaccia, non ancora il prodotto sui propri dati veri.
 | `npm run dev` | Avvia il prototipo |
 | `npm run build` | Typecheck + build di produzione |
 | `npm run typecheck` | Solo controllo dei tipi |
-| `npm run verify` | Percorre l'app end-to-end in Chromium headless, cattura 39 screenshot in `screenshots/` e fallisce su qualunque errore di console |
+| `npm run verify` | Percorre l'app end-to-end in Chromium headless, cattura 40 screenshot in `screenshots/` e fallisce su qualunque errore di console |
 | `VERIFY_BASE=<url> npm run verify` | La stessa camminata contro un sito già pubblicato (o `vite preview`), dove il bundle è minificato e i percorsi degli asset sono altri |
 | `npm run verify:batch` | QA del generatore su 3000 `.mon`: tabelle di rarità di GB §26, distribuzioni, genoma dei nomi, Heritage, ancore di continuità di MS §9.1, copertura dei frammenti |
 | `npm run verify:package` | Controlla il pacchetto Asset Request contro MS §22.2/§24.4/§13 e GB §30/§45/§48 |
