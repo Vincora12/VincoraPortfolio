@@ -6,9 +6,9 @@
    errore di console.
 
    Il percorso ricalca la prova end-to-end del piano:
-   incubazione → hatch → home → conversazione → giorni simulati → ME →
-   shift → evolve → shift → branch → new encounter → tutte le schermate di
-   consultazione → pannello DEV.
+   incubazione → hatch → home → conversazione → giorni sincronizzati → ME →
+   shift → micro-growth → shift → form evolution → new encounter → tutte le
+   schermate di consultazione → pannello DEV.
 
    Uso:  npm run verify                          (avvia da solo il server di sviluppo)
          VERIFY_BASE=https://… npm run verify    (percorre un sito già pubblicato)
@@ -154,8 +154,8 @@ try {
   /* 04 — INCUBAZIONE */
   await shot('04-incubazione');
 
-  // Quattro settimane di simulazione: è il criterio 1 di §26.
-  for (let i = 0; i < 4; i++) await click('.incubation__skip', '+7 giorni');
+  // Sette giorni sincronizzati: è la nuova soglia di incubazione (v1.4).
+  await click('.incubation__skip', '+7 giorni sincronizzati');
   await shot('04-incubazione-pronta');
 
   /* 05 — FIRST ENCOUNTER */
@@ -176,7 +176,7 @@ try {
   await shot('06-azioni');
   await click('.home__scrim', 'chiudi le azioni');
 
-  /* 08 — DAILY SCAN, la schermata degli umori di §11 */
+  /* 08 — DAILY SCAN: i tre segnali di v1.5 più gli umori di §11 */
   await openAction('UMORE DI OGGI');
   await shot('08-daily-scan');
   await click(byText('Cazzaro'), 'mood cazzaro');
@@ -215,6 +215,11 @@ try {
   /* 09 — ME */
   await click('.tabbar__item:nth-child(2)', 'tab ME');
   await shot('09-me-overview');
+
+  // Il calendario sta in fondo a ME: senza scorrere non entrerebbe mai in uno
+  // screenshot, e non verrebbe mai verificato.
+  await page.locator('.me').evaluate((el) => el.scrollTo({ top: el.scrollHeight }));
+  await shot('09-me-calendario');
 
   /* 17 — MINDLINE: senza selezione si vede solo la topologia */
   await click('.tabbar__item:nth-child(3)', 'tab MINDLINE');
@@ -256,21 +261,11 @@ try {
   await click(byText('ASSET'), 'tab asset dev');
   await shot('dev-import-asset');
 
-  await click(byText('ECONOMIA'), 'tab economia');
-  await shot('dev-economia');
+  await click(byText('PROGRESSIONE'), 'tab progressione');
+  await shot('dev-progressione');
 
-  // L'annuncio dello shift esiste solo a EVOLUTION SYNC pieno: si forza da DEV
-  // perché altrimenti non comparirebbe mai in una camminata automatica.
-  await click(byText('SEGNALI'), 'tab segnali');
-  const sync = page.locator('.dev__control input[type="range"]').last();
-  await sync.evaluate((el) => {
-    const setter = Object.getOwnPropertyDescriptor(
-      window.HTMLInputElement.prototype,
-      'value',
-    ).set;
-    setter.call(el, '1');
-    el.dispatchEvent(new Event('input', { bubbles: true }));
-  });
+  // L'annuncio dello shift esiste solo quando qualcosa è pronto. Le forzature
+  // sono già attive (tab MINDLINE, poco sopra): basta uscire e guardare.
   await click('.dev__head .btn-icon', 'chiudi DEV');
   await click('.tabbar__item:nth-child(1)', 'tab MON');
   await shot('06-shift-disponibile');
@@ -281,23 +276,23 @@ try {
   await click(byText('APRI MINDLINE SHIFT'), 'apri shift');
   await shot('11-mindline-shift');
 
-  /* 12 — EVOLUTION */
-  await hold('EVOLVE');
+  /* 12 — MATURAZIONE (micro-growth) */
+  await hold('LASCIA MATURARE');
   await shot('12-evolution-rivelazione');
   await sleep(1600); // la rivelazione si toglie da sola
   await shot('12-evolution');
   await click(byText('CONTINUA'), 'continua');
 
-  /* 13 — NEW BRANCH */
+  /* 13 — CAMBIO DI FORMA */
   await click('.devtrigger', 'apri DEV');
   await click(byText('MINDLINE'), 'tab mindline dev');
   await page.locator('.dev__check input').nth(1).check();
   await click(byText('APRI MINDLINE SHIFT'), 'apri shift');
-  await hold('NUOVO SEGNALE');
-  await shot('13-new-branch');
+  await hold('GUARDA COSA CAMBIA');
+  await shot('13-form-evolution');
 
   /* 14 — NEW ENCOUNTER */
-  await click(byText('SEGUI LA DEVIAZIONE'), 'conferma branch');
+  await click(byText('CAMBIA FORMA'), 'conferma cambio di forma');
   await shot('14-new-encounter');
   await click(byText('BENVENUTO A CASA'), 'entra');
 

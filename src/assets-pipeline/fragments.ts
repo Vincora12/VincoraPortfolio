@@ -670,7 +670,7 @@ export const ASSET_FRAGMENTS: Record<string, PromptFragment> = {
       'ASSET TYPE: NEW ENCOUNTER / REVEAL HERO',
       'Purpose: dramatic first reveal of the new .mon.',
       'Keep the creature itself 100% canonical.',
-      'Allow a stronger composition, pose and limited signal/energy graphics appropriate to VINZ.VERCE.',
+      'Allow a stronger composition, pose and limited signal/energy graphics appropriate to VINZ.MON.',
       'Leave enough clean space for UI overlay.',
     ].join('\n'),
     negative_prompt: 'Do not introduce new anatomy or costume. No baked-in text.',

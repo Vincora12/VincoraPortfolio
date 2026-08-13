@@ -1,4 +1,4 @@
-# VINZ.VERCE — prototipo v1
+# VINZ.MON — prototipo v1
 
 Prototipo eseguibile di due documenti:
 
@@ -42,7 +42,7 @@ Sotto gli 860px la cornice finta sparisce e il frame diventa l'intera finestra.
 
 **`?dev=1` resta raggiungibile anche online, di proposito.** MS §29 vieta i
 controlli DEV *in produzione*, e questo non è un rilascio: senza DEV → TEMPO
-l'incubazione dura 28 giorni veri e non si arriva mai a vedere un `.mon`.
+un cambio di forma richiede 28 giorni veri e non si arriva mai a vederlo.
 Il sito porta `robots.txt` e `noindex`, quindi resta fuori dai motori di ricerca,
 ma chi ha l'URL entra.
 
@@ -61,7 +61,7 @@ Si prova il motore e l'interfaccia, non ancora il prodotto sui propri dati veri.
 | `npm run dev` | Avvia il prototipo |
 | `npm run build` | Typecheck + build di produzione |
 | `npm run typecheck` | Solo controllo dei tipi |
-| `npm run verify` | Percorre l'app end-to-end in Chromium headless, cattura 37 screenshot in `screenshots/` e fallisce su qualunque errore di console |
+| `npm run verify` | Percorre l'app end-to-end in Chromium headless, cattura 38 screenshot in `screenshots/` e fallisce su qualunque errore di console |
 | `VERIFY_BASE=<url> npm run verify` | La stessa camminata contro un sito già pubblicato (o `vite preview`), dove il bundle è minificato e i percorsi degli asset sono altri |
 | `npm run verify:batch` | QA del generatore su 3000 `.mon`: tabelle di rarità di GB §26, distribuzioni, genoma dei nomi, Heritage, copertura dei frammenti |
 | `npm run verify:package` | Controlla il pacchetto Asset Request contro MS §22.2/§24.4/§13 e GB §30/§45/§48 |
@@ -73,25 +73,32 @@ Si prova il motore e l'interfaccia, non ancora il prodotto sui propri dati veri.
 ## Come si prova in due minuti
 
 1. Apri `?dev=1`.
-2. **Incubazione**: premi `+ 7 GIORNI` quattro volte, poi `HATCH`.
-   Nasce il primo `.mon`, **estratto come tutti gli altri**: due partite non
+2. **Incubazione**: premi `+ 7 GIORNI SINCRONIZZATI`, poi `HATCH`.
+   Nasce la prima forma, **estratta come tutte le altre**: due partite non
    cominciano dalla stessa creatura. Ha dati completi e **zero immagini**.
 3. **Home**: scrivi qualcosa nel composer. Il `.mon` risponde con la sua voce
    (fallback deterministico, dichiarato come tale in interfaccia).
-4. **DAILY SCAN**: dichiara fino a 3 umori del giorno fra i 13 di GB §11.
-   La schermata dice a chiare lettere che un singolo giorno **non** assegna mai
-   il Mood della creatura: entra in una finestra mobile di 14 giorni.
+4. **DAILY SCAN**: rispondi ai tre segnali del giorno — CIBO, ALLENAMENTO,
+   UMORE — e chiudi la giornata. È l'**unico** modo di guadagnare SYNC, e vale
+   +1, una volta sola. La stessa schermata dichiara fino a 3 umori fra i 13 di
+   GB §11, e dice a chiare lettere che un singolo giorno **non** assegna mai il
+   Mood della creatura: entra in una finestra mobile di 14 giorni.
 5. **DEV → TEMPO**: `+7 DAYS` un paio di volte. Guarda **ME**: i trend si
-   muovono, i dati mai rilevati restano `UNKNOWN` e non diventano zero.
-6. **DEV → MINDLINE**: spunta *forza CONTINUE*, poi `APRI MINDLINE SHIFT` →
-   `EVOLVE`. La stessa identità cambia forma: nome, Family, Affinity e
+   muovono, i dati mai rilevati restano `UNKNOWN` e non diventano zero. In
+   fondo c'è il **calendario**: `●` sincronizzato, `◐` parziale, `○` vuoto.
+   Nessuna casella è rossa e un giorno saltato non azzera niente.
+6. **DEV → MINDLINE**: spunta *forza MICRO-GROWTH*, poi `APRI MINDLINE SHIFT` →
+   `LASCIA MATURARE`. La stessa identità matura: nome, Family, Affinity e
    Character DNA restano invariati e la schermata lo dichiara.
-7. Torna in DEV, spunta *forza BRANCH*, riapri lo shift → `NUOVO SEGNALE`.
-   La schermata mostra i tratti che passeranno **senza** anticipare la nuova
-   identità: a quel punto il nuovo `.mon` non è ancora stato generato.
-8. Conferma: nasce un `.mon` nuovo. Apri **MINDLINE**: la deviazione si vede
-   come deviazione. Apri **HERITAGE DNA**: per ogni tratto c'è la forma
-   d'origine e quella tradotta nella nuova anatomia (GB §23).
+7. Torna in DEV, spunta *forza FORM EVOLUTION*, riapri lo shift →
+   `GUARDA COSA CAMBIA`. La schermata dichiara **l'ancora di continuità** —
+   cosa resta com'è — e i tratti che passeranno, **senza** anticipare la forma
+   nuova: a quel punto non è ancora stata generata. Si può sempre dire `NON ORA`
+   senza perdere niente.
+8. Conferma: la stessa entità prende una forma nuova. Apri **MINDLINE**: il
+   cambio di forma si vede come una diramazione. Apri **HERITAGE DNA**: per
+   ogni tratto c'è la forma d'origine e quella tradotta nella nuova anatomia
+   (GB §23).
 9. **DEV → PROMPT**: il prompt compilato, con la **provenienza espandibile** di
    ogni frammento — quale asse, quale priorità, quale voce di catalogo.
 10. **Profilo → ASSET → ESPORTA ASSET REQUEST**: scarichi uno zip con i 7 prompt
@@ -222,8 +229,8 @@ src/
     heritage.ts      Selezione e traduzione dei tratti (GB §23)
     mindline.ts      Grafo dei nodi e layout topologico (MS §7.4)
     health.ts        FORM/ATK/SPD/DEF/REC/CARE, CONDITION, DISC (MS §3)
-    economy.ts       XP ed eleggibilità — 🟡 provvisorio
-    simulation.ts    Eventi, memorie, passaggio al branch (MS §8.2)
+    progression.ts   SYNC, Daily Signals, cadenza, ancore di continuità
+    simulation.ts    Eventi e memorie (MS §8.2)
     assets.ts        I sette tipi di asset canonici (MS §23)
 
   assets-pipeline/   Pipeline manuale che sta al posto dell'image API (MS §22)
@@ -235,7 +242,7 @@ src/
 
   system/            Design system (MS §10.4), slot asset, resa di `.mon`
   screens/           Le 16 schermate implementate
-  dev/               DEV://VINZ.VERCE — mai visibile senza dev mode
+  dev/               DEV://VINZ.MON — mai visibile senza dev mode
   state/store.ts     Orchestrazione e persistenza
   i18n/it.ts         Stringhe
 
@@ -256,7 +263,7 @@ ovunque, perché sono identificatori.
 | # | Criterio | Come si verifica |
 |---|---|---|
 | 1 | Simulare più settimane senza attendere tempo reale | DEV → TEMPO → `+7 DAYS`, `+30 DAYS`, `NEXT MINDLINE SHIFT` |
-| 2 | Innescare entrambi i percorsi CONTINUE e BRANCH | DEV → MINDLINE → forzature, poi shift |
+| 2 | Innescare micro-growth e cambio di forma | DEV → MINDLINE → forzature, poi shift |
 | 3 | Generare `.mon` strutturati senza immagini | ogni `.mon` nasce con `asset_manifest_status` tutto `waiting` |
 | 4 | Batch-generare candidati per QA | DEV → GENERA → `GENERATE 10/50/200`; `npm run verify:batch` |
 | 5 | Esportare un pacchetto Asset Request completo | Profilo → ASSET → `ESPORTA ASSET REQUEST` |
@@ -284,8 +291,8 @@ Character Data è il passo successivo, deciso: arriva dopo il documento
 canonico, e questo motore gli resta sotto come fallback (MS §17, «ogni
 superficie AI ha un fallback»).
 
-Quel che i due documenti lasciano ancora aperto — economia XP, durata
-dell'incubazione, trigger nascosto di SINGULAR, affinità culturali, il font
+Quel che i documenti lasciano ancora aperto — trigger nascosto di SINGULAR,
+affinità culturali, i nomi degli ultimi due livelli di rarità, il font
 VINZ-HEAD — è elencato voce per voce in
 [`docs/OPEN_ITEMS.md`](docs/OPEN_ITEMS.md), con dove sta e cosa serve per
 chiuderlo. Insieme alle poche interpretazioni che ho preso leggendo la bibbia.

@@ -22,7 +22,7 @@ export function IncubationScreen() {
   const day = useApp((s) => s.day);
   const stats = useApp((s) => s.health.stats);
   const hatch = useApp((s) => s.hatch);
-  const advanceDays = useApp((s) => s.advanceDays);
+  const simulateSyncedDays = useApp((s) => s.simulateSyncedDays);
 
   return (
     <div className="screen screen--ink">
@@ -55,9 +55,9 @@ export function IncubationScreen() {
 
           <SegmentedBar
             value={inc.progress}
-            segments={28}
+            segments={inc.total}
             label="INCUBAZIONE"
-            readout={`${Math.round(inc.progress * 100)}%`}
+            readout={`${inc.day} / ${inc.total}`}
           />
 
           <SegmentedBar
@@ -108,14 +108,24 @@ export function IncubationScreen() {
         </Button>
 
         <p id="hatch-note" className="t-micro incubation__definitive">
-          {inc.ready ? t.incubation.definitive : `MANCANO ${inc.total - inc.day} GIORNI`}
+          {inc.ready
+            ? t.incubation.definitive
+            : `MANCANO ${inc.total - inc.day} GIORNI SINCRONIZZATI`}
         </p>
 
         {/* Il tempo scorre solo dal pannello DEV: nel prodotto reale è la vita
             dell'utente a farlo avanzare. Qui il tasto resta accessibile perché
-            senza di esso il prototipo non sarebbe testabile (§20). */}
-        <button type="button" className="incubation__skip t-micro" onClick={() => advanceDays(7)}>
-          + 7 GIORNI (SIMULAZIONE)
+            senza di esso il prototipo non sarebbe testabile (§20).
+
+            🔶 Simula giorni *sincronizzati*, non giorni passati: l'incubazione
+            conta le volte che ti sei presentato, e il tempo da solo non basta
+            più a farla finire. */}
+        <button
+          type="button"
+          className="incubation__skip t-micro"
+          onClick={() => simulateSyncedDays(7)}
+        >
+          + 7 GIORNI SINCRONIZZATI (SIMULAZIONE)
         </button>
       </footer>
     </div>

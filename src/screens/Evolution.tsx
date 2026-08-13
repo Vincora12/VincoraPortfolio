@@ -1,11 +1,13 @@
 /* ============================================================================
-   12 — EVOLUTION (§12)
+   12 — MATURAZIONE (Micro-Growth)
 
-   "Current .mon changes while preserving identity; XP is spent according to
-    final economy."
+   "Current .mon changes while preserving identity."
 
-   §7.2 — la STESSA identità evolve. La schermata deve rendere evidente la
-   continuità: stesso nome, stessa Family, stesso Character DNA. Cambia la
+   🔶 Niente costo: la vecchia versione spendeva XP. Adesso la maturazione non
+   si compra, arriva — ogni 7 giorni sincronizzati, da sé.
+
+   La STESSA identità matura. La schermata deve rendere evidente la continuità:
+   stesso nome, stessa Family, stesso Character DNA. Cambia un dettaglio della
    forma, non chi è.
    ========================================================================= */
 

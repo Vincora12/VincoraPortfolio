@@ -35,6 +35,7 @@ export { initialHealthState, applyDay, simulateDayInput, DEFAULT_BIAS } from '${
 export { makeRng, randomSeed } from '${cwd}/src/engine/rng.ts';
 export { isValidMonName } from '${cwd}/src/engine/naming.ts';
 export { normalizePool } from '${cwd}/src/engine/rarity.ts';
+export { CONTINUITY_ANCHORS, PROGRESSION } from '${cwd}/src/engine/progression.ts';
 export * as CONFIG from '${cwd}/src/engine/generation-config.ts';
 export { FRAGMENT_LIBRARY, slug } from '${cwd}/src/assets-pipeline/fragments.ts';
 `,
@@ -307,6 +308,55 @@ check(
 
 const sizes = new Set(results.map((d) => d.size));
 check(sizes.size === 3, 'le tre taglie di §6 compaiono tutte', [...sizes].join(', '));
+
+/* --- Ancora di continuità (Form Evolution) ---------------------------------
+   È l'invariante nuova, e va provata sul motore e non a occhio: dopo un cambio
+   di forma gli assi ancorati devono essere IDENTICI a quelli di prima, e
+   almeno un asse fuori dall'ancora deve essere cambiato. Se cambiasse tutto
+   sarebbe una rigenerazione; se non cambiasse niente non sarebbe una forma
+   nuova. --------------------------------------------------------------------- */
+
+const ANCHOR_TRIALS = 40;
+let anchorBroken = 0;
+let anchorFrozen = 0;
+const ALL_AXES = ['family', 'family_archetype', 'affinity', 'size', 'role', 'fashion', 'mood_primary'];
+
+for (const anchor of m.CONTINUITY_ANCHORS) {
+  let base = root.record;
+  for (let i = 0; i < ANCHOR_TRIALS; i++) {
+    const next = m.generateMon({
+      input,
+      mindlineNodeId: `form_${anchor.id}_${i}`,
+      originNodeId: base.data.mindline_node,
+      heritageOrigins: m.selectHeritageOrigins(m.makeRng(i * 31337 + 7), base),
+      lineageNames: lineage,
+      previous: base,
+      continuity: anchor.keeps,
+      seed: m.randomSeed(),
+    }).record;
+
+    lineage.push(next.data.name);
+
+    for (const axis of anchor.keeps) {
+      if (next.data[axis] !== base.data[axis]) anchorBroken += 1;
+    }
+    const free = ALL_AXES.filter((a) => !anchor.keeps.includes(a));
+    if (free.every((a) => next.data[a] === base.data[a])) anchorFrozen += 1;
+
+    base = next;
+  }
+}
+
+check(
+  anchorBroken === 0,
+  'gli assi ancorati sopravvivono al cambio di forma',
+  `${anchorBroken} assi cambiati quando non dovevano`,
+);
+check(
+  anchorFrozen === 0,
+  'fuori dall’ancora qualcosa cambia sempre',
+  `${anchorFrozen} forme identiche alla precedente`,
+);
 
 const familyCounts = tally((d) => d.family).map(([, n]) => n);
 console.log(

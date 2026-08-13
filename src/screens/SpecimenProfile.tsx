@@ -15,7 +15,7 @@
 
 import { useState } from 'react';
 import type { Overlay } from '../App';
-import { useApp, useActiveMon } from '../state/store';
+import { useApp, useActiveMon, useGrowth } from '../state/store';
 import { AssetSlot, RotationViewer, Sigil } from '../system/AssetSlot';
 import { MonName, SpeciesName } from '../system/MonName';
 import {
@@ -61,6 +61,7 @@ export function SpecimenProfileScreen({
 }) {
   const mon = useActiveMon();
   const progression = useApp((s) => s.progression);
+  const growth = useGrowth();
   const nodes = useApp((s) => s.nodes);
   const [tab, setTab] = useState<TabId>('stats');
   const [exporting, setExporting] = useState(false);
@@ -111,10 +112,10 @@ export function SpecimenProfileScreen({
 
       <div className="specimen__sync">
         <SegmentedBar
-          value={progression.evolutionSync}
+          value={growth.progress}
           segments={16}
-          label={t.home.evolutionSync}
-          readout={`${Math.round(progression.evolutionSync * 100)}%`}
+          label={t.home.sync}
+          readout={`${growth.event.have} / ${growth.event.need}`}
         />
       </div>
 
@@ -126,7 +127,8 @@ export function SpecimenProfileScreen({
             <Row label="STATO" value={d.evolution_state?.label ?? 'BASIC FORM'} />
             <Row label="STADIO" value={String(d.evolution_state?.stage ?? 0)} />
             <Row label="BOND" value={`${Math.round(progression.bond * 100)}%`} />
-            <Row label="EVOLUTION SYNC" value={`${Math.round(progression.evolutionSync * 100)}%`} />
+            <Row label="SYNC IN QUESTA FORMA" value={String(progression.sync.inForm)} />
+            <Row label="SYNC TOTALI" value={String(progression.sync.lifetime)} />
             <Row label="MOOD" value={d.mood_primary} />
             <Row label="RARITY SCORE" value={`${d.rarity_score}/100`} />
             <Row label="DATA CONFIDENCE" value={`${d.data_confidence}%`} />
@@ -144,6 +146,14 @@ export function SpecimenProfileScreen({
             {/* §27 CHARACTER DATA CONTRACT — ogni riga è un campo canonico.
                 §13 della MASTER SPEC vieta di aggiungerne di nuovi. */}
             <div className="rowlist">
+              {/* 🔶 Il formato canonico dell'identità: una entità, una forma.
+                  Sta qui per intero perché questa è la schermata di
+                  riferimento; altrove è spezzato su due righe per occupare
+                  meno spazio, ma dice esattamente la stessa cosa. */}
+              <Row
+                label="IDENTITÀ"
+                value={`VINZ.MON // FORM: ${d.name}`}
+              />
               <Row label="NAME" value={d.name} />
               {/* La specie: il nome comune di tutte le creature. */}
               <Row label="SPECIE" value={<SpeciesName />} />

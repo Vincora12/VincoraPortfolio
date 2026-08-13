@@ -19,6 +19,7 @@ import {
   trend,
 } from '../engine/health';
 import { STAT_KEYS, isKnown } from '../engine/types';
+import { SyncCalendar } from './SyncCalendar';
 import { t } from '../i18n/it';
 
 export function MeOverviewScreen() {
@@ -104,22 +105,31 @@ export function MeOverviewScreen() {
           </div>
         </Window>
 
-        {/* --- Progressione di gioco, separata dalla salute (§3) --- */}
+        {/* --- Progressione di gioco, separata dalla salute (§3).
+
+            🔶 Niente livelli, niente XP: SYNC non misura quanto stai bene, ma
+            quanti giorni VINZ.MON ha potuto leggere. Stare male e raccontarlo
+            vale esattamente come stare bene e raccontarlo. --- */}
         <Window title="PROGRESSIONE DI GIOCO">
           <div className="me__game">
             <div className="me__gameitem">
-              <span className="t-meta">{t.common.level}</span>
-              <span className="t-display">{progression.level}</span>
+              <span className="t-meta">{t.common.sync}</span>
+              <span className="t-display">{progression.sync.lifetime}</span>
             </div>
             <div className="me__gameitem">
-              <span className="t-meta">{t.common.xp}</span>
-              <span className="t-display">{progression.xp}</span>
+              <span className="t-meta">IN QUESTA FORMA</span>
+              <span className="t-display">{progression.sync.inForm}</span>
             </div>
             <div className="me__gameitem">
               <span className="t-meta">{t.home.bond}</span>
               <span className="t-display">{Math.round(progression.bond * 100)}%</span>
             </div>
           </div>
+        </Window>
+
+        {/* --- Il calendario: com'è andata, giorno per giorno --- */}
+        <Window title="CALENDARIO · I GIORNI CHE CONTANO">
+          <SyncCalendar />
         </Window>
 
         <div className="me__confidence">

@@ -118,6 +118,28 @@ documento: sono spiegati uno per uno in [`OPEN_ITEMS.md`](OPEN_ITEMS.md).
 
 # PARTE B — MASTER SPEC v1.2
 
+> 🔶 **Progressione: il corpo della v1.2 è superato.** Il modello a tre valute —
+> XP, DISC come valuta ed EVOLUTION SYNC — è stato sostituito dalle v1.4/v1.5 e
+> dalle decisioni prese dopo la v1.6. Vive tutto in `src/engine/progression.ts`
+> e nella tabella qui sotto; `economy.ts` non esiste più.
+
+## Progressione — SYNC (v1.4 / v1.5 e decisioni post-v1.6)
+
+| Regola | Dove |
+|---|---|
+| Una sola valuta visibile: **SYNC**. Niente XP, niente livelli | `progression.ts`; una sola barra in `CompanionHome.tsx` |
+| Massimo **+1 SYNC per giorno di calendario**, qualunque cosa si registri | `store.ts` → `syncDay`, guardia `syncAwarded` |
+| Il SYNC lo dà l'utente chiudendo la giornata, non il passare del tempo | `store.ts` → `advanceOneDay` non ne assegna |
+| Tre Daily Signals: **FOOD / WORKOUT / MOOD**, stati `UNKNOWN / KNOWN / NOT_APPLICABLE` | `progression.ts` → `DAILY_SIGNALS`; `screens/DailyScan.tsx` |
+| `WORKOUT = REST DAY` conta come KNOWN | `isSignalKnown` — solo `UNKNOWN` è un buco |
+| La simulazione non fabbrica l'umore: resta `UNKNOWN` finché non lo dici | `store.ts` → `advanceOneDay` riempie solo FOOD e WORKOUT |
+| **Incubazione: 7 giorni sincronizzati**, e un giorno mancante non azzera niente | `PROGRESSION.incubationSyncDays`; `useIncubation` conta i sincronizzati |
+| **Micro-Growth ogni 7**: stessa forma, un dettaglio matura | `PROGRESSION.microGrowthEvery`; `store.ts` → `doMicroGrowth` |
+| **Form Evolution a 28**: è un'offerta, non un obbligo, e rimandarla non costa | `PROGRESSION.formEvolutionAt`; `MindlineShift.tsx` → `NON ORA` |
+| Una Form Evolution **non è una rigenerazione**: un'ancora tiene fermi alcuni assi | `CONTINUITY_ANCHORS`; verificato da `verify:batch` |
+| VINZ.MON è **una entità sola**: non muore, non viene sostituita, non si saluta | `NewBranch.tsx`; nessuna stringa di addio in `i18n/it.ts` |
+| Il calendario non ha caselle rosse né serie da difendere | `screens/SyncCalendar.tsx` |
+
 ## Mondo, creature, salute
 
 | § | Regola | File |
@@ -127,7 +149,6 @@ documento: sono spiegati uno per uno in [`OPEN_ITEMS.md`](OPEN_ITEMS.md).
 | §3 | FORM / ATK / SPD / DEF / REC / CARE | `engine/types.ts` → `STAT_KEYS`; `engine/health.ts` |
 | §3 | CONDITION è lo stato del giorno, non una stat permanente | `health.ts` → `computeCondition` |
 | §3 | DISC separata dalle stat di salute | `health.ts` → `computeDisc` |
-| §3 | Il livello non scende mai | `engine/economy.ts` → `levelFromXp` |
 | §3 | Salute e punteggi di gioco tecnicamente separati | `types.ts` → `HealthState` vs `Progression` |
 | §3 | Dato mancante = UNKNOWN, mai negativo | `types.ts` → `Signal = number \| 'unknown'` |
 
@@ -136,11 +157,12 @@ documento: sono spiegati uno per uno in [`OPEN_ITEMS.md`](OPEN_ITEMS.md).
 | § | Regola | File |
 |---|---|---|
 | §7.1 | Il .mon attivo occupa il nodo corrente | `engine/mindline.ts`; store → `nodes` |
-| §7.2 | CONTINUE/EVOLVE: stessa identità, si spende XP | `characterGenerator.ts` → `evolveMon` |
-| §7.3 | BRANCH: tratti ereditati e tradotti | `engine/heritage.ts` (regole di GB §23) |
+| §7.2 | 🔶 MICRO-GROWTH: stessa identità, un dettaglio matura — niente costo | `characterGenerator.ts` → `evolveMon`; `progression.ts` → `microGrowthEvery` |
+| §7.3 | 🔶 FORM EVOLUTION: la stessa entità cambia forma, con un'ancora di continuità | `progression.ts` → `CONTINUITY_ANCHORS`; `characterGenerator.ts` → `ctx.continuity` |
+| §7.3 | Tratti ereditati e tradotti | `engine/heritage.ts` (regole di GB §23) |
 | §7.4 | Topologia tecnica, mai mappa fantasy | `mindline.ts` → `layoutMindline`; `screens/MindlineMap.tsx` |
 | §8.1 | Bio generata dal contesto reale di creazione | `characterGenerator.ts` → `generateBio` |
-| §8.2 | Le memorie sopravvivono parzialmente al branch | `engine/simulation.ts` → `carryMemoriesThroughBranch` |
+| §8.2 | 🔶 Le memorie sono della relazione: archivio unico, la forma è un metadato | `store.ts` → `confirmFormEvolution` non filtra; `screens/Memories.tsx` |
 | §8.3 | Heritage visibile in Specimen e Mindline | `screens/SpecimenProfile.tsx`, `screens/HeritageDna.tsx` |
 
 ## Identità visiva e UI
@@ -172,8 +194,9 @@ documento: sono spiegati uno per uno in [`OPEN_ITEMS.md`](OPEN_ITEMS.md).
 | 08 | DAILY SCAN | `screens/DailyScan.tsx` (input mood di GB §11) |
 | 09 | ME OVERVIEW | `screens/MeOverview.tsx` |
 | 11 | MINDLINE SHIFT | `screens/MindlineShift.tsx` |
-| 12 | EVOLUTION | `screens/Evolution.tsx` |
-| 13 | NEW BRANCH | `screens/NewBranch.tsx` |
+| 12 | EVOLUTION (maturazione) | `screens/Evolution.tsx` |
+| 13 | CAMBIO DI FORMA | `screens/NewBranch.tsx` |
+| — | 🔶 CALENDARIO SYNC (dentro ME) | `screens/SyncCalendar.tsx` |
 | 14 | NEW ENCOUNTER | `screens/Encounter.tsx` (`variant="new"`) |
 | 15 | SPECIMEN PROFILE | `screens/SpecimenProfile.tsx` |
 | 16 | BIO / PERSONAL FILE | `screens/BioFile.tsx` |

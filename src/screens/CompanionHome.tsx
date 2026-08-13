@@ -19,7 +19,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { Overlay } from '../App';
-import { useApp, useActiveMon } from '../state/store';
+import { useApp, useActiveMon, useGrowth } from '../state/store';
 import { AssetSlot, Sigil } from '../system/AssetSlot';
 import { MonName, SpeciesName } from '../system/MonName';
 import { IconButton, TextField } from '../system/components';
@@ -38,7 +38,7 @@ const ACTIONS: { icon: IconName; label: string; overlay: Overlay }[] = [
 export function CompanionHomeScreen({ onGo }: { onGo: (o: Overlay) => void }) {
   const mon = useActiveMon();
   const chat = useApp((s) => s.chat);
-  const evolutionSync = useApp((s) => s.progression.evolutionSync);
+  const { event, progress, microGrowthReady, formEvolutionReady } = useGrowth();
   const sendMessage = useApp((s) => s.sendMessage);
   const openShift = useApp((s) => s.openShift);
 
@@ -62,7 +62,10 @@ export function CompanionHomeScreen({ onGo }: { onGo: (o: Overlay) => void }) {
   const d = mon.data;
   const short = displayName(d.name);
   const form = d.evolution_state?.label ?? 'BASIC FORM';
-  const syncFull = evolutionSync >= 1;
+  // 🔶 Una barra sola. Il vecchio modello ne aveva tre — XP, DISC, EVOLUTION
+  // SYNC — e la spec lo vieta testualmente: «Do not show three competing
+  // progress bars on Home».
+  const somethingReady = microGrowthReady || formEvolutionReady;
 
   const submit = () => {
     if (draft.trim().length === 0) return;
@@ -117,20 +120,21 @@ export function CompanionHomeScreen({ onGo }: { onGo: (o: Overlay) => void }) {
           compactPlaceholder={!expanded}
         />
 
-        {/* EVOLUTION SYNC come linea sul bordo: informazione periferica finché
-            non è piena, e allora diventa il fatto principale della schermata. */}
+        {/* SYNC come linea sul bordo: informazione periferica finché non è
+            piena, e allora diventa il fatto principale della schermata. */}
         <span
           className="home__sync"
           role="progressbar"
-          aria-label={t.home.evolutionSync}
-          aria-valuenow={Math.round(evolutionSync * 100)}
+          aria-label={`${t.home.sync} — ${event.have} di ${event.need}`}
+          aria-valuenow={event.have}
+          aria-valuemax={event.need}
         >
-          <span className="home__syncfill" style={{ width: `${Math.min(1, evolutionSync) * 100}%` }} />
+          <span className="home__syncfill" style={{ width: `${progress * 100}%` }} />
         </span>
       </button>
 
       {/* --- L'annuncio. È il momento che la schermata deve rendere grande. --- */}
-      {syncFull && (
+      {somethingReady && (
         <button
           type="button"
           className="home__shift"
@@ -143,7 +147,9 @@ export function CompanionHomeScreen({ onGo }: { onGo: (o: Overlay) => void }) {
           <Icon name="branch" size={16} strokeWidth={2} />
           <span className="home__shifttext">
             <strong className="t-display">MINDLINE SHIFT</strong>
-            <span className="t-micro">il percorso si divide — apri</span>
+            <span className="t-micro">
+              {formEvolutionReady ? 'una forma nuova è possibile' : 'qualcosa è maturato'} — apri
+            </span>
           </span>
           <span className="home__shiftgo" aria-hidden="true">→</span>
         </button>

@@ -1,5 +1,5 @@
 /* ============================================================================
-   DEV://VINZ.VERCE (§20.1)
+   DEV://VINZ.MON (§20.1)
 
    🔒 LOCKED (§20) — strato di simulazione per sviluppatori, capace di
    bypassare tempo reale, integrazioni non disponibili e chiamate API mancanti
@@ -12,8 +12,13 @@
    ========================================================================= */
 
 import { useState } from 'react';
-import { useApp, useActiveMon, useBranchCheck, useContinueCheck } from '../state/store';
+import { useApp, useActiveMon, useGrowth, useToday } from '../state/store';
 import { Button, FolderTabs, IconButton, Row, SystemLabel, TextField } from '../system/components';
+import {
+  DAILY_SIGNALS,
+  DAILY_SIGNAL_LABELS,
+  PROGRESSION,
+} from '../engine/progression';
 import { STAT_KEYS, UNKNOWN, isKnown } from '../engine/types';
 import type { StatKey } from '../engine/types';
 import { ASSET_TYPES } from '../engine/assets';
@@ -22,7 +27,15 @@ import { AssetImport } from './AssetImport';
 import { PromptPreview } from './PromptPreview';
 import { VoiceSection } from './VoiceSection';
 
-type DevTab = 'time' | 'signals' | 'mindline' | 'generate' | 'voice' | 'prompt' | 'assets' | 'economy';
+type DevTab =
+  | 'time'
+  | 'signals'
+  | 'mindline'
+  | 'generate'
+  | 'voice'
+  | 'prompt'
+  | 'assets'
+  | 'progression';
 
 const TABS = [
   { id: 'time' as const, label: 'TEMPO' },
@@ -32,7 +45,7 @@ const TABS = [
   { id: 'voice' as const, label: 'VOCE' },
   { id: 'prompt' as const, label: 'PROMPT' },
   { id: 'assets' as const, label: 'ASSET' },
-  { id: 'economy' as const, label: 'ECONOMIA' },
+  { id: 'progression' as const, label: 'PROGRESSIONE' },
 ];
 
 export function DevPanel({ onClose }: { onClose: () => void }) {
@@ -42,7 +55,7 @@ export function DevPanel({ onClose }: { onClose: () => void }) {
     <div className="screen dev">
       <header className="dev__head">
         <div>
-          <h1 className="t-display dev__title">DEV://VINZ.VERCE</h1>
+          <h1 className="t-display dev__title">DEV://VINZ.MON</h1>
           <p className="t-micro">STRATO DI SIMULAZIONE — NON FA PARTE DEL PRODOTTO</p>
         </div>
         <IconButton icon="close" label="Chiudi il pannello" light onClick={onClose} />
@@ -58,7 +71,7 @@ export function DevPanel({ onClose }: { onClose: () => void }) {
         {tab === 'voice' && <VoiceSection />}
         {tab === 'prompt' && <PromptPreview />}
         {tab === 'assets' && <AssetsSection />}
-        {tab === 'economy' && <EconomySection />}
+        {tab === 'progression' && <ProgressionSection />}
       </div>
     </div>
   );
@@ -75,20 +88,32 @@ function TimeSection() {
   const endWeek = useApp((s) => s.endWeek);
   const bias = useApp((s) => s.bias);
   const setBias = useApp((s) => s.setBias);
-  const { check: cont } = useContinueCheck();
-  const { check: branch } = useBranchCheck();
+  const syncDay = useApp((s) => s.syncDay);
+  const today = useToday();
+  const growth = useGrowth();
 
   /**
-   * Avanza fino al prossimo punto di decisione della Mindline. Il limite di
-   * 400 giorni evita un ciclo infinito se nessuna delle due strade si apre —
-   * per esempio con bias di simulazione azzerato.
+   * Avanza fino al prossimo punto di decisione, chiudendo ogni giornata.
+   *
+   * 🔶 Deve chiudere i giorni a mano perché il tempo, da solo, non dà più
+   * SYNC: lo dà la conferma dell'utente. Senza `syncDay()` questo ciclo
+   * girerebbe 400 volte senza far crescere niente — che è esattamente la
+   * regola nuova, vista da dentro.
    */
   const toNextShift = () => {
     for (let i = 0; i < 400; i++) {
       const s = useApp.getState();
       const rec = s.activeMonName ? s.mons[s.activeMonName] : null;
       if (!rec) break;
-      if (s.progression.evolutionSync >= 1) break;
+      if (
+        s.progression.sync.sinceGrowth >= PROGRESSION.microGrowthEvery ||
+        s.progression.sync.inForm >= PROGRESSION.formEvolutionAt
+      ) {
+        break;
+      }
+      // L'umore non lo riempie la simulazione: qui lo dichiara DEV al posto tuo.
+      useApp.getState().setDailySignal('MOOD', 'KNOWN', 'dichiarato da DEV');
+      useApp.getState().syncDay();
       advanceDays(1);
     }
   };
@@ -108,9 +133,18 @@ function TimeSection() {
         NEXT MINDLINE SHIFT
       </Button>
 
+      <Button block small onClick={syncDay} disabled={!today.canClose}>
+        {today.closed ? 'GIORNO GIÀ CHIUSO' : 'CHIUDI IL GIORNO (+1 SYNC)'}
+      </Button>
+
       <div className="rowlist">
-        <Row label="CONTINUE" value={cont.eligible ? 'ELEGGIBILE' : cont.reason} />
-        <Row label="BRANCH" value={branch.eligible ? 'ELEGGIBILE' : branch.reason} />
+        <Row label="OGGI" value={`${today.status} · ${today.known}/3 segnali`} />
+        <Row
+          label="PROSSIMO EVENTO"
+          value={`${growth.event.kind} ${growth.event.have}/${growth.event.need}`}
+        />
+        <Row label="MICRO-GROWTH" value={growth.microGrowthReady ? 'PRONTO' : 'non ancora'} />
+        <Row label="FORM EVOLUTION" value={growth.formEvolutionReady ? 'PRONTA' : 'non ancora'} />
       </div>
 
       {/* I giorni simulati non sono tutti uguali: il bias descrive che tipo di
@@ -150,15 +184,16 @@ function TimeSection() {
    SEGNALI — "Manipulate selected ME signals and test values without waiting
    for real Health/fitness inputs" + "Inject a simulated event, mood, memory,
    focus or behaviour signal" + "Grant / remove prototype XP and Bond"
+
+   🔶 «XP» qui è storia: la valuta è SYNC, e si dà in giorni interi.
    ========================================================================= */
 
 function SignalsSection() {
   const health = useApp((s) => s.health);
   const progression = useApp((s) => s.progression);
   const setSignal = useApp((s) => s.setSignal);
-  const grantXp = useApp((s) => s.grantXp);
+  const grantSync = useApp((s) => s.grantSync);
   const grantBond = useApp((s) => s.grantBond);
-  const setEvolutionSync = useApp((s) => s.setEvolutionSync);
   const injectEvent = useApp((s) => s.injectEvent);
 
   const [eventText, setEventText] = useState('');
@@ -196,29 +231,23 @@ function SignalsSection() {
 
       <p className="t-meta dev__label">PROGRESSIONE</p>
       <div className="rowlist">
-        <Row label="XP" value={String(progression.xp)} />
-        <Row label="LIVELLO" value={String(progression.level)} />
+        <Row label="SYNC TOTALI" value={String(progression.sync.lifetime)} />
+        <Row label="IN QUESTA FORMA" value={String(progression.sync.inForm)} />
+        <Row label="DALL'ULTIMA CRESCITA" value={String(progression.sync.sinceGrowth)} />
         <Row label="BOND" value={`${Math.round(progression.bond * 100)}%`} />
       </div>
 
       <div className="dev__grid">
-        <Button small onClick={() => grantXp(500)}>+500 XP</Button>
-        <Button small onClick={() => grantXp(-500)}>−500 XP</Button>
+        <Button small onClick={() => grantSync(7)}>+7 SYNC</Button>
+        <Button small onClick={() => grantSync(-7)}>−7 SYNC</Button>
         <Button small onClick={() => grantBond(0.2)}>+20% BOND</Button>
         <Button small onClick={() => grantBond(-0.2)}>−20% BOND</Button>
       </div>
       <p className="t-micro dev__note">
-        Togliere XP non abbassa il livello: §3 impone che non scenda mai.
+        In prodotto un giorno vale al massimo +1 SYNC, e lo dà solo la chiusura
+        della giornata. Questi pulsanti scavalcano la regola per non dover
+        aspettare 28 giorni a ogni prova.
       </p>
-
-      <DevSlider
-        label="EVOLUTION SYNC"
-        min={0}
-        max={1}
-        step={0.05}
-        value={progression.evolutionSync}
-        onChange={setEvolutionSync}
-      />
 
       <p className="t-meta dev__label">INIETTA UN EVENTO</p>
       <TextField
@@ -274,7 +303,7 @@ function MindlineSection({ onClose }: { onClose: () => void }) {
           checked={dev.forceContinue}
           onChange={(e) => setDev({ forceContinue: e.target.checked })}
         />
-        FORZA CONTINUE / EVOLVE (costo XP azzerato)
+        FORZA MICRO-GROWTH (ignora i 7 giorni)
       </label>
       <label className="dev__check">
         <input
@@ -282,7 +311,7 @@ function MindlineSection({ onClose }: { onClose: () => void }) {
           checked={dev.forceBranch}
           onChange={(e) => setDev({ forceBranch: e.target.checked })}
         />
-        FORZA BRANCH / NEW SIGNAL
+        FORZA FORM EVOLUTION (ignora i 28 giorni)
       </label>
       {/* §25 DEV://UNLOCK_ALL — «For testing only; must never leak to
           production behavior.» Sblocca tutti i livelli di rarità. */}
@@ -514,71 +543,72 @@ function AssetsSection() {
 }
 
 /* ============================================================================
-   ECONOMIA — §18 🟡 i valori sono provvisori e si tarano qui, senza codice.
+   PROGRESSIONE — i tre segnali del giorno e la cadenza.
+
+   🔶 Sostituisce la vecchia scheda ECONOMIA, che tarava costi in XP e crescita
+   del costo per evoluzione. Non c'è più niente da tarare: la cadenza è fissata
+   dalla spec (7 / 7 / 28) e un giorno vale al massimo +1 SYNC. Quello che serve
+   in DEV è poter dichiarare i segnali a mano, perché la simulazione non può
+   inventare l'umore.
    ========================================================================= */
 
-function EconomySection() {
-  const economy = useApp((s) => s.economy);
-  const setEconomy = useApp((s) => s.setEconomy);
+function ProgressionSection() {
+  const days = useApp((s) => s.days);
+  const day = useApp((s) => s.day);
+  const setDailySignal = useApp((s) => s.setDailySignal);
+  const syncDay = useApp((s) => s.syncDay);
+  const today = useToday();
+
+  const synced = Object.values(days).filter((d) => d.syncAwarded).length;
 
   return (
     <div className="dev__section">
       <p className="t-micro dev__note">
-        §18 marca l'economia come 🟡 TO FINALIZE. Questi valori sono parametri
-        di lavoro, non il canone: si tarano qui e si riportano nella spec solo
-        una volta approvati.
+        SYNC misura quanti giorni VINZ.MON ha potuto leggere, non quanto stai
+        bene. Un giorno vale +1 e basta: registrare dieci pasti migliora la
+        qualità del contesto, non la velocità della crescita.
       </p>
 
-      <DevNumber
-        label="COSTO BASE EVOLVE (XP)"
-        value={economy.evolveBaseCost}
-        step={50}
-        onChange={(v) => setEconomy({ evolveBaseCost: v })}
-      />
-      <DevNumber
-        label="CRESCITA DEL COSTO (×)"
-        value={economy.evolveCostGrowth}
-        step={0.1}
-        onChange={(v) => setEconomy({ evolveCostGrowth: v })}
-      />
-      <DevNumber
-        label="XP PER GIORNO REGISTRATO"
-        value={economy.xpPerLoggedDay}
-        step={5}
-        onChange={(v) => setEconomy({ xpPerLoggedDay: v })}
-      />
-      <DevNumber
-        label="XP PER ALLENAMENTO"
-        value={economy.xpPerWorkout}
-        step={5}
-        onChange={(v) => setEconomy({ xpPerWorkout: v })}
-      />
-      <DevNumber
-        label="XP PER MEMORIA"
-        value={economy.xpPerMemory}
-        step={10}
-        onChange={(v) => setEconomy({ xpPerMemory: v })}
-      />
-      <DevNumber
-        label="XP PER LIVELLO"
-        value={economy.xpPerLevel}
-        step={50}
-        onChange={(v) => setEconomy({ xpPerLevel: v })}
-      />
-      <DevNumber
-        label="GIORNI MINIMI PRIMA DEL BRANCH"
-        value={economy.branchMinDaysWithMon}
-        step={1}
-        onChange={(v) => setEconomy({ branchMinDaysWithMon: v })}
-      />
-      <DevSlider
-        label="SYNC PER GIORNO REGISTRATO"
-        min={0.005}
-        max={0.2}
-        step={0.005}
-        value={economy.syncPerLoggedDay}
-        onChange={(v) => setEconomy({ syncPerLoggedDay: v })}
-      />
+      <p className="t-meta dev__label">GIORNO {day} — I TRE SEGNALI</p>
+      {DAILY_SIGNALS.map((key) => {
+        const entry = today.day.signals[key];
+        return (
+          <div key={key} className="dev__signal">
+            <div className="dev__signalhead">
+              <span className="t-meta">{DAILY_SIGNAL_LABELS[key]}</span>
+              <span className="t-micro">{entry.status}</span>
+            </div>
+            <div className="dev__grid">
+              {(['KNOWN', 'NOT_APPLICABLE', 'UNKNOWN'] as const).map((status) => (
+                <Button
+                  key={status}
+                  small
+                  variant={entry.status === status ? 'primary' : 'ghost'}
+                  onClick={() => setDailySignal(key, status, 'impostato da DEV')}
+                >
+                  {status === 'NOT_APPLICABLE' ? 'N/A' : status}
+                </Button>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+      <p className="t-micro dev__note">
+        NOT_APPLICABLE non è un buco: un giorno di riposo è una risposta, e vale
+        come segnale noto esattamente quanto un allenamento.
+      </p>
+
+      <Button block variant="primary" small onClick={syncDay} disabled={!today.canClose}>
+        {today.closed ? 'GIORNO GIÀ CHIUSO' : 'SYNC DAY (+1)'}
+      </Button>
+
+      <p className="t-meta dev__label">CADENZA</p>
+      <div className="rowlist">
+        <Row label="INCUBAZIONE" value={`${PROGRESSION.incubationSyncDays} giorni sincronizzati`} />
+        <Row label="MICRO-GROWTH" value={`ogni ${PROGRESSION.microGrowthEvery}`} />
+        <Row label="FORM EVOLUTION" value={`a ${PROGRESSION.formEvolutionAt}, come offerta`} />
+        <Row label="GIORNI CHIUSI FINORA" value={String(synced)} />
+      </div>
     </div>
   );
 }
@@ -622,28 +652,3 @@ function DevSlider({
   );
 }
 
-function DevNumber({
-  label,
-  value,
-  step,
-  onChange,
-}: {
-  label: string;
-  value: number;
-  step: number;
-  onChange: (v: number) => void;
-}) {
-  return (
-    <div className="dev__control dev__control--row">
-      <span className="t-meta">{label}</span>
-      <input
-        type="number"
-        value={value}
-        step={step}
-        aria-label={label}
-        className="dev__numberinput"
-        onChange={(e) => onChange(Number(e.target.value))}
-      />
-    </div>
-  );
-}

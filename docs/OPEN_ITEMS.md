@@ -14,7 +14,7 @@ poche interpretazioni che ho dovuto prendere leggendo il documento.
 | Archetipi | — | **107** (§4), 5–6 per Family |
 | Tassonomia AFFINITY | «final complete Affinity taxonomy» | **16** (§5), contaminazioni anatomiche cross-family |
 | Pesi di rarità | «rarity weighting» | §15 probabilità base + gate di sblocco, §16 punteggio a 7 componenti, §26 tabelle di normalizzazione |
-| Economia | «XP cost/economy, cadence for BRANCH» | §25 sblocchi; l'economia XP resta locale (vedi sotto) |
+| Economia | «XP cost/economy, cadence for BRANCH» | 🔶 **chiusa altrove**: non c'è più un'economia. Vedi «SYNC» qui sotto |
 | Estrazione colore | «adaptive colour extraction» | §27 `palette_dna`, derivata da Family + Affinity + Mood |
 | Icon set e motion | — | non trattati dalla bibbia: restano come sono |
 
@@ -52,6 +52,36 @@ gelatinosa.
 `verify:batch` controlla che dodici semi diversi diano almeno quattro Family
 diverse al primo nodo, e che SLIME non compaia più come Family.
 
+### Una sola valuta: SYNC, e una sola entità
+**Versione:** MASTER SPEC v1.4/v1.5, più le decisioni prese dopo la v1.6.
+**Dove:** `src/engine/progression.ts` (sostituisce `economy.ts`, cancellato).
+
+Il modello a tre valute — XP, DISC come valuta, EVOLUTION SYNC — è stato
+sostituito da **SYNC**: quanti giorni VINZ.MON ha potuto leggere. Le due regole
+che tengono in piedi il resto:
+
+1. **Un giorno vale al massimo +1 SYNC.** Registrare dieci pasti o mandare cento
+   messaggi migliora la qualità del contesto, non la velocità della crescita.
+2. **La salute non compra progressione.** SYNC si guadagna presentandosi, non
+   stando bene. I dati *formano* la creatura; non ne accelerano l'evoluzione.
+
+Cadenza: 7 giorni sincronizzati all'HATCH, micro-growth ogni 7, Form Evolution
+disponibile a 28. La Form Evolution è **un'offerta**: si può rimandare quanto si
+vuole e i giorni continuano a contare.
+
+**Ancora di continuità.** Una Form Evolution non è una rigenerazione: un
+sottoinsieme di assi resta fermo — «resta la famiglia», «cambia solo la
+famiglia», «restano presenza e ruolo» — e il resto si riconfigura. È l'opposto
+della pressione di GB §23, che per i branch imponeva di cambiare almeno 4 assi
+su 7: §23 descriveva la nascita di una creatura diversa, qui è la stessa entità
+che si trasforma. `verify:batch` controlla entrambe le direzioni: gli assi
+ancorati non cambiano mai, e fuori dall'ancora cambia sempre qualcosa.
+
+**Una entità sola.** VINZ.MON non muore e non passa la relazione a nessun altro.
+Le forme sono sue configurazioni, le memorie sono un archivio unico e la forma è
+un metadato sul ricordo. Per questo `carryMemoriesThroughBranch` è stato
+rimosso e nessuna schermata dice più «saluta».
+
 ### La chiave API vive nel browser
 **Dove:** `src/ai/client.ts`, `src/state/store.ts` → `apiKey`.
 
@@ -79,17 +109,19 @@ home e dell'incontro, e come riga SPECIE nel profilo.
 
 ## 🟡 Ancora aperte
 
-### Economia XP di CONTINUE/EVOLVE
-**Dove:** `src/engine/economy.ts` → `DEFAULT_ECONOMY`.
-La bibbia definisce gli sblocchi di rarità (§25) ma non il costo in XP di
-un'evoluzione. Restano i valori provvisori: costo base 400 XP con crescita
-×1,6, 35 XP per giorno registrato, 500 XP per livello. Tarabili da DEV →
-ECONOMIA.
+### Nomi degli ultimi due livelli di rarità
+**Dove:** `src/engine/generation-config.ts` → `RARITIES`.
+I primi quattro livelli coincidono fra i documenti (COMMON, UNCOMMON, RARE,
+EPIC). Gli ultimi due no: la MASTER SPEC §53 dice **LEGENDARY / SECRET**, la
+GENERATION BIBLE §15 dice **MYTHIC / SINGULAR**. Il codice segue la bibbia.
+Va deciso e allineato in un documento solo.
 
-### Durata dell'incubazione
-**Dove:** `src/state/store.ts` → `INCUBATION_DAYS = 28`.
-Presa dal board («DAY 18 / 28»). §25 dice solo che in simulazione non serve
-attendere davvero.
+### Le 31 schermate di MS §19
+**Dove:** nessun file.
+Sono un'architettura UX completa e diversa da quella su cui è costruito il
+prototipo. Non è chiaro se §19 sia ancora valida, superata dai livelli nuovi
+del documento, o valida a metà. Finché non lo è, il prototipo resta sulle 16
+schermate di §12.
 
 ### Trigger nascosto di SINGULAR
 **Dove:** `src/engine/rarity.ts` → `UnlockContext.hiddenTriggerFired`.

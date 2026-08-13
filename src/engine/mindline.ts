@@ -104,9 +104,9 @@ export function layoutMindline(nodes: readonly MindlineNode[]): MindlineLayout {
       edges.push({ from: node.id, to: kid.id });
 
       // Il tipo del nodo decide la colonna, non l'ordine di nascita: un
-      // CONTINUE prosegue il percorso, un BRANCH apre sempre una deviazione
-      // visibile. È la grammatica da grafo Git richiesta da §7.4 — altrimenti
-      // un branch unico verrebbe disegnato in linea retta come un'evoluzione.
+      // micro-growth prosegue la colonna, un cambio di forma ne apre una
+      // nuova. È la grammatica da grafo Git richiesta da §7.4 — altrimenti un
+      // cambio di forma verrebbe disegnato in linea retta come una crescita.
       const isContinuation = kid.kind !== 'branch' && !continuedHere;
       if (isContinuation) continuedHere = true;
 

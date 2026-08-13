@@ -124,46 +124,15 @@ export function makeMemory(params: {
   };
 }
 
-/**
- * §8.2 — "Memories belong to the relationship and can survive a branch in
- * transformed/partial form."
- * Al branch una parte delle memorie passa al nuovo .mon, ma riscritta: resta
- * la sensazione, si perde il dettaglio. Le altre restano nell'archivio legate
- * al .mon che le ha vissute.
- */
-export function carryMemoriesThroughBranch(
-  rng: Rng,
-  memories: readonly Memory[],
-  previous: MonRecord,
-  newMonName: string,
-): Memory[] {
-  const fromPrevious = memories.filter((m) => m.monName === previous.data.name);
-  const survivors = fromPrevious.filter(() => rng() < 0.35);
+/* 🔶 Qui viveva `carryMemoriesThroughBranch`: al branch il 35% delle memorie
+   passava al .mon nuovo, riscritto in forma parziale («non ricorda i dettagli,
+   ricorda che…»), e il resto restava legato al .mon uscente.
 
-  return survivors.map((m, i) => ({
-    id: `${m.id}_carried_${i}`,
-    day: m.day,
-    kind: m.kind,
-    title: m.title,
-    text: partialise(rng, m.text),
-    monName: newMonName,
-    carriedFrom: previous.data.name,
-  }));
-}
-
-/** Rende parziale un ricordo trasmesso: è passato attraverso una deviazione. */
-function partialise(rng: Rng, text: string): string {
-  const forms = [
-    `Qualcosa di questo è rimasto: ${lowerFirst(text)}`,
-    `Non ricorda i dettagli. Ricorda che ${lowerFirst(text)}`,
-    `Arriva da prima di lui: ${lowerFirst(text)}`,
-  ];
-  return pick(rng, forms);
-}
-
-function lowerFirst(s: string): string {
-  return s.charAt(0).toLowerCase() + s.slice(1);
-}
+   È stata rimossa. Serviva quando un branch faceva nascere una creatura
+   diversa, che di quelle memorie poteva avere al massimo un'eco. Adesso
+   VINZ.MON è UNA entità che cambia forma: le memorie sono sue, tutte, e la
+   forma è un metadato sul ricordo — non un contenitore che ne trattiene una
+   parte. Niente da filtrare, niente da sfumare. */
 
 /* --- Etichette --------------------------------------------------------------*/
 

@@ -24,7 +24,8 @@ export const t = {
     subtitle: 'INCUBAZIONE',
     day: 'GIORNO',
     stability: 'SIGNAL STABILITY',
-    waiting: 'Il sistema sta ancora leggendo. Non c’è niente da fare: continua a vivere.',
+    waiting:
+      'Il sistema sta ancora leggendo. Basta presentarsi: ogni giorno chiuso è un giorno che conta, e saltarne uno non azzera niente.',
     ready: 'Il segnale è stabile.',
     hatch: 'HATCH',
     definitive: 'Questa scelta è definitiva.',
@@ -42,7 +43,7 @@ export const t = {
   /* 06 MON / COMPANION HOME */
   home: {
     composerPlaceholder: 'Scrivi a',
-    evolutionSync: 'EVOLUTION SYNC',
+    sync: 'SYNC',
     bond: 'BOND',
     openProfile: 'PROFILO COMPLETO',
     fallbackNotice: 'risposta di fallback',
@@ -80,6 +81,23 @@ export const t = {
     missingNote: 'Restano sconosciuti. Non contano come zero e non peggiorano niente.',
     syncNow: 'SINCRONIZZA UN DATO',
     confirm: 'REGISTRA',
+
+    /* v1.5 — i tre Daily Signals. È la parte che decide se il giorno conta. */
+    signalsTitle: 'I TRE SEGNALI DI OGGI',
+    signalsNote:
+      'VINZ.MON prova a capire tre cose al giorno. Non deve andarti bene: deve solo sapere com’è andata.',
+    known: 'LO SO',
+    notApplicable: 'NON SI APPLICA',
+    unknown: 'NON ANCORA',
+    restDay: 'RIPOSO',
+    ateSomething: 'HO MANGIATO',
+    moodFromChips: 'lo dichiari qui sotto',
+    moodPrivate: 'PREFERISCO NON DIRLO',
+    closeDay: 'CHIUDI IL GIORNO · +1 SYNC',
+    closeDayBlocked: 'MANCA QUALCOSA PER CHIUDERE',
+    alreadyClosed: 'GIORNO GIÀ CHIUSO',
+    closeRule:
+      'Un giorno vale +1 SYNC, non di più. Registrare dieci volte migliora quello che VINZ.MON sa di te, non la sua velocità.',
   },
 
   /* 09 ME OVERVIEW */
@@ -103,23 +121,25 @@ export const t = {
   /* 11 MINDLINE SHIFT */
   shift: {
     title: 'MINDLINE SHIFT',
-    subtitle: 'IL PERCORSO SI DIVIDE QUI',
-    continueTitle: 'CONTINUA',
-    continueBody: 'Stesso .mon, forma nuova.',
-    continueAction: 'EVOLVE',
-    branchTitle: 'DEVIA',
-    branchBody: 'Nuovo .mon, con 1–3 tratti di questo.',
-    branchAction: 'NUOVO SEGNALE',
-    notEligible: 'NON DISPONIBILE',
+    subtitle: 'QUALCOSA È PRONTO A CAMBIARE',
+    days: (n: number) => `${n} ${n === 1 ? 'giorno sincronizzato' : 'giorni sincronizzati'}`,
+    growthTitle: 'MATURA',
+    growthBody: 'Stessa forma. Un dettaglio si risolve.',
+    growthAction: 'LASCIA MATURARE',
+    formTitle: 'CAMBIA FORMA',
+    formBody: 'Stessa entità, configurazione nuova.',
+    formAction: 'GUARDA COSA CAMBIA',
+    notEligible: 'NON ANCORA',
     hold: 'tieni premuto',
     stay: 'NON ORA',
+    /* La frase che toglie l'ansia: rimandare non costa niente. */
+    noRush: 'Rimandare non fa perdere niente. I giorni continuano a contare.',
   },
 
-  /* 12 EVOLUTION */
+  /* 12 EVOLUTION — micro-growth */
   evolution: {
-    title: 'EVOLUZIONE',
+    title: 'MATURAZIONE',
     same: 'STESSA IDENTITÀ',
-    spent: 'XP SPESI',
     from: 'DA',
     to: 'A',
     reveal: 'NUOVA FORMA',
@@ -127,15 +147,20 @@ export const t = {
     done: 'CONTINUA',
   },
 
-  /* 13 NEW BRANCH */
+  /* 13 FORM EVOLUTION */
   branch: {
-    title: 'NUOVA DEVIAZIONE',
-    subtitle: 'COSA SOPRAVVIVE',
-    lead: 'Questi tratti passeranno al prossimo .mon, tradotti nella sua anatomia.',
-    unknownAhead: 'Chi arriva non è ancora stato generato.',
-    goodbye: 'SALUTA',
-    confirm: 'SEGUI LA DEVIAZIONE',
-    back: 'TORNA INDIETRO',
+    title: 'CAMBIO DI FORMA',
+    subtitle: 'COSA RESTA',
+    /* 🔶 Nessun addio: VINZ.MON è una entità sola e la forma è una sua
+       configurazione. Il testo dice «diventa», mai «saluta». */
+    lead: 'Questi tratti passano nella forma nuova, tradotti nella sua anatomia.',
+    anchorTitle: 'ANCORA DI CONTINUITÀ',
+    anchorNote: 'Non cambia tutto. Questi assi restano come sono.',
+    unknownAhead: 'Il resto si riconfigura. Non è ancora stato generato.',
+    current: 'ORA',
+    becomes: 'DIVENTA',
+    confirm: 'CAMBIA FORMA',
+    back: 'NON ORA',
   },
 
   /* 15 SPECIMEN PROFILE */
@@ -186,7 +211,7 @@ export const t = {
     title: 'MEMORIE',
     subtitle: 'ARCHIVIO DELLA RELAZIONE',
     empty: 'Ancora nessuna memoria. Servono giorni vissuti insieme.',
-    carried: 'ARRIVATA DA UN ALTRO NODO',
+    carried: 'QUANDO ERA',
   },
 
   /* 20 HISTORY */
@@ -204,8 +229,7 @@ export const t = {
     close: 'Chiudi',
     back: 'Indietro',
     day: 'GIORNO',
-    level: 'LIVELLO',
-    xp: 'XP',
+    sync: 'SYNC',
     waitingForImage: 'WAITING FOR IMAGE',
   },
 } as const;

@@ -3,7 +3,7 @@
   "private": true,
   "version": "1.2.0",
   "type": "module",
-  "description": "VINZ.VERCE — prototipo v1 secondo MASTER SPEC v1.2",
+  "description": "VINZ.MON — prototipo v1 secondo MASTER SPEC v1.2",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",

@@ -3,9 +3,12 @@
 
    "Relationship archive: moments, reactions, inside jokes and meaningful events."
 
-   §8.2 — le memorie appartengono alla RELAZIONE, non al singolo .mon, e
-   possono sopravvivere a un branch in forma trasformata/parziale. Quelle
-   arrivate da un nodo precedente sono marcate come tali.
+   §8.2 — le memorie appartengono alla RELAZIONE, non alla singola forma.
+
+   🔶 Prima un branch ne filtrava una parte e sfumava il resto, perché di là
+   nasceva una creatura diversa. Adesso VINZ.MON è una entità sola: l'archivio
+   è unico e continuo, e la forma è un'etichetta sul ricordo — «quando ero
+   così» — non un contenitore che ne trattiene un pezzo.
 
    Board S11: raggruppate per fascia temporale, con ritratto a sinistra.
    ========================================================================= */
@@ -88,9 +91,12 @@ export function MemoriesScreen({ onClose }: { onClose: () => void }) {
                       <p className="t-small memcard__body">{m.text}</p>
                       <div className="memcard__tags">
                         <SystemLabel>{MEMORY_KIND_LABELS[m.kind]}</SystemLabel>
-                        {m.carriedFrom && (
+                        {/* La forma di allora, dichiarata solo quando non è
+                            quella di adesso: è il metadato che rende leggibile
+                            un archivio continuo attraverso i cambi di forma. */}
+                        {m.monName !== mon.data.name && (
                           <SystemLabel tone="character">
-                            {t.memories.carried} · {displayName(m.carriedFrom)}
+                            {t.memories.carried} · {displayName(m.monName)}
                           </SystemLabel>
                         )}
                       </div>

@@ -19,6 +19,7 @@ import type {
   Size,
 } from './generation-config';
 import type { RarityScoreBreakdown } from './rarity';
+import type { SyncState } from './progression';
 
 /* --- SEGNALI DI SALUTE (MASTER SPEC §3) ------------------------------------
    Il dato mancante è *unknown*, mai negativo e mai zero. Il tipo lo impone.
@@ -57,13 +58,15 @@ export interface HealthState {
 
 /* --- PROGRESSIONE DI GIOCO -------------------------------------------------- */
 
+/**
+ * 🔶 v1.4/v1.5 — una sola valuta visibile. XP, DISC ed EVOLUTION SYNC erano
+ * tre barre in competizione sulla stessa schermata; adesso c'è SYNC.
+ * DISC sopravvive come metrica di costanza in `HealthState`, non come valuta.
+ */
 export interface Progression {
-  xp: number;
-  /** Non diminuisce mai. */
-  level: number;
-  /** §2 BOND 0–100. */
+  /** §2 BOND 0–100, normalizzato 0–1. Alimenta i gate di rarità e la voce. */
   bond: number;
-  evolutionSync: number;
+  sync: SyncState;
 }
 
 /* ============================================================================
@@ -234,8 +237,8 @@ export interface Memory {
   kind: MemoryKind;
   title: string;
   text: string;
+  /** La forma che ha vissuto il ricordo. È un'etichetta, non un contenitore. */
   monName: string;
-  carriedFrom?: string;
 }
 
 /* --- MINDLINE ---------------------------------------------------------------- */

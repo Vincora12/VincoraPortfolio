@@ -1,35 +1,35 @@
 /* ============================================================================
-   11 — MINDLINE SHIFT (§12)
+   11 — MINDLINE SHIFT
 
-   "Decision surface: CONTINUE / EVOLVE versus BRANCH / NEW SIGNAL."
+   🔶 Riscritta sul modello SYNC. La versione precedente presentava CONTINUE
+   contro BRANCH: due strade, e una era un addio. Non è più così.
 
-   §7.2 — CONTINUE è un impegno verso il percorso attuale: si spende XP e la
-   stessa identità evolve.
-   §7.3 — BRANCH è un addio: si segue una deviazione e nasce un nuovo .mon che
-   eredita 1–3 tratti riconoscibili.
+   VINZ.MON è UNA entità. Qui non si sceglie fra due creature, si sceglie
+   quanto lasciarla cambiare:
 
-   Le due strade sono presentate con lo stesso peso visivo: stessa cornice,
-   stessa gerarchia tipografica, stesso spazio. Il sistema non spinge verso
-   nessuna delle due. Quello che cambia fra le due card è solo se la strada è
-   percorribile adesso — che è un fatto, non una preferenza.
+     MATURA        stessa forma, un dettaglio che si risolve   (ogni 7 SYNC)
+     CAMBIA FORMA  stessa entità, configurazione nuova         (a 28 SYNC)
 
-   Il testo lungo è stato tolto: la descrizione di cosa comporta una scelta si
-   legge una volta. Resta la frase che dice cosa succede al .mon, perché quella
-   è la differenza fra le due strade, e sparisce tutto il resto.
+   Le due card hanno lo stesso peso visivo perché il sistema non spinge verso
+   nessuna delle due, e sotto c'è sempre NON ORA. È la regola che il documento
+   lasciava aperta e che è stata fissata dopo la v1.6: la Form Evolution è
+   un'offerta, non un obbligo. Rimandarla non costa niente e non blocca il
+   conteggio — per questo la riga «i giorni continuano a contare» sta in
+   schermata e non in un tooltip.
    ========================================================================= */
 
-import { useApp, useActiveMon, useBranchCheck, useContinueCheck } from '../state/store';
+import { useApp, useActiveMon, useGrowth } from '../state/store';
 import { Button, HoldButton, ScreenHead, SegmentedBar, SystemLabel } from '../system/components';
 import { Icon } from '../system/Icon';
+import { PROGRESSION } from '../engine/progression';
 import { displayName } from '../engine/types';
 import { t } from '../i18n/it';
 
 export function MindlineShiftScreen() {
   const mon = useActiveMon();
-  const { check: cont, cost } = useContinueCheck();
-  const { check: branch, days } = useBranchCheck();
-  const doContinue = useApp((s) => s.doContinue);
-  const startBranch = useApp((s) => s.startBranch);
+  const { sync, microGrowthReady, formEvolutionReady } = useGrowth();
+  const doMicroGrowth = useApp((s) => s.doMicroGrowth);
+  const openFormEvolution = useApp((s) => s.openFormEvolution);
   const enterLive = useApp((s) => s.enterLive);
 
   if (!mon) return null;
@@ -41,71 +41,76 @@ export function MindlineShiftScreen() {
 
       <div className="screen__body shift">
         <p className="shift__lead t-small">
-          <strong>{short}</strong> · {days} {days === 1 ? 'giorno' : 'giorni'} su questo percorso
+          <strong>{short}</strong> · {t.shift.days(sync.inForm)}
         </p>
 
-        {/* --- CONTINUE / EVOLVE --- */}
-        <section className={`shiftcard ${cont.eligible ? 'shiftcard--open' : ''}`}>
+        {/* --- MICRO-GROWTH --- */}
+        <section className={`shiftcard ${microGrowthReady ? 'shiftcard--open' : ''}`}>
           <header className="shiftcard__head">
             <Icon name="dna" size={18} strokeWidth={2} />
-            <h2 className="t-display shiftcard__title">{t.shift.continueTitle}</h2>
-            {cont.eligible ? (
-              <SystemLabel tone="character">{cost} XP</SystemLabel>
-            ) : (
-              <SystemLabel>{t.shift.notEligible}</SystemLabel>
-            )}
+            <h2 className="t-display shiftcard__title">{t.shift.growthTitle}</h2>
+            {!microGrowthReady && <SystemLabel>{t.shift.notEligible}</SystemLabel>}
           </header>
 
-          <p className="t-small shiftcard__body">{t.shift.continueBody}</p>
+          <p className="t-small shiftcard__body">{t.shift.growthBody}</p>
 
-          {cont.eligible ? (
-            <HoldButton onComplete={doContinue} hint={t.shift.hold}>
-              {t.shift.continueAction}
+          {microGrowthReady ? (
+            <HoldButton onComplete={doMicroGrowth} hint={t.shift.hold}>
+              {t.shift.growthAction}
             </HoldButton>
           ) : (
-            <>
-              <SegmentedBar
-                value={cont.progress}
-                segments={20}
-                readout={`${Math.round(cont.progress * 100)}%`}
-                tone="warning"
-              />
-              <p className="t-micro shiftcard__reason">{cont.reason}</p>
-            </>
+            <Countdown
+              have={sync.sinceGrowth}
+              need={PROGRESSION.microGrowthEvery}
+            />
           )}
         </section>
 
-        {/* --- BRANCH / NEW SIGNAL --- */}
-        <section className={`shiftcard ${branch.eligible ? 'shiftcard--open' : ''}`}>
+        {/* --- FORM EVOLUTION --- */}
+        <section className={`shiftcard ${formEvolutionReady ? 'shiftcard--open' : ''}`}>
           <header className="shiftcard__head">
             <Icon name="branch" size={18} strokeWidth={2} />
-            <h2 className="t-display shiftcard__title">{t.shift.branchTitle}</h2>
-            {!branch.eligible && <SystemLabel>{t.shift.notEligible}</SystemLabel>}
+            <h2 className="t-display shiftcard__title">{t.shift.formTitle}</h2>
+            {!formEvolutionReady && <SystemLabel>{t.shift.notEligible}</SystemLabel>}
           </header>
 
-          <p className="t-small shiftcard__body">{t.shift.branchBody}</p>
+          <p className="t-small shiftcard__body">{t.shift.formBody}</p>
 
-          {branch.eligible ? (
-            <HoldButton variant="secondary" onComplete={startBranch} hint={t.shift.hold}>
-              {t.shift.branchAction}
+          {formEvolutionReady ? (
+            <HoldButton variant="secondary" onComplete={openFormEvolution} hint={t.shift.hold}>
+              {t.shift.formAction}
             </HoldButton>
           ) : (
-            <>
-              <SegmentedBar
-                value={branch.progress}
-                segments={20}
-                readout={`${Math.round(branch.progress * 100)}%`}
-                tone="warning"
-              />
-              <p className="t-micro shiftcard__reason">{branch.reason}</p>
-            </>
+            <Countdown have={sync.inForm} need={PROGRESSION.formEvolutionAt} />
           )}
         </section>
+
+        <p className="t-micro shift__norush">{t.shift.noRush}</p>
 
         <Button variant="ghost" block onClick={enterLive}>
           {t.shift.stay}
         </Button>
       </div>
     </div>
+  );
+}
+
+/**
+ * Quanto manca, in giorni sincronizzati. Non in percentuale: «12 giorni su 28»
+ * si capisce e «43%» no, perché non dice di cosa.
+ */
+function Countdown({ have, need }: { have: number; need: number }) {
+  return (
+    <>
+      <SegmentedBar
+        value={Math.min(1, have / need)}
+        segments={Math.min(28, need)}
+        readout={`${have} / ${need}`}
+        tone="warning"
+      />
+      <p className="t-micro shiftcard__reason">
+        mancano {Math.max(0, need - have)} giorni sincronizzati
+      </p>
+    </>
   );
 }

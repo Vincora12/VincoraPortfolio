@@ -1,39 +1,47 @@
 /* ============================================================================
-   13 — NEW BRANCH (§12)
+   13 — CAMBIO DI FORMA (Form Evolution)
 
-   🔒 Vincolo esplicito: "Transition away from current node; show Heritage
-   traits that will carry forward WITHOUT PREVIEWING FULL NEW IDENTITY."
+   🔒 Vincolo esplicito: "show Heritage traits that will carry forward WITHOUT
+   PREVIEWING FULL NEW IDENTITY." Il prototipo lo rispetta per costruzione: a
+   questo punto del flusso la forma nuova NON È ANCORA STATA GENERATA. Esistono
+   solo gli assi ancorati e i tratti in partenza. La generazione avviene su
+   `confirmFormEvolution`, quindi non c'è nessuna identità da mostrare per
+   sbaglio.
 
-   Il prototipo rispetta il vincolo per costruzione, non per disciplina
-   grafica: a questo punto del flusso il nuovo .mon NON È ANCORA STATO
-   GENERATO. Esistono solo i tratti in partenza, scelti dal .mon uscente.
-   La generazione avviene su `confirmBranch`, quindi non c'è nessuna identità
-   da poter mostrare per sbaglio.
+   🔶 Riscritta: non è più un addio. La schermata diceva «SALUTA» e trattava la
+   creatura uscente come qualcuno che se ne va. VINZ.MON è una entità sola e la
+   forma è una sua configurazione, quindi qui si legge cosa RESTA prima di cosa
+   cambia — l'ancora di continuità decisa in `progression.ts`.
    ========================================================================= */
 
-import { useApp, useActiveMon } from '../state/store';
+import { useApp, useActiveMon, usePendingAnchor } from '../state/store';
 import { AssetSlot } from '../system/AssetSlot';
-import { MonName } from '../system/MonName';
+import { MonName, SpeciesName } from '../system/MonName';
 import { Button, ScreenHead, SystemLabel } from '../system/components';
 import { heritageCategoryLabel } from '../engine/heritage';
+import { AXIS_LABELS, type ContinuityAxis } from '../engine/progression';
 import { displayName } from '../engine/types';
 import { t } from '../i18n/it';
 
 export function NewBranchScreen() {
   const mon = useActiveMon();
   const pending = useApp((s) => s.pendingHeritage);
-  const confirmBranch = useApp((s) => s.confirmBranch);
+  const anchor = usePendingAnchor();
+  const confirmFormEvolution = useApp((s) => s.confirmFormEvolution);
   const enterLive = useApp((s) => s.enterLive);
 
   if (!mon) return null;
   const short = displayName(mon.data.name);
+
+  /** Il valore corrente di un asse ancorato, letto dal .mon di adesso. */
+  const axisValue = (axis: ContinuityAxis): string => String(mon.data[axis]);
 
   return (
     <div className="screen screen--ink">
       <ScreenHead title={t.branch.title} sub={t.branch.subtitle} />
 
       <div className="screen__body branch">
-        {/* Il .mon che si sta salutando. */}
+        {/* La forma di adesso. Non se ne va: si riconfigura. */}
         <div className="branch__leaving">
           <div className="branch__portrait">
             <AssetSlot
@@ -45,26 +53,43 @@ export function NewBranchScreen() {
             />
           </div>
           <div>
-            <p className="t-micro">{t.branch.goodbye}</p>
+            <p className="t-micro">{t.branch.current}</p>
             <p className="t-display branch__name">
               <MonName name={mon.data.name} />
             </p>
             <p className="t-micro branch__form">
-              {mon.data.evolution_state?.label ?? 'BASIC FORM'}
+              <SpeciesName /> · {mon.data.evolution_state?.label ?? 'BASIC FORM'}
             </p>
           </div>
         </div>
 
+        {/* --- Cosa resta: l'ancora di continuità --- */}
+        {anchor && (
+          <section className="branch__anchor">
+            <SystemLabel tone="character">{t.branch.anchorTitle}</SystemLabel>
+            <p className="t-display branch__anchorline">{anchor.it}</p>
+            <ul className="branch__keeps">
+              {anchor.keeps.map((axis) => (
+                <li key={axis} className="branch__keep">
+                  <span className="t-micro">{AXIS_LABELS[axis]}</span>
+                  <span className="t-small branch__keepvalue">{axisValue(axis)}</span>
+                </li>
+              ))}
+            </ul>
+            <p className="t-micro branch__anchornote">{t.branch.anchorNote}</p>
+          </section>
+        )}
+
+        {/* --- Cosa passa tradotto: i tratti in partenza --- */}
         <p className="branch__lead t-small">{t.branch.lead}</p>
 
-        {/* I tratti in partenza. Ne conosciamo l'origine, non ancora l'arrivo. */}
         <ul className="branch__traits">
           {pending.map((h) => (
             <li key={h.id} className="traitcard">
               <SystemLabel tone="character">{heritageCategoryLabel(h.category)}</SystemLabel>
               <p className="traitcard__origin t-small">{h.origin}</p>
               <p className="traitcard__arrow t-micro">
-                → si tradurrà nell'anatomia del prossimo .mon
+                → si tradurrà nell'anatomia della forma nuova
               </p>
             </li>
           ))}
@@ -80,7 +105,7 @@ export function NewBranchScreen() {
       </div>
 
       <footer className="screen__foot screen__foot--stack">
-        <Button variant="primary" block onClick={confirmBranch}>
+        <Button variant="primary" block onClick={confirmFormEvolution}>
           {t.branch.confirm}
         </Button>
         <Button variant="ghost" block onClick={enterLive}>

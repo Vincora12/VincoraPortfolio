@@ -43,6 +43,7 @@ import { generateReactions, generateVoiceDna } from './voiceDna';
 import { rollRarity, type UnlockContext } from './rarity';
 import { generateMonName } from './naming';
 import { countChangedAxes, translateHeritage, type HeritageOrigin } from './heritage';
+import { AXIS_LABELS, type ContinuityAxis } from './progression';
 import { emptyAssetStatus } from './assets';
 import type {
   BioFile,
@@ -65,6 +66,12 @@ export interface GenerationContext {
   heritageOrigins: readonly HeritageOrigin[];
   lineageNames: readonly string[];
   previous: MonRecord | null;
+  /**
+   * 🔶 Ancora di continuità di una Form Evolution: gli assi che NON cambiano.
+   * VINZ.MON è una entità sola, quindi una forma nuova non è una rigenerazione
+   * da zero. Vale solo con `previous` valorizzato; per il primo nodo è vuota.
+   */
+  continuity?: readonly ContinuityAxis[];
   seed: number;
   /** §25 DEV://UNLOCK_ALL. */
   devUnlockAll?: boolean;
@@ -98,23 +105,40 @@ export function generateMon(ctx: GenerationContext): GenerationResult {
     outcome: `depth ${ctx.input.mindlineDepth} · branch ${ctx.input.branchCount} · nodi recenti ${ctx.input.novelty.recentFamilies.length}`,
   });
 
+  /* 🔶 ANCORA DI CONTINUITÀ — vedi `progression.ts`.
+
+     Gli assi ancorati si risolvono comunque, e il valore estratto viene poi
+     sostituito con quello del .mon precedente. Costa un'estrazione inutile, ma
+     tiene la sequenza di rng identica a quella di una generazione libera: il
+     seed resta riproducibile a prescindere dall'ancora scelta. */
+  const prev = ctx.previous?.data ?? null;
+  const anchored = (axis: ContinuityAxis): boolean =>
+    prev !== null && ctx.continuity?.includes(axis) === true;
+
   /* 04 — FAMILY (§17). Il passo 03 sulla rarità si risolve alla fine, quando
      la configurazione esiste: qui si registra solo l'eleggibilità. */
-  const { family, candidates: familyCandidates } = resolveFamily(rng, ctx, signals);
+  const { family: drawnFamily, candidates: familyCandidates } = resolveFamily(rng, ctx, signals);
+  const family = anchored('family') ? familyDef(prev!.family) : drawnFamily;
   steps.push({
     step: 4,
     stage: 'FAMILY',
     outcome: family.id,
     candidates: familyCandidates,
-    note: `estrazione pesata fra i primi ${ENGINE_WEIGHTS.family.topN}`,
+    note: anchored('family')
+      ? 'tenuta ferma dall’ancora di continuità'
+      : `estrazione pesata fra i primi ${ENGINE_WEIGHTS.family.topN}`,
   });
 
-  /* 05 — ARCHETIPO (§18) */
-  const archetype = resolveArchetype(rng, family, ctx);
+  /* 05 — ARCHETIPO (§18). Si può ancorare solo insieme alla Family: un
+     archetipo appartiene a una Family sola e da solo non significa niente. */
+  const drawnArchetype = resolveArchetype(rng, family, ctx);
+  const archetype =
+    anchored('family') && anchored('family_archetype') ? prev!.family_archetype : drawnArchetype;
   steps.push({ step: 5, stage: 'ARCHETYPE', outcome: `${family.id} / ${archetype}` });
 
   /* 06 — AFFINITY (§19) */
-  const affinity = resolveAffinity(rng, family, ctx);
+  const drawnAffinity = resolveAffinity(rng, family, ctx);
+  const affinity = anchored('affinity') ? prev!.affinity : drawnAffinity;
   steps.push({
     step: 6,
     stage: 'AFFINITY',
@@ -123,15 +147,18 @@ export function generateMon(ctx: GenerationContext): GenerationResult {
   });
 
   /* 07 — SIZE (§21) */
-  const { size, score: sizeScore } = resolveSize(rng, signals, family, archetype);
+  const { size: drawnSize, score: sizeScore } = resolveSize(rng, signals, family, archetype);
+  const size = anchored('size') ? prev!.size : drawnSize;
   steps.push({ step: 7, stage: 'SIZE', outcome: `${size} (score ${sizeScore.toFixed(1)})` });
 
   /* 08 — ROLE (§20) */
-  const role = resolveRole(rng);
+  const drawnRole = resolveRole(rng);
+  const role = anchored('role') ? prev!.role : drawnRole;
   steps.push({ step: 8, stage: 'ROLE', outcome: role });
 
   /* 09 — FASHION (§20) + marcatori personali (§9) */
-  const fashion = resolveFashion(rng, ctx);
+  const drawnFashion = resolveFashion(rng, ctx);
+  const fashion = anchored('fashion') ? prev!.fashion : drawnFashion;
   const markers = resolveMarkers(rng, family, ctx);
   steps.push({
     step: 9,
@@ -140,7 +167,8 @@ export function generateMon(ctx: GenerationContext): GenerationResult {
   });
 
   /* 10 — MOOD (§22) */
-  const { primary: moodPrimary, secondary: moodSecondary } = resolveMood(rng, ctx, signals);
+  const { primary: drawnMood, secondary: moodSecondary } = resolveMood(rng, ctx, signals);
+  const moodPrimary = anchored('mood_primary') ? prev!.mood_primary : drawnMood;
   steps.push({
     step: 10,
     stage: 'MOOD',
@@ -266,6 +294,15 @@ export function generateMon(ctx: GenerationContext): GenerationResult {
   };
 
   steps.push({ step: 18, stage: 'CHARACTER DATA', outcome: 'esportabile, nessuna immagine richiesta' });
+
+  if (prev && ctx.continuity && ctx.continuity.length > 0) {
+    steps.push({
+      step: 19,
+      stage: 'CONTINUITÀ',
+      outcome: ctx.continuity.map((a) => AXIS_LABELS[a]).join(' · '),
+      note: `assi tenuti fermi da ${displayName(prev.name)}: la stessa entità che si trasforma`,
+    });
+  }
 
   const trace: GenerationTrace = {
     seed: ctx.seed,

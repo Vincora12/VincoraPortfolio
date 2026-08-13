@@ -194,27 +194,63 @@ export function progressToNext(sync: SyncState, hatched: boolean): number {
  * branch imponeva di cambiare almeno 4 assi su 7. §23 descriveva la nascita
  * di una creatura diversa; qui è la stessa entità che si trasforma.
  */
-export const CONTINUITY_ANCHORS = [
+/** Gli assi che un'ancora può tenere fermi. Sono nomi di campo di CharacterData. */
+export type ContinuityAxis =
+  | 'family'
+  | 'family_archetype'
+  | 'affinity'
+  | 'size'
+  | 'role'
+  | 'fashion'
+  | 'mood_primary';
+
+export interface ContinuityAnchor {
+  id: ContinuityAnchorId;
+  /** Come si dice all'utente, in una riga. */
+  it: string;
+  /** Assi che sopravvivono immutati alla trasformazione. */
+  keeps: readonly ContinuityAxis[];
+  description: string;
+}
+
+export type ContinuityAnchorId = 'FAMILY' | 'EVERYTHING-ELSE' | 'PRESENCE';
+
+export const CONTINUITY_ANCHORS: readonly ContinuityAnchor[] = [
   {
     id: 'FAMILY',
     it: 'resta la famiglia',
-    /** Assi che sopravvivono immutati alla trasformazione. */
-    keeps: ['family', 'family_archetype'] as const,
+    keeps: ['family', 'family_archetype'],
     description: 'Stessa specie, tutto il resto si riconfigura.',
   },
   {
     id: 'EVERYTHING-ELSE',
     it: 'cambia solo la famiglia',
-    keeps: ['affinity', 'size', 'role', 'fashion'] as const,
+    keeps: ['affinity', 'size', 'role', 'fashion'],
     description: 'Cambia il corpo, restano i modi.',
   },
   {
     id: 'PRESENCE',
     it: 'restano presenza e ruolo',
-    keeps: ['size', 'role', 'mood_primary'] as const,
+    keeps: ['size', 'role', 'mood_primary'],
     description: 'Stessa taglia, stesso mestiere, stessa presenza.',
   },
-] as const;
+];
 
-export type ContinuityAnchor = (typeof CONTINUITY_ANCHORS)[number];
-export type ContinuityAnchorId = ContinuityAnchor['id'];
+export function anchorById(id: ContinuityAnchorId): ContinuityAnchor {
+  return CONTINUITY_ANCHORS.find((a) => a.id === id) ?? CONTINUITY_ANCHORS[0]!;
+}
+
+/**
+ * Etichette leggibili per gli assi, usate dalla schermata che dichiara cosa
+ * resta prima di confermare. Non è una tassonomia: è solo come si chiamano in
+ * italiano le cose che l'utente vede già altrove nel profilo.
+ */
+export const AXIS_LABELS: Record<ContinuityAxis, string> = {
+  family: 'FAMIGLIA',
+  family_archetype: 'ARCHETIPO',
+  affinity: 'AFFINITÀ',
+  size: 'TAGLIA',
+  role: 'RUOLO',
+  fashion: 'STILE',
+  mood_primary: 'UMORE',
+};

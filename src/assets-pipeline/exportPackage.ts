@@ -90,7 +90,7 @@ function buildReadme(record: MonRecord): string {
   const manifest = buildManifest(record);
 
   return [
-    `VINZ.VERCE — ASSET REQUEST PACKAGE`,
+    `VINZ.MON — ASSET REQUEST PACKAGE`,
     `${short} (${record.data.name})`,
     `Nodo Mindline: ${record.data.mindline_node} · Appearance: ${record.data.appearance} · Rarità: ${record.data.rarity}`,
     `Generato al giorno ${record.data.generated_at_day} · seed ${record.data.seed}`,

@@ -1,5 +1,5 @@
 /* ============================================================================
-   VINZ.VERCE — PRIMITIVE UI (§10.4)
+   VINZ.MON — PRIMITIVE UI (§10.4)
    Bottoni, barre segmentate, window header, tab a cartella, label di sistema,
    badge, input, composer, linguaggio visivo (scanner / signal / glitch / data).
    ========================================================================= */

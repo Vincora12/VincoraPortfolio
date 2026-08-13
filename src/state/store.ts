@@ -20,17 +20,26 @@ import {
   type SimulationBias,
 } from '../engine/health';
 import {
-  DEFAULT_ECONOMY,
-  branchEligibility,
-  continueEligibility,
-  evolveCost,
-  levelFromXp,
-  type EconomyConfig,
-} from '../engine/economy';
+  CONTINUITY_ANCHORS,
+  DAILY_SIGNALS,
+  PROGRESSION,
+  anchorById,
+  canCloseDay,
+  dayStatus,
+  emptyDay,
+  emptySync,
+  knownSignals,
+  nextEvent,
+  type ContinuityAnchor,
+  type ContinuityAnchorId,
+  type DailySignalKey,
+  type DailySync,
+  type SignalStatus,
+} from '../engine/progression';
 import { evolveMon, generateFirstMon, generateMon } from '../engine/characterGenerator';
 import { selectHeritageOrigins, type HeritageOrigin } from '../engine/heritage';
 import { createNode, makeNodeId, nextChapter } from '../engine/mindline';
-import { carryMemoriesThroughBranch, makeMemory, rollDailyEvent } from '../engine/simulation';
+import { makeMemory, rollDailyEvent } from '../engine/simulation';
 import { fallbackGreeting, fallbackReply } from '../engine/voiceDna';
 import { makeRng, randomSeed, seedFromString } from '../engine/rng';
 import {
@@ -61,15 +70,23 @@ import { preloadMonAssets } from '../assets-pipeline/assetStore';
 
 export type Phase =
   | 'incubation'
+  /** Rivelazione della prima forma. */
   | 'first-encounter'
   | 'live'
+  /** L'offerta: micro-growth o forma nuova. Si può sempre rimandare. */
   | 'shift'
+  /** Micro-growth: stessa forma, un dettaglio maturato. */
   | 'evolution'
-  | 'branch'
+  /** Conferma della Form Evolution: cosa resta, cosa cambia. */
+  | 'form-evolution'
+  /** Rivelazione di una forma nuova dopo una Form Evolution. */
   | 'new-encounter';
 
-/** §25 — nel prototipo non serve attendere 28 giorni reali. */
-export const INCUBATION_DAYS = 28;
+/** 🔶 v1.4 — sette giorni SINCRONIZZATI, non sette giorni di calendario. */
+export const INCUBATION_DAYS = PROGRESSION.incubationSyncDays;
+
+/** Bond guadagnato per interazione. Era in EconomyConfig; qui è una costante. */
+const BOND_PER_INTERACTION = 0.02;
 
 export interface DevFlags {
   enabled: boolean;
@@ -101,9 +118,10 @@ interface AppState {
 
   health: HealthState;
   progression: Progression;
-  totalXpEarned: number;
-  activeDays: number;
-  branchCount: number;
+  /** Un record per giorno di calendario toccato. È la fonte del SYNC. */
+  days: Record<number, DailySync>;
+  /** Quante forme VINZ.MON ha scoperto finora. */
+  formsDiscovered: number;
 
   /** §2 — seme di personalità, stabile. */
   personality: PersonalitySeed;
@@ -118,40 +136,54 @@ interface AppState {
   chat: ChatMessage[];
 
   pendingHeritage: HeritageOrigin[];
+  /** Cosa sopravvive alla prossima Form Evolution. Deciso prima di confermare. */
+  pendingAnchor: ContinuityAnchorId | null;
 
   /** §29 — traccia dell'ultima generazione, visibile solo in DEV. */
   lastTrace: GenerationTrace | null;
   batch: BatchCandidate[];
 
   dev: DevFlags;
-  economy: EconomyConfig;
   bias: SimulationBias;
 
   /** ⚠️ Chiave API nel browser: prototipo di una persona sola. Vedi ai/client.ts. */
   apiKey: string | null;
 
   advanceDays: (n: number) => void;
+  /**
+   * Come `advanceDays`, ma chiude ogni giornata. Sta in piedi da sé perché il
+   * tempo, da solo, non dà più SYNC: lo dà l'utente che si presenta. Simulare
+   * «sette giorni vissuti e raccontati» richiede di dire entrambe le cose.
+   */
+  simulateSyncedDays: (n: number) => void;
   endWeek: () => void;
   hatch: () => void;
   enterLive: () => void;
   openShift: () => void;
-  doContinue: () => void;
-  startBranch: () => void;
-  confirmBranch: () => void;
+  /** Micro-growth: stessa forma, un dettaglio matura (ogni 7 SYNC). */
+  doMicroGrowth: () => void;
+  /** Prepara l'offerta di Form Evolution mostrando cosa sopravvive. */
+  openFormEvolution: () => void;
+  /** Accetta la trasformazione. È sempre una scelta: si può rimandare. */
+  confirmFormEvolution: () => void;
 
   sendMessage: (text: string) => void;
   logInput: (kind: 'camera' | 'tell' | 'measure' | 'workout', note?: string) => void;
   /** §11 — dichiara gli umori del giorno, al massimo 3. */
   setMoodInputs: (inputs: MoodInputId[]) => void;
+  /** v1.5 — imposta uno dei tre Daily Signals del giorno corrente. */
+  setDailySignal: (key: DailySignalKey, status: SignalStatus, note?: string) => void;
+  /** Chiude la giornata: +1 SYNC, una volta sola per giorno di calendario. */
+  syncDay: () => void;
 
   setDev: (patch: Partial<DevFlags>) => void;
   setApiKey: (key: string | null) => void;
-  setEconomy: (patch: Partial<EconomyConfig>) => void;
+
   setBias: (patch: Partial<SimulationBias>) => void;
   setSignal: (key: StatKey, value: Signal) => void;
-  grantXp: (amount: number) => void;
   grantBond: (amount: number) => void;
-  setEvolutionSync: (value: number) => void;
+  /** DEV — aggiunge giorni sincronizzati senza aspettarli. */
+  grantSync: (days: number) => void;
   injectEvent: (kind: 'event' | 'joke' | 'milestone' | 'gift', text: string) => void;
   generateBatch: (n: number) => void;
   clearBatch: () => void;
@@ -169,10 +201,9 @@ const INITIAL = {
   phase: 'incubation' as Phase,
   day: 1,
   health: initialHealthState(),
-  progression: { xp: 0, level: 1, bond: 0, evolutionSync: 0 } as Progression,
-  totalXpEarned: 0,
-  activeDays: 0,
-  branchCount: 0,
+  progression: { bond: 0, sync: emptySync() } as Progression,
+  days: {} as Record<number, DailySync>,
+  formsDiscovered: 0,
   personality: neutralPersonality(),
   moodHistory: [] as MoodDayEntry[],
   cultural: {} as CulturalAffinities,
@@ -182,15 +213,33 @@ const INITIAL = {
   memories: [] as Memory[],
   chat: [] as ChatMessage[],
   pendingHeritage: [] as HeritageOrigin[],
+  pendingAnchor: null as ContinuityAnchorId | null,
   lastTrace: null as GenerationTrace | null,
   batch: [] as BatchCandidate[],
   dev: { enabled: false, forceContinue: false, forceBranch: false, unlockAll: false },
-  economy: DEFAULT_ECONOMY,
   bias: DEFAULT_BIAS,
   apiKey: null as string | null,
 };
 
 /* --- Helper ---------------------------------------------------------------- */
+
+/** Scrive uno dei tre Daily Signals del giorno, creando il giorno se manca. */
+function withSignal(
+  days: Record<number, DailySync>,
+  day: number,
+  key: DailySignalKey,
+  status: SignalStatus,
+  note?: string,
+): Record<number, DailySync> {
+  const current = days[day] ?? emptyDay(day);
+  return {
+    ...days,
+    [day]: {
+      ...current,
+      signals: { ...current.signals, [key]: { status, note } },
+    },
+  };
+}
 
 function activeRecord(s: AppState): MonRecord | null {
   return s.activeMonName ? (s.mons[s.activeMonName] ?? null) : null;
@@ -223,15 +272,11 @@ function generatorInput(s: AppState): GeneratorInput {
     mindlineDepth: s.nodes.length,
     bond: Math.round(s.progression.bond * 100),
     dataConfidence: aggregateDataConfidence(s.health),
-    activeDays: s.activeDays,
-    branchCount: s.branchCount,
+    activeDays: s.progression.sync.lifetime,
+    branchCount: s.formsDiscovered,
   };
 }
 
-function daysWithActiveMon(s: AppState): number {
-  const rec = activeRecord(s);
-  return rec ? Math.max(0, s.day - rec.bornOnDay) : 0;
-}
 
 export const useApp = create<AppState>()(
   persist(
@@ -242,6 +287,23 @@ export const useApp = create<AppState>()(
 
       advanceDays: (n) => {
         for (let i = 0; i < n; i++) advanceOneDay(set, get);
+      },
+
+      simulateSyncedDays: (n) => {
+        for (let i = 0; i < n; i++) {
+          // Il giorno corrente può essere ancora vuoto: `advanceOneDay` riempie
+          // il giorno in cui *arriva*, non quello da cui parte. I segnali già
+          // noti non si toccano — sovrascriverli cancellerebbe un NOT_APPLICABLE
+          // dichiarato dall'utente, che è una risposta e non un buco.
+          const today = get().days[get().day];
+          for (const key of DAILY_SIGNALS) {
+            if (today?.signals[key].status === undefined || today.signals[key].status === 'UNKNOWN') {
+              get().setDailySignal(key, 'KNOWN', 'simulazione');
+            }
+          }
+          get().syncDay();
+          advanceOneDay(set, get);
+        }
       },
 
       endWeek: () => {
@@ -255,6 +317,7 @@ export const useApp = create<AppState>()(
       hatch: () => {
         const s = get();
         if (s.phase !== 'incubation') return;
+        if (s.progression.sync.lifetime < PROGRESSION.incubationSyncDays) return;
 
         const nodeId = makeNodeId(0);
         const { record, trace } = generateFirstMon({
@@ -294,22 +357,16 @@ export const useApp = create<AppState>()(
 
       /* --- CONTINUE / EVOLVE --- */
 
-      doContinue: () => {
+      /* --- MICRO-GROWTH: stessa forma, un dettaglio che matura --- */
+
+      doMicroGrowth: () => {
         const s = get();
         const rec = activeRecord(s);
         if (!rec) return;
+        if (!s.dev.forceContinue && s.progression.sync.sinceGrowth < PROGRESSION.microGrowthEvery) {
+          return;
+        }
 
-        const stage = rec.data.evolution_state?.stage ?? 0;
-        const check = continueEligibility(
-          s.economy,
-          s.progression.xp,
-          s.progression.evolutionSync,
-          stage,
-          s.dev.forceContinue,
-        );
-        if (!check.eligible) return;
-
-        const cost = s.dev.forceContinue ? 0 : evolveCost(s.economy, stage);
         const nodeId = makeNodeId(s.nodes.length);
 
         const { record, trace } = evolveMon(
@@ -341,10 +398,11 @@ export const useApp = create<AppState>()(
               label: record.data.evolution_state?.label ?? 'BASIC FORM',
             }),
           ],
+          // Il contatore del micro-growth riparte; quello verso la forma no:
+          // «Missing days delay the evolution; they do not erase progress.»
           progression: {
             ...s.progression,
-            xp: Math.max(0, s.progression.xp - cost),
-            evolutionSync: 0,
+            sync: { ...s.progression.sync, sinceGrowth: 0 },
           },
           memories: [
             ...s.memories,
@@ -354,7 +412,7 @@ export const useApp = create<AppState>()(
               event: {
                 kind: 'milestone',
                 title: `${record.data.evolution_state?.label ?? 'NUOVA FORMA'} sbloccata`,
-                text: 'Stessa identità, forma nuova.',
+                text: 'Stessa forma, un dettaglio in più risolto.',
                 memorable: true,
               },
               monName: record.data.name,
@@ -367,29 +425,32 @@ export const useApp = create<AppState>()(
         void preloadMonAssets(record.data.name);
       },
 
-      /* --- BRANCH: prima si sceglie cosa sopravvive (§23) --- */
+      /* --- FORM EVOLUTION: la stessa entità si trasforma --- */
 
-      startBranch: () => {
+      openFormEvolution: () => {
         const s = get();
         const rec = activeRecord(s);
         if (!rec) return;
 
-        const check = branchEligibility(
-          s.economy,
-          daysWithActiveMon(s),
-          s.progression.bond,
-          s.dev.forceBranch,
-        );
-        if (!check.eligible) return;
+        if (!s.dev.forceBranch && s.progression.sync.inForm < PROGRESSION.formEvolutionAt) return;
 
-        const rng = makeRng(seedFromString(`branch:${rec.data.name}:${s.day}`));
-        set({ phase: 'branch', pendingHeritage: selectHeritageOrigins(rng, rec) });
+        // L'ancora si estrae qui, non alla conferma: la schermata deve poter
+        // dire cosa resta *prima* che l'utente decida, altrimenti la scelta è
+        // al buio. Il seme è stabile sul giorno, quindi rientrare non rimescola.
+        const rng = makeRng(seedFromString(`form:${rec.data.name}:${s.day}`));
+        const anchor = CONTINUITY_ANCHORS[Math.floor(rng() * CONTINUITY_ANCHORS.length)]!;
+
+        set({
+          phase: 'form-evolution',
+          pendingHeritage: selectHeritageOrigins(rng, rec),
+          pendingAnchor: anchor.id,
+        });
       },
 
-      confirmBranch: () => {
+      confirmFormEvolution: () => {
         const s = get();
         const previous = activeRecord(s);
-        if (!previous || s.phase !== 'branch') return;
+        if (!previous || s.phase !== 'form-evolution') return;
 
         const nodeId = makeNodeId(s.nodes.length);
         const { record, trace } = generateMon({
@@ -399,12 +460,14 @@ export const useApp = create<AppState>()(
           heritageOrigins: s.pendingHeritage,
           lineageNames: Object.keys(s.mons),
           previous,
+          continuity: s.pendingAnchor ? anchorById(s.pendingAnchor).keeps : undefined,
           seed: randomSeed(),
           devUnlockAll: s.dev.unlockAll,
         });
 
-        const rng = makeRng(seedFromString(`carry:${record.data.name}`));
-        const carried = carryMemoriesThroughBranch(rng, s.memories, previous, record.data.name);
+        // 🔶 Niente `carryMemoriesThroughBranch`: la memoria non si filtra più.
+        // VINZ.MON è una entità sola e le memorie sono sue, non della forma —
+        // la forma è solo un metadato sul ricordo.
 
         set({
           phase: 'new-encounter',
@@ -414,7 +477,7 @@ export const useApp = create<AppState>()(
             [record.data.name]: record,
           },
           activeMonName: record.data.name,
-          branchCount: s.branchCount + 1,
+          formsDiscovered: s.formsDiscovered + 1,
           nodes: [
             ...s.nodes,
             createNode({
@@ -427,10 +490,16 @@ export const useApp = create<AppState>()(
               label: 'BASIC FORM',
             }),
           ],
-          memories: [...s.memories, ...carried],
-          chat: [openingMessage(record, s.day, s.apiKey !== null)],
+          memories: s.memories,
+          chat: [...s.chat, openingMessage(record, s.day, s.apiKey !== null)].slice(-60),
           pendingHeritage: [],
-          progression: { ...s.progression, bond: 0, evolutionSync: 0 },
+          pendingAnchor: null,
+          // Il bond NON si azzera: è la stessa relazione. Riparte solo il
+          // conteggio dei giorni dentro la forma.
+          progression: {
+            ...s.progression,
+            sync: { ...s.progression.sync, inForm: 0, sinceGrowth: 0 },
+          },
           lastTrace: trace,
           dev: { ...s.dev, forceBranch: false },
         });
@@ -466,7 +535,7 @@ export const useApp = create<AppState>()(
           chat: [...s.chat, mine, theirs].slice(-60),
           progression: {
             ...s.progression,
-            bond: Math.min(1, s.progression.bond + s.economy.bondPerInteraction),
+            bond: Math.min(1, s.progression.bond + BOND_PER_INTERACTION),
           },
         });
       },
@@ -474,9 +543,6 @@ export const useApp = create<AppState>()(
       logInput: (kind, note) => {
         const s = get();
         const rec = activeRecord(s);
-
-        const gained = kind === 'workout' ? s.economy.xpPerWorkout : s.economy.xpPerLoggedDay;
-        const totalXpEarned = s.totalXpEarned + gained;
 
         const current = (k: StatKey) =>
           isKnown(s.health.stats[k].value) ? (s.health.stats[k].value as number) : 50;
@@ -512,17 +578,21 @@ export const useApp = create<AppState>()(
           );
         }
 
+        // v1.5 — registrare un dato riempie il segnale corrispondente. Non dà
+        // SYNC: il SYNC lo dà la chiusura della giornata, una volta sola.
+        const signal: DailySignalKey | null =
+          kind === 'workout' ? 'WORKOUT' : kind === 'camera' ? 'FOOD' : null;
+
         set({
           health,
           memories,
-          totalXpEarned,
           progression: {
             ...s.progression,
-            xp: s.progression.xp + gained,
-            level: levelFromXp(s.economy, totalXpEarned),
-            bond: Math.min(1, s.progression.bond + s.economy.bondPerInteraction),
-            evolutionSync: Math.min(1, s.progression.evolutionSync + s.economy.syncPerLoggedDay),
+            bond: Math.min(1, s.progression.bond + BOND_PER_INTERACTION),
           },
+          days: signal
+            ? withSignal(s.days, s.day, signal, 'KNOWN', note)
+            : s.days,
         });
       },
 
@@ -537,11 +607,40 @@ export const useApp = create<AppState>()(
           };
         }),
 
+      setDailySignal: (key, status, note) =>
+        set((s) => ({ days: withSignal(s.days, s.day, key, status, note) })),
+
+      /**
+       * Chiude la giornata. È l'unico punto in cui si guadagna SYNC, e vale
+       * una volta sola per giorno di calendario: «Logging more meals,
+       * workouts, messages or photos improves the quality of the day's data,
+       * but never farms additional SYNC.»
+       */
+      syncDay: () =>
+        set((s) => {
+          const today = s.days[s.day] ?? emptyDay(s.day);
+          if (today.syncAwarded || !canCloseDay(today)) return {};
+
+          return {
+            days: {
+              ...s.days,
+              [s.day]: { ...today, status: 'SYNCED', syncAwarded: true },
+            },
+            progression: {
+              ...s.progression,
+              sync: {
+                lifetime: s.progression.sync.lifetime + 1,
+                inForm: s.progression.sync.inForm + 1,
+                sinceGrowth: s.progression.sync.sinceGrowth + 1,
+              },
+            },
+          };
+        }),
+
       /* --- DEV --- */
 
       setDev: (patch) => set((s) => ({ dev: { ...s.dev, ...patch } })),
       setApiKey: (key) => set({ apiKey: key && key.trim().length > 0 ? key.trim() : null }),
-      setEconomy: (patch) => set((s) => ({ economy: { ...s.economy, ...patch } })),
       setBias: (patch) => set((s) => ({ bias: { ...s.bias, ...patch } })),
 
       setSignal: (key, value) =>
@@ -549,19 +648,6 @@ export const useApp = create<AppState>()(
           const stats = { ...s.health.stats };
           stats[key] = { value, delta: UNKNOWN, confidence: value === UNKNOWN ? 0 : 1 };
           return { health: { ...s.health, stats } };
-        }),
-
-      grantXp: (amount) =>
-        set((s) => {
-          const totalXpEarned = Math.max(0, s.totalXpEarned + Math.max(0, amount));
-          return {
-            totalXpEarned,
-            progression: {
-              ...s.progression,
-              xp: Math.max(0, s.progression.xp + amount),
-              level: levelFromXp(s.economy, totalXpEarned),
-            },
-          };
         }),
 
       grantBond: (amount) =>
@@ -572,9 +658,16 @@ export const useApp = create<AppState>()(
           },
         })),
 
-      setEvolutionSync: (value) =>
+      grantSync: (days) =>
         set((s) => ({
-          progression: { ...s.progression, evolutionSync: Math.max(0, Math.min(1, value)) },
+          progression: {
+            ...s.progression,
+            sync: {
+              lifetime: Math.max(0, s.progression.sync.lifetime + days),
+              inForm: Math.max(0, s.progression.sync.inForm + days),
+              sinceGrowth: Math.max(0, s.progression.sync.sinceGrowth + days),
+            },
+          },
         })),
 
       injectEvent: (kind, text) =>
@@ -752,8 +845,14 @@ export const useApp = create<AppState>()(
         }),
     }),
     {
-      name: 'vinzverce.prototype.v2',
-      version: 2,
+      // 🔶 Chiave NUOVA, non un bump di `version`. Il modello di progressione è
+      // cambiato in modo incompatibile — `progression` non ha più `xp`, `level`
+      // né `evolutionSync` — e una partita salvata con la forma vecchia
+      // manderebbe in errore la prima schermata che legge `sync.lifetime`.
+      // Cambiare chiave fa ripartire da capo invece di rompersi, che per un
+      // prototipo è il comportamento onesto.
+      name: 'vinzmon.prototype.v3',
+      version: 3,
       partialize: (s) => {
         const { batch: _batch, ...rest } = s;
         return rest as AppState;
@@ -771,51 +870,52 @@ function advanceOneDay(set: (p: Partial<AppState>) => void, get: () => AppState)
 
   const input = simulateDayInput(rng, s.health, s.bias);
   const health = applyDay(s.health, day, input);
-  const activeDays = s.activeDays + (input.logged ? 1 : 0);
+
+  // La simulazione riempie i segnali che i dati automatici possono riempire —
+  // cibo e allenamento — e lascia UNKNOWN l'umore, che nessun sensore può
+  // dedurre: «should not silently fabricate subjective information such as
+  // Mood». Il giorno resta PARTIAL finché non lo chiudi tu.
+  let days = s.days;
+  if (input.logged) {
+    days = withSignal(days, day, 'FOOD', 'KNOWN', 'da dati automatici');
+    days = withSignal(
+      days,
+      day,
+      'WORKOUT',
+      'KNOWN',
+      input.workout ? 'allenamento rilevato' : 'giorno di riposo',
+    );
+  }
 
   if (s.phase === 'incubation') {
-    set({ day, health, activeDays });
+    set({ day, health, days });
     return;
   }
 
   const rec = activeRecord(s);
   if (!rec) {
-    set({ day, health, activeDays });
+    set({ day, health, days });
     return;
   }
 
-  const gained = input.logged
-    ? s.economy.xpPerLoggedDay + (input.workout ? s.economy.xpPerWorkout : 0)
-    : 0;
-
   const event = rollDailyEvent(rng, input.logged, input.workout);
   const memories = [...s.memories];
-  let bonusXp = 0;
 
   if (event?.memorable) {
     memories.push(
       makeMemory({ id: `mem_${day}_${memories.length}`, day, event, monName: rec.data.name }),
     );
-    bonusXp = s.economy.xpPerMemory;
   }
-
-  const totalXpEarned = s.totalXpEarned + gained + bonusXp;
 
   set({
     day,
     health,
+    days,
     memories,
-    totalXpEarned,
-    activeDays,
+    // Nessun SYNC qui: il giorno lo chiude l'utente, non il passare del tempo.
     progression: {
       ...s.progression,
-      xp: s.progression.xp + gained + bonusXp,
-      level: levelFromXp(s.economy, totalXpEarned),
       bond: Math.min(1, s.progression.bond + (input.logged ? 0.012 : 0)),
-      evolutionSync: Math.min(
-        1,
-        s.progression.evolutionSync + (input.logged ? s.economy.syncPerLoggedDay : 0),
-      ),
     },
   });
 }
@@ -911,45 +1011,65 @@ export function useActiveMon(): MonRecord | null {
   return useApp((s) => (s.activeMonName ? (s.mons[s.activeMonName] ?? null) : null));
 }
 
-export function useContinueCheck() {
-  const rec = useActiveMon();
-  const economy = useApp((s) => s.economy);
-  const xp = useApp((s) => s.progression.xp);
-  const sync = useApp((s) => s.progression.evolutionSync);
-  const forced = useApp((s) => s.dev.forceContinue);
+/** Il prossimo evento di crescita e quanto manca. È l'unica barra della Home. */
+export function useGrowth() {
+  const sync = useApp((s) => s.progression.sync);
+  const phase = useApp((s) => s.phase);
+  const forceGrowth = useApp((s) => s.dev.forceContinue);
+  const forceForm = useApp((s) => s.dev.forceBranch);
 
-  const stage = rec?.data.evolution_state?.stage ?? 0;
+  const hatched = phase !== 'incubation';
+  const event = nextEvent(sync, hatched);
+
   return {
-    check: continueEligibility(economy, xp, sync, stage, forced),
-    cost: evolveCost(economy, stage),
+    sync,
+    event,
+    microGrowthReady: forceGrowth || sync.sinceGrowth >= PROGRESSION.microGrowthEvery,
+    formEvolutionReady: forceForm || sync.inForm >= PROGRESSION.formEvolutionAt,
+    progress: Math.min(1, event.have / event.need),
   };
 }
 
-export function useBranchCheck() {
-  const rec = useActiveMon();
-  const economy = useApp((s) => s.economy);
+/** Il giorno corrente: i tre segnali e se è chiudibile. */
+export function useToday() {
   const day = useApp((s) => s.day);
-  const bond = useApp((s) => s.progression.bond);
-  const forced = useApp((s) => s.dev.forceBranch);
+  const record = useApp((s) => s.days[s.day]);
 
-  const days = rec ? Math.max(0, day - rec.bornOnDay) : 0;
-  return { check: branchEligibility(economy, days, bond, forced), days };
+  const today = record ?? emptyDay(day);
+  return {
+    day: today,
+    status: dayStatus(today),
+    known: knownSignals(today),
+    canClose: canCloseDay(today) && !today.syncAwarded,
+    closed: today.syncAwarded,
+  };
 }
 
+/**
+ * 🔶 v1.4 — l'incubazione conta i giorni SINCRONIZZATI, non quelli passati.
+ * «If a day is missing, incubation does NOT reset»: il giorno resta aperto e
+ * l'hatch aspetta finché non ce ne sono sette validi.
+ */
 export function useIncubation() {
-  const day = useApp((s) => s.day);
+  const synced = useApp((s) => s.progression.sync.lifetime);
   const stats = useApp((s) => s.health.stats);
 
-  const elapsed = Math.min(INCUBATION_DAYS, day);
+  const done = Math.min(INCUBATION_DAYS, synced);
   const known = STAT_KEYS.filter((k) => isKnown(stats[k].value)).length;
 
   return {
-    day: elapsed,
+    day: done,
     total: INCUBATION_DAYS,
-    progress: elapsed / INCUBATION_DAYS,
+    progress: done / INCUBATION_DAYS,
     stability: known / STAT_KEYS.length,
-    ready: elapsed >= INCUBATION_DAYS,
+    ready: synced >= INCUBATION_DAYS,
   };
+}
+
+/** L'ancora di continuità in attesa di conferma, già risolta. */
+export function usePendingAnchor(): ContinuityAnchor | null {
+  const id = useApp((s) => s.pendingAnchor);
+  return id ? anchorById(id) : null;
 }
 
 /** Umori dichiarati oggi (§11). */

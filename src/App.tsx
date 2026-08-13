@@ -48,7 +48,7 @@ export type Overlay =
   | 'dev';
 
 /** Le fasi su campo nero, lette dal board. */
-const INK_PHASES: Phase[] = ['incubation', 'first-encounter', 'branch', 'new-encounter'];
+const INK_PHASES: Phase[] = ['incubation', 'first-encounter', 'new-encounter'];
 
 export function App() {
   const phase = useApp((s) => s.phase);
@@ -127,7 +127,7 @@ function PhaseScreen({
       return <MindlineShiftScreen />;
     case 'evolution':
       return <EvolutionScreen />;
-    case 'branch':
+    case 'form-evolution':
       return <NewBranchScreen />;
     case 'live':
       switch (tab) {
@@ -206,14 +206,14 @@ function TabBar({ tab, onChange }: { tab: Tab; onChange: (t: Tab) => void }) {
 
 function StatusBar({ showDev, onOpenDev }: { showDev: boolean; onOpenDev: () => void }) {
   const day = useApp((s) => s.day);
-  const level = useApp((s) => s.progression.level);
+  const sync = useApp((s) => s.progression.sync.lifetime);
 
   return (
     <div className="proto-statusbar t-micro">
-      <span>VINZ.VERCE</span>
+      <span>VINZ.MON</span>
       <span className="proto-statusbar__right">
         <span>
-          {t.common.day} {day} · {t.common.level} {level}
+          {t.common.day} {day} · {sync} {t.common.sync}
         </span>
         {/* Il trigger DEV sta qui e non fluttuante sopra la schermata:
             in overlay senza tab bar copriva il contenuto. */}

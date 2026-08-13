@@ -1,6 +1,6 @@
 {
-  "name": "VINZ.VERCE",
-  "short_name": "VINZ.VERCE",
+  "name": "VINZ.MON",
+  "short_name": "VINZ.MON",
   "description": "Prototipo: creature .mon generate dai tuoi segnali reali.",
   "start_url": "/",
   "display": "standalone",

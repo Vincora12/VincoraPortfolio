@@ -94,8 +94,8 @@ export function HeritageDnaScreen({ onClose }: { onClose: () => void }) {
 
             <p className="t-small heritage__lead">
               {d.heritage_traits.length === 1
-                ? '1 tratto ha attraversato la deviazione.'
-                : `${d.heritage_traits.length} tratti hanno attraversato la deviazione.`}{' '}
+                ? '1 tratto ha attraversato il cambio di forma.'
+                : `${d.heritage_traits.length} tratti hanno attraversato il cambio di forma.`}{' '}
               Nessuno è stato copiato: ognuno è stato riscritto nell'anatomia {d.family}.
             </p>
 
