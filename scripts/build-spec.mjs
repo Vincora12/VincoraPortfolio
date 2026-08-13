@@ -1,5 +1,5 @@
 /* ============================================================================
-   MASTER SPEC v1.9 — generatore del documento
+   MASTER SPEC v1.10 — generatore del documento
 
    Il documento non si scrive a mano: si genera da qui. Il motivo è lo stesso
    per cui `feature-check.mjs` esiste — in un progetto costruito a conversazione
@@ -9,10 +9,10 @@
 
    Richiede `docx`, che NON sta in package.json di proposito: serve solo a
    generare il documento, e non deve entrare nella build del sito.
-     npm install docx --no-save && node scripts/build-spec-v19.mjs
+     npm install docx --no-save && node scripts/build-spec.mjs
 
-   Uso:  node scripts/build-spec-v19.mjs
-   Esce: VINZ_MON_MASTER_SPEC_v1.9.docx
+   Uso:  node scripts/build-spec.mjs
+   Esce: VINZ_MON_MASTER_SPEC_v1.10.docx
    ========================================================================= */
 
 import {
@@ -121,14 +121,14 @@ body.push(
     spacing: { after: 60 },
   }),
   new Paragraph({
-    children: [new TextRun({ text: 'MASTER SPEC v1.9 — SINGLE SOURCE', size: 28 })],
+    children: [new TextRun({ text: 'MASTER SPEC v1.10 — SINGLE SOURCE', size: 28 })],
     alignment: AlignmentType.CENTER,
     spacing: { after: 40 },
   }),
   new Paragraph({
     children: [
       new TextRun({
-        text: 'Consolida la v1.8 e recepisce le decisioni prese costruendo il prototipo',
+        text: 'Consolida la v1.8 e recepisce le decisioni prese costruendo e provando il prototipo',
         italics: true,
         color: '555555',
       }),
@@ -148,6 +148,7 @@ body.push(
   rule('🟡', 'DA TARARE — la direzione è decisa, i numeri no.'),
   rule('🔴', 'RIMANDATA — non serve alla fase corrente.'),
   rule('🔶', 'NUOVA IN v1.9 — decisa costruendo, non prevista dalla v1.8.'),
+  rule('🔷', 'NUOVA IN v1.10 — decisa provando l\'app, non prevista dalla v1.9.'),
 );
 
 /* --- 0. Cosa cambia -------------------------------------------------------- */
@@ -157,6 +158,7 @@ body.push(h1('0 · COSA CAMBIA RISPETTO ALLA v1.8'));
 body.push(
   p('La v1.8 era il primo documento non contraddittorio, e regge. Quello che segue non la corregge: la completa nei punti in cui costruire il prototipo ha fatto emergere una decisione che sulla carta non si poteva vedere.'),
   p('Le sezioni nuove sono nove, e nessuna nasce da un ripensamento. Sette nascono da un uso reale dell\'app, due da un vincolo tecnico che il documento non poteva conoscere.'),
+  p('La v1.10 ne aggiunge due, ed entrambe nascono dallo stesso posto: aver usato l\'app invece di leggerla. §5.3 corregge un modello troppo povero — il cibo era un booleano — e §7.2 riempie sette giorni che erano rimasti muti.'),
 );
 
 body.push(spacer());
@@ -175,6 +177,8 @@ body.push(
       ['§15.1', 'L\'archivio memorie non ha superfici di prodotto', 'leggerlo rompe l\'illusione del ricordo'],
       ['§18.1', 'Registro dei costi AI', 'la v1.8 §18 lo chiedeva senza definirlo'],
       ['§23.1–23.2', 'Otto asset, griglie definite, ordine di produzione', 'vincolo tecnico dei modelli di immagini'],
+      ['§5.3 🔷', 'Il PROTOCOLLO: cosa mangio, non se mangio', 'un booleano non basta a formare una creatura'],
+      ['§7.2 🔷', 'L\'uovo risponde, ma solo a suoni', 'sette giorni di registrazione senza nessuno dall\'altra parte'],
     ],
   ),
 );
@@ -250,6 +254,68 @@ body.push(
   rule('🔒', 'Le MISURE si scrivono nella frase — «peso 78», «dormito 6 ore» — e alimentano le sei stat di §4. Non sono un quarto Daily Signal e NON danno SYNC.'),
 );
 
+/* --- 5.3 PROTOCOLLO 🔷 ------------------------------------------------------*/
+
+body.push(h1('5.3 · IL PROTOCOLLO: COSA MANGIO, NON SE MANGIO 🔷'));
+
+body.push(
+  p('Il segnale CIBO di §5.1 era un booleano travestito: KNOWN, NOT_APPLICABLE, UNKNOWN. Sapeva CHE avevi mangiato, non COSA. Ma un giorno a pollo e verdure e un giorno a birra e fritto sono lo stesso giorno solo per un contatore — e questo non è un contatore, è un motore che trasforma la vita in una creatura. Se i due giorni producono la stessa creatura, il motore sta mentendo.'),
+  p('Serviva un metro. Non può essere una tabella nutrizionale — non è quel prodotto e non ne ha i dati — e non può essere un giudizio del sistema. È quello che hai dichiarato tu.'),
+);
+
+body.push(h2('Cosa si dichiara, e quando'));
+
+body.push(
+  rule('🔒', 'All\'ingresso, dopo il Signal Scan e prima che il tempo cominci, si dichiarano LA DIETA e L\'ALLENAMENTO che stai seguendo.'),
+  rule('🔒', 'L\'ordine non è casuale: lo scan semina CHI SEI, il protocollo dichiara COSA STAI PROVANDO A FARE. La creatura nasce dalla distanza fra le due cose.'),
+  rule('🔒', 'Testo libero, nessun campo preimpostato — §5.2 vale identico qui. Chi segue una dieta ce l\'ha già scritta da qualche parte e la incolla.'),
+  rule('🔒', 'Quello che il sistema ha capito si vede MENTRE scrivi, prima di confermare.'),
+  rule('🔒', 'SI PUÒ SALTARE. Senza protocollo il cibo si registra lo stesso e l\'aderenza resta SCONOSCIUTA. Nessuna schermata insiste dopo.'),
+  rule('🔒', 'È sempre modificabile, da ME. Una dieta cambia; un metro che non si può aggiornare diventa una bugia nel giro di un mese.'),
+);
+
+body.push(h2('I quattro stati dell\'aderenza'));
+
+body.push(spacer());
+body.push(
+  table(
+    ['STATO', 'QUANDO', 'COSA DICE ALL\'UTENTE'],
+    [
+      ['IN LINEA', 'quello che hai mangiato è nel piano', 'in linea col protocollo'],
+      ['FUORI', 'è fra le cose che il piano evita', 'fuori dal protocollo'],
+      ['MISTO', 'c\'erano entrambe le cose', 'in parte fuori dal protocollo'],
+      ['SCONOSCIUTA', 'il piano non dice niente su questo, o non c\'è un piano', 'il protocollo non dice niente su questo'],
+    ],
+  ),
+);
+body.push(spacer());
+
+body.push(
+  note('SCONOSCIUTA è la risposta onesta quando manca il metro, ed è comune: un protocollo che nomina cinque gruppi non ha un\'opinione sugli altri cinque. Non è un buco da riempire.'),
+);
+
+body.push(h2('La regola di tono — non negoziabile'));
+
+body.push(
+  rule('🔒', 'L\'ADERENZA NON È UN VOTO. Non esiste un giorno «giusto» e uno «sbagliato»: esistono due input diversi che producono due creature diverse.'),
+  rule('🔒', 'Fuori protocollo NON abbassa il SYNC, non rallenta l\'evoluzione, non fa comparire nessun avviso e non compare come punteggio da nessuna parte.'),
+  rule('🔒', 'CARE SALE SEMPRE, in tutti e quattro gli stati. CARE misura quanta attenzione ti stai dando, e raccontare com\'è andata davvero È attenzione — è l\'unica cosa che l\'app può misurare senza mentire.'),
+  rule('🔒', 'FORM si muove nelle due direzioni, perché FORM è la traduzione fisica del protocollo e mentire lì renderebbe il dato inutile. Il movimento è piccolo: un giorno non ribalta una forma, una settimana sì.'),
+);
+
+body.push(
+  note('Il motivo per cui CARE non scende mai: se un giorno storto abbassasse CARE, il prodotto insegnerebbe a tacere nei giorni storti — cioè esattamente quando serve che tu parli. §4 vieta la vergogna, e questa è la riga in cui il codice la rispetta invece di dichiararla.'),
+);
+
+body.push(h2('Come è fatto il lettore'));
+
+body.push(
+  rule('🔒', 'Dieci gruppi alimentari e cinque tipi di allenamento. Sono i termini in cui una dieta è scritta davvero: «poche fritture, più proteine», non «riduci i lipidi al 22%».'),
+  rule('🔒', 'Deterministico e senza rete, come §5.1. La negazione — «niente», «pochi», «evito» — vale solo dentro la propria proposizione: «niente dolci, tanta frutta» sono due dichiarazioni opposte separate da una virgola.'),
+  rule('🔒', 'Il vocabolario conosce i PIATTI, non solo gli ingredienti. Nessuno scrive «pasta all\'uovo con guanciale»: scrive «carbonara».'),
+  rule('🟡', 'Il vocabolario è tarabile e vive in un file solo. Una parola che manca è un dato perso in silenzio, quindi le frasi di prova stanno nella suite di verifica.'),
+);
+
 /* --- 7.1 --------------------------------------------------------------------*/
 
 body.push(h1('7.1 · REGISTRARE DURANTE L\'INCUBAZIONE 🔶'));
@@ -260,6 +326,26 @@ body.push(
 
 body.push(
   note('Era un buco, non una scelta: l\'incubazione conta giorni SINCRONIZZATI (§7) e un giorno lo chiude l\'utente (§6), ma la navigazione appariva solo dopo l\'HATCH. La soglia era irraggiungibile se non da DEV.'),
+);
+
+/* --- 7.2 L'UOVO 🔷 ----------------------------------------------------------*/
+
+body.push(h1('7.2 · L\'UOVO NON PARLA, MA RISPONDE 🔷'));
+
+body.push(
+  p('§7.1 aveva aperto la registrazione durante l\'incubazione, ma con un pulsante che portava a una schermata di segnali: registravi senza che ci fosse nessuno dall\'altra parte. Sette giorni così sono un modulo, non un rapporto — e sono i sette giorni che decidono se l\'app viene riaperta.'),
+);
+
+body.push(
+  rule('🔒', 'Durante l\'incubazione c\'è una CHAT, identica a quella di dopo: stesso campo, stessa estrazione, stessa riga di conferma.'),
+  rule('🔒', 'L\'uovo NON PARLA. Risponde con dei SUONI, da un vocabolario chiuso che non contiene nessuna parola di nessuna lingua.'),
+  rule('🔒', 'Il motivo non è grafico. §12/01 vieta di anticipare la forma futura, e una creatura che ti risponde a parole prima di nascere la anticipa nel modo peggiore: con la personalità, che è la cosa che stai ancora seminando.'),
+  rule('🔒', 'NESSUNA CHIAMATA AI durante l\'incubazione. Non c\'è ancora una voce da far scrivere a un modello — e di conseguenza sette giorni di uso quotidiano non costano nulla.'),
+  rule('🔒', 'Il suono è PRESENZA, l\'etichetta è INFORMAZIONE. Cosa è stato registrato lo dice la riga «registrato: CIBO · UMORE», come in chat normale. Il suono non va decifrato: deve solo far sentire che dall\'altra parte c\'è qualcosa.'),
+  rule('🔒', 'Reagisce a quello che hai detto, non a caso: tensione, calore, presa d\'atto, curiosità.'),
+  rule('🔒', 'Si sveglia piano — nei primi giorni fa un suono solo, verso la fine tre. È l\'unica misura di avvicinamento che si sente addosso invece di leggerla in una barra.'),
+  rule('🔒', 'Ma se ha SENTITO qualcosa, reagisce sempre. Il risveglio graduale lo porta il numero di suoni, mai il silenzio: il primissimo messaggio — quello che decide se uno ci riprova domani — non può ricevere un puntino.'),
+  rule('🔒', 'Quello che gli racconti prima che nasca entra nella memoria e alimenta la voce che avrà dopo. I suoni spariscono con l\'HATCH; il contenuto resta.'),
 );
 
 /* --- 8.1 --------------------------------------------------------------------*/
@@ -499,6 +585,8 @@ body.push(
       ['GRACE non definito', 'pausa dichiarata che non dà SYNC (§14.2)'],
       ['Calendario a numeri di giorno', 'date reali (§14.1)'],
       ['Incubazione senza registrazione', 'si registra come sempre (§7.1)'],
+      ['CIBO come sì/no', 'gruppi alimentari e aderenza al protocollo (§5.3)'],
+      ['Incubazione come pulsante verso un modulo', 'una chat con qualcuno che risponde (§7.2)'],
     ],
   ),
 );
@@ -511,6 +599,9 @@ body.push(h1('26 · ANCORA APERTE'));
 body.push(
   rule('🟡', 'PESI DEL SIGNAL SCAN — le direzioni di §12 sono canoniche, i coefficienti numerici no. Vivono in un file solo.'),
   rule('🟡', 'PREZZI DEI MODELLI — cablati e da ricontrollare (§18.1).'),
+  rule('🟡', 'VOCABOLARIO ALIMENTARE — dieci gruppi e le parole che li nominano. La struttura è decisa, l\'elenco cresce con l\'uso: una parola che manca è un dato perso in silenzio.'),
+  rule('🟡', 'FREQUENZA DEI PASTI — «5 pasti al giorno» si legge e si conserva, ma il motore non ne fa ancora niente.'),
+  rule('🔴', 'ADERENZA SU FINESTRA LUNGA — oggi l\'aderenza agisce pasto per pasto sulle stat. Una lettura settimanale («questa settimana sei stato in linea al 70%») è più vera, ma serve prima vedere dei dati veri.'),
   rule('🟡', 'TRIGGER NASCOSTO DI SINGULAR — GB §15 lo richiede ma non definisce l\'evento.'),
   rule('🟡', 'AFFINITÀ CULTURALI — gli otto tag esistono e alimentano i segnali, ma nessuna superficie li fa dichiarare.'),
   rule('🔴', 'AI PER LE IMMAGINI — richiede un modello con immagine di riferimento e un posto dove mettere i file che non sia il browser.'),
@@ -537,7 +628,7 @@ body.push(h1('27 · COSA NON CAMBIA'));
 
 const doc = new Document({
   creator: 'VINZ.MON',
-  title: 'VINZ.MON MASTER SPEC v1.9',
+  title: 'VINZ.MON MASTER SPEC v1.10',
   description: 'Consolida la v1.8 e recepisce le decisioni prese costruendo il prototipo',
   styles: {
     default: {
@@ -563,5 +654,5 @@ const doc = new Document({
 });
 
 const buffer = await Packer.toBuffer(doc);
-writeFileSync('VINZ_MON_MASTER_SPEC_v1.9.docx', buffer);
-console.log(`✓ VINZ_MON_MASTER_SPEC_v1.9.docx — ${body.length} blocchi`);
+writeFileSync('VINZ_MON_MASTER_SPEC_v1.10.docx', buffer);
+console.log(`✓ VINZ_MON_MASTER_SPEC_v1.10.docx — ${body.length} blocchi`);
