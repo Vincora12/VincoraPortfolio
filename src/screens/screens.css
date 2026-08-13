@@ -2837,3 +2837,94 @@
     animation: none;
   }
 }
+
+/* ============================================================================
+   RIEPILOGO DELLA GIORNATA (v1.11 §5.4)
+
+   Cinque caselle per il cibo, una riga per l'allenamento, una per l'umore.
+   Nessun rosso, nessuna spunta mancata: una casella vuota dice che di quel
+   pasto non si sa niente, non che hai sbagliato.
+   ========================================================================= */
+
+.daysum {
+  display: flex;
+  flex-direction: column;
+  gap: var(--u4);
+}
+
+.daysum__block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--u2);
+}
+
+.daysum__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--u2);
+  border-bottom: 1px solid var(--hairline);
+  padding-bottom: var(--u);
+}
+
+.daysum__count {
+  color: var(--muted-strong);
+  font-variant-numeric: tabular-nums;
+}
+
+.daysum__meals {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--u);
+}
+
+.daysum__meal {
+  display: grid;
+  grid-template-columns: 14px 88px 1fr;
+  align-items: baseline;
+  gap: var(--u2);
+  color: var(--muted);
+}
+
+/* Il segno pieno e il testo scuro arrivano insieme: §17 vuole che lo stato non
+   dipenda mai dal solo colore. */
+.daysum__meal--told {
+  color: var(--ink);
+}
+
+.daysum__mark {
+  font-family: var(--font-mono);
+  color: var(--char-accent);
+}
+
+.daysum__mealname {
+  color: inherit;
+}
+
+.daysum__mealnote {
+  color: var(--muted-strong);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.daysum__guess {
+  grid-column: 3;
+  color: var(--muted);
+  font-style: italic;
+}
+
+.daysum__line {
+  margin: 0;
+  color: var(--muted-strong);
+}
+
+.daysum__rule {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.45;
+  border-top: 1px solid var(--hairline);
+  padding-top: var(--u2);
+}

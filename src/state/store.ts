@@ -23,6 +23,7 @@ import {
   DAILY_SIGNALS,
   PROGRESSION,
   canCloseDay,
+  dateForDay,
   dayStatus,
   emptyDay,
   emptySync,
@@ -63,6 +64,7 @@ import {
   hasUsableDiet,
   parseDiet,
   parseTraining,
+  plannedFor,
   type Protocol,
 } from '../engine/protocol';
 import { MOOD_INPUT_RULES, type MoodInputId } from '../engine/generation-config';
@@ -342,6 +344,29 @@ function applyExtraction(
     }
   }
 
+  /* 🔷 v1.11 §5.4 — il pasto si aggiunge SEMPRE, anche quando il segnale CIBO
+     è già noto. È la differenza fra il segnale e il dettaglio: FOOD dice «di
+     cibo oggi so qualcosa» e si riempie una volta; i pasti sono cinque caselle
+     che si riempiono nel corso della giornata, ed è esattamente quello che una
+     persona fa — racconta la colazione la mattina e la cena la sera. */
+  if (found.meal && found.signals.FOOD?.status === 'KNOWN') {
+    const current = days[s.day] ?? emptyDay(s.day);
+    days = {
+      ...days,
+      [s.day]: {
+        ...current,
+        meals: {
+          ...current.meals,
+          [found.meal]: {
+            groups: found.foodGroups,
+            note: found.signals.FOOD.note ?? '',
+            fromClock: found.mealFromClock,
+          },
+        },
+      },
+    };
+  }
+
   // §11 — al massimo 3 umori al giorno, e quelli già dichiarati restano.
   const declared = s.moodHistory.find((d) => d.day === s.day)?.inputs ?? [];
   const merged = [...declared];
@@ -387,6 +412,38 @@ function adherenceTouch(
   }
 
   return touched;
+}
+
+/**
+ * 🔷 v1.11 §5.4 — «lui saprà dal mio piano se sono a riposo quel giorno».
+ *
+ * Se il piano dice che oggi è riposo, ALLENAMENTO si riempie da solo come
+ * NOT_APPLICABLE — che non è un buco ma una risposta (§v1.5). Chiudere la
+ * giornata smette di richiedere che tu dica «oggi niente palestra» a un
+ * sistema che ha già il tuo programma sotto gli occhi.
+ *
+ * 🔒 Tre limiti, e sono la differenza fra aiutare e decidere al posto tuo:
+ *
+ * 1. Vale SOLO quando il piano nomina quel giorno. Un giorno che il piano non
+ *    dice resta UNKNOWN: inventare un riposo dove non è scritto sarebbe la
+ *    stessa bugia che §5 vieta ai sensori.
+ * 2. NON sovrascrive mai quello che hai raccontato. Se il piano dice riposo e
+ *    tu sei andato a correre, vince quello che hai detto.
+ * 3. Il contrario NON esiste. Un giorno in cui il piano prevede pesi non
+ *    diventa mai «allenamento fatto», e soprattutto non diventa mai un
+ *    allenamento MANCATO: il piano è un'intenzione, non un debito. §4 vieta la
+ *    vergogna, e un sistema che segna le assenze la reintroduce dal retro.
+ */
+function applyPlannedRest(
+  set: (p: Partial<AppState>) => void,
+  get: () => AppState,
+): void {
+  const s = get();
+  const date = dateForDay(s.day, s.startedAt);
+  if (plannedFor(s.protocol.training, date) !== 'REST') return;
+  if ((s.days[s.day]?.signals.WORKOUT.status ?? 'UNKNOWN') !== 'UNKNOWN') return;
+
+  set({ days: withSignal(s.days, s.day, 'WORKOUT', 'NOT_APPLICABLE', 'riposo, da programma') });
 }
 
 function activeRecord(s: AppState): MonRecord | null {
@@ -450,15 +507,15 @@ export const useApp = create<AppState>()(
 
       /* --- 🔶 v1.10 §5.3 PROTOCOLLO --- */
 
-      declareProtocol: (dietText, trainingText) =>
-        set({
-          protocol: {
-            diet: parseDiet(dietText),
-            training: parseTraining(trainingText),
-            declaredAt: new Date().toISOString(),
-          },
-          phase: 'incubation',
-        }),
+      declareProtocol: (dietText, trainingText) => {
+        const protocol: Protocol = {
+          diet: parseDiet(dietText),
+          training: parseTraining(trainingText),
+          declaredAt: new Date().toISOString(),
+        };
+        set({ protocol, phase: 'incubation' });
+        applyPlannedRest(set, get);
+      },
 
       // Saltare è legittimo e non è un ripiego: senza protocollo il cibo si
       // registra lo stesso, l'aderenza resta SCONOSCIUTA e nessuna schermata
@@ -1272,12 +1329,14 @@ function advanceOneDay(set: (p: Partial<AppState>) => void, get: () => AppState)
 
   if (s.phase === 'incubation') {
     set({ day, health, days });
+    applyPlannedRest(set, get);
     return;
   }
 
   const rec = activeRecord(s);
   if (!rec) {
     set({ day, health, days });
+    applyPlannedRest(set, get);
     return;
   }
 
@@ -1301,6 +1360,8 @@ function advanceOneDay(set: (p: Partial<AppState>) => void, get: () => AppState)
       bond: Math.min(1, s.progression.bond + (input.logged ? 0.012 : 0)),
     },
   });
+
+  applyPlannedRest(set, get);
 }
 
 /* --- Utilità ---------------------------------------------------------------- */

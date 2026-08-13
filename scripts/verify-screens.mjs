@@ -176,7 +176,7 @@ try {
     .fill('tante proteine e verdura, pochi carboidrati la sera, niente dolci né alcol, 5 pasti al giorno');
   await page
     .locator('.protocol__area').nth(1)
-    .fill('pesi 4 volte a settimana, corsa il sabato');
+    .fill('pesi lunedi mercoledi venerdi, corsa il sabato, domenica riposo');
   await sleep(200);
   await shot('04-protocollo-letto');
   await click(byText('CONFERMA IL PROTOCOLLO'), 'conferma protocollo');
@@ -199,7 +199,7 @@ try {
   /* 05 — INCUBAZIONE: si parla all'uovo, e l'uovo risponde a suoni (§7.2) */
   await shot('05-incubazione');
 
-  await page.locator('.composer--egg input').fill('oggi pollo e broccoli, poi palestra');
+  await page.locator('.composer--egg input').fill('a pranzo pollo e broccoli, poi palestra');
   await click('.composer--egg .btn-icon:last-child', 'parla all’uovo');
   await sleep(300);
   await shot('05-incubazione-suono');
@@ -261,6 +261,12 @@ try {
   // §14 vuole il dettaglio del giorno con i tre segnali e la provenienza.
   await click('.cal__cell--today', 'dettaglio di oggi');
   await shot('09c-calendario-giorno');
+
+  // 🔷 v1.11 §5.4 — il riepilogo sta in fondo al dettaglio: senza scorrere,
+  // lo screenshot non lo vede e non serve a niente.
+  await page.locator('.daysum').scrollIntoViewIfNeeded();
+  await sleep(200);
+  await shot('09d-riepilogo-giornata');
 
   /* 08 — DAILY SCAN si apre da «oggi», che è dove si va a raccontare. */
   await click('.cal__today', 'apri la giornata');

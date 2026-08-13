@@ -161,16 +161,97 @@ export interface DietProtocol {
   pursue: FoodGroup[];
   /** Quello che il piano chiede di evitare. */
   avoid: FoodGroup[];
-  /** «5 pasti al giorno», se l'ha detto. 🟡 non ancora usato dal motore. */
+  /** «5 pasti al giorno», se l'ha detto. Alimenta il riepilogo (§5.4). */
   mealsPerDay: number | null;
   /** Il testo originale, intatto. È la fonte: il resto è la mia lettura. */
   text: string;
 }
 
+/* --- I pasti della giornata (v1.11 §5.4) ------------------------------------
+   Cinque, e sono quelli che una persona nomina davvero. Non è una tabella
+   nutrizionale: è il modo in cui uno racconta la propria giornata.
+   -------------------------------------------------------------------------- */
+
+export const MEAL_SLOTS = ['COLAZIONE', 'SPUNTINO', 'PRANZO', 'MERENDA', 'CENA'] as const;
+export type MealSlot = (typeof MEAL_SLOTS)[number];
+
+export const MEAL_LABELS: Record<MealSlot, string> = {
+  COLAZIONE: 'colazione',
+  SPUNTINO: 'spuntino',
+  PRANZO: 'pranzo',
+  MERENDA: 'merenda',
+  CENA: 'cena',
+};
+
+/** Come si nomina un pasto quando lo si racconta. */
+const MEAL_WORDS: Record<MealSlot, readonly string[]> = {
+  COLAZIONE: ['colazione', 'a colazione', 'stamattina ho mangiat', 'appena sveglio'],
+  SPUNTINO: ['spuntino', 'a meta mattina', 'meta mattina', 'snack di mattina'],
+  PRANZO: ['pranzo', 'pranzat', 'a pranzo', 'a mezzogiorno'],
+  MERENDA: ['merenda', 'a merenda', 'meta pomeriggio', 'pomeriggio ho mangiat'],
+  CENA: ['cena', 'cenat', 'a cena', 'stasera ho mangiat'],
+};
+
+/**
+ * A che pasto si riferisce una frase.
+ *
+ * Prima si guarda se l'ha detto — «a pranzo pollo e broccoli» non lascia dubbi.
+ * Se non l'ha detto si guarda l'ora, perché è l'indizio più forte che esista e
+ * chiedere «era pranzo o cena?» a chi ha appena scritto cosa ha mangiato è
+ * esattamente la domanda di troppo che §5.2 vuole togliere.
+ *
+ * 🔒 La deduzione dall'ora è SEMPRE dichiarata in interfaccia: si vede scritto
+ * quale pasto ha capito, e si corregge riscrivendo. Dedurre in silenzio sarebbe
+ * la stessa bugia che §5 vieta ai sensori.
+ */
+export function mealFromText(text: string, at: Date): { slot: MealSlot; fromClock: boolean } {
+  const h = normalise(text);
+  for (const slot of MEAL_SLOTS) {
+    if (MEAL_WORDS[slot].some((w) => h.includes(normalise(w)))) return { slot, fromClock: false };
+  }
+  return { slot: mealFromClock(at), fromClock: true };
+}
+
+/** Le fasce orarie. Larghe: una cena alle 23 è comunque una cena. */
+export function mealFromClock(at: Date): MealSlot {
+  const hour = at.getHours();
+  if (hour < 10.5) return 'COLAZIONE';
+  if (hour < 12) return 'SPUNTINO';
+  if (hour < 15) return 'PRANZO';
+  if (hour < 18) return 'MERENDA';
+  return 'CENA';
+}
+
+/**
+ * Quanti pasti ci si aspetta oggi. Viene dal protocollo — «5 pasti al giorno» —
+ * e se non è dichiarato non si pretende niente: `null` significa che il
+ * riepilogo mostra quello che c'è senza contare quello che manca.
+ */
+export function expectedMeals(diet: DietProtocol | null): MealSlot[] | null {
+  const n = diet?.mealsPerDay ?? null;
+  if (!n) return null;
+  // Con meno di cinque si tengono i pasti principali, non i primi in ordine:
+  // nessuno fa tre pasti scegliendo colazione, spuntino e pranzo.
+  const PRIORITY: MealSlot[] = ['COLAZIONE', 'PRANZO', 'CENA', 'MERENDA', 'SPUNTINO'];
+  return MEAL_SLOTS.filter((m) => PRIORITY.indexOf(m) < Math.min(n, MEAL_SLOTS.length));
+}
+
+/* --- L'allenamento previsto ------------------------------------------------- */
+
+/** Domenica = 0, come `Date.getDay()`. */
+export type WeekdayPlan = WorkoutKind[] | 'REST' | null;
+
 export interface TrainingProtocol {
   kinds: WorkoutKind[];
   /** Quante volte a settimana, se l'ha detto. */
   sessionsPerWeek: number | null;
+  /**
+   * 🔷 v1.11 §5.4 — cosa è previsto in ciascun giorno della settimana, quando
+   * il piano lo dice: «corsa il sabato», «pesi lunedì mercoledì venerdì».
+   * `null` in un giorno significa che il piano non si esprime — e allora il
+   * sistema non decide al posto tuo.
+   */
+  byWeekday: WeekdayPlan[];
   text: string;
 }
 
@@ -278,8 +359,68 @@ export function parseTraining(text: string): TrainingProtocol | null {
   return {
     kinds,
     sessionsPerWeek: perWeek?.[1] ? Number(perWeek[1]) : null,
+    byWeekday: parseWeekdays(text),
     text: text.trim(),
   };
+}
+
+/* I giorni della settimana come li scrive una persona. L'indice è quello di
+   `Date.getDay()`: domenica in testa. */
+const WEEKDAY_WORDS: readonly (readonly string[])[] = [
+  ['domenica', 'la domenica'],
+  ['lunedi', 'il lunedi'],
+  ['martedi', 'il martedi'],
+  ['mercoledi', 'il mercoledi'],
+  ['giovedi', 'il giovedi'],
+  ['venerdi', 'il venerdi'],
+  ['sabato', 'il sabato'],
+];
+
+/** Parole che dichiarano un giorno di riposo invece di un allenamento. */
+const REST_WORDS = ['riposo', 'off', 'scarico', 'niente', 'libero', 'pausa', 'fermo'];
+
+/**
+ * 🔷 v1.11 §5.4 — legge quali giorni prevede il piano.
+ *
+ * «pesi lunedì mercoledì venerdì, corsa il sabato, domenica riposo» diventa
+ * sette caselle. Si lavora per proposizioni, come per la dieta: i giorni
+ * nominati in una proposizione prendono quello che quella proposizione dice.
+ *
+ * 🔒 Un giorno che il piano non nomina resta `null`, e null NON vuol dire
+ * riposo: vuol dire che il piano non si esprime, e il sistema non decide al
+ * posto tuo. Inventare un riposo dove non è scritto sarebbe la stessa bugia
+ * che §5 vieta ai sensori.
+ */
+export function parseWeekdays(text: string): WeekdayPlan[] {
+  const plan: WeekdayPlan[] = [null, null, null, null, null, null, null];
+
+  for (const clause of clauses(text)) {
+    const days: number[] = [];
+    WEEKDAY_WORDS.forEach((words, i) => {
+      if (words.some((w) => clause.includes(normalise(w)))) days.push(i);
+    });
+    if (days.length === 0) continue;
+
+    const rest = REST_WORDS.some((w) => clause.includes(normalise(w)));
+    const kinds = WORKOUT_KINDS.filter((k) =>
+      WORKOUT_VOCABULARY[k].some((w) => clause.includes(normalise(w))),
+    );
+
+    for (const d of days) {
+      if (rest) plan[d] = 'REST';
+      else if (kinds.length > 0) plan[d] = kinds;
+    }
+  }
+
+  return plan;
+}
+
+/**
+ * Cosa prevede il piano per un certo giorno. `null` quando non si esprime — ed
+ * è un risultato legittimo, non un buco.
+ */
+export function plannedFor(training: TrainingProtocol | null, date: Date): WeekdayPlan {
+  return training?.byWeekday[date.getDay()] ?? null;
 }
 
 /* --- Il pasto di oggi contro il protocollo ---------------------------------- */

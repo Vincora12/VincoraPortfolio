@@ -27,6 +27,7 @@
    ========================================================================= */
 
 import type { Rng } from './rng';
+import type { FoodGroup, MealSlot } from './protocol';
 
 /** I tre segnali che VINZ.MON prova a capire ogni giorno (v1.5). */
 export const DAILY_SIGNALS = ['FOOD', 'WORKOUT', 'MOOD'] as const;
@@ -79,10 +80,30 @@ export interface DailySignalEntry {
  */
 export type DayStatus = 'EMPTY' | 'PARTIAL' | 'SYNCED' | 'GRACE';
 
+/** 🔷 v1.11 §5.4 — un pasto raccontato. */
+export interface MealEntry {
+  /** Cosa c'era dentro, come gruppi. Vuoto è legittimo: «ho mangiato» e basta. */
+  groups: FoodGroup[];
+  /** Le parole con cui l'hai raccontato. */
+  note: string;
+  /** Vero quando il pasto è stato dedotto dall'ora invece che dalle parole. */
+  fromClock?: boolean;
+}
+
 export interface DailySync {
   day: number;
   status: DayStatus;
   signals: Record<DailySignalKey, DailySignalEntry>;
+  /**
+   * 🔷 v1.11 §5.4 — i pasti raccontati, uno per fascia.
+   *
+   * ⚠️ NON entrano in `canCloseDay`. Un giorno si chiude quando i tre segnali
+   * sono noti, non quando hai raccontato tutti e cinque i pasti: far dipendere
+   * il SYNC dal ricordarsi la merenda trasformerebbe il prodotto in una
+   * checklist da non sbagliare, che è esattamente ciò che §7 evita. I pasti
+   * arricchiscono la QUALITÀ del giorno, non la sua validità.
+   */
+  meals: Partial<Record<MealSlot, MealEntry>>;
   /** Una volta sola per giorno di calendario: è la regola anti-farming. */
   syncAwarded: boolean;
   /** Perché era una pausa. Compare nel dettaglio del giorno. */
@@ -98,6 +119,7 @@ export function emptyDay(day: number): DailySync {
       WORKOUT: { status: 'UNKNOWN' },
       MOOD: { status: 'UNKNOWN' },
     },
+    meals: {},
     syncAwarded: false,
   };
 }

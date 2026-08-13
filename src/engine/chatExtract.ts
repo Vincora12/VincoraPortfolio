@@ -31,12 +31,15 @@ import type { MoodInputId } from './generation-config';
 import {
   ADHERENCE_LABELS,
   FOOD_GROUP_LABELS,
+  MEAL_LABELS,
   adherenceOf,
   classifyFood,
   classifyWorkout,
+  mealFromText,
   type Adherence,
   type DietProtocol,
   type FoodGroup,
+  type MealSlot,
   type WorkoutKind,
 } from './protocol';
 
@@ -70,6 +73,14 @@ export interface Extraction {
   workoutKinds: WorkoutKind[];
   /** Il confronto col protocollo dichiarato. Mai un voto: vedi `protocol.ts`. */
   adherence: Adherence;
+  /**
+   * 🔷 v1.11 §5.4 — A QUALE PASTO si riferisce. «Devo poter segnare tutto il
+   * cibo: colazione, merenda, pranzo, merenda, cena» — e per farlo scrivendo e
+   * basta, il pasto va dedotto invece che chiesto.
+   */
+  meal: MealSlot | null;
+  /** Vero quando il pasto viene dall'ora e non dalle parole: si dichiara. */
+  mealFromClock: boolean;
 }
 
 export const EMPTY_EXTRACTION: Extraction = {
@@ -80,6 +91,8 @@ export const EMPTY_EXTRACTION: Extraction = {
   foodGroups: [],
   workoutKinds: [],
   adherence: 'SCONOSCIUTA',
+  meal: null,
+  mealFromClock: false,
 };
 
 /* --- Vocabolari -------------------------------------------------------------
@@ -164,7 +177,12 @@ function hits(haystack: string, needles: readonly string[]): string | null {
  * sensori vale identica qui: «should not silently fabricate subjective
  * information such as Mood».
  */
-export function extractFromMessage(text: string, diet: DietProtocol | null = null): Extraction {
+export function extractFromMessage(
+  text: string,
+  diet: DietProtocol | null = null,
+  /** Quando è stata scritta la frase. Serve a dedurre il pasto. */
+  at: Date = new Date(),
+): Extraction {
   const h = normalise(text);
   const signals: Extraction['signals'] = {};
   const moods: MoodInputId[] = [];
@@ -180,18 +198,33 @@ export function extractFromMessage(text: string, diet: DietProtocol | null = nul
   const fastHit = hits(h, FOOD_NOT_APPLICABLE);
   const foodHit = hits(h, FOOD_KNOWN);
 
+  let meal: MealSlot | null = null;
+  let mealFromClockFlag = false;
+
   if (fastHit) {
     signals.FOOD = { status: 'NOT_APPLICABLE', note: `dalla chat: «${fastHit}»` };
-  } else if (foodGroups.length > 0) {
-    // La nota dice cosa hai mangiato e, se c'è un protocollo, come si colloca.
-    // Non dice se hai fatto bene: quella frase non esiste in questo prodotto.
-    const what = foodGroups.map((g) => FOOD_GROUP_LABELS[g]).join(', ');
+  } else if (foodGroups.length > 0 || foodHit) {
+    // 🔷 v1.11 — quale pasto, prima di cosa: è la cosa che rende il riepilogo
+    // una giornata invece di un totale.
+    const found = mealFromText(text, at);
+    meal = found.slot;
+    mealFromClockFlag = found.fromClock;
+
+    // La nota dice quale pasto, cosa c'era dentro e, se c'è un protocollo,
+    // come si colloca. Non dice se hai fatto bene: quella frase non esiste in
+    // questo prodotto.
+    const what =
+      foodGroups.length > 0
+        ? foodGroups.map((g) => FOOD_GROUP_LABELS[g]).join(', ')
+        : `«${foodHit}»`;
+    /* ⚠️ La nota NON nomina il pasto. Ogni superficie che la mostra ha già
+       l'etichetta del pasto accanto — la riga del riepilogo, la conferma in
+       chat — e ripeterlo dava «CENA · cena: verdura». La nota dice cosa c'era
+       e come si colloca; dove, lo dice chi la mostra. */
     signals.FOOD = {
       status: 'KNOWN',
       note: diet ? `${what} — ${ADHERENCE_LABELS[adherence]}` : what,
     };
-  } else if (foodHit) {
-    signals.FOOD = { status: 'KNOWN', note: `dalla chat: «${foodHit}»` };
   }
 
   /* ALLENAMENTO — il riposo vince sull'allenamento se compaiono entrambi:
@@ -230,6 +263,8 @@ export function extractFromMessage(text: string, diet: DietProtocol | null = nul
     foodGroups,
     workoutKinds,
     adherence,
+    meal,
+    mealFromClock: mealFromClockFlag,
   };
 }
 
@@ -289,8 +324,9 @@ export function extractionLabels(e: Extraction): string[] {
     // 🔶 v1.10 — se c'è un protocollo, la conferma dice anche come si colloca.
     // Fra parentesi e non come voce a sé: è una qualità del segnale CIBO, non
     // un quarto segnale, e non deve sembrare una riga di punteggio.
+    const where = e.meal ? MEAL_LABELS[e.meal].toUpperCase() : 'CIBO';
     out.push(
-      e.adherence === 'SCONOSCIUTA' ? 'CIBO' : `CIBO (${ADHERENCE_SHORT[e.adherence]})`,
+      e.adherence === 'SCONOSCIUTA' ? where : `${where} (${ADHERENCE_SHORT[e.adherence]})`,
     );
   }
   if (e.signals.WORKOUT) out.push('ALLENAMENTO');

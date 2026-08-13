@@ -24,11 +24,9 @@
 
 import { useState } from 'react';
 import type { Overlay } from '../App';
-import { useApp, useGrowth, useToday } from '../state/store';
+import { useApp, useGrowth, useProtocol, useToday } from '../state/store';
 import { Button, ScreenHead, SystemLabel, TextField } from '../system/components';
 import {
-  DAILY_SIGNALS,
-  DAILY_SIGNAL_LABELS,
   MONTH_NAMES,
   WEEKDAY_LONG,
   WEEKDAY_NAMES,
@@ -39,6 +37,7 @@ import {
   type DayStatus,
 } from '../engine/progression';
 import { haptic } from '../system/haptics';
+import { DaySummary } from '../system/DaySummary';
 import { t } from '../i18n/it';
 
 /** I segni. Non è solo colore: §17 vuole lo stato leggibile comunque. */
@@ -72,6 +71,7 @@ interface Cell {
 
 export function CalendarScreen({ onGo }: { onGo: (o: Overlay) => void }) {
   const days = useApp((s) => s.days);
+  const { protocol } = useProtocol();
   const today = useApp((s) => s.day);
   const startedAt = useApp((s) => s.startedAt);
   const nodes = useApp((s) => s.nodes);
@@ -262,24 +262,16 @@ export function CalendarScreen({ onGo }: { onGo: (o: Overlay) => void }) {
               </p>
             )}
 
-            <ul className="cal__signals">
-              {DAILY_SIGNALS.map((key) => {
-                const entry = open.record?.signals[key];
-                const status = entry?.status ?? 'UNKNOWN';
-                return (
-                  <li key={key} className="cal__signal">
-                    <span className="cal__signalmark" aria-hidden="true">
-                      {status === 'UNKNOWN' ? '□' : '■'}
-                    </span>
-                    <span className="t-meta">{DAILY_SIGNAL_LABELS[key]}</span>
-                    <span className="t-micro cal__signalstatus">
-                      {status === 'UNKNOWN' ? t.calendar.notKnown : status}
-                    </span>
-                    {entry?.note && <span className="t-micro cal__source">{entry.note}</span>}
-                  </li>
-                );
-              })}
-            </ul>
+            {/* 🔷 v1.11 §5.4 — il riepilogo vero: cinque caselle per il cibo,
+                l'allenamento letto anche dal piano, l'umore. Prima c'erano tre
+                righe con scritto KNOWN o UNKNOWN, cioè lo stato interno del
+                motore invece del racconto della giornata. */}
+            <DaySummary
+              day={open.record}
+              date={open.date}
+              diet={protocol.diet}
+              training={protocol.training}
+            />
 
             {open.status === 'GRACE' ? (
               <div className="cal__grace">

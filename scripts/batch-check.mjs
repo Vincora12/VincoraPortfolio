@@ -40,7 +40,7 @@ export { SCAN_QUESTIONS, seedFromAnswers, seedSpread } from '${cwd}/src/engine/p
 export * as CONFIG from '${cwd}/src/engine/generation-config.ts';
 export { FRAGMENT_LIBRARY, slug } from '${cwd}/src/assets-pipeline/fragments.ts';
 export { extractFromMessage, extractionLabels } from '${cwd}/src/engine/chatExtract.ts';
-export { parseDiet, parseTraining, adherenceOf, classifyFood } from '${cwd}/src/engine/protocol.ts';
+export { parseDiet, parseTraining, adherenceOf, classifyFood, mealFromText, mealFromClock, expectedMeals, plannedFor } from '${cwd}/src/engine/protocol.ts';
 export { eggReply, allEggSounds } from '${cwd}/src/engine/eggVoice.ts';
 `,
 );
@@ -542,6 +542,71 @@ check(
   m.extractionLabels(full).some((l) => l.includes('fuori protocollo')),
   'la conferma dice come si colloca, non solo che ha capito',
 );
+
+console.log('\n═══ §5.4 — I PASTI E IL PIANO ═══\n');
+
+/* Il pasto detto a parole vince sempre sull'ora: e' l'unico modo di poter
+   correggere una deduzione sbagliata riscrivendo, che e' la promessa di §5.2. */
+const seraTardi = new Date(2026, 7, 20, 21, 30);
+const said = m.mealFromText('a pranzo pollo e broccoli', seraTardi);
+check(
+  said.slot === 'PRANZO' && said.fromClock === false,
+  'il pasto detto a parole vince sull’ora',
+  `${said.slot}, dall’orologio: ${said.fromClock}`,
+);
+
+const guessed = m.mealFromText('pollo e broccoli', seraTardi);
+check(
+  guessed.slot === 'CENA' && guessed.fromClock === true,
+  'senza indizi si deduce dall’ora, e si dichiara',
+  `${guessed.slot}, dall’orologio: ${guessed.fromClock}`,
+);
+
+for (const [h, expected] of [[8, 'COLAZIONE'], [11, 'SPUNTINO'], [13, 'PRANZO'], [17, 'MERENDA'], [23, 'CENA']]) {
+  const got = m.mealFromClock(new Date(2026, 7, 20, h, 0));
+  check(got === expected, `alle ${h} → ${expected}`, got === expected ? '' : `ottenuto ${got}`);
+}
+
+/* Il riepilogo mostra i pasti che il protocollo dichiara. Con tre pasti non si
+   tengono i primi tre in ordine: nessuno fa colazione, spuntino e pranzo. */
+const cinque = m.expectedMeals({ pursue: [], avoid: [], mealsPerDay: 5, text: '' });
+check(cinque.length === 5, 'cinque pasti dichiarati → cinque caselle', cinque.join(', '));
+const tre = m.expectedMeals({ pursue: [], avoid: [], mealsPerDay: 3, text: '' });
+check(
+  tre.join(',') === 'COLAZIONE,PRANZO,CENA',
+  'tre pasti → i tre principali, non i primi in ordine',
+  tre.join(', '),
+);
+check(
+  m.expectedMeals(null) === null,
+  'senza protocollo non si pretende nessun numero di pasti',
+);
+
+/* Il piano settimanale. La riga chiave e' l'ultima: un giorno che il piano non
+   nomina NON e' riposo, e il sistema non deve deciderlo al posto tuo. */
+const piano = m.parseTraining('pesi lunedi mercoledi venerdi, corsa il sabato, domenica riposo');
+const DOM = new Date(2026, 7, 23); // domenica
+const LUN = new Date(2026, 7, 24);
+const MAR = new Date(2026, 7, 25);
+const SAB = new Date(2026, 7, 22);
+
+check(m.plannedFor(piano, DOM) === 'REST', 'domenica riposo, dal piano');
+check(
+  Array.isArray(m.plannedFor(piano, LUN)) && m.plannedFor(piano, LUN).includes('FORZA'),
+  'lunedi pesi, dal piano',
+  String(m.plannedFor(piano, LUN)),
+);
+check(
+  Array.isArray(m.plannedFor(piano, SAB)) && m.plannedFor(piano, SAB).includes('CARDIO'),
+  'sabato corsa, dal piano',
+  String(m.plannedFor(piano, SAB)),
+);
+check(
+  m.plannedFor(piano, MAR) === null,
+  'un giorno che il piano non nomina NON diventa riposo',
+  'inventare un riposo dove non e scritto sarebbe la bugia che §5 vieta ai sensori',
+);
+check(m.plannedFor(null, LUN) === null, 'senza piano, nessuna previsione');
 
 console.log('\n═══ §7.2 — LA VOCE DELL’UOVO ═══\n');
 

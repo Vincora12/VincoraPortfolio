@@ -164,6 +164,22 @@ export const t = {
       'Un giorno vale +1 SYNC, non di più. Registrare dieci volte migliora quello che VINZ.MON sa di te, non la sua velocità.',
   },
 
+  /* RIEPILOGO DELLA GIORNATA — 🔷 v1.11 §5.4
+
+     Ogni riga qui dentro descrive. Nessuna dice cosa manca, nessuna usa una
+     parola che possa suonare come un rimprovero: un riepilogo alimentare è il
+     posto più facile del mondo per far rientrare la vergogna che §4 vieta. */
+  summary: {
+    of: 'su',
+    notTold: 'non raccontato',
+    toldNoDetail: 'raccontato',
+    fromClock: 'dedotto dall’ora',
+    planned: 'previsto:',
+    plannedRest: 'riposo da programma',
+    rule:
+      'Un giorno conta quando sai come è andata, non quando la lista è piena. I pasti raccontati cambiano la creatura che nasce, non la velocità con cui cresce.',
+  },
+
   /* 09 ME OVERVIEW */
   me: {
     title: 'ME',

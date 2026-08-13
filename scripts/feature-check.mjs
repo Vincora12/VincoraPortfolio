@@ -321,6 +321,64 @@ check(
   !/segments=\{inc\.total\}/.test(read('src/screens/Incubation.tsx') ?? ''),
 );
 
+/* 🔷 v1.11 §5.4 — i pasti, il piano, il riepilogo. */
+
+check('PASTI §5.4', 'cinque fasce, non una casella sola', has(PROTOCOL, 'MEAL_SLOTS'));
+check(
+  'PASTI §5.4',
+  'il pasto si deduce dall’ora quando non è detto',
+  has(PROTOCOL, 'mealFromClock'),
+);
+check(
+  'PASTI §5.4',
+  'una deduzione dall’ora si dichiara sempre',
+  has('src/engine/chatExtract.ts', 'mealFromClock') &&
+    has('src/system/DaySummary.tsx', 'fromClock'),
+  'dedurre in silenzio è la bugia che §5 vieta ai sensori',
+);
+check(
+  'PASTI §5.4',
+  'i pasti NON decidono se il giorno conta',
+  has('src/engine/progression.ts', 'NON entrano in `canCloseDay`') &&
+    !/canCloseDay[\s\S]{0,300}meals/.test(read('src/engine/progression.ts') ?? ''),
+  'far dipendere il SYNC dal ricordarsi la merenda sarebbe una checklist da non sbagliare',
+);
+check(
+  'PASTI §5.4',
+  'il piano sa quali giorni sono riposo',
+  has(PROTOCOL, 'parseWeekdays') && has(PROTOCOL, 'plannedFor'),
+);
+check(
+  'PASTI §5.4',
+  'un giorno che il piano non nomina non diventa riposo',
+  has(STORE, "!== 'REST') return"),
+);
+check(
+  'PASTI §5.4',
+  'il piano non sovrascrive quello che hai raccontato',
+  has(STORE, "!== 'UNKNOWN') return"),
+);
+check(
+  'PASTI §5.4',
+  'un allenamento previsto non diventa mai un allenamento mancato',
+  has(STORE, 'il piano è un\'intenzione, non un debito'),
+  '§4 vieta la vergogna, e segnare le assenze la reintrodurrebbe dal retro',
+);
+/* Si guardano SOLO le stringhe del riepilogo, non tutto il file: cercare
+   «ti manca» ovunque pescava «dati mancanti» a cavallo di due parole, che è
+   una frase perfettamente innocente. Un controllo troppo largo trova
+   colpevoli che non esistono. */
+const SUMMARY_STRINGS = (read('src/i18n/it.ts') ?? '').match(/summary: \{[\s\S]*?\n  \},/)?.[0] ?? '';
+const SHAMING = ['ti manca', 'mancano', 'non hai', 'dovresti', 'incompleto', 'saltato'];
+check(
+  'PASTI §5.4',
+  'il riepilogo esiste e non rimprovera',
+  existsSync('src/system/DaySummary.tsx') &&
+    SUMMARY_STRINGS.length > 0 &&
+    !SHAMING.some((w) => SUMMARY_STRINGS.includes(w)),
+  SUMMARY_STRINGS.length > 0 ? '' : 'blocco `summary` non trovato in it.ts',
+);
+
 /* 🔷 v1.10 §13.9 — «vorrei che l'app fosse viva». */
 
 check(
