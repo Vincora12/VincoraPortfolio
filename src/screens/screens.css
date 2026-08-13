@@ -1817,7 +1817,7 @@
 }
 
 /* ============================================================================
-   CALENDARIO SYNC (dentro ME)
+   CALENDARIO — superficie primaria (v1.8 §14)
 
    §28 — nessuna casella è colorata come un fallimento. Il giorno vuoto è il
    più leggero della griglia, non il più acceso: non c'è niente da recuperare.
@@ -1826,8 +1826,28 @@
 .cal {
   display: flex;
   flex-direction: column;
-  gap: var(--u3);
-  width: 100%;
+  gap: var(--u4);
+  padding: var(--u4);
+}
+
+.cal__next {
+  display: flex;
+  flex-direction: column;
+  gap: var(--u);
+  align-items: flex-start;
+  padding: var(--u3) var(--u4);
+  border: var(--border-thick) solid var(--ink);
+  background: var(--paper);
+}
+
+.cal__nextline {
+  font-size: var(--type-display-m);
+  margin: 0;
+}
+
+.cal__nextnote {
+  margin: 0;
+  color: var(--muted-strong);
 }
 
 .cal__grid {
@@ -1845,7 +1865,9 @@
   gap: 1px;
   aspect-ratio: 1;
   border: 1px solid var(--hairline);
+  background: var(--white);
   color: var(--muted);
+  cursor: pointer;
 }
 
 .cal__cell--synced {
@@ -1865,8 +1887,14 @@
   outline-offset: -2px;
 }
 
+.cal__cell--open {
+  background: var(--char-primary);
+  color: var(--char-on-primary);
+  border-color: var(--ink);
+}
+
 .cal__mark {
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1;
 }
 
@@ -1880,16 +1908,77 @@
   position: absolute;
   top: 1px;
   right: 2px;
-  font-size: 8px;
+  font-size: 9px;
   color: var(--char-accent);
 }
 
-.cal__legend {
+.cal__cell--open .cal__event {
+  color: var(--char-on-primary);
+}
+
+.cal__legend,
+.cal__hint {
   color: var(--muted);
   margin: 0;
   line-height: 1.6;
 }
 
+/* --- Dettaglio del giorno (§14) --- */
+
+.cal__detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--u3);
+  padding: var(--u4);
+  border: var(--border) solid var(--ink);
+}
+
+.cal__detailhead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--u2);
+}
+
+.cal__milestone {
+  margin: 0;
+  color: var(--char-accent);
+}
+
+.cal__signals {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--u2);
+}
+
+.cal__signal {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: baseline;
+  gap: var(--u2);
+  padding-bottom: var(--u2);
+  border-bottom: 1px solid var(--hairline);
+}
+
+.cal__signalmark {
+  font-size: 10px;
+}
+
+.cal__signalstatus {
+  color: var(--muted);
+}
+
+/* La provenienza va a capo sotto tutta la riga: è un'informazione di secondo
+   livello e non deve competere con lo stato. */
+.cal__source {
+  grid-column: 2 / -1;
+  color: var(--muted);
+}
+
+.cal__nopunish,
 .cal__total {
   margin: 0;
   color: var(--muted-strong);

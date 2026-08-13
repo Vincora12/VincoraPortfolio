@@ -26,6 +26,8 @@
      28 dalla forma corrente → FORM EVOLUTION disponibile (offerta, non obbligo)
    ========================================================================= */
 
+import type { Rng } from './rng';
+
 /** I tre segnali che VINZ.MON prova a capire ogni giorno (v1.5). */
 export const DAILY_SIGNALS = ['FOOD', 'WORKOUT', 'MOOD'] as const;
 export type DailySignalKey = (typeof DAILY_SIGNALS)[number];
@@ -179,65 +181,152 @@ export function progressToNext(sync: SyncState, hatched: boolean): number {
   return Math.min(1, e.have / e.need);
 }
 
-/* --- Ancora di continuità (Form Evolution) ---------------------------------- */
+/* --- Ancora di continuità (Form Evolution) ----------------------------------
 
-/**
- * 🔶 Regola decisa dopo la v1.6, che diceva solo che la nuova forma «can
- * substantially change Family, Archetype, Affinity, body plan, Fashion and
- * Mood» senza dire quanto deve restare.
- *
- * VINZ.MON è UNA entità: una Form Evolution non è una rigenerazione. Una
- * parte degli assi sopravvive e il resto cambia — «resta la Family e cambia
- * tutto il resto», oppure «resta tutto il resto e cambia solo la Family».
- *
- * Nota: questo è l'opposto della pressione di GENERATION BIBLE §23, che per i
- * branch imponeva di cambiare almeno 4 assi su 7. §23 descriveva la nascita
- * di una creatura diversa; qui è la stessa entità che si trasforma.
- */
-/** Gli assi che un'ancora può tenere fermi. Sono nomi di campo di CharacterData. */
-export type ContinuityAxis =
-  | 'family'
-  | 'family_archetype'
-  | 'affinity'
-  | 'size'
-  | 'role'
-  | 'fashion'
-  | 'mood_primary';
+   🔒 MASTER SPEC v1.8 §9.1. Sostituisce il modello a tre ancore fisse che avevo
+   scritto prima che il documento decidesse: quello copriva solo tre punti di
+   uno spazio che la spec definisce molto più largo.
 
-export interface ContinuityAnchor {
-  id: ContinuityAnchorId;
-  /** Come si dice all'utente, in una riga. */
-  it: string;
+   Le due regole assolute, e sono simmetriche:
+
+     ≥ 1 asse resta fermo.      (vietato: cambia tutto → sarebbe rigenerazione)
+     ≥ 1 asse cambia.           (vietato: non cambia niente → non è una forma nuova)
+
+   In mezzo ci stanno cinque schemi, dal quasi-niente al quasi-tutto.
+
+   🔶 Questo supera GENERATION BIBLE §23, che per i branch imponeva ≥4 assi su 7
+   cambiati. §23 descriveva la nascita di una creatura DIVERSA; qui è la stessa
+   entità che si trasforma, e §9.1 lo dice esplicitamente: «Update the Bible
+   accordingly.»
+   -------------------------------------------------------------------------- */
+
+/** Gli assi evolvibili. Sono nomi di campo di CharacterData. */
+export const EVOLVABLE_AXES = [
+  'family',
+  'family_archetype',
+  'affinity',
+  'size',
+  'role',
+  'fashion',
+  'mood_primary',
+] as const;
+
+export type ContinuityAxis = (typeof EVOLVABLE_AXES)[number];
+
+export type EvolutionPattern =
+  | 'MINIMAL'
+  | 'FOCUSED'
+  | 'MAJOR'
+  | 'FAMILY-ANCHORED'
+  | 'FAMILY-SHIFT';
+
+export interface ContinuityPlan {
+  pattern: EvolutionPattern;
   /** Assi che sopravvivono immutati alla trasformazione. */
   keeps: readonly ContinuityAxis[];
-  description: string;
+  /** Come si dice all'utente, in una riga. */
+  it: string;
 }
 
-export type ContinuityAnchorId = 'FAMILY' | 'EVERYTHING-ELSE' | 'PRESENCE';
-
-export const CONTINUITY_ANCHORS: readonly ContinuityAnchor[] = [
-  {
-    id: 'FAMILY',
-    it: 'resta la famiglia',
-    keeps: ['family', 'family_archetype'],
-    description: 'Stessa specie, tutto il resto si riconfigura.',
+export const PATTERN_LABELS: Record<EvolutionPattern, { it: string; description: string }> = {
+  MINIMAL: {
+    it: 'cambia una cosa sola',
+    description: 'Un asse si riconfigura. Tutto il resto resta com’è.',
   },
-  {
-    id: 'EVERYTHING-ELSE',
+  FOCUSED: {
+    it: 'cambia qualcosa',
+    description: 'Due o tre assi si riconfigurano.',
+  },
+  MAJOR: {
+    it: 'cambia quasi tutto',
+    description: 'La maggior parte si riconfigura, ma qualcosa resta.',
+  },
+  'FAMILY-ANCHORED': {
+    it: 'resta la famiglia',
+    description: 'Stessa specie. Tutto il resto può cambiare.',
+  },
+  'FAMILY-SHIFT': {
     it: 'cambia solo la famiglia',
-    keeps: ['affinity', 'size', 'role', 'fashion'],
     description: 'Cambia il corpo, restano i modi.',
   },
-  {
-    id: 'PRESENCE',
-    it: 'restano presenza e ruolo',
-    keeps: ['size', 'role', 'mood_primary'],
-    description: 'Stessa taglia, stesso mestiere, stessa presenza.',
-  },
-];
+};
 
-export function anchorById(id: ContinuityAnchorId): ContinuityAnchor {
-  return CONTINUITY_ANCHORS.find((a) => a.id === id) ?? CONTINUITY_ANCHORS[0]!;
+/**
+ * Un archetipo appartiene a UNA Family sola (GB §4). Quindi non si può tenere
+ * fermo l'archetipo lasciando libera la Family, e se la Family cambia
+ * l'archetipo cambia per forza. È l'unico vincolo strutturale fra due assi, e
+ * vale anche sull'edge case B di §9.1 — «Family changes while every other
+ * evolvable axis remains» — dove l'archetipo è l'eccezione obbligata.
+ */
+function legalise(keeps: ContinuityAxis[]): ContinuityAxis[] {
+  return keeps.includes('family_archetype') && !keeps.includes('family')
+    ? keeps.filter((a) => a !== 'family_archetype')
+    : keeps;
+}
+
+/** Estrae n assi distinti, in ordine stabile per non dipendere dal caso. */
+function sample(rng: Rng, pool: readonly ContinuityAxis[], n: number): ContinuityAxis[] {
+  const rest = [...pool];
+  const out: ContinuityAxis[] = [];
+  for (let i = 0; i < n && rest.length > 0; i++) {
+    out.push(rest.splice(Math.floor(rng() * rest.length), 1)[0]!);
+  }
+  return EVOLVABLE_AXES.filter((a) => out.includes(a));
+}
+
+/**
+ * Sceglie lo schema della prossima trasformazione e quali assi tiene fermi.
+ * Puro: stesso rng, stesso piano — così la schermata può dichiarare cosa resta
+ * PRIMA che l'utente decida, senza che rientrare rimescoli tutto.
+ */
+export function planContinuity(rng: Rng, forced?: EvolutionPattern): ContinuityPlan {
+  const patterns: EvolutionPattern[] = [
+    'MINIMAL',
+    'FOCUSED',
+    'MAJOR',
+    'FAMILY-ANCHORED',
+    'FAMILY-SHIFT',
+  ];
+  const pattern = forced ?? patterns[Math.floor(rng() * patterns.length)]!;
+  const all = EVOLVABLE_AXES;
+
+  let keeps: ContinuityAxis[];
+  switch (pattern) {
+    case 'MINIMAL': {
+      // Un asse cambia, gli altri sei restano.
+      const changing = sample(rng, all, 1);
+      keeps = all.filter((a) => !changing.includes(a));
+      break;
+    }
+    case 'FOCUSED': {
+      const changing = sample(rng, all, 2 + Math.floor(rng() * 2)); // 2–3
+      keeps = all.filter((a) => !changing.includes(a));
+      break;
+    }
+    case 'MAJOR': {
+      // Resta poco: uno o due assi.
+      keeps = sample(rng, all, 1 + Math.floor(rng() * 2));
+      break;
+    }
+    case 'FAMILY-ANCHORED':
+      // Edge case A di §9.1: resta la Family, tutto il resto può cambiare.
+      keeps = ['family'];
+      break;
+    case 'FAMILY-SHIFT':
+      // Edge case B: cambia la Family — e con lei l'archetipo, per forza.
+      keeps = ['affinity', 'size', 'role', 'fashion', 'mood_primary'];
+      break;
+  }
+
+  keeps = legalise(keeps);
+
+  // Rete di sicurezza sulle due regole assolute. Non dovrebbe mai scattare —
+  // `legalise` può togliere al massimo un asse — ma se scattasse, un'ancora
+  // vuota o totale violerebbe §9.1 in silenzio.
+  if (keeps.length === 0) keeps = ['size'];
+  if (keeps.length === all.length) keeps = keeps.filter((a) => a !== 'mood_primary');
+
+  return { pattern, keeps, it: PATTERN_LABELS[pattern].it };
 }
 
 /**

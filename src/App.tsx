@@ -29,13 +29,14 @@ import { NewBranchScreen } from './screens/NewBranch';
 import { SpecimenProfileScreen } from './screens/SpecimenProfile';
 import { BioFileScreen } from './screens/BioFile';
 import { MindlineMapScreen } from './screens/MindlineMap';
+import { CalendarScreen } from './screens/SyncCalendar';
 import { HeritageDnaScreen } from './screens/HeritageDna';
 import { MemoriesScreen } from './screens/Memories';
 import { HistoryScreen } from './screens/History';
 import { DailyScanScreen } from './screens/DailyScan';
 import { DevPanel } from './dev/DevPanel';
 
-export type Tab = 'mon' | 'me' | 'mindline';
+export type Tab = 'mon' | 'me' | 'calendar' | 'mindline';
 export type Overlay =
   | null
   | 'specimen'
@@ -135,6 +136,8 @@ function PhaseScreen({
           return <CompanionHomeScreen onGo={onGo} />;
         case 'me':
           return <MeOverviewScreen />;
+        case 'calendar':
+          return <CalendarScreen />;
         case 'mindline':
           return <MindlineMapScreen onGo={onGo} />;
       }
@@ -175,9 +178,11 @@ function OverlayScreen({
 /* --- Navigazione persistente (§11) ----------------------------------------- */
 
 function TabBar({ tab, onChange }: { tab: Tab; onChange: (t: Tab) => void }) {
-  const items: { id: Tab; label: string; icon: 'mon' | 'me' | 'mindline' }[] = [
+  const items: { id: Tab; label: string; icon: 'mon' | 'me' | 'scan' | 'mindline' }[] = [
     { id: 'mon', label: t.nav.mon, icon: 'mon' },
     { id: 'me', label: t.nav.me, icon: 'me' },
+    // 🔶 v1.8 §13 promuove il calendario a superficie primaria.
+    { id: 'calendar', label: t.nav.calendar, icon: 'scan' },
     { id: 'mindline', label: t.nav.mindline, icon: 'mindline' },
   ];
 

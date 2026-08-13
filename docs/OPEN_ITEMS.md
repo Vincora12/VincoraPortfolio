@@ -53,7 +53,7 @@ gelatinosa.
 diverse al primo nodo, e che SLIME non compaia più come Family.
 
 ### Una sola valuta: SYNC, e una sola entità
-**Versione:** MASTER SPEC v1.4/v1.5, più le decisioni prese dopo la v1.6.
+**Versione:** MASTER SPEC v1.8 — CONSOLIDATED (§5–§9, §14, §23).
 **Dove:** `src/engine/progression.ts` (sostituisce `economy.ts`, cancellato).
 
 Il modello a tre valute — XP, DISC come valuta, EVOLUTION SYNC — è stato
@@ -69,13 +69,26 @@ Cadenza: 7 giorni sincronizzati all'HATCH, micro-growth ogni 7, Form Evolution
 disponibile a 28. La Form Evolution è **un'offerta**: si può rimandare quanto si
 vuole e i giorni continuano a contare.
 
-**Ancora di continuità.** Una Form Evolution non è una rigenerazione: un
-sottoinsieme di assi resta fermo — «resta la famiglia», «cambia solo la
-famiglia», «restano presenza e ruolo» — e il resto si riconfigura. È l'opposto
-della pressione di GB §23, che per i branch imponeva di cambiare almeno 4 assi
-su 7: §23 descriveva la nascita di una creatura diversa, qui è la stessa entità
-che si trasforma. `verify:batch` controlla entrambe le direzioni: gli assi
-ancorati non cambiano mai, e fuori dall'ancora cambia sempre qualcosa.
+**Ancora di continuità (§9.1).** Due regole assolute e simmetriche: **≥1 asse
+resta fermo** (vietato «all axes changed», sarebbe una rigenerazione) e **≥1
+asse cambia** (vietato «all axes unchanged», non sarebbe una forma nuova). In
+mezzo, cinque schemi: MINIMAL, FOCUSED, MAJOR, FAMILY-ANCHORED, FAMILY-SHIFT.
+
+Un dettaglio che il documento non poteva prevedere: con lo schema MINIMAL
+restano fermi sei assi su sette, e l'unico libero può riestrarre il valore che
+aveva già — catalogo piccolo, stessi segnali in ingresso. Il generatore lo
+intercetta e forza un cambio. Su 150 trasformazioni di prova scatta 4–5 volte:
+non è un caso teorico.
+
+Un vincolo strutturale che §9.1 non nomina: un **archetipo appartiene a una
+Family sola** (GB §4), quindi non si può ancorare l'archetipo lasciando libera
+la Family, e se la Family cambia l'archetipo cambia per forza. È l'eccezione
+obbligata all'edge case B — «Family changes while every other evolvable axis
+remains».
+
+Questo supera GB §23, che per i branch imponeva ≥4 assi su 7 cambiati: §23
+descriveva la nascita di una creatura diversa. §9.1 lo dice esplicitamente —
+«Update the Bible accordingly».
 
 **Una entità sola.** VINZ.MON non muore e non passa la relazione a nessun altro.
 Le forme sono sue configurazioni, le memorie sono un archivio unico e la forma è
@@ -109,19 +122,18 @@ home e dell'incontro, e come riga SPECIE nel profilo.
 
 ## 🟡 Ancora aperte
 
-### Nomi degli ultimi due livelli di rarità
-**Dove:** `src/engine/generation-config.ts` → `RARITIES`.
-I primi quattro livelli coincidono fra i documenti (COMMON, UNCOMMON, RARE,
-EPIC). Gli ultimi due no: la MASTER SPEC §53 dice **LEGENDARY / SECRET**, la
-GENERATION BIBLE §15 dice **MYTHIC / SINGULAR**. Il codice segue la bibbia.
-Va deciso e allineato in un documento solo.
+### 🟡 Cosa fa scattare GRACE
+**Dove:** `src/engine/progression.ts` → `DayStatus`.
+La MASTER SPEC v1.8 §14 elenca **EMPTY / PARTIAL / SYNCED / GRACE** fra gli
+stati canonici di una giornata, ma non dice da nessuna parte quando un giorno
+diventa GRACE — malattia? viaggio? una pausa dichiarata? un limite di giorni
+saltati di fila?
 
-### Le 31 schermate di MS §19
-**Dove:** nessun file.
-Sono un'architettura UX completa e diversa da quella su cui è costruito il
-prototipo. Non è chiaro se §19 sia ancora valida, superata dai livelli nuovi
-del documento, o valida a metà. Finché non lo è, il prototipo resta sulle 16
-schermate di §12.
+Il tipo esiste, il calendario sa disegnare la casella, e **nessuna riga di
+codice lo assegna**. Preferisco un buco dichiarato a una regola inventata: se
+GRACE significasse «giorno condonato che conta comunque come sincronizzato»,
+cambierebbe la matematica di tutta la progressione, e non è una cosa da
+indovinare.
 
 ### Trigger nascosto di SINGULAR
 **Dove:** `src/engine/rarity.ts` → `UnlockContext.hiddenTriggerFired`.
@@ -130,12 +142,17 @@ hidden trigger logic to the player». Il campo esiste ed è cablato; **quale
 evento lo faccia scattare non è definito da nessun documento**. Oggi si attiva
 solo da DEV.
 
-### Personality Seed
+### Personality Seed — ora specificato, non ancora costruito
 **Dove:** `src/engine/signals.ts` → `neutralPersonality()`.
-§2 elenca i vettori latenti, ma la schermata **03 PERSONALITY / SIGNAL SCAN**
-che dovrebbe seminarli non è ancora implementata. Finché non c'è, il seme è
-neutro (tutto a 50) e le formule di fit di §17 lavorano solo su salute e umori.
-È la lacuna che più limita la varietà delle Family generate.
+
+**La MASTER SPEC v1.8 §12 ha chiuso la parte che mancava**: ci sono le 12
+domande vere, con le risposte e il vettore latente che ognuna alimenta. Restano
+🟡 solo i **coefficienti numerici**, che il documento stesso dichiara da tarare.
+
+Ma la schermata **03 PERSONALITY / SIGNAL SCAN** non esiste ancora nel
+prototipo, quindi il seme resta neutro (tutto a 50) e le formule di fit di
+GB §17 lavorano solo su salute e umori. È la lacuna che più limita la varietà
+delle Family generate, ed è adesso la cosa più costruibile del documento.
 
 ### Affinità culturali
 **Dove:** `src/engine/generation-config.ts` → `CULTURAL_TAGS`.

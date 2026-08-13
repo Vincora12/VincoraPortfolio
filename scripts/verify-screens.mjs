@@ -216,13 +216,15 @@ try {
   await click('.tabbar__item:nth-child(2)', 'tab ME');
   await shot('09-me-overview');
 
-  // Il calendario sta in fondo a ME: senza scorrere non entrerebbe mai in uno
-  // screenshot, e non verrebbe mai verificato.
-  await page.locator('.me').evaluate((el) => el.scrollTo({ top: el.scrollHeight }));
-  await shot('09-me-calendario');
+  /* CALENDARIO — quarta voce di navigazione dalla v1.8 §13 */
+  await click('.tabbar__item:nth-child(3)', 'tab GIORNI');
+  await shot('09b-calendario');
+  // §14 vuole il dettaglio del giorno con i tre segnali e la provenienza.
+  await click('.cal__cell:last-child', 'dettaglio del giorno');
+  await shot('09c-calendario-giorno');
 
   /* 17 — MINDLINE: senza selezione si vede solo la topologia */
-  await click('.tabbar__item:nth-child(3)', 'tab MINDLINE');
+  await click('.tabbar__item:nth-child(4)', 'tab MINDLINE');
   await shot('17-mindline');
 
   // Il dettaglio del nodo esiste solo dopo averlo toccato.
@@ -297,7 +299,7 @@ try {
   await click(byText('BENVENUTO A CASA'), 'entra');
 
   /* 18 — HERITAGE DNA */
-  await click('.tabbar__item:nth-child(3)', 'tab MINDLINE');
+  await click('.tabbar__item:nth-child(4)', 'tab MINDLINE');
   await shot('17-mindline-ramificata');
   await click('.mindline__node--active', 'nodo attivo');
   await click(byText('HERITAGE DNA'), 'heritage');

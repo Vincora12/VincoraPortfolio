@@ -27,6 +27,7 @@ import {
   NEUTRAL_MOODS,
   ROLES,
   SELECTABLE_FAMILIES,
+  SIZES,
   SIZE_ARCHETYPE_MODIFIER_RANGE,
   SIZE_SCORE_WEIGHTS,
   SIZE_THRESHOLDS,
@@ -132,13 +133,13 @@ export function generateMon(ctx: GenerationContext): GenerationResult {
   /* 05 — ARCHETIPO (§18). Si può ancorare solo insieme alla Family: un
      archetipo appartiene a una Family sola e da solo non significa niente. */
   const drawnArchetype = resolveArchetype(rng, family, ctx);
-  const archetype =
+  let archetype =
     anchored('family') && anchored('family_archetype') ? prev!.family_archetype : drawnArchetype;
   steps.push({ step: 5, stage: 'ARCHETYPE', outcome: `${family.id} / ${archetype}` });
 
   /* 06 — AFFINITY (§19) */
   const drawnAffinity = resolveAffinity(rng, family, ctx);
-  const affinity = anchored('affinity') ? prev!.affinity : drawnAffinity;
+  let affinity = anchored('affinity') ? prev!.affinity : drawnAffinity;
   steps.push({
     step: 6,
     stage: 'AFFINITY',
@@ -148,17 +149,17 @@ export function generateMon(ctx: GenerationContext): GenerationResult {
 
   /* 07 — SIZE (§21) */
   const { size: drawnSize, score: sizeScore } = resolveSize(rng, signals, family, archetype);
-  const size = anchored('size') ? prev!.size : drawnSize;
+  let size = anchored('size') ? prev!.size : drawnSize;
   steps.push({ step: 7, stage: 'SIZE', outcome: `${size} (score ${sizeScore.toFixed(1)})` });
 
   /* 08 — ROLE (§20) */
   const drawnRole = resolveRole(rng);
-  const role = anchored('role') ? prev!.role : drawnRole;
+  let role = anchored('role') ? prev!.role : drawnRole;
   steps.push({ step: 8, stage: 'ROLE', outcome: role });
 
   /* 09 — FASHION (§20) + marcatori personali (§9) */
   const drawnFashion = resolveFashion(rng, ctx);
-  const fashion = anchored('fashion') ? prev!.fashion : drawnFashion;
+  let fashion = anchored('fashion') ? prev!.fashion : drawnFashion;
   const markers = resolveMarkers(rng, family, ctx);
   steps.push({
     step: 9,
@@ -168,7 +169,7 @@ export function generateMon(ctx: GenerationContext): GenerationResult {
 
   /* 10 — MOOD (§22) */
   const { primary: drawnMood, secondary: moodSecondary } = resolveMood(rng, ctx, signals);
-  const moodPrimary = anchored('mood_primary') ? prev!.mood_primary : drawnMood;
+  let moodPrimary = anchored('mood_primary') ? prev!.mood_primary : drawnMood;
   steps.push({
     step: 10,
     stage: 'MOOD',
@@ -178,6 +179,73 @@ export function generateMon(ctx: GenerationContext): GenerationResult {
         ? `confidence sotto ${MOOD_CONFIDENCE_FLOOR}: mood neutro invece di inventarne uno forte`
         : undefined,
   });
+
+  /* 🔒 §9.1 — «Forbidden: all axes unchanged.»
+
+     Con un'ancora stretta (MINIMAL tiene fermi sei assi su sette) l'unico asse
+     libero può benissimo riestrarre il valore che aveva già: catalogo piccolo,
+     stessi segnali in ingresso. Il risultato sarebbe una «forma nuova»
+     identica alla precedente — vietata dalla spec, e giustamente: sarebbe una
+     presa in giro dopo 28 giorni di attesa.
+
+     Quindi si controlla, e se serve si forza. Prima gli assi indipendenti
+     (mood, fashion, role, size, affinity, archetipo dentro la stessa Family);
+     MAI la Family, perché archetipo e affinità sono già stati risolti sopra e
+     dipendono da lei. */
+  if (prev && ctx.continuity) {
+    const free = (axis: ContinuityAxis) => !ctx.continuity!.includes(axis);
+    const unchanged =
+      family.id === prev.family &&
+      archetype === prev.family_archetype &&
+      affinity === prev.affinity &&
+      size === prev.size &&
+      role === prev.role &&
+      fashion === prev.fashion &&
+      moodPrimary === prev.mood_primary;
+
+    if (unchanged) {
+      const other = <T>(pool: readonly T[], current: T): T | null => {
+        const alt = pool.filter((v) => v !== current);
+        return alt.length > 0 ? pick(rng, alt) : null;
+      };
+
+      let forced: string | null = null;
+
+      if (free('mood_primary')) {
+        const v = other(MOODS.map((m) => m.id), moodPrimary);
+        if (v) ((moodPrimary = v), (forced = 'MOOD'));
+      }
+      if (!forced && free('fashion')) {
+        const v = other(FASHIONS.map((f) => f.id), fashion);
+        if (v) ((fashion = v), (forced = 'FASHION'));
+      }
+      if (!forced && free('role')) {
+        const v = other(ROLES.map((r) => r.id), role);
+        if (v) ((role = v), (forced = 'ROLE'));
+      }
+      if (!forced && free('size')) {
+        const v = other(SIZES, size);
+        if (v) ((size = v), (forced = 'SIZE'));
+      }
+      if (!forced && free('affinity')) {
+        const v = other(AFFINITIES.map((a) => a.id), affinity);
+        if (v) ((affinity = v), (forced = 'AFFINITY'));
+      }
+      if (!forced && free('family_archetype')) {
+        const v = other(family.archetypes.map((a) => a.id), archetype);
+        if (v) ((archetype = v), (forced = 'ARCHETYPE'));
+      }
+
+      steps.push({
+        step: 10,
+        stage: 'CONTINUITÀ — VINCOLO',
+        outcome: forced ?? 'nessun asse libero disponibile',
+        note: forced
+          ? `l'estrazione aveva riprodotto la forma precedente: ${forced} forzato a cambiare (§9.1)`
+          : 'ancora troppo stretta perché qualcosa possa cambiare',
+      });
+    }
+  }
 
   /* 11 — APPEARANCE (§12), indipendente dall'anatomia */
   const appearance: Appearance = pick(rng, APPEARANCES);

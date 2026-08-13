@@ -35,7 +35,7 @@ export { initialHealthState, applyDay, simulateDayInput, DEFAULT_BIAS } from '${
 export { makeRng, randomSeed } from '${cwd}/src/engine/rng.ts';
 export { isValidMonName } from '${cwd}/src/engine/naming.ts';
 export { normalizePool } from '${cwd}/src/engine/rarity.ts';
-export { CONTINUITY_ANCHORS, PROGRESSION } from '${cwd}/src/engine/progression.ts';
+export { planContinuity, EVOLVABLE_AXES, PROGRESSION } from '${cwd}/src/engine/progression.ts';
 export * as CONFIG from '${cwd}/src/engine/generation-config.ts';
 export { FRAGMENT_LIBRARY, slug } from '${cwd}/src/assets-pipeline/fragments.ts';
 `,
@@ -309,44 +309,57 @@ check(
 const sizes = new Set(results.map((d) => d.size));
 check(sizes.size === 3, 'le tre taglie di §6 compaiono tutte', [...sizes].join(', '));
 
-/* --- Ancora di continuità (Form Evolution) ---------------------------------
-   È l'invariante nuova, e va provata sul motore e non a occhio: dopo un cambio
-   di forma gli assi ancorati devono essere IDENTICI a quelli di prima, e
-   almeno un asse fuori dall'ancora deve essere cambiato. Se cambiasse tutto
-   sarebbe una rigenerazione; se non cambiasse niente non sarebbe una forma
-   nuova. --------------------------------------------------------------------- */
+/* --- Ancora di continuità, MASTER SPEC v1.8 §9.1 ---------------------------
+   Due regole assolute e simmetriche, e vanno provate sul motore:
 
-const ANCHOR_TRIALS = 40;
+     ≥1 asse resta fermo   →  vietato «all axes changed»
+     ≥1 asse cambia        →  vietato «all axes unchanged»
+
+   La seconda è quella che si rompe da sola: con lo schema MINIMAL restano
+   fermi sei assi su sette, e l'unico libero può riestrarre il valore che
+   aveva già. Il generatore lo intercetta e forza; qui si controlla che lo
+   faccia davvero. --------------------------------------------------------- */
+
+const ANCHOR_TRIALS = 30;
+const PATTERNS = ['MINIMAL', 'FOCUSED', 'MAJOR', 'FAMILY-ANCHORED', 'FAMILY-SHIFT'];
 let anchorBroken = 0;
 let anchorFrozen = 0;
-const ALL_AXES = ['family', 'family_archetype', 'affinity', 'size', 'role', 'fashion', 'mood_primary'];
+let planIllegal = 0;
+let forcedChanges = 0;
 
-for (const anchor of m.CONTINUITY_ANCHORS) {
+for (const pattern of PATTERNS) {
   let base = root.record;
   for (let i = 0; i < ANCHOR_TRIALS; i++) {
+    const plan = m.planContinuity(m.makeRng(i * 31337 + 7), pattern);
+
+    // Il piano stesso deve essere legale prima ancora di generare.
+    if (plan.keeps.length === 0 || plan.keeps.length === m.EVOLVABLE_AXES.length) planIllegal += 1;
+    if (plan.keeps.includes('family_archetype') && !plan.keeps.includes('family')) planIllegal += 1;
+
     const next = m.generateMon({
       input,
-      mindlineNodeId: `form_${anchor.id}_${i}`,
+      mindlineNodeId: `form_${pattern}_${i}`,
       originNodeId: base.data.mindline_node,
-      heritageOrigins: m.selectHeritageOrigins(m.makeRng(i * 31337 + 7), base),
+      heritageOrigins: m.selectHeritageOrigins(m.makeRng(i * 7717 + 3), base),
       lineageNames: lineage,
       previous: base,
-      continuity: anchor.keeps,
+      continuity: plan.keeps,
       seed: m.randomSeed(),
-    }).record;
+    });
+    lineage.push(next.record.data.name);
+    const d = next.record.data;
 
-    lineage.push(next.data.name);
-
-    for (const axis of anchor.keeps) {
-      if (next.data[axis] !== base.data[axis]) anchorBroken += 1;
+    for (const axis of plan.keeps) {
+      if (d[axis] !== base.data[axis]) anchorBroken += 1;
     }
-    const free = ALL_AXES.filter((a) => !anchor.keeps.includes(a));
-    if (free.every((a) => next.data[a] === base.data[a])) anchorFrozen += 1;
+    if (m.EVOLVABLE_AXES.every((a) => d[a] === base.data[a])) anchorFrozen += 1;
+    if (next.trace.steps.some((st) => st.stage === 'CONTINUITÀ — VINCOLO')) forcedChanges += 1;
 
-    base = next;
+    base = next.record;
   }
 }
 
+check(planIllegal === 0, 'ogni piano di continuità è legale (§9.1)', `${planIllegal} piani fuori regola`);
 check(
   anchorBroken === 0,
   'gli assi ancorati sopravvivono al cambio di forma',
@@ -354,8 +367,11 @@ check(
 );
 check(
   anchorFrozen === 0,
-  'fuori dall’ancora qualcosa cambia sempre',
-  `${anchorFrozen} forme identiche alla precedente`,
+  'una forma nuova non è mai identica alla precedente (§9.1)',
+  `${anchorFrozen} forme identiche`,
+);
+console.log(
+  `  ····  su ${PATTERNS.length * ANCHOR_TRIALS} trasformazioni il vincolo «qualcosa deve cambiare» è scattato ${forcedChanges} volte`,
 );
 
 const familyCounts = tally((d) => d.family).map(([, n]) => n);

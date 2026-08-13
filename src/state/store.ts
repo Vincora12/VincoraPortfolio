@@ -20,18 +20,16 @@ import {
   type SimulationBias,
 } from '../engine/health';
 import {
-  CONTINUITY_ANCHORS,
   DAILY_SIGNALS,
   PROGRESSION,
-  anchorById,
   canCloseDay,
   dayStatus,
   emptyDay,
   emptySync,
   knownSignals,
   nextEvent,
-  type ContinuityAnchor,
-  type ContinuityAnchorId,
+  planContinuity,
+  type ContinuityPlan,
   type DailySignalKey,
   type DailySync,
   type SignalStatus,
@@ -137,7 +135,7 @@ interface AppState {
 
   pendingHeritage: HeritageOrigin[];
   /** Cosa sopravvive alla prossima Form Evolution. Deciso prima di confermare. */
-  pendingAnchor: ContinuityAnchorId | null;
+  pendingPlan: ContinuityPlan | null;
 
   /** §29 — traccia dell'ultima generazione, visibile solo in DEV. */
   lastTrace: GenerationTrace | null;
@@ -213,7 +211,7 @@ const INITIAL = {
   memories: [] as Memory[],
   chat: [] as ChatMessage[],
   pendingHeritage: [] as HeritageOrigin[],
-  pendingAnchor: null as ContinuityAnchorId | null,
+  pendingPlan: null as ContinuityPlan | null,
   lastTrace: null as GenerationTrace | null,
   batch: [] as BatchCandidate[],
   dev: { enabled: false, forceContinue: false, forceBranch: false, unlockAll: false },
@@ -438,12 +436,12 @@ export const useApp = create<AppState>()(
         // dire cosa resta *prima* che l'utente decida, altrimenti la scelta è
         // al buio. Il seme è stabile sul giorno, quindi rientrare non rimescola.
         const rng = makeRng(seedFromString(`form:${rec.data.name}:${s.day}`));
-        const anchor = CONTINUITY_ANCHORS[Math.floor(rng() * CONTINUITY_ANCHORS.length)]!;
+        const plan = planContinuity(rng);
 
         set({
           phase: 'form-evolution',
           pendingHeritage: selectHeritageOrigins(rng, rec),
-          pendingAnchor: anchor.id,
+          pendingPlan: plan,
         });
       },
 
@@ -460,7 +458,7 @@ export const useApp = create<AppState>()(
           heritageOrigins: s.pendingHeritage,
           lineageNames: Object.keys(s.mons),
           previous,
-          continuity: s.pendingAnchor ? anchorById(s.pendingAnchor).keeps : undefined,
+          continuity: s.pendingPlan?.keeps,
           seed: randomSeed(),
           devUnlockAll: s.dev.unlockAll,
         });
@@ -493,7 +491,7 @@ export const useApp = create<AppState>()(
           memories: s.memories,
           chat: [...s.chat, openingMessage(record, s.day, s.apiKey !== null)].slice(-60),
           pendingHeritage: [],
-          pendingAnchor: null,
+          pendingPlan: null,
           // Il bond NON si azzera: è la stessa relazione. Riparte solo il
           // conteggio dei giorni dentro la forma.
           progression: {
@@ -1066,10 +1064,9 @@ export function useIncubation() {
   };
 }
 
-/** L'ancora di continuità in attesa di conferma, già risolta. */
-export function usePendingAnchor(): ContinuityAnchor | null {
-  const id = useApp((s) => s.pendingAnchor);
-  return id ? anchorById(id) : null;
+/** Il piano di continuità in attesa di conferma. */
+export function usePendingPlan(): ContinuityPlan | null {
+  return useApp((s) => s.pendingPlan);
 }
 
 /** Umori dichiarati oggi (§11). */

@@ -8,7 +8,7 @@ sovrappongono**. Qui e nei commenti del codice si distinguono così:
 
 | Sigla | Documento | Copre |
 |---|---|---|
-| **MS** | `VINZ_VERCE_MASTER_SPEC_v1.2_CLAUDE_PROTOTYPE_HANDOFF` | prodotto, schermate, design system, Mindline, pipeline asset |
+| **MS** | `VINZ_MON_MASTER_SPEC_v1.8_SINGLE_SOURCE` | prodotto, schermate, design system, Mindline, progressione, pipeline asset |
 | **GB** | `VINZ_MON_GENERATION_BIBLE_v2.1_PROMPT_COMPILER` | tassonomie, motore di generazione, rarità, prompt compiler |
 
 Dove i due si toccano vince la bibbia sulle **tassonomie e sulla generazione**
@@ -67,7 +67,7 @@ documento: sono spiegati uno per uno in [`OPEN_ITEMS.md`](OPEN_ITEMS.md).
 | §22 | Finestra mood 14 giorni, ×2 sugli ultimi 3, tetto 18% per giorno | `signals.ts` → `computeMoodLatents` |
 | §22 | Sotto Data Confidence 35 il mood resta neutro | `resolveMood`; `MOOD_CONFIDENCE_FLOOR`, `NEUTRAL_MOODS` |
 | §23 | Heritage 1–3 tratti, sempre **tradotti** nella nuova anatomia | `engine/heritage.ts` → `selectHeritageOrigins`, `translateHeritage` |
-| §23 | Almeno 4 dei 7 assi devono cambiare attraverso un branch | `heritage.ts` → `countChangedAxes` |
+| §23 | 🔶 «≥4 assi su 7» — **superata** da MS v1.8 §9.1 per le Form Evolution: ≥1 fermo, ≥1 cambiato | `countChangedAxes` resta come componente di rarità |
 | §24 | Ordine autorevole a 20 passi | `generateMon`, passi numerati 1–20 nei commenti |
 | §24 | Genoma dei nomi: inizia per V, contiene Z, finisce in `.mon`, unico in lineage | `engine/naming.ts` → `generateMonName`, `isValidMonName` |
 | §24 | 🔶 Primo nodo: **estratto come tutti gli altri**, senza eredità | `generateFirstMon` |
@@ -116,14 +116,13 @@ documento: sono spiegati uno per uno in [`OPEN_ITEMS.md`](OPEN_ITEMS.md).
 
 ---
 
-# PARTE B — MASTER SPEC v1.2
+# PARTE B — MASTER SPEC v1.8
 
-> 🔶 **Progressione: il corpo della v1.2 è superato.** Il modello a tre valute —
-> XP, DISC come valuta ed EVOLUTION SYNC — è stato sostituito dalle v1.4/v1.5 e
-> dalle decisioni prese dopo la v1.6. Vive tutto in `src/engine/progression.ts`
-> e nella tabella qui sotto; `economy.ts` non esiste più.
+> 🔶 **La v1.2 è superata dalla MASTER SPEC v1.8 — CONSOLIDATED.** Il documento
+> unico ha una sua appendice di migrazione (§24) e questa mappa la segue. Dove
+> la v1.2 e la v1.8 dicono cose diverse, vale la v1.8.
 
-## Progressione — SYNC (v1.4 / v1.5 e decisioni post-v1.6)
+## Progressione — SYNC (MASTER SPEC v1.8 §5–§9)
 
 | Regola | Dove |
 |---|---|
@@ -136,9 +135,14 @@ documento: sono spiegati uno per uno in [`OPEN_ITEMS.md`](OPEN_ITEMS.md).
 | **Incubazione: 7 giorni sincronizzati**, e un giorno mancante non azzera niente | `PROGRESSION.incubationSyncDays`; `useIncubation` conta i sincronizzati |
 | **Micro-Growth ogni 7**: stessa forma, un dettaglio matura | `PROGRESSION.microGrowthEvery`; `store.ts` → `doMicroGrowth` |
 | **Form Evolution a 28**: è un'offerta, non un obbligo, e rimandarla non costa | `PROGRESSION.formEvolutionAt`; `MindlineShift.tsx` → `NON ORA` |
-| Una Form Evolution **non è una rigenerazione**: un'ancora tiene fermi alcuni assi | `CONTINUITY_ANCHORS`; verificato da `verify:batch` |
+| §9.1 — una Form Evolution tiene fermo **≥1 asse** e ne cambia **≥1** | `planContinuity`; verificato da `verify:batch` |
+| §9.1 — cinque schemi: MINIMAL / FOCUSED / MAJOR / FAMILY-ANCHORED / FAMILY-SHIFT | `EvolutionPattern`, `PATTERN_LABELS` |
+| §9.1 — vietato «all axes unchanged»: se l'estrazione ripete la forma, un asse è forzato | `characterGenerator.ts` → passo «CONTINUITÀ — VINCOLO» |
 | VINZ.MON è **una entità sola**: non muore, non viene sostituita, non si saluta | `NewBranch.tsx`; nessuna stringa di addio in `i18n/it.ts` |
-| Il calendario non ha caselle rosse né serie da difendere | `screens/SyncCalendar.tsx` |
+| §14 — il calendario è una **superficie primaria**, con dettaglio e provenienza | `screens/SyncCalendar.tsx`, quarta voce di `TabBar` |
+| §14 — nessuna casella rossa, nessuna serie da difendere | `i18n/it.ts` → `calendar.openDay`, `calendar.noStreak` |
+| §20 — scala di rarità COMMON…**MYTHIC / SINGULAR** | `generation-config.ts` → `RARITIES` |
+| 🟡 §14 dichiara lo stato GRACE ma non dice mai cosa lo faccia scattare | tipo presente, nessuna riga lo assegna |
 
 ## Mondo, creature, salute
 
@@ -196,7 +200,7 @@ documento: sono spiegati uno per uno in [`OPEN_ITEMS.md`](OPEN_ITEMS.md).
 | 11 | MINDLINE SHIFT | `screens/MindlineShift.tsx` |
 | 12 | EVOLUTION (maturazione) | `screens/Evolution.tsx` |
 | 13 | CAMBIO DI FORMA | `screens/NewBranch.tsx` |
-| — | 🔶 CALENDARIO SYNC (dentro ME) | `screens/SyncCalendar.tsx` |
+| — | 🔶 CALENDARIO (superficie primaria, v1.8 §14) | `screens/SyncCalendar.tsx` |
 | 14 | NEW ENCOUNTER | `screens/Encounter.tsx` (`variant="new"`) |
 | 15 | SPECIMEN PROFILE | `screens/SpecimenProfile.tsx` |
 | 16 | BIO / PERSONAL FILE | `screens/BioFile.tsx` |

@@ -19,7 +19,6 @@ import {
   trend,
 } from '../engine/health';
 import { STAT_KEYS, isKnown } from '../engine/types';
-import { SyncCalendar } from './SyncCalendar';
 import { t } from '../i18n/it';
 
 export function MeOverviewScreen() {
@@ -125,11 +124,6 @@ export function MeOverviewScreen() {
               <span className="t-display">{Math.round(progression.bond * 100)}%</span>
             </div>
           </div>
-        </Window>
-
-        {/* --- Il calendario: com'è andata, giorno per giorno --- */}
-        <Window title="CALENDARIO · I GIORNI CHE CONTANO">
-          <SyncCalendar />
         </Window>
 
         <div className="me__confidence">

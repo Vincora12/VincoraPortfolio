@@ -14,19 +14,19 @@
    cambia — l'ancora di continuità decisa in `progression.ts`.
    ========================================================================= */
 
-import { useApp, useActiveMon, usePendingAnchor } from '../state/store';
+import { useApp, useActiveMon, usePendingPlan } from '../state/store';
 import { AssetSlot } from '../system/AssetSlot';
 import { MonName, SpeciesName } from '../system/MonName';
 import { Button, ScreenHead, SystemLabel } from '../system/components';
 import { heritageCategoryLabel } from '../engine/heritage';
-import { AXIS_LABELS, type ContinuityAxis } from '../engine/progression';
+import { AXIS_LABELS, PATTERN_LABELS, type ContinuityAxis } from '../engine/progression';
 import { displayName } from '../engine/types';
 import { t } from '../i18n/it';
 
 export function NewBranchScreen() {
   const mon = useActiveMon();
   const pending = useApp((s) => s.pendingHeritage);
-  const anchor = usePendingAnchor();
+  const plan = usePendingPlan();
   const confirmFormEvolution = useApp((s) => s.confirmFormEvolution);
   const enterLive = useApp((s) => s.enterLive);
 
@@ -64,12 +64,15 @@ export function NewBranchScreen() {
         </div>
 
         {/* --- Cosa resta: l'ancora di continuità --- */}
-        {anchor && (
+        {plan && (
           <section className="branch__anchor">
             <SystemLabel tone="character">{t.branch.anchorTitle}</SystemLabel>
-            <p className="t-display branch__anchorline">{anchor.it}</p>
+            <p className="t-display branch__anchorline">{plan.it}</p>
+            <p className="t-small branch__anchordesc">
+              {PATTERN_LABELS[plan.pattern].description}
+            </p>
             <ul className="branch__keeps">
-              {anchor.keeps.map((axis) => (
+              {plan.keeps.map((axis: ContinuityAxis) => (
                 <li key={axis} className="branch__keep">
                   <span className="t-micro">{AXIS_LABELS[axis]}</span>
                   <span className="t-small branch__keepvalue">{axisValue(axis)}</span>

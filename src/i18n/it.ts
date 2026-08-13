@@ -15,6 +15,7 @@ export const t = {
   nav: {
     mon: 'MON',
     me: 'ME',
+    calendar: 'GIORNI',
     mindline: 'MINDLINE',
   },
 
@@ -161,6 +162,27 @@ export const t = {
     becomes: 'DIVENTA',
     confirm: 'CAMBIA FORMA',
     back: 'NON ORA',
+  },
+
+  /* CALENDARIO — superficie primaria di v1.8 §14 */
+  calendar: {
+    title: 'CALENDARIO',
+    subtitle: 'I GIORNI CHE CONTANO',
+    nextTitle: 'PROSSIMO TRAGUARDO',
+    eventNames: {
+      hatch: 'LA PRIMA FORMA',
+      'micro-growth': 'UNA MATURAZIONE',
+      'form-evolution': 'UN CAMBIO DI FORMA',
+    },
+    ready: 'È disponibile adesso.',
+    remaining: (n: number) =>
+      `Mancano ${n} ${n === 1 ? 'giorno sincronizzato' : 'giorni sincronizzati'}.`,
+    hint: 'Tocca un giorno per vedere cosa si sapeva.',
+    notKnown: 'non si sapeva',
+    /* §14 — «No red punishment language for missed days.» */
+    openDay: 'Giorno aperto. Non è un giorno perso: la crescita aspetta, non torna indietro.',
+    syncedOf: 'giorni sincronizzati su',
+    noStreak: 'Non c’è nessuna serie da difendere.',
   },
 
   /* 15 SPECIMEN PROFILE */
