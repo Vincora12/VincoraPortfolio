@@ -179,6 +179,8 @@ body.push(
       ['§23.1–23.2', 'Otto asset, griglie definite, ordine di produzione', 'vincolo tecnico dei modelli di immagini'],
       ['§5.3 🔷', 'Il PROTOCOLLO: cosa mangio, non se mangio', 'un booleano non basta a formare una creatura'],
       ['§7.2 🔷', 'L\'uovo risponde, ma solo a suoni', 'sette giorni di registrazione senza nessuno dall\'altra parte'],
+      ['§7.3 🔷', 'Il guscio cambia ogni giorno', 'un numero non si sente addosso, una crepa sì'],
+      ['§13.5 🔷', 'Sette cancellature nell\'interfaccia', 'telemetria del motore e annunci doppi su superfici di prodotto'],
     ],
   ),
 );
@@ -346,6 +348,62 @@ body.push(
   rule('🔒', 'Si sveglia piano — nei primi giorni fa un suono solo, verso la fine tre. È l\'unica misura di avvicinamento che si sente addosso invece di leggerla in una barra.'),
   rule('🔒', 'Ma se ha SENTITO qualcosa, reagisce sempre. Il risveglio graduale lo porta il numero di suoni, mai il silenzio: il primissimo messaggio — quello che decide se uno ci riprova domani — non può ricevere un puntino.'),
   rule('🔒', 'Quello che gli racconti prima che nasca entra nella memoria e alimenta la voce che avrà dopo. I suoni spariscono con l\'HATCH; il contenuto resta.'),
+);
+
+/* --- 7.3 L'UOVO CHE CAMBIA 🔷 -----------------------------------------------*/
+
+body.push(h1('7.3 · IL GUSCIO CAMBIA OGNI GIORNO 🔷'));
+
+body.push(
+  p('L\'incubazione chiedeva sette giorni di racconto e restituiva un numero e una barra a segmenti. Un numero non si sente addosso. Un guscio che si incrina davanti a te sì.'),
+);
+
+body.push(
+  rule('🔒', 'Ogni giorno chiuso lascia una CREPA NUOVA sul guscio, in posizione fissa e deterministica. È lo stesso valore che riempiva la barra a segmenti, disegnato invece che contato — e infatti la barra è stata tolta.'),
+  rule('🔒', 'La MASSA dentro guadagna presenza a ogni giorno: alone al primo, densa al settimo.'),
+  rule('🔒', 'Il RESPIRO accorcia il periodo man mano — lento e sordo all\'inizio, corto e presente alla fine. È l\'unica cosa che dice «è vivo» senza mostrare cosa.'),
+  rule('🔒', 'Quando arriva una crepa, il guscio ha un SUSSULTO. Una volta sola, non un ciclo: chiudere la giornata deve vedersi nel momento in cui succede.'),
+  rule('🔒', 'A sette giorni il guscio si apre a tratteggio e le crepe prendono un alone. Non lampeggia: lampeggiare è un allarme, e questo non è un allarme.'),
+);
+
+body.push(h2('Il vincolo che comanda tutto il disegno'));
+
+body.push(
+  rule('🔒', 'Quello che cresce dentro è una MASSA e non deve MAI leggersi come una figura. §12/01 vieta di anticipare la forma futura: niente profilo, niente occhi, niente ali che si intravedono. Se qualcuno guardando il guscio riconosce una creatura, il componente è rotto.'),
+  rule('🔒', 'Tutto è disegnato dal codice. Nessun asset, nessuna arte inventata (§18A).'),
+);
+
+/* --- 13.5 INTERFACCIA 🔷 ----------------------------------------------------*/
+
+body.push(h1('13.5 · SETTE CANCELLATURE 🔷'));
+
+body.push(
+  p('Nessuna di queste è una funzione nuova: sono cose tolte. Stanno nel documento perché una cancellatura è la decisione più facile da annullare per sbaglio — basta che qualcuno rimetta l\'elemento «perché mancava».'),
+);
+
+body.push(spacer());
+body.push(
+  table(
+    ['COSA È STATO TOLTO', 'PERCHÉ'],
+    [
+      ['SEED e CONFIG dal profilo', '§29 confina la traccia di generazione in DEV, e il seed era su una superficie di prodotto'],
+      ['RARITY SCORE, STADIO, DATA CONFIDENCE dal profilo', 'dicevano come il .mon era stato calcolato, non cosa fosse'],
+      ['DATA CONFIDENCE dal daily scan', 'era la TERZA superficie che la mostrava: resta solo l\'avviso «pochi dati», che è una promessa di onestà e non una metrica'],
+      ['La sigla NEU / AMU / ALE in chat', 'era il codice interno dell\'espressione: una stringa di debug nel punto più intimo del prodotto'],
+      ['Il banner MINDLINE SHIFT', 'stava fra la creatura e la conversazione e non si poteva congedare. Ora è la linea di SYNC a diventare l\'annuncio quando si riempie'],
+      ['L\'annuncio ripetuto nel calendario', 'la stessa notizia su due schermate con parole diverse: la seconda volta non si capisce se è nuova'],
+      ['Quattro voci su sette dalla legenda del calendario', 'i traguardi non sono stati del giorno, sono eventi, e si leggono toccando il giorno'],
+      ['ANNULLA in fondo a REGISTRA', 'due uscite per la stessa porta fanno esitare, e quella in basso rubava spazio all\'unica azione che conta'],
+      ['L\'icona «espandi» in alto a destra della Home', 'un glifo che non diceva dove portava. Adesso è il nome ad aprire il profilo'],
+    ],
+  ),
+);
+body.push(spacer());
+
+body.push(
+  rule('🔒', 'In REGISTRA, quello che il sistema ha capito viene PRIMA del pulsante della foto: è la cosa che devi leggere, e stava sotto quella che usi di rado.'),
+  rule('🔒', 'Le chip del profilo dichiarano di che asse sono — rarità, affinità, taglia — invece di essere tre parole in fila con lo stesso peso.'),
+  rule('🔒', 'Un annuncio di sistema non può occupare il centro della schermata in modo permanente. Se non si può congedare, deve stare dove stava l\'informazione periferica che sostituisce.'),
 );
 
 /* --- 8.1 --------------------------------------------------------------------*/
@@ -587,6 +645,8 @@ body.push(
       ['Incubazione senza registrazione', 'si registra come sempre (§7.1)'],
       ['CIBO come sì/no', 'gruppi alimentari e aderenza al protocollo (§5.3)'],
       ['Incubazione come pulsante verso un modulo', 'una chat con qualcuno che risponde (§7.2)'],
+      ['Barra a segmenti dell\'incubazione', 'il guscio che si incrina (§7.3)'],
+      ['Banner MINDLINE SHIFT', 'la linea di SYNC che si riempie (§13.5)'],
     ],
   ),
 );
