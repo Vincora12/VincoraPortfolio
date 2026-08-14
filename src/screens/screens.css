@@ -2804,6 +2804,113 @@
   }
 }
 
+/* --- ARCHIVIO: MINDLINE + VINZ.DEX (v1.14 §12.5) ---------------------------
+   Il segmento sta SOPRA la testata della schermata, non dentro: quello che
+   cambia e' quale schermata stai guardando, e un interruttore dentro il
+   titolo farebbe sembrare le due viste due modi della stessa cosa.
+   -------------------------------------------------------------------------- */
+
+.archive {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+
+.archive__switch {
+  display: flex;
+  border-bottom: 1px solid var(--hairline);
+  background: var(--ink);
+}
+
+.archive__seg {
+  flex: 1;
+  padding: var(--u2) var(--u);
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: var(--type-meta);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.archive__seg[aria-selected='true'] {
+  color: var(--paper);
+  box-shadow: inset 0 -2px 0 var(--char-primary);
+}
+
+.dex__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--u3);
+}
+
+.dex__empty {
+  color: var(--muted);
+}
+
+/* Griglia a tre: su un telefono da 390px sono caselle da ~110px, cioe' la
+   dimensione minima in cui una faccia si riconosce ancora. */
+.dex__grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--u2);
+}
+
+.dexcard {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--u);
+  border: 1px solid var(--hairline);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.dexcard--picked {
+  border-color: var(--char-primary);
+  box-shadow: inset 0 0 0 1px var(--char-primary);
+}
+
+.dexcard__art {
+  display: block;
+  aspect-ratio: 1;
+  overflow: hidden;
+}
+
+.dexcard__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dexcard__day {
+  color: var(--muted);
+}
+
+.dex__detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--u2);
+  padding-top: var(--u2);
+  border-top: 1px solid var(--hairline);
+}
+
+.dex__detailhead {
+  display: flex;
+  align-items: center;
+  gap: var(--u2);
+}
+
+.dex__why {
+  color: var(--muted-strong);
+}
+
 /* --- CHIUDERE LA GIORNATA DALLA CHAT (v1.14 §13.9) -------------------------
    Striscia sottile fra la linea di SYNC e la conversazione. Compare solo
    quando c'e' qualcosa da chiudere: una barra sempre presente che dice «manca

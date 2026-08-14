@@ -30,6 +30,7 @@ import { MindlineShiftScreen } from './screens/MindlineShift';
 import { EvolutionScreen } from './screens/Evolution';
 import { NewBranchScreen } from './screens/NewBranch';
 import { SpecimenProfileScreen } from './screens/SpecimenProfile';
+import { DexScreen } from './screens/Dex';
 import { MindlineMapScreen } from './screens/MindlineMap';
 import { CalendarScreen } from './screens/SyncCalendar';
 import { HeritageDnaScreen } from './screens/HeritageDna';
@@ -216,9 +217,61 @@ function PhaseScreen({
         case 'calendar':
           return <CalendarScreen onGo={onGo} />;
         case 'mindline':
-          return <MindlineMapScreen onGo={onGo} />;
+          return <ArchiveTab onGo={onGo} />;
       }
   }
+}
+
+/* ============================================================================
+   🔷 v1.14 §12.5 — ARCHIVIO: DUE VISTE, UNA TAB
+
+   MINDLINE e VINZ.DEX rispondono a due domande diverse — «come sono arrivato
+   qui» e «chi sono stato» — e devono continuare a sembrarlo: fonderle in una
+   cosa sola farebbe leggere «ho collezionato dodici creature», che è il
+   contrario di quello che il progetto dice (§33: una sola entità e le sue
+   forme).
+
+   ⚠️ Ma non meritano una QUINTA scheda in fondo. Cinque voci su uno schermo
+   da telefono sono cinque bersagli stretti, e la navigazione principale
+   smette di essere leggibile a colpo d'occhio. Stanno nella stessa tab con
+   un segmento sopra: la distinzione vive nelle etichette, che è dove serve.
+   ========================================================================= */
+
+function ArchiveTab({ onGo }: { onGo: (o: Overlay) => void }) {
+  const [view, setView] = useState<'mindline' | 'dex'>('mindline');
+
+  return (
+    <div className="archive">
+      <div className="archive__switch" role="tablist" aria-label="Archivio">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={view === 'mindline'}
+          className="archive__seg"
+          onClick={() => {
+            haptic('tick');
+            setView('mindline');
+          }}
+        >
+          {t.nav.mindline}
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={view === 'dex'}
+          className="archive__seg"
+          onClick={() => {
+            haptic('tick');
+            setView('dex');
+          }}
+        >
+          {t.dex.title}
+        </button>
+      </div>
+
+      {view === 'mindline' ? <MindlineMapScreen onGo={onGo} /> : <DexScreen onGo={onGo} />}
+    </div>
+  );
 }
 
 /* --- Overlay --------------------------------------------------------------- */

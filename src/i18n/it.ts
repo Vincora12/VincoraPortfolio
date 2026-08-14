@@ -119,6 +119,18 @@ export const t = {
     missingWorkout: 'manca l’allenamento',
   },
 
+  /* 🔷 v1.14 §12.5 — VINZ.DEX. Non «creature collezionate»: le forme che hai
+     attraversato. Il testo lo dice, perché la differenza è tutto il punto. */
+  dex: {
+    title: 'VINZ.DEX',
+    formOne: 'forma',
+    formMany: 'forme attraversate',
+    now: 'ora',
+    active: 'ATTIVO',
+    restore: 'TORNA A QUESTA FORMA',
+    empty: 'Ancora nessuna forma. Lo scaffale si riempie da solo.',
+  },
+
   /* 07 REGISTRA (MS v1.9 §5.2) — un campo solo, niente moduli */
   input: {
     title: 'REGISTRA UN DATO',

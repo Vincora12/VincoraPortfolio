@@ -424,6 +424,18 @@ try {
   await click('.mindline__node--active', 'nodo attivo');
   await shot('17-mindline-nodo');
 
+  /* 🔷 v1.14 §12.5 — VINZ.DEX: la seconda vista della stessa tab. Lo scaffale
+     di chi sei stato, per immagine invece che come albero. */
+  await click('.archive__seg:nth-child(2)', 'vista VINZ.DEX');
+  await shot('17-dex');
+  await click('.dexcard', 'una forma dello scaffale');
+  await shot('17-dex-dettaglio');
+  await click('.archive__seg:nth-child(1)', 'torna alla MINDLINE');
+  /* Tornando indietro la vista si rimonta e la selezione del nodo si perde:
+     e' il comportamento giusto — cambiare vista e' una navigazione, non un
+     ritorno — ma il giro deve riselezionare per proseguire. */
+  await click('.mindline__node--active', 'riseleziona il nodo attivo');
+
   /* 20 — HISTORY */
   await click(byText('EVOLUTION TIMELINE'), 'timeline');
   await shot('20-history');
