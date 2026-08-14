@@ -64,7 +64,7 @@ const TABS = [
   /* 🔷 v1.12 §10.6 — l'umore non ha e non avrà una superficie di prodotto: si
      sente solo in COME parla. Che è il progetto, ed è anche il modo perfetto
      per non accorgersi mai che si è rotto. Questo è il posto dove si guarda. */
-  { id: 'mood' as const, label: 'UMORE' },
+  { id: 'mood' as const, label: 'UMORE E OPINIONI' },
 ];
 
 export function DevPanel({ onClose }: { onClose: () => void }) {

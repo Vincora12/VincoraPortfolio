@@ -60,6 +60,13 @@ import { extractFromMessage, extractionLabels } from '../engine/chatExtract';
 import { eggReply } from '../engine/eggVoice';
 import { typingRhythmFor } from '../engine/typingRhythm';
 import { buildMemoryBlock, recentTurns } from '../engine/memoryContext';
+import {
+  addOpinion,
+  contradictOpinion,
+  inheritOpinions,
+  opinionsBlock,
+  type Opinion,
+} from '../engine/opinions';
 import { planReveal, type RevealPlan } from '../engine/reveal';
 import {
   applyMoodEvent,
@@ -197,6 +204,15 @@ interface AppState {
    */
   typingVisible: boolean;
 
+  /**
+   * 🔷 v1.12 §16.3 — quello che il .mon è arrivato a pensare. Nasce dalla
+   * riflessione settimanale, vive nel salvataggio, e passa solo in parte alla
+   * forma successiva: un'evoluzione che eredita tutto è un aggiornamento.
+   */
+  opinions: Opinion[];
+  /** Giorno dell'ultima riflessione: non se ne fa più di una a settimana. */
+  lastReflectionDay: number;
+
   pendingHeritage: HeritageOrigin[];
   /** Cosa sopravvive alla prossima Form Evolution. Deciso prima di confermare. */
   pendingPlan: ContinuityPlan | null;
@@ -315,6 +331,8 @@ const INITIAL = {
   chat: [] as ChatMessage[],
   mood: null as MoodState | null,
   typingVisible: false,
+  opinions: [] as Opinion[],
+  lastReflectionDay: 0,
   pendingHeritage: [] as HeritageOrigin[],
   pendingPlan: null as ContinuityPlan | null,
   lastTrace: null as GenerationTrace | null,
@@ -730,6 +748,10 @@ export const useApp = create<AppState>()(
           ],
           lastTrace: trace,
           mood: touchMood(s, record.data.mood_primary, ['EVOLUTO']),
+          // §16.3 — passa solo quello che era radicato, e con un grado di
+          // certezza in meno. La forma nuova non è la vecchia con più roba
+          // addosso: ha dimenticato qualcosa, ed è quello che la rende nuova.
+          opinions: inheritOpinions(s.opinions, record.data.name),
           dev: { ...s.dev, forceContinue: false },
         });
 
@@ -1473,6 +1495,51 @@ function advanceOneDay(set: (p: Partial<AppState>) => void, get: () => AppState)
   });
 
   applyPlannedRest(set, get);
+  maybeReflect(set, get);
+}
+
+/* ============================================================================
+   🔷 v1.12 §16.2 — LA RIFLESSIONE SETTIMANALE
+
+   È l'unica chiamata AI che parte da sola, senza che tu abbia scritto niente.
+   Per questo ha tre freni, e nessuno dei tre è di troppo:
+
+   • una a settimana, mai di più — una creatura che rivede le proprie
+     convinzioni ogni ora non ha convinzioni, ha umori;
+   • solo dopo la schiusa — l'uovo non ha niente da rileggere;
+   • solo se la settimana contiene qualcosa (il controllo è dentro
+     `reflectOnWeek`, prima della chiamata: costa zero e risparmia la
+     richiesta invece di chiedere a un modello di rifiutarsi).
+
+   Non blocca e non riporta niente in interfaccia. Se va male, la settimana
+   passa senza che se ne accorga nessuno — che è quello che succede anche alle
+   persone quando una settimana non insegna niente.
+   ========================================================================= */
+
+const REFLECTION_EVERY = 7;
+
+function maybeReflect(set: (p: Partial<AppState>) => void, get: () => AppState): void {
+  const s = get();
+  const record = activeRecord(s);
+  if (!record || !s.apiKey) return;
+  if (s.day - s.lastReflectionDay < REFLECTION_EVERY) return;
+
+  /* Si segna PRIMA della chiamata, non dopo. Se si segnasse dopo, due
+     avanzamenti rapidi — «+7 GIORNI» premuto due volte — ne farebbero partire
+     due in parallelo sulla stessa settimana. */
+  set({ lastReflectionDay: s.day });
+
+  void import('../ai/reflect')
+    .then((m) => m.reflectOnWeek(s.apiKey, record, s.memories, s.opinions, s.day))
+    .then(({ formed, contradicted }) => {
+      if (formed.length === 0 && contradicted.length === 0) return;
+
+      const now = get();
+      let opinions = now.opinions;
+      for (const id of contradicted) opinions = contradictOpinion(opinions, id);
+      for (const o of formed) opinions = addOpinion(opinions, o);
+      set({ opinions });
+    });
 }
 
 /* --- Utilità ---------------------------------------------------------------- */
@@ -1709,12 +1776,18 @@ function requestReply(
      prodotto. La conversazione recente esclude il messaggio corrente e la
      bolla vuota che sta aspettando questa risposta — sono già altrove nella
      richiesta, e mandarli due volte gli farebbe leggere l'eco. */
+  const opinions = opinionsBlock(s0.opinions);
   const memory = {
-    memory: buildMemoryBlock({
-      memories: s0.memories,
-      bio: record.bio,
-      today: s0.day,
-    }),
+    /* Le opinioni stanno nello STESSO blocco della memoria, non in uno terzo:
+       cambiano con la stessa lentezza — una volta a settimana — quindi
+       condividono la stessa voce di cache. Un blocco in più sarebbe un punto
+       di cache in più speso per niente (e sono quattro in tutto). */
+    memory: [
+      buildMemoryBlock({ memories: s0.memories, bio: record.bio, today: s0.day }),
+      opinions,
+    ]
+      .filter((p) => p.length > 0)
+      .join('\n\n'),
     turns: recentTurns(s0.chat.filter((m) => m.id !== messageId && m.id !== messageId.replace(/_m$/, '_v'))),
   };
 

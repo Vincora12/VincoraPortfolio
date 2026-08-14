@@ -13,8 +13,10 @@
    ========================================================================= */
 
 import { useActiveMon, useApp } from '../state/store';
-import { Row } from '../system/components';
+import { Row, SystemLabel } from '../system/components';
+import { displayName } from '../engine/types';
 import { baselineFor, moodPhrase } from '../engine/mood';
+import { MAX_ACTIVE } from '../engine/opinions';
 
 /** Barra da −100 a +100 (o 0–100), con il punto di riposo segnato sopra. */
 function MoodBar({
@@ -53,6 +55,8 @@ export function MoodSection() {
   const mood = useApp((s) => s.mood);
   const day = useApp((s) => s.day);
   const mon = useActiveMon();
+  const opinions = useApp((s) => s.opinions);
+  const active = opinions.filter((o) => o.status === 'attiva');
 
   if (!mood || !mon) {
     return (
@@ -93,6 +97,40 @@ export function MoodSection() {
 
       <p className="t-meta dev__label">COME ARRIVA AL MODELLO</p>
       <pre className="dev__prompt t-small">{moodPhrase(mood)}</pre>
+
+      {/* 🔷 v1.12 §16.3 — le opinioni stanno qui e non in MEMORIA di proposito:
+          non sono cose che ricorda, sono cose che PENSA. La differenza e' tutta
+          in questa schermata, perche' in chat non si vedra' mai etichettata. */}
+      <p className="t-meta dev__label">
+        COSA E’ ARRIVATO A PENSARE ({active.length}/{MAX_ACTIVE})
+      </p>
+      <p className="t-micro dev__note">
+        Nascono dalla riflessione settimanale. La maggior parte delle settimane
+        non ne produce nessuna, ed è il comportamento giusto: una convinzione a
+        settimana per un anno sarebbe un oroscopo.
+      </p>
+      {opinions.length === 0 ? (
+        <p className="t-small dev__note">
+          Ancora niente. Serve una settimana con almeno tre cose dentro — e la
+          chiave, perché è l’unica parte che non gira senza AI.
+        </p>
+      ) : (
+        <ul className="dev__memories">
+          {opinions.map((o) => (
+            <li key={o.id} className="dev__memory">
+              <div className="dev__memoryhead">
+                <SystemLabel>
+                  {o.status === 'smentita' ? 'SMENTITA' : `FORZA ${o.strength}`}
+                </SystemLabel>
+                <span className="dev__memoryform t-micro">
+                  giorno {o.formedOnDay} · {displayName(o.monName)}
+                </span>
+              </div>
+              <p className="dev__memorytext t-small">{o.text}</p>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

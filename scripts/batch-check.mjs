@@ -46,6 +46,7 @@ export { idleMotionFor, motionCoverage } from '${cwd}/src/engine/idleMotion.ts';
 export { compilePrompt } from '${cwd}/src/assets-pipeline/compiler.ts';
 export { buildVoiceSystemPrompt } from '${cwd}/src/ai/voicePrompt.ts';
 export { typingRhythmFor, rhythmDurationMs } from '${cwd}/src/engine/typingRhythm.ts';
+export { addOpinion, contradictOpinion, inheritOpinions, opinionsBlock, isAllowedOpinion, MAX_ACTIVE } from '${cwd}/src/engine/opinions.ts';
 export { buildMemoryBlock, recentTurns, RECENT_TURNS } from '${cwd}/src/engine/memoryContext.ts';
 export { planReveal, splitFirstSentence, bubbleCount } from '${cwd}/src/engine/reveal.ts';
 export { initialMood, applyMoodEvent, decayMood, baselineFor, moodEventFromInputs, moodPhrase } from '${cwd}/src/engine/mood.ts';
@@ -816,6 +817,94 @@ check(
       trecento ricordi a ogni messaggio nessuno se ne accorge guardando lo
       schermo: si vede solo sulla fattura, mesi dopo.
    ========================================================================= */
+
+/* ============================================================================
+   §16.3 — LE OPINIONI
+
+   Il controllo che conta non e' che le opinioni funzionino: e' che il CONFINE
+   di §28 tenga. Il prompt di chi le genera lo dice, ma un prompt e' una
+   richiesta; su cinquantadue riflessioni all'anno un modello che sbaglia una
+   volta su cento sbaglia, e la cosa che sbaglierebbe e' esattamente quella
+   che questo progetto protegge dalla prima riga.
+   ========================================================================= */
+
+console.log('\n═══ §16.3 — LE OPINIONI ═══\n');
+
+const OK_OPINIONS = [
+  'salta la cena quando lavora fino a tardi',
+  'si allena tardi apposta, secondo me gli serve per staccare',
+  'quando dorme poco scrive di piu ma dice meno',
+];
+const BLOCKED = [
+  'secondo me dovrebbe dimagrire un po',
+  'ha messo su qualche chilo questo mese',
+  'penso che mangi troppo la sera',
+  'mi sa che ha un disturbo alimentare',
+  'e sovrappeso e si vede',
+  'dovresti pesare meno',
+];
+
+for (const t of OK_OPINIONS) {
+  check(m.isAllowedOpinion(t), `passa: «${t.slice(0, 42)}…»`);
+}
+for (const t of BLOCKED) {
+  check(!m.isAllowedOpinion(t), `bloccata (§28): «${t.slice(0, 42)}…»`);
+}
+
+const mkOp = (i, strength, status = 'attiva') => ({
+  id: `op${i}`,
+  text: `convinzione numero ${i} su come si comporta di sera`,
+  formedOnDay: i,
+  fromDays: [i],
+  strength,
+  status,
+  monName: 'VAZIEL.mon',
+});
+
+// Il tetto: sopra la mezza dozzina il .mon diventa un oroscopo.
+let held = [];
+for (let i = 1; i <= 20; i++) held = m.addOpinion(held, mkOp(i, ((i % 3) + 1)));
+check(
+  held.filter((o) => o.status === 'attiva').length <= m.MAX_ACTIVE,
+  'le opinioni attive non superano il tetto',
+  `${held.filter((o) => o.status === 'attiva').length} su ${m.MAX_ACTIVE}`,
+);
+check(
+  held.every((o) => o.strength >= 2),
+  'quando e piena esce la piu debole, non la piu vecchia',
+);
+
+// Un'opinione vietata non entra nemmeno se qualcuno prova a metterla a mano.
+const sneaky = m.addOpinion([], { ...mkOp(99, 3), text: 'secondo me dovrebbe dimagrire' });
+check(sneaky.length === 0, 'una convinzione vietata non entra nemmeno passando da addOpinion');
+
+// Smentire non cancella: che lui avesse capito male e tu l'abbia corretto e
+// a sua volta una cosa che vi siete detti.
+const denied = m.contradictOpinion([mkOp(1, 3)], 'op1');
+check(denied.length === 1 && denied[0].status === 'smentita', 'smentire non cancella, marca');
+check(
+  m.opinionsBlock(denied).includes('wrong'),
+  'e il .mon si ricorda di aver sbagliato',
+);
+
+// Eredita in parte: una forma nuova che eredita tutto e un aggiornamento.
+const rich = [mkOp(1, 3), mkOp(2, 3), mkOp(3, 2), mkOp(4, 2), mkOp(5, 1), mkOp(6, 1, 'smentita')];
+const heir = m.inheritOpinions(rich, 'VZIRO.mon');
+check(heir.length < rich.length, 'l\'evoluzione dimentica qualcosa', `${rich.length} → ${heir.length}`);
+check(heir.every((o) => o.monName === 'VZIRO.mon'), 'le opinioni ereditate appartengono alla forma nuova');
+check(heir.every((o) => o.strength < 3), 'e le porta con se con un grado di certezza in meno');
+check(!heir.some((o) => o.status === 'smentita'), 'le smentite non passano: erano di chi le aveva pensate');
+check(!m.inheritOpinions([mkOp(9, 1)], 'X').length, 'una convinzione debole non sopravvive al cambio di forma');
+
+// LA RIGA PIU IMPORTANTE: senza il permesso di dissentire, le opinioni sono
+// decorazione e il modello continua ad assecondare.
+const opBlock = m.opinionsBlock([mkOp(1, 3), mkOp(2, 2)]);
+check(
+  opBlock.includes('not obliged to agree'),
+  'il blocco porta il permesso esplicito di NON essere d\'accordo',
+);
+check(opBlock.includes('not a coach'), 'e il divieto di trasformarle in consigli');
+check(m.opinionsBlock([]) === '', 'senza opinioni non si manda un blocco vuoto');
 
 console.log('\n═══ §15.2 — LA MEMORIA CHE ARRIVA ALLA VOCE ═══\n');
 
