@@ -561,9 +561,50 @@ try {
   await page.waitForSelector('.rarity__hist', { timeout: 15000 });
   await shot('dev-rarita-simulazione');
 
+  /* 🔷 v1.17 §21 — gli strumenti. Si eseguono DAVVERO: leggere i dati e
+     scrivere una pagina sono i due che il .mon userà di più, e una pagina
+     scritta qui è una pagina vera — il che vuol dire che il percorso
+     completo, disegnatore di markdown compreso, viene camminato prima di
+     avere una chiave. */
+  await click(byText('STRUMENTI'), 'tab strumenti');
+  await shot('dev-strumenti');
+  await click(byText('Esegui'), 'esegui leggi_i_miei_dati');
+  await page.waitForSelector('.tools__out', { timeout: 5000 });
+  await shot('dev-strumenti-dati');
+
+  await click(byText('scrivi_una_pagina'), 'scegli scrivi_una_pagina');
+  await click(byText('Esegui'), 'esegui scrivi_una_pagina');
+  await page.waitForSelector('.tools__out', { timeout: 5000 });
+  await shot('dev-strumenti-pagina');
+
   // L'annuncio dello shift esiste solo quando qualcosa è pronto. Le forzature
   // sono già attive (tab MINDLINE, poco sopra): basta uscire e guardare.
   await click('.dev__head .btn-icon', 'chiudi DEV');
+
+  /* La pagina appena scritta deve esserci per davvero: si apre, si legge, e
+     si controlla che il markdown sia diventato struttura invece che testo. */
+  await click('.tabbar__item:nth-child(2)', 'tab ME');
+  await click('.pagerow', 'apri la pagina');
+  await page.waitForSelector('.md__table', { timeout: 5000 });
+  await shot('21-pagina');
+
+  const pageChecks = await page.evaluate(() => ({
+    hash: window.location.hash,
+    headings: document.querySelectorAll('.md__h1, .md__h2').length,
+    rows: document.querySelectorAll('.md__table tbody tr').length,
+    checks: document.querySelectorAll('.md__list--check li').length,
+    rawHtml: document.querySelector('.pagereader__doc')?.innerHTML.includes('&lt;script') ?? false,
+  }));
+
+  if (!pageChecks.hash.startsWith('#/p/')) {
+    throw new Error(`la pagina non ha un indirizzo proprio: "${pageChecks.hash}"`);
+  }
+  if (pageChecks.headings < 2 || pageChecks.rows < 2 || pageChecks.checks < 2) {
+    throw new Error(`il markdown non è diventato struttura: ${JSON.stringify(pageChecks)}`);
+  }
+
+  await click('.pagereader__head .btn-icon', 'chiudi la pagina');
+
   await click('.tabbar__item:nth-child(1)', 'tab MON');
   await shot('06-shift-disponibile');
   await click('.devtrigger', 'riapri DEV');

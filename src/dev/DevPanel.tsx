@@ -33,6 +33,7 @@ import { CostSection } from './CostSection';
 import { MemorySection } from './MemorySection';
 import { MoodSection } from './MoodSection';
 import { RaritySection } from './RaritySection';
+import { ToolsSection } from './ToolsSection';
 
 type DevTab =
   | 'time'
@@ -46,7 +47,8 @@ type DevTab =
   | 'cost'
   | 'memory'
   | 'mood'
-  | 'rarity';
+  | 'rarity'
+  | 'tools';
 
 const TABS = [
   { id: 'time' as const, label: 'TEMPO' },
@@ -72,6 +74,10 @@ const TABS = [
      si contava a occhio. Qui si sposta una soglia e si vede subito cosa
      cambia, sullo stesso campione. */
   { id: 'rarity' as const, label: 'RARITÀ' },
+  /* 🔷 v1.17 §21 — gli strumenti sono l'unica parte del motore che non parte
+     da sola: li fa partire un modello. Senza chiavi resterebbero non provati,
+     quindi qui si eseguono a mano con i dati veri. */
+  { id: 'tools' as const, label: 'STRUMENTI' },
 ];
 
 export function DevPanel({ onClose }: { onClose: () => void }) {
@@ -102,6 +108,7 @@ export function DevPanel({ onClose }: { onClose: () => void }) {
         {tab === 'memory' && <MemorySection />}
         {tab === 'mood' && <MoodSection />}
         {tab === 'rarity' && <RaritySection />}
+        {tab === 'tools' && <ToolsSection />}
       </div>
     </div>
   );

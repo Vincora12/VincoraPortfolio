@@ -71,7 +71,15 @@ export interface Usage {
   cacheReadTokens?: number;
   cacheWriteTokens?: number;
   images?: number;
+  /** Ricerche sul web fatte dal fornitore dentro la richiesta. */
+  webSearches?: number;
 }
+
+/* ⚠️ Le ricerche NON passano dal conteggio dei token: sono un costo a parte,
+   dieci dollari ogni mille. Un tetto che guardasse solo i token le lascerebbe
+   passare tutte, e sarebbe un buco proprio nello strumento che il modello ha
+   più voglia di usare. */
+export const COST_PER_WEB_SEARCH = 0.01;
 
 export function costOf(model: string, usage: Usage): number {
   const p = priceFor(model);
@@ -80,7 +88,8 @@ export function costOf(model: string, usage: Usage): number {
     ((usage.cacheReadTokens ?? 0) / 1e6) * p.input * 0.1 +
     ((usage.cacheWriteTokens ?? 0) / 1e6) * p.input * 1.25 +
     ((usage.outputTokens ?? 0) / 1e6) * p.output +
-    (usage.images ?? 0) * (p.perImage ?? 0)
+    (usage.images ?? 0) * (p.perImage ?? 0) +
+    (usage.webSearches ?? 0) * COST_PER_WEB_SEARCH
   );
 }
 

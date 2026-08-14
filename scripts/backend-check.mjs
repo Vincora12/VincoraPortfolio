@@ -16,7 +16,7 @@
    ========================================================================= */
 
 import { build } from 'esbuild';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -32,7 +32,7 @@ writeFileSync(
   entry,
   `
 export { ROUTING, PERSONAL, routingProblems, personalDataOnFreeTier } from '${cwd}/netlify/functions/_shared/routing.ts';
-export { costOf, currentMonth, MONTHLY_CAP_USD, WARN_AT } from '${cwd}/netlify/functions/_shared/spend.ts';
+export { costOf, currentMonth, MONTHLY_CAP_USD, WARN_AT, COST_PER_WEB_SEARCH } from '${cwd}/netlify/functions/_shared/spend.ts';
 `,
 );
 
@@ -143,6 +143,71 @@ check(
 
 const month = m.currentMonth(new Date('2026-03-09T00:00:00Z'));
 check(month === '2026-03', 'il registro cambia chiave ogni mese da solo', month);
+
+/* ============================================================================
+   §21 — LA RICERCA SUL WEB
+
+   ⚠️ NON PASSA DAL CONTEGGIO DEI TOKEN. È un costo a parte, dieci dollari
+   ogni mille ricerche, e un tetto che guardasse solo i token la lascerebbe
+   passare tutta — proprio sullo strumento che un modello ha più voglia di
+   usare. Questi controlli sorvegliano quel buco.
+   ========================================================================= */
+
+console.log('\n═══ §21 — LA RICERCA SUL WEB ═══\n');
+
+const oneSearch = m.costOf('claude-opus-5', { webSearches: 1 });
+check(
+  Math.abs(oneSearch - m.COST_PER_WEB_SEARCH) < 0.0001,
+  'una ricerca costa e viene contata',
+  `${oneSearch} $`,
+);
+
+const hundred = m.costOf('claude-opus-5', { webSearches: 100 });
+check(
+  Math.abs(hundred - 1) < 0.001,
+  'cento ricerche fanno un dollaro',
+  `${hundred} $ — su un tetto di ${m.MONTHLY_CAP_USD} $`,
+);
+
+const mixed = m.costOf('claude-opus-5', { inputTokens: 1_000_000, webSearches: 10 });
+check(
+  Math.abs(mixed - 5.1) < 0.001,
+  'token e ricerche si sommano nello stesso conto',
+  `${mixed} $`,
+);
+
+/* Quante ricerche servirebbero per finire il mese da sole: serve a sapere se
+   il tetto protegge davvero anche da un ciclo impazzito. */
+const searchesToCap = Math.round(m.MONTHLY_CAP_USD / m.COST_PER_WEB_SEARCH);
+check(
+  searchesToCap > 1000,
+  'per sfondare il tetto con le sole ricerche ne servirebbero migliaia',
+  `${searchesToCap.toLocaleString('it-IT')} ricerche`,
+);
+
+/* 🔒 La ricerca si accende solo dove la conversazione è già di quel
+   fornitore: accenderla altrove manderebbe la domanda — che contiene quello
+   che hai appena scritto — da qualcun altro. */
+const aiSource = readFileSync(`${cwd}/netlify/functions/ai.ts`, 'utf8');
+check(
+  aiSource.includes("route.provider === 'anthropic'"),
+  'la ricerca non si accende su un fornitore diverso da quello della voce',
+);
+check(
+  aiSource.includes('LIMITS.tools') && aiSource.includes('toolChars'),
+  'gli strumenti hanno un tetto come tutto il resto della richiesta',
+);
+
+const providersSource = readFileSync(`${cwd}/netlify/functions/_shared/providers.ts`, 'utf8');
+check(
+  providersSource.includes('web_search_20260209'),
+  'la ricerca usa la versione che filtra i risultati prima del contesto',
+);
+check(
+  providersSource.includes('text.length > 0 || toolUses.length > 0'),
+  '⚠️ una risposta senza testo ma con strumenti NON conta come guasto',
+  'era il modo silenzioso in cui ogni giro di strumenti sarebbe fallito',
+);
 
 console.log(
   failures === 0 ? '\n✓ Backend conforme.\n' : `\n✗ ${failures} controlli falliti.\n`,

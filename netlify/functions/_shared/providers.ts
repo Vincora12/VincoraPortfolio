@@ -29,9 +29,43 @@ export interface SystemBlock {
   cache?: boolean;
 }
 
+/* ----------------------------------------------------------------------------
+   STRUMENTI (§21)
+
+   ⚠️ QUESTO FILE NON SA COSA FANNO GLI STRUMENTI, E NON DEVE SAPERLO.
+
+   Qui passano solo i loro NOMI e la forma degli argomenti. Chi li esegue è il
+   browser, perché è lì che vivono i dati: la storia di salute, il protocollo,
+   le pagine. Un server che sapesse eseguirli dovrebbe prima farsi mandare
+   tutto quanto — e sarebbe il contrario di quello che questo progetto fa.
+
+   L'unica eccezione è la ricerca sul web, che gira dal fornitore e si risolve
+   dentro la stessa chiamata: il browser non la vede nemmeno passare.
+   -------------------------------------------------------------------------- */
+
+export interface ToolDef {
+  name: string;
+  description: string;
+  /** JSON Schema degli argomenti. Opaco per questo file. */
+  schema: Record<string, unknown>;
+}
+
+export interface ToolUse {
+  id: string;
+  name: string;
+  input: unknown;
+}
+
+/**
+ * Il contenuto di un turno. Una stringa nel caso normale; una lista di blocchi
+ * quando ci sono dentro chiamate di strumenti e i loro risultati — che è
+ * l'unico modo che il fornitore accetta per raccontargli cosa è successo.
+ */
+export type TurnContent = string | Record<string, unknown>[];
+
 export interface Turn {
   role: 'user' | 'assistant';
-  content: string;
+  content: TurnContent;
 }
 
 export interface ImageInput {
@@ -46,10 +80,20 @@ export interface ProviderRequest {
   turns: Turn[];
   /** L'ultimo messaggio, quello a cui si risponde. */
   user: string;
+  /**
+   * L'ultimo messaggio come blocchi, quando invece di parole contiene i
+   * risultati degli strumenti. Se c'è, sostituisce `user`: un giro di
+   * strumenti non ha un testo da mandare, ha delle risposte.
+   */
+  userBlocks?: Record<string, unknown>[];
   image?: ImageInput;
   maxTokens: number;
   /** Ragiona prima di rispondere. Chi non sa farlo lo ignora. */
   thinking?: boolean;
+  /** Strumenti che il modello può chiamare. Li esegue il browser. */
+  tools?: ToolDef[];
+  /** Accendi la ricerca sul web, che gira dal fornitore. */
+  webSearch?: boolean;
 }
 
 export interface ProviderResult {
@@ -58,12 +102,16 @@ export interface ProviderResult {
   usage: Usage;
   /** Il modello che ha risposto davvero: con un fallback può differire. */
   model: string;
+  /** Strumenti che il modello vuole far eseguire prima di continuare. */
+  toolUses: ToolUse[];
+  /** Perché si è fermato. `tool_use` significa «aspetto i risultati». */
+  stopReason?: string;
   /** Solo per i log del server. */
   error?: string;
 }
 
 function fail(model: string, error: string): ProviderResult {
-  return { ok: false, text: '', usage: {}, model, error };
+  return { ok: false, text: '', usage: {}, model, toolUses: [], error };
 }
 
 /* --- Anthropic --------------------------------------------------------------
@@ -77,13 +125,17 @@ async function anthropic(req: ProviderRequest): Promise<ProviderResult> {
   if (!key) return fail(req.model, 'ANTHROPIC_API_KEY mancante');
 
   const content: unknown[] = [];
-  if (req.image) {
-    content.push({
-      type: 'image',
-      source: { type: 'base64', media_type: req.image.mediaType, data: req.image.data },
-    });
+  if (req.userBlocks?.length) {
+    content.push(...req.userBlocks);
+  } else {
+    if (req.image) {
+      content.push({
+        type: 'image',
+        source: { type: 'base64', media_type: req.image.mediaType, data: req.image.data },
+      });
+    }
+    content.push({ type: 'text', text: req.user });
   }
-  content.push({ type: 'text', text: req.user });
 
   try {
     const res = await fetch('https://api.anthropic.com/v1/messages', {
@@ -103,6 +155,23 @@ async function anthropic(req: ProviderRequest): Promise<ProviderResult> {
         // personaggio non aggiunge niente e l'uscita si paga cinque volte
         // l'entrata. Lo decide chi chiama, non questo file.
         ...(req.thinking ? {} : { thinking: { type: 'disabled' } }),
+        ...(req.tools?.length || req.webSearch
+          ? {
+              tools: [
+                ...(req.tools ?? []).map((t) => ({
+                  name: t.name,
+                  description: t.description,
+                  input_schema: t.schema,
+                })),
+                /* La ricerca gira dal fornitore: si dichiara e basta, i
+                   risultati arrivano già dentro questa stessa risposta. La
+                   versione con la data è quella che filtra i risultati prima
+                   che entrino nel contesto — su una domanda tipo «quante
+                   proteine ha X» è la differenza fra tre righe e tre pagine. */
+                ...(req.webSearch ? [{ type: 'web_search_20260209', name: 'web_search' }] : []),
+              ],
+            }
+          : {}),
         system: req.system.map((b) => ({
           type: 'text',
           text: b.text,
@@ -117,27 +186,42 @@ async function anthropic(req: ProviderRequest): Promise<ProviderResult> {
     const body = (await res.json()) as {
       model?: string;
       stop_reason?: string;
-      content?: { type: string; text?: string }[];
-      usage?: Record<string, number>;
+      content?: { type: string; text?: string; id?: string; name?: string; input?: unknown }[];
+      usage?: Record<string, number> & {
+        server_tool_use?: { web_search_requests?: number };
+      };
     };
 
     if (body.stop_reason === 'refusal') return fail(req.model, 'rifiuto del modello');
 
-    const text = (body.content ?? [])
+    const blocks = body.content ?? [];
+
+    const text = blocks
       .filter((b) => b.type === 'text')
       .map((b) => b.text ?? '')
       .join('')
       .trim();
 
+    const toolUses: ToolUse[] = blocks
+      .filter((b) => b.type === 'tool_use')
+      .map((b) => ({ id: b.id ?? '', name: b.name ?? '', input: b.input ?? {} }));
+
     return {
-      ok: text.length > 0,
+      /* ⚠️ Con gli strumenti una risposta SENZA testo è normale, non un
+         guasto: il modello ha chiesto di leggere una cosa prima di parlare.
+         Trattarla come vuota — com'era prima — farebbe fallire ogni giro in
+         cui decide di guardare i dati, che è proprio quello per cui esiste. */
+      ok: text.length > 0 || toolUses.length > 0,
       text,
+      toolUses,
+      stopReason: body.stop_reason,
       model: body.model ?? req.model,
       usage: {
         inputTokens: body.usage?.input_tokens ?? 0,
         outputTokens: body.usage?.output_tokens ?? 0,
         cacheReadTokens: body.usage?.cache_read_input_tokens ?? 0,
         cacheWriteTokens: body.usage?.cache_creation_input_tokens ?? 0,
+        webSearches: body.usage?.server_tool_use?.web_search_requests ?? 0,
       },
     };
   } catch (err) {
@@ -197,6 +281,7 @@ async function google(req: ProviderRequest): Promise<ProviderResult> {
     return {
       ok: text.length > 0,
       text,
+      toolUses: [],
       model: req.model,
       usage: {
         inputTokens: body.usageMetadata?.promptTokenCount ?? 0,

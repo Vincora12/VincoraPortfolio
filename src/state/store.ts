@@ -42,6 +42,16 @@ import {
   setRarityThresholds,
   type RarityThresholds,
 } from '../engine/rarityTuning';
+import type { Page } from '../engine/pages';
+import {
+  addPage,
+  addReminder,
+  afterSaying,
+  dueReminder,
+  editPage,
+  type Reminder,
+} from './pagesSlice';
+import { runTool, TOOLS, type ToolContext, type ToolResult, type ToolUse } from '../ai/tools';
 import { selectHeritageOrigins, type HeritageOrigin } from '../engine/heritage';
 import { createNode, makeNodeId, nextChapter } from '../engine/mindline';
 import { makeMemory, rollDailyEvent } from '../engine/simulation';
@@ -263,6 +273,9 @@ interface AppState {
   /** §29 — traccia dell'ultima generazione, visibile solo in DEV. */
   lastTrace: GenerationTrace | null;
   batch: BatchCandidate[];
+  pages: Page[];
+  reminders: Reminder[];
+  lastToolUses: string[];
 
   dev: DevFlags;
   bias: SimulationBias;
@@ -359,6 +372,11 @@ interface AppState {
   sampleRarity: (n: number) => RaritySample;
   /** §20.1 — applica una taratura. Torna i problemi, o lista vuota. */
   tuneRarity: (next: RarityThresholds | null) => string[];
+  /** §21.2 — cambia l'ordine dell'elenco delle pagine. */
+  pinPage: (slug: string, pinned: boolean) => void;
+  removePage: (slug: string) => void;
+  /** §21 — esegue uno strumento con i dati veri. Usato dalla voce e da DEV. */
+  runMonTool: (use: ToolUse) => ToolResult;
   resetCurrentNode: () => void;
   restoreNode: (nodeId: string) => void;
   cloneScenario: () => void;
@@ -399,6 +417,14 @@ const INITIAL = {
   pendingPlan: null as ContinuityPlan | null,
   lastTrace: null as GenerationTrace | null,
   batch: [] as BatchCandidate[],
+  /* §21.2 — le pagine che il .mon scrive. Vivono nello stato perché devono
+     stare nel salvataggio: una pagina che sparisce svuotando la cache di
+     Safari sarebbe peggio di non averla mai avuta. */
+  pages: [] as Page[],
+  reminders: [] as Reminder[],
+  /* Solo per il pannello DEV: quali strumenti ha usato l'ultima risposta.
+     Non è stato di prodotto e non deve finire nei salvataggi. */
+  lastToolUses: [] as string[],
   dev: {
     enabled: false,
     forceContinue: false,
@@ -1385,6 +1411,64 @@ export const useApp = create<AppState>()(
 
       clearBatch: () => set({ batch: [] }),
 
+      pinPage: (slug, pinned) =>
+        set((s) => ({ pages: s.pages.map((p) => (p.slug === slug ? { ...p, pinned } : p)) })),
+
+      removePage: (slug) => set((s) => ({ pages: s.pages.filter((p) => p.slug !== slug) })),
+
+      /* ============================================================================
+         §21 — GLI STRUMENTI, CON I DATI VERI DAVANTI
+
+         🔒 Il contesto si costruisce QUI e non dentro `tools.ts` perché è
+         l'unico posto che ha lo stato. `tools.ts` resta una funzione pura di
+         quello che gli passi, e per questo si può provare senza montare l'app —
+         che è l'unico modo di verificare gli strumenti finché le chiavi non ci
+         sono.
+         ========================================================================= */
+      runMonTool: (use) => {
+        const s = get();
+        const rec = activeRecord(s);
+
+        const ctx: ToolContext = {
+          day: s.day,
+          health: s.health,
+          protocol: s.protocol,
+          days: s.days,
+          memories: s.memories,
+          pages: s.pages,
+          monName: rec?.data.name ?? null,
+
+          writePage: (input) => {
+            const { pages, outcome } = addPage(get().pages, input, {
+              day: get().day,
+              monName: rec?.data.name ?? null,
+            });
+            if (outcome.ok) set({ pages });
+            return outcome;
+          },
+
+          updatePage: (slug, heading, body) => {
+            const { pages, outcome } = editPage(get().pages, slug, heading, body, get().day);
+            if (outcome.ok) set({ pages });
+            return outcome;
+          },
+
+          remember: (text, inDays, everyDays) => {
+            const { reminders, outcome } = addReminder(
+              get().reminders,
+              text,
+              inDays,
+              everyDays,
+              get().day,
+            );
+            if (outcome.ok) set({ reminders });
+            return outcome;
+          },
+        };
+
+        return runTool(use, ctx);
+      },
+
       /* ============================================================================
          §20.1 DEV → RARITÀ — il campione su cui si tara.
 
@@ -1577,7 +1661,7 @@ export const useApp = create<AppState>()(
       name: 'vinzmon.prototype.v4',
       version: 3,
       partialize: (s) => {
-        const { batch: _batch, ...rest } = s;
+        const { batch: _batch, lastToolUses: _tools, ...rest } = s;
         return rest as AppState;
       },
       /* 🔒 Il modulo di taratura è la sorgente che il motore legge, e allo
@@ -1610,6 +1694,35 @@ export function maybeSpeakFirst(): boolean {
 
   const spoke = s.chat.filter((m) => m.from === 'vinz');
   const lastSpokeDay = spoke.length > 0 ? spoke[spoke.length - 1]!.day : 0;
+
+  /* ============================================================================
+     §21.3 — UN PROMEMORIA BATTE UNA COSA SPONTANEA.
+
+     🔒 E NON È UN SECONDO CANALE. Passa esattamente da qui, dallo stesso posto
+     e con la stessa regola: una cosa al giorno. Se avesse un canale suo, un
+     giorno con un promemoria e una cosa da dire diventerebbe due messaggi, e
+     due messaggi non richiesti nello stesso giorno sono il punto in cui
+     un'app comincia a essere una che rompe.
+
+     Ha la precedenza perché gliel'hai chiesto TU: una cosa che hai chiesto
+     vale più di una che gli è venuta in mente. */
+  const due = dueReminder(s.reminders, s.day);
+  if (due && s.lastUnpromptedDay !== s.day) {
+    useApp.setState({
+      chat: [
+        ...s.chat,
+        {
+          id: `msg_rem_${due.id}_${s.day}`,
+          from: 'mon' as const,
+          text: due.text,
+          day: s.day,
+        },
+      ].slice(-60),
+      reminders: afterSaying(s.reminders, due.id, s.day),
+      lastUnpromptedDay: s.day,
+    });
+    return true;
+  }
 
   const message = unpromptedFor({
     day: s.day,
@@ -2245,6 +2358,15 @@ function requestReply(
         memory,
         s0.voiceNotes,
         deservesThinking(userText, extractFromMessage(userText, s0.protocol.diet)),
+        /* §21 — gli strumenti. `run` passa dallo store, così una pagina scritta
+           dal modello entra nello stato vero e viene salvata come tutto il
+           resto, invece di vivere in una variabile che sparisce. */
+        {
+          defs: TOOLS,
+          run: (use) => get().runMonTool(use),
+          webSearch: true,
+          onUsed: (uses) => set({ lastToolUses: uses.map((u) => u.name) }),
+        },
       ),
     )
     .then(({ result }) => {

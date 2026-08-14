@@ -34,7 +34,14 @@ export interface SystemBlock {
 
 export interface Turn {
   role: 'user' | 'assistant';
-  content: string;
+  /** Stringa nel caso normale, blocchi quando ci sono dentro gli strumenti. */
+  content: string | Record<string, unknown>[];
+}
+
+export interface ToolDefinition {
+  name: string;
+  description: string;
+  schema: Record<string, unknown>;
 }
 
 export interface AskRequest {
@@ -45,6 +52,12 @@ export interface AskRequest {
   image?: { mediaType: string; data: string };
   thinking?: boolean;
   maxTokens?: number;
+  /** Strumenti che il modello può chiamare. Li esegue il browser. */
+  tools?: ToolDefinition[];
+  /** L'ultimo messaggio come blocchi: i risultati di un giro di strumenti. */
+  userBlocks?: Record<string, unknown>[];
+  /** Accende la ricerca sul web, che gira dal fornitore. */
+  webSearch?: boolean;
   /** Solo per `image`. */
   prompt?: string;
 }
@@ -68,6 +81,9 @@ export interface BackendResult<T> {
 export interface VoiceData {
   text: string;
   model: string;
+  /** Strumenti che il modello vuole far girare prima di continuare. */
+  toolUses?: { id: string; name: string; input: unknown }[];
+  stopReason?: string;
 }
 
 export interface ImageData {

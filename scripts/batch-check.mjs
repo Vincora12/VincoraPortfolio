@@ -35,6 +35,10 @@ export { initialHealthState, applyDay, simulateDayInput, DEFAULT_BIAS } from '${
 export { makeRng, randomSeed } from '${cwd}/src/engine/rng.ts';
 export { isValidMonName } from '${cwd}/src/engine/naming.ts';
 export { normalizePool } from '${cwd}/src/engine/rarity.ts';
+export * as MD from '${cwd}/src/engine/markdown.ts';
+export * as PAGES from '${cwd}/src/engine/pages.ts';
+export * as SLICE from '${cwd}/src/state/pagesSlice.ts';
+export { TOOLS, runTool, assistantTurn, resultBlocks } from '${cwd}/src/ai/tools.ts';
 export { DEFAULT_THRESHOLDS, rarityThresholds, setRarityThresholds, resetRarityThresholds, thresholdProblems, isRarityTuned, bandShares } from '${cwd}/src/engine/rarityTuning.ts';
 export { planContinuity, EVOLVABLE_AXES, PROGRESSION, hiddenEventFor } from '${cwd}/src/engine/progression.ts';
 export { SCAN_QUESTIONS, seedFromAnswers, seedSpread } from '${cwd}/src/engine/personalityScan.ts';
@@ -740,6 +744,300 @@ check(
   simMax < 80,
   'dopo 400 giorni simulati le stat non sono al soffitto (§20.1)',
   `massima ${simMax}`,
+);
+
+/* ============================================================================
+   §21 — GLI STRUMENTI E LE PAGINE
+
+   ⚠️ QUESTA È LA PRIMA COSA CHE IL .MON SCRIVE DA SOLO, e cambia il tipo di
+   difetto possibile. Fino a ieri ogni riga dello stato nasceva da un tuo
+   gesto; adesso una pagina la decide un modello, e i modi di sbagliare sono
+   diversi: markdown malformato, un titolo lungo il triplo, una sezione
+   riscritta che si mangia quella accanto, un link che non è un link.
+
+   E c'è una cosa che NON si può verificare a mano ogni volta: che del markup
+   arrivato dal modello non diventi mai struttura. Quello si verifica qui.
+   ========================================================================= */
+
+console.log('\n═══ §21 — STRUMENTI E PAGINE ═══\n');
+
+/* --- Il markdown diventa struttura ---------------------------------------- */
+
+const doc = [
+  '# Titolo',
+  '',
+  'Un paragrafo con **grassetto**, *corsivo* e `codice`.',
+  '',
+  '## Sezione',
+  '',
+  '- primo',
+  '- secondo',
+  '',
+  '1. uno',
+  '2. due',
+  '',
+  '- [x] fatta',
+  '- [ ] da fare',
+  '',
+  '| Pasto | Cosa |',
+  '| --- | --- |',
+  '| Colazione | uova |',
+  '',
+  '> una citazione',
+  '',
+  '---',
+].join('\n');
+
+const blocks = m.MD.parseMarkdown(doc);
+const kinds = blocks.map((b) => b.kind);
+
+check(
+  kinds.includes('heading') && kinds.includes('table') && kinds.includes('checklist'),
+  'titoli, tabelle e spunte diventano struttura',
+  kinds.join(' · '),
+);
+check(
+  kinds.filter((k) => k === 'list').length === 2,
+  'elenchi puntati e numerati sono due elenchi distinti',
+);
+check(
+  blocks.find((b) => b.kind === 'table')?.rows.length === 1,
+  'la tabella ha le sue righe, senza contare il separatore',
+);
+check(
+  blocks.find((b) => b.kind === 'checklist')?.items.filter((i) => i.done).length === 1,
+  'una spunta segnata si distingue da una vuota',
+);
+
+/* --- ⚠️ Il markup non diventa mai markup ---------------------------------- */
+
+const nasty = m.MD.parseMarkdown('<script>alert(1)</script>\n\n<img src=x onerror=alert(1)>');
+const nastyKinds = new Set(nasty.map((b) => b.kind));
+check(
+  nastyKinds.size === 1 && nastyKinds.has('paragraph'),
+  'HTML dentro il markdown resta testo, non diventa struttura (§21.2)',
+  [...nastyKinds].join(' · '),
+);
+
+const links = m.MD.parseInline(
+  '[buono](https://esempio.it) [cattivo](javascript:alert(1)) [finto](data:text/html,x)',
+);
+check(
+  links.filter((p) => p.kind === 'link').length === 1,
+  'solo gli indirizzi ammessi diventano link',
+  `${links.filter((p) => p.kind === 'link').length} su 3`,
+);
+check(
+  !m.MD.isSafeHref('javascript:alert(1)') && !m.MD.isSafeHref('data:text/html,x'),
+  'javascript: e data: non passano mai',
+);
+check(m.MD.isSafeHref('https://esempio.it'), 'https passa');
+
+/* --- Il nome nell'indirizzo ------------------------------------------------ */
+
+check(
+  m.PAGES.slugify('Allenamento perché sì') === 'allenamento-perche-si',
+  'gli accenti si traslitterano invece di sparire',
+  m.PAGES.slugify('Allenamento perché sì'),
+);
+check(
+  m.PAGES.uniqueSlug('Dieta', ['dieta']) === 'dieta-2',
+  'due pagine con lo stesso titolo non si sovrascrivono',
+);
+check(
+  /^[a-z0-9-]{2,32}$/.test(m.PAGES.slugify('!!!')),
+  'un titolo senza lettere produce comunque un nome valido',
+  m.PAGES.slugify('!!!'),
+);
+
+/* --- Cambiare una sezione senza perdere il resto --------------------------- */
+
+const before = '# Dieta\n\n## Colazione\n\nuova\n\n## Cena\n\npesce alla griglia\n';
+const after = m.PAGES.replaceSection(before, 'Colazione', 'yogurt e frutta');
+
+check(after.includes('yogurt e frutta'), 'la sezione chiesta cambia');
+check(
+  after.includes('pesce alla griglia'),
+  '⚠️ e la sezione ACCANTO resta identica',
+  'è il difetto che si nota solo tre settimane dopo',
+);
+check(
+  !after.includes('uova'),
+  'il contenuto vecchio della sezione sparisce',
+);
+check(
+  m.PAGES.replaceSection(before, 'Spuntino', 'mandorle').includes('## Spuntino'),
+  'una sezione che non c’è viene aggiunta invece di fallire',
+);
+
+/* --- Le scritture sanno dire di no ----------------------------------------- */
+
+const ctx0 = { day: 10, monName: 'VZAR.mon' };
+
+const good = m.SLICE.addPage([], { title: 'Dieta', markdown: '# Dieta\n\nroba' }, ctx0);
+check(good.outcome.ok && good.pages.length === 1, 'una pagina valida entra');
+
+const empty = m.SLICE.addPage([], { title: 'Vuota', markdown: '   ' }, ctx0);
+check(!empty.outcome.ok && empty.pages.length === 0, 'una pagina vuota viene rifiutata');
+
+const huge = m.SLICE.addPage([], { title: 'X', markdown: 'a'.repeat(50_000) }, ctx0);
+check(
+  huge.pages.length === 0 || huge.pages[0].markdown.length <= m.PAGES.MAX_MARKDOWN_CHARS,
+  'un markdown enorme non entra intero nello stato',
+);
+
+const many = Array.from({ length: m.PAGES.MAX_PAGES }, (_, i) => ({
+  slug: `p${i}`,
+  title: `P${i}`,
+  markdown: 'x',
+  createdDay: 1,
+  updatedDay: 1,
+  pinned: false,
+  byMon: null,
+}));
+check(
+  !m.SLICE.addPage(many, { title: 'Una in più', markdown: 'x' }, ctx0).outcome.ok,
+  `oltre ${m.PAGES.MAX_PAGES} pagine si rifiuta invece di accumulare`,
+);
+
+const missing = m.SLICE.editPage([], 'inesistente', 'Sezione', 'testo', 10);
+check(
+  !missing.outcome.ok && typeof missing.outcome.error === 'string',
+  'aggiornare una pagina che non c’è torna un errore leggibile',
+  missing.outcome.error,
+);
+
+/* --- Promemoria ------------------------------------------------------------- */
+
+const r1 = m.SLICE.addReminder([], 'Misure', 3, 7, 10);
+check(r1.outcome.ok && r1.reminders[0].dueDay === 13, 'un promemoria cade nel giorno giusto');
+check(
+  m.SLICE.addReminder([], 'X', 1, 1, 10).reminders[0].everyDays >= 2,
+  'nessun promemoria può ripetersi ogni giorno (§13.10)',
+  'sarebbe una notifica quotidiana, che le quattro regole vietano',
+);
+check(
+  m.SLICE.dueReminder(r1.reminders, 12) === null &&
+    m.SLICE.dueReminder(r1.reminders, 13) !== null,
+  'prima del giorno non scade, dal giorno sì',
+);
+
+/* ⚠️ Il difetto vero dei promemoria ricorrenti: l'app resta chiusa due
+   settimane e al ritorno ne trovi quattordici in fila. */
+const repeated = m.SLICE.afterSaying(r1.reminders, r1.reminders[0].id, 40);
+check(
+  repeated.length === 1 && repeated[0].dueDay === 47,
+  'un promemoria ripetuto riparte da OGGI, non si accumula mentre l’app è chiusa',
+  `prossimo il giorno ${repeated[0]?.dueDay}`,
+);
+
+const once = m.SLICE.addReminder([], 'Una volta', 1, null, 10).reminders;
+check(
+  m.SLICE.afterSaying(once, once[0].id, 11).length === 0,
+  'un promemoria una-tantum sparisce dopo essere stato detto',
+);
+
+/* --- Gli strumenti girano davvero ------------------------------------------ */
+
+let toolPages = [];
+let toolReminders = [];
+const toolCtx = {
+  day: 40,
+  health,
+  protocol: { diet: null, training: null, declaredAt: null },
+  days: {},
+  memories: [],
+  get pages() {
+    return toolPages;
+  },
+  monName: 'VZAR.mon',
+  writePage: (input) => {
+    const res = m.SLICE.addPage(toolPages, input, { day: 40, monName: 'VZAR.mon' });
+    if (res.outcome.ok) toolPages = res.pages;
+    return res.outcome;
+  },
+  updatePage: (slug, heading, body) => {
+    const res = m.SLICE.editPage(toolPages, slug, heading, body, 40);
+    if (res.outcome.ok) toolPages = res.pages;
+    return res.outcome;
+  },
+  remember: (text, inDays, every) => {
+    const res = m.SLICE.addReminder(toolReminders, text, inDays, every, 40);
+    if (res.outcome.ok) toolReminders = res.reminders;
+    return res.outcome;
+  },
+};
+
+const call = (name, input) => m.runTool({ id: 't', name, input }, toolCtx);
+
+check(
+  !call('leggi_i_miei_dati', { cosa: 'salute' }).isError,
+  'leggere i propri dati funziona',
+);
+check(
+  call('leggi_i_miei_dati', { cosa: 'salute' }).content.includes('FORM'),
+  'e la risposta contiene davvero le statistiche',
+);
+check(
+  call('leggi_i_miei_dati', { cosa: 'inventata' }).isError,
+  'una richiesta che non esiste torna errore, non un silenzio',
+);
+check(
+  !call('scrivi_una_pagina', { titolo: 'Dieta di prova', markdown: '# Dieta\n\ntesto' }).isError &&
+    toolPages.length === 1,
+  'scrivere una pagina la crea davvero',
+);
+check(
+  call('elenca_le_pagine', {}).content.includes('dieta-di-prova'),
+  'e subito dopo compare nell’elenco',
+);
+check(
+  !call('aggiorna_una_pagina', { nome: 'dieta-di-prova', sezione: 'Cena', testo: 'pesce' })
+    .isError && toolPages[0].markdown.includes('pesce'),
+  'aggiornare una sezione funziona',
+);
+check(call('leggi_una_pagina', { nome: 'non-esiste' }).isError, 'una pagina che non c’è è un errore');
+check(
+  !call('ricorda_di', { cosa: 'Misure', fra_giorni: 2 }).isError && toolReminders.length === 1,
+  'mettere un promemoria funziona',
+);
+check(call('ricorda_di', { cosa: '', fra_giorni: 1 }).isError, 'un promemoria vuoto viene rifiutato');
+check(
+  call('strumento_inventato', {}).isError,
+  'uno strumento che non esiste non fa esplodere niente',
+);
+
+/* --- La grammatica del ritorno --------------------------------------------- */
+
+const withText = m.assistantTurn('ok', [{ id: 'a', name: 'x', input: {} }]);
+const withoutText = m.assistantTurn('   ', [{ id: 'a', name: 'x', input: {} }]);
+check(withText.content.length === 2, 'testo e chiamata viaggiano insieme quando c’è testo');
+check(
+  withoutText.content.length === 1 && withoutText.content[0].type === 'tool_use',
+  '⚠️ un blocco di testo VUOTO non viene mai mandato',
+  'il fornitore lo rifiuta, e capita ogni volta che chiama uno strumento senza dire niente',
+);
+
+const rb = m.resultBlocks([{ id: 'a', content: 'ok' }, { id: 'b', content: 'no', isError: true }]);
+check(
+  rb[0].type === 'tool_result' && rb[1].is_error === true,
+  'un errore di strumento viaggia marcato come errore',
+);
+
+/* --- Il catalogo è sano ----------------------------------------------------- */
+
+check(
+  m.TOOLS.every((t) => t.name && t.description.length > 40 && t.schema.type === 'object'),
+  'ogni strumento ha nome, descrizione vera e uno schema',
+);
+check(
+  new Set(m.TOOLS.map((t) => t.name)).size === m.TOOLS.length,
+  'nessun nome di strumento è duplicato',
+);
+check(
+  m.TOOLS.every((t) => /^[a-z_]+$/.test(t.name)),
+  'i nomi degli strumenti sono in italiano minuscolo, come la conversazione',
+  m.TOOLS.map((t) => t.name).join(' · '),
 );
 
 /* ============================================================================

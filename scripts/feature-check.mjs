@@ -823,6 +823,136 @@ check(
 );
 
 /* ============================================================================
+   §21 — GLI STRUMENTI
+
+   Le decisioni qui sotto sono tutte della stessa famiglia: dove gira il
+   codice, e chi può scrivere cosa. Sono le prime che, se saltano, non
+   producono un errore ma un cambio di natura del prodotto.
+   ========================================================================= */
+
+check(
+  'STRUMENTI §21',
+  'gli strumenti girano nel browser, non sul server',
+  has('src/ai/tools.ts', 'export function runTool') &&
+    lacks('netlify/functions/ai.ts', 'runTool'),
+  'un server che li eseguisse dovrebbe prima farsi mandare tutto l’archivio',
+);
+check(
+  'STRUMENTI §21',
+  'la funzione resta un relè: passa i nomi, non sa cosa fanno',
+  has('netlify/functions/ai.ts', 'toolUses: result.toolUses'),
+);
+check(
+  'STRUMENTI §21',
+  'il ciclo degli strumenti ha un tetto di giri',
+  has('src/ai/client.ts', 'MAX_TOOL_ROUNDS'),
+  'senza tetto un modello che richiama lo stesso strumento non finisce più',
+);
+check(
+  'STRUMENTI §21',
+  'all’ultimo giro gli strumenti si tolgono',
+  has('src/ai/client.ts', 'round < MAX_TOOL_ROUNDS'),
+  'altrimenti può chiuderne uno nuovo quando non c’è più nessuno a eseguirlo',
+);
+check(
+  'STRUMENTI §21',
+  'ogni giro di strumenti viene contato nella spesa',
+  has('src/ai/client.ts', 'recordVoiceUsage(subsystem, res.data)'),
+  'contarne uno solo farebbe sembrare gratis proprio la parte nuova',
+);
+check(
+  'STRUMENTI §21',
+  'il .mon sa di avere degli strumenti',
+  has('src/ai/voicePrompt.ts', 'WHAT YOU CAN ACTUALLY DO'),
+);
+check(
+  'STRUMENTI §21',
+  'e sa che deve guardare invece di indovinare',
+  has('src/ai/voicePrompt.ts', 'LOOK BEFORE YOU GUESS'),
+);
+check(
+  'STRUMENTI §21',
+  'gli strumenti si possono provare senza chiavi',
+  has('src/dev/ToolsSection.tsx', 'runMonTool'),
+  'sono l’unica parte del motore che non parte da sola',
+);
+
+/* --- Le pagine ------------------------------------------------------------- */
+
+check(
+  'PAGINE §21.2',
+  'il markdown non diventa mai HTML',
+  /* ⚠️ Si cerca la CHIAMATA, non la parola: la parola sta nel commento che
+     spiega perché non si fa, e cercarla faceva fallire il controllo proprio
+     grazie alla spiegazione. Un ago deve puntare alla decisione, non alla
+     forma in cui è stata scritta quel giorno. */
+  lacks('src/system/Markdown.tsx', 'dangerouslySetInnerHTML={') &&
+    lacks('src/engine/markdown.ts', 'dangerouslySetInnerHTML={'),
+  'l’app tiene nel browser mesi della sua vita: non esiste la strada',
+);
+check(
+  'PAGINE §21.2',
+  'solo http, https e mailto diventano link',
+  has('src/engine/markdown.ts', 'SAFE_SCHEME'),
+);
+check(
+  'PAGINE §21.2',
+  'una pagina si aggiorna per sezioni, non riscrivendola',
+  has('src/engine/pages.ts', 'export function replaceSection'),
+  'riscrivere è come si perde quello che c’era',
+);
+check(
+  'PAGINE §21.2',
+  'ogni pagina ha un indirizzo suo, per la schermata home',
+  has('src/App.tsx', "#\\/p\\/") && has('src/screens/PageReader.tsx', '#/p/'),
+);
+check(
+  'PAGINE §21.2',
+  'l’indirizzo non impila voci nella cronologia',
+  has('src/App.tsx', 'replaceState'),
+);
+check(
+  'PAGINE §21.2',
+  'il PDF si stampa, non si genera',
+  has('src/screens/PageReader.tsx', 'window.print()') &&
+    has('src/screens/screens.css', '@media print'),
+  'una libreria per rifare peggio una cosa di sistema è peso in cambio di niente',
+);
+check(
+  'PAGINE §21.2',
+  'le spunte si vedono ma non si toccano',
+  lacks('src/system/Markdown.tsx', 'type="checkbox"'),
+  'una spunta che si scorda al ricaricamento è peggio di una disegnata',
+);
+check(
+  'PAGINE §21.2',
+  'l’elenco delle pagine non compare finché non ce n’è una',
+  has('src/screens/MeOverview.tsx', 'if (pages.length === 0) return null'),
+);
+check(
+  'PAGINE §21.2',
+  'ogni scrittura del .mon può essere rifiutata',
+  has('src/state/pagesSlice.ts', 'outcome: { ok: false'),
+  'è la differenza fra «me l’ha detto» e «il salvataggio ha smesso di funzionare»',
+);
+
+/* --- I promemoria ---------------------------------------------------------- */
+
+check(
+  'PROMEMORIA §21.3',
+  'un promemoria passa dal canale che esiste già',
+  has('src/state/store.ts', 'dueReminder(s.reminders, s.day)') &&
+    has('src/state/store.ts', 'lastUnpromptedDay: s.day'),
+  'un canale suo vorrebbe dire due messaggi non richiesti nello stesso giorno',
+);
+check(
+  'PROMEMORIA §21.3',
+  'un promemoria ripetuto non si accumula mentre l’app è chiusa',
+  has('src/state/pagesSlice.ts', 'dueDay: day + r.everyDays'),
+  'ripartire dalla scadenza vecchia darebbe quattordici messaggi in fila',
+);
+
+/* ============================================================================
    Sicurezza e tono — non negoziabili
    ========================================================================= */
 

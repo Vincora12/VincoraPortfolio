@@ -469,3 +469,53 @@
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
+
+/* ============================================================================
+   DEV → STRUMENTI (§21)
+   ========================================================================= */
+
+.tools__picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--u);
+}
+
+.tools__pick {
+  padding: var(--u) var(--u2);
+  border: 1px solid var(--muted-strong);
+  background: none;
+  color: var(--white);
+  font-family: var(--font-mono);
+  font-size: var(--type-micro);
+  cursor: pointer;
+}
+
+.tools__pick--on {
+  background: var(--white);
+  color: var(--ink);
+  border-color: var(--white);
+}
+
+.tools__args {
+  display: flex;
+  flex-direction: column;
+  gap: var(--u);
+}
+
+.tools__textarea {
+  width: 100%;
+  resize: vertical;
+  background: var(--ink-deep);
+  color: var(--white);
+  border: 1px solid var(--muted-strong);
+  font-family: var(--font-mono);
+  font-size: var(--type-small);
+  padding: var(--u2);
+}
+
+.tools__out {
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 300px;
+  overflow: auto;
+}

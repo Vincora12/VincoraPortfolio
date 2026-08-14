@@ -24,14 +24,16 @@
      dove serve.
    ========================================================================= */
 
+import type { Overlay } from '../App';
 import { useApp, useProtocol } from '../state/store';
 import { ScreenHead, SegmentedBar, SystemLabel, Window } from '../system/components';
+import { sortPages } from '../engine/pages';
 import { STAT_LABELS, formatDelta, formatSignal, trend } from '../engine/health';
 import { describeDiet, describeTraining } from '../engine/protocol';
 import { STAT_KEYS, isKnown } from '../engine/types';
 import { t } from '../i18n/it';
 
-export function MeOverviewScreen() {
+export function MeOverviewScreen({ onGo }: { onGo: (o: Overlay) => void }) {
   const health = useApp((s) => s.health);
   const progression = useApp((s) => s.progression);
   const { protocol } = useProtocol();
@@ -47,6 +49,8 @@ export function MeOverviewScreen() {
         {/* 🔶 La riga che toglie l'ambiguità prima di mostrare qualunque
              numero: quello che segue non è un punteggio. */}
         <p className="t-small me__preamble">{t.me.preamble}</p>
+
+        <Pages onGo={onGo} />
 
         {/* --- CONDITION: stato del giorno, con il nome di sistema accanto alla
              domanda a cui risponde. «CONDITION» da solo non si capisce. --- */}
@@ -157,5 +161,55 @@ export function MeOverviewScreen() {
         )}
       </div>
     </div>
+  );
+}
+
+/* ============================================================================
+   LE PAGINE (§21.2)
+
+   🔷 «Se gli chiedo qualcosa lui può tornarmi indietro una pagina.»
+
+   Stanno in ME e non in una tab loro per due motivi. Il primo è che una quinta
+   tab su un telefono è una tab che nessuno preme. Il secondo è più vero: ME è
+   già «le tue cose», e una pagina della dieta è una tua cosa — non un'altra
+   sezione dell'app.
+
+   ⚠️ Il blocco NON compare finché non c'è niente dentro. Un riquadro vuoto che
+   dice «qui appariranno le pagine» è una promessa che l'app fa al posto del
+   .mon, e finché lui non ne ha scritta una è una promessa che non può
+   mantenere.
+   ========================================================================= */
+
+function Pages({ onGo }: { onGo: (o: Overlay) => void }) {
+  const pages = useApp((s) => s.pages);
+  const day = useApp((s) => s.day);
+
+  if (pages.length === 0) return null;
+
+  return (
+    <Window title={`PAGINE · ${pages.length}`}>
+      <div className="rowlist">
+        {sortPages(pages).map((p) => {
+          const age = day - p.updatedDay;
+          return (
+            <button
+              key={p.slug}
+              type="button"
+              className="pagerow"
+              onClick={() => onGo(`page:${p.slug}`)}
+            >
+              <span className="pagerow__title">{p.title}</span>
+              <span className="t-micro pagerow__meta">
+                {p.pinned && <SystemLabel tone="character">IN CIMA</SystemLabel>}
+                <span>
+                  {age === 0 ? 'oggi' : age === 1 ? 'ieri' : `${age} giorni fa`}
+                </span>
+                <span aria-hidden="true">→</span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </Window>
   );
 }

@@ -27,6 +27,13 @@ import type { Turn } from '../engine/memoryContext';
 import type { VoiceNote } from '../engine/notebook';
 import { buildVoiceSystemPrompt, introductionRequest } from './voicePrompt';
 import { ask, type BackendFailure, type VoiceData } from './backend';
+import {
+  assistantTurn,
+  resultBlocks,
+  type ToolDef,
+  type ToolResult,
+  type ToolUse,
+} from './tools';
 import { recordUsageEntry } from './usage';
 
 export interface VoiceResult {
@@ -76,6 +83,35 @@ export interface VoiceMemory {
  * due frasi in personaggio non aggiunge niente e l'uscita si paga cinque volte
  * l'entrata — e si riaccende sulla nascita e sulle domande vere (§17.5).
  */
+/**
+ * Come si eseguono gli strumenti, per chi chiama.
+ *
+ * È un oggetto e non un import diretto perché questo file non deve sapere da
+ * dove arrivano i dati: li conosce lo store, e passarli qui dentro renderebbe
+ * la voce impossibile da provare senza montare l'app.
+ */
+export interface ToolRuntime {
+  defs: ToolDef[];
+  run: (use: ToolUse) => ToolResult;
+  /** Accende la ricerca sul web, che gira dal fornitore. */
+  webSearch?: boolean;
+  /** Per raccontare in chat cosa ha fatto, invece di lasciarlo invisibile. */
+  onUsed?: (uses: ToolUse[], results: ToolResult[]) => void;
+}
+
+/* ----------------------------------------------------------------------------
+   QUANTI GIRI DI STRUMENTI
+
+   ⚠️ Il ciclo DEVE avere un tetto. Un modello che chiama uno strumento, legge
+   un risultato che non gli piace e lo richiama uguale è un caso che capita, e
+   senza tetto diventa una conversazione che non finisce e un conto che sale
+   da solo mentre il telefono è in tasca.
+
+   Quattro giri bastano per la catena più lunga che abbia senso qui: guarda le
+   pagine, leggi quella giusta, guarda i dati, aggiornala.
+   -------------------------------------------------------------------------- */
+const MAX_TOOL_ROUNDS = 4;
+
 async function speak(
   token: string,
   record: MonRecord,
@@ -85,27 +121,81 @@ async function speak(
   memory: VoiceMemory | null,
   notes: VoiceNote[],
   deliberate = false,
+  tools?: ToolRuntime,
 ): Promise<VoiceOutcome> {
-  const { data, failure } = await ask<VoiceData & { usage?: Record<string, number> }>(token, {
-    capability: 'character-voice',
-    system: [
-      // Il briefing non cambia mai dentro una conversazione: in cache.
-      { text: buildVoiceSystemPrompt(record, mood, notes), cache: true },
-      // La memoria cambia una volta al giorno: seconda voce di cache, così
-      // quella del briefing non si invalida mai.
-      ...(memory ? [{ text: memory.memory, cache: true }] : []),
-    ],
-    turns: memory?.turns ?? [],
-    user: userTurn,
-    thinking: deliberate,
-    maxTokens: 2000,
-  });
+  const system = [
+    // Il briefing non cambia mai dentro una conversazione: in cache.
+    { text: buildVoiceSystemPrompt(record, mood, notes), cache: true },
+    // La memoria cambia una volta al giorno: seconda voce di cache, così
+    // quella del briefing non si invalida mai.
+    ...(memory ? [{ text: memory.memory, cache: true }] : []),
+  ];
+
+  /* I turni crescono a ogni giro di strumenti: partono dalla conversazione
+     vera e ci si aggiungono le chiamate e i risultati. */
+  const turns: Turn[] = [...(memory?.turns ?? [])];
+  let userBlocks: Record<string, unknown>[] | undefined;
+  let data: (VoiceData & { usage?: Record<string, number> }) | null = null;
+  let failure: BackendFailure | null = null;
+
+  for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
+    const res = await ask<
+      VoiceData & {
+        usage?: Record<string, number>;
+        toolUses?: { id: string; name: string; input: unknown }[];
+      }
+    >(token, {
+      capability: 'character-voice',
+      system,
+      turns,
+      user: userTurn,
+      userBlocks,
+      thinking: deliberate,
+      /* All'ultimo giro gli strumenti si tolgono: se li avesse ancora
+         potrebbe chiuderne uno nuovo proprio mentre non c'è più nessuno a
+         eseguirlo, e la conversazione finirebbe senza una frase. */
+      ...(tools && round < MAX_TOOL_ROUNDS
+        ? { tools: tools.defs, webSearch: tools.webSearch }
+        : {}),
+      maxTokens: 2000,
+    });
+
+    data = res.data;
+    failure = res.failure;
+
+    recordVoiceUsage(subsystem, res.data);
+
+    const uses = res.data?.toolUses ?? [];
+    if (!res.data || uses.length === 0 || !tools || round === MAX_TOOL_ROUNDS) break;
+
+    turns.push(assistantTurn(res.data.text ?? '', uses) as unknown as Turn);
+    const results = uses.map((u) => tools.run(u));
+    tools.onUsed?.(uses, results);
+
+    /* Dal secondo giro in poi il messaggio di partenza è già nei turni: se lo
+       si rimandasse anche come ultimo messaggio, il modello lo leggerebbe due
+       volte e risponderebbe alla domanda invece che ai risultati. */
+    userBlocks = resultBlocks(results);
+    userTurn = '';
+  }
 
   if (!data) return { result: null, failure: asVoiceFailure(failure ?? 'error') };
 
-  /* La telemetria di DEV resta lato browser: il server ha il suo registro,
-     ma quello dice quanto hai speso in totale, non cosa è appena successo in
-     questa sessione. Le due cose servono a domande diverse. */
+  return { result: { text: data.text, model: data.model }, failure: null };
+}
+
+/* La telemetria di DEV resta lato browser: il server ha il suo registro, ma
+   quello dice quanto hai speso in totale, non cosa è appena successo in questa
+   sessione. Le due cose servono a domande diverse.
+
+   ⚠️ Si registra a OGNI giro, non solo all'ultimo: con gli strumenti una
+   risposta può costare tre chiamate, e contarne una sola farebbe sembrare
+   gratis proprio la parte nuova. */
+function recordVoiceUsage(
+  subsystem: 'introduction' | 'reply',
+  data: (VoiceData & { usage?: Record<string, number> }) | null,
+): void {
+  if (!data) return;
   try {
     const u = data.usage ?? {};
     recordUsageEntry(
@@ -119,8 +209,6 @@ async function speak(
   } catch {
     /* la telemetria non deve poter rompere una risposta */
   }
-
-  return { result: { text: data.text, model: data.model }, failure: null };
 }
 
 /**
@@ -139,10 +227,11 @@ export async function generateReply(
   memory: VoiceMemory | null,
   notes: VoiceNote[],
   deliberate = false,
+  tools?: ToolRuntime,
 ): Promise<VoiceOutcome> {
   if (!token) return { result: null, failure: 'no-key' };
   const turn = context ? `${userText}\n\n[${context}]` : userText;
-  return speak(token, record, turn, 'reply', mood, memory, notes, deliberate);
+  return speak(token, record, turn, 'reply', mood, memory, notes, deliberate, tools);
 }
 
 /**

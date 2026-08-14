@@ -21,7 +21,13 @@
 
 import { authorize, denied, json } from './_shared/auth';
 import { ROUTING, type Capability } from './_shared/routing';
-import { callProvider, generateImage, type SystemBlock, type Turn } from './_shared/providers';
+import {
+  callProvider,
+  generateImage,
+  type SystemBlock,
+  type ToolDef,
+  type Turn,
+} from './_shared/providers';
 import { checkCap, recordSpend, MONTHLY_CAP_USD } from './_shared/spend';
 
 /* Tetti sulla richiesta. Non difendono da un attacco — chi ha il token può
@@ -35,6 +41,10 @@ const LIMITS = {
   turns: 24,
   imageBytes: 5 * 1024 * 1024,
   maxTokens: 4000,
+  /* Gli strumenti sono pochi e li scrive l'app, non l'utente: il tetto serve
+     solo a fermare un ciclo che li duplica. */
+  tools: 12,
+  toolChars: 8_000,
 };
 
 interface Payload {
@@ -42,9 +52,12 @@ interface Payload {
   system?: SystemBlock[];
   turns?: Turn[];
   user?: string;
+  userBlocks?: Record<string, unknown>[];
   image?: { mediaType: string; data: string };
   thinking?: boolean;
   maxTokens?: number;
+  tools?: ToolDef[];
+  webSearch?: boolean;
   /** Solo per `image`. */
   prompt?: string;
 }
@@ -113,11 +126,30 @@ export default async function handler(request: Request): Promise<Response> {
   const system = payload.system ?? [];
   const turns = (payload.turns ?? []).slice(-LIMITS.turns);
   const user = payload.user ?? '';
+  const userBlocks = payload.userBlocks ?? [];
 
   const systemChars = system.reduce((n, b) => n + (b.text?.length ?? 0), 0);
   if (systemChars > LIMITS.systemChars) return json({ error: 'system troppo lungo' }, 413);
   if (user.length > LIMITS.userChars) return json({ error: 'messaggio troppo lungo' }, 413);
-  if (user.trim().length === 0) return json({ error: 'messaggio vuoto' }, 400);
+  if (user.trim().length === 0 && userBlocks.length === 0) {
+    return json({ error: 'messaggio vuoto' }, 400);
+  }
+  if (JSON.stringify(userBlocks).length > LIMITS.userChars) {
+    return json({ error: 'risultati degli strumenti troppo lunghi' }, 413);
+  }
+
+  const tools = payload.tools ?? [];
+  if (tools.length > LIMITS.tools) return json({ error: 'troppi strumenti' }, 413);
+  if (JSON.stringify(tools).length > LIMITS.toolChars) {
+    return json({ error: 'strumenti troppo lunghi' }, 413);
+  }
+
+  /* 🔒 La ricerca sul web si accende SOLO dove la conversazione è già di
+     quel fornitore. Accenderla altrove vorrebbe dire mandare la domanda —
+     che può contenere qualunque cosa tu abbia appena scritto — da qualcun
+     altro, e la tabella delle capacità esiste apposta per non farlo di
+     nascosto. */
+  const webSearch = Boolean(payload.webSearch) && route.provider === 'anthropic';
 
   if (payload.image) {
     // base64 gonfia di un terzo: si stima la dimensione vera prima di
@@ -131,15 +163,18 @@ export default async function handler(request: Request): Promise<Response> {
     system,
     turns,
     user,
+    userBlocks,
     image: payload.image,
     thinking: Boolean(payload.thinking),
+    tools,
+    webSearch,
     maxTokens: Math.min(payload.maxTokens ?? 2000, LIMITS.maxTokens),
   });
 
   /* Si registra anche quando la risposta è vuota o rifiutata: il fornitore ha
      comunque letto l'ingresso e lo fa pagare. Un contatore che segna solo i
      successi è un contatore che sottostima proprio nei giorni storti. */
-  if (result.usage.inputTokens || result.usage.outputTokens) {
+  if (result.usage.inputTokens || result.usage.outputTokens || result.usage.webSearches) {
     await recordSpend(capability, result.model, result.usage);
   }
 
@@ -150,6 +185,10 @@ export default async function handler(request: Request): Promise<Response> {
 
   return json({
     text: result.text,
+    /* Il server non esegue niente: dice quali strumenti il modello vuole e
+       lascia fare al browser, che è l'unico posto dove i dati esistono. */
+    toolUses: result.toolUses,
+    stopReason: result.stopReason,
     model: result.model,
     usage: result.usage,
     warning: cap.warning,

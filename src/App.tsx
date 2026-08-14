@@ -39,6 +39,7 @@ import { HeritageDnaScreen } from './screens/HeritageDna';
 import { HistoryScreen } from './screens/History';
 import { DailyScanScreen } from './screens/DailyScan';
 import { DevPanel } from './dev/DevPanel';
+import { PageReader } from './screens/PageReader';
 
 export type Tab = 'mon' | 'me' | 'calendar' | 'mindline';
 export type Overlay =
@@ -50,7 +51,20 @@ export type Overlay =
   | 'heritage'
   | 'input'
   | 'scan'
-  | 'dev';
+  | 'dev'
+  /* 🔷 v1.17 §21.2 — una pagina scritta dal .mon. Porta con sé il nome, che è
+     anche il suo indirizzo: `page:canada` ↔ `#/p/canada`. È l'unico overlay
+     con un argomento, e per questo è scritto così invece che come parola
+     singola — un secondo campo di stato che dice «quale pagina» si
+     desincronizzerebbe dal primo alla prima distrazione. */
+  | `page:${string}`;
+
+/** Il nome della pagina dentro un overlay, o `null` se non è una pagina. */
+export function pageSlugOf(overlay: Overlay): string | null {
+  return typeof overlay === 'string' && overlay.startsWith('page:')
+    ? overlay.slice('page:'.length)
+    : null;
+}
 
 /** Le fasi su campo nero, lette dal board. */
 // 🔶 v1.10 — il PROTOCOLLO non è qui di proposito. §10.5 riserva l'inversione
@@ -84,6 +98,44 @@ export function App() {
      stesso) e ogni volta che si rientra nella tab MON. */
   const [monView, setMonView] = useState<'creature' | 'chat'>('creature');
   useEffect(() => setMonView('creature'), [phase]);
+
+  /* ============================================================================
+     §21.2 — L'INDIRIZZO DI UNA PAGINA
+
+     🔷 «Mettermi una pagina facile da raggiungere.»
+
+     Sul telefono «facile da raggiungere» vuol dire sulla schermata home, e per
+     starci serve un indirizzo. `#/p/canada` è quello: apri quel link e l'app
+     parte già sulla pagina, quindi da Safari la si può aggiungere alla home e
+     diventa un'icona a sé.
+
+     🔒 Si usa il frammento — la parte dopo il cancelletto — e non un percorso
+     vero perché non c'è un server che serva `/p/canada`: chiederglielo darebbe
+     una pagina non trovata. Il frammento resta nel browser, e funziona anche
+     con il sito fermo.
+     ========================================================================= */
+  useEffect(() => {
+    const open = () => {
+      const m = /^#\/p\/([a-z0-9-]{2,32})$/.exec(window.location.hash);
+      if (m) setOverlay(`page:${m[1]}`);
+    };
+    open();
+    window.addEventListener('hashchange', open);
+    return () => window.removeEventListener('hashchange', open);
+  }, []);
+
+  /* L'indirizzo segue quello che guardi, così «condividi» e «aggiungi a Home»
+     prendono la pagina giusta invece della radice. */
+  useEffect(() => {
+    const slug = pageSlugOf(overlay);
+    const wanted = slug ? `#/p/${slug}` : '';
+    if (window.location.hash !== wanted) {
+      // `replaceState` e non `hash =`: cambiare l'hash impilerebbe una voce
+      // nella cronologia a ogni apertura, e il tasto indietro diventerebbe un
+      // labirinto di pagine già chiuse.
+      window.history.replaceState(null, '', `${window.location.pathname}${wanted}`);
+    }
+  }, [overlay]);
 
   const goTab = (next: Tab) => {
     if (next === 'mon') setMonView('creature');
@@ -233,7 +285,7 @@ function PhaseScreen({
         case 'mon':
           return <CompanionHomeScreen onGo={onGo} onBack={onBack} />;
         case 'me':
-          return <MeOverviewScreen />;
+          return <MeOverviewScreen onGo={onGo} />;
         case 'calendar':
           return <CalendarScreen onGo={onGo} />;
         case 'mindline':
@@ -318,6 +370,10 @@ function OverlayScreen({
       return <DailyScanScreen onClose={onClose} />;
     case 'dev':
       return <DevPanel onClose={onClose} />;
+    default: {
+      const slug = pageSlugOf(overlay);
+      return slug ? <PageReader slug={slug} onClose={onClose} /> : null;
+    }
   }
 }
 

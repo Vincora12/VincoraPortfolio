@@ -3359,3 +3359,233 @@
 @media (prefers-reduced-motion: reduce) {
   .cal__stamp { animation: none; }
 }
+
+/* ============================================================================
+   LE PAGINE (§21.2)
+   ========================================================================= */
+
+.pagerow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--u3);
+  width: 100%;
+  padding: var(--u3) 0;
+  border: 0;
+  border-bottom: 1px solid var(--hairline);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pagerow:last-child { border-bottom: 0; }
+
+.pagerow__title {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pagerow__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--u2);
+  flex: 0 0 auto;
+  color: var(--muted-strong);
+}
+
+.pagereader__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--u3);
+  padding: max(var(--u4), env(safe-area-inset-top)) var(--u4) var(--u3);
+  border-bottom: var(--border) solid var(--ink);
+}
+
+.pagereader__id { min-width: 0; }
+
+.pagereader__slug {
+  display: block;
+  color: var(--muted);
+  font-family: var(--font-mono);
+}
+
+.pagereader__title { margin: var(--u) 0 0; }
+
+.pagereader__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--u4);
+}
+
+.pagereader__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--u2) var(--u3);
+  color: var(--muted);
+}
+
+.pagereader__doc {
+  border: var(--border) solid var(--ink);
+  padding: var(--u4);
+}
+
+.pagereader__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--u2);
+}
+
+.pagereader__hint { color: var(--muted); }
+
+/* --- Il markdown disegnato --------------------------------------------------
+   Le misure sono le stesse della UI: una pagina deve sembrare una schermata
+   dell'app, non un documento aperto dentro l'app.
+   -------------------------------------------------------------------------- */
+
+.md {
+  display: flex;
+  flex-direction: column;
+  gap: var(--u3);
+}
+
+.md__h1 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--type-display-m);
+  line-height: 1.1;
+}
+
+.md__h2 {
+  margin: var(--u2) 0 0;
+  font-size: var(--type-title);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.md__h3 {
+  margin: var(--u2) 0 0;
+  font-size: var(--type-body);
+  color: var(--muted-strong);
+}
+
+.md__p { margin: 0; line-height: 1.55; }
+
+.md__list {
+  margin: 0;
+  padding-left: var(--u5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--u);
+  line-height: 1.5;
+}
+
+.md__list--check {
+  list-style: none;
+  padding-left: 0;
+}
+
+.md__list--check li {
+  display: flex;
+  align-items: baseline;
+  gap: var(--u2);
+}
+
+/* La casella è disegnata, non premibile: vedi il commento in Markdown.tsx. */
+.md__box {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  border: var(--border) solid currentColor;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 10px;
+  text-align: center;
+}
+
+.md__done { color: var(--muted); }
+.md__done .md__boxlabel { text-decoration: line-through; }
+
+.md__quote {
+  margin: 0;
+  padding-left: var(--u3);
+  border-left: var(--border) solid currentColor;
+  color: var(--muted-strong);
+}
+
+.md__code,
+.md__pre {
+  font-family: var(--font-mono);
+  font-size: var(--type-small);
+}
+
+.md__pre {
+  margin: 0;
+  padding: var(--u2);
+  border: 1px solid var(--hairline);
+  overflow-x: auto;
+  white-space: pre;
+}
+
+.md__link { color: inherit; }
+
+.md__rule {
+  border: 0;
+  border-top: 1px solid var(--hairline);
+  margin: 0;
+  width: 100%;
+}
+
+/* Una tabella larga scorre dentro il suo contenitore: la pagina non deve mai
+   scorrere di lato, o sul telefono si perde il filo della lettura. */
+.md__tablewrap { overflow-x: auto; }
+
+.md__table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: var(--type-small);
+}
+
+.md__table th,
+.md__table td {
+  border-bottom: 1px solid var(--hairline);
+  padding: var(--u2) var(--u3) var(--u2) 0;
+  text-align: left;
+  vertical-align: baseline;
+}
+
+.md__table th {
+  font-family: var(--font-mono);
+  font-size: var(--type-micro);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted-strong);
+  border-bottom: var(--border) solid currentColor;
+}
+
+/* ⚠️ La stampa è il PDF: Safari lo fa già, e generarlo noi vorrebbe dire
+   mettere una libreria nel pacchetto per rifare peggio una cosa di sistema.
+   Qui si toglie tutto quello che non è il documento. */
+@media print {
+  .pagereader__head .btn-icon,
+  .pagereader__actions,
+  .pagereader__hint,
+  .tabbar,
+  .devtrigger {
+    display: none !important;
+  }
+
+  .screen--ink,
+  .pagereader__doc {
+    background: #ffffff !important;
+    color: #000000 !important;
+    border: 0 !important;
+  }
+
+  .pagereader__doc { padding: 0 !important; }
+}
