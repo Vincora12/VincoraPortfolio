@@ -204,10 +204,16 @@ export async function generateReply(
   context: string | null,
   mood: MoodState | null,
   memory: VoiceMemory | null,
+  /**
+   * 🔷 v1.12 §17.5 — questa è una domanda vera, non una battuta: accende il
+   * ragionamento. Lo decide `deservesThinking`, deterministicamente e con
+   * prudenza — nel dubbio si risparmia.
+   */
+  deliberate = false,
 ): Promise<VoiceOutcome> {
   if (!apiKey) return { result: null, failure: 'no-key' };
   const turn = context ? `${userText}\n\n[${context}]` : userText;
-  return speak(apiKey, record, turn, 'reply', mood, memory);
+  return speak(apiKey, record, turn, 'reply', mood, memory, deliberate);
 }
 
 /* ============================================================================

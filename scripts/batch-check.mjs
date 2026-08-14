@@ -39,7 +39,7 @@ export { planContinuity, EVOLVABLE_AXES, PROGRESSION } from '${cwd}/src/engine/p
 export { SCAN_QUESTIONS, seedFromAnswers, seedSpread } from '${cwd}/src/engine/personalityScan.ts';
 export * as CONFIG from '${cwd}/src/engine/generation-config.ts';
 export { FRAGMENT_LIBRARY, slug } from '${cwd}/src/assets-pipeline/fragments.ts';
-export { extractFromMessage, extractionLabels } from '${cwd}/src/engine/chatExtract.ts';
+export { extractFromMessage, extractionLabels, deservesThinking } from '${cwd}/src/engine/chatExtract.ts';
 export { parseDiet, parseTraining, adherenceOf, classifyFood, mealFromText, mealFromClock, expectedMeals, plannedFor } from '${cwd}/src/engine/protocol.ts';
 export { eggReply, allEggSounds } from '${cwd}/src/engine/eggVoice.ts';
 export { idleMotionFor, motionCoverage } from '${cwd}/src/engine/idleMotion.ts';
@@ -827,6 +827,110 @@ check(
    volta su cento sbaglia, e la cosa che sbaglierebbe e' esattamente quella
    che questo progetto protegge dalla prima riga.
    ========================================================================= */
+
+/* ============================================================================
+   §2.3 — QUANTO TI SPINGE
+
+   Il divieto secco «non sei un coach» e' stato tolto: quanto uno ti spinge
+   dipende da chi e'. Due cose vanno dimostrate insieme, e la seconda e' quella
+   che non si puo' sbagliare:
+
+   1. che i .mon spingano DIVERSI — altrimenti abbiamo solo spostato la
+      maschera uguale per tutti da un paragrafo a un altro;
+   2. che il pavimento di §28 regga su TUTTE le spinte, anche la piu alta.
+      Il .mon piu aggressivo del catalogo non deve poter giudicare un corpo.
+   ========================================================================= */
+
+/* ============================================================================
+   §17.5 — QUANDO ACCENDE IL PENSIERO
+
+   Sbagliare in difetto costa una risposta un po' piu superficiale. Sbagliare
+   in eccesso costa dieci volte tanto su OGNI chiacchiera della giornata — e
+   per chi usa questa app come unica AI, a fine anno e' un ordine di grandezza.
+   Quindi i controlli sono asimmetrici come lo e' la decisione.
+   ========================================================================= */
+
+console.log('\n═══ §17.5 — QUANDO ACCENDE IL PENSIERO ═══\n');
+
+const diet2 = m.parseDiet('pollo, riso, verdure, niente fritti');
+const thinks = (t) => m.deservesThinking(t, m.extractFromMessage(t, diet2));
+
+const SHOULD_THINK = [
+  'come si fa una query SQL con due join?',
+  'spiegami la differenza tra affitto e mutuo',
+  'aiutami a scrivere la mail per il commercialista',
+  'secondo te conviene comprare adesso o aspettare?',
+  'sto pensando di cambiare lavoro, e da mesi che ci giro intorno e non riesco a decidermi, da una parte lo stipendio e buono ma dall altra non imparo piu niente da un anno',
+];
+const SHOULD_NOT = [
+  'oggi palestra',
+  'pranzo pollo e riso',
+  'ciao',
+  'sono distrutto',
+  'oggi palestra e poi carbonara, sono distrutto',
+  'bene dai',
+  // Un riepilogo lungo di tutta la giornata: lungo quanto un ragionamento, e
+  // non e un ragionamento. E' il messaggio piu frequente dell'app.
+  'colazione yogurt e frutta, pranzo pollo e riso, merenda una mela, cena pesce e verdure, palestra alle 19, sono abbastanza stanco ma contento',
+];
+
+for (const t of SHOULD_THINK) check(thinks(t), `pensa: «${t.slice(0, 46)}…»`);
+for (const t of SHOULD_NOT) check(!thinks(t), `non pensa: «${t.slice(0, 46)}»`);
+
+console.log('\n═══ §2.3 — QUANTO TI SPINGE ═══\n');
+
+const pushPrompts = [];
+for (let seed = 1; seed <= 60; seed++) {
+  const mon = m.generateFirstMon({
+    input, mindlineNodeId: `push_${seed}`, originNodeId: null, lineageNames: [], seed: seed * 313,
+  }).record;
+  pushPrompts.push({ mon, text: m.buildVoiceSystemPrompt(mon) });
+}
+
+const levels = new Set(
+  pushPrompts.map((p) =>
+    p.text.includes('You do not push') ? 'basso'
+      : p.text.includes('You push, and it is not a flaw') ? 'alto'
+      : 'medio',
+  ),
+);
+check(levels.size === 3, 'escono tutte e tre le spinte dalle creature', [...levels].join(', '));
+
+// IL PAVIMENTO. Su tutte e 60, compresa la piu spinta.
+check(
+  pushPrompts.every((p) => p.text.includes('Never push about his body')),
+  'nessuna creatura, per quanto spinta, puo giudicare il corpo (§28)',
+);
+check(
+  pushPrompts.every((p) => p.text.includes('generic wellness-coach language')),
+  'e il luogo comune da coach resta vietato per tutti',
+);
+check(
+  pushPrompts.every((p) =>
+    p.text.includes('never shame body size, weight, food, illness, disability or health status'),
+  ),
+  'le SAFETY_RULES di §28 sono ancora tutte nel prompt',
+);
+
+// E il divieto troppo largo NON deve tornare: era quello che gli impediva di
+// rispondere a «come funziona questa cosa».
+check(
+  !pushPrompts.some((p) => p.text.includes('You are not an assistant')),
+  'il divieto secco di essere utile non c\'e piu',
+);
+check(
+  pushPrompts.every((p) => p.text.includes('allowed to be genuinely useful')),
+  'e al suo posto c\'e il permesso di aiutare davvero',
+);
+
+// La spinta e ancorata alla memoria, non a un obiettivo inventato: e' la
+// differenza fra ricordarsi e fare la predica.
+check(
+  pushPrompts
+    .filter((p) => !p.text.includes('You do not push'))
+    .every((p) => p.text.includes('HE said he wanted')),
+  'chi spinge lo fa su quello che HAI DETTO TU, non su un obiettivo suo',
+);
 
 console.log('\n═══ §16.3 — LE OPINIONI ═══\n');
 

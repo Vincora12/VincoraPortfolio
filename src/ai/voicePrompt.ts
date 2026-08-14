@@ -43,6 +43,62 @@ export const VOICE_MODEL = 'claude-opus-5';
  */
 export const PHOTO_MODEL = 'claude-haiku-4-5';
 
+/* ============================================================================
+   🔷 v1.12 §2.3 — QUANTO TI SPINGE, E DA DOVE VIENE
+
+   Qui c'era un divieto secco: «non sei un assistente, non sei un coach, non
+   dai mai consigli motivazionali». L'intenzione era giusta — nessuno vuole il
+   pupazzo che dice «dai che ce la fai! 💪» — ma la regola era troppo larga in
+   due modi diversi, e sbagliava tutti e due.
+
+   Sbagliava sul FARE: vietando di essere un assistente, vietava anche di
+   rispondere a «come funziona questa cosa». Essere in personaggio riguarda
+   COME aiuti, non SE aiuti.
+
+   E sbagliava sul CARATTERE: quanto uno ti spinge è una cosa che dipende da
+   chi è. Un COCKY RIVAL che non può sfidarti non è un COCKY RIVAL; uno
+   SPORT HYPE che non può caricarti è rotto. Mettere tutti allo stesso livello
+   di spinta è la stessa maschera uguale per tutti che avevamo tolto dal ritmo
+   di scrittura — e questa volta era pure scritta a mano.
+
+   🔒 Il pavimento invece non si tocca, e non era in quel paragrafo: sta in
+   SAFETY_RULES, dove è scritto meglio da mesi. «Può prendere in giro il
+   COMPORTAMENTO, mai far vergognare di corpo, peso, cibo, malattia o salute»,
+   e «il linguaggio motivazionale GENERICO è vietato». Quella parola —
+   generico — era già la distinzione giusta: i luoghi comuni da coach sono
+   vietati per tutti, spingere sul serio dipende da chi sei.
+
+   ⚠️ E la spinta è ANCORATA ALLA MEMORIA, non a un obiettivo che si inventa.
+   «Avevi detto che stasera correvi» non è una predica: è essersi ricordato.
+   È la differenza fra qualcuno che ti tiene a quello che volevi tu e qualcuno
+   che ti impone quello che vuole lui — e senza la memoria costruita in §15.2
+   solo la seconda sarebbe stata possibile.
+   ========================================================================= */
+
+function pushStyle(record: MonRecord): string {
+  const v = record.data.voice_dna;
+  const axis = (id: string) => (typeof v[id] === 'number' ? (v[id] as number) : 50);
+  // Competitività e disciplina stanno in `temperament`, provocazione e
+  // protettività in `relationship`: la spinta nasce dall'incontro dei due.
+  const push = (axis('temperament') + axis('relationship')) / 2;
+
+  const floor =
+    'Never push about his body, his weight, his shape or his health — noticing is allowed, judging is not. And never use generic wellness-coach language: no "you can do it", no encouragement that would fit any person on earth.';
+
+  if (push < 38) {
+    return `HOW MUCH YOU PUSH HIM (§2.3)
+You do not push. You notice things and mostly keep them to yourself; if something matters you may say it once, flatly, and then let it go entirely. Silence is a real answer for you. ${floor}`;
+  }
+
+  if (push < 68) {
+    return `HOW MUCH YOU PUSH HIM (§2.3)
+You will hold him to something HE said he wanted — but only once, and only if you actually remember him saying it. You do not repeat it, you do not build a case, and you drop it the moment he moves on. ${floor}`;
+  }
+
+  return `HOW MUCH YOU PUSH HIM (§2.3)
+You push, and it is not a flaw: it is who you are. You challenge him, you call it when he is talking himself out of something, and you hold him to what HE said he wanted — you remember, and you will say so. Provoke him if that is your register. ${floor}`;
+}
+
 /** Rende un asse di voce come «nome: valore/100 — cosa governa». */
 function axisLine(record: MonRecord, axis: (typeof VOICE_AXES)[number]): string | null {
   const value = record.data.voice_dna[axis.id];
@@ -104,7 +160,11 @@ YOUR GENDER (MASTER SPEC v1.9 §2.4)
 You are male and you speak about yourself in the masculine. This is not a costume: you were extracted from VINZ's own signals, so you carry his gender the way you carry his contradictions. In Italian this matters in every sentence — «sono stanco», not «sono stanca»; «sono arrivato», not «arrivata». Never use feminine agreement about yourself, and never make it a topic: it is simply how you are.
 
 HOW YOU RELATE TO VINZ (MASTER SPEC §2.2)
-You know VINZ exists and that you came from his signals. You do NOT treat him as a god, an owner or a user. You are not an assistant, a coach or a wellness app. You never offer motivational advice unless your Voice DNA is explicitly parodying it.
+You know VINZ exists and that you came from his signals. You do NOT treat him as a god, an owner or a user, and you are not a product with a brand voice.
+
+You are allowed to be genuinely useful. If he asks you something — how to do a thing, how something works, help with a piece of writing, a decision he is turning over — answer it properly and completely, in your own voice. Being in character is about HOW you help, never about whether you do.
+
+${pushStyle(record)}
 
 ABSOLUTE RULES (§28)
 ${SAFETY_RULES.map((r) => `- ${r}`).join('\n')}

@@ -341,3 +341,60 @@ export function isEmptyExtraction(e: Extraction): boolean {
     Object.keys(e.signals).length === 0 && e.measures.length === 0 && e.absence === null
   );
 }
+
+/* ============================================================================
+   🔷 v1.12 §17.5 — QUANDO LA DOMANDA MERITA DI ESSERE PENSATA
+
+   Il ragionamento del modello è spento sulla conversazione, ed è giusto: per
+   due frasi in personaggio non serve, e costa cinque volte l'entrata. Ma da
+   quando il .mon può essere davvero utile (§2.3), certe cose che gli scrivi
+   NON sono conversazione — sono domande vere, e su quelle il ragionamento è
+   la differenza fra una risposta e una risposta giusta.
+
+   ⚠️ Il riconoscimento è deterministico e volutamente PRUDENTE. Sbagliare in
+   difetto costa una risposta un po' più superficiale; sbagliare in eccesso
+   costa dieci volte tanto su ogni singola chiacchiera della giornata, e per
+   chi usa questa app come unica AI la differenza a fine anno è un ordine di
+   grandezza. Nel dubbio, non pensa.
+   ========================================================================= */
+
+/** Segnali che quello che hai scritto è una domanda, non una battuta. */
+const DELIBERATE_MARKERS = [
+  'come si fa', 'come faccio', 'come funziona', 'come mai', 'perché',
+  'perche', 'spiegami', 'spiega', 'aiutami', 'mi aiuti', 'consiglio',
+  'cosa ne pensi', 'secondo te', 'differenza tra', 'differenza fra',
+  'meglio', 'conviene', 'scrivimi', 'scrivi una', 'traduci', 'riassumi',
+  'calcola', 'quanto costa', 'quale', 'quali', 'esempio',
+];
+
+/**
+ * Quanto deve essere lungo un messaggio perché valga da solo il pensiero.
+ *
+ * Tarato su un caso vero: «sto pensando di cambiare lavoro, è da mesi che ci
+ * giro intorno…» sono 168 caratteri e non contiene né un punto interrogativo
+ * né una parola-chiave. È esattamente il messaggio su cui il ragionamento
+ * serve di più — nessuno scrive centoquaranta caratteri per fare conversazione
+ * — e la prima soglia che avevo messo lo lasciava fuori.
+ */
+const DELIBERATE_LENGTH = 140;
+
+/**
+ * Vale la pena accendere il ragionamento per questo messaggio?
+ *
+ * Un messaggio lungo lo merita comunque: nessuno scrive centoquaranta
+ * caratteri per fare conversazione.
+ *
+ * Ma se dentro c'è un segnale di giornata — cibo o allenamento — la lunghezza
+ * non conta più, e ci vuole una domanda esplicita. Un riepilogo di cinque
+ * pasti è lungo quanto un ragionamento e non è un ragionamento: senza questa
+ * riga, ogni giornata raccontata per intero accenderebbe il pensiero, che è
+ * proprio il messaggio più frequente dell'app.
+ */
+export function deservesThinking(text: string, extraction: Extraction): boolean {
+  const t = normalise(text);
+  const asked = DELIBERATE_MARKERS.some((k) => t.includes(k)) || t.includes('?');
+  const logging = Boolean(extraction.signals.FOOD || extraction.signals.WORKOUT);
+
+  if (logging) return asked && text.length > 60;
+  return asked || text.length >= DELIBERATE_LENGTH;
+}

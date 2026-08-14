@@ -56,7 +56,7 @@ import {
   seedFromAnswers,
   type ScanAnswers,
 } from '../engine/personalityScan';
-import { extractFromMessage, extractionLabels } from '../engine/chatExtract';
+import { deservesThinking, extractFromMessage, extractionLabels } from '../engine/chatExtract';
 import { eggReply } from '../engine/eggVoice';
 import { typingRhythmFor } from '../engine/typingRhythm';
 import { buildMemoryBlock, recentTurns } from '../engine/memoryContext';
@@ -1792,7 +1792,17 @@ function requestReply(
   };
 
   void import('../ai/client')
-    .then((m) => m.generateReply(apiKey, record, userText, context, get().mood, memory))
+    .then((m) =>
+      m.generateReply(
+        apiKey,
+        record,
+        userText,
+        context,
+        get().mood,
+        memory,
+        deservesThinking(userText, extractFromMessage(userText, s0.protocol.diet)),
+      ),
+    )
     .then(({ result }) => {
       // La partita può essere andata avanti mentre il modello scriveva: se
       // quella bolla non c'è più, non si riscrive il passato.
