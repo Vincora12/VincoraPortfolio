@@ -232,6 +232,10 @@ Il salvataggio è passato dalla stessa strada: lo stato vive anche su
 > 📄 **[docs/BACKEND.md](docs/BACKEND.md)** — le quattro variabili da mettere
 > su Netlify, come generare il token, e la Shortcut che manda i dati del
 > giorno. Quindici minuti, una volta sola.
+>
+> 📄 **[docs/COSTI.md](docs/COSTI.md)** — il preventivo per tre livelli d'uso,
+> voce per voce. Sintesi: ~11 € al mese usandolo come unica AI, circa metà di
+> un abbonamento.
 
 L'SDK di Anthropic è uscito dalle dipendenze del browser: adesso è una `fetch`
 verso casa propria.
