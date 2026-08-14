@@ -18,7 +18,7 @@
    ========================================================================= */
 
 /** Da dove è partita la chiamata. Serve a sapere COSA costa, non solo quanto. */
-export type UsageSubsystem = 'introduction' | 'reply' | 'photo' | 'image' | 'reflection';
+export type UsageSubsystem = 'introduction' | 'reply' | 'photo' | 'image' | 'reflection' | 'notebook';
 
 export interface UsageEntry {
   subsystem: UsageSubsystem;

@@ -2804,6 +2804,13 @@
   }
 }
 
+/* Accetta / rifiuta un aggiustamento del taccuino (v1.14 §22). */
+.dev__noteactions {
+  display: flex;
+  gap: var(--u2);
+  margin-top: var(--u2);
+}
+
 /* --- DEV → UMORE (v1.12 §10.6) --------------------------------------------
    Il trattino e' il punto di riposo del temperamento, il pallino e' adesso.
    Le due cose devono essere distinguibili a colpo d'occhio anche quando

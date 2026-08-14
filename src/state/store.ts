@@ -61,6 +61,13 @@ import { eggReply } from '../engine/eggVoice';
 import { typingRhythmFor } from '../engine/typingRhythm';
 import { buildMemoryBlock, recentTurns } from '../engine/memoryContext';
 import {
+  addNote,
+  decideNote,
+  gatherEvidence,
+  worthReviewing,
+  type VoiceNote,
+} from '../engine/notebook';
+import {
   addOpinion,
   contradictOpinion,
   inheritOpinions,
@@ -213,6 +220,16 @@ interface AppState {
   /** Giorno dell'ultima riflessione: non se ne fa più di una a settimana. */
   lastReflectionDay: number;
 
+  /**
+   * 🔷 v1.14 §22 — gli aggiustamenti che il .mon ha proposto a SE STESSO.
+   * Nessuno è attivo finché non lo accetti: `proposta` sta in attesa in DEV,
+   * `accettata` entra nel prompt, `rifiutata` resta perché serve a non farlo
+   * riproporre la stessa cosa il mese dopo.
+   */
+  voiceNotes: VoiceNote[];
+  /** Giorno dell'ultima revisione: non più di una al mese. */
+  lastNotebookDay: number;
+
   pendingHeritage: HeritageOrigin[];
   /** Cosa sopravvive alla prossima Form Evolution. Deciso prima di confermare. */
   pendingPlan: ContinuityPlan | null;
@@ -234,6 +251,9 @@ interface AppState {
    * del fornitore, invece, non aveva né tetto né interruttore.
    */
   token: string | null;
+
+  /** §22 — accetta o rifiuta un aggiustamento proposto dal .mon. */
+  decideVoiceNote: (id: string, accept: boolean) => void;
 
   /** §12 — registra una risposta del Signal Scan. */
   answerScan: (index: number, answerId: string) => void;
@@ -341,6 +361,8 @@ const INITIAL = {
   typingVisible: false,
   opinions: [] as Opinion[],
   lastReflectionDay: 0,
+  voiceNotes: [] as VoiceNote[],
+  lastNotebookDay: 0,
   pendingHeritage: [] as HeritageOrigin[],
   pendingPlan: null as ContinuityPlan | null,
   lastTrace: null as GenerationTrace | null,
@@ -1207,6 +1229,12 @@ export const useApp = create<AppState>()(
 
       /* --- DEV --- */
 
+      /* §22 — l'unico punto in cui un aggiustamento diventa attivo. Non c'è
+         un percorso in cui il .mon se lo applichi da solo, e non deve
+         esserci: è tutta la differenza fra proporre e decidere. */
+      decideVoiceNote: (id, accept) =>
+        set((s) => ({ voiceNotes: decideNote(s.voiceNotes, id, accept) })),
+
       setDev: (patch) => set((s) => ({ dev: { ...s.dev, ...patch } })),
       setToken: (value) =>
         set({ token: value && value.trim().length > 0 ? value.trim() : null }),
@@ -1604,6 +1632,7 @@ function advanceOneDay(set: (p: Partial<AppState>) => void, get: () => AppState)
 
   applyPlannedRest(set, get);
   maybeReflect(set, get);
+  maybeReview(set, get);
 }
 
 /* ============================================================================
@@ -1647,6 +1676,39 @@ function maybeReflect(set: (p: Partial<AppState>) => void, get: () => AppState):
       for (const id of contradicted) opinions = contradictOpinion(opinions, id);
       for (const o of formed) opinions = addOpinion(opinions, o);
       set({ opinions });
+    });
+}
+
+/* ============================================================================
+   🔷 v1.14 §22 — LA REVISIONE MENSILE
+
+   Stessa forma della riflessione settimanale, con una differenza che è tutta
+   la differenza: la riflessione CAMBIA quello che il .mon pensa di te e lo fa
+   da sola; questa propone di cambiare COME PARLA, e non applica niente.
+
+   Il giorno si segna prima della chiamata, come per la riflessione: due
+   avanzamenti rapidi ne farebbero partire due sullo stesso mese.
+   ========================================================================= */
+
+const REVIEW_EVERY = 30;
+
+function maybeReview(set: (p: Partial<AppState>) => void, get: () => AppState): void {
+  const s = get();
+  if (!activeRecord(s) || !s.token) return;
+  if (s.day - s.lastNotebookDay < REVIEW_EVERY) return;
+
+  const evidence = gatherEvidence(s.chat, s.opinions);
+  /* Un mese con quattro messaggi non ha niente da insegnare a nessuno. Il
+     controllo è deterministico e sta prima della chiamata: costa zero. */
+  if (!worthReviewing(evidence)) return;
+
+  set({ lastNotebookDay: s.day });
+
+  void import('../ai/notebook')
+    .then((m) => m.reviewVoice(s.token, evidence, s.voiceNotes, s.day))
+    .then(({ note }) => {
+      if (!note) return;
+      set({ voiceNotes: addNote(get().voiceNotes, note) });
     });
 }
 
@@ -1828,7 +1890,7 @@ function requestIntroduction(
 
   // L'SDK arriva solo a chi ha una chiave: import dinamico, chunk separato.
   void import('../ai/client')
-    .then((m) => m.generateIntroduction(token, record, get().mood))
+    .then((m) => m.generateIntroduction(token, record, get().mood, get().voiceNotes))
     .then(({ result }) => {
       const s = get();
       const index = s.chat.findIndex((m) => m.id === id);
@@ -1908,6 +1970,7 @@ function requestReply(
         context,
         get().mood,
         memory,
+        s0.voiceNotes,
         deservesThinking(userText, extractFromMessage(userText, s0.protocol.diet)),
       ),
     )

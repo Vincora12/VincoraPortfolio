@@ -17,6 +17,8 @@ import { Row, SystemLabel } from '../system/components';
 import { displayName } from '../engine/types';
 import { baselineFor, moodPhrase } from '../engine/mood';
 import { MAX_ACTIVE } from '../engine/opinions';
+import { MAX_NOTES, voiceVersion } from '../engine/notebook';
+import { Button } from '../system/components';
 
 /** Barra da −100 a +100 (o 0–100), con il punto di riposo segnato sopra. */
 function MoodBar({
@@ -57,6 +59,10 @@ export function MoodSection() {
   const mon = useActiveMon();
   const opinions = useApp((s) => s.opinions);
   const active = opinions.filter((o) => o.status === 'attiva');
+  const notes = useApp((s) => s.voiceNotes);
+  const decideVoiceNote = useApp((s) => s.decideVoiceNote);
+  const pending = notes.filter((n) => n.status === 'proposta');
+  const accepted = notes.filter((n) => n.status === 'accettata');
 
   if (!mood || !mon) {
     return (
@@ -129,6 +135,65 @@ export function MoodSection() {
               <p className="dev__memorytext t-small">{o.text}</p>
             </li>
           ))}
+        </ul>
+      )}
+
+      {/* 🔷 v1.14 §22 — IL TACCUINO.
+          L'unico posto in cui un aggiustamento diventa attivo. Non esiste un
+          percorso in cui il .mon se lo applichi da solo, e non deve esistere:
+          è tutta la differenza fra proporre e decidere. */}
+      <p className="t-meta dev__label">
+        IL TACCUINO — VOCE v{voiceVersion(notes)} ({accepted.length}/{MAX_NOTES})
+      </p>
+      <p className="t-micro dev__note">
+        Una volta al mese guarda com’è andato lo scambio — non quanto — e
+        propone un aggiustamento al proprio modo di parlare. Il segnale non è
+        mai quanto lo usi: sarebbe una macchina che impara a tenerti attaccato.
+      </p>
+
+      {pending.length > 0 && (
+        <ul className="dev__memories">
+          {pending.map((n) => (
+            <li key={n.id} className="dev__memory">
+              <div className="dev__memoryhead">
+                <SystemLabel tone="character">DA DECIDERE</SystemLabel>
+                <span className="dev__memoryform t-micro">giorno {n.proposedOnDay}</span>
+              </div>
+              <p className="dev__memorytext t-small">{n.text}</p>
+              <p className="t-micro dev__note">Perché: {n.reason}</p>
+              <div className="dev__noteactions">
+                <Button variant="primary" onClick={() => decideVoiceNote(n.id, true)}>
+                  ACCETTA
+                </Button>
+                <Button variant="secondary" onClick={() => decideVoiceNote(n.id, false)}>
+                  RIFIUTA
+                </Button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {notes.length === 0 ? (
+        <p className="t-small dev__note">
+          Ancora niente. Serve un mese con almeno venti risposte alle spalle — e
+          il token.
+        </p>
+      ) : (
+        <ul className="dev__memories">
+          {notes
+            .filter((n) => n.status !== 'proposta')
+            .map((n) => (
+              <li key={n.id} className="dev__memory">
+                <div className="dev__memoryhead">
+                  <SystemLabel>
+                    {n.status === 'accettata' ? `ATTIVA · v${n.version}` : 'RIFIUTATA'}
+                  </SystemLabel>
+                  <span className="dev__memoryform t-micro">giorno {n.proposedOnDay}</span>
+                </div>
+                <p className="dev__memorytext t-small">{n.text}</p>
+              </li>
+            ))}
         </ul>
       )}
     </div>

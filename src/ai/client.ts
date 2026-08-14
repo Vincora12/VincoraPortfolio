@@ -24,6 +24,7 @@
 import type { MonRecord } from '../engine/types';
 import type { MoodState } from '../engine/mood';
 import type { Turn } from '../engine/memoryContext';
+import type { VoiceNote } from '../engine/notebook';
 import { buildVoiceSystemPrompt, introductionRequest } from './voicePrompt';
 import { ask, type BackendFailure, type VoiceData } from './backend';
 import { recordUsageEntry } from './usage';
@@ -82,13 +83,14 @@ async function speak(
   subsystem: 'introduction' | 'reply',
   mood: MoodState | null,
   memory: VoiceMemory | null,
+  notes: VoiceNote[],
   deliberate = false,
 ): Promise<VoiceOutcome> {
   const { data, failure } = await ask<VoiceData & { usage?: Record<string, number> }>(token, {
     capability: 'character-voice',
     system: [
       // Il briefing non cambia mai dentro una conversazione: in cache.
-      { text: buildVoiceSystemPrompt(record, mood), cache: true },
+      { text: buildVoiceSystemPrompt(record, mood, notes), cache: true },
       // La memoria cambia una volta al giorno: seconda voce di cache, così
       // quella del briefing non si invalida mai.
       ...(memory ? [{ text: memory.memory, cache: true }] : []),
@@ -135,11 +137,12 @@ export async function generateReply(
   context: string | null,
   mood: MoodState | null,
   memory: VoiceMemory | null,
+  notes: VoiceNote[],
   deliberate = false,
 ): Promise<VoiceOutcome> {
   if (!token) return { result: null, failure: 'no-key' };
   const turn = context ? `${userText}\n\n[${context}]` : userText;
-  return speak(token, record, turn, 'reply', mood, memory, deliberate);
+  return speak(token, record, turn, 'reply', mood, memory, notes, deliberate);
 }
 
 /**
@@ -152,11 +155,12 @@ export async function generateIntroduction(
   token: string | null,
   record: MonRecord,
   mood: MoodState | null,
+  notes: VoiceNote[] = [],
 ): Promise<VoiceOutcome> {
   if (!token) return { result: null, failure: 'no-key' };
   // Nessuna memoria: è il primo istante, non c'è niente prima. Una memoria
   // vuota lo farebbe partire come se avesse dimenticato qualcosa.
-  return speak(token, record, introductionRequest(record), 'introduction', mood, null, true);
+  return speak(token, record, introductionRequest(record), 'introduction', mood, null, notes, true);
 }
 
 /* ============================================================================
