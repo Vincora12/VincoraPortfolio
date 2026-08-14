@@ -115,7 +115,7 @@ export function CompanionHomeScreen({ onGo, onBack }: { onGo: (o: Overlay) => vo
         >
           <span className="home__identitytext">
             <span className="home__name t-display">
-              <MonName name={d.name} />
+              <MonName name={d.name} fit />
             </span>
             {/* Nome proprio sopra, specie e forma sotto. */}
             <span className="t-meta home__form">

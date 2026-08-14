@@ -91,7 +91,7 @@ export function SpecimenProfileScreen({
         <IconButton icon="left" label={t.common.back} light onClick={onClose} />
         <div className="specimen__titles">
           <h1 className="t-display specimen__name">
-            <MonName name={d.name} />
+            <MonName name={d.name} fit />
           </h1>
           <p className="t-meta">
             {d.family} · {d.family_archetype}

@@ -2804,6 +2804,29 @@
   }
 }
 
+/* --- IL NOME CHE CI STA SEMPRE (v1.14) ------------------------------------
+   I nomi generati arrivano a 13 caratteri con l'estensione, e a corpo display
+   su un telefono non ci stanno. Si riduce il corpo, mai il testo: un nome
+   troncato con i puntini e' un nome sbagliato, e questi nomi hanno una regola
+   che si legge solo leggendoli interi.
+
+   Il fattore 0.58 e' la larghezza media di un carattere di Archivo 900 in
+   maiuscolo, misurata: il calcolo tiene il nome dentro il contenitore senza
+   mai ingrandirlo oltre il corpo che gli spetterebbe.
+   -------------------------------------------------------------------------- */
+
+.monname-fit {
+  display: block;
+  container-type: inline-size;
+  width: 100%;
+}
+
+.monname--fit {
+  display: inline-block;
+  white-space: nowrap;
+  font-size: min(1em, calc(100cqi / (var(--monname-chars, 12) * 0.58)));
+}
+
 /* Accetta / rifiuta un aggiustamento del taccuino (v1.14 §22). */
 .dev__noteactions {
   display: flex;

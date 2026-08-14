@@ -28,26 +28,52 @@ interface MonNameProps {
   name: string;
   /** Nasconde l'estensione dove lo spazio non la regge. */
   hideExtension?: boolean;
+  /**
+   * 🔷 v1.14 — RIMPICCIOLISCE FINCHÉ CI STA.
+   *
+   * I nomi generati vanno da 4 a 9 caratteri di stem; con `.mon` fanno da 8 a
+   * 13. A corpo display, tredici caratteri su uno schermo da telefono non ci
+   * stanno, e il nome — che è la cosa più identitaria che questa app mostri —
+   * finiva tagliato o mandato a capo in mezzo.
+   *
+   * ⚠️ La soluzione NON è accorciare il nome con i puntini: un nome troncato
+   * è un nome sbagliato, e questi nomi hanno una regola (iniziano per V,
+   * contengono Z, finiscono in `.mon`) che si legge solo se si legge tutto.
+   * Quindi si riduce il CORPO, non il testo.
+   *
+   * Da usare dove il nome è grande e da solo — reveal, testate, evoluzione.
+   * Dove è una parola in mezzo a una frase non serve.
+   */
+  fit?: boolean;
   className?: string;
 }
 
-export function MonName({ name, hideExtension, className = '' }: MonNameProps) {
+export function MonName({ name, hideExtension, fit, className = '' }: MonNameProps) {
   const stem = displayName(name);
 
   if (hideExtension) {
     return <span className={className}>{stem}</span>;
   }
 
-  return (
-    // L'aria-label tiene insieme il nome per chi usa uno screen reader: i due
-    // span altrimenti verrebbero letti come due parole separate.
-    <span className={`monname ${className}`} aria-label={name}>
+  // L'aria-label tiene insieme il nome per chi usa uno screen reader: i due
+  // span altrimenti verrebbero letti come due parole separate.
+  const inner = (
+    <span
+      className={`monname ${fit ? 'monname--fit' : ''} ${className}`}
+      aria-label={name}
+      style={fit ? ({ '--monname-chars': stem.length + 4 } as React.CSSProperties) : undefined}
+    >
       <span aria-hidden="true">{stem}</span>
       <span className="monname__ext" aria-hidden="true">
         .mon
       </span>
     </span>
   );
+
+  /* Il wrapper esiste solo per dichiarare la larghezza disponibile alle unità
+     `cqi`: senza un contenitore misurabile, `100cqi` cadrebbe sul viewport e
+     il nome dentro una colonna stretta resterebbe grande uguale. */
+  return fit ? <span className="monname-fit">{inner}</span> : inner;
 }
 
 /* --- Nome comune della specie ----------------------------------------------

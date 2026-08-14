@@ -58,7 +58,7 @@ export function EncounterScreen({ variant }: { variant: 'first' | 'new' }) {
                 {variant === 'first' ? t.encounter.firstTitle : t.encounter.newTitle}
               </span>
               <span className="encounter__bigname t-display">
-                <MonName name={d.name} />
+                <MonName name={d.name} fit />
               </span>
             </>
           )}
@@ -81,7 +81,7 @@ export function EncounterScreen({ variant }: { variant: 'first' | 'new' }) {
             {variant === 'first' ? t.encounter.firstTitle : t.encounter.newTitle}
           </p>
           <h1 className="t-display encounter__name">
-            <MonName name={d.name} />
+            <MonName name={d.name} fit />
           </h1>
           <p className="t-meta encounter__form">
             <SpeciesName /> · {form}

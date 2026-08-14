@@ -254,6 +254,9 @@ try {
       return {
         text: (last?.querySelector('.bubble__text')?.textContent ?? '').trim(),
         dots: !!document.querySelector('.bubble__typing'),
+        // Quante bolle ha detto finora: serve a distinguere «il testo e'
+        // stato riscritto» da «e' comparsa una bolla nuova».
+        bubbles: rows.length,
       };
     });
     if (snap.dots) sawDots = true;
@@ -279,11 +282,20 @@ try {
      (cresce), per chi consegna a blocco (un salto solo, da vuoto a tutto) e
      per chi usa due bolle (la seconda cresce da zero). Non vale, e deve
      fallire, se una frase viene SOSTITUITA da un'altra. */
+  /* ⚠️ Questo ciclo aveva un difetto, trovato per caso rimettendo mano al
+     codice: guarda l'ULTIMA bolla, e chi spezza la risposta in due (§17.3
+     `splitReply`) ne crea una seconda che parte da capo. Il salto da «Il ritmo
+     è costante.» a «È» veniva letto come una riscrittura, e non lo era.
+
+     Passava solo perche' le creature dei giri precedenti non spezzavano —
+     cioe' era di nuovo un controllo che dipendeva da quale creatura usciva.
+     Adesso una bolla NUOVA e' un fatto dichiarato, non un'eccezione dedotta
+     dalla lunghezza. */
   for (let i = firstFilled; i < texts.length - 1; i++) {
     const now = texts[i];
     const next = texts[i + 1];
+    if (samples[i + 1].bubbles > samples[i].bubbles) continue; // bolla nuova
     if (next.length >= now.length && next.startsWith(now)) continue;
-    if (next.length === 0) continue; // bolla nuova appena creata: non è una riscrittura
     throw new Error(
       `§17.4: il testo è stato RISCRITTO sotto gli occhi — «${now}» → «${next}»`,
     );
@@ -294,6 +306,67 @@ try {
     `  §17.4  puntini visti, bolla nata vuota, testo mai riscritto ` +
       `(${steps} stat${steps === 1 ? 'o' : 'i'}, ${settled.length} caratteri)`,
   );
+
+  /* 🔷 v1.14 — IL NOME CI STA?
+     I nomi generati arrivano a 13 caratteri con l'estensione, e a corpo
+     display su un telefono sforavano. Il controllo misura la larghezza vera
+     del nome contro quella del suo contenitore: e' l'unico modo di sapere se
+     ci sta, perche' il testo che deborda non genera nessun errore — si vede
+     e basta, e solo su certi nomi.
+
+     ⚠️ Si misura anche l'ALTEZZA: un nome che va a capo "ci sta" in larghezza
+     ma e' rotto uguale. */
+  const nameFit = await page.evaluate(() => {
+    const results = [];
+    for (const el of document.querySelectorAll('.monname--fit')) {
+      const host = el.parentElement?.getBoundingClientRect();
+      const measure = (label) => {
+        const box = el.getBoundingClientRect();
+        const line = parseFloat(getComputedStyle(el).fontSize);
+        results.push({
+          name: label,
+          width: Math.round(box.width),
+          available: Math.round(host?.width ?? 0),
+          lines: Math.round(box.height / (line * 1.3)),
+        });
+      };
+
+      measure(el.getAttribute('aria-label') ?? '?');
+
+      /* IL CASO PEGGIORE, forzato invece che sperato. Il nome di questo giro
+         e' quello che il generatore ha estratto — spesso corto, e un controllo
+         che passa perche' e' uscito un nome corto non ha controllato niente.
+         I nomi generati arrivano a 9 caratteri di stem, cioe' 13 con
+         l'estensione: si mette il testo piu lungo possibile e si rimisura. */
+      const stem = el.firstElementChild;
+      const realStem = stem.textContent;
+      const realChars = el.style.getPropertyValue('--monname-chars');
+      stem.textContent = 'VZZZZZZZZ';
+      el.style.setProperty('--monname-chars', '13');
+      measure('caso peggiore (13 caratteri)');
+      stem.textContent = realStem;
+      el.style.setProperty('--monname-chars', realChars);
+    }
+    return results;
+  });
+
+  for (const n of nameFit) {
+    if (n.available > 0 && n.width > n.available + 1) {
+      throw new Error(
+        `nome fuori dal contenitore: ${n.name} occupa ${n.width}px su ${n.available}px`,
+      );
+    }
+    if (n.lines > 1) {
+      throw new Error(`nome andato a capo: ${n.name} su ${n.lines} righe`);
+    }
+  }
+  if (nameFit.length > 0) {
+    const worst = nameFit.reduce((a, b) => (b.width / b.available > a.width / a.available ? b : a));
+    console.log(
+      `  nome    ${nameFit.length} verificati, il piu stretto e ${worst.name} ` +
+        `(${worst.width}px su ${worst.available}px)`,
+    );
+  }
 
   await shot('06-conversazione');
 

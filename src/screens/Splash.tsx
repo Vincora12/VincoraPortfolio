@@ -110,7 +110,7 @@ export function SplashScreen({ onEnter }: { onEnter: () => void }) {
         ) : (
           <>
             <span className="t-display splash__name">
-              <MonName name={mon!.data.name} />
+              <MonName name={mon!.data.name} fit />
             </span>
             <span className="t-meta splash__form">
               <SpeciesName /> · {mon!.data.evolution_state?.label ?? 'BASIC FORM'}

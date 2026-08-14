@@ -55,7 +55,7 @@ export function NewBranchScreen() {
           <div>
             <p className="t-micro">{t.branch.current}</p>
             <p className="t-display branch__name">
-              <MonName name={mon.data.name} />
+              <MonName name={mon.data.name} fit />
             </p>
             <p className="t-micro branch__form">
               <SpeciesName /> · {mon.data.evolution_state?.label ?? 'BASIC FORM'}
