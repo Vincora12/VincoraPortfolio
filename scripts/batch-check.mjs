@@ -46,6 +46,7 @@ export { idleMotionFor, motionCoverage } from '${cwd}/src/engine/idleMotion.ts';
 export { compilePrompt } from '${cwd}/src/assets-pipeline/compiler.ts';
 export { buildVoiceSystemPrompt } from '${cwd}/src/ai/voicePrompt.ts';
 export { typingRhythmFor, rhythmDurationMs } from '${cwd}/src/engine/typingRhythm.ts';
+export { sigilSvg } from '${cwd}/src/system/favicon.ts';
 export { buildSigil, sigilGeometry, sigilCoverage } from '${cwd}/src/engine/sigil.ts';
 export { unpromptedFor } from '${cwd}/src/engine/unprompted.ts';
 export { judgeNote, addNote, decideNote, notesBlock, voiceVersion, gatherEvidence, worthReviewing, MAX_NOTES } from '${cwd}/src/engine/notebook.ts';
@@ -992,6 +993,18 @@ const maxR = Math.max(
   }),
 );
 check(rg.ring !== null && maxR < rg.ring - 2, 'con l\'anello, la stella si ritira per non toccarlo', `stella ${maxR.toFixed(1)} contro anello ${rg.ring}`);
+
+/* Il sigillo come icona: la stessa geometria deve produrre un SVG valido,
+   perche' finisce dentro un `data:` URI e un carattere sbagliato la' non da
+   errore — da un'icona che non compare. */
+const icon = m.sigilSvg(a);
+check(icon.startsWith('<svg') && icon.endsWith('</svg>'), 'il sigillo esce anche come SVG completo');
+check(!icon.includes('#'), 'nessun cancelletto grezzo: in un data: URI spezzerebbe l\'indirizzo');
+check(!icon.includes('"'), 'nessuna virgoletta doppia: idem dentro un attributo href');
+check(
+  m.sigilSvg(m.buildSigil({ family: 'MINERAL', affinity: 'POISON', rarity: 'SINGULAR', recurringMotif: 'x' })).includes('circle'),
+  'la mutazione PIERCED disegna davvero il foro',
+);
 
 console.log('\n═══ §13.10 — QUANDO PARLA PER PRIMO ═══\n');
 

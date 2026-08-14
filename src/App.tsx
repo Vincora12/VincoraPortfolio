@@ -17,6 +17,7 @@ import { preloadMonAssets } from './assets-pipeline/assetStore';
 import { Icon } from './system/Icon';
 import { haptic } from './system/haptics';
 import { PROGRESSION } from './engine/progression';
+import { applySigilFavicon } from './system/favicon';
 import { t } from './i18n/it';
 
 import { SplashScreen } from './screens/Splash';
@@ -63,6 +64,9 @@ export function App() {
   const paletteDna = useApp((s) =>
     s.activeMonName ? (s.mons[s.activeMonName]?.data.palette_dna ?? null) : null,
   );
+  const sigil = useApp((s) =>
+    s.activeMonName ? (s.mons[s.activeMonName]?.sigil ?? null) : null,
+  );
   const devEnabled = useApp((s) => s.dev.enabled);
   const setDev = useApp((s) => s.setDev);
 
@@ -90,6 +94,14 @@ export function App() {
   useEffect(() => {
     applyPaletteDna(paletteDna);
   }, [paletteDna]);
+
+  /* 🔷 v1.15 §23.6 — il sigillo diventa l'icona della scheda, e cambia con la
+     creatura. Sulla schermata home dell'iPhone non può fare lo stesso: iOS
+     legge l'icona una volta sola, quando aggiungi la scorciatoia, e da lì la
+     tiene in cache per sempre. */
+  useEffect(() => {
+    applySigilFavicon(sigil);
+  }, [sigil]);
 
   // Gli asset importati vivono in IndexedDB: vanno ricaricati a ogni avvio.
   useEffect(() => {

@@ -241,10 +241,13 @@ export function CalendarScreen({ onGo }: { onGo: (o: Overlay) => void }) {
 
                       Un giorno chiuso non merita lo stesso pallino di un
                       giorno vuoto: merita un segno che dice «fatto», e che sia
-                      SUO. Il sigillo è generato dal seme di ogni .mon, esiste
-                      sempre — anche senza nessuna immagine importata — e
-                      somiglia già a un marchio. Quando l'asset vero arriva,
-                      lo prende da sé.
+                      SUO. Il sigillo è generato dal seme di ogni .mon ed
+                      esiste sempre.
+
+                      🔷 v1.15 §23.5 — qui c'era scritto «quando l'asset vero
+                      arriva, lo prende da sé». Non arriverà: il sigillo è
+                      uscito dalla pipeline delle immagini ed è, di proposito,
+                      un disegno del sito. Questo timbro è già il definitivo.
 
                       Il .mon è quello di QUEL periodo, non quello di adesso:
                       guardando indietro il calendario racconta chi c'era. */}
