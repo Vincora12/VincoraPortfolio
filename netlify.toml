@@ -11,6 +11,14 @@
   command = "npm run build"
   publish = "dist"
 
+# 🔷 v1.13 §19 — le funzioni tengono le chiavi, il tetto di spesa e il
+# salvataggio. `npm run build` typecheck-a anche loro: una funzione rotta
+# ferma il deploy invece di finire in produzione, che e' l'unica strada che
+# il browser non puo' aggirare.
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
 [build.environment]
   # vite 8 e typescript 7 girano su Node 22, la stessa versione con cui il
   # prototipo è stato verificato. Senza questo Netlify sceglie il suo default.

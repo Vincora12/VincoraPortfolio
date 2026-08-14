@@ -1,0 +1,22 @@
+{
+  // Le funzioni girano su Node, non nel browser: hanno bisogno di `process`,
+  // di `fetch` globale e dei tipi di Node. Il tsconfig della radice include
+  // solo `src` e ha `lib: DOM` — se le funzioni finissero lì dentro,
+  // `process.env` non esisterebbe e i tipi del browser fingerebbero di esserci
+  // API che qui non ci sono.
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2023"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "types": ["node"],
+    "noEmit": true,
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "verbatimModuleSyntax": true
+  },
+  "include": ["."]
+}
