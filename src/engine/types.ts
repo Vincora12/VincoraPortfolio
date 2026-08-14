@@ -133,8 +133,7 @@ export type AssetType =
   | 'reaction_pack'
   /** 🔶 v1.9 §23.1 — ciclo di riposo animato: splash d'ingresso e testa chat. */
   | 'idle_animation'
-  | 'encounter_hero'
-  | 'sigil';
+  | 'encounter_hero';
 
 export type AssetState = 'waiting' | 'resolved';
 export type AssetStatusMap = Record<AssetType, AssetState>;
@@ -210,14 +209,15 @@ export interface CharacterData {
   evolution_state?: EvolutionState;
 }
 
-/* --- SIGILLO ---------------------------------------------------------------- */
+/* --- SIGILLO ----------------------------------------------------------------
+   🔷 v1.15 §23.5 — il seme vive in `engine/sigil.ts` insieme alle regole che
+   lo producono. Stava qui quando era quattro numeri a caso; adesso che ogni
+   campo ha un padre, il tipo e la mappa che lo riempie devono potersi leggere
+   nello stesso posto.
+   -------------------------------------------------------------------------- */
 
-export interface SigilSeed {
-  arms: number;
-  rotation: number;
-  ring: boolean;
-  solidCore: boolean;
-}
+import type { SigilSeed } from './sigil';
+export type { SigilSeed };
 
 /* --- BIO / PERSONAL FILE ---------------------------------------------------- */
 

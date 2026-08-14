@@ -165,7 +165,9 @@ function assetTypeFromId(assetId: string): AssetType | null {
     doodle_01: 'bio_doodle',
     reactions_01: 'reaction_pack',
     hero_01: 'encounter_hero',
-    sigil_01: 'sigil',
+    // 🔷 v1.15 §23.5 — `sigil_01` non c'è più: il sigillo è un disegno del
+    // sito, non un file da importare. Un pacchetto vecchio che lo contiene
+    // torna `null`, cioè «non so cosa farmene», che è la verità.
   };
   return map[assetId] ?? null;
 }

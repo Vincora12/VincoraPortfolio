@@ -212,6 +212,15 @@ try {
   // 🔷 v1.10 §13.8 — anche nascere si tiene premuto.
   await hold('HATCH');
   await sleep(900);
+  /* 🔷 v1.15 — la nascita e' il punto in cui l'app monta per la prima volta
+     tutto quello che riguarda una creatura. Se qualcosa la fa cadere, da qui
+     in poi ogni schermata fallisce con un timeout su un selettore, e il
+     messaggio non dice mai qual era il problema vero.
+
+     Questo controllo l'ha trovato subito: «Tipo di asset sconosciuto: sigil». */
+  if (await page.evaluate(() => document.querySelector('.proto-frame') === null)) {
+    throw new Error(`l'app e caduta alla nascita: ${errors.slice(-3).join(' | ')}`);
+  }
   await shot('05-first-encounter-nome');
   await sleep(1600); // il sipario si alza da sé
   await shot('05-first-encounter');

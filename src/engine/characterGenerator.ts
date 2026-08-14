@@ -40,6 +40,7 @@ import {
 import { chance, makeRng, pick, pickInt, pickMany, type Rng } from './rng';
 import { buildSignalVector, evaluateFit, type GeneratorInput } from './signals';
 import { generatePaletteDna } from './colorDna';
+import { buildSigil } from './sigil';
 import { generateReactions, generateVoiceDna } from './voiceDna';
 import { rollRarity, type UnlockContext } from './rarity';
 import { generateMonName } from './naming';
@@ -390,7 +391,7 @@ export function generateMon(ctx: GenerationContext): GenerationResult {
     record: {
       data,
       bio: generateBio(data, ctx),
-      sigil: generateSigil(rng, data),
+      sigil: generateSigil(data, ctx.previous),
       reactions: generateReactions(rng, moodPrimary),
       bornOnDay: ctx.input.day,
       retiredOnDay: null,
@@ -856,14 +857,33 @@ function generateBio(data: CharacterData, ctx: GenerationContext): BioFile {
   };
 }
 
-function generateSigil(rng: Rng, data: CharacterData): SigilSeed {
-  const strong = ['RARE', 'EPIC', 'MYTHIC', 'SINGULAR'].includes(data.rarity);
-  return {
-    arms: pickInt(rng, 3, 8),
-    rotation: pickInt(rng, 0, 359),
-    ring: chance(rng, 0.55),
-    solidCore: strong,
-  };
+/**
+ * 🔷 v1.15 §23.5 — il sigillo non si tira più a sorte.
+ *
+ * Qui c'erano quattro `rng`: braccia, rotazione, anello, e la rarità. Tre su
+ * quattro erano il caso, quindi due `.mon` opposti potevano avere lo stesso
+ * segno. Adesso ogni parte ha un padre dichiarato, e `rng` non compare più —
+ * il sigillo è una FUNZIONE della creatura, non un accessorio estratto
+ * insieme a lei.
+ *
+ * L'angolo si eredita quando c'è una stirpe: i sigilli di una linea
+ * condividono l'inclinazione, e si riconoscono senza che sia scritto da
+ * nessuna parte.
+ */
+function generateSigil(data: CharacterData, previous: MonRecord | null): SigilSeed {
+  return buildSigil({
+    family: data.family,
+    affinity: data.affinity,
+    rarity: data.rarity,
+    recurringMotif: data.character_dna.recurring_motif,
+    /* `previous?.sigil` e non `previous.sigil`: un record senza sigillo non
+       deve far cadere una generazione. Succede con un salvataggio piu vecchio
+       di questo file, e la risposta giusta e «non eredita l'angolo», non un
+       errore che blocca la nascita di una creatura. */
+    ...(data.heritage_traits.length > 0 && previous?.sigil
+      ? { inheritedRotation: previous.sigil.rotation }
+      : {}),
+  });
 }
 
 /* ============================================================================

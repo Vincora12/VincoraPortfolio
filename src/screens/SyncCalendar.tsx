@@ -251,7 +251,7 @@ export function CalendarScreen({ onGo }: { onGo: (o: Overlay) => void }) {
                   {cell.status === 'SYNCED' ? (
                     <span className="cal__stamp" aria-hidden="true">
                       {cell.monName ? (
-                        <Sigil seed={sigilOf(cell.monName)} size={22} monName={cell.monName} />
+                        <Sigil seed={sigilOf(cell.monName)} size={22} />
                       ) : (
                         /* Prima della schiusa il .mon di quel periodo è
                            l'uovo. Lasciare il pallino avrebbe fatto sembrare

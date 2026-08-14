@@ -103,9 +103,14 @@ const check = (ok, label, detail = '') => {
 console.log(`\n═══ PACCHETTO ASSET REQUEST — ${record.data.name} ═══\n`);
 console.log('CONTENUTO (§22.2)');
 
-// 🔶 v1.9 §23.1 — gli asset sono OTTO: si è aggiunta la IDLE ANIMATION, che
-// serve alla splash e alla testa della chat. Con character data, manifest,
-// prompt compilato, id dei frammenti e readme fanno 13 file.
+/* 🔷 v1.15 §23.5 — gli asset da generare sono SEI, non piu sette: il sigillo
+   e uscito dalla pipeline ed e tornato a essere un disegno del sito. Un segno
+   che deve reggere a 24px, derivare dai dati in modo verificabile ed esistere
+   dal primo giorno e' una cosa che il codice fa meglio di un modello di
+   immagini — che a «estremamente semplice» risponde aggiungendo dettaglio.
+
+   Con character data, manifest, prompt compilato, id dei frammenti e readme
+   fanno 11 file. */
 const EXPECTED = [
   '00_CHARACTER_DATA.json',
   '01_CHARACTER_MASTER_PROMPT.txt',
@@ -114,7 +119,6 @@ const EXPECTED = [
   '04_REACTION_PACK_PROMPT.txt',
   '05_IDLE_ANIMATION_PROMPT.txt',
   '06_ENCOUNTER_HERO_PROMPT.txt',
-  '07_SIGIL_PROMPT.txt',
   'compiled_prompt.txt',
   'fragment_ids.json',
   'ASSET_MANIFEST.json',
@@ -142,7 +146,7 @@ check(
 
 const ASSET_TYPES = [
   'character_master', 'profile_portrait', 'bio_doodle',
-  'reaction_pack', 'idle_animation', 'encounter_hero', 'sigil',
+  'reaction_pack', 'idle_animation', 'encounter_hero',
 ];
 
 const compiled = ASSET_TYPES.map((t) => ({ type: t, ...m.compilePrompt(record, t) }));
@@ -237,6 +241,11 @@ check(idleEntry?.columns === 4 && idleEntry?.rows === 1, 'idle: griglia 4 × 1')
 check(
   !manifest.assets.some((a) => a.asset_id === 'rotation_01'),
   'nessuna rotazione nel manifest (§23.3)',
+);
+check(
+  !manifest.assets.some((a) => a.asset_id === 'sigil_01'),
+  'nessun sigillo fra gli asset da generare (§23.5)',
+  'e un disegno del sito: leggibile a 24px, derivato, e c\'e dal primo giorno',
 );
 
 /* --- §13 / §21.1: contratto dei Character Data ----------------------------- */

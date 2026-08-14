@@ -46,6 +46,7 @@ export { idleMotionFor, motionCoverage } from '${cwd}/src/engine/idleMotion.ts';
 export { compilePrompt } from '${cwd}/src/assets-pipeline/compiler.ts';
 export { buildVoiceSystemPrompt } from '${cwd}/src/ai/voicePrompt.ts';
 export { typingRhythmFor, rhythmDurationMs } from '${cwd}/src/engine/typingRhythm.ts';
+export { buildSigil, sigilGeometry, sigilCoverage } from '${cwd}/src/engine/sigil.ts';
 export { unpromptedFor } from '${cwd}/src/engine/unprompted.ts';
 export { judgeNote, addNote, decideNote, notesBlock, voiceVersion, gatherEvidence, worthReviewing, MAX_NOTES } from '${cwd}/src/engine/notebook.ts';
 export { addOpinion, contradictOpinion, inheritOpinions, opinionsBlock, isAllowedOpinion, MAX_ACTIVE } from '${cwd}/src/engine/opinions.ts';
@@ -194,7 +195,22 @@ const firstRuns = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((seed) =>
     seed,
   }).record.data,
 );
-const root = { record: { data: firstRuns[0] } };
+/* ⚠️ Un record VERO, non `{ data }` e basta.
+
+   Qui c'era un finto record con dentro i soli `data`: bastava finche nessuno
+   guardava altro. Da quando il sigillo eredita l'angolo dalla stirpe, il
+   generatore legge `previous.sigil` — e il controllo cadeva su un difetto del
+   suo stesso fixture, non del codice.
+
+   Un fixture che finge meta oggetto e una trappola che scatta il giorno in cui
+   il codice cresce. */
+const root = m.generateFirstMon({
+  input,
+  mindlineNodeId: 'node_000',
+  originNodeId: null,
+  lineageNames: [],
+  seed: 20260812,
+});
 
 console.log('\n═══ PRIMO NODO ═══\n');
 console.log(
@@ -897,6 +913,85 @@ for (const t of SHOULD_NOT) check(!thinks(t), `non pensa: «${t.slice(0, 46)}»`
    Un'app che ti scrive per prima diventa un'app che ti assilla in una riga di
    codice. Ogni controllo qui sotto difende da quello.
    ========================================================================= */
+
+/* ============================================================================
+   §23.5 — IL SIGILLO
+
+   La regola che viene prima di tutte: OGNI PARTE HA UN PADRE. Se non si puo'
+   dire quale tratto ha prodotto quale segno, non e un sigillo — e decorazione.
+   Prima di v1.15 tre parametri su quattro erano un tiro di dado.
+   ========================================================================= */
+
+console.log('\n═══ §23.5 — IL SIGILLO ═══\n');
+
+const cov = m.sigilCoverage();
+check(cov.families.length === C.FAMILIES.length, 'ogni Family decide le sue punte', `${cov.families.length}`);
+check(cov.affinities.length === C.AFFINITIES.length, 'ogni Affinity decide la sua mutazione', `${cov.affinities.length}`);
+
+// 🔒 Nessun rng: lo stesso .mon da sempre lo stesso sigillo (§29).
+const src = { family: 'INSECT', affinity: 'UNDEAD', rarity: 'RARE', recurringMotif: 'un nodo che non si scioglie' };
+const a = m.buildSigil(src);
+const b = m.buildSigil(src);
+check(JSON.stringify(a) === JSON.stringify(b), 'stessa creatura, stesso sigillo: niente caso');
+
+// Le derivazioni letterali: INSECT ha sei zampe, UNDEAD e incompleto.
+check(a.arms === 6, 'INSECT porta sei punte, come le zampe', `${a.arms}`);
+check(a.mutation === 'BROKEN', 'UNDEAD spezza la forma', a.mutation);
+check(
+  m.buildSigil({ ...src, family: 'UNDEAD' }).arms === 3,
+  'UNDEAD come Family porta il minimo che ancora chiude una forma',
+);
+
+// Ogni parte deve poter dire da dove viene.
+check(a.from.length === 4, 'ogni parte dichiara il suo padre', a.from.join(' · '));
+check(
+  a.from.some((f) => f.includes('family:')) &&
+    a.from.some((f) => f.includes('affinity:')) &&
+    a.from.some((f) => f.includes('rarità:')),
+  'e le tre fonti sono nominate per nome',
+);
+
+// Due .mon uguali negli assi restano diversi: l'angolo li separa senza
+// aggiungere un segno.
+const twin = m.buildSigil({ ...src, recurringMotif: 'una crepa che si allarga' });
+check(twin.rotation !== a.rotation, 'due creature uguali negli assi hanno angoli diversi');
+check(twin.arms === a.arms && twin.mutation === a.mutation, 'ma la stessa forma: gli assi comandano');
+
+// Una stirpe condivide l'inclinazione.
+const sigilHeir = m.buildSigil({ ...src, recurringMotif: 'altro', inheritedRotation: a.rotation });
+check(sigilHeir.rotation === a.rotation, 'una stirpe condivide l\'inclinazione');
+check(
+  sigilHeir.from.some((f) => f.includes('ereditato')),
+  'e lo dichiara, invece di sembrare una coincidenza',
+);
+
+/* 🔒 LA GEOMETRIA DEVE STARE NEL RIQUADRO. E' il difetto che si vede solo a
+   24px in mezzo a una lista: un sigillo che sborda diventa una macchia. */
+let outOfBounds = 0;
+let degenerate = 0;
+for (const family of cov.families) {
+  for (const affinity of cov.affinities) {
+    const seed = m.buildSigil({ family, affinity, rarity: 'MYTHIC', recurringMotif: family + affinity });
+    const g = m.sigilGeometry(seed, 24);
+    const coords = g.points.split(/[ ,]/).map(Number);
+    if (coords.some((n) => n < 0 || n > 24 || Number.isNaN(n))) outOfBounds++;
+    // Meno di tre punti non e una forma chiusa.
+    if (coords.length < 6) degenerate++;
+  }
+}
+check(outOfBounds === 0, 'nessun sigillo esce dal riquadro a 24px', `${outOfBounds} su ${cov.families.length * cov.affinities.length}`);
+check(degenerate === 0, 'nessun sigillo degenera in meno di tre punti', `${degenerate}`);
+
+// L'anello non deve toccare la stella: a 24px si fonderebbero in un disco.
+const ringed = m.buildSigil({ family: 'ANGEL', affinity: 'ANGEL', rarity: 'COMMON', recurringMotif: 'x' });
+const rg = m.sigilGeometry(ringed, 100);
+const maxR = Math.max(
+  ...rg.points.split(' ').map((p) => {
+    const [x, y] = p.split(',').map(Number);
+    return Math.hypot(x - 50, y - 50);
+  }),
+);
+check(rg.ring !== null && maxR < rg.ring - 2, 'con l\'anello, la stella si ritira per non toccarlo', `stella ${maxR.toFixed(1)} contro anello ${rg.ring}`);
 
 console.log('\n═══ §13.10 — QUANDO PARLA PER PRIMO ═══\n');
 

@@ -153,20 +153,14 @@ export function SplashScreen({ onEnter }: { onEnter: () => void }) {
 
           Senza una regola, «tutto in una pagina» diventa un cruscotto.
           ==================================================================== */}
-      {!incubating && mon && <MonDossier monName={mon.data.name} health={health} />}
+      {!incubating && mon && <MonDossier health={health} />}
     </div>
   );
 }
 
 /* --- Il dossier sotto la faccia -------------------------------------------- */
 
-function MonDossier({
-  monName,
-  health,
-}: {
-  monName: string;
-  health: Parameters<typeof birthStatsFor>[0];
-}) {
+function MonDossier({ health }: { health: Parameters<typeof birthStatsFor>[0] }) {
   const mon = useActiveMon()!;
   const d = mon.data;
   const birth = birthStatsFor(health, d.generated_at_day);
@@ -225,7 +219,7 @@ function MonDossier({
       </section>
 
       <div className="dossier__sigil">
-        <Sigil seed={mon.sigil} size={40} monName={monName} />
+        <Sigil seed={mon.sigil} size={40} />
       </div>
     </div>
   );

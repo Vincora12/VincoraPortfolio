@@ -105,7 +105,7 @@ export function EncounterScreen({ variant }: { variant: 'first' | 'new' }) {
         )}
 
         <div className="encounter__sigil" aria-hidden="true">
-          <Sigil seed={mon.sigil} size={40} monName={d.name} />
+          <Sigil seed={mon.sigil} size={40} />
         </div>
 
         <Button variant="primary" block onClick={enterLive}>

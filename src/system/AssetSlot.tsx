@@ -16,6 +16,7 @@
 
 import { useEffect, useSyncExternalStore } from 'react';
 import type { AssetType, SigilSeed } from '../engine/types';
+import { sigilGeometry } from '../engine/sigil';
 import { assetTypeDef, placeholderLabel } from '../engine/assets';
 import {
   getAssetUrlSync,
@@ -174,30 +175,24 @@ export function AssetSlot({
    personaggio, non i marcatori grafici di sistema.
    ========================================================================= */
 
-export function Sigil({
-  seed,
-  size = 28,
-  monName,
-}: {
-  seed: SigilSeed;
-  size?: number;
-  monName?: string;
-}) {
-  const imported = useAssetUrl(monName ?? '', 'sigil');
-
-  if (monName && imported) {
-    return <img src={imported} width={size} height={size} alt="Sigillo" style={{ display: 'block' }} />;
-  }
-
+/**
+ * 🔷 v1.15 §23.5 — IL SIGILLO NON CERCA PIÙ UN'IMMAGINE.
+ *
+ * Qui c'era un `useAssetUrl(monName, 'sigil')`: se esisteva un file importato
+ * lo usava, altrimenti disegnava. Da quando il sigillo è uscito dalla pipeline
+ * quel tipo di asset non esiste più, e la ricerca faceva cadere l'app alla
+ * nascita del primo `.mon` — un asset sconosciuto è un errore, giustamente.
+ *
+ * La cura non era rimettere il tipo: era togliere la ricerca. Un sigillo È il
+ * disegno, non un ripiego in attesa di un'immagine.
+ */
+export function Sigil({ seed, size = 28 }: { seed: SigilSeed; size?: number }) {
+  const g = sigilGeometry(seed, size);
   const r = size / 2;
-  const inner = r * 0.42;
-  const outer = r * (seed.ring ? 0.72 : 0.86);
-
-  const points = Array.from({ length: seed.arms * 2 }, (_, i) => {
-    const radius = i % 2 === 0 ? outer : inner;
-    const angle = (i / (seed.arms * 2)) * Math.PI * 2 - Math.PI / 2;
-    return `${(r + Math.cos(angle) * radius).toFixed(2)},${(r + Math.sin(angle) * radius).toFixed(2)}`;
-  }).join(' ');
+  /* Il tratto scala con la dimensione, non è un valore fisso: a 24px un
+     tratto pensato per 40 chiude la figura, a 40px un tratto pensato per 24
+     la fa sparire. */
+  const stroke = size * (0.05 + seed.weight * 0.018);
 
   return (
     <svg
@@ -205,26 +200,47 @@ export function Sigil({
       height={size}
       viewBox={`0 0 ${size} ${size}`}
       role="img"
-      aria-label="Sigillo provvisorio, generato dal Character DNA"
+      aria-label={`Sigillo: ${seed.from.join(', ')}`}
     >
       <g transform={`rotate(${seed.rotation} ${r} ${r})`}>
         <polygon
-          points={points}
+          points={g.points}
           fill={seed.solidCore ? 'currentColor' : 'none'}
           stroke="currentColor"
-          strokeWidth={size * 0.07}
+          strokeWidth={stroke}
           strokeLinejoin="miter"
+          /* BROKEN non chiude la forma: il varco È il segno, quindi la
+             spezzata resta aperta invece di essere richiusa dal renderer. */
+          {...(seed.mutation === 'BROKEN' ? { fill: 'none' } : {})}
         />
+
+        {g.inner !== null && (
+          <polygon
+            points={sigilGeometry({ ...seed, mutation: 'PLAIN' }, g.inner * 2).points}
+            transform={`translate(${r - g.inner} ${r - g.inner}) rotate(${g.innerRotation} ${g.inner} ${g.inner})`}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={stroke * 0.7}
+            strokeLinejoin="miter"
+          />
+        )}
       </g>
-      {seed.ring && (
+
+      {g.ring !== null && (
         <circle
           cx={r}
           cy={r}
-          r={r * 0.92}
+          r={g.ring}
           fill="none"
           stroke="currentColor"
-          strokeWidth={size * 0.07}
+          strokeWidth={stroke * (seed.mutation === 'ORBIT' ? 0.5 : 1)}
         />
+      )}
+
+      {/* Il foro va DOPO il riempimento e usa lo sfondo: con un centro pieno,
+          bucarlo significa rimettere il colore di sotto. */}
+      {g.hole !== null && (
+        <circle cx={r} cy={r} r={g.hole} fill="var(--sigil-hole, transparent)" stroke="none" />
       )}
     </svg>
   );

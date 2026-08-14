@@ -103,17 +103,31 @@ export const ASSET_TYPES: readonly AssetTypeDef[] = [
     purpose: 'Asset di rivelazione per FIRST ENCOUNTER / NEW ENCOUNTER.',
     usage: ['first-encounter', 'new-encounter'],
   },
-  {
-    type: 'sigil',
-    stage: 2,
-    dependsOn: ['character_master'],
-    assetId: 'sigil_01',
-    promptFile: '07_SIGIL_PROMPT.txt',
-    label: 'SIGIL',
-    purpose: 'Marchio monocromo derivato dal Character DNA, usabile dentro la UI.',
-    usage: ['specimen-profile', 'mindline', 'history'],
-  },
 ];
+
+/* ============================================================================
+   🔷 v1.15 §23.5 — QUI C'ERA IL SIGILLO, ED È USCITO DALLA PIPELINE.
+
+   Era il settimo asset: un marchio monocromo da far generare a un modello di
+   immagini. Non è mai stato prodotto, e ripensandoci non deve esserlo.
+
+   Un sigillo è esattamente il tipo di cosa in cui il codice batte un modello:
+
+   • deve essere LEGGIBILE A 24px, e a «estremamente semplice» un modello di
+     immagini risponde aggiungendo dettaglio, perché è quello che sa fare;
+   • deve DERIVARE dai dati in modo verificabile — il codice può garantire che
+     quelle punte vengano dalla Family, un modello può solo provarci;
+   • deve ESISTERE DAL PRIMO GIORNO: compare nella Mindline, nel dossier, nel
+     profilo, e uno slot vuoto lì sarebbe un buco permanente;
+   • deve CAMBIARE CON LUI — una stirpe condivide l'inclinazione, e con il
+     codice è una riga, con le immagini sono due generazioni da tenere
+     coerenti.
+
+   Quindi il sigillo resta un disegno del sito (`engine/sigil.ts`), e gli
+   asset da generare scendono da sette a sei. Tutti e sei sono il personaggio;
+   il sigillo era l'unico puramente geometrico, ed è per questo che è l'unico
+   che si può togliere senza perdere niente.
+   ========================================================================= */
 
 export function assetTypeDef(type: AssetType): AssetTypeDef {
   const d = ASSET_TYPES.find((a) => a.type === type);

@@ -52,7 +52,6 @@ export function expectedFileName(record: MonRecord, assetId: string): string {
     doodle_01: 'doodle',
     reactions_01: 'reactions',
     hero_01: 'hero',
-    sigil_01: 'sigil',
   };
   return `${SLUG(record.data.name)}_${suffixes[assetId] ?? assetId}.png`;
 }
@@ -87,7 +86,7 @@ export function buildManifest(record: MonRecord): AssetManifest {
       };
     }
 
-    if (def.type === 'profile_portrait' || def.type === 'sigil') {
+    if (def.type === 'profile_portrait') {
       return { ...base, aspect_ratio: '1:1' };
     }
 

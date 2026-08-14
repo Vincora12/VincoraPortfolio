@@ -201,9 +201,27 @@ const ASSETS = 'src/engine/assets.ts';
 
 check(
   'ASSET §23',
-  'sette tipi, non otto',
-  count(ASSETS, /^ {4}type: '/gm) === 7,
-  `${count(ASSETS, /^ {4}type: '/gm)} — la rotazione è uscita in v1.11 §23.3`,
+  'sei tipi da generare, non sette',
+  count(ASSETS, /^ {4}type: '/gm) === 6,
+  `${count(ASSETS, /^ {4}type: '/gm)} — rotazione fuori in v1.11 §23.3, sigillo in v1.15 §23.5`,
+);
+check(
+  'ASSET §23.5',
+  'il sigillo non è più un asset da generare',
+  lacks(ASSETS, "type: 'sigil'") && has(ASSETS, "QUI C'ERA IL SIGILLO"),
+  'è un disegno del sito: leggibile a 24px, derivato dai dati, c’è dal primo giorno',
+);
+check(
+  'ASSET §23.5',
+  'ogni parte del sigillo dichiara da dove viene',
+  has('src/engine/sigil.ts', 'OGNI PARTE HA UN PADRE') && has('src/engine/sigil.ts', 'from.push('),
+  'senza, non è un sigillo: è decorazione',
+);
+check(
+  'ASSET §23.5',
+  'il sigillo non usa più il caso',
+  lacks('src/engine/sigil.ts', 'rng') && lacks('src/engine/sigil.ts', 'Math.random'),
+  'tre parametri su quattro erano un tiro di dado',
 );
 check(
   'ASSET §23',

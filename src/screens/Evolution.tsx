@@ -93,7 +93,7 @@ export function EvolutionScreen() {
           <SystemLabel tone="character">STADIO {evo?.stage ?? 0}</SystemLabel>
           <SystemLabel>{d.rarity}</SystemLabel>
           <span className="evolution__sigil">
-            <Sigil seed={mon.sigil} size={24} monName={d.name} />
+            <Sigil seed={mon.sigil} size={24} />
           </span>
         </div>
 
