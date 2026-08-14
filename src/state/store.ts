@@ -37,6 +37,11 @@ import {
   type SignalStatus,
 } from '../engine/progression';
 import { evolveMon, generateFirstMon, generateMon } from '../engine/characterGenerator';
+import {
+  resetRarityThresholds,
+  setRarityThresholds,
+  type RarityThresholds,
+} from '../engine/rarityTuning';
 import { selectHeritageOrigins, type HeritageOrigin } from '../engine/heritage';
 import { createNode, makeNodeId, nextChapter } from '../engine/mindline';
 import { makeMemory, rollDailyEvent } from '../engine/simulation';
@@ -143,6 +148,16 @@ export interface DevFlags {
   forceBranch: boolean;
   /** §25 DEV://UNLOCK_ALL — solo test, §29 lo vieta in produzione. */
   unlockAll: boolean;
+  /** §20.1 — soglie di rarità tarate a mano. `null` = quelle del config. */
+  rarityThresholds: RarityThresholds | null;
+}
+
+/** §20.1 — il campione che alimenta DEV → RARITÀ. */
+export interface RaritySample {
+  /** Il punteggio 0–100 di ogni nascita simulata. */
+  scores: number[];
+  /** La rarità che ne sarebbe uscita, sblocchi compresi. */
+  rarities: string[];
 }
 
 export interface BatchCandidate {
@@ -340,6 +355,10 @@ interface AppState {
   injectEvent: (kind: 'event' | 'joke' | 'milestone' | 'gift', text: string) => void;
   generateBatch: (n: number) => void;
   clearBatch: () => void;
+  /** §20.1 DEV → RARITÀ: campiona punteggi e rarità senza toccare lo stato. */
+  sampleRarity: (n: number) => RaritySample;
+  /** §20.1 — applica una taratura. Torna i problemi, o lista vuota. */
+  tuneRarity: (next: RarityThresholds | null) => string[];
   resetCurrentNode: () => void;
   restoreNode: (nodeId: string) => void;
   cloneScenario: () => void;
@@ -380,7 +399,16 @@ const INITIAL = {
   pendingPlan: null as ContinuityPlan | null,
   lastTrace: null as GenerationTrace | null,
   batch: [] as BatchCandidate[],
-  dev: { enabled: false, forceContinue: false, forceBranch: false, unlockAll: false },
+  dev: {
+    enabled: false,
+    forceContinue: false,
+    forceBranch: false,
+    unlockAll: false,
+    /* §20.1 — soglie di rarità tarate a mano. `null` = quelle del config.
+       Vive nello stato per sopravvivere a un ricaricamento: si tara in più
+       sedute, non in una. */
+    rarityThresholds: null as RarityThresholds | null,
+  },
   bias: DEFAULT_BIAS,
   token: null as string | null,
 };
@@ -1357,6 +1385,73 @@ export const useApp = create<AppState>()(
 
       clearBatch: () => set({ batch: [] }),
 
+      /* ============================================================================
+         §20.1 DEV → RARITÀ — il campione su cui si tara.
+
+         🔒 NON scrive niente. Le creature generate qui non nascono, non entrano
+         nella Mindline e non consumano nomi: esistono il tempo di dire che
+         punteggio avrebbero preso. Serve per rispondere alla domanda «con queste
+         soglie, quanto esce SINGULAR?» senza aspettare tre anni di partita.
+
+         Parte dallo stato VERO — i tuoi dati, il tuo bond, la tua profondità —
+         perché una taratura fatta su un giocatore inventato non dice niente su
+         come andrà a te. */
+      /* La taratura vive in due posti e deve restare coerente: nel modulo, che
+         è quello che il motore legge, e nello stato, che è quello che
+         sopravvive al ricaricamento. Passare da qui è l'unico modo di
+         scriverla — così non possono divergere. */
+      tuneRarity: (next) => {
+        if (next === null) {
+          resetRarityThresholds();
+          set((s) => ({ dev: { ...s.dev, rarityThresholds: null } }));
+          return [];
+        }
+
+        const problems = setRarityThresholds(next);
+        if (problems.length === 0) {
+          set((s) => ({ dev: { ...s.dev, rarityThresholds: { ...next } } }));
+        }
+        return problems;
+      },
+
+      sampleRarity: (n) => {
+        const s = get();
+        const previous = activeRecord(s);
+        const input = generatorInput(s);
+        const scores: number[] = [];
+        const rarities: string[] = [];
+
+        for (let i = 0; i < n; i++) {
+          const seed = randomSeed();
+          const { record } = previous
+            ? generateMon({
+                input,
+                mindlineNodeId: `sample_${i}`,
+                originNodeId: previous.data.mindline_node,
+                heritageOrigins: selectHeritageOrigins(makeRng(seed ^ 0x5bf03635), previous),
+                lineageNames: [],
+                previous,
+                seed,
+                devUnlockAll: s.dev.unlockAll,
+                hiddenEvent: false,
+              })
+            : generateFirstMon({
+                input,
+                mindlineNodeId: `sample_${i}`,
+                originNodeId: null,
+                lineageNames: [],
+                seed,
+                devUnlockAll: s.dev.unlockAll,
+                hiddenEvent: false,
+              });
+
+          scores.push(record.data.rarity_score);
+          rarities.push(record.data.rarity);
+        }
+
+        return { scores, rarities };
+      },
+
       resetCurrentNode: () => {
         const s = get();
         const rec = activeRecord(s);
@@ -1484,6 +1579,13 @@ export const useApp = create<AppState>()(
       partialize: (s) => {
         const { batch: _batch, ...rest } = s;
         return rest as AppState;
+      },
+      /* 🔒 Il modulo di taratura è la sorgente che il motore legge, e allo
+         start non sa niente. Senza questa riga una taratura salvata resterebbe
+         visibile nel pannello e non avrebbe alcun effetto sulle creature: il
+         tipo di bug che si scopre dopo tre giorni di prove sbagliate. */
+      onRehydrateStorage: () => (state) => {
+        if (state?.dev.rarityThresholds) setRarityThresholds(state.dev.rarityThresholds);
       },
     },
   ),

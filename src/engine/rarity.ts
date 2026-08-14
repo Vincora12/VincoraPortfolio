@@ -24,6 +24,7 @@ import {
   type RarityTierDef,
 } from './generation-config';
 import type { Rng } from './rng';
+import { rarityThresholds } from './rarityTuning';
 
 /* --- 1. Sblocco (§15, §25) ------------------------------------------------- */
 
@@ -181,9 +182,15 @@ export function computeRarityScore(input: RarityScoreInput): RarityScoreResult {
   return { score: clamp(score, 0, 100), breakdown };
 }
 
-/** §16 — il livello massimo consentito dal punteggio. È un tetto. */
+/**
+ * §16 — il livello massimo consentito dal punteggio.
+ *
+ * Legge le soglie da `rarityTuning` e non da `RARITY_TIERS`: di norma sono gli
+ * stessi numeri, ma il pannello DEV può spostarli per vedere cosa succede.
+ */
 export function tierCapFromScore(score: number): Rarity {
-  const eligible = [...RARITY_TIERS].reverse().find((t) => score >= t.scoreMin);
+  const t = rarityThresholds();
+  const eligible = [...RARITY_TIERS].reverse().find((tier) => score >= t[tier.id]);
   return eligible?.id ?? 'COMMON';
 }
 
@@ -200,8 +207,40 @@ export interface RarityRoll {
   cap: Rarity;
 }
 
+/* ============================================================================
+   ⚠️ IL SECONDO DADO NON C'È PIÙ, PER NESSUN LIVELLO.
+
+   C'erano DUE porte in fila e si moltiplicavano. La prima era il punteggio: la
+   configurazione doveva essere abbastanza insolita da arrivare nella banda. La
+   seconda era un'estrazione con le probabilità di §26 su tutti i livelli fino
+   a quella banda — 48% COMMON, 27% UNCOMMON, e così via.
+
+   Il conto era spietato. Per MYTHIC servivano un punteggio da 99° percentile E
+   POI un dado da 2,5%: due volte su diecimila. Per SINGULAR, in più, il
+   grilletto nascosto e un dado da 0,5%: una volta su parecchie centinaia di
+   migliaia. Misurato: zero su ventimila nascite.
+
+   E soprattutto rendeva il sistema impossibile da tarare, perché muovere una
+   soglia non produceva un effetto prevedibile: veniva diluito da un'estrazione
+   che ignorava quanto ti eri avvicinato.
+
+   🔒 Adesso la rarità È la banda in cui cade il punteggio, limitata da quello
+   che hai sbloccato. Una regola sola, in una riga, che si può spiegare a
+   qualcuno e che risponde in modo prevedibile quando sposti una soglia — che
+   è la condizione perché il pannello DEV serva a qualcosa.
+
+   La casualità non è sparita: sta dov'era sempre stata, dentro il punteggio.
+   Novità, contraddizioni di voce, freschezza della sagoma sono tutte estratte.
+   Quello che è sparito è il dado tirato DOPO, che cancellava il risultato.
+
+   🔶 Scostamento dichiarato da §26. `normalizePool` resta esportata e resta il
+   riferimento delle tabelle — è la risposta alla domanda «quanto sarebbe
+   probabile ciascun livello se contassero solo gli sblocchi» — e il pannello
+   DEV la mostra ancora. Non decide più il risultato.
+   ========================================================================= */
+
 export function rollRarity(
-  rng: Rng,
+  _rng: Rng,
   ctx: UnlockContext,
   scoreInput: RarityScoreInput,
 ): RarityRoll {
@@ -214,44 +253,12 @@ export function rollRarity(
 
   // §16 — «If the score reaches a tier that is not yet unlocked … the result is
   // capped at the highest unlocked tier.» E viceversa: uno sblocco senza
-  // punteggio non basta. Si tira sull'intersezione.
+  // punteggio non basta. Vale l'intersezione, e ne esce il livello più alto.
   const eligible = unlocked.filter((t) => RARITY_TIERS.findIndex((x) => x.id === t.id) <= capIndex);
   const pool = normalizePool(eligible.length > 0 ? eligible : [RARITY_TIERS[0]!]);
+  const rarity = eligible.at(-1)?.id ?? 'COMMON';
 
-  /* ⚠️ I DUE LIVELLI IN CIMA NON SI TIRANO: si sono già guadagnati.
-
-     Il problema era che il punteggio e il tiro erano DUE porte in fila, e si
-     moltiplicavano. Per MYTHIC servivano un punteggio da 99° percentile e poi
-     un dado da 2,5%: circa due volte su diecimila. Per SINGULAR, in più, il
-     grilletto nascosto — che scatta sei volte in una vita — e un dado da 0,5%.
-     Il risultato misurato era zero su ventimila nascite: due livelli su sei
-     esistevano solo nelle tabelle.
-
-     🔒 Adesso in cima decide il punteggio. Se la configurazione arriva nella
-     banda di MYTHIC o di SINGULAR e quel livello è sbloccato, quel livello è
-     il risultato. La rarità resta rarissima — ci arriva l'1% delle nascite e
-     il 5% di quelle che cadono su un traguardo — ma la rarità di una cosa
-     deve stare in quanto è difficile ottenerla, non in un dado tirato dopo.
-
-     🔶 Scostamento dichiarato da §26: le tabelle di normalizzazione restano
-     esattamente quelle e continuano a governare i quattro livelli di sotto,
-     che sono quelli per cui erano scritte. */
-  const GRANTED: Rarity[] = ['MYTHIC', 'SINGULAR'];
-  if (GRANTED.includes(cap) && unlocked.some((t) => t.id === cap)) {
-    return { rarity: cap, score, breakdown, unlockedPool, eligiblePool: pool, cap };
-  }
-
-  let r = rng() * 100;
-  let picked: Rarity = pool[pool.length - 1]!.rarity;
-  for (const entry of pool) {
-    r -= entry.chance;
-    if (r <= 0) {
-      picked = entry.rarity;
-      break;
-    }
-  }
-
-  return { rarity: picked, score, breakdown, unlockedPool, eligiblePool: pool, cap };
+  return { rarity, score, breakdown, unlockedPool, eligiblePool: pool, cap };
 }
 
 export function rarityDef(id: Rarity): RarityTierDef {

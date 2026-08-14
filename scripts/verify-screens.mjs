@@ -551,6 +551,16 @@ try {
   await click(byText('MEMORIA'), 'tab memoria');
   await shot('dev-memoria');
 
+  /* 🔷 v1.16 §15.3 — DEV → RARITÀ. Il pulsante simula cinquecento nascite
+     sincronamente: se ci fosse un errore nel motore uscirebbe QUI, prima che
+     una creatura vera lo incontri. Vale la pena premerlo davvero invece di
+     limitarsi a fotografare la scheda vuota. */
+  await click(byText('RARITÀ'), 'tab rarità');
+  await shot('dev-rarita');
+  await click(byText('Simula 500 nascite'), 'simula nascite');
+  await page.waitForSelector('.rarity__hist', { timeout: 15000 });
+  await shot('dev-rarita-simulazione');
+
   // L'annuncio dello shift esiste solo quando qualcosa è pronto. Le forzature
   // sono già attive (tab MINDLINE, poco sopra): basta uscire e guardare.
   await click('.dev__head .btn-icon', 'chiudi DEV');

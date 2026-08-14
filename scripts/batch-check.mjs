@@ -35,6 +35,7 @@ export { initialHealthState, applyDay, simulateDayInput, DEFAULT_BIAS } from '${
 export { makeRng, randomSeed } from '${cwd}/src/engine/rng.ts';
 export { isValidMonName } from '${cwd}/src/engine/naming.ts';
 export { normalizePool } from '${cwd}/src/engine/rarity.ts';
+export { DEFAULT_THRESHOLDS, rarityThresholds, setRarityThresholds, resetRarityThresholds, thresholdProblems, isRarityTuned, bandShares } from '${cwd}/src/engine/rarityTuning.ts';
 export { planContinuity, EVOLVABLE_AXES, PROGRESSION, hiddenEventFor } from '${cwd}/src/engine/progression.ts';
 export { SCAN_QUESTIONS, seedFromAnswers, seedSpread } from '${cwd}/src/engine/personalityScan.ts';
 export * as CONFIG from '${cwd}/src/engine/generation-config.ts';
@@ -629,38 +630,65 @@ const rarShare = share((d) => d.rarity);
 const rarPct = Object.fromEntries([...rarShare.entries()].map(([k, v]) => [k, (v / EQ_N) * 100]));
 
 check(
-  (rarPct.MYTHIC ?? 0) > 0,
-  'MYTHIC è raggiungibile in una nascita normale (§15)',
-  `${(rarPct.MYTHIC ?? 0).toFixed(2)}%`,
+  m.CONFIG.RARITIES.every((r) => (rarPct[r] ?? 0) > 0),
+  'tutti e sei i livelli di rarità escono (§15)',
+  m.CONFIG.RARITIES.map((r) => `${r} ${(rarPct[r] ?? 0).toFixed(1)}%`).join(' · '),
 );
 
-/* La scala deve scendere: un livello più alto non può essere più comune di uno
-   più basso, o la parola «rarità» non vuol dire niente. */
-const ladder = ['COMMON', 'UNCOMMON', 'RARE', 'EPIC', 'MYTHIC'];
-const inverted = ladder
+/* ⚠️ NON si controlla più che la scala scenda per tutti e sei.
+
+   Con la rarità decisa dal punteggio, a partita avanzata i livelli BASSI si
+   assottigliano: dopo dieci forme e bond 85 uscire COMMON è giustamente raro,
+   perché il tetto non è più lì. Pretendere che COMMON resti il più comune
+   vorrebbe dire pretendere che il progresso non conti.
+
+   Quello che deve continuare a valere è la cima: se MYTHIC diventasse più
+   comune di EPIC, la parola «rarità» non vorrebbe dire niente. */
+const topTiers = ['EPIC', 'MYTHIC', 'SINGULAR'];
+const inverted = topTiers
   .slice(1)
-  .filter((r, i) => (rarPct[r] ?? 0) > (rarPct[ladder[i]] ?? 0))
-  .map((r) => r);
+  .filter((r, i) => (rarPct[r] ?? 0) >= (rarPct[topTiers[i]] ?? 0));
 check(
   inverted.length === 0,
-  'la scala delle rarità scende sempre (§15)',
-  ladder.map((r) => `${r} ${(rarPct[r] ?? 0).toFixed(2)}%`).join(' · '),
+  'in cima la scala scende: EPIC > MYTHIC > SINGULAR (§15)',
+  topTiers.map((r) => `${r} ${(rarPct[r] ?? 0).toFixed(2)}%`).join(' · '),
 );
 
-/* SINGULAR pretende il grilletto nascosto: senza traguardo non deve uscire
-   mai, con il traguardo deve poter uscire. Sono due controlli, non uno. */
-check(
-  (rarPct.SINGULAR ?? 0) === 0,
-  'senza traguardo SINGULAR non esce (§15)',
-  `${(rarPct.SINGULAR ?? 0).toFixed(2)}%`,
-);
-
+/* Il traguardo non è più un cancello, è una spinta: deve spostare la
+   distribuzione verso l'alto senza essere l'unica strada. */
 const eqHidden = drawBatch(true);
-const singulars = eqHidden.filter((d) => d.rarity === 'SINGULAR').length;
+const singularsPlain = (rarPct.SINGULAR ?? 0) / 100;
+const singularsHidden = eqHidden.filter((d) => d.rarity === 'SINGULAR').length / EQ_N;
 check(
-  singulars > 0,
-  'su un traguardo SINGULAR può uscire (§15/§16)',
-  `${((singulars / EQ_N) * 100).toFixed(2)}% di ${EQ_N}`,
+  singularsHidden > singularsPlain * 1.5,
+  'una nascita su un traguardo dà SINGULAR molto più spesso (§16)',
+  `${(singularsHidden * 100).toFixed(1)}% contro ${(singularsPlain * 100).toFixed(1)}%`,
+);
+
+/* --- Le soglie si possono spostare, ma non rompere ------------------------ */
+
+check(
+  m.thresholdProblems({ ...m.DEFAULT_THRESHOLDS }).length === 0,
+  'le soglie di partenza sono coerenti (§15)',
+);
+check(
+  m.thresholdProblems({ ...m.DEFAULT_THRESHOLDS, MYTHIC: 10 }).length > 0,
+  'una scala fuori ordine viene rifiutata',
+);
+check(
+  m.setRarityThresholds({ SINGULAR: 5 }).length > 0 &&
+    m.rarityThresholds().SINGULAR === m.DEFAULT_THRESHOLDS.SINGULAR,
+  'una taratura incoerente non viene applicata a metà',
+  `SINGULAR resta ${m.rarityThresholds().SINGULAR}`,
+);
+check(
+  m.setRarityThresholds({ SINGULAR: 90 }).length === 0 && m.rarityThresholds().SINGULAR === 90,
+  'una taratura valida viene applicata',
+);
+m.resetRarityThresholds();
+check(
+  m.rarityThresholds().SINGULAR === m.DEFAULT_THRESHOLDS.SINGULAR && !m.isRarityTuned(),
+  'il ritorno ai valori di partenza rimette tutto a posto',
 );
 
 /* --- Il grilletto nascosto è fatto di cose vere --------------------------- */

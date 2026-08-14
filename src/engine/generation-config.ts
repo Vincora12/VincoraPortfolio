@@ -904,7 +904,7 @@ export const RARITY_TIERS: RarityTierDef[] = [
     baseChance: 27.0,
     // §15: «Mindline Depth ≥ 2 OR 7 verified active days» — è un OR.
     unlock: { minDepth: 2, minActiveDays: 7 },
-    scoreMin: 40,
+    scoreMin: 63,
     meaning: 'One strong unusual interaction between axes.',
     it: 'una interazione insolita forte fra due assi',
     promptConsequence:
@@ -914,7 +914,7 @@ export const RARITY_TIERS: RarityTierDef[] = [
     id: 'RARE',
     baseChance: 15.0,
     unlock: { minDepth: 3, minBond: 30, minDataConfidence: 60 },
-    scoreMin: 55,
+    scoreMin: 68,
     meaning: 'Distinct archetype/affinity/role interaction; stronger novelty.',
     it: 'interazione distintiva fra archetipo, affinity e ruolo',
     promptConsequence:
@@ -924,7 +924,7 @@ export const RARITY_TIERS: RarityTierDef[] = [
     id: 'EPIC',
     baseChance: 7.0,
     unlock: { minDepth: 5, minBond: 50, minDataConfidence: 70 },
-    scoreMin: 70,
+    scoreMin: 73,
     meaning: 'Unusual multi-axis synergy, stronger structural mutation, rarer archetype weighting.',
     it: 'sinergia multi-asse, mutazione strutturale più forte',
     promptConsequence:
@@ -934,7 +934,7 @@ export const RARITY_TIERS: RarityTierDef[] = [
     id: 'MYTHIC',
     baseChance: 2.5,
     unlock: { minDepth: 8, minBond: 70, minDataConfidence: 75 },
-    scoreMin: 83,
+    scoreMin: 78,
     meaning: 'Hidden combination of long-term patterns + lineage + rare synergy; cannot be directly chosen.',
     it: 'combinazione nascosta di pattern lunghi e lineage',
     promptConsequence:
@@ -943,13 +943,15 @@ export const RARITY_TIERS: RarityTierDef[] = [
   {
     id: 'SINGULAR',
     baseChance: 0.5,
-    unlock: { minDepth: 10, minBond: 85, minBranches: 3, hiddenTrigger: true },
-    /* ⚠️ Era 94, e il punteggio non ci arrivava: su 20.000 evoluzioni con ogni
-       bonus acceso il massimo osservato è 95, il 99,9° percentile è 91. Una
-       soglia che sta oltre il novantanovesimo percentile e mezzo non è «raro»,
-       è «mai». 86 è il 95° percentile di una nascita che cade su un traguardo:
-       resta la banda più alta di tutte, ma esiste. */
-    scoreMin: 86,
+    /* ⚠️ `hiddenTrigger` non è più un REQUISITO. Pretendeva che la nascita
+       cadesse su un traguardo, e i traguardi capitano sei volte in una vita:
+       moltiplicato per la probabilità di arrivare in banda faceva «mai».
+       Il traguardo continua a contare — vale 5 punti su 100 nel punteggio, e
+       su una nascita così SINGULAR diventa molto probabile — ma adesso è una
+       spinta, non un cancello. I tre cancelli che restano bastano: profondità
+       10, bond 85 e tre branch sono già anni. */
+    unlock: { minDepth: 10, minBond: 85, minBranches: 3 },
+    scoreMin: 82,
     meaning: 'One-off lineage event. Hidden trigger required; not guaranteed even when eligible.',
     it: 'evento irripetibile della lineage',
     promptConsequence:

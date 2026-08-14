@@ -362,3 +362,110 @@
   font-style: normal;
   color: var(--ink);
 }
+
+/* ============================================================================
+   DEV → RARITÀ (§20.1)
+   ========================================================================= */
+
+.rarity__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  gap: var(--u3);
+}
+
+.rarity__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--u);
+}
+
+.rarity__name {
+  color: var(--muted-strong);
+  letter-spacing: 0.08em;
+}
+
+.rarity__field .dev__numberinput {
+  width: 100%;
+}
+
+.rarity__field input:disabled {
+  opacity: 0.45;
+}
+
+.rarity__default {
+  color: var(--muted);
+}
+
+.rarity__problems {
+  margin: 0;
+  padding: var(--u2) var(--u3);
+  list-style: none;
+  border: var(--border) solid var(--signal-alert);
+  color: var(--signal-alert);
+  display: flex;
+  flex-direction: column;
+  gap: var(--u);
+}
+
+.rarity__rule {
+  border: 0;
+  border-top: 1px solid var(--hairline);
+  margin: var(--u2) 0;
+}
+
+/* La colonna «quante volte in una vita»: è la lettura che conta, quindi ha una
+   larghezza fissa e non balla da una riga all'altra. */
+.rarity__life {
+  width: 44px;
+  flex: 0 0 auto;
+  text-align: right;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.rarity__hist {
+  display: flex;
+  overflow: hidden;
+  align-items: flex-end;
+  gap: 1px;
+  height: 88px;
+  padding: var(--u2);
+  border: var(--border) solid var(--ink);
+  background: var(--paper);
+}
+
+.rarity__bin {
+  flex: 1;
+  min-height: 1px;
+  background: var(--muted-strong);
+}
+
+/* ⚠️ Una tacca alta quanto la sua colonna sarebbe invisibile proprio nel caso
+   che interessa: la soglia messa dove non cade quasi nessuno. Quindi la banda
+   si evidenzia per INTERO, con una colonna traslucida ritagliata dal
+   contenitore — niente altezze in pixel da tenere allineate a mano. */
+.rarity__bin {
+  position: relative;
+}
+
+.rarity__bin--cut {
+  background: var(--ink);
+}
+
+.rarity__bin--cut::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: 999px;
+  background: var(--ink);
+  opacity: 0.22;
+}
+
+.rarity__histaxis {
+  display: flex;
+  justify-content: space-between;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}

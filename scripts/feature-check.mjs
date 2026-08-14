@@ -748,6 +748,74 @@ check('COSTI §18.1', 'schermata in DEV', existsSync('src/dev/CostSection.tsx'))
 check('COSTI §18.1', 'i prezzi sono dichiarati come stime', has('src/ai/usage.ts', 'DA RICONTROLLARE') || has('src/dev/CostSection.tsx', 'DA RICONTROLLARE'));
 
 /* ============================================================================
+   RARITÀ TARABILE — §15.3
+
+   Il difetto che queste righe sorvegliano non è un errore di calcolo: è che il
+   sistema torni a essere impossibile da capire. Una rarità decisa in due
+   passaggi che si moltiplicano non si può tarare, e una taratura che il motore
+   non legge è peggio di nessuna taratura.
+   ========================================================================= */
+
+check(
+  'RARITÀ §15.3',
+  'la rarità non viene tirata una seconda volta',
+  lacks('src/engine/rarity.ts', 'let r = rng() * 100'),
+  'il punteggio decide, il dado non c’è più',
+);
+check(
+  'RARITÀ §15.3',
+  'il motore legge le soglie tarabili, non quelle scolpite',
+  has('src/engine/rarity.ts', 'rarityThresholds()'),
+);
+check(
+  'RARITÀ §15.3',
+  'una taratura incoerente non si applica a metà',
+  has('src/engine/rarityTuning.ts', 'if (problems.length === 0) active = candidate'),
+);
+check(
+  'RARITÀ §15.3',
+  'la taratura salvata torna dentro il motore al ricaricamento',
+  has('src/state/store.ts', 'onRehydrateStorage'),
+  'senza questo il pannello mostrerebbe soglie che non hanno effetto',
+);
+check(
+  'RARITÀ §15.3',
+  'il pannello scrive attraverso lo store, non nel modulo',
+  has('src/dev/RaritySection.tsx', 'tuneRarity') &&
+    lacks('src/dev/RaritySection.tsx', 'setRarityThresholds(draft)'),
+  'due sorgenti di verità divergerebbero al primo ricaricamento',
+);
+check(
+  'RARITÀ §15.3',
+  'DEV → RARITÀ esiste ed è raggiungibile',
+  has('src/dev/DevPanel.tsx', "id: 'rarity' as const"),
+);
+check(
+  'RARITÀ §15.3',
+  'la simulazione non fa nascere niente',
+  has('src/state/store.ts', 'sampleRarity') &&
+    lacks('src/dev/RaritySection.tsx', 'useApp.setState'),
+);
+check(
+  'RARITÀ §15.3',
+  'il pannello dice quante volte capita in una vita, non solo la percentuale',
+  has('src/dev/RaritySection.tsx', 'FORMS_IN_A_LIFETIME'),
+  'una percentuale non si sente; «tredici volte in tutta la vita» sì',
+);
+check(
+  'RARITÀ §15.3',
+  'il traguardo è una spinta, non un cancello',
+  lacks('src/engine/generation-config.ts', 'hiddenTrigger: true'),
+  'pretenderlo rendeva SINGULAR impossibile',
+);
+check(
+  'RARITÀ §16',
+  'il grilletto nascosto viene davvero acceso da qualcuno',
+  has('src/state/store.ts', 'hiddenEventFor({'),
+  'era previsto dalla spec e non lo chiamava nessuno',
+);
+
+/* ============================================================================
    Sicurezza e tono — non negoziabili
    ========================================================================= */
 

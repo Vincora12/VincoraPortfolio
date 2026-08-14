@@ -32,6 +32,7 @@ import { VoiceSection } from './VoiceSection';
 import { CostSection } from './CostSection';
 import { MemorySection } from './MemorySection';
 import { MoodSection } from './MoodSection';
+import { RaritySection } from './RaritySection';
 
 type DevTab =
   | 'time'
@@ -44,7 +45,8 @@ type DevTab =
   | 'progression'
   | 'cost'
   | 'memory'
-  | 'mood';
+  | 'mood'
+  | 'rarity';
 
 const TABS = [
   { id: 'time' as const, label: 'TEMPO' },
@@ -65,6 +67,11 @@ const TABS = [
      sente solo in COME parla. Che è il progetto, ed è anche il modo perfetto
      per non accorgersi mai che si è rotto. Questo è il posto dove si guarda. */
   { id: 'mood' as const, label: 'UMORE E OPINIONI' },
+  /* 🔷 v1.16 §15.3 — la rarità era l'unica parte del motore che non si poteva
+     guardare mentre la si tarava: si cambiava un numero, si generava un batch,
+     si contava a occhio. Qui si sposta una soglia e si vede subito cosa
+     cambia, sullo stesso campione. */
+  { id: 'rarity' as const, label: 'RARITÀ' },
 ];
 
 export function DevPanel({ onClose }: { onClose: () => void }) {
@@ -94,6 +101,7 @@ export function DevPanel({ onClose }: { onClose: () => void }) {
         {tab === 'cost' && <CostSection />}
         {tab === 'memory' && <MemorySection />}
         {tab === 'mood' && <MoodSection />}
+        {tab === 'rarity' && <RaritySection />}
       </div>
     </div>
   );
