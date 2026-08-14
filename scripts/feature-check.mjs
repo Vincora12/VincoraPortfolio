@@ -809,6 +809,13 @@ check(
   'pretenderlo rendeva SINGULAR impossibile',
 );
 check(
+  'RARITÀ §15.3',
+  'la posizione nel catalogo non vale piu punti di rarità',
+  lacks('src/engine/characterGenerator.ts', 'findIndex((a) => a.id === archetype) >= 4') &&
+    has('src/engine/rarity.ts', 'massSizeTension'),
+  'quattro punti su cento assegnati in base all’ordine in cui li ho scritti',
+);
+check(
   'RARITÀ §16',
   'il grilletto nascosto viene davvero acceso da qualcuno',
   has('src/state/store.ts', 'hiddenEventFor({'),

@@ -301,7 +301,7 @@ export function generateMon(ctx: GenerationContext): GenerationResult {
     freshAxes: changedAxes,
     affinityEqualsFamily: affinity === family.id,
     sizeRoleTension: isSizeRoleTension(size, role),
-    rareArchetype: family.archetypes.findIndex((a) => a.id === archetype) >= 4,
+    massSizeTension: isMassSizeTension(family, archetype, size),
     dataConfidence: ctx.input.dataConfidence,
     signalSpread: signalSpread(signals),
     heritageCount: heritage.length,
@@ -983,6 +983,19 @@ export function evolveMon(
 }
 
 /* --- Utilità --------------------------------------------------------------- */
+
+/**
+ * §16 — una creatura la cui stazza dichiarata contraddice la taglia uscita.
+ *
+ * È una tensione VERA fra due assi: l'archetipo dice «occupo molto» e la
+ * taglia dice «sono minuscolo». Un ORSO minuscolo o un MICELIO gigantesco sono
+ * le due cose che un disegnatore ricorderebbe di aver disegnato.
+ */
+function isMassSizeTension(family: FamilyDef, archetype: string, size: Size): boolean {
+  const mass = family.archetypes.find((a) => a.id === archetype)?.mass;
+  if (!mass || mass === 'BALANCED') return false;
+  return (mass === 'MASSIVE' && size === 'TINY') || (mass === 'COMPACT' && size === 'GIANT');
+}
 
 function isSizeRoleTension(size: Size, role: string): boolean {
   if (size === 'TINY') return ['GUARDIAN', 'KING', 'KNIGHT'].includes(role);

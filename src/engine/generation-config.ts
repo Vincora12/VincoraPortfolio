@@ -951,7 +951,7 @@ export const RARITY_TIERS: RarityTierDef[] = [
        spinta, non un cancello. I tre cancelli che restano bastano: profondità
        10, bond 85 e tre branch sono già anni. */
     unlock: { minDepth: 10, minBond: 85, minBranches: 3 },
-    scoreMin: 82,
+    scoreMin: 81,
     meaning: 'One-off lineage event. Hidden trigger required; not guaranteed even when eligible.',
     it: 'evento irripetibile della lineage',
     promptConsequence:

@@ -95,8 +95,17 @@ export interface RarityScoreInput {
   affinityEqualsFamily: boolean;
   /** Combinazione taglia/ruolo controcorrente. */
   sizeRoleTension: boolean;
-  /** Archetipo raro dentro la sua Family. */
-  rareArchetype: boolean;
+  /**
+   * La stazza dichiarata dell'archetipo contraddice la taglia uscita: un
+   * archetipo MASSIVE finito TINY, o un COMPACT finito GIANT.
+   *
+   * ⚠️ Qui prima c'era `rareArchetype`, che valeva «l'archetipo sta nelle
+   * ultime due posizioni del suo elenco». Era lo stesso segnale finto che
+   * governava la scelta dell'archetipo e la taglia: la POSIZIONE NEL CATALOGO,
+   * cioè l'ordine in cui li ho scritti. Tolto di là, era rimasto qui — e
+   * assegnava quattro punti su cento di rarità in base a niente.
+   */
+  massSizeTension: boolean;
   /** 0–100: quanto i segnali recenti sono un pattern e non rumore. */
   dataConfidence: number;
   /** Varianza dei segnali: un profilo piatto non è distintivo. */
@@ -136,11 +145,15 @@ export function computeRarityScore(input: RarityScoreInput): RarityScoreResult {
 
   // §16 cross-axis synergy 0–20 — la ridondanza Affinity=Family toglie punti,
   // la tensione fra assi ne aggiunge (§19).
-  let synergy = max('crossAxisSynergy') * 0.35;
+  /* La base sale da 0,35 a 0,42 perché il terzo bonus è diventato molto più
+     raro di quello finto che sostituisce: senza compensare, l'intera scala
+     scivolerebbe di qualche punto e tutte le soglie tarate sarebbero da
+     rifare. Il totale medio resta dov'era; a cambiare è CHI lo prende. */
+  let synergy = max('crossAxisSynergy') * 0.42;
   if (input.affinityEqualsFamily) synergy -= max('crossAxisSynergy') * 0.25;
   else synergy += max('crossAxisSynergy') * 0.25;
   if (input.sizeRoleTension) synergy += max('crossAxisSynergy') * 0.2;
-  if (input.rareArchetype) synergy += max('crossAxisSynergy') * 0.2;
+  if (input.massSizeTension) synergy += max('crossAxisSynergy') * 0.2;
   synergy = clamp(synergy, 0, max('crossAxisSynergy'));
 
   // §16 data specificity 0–15 — serve sia fiducia nel dato sia un profilo
