@@ -352,6 +352,15 @@ interface TextFieldProps {
   clearable?: boolean;
   /** Racconto libero invece di una riga: cresce con quello che scrivi. */
   multiline?: boolean;
+  /**
+   * 🔷 v1.14 — parte da una riga e CRESCE fino a cinque man mano che scrivi.
+   *
+   * Serve alla chat, e serve soprattutto a chi detta: una frase lunga dettata
+   * dentro un `input` da una riga scorre via mentre la stai dicendo, e non
+   * puoi rileggerla prima di mandarla. Con l'altezza che segue il testo,
+   * dettare diventa una cosa che si può controllare.
+   */
+  grow?: boolean;
 }
 
 export function TextField({
@@ -363,7 +372,44 @@ export function TextField({
   onFocus,
   clearable = true,
   multiline = false,
+  grow = false,
 }: TextFieldProps) {
+  const growRef = useRef<HTMLTextAreaElement | null>(null);
+
+  /* L'altezza si ricalcola a ogni cambio: si azzera e si rimette a quella del
+     contenuto, perché `scrollHeight` di un elemento già alto resterebbe alto
+     anche quando il testo si accorcia. */
+  useEffect(() => {
+    const el = growRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
+  }, [value, grow]);
+
+  if (grow) {
+    return (
+      <div className="field field--grow">
+        <textarea
+          ref={growRef}
+          aria-label={label}
+          value={value}
+          placeholder={placeholder}
+          rows={1}
+          onFocus={onFocus}
+          onChange={(e) => onChange(e.target.value)}
+          onKeyDown={(e) => {
+            /* Invio manda, Maiusc+Invio va a capo: è la convenzione che
+               chiunque abbia usato una chat si aspetta senza pensarci. */
+            if (e.key === 'Enter' && !e.shiftKey && onSubmit) {
+              e.preventDefault();
+              onSubmit();
+            }
+          }}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className={multiline ? 'field field--multi' : 'field'}>
       {multiline ? (

@@ -16,6 +16,7 @@ import { applyPaletteDna } from './engine/colorDna';
 import { preloadMonAssets } from './assets-pipeline/assetStore';
 import { Icon } from './system/Icon';
 import { haptic } from './system/haptics';
+import { PROGRESSION } from './engine/progression';
 import { t } from './i18n/it';
 
 import { SplashScreen } from './screens/Splash';
@@ -143,9 +144,16 @@ export function App() {
     overlay === 'dev' ||
     (phase === 'live' && tab === 'mindline' && !overlay);
 
+  // Con la tab bar in fondo, il margine di sistema lo prende lei: il composer
+  // non deve aggiungere il suo, o resterebbe uno spazio vuoto doppio.
+  const hasTabBar = phase === 'live' && !overlay;
+
   return (
     <div className="proto-stage">
-      <div className="proto-frame" data-field={inkField ? 'ink' : undefined}>
+      <div
+        className={`proto-frame ${hasTabBar ? 'has-tabbar' : ''}`}
+        data-field={inkField ? 'ink' : undefined}
+      >
         <StatusBar
           showDev={devEnabled && overlay !== 'dev'}
           onOpenDev={() => setOverlay('dev')}
@@ -171,7 +179,7 @@ export function App() {
         {/* 🔷 La barra resta anche sulla creatura: è una tab, non una
             schermata che copre tutto. Da lì si va a ME, GIORNI e MINDLINE
             senza dover prima entrare in chat. */}
-        {phase === 'live' && !overlay && <TabBar tab={tab} onChange={goTab} />}
+        {hasTabBar && <TabBar tab={tab} onChange={goTab} />}
       </div>
     </div>
   );
@@ -338,13 +346,37 @@ function TabBar({ tab, onChange }: { tab: Tab; onChange: (t: Tab) => void }) {
 function StatusBar({ showDev, onOpenDev }: { showDev: boolean; onOpenDev: () => void }) {
   const day = useApp((s) => s.day);
   const sync = useApp((s) => s.progression.sync.lifetime);
+  const inForm = useApp((s) => s.progression.sync.inForm);
+  const phase = useApp((s) => s.phase);
+
+  /* 🔷 v1.14 — «VINZ.MON» in alto non serviva: sei dentro l'app, sai dove sei,
+     e quel nome rubava metà barra alla sola cosa che cambia. Il giorno resta;
+     il SYNC diventa una barra che si riempie, perché un numero che sale non
+     dice quanto manca — e quanto manca è l'unica domanda che quel dato
+     risponde. */
+  const target = phase === 'incubation' ? PROGRESSION.incubationSyncDays : PROGRESSION.formEvolutionAt;
+  const have = phase === 'incubation' ? sync : inForm;
+  const progress = Math.min(1, have / target);
 
   return (
     <div className="proto-statusbar t-micro">
-      <span>VINZ.MON</span>
+      <span className="proto-statusbar__day">
+        {t.common.day} {day}
+      </span>
+
+      <span
+        className="proto-statusbar__sync"
+        role="progressbar"
+        aria-label={`${t.common.sync} — ${have} di ${target}`}
+        aria-valuenow={have}
+        aria-valuemax={target}
+      >
+        <span className="proto-statusbar__syncfill" style={{ width: `${progress * 100}%` }} />
+      </span>
+
       <span className="proto-statusbar__right">
-        <span>
-          {t.common.day} {day} · {sync} {t.common.sync}
+        <span className="proto-statusbar__count">
+          {have}/{target}
         </span>
         {/* Il trigger DEV sta qui e non fluttuante sopra la schermata:
             in overlay senza tab bar copriva il contenuto. */}

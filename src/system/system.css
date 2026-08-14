@@ -373,15 +373,43 @@
 
 /* --- INPUT / COMPOSER ------------------------------------------------------ */
 
+/* 🔷 v1.14 — il campo era un rettangolo con un bordo spesso quanto quello del
+   composer che lo conteneva. Adesso il composer non ha più la sua riga, e
+   questo si ammorbidisce: un campo di scrittura deve invitare a scrivere, non
+   sembrare una casella di un modulo. */
 .field {
   display: flex;
   align-items: center;
   gap: var(--u2);
   min-height: 44px;
   padding: 0 var(--u3);
-  border: var(--border) solid var(--ink);
-  border-radius: var(--radius-soft);
+  border: 1px solid var(--hairline);
+  border-radius: 22px;
+  background: var(--paper);
+}
+
+/* Quando ci scrivi dentro si vede: prima il fuoco non cambiava niente e su un
+   telefono non si capiva se la tastiera stesse scrivendo lì o altrove. */
+.field:focus-within {
+  border-color: var(--char-primary, var(--ink));
   background: var(--white);
+}
+
+/* Il campo che cresce: da una riga a cinque. Gli angoli si irrigidiscono
+   quando diventa alto, perche' un rettangolo alto con i lati tondi da 22px
+   sembra una pillola stirata. */
+.field--grow {
+  align-items: flex-end;
+  padding-top: 9px;
+  padding-bottom: 9px;
+  border-radius: 20px;
+}
+
+.field--grow textarea {
+  max-height: 120px;
+  overflow-y: auto;
+  line-height: 1.4;
+  padding: 0;
 }
 
 .field input,
@@ -393,6 +421,10 @@
   background: transparent;
   font-size: var(--type-body);
   resize: none;
+  /* ⚠️ Sotto i 16px iOS ZOOMA la pagina quando tocchi il campo, e da lì non
+     torna più indietro da solo. È il difetto più fastidioso che una web app
+     possa avere su iPhone, e si evita solo con questa riga. */
+  font-size: max(16px, var(--type-body));
 }
 
 .field input::placeholder,
@@ -415,14 +447,24 @@
   line-height: 1;
 }
 
-/* Il composer è un oggetto persistente maggiore (§10.4), non una toolbar. */
+/* Il composer è un oggetto persistente maggiore (§10.4), non una toolbar.
+
+   🔷 v1.14 — IL BORDO ERA DOPPIO e si vedeva: la linea del composer più quella
+   del campo dentro, a due millimetri di distanza. Due bordi paralleli non
+   dicono due cose, dicono che qualcuno non ha guardato. Resta quello del
+   campo, che è l'oggetto che tocchi; il composer si stacca dalla
+   conversazione con lo sfondo, non con una riga.
+
+   Il margine di sistema in basso vale solo quando il composer è l'ultima cosa
+   dello schermo — in chat, dove sotto non c'è la tab bar. */
 .composer {
   display: flex;
   align-items: center;
   gap: var(--u2);
   padding: var(--u2) var(--u3);
-  border-top: var(--border) solid var(--ink);
+  padding-bottom: max(var(--u2), env(safe-area-inset-bottom));
   background: var(--white);
+  box-shadow: 0 -1px 0 var(--hairline);
 }
 
 /* ⚠️ `.field` è un flex item con `flex: 0 1 auto`, quindi si stringeva sul
@@ -433,6 +475,12 @@
   min-width: 0;
 }
 
+/* Con la tab bar sotto, il margine di sistema lo prende lei: qui tornerebbe
+   uno spazio vuoto grande il doppio. */
+.has-tabbar .composer {
+  padding-bottom: var(--u2);
+}
+
 /* --- NAVIGAZIONE PERSISTENTE MON / ME / MINDLINE (§11) --------------------- */
 
 .tabbar {
@@ -440,6 +488,9 @@
   flex: 0 0 auto;
   border-top: var(--border-thick) solid var(--ink);
   background: var(--ink);
+  /* Sotto c'è la barra di casa dell'iPhone: senza questo, le etichette
+     MON / ME / GIORNI ci finiscono sotto. */
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
 .tabbar__item {

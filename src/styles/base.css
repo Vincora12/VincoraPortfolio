@@ -147,14 +147,32 @@ select {
   overscroll-behavior: contain;
 }
 
-/* Barra di stato finta: colloca l'app in un telefono senza imitare iOS. */
+/* ============================================================================
+   ⚠️ v1.14 — I MARGINI DI SISTEMA, CHE MANCAVANO.
+
+   `index.html` dichiarava `viewport-fit=cover` da sempre: significa «disegna
+   fin sotto la tacca e sotto la barra di casa». Ma nessuno aveva poi RIMESSO
+   lo spazio, quindi l'orologio di iOS finiva sopra l'uovo e la tab bar sotto
+   la barra di casa.
+
+   È un difetto che gli screenshot di verifica non potevano mostrare: Chromium
+   headless non ha una tacca, e `env(safe-area-inset-*)` lì vale zero. Si vede
+   solo su un telefono vero, ed è saltato fuori alla prima foto.
+
+   `max()` e non solo `env()`: dove la tacca non c'è — desktop, Safari con la
+   barra degli indirizzi — l'inset vale 0 e resterebbe il bordo attaccato allo
+   schermo. Il margine minimo è il nostro, quello di sistema si aggiunge solo
+   dove serve davvero.
+   ========================================================================= */
+
 .proto-statusbar {
   flex: 0 0 auto;
-  height: 28px;
+  min-height: 28px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 var(--u4);
+  gap: var(--u3);
+  padding: max(2px, env(safe-area-inset-top)) var(--u4) 2px;
   background: var(--white);
   color: var(--ink);
   border-bottom: 1px solid var(--hairline);
@@ -164,6 +182,44 @@ select {
   display: inline-flex;
   align-items: center;
   gap: var(--u2);
+  flex: 0 0 auto;
+}
+
+.proto-statusbar__day {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+/* 🔷 v1.14 — la barra che si carica.
+
+   Un numero che sale — «30 SYNC» — dice quanto hai fatto e non dice quanto
+   manca, che è l'unica cosa che uno guarda là in alto. Una barra lo dice
+   senza leggere niente, e nel frattempo occupa lo spazio che prima teneva un
+   nome che sapevi già. */
+.proto-statusbar__sync {
+  flex: 1;
+  min-width: 40px;
+  height: 4px;
+  background: var(--hairline);
+  overflow: hidden;
+}
+
+.proto-statusbar__syncfill {
+  display: block;
+  height: 100%;
+  background: var(--char-primary, var(--ink));
+  transition: width 400ms ease-out;
+}
+
+.proto-statusbar__count {
+  white-space: nowrap;
+  color: var(--muted-strong);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .proto-statusbar__syncfill {
+    transition: none;
+  }
 }
 
 .sr-only {

@@ -150,14 +150,13 @@ export function IncubationScreen({ onGo }: { onGo: (o: Overlay) => void }) {
           value={draft}
           onChange={setDraft}
           onSubmit={submit}
+          grow
         />
-        <IconButton
-          icon="send"
-          label="Invia"
-          haptics="confirm"
-          onClick={submit}
-          disabled={draft.trim().length === 0}
-        />
+        {/* Come in chat: il pulsante esiste solo quando c'è qualcosa da
+            mandare (§13.11). */}
+        {draft.trim().length > 0 && (
+          <IconButton icon="send" label="Invia" haptics="confirm" onClick={submit} />
+        )}
       </div>
 
       {/* Il tempo scorre solo da DEV: nel prodotto reale è la vita dell'utente

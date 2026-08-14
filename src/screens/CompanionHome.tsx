@@ -274,8 +274,21 @@ export function CompanionHomeScreen({ onGo, onBack }: { onGo: (o: Overlay) => vo
           value={draft}
           onChange={setDraft}
           onSubmit={submit}
+          grow
         />
-        <IconButton icon="send" label="Invia" haptics="confirm" onClick={submit} disabled={draft.trim().length === 0} />
+        {/* 🔷 v1.14 — IL PULSANTE COMPARE SOLO QUANDO C'È QUALCOSA DA MANDARE.
+
+            Prima era sempre lì, grande e nero, disattivato: un bersaglio che
+            occupa spazio e non fa niente. «Non so a cosa serva» è la risposta
+            giusta a un pulsante che non risponde quando lo tocchi — e la cura
+            non è spiegarlo, è farlo esistere solo quando serve.
+
+            Al suo posto, quando il campo è vuoto, non c'è niente: la tastiera
+            di iPhone ha già il microfono per dettare, ed è lì che uno lo
+            cerca. */}
+        {draft.trim().length > 0 && (
+          <IconButton icon="send" label="Invia" haptics="confirm" onClick={submit} />
+        )}
       </div>
     </div>
   );

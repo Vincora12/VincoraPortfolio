@@ -536,10 +536,18 @@ check(
   'si riparte dalla creatura a ogni cambio di fase',
   has(APP, "useEffect(() => setMonView('creature'), [phase])"),
 );
+/* 🔷 v1.14 — l'ago cercava la riga letterale `{phase === 'live' && !overlay &&
+   <TabBar`. La condizione e' stata estratta in una costante perche' serve
+   anche al margine di sistema del composer, e il controllo e' fallito su una
+   decisione che nel codice c'e' ancora tale e quale.
+
+   E' il terzo ago che si rompe cosi. La regola che ne esce: un ago deve
+   puntare alla DECISIONE, non alla forma in cui era scritta quel giorno —
+   qui, che la barra dipenda da `live` senza overlay e che venga resa. */
 check(
   'INGRESSO §13.7',
   'la barra di navigazione resta anche sulla creatura',
-  has(APP, "{phase === 'live' && !overlay && <TabBar"),
+  has(APP, "phase === 'live' && !overlay") && has(APP, '<TabBar tab={tab}'),
   'è una tab, non una schermata che copre tutto',
 );
 check(

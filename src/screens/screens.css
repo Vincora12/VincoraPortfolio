@@ -369,27 +369,67 @@
   border-top: 1px solid var(--hairline);
 }
 
+/* ============================================================================
+   LE BOLLE (v1.14 §13.11)
+
+   🔷 «I contorni troppo netti nella chat non mi fanno impazzire, secondo me
+   ci sono delle regole che io non so.»
+
+   Le regole ci sono, e dicono una cosa sola ripetuta in tre modi: il
+   CONTRASTO deve stare fra il testo e il suo sfondo, non fra la bolla e la
+   pagina. WCAG chiede 4,5:1 fra testo e sfondo; per il bordo non chiede
+   niente, perché il bordo non si legge.
+
+   Qui c'era un contorno nero da 2px su ogni bolla. Faceva tre danni:
+
+   • competeva con il testo — la cosa più marcata dello schermo era una linea
+     vuota, non le parole;
+   • raddoppiava sulle bolle vicine, e due bordi paralleli a due millimetri
+     leggono come un errore di stampa;
+   • su una conversazione lunga diventava una griglia, e una conversazione
+     non è una tabella.
+
+   Adesso la bolla si stacca con lo SFONDO, che è come si distinguono da
+   sempre in ogni chat che la gente usa davvero. E un filo d'ombra invece di
+   una riga: dice «questo è un oggetto sopra la pagina» senza disegnare un
+   rettangolo attorno alle parole.
+
+   ⚠️ Il raggio non è decorazione. Un angolo vivo su un blocco di testo lo fa
+   leggere come un riquadro di sistema — che è giusto per DEV, sbagliato per
+   qualcuno che ti parla.
+   ========================================================================= */
+
 .bubble {
   max-width: 82%;
   padding: var(--u2) var(--u3);
-  border: var(--border) solid var(--ink);
+  border-radius: 14px;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.08);
 }
 
 .bubble--mon {
   align-self: flex-start;
   background: var(--paper);
+  color: var(--ink);
+  /* L'angolo dal lato di chi parla resta più chiuso: è il verso della
+     conversazione, e si legge senza doverci pensare. */
+  border-bottom-left-radius: 4px;
 }
 
 .bubble--vinz {
   align-self: flex-end;
   background: var(--char-primary);
   color: var(--char-on-primary);
+  border-bottom-right-radius: 4px;
 }
 
+/* 🔒 Il testo è la cosa più leggibile dello schermo, e questo è il punto in
+   cui lo si decide: corpo pieno, non `small`. Le due frasi di una creatura
+   erano scritte più piccole delle etichette di sistema che le circondavano —
+   cioè l'app dava più peso ai propri nomi che a quello che ti veniva detto. */
 .bubble__text {
   margin: 0;
-  font-size: var(--type-small);
-  line-height: 1.45;
+  font-size: var(--type-body);
+  line-height: 1.5;
 }
 
 .bubble__flag {

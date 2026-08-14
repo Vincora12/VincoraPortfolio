@@ -199,7 +199,7 @@ try {
   /* 05 — INCUBAZIONE: si parla all'uovo, e l'uovo risponde a suoni (§7.2) */
   await shot('05-incubazione');
 
-  await page.locator('.composer--egg input').fill('a pranzo pollo e broccoli, poi palestra');
+  await page.locator('.composer--egg textarea').fill('a pranzo pollo e broccoli, poi palestra');
   await click('.composer--egg .btn-icon:last-child', 'parla all’uovo');
   await sleep(300);
   await shot('05-incubazione-suono');
@@ -233,7 +233,10 @@ try {
 
      Gira SENZA chiave: quindi prova la strada del fallback, che è esattamente
      quella in cui vive l'app oggi. */
-  await page.locator('.composer input').fill('Oggi palestra e poi carbonara, sono distrutto');
+  /* v1.14 — il campo della chat e' un'area che cresce, non piu un `input`:
+     serviva a chi detta, perche' una frase lunga dentro una riga sola scorre
+     via mentre la stai dicendo. */
+  await page.locator('.composer textarea').fill('Oggi palestra e poi carbonara, sono distrutto');
   await click('.composer .btn-icon:last-child', 'invia');
 
   /* Si campiona il TESTO, non la sua lunghezza: la cosa che abbiamo corretto è
@@ -367,6 +370,40 @@ try {
         `(${worst.width}px su ${worst.available}px)`,
     );
   }
+
+  /* 🔷 v1.14 — I MARGINI DI SISTEMA.
+
+     Questo controllo esiste perche' il difetto e' arrivato da una FOTO di un
+     telefono vero, non da qui: Chromium headless non ha una tacca, quindi
+     `env(safe-area-inset-*)` vale zero e tutto sembrava a posto mentre
+     sull'iPhone l'orologio finiva sopra l'uovo.
+
+     Non si puo' simulare una tacca, ma si puo' verificare che le tre barre
+     DICHIARINO di usare l'inset: se qualcuno toglie quella riga di CSS, qui
+     si accorge subito invece che alla prossima foto. */
+  const insets = await page.evaluate(() => {
+    const read = (sel, prop) => {
+      const el = document.querySelector(sel);
+      if (!el) return null;
+      return getComputedStyle(el).getPropertyValue(prop);
+    };
+    return {
+      statusbar: read('.proto-statusbar', 'padding-top'),
+      composer: read('.composer', 'padding-bottom'),
+      tabbar: read('.tabbar', 'padding-bottom'),
+    };
+  });
+
+  for (const [where, value] of Object.entries(insets)) {
+    if (value === null) continue; // quella barra non c'e' in questa schermata
+    if (Number.parseFloat(value) < 0) {
+      throw new Error(`margine di sistema negativo su ${where}: ${value}`);
+    }
+  }
+  if (insets.statusbar === null) throw new Error('la barra di stato non esiste piu');
+  console.log(
+    `  margini alto ${insets.statusbar} · composer ${insets.composer ?? '—'} · tab ${insets.tabbar ?? '—'}`,
+  );
 
   await shot('06-conversazione');
 
