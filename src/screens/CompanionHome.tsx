@@ -19,7 +19,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { Overlay } from '../App';
-import { useApp, useActiveMon, useGrowth } from '../state/store';
+import { useApp, useActiveMon, useGrowth, useToday } from '../state/store';
 import { MonName, SpeciesName } from '../system/MonName';
 import { MonFace } from '../system/LiveMon';
 import { expressionFor } from '../engine/assets';
@@ -33,6 +33,22 @@ export function CompanionHomeScreen({ onGo, onBack }: { onGo: (o: Overlay) => vo
   const mon = useActiveMon();
   const chat = useApp((s) => s.chat);
   const typingVisible = useApp((s) => s.typingVisible);
+  const today = useToday();
+  const syncDay = useApp((s) => s.syncDay);
+
+  /* Cosa dire nella striscia, o `null` per non mostrarla affatto.
+
+     Chiusa → niente: il momento è passato, e lasciare «fatto» in permanenza
+     lo trasformerebbe in una medaglia da guardare. Non cominciata → niente:
+     sarebbe una lista di compiti prima ancora di aver fatto qualcosa. */
+  const dayStrip = (() => {
+    if (today.closed || today.known === 0) return null;
+    if (today.canClose) return t.home.closeDay;
+    const missing = today.day.signals;
+    if ((missing.MOOD?.status ?? 'UNKNOWN') === 'UNKNOWN') return t.home.missingMood;
+    if ((missing.FOOD?.status ?? 'UNKNOWN') === 'UNKNOWN') return t.home.missingFood;
+    return t.home.missingWorkout;
+  })();
   const { event, progress, microGrowthReady, formEvolutionReady } = useGrowth();
   const sendMessage = useApp((s) => s.sendMessage);
   const openShift = useApp((s) => s.openShift);
@@ -170,6 +186,36 @@ export function CompanionHomeScreen({ onGo, onBack }: { onGo: (o: Overlay) => vo
         >
           <span className="home__syncfill" style={{ width: `${progress * 100}%` }} />
         </span>
+      )}
+
+      {/* 🔷 v1.14 §13.9 — CHIUDERE LA GIORNATA DA QUI.
+
+          Fino a ieri il SYNC si prendeva solo da DAILY SCAN, che è un modulo:
+          registravi tutto scrivendo, e poi per chiudere dovevi andare a
+          compilare una schermata. Era il pezzo di UX più incoerente rimasto.
+
+          ⚠️ La striscia compare SOLO se la giornata è cominciata e non è
+          ancora chiusa. Una barra sempre presente che dice «manca qualcosa»
+          è una lista di cose da fare, e questa app non è una lista di cose
+          da fare (§4). Quando non c'è niente da chiudere, non c'è niente. */}
+      {dayStrip && (
+        <div className="home__day">
+          {today.canClose ? (
+            <button
+              type="button"
+              className="home__dayclose"
+              onClick={() => {
+                haptic('confirm');
+                syncDay();
+              }}
+            >
+              <Icon name="scan" size={14} strokeWidth={2} />
+              <span className="t-meta">{t.home.closeDay}</span>
+            </button>
+          ) : (
+            <span className="home__daymissing t-micro">{dayStrip}</span>
+          )}
+        </div>
       )}
 
       {/* --- Conversazione --- */}

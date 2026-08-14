@@ -11,7 +11,7 @@
    ========================================================================= */
 
 import { useEffect, useState } from 'react';
-import { useApp, type Phase, syncWithServer } from './state/store';
+import { useApp, type Phase, syncWithServer, pullIngested, maybeSpeakFirst } from './state/store';
 import { applyPaletteDna } from './engine/colorDna';
 import { preloadMonAssets } from './assets-pipeline/assetStore';
 import { Icon } from './system/Icon';
@@ -103,8 +103,20 @@ export function App() {
      altrimenti confronterebbe il server con uno stato vuoto e scaricherebbe
      sempre, anche quando il telefono è quello più avanti. */
   useEffect(() => {
-    void syncWithServer().then((outcome) => {
+    void syncWithServer().then(async (outcome) => {
       if (outcome === 'scaricato') console.info('[sync] ripreso il salvataggio dal server');
+      /* Dopo il salvataggio, non prima: se le due copie divergono si prende
+         quella buona e POI ci si applica sopra quello che le Shortcut hanno
+         lasciato. Al contrario, i dati della notte finirebbero su uno stato
+         che sta per essere sostituito. */
+      const applied = await pullIngested();
+      if (applied > 0) console.info(`[sync] ${applied} segnali dalle scorciatoie`);
+
+      /* 🔷 v1.14 §13.10 — e solo ALLA FINE il messaggio spontaneo, perché
+         alcune delle cose che potrebbe dire dipendono dai dati appena
+         arrivati: «la giornata è quasi chiusa» ha senso solo dopo aver
+         guardato cosa hanno lasciato le Shortcut stanotte. */
+      maybeSpeakFirst();
     });
   }, []);
 

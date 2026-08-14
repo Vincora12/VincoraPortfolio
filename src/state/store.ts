@@ -59,6 +59,7 @@ import {
 import { deservesThinking, extractFromMessage, extractionLabels } from '../engine/chatExtract';
 import { eggReply } from '../engine/eggVoice';
 import { typingRhythmFor } from '../engine/typingRhythm';
+import { unpromptedFor, type UnpromptedKind } from '../engine/unprompted';
 import { buildMemoryBlock, recentTurns } from '../engine/memoryContext';
 import {
   addNote,
@@ -230,6 +231,15 @@ interface AppState {
   /** Giorno dell'ultima revisione: non più di una al mese. */
   lastNotebookDay: number;
 
+  /**
+   * 🔷 v1.14 §13.10 — i messaggi che ha mandato per primo, per tipo. Serve a
+   * non ripetersi MAI: ripetersi è il modo più veloce che ha un'app di
+   * diventare rumore da ignorare.
+   */
+  saidUnprompted: UnpromptedKind[];
+  /** Giorno dell'ultimo messaggio spontaneo: massimo uno al giorno. */
+  lastUnpromptedDay: number;
+
   pendingHeritage: HeritageOrigin[];
   /** Cosa sopravvive alla prossima Form Evolution. Deciso prima di confermare. */
   pendingPlan: ContinuityPlan | null;
@@ -363,6 +373,8 @@ const INITIAL = {
   lastReflectionDay: 0,
   voiceNotes: [] as VoiceNote[],
   lastNotebookDay: 0,
+  saidUnprompted: [] as UnpromptedKind[],
+  lastUnpromptedDay: 0,
   pendingHeritage: [] as HeritageOrigin[],
   pendingPlan: null as ContinuityPlan | null,
   lastTrace: null as GenerationTrace | null,
@@ -1467,6 +1479,153 @@ export const useApp = create<AppState>()(
 );
 
 /* ============================================================================
+   🔷 v1.14 §13.10 — IL MESSAGGIO CHE ARRIVA DA SOLO
+
+   Gira all'apertura dell'app e all'avanzare di un giorno. Non parte MAI da
+   una chiamata AI: il testo è scritto a mano, il codice sceglie solo quale.
+
+   Non è un risparmio, è una garanzia. Un messaggio spontaneo generato da un
+   modello è un messaggio che può dire qualunque cosa, e questi arrivano
+   quando non stai guardando lo schermo. Così invece non esiste un messaggio
+   non previsto.
+   ========================================================================= */
+
+export function maybeSpeakFirst(): boolean {
+  const s = useApp.getState();
+  const rec = activeRecord(s);
+  if (!rec || s.phase === 'incubation') return false;
+
+  const spoke = s.chat.filter((m) => m.from === 'vinz');
+  const lastSpokeDay = spoke.length > 0 ? spoke[spoke.length - 1]!.day : 0;
+
+  const message = unpromptedFor({
+    day: s.day,
+    today: s.days[s.day] ?? emptyDay(s.day),
+    plannedRest: plannedFor(s.protocol.training, dateForDay(s.day, s.startedAt)) === 'REST',
+    lastSpokeDay,
+    daysToEvolution: Math.max(0, PROGRESSION.formEvolutionAt - s.progression.sync.inForm),
+    opinions: s.opinions,
+    alreadySaid: s.saidUnprompted,
+    lastUnpromptedDay: s.lastUnpromptedDay,
+  });
+
+  if (!message) return false;
+
+  /* Entra nella chat come una battuta qualsiasi, e questo è voluto: un
+     messaggio spontaneo marcato «AUTOMATICO» smetterebbe di essere qualcuno
+     che ti scrive e tornerebbe a essere una notifica. Non è `fallback`
+     perché non è un ripiego: è esattamente quello che voleva dire. */
+  useApp.setState({
+    chat: [
+      ...s.chat,
+      {
+        id: `msg_first_${s.day}_${message.kind}`,
+        from: 'mon' as const,
+        text: message.text,
+        day: s.day,
+      },
+    ].slice(-60),
+    saidUnprompted: [...s.saidUnprompted, message.kind],
+    lastUnpromptedDay: s.day,
+  });
+
+  return true;
+}
+
+/* ============================================================================
+   🔷 v1.14 §21.2 — QUELLO CHE LE SHORTCUT HANNO LASCIATO
+
+   La porta `/api/ingest` esisteva già e nessuno la leggeva: i dati sarebbero
+   arrivati sul server e sarebbero rimasti lì. Mezzo lavoro fatto è peggio di
+   nessun lavoro, perché sembra finito.
+
+   🔒 DUE REGOLE, E SONO LE STESSE DEI SENSORI E DELLE FOTO.
+
+   • Può solo AGGIUNGERE un segnale sconosciuto. Se hai già dichiarato tu com'è
+     andata quella giornata, un'automazione notturna non ha il diritto di
+     correggerti — vale per la foto (§5.2), vale identico qui.
+
+   • NON tocca mai l'UMORE, nemmeno se il payload lo contenesse. «The system
+     should not silently fabricate subjective information such as Mood»: i
+     passi non sanno come stai. Il server già scarta quel campo; questo è il
+     secondo muro, e i due non sono ridondanti — uno protegge dal payload,
+     l'altro dal codice che un giorno lo leggesse comunque.
+
+   ⚠️ La soglia dei 3.000 passi non è una misura di salute ed è importante che
+   non lo diventi: dice solo «questa giornata ha lasciato una traccia», cioè
+   distingue un telefono acceso da uno rimasto sul comodino. Non entra nel
+   giudizio su niente, e §28 vieta che ci entri.
+   ========================================================================= */
+
+const TRACE_STEPS = 3000;
+
+export async function pullIngested(): Promise<number> {
+  const s = useApp.getState();
+  if (!s.token) return 0;
+
+  const { loadIngested } = await import('../ai/backend');
+  const { data, failure } = await loadIngested(s.token);
+  if (failure || !data) return 0;
+
+  /* Le date arrivano come `YYYY-MM-DD` e il gioco conta i giorni da 1. Il
+     ponte è il giorno di oggi: l'ultima data ricevuta è il giorno corrente,
+     quelle prima scalano indietro. È approssimativo e va bene — serve ad
+     attribuire un dato al giorno giusto, non a datare la storia. */
+  const today = new Date().toISOString().slice(0, 10);
+  const dayOf = (date: string) => {
+    const diff = Math.round(
+      (new Date(`${today}T00:00:00Z`).getTime() - new Date(`${date}T00:00:00Z`).getTime()) / 86_400_000,
+    );
+    return s.day - diff;
+  };
+
+  let days = s.days;
+  let applied = 0;
+
+  for (const incoming of data.days) {
+    const day = dayOf(incoming.date);
+    if (day < 1 || day > s.day) continue;
+
+    const record = days[day] ?? emptyDay(day);
+
+    /* 🔒 Solo se non lo sai già. `UNKNOWN` è l'unico stato che
+       un'automazione ha il diritto di riempire. */
+    const workoutUnknown = (record.signals.WORKOUT?.status ?? 'UNKNOWN') === 'UNKNOWN';
+    if (workoutUnknown && typeof incoming.workoutMinutes === 'number') {
+      days = withSignal(
+        days,
+        day,
+        'WORKOUT',
+        incoming.workoutMinutes > 0 ? 'KNOWN' : 'NOT_APPLICABLE',
+        incoming.workoutMinutes > 0
+          ? `${incoming.workoutMinutes} min, dal telefono`
+          : 'nessun allenamento rilevato',
+      );
+      applied++;
+    }
+
+    const foodUnknown = (record.signals.FOOD?.status ?? 'UNKNOWN') === 'UNKNOWN';
+    const note = incoming.notes[incoming.notes.length - 1];
+    if (foodUnknown && note) {
+      days = withSignal(days, day, 'FOOD', 'KNOWN', `dalle scorciatoie: ${note}`);
+      applied++;
+    }
+
+    /* I passi non riempiono nessun segnale: non sono cibo, non sono
+       allenamento, e non sono un giudizio. Restano come traccia che quella
+       giornata è esistita, e servono solo dove una giornata vuota andrebbe
+       altrimenti persa. */
+    if (workoutUnknown && !incoming.workoutMinutes && (incoming.steps ?? 0) > TRACE_STEPS) {
+      days = withSignal(days, day, 'WORKOUT', 'NOT_APPLICABLE', 'giornata in movimento, senza allenamento');
+      applied++;
+    }
+  }
+
+  if (applied > 0) useApp.setState({ days });
+  return applied;
+}
+
+/* ============================================================================
    🔷 v1.13 §20 — IL SALVATAGGIO SUL SERVER
 
    Il browser resta la copia di lavoro: senza rete l'app deve funzionare
@@ -1633,6 +1792,7 @@ function advanceOneDay(set: (p: Partial<AppState>) => void, get: () => AppState)
   applyPlannedRest(set, get);
   maybeReflect(set, get);
   maybeReview(set, get);
+  maybeSpeakFirst();
 }
 
 /* ============================================================================

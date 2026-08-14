@@ -110,6 +110,13 @@ export const t = {
     readyGrowth: 'QUALCOSA È MATURATO',
     readyForm: 'UNA FORMA NUOVA È POSSIBILE',
     writing: 'sta trovando le parole…',
+    /* 🔷 v1.14 §13.9 — chiudere la giornata dalla chat. Il testo dice cosa
+       fa, non come si chiama la funzione: «SYNC» è il nome del sistema. */
+    closeDay: 'CHIUDI LA GIORNATA',
+    closedDay: 'giornata chiusa',
+    missingMood: 'manca solo come stai',
+    missingFood: 'manca il cibo',
+    missingWorkout: 'manca l’allenamento',
   },
 
   /* 07 REGISTRA (MS v1.9 §5.2) — un campo solo, niente moduli */

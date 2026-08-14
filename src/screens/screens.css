@@ -2804,6 +2804,38 @@
   }
 }
 
+/* --- CHIUDERE LA GIORNATA DALLA CHAT (v1.14 §13.9) -------------------------
+   Striscia sottile fra la linea di SYNC e la conversazione. Compare solo
+   quando c'e' qualcosa da chiudere: una barra sempre presente che dice «manca
+   qualcosa» e' una lista di compiti, e questa app non e' una lista di compiti.
+   -------------------------------------------------------------------------- */
+
+.home__day {
+  display: flex;
+  justify-content: center;
+  padding: var(--u) 0 0;
+}
+
+.home__dayclose {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--u);
+  padding: 6px var(--u3);
+  border: 1px solid var(--char-primary);
+  background: transparent;
+  color: var(--char-primary);
+  cursor: pointer;
+}
+
+.home__dayclose:active {
+  background: var(--char-primary);
+  color: var(--char-on-primary);
+}
+
+.home__daymissing {
+  color: var(--muted);
+}
+
 /* --- IL NOME CHE CI STA SEMPRE (v1.14) ------------------------------------
    I nomi generati arrivano a 13 caratteri con l'estensione, e a corpo display
    su un telefono non ci stanno. Si riduce il corpo, mai il testo: un nome

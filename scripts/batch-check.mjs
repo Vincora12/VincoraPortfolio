@@ -46,6 +46,7 @@ export { idleMotionFor, motionCoverage } from '${cwd}/src/engine/idleMotion.ts';
 export { compilePrompt } from '${cwd}/src/assets-pipeline/compiler.ts';
 export { buildVoiceSystemPrompt } from '${cwd}/src/ai/voicePrompt.ts';
 export { typingRhythmFor, rhythmDurationMs } from '${cwd}/src/engine/typingRhythm.ts';
+export { unpromptedFor } from '${cwd}/src/engine/unprompted.ts';
 export { judgeNote, addNote, decideNote, notesBlock, voiceVersion, gatherEvidence, worthReviewing, MAX_NOTES } from '${cwd}/src/engine/notebook.ts';
 export { addOpinion, contradictOpinion, inheritOpinions, opinionsBlock, isAllowedOpinion, MAX_ACTIVE } from '${cwd}/src/engine/opinions.ts';
 export { buildMemoryBlock, recentTurns, RECENT_TURNS } from '${cwd}/src/engine/memoryContext.ts';
@@ -889,6 +890,93 @@ for (const t of SHOULD_NOT) check(!thinks(t), `non pensa: «${t.slice(0, 46)}»`
    revisioni all'anno un modello che sbaglia una volta su cento sbaglia, e qui
    la cosa che sbaglierebbe e' la regola che tiene in piedi tutto il resto.
    ========================================================================= */
+
+/* ============================================================================
+   §13.10 — QUANDO PARLA PER PRIMO
+
+   Un'app che ti scrive per prima diventa un'app che ti assilla in una riga di
+   codice. Ogni controllo qui sotto difende da quello.
+   ========================================================================= */
+
+console.log('\n═══ §13.10 — QUANDO PARLA PER PRIMO ═══\n');
+
+const emptyDayFor = (d) => ({
+  day: d, status: 'EMPTY', syncAwarded: false,
+  signals: { FOOD: { status: 'UNKNOWN' }, WORKOUT: { status: 'UNKNOWN' }, MOOD: { status: 'UNKNOWN' } },
+});
+
+/* Il caso «niente da dire»: gli hai parlato IERI, il piano non dice riposo,
+   l'evoluzione e lontana, nessuna convinzione da confidare. Nella prima
+   versione di questo test qui c'erano cinque giorni di silenzio — cioe' un
+   caso in cui un messaggio ci sta eccome, e il controllo bocciava il codice
+   per un difetto del suo stesso scenario. */
+const baseIn = {
+  day: 10,
+  today: emptyDayFor(10),
+  plannedRest: false,
+  lastSpokeDay: 9,
+  daysToEvolution: 20,
+  opinions: [],
+  alreadySaid: [],
+  lastUnpromptedDay: 0,
+};
+
+// Il riposo previsto: sa una cosa che non gli hai detto, e la usa per
+// TOGLIERTI un peso invece che per mettertene uno.
+const rest = m.unpromptedFor({ ...baseIn, plannedRest: true });
+check(rest?.kind === 'RIPOSO_PREVISTO', 'se il piano dice riposo, te lo dice lui', rest?.text ?? '—');
+
+// 🔒 Regola 1: uno al giorno, non uno per occasione.
+check(
+  m.unpromptedFor({ ...baseIn, plannedRest: true, lastUnpromptedDay: 10 }) === null,
+  'ne manda al massimo uno al giorno',
+);
+
+// 🔒 Regola 4: se gli stai gia parlando oggi, non ti interrompe.
+check(
+  m.unpromptedFor({ ...baseIn, plannedRest: true, lastSpokeDay: 10 }) === null,
+  'se gli stai gia parlando oggi, sta zitto',
+);
+
+// 🔒 Regola 2: mai due volte lo stesso.
+check(
+  m.unpromptedFor({ ...baseIn, plannedRest: true, alreadySaid: ['RIPOSO_PREVISTO'] })?.kind !== 'RIPOSO_PREVISTO',
+  'non ripete mai un messaggio che ha gia mandato',
+);
+
+// La vigilia batte tutto: succede una volta ogni ventotto giorni.
+check(
+  m.unpromptedFor({ ...baseIn, plannedRest: true, daysToEvolution: 1 })?.kind === 'VIGILIA',
+  'la vigilia di una forma nuova ha la precedenza su tutto',
+);
+
+// 🔒 Regola 3: MAI un rimprovero. Nessun testo puo nascere dal fatto che
+// NON hai fatto qualcosa — e' la differenza fra un'informazione e un giudizio.
+const ALL_CASES = [
+  { ...baseIn, plannedRest: true },
+  { ...baseIn, lastSpokeDay: 5, day: 10 },
+  { ...baseIn, daysToEvolution: 1 },
+  { ...baseIn, opinions: [{ id: 'o', text: 'ti alleni tardi apposta', status: 'attiva', strength: 3, formedOnDay: 1, fromDays: [], monName: 'V' }] },
+  {
+    ...baseIn,
+    today: { ...emptyDayFor(10), signals: { FOOD: { status: 'KNOWN' }, WORKOUT: { status: 'KNOWN' }, MOOD: { status: 'UNKNOWN' } } },
+  },
+];
+const BLAME = [
+  /non hai/i, /non ti sei/i, /hai salta/i, /dovresti/i, /avresti dovuto/i,
+  /perche non/i, /ancora niente/i, /sei indietro/i,
+];
+const texts = ALL_CASES.map((c) => m.unpromptedFor(c)).filter(Boolean).map((u) => u.text);
+check(texts.length >= 4, 'i casi previsti producono davvero un messaggio', `${texts.length}`);
+const blaming = texts.filter((t) => BLAME.some((re) => re.test(t)));
+check(
+  blaming.length === 0,
+  'nessun messaggio spontaneo ti rimprovera (§4)',
+  blaming.join(' | ') || texts.length + ' testi puliti',
+);
+
+// Il caso normale e' il silenzio: senza niente da dire, non dice niente.
+check(m.unpromptedFor(baseIn) === null, 'senza niente da dire, non dice niente');
 
 console.log('\n═══ §22 — IL TACCUINO ═══\n');
 
