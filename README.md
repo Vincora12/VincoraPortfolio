@@ -203,20 +203,38 @@ mood corrente e le regole di sicurezza di §28 diventano il system prompt di
 quella creatura. È in `src/ai/voicePrompt.ts`, funzione pura come tutto il
 resto, ed è leggibile da **DEV → VOCE**.
 
-Oggi ne passa una superficie sola: **la presentazione alla nascita**. Il primo
-messaggio esiste sempre e viene dalla voce deterministica; se c'è una chiave,
-l'AI sta già scrivendo la vera presentazione e quella riga viene sostituita
-quando arriva. Se la chiamata fallisce, resta il fallback, dichiarato come
-tale in interfaccia — è quello che impone MS §17.
+Ne passano la presentazione alla nascita, ogni risposta in conversazione, la
+lettura delle foto e la riflessione settimanale. Il primo messaggio esiste
+sempre; se la chiamata fallisce resta il fallback, dichiarato come tale in
+interfaccia — è quello che impone MS §17.
 
-**La chiave sta nel browser.** La incolli da DEV → VOCE e resta nel
-`localStorage` di quel dispositivo. Non passa da nessun server nostro, ma
-chiunque apra quel browser può leggerla: va bene finché il prototipo è di una
-persona sola, e prima di darlo a qualcun altro va spostata dietro una funzione
-serverless. Cambia un file solo, `src/ai/client.ts`.
+### ✅ La chiave non sta più nel browser
 
-L'SDK viene caricato con un import dinamico: chi non usa la voce non ne
-scarica i 156 kB.
+Qui c'era un avviso: la chiave dell'API viveva nel `localStorage`, ed era una
+scelta dichiarata, accettabile per un prototipo di una persona sola. Ha smesso
+di esserlo quando questa è diventata l'app di tutti i giorni con un budget
+vero dietro.
+
+Adesso ogni chiamata passa da **`/api/ai`**, una funzione Netlify che tiene le
+chiavi, applica il **tetto di spesa** e sceglie il fornitore. Il browser ha
+solo un token che apre quelle funzioni: se esce, chi ce l'ha può spendere al
+massimo il tetto del mese, e si disinnesca cambiando una variabile.
+
+Il codice non chiede mai «chiama Claude»: chiede una **capacità** — una voce
+in personaggio, guardare una foto, pensare su una cosa difficile — e
+`netlify/functions/_shared/routing.ts` decide chi la serve. È l'unico posto
+dove si cambia fornitore.
+
+Il salvataggio è passato dalla stessa strada: lo stato vive anche su
+**`/api/state`**, quindi cancellare i dati di Safari non fa più perdere il
+`.mon`. E **`/api/ingest`** è la porta per le Shortcut di iPhone.
+
+> 📄 **[docs/BACKEND.md](docs/BACKEND.md)** — le quattro variabili da mettere
+> su Netlify, come generare il token, e la Shortcut che manda i dati del
+> giorno. Quindici minuti, una volta sola.
+
+L'SDK di Anthropic è uscito dalle dipendenze del browser: adesso è una `fetch`
+verso casa propria.
 
 ---
 

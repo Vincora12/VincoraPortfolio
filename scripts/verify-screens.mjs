@@ -236,34 +236,64 @@ try {
   await page.locator('.composer input').fill('Oggi palestra e poi carbonara, sono distrutto');
   await click('.composer .btn-icon:last-child', 'invia');
 
-  const lengths = [];
+  /* Si campiona il TESTO, non la sua lunghezza: la cosa che abbiamo corretto è
+     che la bolla non si riscriva più sotto gli occhi, e per vederlo bisogna
+     confrontare le stringhe.
+
+     ⚠️ La prima versione di questo controllo pretendeva che il testo comparisse
+     a pezzi, e falliva a caso: il .mon di quel giro consegnava A BLOCCO, che è
+     un ritmo legittimo (§17.3). Un controllo che dipende da quale creatura è
+     uscita non è un controllo, è una monetina. Qui si verifica solo quello che
+     deve valere per TUTTI i ritmi. */
+  const samples = [];
   let sawDots = false;
   for (let i = 0; i < 34; i++) {
     const snap = await page.evaluate(() => {
       const rows = [...document.querySelectorAll('.bubblerow--mon .bubble')];
       const last = rows[rows.length - 1];
       return {
-        len: (last?.querySelector('.bubble__text')?.textContent ?? '').length,
+        text: (last?.querySelector('.bubble__text')?.textContent ?? '').trim(),
         dots: !!document.querySelector('.bubble__typing'),
       };
     });
     if (snap.dots) sawDots = true;
-    lengths.push(snap.len);
+    samples.push(snap);
     await sleep(140);
   }
 
-  const growth = [...new Set(lengths.filter((l) => l > 0))].length;
-  const settled = lengths[lengths.length - 1];
+  const texts = samples.map((s) => s.text);
+  const settled = texts[texts.length - 1];
+  const firstFilled = texts.findIndex((t) => t.length > 0);
 
   if (!sawDots) throw new Error('§17.4: i puntini di «sta scrivendo» non sono mai comparsi');
-  if (growth < 3) {
+  if (settled.length === 0) throw new Error('§17.4: la bolla è rimasta vuota alla fine');
+
+  // La bolla NASCE VUOTA: se il primo campione ha già del testo, il fallback è
+  // tornato a comparire subito — cioè il difetto che abbiamo corretto.
+  if (firstFilled <= 0) {
+    throw new Error('§17.4: la bolla non è nata vuota, il testo è comparso subito');
+  }
+
+  /* IL CONTROLLO CHE CONTA: il testo non si riscrive mai. Ogni campione deve
+     essere un prefisso del successivo — vale per chi scrive parola per parola
+     (cresce), per chi consegna a blocco (un salto solo, da vuoto a tutto) e
+     per chi usa due bolle (la seconda cresce da zero). Non vale, e deve
+     fallire, se una frase viene SOSTITUITA da un'altra. */
+  for (let i = firstFilled; i < texts.length - 1; i++) {
+    const now = texts[i];
+    const next = texts[i + 1];
+    if (next.length >= now.length && next.startsWith(now)) continue;
+    if (next.length === 0) continue; // bolla nuova appena creata: non è una riscrittura
     throw new Error(
-      `§17.4: la risposta è comparsa tutta insieme (${growth} lunghezze distinte). ` +
-        'Il piano di comparsa non viene eseguito.',
+      `§17.4: il testo è stato RISCRITTO sotto gli occhi — «${now}» → «${next}»`,
     );
   }
-  if (settled === 0) throw new Error('§17.4: la bolla è rimasta vuota alla fine');
-  console.log(`  §17.4  puntini visti, testo cresciuto in ${growth} passi fino a ${settled} caratteri`);
+
+  const steps = new Set(texts.filter((t) => t.length > 0)).size;
+  console.log(
+    `  §17.4  puntini visti, bolla nata vuota, testo mai riscritto ` +
+      `(${steps} stat${steps === 1 ? 'o' : 'i'}, ${settled.length} caratteri)`,
+  );
 
   await shot('06-conversazione');
 

@@ -1,45 +1,32 @@
 /* ============================================================================
-   CLIENT ANTHROPIC — LATO BROWSER
+   LO STRATO VOCE (MASTER SPEC v1.13 §17, §19.5)
 
-   ⚠️ LA CHIAVE VIVE NEL BROWSER.
+   ✅ LA CHIAVE NON VIVE PIÙ NEL BROWSER.
 
-   È una scelta consapevole, presa per il prototipo: la chiave la incolla
-   l'utente dal pannello DEV e resta nel `localStorage` di quel dispositivo.
-   Nessuno la vede passare in rete verso di noi — ma chiunque apra quel browser
-   può leggerla, e qualunque script caricato nella pagina può farlo.
+   Qui c'era l'SDK di Anthropic, costruito con la chiave dell'API presa dal
+   `localStorage`, e un commento lungo che spiegava perché fosse accettabile
+   per un prototipo di una persona sola. Non lo è più stato nel momento in cui
+   questa è diventata l'app di tutti i giorni con un budget vero dietro.
 
-   Regge finché il prototipo è di una persona sola. **Prima di darlo a
-   chiunque altro** la chiave va spostata dietro una funzione serverless, dove
-   il browser non la vede mai. Il resto di questo file non cambierebbe: si
-   sostituisce solo `callAnthropic`.
+   Adesso ogni chiamata passa da `/api/ai`: le funzioni tengono le chiavi, il
+   tetto di spesa e la scelta del fornitore. Il browser ha solo un token che
+   apre quelle funzioni e niente altro.
 
-   MASTER SPEC §17 — «ogni superficie AI ha un fallback». Qui nessuna funzione
-   lancia: quando non c'è chiave, quando la rete fallisce, quando il modello
-   rifiuta, si restituisce `null` e chi chiama usa la voce deterministica.
+   Quello che NON è cambiato, ed è il punto: le firme di questo file. Lo store
+   chiama le stesse funzioni di prima. Il commento vecchio prometteva
+   «si sostituisce solo `callAnthropic`» — era vero.
+
+   🔒 §17 resta la regola: nessuna funzione qui lancia. Senza token, senza
+   rete, con il tetto sfondato, si torna `null` e chi chiama usa la voce
+   deterministica.
    ========================================================================= */
 
-import Anthropic from '@anthropic-ai/sdk';
 import type { MonRecord } from '../engine/types';
 import type { MoodState } from '../engine/mood';
 import type { Turn } from '../engine/memoryContext';
-import { PHOTO_MODEL, VOICE_MODEL, buildVoiceSystemPrompt, introductionRequest } from './voicePrompt';
-import { recordUsageEntry, type UsageSubsystem } from './usage';
-
-/** Registra la chiamata nel contatore di DEV (§18.1). Non lancia mai. */
-function recordUsage(subsystem: UsageSubsystem, response: Anthropic.Beta.BetaMessage): void {
-  try {
-    recordUsageEntry(
-      subsystem,
-      response.model,
-      response.usage?.input_tokens ?? 0,
-      response.usage?.output_tokens ?? 0,
-      response.usage?.cache_read_input_tokens ?? 0,
-      response.usage?.cache_creation_input_tokens ?? 0,
-    );
-  } catch {
-    /* la telemetria non deve poter rompere una risposta */
-  }
-}
+import { buildVoiceSystemPrompt, introductionRequest } from './voicePrompt';
+import { ask, type BackendFailure, type VoiceData } from './backend';
+import { recordUsageEntry } from './usage';
 
 export interface VoiceResult {
   text: string;
@@ -47,57 +34,34 @@ export interface VoiceResult {
   model: string;
 }
 
-/** Perché la voce non è arrivata. Serve alla UI, non solo al log. */
-export type VoiceFailure = 'no-key' | 'refused' | 'error';
+/**
+ * Perché la voce non è arrivata.
+ *
+ * 🔷 v1.13 — `capped` è nuovo e non è un errore come gli altri: è il tetto che
+ * hai deciso tu. L'interfaccia deve poterlo dire, invece di mostrare la voce
+ * deterministica come se il modello si fosse rotto.
+ */
+export type VoiceFailure = 'no-key' | 'refused' | 'error' | 'capped';
 
 export interface VoiceOutcome {
   result: VoiceResult | null;
   failure: VoiceFailure | null;
 }
 
-function clientFor(apiKey: string): Anthropic {
-  return new Anthropic({
-    apiKey,
-    // Entrambi necessari per parlare all'API da una pagina: il primo disarma
-    // la protezione dell'SDK, il secondo dice al servizio che la chiamata dal
-    // browser è voluta. Restano un rischio dichiarato, non una soluzione.
-    dangerouslyAllowBrowser: true,
-    defaultHeaders: { 'anthropic-dangerous-direct-browser-access': 'true' },
-  });
+/** Traduce l'esito del backend nel vocabolario che la UI già conosce. */
+function asVoiceFailure(failure: BackendFailure): VoiceFailure {
+  if (failure === 'no-token') return 'no-key';
+  if (failure === 'capped') return 'capped';
+  return 'error';
 }
-
-/* ============================================================================
-   🔷 v1.12 — DOVE VANNO DAVVERO I SOLDI
-
-   Il system prompt di una creatura misura ~1150 token e non cambia mai dentro
-   una conversazione; una risposta in voce sono due frasi, ~60 token. Con il
-   ragionamento acceso il modello ne produceva ~300, e su un modello che fa
-   pagare l'uscita cinque volte l'entrata quella era la voce grossa del conto.
-
-   Due correzioni, nessuna delle quali cambia modello:
-
-   • Il ragionamento si spegne dove non serve. Una battuta in personaggio non
-     è un problema da risolvere: il briefing dice già chi è, che tono ha e
-     cosa non può dire. Resta acceso dove la frase si rilegge — la
-     presentazione alla nascita, che si scrive una volta sola in ventotto
-     giorni e vale il suo costo.
-
-   • Il briefing si mette in cache. È identico a ogni turno, e sopra i 512
-     token questo modello lo accetta: dal secondo messaggio in poi l'entrata
-     costa un decimo.
-
-   ⚠️ La stima del risparmio (~5×) è aritmetica sui listini, non una misura:
-   i token di uscita reali non li ho contati, perché per contarli serve una
-   chiave. Il pannello DEV → COSTI li mostra veri appena l'app parla.
-   ========================================================================= */
 
 /**
  * Quello che il .mon si porta dietro in questo turno.
  *
- * 🔷 v1.12 §15.2 — i due pezzi stanno in POSTI diversi della richiesta perché
- * cambiano a ritmi diversi, e la cache si forma su ciò che non cambia:
- * `memory` una volta al giorno (secondo blocco system, in cache), `turns` a
- * ogni messaggio (nei messaggi, dove il modello si aspetta un dialogo).
+ * §15.2 — i due pezzi finiscono in POSTI diversi della richiesta perché
+ * cambiano a ritmi diversi: `memory` una volta al giorno (secondo blocco di
+ * sistema, in cache), `turns` a ogni messaggio (nei messaggi, dove il modello
+ * si aspetta un dialogo e non una trascrizione).
  */
 export interface VoiceMemory {
   memory: string;
@@ -107,124 +71,108 @@ export interface VoiceMemory {
 /**
  * Una battuta nella voce di un .mon.
  *
- * `deliberate` accende il ragionamento: è per i momenti che restano — la
- * nascita, l'evoluzione — non per la conversazione di tutti i giorni.
- *
- * `max_tokens` resta largo perché su questo modello limita il ragionamento
- * **insieme** al testo: stretto, troncherebbe la risposta a metà. È un tetto,
- * non un addebito: quello che non viene scritto non si paga.
+ * `deliberate` accende il ragionamento. Resta spento sulla conversazione — su
+ * due frasi in personaggio non aggiunge niente e l'uscita si paga cinque volte
+ * l'entrata — e si riaccende sulla nascita e sulle domande vere (§17.5).
  */
 async function speak(
-  apiKey: string,
+  token: string,
   record: MonRecord,
   userTurn: string,
-  subsystem: UsageSubsystem,
+  subsystem: 'introduction' | 'reply',
   mood: MoodState | null,
   memory: VoiceMemory | null,
   deliberate = false,
 ): Promise<VoiceOutcome> {
+  const { data, failure } = await ask<VoiceData & { usage?: Record<string, number> }>(token, {
+    capability: 'character-voice',
+    system: [
+      // Il briefing non cambia mai dentro una conversazione: in cache.
+      { text: buildVoiceSystemPrompt(record, mood), cache: true },
+      // La memoria cambia una volta al giorno: seconda voce di cache, così
+      // quella del briefing non si invalida mai.
+      ...(memory ? [{ text: memory.memory, cache: true }] : []),
+    ],
+    turns: memory?.turns ?? [],
+    user: userTurn,
+    thinking: deliberate,
+    maxTokens: 2000,
+  });
+
+  if (!data) return { result: null, failure: asVoiceFailure(failure ?? 'error') };
+
+  /* La telemetria di DEV resta lato browser: il server ha il suo registro,
+     ma quello dice quanto hai speso in totale, non cosa è appena successo in
+     questa sessione. Le due cose servono a domande diverse. */
   try {
-    const client = clientFor(apiKey);
-
-    const response = await client.beta.messages.create({
-      model: VOICE_MODEL,
-      max_tokens: 2000,
-      // Se il modello declina, la richiesta viene rigiocata su un altro
-      // modello dal servizio stesso invece di tornare indietro a mani vuote.
-      betas: ['server-side-fallback-2026-07-01'],
-      fallbacks: 'default',
-      output_config: { effort: 'low' },
-      ...(deliberate ? {} : { thinking: { type: 'disabled' as const } }),
-      system: [
-        {
-          type: 'text' as const,
-          text: buildVoiceSystemPrompt(record, mood),
-          // Il briefing è lo stesso a ogni turno: dal secondo messaggio in poi
-          // si rilegge dalla cache. Se un giorno il prompt scendesse sotto i
-          // 512 token la cache smetterebbe di formarsi **senza dare errore** —
-          // il controllo sta in scripts/batch-check.mjs, non nella fiducia.
-          cache_control: { type: 'ephemeral' as const },
-        },
-        // Secondo punto di cache: la memoria cambia una volta al giorno, non a
-        // ogni messaggio. Tenendola QUI invece che dentro il briefing, la
-        // cache del briefing non si invalida mai e questa regge la giornata.
-        ...(memory
-          ? [
-              {
-                type: 'text' as const,
-                text: memory.memory,
-                cache_control: { type: 'ephemeral' as const },
-              },
-            ]
-          : []),
-      ],
-      messages: [...(memory?.turns ?? []), { role: 'user' as const, content: userTurn }],
-    });
-
-    // Va controllato PRIMA di leggere il contenuto: su un rifiuto `content`
-    // può essere vuoto, e leggere `content[0]` si romperebbe.
-    recordUsage(subsystem, response);
-
-    if (response.stop_reason === 'refusal') {
-      return { result: null, failure: 'refused' };
-    }
-
-    const text = response.content
-      .filter((b): b is Anthropic.Beta.BetaTextBlock => b.type === 'text')
-      .map((b) => b.text)
-      .join('')
-      .trim();
-
-    if (text.length === 0) return { result: null, failure: 'error' };
-
-    return { result: { text, model: response.model }, failure: null };
-  } catch (err) {
-    // Non si propaga: la conversazione non deve mai restare muta (§17).
-    console.warn('[ai] voce non disponibile, uso il fallback', err);
-    return { result: null, failure: 'error' };
+    const u = data.usage ?? {};
+    recordUsageEntry(
+      subsystem,
+      data.model,
+      u.inputTokens ?? 0,
+      u.outputTokens ?? 0,
+      u.cacheReadTokens ?? 0,
+      u.cacheWriteTokens ?? 0,
+    );
+  } catch {
+    /* la telemetria non deve poter rompere una risposta */
   }
+
+  return { result: { text: data.text, model: data.model }, failure: null };
 }
 
 /**
  * Una risposta in conversazione.
- *
- * 🔶 v1.9 — prima l'AI serviva solo la presentazione alla nascita e tutte le
- * altre battute restavano deterministiche. Adesso risponde davvero, perché
- * «posso anche solo chattare» è il modo principale di usare l'app: se le
- * risposte non stanno in piedi, non sta in piedi il prodotto.
  *
  * `context` dice al modello cosa il sistema ha già registrato da quel
  * messaggio. Non è un ordine di ringraziare: è per non far chiedere una cosa
  * che si è appena letta.
  */
 export async function generateReply(
-  apiKey: string | null,
+  token: string | null,
   record: MonRecord,
   userText: string,
   context: string | null,
   mood: MoodState | null,
   memory: VoiceMemory | null,
-  /**
-   * 🔷 v1.12 §17.5 — questa è una domanda vera, non una battuta: accende il
-   * ragionamento. Lo decide `deservesThinking`, deterministicamente e con
-   * prudenza — nel dubbio si risparmia.
-   */
   deliberate = false,
 ): Promise<VoiceOutcome> {
-  if (!apiKey) return { result: null, failure: 'no-key' };
+  if (!token) return { result: null, failure: 'no-key' };
   const turn = context ? `${userText}\n\n[${context}]` : userText;
-  return speak(apiKey, record, turn, 'reply', mood, memory, deliberate);
+  return speak(token, record, turn, 'reply', mood, memory, deliberate);
+}
+
+/**
+ * La prima frase di un .mon appena nato.
+ *
+ * È una delle due chiamate che ragionano. Succede una volta per creatura —
+ * circa una ogni ventotto giorni — ed è la frase che si rilegge.
+ */
+export async function generateIntroduction(
+  token: string | null,
+  record: MonRecord,
+  mood: MoodState | null,
+): Promise<VoiceOutcome> {
+  if (!token) return { result: null, failure: 'no-key' };
+  // Nessuna memoria: è il primo istante, non c'è niente prima. Una memoria
+  // vuota lo farebbe partire come se avesse dimenticato qualcosa.
+  return speak(token, record, introductionRequest(record), 'introduction', mood, null, true);
 }
 
 /* ============================================================================
-   🔶 v1.9 §5.2 — LETTURA DI UNA FOTO
+   §5.2 — LETTURA DI UNA FOTO
 
-   Il modello guarda l'immagine e dice cosa ci vede in termini dei tre Daily
+   Il modello guarda l'immagine e dice cosa ci vede in termini dei Daily
    Signals. Contratto stretto e JSON: qui non serve una descrizione, serve un
    dato, e una risposta libera andrebbe interpretata a sua volta.
 
    Regola non negoziabile, ripetuta nel prompt e imposta dal chiamante: può
    solo AGGIUNGERE segnali sconosciuti, mai correggerne uno che hai dichiarato.
+
+   🔒 Questa è l'unica capacità che il backend manda su un fornitore con un
+   piano gratuito, e va bene proprio perché parte SENZA contesto: una foto di
+   un piatto non dice chi sei. La conversazione, i ricordi e l'umore non
+   passano mai di lì.
    ========================================================================= */
 
 export interface PhotoSignals {
@@ -244,80 +192,45 @@ Rules:
 - Never infer mood from a face: subjective states are only ever declared by the person.`;
 
 export async function readPhotoSignals(
-  apiKey: string | null,
+  token: string | null,
   dataUrl: string,
 ): Promise<PhotoSignals | null> {
-  if (!apiKey) return null;
+  if (!token) return null;
 
   const match = /^data:(image\/[a-z+]+);base64,(.+)$/i.exec(dataUrl);
   if (!match) return null;
   const [, mediaType, data] = match;
 
+  const { data: result } = await ask<VoiceData & { usage?: Record<string, number> }>(token, {
+    capability: 'vision-quick',
+    system: [{ text: PHOTO_SYSTEM }],
+    user: 'Cosa vedi?',
+    image: { mediaType: mediaType!, data: data! },
+    maxTokens: 400,
+  });
+
+  if (!result) return null;
+
   try {
-    const response = await clientFor(apiKey).beta.messages.create({
-      // Il modello piccolo: qui il contratto è «guarda e dichiara, nel dubbio
-      // null», non c'è niente da ragionare, e il grande costa cinque volte
-      // tanto per lo stesso risultato. `effort` e `thinking` sono omessi
-      // perché questa generazione non li accetta (vedi PHOTO_MODEL).
-      model: PHOTO_MODEL,
-      max_tokens: 1200,
-      betas: ['server-side-fallback-2026-07-01'],
-      fallbacks: 'default',
-      system: PHOTO_SYSTEM,
-      messages: [
-        {
-          role: 'user',
-          content: [
-            {
-              type: 'image',
-              source: { type: 'base64', media_type: mediaType as 'image/png', data: data! },
-            },
-            { type: 'text', text: 'Cosa vedi?' },
-          ],
-        },
-      ],
-    });
+    const u = result.usage ?? {};
+    recordUsageEntry('photo', result.model, u.inputTokens ?? 0, u.outputTokens ?? 0);
+  } catch {
+    /* la telemetria non rompe una lettura */
+  }
 
-    if (response.stop_reason === 'refusal') return null;
+  // Il modello può incorniciare il JSON: si prende il primo oggetto e basta.
+  const json = /\{[\s\S]*\}/.exec(result.text)?.[0];
+  if (!json) return null;
 
-    const text = response.content
-      .filter((b): b is Anthropic.Beta.BetaTextBlock => b.type === 'text')
-      .map((b) => b.text)
-      .join('');
-
-    recordUsage('photo', response);
-
-    // Il modello può incorniciare il JSON: si prende il primo oggetto e basta.
-    const json = /\{[\s\S]*\}/.exec(text)?.[0];
-    if (!json) return null;
+  try {
     const parsed = JSON.parse(json) as { food?: string | null; workout?: string | null };
-
     const signals: PhotoSignals['signals'] = {};
     if (parsed.food) signals.FOOD = { status: 'KNOWN', note: `dalla foto: ${parsed.food}` };
     if (parsed.workout) {
       signals.WORKOUT = { status: 'KNOWN', note: `dalla foto: ${parsed.workout}` };
     }
     return { signals };
-  } catch (err) {
-    console.warn('[ai] foto non leggibile, resta salvata', err);
+  } catch {
     return null;
   }
-}
-
-/**
- * La prima frase di un .mon appena nato.
- *
- * È l'unica chiamata che ragiona. Succede una volta per creatura — cioè circa
- * una volta ogni ventotto giorni — ed è la frase che si rilegge: qui il costo
- * pieno è giustificato, nella conversazione di tutti i giorni no.
- */
-export async function generateIntroduction(
-  apiKey: string | null,
-  record: MonRecord,
-  mood: MoodState | null,
-): Promise<VoiceOutcome> {
-  if (!apiKey) return { result: null, failure: 'no-key' };
-  // Nessuna memoria: è il primo istante, non c'è niente prima. Passargli una
-  // memoria vuota lo farebbe partire come se avesse dimenticato qualcosa.
-  return speak(apiKey, record, introductionRequest(record), 'introduction', mood, null, true);
 }

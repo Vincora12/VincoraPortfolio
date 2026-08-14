@@ -11,7 +11,7 @@
    ========================================================================= */
 
 import { useEffect, useState } from 'react';
-import { useApp, type Phase } from './state/store';
+import { useApp, type Phase, syncWithServer } from './state/store';
 import { applyPaletteDna } from './engine/colorDna';
 import { preloadMonAssets } from './assets-pipeline/assetStore';
 import { Icon } from './system/Icon';
@@ -93,6 +93,20 @@ export function App() {
   useEffect(() => {
     if (activeMonName) void preloadMonAssets(activeMonName);
   }, [activeMonName]);
+
+  /* 🔷 v1.13 §20 — all'avvio si guarda se il server ha più storia di questo
+     telefono. Una volta sola, e non blocca niente: se la rete non c'è, l'app
+     parte con la copia locale e riproverà al prossimo avvio.
+
+     Gira DOPO la reidratazione di zustand perché questo effetto scatta al
+     primo render, e a quel punto il `localStorage` è già stato letto —
+     altrimenti confronterebbe il server con uno stato vuoto e scaricherebbe
+     sempre, anche quando il telefono è quello più avanti. */
+  useEffect(() => {
+    void syncWithServer().then((outcome) => {
+      if (outcome === 'scaricato') console.info('[sync] ripreso il salvataggio dal server');
+    });
+  }, []);
 
   // §26 — la dev mode si apre solo di proposito: ?dev=1 nell'indirizzo.
   useEffect(() => {

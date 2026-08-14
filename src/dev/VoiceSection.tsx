@@ -1,12 +1,17 @@
 /* ============================================================================
    DEV → VOCE
 
-   Dove si incolla la chiave API e si prova la voce di un .mon prima che il
-   momento vero arrivi.
+   Dove si incolla il token e si prova la voce di un .mon prima che il momento
+   vero arrivi.
 
-   La schermata dice a chiare lettere dove finisce la chiave, perché è una
-   scelta con una conseguenza: nel `localStorage` di questo browser. Nascondere
-   il compromesso sarebbe peggio che averlo.
+   🔷 v1.13 — qui c'era la CHIAVE del fornitore, e un avviso che spiegava
+   perché tenerla nel browser fosse accettabile per un prototipo di una persona
+   sola. Non lo era più da quando questa è diventata l'app di tutti i giorni
+   con un budget vero dietro: adesso le chiavi stanno sul server e il browser
+   ha solo un token che apre le tue funzioni.
+
+   La schermata continua a dire dove finisce quello che incolli, perché è
+   sempre una scelta con una conseguenza — solo molto più piccola di prima.
    ========================================================================= */
 
 import { useState } from 'react';
@@ -15,8 +20,8 @@ import { Button, SystemLabel, TextField, Window } from '../system/components';
 import { VOICE_MODEL, buildVoiceSystemPrompt } from '../ai/voicePrompt';
 
 export function VoiceSection() {
-  const apiKey = useApp((s) => s.apiKey);
-  const setApiKey = useApp((s) => s.setApiKey);
+  const token = useApp((s) => s.token);
+  const setToken = useApp((s) => s.setToken);
   const mon = useActiveMon();
   // §10.6 — la prova di voce deve sentire l'umore vero: una prova che gira su
   // uno stato neutro non prova la voce che poi ti risponde davvero.
@@ -36,7 +41,7 @@ export function VoiceSection() {
 
     // Import dinamico: l'SDK pesa, e chi non usa la voce non deve scaricarlo.
     const { generateIntroduction } = await import('../ai/client');
-    const { result, failure } = await generateIntroduction(apiKey, mon, mood);
+    const { result, failure } = await generateIntroduction(token, mon, mood);
     setBusy(false);
 
     if (result) {
@@ -48,31 +53,33 @@ export function VoiceSection() {
         ? 'Nessuna chiave: la voce resta quella deterministica.'
         : failure === 'refused'
           ? 'Il modello ha declinato la richiesta.'
-          : 'Chiamata fallita. Chiave sbagliata, credito finito o rete assente.',
+          : failure === 'capped'
+            ? 'Tetto mensile raggiunto: è una decisione tua, non un guasto.'
+            : 'Chiamata fallita: token sbagliato, funzioni non pubblicate o rete assente.',
     );
   };
 
   return (
     <>
-      <Window title="CHIAVE API">
-        {apiKey ? (
+      <Window title="TOKEN">
+        {token ? (
           <>
             <p className="t-small">
-              <SystemLabel tone="character">ATTIVA</SystemLabel> La voce dei `.mon` passa dall'AI.
+              <SystemLabel tone="character">ATTIVO</SystemLabel> La voce dei `.mon` passa dall'AI.
             </p>
-            <Button block variant="secondary" onClick={() => setApiKey(null)}>
-              RIMUOVI LA CHIAVE
+            <Button block variant="secondary" onClick={() => setToken(null)}>
+              RIMUOVI IL TOKEN
             </Button>
           </>
         ) : (
           <>
             <TextField
-              label="Chiave API Anthropic"
-              placeholder="sk-ant-…"
+              label="Token del backend"
+              placeholder="lo stesso valore di VINZMON_TOKEN"
               value={draft}
               onChange={setDraft}
               onSubmit={() => {
-                setApiKey(draft);
+                setToken(draft);
                 setDraft('');
               }}
             />
@@ -81,7 +88,7 @@ export function VoiceSection() {
               variant="primary"
               disabled={draft.trim().length === 0}
               onClick={() => {
-                setApiKey(draft);
+                setToken(draft);
                 setDraft('');
               }}
             >
@@ -90,13 +97,17 @@ export function VoiceSection() {
           </>
         )}
 
-        {/* Il compromesso, detto per intero. */}
+        {/* Cosa è cambiato, e cosa no. */}
         <p className="t-small dev__note">
-          La chiave resta nel <strong>localStorage di questo browser</strong>. Non passa da nessun
-          server nostro, ma chiunque apra questo browser può leggerla. Va bene finché il prototipo è
-          tuo e basta: prima di darlo a qualcun altro va spostata dietro una funzione serverless.
+          Il token resta nel <strong>localStorage di questo browser</strong>, come prima la chiave —
+          ma non è più una chiave del fornitore: apre solo le tue funzioni, dove il{' '}
+          <strong>tetto mensile è già applicato</strong>. Se esce, cambi{' '}
+          <code>VINZMON_TOKEN</code> su Netlify, ripubblichi, e il vecchio smette di valere.
         </p>
-        <p className="t-micro dev__note">MODELLO: {VOICE_MODEL}</p>
+        <p className="t-micro dev__note">
+          Lo stesso token lo useranno le Shortcut di iPhone: è la stessa porta.
+        </p>
+        <p className="t-micro dev__note">VOCE: {VOICE_MODEL} — le chiavi vivono sul server</p>
       </Window>
 
       <Window title="PROVA LA VOCE">

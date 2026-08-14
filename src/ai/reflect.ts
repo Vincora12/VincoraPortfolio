@@ -29,10 +29,9 @@
    sembrare un compagno un oroscopo.
    ========================================================================= */
 
-import Anthropic from '@anthropic-ai/sdk';
 import type { Memory, MonRecord } from '../engine/types';
 import { isAllowedOpinion, type Opinion } from '../engine/opinions';
-import { PHOTO_MODEL } from './voicePrompt';
+import { ask, type VoiceData } from './backend';
 import { recordUsageEntry } from './usage';
 
 const SYSTEM = `You are the reflective part of a creature that has been living alongside one person, VINZ, and keeping track of his days.
@@ -74,13 +73,13 @@ const EMPTY: ReflectionOutcome = { formed: [], contradicted: [] };
  * persone.
  */
 export async function reflectOnWeek(
-  apiKey: string | null,
+  token: string | null,
   record: MonRecord,
   memories: Memory[],
   existing: Opinion[],
   today: number,
 ): Promise<ReflectionOutcome> {
-  if (!apiKey) return EMPTY;
+  if (!token) return EMPTY;
 
   const week = memories.filter((m) => m.day > today - 7);
   /* Meno di tre cose in sette giorni non è una settimana da cui si impara.
@@ -99,41 +98,31 @@ ${week.map((m) => `- day ${m.day} (${m.kind}): ${m.text}`).join('\n')}
 WHAT YOU ALREADY BELIEVE:
 ${held || '- nothing yet'}`;
 
+  /* 🔒 `text-cheap`, e il backend la instrada su un fornitore A PAGAMENTO.
+     È l'unica cosa «piccola» che legge mesi della tua storia in un colpo
+     solo: il posto peggiore dove risparmiare su un piano gratuito. Il perché
+     sta in netlify/functions/_shared/routing.ts, e c'è un controllo che lo
+     verifica. */
+  const { data } = await ask<VoiceData & { usage?: Record<string, number> }>(token, {
+    capability: 'text-cheap',
+    system: [{ text: SYSTEM }],
+    user,
+    maxTokens: 700,
+  });
+
+  if (!data) return EMPTY;
+
   try {
-    const response = await new Anthropic({
-      apiKey,
-      dangerouslyAllowBrowser: true,
-      defaultHeaders: { 'anthropic-dangerous-direct-browser-access': 'true' },
-    }).beta.messages.create({
-      model: PHOTO_MODEL,
-      max_tokens: 700,
-      betas: ['server-side-fallback-2026-07-01'],
-      fallbacks: 'default',
-      system: SYSTEM,
-      messages: [{ role: 'user', content: user }],
-    });
+    const u = data.usage ?? {};
+    recordUsageEntry('reflection', data.model, u.inputTokens ?? 0, u.outputTokens ?? 0);
+  } catch {
+    /* la telemetria non rompe una riflessione */
+  }
 
-    try {
-      recordUsageEntry(
-        'reflection',
-        response.model,
-        response.usage?.input_tokens ?? 0,
-        response.usage?.output_tokens ?? 0,
-      );
-    } catch {
-      /* la telemetria non rompe una riflessione */
-    }
+  const json = /\{[\s\S]*\}/.exec(data.text)?.[0];
+  if (!json) return EMPTY;
 
-    if (response.stop_reason === 'refusal') return EMPTY;
-
-    const text = response.content
-      .filter((b): b is Anthropic.Beta.BetaTextBlock => b.type === 'text')
-      .map((b) => b.text)
-      .join('');
-
-    const json = /\{[\s\S]*\}/.exec(text)?.[0];
-    if (!json) return EMPTY;
-
+  try {
     const parsed = JSON.parse(json) as {
       new?: { text?: string; strength?: number; fromDays?: number[] }[];
       contradicted?: string[];
@@ -161,7 +150,7 @@ ${held || '- nothing yet'}`;
 
     return { formed, contradicted };
   } catch (err) {
-    console.warn('[ai] riflessione non riuscita, la settimana passa', err);
+    console.warn('[ai] riflessione illeggibile, la settimana passa', err);
     return EMPTY;
   }
 }

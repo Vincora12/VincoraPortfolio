@@ -30,7 +30,7 @@ import { t } from '../i18n/it';
 
 export function UniversalInputScreen({ onClose }: { onClose: () => void }) {
   const captureEntry = useApp((s) => s.captureEntry);
-  const apiKey = useApp((s) => s.apiKey);
+  const token = useApp((s) => s.token);
 
   const [text, setText] = useState('');
   const [photo, setPhoto] = useState<{ name: string; dataUrl: string } | null>(null);
@@ -116,11 +116,11 @@ export function UniversalInputScreen({ onClose }: { onClose: () => void }) {
               {photo && (
                 <li className="capture__item">
                   <span className="capture__mark" aria-hidden="true">
-                    {apiKey ? '■' : '◐'}
+                    {token ? '■' : '◐'}
                   </span>
                   <span className="t-meta">FOTO</span>
                   <span className="t-micro capture__detail">
-                    {apiKey ? t.input.photoWithAi : t.input.photoNoAi}
+                    {token ? t.input.photoWithAi : t.input.photoNoAi}
                   </span>
                 </li>
               )}

@@ -224,8 +224,16 @@ interface AppState {
   dev: DevFlags;
   bias: SimulationBias;
 
-  /** ⚠️ Chiave API nel browser: prototipo di una persona sola. Vedi ai/client.ts. */
-  apiKey: string | null;
+  /**
+   * 🔷 v1.13 §19.3 — il segreto che apre le TUE funzioni. NON è più una chiave
+   * del fornitore: quella vive sul server e il browser non la vede mai.
+   *
+   * La differenza conta anche se il posto dove sta è lo stesso: se questo
+   * esce, chi ce l'ha può spendere al massimo il tetto del mese, e si
+   * disinnesca cambiando una variabile d'ambiente e ripubblicando. Una chiave
+   * del fornitore, invece, non aveva né tetto né interruttore.
+   */
+  token: string | null;
 
   /** §12 — registra una risposta del Signal Scan. */
   answerScan: (index: number, answerId: string) => void;
@@ -291,7 +299,7 @@ interface AppState {
   setDayGrace: (day: number, on: boolean, note?: string) => void;
 
   setDev: (patch: Partial<DevFlags>) => void;
-  setApiKey: (key: string | null) => void;
+  setToken: (key: string | null) => void;
 
   setBias: (patch: Partial<SimulationBias>) => void;
   setSignal: (key: StatKey, value: Signal) => void;
@@ -339,7 +347,7 @@ const INITIAL = {
   batch: [] as BatchCandidate[],
   dev: { enabled: false, forceContinue: false, forceBranch: false, unlockAll: false },
   bias: DEFAULT_BIAS,
-  apiKey: null as string | null,
+  token: null as string | null,
 };
 
 /* --- Helper ---------------------------------------------------------------- */
@@ -664,7 +672,7 @@ export const useApp = create<AppState>()(
             }),
           ],
           lastTrace: trace,
-          chat: [openingMessage(record, s.day, s.apiKey !== null)],
+          chat: [openingMessage(record, s.day, s.token !== null)],
           // §10.6 — nasce sul punto di riposo del suo temperamento, e la
           // nascita stessa e il primo evento: tono e carica su, appiglio
           // GIU. Uno appena arrivato non e sicuro di stare qui.
@@ -824,7 +832,7 @@ export const useApp = create<AppState>()(
             }),
           ],
           memories: s.memories,
-          chat: [...s.chat, openingMessage(record, s.day, s.apiKey !== null)].slice(-60),
+          chat: [...s.chat, openingMessage(record, s.day, s.token !== null)].slice(-60),
           pendingHeritage: [],
           pendingPlan: null,
           // Il bond NON si azzera: è la stessa relazione. Riparte solo il
@@ -879,7 +887,7 @@ export const useApp = create<AppState>()(
            c'è, il fallback è la risposta e compare col ritmo della creatura,
            che è la stessa esperienza meno la qualità del testo. */
         const spoken = fallbackReply(rng, rec.data.mood_primary, rec.data.voice_dna, rec.data.role);
-        const waiting = s.apiKey !== null;
+        const waiting = s.token !== null;
         const theirs: ChatMessage = {
           id: `msg_${s.chat.length}_m`,
           from: 'mon',
@@ -1200,7 +1208,8 @@ export const useApp = create<AppState>()(
       /* --- DEV --- */
 
       setDev: (patch) => set((s) => ({ dev: { ...s.dev, ...patch } })),
-      setApiKey: (key) => set({ apiKey: key && key.trim().length > 0 ? key.trim() : null }),
+      setToken: (value) =>
+        set({ token: value && value.trim().length > 0 ? value.trim() : null }),
       setBias: (patch) => set((s) => ({ bias: { ...s.bias, ...patch } })),
 
       setSignal: (key, value) =>
@@ -1332,7 +1341,7 @@ export const useApp = create<AppState>()(
           mons,
           activeMonName: record.data.name,
           nodes: s.nodes.map((n) => (n.id === node.id ? { ...n, monName: record.data.name } : n)),
-          chat: [openingMessage(record, s.day, s.apiKey !== null)],
+          chat: [openingMessage(record, s.day, s.token !== null)],
           lastTrace: trace,
         });
       },
@@ -1348,7 +1357,7 @@ export const useApp = create<AppState>()(
           activeMonName: node.monName,
           phase: 'live',
           mons: { ...s.mons, [node.monName]: { ...rec, retiredOnDay: null } },
-          chat: [openingMessage(rec, s.day, s.apiKey !== null)],
+          chat: [openingMessage(rec, s.day, s.token !== null)],
         });
 
         void preloadMonAssets(node.monName);
@@ -1403,7 +1412,7 @@ export const useApp = create<AppState>()(
           scanAnswers: {},
           dev: get().dev,
           // Ricominciare la partita non è motivo per far reincollare la chiave.
-          apiKey: get().apiKey,
+          token: get().token,
         }),
     }),
     {
@@ -1413,7 +1422,13 @@ export const useApp = create<AppState>()(
       // manderebbe in errore la prima schermata che legge `sync.lifetime`.
       // Cambiare chiave fa ripartire da capo invece di rompersi, che per un
       // prototipo è il comportamento onesto.
-      name: 'vinzmon.prototype.v3',
+      /* 🔷 v1.13 — chiave NUOVA. Nel salvataggio precedente il campo conteneva
+         una chiave del fornitore, e riusarla come token del backend
+         significherebbe mandare una chiave Anthropic all'header di
+         autorizzazione delle proprie funzioni: non funzionerebbe, e lo farebbe
+         in modo confuso. Ripartire da zero costringe a incollare il token
+         giusto una volta, che è il comportamento onesto. */
+      name: 'vinzmon.prototype.v4',
       version: 3,
       partialize: (s) => {
         const { batch: _batch, ...rest } = s;
@@ -1422,6 +1437,99 @@ export const useApp = create<AppState>()(
     },
   ),
 );
+
+/* ============================================================================
+   🔷 v1.13 §20 — IL SALVATAGGIO SUL SERVER
+
+   Il browser resta la copia di lavoro: senza rete l'app deve funzionare
+   uguale, e un'app che si blocca perché non riesce a salvare è peggio di una
+   che non salva. Il server è la copia che SOPRAVVIVE al telefono.
+
+   ⚠️ CHI VINCE QUANDO LE DUE DIFFERISCONO: la più avanti nel GIORNO DI GIOCO,
+   non la più recente nell'orologio. L'orologio di un telefono può essere
+   sbagliato, e un salvataggio vecchio con l'ora avanti cancellerebbe
+   settimane. Il giorno di gioco invece cresce solo giocando: «più avanti»
+   significa davvero «contiene più storia». Il server applica la stessa regola
+   e rifiuta un PUT che tornerebbe indietro.
+
+   🔒 IL TOKEN NON VIENE MAI SALVATO. È una credenziale, non stato di gioco:
+   metterla nel blob significherebbe conservarla in un secondo posto senza
+   guadagnarci niente — al ritorno la si reincolla, e nel frattempo il
+   salvataggio resta una cosa che non fa danni se qualcuno lo legge.
+   ========================================================================= */
+
+/** Attesa prima di salvare: si scrive quando ti fermi, non a ogni tasto. */
+const SAVE_DEBOUNCE_MS = 4000;
+
+let saveTimer: ReturnType<typeof setTimeout> | null = null;
+let lastSavedSignature = '';
+
+/** Lo stato da mandare: tutto tranne le cose che non hanno senso altrove. */
+function snapshotFor(state: AppState): unknown {
+  const {
+    token: _token,
+    batch: _batch,
+    lastTrace: _trace,
+    ...rest
+  } = state as AppState & Record<string, unknown>;
+  return rest;
+}
+
+function scheduleRemoteSave(): void {
+  const s = useApp.getState();
+  if (!s.token) return;
+
+  if (saveTimer) clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    const now = useApp.getState();
+    if (!now.token) return;
+
+    const snapshot = snapshotFor(now);
+    const signature = JSON.stringify(snapshot);
+    /* Niente da salvare: succede spesso, perché zustand notifica anche
+       cambiamenti che non toccano niente di persistito (l'indicatore «sta
+       scrivendo», per dire, cambia decine di volte per messaggio). */
+    if (signature === lastSavedSignature) return;
+
+    void import('../ai/backend').then(async ({ saveRemote }) => {
+      const { failure } = await saveRemote(now.token, now.day, snapshot);
+      if (!failure) {
+        lastSavedSignature = signature;
+        return;
+      }
+      /* Un salvataggio fallito non si annuncia e non si ritenta a raffica: la
+         copia locale c'è, e il prossimo cambiamento riproverà da solo. Se la
+         rete è giù, insistere non la riaccende. */
+      console.warn('[sync] salvataggio non riuscito:', failure);
+    });
+  }, SAVE_DEBOUNCE_MS);
+}
+
+useApp.subscribe(scheduleRemoteSave);
+
+/**
+ * All'avvio: si guarda cosa c'è sul server e si tiene la storia più lunga.
+ *
+ * Va chiamata DOPO che zustand ha reidratato dal `localStorage`, altrimenti
+ * confronterebbe il server con uno stato vuoto e scaricherebbe sempre.
+ */
+export async function syncWithServer(): Promise<'locale' | 'scaricato' | 'niente'> {
+  const local = useApp.getState();
+  if (!local.token) return 'niente';
+
+  const { loadRemote } = await import('../ai/backend');
+  const { data, failure } = await loadRemote(local.token);
+  if (failure || !data || data.state == null) return 'niente';
+
+  if (data.day <= local.day) return 'locale';
+
+  /* Il server ha più storia: quella locale era indietro (telefono nuovo,
+     dati del browser cancellati, o semplicemente un altro dispositivo). Il
+     token NON si sovrascrive: è di questo browser, non del salvataggio. */
+  useApp.setState({ ...(data.state as Partial<AppState>), token: local.token });
+  lastSavedSignature = JSON.stringify(snapshotFor(useApp.getState()));
+  return 'scaricato';
+}
 
 /* --- Avanzamento di un giorno ---------------------------------------------- */
 
@@ -1521,7 +1629,7 @@ const REFLECTION_EVERY = 7;
 function maybeReflect(set: (p: Partial<AppState>) => void, get: () => AppState): void {
   const s = get();
   const record = activeRecord(s);
-  if (!record || !s.apiKey) return;
+  if (!record || !s.token) return;
   if (s.day - s.lastReflectionDay < REFLECTION_EVERY) return;
 
   /* Si segna PRIMA della chiamata, non dopo. Se si segnasse dopo, due
@@ -1530,7 +1638,7 @@ function maybeReflect(set: (p: Partial<AppState>) => void, get: () => AppState):
   set({ lastReflectionDay: s.day });
 
   void import('../ai/reflect')
-    .then((m) => m.reflectOnWeek(s.apiKey, record, s.memories, s.opinions, s.day))
+    .then((m) => m.reflectOnWeek(s.token, record, s.memories, s.opinions, s.day))
     .then(({ formed, contradicted }) => {
       if (formed.length === 0 && contradicted.length === 0) return;
 
@@ -1713,14 +1821,14 @@ function requestIntroduction(
   get: () => AppState,
   record: MonRecord,
 ): void {
-  const apiKey = get().apiKey;
-  if (!apiKey) return;
+  const token = get().token;
+  if (!token) return;
 
   const id = `msg_open_${record.data.name}`;
 
   // L'SDK arriva solo a chi ha una chiave: import dinamico, chunk separato.
   void import('../ai/client')
-    .then((m) => m.generateIntroduction(apiKey, record, get().mood))
+    .then((m) => m.generateIntroduction(token, record, get().mood))
     .then(({ result }) => {
       const s = get();
       const index = s.chat.findIndex((m) => m.id === id);
@@ -1747,8 +1855,8 @@ function requestReply(
   messageId: string,
 ): void {
   const s0 = get();
-  const apiKey = s0.apiKey;
-  if (!apiKey) return;
+  const token = s0.token;
+  if (!token) return;
 
   // Cosa il sistema ha già capito da solo: serve al modello per non richiedere
   // una cosa appena letta, non per farlo ringraziare.
@@ -1794,7 +1902,7 @@ function requestReply(
   void import('../ai/client')
     .then((m) =>
       m.generateReply(
-        apiKey,
+        token,
         record,
         userText,
         context,
@@ -1825,11 +1933,11 @@ function readPhoto(
   get: () => AppState,
   dataUrl: string,
 ): void {
-  const apiKey = get().apiKey;
-  if (!apiKey) return;
+  const token = get().token;
+  if (!token) return;
 
   void import('../ai/client')
-    .then((m) => m.readPhotoSignals(apiKey, dataUrl))
+    .then((m) => m.readPhotoSignals(token, dataUrl))
     .then((found) => {
       if (!found) return;
       const s = get();
