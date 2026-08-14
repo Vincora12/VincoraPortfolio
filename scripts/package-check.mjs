@@ -164,6 +164,19 @@ check(
   'ogni prompt porta la priorità assoluta di §31',
 );
 
+/* 🔷 v1.14 §31.2 — «Transparent background» dice come SALVARLO, non come
+   DISEGNARLO. La stessa immagine finisce sulla splash nera e sulla griglia
+   chiara del DEX: se il contorno e' nero pieno sparisce sul primo fondo, se
+   e' bianco pieno sparisce sul secondo. */
+check(
+  compiled.every((c) => c.text.includes('READS ON BOTH LIGHT AND DARK')),
+  'ogni prompt dice che deve reggere su chiaro E su scuro (§31.2)',
+);
+check(
+  compiled.every((c) => c.text.includes('No background fill of any colour')),
+  'e che lo sfondo resta trasparente: il nero e della schermata, non del file',
+);
+
 check(
   compiled.every((c) => c.text.includes('Do not redesign')  || c.text.includes('DO NOT redesign') || c.text.includes('not to redesign') || c.text.includes('Allow pose/expression changes, not redesign')),
   'nessun prompt consente di ridisegnare il .mon fra un asset e l’altro',

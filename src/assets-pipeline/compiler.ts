@@ -145,7 +145,7 @@ function selectFragmentIds(data: CharacterData, assetType: AssetType): string[] 
 
   ids.push(`rarity.${slug(data.rarity)}`);
   ids.push(ASSET_FRAGMENTS[assetType]!.id);
-  ids.push('global.full_body', 'global.novelty');
+  ids.push('global.full_body', 'global.on_any_background', 'global.novelty');
 
   return ids;
 }

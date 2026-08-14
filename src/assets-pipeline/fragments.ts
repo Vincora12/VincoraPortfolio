@@ -179,6 +179,44 @@ export const GLOBAL_FRAGMENTS: PromptFragment[] = [
     ].join('\n'),
     tags: ['mandatory'],
   },
+  /* ==========================================================================
+     🔷 v1.14 §31.2 — DEVE REGGERE SU CHIARO E SU SCURO.
+
+     I prompt dicevano «Transparent background», cioè COME salvarlo. Non
+     dicevano niente su come DISEGNARLO, e sono due cose diverse.
+
+     Il difetto è arrivato guardando la splash: una creatura disegnata per
+     essere vista su bianco, appoggiata sul nero, perde i contorni — le linee
+     scure spariscono nel fondo e la sagoma si sfalda. Non è colpa dello
+     sfondo trasparente: è che nessuno aveva detto al modello che quella
+     stessa immagine sarebbe finita su quattro fondi diversi.
+
+     🔒 E lo sfondo resta TRASPARENTE, non nero. Il nero è della schermata.
+     La stessa immagine vive sulla splash scura, sulla griglia chiara del DEX,
+     sulla testina in chat e sul nodo Mindline; e ogni .mon ritinge l'app con
+     la sua palette. Un fondo cotto dentro il file diventerebbe un rettangolo
+     nero il giorno che lo appoggi su qualcosa di chiaro, e non saprebbe
+     seguire il colore di chi lo indossa.
+     ======================================================================= */
+  {
+    id: 'global.on_any_background',
+    axis: 'global',
+    priority: 0,
+    positive_prompt: [
+      'READS ON BOTH LIGHT AND DARK:',
+      'The cut-out will be placed on a near-black screen AND on a near-white grid.',
+      'The silhouette must stay fully readable on both, with no outer glow and no drawn frame.',
+      'Do not rely on a pure-black contour to define the edge: it vanishes on dark.',
+      'Do not rely on a pure-white contour either: it vanishes on light.',
+      'Where the body colour approaches black or white, separate the edge with',
+      'a value shift inside the artwork itself — a rim of the creature own palette,',
+      'a lighter plane, or a change of material — never with an added outline.',
+      'Keep the alpha edge clean: no halo, no leftover matte, no soft grey fringe.',
+    ].join('\n'),
+    negative_prompt:
+      'No background fill of any colour. No drop shadow on the ground. No vignette. No glow.',
+    tags: ['mandatory'],
+  },
   {
     id: 'global.novelty',
     axis: 'global',
