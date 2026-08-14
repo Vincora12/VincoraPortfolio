@@ -15,7 +15,8 @@
    sviluppatore, non da giocatore.
    ========================================================================= */
 
-import { useApp } from '../state/store';
+import { useActiveMon, useApp } from '../state/store';
+import { buildMemoryBlock, recentTurns } from '../engine/memoryContext';
 import { Row, SystemLabel } from '../system/components';
 import { MEMORY_KIND_LABELS } from '../engine/simulation';
 import { displayName } from '../engine/types';
@@ -23,6 +24,18 @@ import { displayName } from '../engine/types';
 export function MemorySection() {
   const memories = useApp((s) => s.memories);
   const activeMonName = useApp((s) => s.activeMonName);
+  const chat = useApp((s) => s.chat);
+  const day = useApp((s) => s.day);
+  const mon = useActiveMon();
+
+  /* 🔷 v1.12 §15.2 — quello che il .mon si porta DAVVERO dietro quando parla.
+     Non è la lista di sopra: è la selezione, tagliata e datata. Le due cose
+     divergono di proposito (tetti, pesi, troncature) e senza vederle una
+     accanto all'altra non si può sapere se la selezione sta funzionando. */
+  const block = mon
+    ? buildMemoryBlock({ memories, bio: mon.bio, today: day })
+    : null;
+  const turns = recentTurns(chat);
 
   const byKind = new Map<string, number>();
   for (const m of memories) byKind.set(m.kind, (byKind.get(m.kind) ?? 0) + 1);
@@ -45,6 +58,27 @@ export function MemorySection() {
           />
         ))}
       </div>
+
+      {block && (
+        <>
+          <p className="t-meta dev__label">COSA SI PORTA DIETRO QUANDO PARLA</p>
+          <p className="t-micro dev__note">
+            Non è la lista qui sotto: è la selezione che entra nella richiesta,
+            tagliata e datata. Va in cache a parte, perché cambia una volta al
+            giorno mentre il briefing del personaggio non cambia mai.
+          </p>
+          <pre className="dev__prompt t-small">{block}</pre>
+
+          <p className="t-meta dev__label">
+            LA CONVERSAZIONE CHE GLI ARRIVA ({turns.length} TURNI)
+          </p>
+          <pre className="dev__prompt t-small">
+            {turns.length === 0
+              ? '— niente ancora'
+              : turns.map((t) => `${t.role === 'user' ? 'VINZ' : 'LUI'}: ${t.content}`).join('\n')}
+          </pre>
+        </>
+      )}
 
       <p className="t-meta dev__label">GLI ULTIMI</p>
       {memories.length === 0 ? (

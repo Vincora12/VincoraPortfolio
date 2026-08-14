@@ -59,6 +59,7 @@ import {
 import { extractFromMessage, extractionLabels } from '../engine/chatExtract';
 import { eggReply } from '../engine/eggVoice';
 import { typingRhythmFor } from '../engine/typingRhythm';
+import { buildMemoryBlock, recentTurns } from '../engine/memoryContext';
 import { planReveal, type RevealPlan } from '../engine/reveal';
 import {
   applyMoodEvent,
@@ -1703,8 +1704,22 @@ function requestReply(
   );
   const rhythm = typingRhythmFor(record.data.voice_dna);
 
+  /* 🔷 v1.12 §15.2 — la memoria si compone ADESSO, non dentro il client: il
+     client parla all'API e basta, e cosa il .mon si ricorda è una domanda di
+     prodotto. La conversazione recente esclude il messaggio corrente e la
+     bolla vuota che sta aspettando questa risposta — sono già altrove nella
+     richiesta, e mandarli due volte gli farebbe leggere l'eco. */
+  const memory = {
+    memory: buildMemoryBlock({
+      memories: s0.memories,
+      bio: record.bio,
+      today: s0.day,
+    }),
+    turns: recentTurns(s0.chat.filter((m) => m.id !== messageId && m.id !== messageId.replace(/_m$/, '_v'))),
+  };
+
   void import('../ai/client')
-    .then((m) => m.generateReply(apiKey, record, userText, context, get().mood))
+    .then((m) => m.generateReply(apiKey, record, userText, context, get().mood, memory))
     .then(({ result }) => {
       // La partita può essere andata avanti mentre il modello scriveva: se
       // quella bolla non c'è più, non si riscrive il passato.

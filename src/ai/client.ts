@@ -21,6 +21,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { MonRecord } from '../engine/types';
 import type { MoodState } from '../engine/mood';
+import type { Turn } from '../engine/memoryContext';
 import { PHOTO_MODEL, VOICE_MODEL, buildVoiceSystemPrompt, introductionRequest } from './voicePrompt';
 import { recordUsageEntry, type UsageSubsystem } from './usage';
 
@@ -91,6 +92,19 @@ function clientFor(apiKey: string): Anthropic {
    ========================================================================= */
 
 /**
+ * Quello che il .mon si porta dietro in questo turno.
+ *
+ * 🔷 v1.12 §15.2 — i due pezzi stanno in POSTI diversi della richiesta perché
+ * cambiano a ritmi diversi, e la cache si forma su ciò che non cambia:
+ * `memory` una volta al giorno (secondo blocco system, in cache), `turns` a
+ * ogni messaggio (nei messaggi, dove il modello si aspetta un dialogo).
+ */
+export interface VoiceMemory {
+  memory: string;
+  turns: Turn[];
+}
+
+/**
  * Una battuta nella voce di un .mon.
  *
  * `deliberate` accende il ragionamento: è per i momenti che restano — la
@@ -106,6 +120,7 @@ async function speak(
   userTurn: string,
   subsystem: UsageSubsystem,
   mood: MoodState | null,
+  memory: VoiceMemory | null,
   deliberate = false,
 ): Promise<VoiceOutcome> {
   try {
@@ -130,8 +145,20 @@ async function speak(
           // il controllo sta in scripts/batch-check.mjs, non nella fiducia.
           cache_control: { type: 'ephemeral' as const },
         },
+        // Secondo punto di cache: la memoria cambia una volta al giorno, non a
+        // ogni messaggio. Tenendola QUI invece che dentro il briefing, la
+        // cache del briefing non si invalida mai e questa regge la giornata.
+        ...(memory
+          ? [
+              {
+                type: 'text' as const,
+                text: memory.memory,
+                cache_control: { type: 'ephemeral' as const },
+              },
+            ]
+          : []),
       ],
-      messages: [{ role: 'user', content: userTurn }],
+      messages: [...(memory?.turns ?? []), { role: 'user' as const, content: userTurn }],
     });
 
     // Va controllato PRIMA di leggere il contenuto: su un rifiuto `content`
@@ -176,10 +203,11 @@ export async function generateReply(
   userText: string,
   context: string | null,
   mood: MoodState | null,
+  memory: VoiceMemory | null,
 ): Promise<VoiceOutcome> {
   if (!apiKey) return { result: null, failure: 'no-key' };
   const turn = context ? `${userText}\n\n[${context}]` : userText;
-  return speak(apiKey, record, turn, 'reply', mood);
+  return speak(apiKey, record, turn, 'reply', mood, memory);
 }
 
 /* ============================================================================
@@ -283,5 +311,7 @@ export async function generateIntroduction(
   mood: MoodState | null,
 ): Promise<VoiceOutcome> {
   if (!apiKey) return { result: null, failure: 'no-key' };
-  return speak(apiKey, record, introductionRequest(record), 'introduction', mood, true);
+  // Nessuna memoria: è il primo istante, non c'è niente prima. Passargli una
+  // memoria vuota lo farebbe partire come se avesse dimenticato qualcosa.
+  return speak(apiKey, record, introductionRequest(record), 'introduction', mood, null, true);
 }

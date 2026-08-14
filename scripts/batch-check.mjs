@@ -46,6 +46,7 @@ export { idleMotionFor, motionCoverage } from '${cwd}/src/engine/idleMotion.ts';
 export { compilePrompt } from '${cwd}/src/assets-pipeline/compiler.ts';
 export { buildVoiceSystemPrompt } from '${cwd}/src/ai/voicePrompt.ts';
 export { typingRhythmFor, rhythmDurationMs } from '${cwd}/src/engine/typingRhythm.ts';
+export { buildMemoryBlock, recentTurns, RECENT_TURNS } from '${cwd}/src/engine/memoryContext.ts';
 export { planReveal, splitFirstSentence, bubbleCount } from '${cwd}/src/engine/reveal.ts';
 export { initialMood, applyMoodEvent, decayMood, baselineFor, moodEventFromInputs, moodPhrase } from '${cwd}/src/engine/mood.ts';
 `,
@@ -803,6 +804,121 @@ check(
    il testo finale sia sempre quello giusto, che i tempi siano crescenti e che
    nessun .mon esca dalla finestra.
    ========================================================================= */
+
+/* ============================================================================
+   §15.2 — LA MEMORIA CHE ARRIVA ALLA VOCE
+
+   Due famiglie di controlli, e la seconda e' quella che si dimentica sempre.
+
+   1. Che la memoria ci sia e sia la cosa giusta.
+   2. Che ABBIA UN TETTO. Una memoria che cresce senza limite e' un conto che
+      cresce senza limite, e il giorno in cui il .mon si porta dietro
+      trecento ricordi a ogni messaggio nessuno se ne accorge guardando lo
+      schermo: si vede solo sulla fattura, mesi dopo.
+   ========================================================================= */
+
+console.log('\n═══ §15.2 — LA MEMORIA CHE ARRIVA ALLA VOCE ═══\n');
+
+const KINDS = ['conversation', 'milestone', 'joke', 'event', 'gift', 'workout'];
+const manyMemories = Array.from({ length: 300 }, (_, i) => ({
+  id: `mem_${i}`,
+  day: i + 1,
+  kind: KINDS[i % KINDS.length],
+  title: `Titolo ${i}`,
+  text: `Ricordo numero ${i}, con abbastanza testo da somigliare a una cosa vera che e successa quel giorno e che uno si porta dietro.`,
+  monName: 'VAZIEL.mon',
+}));
+
+const bigBio = {
+  story: 'x'.repeat(4000),
+  annotations: [],
+  rememberedDetails: Array.from({ length: 90 }, (_, i) => `dettaglio ${i} ${'y'.repeat(300)}`),
+  tags: [],
+};
+
+const block = m.buildMemoryBlock({ memories: manyMemories, bio: bigBio, today: 301 });
+
+check(block.length < 2600, 'la memoria ha un tetto anche con 300 ricordi', `${block.length} caratteri`);
+check(
+  (block.match(/^- /gm) ?? []).length <= 12,
+  'e un numero chiuso di righe',
+  `${(block.match(/^- /gm) ?? []).length} righe`,
+);
+check(!block.includes('x'.repeat(500)), 'una biografia lunghissima viene tagliata');
+check(
+  block.includes('ago') || block.includes('yesterday') || block.includes('today'),
+  'i ricordi sono datati come parlerebbe una persona, non «giorno 34»',
+);
+
+// Le pietre miliari pesano piu delle chiacchiere: una cosa importante di tre
+// settimane fa si ricorda meglio di una battuta di ieri.
+const mixed = [
+  { id: 'a', day: 1, kind: 'milestone', title: 'T', text: 'LA COSA IMPORTANTE', monName: 'V' },
+  ...Array.from({ length: 20 }, (_, i) => ({
+    id: `b${i}`, day: 10 + i, kind: 'conversation', title: 'T', text: `chiacchiera ${i}`, monName: 'V',
+  })),
+];
+check(
+  m.buildMemoryBlock({ memories: mixed, bio: null, today: 30 }).includes('LA COSA IMPORTANTE'),
+  'una pietra miliare di tre settimane fa batte venti chiacchiere recenti',
+);
+/* Ma non per sempre. Il confronto va fatto contro chiacchiere DAVVERO recenti:
+   a giorno 130 anche le venti chiacchiere di sopra sono vecchie, e la pietra
+   miliare vincerebbe per mancanza di avversari invece che per il suo peso. */
+const faded = [
+  mixed[0],
+  ...Array.from({ length: 20 }, (_, i) => ({
+    id: `c${i}`, day: 110 + i, kind: 'conversation', title: 'T', text: `chiacchiera fresca ${i}`, monName: 'V',
+  })),
+];
+check(
+  !m.buildMemoryBlock({ memories: faded, bio: null, today: 130 }).includes('LA COSA IMPORTANTE'),
+  'ma dopo quattro mesi cede a quello che sta succedendo adesso',
+);
+
+// Il blocco non e mai vuoto: un blocco assente cambierebbe la forma della
+// richiesta da un giorno all'altro e farebbe saltare il secondo punto di cache.
+check(
+  m.buildMemoryBlock({ memories: [], bio: null, today: 1 }).length > 40,
+  'anche senza niente da ricordare il blocco esiste (la cache non deve saltare)',
+);
+
+/* --- La conversazione recente --- */
+
+const chat = [
+  { id: '1_v', from: 'vinz', text: 'ciao', day: 1 },
+  { id: '1_m', from: 'mon', text: 'ciao a te', day: 1 },
+  { id: '2_m', from: 'mon', text: 'e comunque', day: 1 },
+  { id: '3_v', from: 'vinz', text: 'oggi pesi', day: 1 },
+  { id: '3_m', from: 'mon', text: '', day: 1, pending: true },
+  { id: '4_m', from: 'mon', text: 'brrt', day: 1, sound: 'ACK' },
+];
+const turns = m.recentTurns(chat);
+
+check(turns[0].role === 'user', 'la conversazione comincia sempre da chi ha scritto per primo');
+check(
+  !turns.some((t, i) => i > 0 && t.role === turns[i - 1].role),
+  'due messaggi dello stesso ruolo di fila vengono uniti: un dialogo si alterna',
+);
+check(
+  turns.some((t) => t.content.includes('ciao a te') && t.content.includes('e comunque')),
+  'le due bolle di chi spezza la risposta tornano un messaggio solo',
+);
+check(!turns.some((t) => t.content === ''), 'la bolla ancora in scrittura non viene mandata');
+check(!turns.some((t) => t.content.includes('brrt')), 'i suoni dell\'uovo non sono battute (§7.2)');
+
+const longChat = Array.from({ length: 200 }, (_, i) => ({
+  id: `${i}`,
+  from: i % 2 === 0 ? 'vinz' : 'mon',
+  text: `messaggio ${i} `.repeat(60),
+  day: 1,
+}));
+const capped = m.recentTurns(longChat);
+check(capped.length <= m.RECENT_TURNS, 'la conversazione mandata ha un tetto', `${capped.length} turni`);
+check(
+  capped.every((t) => t.content.length <= 420),
+  'e nessun singolo messaggio arriva intero se e un poema',
+);
 
 console.log('\n═══ §17.4 — COME UNA RISPOSTA COMPARE ═══\n');
 
