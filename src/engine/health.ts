@@ -136,14 +136,38 @@ export function computeCondition(stats: Record<StatKey, StatEntry>): Signal {
   return weight === 0 ? UNKNOWN : round1(sum / weight);
 }
 
+/* ----------------------------------------------------------------------------
+   ⚠️ DISC ERA UN CRICCHETTO. Saliva di 3,5 quando registravi e scendeva di 2
+   quando no: con una frequenza di registrazione normale — anche solo 4 giorni
+   su 5 — la somma dei passi è sempre positiva, quindi DISC arrivava a 100 e ci
+   restava per sempre. Un indicatore di costanza che dice 100 a chiunque non
+   sparisca per un mese non misura niente.
+
+   Non era un difetto cosmetico: DISC pesa 0,22 nella formula di fit di MACHINE
+   (§17), e valere 100 invece di ~78 regalava a quella Family una decina di
+   punti di vantaggio a ogni nascita. Era la ragione per cui MACHINE usciva il
+   13% delle volte contro il 3,5% di UNDEAD.
+
+   🔒 Adesso è una MEDIA MOBILE: DISC insegue la percentuale di giorni in cui
+   hai davvero registrato qualcosa. Registri tutti i giorni → tende a 100 e te
+   lo sei guadagnato. Registri 5 giorni su 7 → si assesta attorno a 71, e
+   risale se cambi passo. Non c'è più un valore da cui non si torna indietro.
+   -------------------------------------------------------------------------- */
+
+/** Quanto pesa il giorno di oggi sulla media. 0,06 ≈ due settimane di memoria. */
+const DISC_ALPHA = 0.06;
+
 /**
- * DISC = costanza. Sale quando registri, scende piano quando sparisci.
- * Non è una stat di salute e non entra mai in CONDITION.
+ * DISC = costanza. È la quota di giorni registrati negli ultimi ~16, non un
+ * punteggio che si accumula. Non è una stat di salute e non entra mai in
+ * CONDITION.
  */
 export function computeDisc(state: HealthState, loggedToday: boolean): Signal {
   const prev = isKnown(state.disc) ? state.disc : loggedToday ? 50 : UNKNOWN;
   if (!isKnown(prev)) return UNKNOWN;
-  return clamp(round1(loggedToday ? prev + 3.5 : prev - 2));
+
+  const today = loggedToday ? 100 : 0;
+  return clamp(round1(prev + (today - prev) * DISC_ALPHA));
 }
 
 /** Trend su una finestra di giorni: differenza fra prima e ultima lettura nota. */
@@ -174,11 +198,35 @@ export interface SimulationBias {
   workoutProbability: number;
 }
 
+/* 🔒 `drift` a 0,05 e non 0,15: adesso che indica DOVE si assestano le stat
+   invece di quanto salgono ogni giorno, 0,15 vorrebbe dire «l'utente simulato
+   sta stabilmente sopra la media», e una simulazione non deve dare per
+   scontato che tu stia bene. A 0,05 l'equilibrio è 51,5 — una persona
+   normale, che alcuni giorni va meglio e altri peggio. */
 export const DEFAULT_BIAS: SimulationBias = {
-  drift: 0.15,
+  drift: 0.05,
   logProbability: 0.78,
   workoutProbability: 0.45,
 };
+
+/* ⚠️ ERA UNA SALITA SENZA FINE. Ogni giorno faceva `ieri + rumore + spinta`:
+   il rumore è a media zero, la spinta è sempre positiva, quindi le stat
+   salivano e basta. Dopo quaranta giorni simulati stavano già attorno a 63,
+   e chi usa DEV → TEMPO per mesi le trova tutte a 100.
+
+   Non era solo brutto da vedere: FORM, ATK e DEF pesano il 76% del punteggio
+   di taglia (§21), quindi un corpo simulato che migliora all'infinito faceva
+   uscire il 30% di creature GIANT e quasi nessuna TINY. Stesso difetto di DISC
+   qui sopra — un contatore che sale e non torna — nel terzo posto in cui l'ho
+   trovato.
+
+   🔒 Adesso è una passeggiata attorno a un PUNTO DI EQUILIBRIO, e il `drift`
+   dice DOVE sta quell'equilibrio invece di quanto si spinge ogni giorno. Le
+   stat oscillano, rispondono agli allenamenti, e non scappano mai verso l'alto
+   per il solo fatto che il tempo passa. */
+
+/** Quanto ogni giorno avvicina la stat al suo equilibrio. 0,12 ≈ una settimana. */
+const SIM_PULL = 0.12;
 
 /** Produce l'input di un giorno simulato a partire dallo stato corrente. */
 export function simulateDayInput(rng: Rng, state: HealthState, bias: SimulationBias): DayInput {
@@ -195,10 +243,15 @@ export function simulateDayInput(rng: Rng, state: HealthState, bias: SimulationB
     if (!measured) continue;
 
     const base = isKnown(state.stats[key].value) ? state.stats[key].value : 45 + rng() * 15;
-    const noise = (rng() - 0.5) * 7;
-    const push = bias.drift * (key === 'ATK' || key === 'SPD' ? (workout ? 2.2 : 0.4) : 1);
 
-    touched[key] = clamp(base + noise + push);
+    // L'allenamento sposta l'equilibrio di ATK e SPD, non ci somma un bonus:
+    // così una settimana di palestra li alza davvero e una di riposo li
+    // riporta giù, invece di lasciare un credito acquisito.
+    const trained = workout && (key === 'ATK' || key === 'SPD');
+    const target = 50 + bias.drift * 30 + (trained ? 9 : 0);
+    const noise = (rng() - 0.5) * 7;
+
+    touched[key] = clamp(base + (target - base) * SIM_PULL + noise);
   }
 
   return { touched, logged, workout };

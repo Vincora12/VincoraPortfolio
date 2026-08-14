@@ -21,11 +21,17 @@
    e non ne contengono al loro interno.
    ========================================================================= */
 
-/* 2.2.0 — via la Family SLIME e via la radice canonica: il primo .mon si
+/* 2.3.0 — riequilibrio delle estrazioni. Gli archetipi non dipendono più dalla
+   posizione nel catalogo, la taglia legge una massa dichiarata, la Family si
+   estrae con un softmax a temperatura invece che sul punteggio grezzo, e i due
+   livelli di rarità in cima si guadagnano col punteggio invece di essere tirati
+   una seconda volta. Misurato su 30.000 nascite prima e dopo.
+
+   2.2.0 — via la Family SLIME e via la radice canonica: il primo .mon si
    estrae. §29 impone di incrementare la versione quando cambiano tassonomie o
    pesi, e i .mon già generati restano immutabili con la versione con cui sono
    nati. */
-export const GENERATION_CONFIG_VERSION = '2.2.0';
+export const GENERATION_CONFIG_VERSION = '2.3.0';
 
 /* ============================================================================
    §2 — SEGNALI IN INGRESSO
@@ -73,6 +79,40 @@ export type FitFormula = Partial<Record<SignalKey, number>>;
    «Later slime influence is AFFINITY only».
    ========================================================================= */
 
+/* ----------------------------------------------------------------------------
+   MASSA DELL'ARCHETIPO (§21)
+
+   ⚠️ La taglia leggeva la POSIZIONE dell'archetipo nell'elenco come se fosse
+   morfologia: `spread = index / (n - 1)`, cioè «più stai in fondo al catalogo,
+   più sei massiccio». Non è mai stato vero — l'ordine è quello in cui gli
+   archetipi sono stati scritti, non una scala di stazza. TURTLE («shell-
+   dominant») era in quarta posizione e finiva medio; MESSENGER («lean, reduced
+   wing count») era in quinta e finiva grande.
+
+   🔒 Adesso la stazza è DICHIARATA, una volta, accanto alla struttura che la
+   giustifica. Ogni archetipo dice quanto occupa, e la frase inglese sopra è la
+   prova: se un giorno qualcuno vuole cambiare una massa, deve prima cambiare
+   la struttura che la contraddice.
+   -------------------------------------------------------------------------- */
+
+export const ARCHETYPE_MASSES = ['COMPACT', 'BALANCED', 'MASSIVE'] as const;
+export type ArchetypeMass = (typeof ARCHETYPE_MASSES)[number];
+
+/** Scostamento sul punteggio di taglia (§21). Simmetrico attorno a MEDIUM. */
+export const MASS_OFFSET: Record<ArchetypeMass, number> = {
+  COMPACT: -1,
+  BALANCED: 0,
+  MASSIVE: 1,
+};
+
+export interface ArchetypeDef {
+  id: string;
+  /** §4 — la struttura anatomica, che finisce nei prompt. */
+  structure: string;
+  /** §21 — quanto occupa. Deve essere coerente con `structure`. */
+  mass: ArchetypeMass;
+}
+
 export interface FamilyDef {
   id: string;
   /** §3 CORE ANATOMY — va nei prompt. */
@@ -86,7 +126,7 @@ export interface FamilyDef {
   /** §17 FIT FORMULA. */
   fit: FitFormula;
   /** §4 archetipi/sottofamiglie. */
-  archetypes: { id: string; structure: string }[];
+  archetypes: ArchetypeDef[];
   /** §9 — i capelli esistono solo dove l'anatomia li supporta. */
   supportsHair: boolean;
   /** §9 — «eyewear is mandatory whenever anatomically possible». */
@@ -104,11 +144,11 @@ export const FAMILIES: FamilyDef[] = [
     supportsHair: true,
     supportsEyewear: true,
     archetypes: [
-      { id: 'HUMANOID', structure: 'Male-presenting celestial humanoid with anatomical wings.' },
-      { id: 'MANY-WING', structure: 'Several genuine wing masses; wing architecture dominates.' },
-      { id: 'RINGED', structure: 'Rings/halo structures are integrated into skeletal/body logic.' },
-      { id: 'THRONE', structure: 'Dense radial wing/eye/ritual mass with little conventional human anatomy.' },
-      { id: 'MESSENGER', structure: 'Lean mobile angel with reduced wing count and strong directional anatomy.' },
+      { id: 'HUMANOID', structure: 'Male-presenting celestial humanoid with anatomical wings.', mass: 'BALANCED' },
+      { id: 'MANY-WING', structure: 'Several genuine wing masses; wing architecture dominates.', mass: 'MASSIVE' },
+      { id: 'RINGED', structure: 'Rings/halo structures are integrated into skeletal/body logic.', mass: 'BALANCED' },
+      { id: 'THRONE', structure: 'Dense radial wing/eye/ritual mass with little conventional human anatomy.', mass: 'MASSIVE' },
+      { id: 'MESSENGER', structure: 'Lean mobile angel with reduced wing count and strong directional anatomy.', mass: 'COMPACT' },
     ],
   },
   {
@@ -121,12 +161,12 @@ export const FAMILIES: FamilyDef[] = [
     supportsHair: true,
     supportsEyewear: true,
     archetypes: [
-      { id: 'FELINE', structure: 'Cat-derived head/paws/tail/legs/fur.' },
-      { id: 'CANINE', structure: 'Dog/wolf-derived anatomy; social/pack body language.' },
-      { id: 'URSINE', structure: 'Bear-derived mass, paws and heavy torso.' },
-      { id: 'PRIMATE', structure: 'Primate-derived hands/shoulders/face while remaining creature-first.' },
-      { id: 'HORNED MAMMAL', structure: 'Goat/deer/bovine-derived horns/hooves/body grammar.' },
-      { id: 'CHIMERIC', structure: 'Two mammalian grammars fused into one coherent Beast.' },
+      { id: 'FELINE', structure: 'Cat-derived head/paws/tail/legs/fur.', mass: 'BALANCED' },
+      { id: 'CANINE', structure: 'Dog/wolf-derived anatomy; social/pack body language.', mass: 'BALANCED' },
+      { id: 'URSINE', structure: 'Bear-derived mass, paws and heavy torso.', mass: 'MASSIVE' },
+      { id: 'PRIMATE', structure: 'Primate-derived hands/shoulders/face while remaining creature-first.', mass: 'BALANCED' },
+      { id: 'HORNED MAMMAL', structure: 'Goat/deer/bovine-derived horns/hooves/body grammar.', mass: 'MASSIVE' },
+      { id: 'CHIMERIC', structure: 'Two mammalian grammars fused into one coherent Beast.', mass: 'MASSIVE' },
     ],
   },
   {
@@ -139,12 +179,12 @@ export const FAMILIES: FamilyDef[] = [
     supportsHair: false,
     supportsEyewear: true,
     archetypes: [
-      { id: 'HUMANOID', structure: 'Upright torso/limbs with true draconic head, scales, claws, tail.' },
-      { id: 'SERPENTINE', structure: 'Long body, reduced limbs, coils and axial silhouette.' },
-      { id: 'WYRM', structure: 'Heavy low dragon with reduced/absent wings.' },
-      { id: 'WYVERN', structure: 'Two hind legs + wing/forelimb logic.' },
-      { id: 'CRESTED', structure: 'Head/crest/horn identity mass dominates.' },
-      { id: 'TINY DRAKE', structure: 'Compressed compact dragon anatomy, never plush mascot.' },
+      { id: 'HUMANOID', structure: 'Upright torso/limbs with true draconic head, scales, claws, tail.', mass: 'BALANCED' },
+      { id: 'SERPENTINE', structure: 'Long body, reduced limbs, coils and axial silhouette.', mass: 'BALANCED' },
+      { id: 'WYRM', structure: 'Heavy low dragon with reduced/absent wings.', mass: 'MASSIVE' },
+      { id: 'WYVERN', structure: 'Two hind legs + wing/forelimb logic.', mass: 'BALANCED' },
+      { id: 'CRESTED', structure: 'Head/crest/horn identity mass dominates.', mass: 'MASSIVE' },
+      { id: 'TINY DRAKE', structure: 'Compressed compact dragon anatomy, never plush mascot.', mass: 'COMPACT' },
     ],
   },
   {
@@ -157,12 +197,12 @@ export const FAMILIES: FamilyDef[] = [
     supportsHair: false,
     supportsEyewear: true,
     archetypes: [
-      { id: 'CERATOPSIAN', structure: 'Frill + horn + beaked quadruped grammar.' },
-      { id: 'THEROPOD', structure: 'Biped predator anatomy, tail-led balance.' },
-      { id: 'SAURIAN', structure: 'General lizard/iguana/gecko-derived body.' },
-      { id: 'TURTLE', structure: 'Shell-dominant reptilian body.' },
-      { id: 'CROCODILIAN', structure: 'Long jaw, armored back, heavy tail.' },
-      { id: 'SERPENT', structure: 'Snake-derived body distinct from Dragon serpentine via no draconic grammar.' },
+      { id: 'CERATOPSIAN', structure: 'Frill + horn + beaked quadruped grammar.', mass: 'MASSIVE' },
+      { id: 'THEROPOD', structure: 'Biped predator anatomy, tail-led balance.', mass: 'BALANCED' },
+      { id: 'SAURIAN', structure: 'General lizard/iguana/gecko-derived body.', mass: 'BALANCED' },
+      { id: 'TURTLE', structure: 'Shell-dominant reptilian body.', mass: 'MASSIVE' },
+      { id: 'CROCODILIAN', structure: 'Long jaw, armored back, heavy tail.', mass: 'MASSIVE' },
+      { id: 'SERPENT', structure: 'Snake-derived body distinct from Dragon serpentine via no draconic grammar.', mass: 'COMPACT' },
     ],
   },
   {
@@ -175,12 +215,12 @@ export const FAMILIES: FamilyDef[] = [
     supportsHair: false,
     supportsEyewear: true,
     archetypes: [
-      { id: 'VEHICLE', structure: 'Wheels/tracks/cabin/locomotion structures become anatomy.' },
-      { id: 'TRASH', structure: 'Discarded/utility mechanical material organism.' },
-      { id: 'INDUSTRIAL', structure: 'Hydraulic, hinge, plate and tool-like anatomy.' },
-      { id: 'DEVICE', structure: 'Compact appliance/electronic-derived body without copying a real product.' },
-      { id: 'SWARM', structure: 'Multiple linked machine modules acting as one organism.' },
-      { id: 'SYNTHETIC HUMANOID', structure: 'Humanoid mechanical body with non-human head/core logic.' },
+      { id: 'VEHICLE', structure: 'Wheels/tracks/cabin/locomotion structures become anatomy.', mass: 'MASSIVE' },
+      { id: 'TRASH', structure: 'Discarded/utility mechanical material organism.', mass: 'BALANCED' },
+      { id: 'INDUSTRIAL', structure: 'Hydraulic, hinge, plate and tool-like anatomy.', mass: 'MASSIVE' },
+      { id: 'DEVICE', structure: 'Compact appliance/electronic-derived body without copying a real product.', mass: 'COMPACT' },
+      { id: 'SWARM', structure: 'Multiple linked machine modules acting as one organism.', mass: 'BALANCED' },
+      { id: 'SYNTHETIC HUMANOID', structure: 'Humanoid mechanical body with non-human head/core logic.', mass: 'BALANCED' },
     ],
   },
   {
@@ -193,12 +233,12 @@ export const FAMILIES: FamilyDef[] = [
     supportsHair: false,
     supportsEyewear: true,
     archetypes: [
-      { id: 'FISH', structure: 'Fin/gill/tail-first aquatic anatomy.' },
-      { id: 'CEPHALOPOD', structure: 'Tentacle/mantle/siphon logic.' },
-      { id: 'CRUSTACEAN', structure: 'Shell/claw/segmented aquatic body.' },
-      { id: 'JELLY', structure: 'Bell/membrane/tentacle body, not Slime.' },
-      { id: 'AQUATIC MAMMAL', structure: 'Seal/whale/otter-derived organism.' },
-      { id: 'DEEPSEA', structure: 'Bioluminescent/pressure-adapted strange anatomy.' },
+      { id: 'FISH', structure: 'Fin/gill/tail-first aquatic anatomy.', mass: 'BALANCED' },
+      { id: 'CEPHALOPOD', structure: 'Tentacle/mantle/siphon logic.', mass: 'BALANCED' },
+      { id: 'CRUSTACEAN', structure: 'Shell/claw/segmented aquatic body.', mass: 'BALANCED' },
+      { id: 'JELLY', structure: 'Bell/membrane/tentacle body, not Slime.', mass: 'COMPACT' },
+      { id: 'AQUATIC MAMMAL', structure: 'Seal/whale/otter-derived organism.', mass: 'MASSIVE' },
+      { id: 'DEEPSEA', structure: 'Bioluminescent/pressure-adapted strange anatomy.', mass: 'BALANCED' },
     ],
   },
   {
@@ -211,12 +251,12 @@ export const FAMILIES: FamilyDef[] = [
     supportsHair: false,
     supportsEyewear: true,
     archetypes: [
-      { id: 'FLOWER', structure: 'Bloom is primary identity mass.' },
-      { id: 'VINE', structure: 'Tendril/coil/creeping anatomy.' },
-      { id: 'TREE', structure: 'Trunk/branch/root mass.' },
-      { id: 'SUCCULENT', structure: 'Thick water-storing forms.' },
-      { id: 'CARNIVOROUS', structure: 'Trap/jaw/feeding botanical structure.' },
-      { id: 'MOSS/LICHEN', structure: 'Distributed low clustered botanical body.' },
+      { id: 'FLOWER', structure: 'Bloom is primary identity mass.', mass: 'BALANCED' },
+      { id: 'VINE', structure: 'Tendril/coil/creeping anatomy.', mass: 'COMPACT' },
+      { id: 'TREE', structure: 'Trunk/branch/root mass.', mass: 'MASSIVE' },
+      { id: 'SUCCULENT', structure: 'Thick water-storing forms.', mass: 'COMPACT' },
+      { id: 'CARNIVOROUS', structure: 'Trap/jaw/feeding botanical structure.', mass: 'BALANCED' },
+      { id: 'MOSS/LICHEN', structure: 'Distributed low clustered botanical body.', mass: 'COMPACT' },
     ],
   },
   {
@@ -229,12 +269,12 @@ export const FAMILIES: FamilyDef[] = [
     supportsHair: true,
     supportsEyewear: true,
     archetypes: [
-      { id: 'HUMANOID', structure: 'Infernal humanoid but demon-first face/body.' },
-      { id: 'ONI', structure: 'Heavy horned mask/head mass and powerful build.' },
-      { id: 'IMP', structure: 'Compressed mischievous demon anatomy.' },
-      { id: 'BAT', structure: 'Wing/ear/membrane dominant demon.' },
-      { id: 'HORNED BEAST', structure: 'Quadrupedal/animal-derived infernal anatomy.' },
-      { id: 'VOID DEMON', structure: 'Body organized around holes/shadow membranes/negative-space organs.' },
+      { id: 'HUMANOID', structure: 'Infernal humanoid but demon-first face/body.', mass: 'BALANCED' },
+      { id: 'ONI', structure: 'Heavy horned mask/head mass and powerful build.', mass: 'MASSIVE' },
+      { id: 'IMP', structure: 'Compressed mischievous demon anatomy.', mass: 'COMPACT' },
+      { id: 'BAT', structure: 'Wing/ear/membrane dominant demon.', mass: 'BALANCED' },
+      { id: 'HORNED BEAST', structure: 'Quadrupedal/animal-derived infernal anatomy.', mass: 'MASSIVE' },
+      { id: 'VOID DEMON', structure: 'Body organized around holes/shadow membranes/negative-space organs.', mass: 'BALANCED' },
     ],
   },
   {
@@ -247,12 +287,12 @@ export const FAMILIES: FamilyDef[] = [
     supportsHair: true,
     supportsEyewear: true,
     archetypes: [
-      { id: 'GHOST', structure: 'Incomplete spectral floating body.' },
-      { id: 'SKELETON', structure: 'Bone architecture is primary body.' },
-      { id: 'MUMMY', structure: 'Wrapped/dried/sealed anatomical logic.' },
-      { id: 'REVENANT', structure: 'Partially intact dead body with missing/stitched zones.' },
-      { id: 'WRAITH', structure: 'Elongated shadow/membrane spectral form.' },
-      { id: 'RELIC', structure: 'Object-remnant/funerary structure animated as organism.' },
+      { id: 'GHOST', structure: 'Incomplete spectral floating body.', mass: 'COMPACT' },
+      { id: 'SKELETON', structure: 'Bone architecture is primary body.', mass: 'BALANCED' },
+      { id: 'MUMMY', structure: 'Wrapped/dried/sealed anatomical logic.', mass: 'BALANCED' },
+      { id: 'REVENANT', structure: 'Partially intact dead body with missing/stitched zones.', mass: 'BALANCED' },
+      { id: 'WRAITH', structure: 'Elongated shadow/membrane spectral form.', mass: 'MASSIVE' },
+      { id: 'RELIC', structure: 'Object-remnant/funerary structure animated as organism.', mass: 'COMPACT' },
     ],
   },
   {
@@ -265,12 +305,12 @@ export const FAMILIES: FamilyDef[] = [
     supportsHair: false,
     supportsEyewear: true,
     archetypes: [
-      { id: 'MANY-EYED', structure: 'Sensory structures dominate anatomy.' },
-      { id: 'DETACHED', structure: 'Body parts separated by impossible spacing.' },
-      { id: 'ORBITAL', structure: 'Satellite-like organs orbit a core body.' },
-      { id: 'FOLDED SPACE', structure: 'Anatomy intersects/loops impossible geometry.' },
-      { id: 'SENSORIAL HUMANOID', structure: 'Humanoid psychic with controlled impossible organs.' },
-      { id: 'TOTEM', structure: 'Static stacked sensory organism.' },
+      { id: 'MANY-EYED', structure: 'Sensory structures dominate anatomy.', mass: 'BALANCED' },
+      { id: 'DETACHED', structure: 'Body parts separated by impossible spacing.', mass: 'BALANCED' },
+      { id: 'ORBITAL', structure: 'Satellite-like organs orbit a core body.', mass: 'MASSIVE' },
+      { id: 'FOLDED SPACE', structure: 'Anatomy intersects/loops impossible geometry.', mass: 'BALANCED' },
+      { id: 'SENSORIAL HUMANOID', structure: 'Humanoid psychic with controlled impossible organs.', mass: 'BALANCED' },
+      { id: 'TOTEM', structure: 'Static stacked sensory organism.', mass: 'MASSIVE' },
     ],
   },
   {
@@ -283,12 +323,12 @@ export const FAMILIES: FamilyDef[] = [
     supportsHair: false,
     supportsEyewear: true,
     archetypes: [
-      { id: 'CRYSTAL', structure: 'Faceted translucent/crystalline body.' },
-      { id: 'STONE', structure: 'Monolithic rock/plate body.' },
-      { id: 'GEODE', structure: 'Outer shell + visible internal mineral cavity.' },
-      { id: 'METAL ORE', structure: 'Raw metal/mineral mass, not Machine.' },
-      { id: 'SAND', structure: 'Granular/distributed mineral organism.' },
-      { id: 'FOSSIL', structure: 'Mineralized ancient anatomy/remains.' },
+      { id: 'CRYSTAL', structure: 'Faceted translucent/crystalline body.', mass: 'BALANCED' },
+      { id: 'STONE', structure: 'Monolithic rock/plate body.', mass: 'MASSIVE' },
+      { id: 'GEODE', structure: 'Outer shell + visible internal mineral cavity.', mass: 'BALANCED' },
+      { id: 'METAL ORE', structure: 'Raw metal/mineral mass, not Machine.', mass: 'MASSIVE' },
+      { id: 'SAND', structure: 'Granular/distributed mineral organism.', mass: 'COMPACT' },
+      { id: 'FOSSIL', structure: 'Mineralized ancient anatomy/remains.', mass: 'BALANCED' },
     ],
   },
   {
@@ -301,12 +341,12 @@ export const FAMILIES: FamilyDef[] = [
     supportsHair: false,
     supportsEyewear: true,
     archetypes: [
-      { id: 'GREY', structure: 'Cranial/eye-focused grey-adjacent grammar, aggressively varied.' },
-      { id: 'MULTI-LIMB', structure: 'Unfamiliar limb count and symmetry.' },
-      { id: 'BIOMORPH', structure: 'Soft non-terrestrial organ structures.' },
-      { id: 'EXOSPACE', structure: 'Pressure/space-adapted biological architecture.' },
-      { id: 'SYMMETRIC', structure: 'Alien symmetry impossible in Earth animals.' },
-      { id: 'PARASITIC', structure: 'Attached/host-like modular organism, non-gory by default.' },
+      { id: 'GREY', structure: 'Cranial/eye-focused grey-adjacent grammar, aggressively varied.', mass: 'BALANCED' },
+      { id: 'MULTI-LIMB', structure: 'Unfamiliar limb count and symmetry.', mass: 'MASSIVE' },
+      { id: 'BIOMORPH', structure: 'Soft non-terrestrial organ structures.', mass: 'BALANCED' },
+      { id: 'EXOSPACE', structure: 'Pressure/space-adapted biological architecture.', mass: 'BALANCED' },
+      { id: 'SYMMETRIC', structure: 'Alien symmetry impossible in Earth animals.', mass: 'BALANCED' },
+      { id: 'PARASITIC', structure: 'Attached/host-like modular organism, non-gory by default.', mass: 'COMPACT' },
     ],
   },
   {
@@ -319,12 +359,12 @@ export const FAMILIES: FamilyDef[] = [
     supportsHair: false,
     supportsEyewear: true,
     archetypes: [
-      { id: 'FRUIT', structure: 'Peel/rind/seed/stem/leaf anatomy.' },
-      { id: 'NOODLE', structure: 'Noodle mass is edible anatomy, never hair.' },
-      { id: 'PASTRY', structure: 'Dough/layer/crust architecture.' },
-      { id: 'CANDY', structure: 'Confection/gum/gel sugar body distinct from Slime.' },
-      { id: 'SAVORY', structure: 'Bread/cheese/meat/vegetable dish-derived body.' },
-      { id: 'FERMENTED', structure: 'Bubble/culture/rind/fermentation anatomy.' },
+      { id: 'FRUIT', structure: 'Peel/rind/seed/stem/leaf anatomy.', mass: 'COMPACT' },
+      { id: 'NOODLE', structure: 'Noodle mass is edible anatomy, never hair.', mass: 'BALANCED' },
+      { id: 'PASTRY', structure: 'Dough/layer/crust architecture.', mass: 'BALANCED' },
+      { id: 'CANDY', structure: 'Confection/gum/gel sugar body distinct from Slime.', mass: 'COMPACT' },
+      { id: 'SAVORY', structure: 'Bread/cheese/meat/vegetable dish-derived body.', mass: 'BALANCED' },
+      { id: 'FERMENTED', structure: 'Bubble/culture/rind/fermentation anatomy.', mass: 'BALANCED' },
     ],
   },
   {
@@ -337,12 +377,12 @@ export const FAMILIES: FamilyDef[] = [
     supportsHair: false,
     supportsEyewear: true,
     archetypes: [
-      { id: 'MANTIS', structure: 'Folded predatory forelimbs, triangular head.' },
-      { id: 'BEETLE', structure: 'Shell/elytra/horned exoskeleton.' },
-      { id: 'MOTH', structure: 'Wing/powder/antenna silhouette.' },
-      { id: 'WASP', structure: 'Narrow segmented body, stinger/wing logic.' },
-      { id: 'SPIDER', structure: 'Arachnid eight-leg grammar; still under broad arthropod family for prototype.' },
-      { id: 'LARVAL', structure: 'Larva/caterpillar/grub body with transformation potential.' },
+      { id: 'MANTIS', structure: 'Folded predatory forelimbs, triangular head.', mass: 'BALANCED' },
+      { id: 'BEETLE', structure: 'Shell/elytra/horned exoskeleton.', mass: 'MASSIVE' },
+      { id: 'MOTH', structure: 'Wing/powder/antenna silhouette.', mass: 'BALANCED' },
+      { id: 'WASP', structure: 'Narrow segmented body, stinger/wing logic.', mass: 'COMPACT' },
+      { id: 'SPIDER', structure: 'Arachnid eight-leg grammar; still under broad arthropod family for prototype.', mass: 'BALANCED' },
+      { id: 'LARVAL', structure: 'Larva/caterpillar/grub body with transformation potential.', mass: 'COMPACT' },
     ],
   },
   {
@@ -355,12 +395,12 @@ export const FAMILIES: FamilyDef[] = [
     supportsHair: false,
     supportsEyewear: true,
     archetypes: [
-      { id: 'TRI-EYED', structure: 'Integrated third eye/sensory structure.' },
-      { id: 'AXOLOTL', structure: 'External gills/frills and salamander body.' },
-      { id: 'FROG', structure: 'Compressed torso, hind-leg identity.' },
-      { id: 'SALAMANDER', structure: 'Long body/tail and smooth limbs.' },
-      { id: 'TOAD', structure: 'Dense squat body and textured skin masses.' },
-      { id: 'TADPOLE', structure: 'Tail-led transitional anatomy.' },
+      { id: 'TRI-EYED', structure: 'Integrated third eye/sensory structure.', mass: 'BALANCED' },
+      { id: 'AXOLOTL', structure: 'External gills/frills and salamander body.', mass: 'BALANCED' },
+      { id: 'FROG', structure: 'Compressed torso, hind-leg identity.', mass: 'COMPACT' },
+      { id: 'SALAMANDER', structure: 'Long body/tail and smooth limbs.', mass: 'BALANCED' },
+      { id: 'TOAD', structure: 'Dense squat body and textured skin masses.', mass: 'MASSIVE' },
+      { id: 'TADPOLE', structure: 'Tail-led transitional anatomy.', mass: 'COMPACT' },
     ],
   },
   {
@@ -373,12 +413,12 @@ export const FAMILIES: FamilyDef[] = [
     supportsHair: true,
     supportsEyewear: true,
     archetypes: [
-      { id: 'HUMANOID', structure: 'Slender supernatural humanoid with non-feathered wings.' },
-      { id: 'PIXIE', structure: 'Compressed winged body, not automatically cute.' },
-      { id: 'MOTH-FAIRY', structure: 'Broad magical membrane wings, still Fairy not Insect.' },
-      { id: 'SPRITE', structure: 'Small energy-like supernatural body with wing/appendage logic.' },
-      { id: 'GLAMOUR', structure: 'Elegant body with illusionary/surface-shifting anatomy.' },
-      { id: 'THORN FAIRY', structure: 'Sharper botanical-like magical structures without becoming Plant.' },
+      { id: 'HUMANOID', structure: 'Slender supernatural humanoid with non-feathered wings.', mass: 'BALANCED' },
+      { id: 'PIXIE', structure: 'Compressed winged body, not automatically cute.', mass: 'COMPACT' },
+      { id: 'MOTH-FAIRY', structure: 'Broad magical membrane wings, still Fairy not Insect.', mass: 'MASSIVE' },
+      { id: 'SPRITE', structure: 'Small energy-like supernatural body with wing/appendage logic.', mass: 'COMPACT' },
+      { id: 'GLAMOUR', structure: 'Elegant body with illusionary/surface-shifting anatomy.', mass: 'BALANCED' },
+      { id: 'THORN FAIRY', structure: 'Sharper botanical-like magical structures without becoming Plant.', mass: 'BALANCED' },
     ],
   },
   {
@@ -391,12 +431,12 @@ export const FAMILIES: FamilyDef[] = [
     supportsHair: false,
     supportsEyewear: true,
     archetypes: [
-      { id: 'CLUSTER', structure: 'Multiple caps/stalks/roots forming one organism.' },
-      { id: 'CAP', structure: 'One dominant mushroom-cap identity mass.' },
-      { id: 'MYCELIUM', structure: 'Network/root filament organism.' },
-      { id: 'SPORE', structure: 'Spore sacs/cloud-producing body structures.' },
-      { id: 'BRACKET', structure: 'Layered shelf-fungus masses.' },
-      { id: 'MOLD', structure: 'Distributed fuzzy/patchy fungal organism, kept graphic not gross.' },
+      { id: 'CLUSTER', structure: 'Multiple caps/stalks/roots forming one organism.', mass: 'MASSIVE' },
+      { id: 'CAP', structure: 'One dominant mushroom-cap identity mass.', mass: 'BALANCED' },
+      { id: 'MYCELIUM', structure: 'Network/root filament organism.', mass: 'COMPACT' },
+      { id: 'SPORE', structure: 'Spore sacs/cloud-producing body structures.', mass: 'BALANCED' },
+      { id: 'BRACKET', structure: 'Layered shelf-fungus masses.', mass: 'MASSIVE' },
+      { id: 'MOLD', structure: 'Distributed fuzzy/patchy fungal organism, kept graphic not gross.', mass: 'COMPACT' },
     ],
   },
   {
@@ -409,12 +449,12 @@ export const FAMILIES: FamilyDef[] = [
     supportsHair: false,
     supportsEyewear: true,
     archetypes: [
-      { id: 'COLONY', structure: 'Several cellular units cooperating as one creature.' },
-      { id: 'BACTERIA', structure: 'Rod/coccus/spiral cellular grammar.' },
-      { id: 'PROTOZOA', structure: 'Single-cell body with organelles/flagella.' },
-      { id: 'VIRAL', structure: 'Capsid/spike structural grammar, stylized not medical diagram.' },
-      { id: 'BIOFILM', structure: 'Layered connected colony mass.' },
-      { id: 'ORGANELLE', structure: 'One exaggerated intracellular structure becomes identity mass.' },
+      { id: 'COLONY', structure: 'Several cellular units cooperating as one creature.', mass: 'BALANCED' },
+      { id: 'BACTERIA', structure: 'Rod/coccus/spiral cellular grammar.', mass: 'COMPACT' },
+      { id: 'PROTOZOA', structure: 'Single-cell body with organelles/flagella.', mass: 'COMPACT' },
+      { id: 'VIRAL', structure: 'Capsid/spike structural grammar, stylized not medical diagram.', mass: 'COMPACT' },
+      { id: 'BIOFILM', structure: 'Layered connected colony mass.', mass: 'MASSIVE' },
+      { id: 'ORGANELLE', structure: 'One exaggerated intracellular structure becomes identity mass.', mass: 'MASSIVE' },
     ],
   },
 ];
@@ -517,7 +557,25 @@ export const SIZE_SCORE_WEIGHTS: FitFormula = {
   confidence: 0.1 / 0.85,
 };
 export const SIZE_ARCHETYPE_MODIFIER_RANGE = 25;
-export const SIZE_THRESHOLDS = { tinyBelow: 38, giantAtOrAbove: 68 } as const;
+
+/** §21 — quanto pesa la massa dichiarata dell'archetipo, dentro il ±25 di §21. */
+export const SIZE_MASS_WEIGHT = 0.4;
+
+/** §21 — quanto può scostarsi la taglia a parità di archetipo e di dati. */
+export const SIZE_NOISE_RANGE = 16;
+
+/* ⚠️ Le soglie erano 38 e 68: dodici punti sotto il centro e diciotto sopra.
+   Insieme al fatto che gli archetipi in cima all'elenco vincevano quasi sempre
+   (§18) e che quelli in cima contavano come «leggeri», producevano TINY nel 40%
+   dei casi e GIANT nello 0,9% — in una vita intera di forme, sei sole creature
+   grandi.
+
+   🔒 §6 dichiara MEDIUM «default center state», e un centro ha due lati uguali:
+   adesso le soglie sono simmetriche attorno a 50. Con segnali neutri TINY e
+   GIANT sono ugualmente probabili; se i tuoi FORM/ATK/DEF stanno sopra la
+   media escono più creature grandi, ed è esattamente quello che §21 vuole che
+   la taglia significhi. */
+export const SIZE_THRESHOLDS = { tinyBelow: 38, giantAtOrAbove: 64 } as const;
 
 /* ============================================================================
    §7 — CATALOGO DEI ROLE (24)
@@ -886,7 +944,12 @@ export const RARITY_TIERS: RarityTierDef[] = [
     id: 'SINGULAR',
     baseChance: 0.5,
     unlock: { minDepth: 10, minBond: 85, minBranches: 3, hiddenTrigger: true },
-    scoreMin: 94,
+    /* ⚠️ Era 94, e il punteggio non ci arrivava: su 20.000 evoluzioni con ogni
+       bonus acceso il massimo osservato è 95, il 99,9° percentile è 91. Una
+       soglia che sta oltre il novantanovesimo percentile e mezzo non è «raro»,
+       è «mai». 86 è il 95° percentile di una nascita che cade su un traguardo:
+       resta la banda più alta di tutte, ma esiste. */
+    scoreMin: 86,
     meaning: 'One-off lineage event. Hidden trigger required; not guaranteed even when eligible.',
     it: 'evento irripetibile della lineage',
     promptConsequence:
@@ -920,11 +983,47 @@ export const ENGINE_WEIGHTS = {
     noveltyPenaltyLast6: -5,
     culturalModifierRange: 12,
     noiseRange: 8,
-    /** «softmax/weighted draw among top 6 Families» */
+    /**
+     * Quante Family compaiono nella traccia DEV. §17 dice «softmax/weighted
+     * draw among top 6 Families», ma il taglio a sei era un secondo filtro
+     * oltre al softmax: le Family con il fit più alto entravano nei sei più
+     * spesso E pesavano di più una volta dentro, e il vantaggio si contava due
+     * volte. Adesso l'estrazione è su tutte e diciotto; questo numero serve
+     * solo a non stampare una tabella di diciotto righe nella traccia.
+     */
     topN: 6,
+    /**
+     * Temperatura del softmax (§17). È il dislivello di punteggio che rende una
+     * Family «e» volte più probabile di un'altra.
+     *
+     * ⚠️ Prima i pesi erano il punteggio grezzo riportato sopra lo zero, cioè
+     * una temperatura implicita minuscola: bastavano dieci punti di fit per
+     * essere tre volte e mezzo più probabile. Con DISC inchiodato a 100 (vedi
+     * `health.ts`) MACHINE ne aveva undici gratis e usciva il 13% delle volte.
+     *
+     * 🔒 A 16 i tuoi dati contano ancora — una Family che ti somiglia resta la
+     * più probabile — ma il divario fra la prima e l'ultima resta attorno al
+     * doppio invece di quadruplicare. È la differenza fra «il motore ti legge»
+     * e «il motore ha una preferita».
+     */
+    temperature: 16,
   },
-  /** §18 — selezione dell'archetipo. */
-  archetype: { fit: 0.6, novelty: 0.25, randomness: 0.15, immediateRepeatPenalty: -30 },
+  /**
+   * §18 — selezione dell'archetipo.
+   *
+   * ⚠️ `fit` non c'è più. Valeva `70 - posizione * 6`, cioè un punteggio che
+   * dipendeva SOLO da dove l'archetipo stava nell'elenco, e poi si prendeva il
+   * massimo: il sesto archetipo di una Family non vinceva praticamente mai. Su
+   * 30.000 nascite cinque archetipi non sono usciti nemmeno una volta —
+   * REPTILE/SERPENT, AQUA/DEEPSEA, PLANT/MOSS-LICHEN, UNDEAD/RELIC,
+   * FUNGUS/MOLD — ed erano tutti l'ultima voce del loro elenco.
+   *
+   * 🔒 Adesso gli archetipi di una Family partono pari e si estraggono a sorte
+   * pesata. Quello che li separa è la NOVITÀ: quello appena usato pesa meno.
+   * È l'unica differenza che si può difendere, perché è l'unica che riguarda
+   * la creatura e non l'ordine in cui l'ho scritta.
+   */
+  archetype: { novelty: 0.35, randomness: 0.65, immediateRepeatPenalty: -70, recentPenalty: -30 },
   /** §19 — selezione dell'affinity. */
   affinity: {
     healthMood: 0.45,

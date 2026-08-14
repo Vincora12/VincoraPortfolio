@@ -27,6 +27,7 @@ import {
   dayStatus,
   emptyDay,
   emptySync,
+  hiddenEventFor,
   knownSignals,
   nextEvent,
   planContinuity,
@@ -688,6 +689,11 @@ export const useApp = create<AppState>()(
           lineageNames: [],
           seed: randomSeed(),
           devUnlockAll: s.dev.unlockAll,
+          hiddenEvent: hiddenEventFor({
+            day: s.day,
+            formNumber: 1,
+            activeDays: s.progression.sync.lifetime,
+          }),
         });
 
         set({
@@ -838,6 +844,11 @@ export const useApp = create<AppState>()(
           continuity: s.pendingPlan?.keeps,
           seed: randomSeed(),
           devUnlockAll: s.dev.unlockAll,
+          hiddenEvent: hiddenEventFor({
+            day: s.day,
+            formNumber: s.nodes.length + 1,
+            activeDays: s.progression.sync.lifetime,
+          }),
         });
 
         // 🔶 Niente `carryMemoriesThroughBranch`: la memoria non si filtra più.

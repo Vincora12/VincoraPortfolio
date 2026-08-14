@@ -35,7 +35,7 @@ export { initialHealthState, applyDay, simulateDayInput, DEFAULT_BIAS } from '${
 export { makeRng, randomSeed } from '${cwd}/src/engine/rng.ts';
 export { isValidMonName } from '${cwd}/src/engine/naming.ts';
 export { normalizePool } from '${cwd}/src/engine/rarity.ts';
-export { planContinuity, EVOLVABLE_AXES, PROGRESSION } from '${cwd}/src/engine/progression.ts';
+export { planContinuity, EVOLVABLE_AXES, PROGRESSION, hiddenEventFor } from '${cwd}/src/engine/progression.ts';
 export { SCAN_QUESTIONS, seedFromAnswers, seedSpread } from '${cwd}/src/engine/personalityScan.ts';
 export * as CONFIG from '${cwd}/src/engine/generation-config.ts';
 export { FRAGMENT_LIBRARY, slug } from '${cwd}/src/assets-pipeline/fragments.ts';
@@ -487,6 +487,231 @@ check(
 const familyCounts = tally((d) => d.family).map(([, n]) => n);
 console.log(
   `  ····  su questo profilo la Family più favorita esce ${(Math.max(...familyCounts) / Math.min(...familyCounts)).toFixed(1)}× più della meno favorita (§17: è voluto)`,
+);
+
+/* ============================================================================
+   §15/§17/§18/§21 — L'EQUILIBRIO DELLE ESTRAZIONI
+
+   ⚠️ QUESTA SEZIONE ESISTE PERCHÉ L'EQUILIBRIO SI ROMPE IN SILENZIO.
+
+   Misurando 30.000 nascite sono venuti fuori quattro squilibri che nessun
+   controllo vedeva, perché nessuno di loro fa fallire niente: la creatura esce
+   sempre, è solo sempre un po' la stessa.
+
+     • MACHINE al 13,1% contro UNDEAD al 3,5% — DISC era inchiodato a 100
+     • GIANT allo 0,9% — la taglia leggeva la posizione nel catalogo
+     • cinque archetipi mai usciti — erano tutti l'ultima voce del loro elenco
+     • MYTHIC e SINGULAR mai usciti — punteggio e dado si moltiplicavano
+
+   Un controllo di presenza («la funzione esiste», «il campo c'è») non ne
+   avrebbe preso nemmeno uno. Servono soglie sulle DISTRIBUZIONI, e servono
+   larghe: qui non si verifica un numero esatto, si verifica che nessuno abbia
+   di nuovo una preferita.
+   ========================================================================= */
+
+console.log('\n═══ EQUILIBRIO DELLE ESTRAZIONI ═══\n');
+
+const EQ_N = 4000;
+
+function drawBatch(hiddenEvent) {
+  const out = [];
+  const line = [root.record.data.name];
+  let prev = root.record;
+  for (let i = 0; i < EQ_N; i++) {
+    const seed = m.randomSeed();
+    const r = m.generateMon({
+      input,
+      mindlineNodeId: `eq_${i}`,
+      originNodeId: `eq_${i - 1}`,
+      heritageOrigins: m.selectHeritageOrigins(m.makeRng(seed ^ 0x5bf03635), prev),
+      lineageNames: line,
+      previous: prev,
+      seed,
+      hiddenEvent,
+    });
+    line.push(r.record.data.name);
+    out.push(r.record.data);
+    prev = r.record;
+  }
+  return out;
+}
+
+const eq = drawBatch(false);
+const share = (fn) => {
+  const map = new Map();
+  for (const d of eq) map.set(fn(d), (map.get(fn(d)) ?? 0) + 1);
+  return map;
+};
+
+/* --- Family: nessuna preferita ------------------------------------------- */
+
+const famShare = share((d) => d.family);
+const famPct = [...famShare.values()].map((v) => (v / EQ_N) * 100);
+const famMin = Math.min(...famPct);
+const famMax = Math.max(...famPct);
+
+check(
+  famShare.size === m.CONFIG.FAMILIES.length,
+  `tutte e ${m.CONFIG.FAMILIES.length} le Family escono almeno una volta`,
+  `${famShare.size} viste`,
+);
+check(
+  famMax / famMin <= 2.4,
+  'nessuna Family è più del doppio abbondante della più rara (§17)',
+  `banda ${famMin.toFixed(1)}%–${famMax.toFixed(1)}%, rapporto ${(famMax / famMin).toFixed(2)}×`,
+);
+
+/* --- Archetipi: la posizione nel catalogo non conta più ------------------- */
+
+const archShare = share((d) => `${d.family}/${d.family_archetype}`);
+const archTotal = m.CONFIG.FAMILIES.reduce((s, f) => s + f.archetypes.length, 0);
+const archAll = new Set(
+  m.CONFIG.FAMILIES.flatMap((f) => f.archetypes.map((a) => `${f.id}/${a.id}`)),
+);
+const archMissing = [...archAll].filter((k) => !archShare.has(k));
+
+check(
+  archMissing.length === 0,
+  `tutti i ${archTotal} archetipi sono raggiungibili (§18)`,
+  archMissing.slice(0, 5).join(', '),
+);
+
+/* Il difetto vero era che l'ULTIMA voce di ogni elenco non usciva mai: se
+   torna, torna lì. Questo controllo guarda esattamente quel punto. */
+const lastOnes = m.CONFIG.FAMILIES.map((f) => `${f.id}/${f.archetypes.at(-1).id}`);
+const lastMissing = lastOnes.filter((k) => (archShare.get(k) ?? 0) === 0);
+check(
+  lastMissing.length === 0,
+  'anche l’ultimo archetipo di ogni Family esce (§18)',
+  lastMissing.join(', '),
+);
+
+/* --- Massa dichiarata: coerente e usata ----------------------------------- */
+
+const noMass = m.CONFIG.FAMILIES.flatMap((f) =>
+  f.archetypes.filter((a) => !m.CONFIG.ARCHETYPE_MASSES.includes(a.mass)).map((a) => `${f.id}/${a.id}`),
+);
+check(noMass.length === 0, 'ogni archetipo dichiara la sua massa (§21)', noMass.slice(0, 5).join(', '));
+
+const massive = new Set(
+  m.CONFIG.FAMILIES.flatMap((f) =>
+    f.archetypes.filter((a) => a.mass === 'MASSIVE').map((a) => `${f.id}/${a.id}`),
+  ),
+);
+const giantRateMassive =
+  eq.filter((d) => massive.has(`${d.family}/${d.family_archetype}`) && d.size === 'GIANT').length /
+  Math.max(1, eq.filter((d) => massive.has(`${d.family}/${d.family_archetype}`)).length);
+const giantRateOther =
+  eq.filter((d) => !massive.has(`${d.family}/${d.family_archetype}`) && d.size === 'GIANT').length /
+  Math.max(1, eq.filter((d) => !massive.has(`${d.family}/${d.family_archetype}`)).length);
+
+check(
+  giantRateMassive > giantRateOther * 1.5,
+  'un archetipo MASSIVE diventa GIANT più spesso degli altri (§21)',
+  `${(giantRateMassive * 100).toFixed(1)}% contro ${(giantRateOther * 100).toFixed(1)}%`,
+);
+
+/* --- Taglie: tutte e tre si vedono ---------------------------------------- */
+
+const sizeShare = share((d) => d.size);
+const sizePct = Object.fromEntries(
+  [...sizeShare.entries()].map(([k, v]) => [k, (v / EQ_N) * 100]),
+);
+check(
+  m.CONFIG.SIZES.every((s2) => (sizePct[s2] ?? 0) >= 5),
+  'nessuna taglia sotto il 5% (§21)',
+  m.CONFIG.SIZES.map((s2) => `${s2} ${(sizePct[s2] ?? 0).toFixed(1)}%`).join(' · '),
+);
+
+/* --- Rarità: sei livelli, sei livelli raggiungibili ----------------------- */
+
+const rarShare = share((d) => d.rarity);
+const rarPct = Object.fromEntries([...rarShare.entries()].map(([k, v]) => [k, (v / EQ_N) * 100]));
+
+check(
+  (rarPct.MYTHIC ?? 0) > 0,
+  'MYTHIC è raggiungibile in una nascita normale (§15)',
+  `${(rarPct.MYTHIC ?? 0).toFixed(2)}%`,
+);
+
+/* La scala deve scendere: un livello più alto non può essere più comune di uno
+   più basso, o la parola «rarità» non vuol dire niente. */
+const ladder = ['COMMON', 'UNCOMMON', 'RARE', 'EPIC', 'MYTHIC'];
+const inverted = ladder
+  .slice(1)
+  .filter((r, i) => (rarPct[r] ?? 0) > (rarPct[ladder[i]] ?? 0))
+  .map((r) => r);
+check(
+  inverted.length === 0,
+  'la scala delle rarità scende sempre (§15)',
+  ladder.map((r) => `${r} ${(rarPct[r] ?? 0).toFixed(2)}%`).join(' · '),
+);
+
+/* SINGULAR pretende il grilletto nascosto: senza traguardo non deve uscire
+   mai, con il traguardo deve poter uscire. Sono due controlli, non uno. */
+check(
+  (rarPct.SINGULAR ?? 0) === 0,
+  'senza traguardo SINGULAR non esce (§15)',
+  `${(rarPct.SINGULAR ?? 0).toFixed(2)}%`,
+);
+
+const eqHidden = drawBatch(true);
+const singulars = eqHidden.filter((d) => d.rarity === 'SINGULAR').length;
+check(
+  singulars > 0,
+  'su un traguardo SINGULAR può uscire (§15/§16)',
+  `${((singulars / EQ_N) * 100).toFixed(2)}% di ${EQ_N}`,
+);
+
+/* --- Il grilletto nascosto è fatto di cose vere --------------------------- */
+
+check(
+  m.hiddenEventFor({ day: 365, formNumber: 3, activeDays: 200 }),
+  'l’anniversario accende il grilletto nascosto (§16)',
+);
+check(
+  m.hiddenEventFor({ day: 300, formNumber: 10, activeDays: 200 }),
+  'la decima forma accende il grilletto nascosto (§16)',
+);
+check(
+  m.hiddenEventFor({ day: 400, formNumber: 4, activeDays: 400 }),
+  'un anno senza buchi accende il grilletto nascosto (§16)',
+);
+check(
+  !m.hiddenEventFor({ day: 120, formNumber: 4, activeDays: 90 }),
+  'un giorno qualunque non lo accende (§16)',
+);
+
+/* --- DISC non è più un cricchetto ----------------------------------------- */
+
+let discState = m.initialHealthState();
+for (let d = 1; d <= 400; d++) {
+  // Registra 5 giorni su 7: DISC deve assestarsi lì, non salire a 100.
+  discState = m.applyDay(discState, d, { touched: {}, logged: d % 7 < 5, workout: false });
+}
+check(
+  discState.disc < 90,
+  'DISC non si satura registrando 5 giorni su 7',
+  `${discState.disc}`,
+);
+check(
+  discState.disc > 55,
+  'DISC premia comunque la costanza',
+  `${discState.disc}`,
+);
+
+/* --- La salute simulata non scappa verso l'alto ---------------------------- */
+
+const simRng = m.makeRng(4242);
+let simState = m.initialHealthState();
+for (let d = 1; d <= 400; d++) {
+  simState = m.applyDay(simState, d, m.simulateDayInput(simRng, simState, m.DEFAULT_BIAS));
+}
+const simMax = Math.max(...['FORM', 'ATK', 'SPD', 'DEF', 'REC', 'CARE'].map((k) => simState.stats[k].value));
+check(
+  simMax < 80,
+  'dopo 400 giorni simulati le stat non sono al soffitto (§20.1)',
+  `massima ${simMax}`,
 );
 
 /* ============================================================================

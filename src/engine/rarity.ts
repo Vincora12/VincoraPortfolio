@@ -218,6 +218,29 @@ export function rollRarity(
   const eligible = unlocked.filter((t) => RARITY_TIERS.findIndex((x) => x.id === t.id) <= capIndex);
   const pool = normalizePool(eligible.length > 0 ? eligible : [RARITY_TIERS[0]!]);
 
+  /* ⚠️ I DUE LIVELLI IN CIMA NON SI TIRANO: si sono già guadagnati.
+
+     Il problema era che il punteggio e il tiro erano DUE porte in fila, e si
+     moltiplicavano. Per MYTHIC servivano un punteggio da 99° percentile e poi
+     un dado da 2,5%: circa due volte su diecimila. Per SINGULAR, in più, il
+     grilletto nascosto — che scatta sei volte in una vita — e un dado da 0,5%.
+     Il risultato misurato era zero su ventimila nascite: due livelli su sei
+     esistevano solo nelle tabelle.
+
+     🔒 Adesso in cima decide il punteggio. Se la configurazione arriva nella
+     banda di MYTHIC o di SINGULAR e quel livello è sbloccato, quel livello è
+     il risultato. La rarità resta rarissima — ci arriva l'1% delle nascite e
+     il 5% di quelle che cadono su un traguardo — ma la rarità di una cosa
+     deve stare in quanto è difficile ottenerla, non in un dado tirato dopo.
+
+     🔶 Scostamento dichiarato da §26: le tabelle di normalizzazione restano
+     esattamente quelle e continuano a governare i quattro livelli di sotto,
+     che sono quelli per cui erano scritte. */
+  const GRANTED: Rarity[] = ['MYTHIC', 'SINGULAR'];
+  if (GRANTED.includes(cap) && unlocked.some((t) => t.id === cap)) {
+    return { rarity: cap, score, breakdown, unlockedPool, eligiblePool: pool, cap };
+  }
+
   let r = rng() * 100;
   let picked: Rarity = pool[pool.length - 1]!.rarity;
   for (const entry of pool) {

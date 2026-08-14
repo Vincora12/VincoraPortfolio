@@ -213,6 +213,55 @@ export function emptySync(): SyncState {
   return { lifetime: 0, inForm: 0, sinceGrowth: 0 };
 }
 
+/* ============================================================================
+   IL GRILLETTO NASCOSTO (§16)
+
+   ⚠️ NON ESISTEVA. §16 elenca fra le componenti del punteggio di rarità un
+   «special milestone/anniversary/rare pattern trigger», e §15 lo pretende
+   come condizione di sblocco di SINGULAR — «Hidden trigger required». Ma nel
+   codice `hiddenEvent` non veniva impostato da nessuna parte: era sempre
+   falso. Quindi la componente valeva zero a ogni nascita, e soprattutto lo
+   sblocco di SINGULAR non poteva passare MAI.
+
+   Non era «SINGULAR è rarissimo»: era SINGULAR è impossibile. Una delle sei
+   rarità esisteva solo nelle tabelle.
+
+   🔒 Adesso il grilletto c'è, ed è fatto di cose che sono successe davvero —
+   niente dadi. Sono tutte verificabili guardando il calendario, ed è la
+   condizione perché quel giorno valga più degli altri.
+   ========================================================================= */
+
+/** Traguardi che rendono una nascita un evento (§16). */
+export const HIDDEN_EVENT_FORMS = [10, 25, 50, 100] as const;
+
+export interface HiddenEventInput {
+  /** Giorno di gioco della nascita. */
+  day: number;
+  /** Quante forme ci saranno dopo questa. */
+  formNumber: number;
+  /** Giorni sincronizzati in tutta la vita. */
+  activeDays: number;
+}
+
+/**
+ * Vero quando la nascita cade su un traguardo. Funzione pura: due partite con
+ * la stessa storia ottengono lo stesso risultato, e la traccia DEV può
+ * spiegare perché.
+ */
+export function hiddenEventFor({ day, formNumber, activeDays }: HiddenEventInput): boolean {
+  // Anniversario: un anno esatto dal primo giorno.
+  if (day > 0 && day % 365 === 0) return true;
+
+  // Una forma tonda: la decima, la venticinquesima, la cinquantesima…
+  if ((HIDDEN_EVENT_FORMS as readonly number[]).includes(formNumber)) return true;
+
+  // Un anno intero senza saltare un giorno. È il pattern raro di §16: non un
+  // numero alto, ma un numero SENZA BUCHI, che è tutta un'altra cosa.
+  if (activeDays >= 365 && activeDays === day) return true;
+
+  return false;
+}
+
 /** Quanto manca al prossimo evento, e quale. */
 export interface NextEvent {
   kind: 'hatch' | 'micro-growth' | 'form-evolution';

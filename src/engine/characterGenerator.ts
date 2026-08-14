@@ -23,12 +23,15 @@ import {
   HAIRCUTS,
   HAIR_STATES,
   MOODS,
+  MASS_OFFSET,
   MOOD_CONFIDENCE_FLOOR,
   NEUTRAL_MOODS,
   ROLES,
   SELECTABLE_FAMILIES,
   SIZES,
   SIZE_ARCHETYPE_MODIFIER_RANGE,
+  SIZE_MASS_WEIGHT,
+  SIZE_NOISE_RANGE,
   SIZE_SCORE_WEIGHTS,
   SIZE_THRESHOLDS,
   AFFINITIES,
@@ -37,7 +40,7 @@ import {
   type FamilyDef,
   type Size,
 } from './generation-config';
-import { chance, makeRng, pick, pickInt, pickMany, type Rng } from './rng';
+import { chance, makeRng, pick, pickInt, pickMany, pickWeighted, type Rng } from './rng';
 import { buildSignalVector, evaluateFit, type GeneratorInput } from './signals';
 import { generatePaletteDna } from './colorDna';
 import { buildSigil } from './sigil';
@@ -128,7 +131,7 @@ export function generateMon(ctx: GenerationContext): GenerationResult {
     candidates: familyCandidates,
     note: anchored('family')
       ? 'tenuta ferma dall’ancora di continuità'
-      : `estrazione pesata fra i primi ${ENGINE_WEIGHTS.family.topN}`,
+      : `softmax su tutte e ${SELECTABLE_FAMILIES.length} (temperatura ${ENGINE_WEIGHTS.family.temperature}); qui i primi ${ENGINE_WEIGHTS.family.topN}`,
   });
 
   /* 05 — ARCHETIPO (§18). Si può ancorare solo insieme alla Family: un
@@ -453,27 +456,17 @@ function resolveFamily(
     };
   });
 
-  // Step 6: estrazione pesata fra le prime 6.
+  // Step 6: softmax su TUTTE le Family. Il punteggio più alto si sottrae prima
+  // dell'esponenziale — è la forma numericamente stabile, e non cambia i pesi
+  // relativi perché è un fattore comune che si semplifica nella divisione.
   scored.sort((a, b) => b.total - a.total);
-  const top = scored.slice(0, w.topN);
+  const best = scored[0]!.total;
+  const chosen = pickWeighted(
+    rng,
+    scored.map((t) => ({ item: t, weight: Math.exp((t.total - best) / w.temperature) })),
+  );
 
-  // Softmax con i punteggi riportati sopra lo zero, così un totale negativo
-  // non produce un peso negativo.
-  const floor = Math.min(...top.map((t) => t.total), 0);
-  const weights = top.map((t) => Math.max(0.001, t.total - floor + 1));
-  const sum = weights.reduce((s, x) => s + x, 0);
-
-  let r = rng() * sum;
-  let chosen = top[top.length - 1]!;
-  for (let i = 0; i < top.length; i++) {
-    r -= weights[i]!;
-    if (r <= 0) {
-      chosen = top[i]!;
-      break;
-    }
-  }
-
-  const candidates: TraceCandidate[] = top.map((t) => ({
+  const candidates: TraceCandidate[] = scored.slice(0, w.topN).map((t) => ({
     id: t.def.id,
     fit: round1(t.fit),
     noveltyPenalty: round1(t.noveltyPenalty),
@@ -494,21 +487,22 @@ function resolveArchetype(rng: Rng, family: FamilyDef, ctx: GenerationContext): 
   const w = ENGINE_WEIGHTS.archetype;
   const recent = ctx.input.novelty.recentArchetypes;
 
-  const scored = family.archetypes.map((a, index) => {
-    // Il fit morfologico dell'archetipo dipende dalla sua posizione nella
-    // Family: le voci più avanti sono strutturalmente più insolite (§18).
-    const fit = 70 - index * 6 + rng() * 20;
+  /* Tutti gli archetipi della Family partono uguali: l'unica cosa che li
+     separa è quanto di recente sono stati usati. Poi si ESTRAE — non si prende
+     il massimo — perché con l'argmax la voce con il punteggio medio più alto
+     vince quasi sempre, e «quasi sempre» ripetuto per anni vuol dire «sempre». */
+  const entries = family.archetypes.map((a) => {
     const key = `${family.id}/${a.id}`;
-    const noveltyPenalty = recent[0] === key ? w.immediateRepeatPenalty : recent.includes(key) ? -10 : 0;
+    const noveltyPenalty =
+      recent[0] === key ? w.immediateRepeatPenalty : recent.includes(key) ? w.recentPenalty : 0;
 
     return {
-      id: a.id,
-      total: fit * w.fit + (100 + noveltyPenalty) * w.novelty + rng() * 100 * w.randomness,
+      item: a.id,
+      weight: Math.max(1, (100 + noveltyPenalty) * w.novelty + 100 * w.randomness),
     };
   });
 
-  scored.sort((a, b) => b.total - a.total);
-  return scored[0]!.id;
+  return pickWeighted(rng, entries);
 }
 
 /* ============================================================================
@@ -559,12 +553,12 @@ function resolveSize(
 
   // §21 — «Archetype morphology modifier ranges -25 to +25 before
   // normalization»: si somma al punteggio, non lo si pesa una seconda volta.
-  // La posizione dell'archetipo nella Family ne dà il verso — le voci più
-  // avanti nell'elenco sono strutturalmente più massicce o più compresse — e
-  // un po' di rumore evita che l'archetipo determini la taglia da solo.
-  const index = family.archetypes.findIndex((a) => a.id === archetype);
-  const spread = family.archetypes.length > 1 ? index / (family.archetypes.length - 1) : 0.5;
-  const morphology = (spread * 2 - 1) * SIZE_ARCHETYPE_MODIFIER_RANGE * 0.7 + (rng() * 2 - 1) * 12;
+  // Il verso lo dà la MASSA DICHIARATA dell'archetipo, non la sua posizione
+  // nell'elenco; il rumore evita che l'archetipo decida la taglia da solo.
+  const def = family.archetypes.find((a) => a.id === archetype);
+  const mass = def ? MASS_OFFSET[def.mass] : 0;
+  const morphology =
+    mass * SIZE_ARCHETYPE_MODIFIER_RANGE * SIZE_MASS_WEIGHT + (rng() * 2 - 1) * SIZE_NOISE_RANGE;
 
   const score =
     base +
@@ -996,9 +990,21 @@ function isSizeRoleTension(size: Size, role: string): boolean {
   return false;
 }
 
-/** Deviazione standard dei segnali: un profilo piatto non è distintivo (§16). */
+/* ⚠️ Misurava la deviazione su TUTTE E QUARANTA le chiavi del vettore, ma
+   trenta di quelle sono riempite con 50 quando il Personality Seed è neutro e
+   le affinità culturali non sono state scelte. Trenta valori identici
+   schiacciano la deviazione a prescindere da come stai: il risultato diceva
+   «profilo piatto» anche a chi aveva REC a 25 e ATK a 80.
+
+   Non era un difetto isolato. `dataSpecificity` vale 15 punti su 100 del
+   punteggio di rarità e ne perdeva stabilmente 5, che è esattamente il motivo
+   per cui il punteggio non arrivava mai a 94 e SINGULAR non poteva uscire.
+
+   🔒 Adesso guarda i SEGNALI VERI: le sei stat di salute e DISC. Sono quelli
+   che §16 intende con «recent user signals» — il seme di personalità e i tag
+   culturali sono impostazioni, non segnali, e non devono diluire la misura. */
 function signalSpread(signals: Record<string, number>): number {
-  const values = Object.values(signals);
+  const values = [...STAT_KEYS.map((k) => signals[k]!), signals.DISC!];
   const mean = values.reduce((s, v) => s + v, 0) / values.length;
   return Math.sqrt(values.reduce((s, v) => s + (v - mean) ** 2, 0) / values.length);
 }
