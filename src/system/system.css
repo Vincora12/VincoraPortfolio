@@ -384,7 +384,7 @@
   min-height: 44px;
   padding: 0 var(--u3);
   border: 1px solid var(--hairline);
-  border-radius: 22px;
+  border-radius: var(--radius-soft);
   background: var(--paper);
 }
 
@@ -395,14 +395,11 @@
   background: var(--white);
 }
 
-/* Il campo che cresce: da una riga a cinque. Gli angoli si irrigidiscono
-   quando diventa alto, perche' un rettangolo alto con i lati tondi da 22px
-   sembra una pillola stirata. */
+/* Il campo che cresce: da una riga a cinque. */
 .field--grow {
   align-items: flex-end;
   padding-top: 9px;
   padding-bottom: 9px;
-  border-radius: 20px;
 }
 
 .field--grow textarea {

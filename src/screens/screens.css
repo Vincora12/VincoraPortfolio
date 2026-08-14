@@ -394,15 +394,31 @@
    una riga: dice «questo è un oggetto sopra la pagina» senza disegnare un
    rettangolo attorno alle parole.
 
-   ⚠️ Il raggio non è decorazione. Un angolo vivo su un blocco di testo lo fa
-   leggere come un riquadro di sistema — che è giusto per DEV, sbagliato per
-   qualcuno che ti parla.
+   ════════════════════════════════════════════════════════════════════════════
+   ⚠️ E GLI ANGOLI RESTANO VIVI. Nella prima versione li avevo arrotondati a
+   14px, e su una schermata dove convivono con i riquadri squadrati del resto
+   dell'app il risultato erano due grammatiche in conflitto.
+
+   Era un errore doppio. Primo: `tokens.css` lo dice da sempre — «geometria
+   rettangolare: niente card arrotondate», con 2px come unico ammorbidimento
+   consentito. Avevo violato una regola già scritta.
+
+   Secondo, e peggiore: avevo corretto DUE cose quando il difetto era UNO. Le
+   bolle non si leggevano male per gli angoli — si leggevano male per il bordo
+   nero da 2px che competeva col testo. Arrotondare era una convenzione da
+   chat generica importata in un progetto che quella convenzione la rifiuta di
+   proposito (§7.4: traccia tecnica, non app amichevole).
+
+   Il fastidio che si prova davanti a una schermata mista non è mai «questa
+   forma è brutta»: è «qui ci sono due grammatiche». Se ne toglie una, non se
+   ne aggiunge una terza.
+   ════════════════════════════════════════════════════════════════════════════
    ========================================================================= */
 
 .bubble {
   max-width: 82%;
   padding: var(--u2) var(--u3);
-  border-radius: 14px;
+  border-radius: var(--radius-soft);
   box-shadow: 0 1px 2px rgb(0 0 0 / 0.08);
 }
 
@@ -410,16 +426,12 @@
   align-self: flex-start;
   background: var(--paper);
   color: var(--ink);
-  /* L'angolo dal lato di chi parla resta più chiuso: è il verso della
-     conversazione, e si legge senza doverci pensare. */
-  border-bottom-left-radius: 4px;
 }
 
 .bubble--vinz {
   align-self: flex-end;
   background: var(--char-primary);
   color: var(--char-on-primary);
-  border-bottom-right-radius: 4px;
 }
 
 /* 🔒 Il testo è la cosa più leggibile dello schermo, e questo è il punto in

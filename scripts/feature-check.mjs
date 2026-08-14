@@ -140,6 +140,47 @@ check(
 check('SIGNAL SCAN §12', 'CTA vincolata: LOCK SIGNAL', has('src/i18n/it.ts', "lock: 'LOCK SIGNAL'"));
 
 /* ============================================================================
+   🔷 v1.14 — LA GEOMETRIA RETTANGOLARE
+
+   `tokens.css` lo dice da sempre: «geometria rettangolare: niente card
+   arrotondate», con 2px come unico ammorbidimento consentito su input e
+   badge. Era scritto in un commento, e un commento non ferma nessuno: ho
+   arrotondato le bolle della chat a 14px senza che niente protestasse, e il
+   difetto e' arrivato da una foto — due grammatiche sulla stessa schermata.
+
+   Le pillole complete (999px) restano ammesse: sono i pulsanti tondi e le
+   etichette di sistema, che leggono come marcatori e non come contenitori
+   di contenuto.
+   ========================================================================= */
+
+const CSS_FILES = [
+  'src/styles/base.css',
+  'src/system/system.css',
+  'src/screens/screens.css',
+];
+
+const strayRadii = [];
+for (const file of CSS_FILES) {
+  for (const m of (read(file) ?? '').matchAll(/border-radius:\s*([^;]+);/g)) {
+    const value = m[1].trim();
+    const ok =
+      value.startsWith('var(--radius') ||
+      value === '999px' ||
+      value === '50%' ||
+      value === '0' ||
+      value === '0px';
+    if (!ok) strayRadii.push(`${file}: ${value}`);
+  }
+}
+
+check(
+  'GEOMETRIA',
+  'nessun angolo arrotondato fuori dai token',
+  strayRadii.length === 0,
+  strayRadii.join(' · ') || 'solo var(--radius*), pillole e cerchi',
+);
+
+/* ============================================================================
    Genere — MASTER SPEC §2.4
    ========================================================================= */
 
