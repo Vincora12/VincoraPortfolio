@@ -25,6 +25,16 @@ export const t = {
     /* 🔷 v1.10 §13.7 — l'ingresso è dichiarato. Dice dove porta, non cosa
        fare: «CHAT» è il posto, «tocca per entrare» era un'istruzione. */
     chat: 'CHAT',
+    /* 🔷 v1.15 §13.12 — l'ingresso diventa un pulsante esplicito perche' la
+       pagina adesso scorre: toccare il personaggio competerebbe con lo
+       scroll, e su un telefono vincerebbe il tocco per sbaglio. */
+    talk: 'PARLAGLI',
+    stats: 'COM’ERI QUANDO È NATO',
+    statsLost: 'Troppo lontano nel tempo: i numeri di quel giorno non ci sono più.',
+    statsUnknown: 'Non sapevo ancora abbastanza di te, quel giorno.',
+    identity: 'CHI È',
+    story: 'LA SUA STORIA',
+    scroll: 'scorri per il resto',
   },
 
   /* 03 PERSONALITY / SIGNAL SCAN (MS v1.8 §12) */

@@ -29,6 +29,10 @@ import { useApp, useActiveMon, useIncubation } from '../state/store';
 import { IdleMon } from '../system/LiveMon';
 import { EggVessel } from '../system/EggVessel';
 import { MonName, SpeciesName } from '../system/MonName';
+import { Sigil } from '../system/AssetSlot';
+import { Row } from '../system/components';
+import { birthStatsFor } from '../engine/birthStats';
+import { STAT_LABELS, formatSignal } from '../engine/health';
 import { displayName } from '../engine/types';
 import { haptic } from '../system/haptics';
 import { t } from '../i18n/it';
@@ -37,6 +41,7 @@ export function SplashScreen({ onEnter }: { onEnter: () => void }) {
   const phase = useApp((s) => s.phase);
   const mon = useActiveMon();
   const inc = useIncubation();
+  const health = useApp((s) => s.health);
 
   /* Il tocco sull'uovo. `pokes` rimonta il componente, e rimontarlo fa
      ripartire l'animazione di salto dall'inizio: è il modo più semplice di
@@ -119,13 +124,109 @@ export function SplashScreen({ onEnter }: { onEnter: () => void }) {
         )}
       </div>
 
-      {/* L'ingresso è dichiarato, non indovinato. È l'unica cosa che questa
-          schermata chiede, ed è per questo che può permettersi di essere
-          l'unica cosa scritta in fondo. */}
+      {/* 🔷 v1.15 §13.12 — L'INGRESSO È UN PULSANTE, NON UNA SUPERFICIE.
+
+          Da quando la pagina scorre, «tocca il personaggio per entrare»
+          sarebbe un gesto che compete con lo scroll: il dito parte sulla
+          creatura, la pagina si muove, e ti ritrovi in chat senza averlo
+          chiesto. Su iPhone succede tutte le volte.
+
+          Un pulsante con scritto cosa fa è anche più chiaro di una superficie
+          che si tocca e basta — la perdita è zero. */}
       <button type="button" className="splash__enter" onClick={enter}>
-        <span className="t-display">{t.splash.chat}</span>
+        <span className="t-display">{incubating ? t.splash.chat : t.splash.talk}</span>
         <span aria-hidden="true">→</span>
       </button>
+
+      {/* ======================================================================
+          🔷 v1.15 §13.12 — QUELLO CHE STA SOTTO.
+
+          Qui c'era un tasto in alto a destra che portava al profilo: un'icona
+          senza nome verso un posto che non sapevi prima di arrivarci. Stessa
+          malattia della freccia di invio, stessa cura — sparisce, e la roba
+          che c'era dietro scende qui.
+
+          🔒 LA REGOLA DI COSA SCENDE: sotto il personaggio va quello che il
+          personaggio È. Quello che è storia o macchinario resta dov'è —
+          l'Heritage sta nella Mindline, perché parla di chi c'era PRIMA di
+          lui, non di lui; il calendario e la timeline hanno la loro tab.
+
+          Senza una regola, «tutto in una pagina» diventa un cruscotto.
+          ==================================================================== */}
+      {!incubating && mon && <MonDossier monName={mon.data.name} health={health} />}
+    </div>
+  );
+}
+
+/* --- Il dossier sotto la faccia -------------------------------------------- */
+
+function MonDossier({
+  monName,
+  health,
+}: {
+  monName: string;
+  health: Parameters<typeof birthStatsFor>[0];
+}) {
+  const mon = useActiveMon()!;
+  const d = mon.data;
+  const birth = birthStatsFor(health, d.generated_at_day);
+
+  return (
+    <div className="dossier">
+      {/* --- LE STATISTICHE, CONGELATE ---------------------------------------
+          La differenza con la schermata ME è tutto il punto e va detta a
+          parole, non lasciata dedurre: là ci sono i tuoi numeri di OGGI, qui
+          quelli del giorno in cui è nato lui. Un .mon è la fotografia di un
+          momento, e questi numeri sono la sua anatomia — se seguissero i tuoi
+          di adesso sarebbe un grafico della tua salute con sopra una faccia.
+          -------------------------------------------------------------------- */}
+      <section className="dossier__block">
+        <p className="t-meta dossier__label">{t.splash.stats}</p>
+
+        {birth.lost ? (
+          <p className="t-small dossier__note">{t.splash.statsLost}</p>
+        ) : birth.known === 0 ? (
+          <p className="t-small dossier__note">{t.splash.statsUnknown}</p>
+        ) : (
+          <ul className="dossier__stats">
+            {birth.stats.map((s) => (
+              <li key={s.key} className="statline">
+                <span className="statline__key t-meta">{s.key}</span>
+                <span className="statline__track" aria-hidden="true">
+                  {s.bar !== null && (
+                    <span className="statline__fill" style={{ width: `${s.bar}%` }} />
+                  )}
+                </span>
+                <span className="statline__value t-micro">{formatSignal(s.value)}</span>
+                <span className="sr-only">{STAT_LABELS[s.key]}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section className="dossier__block">
+        <p className="t-meta dossier__label">{t.splash.identity}</p>
+        <div className="rowlist">
+          <Row label="FAMILY" value={`${d.family} // ${d.family_archetype}`} />
+          <Row label="AFFINITY" value={d.affinity} />
+          <Row label="SIZE" value={d.size} />
+          <Row label="ROLE" value={d.role} />
+          <Row label="FASHION" value={d.fashion} />
+          <Row label="RARITÀ" value={d.rarity} />
+          <Row label="MOOD" value={d.mood_secondary ? `${d.mood_primary} · ${d.mood_secondary}` : d.mood_primary} />
+        </div>
+      </section>
+
+      <section className="dossier__block">
+        <p className="t-meta dossier__label">{t.splash.story}</p>
+        <p className="t-small dossier__story">{mon.bio.story}</p>
+        <p className="t-micro dossier__note">{d.generation_reason_summary}</p>
+      </section>
+
+      <div className="dossier__sigil">
+        <Sigil seed={mon.sigil} size={40} monName={monName} />
+      </div>
     </div>
   );
 }

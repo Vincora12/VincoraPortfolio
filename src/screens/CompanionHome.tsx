@@ -123,12 +123,16 @@ export function CompanionHomeScreen({ onGo, onBack }: { onGo: (o: Overlay) => vo
           />
         </button>
 
-        <button
-          type="button"
-          className="home__identity"
-          onClick={() => onGo('specimen')}
-          aria-label={`Apri il profilo di ${short}`}
-        >
+        {/* 🔷 v1.15 §13.12 — QUI C'ERA UN PULSANTE VERSO IL PROFILO.
+
+            Era un bersaglio grande con una freccia e nessun nome: toccavi e
+            scoprivi dove ti portava solo dopo esserci arrivato. Stessa
+            malattia della freccia di invio, e stessa cura — sparisce.
+
+            Il profilo non è stato tolto: è sceso sotto il personaggio nella
+            home, dove ci arrivi scorrendo. Un gesto che tutti conoscono al
+            posto di un'icona che nessuno sa leggere. */}
+        <span className="home__identity">
           <span className="home__identitytext">
             <span className="home__name t-display">
               <MonName name={d.name} fit />
@@ -138,8 +142,7 @@ export function CompanionHomeScreen({ onGo, onBack }: { onGo: (o: Overlay) => vo
               <SpeciesName /> · {form}
             </span>
           </span>
-          <span className="home__identitygo" aria-hidden="true">→</span>
-        </button>
+        </span>
       </header>
 
       {/* 🔷 v1.10 §13.7 — qui c'era la creatura a mezzo schermo, che si

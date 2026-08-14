@@ -414,8 +414,35 @@ try {
   await shot('07-registra-capito');
   await click(byText('REGISTRA'), 'conferma registrazione');
 
-  /* 15 — SPECIMEN PROFILE + rotazione */
-  await click('.home__identity', 'profilo');
+  /* 🔷 v1.15 §13.12 — IL DOSSIER SOTTO LA FACCIA.
+
+     Qui il giro entrava nel profilo da un pulsante in alto a destra della
+     chat. Quel pulsante non c'e' piu: era un bersaglio grande con una freccia
+     e nessun nome. Il profilo e' sceso sotto il personaggio nella home, e ci
+     si arriva scorrendo — quindi il giro fa la stessa cosa. */
+  await click('.home__face', 'torna al personaggio');
+  await sleep(300);
+  await shot('06-home-personaggio-alto');
+  await page.locator('.dossier').scrollIntoViewIfNeeded();
+  await sleep(300);
+  await shot('06-home-dossier');
+
+  /* Le statistiche congelate alla nascita devono esserci davvero: sono la
+     cosa nuova di questa schermata, e una sezione vuota passerebbe inosservata
+     in uno screenshot. */
+  const statLines = await page.locator('.statline').count();
+  if (statLines !== 6) {
+    throw new Error(`§21.3: attese 6 statistiche alla nascita, trovate ${statLines}`);
+  }
+  console.log(`  §21.3  sei statistiche congelate alla nascita, sotto la faccia`);
+
+  await click('.splash__enter', 'torna in chat');
+
+  /* 15 — SPECIMEN PROFILE: adesso ci si arriva dalla Mindline, che e' il posto
+     dove si guarda una forma qualsiasi e non solo quella attiva. */
+  await click('.tabbar__item:nth-child(4)', 'tab MINDLINE');
+  await click('.mindline__node--active', 'nodo attivo');
+  await click(byText('SPECIMEN'), 'profilo');
   await shot('15-specimen-stats');
   await click(byText('IDENTITÀ'), 'tab identità');
   await shot('15-specimen-identita');
@@ -427,6 +454,7 @@ try {
   await click(byText('ASSET'), 'tab asset');
   await shot('15-specimen-asset');
   await click('.specimen__head .btn-icon', 'indietro');
+  await click('.tabbar__item:nth-child(1)', 'torna su MON');
 
   /* 09 — ME */
   await click('.tabbar__item:nth-child(2)', 'tab ME');

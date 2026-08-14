@@ -2260,16 +2260,27 @@
    l'unica schermata che non serve a fare qualcosa.
    ========================================================================= */
 
+/* 🔷 v1.15 §13.12 — LA HOME ADESSO SCORRE.
+
+   Era una schermata a tutto schermo con tre cose centrate. Adesso la prima
+   videata resta esattamente quella — il personaggio prende l'altezza intera e
+   il pulsante sta in fondo — e sotto continua il dossier.
+
+   `justify-content: center` è uscito: centrava tutto il contenuto compreso
+   quello sotto, e con il dossier attaccato la creatura sarebbe scivolata in
+   alto fuori dalla prima videata. Adesso è la PRIMA SEZIONE a valere
+   un'altezza piena, non l'intera pagina. */
 .splash {
   flex: 1;
   min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
   gap: var(--u4);
   width: 100%;
-  padding: var(--u6) var(--u4) var(--u4);
+  padding: var(--u6) var(--u4) var(--u6);
   background: var(--white);
   color: var(--ink);
   animation: splash-in var(--dur-event) var(--ease-system);
@@ -2279,10 +2290,15 @@
   from { opacity: 0; }
 }
 
-/* Tutto lo spazio va alla creatura: è il motivo per cui la schermata esiste. */
+/* Tutto lo spazio va alla creatura: è il motivo per cui la schermata esiste.
+
+   ⚠️ `flex: 1` non basta più da quando la pagina scorre: in un contenitore
+   che scorre, «prenditi lo spazio che avanza» non significa niente, perché
+   lo spazio avanza all'infinito. Serve un'altezza dichiarata — abbastanza da
+   riempire la prima videata, non tanta da spingere il pulsante fuori. */
 .splash__stage {
-  flex: 1;
-  min-height: 0;
+  flex: 0 0 auto;
+  min-height: 46vh;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3016,6 +3032,81 @@
   display: inline-block;
   white-space: nowrap;
   font-size: min(1em, calc(100cqi / (var(--monname-chars, 12) * 0.58)));
+}
+
+/* --- IL DOSSIERO SOTTO LA FACCIA (v1.15 §13.12) ----------------------------
+   Quello che il personaggio E'. Comincia dopo la prima videata, quindi
+   nessuno lo trova per sbaglio: si scende apposta.
+   -------------------------------------------------------------------------- */
+
+.dossier {
+  display: flex;
+  flex-direction: column;
+  gap: var(--u5);
+  width: 100%;
+  padding-top: var(--u5);
+  border-top: 1px solid var(--hairline);
+}
+
+.dossier__block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--u2);
+  width: 100%;
+}
+
+.dossier__label {
+  color: var(--muted);
+}
+
+.dossier__note {
+  color: var(--muted);
+}
+
+.dossier__story {
+  color: var(--muted-strong);
+  line-height: 1.55;
+}
+
+.dossier__sigil {
+  display: flex;
+  justify-content: center;
+  opacity: 0.5;
+}
+
+.dossier__stats {
+  display: flex;
+  flex-direction: column;
+  gap: var(--u2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Una riga per statistica: sigla, barra, numero. La barra e' la cosa che si
+   legge a colpo d'occhio, il numero serve solo a chi lo cerca. */
+.statline {
+  display: grid;
+  grid-template-columns: 44px 1fr 40px;
+  align-items: center;
+  gap: var(--u2);
+}
+
+.statline__track {
+  height: 6px;
+  background: var(--hairline);
+  overflow: hidden;
+}
+
+.statline__fill {
+  display: block;
+  height: 100%;
+  background: var(--char-primary, var(--ink));
+}
+
+.statline__value {
+  text-align: right;
+  color: var(--muted-strong);
 }
 
 /* Accetta / rifiuta un aggiustamento del taccuino (v1.14 §22). */
