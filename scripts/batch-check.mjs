@@ -496,6 +496,57 @@ console.log(
 );
 
 /* ============================================================================
+   LA TECA (§21.3)
+
+   🔷 «E se mi affeziono a un .mon che poi non vedro piu? Posso salvarlo
+   comunque prima di ricominciare, come ricordo.»
+
+   Il difetto da sorvegliare qui e uno solo, ed e assoluto: un ricordo che
+   sparisce. Non c'e un mezzo fallimento — o resta o non resta — e se non
+   resta te ne accorgi nel momento peggiore, cioe dopo aver premuto
+   «ricomincia».
+   ========================================================================= */
+
+console.log('\n═══ §21.3 — LA TECA ═══\n');
+
+const storeSrc = readFileSync(new URL('../src/state/store.ts', import.meta.url), 'utf8');
+const assetSrc = readFileSync(new URL('../src/assets-pipeline/assetStore.ts', import.meta.url), 'utf8');
+
+check(
+  storeSrc.includes('kept: get().kept'),
+  'ricominciare da capo NON svuota la teca',
+  'e l’unica cosa che deve sopravvivere a un reset',
+);
+check(
+  !storeSrc.includes('kept: [] as KeptMon[],\n  usedDevTime') ||
+    storeSrc.includes('kept: get().kept'),
+  'la teca non torna al valore iniziale insieme al resto',
+);
+check(
+  storeSrc.includes('structuredClone(rec)'),
+  'il ricordo e una copia, non un riferimento al .mon vivo',
+  'senza copia, un’evoluzione futura riscriverebbe il ricordo',
+);
+check(
+  assetSrc.includes(`k.startsWith(\`asset:\${KEPT_PREFIX}\`)) continue`),
+  'svuotare gli asset dal pannello DEV salta i ricordi',
+  'e proprio il pulsante che si preme prima di ricominciare',
+);
+check(
+  !assetSrc.includes('await clear()'),
+  'non esiste piu una cancellazione totale che non guarda i prefissi',
+);
+check(
+  storeSrc.includes('fromAcceleratedRun'),
+  'un ricordo dice se e nato in una partita accelerata',
+  'fra un anno e la cosa che vorrai sapere guardandolo',
+);
+check(
+  storeSrc.includes('markAccelerated(set, get)'),
+  'e il salto del tempo lo dichiara davvero',
+);
+
+/* ============================================================================
    CHI VINCE FRA IL TELEFONO E IL SERVER
 
    ⚠️ Questa sezione nasce da una trappola trovata mentre si spiegava come

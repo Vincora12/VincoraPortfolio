@@ -3589,3 +3589,53 @@
 
   .pagereader__doc { padding: 0 !important; }
 }
+
+/* ============================================================================
+   LA TECA (§21.3)
+
+   Sta sotto lo scaffale delle forme e non dentro: sono due cose diverse. Lo
+   scaffale è chi sei stato in QUESTA partita e si svuota se ricominci; la teca
+   è quello che hai deciso di tenere e non si svuota mai. Mescolarle
+   suggerirebbe che si equivalgono.
+   ========================================================================= */
+
+.teca {
+  display: flex;
+  flex-direction: column;
+  gap: var(--u3);
+  padding-top: var(--u4);
+  border-top: var(--border) solid var(--ink);
+}
+
+.teca__head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--u);
+}
+
+.teca__head .t-micro {
+  color: var(--muted);
+}
+
+/* Un ricordo non si apre al tocco come una forma dello scaffale: non c'è
+   niente da riaprire, è finito. Quindi la scheda non è un pulsante. */
+.dexcard--kept {
+  cursor: default;
+}
+
+.teca__forget {
+  margin-top: var(--u);
+  padding: var(--u) 0 0;
+  border: 0;
+  border-top: 1px solid var(--hairline);
+  background: none;
+  color: var(--muted);
+  text-align: left;
+  width: 100%;
+  cursor: pointer;
+}
+
+.teca__forget:hover,
+.teca__forget:focus-visible {
+  color: var(--signal-alert);
+}

@@ -15,7 +15,7 @@
    asset. La firma resta la stessa quando arriverà uno storage vero.
    ========================================================================= */
 
-import { clear, del, get, keys, set } from 'idb-keyval';
+import { del, get, keys, set } from 'idb-keyval';
 import type { AssetType, MonRecord } from '../engine/types';
 import { assetTypeDef } from '../engine/assets';
 import { buildManifest, resolveAssetIdFromFileName } from './manifest';
@@ -23,6 +23,71 @@ import { buildManifest, resolveAssetIdFromFileName } from './manifest';
 /** Chiave di storage: un .mon può avere un solo file per slot. */
 function storageKey(monName: string, assetId: string): string {
   return `asset:${monName}:${assetId}`;
+}
+
+/* ============================================================================
+   LA TECA (§21.3)
+
+   🔷 «E se mi affeziono a un .mon che poi non vedrò più? Posso salvarlo
+   comunque prima di ricominciare, come ricordo.»
+
+   Le immagini di un .mon conservato devono sopravvivere a tutto: al reset
+   della partita, e anche allo svuotamento degli asset. Ma non serve un secondo
+   magazzino con le sue funzioni — basta uno SPAZIO DI NOMI riservato dentro
+   quello che c'è già.
+
+   Conservare `VAZIEL.mon` copia le sue immagini sotto `kept/VAZIEL.mon`. Da
+   quel momento sono file di un altro .mon per tutto il resto del codice, e la
+   UI li mostra con gli stessi componenti senza sapere che sono un ricordo.
+
+   🔒 L'unica regola in più sta in `clearAllAssets`, che salta questo prefisso.
+   Se non lo facesse, il pulsante «cancella tutti gli asset» del pannello DEV
+   butterebbe via anche i ricordi — ed è esattamente il pulsante che si preme
+   quando si vuole fare pulizia PRIMA di ricominciare.
+   ========================================================================= */
+
+export const KEPT_PREFIX = 'kept/';
+
+/** Il nome sotto cui vivono le immagini conservate di un .mon. */
+export function keptAssetName(monName: string): string {
+  return `${KEPT_PREFIX}${monName}`;
+}
+
+/**
+ * Copia le immagini di un .mon nello spazio dei ricordi.
+ * Restituisce il nome da usare per mostrarle. Idempotente: riconservare lo
+ * stesso .mon riscrive le stesse chiavi.
+ */
+export async function keepAssetsOf(monName: string): Promise<string> {
+  const target = keptAssetName(monName);
+  const all = await keys();
+  const prefix = `asset:${monName}:`;
+
+  for (const k of all) {
+    if (typeof k !== 'string' || !k.startsWith(prefix)) continue;
+    const blob = await get<Blob>(k);
+    if (!blob) continue;
+    await set(`asset:${target}:${k.slice(prefix.length)}`, blob);
+  }
+
+  await preloadMonAssets(target);
+  return target;
+}
+
+/** Toglie dalla teca le immagini di un .mon conservato. */
+export async function dropKeptAssets(keptName: string): Promise<void> {
+  const all = await keys();
+  const prefix = `asset:${keptName}:`;
+
+  for (const k of all) {
+    if (typeof k !== 'string' || !k.startsWith(prefix)) continue;
+    const url = urlCache.get(k);
+    if (url) URL.revokeObjectURL(url);
+    urlCache.delete(k);
+    await del(k);
+  }
+
+  notify();
 }
 
 /* --- Cache degli object URL ------------------------------------------------
@@ -183,10 +248,25 @@ export async function removeAsset(monName: string, type: AssetType): Promise<voi
   notify();
 }
 
-/** Cancella ogni asset importato. Usata dal reset del pannello DEV. */
+/**
+ * Cancella gli asset importati. Usata dal reset del pannello DEV.
+ *
+ * 🔒 Salta i ricordi (`kept/`). È il pulsante che si preme per fare pulizia
+ * prima di ricominciare, e un ricordo che sparisce proprio lì non sarebbe un
+ * ricordo.
+ */
 export async function clearAllAssets(): Promise<void> {
-  urlCache.forEach((url) => URL.revokeObjectURL(url));
-  urlCache.clear();
-  await clear();
+  const all = await keys();
+
+  for (const k of all) {
+    if (typeof k !== 'string') continue;
+    if (k.startsWith(`asset:${KEPT_PREFIX}`)) continue;
+
+    const url = urlCache.get(k);
+    if (url) URL.revokeObjectURL(url);
+    urlCache.delete(k);
+    await del(k);
+  }
+
   notify();
 }

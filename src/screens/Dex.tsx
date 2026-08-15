@@ -42,8 +42,12 @@ export function DexScreen({ onGo }: { onGo: (o: Overlay) => void }) {
   const nodes = useApp((s) => s.nodes);
   const activeMonName = useApp((s) => s.activeMonName);
   const restoreNode = useApp((s) => s.restoreNode);
+  const kept = useApp((s) => s.kept);
+  const keepActiveMon = useApp((s) => s.keepActiveMon);
+  const forgetKept = useApp((s) => s.forgetKept);
 
   const [picked, setPicked] = useState<string | null>(null);
+  const [keeping, setKeeping] = useState(false);
 
   /* In ordine di comparsa, non alfabetico: è una storia, e una storia si
      legge dall'inizio. Il nodo dice quando quella forma è nata; le forme
@@ -53,6 +57,7 @@ export function DexScreen({ onGo }: { onGo: (o: Overlay) => void }) {
 
   const shelf = Object.values(mons).sort((a, b) => dayOf(a.data.name) - dayOf(b.data.name));
   const selected = picked ? mons[picked] : null;
+  const keptOfActive = kept.some((k) => k.record.data.name === activeMonName);
   const selectedNode = picked ? nodes.find((n) => n.monName === picked) : null;
 
   return (
@@ -103,6 +108,49 @@ export function DexScreen({ onGo }: { onGo: (o: Overlay) => void }) {
         {/* Il dettaglio si apre solo al tocco, come nella Mindline (§26): una
             griglia in cui ogni casella mostra già tutto non è una griglia, è
             un elenco lungo. */}
+        {kept.length > 0 && (
+          <section className="teca">
+            <div className="teca__head">
+              <span className="t-meta">{t.dex.keptTitle}</span>
+              <span className="t-micro">
+                {kept.length} {kept.length === 1 ? t.dex.keptOne : t.dex.keptMany} ·{' '}
+                {t.dex.keptNote}
+              </span>
+            </div>
+
+            <div className="dex__grid">
+              {kept.map((k) => (
+                <div key={k.id} className="dexcard dexcard--kept">
+                  <span className="dexcard__art">
+                    <AssetSlot
+                      monName={k.assetName}
+                      type="profile_portrait"
+                      fallbackTypes={['character_master']}
+                      alt={displayName(k.record.data.name)}
+                      fit="cover"
+                      compactPlaceholder
+                    />
+                  </span>
+                  <span className="dexcard__name t-meta">
+                    <MonName name={k.record.data.name} hideExtension />
+                  </span>
+                  <span className="dexcard__day t-micro">
+                    {k.record.data.rarity}
+                    {k.fromAcceleratedRun ? ` · ${t.dex.keptTrial}` : ''}
+                  </span>
+                  <button
+                    type="button"
+                    className="teca__forget t-micro"
+                    onClick={() => forgetKept(k.id)}
+                  >
+                    {t.dex.forget}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
         {selected && (
           <section className="dex__detail">
             <div className="dex__detailhead">
@@ -126,10 +174,33 @@ export function DexScreen({ onGo }: { onGo: (o: Overlay) => void }) {
             <p className="dex__why t-small">{selected.data.generation_reason_summary}</p>
 
             {selected.data.name === activeMonName ? (
-              <div className="rowlist">
-                <Row label="SPECIMEN" value="apri →" onClick={() => onGo('specimen')} />
-                <Row label="HERITAGE DNA" value="apri →" onClick={() => onGo('heritage')} />
-              </div>
+              <>
+                <div className="rowlist">
+                  <Row label="SPECIMEN" value="apri →" onClick={() => onGo('specimen')} />
+                  <Row label="HERITAGE DNA" value="apri →" onClick={() => onGo('heritage')} />
+                </div>
+
+                {/* 🔷 §21.3 — il pulsante sta QUI e non nella schermata di
+                    reset, che è dove servirebbe. È voluto: se lo incontri solo
+                    mentre stai per cancellare tutto, lo premi di fretta e per
+                    paura. Qui lo premi perché ti sei affezionato, che è la
+                    ragione giusta. */}
+                {keptOfActive ? (
+                  <SystemLabel>{t.dex.kept}</SystemLabel>
+                ) : (
+                  <Button
+                    variant="secondary"
+                    block
+                    disabled={keeping}
+                    onClick={() => {
+                      setKeeping(true);
+                      void keepActiveMon().finally(() => setKeeping(false));
+                    }}
+                  >
+                    {t.dex.keep}
+                  </Button>
+                )}
+              </>
             ) : (
               selectedNode && (
                 <Button

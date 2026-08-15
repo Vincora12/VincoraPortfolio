@@ -139,6 +139,16 @@ export const t = {
     active: 'ATTIVO',
     restore: 'TORNA A QUESTA FORMA',
     empty: 'Ancora nessuna forma. Lo scaffale si riempie da solo.',
+
+    /* §21.3 — la teca */
+    keep: 'CONSERVA COME RICORDO',
+    kept: 'CONSERVATO',
+    keptTitle: 'LA TECA',
+    keptOne: 'ricordo',
+    keptMany: 'ricordi',
+    keptNote: 'Restano anche se ricominci da capo.',
+    keptTrial: 'PARTITA ACCELERATA',
+    forget: 'TOGLI DALLA TECA',
   },
 
   /* 07 REGISTRA (MS v1.9 §5.2) — un campo solo, niente moduli */

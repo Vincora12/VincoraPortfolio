@@ -123,7 +123,7 @@ import type {
   StatKey,
 } from '../engine/types';
 import { STAT_KEYS, UNKNOWN, isKnown } from '../engine/types';
-import { preloadMonAssets } from '../assets-pipeline/assetStore';
+import { dropKeptAssets, keepAssetsOf, preloadMonAssets } from '../assets-pipeline/assetStore';
 
 export type Phase =
   /** 🔶 §12 — il Signal Scan semina la personalità PRIMA che il tempo cominci. */
@@ -160,6 +160,44 @@ export interface DevFlags {
   unlockAll: boolean;
   /** §20.1 — soglie di rarità tarate a mano. `null` = quelle del config. */
   rarityThresholds: RarityThresholds | null;
+}
+
+/* ============================================================================
+   LA TECA (§21.3)
+
+   🔷 «E se mi affeziono a un .mon che poi non vedrò più? Posso salvarlo
+   comunque prima di ricominciare, come ricordo.»
+
+   Sì, e deve esistere PRIMA della prima partita di prova, non dopo — perché è
+   una cosa che serve nel momento esatto in cui stai per premere «ricomincia»,
+   e a quel punto è tardi per costruirla.
+
+   🔒 Un .mon conservato NON è più una forma della lineage: è un ricordo. Non
+   ha nodo, non eredita, non evolve, non torna in gioco. Rimetterlo in partita
+   riscriverebbe una storia che è già finita, ed è esattamente il contrario di
+   quello che vuol dire conservarlo.
+   ========================================================================= */
+
+export interface KeptMon {
+  id: string;
+  /** Il record intero: sigillo, statistiche, motivo della generazione. */
+  record: MonRecord;
+  /** Il nome sotto cui vivono le sue immagini (spazio `kept/`). */
+  assetName: string;
+  /** Quando l'hai conservato, in data vera. */
+  keptAt: string;
+  /** Il giorno di gioco in cui l'hai conservato. */
+  day: number;
+  /**
+   * Vero se la partita in cui è nato aveva usato il salto del tempo.
+   *
+   * Non è un'etichetta di serie B: è la verità su quella creatura. Un .mon
+   * nato da sette giorni saltati non è nato dai tuoi dati, e fra un anno,
+   * guardandolo nella teca, questa è la cosa che vorrai sapere.
+   */
+  fromAcceleratedRun: boolean;
+  /** Perché l'hai tenuto. Lo scrivi tu. */
+  note: string | null;
 }
 
 /** §20.1 — il campione che alimenta DEV → RARITÀ. */
@@ -391,6 +429,14 @@ interface AppState {
   markAssetResolved: (monName: string, type: AssetType) => void;
   markAssetWaiting: (monName: string, type: AssetType) => void;
   resetAll: () => void;
+
+  /* --- §21.3 LA TECA --- */
+  kept: KeptMon[];
+  usedDevTime: boolean;
+  /** Conserva il .mon attivo come ricordo. Torna `null` se non c'è nessuno. */
+  keepActiveMon: (note?: string) => Promise<string | null>;
+  /** Toglie un ricordo dalla teca, immagini comprese. */
+  forgetKept: (id: string) => void;
 }
 
 /* --- Stato iniziale -------------------------------------------------------- */
@@ -445,6 +491,13 @@ const INITIAL = {
   },
   bias: DEFAULT_BIAS,
   token: null as string | null,
+  /* §21.3 — i .mon conservati. NON stanno in INITIAL per caso: `resetAll` li
+     rimette a mano proprio perché devono sopravvivere a ricominciare. */
+  kept: [] as KeptMon[],
+  /* Vero appena il pannello DEV fa saltare del tempo. Serve a marcare i .mon
+     conservati: una creatura nata da giorni saltati non è nata dai tuoi dati,
+     e la teca deve dirlo invece di lasciartelo indovinare. */
+  usedDevTime: false,
   /* ⚠️ QUANDO HAI RICOMINCIATO DA CAPO L'ULTIMA VOLTA.
 
      Serve a una cosa sola, ma indispensabile: impedire che una partita
@@ -721,10 +774,16 @@ export const useApp = create<AppState>()(
       /* --- Avanzamento del tempo (§25) --- */
 
       advanceDays: (n) => {
+        /* 🔒 Da qui in poi la partita non è più fatta di giorni veri. Il flag
+           non serve a niente durante il gioco: serve fra un anno, quando
+           guarderai un .mon nella teca e vorrai sapere se è nato dai tuoi dati
+           o da sette giorni saltati in due secondi. */
+        markAccelerated(set, get);
         for (let i = 0; i < n; i++) advanceOneDay(set, get);
       },
 
       simulateSyncedDays: (n) => {
+        markAccelerated(set, get);
         for (let i = 0; i < n; i++) {
           // Il giorno corrente può essere ancora vuoto: `advanceOneDay` riempie
           // il giorno in cui *arriva*, non quello da cui parte. I segnali già
@@ -742,6 +801,7 @@ export const useApp = create<AppState>()(
       },
 
       endWeek: () => {
+        markAccelerated(set, get);
         const remaining = 7 - ((get().day - 1) % 7);
         for (let i = 0; i < remaining; i++) advanceOneDay(set, get);
       },
@@ -1652,6 +1712,48 @@ export const useApp = create<AppState>()(
       markAssetResolved: (monName, type) => setAssetState(set, monName, type, 'resolved'),
       markAssetWaiting: (monName, type) => setAssetState(set, monName, type, 'waiting'),
 
+      /* ============================================================================
+         §21.3 — CONSERVARE UN .MON
+
+         Copia il record E le immagini in uno spazio che nessun reset tocca.
+         Il record si copia in profondità: se restasse un riferimento a quello
+         vivo, un'evoluzione futura riscriverebbe il ricordo — e un ricordo che
+         cambia da solo non è un ricordo.
+         ========================================================================= */
+      keepActiveMon: async (note) => {
+        const s = get();
+        const rec = activeRecord(s);
+        if (!rec) return null;
+
+        const already = s.kept.find((k) => k.record.data.name === rec.data.name);
+        const assetName = await keepAssetsOf(rec.data.name);
+
+        const entry: KeptMon = {
+          id: already?.id ?? `kept_${Date.now()}_${rec.data.name}`,
+          record: structuredClone(rec),
+          assetName,
+          keptAt: new Date().toISOString(),
+          day: s.day,
+          fromAcceleratedRun: s.usedDevTime,
+          note: note?.trim() ? note.trim() : (already?.note ?? null),
+        };
+
+        set({
+          kept: already
+            ? s.kept.map((k) => (k.id === already.id ? entry : k))
+            : [...s.kept, entry],
+        });
+
+        return entry.id;
+      },
+
+      forgetKept: (id) => {
+        const entry = get().kept.find((k) => k.id === id);
+        if (!entry) return;
+        void dropKeptAssets(entry.assetName);
+        set({ kept: get().kept.filter((k) => k.id !== id) });
+      },
+
       resetAll: () =>
         set({
           ...INITIAL,
@@ -1666,6 +1768,9 @@ export const useApp = create<AppState>()(
           dev: get().dev,
           // Ricominciare la partita non è motivo per far reincollare la chiave.
           token: get().token,
+          /* 🔒 LA TECA SOPRAVVIVE. È l'unica cosa che deve: ricominciare
+             cancella la partita, non i ricordi che avevi deciso di tenere. */
+          kept: get().kept,
         }),
     }),
     {
@@ -2005,6 +2110,11 @@ export async function syncWithServer(): Promise<'locale' | 'scaricato' | 'niente
   useApp.setState({ ...(data.state as Partial<AppState>), token: local.token });
   lastSavedSignature = JSON.stringify(snapshotFor(useApp.getState()));
   return 'scaricato';
+}
+
+/** Segna che questa partita ha saltato del tempo dal pannello DEV. */
+function markAccelerated(set: (p: Partial<AppState>) => void, get: () => AppState): void {
+  if (!get().usedDevTime) set({ usedDevTime: true });
 }
 
 /* --- Avanzamento di un giorno ---------------------------------------------- */

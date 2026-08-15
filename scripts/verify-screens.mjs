@@ -644,6 +644,54 @@ try {
   await click(byText('HERITAGE DNA'), 'heritage');
   await shot('18-heritage-dna');
 
+  /* ============================================================================
+     §21.3 — IL RICORDO SOPRAVVIVE AL RESET
+
+     Questo e l'unico controllo che vale davvero per la teca, e va fatto per
+     ULTIMO perche distrugge la partita: si conserva un .mon, si preme RESET
+     COMPLETO, e si guarda se e ancora li. Tutto il resto — che il pulsante
+     esista, che la scheda si disegni — non dice niente sul difetto che conta.
+     ========================================================================= */
+
+  await click('.specimen__head .btn-icon', 'chiudi heritage');
+  await click('.tabbar__item:nth-child(4)', 'tab MINDLINE');
+  await click('.archive__seg:nth-child(2)', 'vista VINZ.DEX');
+  /* La scheda giusta e quella marcata «ora»: lo scaffale e in ordine di
+     comparsa, e dopo un branch la prima non e piu quella attiva. */
+  await click('.dexcard:has(.dexcard__day:text-is(\"ora\"))', 'la forma attiva');
+  await click(byText('CONSERVA COME RICORDO'), 'conserva');
+  await page.waitForSelector('.teca', { timeout: 5000 });
+  await shot('19-teca');
+
+  const keptBefore = await page.$$eval('.dexcard--kept', (n) => n.length);
+
+  await click('.devtrigger', 'riapri DEV');
+  await click(byText('MINDLINE'), 'tab mindline dev');
+  await click(byText('RESET COMPLETO DELLA SIMULAZIONE'), 'reset completo');
+  await page.waitForSelector('.screen', { timeout: 5000 });
+  await shot('19-dopo-il-reset');
+
+  /* Dopo il reset la partita riparte dallo scan: la teca si raggiunge di
+     nuovo dalla tab MINDLINE, che deve esserci comunque. */
+  const keptAfter = await page.evaluate(() => {
+    const raw = localStorage.getItem('vinzmon.prototype.v4');
+    if (!raw) return -1;
+    try {
+      return JSON.parse(raw).state.kept.length;
+    } catch {
+      return -1;
+    }
+  });
+
+  if (keptBefore < 1) {
+    errors.push(`la teca non ha conservato niente (${keptBefore} schede)`);
+  }
+  if (keptAfter !== keptBefore) {
+    errors.push(
+      `il reset ha svuotato la teca: ${keptBefore} ricordi prima, ${keptAfter} dopo`,
+    );
+  }
+
   console.log(`\n${step} schermate catturate in ${OUT}/`);
 } finally {
   await browser.close();
