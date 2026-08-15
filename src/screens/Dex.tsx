@@ -1,5 +1,5 @@
 /* ============================================================================
-   VINZ.DEX (MASTER SPEC v1.14 §12.5)
+   MIND.DEX (MASTER SPEC v1.14 §12.5)
 
    🔷 «Manca il vinz.dex, con tutti i .mon che ho incontrato, visti per
    immagine, che clicco e rivedo tutto su di lui.»
@@ -21,8 +21,9 @@
    🔒 E PER QUESTO NON SI FONDE CON LA MINDLINE, anche se vivono nella stessa
    tab. Rispondono a due domande diverse e devono continuare a sembrarlo:
 
-     MINDLINE   come sei arrivato qui        → un albero, le relazioni
-     DEX        chi sei stato                → una griglia, le facce
+     MIND.MAP     come sei arrivato qui      → un albero, le relazioni
+     MIND.DEX     chi sei stato              → una griglia, le facce
+     MIND.SOCIAL  cosa si dicono adesso      → un filo, le voci
 
    Unirle in una cosa sola farebbe leggere «ho collezionato dodici creature»,
    che è esattamente il contrario di quello che il progetto dice da mesi.

@@ -498,9 +498,9 @@ try {
   await click('.mindline__node--active', 'nodo attivo');
   await shot('17-mindline-nodo');
 
-  /* 🔷 v1.14 §12.5 — VINZ.DEX: la seconda vista della stessa tab. Lo scaffale
+  /* 🔷 v1.14 §12.5 — MIND.DEX: la seconda vista della stessa tab. Lo scaffale
      di chi sei stato, per immagine invece che come albero. */
-  await click('.archive__seg:nth-child(2)', 'vista VINZ.DEX');
+  await click('.archive__seg:nth-child(2)', 'vista MIND.DEX');
   await shot('17-dex');
   await click('.dexcard', 'una forma dello scaffale');
   await shot('17-dex-dettaglio');
@@ -659,7 +659,7 @@ try {
      perche e la parte che deve funzionare anche senza chiave. */
   await click('.specimen__head .btn-icon', 'chiudi heritage');
   await click('.tabbar__item:nth-child(4)', 'tab MINDLINE');
-  await click('.archive__seg:nth-child(3)', 'vista IL FILO');
+  await click('.archive__seg:nth-child(3)', 'vista MIND.SOCIAL');
   await page.waitForSelector('.post', { timeout: 5000 });
   await shot('19-filo');
 
@@ -712,7 +712,7 @@ try {
   }
 
   await click('.tabbar__item:nth-child(4)', 'tab MINDLINE');
-  await click('.archive__seg:nth-child(2)', 'vista VINZ.DEX');
+  await click('.archive__seg:nth-child(2)', 'vista MIND.DEX');
   /* La scheda giusta e quella marcata «ora»: lo scaffale e in ordine di
      comparsa, e dopo un branch la prima non e piu quella attiva. */
   await click('.dexcard:has(.dexcard__day:text-is(\"ora\"))', 'la forma attiva');

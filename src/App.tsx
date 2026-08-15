@@ -314,7 +314,7 @@ function PhaseScreen({
 /* ============================================================================
    🔷 v1.14 §12.5 — ARCHIVIO: DUE VISTE, UNA TAB
 
-   MINDLINE e VINZ.DEX rispondono a due domande diverse — «come sono arrivato
+   MIND.MAP e MIND.DEX rispondono a due domande diverse — «come sono arrivato
    qui» e «chi sono stato» — e devono continuare a sembrarlo: fonderle in una
    cosa sola farebbe leggere «ho collezionato dodici creature», che è il
    contrario di quello che il progetto dice (§33: una sola entità e le sue
@@ -345,7 +345,7 @@ function ArchiveTab({ onGo }: { onGo: (o: Overlay) => void }) {
             setView('mindline');
           }}
         >
-          {t.nav.mindline}
+          {t.archive.map}
         </button>
         <button
           type="button"
@@ -357,7 +357,7 @@ function ArchiveTab({ onGo }: { onGo: (o: Overlay) => void }) {
             setView('dex');
           }}
         >
-          {t.dex.title}
+          {t.archive.dex}
         </button>
         <button
           type="button"
@@ -369,7 +369,7 @@ function ArchiveTab({ onGo }: { onGo: (o: Overlay) => void }) {
             setView('room');
           }}
         >
-          {t.room.title}
+          {t.archive.social}
           {pending && <span className="archive__dot" aria-hidden="true" />}
         </button>
       </div>

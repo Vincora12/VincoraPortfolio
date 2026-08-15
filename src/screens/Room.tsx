@@ -1,5 +1,5 @@
 /* ============================================================================
-   IL FILO (§21.4) — vedi `docs/LORE.md` → «Il dex è una stanza»
+   MIND.SOCIAL (§21.4) — vedi `docs/LORE.md` → «Il dex è una stanza»
 
    ════════════════════════════════════════════════════════════════════════════
    🔒 TU LEGGI. NON RISPONDI.

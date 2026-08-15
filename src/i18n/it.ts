@@ -19,6 +19,24 @@ export const t = {
     mindline: 'MINDLINE',
   },
 
+  /* ============================================================================
+     🔷 «Dentro alla mindline c'è il mind.dex e il mind.social.»
+
+     La MINDLINE è il contenitore; dentro ci sono tre viste che adesso portano
+     tutte lo stesso cognome. Prima si chiamavano MINDLINE / VINZ.DEX / IL FILO
+     — tre convenzioni diverse in una barra da tre.
+
+     ⚠️ La prima vista NON può chiamarsi anche lei MINDLINE: la linguetta in
+     basso si chiama già così, e due cose diverse con lo stesso nome nella
+     stessa schermata sono un errore che si nota solo usandola. È `mind.map`,
+     perché è l'unica delle tre che disegna una mappa.
+     ========================================================================= */
+  archive: {
+    map: 'MIND.MAP',
+    dex: 'MIND.DEX',
+    social: 'MIND.SOCIAL',
+  },
+
   /* 00 INGRESSO (MS v1.9 §13.1) */
   splash: {
     enter: 'TOCCA PER ENTRARE',
@@ -129,10 +147,10 @@ export const t = {
     missingWorkout: 'manca l’allenamento',
   },
 
-  /* 🔷 v1.14 §12.5 — VINZ.DEX. Non «creature collezionate»: le forme che hai
+  /* 🔷 v1.14 §12.5 — MIND.DEX. Non «creature collezionate»: le forme che hai
      attraversato. Il testo lo dice, perché la differenza è tutto il punto. */
   dex: {
-    title: 'VINZ.DEX',
+    title: 'MIND.DEX',
     formOne: 'forma',
     formMany: 'forme attraversate',
     now: 'ora',
@@ -153,7 +171,7 @@ export const t = {
 
   /* §21.4 — il filo della stanza */
   room: {
-    title: 'IL FILO',
+    title: 'MIND.SOCIAL',
     empty:
       'Ancora nessuno nella stanza. Ci si arriva smettendo di essere la forma attiva.',
     alone: 'Non c’era nessuno.',
