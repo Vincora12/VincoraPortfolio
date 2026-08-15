@@ -667,6 +667,16 @@ try {
   if (senzaTesto === 0) {
     errors.push('nel filo nessun post mostra il fatto da cui nasce');
   }
+  /* 🔒 Ogni post ha una faccia. Le immagini non esistono ancora, quindi qui si
+     sta guardando il SIGILLO che fa da avatar: se un giorno quel ripiego
+     sparisse, il social diventerebbe una colonna di riquadri vuoti e nessun
+     errore lo direbbe. */
+  const facce = await page.$$eval('.post .avatar > *', (n) => n.length);
+  const posts = await page.$$eval('.post', (n) => n.length);
+  if (facce < posts) {
+    errors.push(`nel filo ${posts - facce} post su ${posts} non hanno una faccia`);
+  }
+
   const campi = await page.$$eval('.room input, .room textarea', (n) => n.length);
   if (campi > 0) {
     errors.push(`il filo ha ${campi} campi di testo: qui si legge e basta`);

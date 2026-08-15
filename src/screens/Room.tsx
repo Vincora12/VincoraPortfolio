@@ -20,8 +20,10 @@
 import { useState } from 'react';
 import { useApp } from '../state/store';
 import { MonName } from '../system/MonName';
+import { MonAvatar } from '../system/MonAvatar';
 import { Button, SystemLabel } from '../system/components';
 import { roomNotice, type RoomPost } from '../engine/room';
+import type { SigilSeed } from '../engine/types';
 import { t } from '../i18n/it';
 
 export function RoomScreen() {
@@ -59,8 +61,19 @@ const KIND_LABEL: Record<RoomPost['kind'], string> = {
   SETTIMANA: 'LA SETTIMANA',
 };
 
+/** Il sigillo di un .mon, che sia ancora in gioco o già nella teca. */
+function useSigilOf(name: string): SigilSeed | null {
+  return useApp(
+    (s) =>
+      s.mons[name]?.sigil ??
+      s.kept.find((k) => k.record.data.name === name)?.record.sigil ??
+      null,
+  );
+}
+
 function PostCard({ post }: { post: RoomPost }) {
   const writeRoom = useApp((s) => s.writeRoom);
+  const sigil = useSigilOf(post.from);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
 
@@ -75,15 +88,23 @@ function PostCard({ post }: { post: RoomPost }) {
   };
 
   return (
+    /* Impaginazione da timeline: avatar a sinistra, tutto il resto in una
+       colonna a destra. È la forma che rende leggibile un filo di voci diverse
+       — si scorre riconoscendo le facce, non leggendo i nomi. */
     <article className="post">
-      <header className="post__head">
-        <span className="t-meta post__from">
-          <MonName name={post.from} hideExtension />
-        </span>
-        <span className="t-micro post__kind">
-          {KIND_LABEL[post.kind]} · G{post.day}
-        </span>
-      </header>
+      <span className="post__avatar">
+        <MonAvatar monName={post.from} sigil={sigil} size={40} />
+      </span>
+
+      <div className="post__col">
+        <header className="post__head">
+          <span className="t-meta post__from">
+            <MonName name={post.from} hideExtension />
+          </span>
+          <span className="t-micro post__kind">
+            {KIND_LABEL[post.kind]} · G{post.day}
+          </span>
+        </header>
 
       {post.text === null ? (
         <>
@@ -106,16 +127,27 @@ function PostCard({ post }: { post: RoomPost }) {
       {post.comments.length > 0 && (
         <ul className="post__comments">
           {post.comments.map((c) => (
-            <li key={c.from} className="comment">
-              <span className="t-micro comment__from">
-                <MonName name={c.from} hideExtension />
-              </span>
-              <span className="t-small comment__text">{c.text}</span>
-            </li>
+            <CommentRow key={c.from} from={c.from} text={c.text} />
           ))}
         </ul>
       )}
+      </div>
     </article>
+  );
+}
+
+function CommentRow({ from, text }: { from: string; text: string }) {
+  const sigil = useSigilOf(from);
+  return (
+    <li className="comment">
+      <MonAvatar monName={from} sigil={sigil} size={22} />
+      <span className="comment__body">
+        <span className="t-micro comment__from">
+          <MonName name={from} hideExtension />
+        </span>
+        <span className="t-small comment__text">{text}</span>
+      </span>
+    </li>
   );
 }
 
@@ -126,6 +158,15 @@ function PostCard({ post }: { post: RoomPost }) {
  * spinte, affinity ed eredità. È la parte che rende il filo leggibile senza
  * spendere un centesimo — e la parte che resta vera anche senza chiave.
  */
+function LikeFace({ name }: { name: string }) {
+  const sigil = useSigilOf(name);
+  return (
+    <span className="post__likeface" title={name}>
+      <MonAvatar monName={name} sigil={sigil} size={18} />
+    </span>
+  );
+}
+
 function Reactions({ post }: { post: RoomPost }) {
   if (post.likes.length === 0 && post.voices.length === 0) {
     /* Il primo arrivo non ha nessuno che lo accolga: la stanza era vuota. Si
@@ -136,10 +177,15 @@ function Reactions({ post }: { post: RoomPost }) {
   return (
     <div className="post__reactions">
       {post.likes.length > 0 && (
-        <span className="t-micro post__likes">
-          {post.likes.length} {post.likes.length === 1 ? t.room.likeOne : t.room.likeMany}
-          {' · '}
-          {post.likes.join(' ')}
+        <span className="post__likes">
+          <span className="post__likefaces">
+            {post.likes.slice(0, 5).map((n) => (
+              <LikeFace key={n} name={n} />
+            ))}
+          </span>
+          <span className="t-micro">
+            {post.likes.length} {post.likes.length === 1 ? t.room.likeOne : t.room.likeMany}
+          </span>
         </span>
       )}
       {post.text === null && post.voices.length > 0 && (
