@@ -653,7 +653,64 @@ try {
      esista, che la scheda si disegni — non dice niente sul difetto che conta.
      ========================================================================= */
 
+  /* 🔷 §21.4 — il filo. A questo punto del percorso c'e stata un'evoluzione,
+     quindi nella stanza deve essere arrivato qualcuno. Il post esiste SENZA
+     testo: si controlla che si veda comunque il fatto e chi si e schierato,
+     perche e la parte che deve funzionare anche senza chiave. */
   await click('.specimen__head .btn-icon', 'chiudi heritage');
+  await click('.tabbar__item:nth-child(4)', 'tab MINDLINE');
+  await click('.archive__seg:nth-child(3)', 'vista IL FILO');
+  await page.waitForSelector('.post', { timeout: 5000 });
+  await shot('19-filo');
+
+  const senzaTesto = await page.$$eval('.post__about', (n) => n.length);
+  if (senzaTesto === 0) {
+    errors.push('nel filo nessun post mostra il fatto da cui nasce');
+  }
+  const campi = await page.$$eval('.room input, .room textarea', (n) => n.length);
+  if (campi > 0) {
+    errors.push(`il filo ha ${campi} campi di testo: qui si legge e basta`);
+  }
+
+  /* ⚠️ CONTRASTO — questo controllo nasce da un difetto vero fatto qui.
+     Avevo colorato il nome di chi pubblica con `--paper`, che su campo bianco e
+     chiaro ma su campo inchiostro vale #141416: cioe una SUPERFICIE, non un
+     testo. Risultato: nero su nero, e nessun errore da nessuna parte.
+     Una regola statica sui token sarebbe fragile — `--paper` su fondo `--ink` e
+     giusto. Quello che si puo misurare senza ambiguita e il risultato. */
+  const contrasti = await page.evaluate(() => {
+    const lum = (c) => {
+      const [r, g, b] = c.map((v) => {
+        const s = v / 255;
+        return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+      });
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    };
+    const parse = (s) => (s.match(/\d+(\.\d+)?/g) ?? []).slice(0, 3).map(Number);
+    const bgOf = (el) => {
+      let n = el;
+      while (n) {
+        const bg = getComputedStyle(n).backgroundColor;
+        if (bg && !bg.includes('rgba(0, 0, 0, 0)')) return parse(bg);
+        n = n.parentElement;
+      }
+      return [255, 255, 255];
+    };
+
+    return [...document.querySelectorAll('.post__from, .post__text, .post__about')].map((el) => {
+      const fg = parse(getComputedStyle(el).color);
+      const bg = bgOf(el);
+      const [a, b] = [lum(fg), lum(bg)].sort((x, y) => y - x);
+      return { cls: el.className, ratio: (a + 0.05) / (b + 0.05) };
+    });
+  });
+
+  for (const c of contrasti) {
+    if (c.ratio < 4.5) {
+      errors.push(`contrasto insufficiente nel filo: ${c.cls} a ${c.ratio.toFixed(2)}:1`);
+    }
+  }
+
   await click('.tabbar__item:nth-child(4)', 'tab MINDLINE');
   await click('.archive__seg:nth-child(2)', 'vista VINZ.DEX');
   /* La scheda giusta e quella marcata «ora»: lo scaffale e in ordine di

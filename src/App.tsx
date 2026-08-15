@@ -33,6 +33,7 @@ import { EvolutionScreen } from './screens/Evolution';
 import { NewBranchScreen } from './screens/NewBranch';
 import { SpecimenProfileScreen } from './screens/SpecimenProfile';
 import { DexScreen } from './screens/Dex';
+import { RoomScreen } from './screens/Room';
 import { MindlineMapScreen } from './screens/MindlineMap';
 import { CalendarScreen } from './screens/SyncCalendar';
 import { HeritageDnaScreen } from './screens/HeritageDna';
@@ -326,7 +327,10 @@ function PhaseScreen({
    ========================================================================= */
 
 function ArchiveTab({ onGo }: { onGo: (o: Overlay) => void }) {
-  const [view, setView] = useState<'mindline' | 'dex'>('mindline');
+  const [view, setView] = useState<'mindline' | 'dex' | 'room'>('mindline');
+  /* 🔷 §21.4 — il pallino sul filo: qualcosa è successo e non l'hai ancora
+     letto. Non è una notifica che chiede attenzione, è un segno che c'è. */
+  const pending = useApp((s) => s.room.some((p) => p.text === null));
 
   return (
     <div className="archive">
@@ -355,9 +359,24 @@ function ArchiveTab({ onGo }: { onGo: (o: Overlay) => void }) {
         >
           {t.dex.title}
         </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={view === 'room'}
+          className="archive__seg"
+          onClick={() => {
+            haptic('tick');
+            setView('room');
+          }}
+        >
+          {t.room.title}
+          {pending && <span className="archive__dot" aria-hidden="true" />}
+        </button>
       </div>
 
-      {view === 'mindline' ? <MindlineMapScreen onGo={onGo} /> : <DexScreen onGo={onGo} />}
+      {view === 'mindline' && <MindlineMapScreen onGo={onGo} />}
+      {view === 'dex' && <DexScreen onGo={onGo} />}
+      {view === 'room' && <RoomScreen />}
     </div>
   );
 }

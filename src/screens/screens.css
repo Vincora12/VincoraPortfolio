@@ -3639,3 +3639,119 @@
 .teca__forget:focus-visible {
   color: var(--signal-alert);
 }
+
+/* ============================================================================
+   IL FILO (§21.4)
+
+   Nessun campo di testo, di proposito: tu leggi. Vedi `screens/Room.tsx`.
+   ========================================================================= */
+
+.room__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--u3);
+  padding-bottom: var(--u8);
+}
+
+/* ⚠️ Il colore del testo qui NON puo essere --paper: su campo inchiostro
+   (`[data-field='ink']`) --paper vale #141416, cioe una SUPERFICIE. Usarlo per
+   il testo scrive nero su nero. Il testo su questo campo e --ink, che si
+   inverte insieme al fondo. */
+.room__notice {
+  border: var(--border) solid var(--hairline);
+  padding: var(--u3);
+  color: var(--ink);
+}
+
+.room__empty {
+  color: var(--muted);
+}
+
+.post {
+  display: flex;
+  flex-direction: column;
+  gap: var(--u2);
+  border-top: 1px solid var(--muted-strong);
+  padding-top: var(--u3);
+}
+
+.post__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--u2);
+}
+
+.post__from {
+  color: var(--ink);
+  letter-spacing: 0.06em;
+}
+
+.post__kind,
+.post__alone,
+.post__likes {
+  color: var(--muted);
+}
+
+/* Il fatto, prima che qualcuno lo trasformi in parole. Si legge come un
+   appunto e non come una battuta: e' quello che e'. */
+.post__about {
+  color: var(--muted-strong);
+  border-left: var(--border) solid var(--muted-strong);
+  padding-left: var(--u3);
+}
+
+.post__text {
+  color: var(--ink);
+  margin: 0;
+}
+
+.post__actions {
+  display: flex;
+}
+
+.post__failed {
+  color: var(--signal-alert);
+}
+
+.post__reactions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--u2);
+}
+
+.post__comments {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 var(--u4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--u2);
+  border-left: 1px solid var(--muted-strong);
+}
+
+.comment {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.comment__from {
+  color: var(--muted);
+}
+
+.comment__text {
+  color: var(--ink);
+}
+
+/* Il pallino sulla linguetta: c'e' qualcosa di non letto. Non lampeggia e non
+   conta: dice solo che esiste. */
+.archive__dot {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  margin-left: var(--u);
+  vertical-align: middle;
+  background: var(--char-primary);
+}

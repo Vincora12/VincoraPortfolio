@@ -898,7 +898,10 @@ function buildReasonSummary(
   else parts.push(`contaminato ${affinity}`);
   parts.push(`ruolo ${role}`);
   parts.push(`umore ${mood} dalla finestra recente`);
-  if (ctx.heritageOrigins.length > 0) parts.push(`${ctx.heritageOrigins.length} tratti in eredità`);
+  if (ctx.heritageOrigins.length > 0) {
+    const n = ctx.heritageOrigins.length;
+    parts.push(`${n} ${n === 1 ? 'tratto' : 'tratti'} in eredità`);
+  }
   return parts.join(' · ');
 }
 

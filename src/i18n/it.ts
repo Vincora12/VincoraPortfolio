@@ -151,6 +151,21 @@ export const t = {
     forget: 'TOGLI DALLA TECA',
   },
 
+  /* §21.4 — il filo della stanza */
+  room: {
+    title: 'IL FILO',
+    empty:
+      'Ancora nessuno nella stanza. Ci si arriva smettendo di essere la forma attiva.',
+    alone: 'Non c’era nessuno.',
+    write: 'LEGGI COSA SI SONO DETTI',
+    writing: 'Stanno scrivendo…',
+    needsToken: 'Serve la chiave: DEV → VOCE → TOKEN.',
+    failed: 'Non sono riusciti a dirlo. Riprova.',
+    likeOne: 'mi piace',
+    likeMany: 'mi piace',
+    toSay: 'hanno qualcosa da dire',
+  },
+
   /* 07 REGISTRA (MS v1.9 §5.2) — un campo solo, niente moduli */
   input: {
     title: 'REGISTRA UN DATO',

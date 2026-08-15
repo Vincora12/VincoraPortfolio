@@ -36,6 +36,8 @@ export { makeRng, randomSeed } from '${cwd}/src/engine/rng.ts';
 export { isValidMonName } from '${cwd}/src/engine/naming.ts';
 export { normalizePool } from '${cwd}/src/engine/rarity.ts';
 export { shouldDownload } from '${cwd}/src/state/store.ts';
+export { kinship, reactionsTo, arrivalPosts, weeklyPosts, weekFacts, roomNotice, unwritten } from '${cwd}/src/engine/room.ts';
+export { parseRoomReply } from '${cwd}/src/ai/roomVoice.ts';
 export * as MD from '${cwd}/src/engine/markdown.ts';
 export * as PAGES from '${cwd}/src/engine/pages.ts';
 export * as SLICE from '${cwd}/src/state/pagesSlice.ts';
@@ -544,6 +546,178 @@ check(
 check(
   storeSrc.includes('markAccelerated(set, get)'),
   'e il salto del tempo lo dichiara davvero',
+);
+
+/* ============================================================================
+   §21.4 — IL DEX E UNA STANZA
+
+   I difetti da sorvegliare qui non sono di calcolo, sono di CONFINE:
+   • VINZ che finisce nella stanza (e l'argomento, non un partecipante)
+   • qualcuno che commenta se stesso
+   • il primo arrivo «aggiustato» con un benvenuto finto
+   • un post che si rigenera e cambia a ogni rilettura
+
+   Nessuno dei quattro fa fallire niente: il filo esce lo stesso, e sembra solo
+   un po' sbagliato.
+   ========================================================================= */
+
+console.log('\n═══ §21.4 — LA STANZA ═══\n');
+
+const roomA = m.generateFirstMon({ input, mindlineNodeId: 'r0', originNodeId: null, lineageNames: [], seed: 101 }).record;
+const roomB = m.generateMon({
+  input, mindlineNodeId: 'r1', originNodeId: 'r0',
+  heritageOrigins: m.selectHeritageOrigins(m.makeRng(7), roomA),
+  lineageNames: [roomA.data.name], previous: roomA, seed: 202,
+}).record;
+const roomC = m.generateMon({
+  input, mindlineNodeId: 'r2', originNodeId: 'r1',
+  heritageOrigins: m.selectHeritageOrigins(m.makeRng(9), roomB),
+  lineageNames: [roomA.data.name, roomB.data.name], previous: roomB, seed: 303,
+}).record;
+
+/* --- Chi si schiera con chi: calcolato, non generato ---------------------- */
+
+check(
+  m.kinship(roomA.data, roomA.data) === 0,
+  'nessuno si mette mi piace da solo',
+);
+check(
+  m.kinship(roomA.data, roomB.data) === m.kinship(roomB.data, roomA.data),
+  'il legame e simmetrico: se A riconosce B, B riconosce A',
+);
+check(
+  m.kinship(roomA.data, roomB.data) === m.kinship(roomA.data, roomB.data),
+  'e stabile: due letture danno lo stesso numero',
+  'nessun dado dentro, o il filo cambierebbe a ogni apertura',
+);
+
+/* B eredita da A: e il legame piu forte che esista qui dentro. */
+const inherits = roomB.data.heritage_traits.some((h) => h.from_mon === roomA.data.name);
+check(
+  !inherits || m.kinship(roomA.data, roomB.data) >= 4,
+  'chi eredita da qualcuno lo riconosce (§23)',
+  inherits ? `legame ${m.kinship(roomA.data, roomB.data)}` : 'nessuna eredita in questo campione',
+);
+
+/* --- I confini ------------------------------------------------------------ */
+
+const people = { residents: [roomA, roomB], active: roomC.data.name };
+const arrived = m.arrivalPosts(roomB, roomC.data, people, 56);
+
+check(
+  arrived.length > 0,
+  'un\'evoluzione produce almeno il post dell\'arrivo',
+);
+check(
+  arrived.every((p) => p.from !== roomC.data.name),
+  'VINZ non pubblica mai nella stanza',
+  'nel dex e l\'argomento, non un partecipante',
+);
+check(
+  arrived.every((p) => !p.likes.includes(roomC.data.name) && !p.voices.includes(roomC.data.name)),
+  'e non mette nemmeno mi piace',
+);
+check(
+  arrived.every((p) => !p.likes.includes(p.from) && !p.voices.includes(p.from)),
+  'nessuno commenta il proprio post',
+);
+check(
+  arrived.some((p) => p.kind === 'ARRIVO') && arrived.some((p) => p.kind === 'SU_VINZ'),
+  'a ogni evoluzione succedono DUE cose, non una',
+  'l\'arrivo guarda dentro, il commento su VINZ guarda fuori',
+);
+check(
+  arrived.every((p) => p.text === null && p.comments.length === 0),
+  'un post nasce senza parole: niente si genera da solo',
+);
+check(
+  arrived.every((p) => p.about.length > 20),
+  'ma nasce con il FATTO da cui partira',
+  'senza materia, il pensiero diventa «oggi il cielo e grigio»',
+);
+
+/* --- Il primo arrivo non viene accolto da nessuno ------------------------- */
+
+const firstArrival = m.arrivalPosts(roomA, roomB.data, { residents: [], active: roomB.data.name }, 28);
+check(
+  firstArrival.length === 1 && firstArrival[0].kind === 'ARRIVO',
+  'il primo che arriva trova la stanza vuota',
+);
+check(
+  firstArrival[0].likes.length === 0 && firstArrival[0].voices.length === 0,
+  'e nessuno lo saluta — non si copre con un benvenuto finto',
+  m.roomNotice(firstArrival),
+);
+check(
+  m.roomNotice(firstArrival).includes('Non c\'era nessuno'),
+  'e la notifica lo dice invece di far finta',
+);
+
+/* --- La notifica dice cosa e successo ------------------------------------- */
+
+check(
+  m.roomNotice([]) === null,
+  'senza niente da leggere non c\'e nessuna notifica',
+);
+check(
+  !m.roomNotice(arrived).toLowerCase().includes('contenut'),
+  'la notifica dice cosa e successo, non «c\'e del contenuto»',
+  m.roomNotice(arrived),
+);
+check(
+  m.unwritten(arrived).length === arrived.length,
+  'finche non li apri, restano tutti da leggere',
+);
+
+/* --- Il giro settimanale -------------------------------------------------- */
+
+const facts = m.weekFacts({ day: 63, closed: 5, moved: { key: 'REC', delta: -4.2 }, said: 'ho dormito male' });
+check(facts.length >= 2, 'una settimana produce dei fatti da cui partire', facts[0]);
+check(
+  facts.some((f) => f.includes('5 giorni su 7')),
+  'e i fatti sono numeri veri, non impressioni',
+);
+
+const weekly = m.weeklyPosts(people, 63, facts);
+check(
+  weekly.length > 0 && weekly.length <= 2,
+  'in un giro parlano al massimo due, non tutti',
+  `${weekly.length} post`,
+);
+check(
+  weekly.every((p) => p.from !== roomC.data.name),
+  'e nemmeno nel giro settimanale parla VINZ',
+);
+check(
+  m.weeklyPosts({ residents: [], active: null }, 63, facts).length === 0,
+  'in una stanza vuota non parla nessuno',
+);
+check(
+  m.weeklyPosts(people, 63, []).length === 0,
+  'e senza fatti non si pubblica niente',
+  'meglio il silenzio di un pensiero inventato',
+);
+
+/* --- Leggere quello che hanno detto --------------------------------------- */
+
+const reply = m.parseRoomReply(
+  `POST: Non mi aspettavo di finire qui cosi presto.\n${roomA.data.name}: Nessuno se lo aspetta.\nSCONOSCIUTO.mon: Io c'ero.`,
+  [roomA.data.name],
+);
+check(reply !== null && reply.text.startsWith('Non mi aspettavo'), 'il post si legge');
+check(
+  reply.comments.length === 1 && reply.comments[0].from === roomA.data.name,
+  'e chi non era stato invitato non entra nella conversazione',
+  'il modello non puo aggiungere partecipanti',
+);
+check(
+  m.parseRoomReply('due righe a caso\nsenza post', [roomA.data.name]) === null,
+  'una risposta senza POST viene rifiutata invece di finire a schermo',
+);
+check(
+  m.parseRoomReply(`POST: c'e\nriga rotta senza nome\n${roomA.data.name}: questo pero si`, [roomA.data.name])
+    .comments.length === 1,
+  'ma una riga sbagliata perde solo quel commento, non tutto il post',
 );
 
 /* ============================================================================

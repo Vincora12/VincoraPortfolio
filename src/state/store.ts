@@ -17,6 +17,7 @@ import {
   applyDay,
   initialHealthState,
   simulateDayInput,
+  trend,
   type SimulationBias,
 } from '../engine/health';
 import {
@@ -37,6 +38,14 @@ import {
   type SignalStatus,
 } from '../engine/progression';
 import { evolveMon, generateFirstMon, generateMon } from '../engine/characterGenerator';
+import type { BackendFailure } from '../ai/backend';
+import {
+  WEEKLY_EVERY,
+  arrivalPosts,
+  weekFacts,
+  weeklyPosts,
+  type RoomPost,
+} from '../engine/room';
 import {
   resetRarityThresholds,
   setRarityThresholds,
@@ -437,6 +446,11 @@ interface AppState {
   keepActiveMon: (note?: string) => Promise<string | null>;
   /** Toglie un ricordo dalla teca, immagini comprese. */
   forgetKept: (id: string) => void;
+
+  /* --- §21.4 LA STANZA --- */
+  room: RoomPost[];
+  /** Scrive il testo di un post. 🔒 Se è già scritto non fa niente. */
+  writeRoom: (postId: string) => Promise<BackendFailure | null>;
 }
 
 /* --- Stato iniziale -------------------------------------------------------- */
@@ -494,6 +508,9 @@ const INITIAL = {
   /* §21.3 — i .mon conservati. NON stanno in INITIAL per caso: `resetAll` li
      rimette a mano proprio perché devono sopravvivere a ricominciare. */
   kept: [] as KeptMon[],
+  /* §21.4 — il filo della stanza. I post nascono da eventi veri e restano
+     senza testo finché non lo chiedi: niente si genera da solo. */
+  room: [] as RoomPost[],
   /* Vero appena il pannello DEV fa saltare del tempo. Serve a marcare i .mon
      conservati: una creatura nata da giorni saltati non è nata dai tuoi dati,
      e la teca deve dirlo invece di lasciartelo indovinare. */
@@ -984,6 +1001,17 @@ export const useApp = create<AppState>()(
           }),
         });
 
+        /* 🔒 §21.4 — NEL DEX NON NASCE NIENTE, SI ARRIVA.
+           La forma che smette di essere attiva entra nella stanza, e gli altri
+           la accolgono. Separato dal commento sulla faccia nuova di VINZ:
+           sono due cose diverse, una guarda dentro e una guarda fuori. */
+        const arrived = arrivalPosts(
+          previous,
+          record.data,
+          { residents: Object.values(s.mons), active: record.data.name },
+          s.day,
+        );
+
         // 🔶 Niente `carryMemoriesThroughBranch`: la memoria non si filtra più.
         // VINZ.MON è una entità sola e le memorie sono sue, non della forma —
         // la forma è solo un metadato sul ricordo.
@@ -1010,6 +1038,7 @@ export const useApp = create<AppState>()(
             }),
           ],
           memories: s.memories,
+          room: [...s.room, ...arrived],
           chat: [...s.chat, openingMessage(record, s.day, s.token !== null)].slice(-60),
           pendingHeritage: [],
           pendingPlan: null,
@@ -1747,6 +1776,37 @@ export const useApp = create<AppState>()(
         return entry.id;
       },
 
+      /* ============================================================================
+         §21.4 — SCRIVERE UN POST
+
+         🔒 Se il testo c'è già non si tocca. Una cosa che cambia a ogni
+         rilettura non è un ricordo, ed è la stessa regola che vale per le
+         memorie e per i .mon già nati.
+         ========================================================================= */
+      writeRoom: async (postId) => {
+        const s = get();
+        const post = s.room.find((p) => p.id === postId);
+        if (!post || post.text !== null) return null;
+
+        const author = s.mons[post.from] ?? s.kept.find((k) => k.record.data.name === post.from)?.record;
+        if (!author) return 'error';
+
+        const voices = post.voices
+          .map((n) => s.mons[n] ?? s.kept.find((k) => k.record.data.name === n)?.record)
+          .filter((r): r is MonRecord => Boolean(r));
+
+        const { writeRoomPost } = await import('../ai/roomVoice');
+        const { post: written, failure } = await writeRoomPost(s.token, post, author, voices);
+        if (!written) return failure ?? 'error';
+
+        set({
+          room: get().room.map((p) =>
+            p.id === postId ? { ...p, text: written.text, comments: written.comments } : p,
+          ),
+        });
+        return null;
+      },
+
       forgetKept: (id) => {
         const entry = get().kept.find((k) => k.id === id);
         if (!entry) return;
@@ -2112,6 +2172,46 @@ export async function syncWithServer(): Promise<'locale' | 'scaricato' | 'niente
   return 'scaricato';
 }
 
+/* ============================================================================
+   §21.4 — IL GIRO SETTIMANALE
+
+   🔒 Nessun ciclo e nessun tick: questa gira SOLO quando avanza un giorno, che
+   è già una cosa che succede. Non c'è niente acceso mentre l'app è chiusa.
+
+   E i post nascono senza testo. Il testo lo chiedi tu, se ti va — vedi
+   `writeRoom`.
+   ========================================================================= */
+function maybeWeeklyRound(set: (p: Partial<AppState>) => void, get: () => AppState): void {
+  const s = get();
+  if (s.day % WEEKLY_EVERY !== 0) return;
+
+  // Serve qualcuno nella stanza: la forma attiva non partecipa.
+  const residents = Object.values(s.mons).filter((r) => r.data.name !== s.activeMonName);
+  if (residents.length === 0) return;
+
+  // Già fatto per questo giorno? Non se ne fanno due.
+  if (s.room.some((p) => p.kind === 'SETTIMANA' && p.day === s.day)) return;
+
+  const from = Math.max(1, s.day - WEEKLY_EVERY + 1);
+  let closed = 0;
+  for (let d = from; d <= s.day; d++) if (s.days[d]?.status === 'SYNCED') closed += 1;
+
+  const moved = STAT_KEYS.map((k) => ({ key: k, delta: trend(s.health, k, WEEKLY_EVERY) }))
+    .filter((m): m is { key: StatKey; delta: number } => isKnown(m.delta))
+    .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))[0] ?? null;
+
+  const said =
+    [...s.chat].reverse().find((m) => m.from === 'vinz' && m.day >= from)?.text ?? null;
+
+  const posts = weeklyPosts(
+    { residents, active: s.activeMonName },
+    s.day,
+    weekFacts({ day: s.day, closed, moved, said: said ? said.slice(0, 120) : null }),
+  );
+
+  if (posts.length > 0) set({ room: [...s.room, ...posts] });
+}
+
 /** Segna che questa partita ha saltato del tempo dal pannello DEV. */
 function markAccelerated(set: (p: Partial<AppState>) => void, get: () => AppState): void {
   if (!get().usedDevTime) set({ usedDevTime: true });
@@ -2191,6 +2291,7 @@ function advanceOneDay(set: (p: Partial<AppState>) => void, get: () => AppState)
   applyPlannedRest(set, get);
   maybeReflect(set, get);
   maybeReview(set, get);
+  maybeWeeklyRound(set, get);
   maybeSpeakFirst();
 }
 
