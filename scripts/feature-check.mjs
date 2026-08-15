@@ -953,6 +953,53 @@ check(
 );
 
 /* ============================================================================
+   IL PANNELLO DEV E SEMPRE RAGGIUNGIBILE — §26, scostamento dichiarato
+
+   🔷 «La modalità DEV in alto sempre presente anche se accedo senza url dev,
+   tanto scelgo io di non cliccare ed entrare.»
+
+   §26 vieta i controlli DEV in produzione. Quella regola protegge GLI UTENTI
+   di un prodotto: qui l'utente e uno, e il proprietario, ed e quello che ha
+   scritto la regola. Lo scostamento e voluto e sta scritto in App.tsx.
+
+   Ma cambia una cosa vera: il reset totale e passato da «in fondo a un
+   corridoio» a «in salotto». La conferma non e un vezzo, e la contropartita.
+   ========================================================================= */
+
+check(
+  'DEV §26',
+  'il pannello DEV si raggiunge senza l’indirizzo speciale',
+  lacks('src/App.tsx', "get('dev') === '1'"),
+);
+check(
+  'DEV §26',
+  'e lo scostamento da §26 e dichiarato dove succede',
+  has('src/App.tsx', "l'utente è uno, è il proprietario"),
+);
+check(
+  'DEV §26',
+  'il reset totale chiede conferma prima di cancellare',
+  has('src/dev/DevPanel.tsx', 'function ResetAllButton'),
+  'a due tocchi da ogni schermata, senza conferma sarebbe una trappola',
+);
+check(
+  'DEV §26',
+  'la conferma dice cosa stai per perdere, con i numeri veri',
+  has('src/dev/DevPanel.tsx', 'Stai per cancellare'),
+);
+check(
+  'DEV §26',
+  'e dice se la teca ti salva qualcosa',
+  has('src/dev/DevPanel.tsx', 'nella teca restano'),
+);
+check(
+  'DEV §26',
+  'la conferma non e un dialogo del browser',
+  lacks('src/dev/DevPanel.tsx', 'window.confirm'),
+  'su iPhone compare in un punto imprevedibile e si chiude per sbaglio',
+);
+
+/* ============================================================================
    Sicurezza e tono — non negoziabili
    ========================================================================= */
 

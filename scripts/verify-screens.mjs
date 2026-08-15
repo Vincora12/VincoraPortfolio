@@ -668,6 +668,10 @@ try {
   await click('.devtrigger', 'riapri DEV');
   await click(byText('MINDLINE'), 'tab mindline dev');
   await click(byText('RESET COMPLETO DELLA SIMULAZIONE'), 'reset completo');
+  /* 🔷 Il pulsante ora chiede conferma: un tocco solo non deve bastare, e il
+     controllo deve accorgersene se un giorno la conferma sparisce. */
+  await shot('19-reset-conferma');
+  await click(byText('Cancella tutto'), 'conferma il reset');
   await page.waitForSelector('.screen', { timeout: 5000 });
   await shot('19-dopo-il-reset');
 

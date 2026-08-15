@@ -186,11 +186,27 @@ export function App() {
     });
   }, []);
 
-  // §26 — la dev mode si apre solo di proposito: ?dev=1 nell'indirizzo.
+  /* ============================================================================
+     🔷 «La modalità DEV in alto sempre presente anche se accedo senza url dev,
+     tanto scelgo io di non cliccare ed entrare.»
+
+     Concesso, e la ragione regge: §26 vieta di esporre i controlli DEV «in
+     produzione», ma quella regola protegge GLI UTENTI di un prodotto — e qui
+     l'utente è uno, è il proprietario, ed è quello che ha scritto la regola.
+     Nascondere l'interruttore a sé stessi non è sicurezza, è attrito.
+
+     ⚠️ MA UNA COSA CAMBIA DAVVERO, E ANDAVA SISTEMATA INSIEME.
+
+     Con l'indirizzo `?dev=1` il pannello era una cosa che si raggiungeva di
+     proposito. Adesso è a due tocchi da qualunque schermata, sempre — e dentro
+     c'è RESET COMPLETO, che cancella la partita senza chiedere niente. Una
+     porta che prima era in fondo a un corridoio adesso è in salotto: la
+     maniglia va cambiata, e infatti quel pulsante ora chiede conferma.
+
+     `?dev=1` continua a funzionare e non serve più a niente: chi ha un
+     segnalibro vecchio non trova un errore. */
   useEffect(() => {
-    if (new URLSearchParams(window.location.search).get('dev') === '1') {
-      setDev({ enabled: true });
-    }
+    setDev({ enabled: true });
   }, [setDev]);
 
   /* Vale anche per l'incubazione, con l'uovo al centro: i sette giorni che

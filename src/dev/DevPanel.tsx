@@ -372,6 +372,7 @@ function MindlineSection({ onClose }: { onClose: () => void }) {
   const restoreNode = useApp((s) => s.restoreNode);
   const cloneScenario = useApp((s) => s.cloneScenario);
   const resetAll = useApp((s) => s.resetAll);
+  const keptCount = useApp((s) => s.kept.length);
   const activeMonName = useApp((s) => s.activeMonName);
 
   const activeNodeId = activeMonName ? mons[activeMonName]?.data.mindline_node : null;
@@ -442,9 +443,64 @@ function MindlineSection({ onClose }: { onClose: () => void }) {
         nodo e l'eredità. CLONA crea un ramo parallelo per confronti a coppie.
       </p>
 
-      <Button block variant="secondary" small onClick={resetAll}>
+      <ResetAllButton onReset={resetAll} keptCount={keptCount} />
+    </div>
+  );
+}
+
+/* ============================================================================
+   ⚠️ IL PULSANTE CHE CANCELLA TUTTO CHIEDE DUE VOLTE.
+
+   Finché il pannello si apriva solo con `?dev=1` nell'indirizzo, arrivare qui
+   era già una scelta deliberata. Da quando il tasto DEV è sempre in alto, non
+   lo è più: questo pulsante sta a due tocchi da qualunque schermata, e cancella
+   mesi in un colpo.
+
+   La conferma NON è un `confirm()` del browser: su iPhone quel dialogo compare
+   in un punto imprevedibile e si chiude con un tocco a caso fuori. Qui invece
+   il pulsante si trasforma, dice cosa stai per perdere con i numeri veri, e
+   per confermare devi premere una seconda volta un bersaglio DIVERSO.
+   ========================================================================= */
+
+function ResetAllButton({ onReset, keptCount }: { onReset: () => void; keptCount: number }) {
+  const [armed, setArmed] = useState(false);
+  const day = useApp((s) => s.day);
+  const forms = useApp((s) => Object.keys(s.mons).length);
+  const memories = useApp((s) => s.memories.length);
+
+  if (!armed) {
+    return (
+      <Button block variant="secondary" small onClick={() => setArmed(true)}>
         RESET COMPLETO DELLA SIMULAZIONE
       </Button>
+    );
+  }
+
+  return (
+    <div className="dev__control">
+      <p className="t-small dev__note">
+        Stai per cancellare <strong>{day} giorni</strong>, {forms}{' '}
+        {forms === 1 ? 'forma' : 'forme'} e {memories}{' '}
+        {memories === 1 ? 'ricordo' : 'ricordi'}.{' '}
+        {keptCount > 0
+          ? `I ${keptCount} .mon nella teca restano.`
+          : 'Non hai conservato nessun .mon nella teca: non resta niente.'}
+      </p>
+      <div className="dev__control dev__control--row">
+        <Button small onClick={() => setArmed(false)}>
+          Lascia stare
+        </Button>
+        <Button
+          variant="secondary"
+          small
+          onClick={() => {
+            setArmed(false);
+            onReset();
+          }}
+        >
+          Cancella tutto
+        </Button>
+      </div>
     </div>
   );
 }
