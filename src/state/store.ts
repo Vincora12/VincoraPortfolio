@@ -291,6 +291,14 @@ interface AppState {
    */
   token: string | null;
 
+  /**
+   * Quando hai ricominciato da capo l'ultima volta, o `null`.
+   *
+   * 🔒 È l'unica cosa che impedisce a una partita cancellata di tornare
+   * indietro dal server: vedi `syncWithServer`.
+   */
+  resetAt: string | null;
+
   /** §22 — accetta o rifiuta un aggiustamento proposto dal .mon. */
   decideVoiceNote: (id: string, accept: boolean) => void;
 
@@ -437,6 +445,17 @@ const INITIAL = {
   },
   bias: DEFAULT_BIAS,
   token: null as string | null,
+  /* ⚠️ QUANDO HAI RICOMINCIATO DA CAPO L'ULTIMA VOLTA.
+
+     Serve a una cosa sola, ma indispensabile: impedire che una partita
+     cancellata torni indietro dal server. La regola di conflitto sceglie la
+     copia più avanti nel GIORNO di gioco (vedi `syncWithServer`), e dopo un
+     reset la copia locale è al giorno 1 mentre quella sul server è al
+     quaranta. Senza questo timestamp il server rivincerebbe sempre, e il
+     reset verrebbe annullato in silenzio al ricaricamento successivo.
+
+     `null` finché non hai mai ricominciato. */
+  resetAt: null as string | null,
 };
 
 /* --- Helper ---------------------------------------------------------------- */
@@ -1637,6 +1656,10 @@ export const useApp = create<AppState>()(
         set({
           ...INITIAL,
           startedAt: new Date().toISOString(),
+          /* 🔒 Il momento del reset viene PRIMA di qualunque salvataggio nuovo,
+             quindi qualsiasi copia sul server scritta prima di adesso è di una
+             partita che hai buttato via. */
+          resetAt: new Date().toISOString(),
           health: initialHealthState(),
           personality: neutralPersonality(),
           scanAnswers: {},
@@ -1920,6 +1943,46 @@ function scheduleRemoteSave(): void {
 
 useApp.subscribe(scheduleRemoteSave);
 
+/* ============================================================================
+   CHI VINCE FRA IL TELEFONO E IL SERVER
+
+   Funzione pura, e separata apposta: è la decisione che può far sparire mesi
+   di storia, quindi deve essere leggibile in dieci righe e verificabile senza
+   una rete finta.
+   ========================================================================= */
+
+export interface LocalSave {
+  day: number;
+  /** Quando hai ricominciato da capo, o `null`. */
+  resetAt: string | null;
+}
+
+export interface ServerSave {
+  day: number;
+  savedAt: string | null;
+}
+
+/**
+ * Vero se la copia del server va scaricata sopra quella locale.
+ *
+ * ⚠️ UN RESET NON SI PUÒ ANNULLARE DAL SERVER.
+ *
+ * La regola normale è «vince chi è più avanti nel GIORNO di gioco», ed è
+ * giusta: protegge da un orologio del telefono sbagliato, che l'ora reale non
+ * fa. Ma dopo che hai ricominciato da capo diventa esattamente la regola
+ * sbagliata — la partita buttata via è al giorno 40, quella nuova al giorno 1,
+ * e il server rivincerebbe. Il reset verrebbe annullato in silenzio al
+ * ricaricamento successivo, e nessun errore lo direbbe.
+ *
+ * Quindi: un salvataggio scritto PRIMA del reset appartiene a una partita che
+ * non esiste più. Non si scarica, e il primo salvataggio della partita nuova
+ * ci scrive sopra.
+ */
+export function shouldDownload(local: LocalSave, server: ServerSave): boolean {
+  if (local.resetAt && server.savedAt && server.savedAt <= local.resetAt) return false;
+  return server.day > local.day;
+}
+
 /**
  * All'avvio: si guarda cosa c'è sul server e si tiene la storia più lunga.
  *
@@ -1934,7 +1997,7 @@ export async function syncWithServer(): Promise<'locale' | 'scaricato' | 'niente
   const { data, failure } = await loadRemote(local.token);
   if (failure || !data || data.state == null) return 'niente';
 
-  if (data.day <= local.day) return 'locale';
+  if (!shouldDownload({ day: local.day, resetAt: local.resetAt }, data)) return 'locale';
 
   /* Il server ha più storia: quella locale era indietro (telefono nuovo,
      dati del browser cancellati, o semplicemente un altro dispositivo). Il

@@ -35,6 +35,7 @@ export { initialHealthState, applyDay, simulateDayInput, DEFAULT_BIAS } from '${
 export { makeRng, randomSeed } from '${cwd}/src/engine/rng.ts';
 export { isValidMonName } from '${cwd}/src/engine/naming.ts';
 export { normalizePool } from '${cwd}/src/engine/rarity.ts';
+export { shouldDownload } from '${cwd}/src/state/store.ts';
 export * as MD from '${cwd}/src/engine/markdown.ts';
 export * as PAGES from '${cwd}/src/engine/pages.ts';
 export * as SLICE from '${cwd}/src/state/pagesSlice.ts';
@@ -492,6 +493,48 @@ check(
 const familyCounts = tally((d) => d.family).map(([, n]) => n);
 console.log(
   `  ····  su questo profilo la Family più favorita esce ${(Math.max(...familyCounts) / Math.min(...familyCounts)).toFixed(1)}× più della meno favorita (§17: è voluto)`,
+);
+
+/* ============================================================================
+   CHI VINCE FRA IL TELEFONO E IL SERVER
+
+   ⚠️ Questa sezione nasce da una trappola trovata mentre si spiegava come
+   provare l'app senza dati veri: fai una partita di prova, la butti via, e al
+   ricaricamento successivo TORNA. Perché la regola di conflitto sceglie la
+   copia più avanti nel giorno di gioco, e la partita buttata era al giorno 40
+   mentre quella nuova è al giorno 1.
+
+   Non dava errori. Semplicemente il reset non funzionava, e te ne accorgevi
+   settimane dopo con la creatura sbagliata in casa.
+   ========================================================================= */
+
+console.log('\n═══ SALVATAGGIO: CHI VINCE ═══\n');
+
+const T0 = '2026-08-10T10:00:00.000Z';
+const T1 = '2026-08-15T10:00:00.000Z';
+
+check(
+  m.shouldDownload({ day: 3, resetAt: null }, { day: 40, savedAt: T1 }),
+  'il server con piu storia vince sul telefono indietro',
+);
+check(
+  !m.shouldDownload({ day: 40, resetAt: null }, { day: 3, savedAt: T1 }),
+  'ma non vince se ha meno storia, anche se ha scritto dopo',
+  'e la regola che protegge da un orologio sbagliato',
+);
+check(
+  !m.shouldDownload({ day: 1, resetAt: T1 }, { day: 40, savedAt: T0 }),
+  'una partita buttata via NON torna indietro dal server',
+  'salvata prima del reset: appartiene a una partita che non esiste piu',
+);
+check(
+  m.shouldDownload({ day: 1, resetAt: T0 }, { day: 40, savedAt: T1 }),
+  'ma un salvataggio fatto DOPO il reset si scarica ancora',
+  'e un altro telefono che ha giocato la partita nuova',
+);
+check(
+  !m.shouldDownload({ day: 5, resetAt: null }, { day: 5, savedAt: T1 }),
+  'a parita di giorno non si scarica niente',
 );
 
 /* ============================================================================
