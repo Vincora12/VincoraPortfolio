@@ -56,56 +56,27 @@ Non serve inventarlo, serve dirlo:
 
 ---
 
-## Cosa è stato valutato e scartato
+## Scartato e rimandato
 
-### Il pantheon — forme che restano vive e autonome
+Due righe ciascuno. Stanno qui solo per non rifare il ragionamento da capo.
 
-L'idea: alla evoluzione la forma vecchia non muore, resta viva con una sua
-autonomia, e col tempo si forma un mondo. In futuro, ognuna gestisce una parte
-diversa della tua vita.
+**Il pantheon** — forme che restano vive e autonome dopo l'evoluzione, che un
+giorno gestiscono parti diverse della tua vita. **Scartato.** L'avevo difeso
+dicendo che partizionare la memoria per periodo la fa scalare, e non è vero:
+🔒 **il tempo è l'indice sbagliato per un archivio personale**, perché quando
+cerchi una cosa non sai quando l'hai detta. Il rimedio giusto al tetto della
+memoria è uno strumento che cerca per argomento. Senza quel puntello resta lore
+costosa, con un valore d'uso che si esaurisce dopo due conversazioni.
 
-**Bella, e scartata.** Prima l'avevo difesa con un argomento tecnico —
-«partizionare la memoria per periodo la fa scalare» — e l'argomento **non
-regge**, come è stato fatto notare:
+**Il narratore** — un'entità che scrive le storie delle forme e le intreccia.
+**Rimandato**, con due paletti già decisi: 🔒 non è un personaggio con cui si
+parla (scrive, non risponde — un secondo interlocutore romperebbe l'entità
+sola), e 🔒 può inventare le parole, mai i fatti. È retroattivo, quindi
+aspettare non perde niente e guadagna mesi di cose vere da raccontare.
 
-> «Non è utile per un'AI dividere la memoria per periodo.»
-
-È vero. Il tempo è quasi sempre l'indice sbagliato per un archivio personale:
-quando cerchi una cosa non sai quando l'hai detta, ed è esattamente quello che
-ti manca. La risposta giusta al tetto della memoria è **uno strumento che cerca
-per argomento**, non uno sharding per epoca.
-
-Tolto quel puntello, il pantheon resta lore: costosa da mantenere, e con un
-valore d'uso che si esaurisce dopo due conversazioni. Resta scritta qui nel caso
-un giorno se la guadagni.
-
-### Il narratore
-
-Un'entità che scrive le storie delle forme e le intreccia. **Rimandata**, non
-scartata — con due paletti già decisi:
-
-1. **Non è un personaggio con cui si parla.** Scrive, non risponde. Non ha
-   umore, non ha opinioni, non ti conosce. Un secondo interlocutore romperebbe
-   la tesi dell'entità sola.
-2. **Può inventare le parole, mai i fatti.** Riceve un registro di cose
-   realmente successe — giorni, evoluzioni, tratti ereditati, cosa gli hai
-   detto — e lo trasforma in racconto. La lore inventata dal nulla è la cosa
-   più facile del mondo da rendere noiosa.
-
-Ed è **retroattiva**: può scrivere la storia di forme già esistenti. Quindi
-costruirla dopo non perde niente, e guadagna mesi di cose vere da raccontare.
-
-### I registri, quando servirà
-
-Tre modi di scrivere che non spiegano il mondo ma lo lasciano dedurre:
-
-- **il bestiario dello studioso** — Borges, voci brevi, la meraviglia riportata
-  come un dato
-- **il frammento sull'oggetto** — Dark Souls: la storia arriva a pezzi,
-  attaccata a una cosa che hai in mano
-- **il taccuino di chi ha osservato** — i naturalisti: data, cosa si è visto,
-  cosa non si è capito. È il registro che rende vera una creatura, perché chi
-  scrive non sa tutto
+I tre registri scelti per quando servirà: il bestiario dello studioso (Borges),
+il frammento sull'oggetto (Dark Souls), il taccuino di chi ha osservato. Nessuno
+dei tre spiega il mondo: lo lasciano dedurre.
 
 ---
 
