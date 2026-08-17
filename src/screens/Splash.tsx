@@ -208,7 +208,7 @@ function MonDossier({ health }: { health: Parameters<typeof birthStatsFor>[0] })
           <Row label="ROLE" value={d.role} />
           <Row label="FASHION" value={d.fashion} />
           <Row label="RARITÀ" value={d.rarity} />
-          <Row label="MOOD" value={d.mood_secondary ? `${d.mood_primary} · ${d.mood_secondary}` : d.mood_primary} />
+          <Row label="TEMPERAMENTO" value={d.mood_secondary ? `${d.mood_primary} · ${d.mood_secondary}` : d.mood_primary} />
         </div>
       </section>
 

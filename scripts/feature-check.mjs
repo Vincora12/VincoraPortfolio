@@ -1053,6 +1053,37 @@ check(
 );
 
 /* ============================================================================
+   NOMI §10.6 — «Umore è diverso da mood vero?»
+
+   Sì: tre cose diverse si chiamavano tutte «umore». Il temperamento con cui il
+   .mon nasce, lo stato che gli cambia ogni giorno, e come stai tu. La parola
+   resta di UNO solo — quello che si muove.
+   ========================================================================= */
+
+check(
+  'NOMI §10.6',
+  'il temperamento non si chiama «umore» in nessuna schermata',
+  has('src/engine/progression.ts', "mood_primary: 'TEMPERAMENTO'") &&
+    lacks('src/screens/SpecimenProfile.tsx', 'label="MOOD" value={`${d.mood_primary}') &&
+    lacks('src/screens/Dex.tsx', 'label="MOOD"') &&
+    lacks('src/screens/Splash.tsx', 'label="MOOD"'),
+  '«UMORE: resta» sembrava dire che resterà di buonumore, e diceva che resterà SAD',
+);
+check(
+  'NOMI §10.6',
+  'come stai TU non si chiama come l’umore del .mon',
+  has('src/engine/progression.ts', "MOOD: 'COME STO'") &&
+    has('src/engine/chatExtract.ts', "out.push('COME STO')"),
+);
+check(
+  'NOMI §10.6',
+  'il nome del campo salvato non è stato toccato',
+  has('src/engine/progression.ts', "'MOOD'] as const") &&
+    has('src/engine/types.ts', 'mood_primary: string'),
+  'i .mon già salvati e i pacchetti esportati contengono quelle chiavi',
+);
+
+/* ============================================================================
    Sicurezza e tono — non negoziabili
    ========================================================================= */
 

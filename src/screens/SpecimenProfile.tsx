@@ -144,7 +144,10 @@ export function SpecimenProfileScreen({
 
                 Sono tutti in DEV → PROGRESSIONE, dove servono davvero. */}
             <Row label="STATO" value={d.evolution_state?.label ?? 'BASIC FORM'} />
-            <Row label="MOOD" value={`${d.mood_primary} · ${moodDef(d.mood_primary).it}`} />
+            {/* TEMPERAMENTO, non «MOOD»: è la cosa con cui è nato e che non
+                si muove. L'umore che cambia sta in `engine/mood.ts` e non ha
+                una riga qui. */}
+            <Row label="TEMPERAMENTO" value={`${d.mood_primary} · ${moodDef(d.mood_primary).it}`} />
             <Row label="RARITÀ" value={`${d.rarity} · ${rarityDef(d.rarity).it}`} />
             <Row label="LEGAME" value={`${Math.round(progression.bond * 100)}%`} />
             {/* Un SYNC solo: era scritto tre volte nella stessa schermata,

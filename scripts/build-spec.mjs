@@ -230,7 +230,7 @@ body.push(
 );
 
 body.push(
-  rule('🔒', 'Scrivere in chat riempie i Daily Signals. «Oggi palestra e poi carbonara, sono distrutto» riempie CIBO, ALLENAMENTO e UMORE da solo.'),
+  rule('🔒', 'Scrivere in chat riempie i Daily Signals. «Oggi palestra e poi carbonara, sono distrutto» riempie CIBO, ALLENAMENTO e COME STO da solo.'),
   rule('🔒', 'Quello che il sistema ha capito È SEMPRE VISIBILE sotto il messaggio. Registrare in silenzio è peggio che non registrare: senza riscontro non sai se hai già detto una cosa.'),
   rule('🔒', 'L\'estrazione non sovrascrive MAI un segnale già dichiarato a mano. Una parola pescata in una frase vale meno di un pulsante premuto.'),
   rule('🔒', 'L\'estrazione non inventa. Se una cosa non è nel testo, il segnale resta UNKNOWN — la stessa regola di §5 sui sensori.'),
@@ -347,7 +347,7 @@ body.push(
   rule('🔒', 'L\'uovo NON PARLA. Risponde con dei SUONI, da un vocabolario chiuso che non contiene nessuna parola di nessuna lingua.'),
   rule('🔒', 'Il motivo non è grafico. §12/01 vieta di anticipare la forma futura, e una creatura che ti risponde a parole prima di nascere la anticipa nel modo peggiore: con la personalità, che è la cosa che stai ancora seminando.'),
   rule('🔒', 'NESSUNA CHIAMATA AI durante l\'incubazione. Non c\'è ancora una voce da far scrivere a un modello — e di conseguenza sette giorni di uso quotidiano non costano nulla.'),
-  rule('🔒', 'Il suono è PRESENZA, l\'etichetta è INFORMAZIONE. Cosa è stato registrato lo dice la riga «registrato: CIBO · UMORE», come in chat normale. Il suono non va decifrato: deve solo far sentire che dall\'altra parte c\'è qualcosa.'),
+  rule('🔒', 'Il suono è PRESENZA, l\'etichetta è INFORMAZIONE. Cosa è stato registrato lo dice la riga «registrato: CIBO · COME STO», come in chat normale. Il suono non va decifrato: deve solo far sentire che dall\'altra parte c\'è qualcosa.'),
   rule('🔒', 'Reagisce a quello che hai detto, non a caso: tensione, calore, presa d\'atto, curiosità.'),
   rule('🔒', 'Si sveglia piano — nei primi giorni fa un suono solo, verso la fine tre. È l\'unica misura di avvicinamento che si sente addosso invece di leggerla in una barra.'),
   rule('🔒', 'Ma se ha SENTITO qualcosa, reagisce sempre. Il risveglio graduale lo porta il numero di suoni, mai il silenzio: il primissimo messaggio — quello che decide se uno ci riprova domani — non può ricevere un puntino.'),

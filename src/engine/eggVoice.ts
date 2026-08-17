@@ -21,7 +21,7 @@
       ha ancora una voce. L'incubazione, di conseguenza, non costa nulla — sette
       giorni di uso quotidiano a costo zero.
    3. **Il suono è presenza, l'etichetta è informazione.** Cosa è stato
-      registrato lo dice la riga «registrato: CIBO · UMORE» sotto al messaggio,
+      registrato lo dice la riga «registrato: CIBO · COME STO» sotto al messaggio,
       come in chat normale. Il suono non deve essere decifrato: deve solo far
       sentire che dall'altra parte c'è qualcosa.
    4. **Reagisce a quello che hai detto**, non a caso. Un giorno raccontato bene

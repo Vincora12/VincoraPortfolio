@@ -167,7 +167,7 @@ export function DexScreen({ onGo }: { onGo: (o: Overlay) => void }) {
               <Row label="FAMILY" value={`${selected.data.family} // ${selected.data.family_archetype}`} />
               <Row label="AFFINITY" value={selected.data.affinity} />
               <Row label="RARITÀ" value={selected.data.rarity} />
-              <Row label="MOOD" value={selected.data.mood_primary} />
+              <Row label="TEMPERAMENTO" value={selected.data.mood_primary} />
               <Row label="VOCE" value={selected.data.voice_preset} />
               {selectedNode && <Row label="NATO IL GIORNO" value={String(selectedNode.day)} />}
             </div>

@@ -330,7 +330,7 @@ export function extractionLabels(e: Extraction): string[] {
     );
   }
   if (e.signals.WORKOUT) out.push('ALLENAMENTO');
-  if (e.signals.MOOD) out.push('UMORE');
+  if (e.signals.MOOD) out.push('COME STO');
   for (const m of e.measures) out.push(m.label.toUpperCase());
   return out;
 }

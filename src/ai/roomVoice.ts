@@ -35,7 +35,7 @@ function whoIs(rec: MonRecord): string {
   const d = rec.data;
   return [
     `${d.name} — ${d.family} / ${d.family_archetype}, affinity ${d.affinity}, ${d.size}.`,
-    `Umore ${d.mood_primary}${d.mood_secondary ? ` con ${d.mood_secondary}` : ''}.`,
+    `Temperamento ${d.mood_primary}${d.mood_secondary ? ` con ${d.mood_secondary}` : ''}.`,
     `Parla come: ${d.voice_preset}.`,
     `È ${d.character_dna.traits.join(', ')}. Vuole ${d.character_dna.drives.join(' e ')}.`,
     `Quando non sa cosa fare, ${d.character_dna.body_language}.`,

@@ -33,10 +33,32 @@ import type { FoodGroup, MealSlot } from './protocol';
 export const DAILY_SIGNALS = ['FOOD', 'WORKOUT', 'MOOD'] as const;
 export type DailySignalKey = (typeof DAILY_SIGNALS)[number];
 
+/*
+ * ⚠️ `MOOD` NON SI CHIAMA «UMORE» IN SUPERFICIE, ED È UNA CORREZIONE.
+ *
+ * 🔷 «Umore è diverso da mood vero?»
+ *
+ * Sì, e in questa app esistevano TRE cose diverse che si chiamavano tutte
+ * umore:
+ *
+ *   1. `mood_primary` — il carattere con cui il .mon nasce (SAD, STOIC…).
+ *      Non si muove mai. Il suo nome è TEMPERAMENTO.
+ *   2. `MoodState` in `engine/mood.ts` — lo stato che cambia ogni giorno a
+ *      seconda di come è andata fra voi. QUESTO è l'umore.
+ *   3. Questo segnale — come stai TU, che lo dichiari tu.
+ *
+ * Tre cose, una parola sola: nella schermata di evoluzione si leggeva
+ * «UMORE: resta», e sembrava dire che il .mon resterà di buonumore mentre
+ * stava dicendo che resterà `SAD`.
+ *
+ * 🔒 Il nome del CAMPO resta `MOOD` — i .mon già salvati e i pacchetti
+ * esportati contengono quella chiave, e rinominarla renderebbe illeggibile
+ * quello che hai già. Cambia solo come lo chiamiamo davanti a te.
+ */
 export const DAILY_SIGNAL_LABELS: Record<DailySignalKey, string> = {
   FOOD: 'CIBO',
   WORKOUT: 'ALLENAMENTO',
-  MOOD: 'UMORE',
+  MOOD: 'COME STO',
 };
 
 /**
@@ -481,5 +503,8 @@ export const AXIS_LABELS: Record<ContinuityAxis, string> = {
   size: 'TAGLIA',
   role: 'RUOLO',
   fashion: 'STILE',
-  mood_primary: 'UMORE',
+  /* 🔒 TEMPERAMENTO, non «umore»: qui si sta dichiarando che il .mon
+     resterà `SAD`, non che resterà di buonumore. Vedi la nota su
+     DAILY_SIGNAL_LABELS. */
+  mood_primary: 'TEMPERAMENTO',
 };
