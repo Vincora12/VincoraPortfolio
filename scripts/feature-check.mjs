@@ -1015,7 +1015,7 @@ check(
   'ASSET §22.4',
   'qualcuno chiama davvero il generatore di immagini',
   has('src/assets-pipeline/generate.ts', 'askImage(') &&
-    has('src/state/store.ts', 'generateAssetsFor(record.data.name)'),
+    has('src/state/store.ts', "generateAssetsFor(record.data.name, { only: ['profile_portrait'] })"),
 );
 check(
   'ASSET §22.4',

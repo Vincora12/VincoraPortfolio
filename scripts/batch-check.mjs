@@ -38,6 +38,7 @@ export { normalizePool } from '${cwd}/src/engine/rarity.ts';
 export { shouldDownload } from '${cwd}/src/state/store.ts';
 export { kinship, reactionsTo, arrivalPosts, weeklyPosts, weekFacts, roomNotice, unwritten } from '${cwd}/src/engine/room.ts';
 export { parseRoomReply } from '${cwd}/src/ai/roomVoice.ts';
+export { generationOrder } from '${cwd}/src/assets-pipeline/generate.ts';
 export * as MD from '${cwd}/src/engine/markdown.ts';
 export * as PAGES from '${cwd}/src/engine/pages.ts';
 export * as SLICE from '${cwd}/src/state/pagesSlice.ts';
@@ -546,6 +547,82 @@ check(
 check(
   storeSrc.includes('markAccelerated(set, get)'),
   'e il salto del tempo lo dichiara davvero',
+);
+
+/* ============================================================================
+   §22.4/§22.5/§22.6 — LA FACCIA, IL VOTO, E QUELLO CHE SA
+
+   Tre difetti da sorvegliare, e nessuno dei tre fa fallire niente:
+   • il ritratto non e piu il primo → aspetti cinque immagini per vedere l'unica
+     che stai guardando
+   • «rifalla» cambia il prompt → non e piu la stessa creatura, e la creatura
+     l'hanno decisa i suoi dati
+   • quello che sa di te diventa un rimprovero → §28 dice che non puo darti
+     colpe, e questa e la strada piu facile per violarla senza accorgersene
+   ========================================================================= */
+
+console.log('\n═══ §22.4 — LA FACCIA E IL VOTO ═══\n');
+
+const order = m.generationOrder();
+check(
+  order[0] === 'profile_portrait',
+  'il ritratto e il primo della fila',
+  order.join(' → '),
+);
+check(
+  new Set(order).size === order.length,
+  'nessun asset viene chiesto due volte',
+);
+
+const voiceSrc = readFileSync(new URL('../src/ai/voicePrompt.ts', import.meta.url), 'utf8');
+const genSrc = readFileSync(new URL('../src/assets-pipeline/generate.ts', import.meta.url), 'utf8');
+const encSrc = readFileSync(new URL('../src/screens/Encounter.tsx', import.meta.url), 'utf8');
+
+check(
+  !genSrc.includes('compilePrompt(record, type, ') && genSrc.includes('compilePrompt(record, type)'),
+  'rifare una faccia usa lo STESSO prompt',
+  'un prompt diverso sarebbe un altro personaggio, non un altro tentativo',
+);
+check(
+  encSrc.includes('replace: true'),
+  'e «rifalla» e l’unica cosa che puo sovrascrivere un asset',
+);
+check(
+  genSrc.includes('opts.replace || getAssetUrlSync'),
+  'senza richiesta esplicita non si rigenera niente',
+);
+check(
+  encSrc.includes('onClick={keep}') && encSrc.includes('generate(monName);'),
+  'approvare la faccia fa partire il resto',
+);
+check(
+  encSrc.includes('{portrait ? t.face.keep : t.encounter.welcome}'),
+  'ma si entra comunque, anche senza immagine (§26)',
+  'senza chiave o col tetto pieno il pulsante deve restare',
+);
+
+check(
+  voiceSrc.includes('He rated you'),
+  'il .mon sa che voto gli hai dato (§22.6)',
+);
+check(
+  voiceSrc.includes('asked for your face to be redone'),
+  'e sa quante volte gli hai rifatto la faccia',
+);
+check(
+  voiceSrc.includes('he moved the clock forward from a developer panel'),
+  'e sa che qualche giorno l’hai saltato dal pannello DEV',
+  'far finta che quei giorni siano stati vissuti era la scelta disonesta',
+);
+check(
+  voiceSrc.includes('never use them to make him feel bad'),
+  'ma non puo usarlo per farti sentire in colpa (§28)',
+  'e la strada piu facile per violare §28 senza accorgersene',
+);
+check(
+  voiceSrc.includes('CURIOSITY (§22.7)') &&
+    voiceSrc.includes('never what you do instead of listening'),
+  'e curioso del mondo, ma non per cambiare discorso (§22.7)',
 );
 
 /* ============================================================================

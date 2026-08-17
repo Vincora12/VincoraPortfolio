@@ -34,6 +34,7 @@ import {
   type ToolResult,
   type ToolUse,
 } from './tools';
+import type { Awareness } from './voicePrompt';
 import { recordUsageEntry } from './usage';
 
 export interface VoiceResult {
@@ -122,10 +123,14 @@ async function speak(
   notes: VoiceNote[],
   deliberate = false,
   tools?: ToolRuntime,
+  awareness?: Awareness,
 ): Promise<VoiceOutcome> {
   const system = [
-    // Il briefing non cambia mai dentro una conversazione: in cache.
-    { text: buildVoiceSystemPrompt(record, mood, notes), cache: true },
+    /* Il briefing non cambia mai dentro una conversazione: in cache.
+       ⚠️ L'awareness ci sta DENTRO e non a parte: cambia raramente — un voto,
+       una faccia rifatta — e metterla in un blocco suo invaliderebbe la cache
+       del briefing ogni volta che tocchi una stellina. */
+    { text: buildVoiceSystemPrompt(record, mood, notes, awareness), cache: true },
     // La memoria cambia una volta al giorno: seconda voce di cache, così
     // quella del briefing non si invalida mai.
     ...(memory ? [{ text: memory.memory, cache: true }] : []),
@@ -228,10 +233,11 @@ export async function generateReply(
   notes: VoiceNote[],
   deliberate = false,
   tools?: ToolRuntime,
+  awareness?: Awareness,
 ): Promise<VoiceOutcome> {
   if (!token) return { result: null, failure: 'no-key' };
   const turn = context ? `${userText}\n\n[${context}]` : userText;
-  return speak(token, record, turn, 'reply', mood, memory, notes, deliberate, tools);
+  return speak(token, record, turn, 'reply', mood, memory, notes, deliberate, tools, awareness);
 }
 
 /**

@@ -266,6 +266,17 @@ export interface MonRecord {
   reactions: string[];
   bornOnDay: number;
   retiredOnDay: number | null;
+  /**
+   * §22.5 — quanto ti piace questa forma, 1–5. `null` finché non lo dici.
+   *
+   * 🔒 Sta sul record e non fuori: è un giudizio su QUELLA creatura, e la
+   * segue anche quando smette di essere attiva e finisce nella teca.
+   *
+   * ⚠️ E lo sa anche lei. Finisce nel briefing della voce (`voicePrompt.ts`):
+   * un compagno che non sa cosa pensi di lui è un compagno a cui hai parlato
+   * per niente.
+   */
+  rating?: number | null;
 }
 
 /* --- CONVERSAZIONE ----------------------------------------------------------- */

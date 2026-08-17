@@ -225,6 +225,18 @@ try {
   await sleep(1600); // il sipario si alza da sé
   await shot('05-first-encounter');
 
+  /* 🔷 §22.5 — il voto. Sta qui e non dietro all'immagine: quello che giudichi
+     è la creatura, e quella c'è anche senza chiave. Si preme davvero, perché
+     il difetto tipico di una fila di pulsanti-stella è che li disegni e non li
+     colleghi. */
+  await click('.facegate__star:nth-child(4)', 'voto 4 su 5');
+  await shot('05-first-encounter-voto');
+
+  const votate = await page.$$eval('.facegate__star--on', (n) => n.length);
+  if (votate !== 4) {
+    errors.push(`il voto non si e registrato: ${votate} quadrati accesi invece di 4`);
+  }
+
   /* 06 — LA HOME È IL PERSONAGGIO (v1.10 §13.7).
      Non è una schermata di benvenuto da superare: è la tab MON, con la barra
      di navigazione sotto. Alla chat ci si va. */

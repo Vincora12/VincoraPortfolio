@@ -11,11 +11,98 @@
 
 import { useEffect, useState } from 'react';
 import { useApp, useActiveMon } from '../state/store';
-import { AssetSlot, Sigil } from '../system/AssetSlot';
+import { AssetSlot, Sigil, useAssetUrl } from '../system/AssetSlot';
 import { MonName, SpeciesName } from '../system/MonName';
 import { Button, SystemLabel } from '../system/components';
 import { displayName } from '../engine/types';
 import { t } from '../i18n/it';
+
+/* ============================================================================
+   §22.4/§22.5 — LA FACCIA SI APPROVA PRIMA DI FARE IL RESTO
+
+   🔷 «Quando genero il nuovo mon, lui genera la prima immagine, solo la
+   prima, per mostrarmelo con tutta l'animazione del nome. E se mi piace
+   continua, se no lo faccio rigenerare con lo stesso prompt.»
+
+   🔒 IL PROMPT NON CAMBIA MAI. «Rifalla» non cerca un personaggio diverso:
+   chiede di nuovo la stessa cosa, perché a volte l'immagine esce storta. Se
+   cambiasse il prompt sarebbe un'altra creatura, e la creatura l'hanno decisa
+   i tuoi dati — non il fatto che la prima resa non ti convincesse.
+
+   ⚠️ E si può SEMPRE andare avanti, anche senza immagine. Senza chiave,
+   offline o col tetto pieno il pulsante resta e porta dentro: §26 — nessun
+   asset mancante blocca il flusso.
+   ========================================================================= */
+
+function FaceGate({ monName, onDone }: { monName: string; onDone: () => void }) {
+  const generate = useApp((s) => s.generateAssetsFor);
+  const rate = useApp((s) => s.rateMon);
+  const rating = useApp((s) => s.mons[monName]?.rating ?? null);
+  const progress = useApp((s) => s.assetProgress);
+  const portrait = useAssetUrl(monName, 'profile_portrait');
+  const [redoing, setRedoing] = useState(false);
+
+  const working = progress?.monName === monName;
+  const noKey = progress?.failure === 'no-token';
+
+  const keep = () => {
+    /* Il resto parte adesso, e non blocca: si entra subito e le altre facce
+       arrivano mentre già parlate. */
+    generate(monName);
+    onDone();
+  };
+
+  const redo = () => {
+    setRedoing(true);
+    generate(monName, { only: ['profile_portrait'], replace: true });
+    window.setTimeout(() => setRedoing(false), 1200);
+  };
+
+  return (
+    <div className="facegate">
+      {/* ⚠️ Il voto NON dipende dall'immagine. Prima era legato al ritratto, e
+          senza chiave non compariva mai: ma quello che giudichi è la CREATURA
+          — nome, famiglia, rarità, il perché è venuta così — e quella c'è dal
+          primo istante. L'immagine è una delle cose che la compongono, non la
+          condizione per averne un'opinione. */}
+      {(
+        <div className="facegate__rate">
+          <span className="t-micro">{rating === null ? t.face.ratePrompt : t.face.rated}</span>
+          <span className="facegate__stars" role="group" aria-label={t.face.ratePrompt}>
+            {[1, 2, 3, 4, 5].map((n) => (
+              <button
+                key={n}
+                type="button"
+                className={`facegate__star ${rating !== null && n <= rating ? 'facegate__star--on' : ''}`}
+                aria-label={`${n} su 5`}
+                aria-pressed={rating === n}
+                onClick={() => rate(monName, rating === n ? null : n)}
+              >
+                {n <= (rating ?? 0) ? '\u25A0' : '\u25A1'}
+              </button>
+            ))}
+          </span>
+        </div>
+      )}
+
+      {working && !portrait && <p className="t-micro facegate__note">{t.face.arriving}</p>}
+      {noKey && <p className="t-micro facegate__note">{t.face.needsToken}</p>}
+
+      <div className="facegate__actions">
+        {portrait && (
+          <Button variant="secondary" small onClick={redo} disabled={redoing || working}>
+            {redoing || working ? t.face.redoing : t.face.redo}
+          </Button>
+        )}
+        <Button variant="primary" block onClick={keep}>
+          {portrait ? t.face.keep : t.encounter.welcome}
+        </Button>
+      </div>
+
+      {portrait && <p className="t-micro facegate__note">{t.face.rest}</p>}
+    </div>
+  );
+}
 
 export function EncounterScreen({ variant }: { variant: 'first' | 'new' }) {
   const mon = useActiveMon();
@@ -66,10 +153,13 @@ export function EncounterScreen({ variant }: { variant: 'first' | 'new' }) {
       )}
 
       <div className="encounter__stage">
+        {/* 🔷 §22.4 — alla nascita esiste SOLO il ritratto: gli altri cinque
+            si chiedono dopo che hai detto di sì. Quindi la catena parte da lì
+            e non dall'hero, che a questo punto non c'è ancora. */}
         <AssetSlot
           monName={d.name}
           type="encounter_hero"
-          fallbackTypes={['character_master']}
+          fallbackTypes={['character_master', 'profile_portrait']}
           alt={`${short}, arte di rivelazione`}
           className="encounter__art"
         />
@@ -108,9 +198,7 @@ export function EncounterScreen({ variant }: { variant: 'first' | 'new' }) {
           <Sigil seed={mon.sigil} size={40} />
         </div>
 
-        <Button variant="primary" block onClick={enterLive}>
-          {t.encounter.welcome}
-        </Button>
+        <FaceGate monName={d.name} onDone={enterLive} />
       </div>
     </div>
   );

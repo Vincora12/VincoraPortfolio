@@ -169,6 +169,18 @@ export const t = {
     forget: 'TOGLI DALLA TECA',
   },
 
+  /* §22.4/§22.5 — la faccia e il voto */
+  face: {
+    arriving: 'Sta prendendo forma…',
+    keep: 'VA BENE COSÌ',
+    redo: 'RIFALLA',
+    redoing: 'Ci riprova…',
+    rest: 'Il resto arriva mentre parlate.',
+    needsToken: 'Serve la chiave per le immagini: DEV → VOCE → TOKEN.',
+    ratePrompt: 'Quanto ti piace?',
+    rated: 'Lo sa.',
+  },
+
   /* §21.4 — il filo della stanza */
   room: {
     title: 'MIND.SOCIAL',

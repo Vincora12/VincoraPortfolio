@@ -56,6 +56,22 @@ export function generationOrder(): AssetType[] {
   return [...first, ...rest];
 }
 
+export interface GenerateOptions {
+  /** Solo questi tipi. Assente = tutti quelli che mancano. */
+  only?: readonly AssetType[];
+  /**
+   * Rifà anche quello che c'è già.
+   *
+   * ⚠️ È l'eccezione dichiarata alla regola «quello che c'è non si rigenera
+   * mai». Quella regola vieta le rigenerazioni AUTOMATICHE — una faccia che
+   * cambia da sola a ogni apertura non è una faccia. Ma «rifallo», premuto da
+   * te guardando il risultato, è una cosa diversa: è una richiesta, e il
+   * prompt resta identico. Si rifà perché a volte l'immagine esce storta, non
+   * perché si cerca un personaggio diverso.
+   */
+  replace?: boolean;
+}
+
 export interface GenerationProgress {
   type: AssetType;
   done: number;
@@ -75,9 +91,12 @@ export async function generateMissingAssets(
   token: string | null,
   record: MonRecord,
   onProgress?: (p: GenerationProgress) => void,
+  opts: GenerateOptions = {},
 ): Promise<{ made: AssetType[]; failure: BackendFailure | null }> {
   const name = record.data.name;
-  const wanted = generationOrder().filter((t) => getAssetUrlSync(name, t) === null);
+  const wanted = generationOrder()
+    .filter((t) => (opts.only ? opts.only.includes(t) : true))
+    .filter((t) => opts.replace || getAssetUrlSync(name, t) === null);
   const made: AssetType[] = [];
 
   for (const type of wanted) {

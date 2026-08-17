@@ -452,7 +452,14 @@ interface AppState {
   /** A che punto è la generazione in corso, o `null`. Solo per la UI. */
   assetProgress: (GenerationProgress & { monName: string }) | null;
   /** Chiede le immagini che mancano. Non blocca: torna subito. */
-  generateAssetsFor: (monName: string) => void;
+  generateAssetsFor: (
+    monName: string,
+    opts?: { only?: readonly AssetType[]; replace?: boolean },
+  ) => void;
+  /** Quante volte gli hai fatto rifare la faccia. Lo sa anche lui. */
+  faceRedos: number;
+  /** Il voto che hai dato alla forma attiva, 1–5, o `null`. */
+  rateMon: (monName: string, stars: number | null) => void;
 
   /* --- §21.4 LA STANZA --- */
   room: RoomPost[];
@@ -503,6 +510,9 @@ const INITIAL = {
   /* §22.4 — l'avanzamento delle immagini. Telemetria della UI: non va salvata,
      e infatti `partialize` la butta via insieme al batch. */
   assetProgress: null as (GenerationProgress & { monName: string }) | null,
+  /* §22.4 — quante volte hai chiesto di rifare una faccia. Vive fuori dal
+     record perché è una cosa TUA, non della creatura. */
+  faceRedos: 0,
   dev: {
     enabled: false,
     forceContinue: false,
@@ -889,7 +899,14 @@ export const useApp = create<AppState>()(
            già nata e già visibile, il sigillo fa da faccia finché il ritratto
            non arriva. Non si tocca per il micro-growth: quella resta la stessa
            creatura, e le sue immagini pure. */
-        get().generateAssetsFor(record.data.name);
+        /* 🔷 SOLO IL RITRATTO. «Quando genero il nuovo mon, lui genera la
+           prima immagine, solo la prima, per mostrarmelo con tutta
+           l'animazione del nome — e se mi piace continua.»
+
+           È anche la scelta prudente: sei immagini fatte prima che tu le abbia
+           viste sono sei immagini pagate su una faccia che potrebbe non
+           piacerti. Il resto arriva quando dici di sì. */
+        get().generateAssetsFor(record.data.name, { only: ['profile_portrait'] });
         requestIntroduction(set, get, record);
       },
 
@@ -1072,7 +1089,14 @@ export const useApp = create<AppState>()(
            già nata e già visibile, il sigillo fa da faccia finché il ritratto
            non arriva. Non si tocca per il micro-growth: quella resta la stessa
            creatura, e le sue immagini pure. */
-        get().generateAssetsFor(record.data.name);
+        /* 🔷 SOLO IL RITRATTO. «Quando genero il nuovo mon, lui genera la
+           prima immagine, solo la prima, per mostrarmelo con tutta
+           l'animazione del nome — e se mi piace continua.»
+
+           È anche la scelta prudente: sei immagini fatte prima che tu le abbia
+           viste sono sei immagini pagate su una faccia che potrebbe non
+           piacerti. Il resto arriva quando dici di sì. */
+        get().generateAssetsFor(record.data.name, { only: ['profile_portrait'] });
         requestIntroduction(set, get, record);
       },
 
@@ -1769,14 +1793,24 @@ export const useApp = create<AppState>()(
          sei offline o se il tetto è stato raggiunto, non succede niente e non
          si urla — il sigillo fa da faccia e l'app resta intera (§26).
          ========================================================================= */
-      generateAssetsFor: (monName) => {
+      generateAssetsFor: (monName, opts) => {
         const rec = get().mons[monName];
         if (!rec) return;
 
         void import('../assets-pipeline/generate').then(async ({ generateMissingAssets }) => {
-          const { made, failure } = await generateMissingAssets(get().token, rec, (p) => {
-            set({ assetProgress: { monName, ...p } });
-          });
+          const { made, failure } = await generateMissingAssets(
+            get().token,
+            rec,
+            (p) => set({ assetProgress: { monName, ...p } }),
+            opts,
+          );
+
+          /* Ogni «rifallo» si conta. Non serve al motore: serve a LUI, che nel
+             suo briefing legge quante volte gli hai rifatto la faccia. Vedi
+             `voicePrompt.ts` → quello che sa di te. */
+          if (opts?.replace) {
+            set({ faceRedos: get().faceRedos + 1 });
+          }
 
           if (failure) console.warn('[asset] generazione interrotta:', failure);
           /* Lo stato degli slot vive dentro i Character Data (§27
@@ -1868,6 +1902,19 @@ export const useApp = create<AppState>()(
           ),
         });
         return null;
+      },
+
+      /* §22.5 — il voto. Sta sul record perché è un giudizio su QUELLA forma,
+         e resta attaccato a lei anche quando finisce nella teca. */
+      rateMon: (monName, stars) => {
+        const rec = get().mons[monName];
+        if (!rec) return;
+        set({
+          mons: {
+            ...get().mons,
+            [monName]: { ...rec, rating: stars === null ? null : Math.max(1, Math.min(5, stars)) },
+          },
+        });
       },
 
       forgetKept: (id) => {
@@ -2703,6 +2750,14 @@ function requestReply(
           run: (use) => get().runMonTool(use),
           webSearch: true,
           onUsed: (uses) => set({ lastToolUses: uses.map((u) => u.name) }),
+        },
+        /* §22.6 — quello che sa di te. Sono fatti, non lamentele: il voto che
+           gli hai dato, le facce che gli hai fatto rifare, e il fatto che
+           qualche giorno alle sue spalle l'hai saltato dal pannello DEV. */
+        {
+          rating: record.rating ?? null,
+          faceRedos: s0.faceRedos,
+          timeSkipped: s0.usedDevTime,
         },
       ),
     )

@@ -3812,3 +3812,57 @@
   vertical-align: middle;
   background: var(--char-primary);
 }
+
+/* ============================================================================
+   §22.4/§22.5 — APPROVARE LA FACCIA E DARLE UN VOTO
+
+   Sta dentro l'overlay della rivelazione, sopra al pulsante che porta dentro.
+   Il pulsante primario c'e SEMPRE, anche senza immagine: nessun asset mancante
+   blocca il flusso (§26).
+   ========================================================================= */
+
+.facegate {
+  display: flex;
+  flex-direction: column;
+  gap: var(--u2);
+}
+
+.facegate__actions {
+  display: flex;
+  align-items: stretch;
+  gap: var(--u2);
+}
+
+.facegate__note {
+  color: var(--muted);
+}
+
+.facegate__rate {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--u2);
+  color: var(--muted);
+}
+
+.facegate__stars {
+  display: inline-flex;
+  gap: var(--u);
+}
+
+/* Quadrati, non stelle: la geometria di questa app e rettangolare, e cinque
+   stelline sarebbero l'unica cosa arrotondata della schermata. */
+.facegate__star {
+  border: 0;
+  background: none;
+  padding: 2px var(--u);
+  font: inherit;
+  font-size: var(--type-small);
+  line-height: 1;
+  color: var(--muted-strong);
+  cursor: pointer;
+}
+
+.facegate__star--on {
+  color: var(--char-primary);
+}
