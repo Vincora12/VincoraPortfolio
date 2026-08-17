@@ -1000,6 +1000,59 @@ check(
 );
 
 /* ============================================================================
+   LE IMMAGINI SI GENERANO DA SOLE — §22.4
+
+   «Ma aspetta, quando generi un personaggio automaticamente generi tutte le
+   immagini no?» No, e aveva ragione lui che dovrebbe: `askImage` esisteva e
+   non la chiamava nessuno.
+
+   Il difetto da sorvegliare non e che smetta di funzionare: e che torni a
+   BLOCCARE. Una nascita che aspetta sei chiamate di rete non e piu una
+   nascita, e una che si rigenera ogni volta cambia faccia alla creatura.
+   ========================================================================= */
+
+check(
+  'ASSET §22.4',
+  'qualcuno chiama davvero il generatore di immagini',
+  has('src/assets-pipeline/generate.ts', 'askImage(') &&
+    has('src/state/store.ts', 'generateAssetsFor(record.data.name)'),
+);
+check(
+  'ASSET §22.4',
+  'la nascita non aspetta le immagini',
+  has('src/state/store.ts', 'void import(\'../assets-pipeline/generate\')'),
+  'sei chiamate di rete davanti a una schermata vuota non sono una nascita',
+);
+check(
+  'ASSET §22.4',
+  'il ritratto si chiede per primo',
+  has('src/assets-pipeline/generate.ts', "const first: AssetType[] = ['profile_portrait'"),
+  'e l’unico che si vede subito: generarlo per ultimo vuol dire aspettare gli altri',
+);
+check(
+  'ASSET §22.4',
+  'quello che c’e non si rigenera mai',
+  has('src/assets-pipeline/generate.ts', 'getAssetUrlSync(name, t) === null'),
+);
+check(
+  'ASSET §22.4',
+  'si chiedono in serie, non tutte insieme',
+  has('src/assets-pipeline/generate.ts', 'for (const type of wanted)'),
+  'sei in parallelo supererebbero il tetto di spesa di sei immagini invece che di una',
+);
+check(
+  'ASSET §22.4',
+  'entrano dalla stessa porta dell’import a mano',
+  has('src/assets-pipeline/generate.ts', 'importAssetFile(record, file'),
+  'due strade per far entrare un’immagine sono due posti dove sbagliare lo slot',
+);
+check(
+  'ASSET §22.4',
+  'l’avanzamento non finisce nei salvataggi',
+  has('src/state/store.ts', 'assetProgress: _p'),
+);
+
+/* ============================================================================
    Sicurezza e tono — non negoziabili
    ========================================================================= */
 

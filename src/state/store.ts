@@ -39,6 +39,7 @@ import {
 } from '../engine/progression';
 import { evolveMon, generateFirstMon, generateMon } from '../engine/characterGenerator';
 import type { BackendFailure } from '../ai/backend';
+import type { GenerationProgress } from '../assets-pipeline/generate';
 import {
   WEEKLY_EVERY,
   arrivalPosts,
@@ -447,6 +448,12 @@ interface AppState {
   /** Toglie un ricordo dalla teca, immagini comprese. */
   forgetKept: (id: string) => void;
 
+  /* --- §22.4 LE IMMAGINI --- */
+  /** A che punto è la generazione in corso, o `null`. Solo per la UI. */
+  assetProgress: (GenerationProgress & { monName: string }) | null;
+  /** Chiede le immagini che mancano. Non blocca: torna subito. */
+  generateAssetsFor: (monName: string) => void;
+
   /* --- §21.4 LA STANZA --- */
   room: RoomPost[];
   /** Scrive il testo di un post. 🔒 Se è già scritto non fa niente. */
@@ -493,6 +500,9 @@ const INITIAL = {
   /* Solo per il pannello DEV: quali strumenti ha usato l'ultima risposta.
      Non è stato di prodotto e non deve finire nei salvataggi. */
   lastToolUses: [] as string[],
+  /* §22.4 — l'avanzamento delle immagini. Telemetria della UI: non va salvata,
+     e infatti `partialize` la butta via insieme al batch. */
+  assetProgress: null as (GenerationProgress & { monName: string }) | null,
   dev: {
     enabled: false,
     forceContinue: false,
@@ -875,6 +885,11 @@ export const useApp = create<AppState>()(
         });
 
         void preloadMonAssets(record.data.name);
+        /* 🔒 §22.4 — le facce partono da sole e NON si aspettano: la creatura è
+           già nata e già visibile, il sigillo fa da faccia finché il ritratto
+           non arriva. Non si tocca per il micro-growth: quella resta la stessa
+           creatura, e le sue immagini pure. */
+        get().generateAssetsFor(record.data.name);
         requestIntroduction(set, get, record);
       },
 
@@ -1053,6 +1068,11 @@ export const useApp = create<AppState>()(
         });
 
         void preloadMonAssets(record.data.name);
+        /* 🔒 §22.4 — le facce partono da sole e NON si aspettano: la creatura è
+           già nata e già visibile, il sigillo fa da faccia finché il ritratto
+           non arriva. Non si tocca per il micro-growth: quella resta la stessa
+           creatura, e le sue immagini pure. */
+        get().generateAssetsFor(record.data.name);
         requestIntroduction(set, get, record);
       },
 
@@ -1742,6 +1762,49 @@ export const useApp = create<AppState>()(
       markAssetWaiting: (monName, type) => setAssetState(set, monName, type, 'waiting'),
 
       /* ============================================================================
+         §22.4 — LE FACCE ARRIVANO DA SOLE
+
+         🔒 Non si aspetta: la creatura è già nata e già visibile. Questa parte
+         gira di lato e riempie gli slot man mano. Se non c'è la chiave, se
+         sei offline o se il tetto è stato raggiunto, non succede niente e non
+         si urla — il sigillo fa da faccia e l'app resta intera (§26).
+         ========================================================================= */
+      generateAssetsFor: (monName) => {
+        const rec = get().mons[monName];
+        if (!rec) return;
+
+        void import('../assets-pipeline/generate').then(async ({ generateMissingAssets }) => {
+          const { made, failure } = await generateMissingAssets(get().token, rec, (p) => {
+            set({ assetProgress: { monName, ...p } });
+          });
+
+          if (failure) console.warn('[asset] generazione interrotta:', failure);
+          /* Lo stato degli slot vive dentro i Character Data (§27
+             `asset_manifest_status`), non sul record: è la creatura a sapere
+             quali sue immagini esistono. */
+          const current = get().mons[monName];
+          if (made.length > 0 && current) {
+            set({
+              mons: {
+                ...get().mons,
+                [monName]: {
+                  ...current,
+                  data: {
+                    ...current.data,
+                    asset_manifest_status: made.reduce(
+                      (acc, t) => ({ ...acc, [t]: 'resolved' as const }),
+                      current.data.asset_manifest_status,
+                    ),
+                  },
+                },
+              },
+            });
+          }
+          set({ assetProgress: null });
+        });
+      },
+
+      /* ============================================================================
          §21.3 — CONSERVARE UN .MON
 
          Copia il record E le immagini in uno spazio che nessun reset tocca.
@@ -1849,7 +1912,7 @@ export const useApp = create<AppState>()(
       name: 'vinzmon.prototype.v4',
       version: 3,
       partialize: (s) => {
-        const { batch: _batch, lastToolUses: _tools, ...rest } = s;
+        const { batch: _batch, lastToolUses: _tools, assetProgress: _p, ...rest } = s;
         return rest as AppState;
       },
       /* 🔒 Il modulo di taratura è la sorgente che il motore legge, e allo
