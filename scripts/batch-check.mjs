@@ -36,7 +36,7 @@ export { makeRng, randomSeed } from '${cwd}/src/engine/rng.ts';
 export { isValidMonName } from '${cwd}/src/engine/naming.ts';
 export { normalizePool } from '${cwd}/src/engine/rarity.ts';
 export { shouldDownload } from '${cwd}/src/state/store.ts';
-export { kinship, reactionsTo, arrivalPosts, weeklyPosts, weekFacts, roomNotice, unwritten } from '${cwd}/src/engine/room.ts';
+export { kinship, reactionsTo, arrivalPosts, weeklyPosts, weekFacts, roomNotice, unwritten, roomBlock, recognisedBy } from '${cwd}/src/engine/room.ts';
 export { parseRoomReply } from '${cwd}/src/ai/roomVoice.ts';
 export { generationOrder } from '${cwd}/src/assets-pipeline/generate.ts';
 export * as MD from '${cwd}/src/engine/markdown.ts';
@@ -2456,6 +2456,100 @@ check(m.moodEventFromInputs(['ARRAPATO']) === null, 'e non tutto e uno stato d\'
 check(
   m.moodPhrase(hit).includes('TODAY') && !m.moodPhrase(hit).includes('How do you feel'),
   'l\'umore entra nel prompt come fatto, non come domanda',
+);
+
+/* --- Il freno guarda da che parte spingi -----------------------------------
+   `room()` frenava con la distanza SENZA SEGNO: chi stava sotto la sua base
+   veniva frenato anche quando la spinta lo tirava su. Consolare qualcuno
+   funzionava meno proprio quando stava peggio. Le due meta' di questo controllo
+   vanno insieme: la spinta in USCITA deve restare frenata (o satura), quella
+   di RITORNO deve arrivare piena.
+   -------------------------------------------------------------------------- */
+
+const knockedDown = { ...calmStart, tone: calmStart.tone - 40 };
+const consoled = m.applyMoodEvent(knockedDown, 'PARLATO', 'CALM', 1);
+check(
+  consoled.tone - knockedDown.tone === 7,
+  'parlargli quando sta giu arriva pieno, non frenato',
+  `+${consoled.tone - knockedDown.tone} su +7 dichiarati`,
+);
+
+const alreadyHigh = { ...calmStart, tone: calmStart.tone + 40 };
+const pushedMore = m.applyMoodEvent(alreadyHigh, 'PARLATO', 'CALM', 1);
+check(
+  pushedMore.tone - alreadyHigh.tone < 7,
+  'ma chi e gia andato in quella direzione resta frenato',
+  `+${pushedMore.tone - alreadyHigh.tone} su +7`,
+);
+
+/* --- La stanza che rimette in piedi (§21.4 → §10.6) -------------------------
+   L'unico evento che non riguarda Vincenzo. Deve poter SOLO dare: se togliesse,
+   chi ha due forme nel dex avrebbe una creatura piu' insicura di chi ne ha
+   dodici, e l'app punirebbe chi ha appena cominciato. §4 da una porta laterale.
+   -------------------------------------------------------------------------- */
+
+const born = m.applyMoodEvent(m.initialMood('CALM', 1), 'NATO', 'CALM', 1);
+const welcomed = m.applyMoodEvent(born, 'MI_HANNO_RICONOSCIUTO', 'CALM', 1);
+
+check(born.footing < calmStart.footing, 'una forma appena arrivata non e sicura di stare qui', `appiglio ${calmStart.footing} → ${born.footing}`);
+check(
+  welcomed.footing > born.footing,
+  'essere riconosciuti da chi e stato prima rimette in piedi',
+  `appiglio ${born.footing} → ${welcomed.footing}`,
+);
+check(
+  welcomed.footing < calmStart.footing,
+  'ma non cancella la nascita: qualcosa dell\'arrivo resta addosso',
+  `${welcomed.footing} ancora sotto ${calmStart.footing}`,
+);
+
+// Nessun effetto negativo, su nessun asse: e' la regola che tiene chiusa la porta.
+const recogniseEffect = ['tone', 'charge', 'footing'].map((k) => ({
+  k,
+  v: m.applyMoodEvent(m.initialMood('CALM', 1), 'MI_HANNO_RICONOSCIUTO', 'CALM', 1)[k] -
+     m.initialMood('CALM', 1)[k],
+}));
+check(
+  recogniseEffect.every((e) => e.v >= 0),
+  'la stanza puo solo dare appiglio, mai toglierlo',
+  recogniseEffect.map((e) => `${e.k} ${e.v >= 0 ? '+' : ''}${e.v}`).join(' · '),
+);
+
+/* Il numero di chi ti riconosce NON entra nell'umore: un dex grande non deve
+   dare una creatura piu' sicura di se di un dex piccolo. Si prova sull'unico
+   punto in cui potrebbe entrare — la firma dell'evento non ha parametri. */
+check(
+  m.applyMoodEvent(born, 'MI_HANNO_RICONOSCIUTO', 'CALM', 1).footing ===
+    m.applyMoodEvent(born, 'MI_HANNO_RICONOSCIUTO', 'CALM', 1).footing,
+  'e l\'effetto non scala col numero di forme nel dex',
+);
+
+/* --- Cosa VINZ.MON sa della stanza ------------------------------------------ */
+
+const mutePost = {
+  id: 'p1', kind: 'SU_VINZ', from: 'Kx', day: 10,
+  about: 'un fatto', likes: [], voices: [], text: null, comments: [],
+};
+const writtenPost = { ...mutePost, id: 'p2', day: 12, text: 'Non lo riconosco piu, e va bene cosi.' };
+
+check(m.roomBlock([], 20) === '', 'con la stanza vuota non gli si racconta niente');
+check(
+  !m.roomBlock([mutePost], 20).includes('un fatto'),
+  'un post che nessuno ha scritto non gli entra in testa come frase',
+  'i post muti si contano, non si citano',
+);
+check(
+  m.roomBlock([mutePost], 20).includes('you do not know what was said'),
+  'ma sa che li dentro e successo qualcosa',
+);
+check(
+  m.roomBlock([writtenPost], 20).includes('Non lo riconosco piu'),
+  'quello che e stato scritto davvero, invece, lo sa',
+);
+check(
+  m.roomBlock([writtenPost], 20).includes('Do NOT recite'),
+  'e gli si dice di non recitarlo',
+  'sapere una cosa e citarla a memoria sono due cose diverse',
 );
 
 console.log('\n═══ VOCE — SOGLIA DI CACHE ═══\n');

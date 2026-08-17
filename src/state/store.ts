@@ -43,6 +43,8 @@ import type { GenerationProgress } from '../assets-pipeline/generate';
 import {
   WEEKLY_EVERY,
   arrivalPosts,
+  recognisedBy,
+  roomBlock,
   weekFacts,
   weeklyPosts,
   type RoomPost,
@@ -1044,6 +1046,14 @@ export const useApp = create<AppState>()(
           s.day,
         );
 
+        /* 🔷 §10.6 + §21.4 — «VINZ.MON sa tutto quello che accade nell'app.»
+           Nella stanza stanno accogliendo la forma che se ne va e commentando
+           la faccia nuova. Finora la faccia nuova, di là, non lo sentiva: era
+           l'unica con un umore, ed era l'unica che nella stanza non c'è mai.
+           Se qualcuno lì dentro la riconosce come una dei suoi, l'appiglio le
+           torna su — solo su, mai giù (vedi `MI_HANNO_RICONOSCIUTO`). */
+        const recognised = recognisedBy(record.data, Object.values(s.mons));
+
         // 🔶 Niente `carryMemoriesThroughBranch`: la memoria non si filtra più.
         // VINZ.MON è una entità sola e le memorie sono sue, non della forma —
         // la forma è solo un metadato sul ricordo.
@@ -1071,6 +1081,9 @@ export const useApp = create<AppState>()(
           ],
           memories: s.memories,
           room: [...s.room, ...arrived],
+          mood: touchMood(s, record.data.mood_primary, [
+            recognised.length > 0 ? 'MI_HANNO_RICONOSCIUTO' : null,
+          ]),
           chat: [...s.chat, openingMessage(record, s.day, s.token !== null)].slice(-60),
           pendingHeritage: [],
           pendingPlan: null,
@@ -2725,6 +2738,11 @@ function requestReply(
     memory: [
       buildMemoryBlock({ memories: s0.memories, bio: record.bio, today: s0.day }),
       opinions,
+      /* 🔷 §21.4 — cosa si dice di lui nella stanza. Sta QUI e non nel
+         briefing: cambia ogni settimana come le opinioni, quindi divide la
+         stessa voce di cache invece di invalidare il briefing — che non
+         cambia mai — a ogni giro settimanale. */
+      roomBlock(s0.room, s0.day),
     ]
       .filter((p) => p.length > 0)
       .join('\n\n'),

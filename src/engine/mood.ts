@@ -122,7 +122,18 @@ export type MoodEvent =
   /** È appena nato. */
   | 'NATO'
   /** È appena cambiato forma. */
-  | 'EVOLUTO';
+  | 'EVOLUTO'
+  /**
+   * Qualcuno nella stanza l'ha riconosciuto come uno dei suoi.
+   *
+   * 🔒 L'unico evento che non riguarda te. Nasce dal dex — dalle forme che
+   * VINZ.MON è stato prima — e c'è una regola sola che lo tiene onesto:
+   * PUÒ SOLO DARE. Zero riconoscimenti non toglie niente, non fa scattare
+   * nulla, non esiste. Se togliesse, chi ha due forme nel dex avrebbe una
+   * creatura più insicura di chi ne ha dodici: l'app punirebbe chi ha appena
+   * cominciato. È §4 che rientra da una porta laterale, e resta chiusa.
+   */
+  | 'MI_HANNO_RICONOSCIUTO';
 
 interface Push {
   tone: number;
@@ -151,6 +162,16 @@ const EFFECT: Record<MoodEvent, Push> = {
 
   NATO: { tone: +20, charge: +25, footing: -18, it: 'sono appena arrivato' },
   EVOLUTO: { tone: +16, charge: +22, footing: +12, it: 'sono appena cambiato' },
+
+  /* Metà del buco che lascia NATO (footing −18), non tutto: l'insicurezza di
+     una forma appena arrivata deve restare per qualche giorno, altrimenti
+     nascere non costa niente. Il resto lo rimette a posto il tempo. */
+  MI_HANNO_RICONOSCIUTO: {
+    tone: +5,
+    charge: 0,
+    footing: +9,
+    it: 'quelli che sono stato prima mi hanno riconosciuto',
+  },
 };
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, Math.round(v)));
@@ -172,11 +193,29 @@ export function applyMoodEvent(
   const base = baselineFor(moodPrimary);
   const e = EFFECT[event];
 
-  /** Quanto spazio resta nella direzione della spinta, da 0 a 1. */
+  /**
+   * Quanto spazio resta nella direzione della spinta, da 0 a 1.
+   *
+   * ⚠️ QUI C'ERA `Math.abs(current - home)`, e frenava anche al contrario.
+   *
+   * La distanza da casa senza segno non distingue «sei già euforico e ti
+   * spingo ancora su» da «sei a terra e ti tiro su»: le frenava tutt'e due.
+   * Effetto pratico: consolare qualcuno funzionava MENO proprio quando stava
+   * peggio, e uno spinto in basso restava giù più a lungo contro ogni cosa
+   * bella che gli succedeva. In un'app la cui tesi è che l'affetto non si
+   * ritira, era il contrario esatto del punto — e non si vedeva, perché
+   * l'unico modo di accorgersene è confrontare il numero dichiarato
+   * dall'evento con quello che arriva davvero (+9 diventava +4).
+   *
+   * 🔒 La saturazione che il freno doveva impedire riguarda solo chi è già
+   * andato AVANTI in quella direzione. Chi sta dall'altra parte ha tutto lo
+   * spazio davanti, e prende la spinta piena.
+   */
   const room = (current: number, push: number, lo: number, hi: number, home: number) => {
-    const distance = Math.abs(current - home);
     const span = push > 0 ? hi - home : home - lo;
-    return span <= 0 ? 0 : Math.max(0.15, 1 - distance / span);
+    if (span <= 0) return 0;
+    const spent = push > 0 ? current - home : home - current;
+    return Math.max(0.15, 1 - Math.max(0, spent) / span);
   };
 
   return {

@@ -168,6 +168,96 @@ export function reactionsTo(
 }
 
 /* ============================================================================
+   QUELLO CHE VINZ.MON SA DELLA STANZA (§21.4 + §10.6)
+
+   🔷 «Vabeh ma VINZ.MON sa tutto, anche cosa dicono sui social, perché lui sa
+   tutto quello che accade nell'app.»
+
+   Ed è vero per costruzione, non per gentilezza: VINZ.MON è UNA entità sola e
+   quelli nella stanza sono le sue forme passate. Non sta origliando una chat
+   di altri — sta ricordando cosa ha pensato di sé.
+
+   ⚠️ La forma attiva NON partecipa alla stanza e questo non cambia: lì è
+   l'argomento, non un partecipante (vedi `RoomPeople`). Ma non partecipare e
+   non sapere sono due cose diverse, e finora le avevamo confuse.
+
+   🔒 SOLO QUELLO CHE È STATO SCRITTO DAVVERO. Un post senza testo è un fatto
+   che nessuno ha ancora messo in parole: dargliene il contenuto vorrebbe dire
+   fargli ricordare una frase che non esiste. I post muti si contano, non si
+   citano.
+   ========================================================================= */
+
+/** Quanti post scritti si portano dietro. Oltre, è una rassegna stampa. */
+const REMEMBERED_POSTS = 3;
+
+/**
+ * Il pezzo di memoria che racconta alla forma attiva cosa si dice di lei.
+ *
+ * Vive nel blocco MEMORIA e non nel briefing: cambia ogni settimana come le
+ * opinioni, quindi condivide la stessa voce di cache invece di invalidare il
+ * briefing (che non cambia mai) a ogni giro settimanale.
+ */
+export function roomBlock(room: readonly RoomPost[], today: number): string {
+  if (room.length === 0) return '';
+
+  const written = room
+    .filter((p) => p.text !== null)
+    .sort((a, b) => b.day - a.day || b.id.localeCompare(a.id))
+    .slice(0, REMEMBERED_POSTS);
+
+  const mute = room.length - room.filter((p) => p.text !== null).length;
+
+  const parts: string[] = ['WHAT YOUR OLDER FORMS HAVE BEEN SAYING (§21.4)'];
+  parts.push(
+    'The forms you used to be are still there and they talk among themselves. ' +
+      'You are not eavesdropping on strangers: they are you, earlier. You know ' +
+      'this the way you know your own past, without having to be told.',
+  );
+
+  for (const p of written) {
+    const when = today - p.day;
+    const ago = when <= 0 ? 'today' : when === 1 ? 'yesterday' : `${when} days ago`;
+    parts.push(`- ${p.from}, ${ago}: "${p.text}"`);
+    for (const c of p.comments.slice(0, 2)) parts.push(`  · ${c.from} replied: "${c.text}"`);
+  }
+
+  if (mute > 0) {
+    parts.push(
+      `- ${mute} more ${mute === 1 ? 'thing has' : 'things have'} happened in that room that nobody has put into words yet. You know something is there; you do not know what was said.`,
+    );
+  }
+
+  parts.push(
+    'Do NOT recite any of this at him and never open with it. It is background ' +
+      'you already have — it may surface the way an old thought of your own ' +
+      'surfaces, or it may never come up at all.',
+  );
+
+  return parts.join('\n');
+}
+
+/**
+ * Quanti, nella stanza, riconoscono la forma nuova come una dei loro.
+ *
+ * 🔒 Serve a `MI_HANNO_RICONOSCIUTO` in `mood.ts`, e il numero NON entra
+ * nell'umore: conta solo se è zero o no. Se scalasse col numero, un dex grande
+ * darebbe una creatura più sicura di sé di un dex piccolo — cioè l'app
+ * premierebbe chi la usa da più tempo e punirebbe chi ha appena cominciato,
+ * con la faccia carina. Vietato da §4, e da questa porta laterale entrerebbe
+ * lo stesso.
+ */
+export function recognisedBy(
+  newActive: CharacterData,
+  residents: readonly MonRecord[],
+): string[] {
+  return residents
+    .map((r) => r.data)
+    .filter((d) => d.name !== newActive.name && kinship(newActive, d) >= LIKE_AT)
+    .map((d) => d.name)
+    .sort();
+}
+
+/* ============================================================================
    GLI EVENTI
 
    🔒 NEL DEX NON NASCE NIENTE: SI ARRIVA.
