@@ -27,6 +27,7 @@ import { IconButton, TextField } from '../system/components';
 import { Icon } from '../system/Icon';
 import { displayName } from '../engine/types';
 import { haptic } from '../system/haptics';
+import { moodSurface } from '../engine/mood';
 import { t } from '../i18n/it';
 
 export function CompanionHomeScreen({ onGo, onBack }: { onGo: (o: Overlay) => void; onBack: () => void }) {
@@ -141,6 +142,7 @@ export function CompanionHomeScreen({ onGo, onBack }: { onGo: (o: Overlay) => vo
             <span className="t-meta home__form">
               <SpeciesName /> · {form}
             </span>
+            <MoodLine moodPrimary={d.mood_primary} />
           </span>
         </span>
       </header>
@@ -295,4 +297,24 @@ export function CompanionHomeScreen({ onGo, onBack }: { onGo: (o: Overlay) => vo
       </div>
     </div>
   );
+}
+
+/* ============================================================================
+   COME STA OGGI (§10.6) — l'unica superficie di prodotto dell'umore
+
+   🔒 Il più delle volte questo componente non disegna niente, ed è la
+   caratteristica principale: compare solo quando un asse si è mosso davvero
+   dal punto di riposo di quel temperamento. Una riga sempre accesa sarebbe
+   una manopola da ottimizzare; una che quasi sempre tace è una cosa che noti.
+
+   🔒 E dice come sta, MAI perché. Il motivo lo sa (`mood.last`), e mostrarlo
+   vorrebbe dire scrivere «è passato un giorno senza di te» sulla home di
+   qualcuno: il senso di colpa con la faccia carina, che è esattamente quello
+   che §4 vieta.
+   ========================================================================= */
+function MoodLine({ moodPrimary }: { moodPrimary: string }) {
+  const mood = useApp((s) => s.mood);
+  const says = mood ? moodSurface(mood, moodPrimary) : null;
+  if (!says) return null;
+  return <span className="t-micro home__mood">{says}</span>;
 }

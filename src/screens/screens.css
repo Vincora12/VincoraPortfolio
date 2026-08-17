@@ -244,6 +244,21 @@
   flex: 1;
 }
 
+/* §10.6 — come sta oggi. Sotto la forma, e più chiara di tutto il resto: è la
+   cosa meno urgente della schermata e deve leggersi come una didascalia, non
+   come uno stato di sistema. Niente riquadro e niente colore — un colore di
+   stato la trasformerebbe in una spia da tenere verde. */
+.home__mood {
+  /* 🔒 `--muted-strong`, non `--muted`: quest'ultimo su campo bianco sta sotto
+     4.5:1, e questa riga va letta. Ed è un token che si inverte, quindi resta
+     leggibile anche a campo inchiostro — l'errore già fatto in MIND.SOCIAL. */
+  color: var(--muted-strong);
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .home__identitygo {
   color: var(--char-accent);
   font-size: var(--type-small);

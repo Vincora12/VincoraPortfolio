@@ -62,7 +62,7 @@ export { judgeNote, addNote, decideNote, notesBlock, voiceVersion, gatherEvidenc
 export { addOpinion, contradictOpinion, inheritOpinions, opinionsBlock, isAllowedOpinion, MAX_ACTIVE } from '${cwd}/src/engine/opinions.ts';
 export { buildMemoryBlock, recentTurns, RECENT_TURNS } from '${cwd}/src/engine/memoryContext.ts';
 export { planReveal, splitFirstSentence, bubbleCount } from '${cwd}/src/engine/reveal.ts';
-export { initialMood, applyMoodEvent, decayMood, baselineFor, moodEventFromInputs, moodPhrase } from '${cwd}/src/engine/mood.ts';
+export { initialMood, applyMoodEvent, decayMood, baselineFor, moodEventFromInputs, moodPhrase, moodSurface } from '${cwd}/src/engine/mood.ts';
 `,
 );
 
@@ -2456,6 +2456,38 @@ check(m.moodEventFromInputs(['ARRAPATO']) === null, 'e non tutto e uno stato d\'
 check(
   m.moodPhrase(hit).includes('TODAY') && !m.moodPhrase(hit).includes('How do you feel'),
   'l\'umore entra nel prompt come fatto, non come domanda',
+);
+
+/* --- L'unica riga che ne esce in superficie ---------------------------------
+   La proprieta' che conta e' che il piu delle volte NON dica niente: una riga
+   sempre accesa e' una manopola da ottimizzare, una che quasi sempre tace e'
+   una cosa che noti.
+   -------------------------------------------------------------------------- */
+
+check(
+  m.moodSurface(calmStart, 'CALM') === null,
+  'un .mon sul suo punto di riposo non ha niente da far vedere',
+);
+check(
+  m.moodSurface(m.applyMoodEvent(calmStart, 'PARLATO', 'CALM', 1), 'CALM') === null,
+  'e nemmeno dopo un solo scambio: non commenta ogni cosa che fai',
+);
+check(
+  typeof m.moodSurface(m.applyMoodEvent(m.initialMood('CALM', 1), 'NATO', 'CALM', 1), 'CALM') === 'string',
+  'ma appena nato si vede che qualcosa e diverso',
+  m.moodSurface(m.applyMoodEvent(m.initialMood('CALM', 1), 'NATO', 'CALM', 1), 'CALM') ?? '',
+);
+
+/* 🔒 Non dice mai PERCHE'. La causa la conosce (`mood.last`), ma stamparla
+   sulla home sarebbe «e' passato un giorno senza di te» come titolo: il senso
+   di colpa con la faccia carina, che e' esattamente cio' che §4 vieta. */
+let lonely = m.initialMood('CALM', 1);
+for (let d = 2; d <= 6; d++) lonely = m.applyMoodEvent(m.decayMood(lonely, 'CALM', d), 'SILENZIO', 'CALM', d);
+const lonelyLine = m.moodSurface(lonely, 'CALM') ?? '';
+check(
+  lonelyLine !== '' && !/senza di te|non mi hai|dovresti|\d/.test(lonelyLine),
+  'dopo giorni di silenzio dice come sta, mai che e colpa tua',
+  `«${lonelyLine}»`,
 );
 
 /* --- Il freno guarda da che parte spingi -----------------------------------

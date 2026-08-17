@@ -315,6 +315,64 @@ export function moodPhrase(mood: MoodState): string {
   );
 }
 
+/* --- L'unica riga che ne esce in superficie ---------------------------------
+   🔷 «L'umore non ha e non avrà una superficie di prodotto: si sente nel modo
+   in cui parla.» — era scritto in DevPanel, ed era una scelta giusta contro la
+   cosa sbagliata: una barra della felicità da riempire sarebbe diventata un
+   compito, e §4 la vieta.
+
+   ⚠️ Ma «non si vede» era scivolato in «non esiste». L'umore si sentiva solo
+   nel COME ti parla, che dall'esterno è indistinguibile dal caso: c'era un
+   sistema intero che nessuno poteva accorgersi che esistesse.
+
+   Quindi una riga sola, e tre regole che la tengono lontana dal cruscotto:
+
+     🔒 1. NIENTE NUMERI, niente barre, niente colori di stato. Una parola su
+           com'è, come una didascalia di scena.
+
+     🔒 2. NON DICE MAI PERCHÉ. `last` sa che «è passato un giorno senza di
+           te» — mostrarlo sarebbe il senso di colpa stampato sulla home. Si
+           mostra lo STATO, mai la causa. È la stessa regola per cui il
+           silenzio non toglie appiglio, applicata a cosa si legge.
+
+     🔒 3. QUASI SEMPRE NON C'È. Compare solo quando un asse si è mosso
+           davvero dal punto di riposo di quel temperamento. Un indicatore
+           sempre acceso diventa una manopola da ottimizzare; uno che la
+           maggior parte dei giorni tace resta una cosa che noti.
+   -------------------------------------------------------------------------- */
+
+/** Di quanto un asse deve essersi mosso dalla sua base per meritare una riga. */
+const NOTABLE: Record<'tone' | 'charge' | 'footing', number> = {
+  tone: 15,
+  charge: 15,
+  footing: 12,
+};
+
+const SAYS: Record<'tone' | 'charge' | 'footing', { up: string; down: string }> = {
+  tone: { up: 'oggi è di buonumore', down: 'oggi è più chiuso del solito' },
+  charge: { up: 'oggi ha una carica addosso', down: 'oggi ha poca corda' },
+  footing: { up: 'oggi si sente al suo posto', down: 'oggi non si sente ancora a casa' },
+};
+
+/**
+ * Come sta oggi, in una riga — o `null` se oggi non c'è niente da dire.
+ *
+ * Se si è mosso più di un asse vince quello che si è mosso DI PIÙ rispetto
+ * alla sua soglia: due righe sarebbero un referto, e una creatura non ha un
+ * referto.
+ */
+export function moodSurface(mood: MoodState, moodPrimary: string): string | null {
+  const base = baselineFor(moodPrimary);
+
+  const axes = (['tone', 'charge', 'footing'] as const)
+    .map((k) => ({ k, delta: mood[k] - base[k] }))
+    .filter((a) => Math.abs(a.delta) >= NOTABLE[a.k])
+    .sort((a, b) => Math.abs(b.delta) / NOTABLE[b.k] - Math.abs(a.delta) / NOTABLE[a.k]);
+
+  const top = axes[0];
+  return top ? SAYS[top.k][top.delta > 0 ? 'up' : 'down'] : null;
+}
+
 /** Etichetta breve per il pannello DEV e la traccia. */
 export function moodLabel(mood: MoodState): string {
   return `tono ${mood.tone > 0 ? '+' : ''}${mood.tone} · carica ${mood.charge} · appiglio ${mood.footing}`;

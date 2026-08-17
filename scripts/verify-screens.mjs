@@ -129,6 +129,45 @@ const click = async (selector, label) => {
 
 const byText = (text) => `text="${text}"`;
 
+/* La misura sta in una funzione perche non riguarda una schermata sola: ogni
+   testo scritto con un token che si inverte puo sparire su un campo, e
+   l'unico modo di saperlo e misurarlo dove sta davvero. */
+const contrastoDi = (selettori, dove) =>
+  page
+    .evaluate((sel) => {
+      const lum = (c) => {
+        const [r, g, b] = c.map((v) => {
+          const s = v / 255;
+          return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+        });
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+      };
+      const parse = (s) => (s.match(/\d+(\.\d+)?/g) ?? []).slice(0, 3).map(Number);
+      const bgOf = (el) => {
+        let n = el;
+        while (n) {
+          const bg = getComputedStyle(n).backgroundColor;
+          if (bg && !bg.includes('rgba(0, 0, 0, 0)')) return parse(bg);
+          n = n.parentElement;
+        }
+        return [255, 255, 255];
+      };
+
+      return [...document.querySelectorAll(sel)].map((el) => {
+        const fg = parse(getComputedStyle(el).color);
+        const bg = bgOf(el);
+        const [a, b] = [lum(fg), lum(bg)].sort((x, y) => y - x);
+        return { cls: el.className, ratio: (a + 0.05) / (b + 0.05) };
+      });
+    }, selettori)
+    .then((misure) => {
+      for (const c of misure) {
+        if (c.ratio < 4.5) {
+          errors.push(`contrasto insufficiente ${dove}: ${c.cls} a ${c.ratio.toFixed(2)}:1`);
+        }
+      }
+    });
+
 /** Il «+» del composer apre direttamente la registrazione (v1.9 §13.3). */
 const openCapture = async () => {
   await click('.composer .btn-icon:first-child', 'apri REGISTRA');
@@ -244,6 +283,28 @@ try {
   await shot('06-home-personaggio');
   await click('.splash__enter', 'vai in chat');
   await shot('06-companion-home');
+
+  /* 🔷 §10.6 — la riga «come sta oggi», l'unica superficie di prodotto
+     dell'umore. Qui deve esserci per forza: e appena nato, e NATO lascia
+     l'appiglio 18 punti sotto la sua base. Se un giorno sparisse da questo
+     punto, vorrebbe dire che nessuno la vedra mai piu da nessuna parte —
+     e' successo gia una volta, ed e' il motivo per cui l'abbiamo costruita. */
+  const umore = await page.$$eval('.home__mood', (n) => n.map((e) => e.textContent ?? ''));
+  if (umore.length === 0) {
+    errors.push('appena nato, la home non dice come sta: la riga d\'umore non c\'e');
+  }
+  await contrastoDi('.home__mood', 'nella riga d\'umore');
+  for (const riga of umore) {
+    /* 🔒 Dice COME sta, mai PERCHE: la causa scritta sulla home sarebbe il
+       senso di colpa stampato («e passato un giorno senza di te»). E niente
+       cifre — un numero la trasformerebbe in un punteggio da alzare. */
+    if (/senza di te|non mi hai|hai salta|dovresti|perche/i.test(riga)) {
+      errors.push(`la riga d'umore dice PERCHE invece di come sta: «${riga}»`);
+    }
+    if (/\d/.test(riga)) {
+      errors.push(`la riga d'umore contiene un numero: «${riga}»`);
+    }
+  }
 
   /* 🔷 v1.12 §17.4 — LA COMPARSA, PROVATA DAL VIVO.
      `engine/reveal.ts` calcola il piano ed è verificato in batch-check, ma il
@@ -700,38 +761,7 @@ try {
      testo. Risultato: nero su nero, e nessun errore da nessuna parte.
      Una regola statica sui token sarebbe fragile — `--paper` su fondo `--ink` e
      giusto. Quello che si puo misurare senza ambiguita e il risultato. */
-  const contrasti = await page.evaluate(() => {
-    const lum = (c) => {
-      const [r, g, b] = c.map((v) => {
-        const s = v / 255;
-        return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
-      });
-      return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-    };
-    const parse = (s) => (s.match(/\d+(\.\d+)?/g) ?? []).slice(0, 3).map(Number);
-    const bgOf = (el) => {
-      let n = el;
-      while (n) {
-        const bg = getComputedStyle(n).backgroundColor;
-        if (bg && !bg.includes('rgba(0, 0, 0, 0)')) return parse(bg);
-        n = n.parentElement;
-      }
-      return [255, 255, 255];
-    };
-
-    return [...document.querySelectorAll('.post__from, .post__text, .post__about')].map((el) => {
-      const fg = parse(getComputedStyle(el).color);
-      const bg = bgOf(el);
-      const [a, b] = [lum(fg), lum(bg)].sort((x, y) => y - x);
-      return { cls: el.className, ratio: (a + 0.05) / (b + 0.05) };
-    });
-  });
-
-  for (const c of contrasti) {
-    if (c.ratio < 4.5) {
-      errors.push(`contrasto insufficiente nel filo: ${c.cls} a ${c.ratio.toFixed(2)}:1`);
-    }
-  }
+  await contrastoDi('.post__from, .post__text, .post__about', 'nel filo');
 
   await click('.tabbar__item:nth-child(4)', 'tab MINDLINE');
   await click('.archive__seg:nth-child(2)', 'vista MIND.DEX');
