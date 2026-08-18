@@ -145,6 +145,14 @@ $3/$15). Quelle la cui chiave manca sono spente, non nascoste.
 mai te. Si sceglie sui risultati visivi. Il predefinito è **GPT-5.6 Terra**
 ($2/$12 per milione), l'alternativa è Claude Sonnet 5 ($3/$15).
 
+**Passo 6 · CHI DISEGNA** — prende quella descrizione e ne fa un'immagine.
+**GPT Image 2** (predefinito, il più recente: ragiona prima di disegnare e regge
+meglio il testo dentro l'immagine) o **GPT Image 1**, il precedente, quello con
+cui sono state fatte le prime prove di questo progetto.
+
+È la voce di spesa più grossa: sei immagini per creatura, quattro o cinque
+centesimi l'una.
+
 Le opzioni la cui chiave manca sono spente, non nascoste: si vede subito cosa
 mancherebbe per accenderle.
 

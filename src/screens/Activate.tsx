@@ -91,6 +91,7 @@ export function ActivateScreen({ onClose }: { onClose: () => void }) {
      chiavi esistono. */
   const live = Boolean(setup?.serverToken && setup.ready?.voice);
   const canCompile = Boolean(setup?.ready?.compile);
+  const canDraw = Boolean(setup?.ready?.draw);
 
   return (
     <div className="screen activate">
@@ -247,6 +248,15 @@ export function ActivateScreen({ onClose }: { onClose: () => void }) {
           <CompilerChoicePanel setup={setup} />
         </Step>
 
+        <Step
+          n={6}
+          title="CHI DISEGNA"
+          done={canDraw}
+          detail="Prende quella descrizione e ne fa un’immagine. Sei per creatura."
+        >
+          <ImageChoicePanel setup={setup} />
+        </Step>
+
         {busy && <p className="t-micro">controllo…</p>}
       </div>
     </div>
@@ -325,6 +335,56 @@ function Copyable({ value }: { value: string }) {
    descrizione di una creatura. Metterle nello stesso interruttore vorrebbe
    dire far decidere una cosa in base all'altra.
    -------------------------------------------------------------------------- */
+
+/* --- Chi disegna (§22.4) ----------------------------------------------------
+   🔷 «Ma io non ho potuto scegliere che AI immagini usare, vorrei la più
+   recente lato immagine.»
+
+   🔒 SEPARATA dalle altre due, come lo sono fra loro. La voce si sceglie a
+   orecchio, il compilatore sui risultati visivi, questa sul disegno — e i tre
+   criteri non si somigliano. E questa è l'unica delle tre che si paga a pezzo
+   invece che a token: sei immagini per creatura, ed è la voce di spesa più
+   grossa del progetto.
+   -------------------------------------------------------------------------- */
+
+function ImageChoicePanel({ setup }: { setup: SetupState | null }) {
+  const chosen = useApp((s) => s.imageModel);
+  const setImageModel = useApp((s) => s.setImageModel);
+
+  const list = setup?.images ?? [];
+  const active = chosen ?? setup?.defaultImage ?? null;
+
+  return (
+    <>
+      <p className="t-small">
+        Sei immagini per creatura, una volta ogni ventotto giorni. È la voce di
+        spesa più grossa: circa quattro o cinque centesimi l’una.
+      </p>
+
+      {list.length === 0 ? (
+        <p className="t-micro">Le opzioni si vedono dopo i primi tre passi.</p>
+      ) : (
+        <ul className="activate__voices">
+          {list.map((c) => (
+            <li key={c.model}>
+              <button
+                type="button"
+                className="activate__voice"
+                aria-current={c.model === active ? 'true' : undefined}
+                disabled={!c.ready}
+                onClick={() => setImageModel(c.model)}
+              >
+                <span className="t-meta">{c.label}</span>
+                {c.model === active && <SystemLabel tone="character">IN USO</SystemLabel>}
+                {!c.ready && <SystemLabel>MANCA LA CHIAVE</SystemLabel>}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
+  );
+}
 
 function CompilerChoicePanel({ setup }: { setup: SetupState | null }) {
   const chosen = useApp((s) => s.compilerModel);

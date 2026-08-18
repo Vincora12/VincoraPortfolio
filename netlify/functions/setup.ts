@@ -31,7 +31,7 @@
 
 import { authorize, denied, json } from './_shared/auth';
 import { checkCap, MONTHLY_CAP_USD } from './_shared/spend';
-import { COMPILER_CHOICES, ROUTING, VOICE_CHOICES } from './_shared/routing';
+import { COMPILER_CHOICES, IMAGE_CHOICES, ROUTING, VOICE_CHOICES } from './_shared/routing';
 
 /** Le variabili che l'app può usare, e a cosa servono in italiano. */
 const VARS = [
@@ -102,6 +102,11 @@ export default async function handler(request: Request): Promise<Response> {
     label: c.label,
     ready: Boolean(process.env[keyFor(c.provider)]),
   }));
+  const images = IMAGE_CHOICES.map((c) => ({
+    model: c.model,
+    label: c.label,
+    ready: Boolean(process.env[keyFor(c.provider)]),
+  }));
 
   return json({
     serverToken: true,
@@ -112,6 +117,7 @@ export default async function handler(request: Request): Promise<Response> {
     ready: {
       voice: voices.some((v) => v.ready),
       compile: compilers.some((c) => c.ready),
+      draw: images.some((c) => c.ready),
     },
     vars: VARS.map((v) => ({ ...v, present: Boolean(process.env[v.name]) })),
     /* Quali scelte sono davvero utilizzabili adesso: una scelta il cui
@@ -120,6 +126,8 @@ export default async function handler(request: Request): Promise<Response> {
     defaultVoice: ROUTING['character-voice'].model,
     compilers,
     defaultCompiler: ROUTING['prompt-compile'].model,
+    images,
+    defaultImage: ROUTING.image.model,
     spentUsd: cap.ledger.usd,
     capUsd: MONTHLY_CAP_USD,
     month: cap.ledger.month,

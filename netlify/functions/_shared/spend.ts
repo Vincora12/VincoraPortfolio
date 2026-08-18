@@ -61,6 +61,10 @@ const PRICES: Record<string, Price> = {
   'gpt-5.6-terra': { input: 2, output: 12 },
   'gpt-5.6-luna': { input: 0.2, output: 1.2 },
   'gpt-5.6-sol': { input: 5, output: 30 },
+  /* ⚠️ Stimati e arrotondati PER ECCESSO: il listino non era raggiungibile da
+     dove sono stati scritti, e un contatore che sottostima è peggio di uno
+     che non c'è. Dopo un giro vero, DEV → COSTI dice il numero giusto. */
+  'gpt-image-2': { input: 0, output: 0, perImage: 0.05 },
   'gpt-image-1': { input: 0, output: 0, perImage: 0.04 },
 };
 

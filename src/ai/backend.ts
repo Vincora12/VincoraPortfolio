@@ -200,8 +200,22 @@ export function ask<T = VoiceData>(
 export function askImage(
   token: string | null,
   prompt: string,
+  /**
+   * Chi disegna, se hai scelto.
+   *
+   * 🔶 Viaggia nel campo `voiceModel` come la voce e il compilatore: il server
+   * ha UN campo per «il modello che preferisco», e `resolveRoute` lo confronta
+   * col catalogo della capacità richiesta. Tre campi diversi sarebbero tre
+   * posti dove scordarsi il filtro, e senza filtro il tetto di spesa non sa
+   * più cosa sta prezzando.
+   */
+  imageModel?: string | null,
 ): Promise<BackendResult<ImageData>> {
-  return post<ImageData>('/api/ai', token, { capability: 'image', prompt });
+  return post<ImageData>('/api/ai', token, {
+    capability: 'image',
+    prompt,
+    voiceModel: imageModel,
+  });
 }
 
 /* --- Attivazione (§19.5) ----------------------------------------------------
@@ -227,12 +241,14 @@ export interface SetupState {
    * 🔒 Non è «ci sono tutte le chiavi»: è «ce n'è almeno una che sa fare
    * questa cosa». Con una chiave OpenAI sola sono veri tutti e due.
    */
-  ready?: { voice: boolean; compile: boolean };
+  ready?: { voice: boolean; compile: boolean; draw: boolean };
   vars?: SetupVar[];
   voices?: { model: string; label: string; ready: boolean }[];
   defaultVoice?: string;
   compilers?: { model: string; label: string; ready: boolean }[];
   defaultCompiler?: string;
+  images?: { model: string; label: string; ready: boolean }[];
+  defaultImage?: string;
   spentUsd?: number;
   capUsd?: number;
   month?: string;

@@ -850,7 +850,7 @@ try {
   await shot('19-attiva');
 
   const passi = await page.$$eval('.activate .window', (n) => n.length);
-  if (passi !== 5) errors.push(`la procedura guidata ha ${passi} passi invece di 5`);
+  if (passi !== 6) errors.push(`la procedura guidata ha ${passi} passi invece di 6`);
 
   /* 🔒 Il segreto proposto deve essere lungo abbastanza da essere accettato da
      `auth.ts` (24 caratteri). Un pulsante COPIA che consegna un token che il

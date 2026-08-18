@@ -366,6 +366,14 @@ interface AppState {
   compilerModel: string | null;
 
   /**
+   * 🔷 §22.4 — chi DISEGNA. `null` = il predefinito.
+   *
+   * 🔷 «Ma io non ho potuto scegliere che AI immagini usare.» Era vero: la
+   * voce e il compilatore erano due menù, il disegnatore una riga inchiodata.
+   */
+  imageModel: string | null;
+
+  /**
    * Quando hai ricominciato da capo l'ultima volta, o `null`.
    *
    * 🔒 È l'unica cosa che impedisce a una partita cancellata di tornare
@@ -444,6 +452,7 @@ interface AppState {
   /** 🔷 §19.2 — sceglie chi dà la voce. `null` torna al predefinito. */
   setVoiceModel: (model: string | null) => void;
   setCompilerModel: (model: string | null) => void;
+  setImageModel: (model: string | null) => void;
   /**
    * 🔷 v1.2 §10 — fa riscrivere il prompt di un asset dal compilatore.
    *
@@ -593,6 +602,7 @@ const INITIAL = {
   token: null as string | null,
   voiceModel: null as string | null,
   compilerModel: null as string | null,
+  imageModel: null as string | null,
   /* §21.3 — i .mon conservati. NON stanno in INITIAL per caso: `resetAll` li
      rimette a mano proprio perché devono sopravvivere a ricominciare. */
   kept: [] as KeptMon[],
@@ -1558,6 +1568,7 @@ export const useApp = create<AppState>()(
          questa funzione esiste. C'è un controllo che lo verifica. */
       setVoiceModel: (model) => set({ voiceModel: model }),
       setCompilerModel: (model) => set({ compilerModel: model }),
+      setImageModel: (model) => set({ imageModel: model }),
 
       compileAssetPrompt: async (monName, assetType) => {
         const s = get();
@@ -1674,10 +1685,13 @@ export const useApp = create<AppState>()(
 
         /* `replace` sempre: se sei qui è perché quell'immagine la vuoi adesso,
            e se ce n'era una vecchia la stai rifacendo apposta. */
-        const { made, failure } = await generateMissingAssets(get().token, rec, undefined, {
-          only: [type],
-          replace: true,
-        });
+        const { made, failure } = await generateMissingAssets(
+          get().token,
+          rec,
+          undefined,
+          { only: [type], replace: true },
+          get().imageModel,
+        );
         if (failure) return `immagine: ${failure}`;
         markAssetsMade(set, get, monName, made);
         return null;
@@ -2051,6 +2065,7 @@ export const useApp = create<AppState>()(
             rec,
             (p) => set({ assetProgress: { monName, ...p } }),
             opts,
+            get().imageModel,
           );
 
           /* Ogni «rifallo» si conta. Non serve al motore: serve a LUI, che nel
@@ -2173,6 +2188,7 @@ export const useApp = create<AppState>()(
              questo browser, non un pezzo della partita. */
           voiceModel: get().voiceModel,
           compilerModel: get().compilerModel,
+          imageModel: get().imageModel,
           /* 🔒 LA TECA SOPRAVVIVE. È l'unica cosa che deve: ricominciare
              cancella la partita, non i ricordi che avevi deciso di tenere. */
           kept: get().kept,
@@ -2530,6 +2546,7 @@ export async function syncWithServer(): Promise<'locale' | 'scaricato' | 'niente
        tu l'abbia chiesto. */
     voiceModel: local.voiceModel,
     compilerModel: local.compilerModel,
+    imageModel: local.imageModel,
   });
   lastSavedSignature = JSON.stringify(snapshotFor(useApp.getState()));
   return 'scaricato';

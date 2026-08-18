@@ -31,7 +31,7 @@ const out = join(cwd, 'node_modules', '.vinz-backend-check.mjs');
 writeFileSync(
   entry,
   `
-export { ROUTING, PERSONAL, VOICE_CHOICES, COMPILER_CHOICES, routingProblems, personalDataOnFreeTier, voiceChoiceProblems, compilerChoiceProblems, resolveRoute } from '${cwd}/netlify/functions/_shared/routing.ts';
+export { ROUTING, PERSONAL, VOICE_CHOICES, COMPILER_CHOICES, IMAGE_CHOICES, routingProblems, personalDataOnFreeTier, voiceChoiceProblems, compilerChoiceProblems, imageChoiceProblems, resolveRoute } from '${cwd}/netlify/functions/_shared/routing.ts';
 export { costOf, currentMonth, MONTHLY_CAP_USD, WARN_AT, COST_PER_WEB_SEARCH } from '${cwd}/netlify/functions/_shared/spend.ts';
 `,
 );
@@ -155,6 +155,53 @@ check(
 check(
   m.resolveRoute('prompt-compile', 'modello-inventato').model === m.ROUTING['prompt-compile'].model,
   'e un modello che non conosciamo torna al predefinito',
+);
+
+/* --- §22.4 — CHI DISEGNA ----------------------------------------------------
+   «Ma io non ho potuto scegliere che AI immagini usare, vorrei la piu recente
+   lato immagine.» Era vero: la voce e il compilatore erano due menu, il
+   disegnatore una riga inchiodata.
+   -------------------------------------------------------------------------- */
+
+console.log('\n═══ §22.4 — CHI DISEGNA ═══\n');
+
+for (const c of m.IMAGE_CHOICES) {
+  console.log(`  ${c.label.padEnd(16)} $${c.perImage.toFixed(2)} a immagine`);
+}
+console.log('');
+
+const imageProblems = m.imageChoiceProblems();
+check(
+  imageProblems.length === 0,
+  'ogni scelta di disegnatore e servibile, e ha un prezzo',
+  imageProblems.join('; '),
+);
+check(
+  m.IMAGE_CHOICES.length >= 2,
+  'le scelte sono almeno due, o non e una scelta',
+  `${m.IMAGE_CHOICES.length} scelte`,
+);
+/* 🔒 Il predefinito e' il piu' recente, che e' esattamente quello che ha
+   chiesto: «vorrei la piu recente lato immagine». */
+check(
+  m.ROUTING.image.model === 'gpt-image-2',
+  'il disegnatore predefinito e il piu recente',
+  m.ROUTING.image.model,
+);
+check(
+  m.resolveRoute('image', 'gpt-image-1').model === 'gpt-image-1',
+  'ma si puo scegliere il precedente',
+);
+check(
+  m.resolveRoute('image', 'claude-opus-5').model === m.ROUTING.image.model,
+  'e una voce non diventa un disegnatore',
+);
+/* 🔒 Un modello di immagini senza prezzo renderebbe cieco il tetto proprio
+   sulla voce di spesa piu' grossa. */
+check(
+  m.IMAGE_CHOICES.every((c) => m.costOf(c.model, { images: 1 }) > 0),
+  'ogni disegnatore ha un costo che il tetto sa contare',
+  m.IMAGE_CHOICES.map((c) => `${c.label} $${m.costOf(c.model, { images: 1 })}`).join(' · '),
 );
 
 /* --- §19.2 — CAMBIARE CHI DA' LA VOCE --------------------------------------

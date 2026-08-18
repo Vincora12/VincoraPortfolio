@@ -149,7 +149,10 @@ export const ROUTING: Record<Capability, Route> = {
   'character-voice': { provider: 'anthropic', model: 'claude-opus-5' },
   'vision-quick': { provider: 'google', model: 'gemini-2.5-flash' },
   'text-cheap': { provider: 'anthropic', model: 'claude-haiku-4-5' },
-  image: { provider: 'openai', model: 'gpt-image-1' },
+  /* 🔶 Era `gpt-image-1`, e nessuno l'aveva mai scelto: la voce e il
+     compilatore si sceglievano, il disegnatore no. `gpt-image-2` è uscito
+     nell'API il 21 aprile 2026 ed è il più recente. */
+  image: { provider: 'openai', model: 'gpt-image-2' },
   /* Sonnet e non Opus: è un lavoro lungo in uscita ma vincolato — i fatti
      arrivano già decisi, va scritta la forma. Costa circa due centesimi per
      creatura, una volta ogni ventotto giorni. */
@@ -286,6 +289,68 @@ export const VOICE_CHOICES: VoiceChoice[] = [
  * server un modello qualsiasi — compreso uno che non sappiamo prezzare, e il
  * tetto di spesa smetterebbe di sapere cosa sta contando.
  */
+/* --- CHI DISEGNA (§22.4) ----------------------------------------------------
+   🔷 «Ma io non ho potuto scegliere che AI immagini usare, vorrei la più
+   recente lato immagine.»
+
+   Aveva ragione: la voce e il compilatore erano due menù, il disegnatore era
+   una riga inchiodata. Ed è la scelta che si vede di più — è letteralmente
+   quella che disegna la creatura.
+
+   ⚠️ I PREZZI QUI SONO STIMATI, e va detto invece che nascosto. Il listino di
+   OpenAI non è raggiungibile da dove è stato scritto questo file, quindi
+   vengono da fonti terze e sono arrotondati PER ECCESSO: il contatore può
+   sbagliare dicendo che hai speso più del vero, mai meno. Dopo un giro vero,
+   DEV → COSTI dice il numero giusto e queste righe si correggono.
+   -------------------------------------------------------------------------- */
+
+export interface ImageChoice {
+  provider: Provider;
+  model: string;
+  label: string;
+  /** Dollari per immagine a 1024×1024, arrotondati per eccesso. */
+  perImage: number;
+  it: string;
+}
+
+export const IMAGE_CHOICES: ImageChoice[] = [
+  {
+    provider: 'openai',
+    model: 'gpt-image-2',
+    label: 'GPT Image 2',
+    perImage: 0.05,
+    it: 'Il più recente: ragiona prima di disegnare, regge meglio il testo dentro l’immagine e tiene la risoluzione alta. È il predefinito.',
+  },
+  {
+    provider: 'openai',
+    model: 'gpt-image-1',
+    label: 'GPT Image 1',
+    perImage: 0.04,
+    it: 'Il precedente. Costa un filo meno ed è quello con cui le prime prove di questo progetto sono state fatte: serve come termine di paragone se il nuovo non ti convince.',
+  },
+];
+
+/** Una scelta di disegnatore che il suo fornitore non sa servire non deve esistere. */
+export function imageChoiceProblems(choices = IMAGE_CHOICES): string[] {
+  const needs = NEEDS.image;
+  const problems: string[] = [];
+  for (const c of choices) {
+    for (const [need, required] of Object.entries(needs) as [keyof Needs, boolean][]) {
+      if (required && !CAN[c.provider][need]) {
+        problems.push(`${c.label} → ${c.provider} non offre ${need}`);
+      }
+    }
+    /* 🔒 Un prezzo a zero renderebbe il tetto cieco proprio sulla voce di
+       spesa più grossa del progetto. */
+    if (!(c.perImage > 0)) problems.push(`${c.label} non ha un prezzo per immagine`);
+  }
+  const base = ROUTING.image;
+  if (!choices.some((c) => c.model === base.model)) {
+    problems.push(`il disegnatore predefinito (${base.model}) non è fra le scelte`);
+  }
+  return problems;
+}
+
 export function resolveRoute(capability: Capability, preferredModel?: string | null): Route {
   if (!preferredModel) return ROUTING[capability];
 
@@ -294,7 +359,9 @@ export function resolveRoute(capability: Capability, preferredModel?: string | n
       ? (VOICE_CHOICES as { provider: Provider; model: string }[])
       : capability === 'prompt-compile'
         ? (COMPILER_CHOICES as { provider: Provider; model: string }[])
-        : null;
+        : capability === 'image'
+          ? (IMAGE_CHOICES as { provider: Provider; model: string }[])
+          : null;
   if (!pool) return ROUTING[capability];
 
   const choice = pool.find((c) => c.model === preferredModel);

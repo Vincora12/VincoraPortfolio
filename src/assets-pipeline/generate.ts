@@ -92,6 +92,8 @@ export async function generateMissingAssets(
   record: MonRecord,
   onProgress?: (p: GenerationProgress) => void,
   opts: GenerateOptions = {},
+  /** Chi disegna, se hai scelto. Il server accetta solo modelli che conosce. */
+  imageModel?: string | null,
 ): Promise<{ made: AssetType[]; failure: BackendFailure | null }> {
   const name = record.data.name;
   const wanted = generationOrder()
@@ -106,7 +108,7 @@ export async function generateMissingAssets(
        di una generazione di immagini vorrebbe dire due chiamate in fila con
        due modi diversi di fallire. */
     const text = record.compiledPrompts?.[type] ?? compilePrompt(record, type).text;
-    const res = await askImage(token, text);
+    const res = await askImage(token, text, imageModel);
 
     if (!res.data) {
       /* 🔒 Ci si ferma al primo no. Senza chiave falliranno tutte allo stesso

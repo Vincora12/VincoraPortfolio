@@ -1206,6 +1206,37 @@ check(
   'due `??` sparsi sono due posti dove mostrare la versione vecchia senza accorgersene',
 );
 
+/* 🔷 «Ma io non ho potuto scegliere che AI immagini usare, vorrei la più
+   recente lato immagine.» */
+check(
+  '§22.4 CHI DISEGNA',
+  'anche il disegnatore si sceglie, come la voce e il compilatore',
+  has(ROUTING_FILE, 'export const IMAGE_CHOICES') &&
+    has('src/screens/Activate.tsx', 'CHI DISEGNA'),
+  'due menù e una riga inchiodata: la scelta che manca è proprio quella che si vede di più',
+);
+check(
+  '§22.4 CHI DISEGNA',
+  'la scelta arriva davvero fino alla chiamata',
+  has('src/ai/backend.ts', 'imageModel?: string | null,') &&
+    has('src/state/store.ts', 'get().imageModel,'),
+  'un menù che non sposta niente è peggio di nessun menù',
+);
+check(
+  '§22.4 CHI DISEGNA',
+  'la scelta sopravvive al reset e a un salvataggio scaricato',
+  has('src/state/store.ts', 'imageModel: get().imageModel,') &&
+    has('src/state/store.ts', 'imageModel: local.imageModel,'),
+  'è configurazione di questo browser, non un pezzo della partita',
+);
+check(
+  '§22.4 CHI DISEGNA',
+  'il prezzo stimato è dichiarato tale',
+  has(ROUTING_FILE, 'arrotondati PER ECCESSO') &&
+    has('netlify/functions/_shared/spend.ts', 'arrotondati PER ECCESSO'),
+  'il listino non era raggiungibile: un contatore che sottostima è peggio di uno che non c’è',
+);
+
 /* 🔷 «Adesso mi aspetto che tutto vada con un solo click.» */
 check(
   '§22.4 FAI TUTTO',
