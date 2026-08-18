@@ -85,6 +85,9 @@ const CAN: Record<Provider, Needs> = {
   /* 🔶 `promptCache: true` da quando OpenAI serve anche del testo: la cache è
      implicita come su Moonshot — prefisso identico e primo. Le regole del
      compilatore sono in cima e non cambiano mai, quindi aggancia. */
+  /* ⚠️ `webSearch: false` significa «questo codice non la sa chiedere», non
+     «il fornitore non ce l'ha». OpenAI la serve sull'API Responses, che qui
+     non è collegata. Vedi la nota su GPT-5.6 Terra in `VOICE_CHOICES`. */
   openai: { promptCache: true, vision: true, thinking: true, imageOut: true, webSearch: false },
 
   /* ⚠️ `promptCache: true` QUI SIGNIFICA UNA COSA DIVERSA, e la differenza va
@@ -229,9 +232,19 @@ export const VOICE_CHOICES: VoiceChoice[] = [
     model: 'gpt-5.6-terra',
     label: 'GPT-5.6 Terra',
     price: { input: 2, output: 12 },
-    it: 'La più economica delle quattro, e usa la stessa chiave delle immagini: con questa si parte con un fornitore solo. Non ha la ricerca sul web.',
-    /* ⚠️ `false` perché `CAN.openai.webSearch` è `false`: prometterla qui
-       sarebbe una bugia nella schermata che serve a decidere. */
+    it: 'La più economica delle quattro, e usa la stessa chiave delle immagini: con questa si parte con un fornitore solo. Qui dentro non cerca ancora sul web.',
+    /* ⚠️ `false` perché `CAN.openai.webSearch` è `false` — e quel `false`
+       descrive NOI, non OpenAI.
+
+       🔶 «Ma certo che OpenAI cerca nel web.» Vero, e la frase di prima diceva
+       il contrario. OpenAI la ricerca ce l'ha: è uno strumento ospitato
+       sull'API Responses (`/v1/responses`, `tools: [{ type: 'web_search' }]`).
+       Il nostro adattatore parla con `/v1/chat/completions` e passa solo le
+       funzioni nostre, quindi quello strumento non è raggiungibile da qui.
+       Collegarlo vuol dire un secondo adattatore, non una riga.
+
+       Finché non c'è, questo campo resta `false`: promettere la ricerca in
+       una schermata che serve a decidere sarebbe peggio che non averla. */
     webSearch: false,
     data: 'OpenAI dichiara di non usare i dati delle API per addestrare i modelli senza adesione esplicita.',
   },
