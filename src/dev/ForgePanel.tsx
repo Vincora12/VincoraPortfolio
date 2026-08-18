@@ -1,63 +1,121 @@
 /* ============================================================================
-   FAI TUTTO (§8.1 · §10 · §22.4)
+   FORGIA — UN ASSET ALLA VOLTA, E LO APPROVI TU (§8.1 · §10 · §22.4)
 
    🔷 «Adesso mi aspetto che tutto vada con un solo click.»
+   🔷 «O con click consecutivi che mi mostra tutte le immagini, le approvo e
+      andiamo avanti.»
 
-   I pezzi c'erano tutti e nessuno li chiamava in fila. Peggio: le immagini
-   partivano da sole leggendo il prompt CONCATENATO, perché nessuno aveva
-   compilato quello buono — cioè il compilatore esisteva e le immagini non lo
-   usavano quasi mai.
+   Sono due richieste diverse e ci stanno tutte e due, ma la seconda è quella
+   giusta e vale la pena dire perché.
 
-   🔒 IL PREZZO SI DICE PRIMA. È l'unico pulsante dell'app che, premuto, spende
-   quasi un euro. Un pulsante che scopre il conto dopo non è un pulsante, è una
-   trappola — e il tetto mensile difende dal disastro, non dalla sorpresa.
+   ⚠️ IL MASTER CONDIZIONA GLI ALTRI CINQUE. `compiler.ts:142` mette il
+   riferimento di consistenza nei prompt successivi solo quando il master
+   risulta risolto: se il master viene male e si tira dritto, le altre cinque
+   immagini ereditano una creatura sbagliata. Un giro cieco scopre il problema
+   alla sesta immagine, cioè dopo averlo pagato sei volte. Approvare a mano
+   costa un tocco in più e lo ferma alla prima.
+
+   🔒 IL PREZZO SI DICE PRIMA, e qui si può dire meglio: quattro centesimi per
+   immagine, dieci per un prompt riscritto. Chi approva sa cosa sta spendendo
+   al passo in cui è.
    ========================================================================= */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useActiveMon, useApp } from '../state/store';
 import { Button, SystemLabel } from '../system/components';
+import { AssetSlot } from '../system/AssetSlot';
+import { assetTypeDef } from '../engine/assets';
+import type { AssetType } from '../engine/types';
 
 export function ForgePanel() {
   const mon = useActiveMon();
   const token = useApp((s) => s.token);
-  const forge = useApp((s) => s.forgeEverything);
+  const forgeOne = useApp((s) => s.forgeOne);
+  const forgeEverything = useApp((s) => s.forgeEverything);
+  const forgeOrder = useApp((s) => s.forgeOrder);
+  const writeBio = useApp((s) => s.writeBio);
   const progress = useApp((s) => s.forgeProgress);
-  const [problems, setProblems] = useState<string[] | null>(null);
+
+  const [order, setOrder] = useState<AssetType[]>([]);
+  /** Dove siamo nell'elenco. `-1` = non abbiamo ancora cominciato. */
+  const [at, setAt] = useState(-1);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [problem, setProblem] = useState<string | null>(null);
+  const [blindReport, setBlindReport] = useState<string[] | null>(null);
+
+  useEffect(() => {
+    void forgeOrder().then(setOrder);
+  }, [forgeOrder]);
 
   if (!mon) return null;
 
-  const running = progress !== null;
+  const current = at >= 0 && at < order.length ? order[at]! : null;
+  const finished = at >= order.length && order.length > 0;
+  const running = busy !== null || progress !== null;
+
+  /** Un passo: mostra cosa sta facendo mentre lo fa. */
+  const run = async (label: string, job: () => Promise<string | null>) => {
+    setBusy(label);
+    setProblem(null);
+    const why = await job();
+    setBusy(null);
+    setProblem(why);
+    return why === null;
+  };
+
+  const start = async () => {
+    setBlindReport(null);
+    const ok = await run('scrivo la bio', () => writeBio(mon.data.name));
+    /* Una bio già scritta torna `null`, quindi «non ok» qui vuol dire davvero
+       un guasto — ma non è un motivo per non fare le immagini. */
+    if (!ok) setProblem((p) => (p ? `${p} — vado avanti lo stesso` : null));
+    const first = order[0];
+    if (!first) return;
+    setAt(0);
+    await run(`${assetTypeDef(first).label}`, () => forgeOne(mon.data.name, first));
+  };
+
+  const next = async () => {
+    const i = at + 1;
+    setAt(i);
+    const type = order[i];
+    if (!type) return;
+    await run(assetTypeDef(type).label, () => forgeOne(mon.data.name, type));
+  };
 
   return (
     <div className="dev__section">
-      <p className="t-meta dev__label">FAI TUTTO</p>
-      <p className="t-micro dev__note">
-        La bio, i sei prompt riscritti dall’AI e le sei immagini, in fila. Il
-        master per primo: è quello che gli altri prompt citano come riferimento
-        di consistenza, e senza di lui uscirebbero sei creature diverse.
-      </p>
-      {/* 🔒 Il conto, prima. */}
-      <p className="t-micro dev__note">
-        Costa circa <strong>0,75 €</strong> a creatura — sei immagini (~$0,24),
-        sei prompt (~$0,60), la bio (~$0,02). Il tetto mensile resta quello di
-        sempre: se lo tocca, si ferma e te lo dice.
-      </p>
+      <p className="t-meta dev__label">FORGIA</p>
 
-      <Button
-        block
-        variant="primary"
-        small
-        disabled={running || !token}
-        onClick={() => {
-          setProblems(null);
-          void forge(mon.data.name).then(setProblems);
-        }}
-      >
-        {running ? 'IN CORSO…' : 'FAI TUTTO'}
-      </Button>
-
-      {!token && (
-        <p className="t-micro dev__note">Serve il segreto: ATTIVA VINZ.MON.</p>
+      {at < 0 && (
+        <>
+          <p className="t-micro dev__note">
+            La bio, poi un asset alla volta: si scrive il prompt, si genera
+            l’immagine, la guardi e decidi. Il <strong>master</strong> è il
+            primo perché è quello che gli altri cinque prompt citano: se viene
+            male e tiri dritto, le altre cinque ereditano la creatura sbagliata.
+          </p>
+          <p className="t-micro dev__note">
+            Quattro centesimi a immagine, dieci a prompt riscritto. Tutto
+            insieme fa circa <strong>0,75 €</strong> a creatura.
+          </p>
+          <Button block variant="primary" small disabled={running || !token} onClick={() => void start()}>
+            {running ? 'IN CORSO…' : 'COMINCIA'}
+          </Button>
+          {/* Il giro cieco resta, per quando non c'è voglia di guardare. */}
+          <Button
+            block
+            small
+            disabled={running || !token}
+            onClick={() => {
+              setBlindReport(null);
+              void forgeEverything(mon.data.name).then(setBlindReport);
+            }}
+          >
+            FAI TUTTO SENZA FERMARTI
+          </Button>
+          {!token && <p className="t-micro dev__note">Serve il segreto: ATTIVA VINZ.MON.</p>}
+        </>
       )}
 
       {progress && (
@@ -65,27 +123,88 @@ export function ForgePanel() {
           {progress.done}/{progress.total} — {progress.label}
         </p>
       )}
-
-      {/* Vuoto = è andato tutto. Va detto, o non si distingue da «non ha fatto
-          niente». */}
-      {problems !== null && problems.length === 0 && (
+      {blindReport !== null && (
         <p className="t-small">
-          <SystemLabel tone="character">FATTO</SystemLabel> bio, prompt e
-          immagini ci sono tutti.
+          {blindReport.length === 0 ? (
+            <>
+              <SystemLabel tone="character">FATTO</SystemLabel> bio, prompt e
+              immagini ci sono tutti.
+            </>
+          ) : (
+            <>
+              <SystemLabel tone="alert">NON TUTTO</SystemLabel>{' '}
+              {blindReport.join(' · ')}
+            </>
+          )}
         </p>
       )}
-      {problems !== null && problems.length > 0 && (
+
+      {current && (
+        <>
+          <p className="t-micro dev__note">
+            {at + 1} di {order.length} — <strong>{assetTypeDef(current).label}</strong>
+            {at === 0 && ' · da questo dipendono gli altri cinque'}
+          </p>
+
+          <figure className="dev__forgeshot">
+            <AssetSlot
+              monName={mon.data.name}
+              type={current}
+              alt={`${mon.data.name}, ${assetTypeDef(current).label}`}
+            />
+          </figure>
+
+          {busy && <p className="t-small dev__note">{busy}…</p>}
+          {problem && (
+            <p className="t-small">
+              <SystemLabel tone="alert">NON RIUSCITA</SystemLabel> {problem}
+            </p>
+          )}
+
+          <div className="dev__grid">
+            <Button
+              small
+              variant="primary"
+              disabled={running}
+              onClick={() => void next()}
+            >
+              {at + 1 < order.length ? 'VA BENE, AVANTI' : 'VA BENE, FINITO'}
+            </Button>
+            <Button
+              small
+              disabled={running}
+              onClick={() => void run('rifaccio l’immagine', () => forgeOne(mon.data.name, current))}
+            >
+              RIFAI L’IMMAGINE · $0,04
+            </Button>
+            {/* 🔒 Riscrivere il prompt è un'altra cosa dal rifare l'immagine, e
+                costa il triplo: se la creatura è sbagliata è il prompt, se è
+                giusta ma disegnata male è il tiro. Metterli sullo stesso
+                pulsante vorrebbe dire pagare la riscrittura ogni volta. */}
+            <Button
+              small
+              disabled={running}
+              onClick={() =>
+                void run('riscrivo il prompt', () =>
+                  forgeOne(mon.data.name, current, { rewritePrompt: true }),
+                )
+              }
+            >
+              RISCRIVI IL PROMPT · $0,14
+            </Button>
+          </div>
+        </>
+      )}
+
+      {finished && (
         <>
           <p className="t-small">
-            <SystemLabel tone="alert">NON TUTTO</SystemLabel> il resto è a posto.
+            <SystemLabel tone="character">APPROVATE TUTTE</SystemLabel> sei
+            immagini e la bio.
           </p>
-          <ul className="rowlist">
-            {problems.map((p, i) => (
-              <li key={i} className="t-micro dev__note">
-                {p}
-              </li>
-            ))}
-          </ul>
+          <Button block small onClick={() => setAt(-1)}>
+            RICOMINCIA IL GIRO
+          </Button>
         </>
       )}
     </div>

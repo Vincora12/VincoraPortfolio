@@ -39,6 +39,7 @@ import {
 } from '../engine/progression';
 import { evolveMon, generateFirstMon, generateMon } from '../engine/characterGenerator';
 import type { BackendFailure } from '../ai/backend';
+import { assetTypeDef } from '../engine/assets';
 import type { GenerationProgress } from '../assets-pipeline/generate';
 import {
   WEEKLY_EVERY,
@@ -460,6 +461,23 @@ interface AppState {
    * quello che NON è riuscito, vuoto se è andato tutto.
    */
   forgeEverything: (monName: string) => Promise<string[]>;
+  /**
+   * 🔷 «O con click consecutivi che mi mostra tutte le immagini, le approvo e
+   * andiamo avanti.»
+   *
+   * Un asset solo: scrive il prompt se manca e genera l'immagine. Torna il
+   * motivo del guasto, o `null`.
+   *
+   * @param rewritePrompt butta il prompt scritto e ne fa scrivere un altro.
+   *   Costa più di rifare l'immagine e basta, quindi lo si chiede a parte.
+   */
+  forgeOne: (
+    monName: string,
+    type: AssetType,
+    opts?: { rewritePrompt?: boolean },
+  ) => Promise<string | null>;
+  /** L'ordine in cui si affrontano gli asset: il master per primo. */
+  forgeOrder: () => Promise<AssetType[]>;
   /** A che punto è il giro completo, o `null`. Solo per la UI. */
   forgeProgress: { label: string; done: number; total: number } | null;
 
@@ -1621,20 +1639,56 @@ export const useApp = create<AppState>()(
          saperlo PRIMA, e infatti la schermata lo dice.
          ========================================================================= */
       forgeProgress: null,
-      forgeEverything: async (monName) => {
-        const problems: string[] = [];
-        const rec0 = get().mons[monName];
-        if (!rec0) return ['nessuna creatura con questo nome'];
 
-        const { generationOrder, generateMissingAssets } = await import(
-          '../assets-pipeline/generate'
-        );
-        /* Master per primo, poi l'ordine di sempre. */
-        const order = ['character_master' as AssetType].concat(
+      forgeOrder: async () => {
+        const { generationOrder } = await import('../assets-pipeline/generate');
+        return ['character_master' as AssetType].concat(
           generationOrder().filter((t) => t !== 'character_master'),
         );
+      },
 
-        const total = 1 + order.length * 2;
+      /* 🔷 «O con click consecutivi che mi mostra tutte le immagini, le approvo
+         e andiamo avanti.» Un asset alla volta, così il conto si ferma dove
+         decidi tu invece che alla fine. */
+      forgeOne: async (monName, type, opts) => {
+        const { generateMissingAssets } = await import('../assets-pipeline/generate');
+
+        /* 🔒 «Si scrive una volta sola» vale contro la deriva SILENZIOSA — un
+           prompt che cambia da sé fra un'immagine e l'altra. Non vale contro
+           una richiesta esplicita: se guardi il risultato e dici «riscrivilo»,
+           quella è una decisione, non una deriva. */
+        if (opts?.rewritePrompt) {
+          set((cur) => {
+            const now = cur.mons[monName];
+            if (!now?.compiledPrompts) return {};
+            const { [type]: _dropped, ...kept } = now.compiledPrompts;
+            return { mons: { ...cur.mons, [monName]: { ...now, compiledPrompts: kept } } };
+          });
+        }
+
+        const why = await get().compileAssetPrompt(monName, type);
+        if (why) return `prompt: ${why}`;
+
+        const rec = get().mons[monName];
+        if (!rec) return 'nessuna creatura con questo nome';
+
+        /* `replace` sempre: se sei qui è perché quell'immagine la vuoi adesso,
+           e se ce n'era una vecchia la stai rifacendo apposta. */
+        const { made, failure } = await generateMissingAssets(get().token, rec, undefined, {
+          only: [type],
+          replace: true,
+        });
+        if (failure) return `immagine: ${failure}`;
+        markAssetsMade(set, get, monName, made);
+        return null;
+      },
+
+      forgeEverything: async (monName) => {
+        const problems: string[] = [];
+        if (!get().mons[monName]) return ['nessuna creatura con questo nome'];
+
+        const order = await get().forgeOrder();
+        const total = 1 + order.length;
         let done = 0;
         const step = (label: string) => set({ forgeProgress: { label, done: done++, total } });
 
@@ -1644,24 +1698,15 @@ export const useApp = create<AppState>()(
           if (bioWhy) problems.push(`bio: ${bioWhy}`);
 
           for (const type of order) {
-            step(`il prompt di ${type}`);
-            const why = await get().compileAssetPrompt(monName, type);
-            if (why) problems.push(`prompt ${type}: ${why}`);
-
-            step(`l’immagine di ${type}`);
-            const rec = get().mons[monName];
-            if (!rec) break;
-
-            const { made, failure } = await generateMissingAssets(get().token, rec, undefined, {
-              only: [type],
-            });
-            if (failure) {
-              /* 🔒 Il tetto o la rete: insistere sui cinque asset rimasti
-                 produrrebbe cinque rifiuti invece di uno. */
-              problems.push(`immagine ${type}: ${failure}`);
+            step(assetLabel(type));
+            const why = await get().forgeOne(monName, type);
+            if (why) {
+              problems.push(`${assetLabel(type)}: ${why}`);
+              /* 🔒 Ci si ferma al primo no: senza chiave o col tetto pieno,
+                 insistere sui cinque rimasti darebbe cinque rifiuti invece di
+                 uno. */
               break;
             }
-            markAssetsMade(set, get, monName, made);
           }
         } finally {
           set({ forgeProgress: null });
@@ -2691,6 +2736,12 @@ function maybeReview(set: (p: Partial<AppState>) => void, get: () => AppState): 
 }
 
 /* --- Utilità ---------------------------------------------------------------- */
+
+/** Il nome leggibile di un asset, per i messaggi. */
+function assetLabel(type: AssetType): string {
+  return assetTypeDef(type).label;
+}
+
 
 /**
  * Segna come risolti gli slot appena riempiti.

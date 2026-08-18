@@ -1215,7 +1215,14 @@ check(
 check(
   '§22.4 FAI TUTTO',
   'il master si genera per primo, non il ritratto',
-  has('src/state/store.ts', "const order = ['character_master' as AssetType].concat("),
+  /* L'ordine adesso lo decide `forgeOrder`, una volta per tutti e due i giri
+     (quello cieco e quello approvato a mano). L'ago guarda che il master sia
+     messo davanti a quello che torna `generationOrder()`, non la riga in cui
+     era scritto quando c'era un giro solo. */
+  count(
+    'src/state/store.ts',
+    /'character_master'[^\n]*\.concat\(\s*generationOrder\(\)/g,
+  ) > 0,
   'compiler.ts mette il riferimento di consistenza negli altri prompt solo se il master risulta già risolto: compilando tutto prima di generare, nessuno ce l’avrebbe',
 );
 check(
@@ -1227,7 +1234,9 @@ check(
 check(
   '§22.4 FAI TUTTO',
   'al primo no ci si ferma',
-  has('src/state/store.ts', 'immagine ${type}: ${failure}'),
+  /* La decisione è che il ciclo sugli asset ESCA quando uno fallisce, non il
+     testo del messaggio che stampa uscendo. */
+  count('src/state/store.ts', /for \(const type of order\)[\s\S]{0,800}?break;/g) > 0,
   'insistere sui cinque rimasti produrrebbe cinque rifiuti invece di uno',
 );
 check(
@@ -1235,6 +1244,40 @@ check(
   'il prezzo si dice PRIMA di premere',
   has('src/dev/ForgePanel.tsx', '0,75 €'),
   'un pulsante che scopre il conto dopo non è un pulsante, è una trappola',
+);
+
+/* 🔷 «O con click consecutivi che mi mostra tutte le immagini, le approvo e
+   andiamo avanti.» */
+check(
+  '§22.4 FORGIA',
+  'si può approvare un asset alla volta, non solo tutto alla cieca',
+  has('src/state/store.ts', 'forgeOne: async (monName, type, opts)') &&
+    has('src/dev/ForgePanel.tsx', 'VA BENE, AVANTI'),
+);
+check(
+  '§22.4 FORGIA',
+  'il master si approva per primo',
+  has('src/dev/ForgePanel.tsx', 'da questo dipendono gli altri cinque'),
+  'un giro cieco scoprirebbe un master sbagliato alla sesta immagine, cioè dopo averlo pagato sei volte',
+);
+check(
+  '§22.4 FORGIA',
+  'rifare l’immagine e riscrivere il prompt sono due pulsanti diversi',
+  has('src/dev/ForgePanel.tsx', 'RIFAI L’IMMAGINE') &&
+    has('src/dev/ForgePanel.tsx', 'RISCRIVI IL PROMPT'),
+  'uno costa quattro centesimi e l’altro quattordici: sullo stesso pulsante pagheresti la riscrittura ogni volta',
+);
+check(
+  '§22.4 FORGIA',
+  'il prompt si riscrive solo se lo chiedi tu',
+  has('src/state/store.ts', 'if (opts?.rewritePrompt)'),
+  '«una volta sola» vale contro la deriva silenziosa, non contro una tua decisione',
+);
+check(
+  '§22.4 FORGIA',
+  'l’immagine da approvare è grande abbastanza da giudicarla',
+  has('src/dev/dev.css', '.dev__forgeshot'),
+  'un francobollo accanto a tre pulsanti è una conferma alla cieca con un’anteprima addosso',
 );
 check(
   '§22.4 FAI TUTTO',

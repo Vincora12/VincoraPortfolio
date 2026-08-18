@@ -726,6 +726,18 @@ try {
   await devTab('CREATURA', 'BIO');
   await shot('dev-bio');
 
+  /* 🔷 §22.4 — la forgia. Senza segreto i pulsanti sono spenti di proposito:
+     quello che si controlla qui e' che il prezzo sia scritto PRIMA, perche' e'
+     l'unica cosa dell'app che con un tocco spende quasi un euro. */
+  await devTab('CREATURA', 'GENERA');
+  const forgia = await page.$$eval('.dev__section', (n) =>
+    n.map((e) => e.textContent ?? '').join(' '),
+  );
+  if (!forgia.includes('0,75')) {
+    errors.push('la forgia non dice quanto costa prima di premere');
+  }
+  await shot('dev-forgia');
+
   await devTab('CREATURA', 'ASSET');
   /* 🔷 «Tienimi i prompt da copiare, sto mettendo le immagini a mano.»
      Il giro a mano vive su questa schermata: ogni slot deve avere il SUO

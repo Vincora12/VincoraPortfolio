@@ -733,3 +733,11 @@
   width: 100%;
   min-width: 0;
 }
+
+/* La forgia: l'immagine da approvare deve essere grande abbastanza da poterla
+   giudicare. Un francobollo accanto a tre pulsanti non è una schermata di
+   approvazione, è una conferma alla cieca con un'anteprima addosso. */
+.dev__forgeshot {
+  margin: var(--u4) 0;
+  max-width: 420px;
+}
