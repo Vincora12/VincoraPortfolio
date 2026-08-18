@@ -1206,6 +1206,45 @@ check(
   'due `??` sparsi sono due posti dove mostrare la versione vecchia senza accorgersene',
 );
 
+/* ============================================================================
+   §9.2 — L'ICONA DELL'APP
+
+   🔷 «Il logo del mostro deve apparire anche nell'icona dell'app.»
+   🔷 «Ti dico che l'icona è ancora così.»
+   ========================================================================= */
+
+check(
+  '§9.2 ICONA',
+  'l’icona è il sigillo, non un globo',
+  lacks('index.html', 'Globo wireframe') && has('index.html', 'il SIGILLO'),
+  'un globo col cursore è precisamente il segnaposto che iOS disegna quando un’icona NON c’è',
+);
+check(
+  '§9.2 ICONA',
+  'la disegna lo stesso codice del sigillo dell’app',
+  has('scripts/make-icon.mjs', "sigilGeometry } from"),
+  'una copia ridisegnata a mano resterebbe indietro in silenzio quando la geometria cambia',
+);
+check(
+  '§9.2 ICONA',
+  'il segno non appartiene a nessuna Family',
+  has('scripts/make-icon.mjs', 'arms: 9'),
+  'FAMILY_ARMS arriva a 8: questo è il sigillo della stirpe, non di una creatura',
+);
+check(
+  '§9.2 ICONA',
+  'tutti i formati escono da una funzione sola',
+  has('scripts/make-icon.mjs', "writeFileSync('public/favicon.svg'") &&
+    lacksInCode('index.html', 'data:image/svg+xml'),
+  'la favicon incollata a mano dentro index.html si era già rotta una volta senza che si vedesse',
+);
+check(
+  '§9.2 ICONA',
+  'c’è la versione mascherabile per Android',
+  has('public/manifest.webmanifest', '"purpose": "maskable"'),
+  'ritagliata a cerchio, un segno a filo del bordo perde le punte',
+);
+
 /* 🔷 «Ma io non ho potuto scegliere che AI immagini usare, vorrei la più
    recente lato immagine.» */
 check(

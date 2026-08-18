@@ -1,12 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="512" height="512">
-  <!-- Stesso vocabolario grafico della favicon (MS §9.2): globo wireframe
-       senza continenti + cursore. Bianco campo, nero struttura (MS §10.1). -->
-  <rect width="32" height="32" fill="#ffffff"/>
-  <rect x="1" y="1" width="30" height="30" fill="none" stroke="#111111" stroke-width="2"/>
-  <g fill="none" stroke="#111111" stroke-width="1.6">
-    <circle cx="15" cy="14.5" r="8"/>
-    <ellipse cx="15" cy="14.5" rx="3.6" ry="8"/>
-    <path d="M7 14.5h16"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <rect width="512" height="512" fill="#ffffff"/>
+  <g transform="translate(56.31999999999999 56.31999999999999)" stroke="#111111" stroke-linejoin="miter">
+    <polygon points="199.68,27.96 228.36,120.87 310.06,68.13 272.31,157.75 368.80,169.86 282.27,214.24 348.40,285.54 253.59,263.92 258.41,361.05 199.68,283.55 140.95,361.05 145.77,263.92 50.96,285.54 117.09,214.24 30.56,169.86 127.05,157.75 89.30,68.13 171.00,120.87" fill="#111111" stroke-width="41.53344"/>
+    
   </g>
-  <path d="M17.5 16.5l8 5.4-3.6 0.9 1.8 4.5-1.8 0.9-1.8-4.5-2.6 2.7z" fill="#111111"/>
 </svg>
