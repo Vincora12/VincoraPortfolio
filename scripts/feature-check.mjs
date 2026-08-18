@@ -1383,6 +1383,35 @@ check(
   'sovrascrivere i campi produrrebbe creature che non potrebbero mai nascere: su quelle non si impara niente',
 );
 
+check(
+  'COMPILATORE §10',
+  'il prompt lo può riscrivere un modello, non solo la concatenazione',
+  existsSync('src/ai/promptCompiler.ts') && has('src/state/store.ts', 'compileAssetPrompt'),
+  '265 frammenti incollati non sanno che QUESTO è uno squalo corriere',
+);
+check(
+  'COMPILATORE §10',
+  'ma non può cambiare i fatti: si controlla che siano sopravvissuti',
+  has('src/ai/promptCompiler.ts', 'survivingConstraints') &&
+    has('src/ai/promptCompiler.ts', 'vincoli persi'),
+);
+check(
+  'COMPILATORE §10',
+  'una riscrittura che perde un vincolo si BUTTA, non si rattoppa',
+  has('src/ai/promptCompiler.ts', 'un prompt rattoppato è un'),
+);
+check(
+  'COMPILATORE §10',
+  'e si scrive una volta sola',
+  has('src/state/store.ts', 'if (rec.compiledPrompts?.[assetType]) return null'),
+  'un prompt che cambia produce sei immagini di sei creature diverse',
+);
+check(
+  'COMPILATORE §10',
+  'senza chiave resta quello deterministico',
+  has('src/assets-pipeline/generate.ts', 'record.compiledPrompts?.[type] ?? compilePrompt'),
+);
+
 /* ============================================================================
    Sicurezza e tono — non negoziabili
    ========================================================================= */

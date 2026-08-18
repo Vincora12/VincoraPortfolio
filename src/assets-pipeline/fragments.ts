@@ -695,9 +695,14 @@ function designDnaFragment(d: (typeof DESIGN_DNA)[number]): PromptFragment {
          🔒 Vince il PIANO DEL CORPO. Del designer resta il NUMERO, che è la
          parte che serve; i nomi si traducono. Sette masse su un organismo
          radiale restano sette masse. */
-      `PRIMARY MASSES — the COUNT is binding, the names are not: ${d.masses}`,
-      'If HUMANOIDITY says this body has no arms, legs or head, keep the NUMBER of primary masses and map it onto the body plan that HUMANOIDITY dictates. The body plan always wins over the naming; the count always wins over the urge to add one more.',
-      `PROPORTIONAL EXAGGERATION — this specific one, at this size: ${d.exaggeration}`,
+      /* 🔷 v1.2 §4 — LA GRAMMATICA NUMERICA. Non è più una mia congettura:
+         questi moltiplicatori vengono dal documento, per designer.
+
+         «Qualitative language alone is not enough. The compiler must convert
+         design intent into measurable visual constraints.» */
+      `PROPORTIONS — multipliers against realistic human proportion: ${d.proportions}`,
+      `COUNTS — the numbers are binding, the names are not: ${d.counts}`,
+      'If HUMANOIDITY says this body has no arms, legs or head, keep the NUMBERS and map them onto the body plan that HUMANOIDITY dictates. The body plan always wins over the naming; the count always wins over the urge to add one more.',
       '',
       `DETAIL DENSITY: ${d.density}/5. This controls how many visual decisions survive, not how much lore exists.`,
       d.density <= 2

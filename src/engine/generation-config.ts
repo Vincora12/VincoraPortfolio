@@ -31,7 +31,7 @@
    estrae. §29 impone di incrementare la versione quando cambiano tassonomie o
    pesi, e i .mon già generati restano immutabili con la versione con cui sono
    nati. */
-export const GENERATION_CONFIG_VERSION = '3.0.0';
+export const GENERATION_CONFIG_VERSION = '3.1.0';
 
 /* ============================================================================
    §2 — SEGNALI IN INGRESSO
@@ -1018,7 +1018,7 @@ export interface DesignDnaDef {
    * lo sa eseguire, e la prova è che dove c'era un numero il risultato veniva
    * bene.
    */
-  masses: string;
+  proportions: string;
   /**
    * 🔷 LA contraddizione di proporzione, con le percentuali.
    *
@@ -1027,7 +1027,7 @@ export interface DesignDnaDef {
    * inventata senza bersaglio è esattamente una deformità. Qui si dice cosa
    * esagerare e di quanto.
    */
-  exaggeration: string;
+  counts: string;
   it: string;
 }
 
@@ -1049,10 +1049,10 @@ export const DESIGN_DNA: DesignDnaDef[] = [
       'Neutral three-quarter stance, weight even, alert. This is a portrait of a species, not an action pose.',
     detail:
       'Two or three secondary features at most. Texture is implied by silhouette, never by added linework.',
-    masses:
-      'Roughly SIX primary masses: head, torso, two limb pairs, one species organ, one tail or equivalent. Anything beyond six is a secondary feature and must attach to one of the six, never stand alone.',
-    exaggeration:
-      'The HEAD is about 25–30% larger than realistic proportion for the body; everything else stays close to natural. One species organ is then oversized against the head. The rest of the body must NOT be exaggerated: the contrast is the point.',
+    proportions:
+      'HEAD ~1.10–1.20× realistic · HANDS ~1.15–1.25× · FEET ~1.20–1.45× · torso and limbs stay close to expected. 65–75% of surfaces stay clean.',
+    counts:
+      '5–7 major hair masses when humanoid · 3–4 silhouette landmarks · secondary anatomy reduced to ONE readable shape per function · 2–4 clothing masses · 0–3 accessory systems · ~4–7 facial marks.',
     it: 'chiarezza da icona, masse compatte, niente dettaglio che non dica qualcosa',
   },
   {
@@ -1072,10 +1072,10 @@ export const DESIGN_DNA: DesignDnaDef[] = [
       'Strong diagonal, weight thrown onto one side. The negative space between limbs is itself a designed shape.',
     detail:
       'Near zero. Every retained line is structural; if a line is decorative it is removed.',
-    masses:
-      'About FOUR primary masses only: one huge mass, one tiny mass, and two limb silhouettes. The whole figure must be describable as «a big X on top of a small Y».',
-    exaggeration:
-      'One mass is roughly TWICE the size it should be and the adjacent one roughly HALF. Shoulders vs head, or head vs body — pick one pair and push both directions at once. Limbs taper to about a third of their starting width.',
+    proportions:
+      'HEAD ~1.15–1.30× · TORSO compresses to ~0.60–0.80× · LIMBS stretch to ~1.20–1.35× · HANDS and FEET jump to ~1.35–1.60×. Opposing masses; never an even anatomical distribution.',
+    counts:
+      '4–6 hair masses · 3–4 silhouette landmarks · 2–4 clothing masses · 0–2 accessory systems · ~4–6 facial marks · micro detail near zero.',
     it: 'contrasti di proporzione aggressivi, la posa contiene già il movimento',
   },
   {
@@ -1095,10 +1095,10 @@ export const DESIGN_DNA: DesignDnaDef[] = [
       'Bouncy, feet planted, slight forward lean. The hands are usually doing something.',
     detail:
       'Moderate. Hardware is drawn as a few large parts rather than many small ones: three big bolts instead of twenty rivets. Surfaces stay clean between the parts that matter, so each retained element still reads at a distance.',
-    masses:
-      'About SEVEN primary masses: the body core, two upper limbs, two lower limbs, one head mass and one crest or headgear mass. Hardware counts as ONE mass however many parts it appears to have.',
-    exaggeration:
-      'HEAD about 30% larger than realistic. Hands and feet about 20% larger. Torso compact and short. Limbs short and thick rather than long. No part of the body is thin.',
+    proportions:
+      'HEAD ~1.15–1.25× · TORSO compact at ~0.80–0.95× · HANDS ~1.20–1.30× · FEET ~1.35–1.55×. Rounded functional forms with selective sharp accents.',
+    counts:
+      '5–7 hair masses · 3–4 silhouette landmarks · 3–4 clothing masses that look usable · 1–3 accessory systems · ~5–7 facial marks.',
     it: 'costruzione amichevole e funzionale, idee complesse rese giocattoli',
   },
   {
@@ -1118,10 +1118,10 @@ export const DESIGN_DNA: DesignDnaDef[] = [
       'Front-facing or flat three-quarter. Stiff, symmetrical, deliberately doll-like — the stillness is the style.',
     detail:
       'Almost eliminated. Test every feature: if it can be removed and the character is still recognisable from across a room, remove it.',
-    masses:
-      'About FIVE primary masses and no more: head+hair as ONE mass, one compact torso, one lower-body mass, two limb silhouettes. Every other feature must live inside one of those five, not beside them.',
-    exaggeration:
-      'BIG GRAPHIC HEAD — about 30–35% larger than realistic — against a TINY COMPACT TORSO, LONG SIMPLE LIMBS and ABSURDLY LARGE hands and feet, roughly 50–70% wider than ordinary. This is a deliberate contradiction, not a chibi: the body must NOT shrink to match the head.',
+    proportions:
+      'HEAD ~1.25–1.40× · TORSO ~0.60–0.80× · HANDS ~1.20–1.35× · FEET ~1.50–1.80× when useful · EYEWEAR may occupy ~35–55% of the visible face.',
+    counts:
+      'About FIVE primary masses in the whole design · 4–6 hair masses · 3–4 silhouette landmarks · 2–3 clothing masses · 0–3 tiny accessories · ~4–5 facial marks · micro detail near zero. STOP — empty surfaces are intentional.',
     it: 'pochissime forme, proporzioni estreme, la comicità sta nella sagoma',
   },
   {
@@ -1141,10 +1141,10 @@ export const DESIGN_DNA: DesignDnaDef[] = [
       'Loose, off-balance, elastic. The pose is allowed to be physically impossible as long as it stays instantly drawable.',
     detail:
       'Minimal to the point of starkness: one bizarre specific instead of many small ones. If two odd features compete, keep the odder and delete the other. Surfaces are flat and empty between the few things that exist.',
-    masses:
-      'About FOUR primary masses: one body blob, one head barely distinct from it, and two noodle limbs. A fifth mass is allowed only if it is the single joke of the design.',
-    exaggeration:
-      'Limbs about THREE TIMES longer than the body is tall, and roughly a fifth of its width. The body stays small and simple. One feature — and only one — is at an openly impossible scale.',
+    proportions:
+      'HEAD often ~1.20–1.40× but may merge into the torso · limbs tube-like and anatomically elastic · proportions intentionally awkward. Physical plausibility may break as long as the silhouette stays memorable.',
+    counts:
+      '5–8 simple masses total · 4–6 hair masses or their equivalent · 3–4 silhouette landmarks · 1–2 clothing masses · 0–2 accessories · ~4 facial marks.',
     it: 'geometria ridotta all\'osso, anatomia elastica e impossibile',
   },
   {
@@ -1164,10 +1164,10 @@ export const DESIGN_DNA: DesignDnaDef[] = [
       'Dynamic contrapposto, weight on the back foot, one hand raised, holding or reaching.',
     detail:
       'High but strictly hierarchical: silhouette first, then primary masses, then hardware, then micro-detail. Detail that flattens the silhouette is removed.',
-    masses:
-      'About EIGHT primary masses: head, torso, two arms, two legs, one layered garment mass, one hardware mass. Detail lives INSIDE these eight and never adds a ninth.',
-    exaggeration:
-      'Body about EIGHT heads tall — head small against the figure — with long legs, a narrow waist and hands about 20% larger than realistic. One shoulder or one limb carries visibly more volume than its twin.',
+    proportions:
+      'HEAD ~1.10–1.20× — NOT a tiny adult fashion head · TORSO ~0.80–0.95× · HANDS ~1.15–1.30× · FEET ~1.25–1.50×. Youthful adventure proportions, never runway anatomy.',
+    counts:
+      '7–10 hair masses · 4–5 clothing layers · 3–4 localized detail zones · 1 primary eyewear system plus 1–2 tiny optical or hardware details · 3–5 silhouette landmarks that detail never replaces. Tertiary detail only INSIDE the declared zones.',
     it: 'dettaglio fitto ma gerarchico, proporzioni eroiche allungate, asimmetria',
   },
   {
@@ -1187,10 +1187,10 @@ export const DESIGN_DNA: DesignDnaDef[] = [
       'Off-beat: slouched, hip cocked, weight dumped on one leg. Attitude is established before anatomy.',
     detail:
       'Selective and uneven: a lot of information in the face and hands, almost none elsewhere.',
-    masses:
-      'About FIVE primary masses: head, torso, two limb pairs, one garment mass. Face and hands carry the detail; everything else stays a plain shape.',
-    exaggeration:
-      'Either a HEAVY HEAD on a long thin neck with narrow shoulders, or a thick compact body with almost no neck — commit to one. Feet about 30% larger than realistic. One shoulder sits visibly higher than the other.',
+    proportions:
+      'HEAD ~1.10–1.25× · narrow torso · ARMS and LEGS ~1.05–1.25× · HANDS ~1.20–1.35× · FEET ~1.30–1.55×. Loose diagonal posture; clothing visibly affected by gravity.',
+    counts:
+      '5–7 hair masses · 3–4 silhouette landmarks · 3–4 clothing masses · 1–3 accessory systems · ~5–7 facial marks · large negative spaces left empty.',
     it: 'allampanato o tracagnotto secondo il caso, faccia spigolosa, attitudine da strada',
   },
 ];

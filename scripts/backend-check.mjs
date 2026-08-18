@@ -89,6 +89,27 @@ check(
   'la voce e la riflessione sono marcate come dati personali',
 );
 
+/* --- §10 — IL COMPILATORE DI PROMPT ----------------------------------------
+   «Forse il problema e' anche che il prompt non e' generato da un'AI?»
+   -------------------------------------------------------------------------- */
+
+check(
+  'prompt-compile' in m.ROUTING,
+  'esiste una capacita che scrive i prompt',
+  `${m.ROUTING['prompt-compile']?.provider} / ${m.ROUTING['prompt-compile']?.model}`,
+);
+/* 🔒 NON e' marcata personale, e va verificato che resti cosi': la richiesta
+   porta la descrizione di una creatura e niente di te. Se un giorno ci
+   finisse dentro la tua storia, questa riga diventerebbe falsa in silenzio. */
+check(
+  !m.PERSONAL.includes('prompt-compile'),
+  'e scrivere un prompt non e un dato personale: porta una creatura, non te',
+);
+check(
+  m.routingProblems({ ...m.ROUTING }).length === 0,
+  'e chi la serve sa fare quello che le serve',
+);
+
 /* --- §19.2 — CAMBIARE CHI DA' LA VOCE --------------------------------------
    «Vorrei poter cambiare fornitore senza perdere quello che e' l'AI.»
    -------------------------------------------------------------------------- */

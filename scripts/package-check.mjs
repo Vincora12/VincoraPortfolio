@@ -314,8 +314,8 @@ const must = [
   ['§7  i riferimenti ATTIVI, non il serbatoio', 'ACTIVE CULTURAL DNA'],
   ['§8  il designer descrive la costruzione del viso', 'FACIAL CONSTRUCTION:'],
   ['§8  e la postura', 'POSTURE / GESTURE:'],
-  ['§8  quante masse, contate', 'PRIMARY MASSES —'],
-  ['§8  e quale esagerazione, con le misure', 'PROPORTIONAL EXAGGERATION —'],
+  ['§4  i moltiplicatori di proporzione, per designer', 'PROPORTIONS —'],
+  ['§4  e i conteggi', 'COUNTS —'],
   ['§5  quanto resta umano', 'HUMANOIDITY:'],
   ['§5  e non si confonde col realismo', 'HUMANOIDITY is not realism'],
   ['§9  le percentuali di colore, non «campi grandi»', 'DISTRIBUTION —'],
@@ -442,7 +442,7 @@ const MARCATORI = [
   /* Le due righe che CONTANO i pezzi. Sono arrivate dopo, e questo controllo
      le ha segnalate subito come «qualcosa d'altro e cambiato fra due prove»:
      era il suo lavoro, e la risposta e' che appartengono al designer. */
-  'PRIMARY MASSES —', 'PROPORTIONAL EXAGGERATION —',
+  'PROPORTIONS —', 'COUNTS —', 'If HUMANOIDITY says this body',
 ];
 
 const intrusi = [];

@@ -2756,7 +2756,7 @@ check(
    DNA deve essere visuale e operativo — proporzioni, shape language, face,
    anatomia, silhouette, postura.» La cura e' strutturale: sette assi
    dichiarati, e nessuno puo' essere una riga di cortesia. */
-const ASSI = ['proportion', 'shapes', 'face', 'anatomy', 'clothing', 'posture', 'detail'];
+const ASSI = ['proportion', 'shapes', 'face', 'anatomy', 'clothing', 'posture', 'detail', 'proportions', 'counts'];
 const corti = [];
 for (const d of m.DESIGN_DNA) {
   for (const a of ASSI) {
@@ -2766,6 +2766,17 @@ for (const d of m.DESIGN_DNA) {
 check(corti.length === 0, 'ogni designer descrive tutti e sette gli assi, e nessuno a mezza riga', corti.join(', ') || `${m.DESIGN_DNA.length} designer × ${ASSI.length} assi`);
 
 const mc = m.DESIGN_DNA.find((d) => d.id === 'CRAIG McCRACKEN');
+/* 🔒 E i NUMERI devono esserci davvero: la grammatica numerica del v1.2 e' la
+   differenza fra un designer che il modello sa eseguire e uno che interpreta. */
+const senzaNumeri = m.DESIGN_DNA.filter(
+  (d) => !/[\d.]+[×x]/.test(d.proportions) || !/\d/.test(d.counts),
+);
+check(
+  senzaNumeri.length === 0,
+  'ogni designer porta moltiplicatori e conteggi, non aggettivi',
+  senzaNumeri.map((d) => d.id).join(', ') || 'tutti e sette',
+);
+
 check(
   mc && ASSI.reduce((n, a) => n + mc[a].length, 0) > 700,
   'McCracken in particolare e specifico, non evocativo',

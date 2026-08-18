@@ -330,6 +330,15 @@ export interface MonRecord {
    * per niente.
    */
   rating?: number | null;
+  /**
+   * 🔷 v1.2 §10 — i prompt riscritti dal compilatore AI, per tipo di asset.
+   *
+   * 🔒 SI SCRIVONO UNA VOLTA SOLA. Stessa regola dei ricordi e dei post della
+   * stanza: un prompt che cambia a ogni apertura produce sei immagini di sei
+   * creature diverse con lo stesso nome. Assente = si usa quello
+   * deterministico, che resta sempre valido e non costa niente.
+   */
+  compiledPrompts?: Partial<Record<AssetType, string>>;
 }
 
 /* --- CONVERSAZIONE ----------------------------------------------------------- */

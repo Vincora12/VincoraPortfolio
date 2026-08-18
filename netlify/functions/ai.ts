@@ -36,11 +36,15 @@ import { checkCap, recordSpend, MONTHLY_CAP_USD } from './_shared/spend';
    megabyte. Sono la differenza fra «ho speso venti centesimi per sbaglio» e
    «ho finito il mese in un pomeriggio». */
 const LIMITS = {
-  systemChars: 24_000,
+  /* Il compilatore di prompt manda le regole del master come sistema: sono
+     lunghe di natura, e tagliarle produrrebbe un compilatore a cui manca
+     proprio il capitolo che stava applicando. */
+  systemChars: 40_000,
   userChars: 12_000,
   turns: 24,
   imageBytes: 5 * 1024 * 1024,
   maxTokens: 4000,
+  compilerTokens: 8000,
   /* Gli strumenti sono pochi e li scrive l'app, non l'utente: il tetto serve
      solo a fermare un ciclo che li duplica. */
   tools: 12,
@@ -74,7 +78,7 @@ interface Payload {
   voiceModel?: string;
 }
 
-const KNOWN: Capability[] = ['character-voice', 'vision-quick', 'text-cheap', 'image'];
+const KNOWN: Capability[] = ['character-voice', 'vision-quick', 'text-cheap', 'image', 'prompt-compile'];
 
 export default async function handler(request: Request): Promise<Response> {
   if (request.method !== 'POST') return json({ error: 'solo POST' }, 405);
@@ -185,7 +189,13 @@ export default async function handler(request: Request): Promise<Response> {
     thinking: Boolean(payload.thinking),
     tools,
     webSearch,
-    maxTokens: Math.min(payload.maxTokens ?? 2000, LIMITS.maxTokens),
+    /* Un prompt compilato è lungo per definizione — il riferimento che
+       funziona sta sui 12k caratteri — quindi questa capacità ha un tetto
+       suo, più alto. */
+    maxTokens: Math.min(
+      payload.maxTokens ?? 2000,
+      capability === 'prompt-compile' ? LIMITS.compilerTokens : LIMITS.maxTokens,
+    ),
   });
 
   /* Si registra anche quando la risposta è vuota o rifiutata: il fornitore ha

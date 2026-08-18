@@ -24,7 +24,7 @@
    ========================================================================= */
 
 /** Cosa si può chiedere. Gli stessi nomi che il backend conosce. */
-export type Capability = 'character-voice' | 'vision-quick' | 'text-cheap' | 'image';
+export type Capability = 'character-voice' | 'vision-quick' | 'text-cheap' | 'image' | 'prompt-compile';
 
 export interface SystemBlock {
   text: string;

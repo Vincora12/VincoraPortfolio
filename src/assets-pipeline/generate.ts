@@ -100,7 +100,12 @@ export async function generateMissingAssets(
   const made: AssetType[] = [];
 
   for (const type of wanted) {
-    const { text } = compilePrompt(record, type);
+    /* 🔷 v1.2 §10 — se il compilatore AI ha già scritto il prompt di questo
+       asset si usa quello; altrimenti quello deterministico, che resta sempre
+       valido. La pipeline non compila da sé: chiedere una riscrittura a metà
+       di una generazione di immagini vorrebbe dire due chiamate in fila con
+       due modi diversi di fallire. */
+    const text = record.compiledPrompts?.[type] ?? compilePrompt(record, type).text;
     const res = await askImage(token, text);
 
     if (!res.data) {

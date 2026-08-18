@@ -16,7 +16,7 @@ import { useRef, useState } from 'react';
 import { useApp, useActiveMon } from '../state/store';
 import { Button, Row, SystemLabel } from '../system/components';
 import { ASSET_TYPES, assetTypeDef } from '../engine/assets';
-import type { AssetType } from '../engine/types';
+import type { AssetType, MonRecord } from '../engine/types';
 import { buildManifest } from '../assets-pipeline/manifest';
 import { compilePrompt } from '../assets-pipeline/compiler';
 import { generationOrder } from '../assets-pipeline/generate';
@@ -27,6 +27,46 @@ import {
   removeAsset,
   type ImportResult,
 } from '../assets-pipeline/assetStore';
+
+/**
+ * Il prompt di uno slot: quello deterministico, e il pulsante per farlo
+ * riscrivere.
+ *
+ * 🔒 Il pulsante SPARISCE quando il prompt è già stato riscritto, e al suo
+ * posto resta la dicitura: un prompt si scrive una volta sola, e un tasto che
+ * si può ripremere è un invito a ottenere una creatura diversa.
+ */
+function PromptCell({ mon, type }: { mon: MonRecord; type: AssetType }) {
+  const compileAssetPrompt = useApp((s) => s.compileAssetPrompt);
+  const token = useApp((s) => s.token);
+  const written = mon.compiledPrompts?.[type];
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
+
+  return (
+    <>
+      <CopyButton text={written ?? compilePrompt(mon, type).text} label="PROMPT" />
+      {written ? (
+        <SystemLabel tone="character">RISCRITTO</SystemLabel>
+      ) : (
+        <Button
+          small
+          disabled={busy || !token}
+          onClick={() => {
+            setBusy(true);
+            setProblem(null);
+            void compileAssetPrompt(mon.data.name, type)
+              .then((why) => setProblem(why))
+              .finally(() => setBusy(false));
+          }}
+        >
+          {busy ? 'SCRIVE…' : 'RISCRIVI'}
+        </Button>
+      )}
+      {problem && <span className="t-micro cat__bad">{problem}</span>}
+    </>
+  );
+}
 
 export function AssetImport() {
   const mon = useActiveMon();
@@ -221,7 +261,7 @@ export function AssetImport() {
                   {/* Si copia anche per uno slot già risolto: se un'immagine
                       non ti piace la rifai, e in quel momento serve lo STESSO
                       testo — non uno diverso. */}
-                  <CopyButton text={compilePrompt(mon, type).text} label="PROMPT" />
+                  <PromptCell mon={mon} type={type} />
                 </span>
               }
             />

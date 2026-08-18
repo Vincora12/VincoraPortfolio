@@ -34,7 +34,15 @@ export type Capability =
   /** Testo a basso costo: riflessione settimanale, classificazioni. */
   | 'text-cheap'
   /** Generare un'immagine di una creatura. */
-  | 'image';
+  | 'image'
+  /**
+   * 🔷 v1.2 §10 — SCRIVERE il prompt di un'immagine.
+   *
+   * ⚠️ Non genera niente di visivo: prende i fatti che il motore ha già deciso
+   * e li riscrive nella forma che un modello di immagini sa eseguire. È un
+   * lavoro di scrittura tecnica, e succede UNA volta per creatura.
+   */
+  | 'prompt-compile';
 
 export type Provider = 'anthropic' | 'google' | 'openai' | 'moonshot';
 
@@ -64,6 +72,10 @@ const NEEDS: Record<Capability, Needs> = {
   'vision-quick': { vision: true },
   'text-cheap': {},
   image: { imageOut: true },
+  /* Ragiona: deve risolvere i conflitti fra livelli — umanoidità contro nomi
+     delle masse, densità contro numero di sistemi — che è precisamente quello
+     che un concatenatore non sa fare. */
+  'prompt-compile': { thinking: true },
 };
 
 /** Cosa ciascun fornitore sa fare, per come lo usiamo qui. */
@@ -132,6 +144,10 @@ export const ROUTING: Record<Capability, Route> = {
   'vision-quick': { provider: 'google', model: 'gemini-2.5-flash' },
   'text-cheap': { provider: 'anthropic', model: 'claude-haiku-4-5' },
   image: { provider: 'openai', model: 'gpt-image-1' },
+  /* Sonnet e non Opus: è un lavoro lungo in uscita ma vincolato — i fatti
+     arrivano già decisi, va scritta la forma. Costa circa due centesimi per
+     creatura, una volta ogni ventotto giorni. */
+  'prompt-compile': { provider: 'anthropic', model: 'claude-sonnet-5' },
 };
 
 /* ============================================================================
@@ -280,6 +296,11 @@ export function voiceChoiceProblems(choices = VOICE_CHOICES): string[] {
  * `vision-quick` una foto senza contesto: quelle possono stare ovunque.
  */
 export const PERSONAL: Capability[] = ['character-voice', 'text-cheap'];
+
+/* ⚠️ `prompt-compile` NON è nell'elenco, e va detto perché: la richiesta porta
+   la descrizione di una creatura — famiglia, colori, proporzioni — e non porta
+   niente di te. È l'unica capacità nuova che poteva sembrare personale e non
+   lo è, e la differenza è la stessa di `image`. */
 
 /**
  * Verifica che la tabella non chieda a un fornitore una cosa che non sa fare.

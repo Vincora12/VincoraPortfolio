@@ -434,6 +434,14 @@ interface AppState {
   setToken: (key: string | null) => void;
   /** 🔷 §19.2 — sceglie chi dà la voce. `null` torna al predefinito. */
   setVoiceModel: (model: string | null) => void;
+  /**
+   * 🔷 v1.2 §10 — fa riscrivere il prompt di un asset dal compilatore.
+   *
+   * 🔒 Se esiste già non lo rifà: un prompt che cambia produce sei immagini di
+   * sei creature diverse. Torna il motivo del rifiuto quando il risultato non
+   * ha retto i controlli — quello serve a DEV, non al prodotto.
+   */
+  compileAssetPrompt: (monName: string, assetType: AssetType) => Promise<string | null>;
 
   setBias: (patch: Partial<SimulationBias>) => void;
   setSignal: (key: StatKey, value: Signal) => void;
@@ -1509,6 +1517,33 @@ export const useApp = create<AppState>()(
          comparisse una qui dentro, avrebbe smentito la premessa per cui
          questa funzione esiste. C'è un controllo che lo verifica. */
       setVoiceModel: (model) => set({ voiceModel: model }),
+
+      compileAssetPrompt: async (monName, assetType) => {
+        const s = get();
+        const rec = s.mons[monName];
+        if (!rec) return 'nessuna creatura con questo nome';
+        if (rec.compiledPrompts?.[assetType]) return null;
+
+        const { compileWithAi } = await import('../ai/promptCompiler');
+        const { text, failure, rejected } = await compileWithAi(s.token, rec, assetType);
+
+        if (!text) return rejected ?? (failure ? `chiamata fallita (${failure})` : 'nessun testo');
+
+        set((cur) => {
+          const now = cur.mons[monName];
+          if (!now) return {};
+          return {
+            mons: {
+              ...cur.mons,
+              [monName]: {
+                ...now,
+                compiledPrompts: { ...now.compiledPrompts, [assetType]: text },
+              },
+            },
+          };
+        });
+        return null;
+      },
       setBias: (patch) => set((s) => ({ bias: { ...s.bias, ...patch } })),
 
       setSignal: (key, value) =>

@@ -37,6 +37,11 @@ lungo almeno 24 caratteri e non l'abbia mai visto nessuno.
 | `OPENAI_API_KEY` | la tua chiave OpenAI | le immagini |
 | `MOONSHOT_API_KEY` | la tua chiave Moonshot | serve **solo** se scegli Kimi K3 per la voce |
 
+> 🔷 Il compilatore di prompt (v1.2 §10) usa la stessa `ANTHROPIC_API_KEY`: è una
+> chiamata di testo per creatura, circa due centesimi, una volta ogni ventotto
+> giorni. Senza chiave i prompt restano quelli deterministici e l'app funziona
+> lo stesso.
+
 > 🔷 **Non serve fare questo a mano.** Il pulsante **ATTIVA VINZ.MON** in alto
 > nell'app genera il segreto, elenca le variabili, e dopo che le hai messe ti
 > dice *quale* manca invece di limitarsi a non funzionare. Questa tabella resta
