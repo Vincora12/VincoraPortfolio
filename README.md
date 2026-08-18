@@ -24,16 +24,21 @@ http://localhost:5173/?dev=1
 
 ## Provalo online
 
-Il repository è pronto per il deploy: `netlify.toml` porta build command, cartella
-pubblicata e versione di Node. Su Netlify basta collegare il repository al progetto
-**vinz-verce-prototype** e puntarlo al branch `claude/project-prototype-jxjc3d` —
-da lì ogni push si pubblica da sé.
+Il sito è **`fluffy-cocada-88715c.netlify.app`**, collegato al repository e
+puntato al branch `claude/project-prototype-jxjc3d`: da lì ogni push si pubblica
+da sé. `netlify.toml` porta build command, cartella pubblicata e versione di Node,
+quindi non c'è niente da configurare a mano nel pannello.
+
+> ⚠️ Il nome del sito fa parte dell'URL, e l'URL è l'identità del salvataggio:
+> lo stato vive nel `localStorage` di quell'origine. Rinominare il sito
+> ricomincia da capo. Se va rinominato, va fatto **prima** di aggiungerlo alla
+> schermata Home e prima di giocarci.
 
 In alternativa, dalla propria macchina:
 
 ```
 npm install && npm run build
-npx netlify-cli deploy --prod --dir dist --site vinz-verce-prototype
+npx netlify-cli deploy --prod --dir dist --site fluffy-cocada-88715c
 ```
 
 **Sul telefono conviene aggiungerlo alla schermata Home**: `manifest.webmanifest`

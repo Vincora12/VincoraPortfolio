@@ -28,21 +28,22 @@ senza tetto la può spendere qualunque altra cosa la usi. Il tetto del fornitore
 
 ## 1 · Collegare Netlify al repository
 
-**Questo è il passo che manca oggi**, ed è il motivo per cui sul telefono vedi
-ancora una versione vecchia. Finché il sito non è collegato al repo, ogni push
-resta su GitHub e non arriva da nessuna parte.
+✅ **Fatto.** Il sito è **`fluffy-cocada-88715c.netlify.app`**, collegato a
+`Vincora12/VincoraPortfolio` sul branch `claude/project-prototype-jxjc3d`. Da qui
+in avanti ogni push si pubblica da sé; build command e publish directory arrivano
+da `netlify.toml`.
 
-Su app.netlify.com, nel progetto **vinz-verce-prototype**:
+> ⚠️ **È un sito nuovo, quindi è un'origine nuova.** Lo stato vive nel
+> `localStorage`, che è legato all'indirizzo: il `.mon` che avevi sul vecchio
+> indirizzo non si vede qui, e non è un guasto. Si riparte da zero.
+>
+> Per lo stesso motivo, se il sito va rinominato va fatto **adesso**: rinominarlo
+> dopo cambia di nuovo l'URL e fa ricominciare un'altra volta. L'icona vecchia
+> sulla schermata Home punta al sito vecchio — va tolta e rifatta.
 
-1. *Site configuration* → **Build & deploy** → *Continuous deployment*
-2. **Link repository** → GitHub → `Vincora12/VincoraPortfolio`
-3. **Branch to deploy**: `claude/project-prototype-jxjc3d`
-4. Build command e publish directory arrivano da `netlify.toml`: non toccarli.
-
-Salva. Parte un deploy. Da qui in avanti ogni push si pubblica da sé.
-
-**Verifica**: apri il sito e guarda l'intestazione con `?dev=1`. C'è la sigla
-del commit. Se corrisponde all'ultimo push, il collegamento funziona.
+**Verifica**: apri il sito con `?dev=1` e guarda l'intestazione. C'è la sigla del
+commit. Se corrisponde all'ultimo push, il collegamento funziona. Se invece il
+deploy è fallito, sta in *Deploys* → il primo della lista, con il log intero.
 
 ---
 
