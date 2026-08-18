@@ -27,6 +27,7 @@ import type { StatKey } from '../engine/types';
 import { BatchGenerator } from './BatchGenerator';
 import { AssetImport } from './AssetImport';
 import { CatalogSection } from './CatalogSection';
+import { DesignTest } from './DesignTest';
 import { PromptPreview } from './PromptPreview';
 import { VoiceSection } from './VoiceSection';
 import { CostSection } from './CostSection';
@@ -49,6 +50,7 @@ type DevTab =
   | 'mood'
   | 'rarity'
   | 'catalog'
+  | 'designtest'
   | 'tools';
 
 /* ============================================================================
@@ -103,6 +105,10 @@ const GROUPS: { id: DevGroup; label: string; tabs: { id: DevTab; label: string }
          temperamento. Sta in CREATURA perché è quello che decide cosa può
          nascere, non come si comporta poi. */
       { id: 'catalog', label: 'CATALOGHI' },
+      /* 🔷 §12 del master: il protocollo con cui un designer si approva o si
+         scarta. Sta accanto ai CATALOGHI perché è lì che finisce la decisione
+         che prendi guardando le prove. */
+      { id: 'designtest', label: 'PROVE' },
     ],
   },
   {
@@ -187,6 +193,7 @@ export function DevPanel({ onClose, onGo }: { onClose: () => void; onGo?: (o: 'a
         {inGroup && tab === 'mood' && <MoodSection />}
         {inGroup && tab === 'rarity' && <RaritySection />}
         {inGroup && tab === 'catalog' && <CatalogSection />}
+        {inGroup && tab === 'designtest' && <DesignTest />}
         {inGroup && tab === 'tools' && <ToolsSection />}
       </div>
     </div>

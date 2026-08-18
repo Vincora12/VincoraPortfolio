@@ -33,6 +33,7 @@ export { makeRng } from '${cwd}/src/engine/rng.ts';
 export { buildPackageFiles } from '${cwd}/src/assets-pipeline/exportPackage.ts';
 export { buildManifest } from '${cwd}/src/assets-pipeline/manifest.ts';
 export { compilePrompt, validateFragmentIds, COMPILER_VERSION } from '${cwd}/src/assets-pipeline/compiler.ts';
+export { DESIGN_DNA } from '${cwd}/src/engine/generation-config.ts';
 export { FRAGMENT_LIBRARY } from '${cwd}/src/assets-pipeline/fragments.ts';
 `,
 );
@@ -399,6 +400,73 @@ check(
 check(
   !testoVecchio.includes('CHARACTER DESIGN DNA:'),
   'non gli si assegna un designer a posteriori: cambierebbe com\'e fatto, retroattivamente',
+);
+
+/* ============================================================================
+   §12 — IL PROTOCOLLO DI PROVA DEI DESIGNER
+
+   🔷 «Secondo me la cosa sul character design e la cosa piu importante.»
+
+   Il protocollo dice: una forma bloccata, quattordici assi identici, uno solo
+   che cambia. Se anche una virgola d'altro cambiasse fra due prove, il
+   confronto sarebbe rumore travestito da risultato — e non te ne accorgeresti:
+   vedresti due immagini diverse e crederesti che sia il designer.
+
+   🔒 Quindi non ci si fida: si DIFFANO i sette prompt.
+   ========================================================================= */
+
+const prove = m.DESIGN_DNA.map((dna) => ({
+  id: dna.id,
+  text: m.compilePrompt(
+    { ...record, data: { ...record.data, character_design_dna: dna.id } },
+    'character_master',
+  ).text,
+}));
+
+/* Le righe che cambiano fra la prima prova e ognuna delle altre devono
+   appartenere TUTTE al blocco del designer. */
+const righeDi = (t) => t.split('\n');
+const base = righeDi(prove[0].text);
+const MARCATORI = [
+  'CHARACTER DESIGN DNA:', 'PROPORTION:', 'SHAPE LANGUAGE:', 'FACIAL CONSTRUCTION:',
+  'ANATOMICAL SIMPLIFICATION:', 'CLOTHING CONSTRUCTION:', 'POSTURE / GESTURE:',
+  'SURVIVING DETAIL:', 'DETAIL DENSITY:', 'Compress every idea', 'Layering, hardware',
+  'Keep a clear primary read',
+];
+
+const intrusi = [];
+for (const p of prove.slice(1)) {
+  const altre = righeDi(p.text);
+  const diverse = base.filter((r) => !altre.includes(r)).concat(altre.filter((r) => !base.includes(r)));
+  for (const r of diverse) {
+    if (r.trim().length === 0) continue;
+    if (!MARCATORI.some((mk) => r.startsWith(mk))) intrusi.push(`${p.id}: ${r.slice(0, 60)}`);
+  }
+}
+
+check(
+  intrusi.length === 0,
+  'fra due prove cambia SOLO il blocco del designer',
+  intrusi.slice(0, 3).join(' | ') || `${prove.length} prove confrontate riga per riga`,
+);
+
+/* 🔒 E cambia DAVVERO: due designer che producessero lo stesso testo non sono
+   una scelta, sono un placebo. */
+const identici = [];
+for (let i = 0; i < prove.length; i++) {
+  for (let j = i + 1; j < prove.length; j++) {
+    if (prove[i].text === prove[j].text) identici.push(`${prove[i].id} = ${prove[j].id}`);
+  }
+}
+check(identici.length === 0, 'e nessuna coppia di designer produce lo stesso prompt', identici.join(', ') || 'tutti distinti');
+
+/* 🔒 Sul CHARACTER MASTER, che e' l'unico asset che mostra il corpo intero:
+   proporzioni, postura e silhouette sono tre dei sette assi, e un ritratto le
+   nasconde tutte e tre. */
+check(
+  prove[0].text.includes('ASSET TYPE: CHARACTER MASTER') ||
+    prove[0].text.includes('CHARACTER MASTER'),
+  'e la prova gira sul corpo intero, non su un ritratto',
 );
 
 /* --- Esito ------------------------------------------------------------------ */

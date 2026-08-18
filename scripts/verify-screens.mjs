@@ -759,6 +759,18 @@ try {
 
   await click(byText('RIACCENDI TUTTO'), 'riaccendi tutto');
 
+  /* 🔷 §12 — il protocollo di prova dei designer. Si controlla che ci siano
+     tutti e sette con il loro prompt: una schermata di prova che ne mostra
+     sei ha gia' falsato il confronto. */
+  await devTab('CREATURA', 'PROVE');
+  await shot('dev-prove-designer');
+  const prove = await page.$$eval('.test__row', (n) => n.length);
+  const copie = await page.$$eval('.test__row .btn', (n) => n.length);
+  if (prove !== 7) errors.push(`il protocollo §12 mostra ${prove} designer invece di 7`);
+  if (copie < prove * 2) {
+    errors.push('una prova senza il suo pulsante per copiare o senza scarta non e una prova');
+  }
+
   await devTab('CREATURA', 'RARITÀ');
   await shot('dev-rarita');
   await click(byText('Simula 500 nascite'), 'simula nascite');

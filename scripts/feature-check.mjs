@@ -1300,6 +1300,35 @@ check(
   '§29: una creatura porta scritta la versione con cui è nata, non si riscrive',
 );
 
+check(
+  'PROVE §12',
+  'il protocollo di prova esiste come strumento, non come istruzioni',
+  existsSync('src/dev/DesignTest.tsx') && has('src/dev/DevPanel.tsx', "id: 'designtest'"),
+  'sette prove con quattordici assi da tenere identici non si fanno a mano',
+);
+check(
+  'PROVE §12',
+  'la forma è UNA, clonata: non sette creature simili',
+  has('src/dev/DesignTest.tsx', 'function withDesigner'),
+);
+check(
+  'PROVE §12',
+  'scartare un designer è la stessa cosa che spegnerlo nei cataloghi',
+  has('src/dev/DesignTest.tsx', "setCatalogEnabled('design'"),
+  'due posti per la stessa decisione sarebbero due verità che divergono',
+);
+check(
+  'PROVE §12',
+  'la domanda del giudizio è dichiarata: ha cambiato la costruzione?',
+  has('src/dev/DesignTest.tsx', 'ha cambiato la costruzione'),
+  'guardando sette immagini si finisce a scegliere la più bella, che è la domanda sbagliata',
+);
+check(
+  'DESIGN DNA §8',
+  'il designer si vede anche nel prodotto, non solo in DEV',
+  has('src/screens/SpecimenProfile.tsx', 'label="CHARACTER DESIGN DNA"'),
+);
+
 /* ============================================================================
    Sicurezza e tono — non negoziabili
    ========================================================================= */

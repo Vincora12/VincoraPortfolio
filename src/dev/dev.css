@@ -654,3 +654,43 @@
 .cat__space {
   margin-top: 14px;
 }
+
+/* --- PROVE §12 -------------------------------------------------------------- */
+
+.test__list {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.test__row {
+  border: 1px solid var(--hairline);
+  padding: 10px;
+}
+
+/* Uno scartato resta VISIBILE e rimettibile: il protocollo è iterativo, e una
+   riga che sparisce quando la scarti impedisce di cambiare idea. */
+.test__row--off {
+  opacity: 0.55;
+}
+
+.test__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.test__what {
+  color: var(--muted-strong);
+  margin-top: 4px;
+}
+
+.test__gate {
+  margin-top: 18px;
+  border-top: 1px solid var(--hairline);
+  padding-top: 10px;
+}

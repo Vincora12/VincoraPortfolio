@@ -33,6 +33,8 @@ import {
   SIZE_GRAMMAR,
   VOICE_AXES,
   affinityDef,
+  culturalReference,
+  designDnaDef,
   familyDef,
   fashionDef,
   moodDef,
@@ -187,7 +189,25 @@ export function SpecimenProfileScreen({
                 label="MOOD SECONDARY"
                 value={d.mood_secondary ? `${d.mood_secondary} · ${moodDef(d.mood_secondary).it}` : '—'}
               />
+              {/* 🔷 §8 del master — «la cosa più importante». APPEARANCE dice
+                  COME è reso, questo dice COM'È COSTRUITO: stanno di seguito
+                  apposta, perché è guardandoli insieme che si capisce che sono
+                  due cose diverse. */}
               <Row label="APPEARANCE" value={d.appearance} />
+              {d.character_design_dna && (
+                <Row
+                  label="CHARACTER DESIGN DNA"
+                  value={`${d.character_design_dna} · densità ${designDnaDef(d.character_design_dna).density}/5`}
+                />
+              )}
+              {(d.cultural_dna ?? []).length > 0 && (
+                <Row
+                  label="RIFERIMENTI ATTIVI"
+                  value={d.cultural_dna
+                    .map((id) => culturalReference(id)?.it ?? id)
+                    .join(' + ')}
+                />
+              )}
               <Row label="RARITY" value={`${d.rarity} · ${rarityDef(d.rarity).it}`} />
               <Row label="SEASON" value={d.season ?? '—'} />
             </div>
