@@ -60,6 +60,14 @@ export interface AskRequest {
   webSearch?: boolean;
   /** Solo per `image`. */
   prompt?: string;
+  /**
+   * Chi vuoi che dia la voce, se hai scelto.
+   *
+   * 🔒 È una PREFERENZA, non un comando: il server la accetta solo se
+   * corrisponde a una scelta che conosce e sa prezzare. Mandare qui il nome
+   * di un modello inventato non lo fa chiamare — fa tornare al predefinito.
+   */
+  voiceModel?: string | null;
 }
 
 /**
@@ -189,6 +197,62 @@ export function askImage(
   prompt: string,
 ): Promise<BackendResult<ImageData>> {
   return post<ImageData>('/api/ai', token, { capability: 'image', prompt });
+}
+
+/* --- Attivazione (§19.5) ----------------------------------------------------
+   Cosa il server ha davvero, per la procedura guidata. Mai il contenuto di una
+   chiave: solo se c'è.
+   -------------------------------------------------------------------------- */
+
+export interface SetupVar {
+  name: string;
+  what: string;
+  required: boolean;
+  where: string;
+  present: boolean;
+}
+
+export interface SetupState {
+  /** `false` = il segreto non è configurato sul server: è l'errore n.1. */
+  serverToken: boolean;
+  reason?: string;
+  vars?: SetupVar[];
+  voices?: { model: string; label: string; ready: boolean }[];
+  defaultVoice?: string;
+  spentUsd?: number;
+  capUsd?: number;
+  month?: string;
+}
+
+/**
+ * Interroga il server sull'attivazione.
+ *
+ * ⚠️ NON passa da `post()`, e la ragione è tutto il punto di questa funzione:
+ * `post()` si ferma da solo quando il token manca, e qui il caso in cui il
+ * token manca è proprio quello che vogliamo poter diagnosticare. Il primo
+ * avvio in assoluto — niente su Netlify, niente nell'app — deve poter ricevere
+ * «VINZMON_TOKEN non è configurato sul server» invece di un silenzio.
+ */
+export async function loadSetup(token: string | null): Promise<BackendResult<SetupState>> {
+  let response: Response;
+  try {
+    response = await fetch('/api/setup', {
+      headers: { authorization: `Bearer ${token ?? ''}` },
+    });
+  } catch {
+    return { data: null, failure: 'offline' };
+  }
+
+  if (response.status === 401) return { data: null, failure: 'unauthorized' };
+
+  /* In sviluppo locale l'indirizzo restituisce l'HTML della pagina con un 200:
+     è «le funzioni non ci sono», non «va tutto bene». */
+  if (!(response.headers.get('content-type') ?? '').includes('application/json')) {
+    return { data: null, failure: 'offline' };
+  }
+
+  const data = (await response.json().catch(() => null)) as SetupState | null;
+  return data ? { data, failure: null } : { data: null, failure: 'error' };
 }
 
 /* --- Salvataggio ------------------------------------------------------------ */

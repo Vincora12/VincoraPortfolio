@@ -124,6 +124,11 @@ async function speak(
   deliberate = false,
   tools?: ToolRuntime,
   awareness?: Awareness,
+  /* 🔷 §19.2 — chi dà la voce, se non il predefinito. Viaggia fino in fondo
+     senza che niente lungo la strada cambi: il briefing, la memoria, i turni e
+     gli strumenti sono gli stessi per chiunque risponda. È esattamente il
+     motivo per cui cambiare fornitore non perde niente. */
+  voiceModel?: string | null,
 ): Promise<VoiceOutcome> {
   const system = [
     /* Il briefing non cambia mai dentro una conversazione: in cache.
@@ -151,6 +156,7 @@ async function speak(
       }
     >(token, {
       capability: 'character-voice',
+      voiceModel,
       system,
       turns,
       user: userTurn,
@@ -234,10 +240,13 @@ export async function generateReply(
   deliberate = false,
   tools?: ToolRuntime,
   awareness?: Awareness,
+  voiceModel?: string | null,
 ): Promise<VoiceOutcome> {
   if (!token) return { result: null, failure: 'no-key' };
   const turn = context ? `${userText}\n\n[${context}]` : userText;
-  return speak(token, record, turn, 'reply', mood, memory, notes, deliberate, tools, awareness);
+  return speak(
+    token, record, turn, 'reply', mood, memory, notes, deliberate, tools, awareness, voiceModel,
+  );
 }
 
 /**
@@ -251,11 +260,15 @@ export async function generateIntroduction(
   record: MonRecord,
   mood: MoodState | null,
   notes: VoiceNote[] = [],
+  voiceModel?: string | null,
 ): Promise<VoiceOutcome> {
   if (!token) return { result: null, failure: 'no-key' };
   // Nessuna memoria: è il primo istante, non c'è niente prima. Una memoria
   // vuota lo farebbe partire come se avesse dimenticato qualcosa.
-  return speak(token, record, introductionRequest(record), 'introduction', mood, null, notes, true);
+  return speak(
+    token, record, introductionRequest(record), 'introduction', mood, null, notes, true,
+    undefined, undefined, voiceModel,
+  );
 }
 
 /* ============================================================================

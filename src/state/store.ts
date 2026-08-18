@@ -342,6 +342,21 @@ interface AppState {
   token: string | null;
 
   /**
+   * 🔷 §19.2 — chi dà la voce, se hai scelto qualcuno diverso dal predefinito.
+   *
+   * «Vorrei poter cambiare fornitore senza perdere quello che è l'AI, ma tanto
+   * la memoria ce l'abbiamo noi.»
+   *
+   * Ed è così, e si vede da DOVE sta questo campo: è un pezzetto di
+   * configurazione perso in mezzo a `memories`, `nodes`, `mons`, `mood` e
+   * `opinions` — che sono il .mon. Cambiare questa stringa non tocca nessuno
+   * degli altri, e non c'è una riga di codice che lo faccia.
+   *
+   * `null` = quello della tabella in `routing.ts`.
+   */
+  voiceModel: string | null;
+
+  /**
    * Quando hai ricominciato da capo l'ultima volta, o `null`.
    *
    * 🔒 È l'unica cosa che impedisce a una partita cancellata di tornare
@@ -417,6 +432,8 @@ interface AppState {
 
   setDev: (patch: Partial<DevFlags>) => void;
   setToken: (key: string | null) => void;
+  /** 🔷 §19.2 — sceglie chi dà la voce. `null` torna al predefinito. */
+  setVoiceModel: (model: string | null) => void;
 
   setBias: (patch: Partial<SimulationBias>) => void;
   setSignal: (key: StatKey, value: Signal) => void;
@@ -527,6 +544,7 @@ const INITIAL = {
   },
   bias: DEFAULT_BIAS,
   token: null as string | null,
+  voiceModel: null as string | null,
   /* §21.3 — i .mon conservati. NON stanno in INITIAL per caso: `resetAll` li
      rimette a mano proprio perché devono sopravvivere a ricominciare. */
   kept: [] as KeptMon[],
@@ -1480,6 +1498,12 @@ export const useApp = create<AppState>()(
       setDev: (patch) => set((s) => ({ dev: { ...s.dev, ...patch } })),
       setToken: (value) =>
         set({ token: value && value.trim().length > 0 ? value.trim() : null }),
+
+      /* 🔒 Cambia UNA cosa e basta. Nessun `memories: []`, nessun reset
+         dell'umore, nessuna riga che tocchi le forme: se un giorno ne
+         comparisse una qui dentro, avrebbe smentito la premessa per cui
+         questa funzione esiste. C'è un controllo che lo verifica. */
+      setVoiceModel: (model) => set({ voiceModel: model }),
       setBias: (patch) => set((s) => ({ bias: { ...s.bias, ...patch } })),
 
       setSignal: (key, value) =>
@@ -1951,6 +1975,9 @@ export const useApp = create<AppState>()(
           dev: get().dev,
           // Ricominciare la partita non è motivo per far reincollare la chiave.
           token: get().token,
+          /* Né per rimettere a posto chi dà la voce: è configurazione di
+             questo browser, non un pezzo della partita. */
+          voiceModel: get().voiceModel,
           /* 🔒 LA TECA SOPRAVVIVE. È l'unica cosa che deve: ricominciare
              cancella la partita, non i ricordi che avevi deciso di tenere. */
           kept: get().kept,
@@ -2290,7 +2317,15 @@ export async function syncWithServer(): Promise<'locale' | 'scaricato' | 'niente
   /* Il server ha più storia: quella locale era indietro (telefono nuovo,
      dati del browser cancellati, o semplicemente un altro dispositivo). Il
      token NON si sovrascrive: è di questo browser, non del salvataggio. */
-  useApp.setState({ ...(data.state as Partial<AppState>), token: local.token });
+  useApp.setState({
+    ...(data.state as Partial<AppState>),
+    token: local.token,
+    /* Stessa ragione del token: chi dà la voce è una scelta di QUESTO
+       dispositivo. Un salvataggio scaricato non deve cambiartela sotto — e
+       soprattutto non deve poterti spostare su un fornitore diverso senza che
+       tu l'abbia chiesto. */
+    voiceModel: local.voiceModel,
+  });
   lastSavedSignature = JSON.stringify(snapshotFor(useApp.getState()));
   return 'scaricato';
 }
@@ -2673,7 +2708,9 @@ function requestIntroduction(
 
   // L'SDK arriva solo a chi ha una chiave: import dinamico, chunk separato.
   void import('../ai/client')
-    .then((m) => m.generateIntroduction(token, record, get().mood, get().voiceNotes))
+    .then((m) =>
+      m.generateIntroduction(token, record, get().mood, get().voiceNotes, get().voiceModel),
+    )
     .then(({ result }) => {
       const s = get();
       const index = s.chat.findIndex((m) => m.id === id);
@@ -2777,6 +2814,10 @@ function requestReply(
           faceRedos: s0.faceRedos,
           timeSkipped: s0.usedDevTime,
         },
+        /* §19.2 — chi risponde. Ultimo argomento e non primo di proposito:
+           tutto quello che viene prima — il personaggio, l'umore, la memoria,
+           gli strumenti, quello che sa di te — è identico per chiunque. */
+        s0.voiceModel,
       ),
     )
     .then(({ result }) => {

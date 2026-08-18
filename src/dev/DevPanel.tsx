@@ -11,7 +11,7 @@
    Contiene esattamente le voci di §20.1, nell'ordine della spec.
    ========================================================================= */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useApp, useActiveMon, useGrowth, useScan, useToday } from '../state/store';
 import { haptic } from '../system/haptics';
 import { Button, FolderTabs, IconButton, Row, SystemLabel, TextField } from '../system/components';
@@ -50,38 +50,92 @@ type DevTab =
   | 'rarity'
   | 'tools';
 
-const TABS = [
-  { id: 'time' as const, label: 'TEMPO' },
-  { id: 'signals' as const, label: 'SEGNALI' },
-  { id: 'mindline' as const, label: 'MINDLINE' },
-  { id: 'generate' as const, label: 'GENERA' },
-  { id: 'voice' as const, label: 'VOCE' },
-  { id: 'prompt' as const, label: 'PROMPT' },
-  { id: 'assets' as const, label: 'ASSET' },
-  { id: 'progression' as const, label: 'PROGRESSIONE' },
-  { id: 'cost' as const, label: 'COSTI' },
-  /* 🔶 v1.9 §15.1 — le memorie NON sono più una schermata di prodotto: leggere
-     l'archivio rompe l'illusione che si stia ricordando invece di registrare.
-     Continuano a esistere e ad alimentare la voce; qui si controlla che ci
-     siano, ed è l'unico posto dove si vedono. */
-  { id: 'memory' as const, label: 'MEMORIA' },
-  /* 🔷 v1.12 §10.6 — l'umore non ha e non avrà una superficie di prodotto: si
-     sente solo in COME parla. Che è il progetto, ed è anche il modo perfetto
-     per non accorgersi mai che si è rotto. Questo è il posto dove si guarda. */
-  { id: 'mood' as const, label: 'UMORE E OPINIONI' },
-  /* 🔷 v1.16 §15.3 — la rarità era l'unica parte del motore che non si poteva
-     guardare mentre la si tarava: si cambiava un numero, si generava un batch,
-     si contava a occhio. Qui si sposta una soglia e si vede subito cosa
-     cambia, sullo stesso campione. */
-  { id: 'rarity' as const, label: 'RARITÀ' },
-  /* 🔷 v1.17 §21 — gli strumenti sono l'unica parte del motore che non parte
-     da sola: li fa partire un modello. Senza chiavi resterebbero non provati,
-     quindi qui si eseguono a mano con i dati veri. */
-  { id: 'tools' as const, label: 'STRUMENTI' },
+/* ============================================================================
+   COME SI NAVIGA QUI DENTRO (§29)
+
+   🔷 «Rendi più facile, DEV ora è molto complesso.»
+
+   Aveva ragione: quindici schede in fila. Erano nate una alla volta, ognuna
+   giustificata, e nessuna aveva mai guardato le altre quattordici — il modo
+   classico in cui un pannello diventa un cruscotto d'aereo senza che nessuno
+   abbia mai deciso di farne uno.
+
+   🔒 LA CURA NON È TOGLIERE ROBA. Serve tutta: sono le uniche finestre su
+   pezzi di motore che non hanno una superficie di prodotto. La cura è
+   ammettere che non si usano allo stesso modo — quattro cose si fanno ogni
+   volta, le altre undici si aprono quando qualcosa non torna.
+
+   Quindi due livelli, e un INIZIO che contiene le quattro. Chi apre DEV per
+   far passare dei giorni non deve più leggere quindici parole per trovare la
+   prima.
+   ========================================================================= */
+
+type DevGroup = 'start' | 'tempo' | 'creatura' | 'voce' | 'conti';
+
+const GROUPS: { id: DevGroup; label: string; tabs: { id: DevTab; label: string }[] }[] = [
+  { id: 'start', label: 'INIZIO', tabs: [] },
+  {
+    id: 'tempo',
+    label: 'TEMPO',
+    tabs: [
+      { id: 'time', label: 'TEMPO' },
+      { id: 'signals', label: 'SEGNALI' },
+      { id: 'progression', label: 'PROGRESSIONE' },
+    ],
+  },
+  {
+    id: 'creatura',
+    label: 'CREATURA',
+    tabs: [
+      { id: 'generate', label: 'GENERA' },
+      { id: 'mindline', label: 'MINDLINE' },
+      /* 🔷 v1.16 §15.3 — la rarità era l'unica parte del motore che non si
+         poteva guardare mentre la si tarava. */
+      { id: 'rarity', label: 'RARITÀ' },
+      { id: 'assets', label: 'ASSET' },
+    ],
+  },
+  {
+    id: 'voce',
+    label: 'VOCE',
+    tabs: [
+      { id: 'voice', label: 'PROVA' },
+      { id: 'prompt', label: 'PROMPT' },
+      /* 🔶 v1.9 §15.1 — le memorie NON sono una schermata di prodotto:
+         leggere l'archivio rompe l'illusione che si stia ricordando invece di
+         registrare. Qui si controlla che ci siano. */
+      { id: 'memory', label: 'MEMORIA' },
+      /* 🔷 v1.12 §10.6 — in superficie l'umore dice una riga sola e quasi mai.
+         Questo resta il posto dove si vedono i numeri. */
+      { id: 'mood', label: 'UMORE E OPINIONI' },
+      /* 🔷 v1.17 §21 — gli strumenti non partono da soli: li fa partire un
+         modello. Senza chiavi resterebbero non provati. */
+      { id: 'tools', label: 'STRUMENTI' },
+    ],
+  },
+  { id: 'conti', label: 'SPESA', tabs: [{ id: 'cost', label: 'COSTI' }] },
 ];
 
-export function DevPanel({ onClose }: { onClose: () => void }) {
+/** In quale gruppo vive una scheda. Serve a non perdere il segno tornando indietro. */
+const GROUP_OF: Record<DevTab, DevGroup> = Object.fromEntries(
+  GROUPS.flatMap((g) => g.tabs.map((t) => [t.id, g.id])),
+) as Record<DevTab, DevGroup>;
+
+export function DevPanel({ onClose, onGo }: { onClose: () => void; onGo?: (o: 'activate') => void }) {
+  const [group, setGroup] = useState<DevGroup>('start');
   const [tab, setTab] = useState<DevTab>('time');
+
+  /* La scheda mostrata è sempre coerente col gruppo scelto: cambiando gruppo
+     si apre la sua PRIMA scheda, invece di lasciare a schermo quella di prima
+     con sopra una fila di linguette che non la contengono. */
+  const pick = (g: DevGroup) => {
+    setGroup(g);
+    const first = GROUPS.find((x) => x.id === g)?.tabs[0];
+    if (first) setTab(first.id);
+  };
+
+  const current = GROUPS.find((g) => g.id === group);
+  const inGroup = group !== 'start' && GROUP_OF[tab] === group;
 
   return (
     <div className="screen dev">
@@ -93,22 +147,37 @@ export function DevPanel({ onClose }: { onClose: () => void }) {
         <IconButton icon="close" label="Chiudi il pannello" light onClick={onClose} />
       </header>
 
-      <FolderTabs tabs={TABS} active={tab} onChange={setTab} label="Sezioni del pannello DEV" />
+      <FolderTabs
+        tabs={GROUPS.map((g) => ({ id: g.id, label: g.label }))}
+        active={group}
+        onChange={pick}
+        label="Aree del pannello DEV"
+      />
+
+      {current && current.tabs.length > 1 && (
+        <FolderTabs
+          tabs={current.tabs}
+          active={tab}
+          onChange={setTab}
+          label={`Sezioni di ${current.label}`}
+        />
+      )}
 
       <div className="screen__body dev__body">
-        {tab === 'time' && <TimeSection />}
-        {tab === 'signals' && <SignalsSection />}
-        {tab === 'mindline' && <MindlineSection onClose={onClose} />}
-        {tab === 'generate' && <GenerateSection />}
-        {tab === 'voice' && <VoiceSection />}
-        {tab === 'prompt' && <PromptPreview />}
-        {tab === 'assets' && <AssetsSection />}
-        {tab === 'progression' && <ProgressionSection />}
-        {tab === 'cost' && <CostSection />}
-        {tab === 'memory' && <MemorySection />}
-        {tab === 'mood' && <MoodSection />}
-        {tab === 'rarity' && <RaritySection />}
-        {tab === 'tools' && <ToolsSection />}
+        {group === 'start' && <StartSection onGo={onGo} onClose={onClose} />}
+        {inGroup && tab === 'time' && <TimeSection />}
+        {inGroup && tab === 'signals' && <SignalsSection />}
+        {inGroup && tab === 'mindline' && <MindlineSection onClose={onClose} />}
+        {inGroup && tab === 'generate' && <GenerateSection />}
+        {inGroup && tab === 'voice' && <VoiceSection />}
+        {inGroup && tab === 'prompt' && <PromptPreview />}
+        {inGroup && tab === 'assets' && <AssetsSection />}
+        {inGroup && tab === 'progression' && <ProgressionSection />}
+        {inGroup && tab === 'cost' && <CostSection />}
+        {inGroup && tab === 'memory' && <MemorySection />}
+        {inGroup && tab === 'mood' && <MoodSection />}
+        {inGroup && tab === 'rarity' && <RaritySection />}
+        {inGroup && tab === 'tools' && <ToolsSection />}
       </div>
     </div>
   );
@@ -117,6 +186,125 @@ export function DevPanel({ onClose }: { onClose: () => void }) {
 /* ============================================================================
    TEMPO — "Advance time: +1 DAY, +7 DAYS, END WEEK, NEXT MINDLINE SHIFT"
    ========================================================================= */
+
+/* ============================================================================
+   DEV → INIZIO
+
+   🔒 QUATTRO COSE, E LA REGOLA È CHE NON DEVONO DIVENTARE CINQUE.
+
+   Questa schermata vale finché ci sta in uno schermo senza scorrere. Ogni
+   aggiunta è una riga in meno di quel margine, e il giorno che lo finisce
+   questo pannello è tornato quello di prima con un nome nuovo.
+
+   Se una cosa serve ma non ogni volta, il suo posto è il gruppo giusto qui
+   sopra. Il criterio non è «è utile» — sono utili tutte — è «la faccio ogni
+   volta che apro?».
+   ========================================================================= */
+
+function StartSection({
+  onGo,
+  onClose,
+}: {
+  onGo?: (o: 'activate') => void;
+  onClose: () => void;
+}) {
+  const day = useApp((s) => s.day);
+  const phase = useApp((s) => s.phase);
+  const token = useApp((s) => s.token);
+  const voiceModel = useApp((s) => s.voiceModel);
+  const mon = useActiveMon();
+  const advanceDays = useApp((s) => s.advanceDays);
+  const syncDay = useApp((s) => s.syncDay);
+  const setDailySignal = useApp((s) => s.setDailySignal);
+
+  /* Un giorno «pieno»: si dichiara l'umore — che la simulazione non può
+     inventare (§5) — e si chiude. È la sequenza che si fa a mano ogni volta
+     per far camminare una partita di prova. */
+  const fullDay = () => {
+    setDailySignal('MOOD', 'KNOWN', 'dichiarato da DEV');
+    syncDay();
+    advanceDays(1);
+  };
+
+  return (
+    <div className="dev__section">
+      <p className="t-meta">
+        GIORNO {day} · {phase.toUpperCase()}
+        {mon ? ` · ${mon.data.name}` : ' · nessuna creatura'}
+      </p>
+
+      {/* 1 — La voce è accesa? È la prima domanda perché è la sola che rende
+             diverso tutto il resto: senza, ogni prova gira sul ripiego. */}
+      <p className="t-meta dev__label">VOCE</p>
+      <p className="t-micro dev__note">
+        {token
+          ? `Segreto presente. Modello: ${voiceModel ?? 'quello predefinito'}.`
+          : 'Nessun segreto: il .mon risponde con le frasi di ripiego, non con le sue.'}
+      </p>
+      <div className="dev__row">
+        <Button small onClick={() => (onGo ? onGo('activate') : onClose())}>
+          {token ? 'RIVEDI L’ATTIVAZIONE' : 'ATTIVA VINZ.MON'}
+        </Button>
+      </div>
+
+      {/* 2 — Far passare il tempo, che è il motivo n.1 per cui questo pannello
+             esiste: l'incubazione dura 28 giorni veri. */}
+      <p className="t-meta dev__label">TEMPO</p>
+      <div className="dev__row">
+        <Button small onClick={fullDay}>
+          +1 GIORNO CHIUSO
+        </Button>
+        <Button
+          small
+          onClick={() => {
+            for (let i = 0; i < 7; i++) fullDay();
+          }}
+        >
+          +7 GIORNI
+        </Button>
+      </div>
+      <p className="t-micro dev__note">
+        Chiude la giornata e avanza. L’umore lo dichiara DEV al posto tuo:
+        è l’unico segnale che nessuna simulazione può inventare.
+      </p>
+
+      {/* 3 — La spesa. Sta qui e non solo in COSTI perché è l'unico numero che
+             conviene vedere senza essere andato a cercarlo. */}
+      <p className="t-meta dev__label">SPESA</p>
+      <SpendLine />
+
+      <p className="t-micro dev__note dev__start-note">
+        Tutto il resto — segnali, mindline, rarità, asset, prompt, memoria,
+        umore, strumenti — sta nei gruppi qui sopra. Serve quando qualcosa non
+        torna, non ogni volta.
+      </p>
+    </div>
+  );
+}
+
+/** Quanto è stato speso questo mese, in una riga. */
+function SpendLine() {
+  const [text, setText] = useState('—');
+  const token = useApp((s) => s.token);
+
+  useEffect(() => {
+    if (!token) {
+      setText('nessun segreto: il server non ha niente da raccontare.');
+      return;
+    }
+    void import('../ai/backend').then(({ loadSetup }) =>
+      loadSetup(token).then(({ data }) => {
+        setText(
+          data && typeof data.spentUsd === 'number'
+            ? `$${data.spentUsd.toFixed(2)} su $${(data.capUsd ?? 0).toFixed(2)} — ${data.month ?? ''}`
+            : 'il server non risponde.',
+        );
+      }),
+    );
+  }, [token]);
+
+  return <p className="t-micro dev__note">{text}</p>;
+}
 
 function TimeSection() {
   const day = useApp((s) => s.day);

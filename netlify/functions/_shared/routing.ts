@@ -36,7 +36,7 @@ export type Capability =
   /** Generare un'immagine di una creatura. */
   | 'image';
 
-export type Provider = 'anthropic' | 'google' | 'openai';
+export type Provider = 'anthropic' | 'google' | 'openai' | 'moonshot';
 
 /** Cosa una capacità pretende da chi la serve. */
 export interface Needs {
@@ -48,6 +48,15 @@ export interface Needs {
   thinking?: boolean;
   /** Deve produrre immagini. */
   imageOut?: boolean;
+  /**
+   * Deve saper cercare sul web dentro la stessa chiamata.
+   *
+   * ⚠️ Non è fra i requisiti di `character-voice`, e di proposito: la ricerca
+   * è un extra per turno, non una condizione per dare la voce. Ma va
+   * DICHIARATO lo stesso, perché chi sceglie deve sapere che spegnendo Opus
+   * spegne anche la curiosità sul mondo (§22.7).
+   */
+  webSearch?: boolean;
 }
 
 const NEEDS: Record<Capability, Needs> = {
@@ -59,9 +68,24 @@ const NEEDS: Record<Capability, Needs> = {
 
 /** Cosa ciascun fornitore sa fare, per come lo usiamo qui. */
 const CAN: Record<Provider, Needs> = {
-  anthropic: { promptCache: true, vision: true, thinking: true },
+  anthropic: { promptCache: true, vision: true, thinking: true, webSearch: true },
   google: { vision: true, thinking: true, imageOut: true },
   openai: { vision: true, thinking: true, imageOut: true },
+
+  /* ⚠️ `promptCache: true` QUI SIGNIFICA UNA COSA DIVERSA, e la differenza va
+     capita o il risparmio non arriva.
+
+     Anthropic la cache la MARCHI: dici tu dove finisce il pezzo che non
+     cambia. Moonshot la fa da sé, riconoscendo il prefisso identico fra una
+     richiesta e l'altra — come OpenAI. Il risultato in bolletta è lo stesso
+     (un decimo sul pezzo ripetuto), ma c'è una condizione che sull'altro non
+     esisteva: il prefisso deve essere IDENTICO e PRIMO, byte per byte.
+
+     Cioè: se un giorno qualcosa che cambia — l'ora, un contatore, l'umore —
+     finisse in cima al briefing invece che nel blocco della memoria, con
+     Anthropic non succederebbe niente e con Moonshot la cache non aggancerebbe
+     MAI. Stesso codice, dieci volte il prezzo, nessun errore. */
+  moonshot: { promptCache: true, vision: true, thinking: true, webSearch: false },
 };
 
 export interface Route {
@@ -109,6 +133,142 @@ export const ROUTING: Record<Capability, Route> = {
   'text-cheap': { provider: 'anthropic', model: 'claude-haiku-4-5' },
   image: { provider: 'openai', model: 'gpt-image-1' },
 };
+
+/* ============================================================================
+   CAMBIARE CHI DÀ LA VOCE, SENZA PERDERE CHI È (§19.2)
+
+   🔷 «Vorrei poter cambiare fornitore senza perdere quello che è l'AI, ma
+   tanto la memoria ce l'abbiamo noi.»
+
+   Ed è esattamente così, ed è il motivo per cui questa cosa si può fare senza
+   rischi. Guarda cosa NON sta dal fornitore:
+
+     • i ricordi              → `state/store.ts`, nel tuo browser
+     • la mindline e il dex   → idem
+     • l'umore e le opinioni  → idem
+     • il carattere           → `CharacterData`, estratto dai tuoi segnali
+     • come parla             → `voiceDna`, calcolato qui
+
+   Dal fornitore sta UNA cosa sola: la macchina che, ricevuto tutto quanto,
+   sceglie le parole della prossima frase. Non conosce il .mon fra una
+   richiesta e l'altra — glielo raccontiamo ogni volta da capo. Cambiarla è
+   come cambiare la penna: la calligrafia cambia un po', quello che c'è scritto
+   nel quaderno no.
+
+   🔒 QUINDI L'UNICO RISCHIO È LA SFUMATURA, e si giudica ascoltando. Per
+   questo la scelta è tua e reversibile in un tocco, invece che una riga di
+   codice che dovrei cambiare io — su una cosa che si valuta a orecchio,
+   decidere al posto tuo sarebbe la scelta sbagliata anche se azzeccassi.
+   ========================================================================= */
+
+export interface VoiceChoice {
+  provider: Provider;
+  model: string;
+  /** Come si chiama per te. */
+  label: string;
+  /** Dollari per milione di token, in ingresso e in uscita. */
+  price: { input: number; output: number };
+  /** Cosa cambia davvero, in una riga. */
+  it: string;
+  /**
+   * Con questa scelta il .mon può ancora guardare fuori?
+   *
+   * 🔒 Non è un dettaglio da nascondere in fondo: §22.7 gli ha dato la
+   * curiosità del mondo, e una scelta che gliela toglie deve dirlo prima, non
+   * dopo — altrimenti è uno strumento che sembra esserci e non fa niente.
+   */
+  webSearch: boolean;
+  /**
+   * Dove finiscono le tue conversazioni.
+   *
+   * 🔒 Riga obbligatoria, e deve dire quello che si sa — non quello che fa
+   * comodo. `character-voice` porta cosa mangi, come ti alleni e come stai:
+   * è la capacità che §19.1 marca come PERSONAL, e scegliere senza leggere
+   * questa riga vorrebbe dire sceglierla alla cieca.
+   */
+  data: string;
+}
+
+/**
+ * Chi può dare la voce al .mon.
+ *
+ * ⚠️ Solo fornitori che soddisfano `NEEDS['character-voice']` — cache dei
+ * prompt e ragionamento. `voiceChoiceProblems()` lo verifica invece di
+ * fidarsi di questo commento.
+ */
+export const VOICE_CHOICES: VoiceChoice[] = [
+  {
+    provider: 'anthropic',
+    model: 'claude-opus-5',
+    label: 'Claude Opus 5',
+    price: { input: 5, output: 25 },
+    it: 'Quello con cui il personaggio è stato scritto e tarato. È il metro di paragone, non necessariamente il migliore per te.',
+    webSearch: true,
+    data: 'Anthropic dichiara di non usare i dati delle API per addestrare i modelli.',
+  },
+  {
+    provider: 'moonshot',
+    model: 'kimi-k3',
+    label: 'Kimi K3',
+    price: { input: 3, output: 15 },
+    it: 'Circa il 40% in meno. Finestra da un milione di token. Sulla voce in italiano e in personaggio non è mai stato provato qui: lo scopri parlandoci.',
+    webSearch: false,
+    data: 'Moonshot AI, azienda cinese. Le condizioni sull’uso dei dati vanno lette prima di mandarci le tue conversazioni: non do per scontato che siano come quelle di Anthropic, e non ho modo di verificarlo dall’interno dell’app.',
+  },
+  {
+    provider: 'anthropic',
+    model: 'claude-sonnet-5',
+    label: 'Claude Sonnet 5',
+    price: { input: 3, output: 15 },
+    it: 'Stesso fornitore, stesso prezzo di Kimi, un gradino sotto Opus. È il confronto onesto da fare prima di cambiare azienda: forse quello che cerchi è solo spendere meno.',
+    webSearch: true,
+    data: 'Anthropic dichiara di non usare i dati delle API per addestrare i modelli.',
+  },
+];
+
+/**
+ * La rotta di una capacità, tenendo conto della scelta fatta nell'app.
+ *
+ * 🔒 La preferenza arriva dal browser, quindi NON ci si fida: deve
+ * corrispondere a una voce di `VOICE_CHOICES`, altrimenti si torna alla
+ * tabella. Senza questo controllo, chi ha il token potrebbe far chiamare al
+ * server un modello qualsiasi — compreso uno che non sappiamo prezzare, e il
+ * tetto di spesa smetterebbe di sapere cosa sta contando.
+ */
+export function resolveRoute(capability: Capability, preferredModel?: string | null): Route {
+  if (capability !== 'character-voice' || !preferredModel) return ROUTING[capability];
+  const choice = VOICE_CHOICES.find((c) => c.model === preferredModel);
+  return choice ? { provider: choice.provider, model: choice.model } : ROUTING[capability];
+}
+
+/** Una scelta di voce che il suo fornitore non sa servire non deve esistere. */
+export function voiceChoiceProblems(choices = VOICE_CHOICES): string[] {
+  const needs = NEEDS['character-voice'];
+  const problems: string[] = [];
+
+  for (const c of choices) {
+    for (const [need, required] of Object.entries(needs) as [keyof Needs, boolean][]) {
+      if (required && !CAN[c.provider][need]) {
+        problems.push(`${c.label} → ${c.provider} non offre ${need}`);
+      }
+    }
+    if (c.data.trim().length === 0) problems.push(`${c.label} non dice dove finiscono i dati`);
+    /* Una scelta che promette la ricerca a un fornitore che non ce l'ha
+       sarebbe una bugia nella schermata che serve a decidere. */
+    if (c.webSearch && !CAN[c.provider].webSearch) {
+      problems.push(`${c.label} promette la ricerca sul web che ${c.provider} non serve`);
+    }
+  }
+
+  /* La tabella di partenza deve essere fra le scelte, o «torna com'era» non
+     sarebbe raggiungibile dall'app. */
+  const base = ROUTING['character-voice'];
+  if (!choices.some((c) => c.model === base.model)) {
+    problems.push(`la voce predefinita (${base.model}) non è fra le scelte`);
+  }
+
+  return problems;
+}
 
 /**
  * Le capacità la cui richiesta contiene cose che TI riguardano.

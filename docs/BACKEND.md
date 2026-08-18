@@ -35,6 +35,12 @@ lungo almeno 24 caratteri e non l'abbia mai visto nessuno.
 | `ANTHROPIC_API_KEY` | la tua chiave Anthropic | la voce e la riflessione |
 | `GOOGLE_API_KEY` | la chiave di Google AI Studio | la lettura delle foto |
 | `OPENAI_API_KEY` | la tua chiave OpenAI | le immagini |
+| `MOONSHOT_API_KEY` | la tua chiave Moonshot | serve **solo** se scegli Kimi K3 per la voce |
+
+> 🔷 **Non serve fare questo a mano.** Il pulsante **ATTIVA VINZ.MON** in alto
+> nell'app genera il segreto, elenca le variabili, e dopo che le hai messe ti
+> dice *quale* manca invece di limitarsi a non funzionare. Questa tabella resta
+> come riferimento.
 
 > ⚠️ **Se `VINZMON_TOKEN` manca, le funzioni si chiudono invece di aprirsi.**
 > È voluto: un deploy in cui qualcuno si è dimenticato la variabile deve

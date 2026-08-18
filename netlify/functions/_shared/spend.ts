@@ -51,6 +51,11 @@ const PRICES: Record<string, Price> = {
   'claude-sonnet-5': { input: 3, output: 15 },
   'claude-haiku-4-5': { input: 1, output: 5 },
   'gemini-2.5-flash': { input: 0.3, output: 2.5 },
+  /* Moonshot sconta la cache del 90% come Anthropic, quindi la formula di
+     `costOf` vale identica. ⚠️ Ma solo perché l'adattatore SOTTRAE i token in
+     cache da quelli in ingresso: lì arrivano già sommati, e senza quella
+     sottrazione questa riga conterebbe due volte lo stesso pezzo. */
+  'kimi-k3': { input: 3, output: 15 },
   'gpt-image-1': { input: 0, output: 0, perImage: 0.04 },
 };
 

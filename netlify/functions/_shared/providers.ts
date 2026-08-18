@@ -293,6 +293,176 @@ async function google(req: ProviderRequest): Promise<ProviderResult> {
   }
 }
 
+/* --- Moonshot (Kimi) --------------------------------------------------------
+   🔷 «Vorrei poter cambiare fornitore senza perdere quello che è l'AI.»
+
+   L'API di Moonshot parla la lingua di OpenAI, quindi il grosso di questo
+   adattatore è una TRADUZIONE: la forma normalizzata che gira in questo
+   progetto è modellata su Anthropic — blocchi `tool_use` e `tool_result` — e
+   qui va convertita in `tool_calls` e messaggi `role: 'tool'`.
+
+   ⚠️ TRE TRAPPOLE, E NESSUNA DELLE TRE DÀ ERRORE QUANDO CI CASCHI.
+
+   1. LA CACHE È IMPLICITA. Non si marca: la riconosce lui, se il prefisso è
+      identico e primo. Quindi i blocchi di sistema si concatenano NELL'ORDINE
+      e senza aggiungere niente in cima — il primo è il briefing, che non
+      cambia mai. Metterci davanti una data e il risparmio sparisce in
+      silenzio.
+
+   2. I TOKEN IN CACHE SONO GIÀ DENTRO `prompt_tokens`. Su Anthropic sono un
+      campo a parte e si sommano; qui sono compresi. Riportarli entrambi come
+      arrivano vorrebbe dire contare due volte lo stesso pezzo e credere di
+      spendere di più di quanto spendi — un tetto che sbaglia in questa
+      direzione ti blocca l'app prima del tempo. Si sottraggono.
+
+   3. LA RICERCA SUL WEB QUI NON C'È. `req.webSearch` viene ignorato di
+      proposito invece di essere tradotto a caso: uno strumento che sembra
+      esserci e non fa niente è peggio di uno che manca. `CAN.moonshot` lo
+      dichiara, e la schermata che ti fa scegliere te lo dice prima.
+   -------------------------------------------------------------------------- */
+
+/** Un blocco della forma normalizzata, guardato senza fidarsi del tipo. */
+type Block = Record<string, unknown>;
+
+/** I messaggi in stile OpenAI che nascono da un turno in stile Anthropic. */
+function openaiMessages(req: ProviderRequest): Record<string, unknown>[] {
+  const out: Record<string, unknown>[] = [
+    /* 🔒 Un solo messaggio di sistema, nell'ordine dei blocchi: è il prefisso
+       su cui poggia la cache implicita. */
+    { role: 'system', content: req.system.map((b) => b.text).join('\n\n') },
+  ];
+
+  const fromBlocks = (content: Block[], role: 'user' | 'assistant') => {
+    const text = content
+      .filter((b) => b.type === 'text')
+      .map((b) => String(b.text ?? ''))
+      .join('');
+
+    const calls = content.filter((b) => b.type === 'tool_use');
+    const results = content.filter((b) => b.type === 'tool_result');
+
+    if (role === 'assistant' && calls.length > 0) {
+      out.push({
+        role: 'assistant',
+        // `null` e non stringa vuota: con i tool_calls è la forma che l'API accetta.
+        content: text.length > 0 ? text : null,
+        tool_calls: calls.map((c) => ({
+          id: String(c.id ?? ''),
+          type: 'function',
+          function: { name: String(c.name ?? ''), arguments: JSON.stringify(c.input ?? {}) },
+        })),
+      });
+      return;
+    }
+
+    /* Ogni risultato è un messaggio a sé — non un blocco dentro a uno di
+       utente, come su Anthropic. Sbagliarlo non dà errore: il modello
+       semplicemente non collega mai la risposta alla domanda. */
+    for (const r of results) {
+      out.push({
+        role: 'tool',
+        tool_call_id: String(r.tool_use_id ?? ''),
+        content: String(r.content ?? ''),
+      });
+    }
+
+    if (results.length === 0 && text.length > 0) out.push({ role, content: text });
+  };
+
+  for (const t of req.turns) {
+    if (typeof t.content === 'string') out.push({ role: t.role, content: t.content });
+    else fromBlocks(t.content as Block[], t.role);
+  }
+
+  if (req.userBlocks?.length) fromBlocks(req.userBlocks as Block[], 'user');
+  else if (req.user.length > 0) out.push({ role: 'user', content: req.user });
+
+  return out;
+}
+
+async function moonshot(req: ProviderRequest): Promise<ProviderResult> {
+  const key = process.env.MOONSHOT_API_KEY;
+  if (!key) return fail(req.model, 'MOONSHOT_API_KEY mancante');
+
+  try {
+    const res = await fetch('https://api.moonshot.ai/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` },
+      body: JSON.stringify({
+        model: req.model,
+        messages: openaiMessages(req),
+        max_tokens: req.maxTokens,
+        ...(req.tools?.length
+          ? {
+              tools: req.tools.map((t) => ({
+                type: 'function',
+                function: { name: t.name, description: t.description, parameters: t.schema },
+              })),
+            }
+          : {}),
+      }),
+    });
+
+    if (!res.ok) return fail(req.model, `moonshot ${res.status}: ${await res.text()}`);
+
+    const body = (await res.json()) as {
+      model?: string;
+      choices?: {
+        message?: {
+          content?: string | null;
+          tool_calls?: { id?: string; function?: { name?: string; arguments?: string } }[];
+        };
+        finish_reason?: string;
+      }[];
+      usage?: {
+        prompt_tokens?: number;
+        completion_tokens?: number;
+        prompt_tokens_details?: { cached_tokens?: number };
+      };
+    };
+
+    const message = body.choices?.[0]?.message;
+    const text = (message?.content ?? '').trim();
+
+    const toolUses: ToolUse[] = (message?.tool_calls ?? []).map((c) => ({
+      id: c.id ?? '',
+      name: c.function?.name ?? '',
+      /* Gli argomenti arrivano come STRINGA JSON, non come oggetto. Un modello
+         che tronca la risposta lascia un JSON monco: qui si preferisce uno
+         strumento chiamato senza argomenti a una funzione che esplode e
+         trasforma un turno in un 500. */
+      input: safeJson(c.function?.arguments),
+    }));
+
+    const cached = body.usage?.prompt_tokens_details?.cached_tokens ?? 0;
+
+    return {
+      ok: text.length > 0 || toolUses.length > 0,
+      text,
+      toolUses,
+      stopReason: body.choices?.[0]?.finish_reason,
+      model: body.model ?? req.model,
+      usage: {
+        // ⚠️ Trappola 2: i token in cache sono GIÀ dentro `prompt_tokens`.
+        inputTokens: Math.max(0, (body.usage?.prompt_tokens ?? 0) - cached),
+        cacheReadTokens: cached,
+        outputTokens: body.usage?.completion_tokens ?? 0,
+      },
+    };
+  } catch (err) {
+    return fail(req.model, String(err));
+  }
+}
+
+function safeJson(raw: string | undefined): unknown {
+  if (!raw) return {};
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return {};
+  }
+}
+
 /* --- OpenAI: immagini -------------------------------------------------------
    L'unica capacità che passa da qui, ed è quella su cui le prove sono già
    state fatte. Restituisce base64, non un URL: un URL scadrebbe prima che
@@ -343,6 +513,7 @@ export async function generateImage(model: string, prompt: string): Promise<Imag
 const ADAPTERS: Record<Provider, (r: ProviderRequest) => Promise<ProviderResult>> = {
   anthropic,
   google,
+  moonshot,
   // Le immagini non passano da qui: hanno una forma di risposta diversa e
   // fingere che sia la stessa produrrebbe un tipo che mente.
   openai: async (r) => fail(r.model, 'openai serve solo le immagini, via generateImage'),

@@ -788,7 +788,13 @@ check(
 check(
   'RARITÀ §15.3',
   'DEV → RARITÀ esiste ed è raggiungibile',
-  has('src/dev/DevPanel.tsx', "id: 'rarity' as const"),
+  /* 🔶 Puntava a `id: 'rarity' as const`, cioè alla FORMA in cui le linguette
+     erano scritte quel giorno. Raggruppandole in due livelli è saltato, e non
+     era saltata la decisione: la sezione c'era ancora. Adesso punta a quello
+     che deve restare vero — la scheda è elencata da qualche parte, e qualcuno
+     la disegna. */
+  has('src/dev/DevPanel.tsx', "{ id: 'rarity', label: 'RARITÀ' }") &&
+    has('src/dev/DevPanel.tsx', "tab === 'rarity' && <RaritySection />"),
 );
 check(
   'RARITÀ §15.3',
@@ -1081,6 +1087,85 @@ check(
   has('src/engine/progression.ts', "'MOOD'] as const") &&
     has('src/engine/types.ts', 'mood_primary: string'),
   'i .mon già salvati e i pacchetti esportati contengono quelle chiavi',
+);
+
+/* ============================================================================
+   FORNITORE, ATTIVAZIONE, DEV (§19.2 · §19.5 · §29)
+   ========================================================================= */
+
+check(
+  '§19.2 FORNITORE',
+  'cambiare fornitore non tocca niente di quello che il .mon è',
+  has('src/state/store.ts', 'setVoiceModel: (model) => set({ voiceModel: model })'),
+  'una riga sola: se un giorno ne comparisse una che azzera ricordi o umore, la premessa sarebbe smentita',
+);
+check(
+  '§19.2 FORNITORE',
+  'la preferenza dal browser non è un comando',
+  has('netlify/functions/_shared/routing.ts', 'const choice = VOICE_CHOICES.find((c) => c.model === preferredModel)') &&
+    has('netlify/functions/ai.ts', 'resolveRoute(capability, payload.voiceModel)'),
+  'un modello che il tetto non sa prezzare renderebbe cieco il contatore',
+);
+check(
+  '§19.2 FORNITORE',
+  'ogni scelta dice dove finiscono le tue conversazioni',
+  has('netlify/functions/_shared/routing.ts', 'non dice dove finiscono i dati'),
+);
+check(
+  '§19.2 FORNITORE',
+  'i token in cache di Moonshot non si contano due volte',
+  has('netlify/functions/_shared/providers.ts', "Math.max(0, (body.usage?.prompt_tokens ?? 0) - cached)"),
+  'lì arrivano già dentro prompt_tokens: sommarli farebbe bloccare l’app prima del tempo',
+);
+check(
+  '§19.2 FORNITORE',
+  'un salvataggio scaricato non ti sposta di fornitore',
+  has('src/state/store.ts', 'voiceModel: local.voiceModel'),
+);
+
+check(
+  '§19.5 ATTIVAZIONE',
+  'il pulsante sta nel prodotto, non in DEV',
+  has('src/App.tsx', 'ATTIVA VINZ.MON') && has('src/App.tsx', 'if (token) return null'),
+  'chi apre l’app la prima volta non va a cercarlo nel pannello di sviluppo',
+);
+check(
+  '§19.5 ATTIVAZIONE',
+  'il segreto lo genera il caso, non tu',
+  has('src/screens/Activate.tsx', 'crypto.getRandomValues'),
+  'un token che uno ricorda è un token corto, e dietro c’è il budget',
+);
+check(
+  '§19.5 ATTIVAZIONE',
+  'il server dice SE una chiave c’è, mai cosa contiene',
+  has('netlify/functions/setup.ts', 'present: Boolean(process.env[v.name])') &&
+    lacks('netlify/functions/setup.ts', 'value: process.env'),
+);
+check(
+  '§19.5 ATTIVAZIONE',
+  'un server senza segreto lo dice invece di rispondere «non autorizzato»',
+  has('netlify/functions/setup.ts', 'serverToken: false'),
+  'è l’errore n.1 al primo deploy, e su quello il silenzio non protegge niente',
+);
+check(
+  '§19.5 ATTIVAZIONE',
+  'ogni modo di fallire ha la sua frase',
+  has('src/screens/Activate.tsx', "case 'offline':") &&
+    has('src/screens/Activate.tsx', "case 'unauthorized':"),
+  '«token sbagliato, funzioni non pubblicate o rete assente» era una frase sola per tre problemi',
+);
+
+check(
+  '§29 DEV',
+  'DEV si apre su INIZIO e non su quindici linguette',
+  has('src/dev/DevPanel.tsx', "const [group, setGroup] = useState<DevGroup>('start')") &&
+    has('src/dev/DevPanel.tsx', 'GROUPS.map((g) => ({ id: g.id, label: g.label }))'),
+);
+check(
+  '§29 DEV',
+  'cambiando gruppo si apre la sua prima scheda',
+  has('src/dev/DevPanel.tsx', 'const first = GROUPS.find((x) => x.id === g)?.tabs[0]'),
+  'altrimenti resta a schermo una sezione che le linguette sopra non contengono',
 );
 
 /* ============================================================================

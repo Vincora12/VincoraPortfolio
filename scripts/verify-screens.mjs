@@ -168,6 +168,22 @@ const contrastoDi = (selettori, dove) =>
       }
     });
 
+
+/* 🔷 §29 — DEV ha due livelli da quando quindici linguette in fila erano
+   diventate un cruscotto d'aereo. Si sceglie prima il GRUPPO e poi la scheda,
+   e questa funzione fa i due tocchi come li farebbe una mano. Le linguette dei
+   due livelli sono entrambe `.ftab`, quindi si distinguono per FILA: la prima
+   `.ftabs` e' quella dei gruppi, la seconda quella delle sezioni. */
+const devTab = async (group, tab) => {
+  await click(`.ftabs:nth-of-type(1) .ftab:text-is("${group}")`, `gruppo DEV ${group}`);
+  if (!tab) return;
+  const sub = page.locator(`.ftabs:nth-of-type(2) .ftab:text-is("${tab}")`).first();
+  if ((await sub.count()) > 0) {
+    await sub.click();
+    await sleep(180);
+  }
+};
+
 /** Il «+» del composer apre direttamente la registrazione (v1.9 §13.3). */
 const openCapture = async () => {
   await click('.composer .btn-icon:first-child', 'apri REGISTRA');
@@ -590,45 +606,52 @@ try {
 
   /* DEV */
   await click('.devtrigger', 'apri DEV');
-  await shot('dev-tempo');
-  await click(byText('SEGNALI'), 'tab segnali');
+  /* 🔒 DEV si apre su INIZIO, non su una scheda a caso. È la decisione che ha
+     reso questo pannello usabile: se un giorno tornasse ad aprirsi su TEMPO
+     con quindici linguette in fila, questo controllo lo direbbe. */
+  await shot('dev-inizio');
+  const gruppi = await page.$$eval('.ftabs', (n) => n.length);
+  if (gruppi !== 1) {
+    errors.push(`DEV si apre con ${gruppi} file di linguette invece di una sola`);
+  }
+  await devTab('TEMPO', 'SEGNALI');
   await shot('dev-segnali');
 
   // Forza l'eleggibilità per raggiungere entrambe le strade (criterio 2 di §26).
-  await click(byText('MINDLINE'), 'tab mindline dev');
+  await devTab('CREATURA', 'MINDLINE');
   await page.locator('.dev__check input').nth(0).check();
   await page.locator('.dev__check input').nth(1).check();
   await shot('dev-mindline');
 
-  await click(byText('GENERA'), 'tab genera');
+  await devTab('CREATURA', 'GENERA');
   await click(byText('GENERATE 50'), 'batch 50');
   await shot('dev-batch');
 
-  await click(byText('VOCE'), 'tab voce');
+  await devTab('VOCE', 'PROVA');
   await shot('dev-voce');
 
-  await click(byText('PROMPT'), 'tab prompt dev');
+  await devTab('VOCE', 'PROMPT');
   await shot('dev-prompt-compilato');
   await click(byText('PROVENIENZA'), 'provenienza frammenti');
   await shot('dev-prompt-provenienza');
 
-  await click(byText('ASSET'), 'tab asset dev');
+  await devTab('CREATURA', 'ASSET');
   await shot('dev-import-asset');
 
-  await click(byText('PROGRESSIONE'), 'tab progressione');
+  await devTab('TEMPO', 'PROGRESSIONE');
   await shot('dev-progressione');
 
   /* 🔶 v1.9 §18.1 — la spesa AI, e §15.1 — la memoria, che vive solo qui. */
-  await click(byText('COSTI'), 'tab costi');
+  await devTab('SPESA');
   await shot('dev-costi');
-  await click(byText('MEMORIA'), 'tab memoria');
+  await devTab('VOCE', 'MEMORIA');
   await shot('dev-memoria');
 
   /* 🔷 v1.16 §15.3 — DEV → RARITÀ. Il pulsante simula cinquecento nascite
      sincronamente: se ci fosse un errore nel motore uscirebbe QUI, prima che
      una creatura vera lo incontri. Vale la pena premerlo davvero invece di
      limitarsi a fotografare la scheda vuota. */
-  await click(byText('RARITÀ'), 'tab rarità');
+  await devTab('CREATURA', 'RARITÀ');
   await shot('dev-rarita');
   await click(byText('Simula 500 nascite'), 'simula nascite');
   await page.waitForSelector('.rarity__hist', { timeout: 15000 });
@@ -639,7 +662,7 @@ try {
      scritta qui è una pagina vera — il che vuol dire che il percorso
      completo, disegnatore di markdown compreso, viene camminato prima di
      avere una chiave. */
-  await click(byText('STRUMENTI'), 'tab strumenti');
+  await devTab('VOCE', 'STRUMENTI');
   await shot('dev-strumenti');
   await click(byText('Esegui'), 'esegui leggi_i_miei_dati');
   await page.waitForSelector('.tools__out', { timeout: 5000 });
@@ -653,6 +676,42 @@ try {
   // L'annuncio dello shift esiste solo quando qualcosa è pronto. Le forzature
   // sono già attive (tab MINDLINE, poco sopra): basta uscire e guardare.
   await click('.dev__head .btn-icon', 'chiudi DEV');
+
+  /* 🔷 §19.5 — ATTIVA VINZ.MON. Il percorso gira SENZA chiavi e senza
+     funzioni pubblicate, che è lo stato in cui uno apre questa schermata la
+     prima volta: qui si controlla che in quello stato dica cosa manca invece
+     di restare muta. */
+  await click('.activatechip', 'attiva vinz.mon');
+  await page.waitForSelector('.activate', { timeout: 5000 });
+  await shot('19-attiva');
+
+  const passi = await page.$$eval('.activate .window', (n) => n.length);
+  if (passi !== 4) errors.push(`la procedura guidata ha ${passi} passi invece di 4`);
+
+  /* 🔒 Il segreto proposto deve essere lungo abbastanza da essere accettato da
+     `auth.ts` (24 caratteri). Un pulsante COPIA che consegna un token che il
+     server rifiuterà è la trappola perfetta: sembra tutto a posto e non parte
+     niente. */
+  const segreto = (await page.locator('.activate__value').first().textContent()) ?? '';
+  if (segreto.trim().length < 24) {
+    errors.push(`il segreto proposto è di ${segreto.trim().length} caratteri: auth.ts ne vuole 24`);
+  }
+
+  /* 🔒 E in locale, dove /api non esiste, deve dire QUELLO — non «token
+     sbagliato». Era il difetto che questa schermata è nata per togliere. */
+  const detto = (await page.locator('.activate__bad').first().textContent()) ?? '';
+  if (!/funzioni non rispondono|non è ancora stato ripubblicato|in locale/i.test(detto)) {
+    errors.push(`senza funzioni la procedura dice «${detto.slice(0, 80)}» invece di spiegare`);
+  }
+
+  /* 🔒 Le etichette di stato stanno nell'intestazione INVERTITA della
+     finestra: è l'unico posto dell'app dove un componente che eredita il
+     colore sparisce. Ci è già sparito una volta. */
+  await contrastoDi(
+    '.activate__bad, .activate__intro, .activate__varwhat, .window__head .syslabel',
+    "nell'attivazione",
+  );
+  await click('.specimen__head .btn-icon', 'chiudi attivazione');
 
   /* La pagina appena scritta deve esserci per davvero: si apre, si legge, e
      si controlla che il markdown sia diventato struttura invece che testo. */
@@ -683,7 +742,7 @@ try {
   await click('.devtrigger', 'riapri DEV');
 
   /* 11 — MINDLINE SHIFT */
-  await click(byText('MINDLINE'), 'tab mindline dev');
+  await devTab('CREATURA', 'MINDLINE');
   await click(byText('APRI MINDLINE SHIFT'), 'apri shift');
   await shot('11-mindline-shift');
 
@@ -697,7 +756,7 @@ try {
 
   /* 13 — CAMBIO DI FORMA */
   await click('.devtrigger', 'apri DEV');
-  await click(byText('MINDLINE'), 'tab mindline dev');
+  await devTab('CREATURA', 'MINDLINE');
   await page.locator('.dev__check input').nth(1).check();
   await click(byText('APRI MINDLINE SHIFT'), 'apri shift');
   await hold('GUARDA COSA CAMBIA');
@@ -775,7 +834,7 @@ try {
   const keptBefore = await page.$$eval('.dexcard--kept', (n) => n.length);
 
   await click('.devtrigger', 'riapri DEV');
-  await click(byText('MINDLINE'), 'tab mindline dev');
+  await devTab('CREATURA', 'MINDLINE');
   await click(byText('RESET COMPLETO DELLA SIMULAZIONE'), 'reset completo');
   /* 🔷 Il pulsante ora chiede conferma: un tocco solo non deve bastare, e il
      controllo deve accorgersene se un giorno la conferma sparisce. */

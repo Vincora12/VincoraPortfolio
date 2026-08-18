@@ -519,3 +519,21 @@
   max-height: 300px;
   overflow: auto;
 }
+
+/* I pulsanti di INIZIO stanno in fila e vanno a capo: su un telefono stretto
+   due bottoni affiancati che escono dallo schermo sono peggio di due righe. */
+.dev__row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+
+/* 🔒 La riga finale di INIZIO dice DOVE sta il resto invece di elencarlo.
+   Un pannello che si apre mostrando tutto quello che non stai usando è il
+   problema che questa schermata risolve. */
+.dev__start-note {
+  margin-top: 18px;
+  border-top: 1px solid var(--hairline);
+  padding-top: 10px;
+}

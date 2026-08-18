@@ -20,7 +20,7 @@
    ========================================================================= */
 
 import { authorize, denied, json } from './_shared/auth';
-import { ROUTING, type Capability } from './_shared/routing';
+import { resolveRoute, type Capability } from './_shared/routing';
 import {
   callProvider,
   generateImage,
@@ -60,6 +60,18 @@ interface Payload {
   webSearch?: boolean;
   /** Solo per `image`. */
   prompt?: string;
+  /**
+   * Chi deve dare la voce, se non quello predefinito.
+   *
+   * 🔷 «Vorrei poter cambiare fornitore senza perdere quello che è l'AI.»
+   *
+   * ⚠️ Arriva dal browser, quindi NON è un ordine: `resolveRoute` lo accetta
+   * solo se corrisponde a una voce di `VOICE_CHOICES`. Senza quel filtro, chi
+   * ha il token potrebbe far chiamare un modello che non sappiamo prezzare —
+   * e il tetto di spesa smetterebbe di sapere cosa sta contando, che è il modo
+   * peggiore in cui questo file possa rompersi.
+   */
+  voiceModel?: string;
 }
 
 const KNOWN: Capability[] = ['character-voice', 'vision-quick', 'text-cheap', 'image'];
@@ -101,7 +113,12 @@ export default async function handler(request: Request): Promise<Response> {
   const capability = payload.capability as Capability;
   if (!KNOWN.includes(capability)) return json({ error: 'capacità sconosciuta' }, 400);
 
-  const route = ROUTING[capability];
+  /* 🔶 Qui c'era `ROUTING[capability]` secco, e la testata di questo file
+     diceva che «il browser non sa quale fornitore ha risposto». Non è più
+     vero, ed è un cambio di premessa voluto: da quando la voce la scegli tu,
+     tenerti all'oscuro di chi sta rispondendo sarebbe nascondere una cosa che
+     hai deciso. Infatti la risposta lo dice, in fondo. */
+  const route = resolveRoute(capability, payload.voiceModel);
 
   /* --- Immagini: forma di risposta diversa, percorso diverso --- */
 
@@ -190,6 +207,11 @@ export default async function handler(request: Request): Promise<Response> {
     toolUses: result.toolUses,
     stopReason: result.stopReason,
     model: result.model,
+    /* Chi ha risposto davvero, e se la ricerca sul web era accesa. Serve
+       all'app per non promettere in schermata una cosa che questo giro non
+       aveva. */
+    provider: route.provider,
+    webSearchOn: webSearch,
     usage: result.usage,
     warning: cap.warning,
     remainingUsd: cap.remainingUsd,

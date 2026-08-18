@@ -36,6 +36,7 @@ import { DexScreen } from './screens/Dex';
 import { RoomScreen } from './screens/Room';
 import { MindlineMapScreen } from './screens/MindlineMap';
 import { CalendarScreen } from './screens/SyncCalendar';
+import { ActivateScreen } from './screens/Activate';
 import { HeritageDnaScreen } from './screens/HeritageDna';
 import { HistoryScreen } from './screens/History';
 import { DailyScanScreen } from './screens/DailyScan';
@@ -53,6 +54,9 @@ export type Overlay =
   | 'input'
   | 'scan'
   | 'dev'
+  /* 🔷 §19.5 — l'attivazione guidata. Sta fra gli overlay e non in DEV: è la
+     prima cosa che si fa, e DEV è l'ultimo posto dove uno la cercherebbe. */
+  | 'activate'
   /* 🔷 v1.17 §21.2 — una pagina scritta dal .mon. Porta con sé il nome, che è
      anche il suo indirizzo: `page:canada` ↔ `#/p/canada`. È l'unico overlay
      con un argomento, e per questo è scritto così invece che come parola
@@ -238,6 +242,7 @@ export function App() {
         <StatusBar
           showDev={devEnabled && overlay !== 'dev'}
           onOpenDev={() => setOverlay('dev')}
+          onActivate={() => setOverlay('activate')}
         />
 
         {/* ⚠️ L'ordine conta: l'ingresso stava PRIMA dell'overlay, quindi con
@@ -404,7 +409,9 @@ function OverlayScreen({
     case 'scan':
       return <DailyScanScreen onClose={onClose} />;
     case 'dev':
-      return <DevPanel onClose={onClose} />;
+      return <DevPanel onClose={onClose} onGo={onGo} />;
+    case 'activate':
+      return <ActivateScreen onClose={onClose} />;
     default: {
       const slug = pageSlugOf(overlay);
       return slug ? <PageReader slug={slug} onClose={onClose} /> : null;
@@ -446,7 +453,34 @@ function TabBar({ tab, onChange }: { tab: Tab; onChange: (t: Tab) => void }) {
 
 /* --- Barra di stato -------------------------------------------------------- */
 
-function StatusBar({ showDev, onOpenDev }: { showDev: boolean; onOpenDev: () => void }) {
+/**
+ * Il pulsante che accende la voce, o niente se è già accesa.
+ *
+ * 🔒 Guarda il token e basta: è la sola condizione che l'app può controllare
+ * da sola senza chiamare nessuno. Se il token c'è ma sul server manca una
+ * chiave, il pulsante sparisce lo stesso e il problema lo racconta la
+ * schermata — perché quello è uno stato in cui hai già fatto la procedura, e
+ * riproportela a ogni apertura sarebbe darti dell'incapace.
+ */
+function ActivateChip({ onClick }: { onClick: () => void }) {
+  const token = useApp((s) => s.token);
+  if (token) return null;
+  return (
+    <button type="button" className="activatechip" onClick={onClick}>
+      ATTIVA VINZ.MON
+    </button>
+  );
+}
+
+function StatusBar({
+  showDev,
+  onOpenDev,
+  onActivate,
+}: {
+  showDev: boolean;
+  onOpenDev: () => void;
+  onActivate: () => void;
+}) {
   const day = useApp((s) => s.day);
   const sync = useApp((s) => s.progression.sync.lifetime);
   const inForm = useApp((s) => s.progression.sync.inForm);
@@ -481,6 +515,13 @@ function StatusBar({ showDev, onOpenDev }: { showDev: boolean; onOpenDev: () => 
         <span className="proto-statusbar__count">
           {have}/{target}
         </span>
+        {/* 🔷 §19.5 — ATTIVA sta qui e sparisce quando è fatto. È l'unico
+            pulsante dell'app che si toglie di mezzo da solo: finché la voce è
+            spenta è la cosa più importante dello schermo, dopo non è più
+            niente. Metterlo in DEV — dove sono finite tutte le altre cose di
+            impianto — avrebbe voluto dire nasconderlo proprio a chi apre
+            l'app per la prima volta. */}
+        <ActivateChip onClick={onActivate} />
         {/* Il trigger DEV sta qui e non fluttuante sopra la schermata:
             in overlay senza tab bar copriva il contenuto. */}
         {showDev && (

@@ -3881,3 +3881,137 @@
 .facegate__star--on {
   color: var(--char-primary);
 }
+
+/* ============================================================================
+   ATTIVA VINZ.MON (§19.5)
+   ========================================================================= */
+
+/* 🔒 Il chip è l'unica cosa colorata della barra di stato, e deve esserlo:
+   finché è lì, è la cosa da fare. Sparisce da solo quando il token c'è. */
+.activatechip {
+  background: var(--char-accent, var(--ink));
+  color: var(--white);
+  border: 0;
+  font: inherit;
+  font-size: var(--type-micro);
+  letter-spacing: 0.08em;
+  padding: 2px 6px;
+  cursor: pointer;
+}
+
+.activate__body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.activate__intro,
+.activate__detail {
+  color: var(--muted-strong);
+}
+
+.activate__detail {
+  margin-bottom: 8px;
+}
+
+.activate__row {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.activate__copy {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+/* Il segreto va letto carattere per carattere per ricopiarlo a mano quando la
+   clipboard non c'è: monospaziato, e libero di andare a capo invece di essere
+   troncato con dei puntini. */
+.activate__value {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-mono, monospace);
+  font-size: var(--type-micro);
+  word-break: break-all;
+  background: var(--surface);
+  padding: 6px 8px;
+}
+
+.activate__vars {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.activate__var {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 8px;
+}
+
+.activate__varname {
+  font-family: var(--font-mono, monospace);
+}
+
+.activate__varwhat,
+.activate__note {
+  grid-column: 1 / -1;
+  color: var(--muted-strong);
+}
+
+.activate__note {
+  margin-top: 10px;
+}
+
+/* 🔒 `--muted-strong` e non `--muted`: sotto 4.5:1 un messaggio d'errore è
+   la cosa peggiore da rendere illeggibile. */
+.activate__bad {
+  color: var(--muted-strong);
+  margin-top: 8px;
+}
+
+.activate__voices {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.activate__voice {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  padding: 8px 10px;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.activate__voice[aria-current='true'] {
+  border-color: var(--ink);
+}
+
+.activate__voice:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.activate__said {
+  margin-top: 10px;
+  padding: 8px 10px;
+  background: var(--surface);
+}

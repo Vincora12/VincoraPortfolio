@@ -312,6 +312,12 @@
 
 /* --- SYSTEM LABEL ---------------------------------------------------------- */
 
+/* ⚠️ `color` ESPLICITO, e non è ridondante: senza, l'etichetta eredita il
+   colore del contenitore, e dentro `.window__head` — che è invertito, testo
+   bianco su fondo inchiostro — ereditava BIANCO su fondo bianco. Sparita.
+   È lo stesso difetto del `--paper` usato come colore di testo in
+   MIND.SOCIAL: un componente che si affida all'eredità funziona finché non
+   lo metti nell'unico posto invertito dell'app. */
 .syslabel {
   display: inline-flex;
   align-items: center;
@@ -319,6 +325,7 @@
   padding: 2px var(--u2);
   border: 1px solid var(--ink);
   background: var(--white);
+  color: var(--ink);
   font-family: var(--font-mono);
   font-size: var(--type-micro);
   letter-spacing: 0.12em;

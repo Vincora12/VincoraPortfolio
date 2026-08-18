@@ -31,7 +31,7 @@ const out = join(cwd, 'node_modules', '.vinz-backend-check.mjs');
 writeFileSync(
   entry,
   `
-export { ROUTING, PERSONAL, routingProblems, personalDataOnFreeTier } from '${cwd}/netlify/functions/_shared/routing.ts';
+export { ROUTING, PERSONAL, VOICE_CHOICES, routingProblems, personalDataOnFreeTier, voiceChoiceProblems, resolveRoute } from '${cwd}/netlify/functions/_shared/routing.ts';
 export { costOf, currentMonth, MONTHLY_CAP_USD, WARN_AT, COST_PER_WEB_SEARCH } from '${cwd}/netlify/functions/_shared/spend.ts';
 `,
 );
@@ -87,6 +87,55 @@ check(
 check(
   m.PERSONAL.includes('character-voice') && m.PERSONAL.includes('text-cheap'),
   'la voce e la riflessione sono marcate come dati personali',
+);
+
+/* --- §19.2 — CAMBIARE CHI DA' LA VOCE --------------------------------------
+   «Vorrei poter cambiare fornitore senza perdere quello che e' l'AI.»
+   -------------------------------------------------------------------------- */
+
+console.log('\n═══ §19.2 — CHI DA LA VOCE ═══\n');
+
+for (const c of m.VOICE_CHOICES) {
+  console.log(`  ${c.label.padEnd(16)} $${c.price.input}/$${c.price.output} · web ${c.webSearch ? 'si' : 'no'}`);
+}
+console.log('');
+
+const voiceProblems = m.voiceChoiceProblems();
+check(
+  voiceProblems.length === 0,
+  'ogni scelta di voce e servibile da chi la serve, e dice dove finiscono i dati',
+  voiceProblems.join('; '),
+);
+
+check(
+  m.VOICE_CHOICES.length >= 2,
+  'le scelte sono almeno due, o non e una scelta',
+  `${m.VOICE_CHOICES.length} scelte`,
+);
+
+/* 🔒 Il filtro sulla preferenza dal browser. Un modello inventato NON deve
+   arrivare al fornitore: il tetto di spesa non saprebbe prezzarlo, e un
+   contatore che non sa cosa conta e' peggio di nessun contatore. */
+const base = m.ROUTING['character-voice'];
+check(
+  m.resolveRoute('character-voice', 'gpt-4-turbo-scontato').model === base.model,
+  'un modello che non conosciamo non viene chiamato: si torna al predefinito',
+);
+check(
+  m.resolveRoute('character-voice', null).model === base.model,
+  'senza preferenza si usa la tabella',
+);
+const kimi = m.VOICE_CHOICES.find((c) => c.model === 'kimi-k3');
+check(
+  !kimi || m.resolveRoute('character-voice', 'kimi-k3').provider === kimi.provider,
+  'una scelta vera invece viene rispettata',
+  kimi ? `kimi-k3 → ${m.resolveRoute('character-voice', 'kimi-k3').provider}` : '',
+);
+/* 🔒 E la preferenza vale SOLO per la voce: `text-cheap` legge mesi della tua
+   storia, e non deve poter essere spostata da una scelta fatta per la chat. */
+check(
+  m.resolveRoute('text-cheap', 'kimi-k3').model === m.ROUTING['text-cheap'].model,
+  'la scelta della voce non sposta la riflessione settimanale',
 );
 
 /* --- Costi ------------------------------------------------------------------ */
