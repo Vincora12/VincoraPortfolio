@@ -1385,7 +1385,7 @@ check(
 check(
   '§15.2 MEMORIA',
   'la creatura non presenta se stessa come una cosa che sa di lui',
-  lacks('src/engine/memoryContext.ts', 'THINGS YOU KNOW ABOUT HIM'),
+  lacksInCode('src/engine/memoryContext.ts', 'THINGS YOU KNOW ABOUT HIM'),
   '`rememberedDetails` sono la sua sagoma e il suo motivo ricorrente: darglieli come fatti su Vincenzo è il tipo di errore che non rompe niente e fa parlare a vanvera',
 );
 
