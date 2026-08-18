@@ -10,7 +10,7 @@
    ========================================================================= */
 
 import { useState } from 'react';
-import { useActiveMon } from '../state/store';
+import { useActiveMon, useApp } from '../state/store';
 import { Button, Row, SystemLabel } from '../system/components';
 import { ASSET_TYPES } from '../engine/assets';
 import type { AssetType } from '../engine/types';
@@ -20,14 +20,28 @@ import { downloadPackage } from '../assets-pipeline/exportPackage';
 
 export function PromptPreview() {
   const mon = useActiveMon();
+  const token = useApp((s) => s.token);
+  const compileAssetPrompt = useApp((s) => s.compileAssetPrompt);
   const [assetType, setAssetType] = useState<AssetType>('character_master');
   const [showProvenance, setShowProvenance] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [writing, setWriting] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
+  /* Quale dei due testi si sta guardando. Parte dal riscritto quando esiste:
+     è quello che poi finisce nell'Asset Request, quindi è quello di cui
+     conta sapere com'è fatto. */
+  const [showRaw, setShowRaw] = useState(false);
 
   if (!mon) return null;
 
   const compiled = compilePrompt(mon, assetType);
   const broken = validateFragmentIds(compiled.fragmentIds);
+
+  /* §10 — la riscrittura dell'AI, se per QUESTO tipo di asset è già stata
+     fatta. Si scrive una volta sola per creatura: un prompt che cambia a
+     ogni tocco produrrebbe sei immagini di sei creature diverse. */
+  const written = mon.compiledPrompts?.[assetType] ?? null;
+  const shown = written && !showRaw ? written : compiled.text;
 
   return (
     <div className="dev__section">
@@ -74,11 +88,54 @@ export function PromptPreview() {
         {/* 🔶 Era una copia locale della stessa logica che sta in
             `system/CopyButton`. Due punti dove sbagliare la stessa cosa —
             e uno dei due diceva «COPIATO» anche quando la copia falliva. */}
-        <CopyButton text={compiled.text} label="COPIA IL PROMPT" />
+        <CopyButton text={shown} label="COPIA IL PROMPT" />
         <Button small onClick={() => setShowProvenance((v) => !v)}>
           {showProvenance ? 'NASCONDI' : 'PROVENIENZA'}
         </Button>
+        {/* 🔷 «Guidami ad attivare tutto per fare delle prove sensate.»
+            La prova sensata è il confronto: lo stesso .mon, il testo
+            concatenato e quello riscritto, uno accanto all'altro. Prima
+            stavano su due schermate diverse e il confronto lo dovevi tenere
+            a mente. */}
+        {written ? (
+          <Button small onClick={() => setShowRaw((v) => !v)}>
+            {showRaw ? 'VEDI IL RISCRITTO' : 'VEDI QUELLO DI PRIMA'}
+          </Button>
+        ) : (
+          <Button
+            small
+            disabled={writing || !token}
+            onClick={() => {
+              setWriting(true);
+              setProblem(null);
+              void compileAssetPrompt(mon.data.name, assetType)
+                .then((why) => setProblem(why))
+                .finally(() => setWriting(false));
+            }}
+          >
+            {writing ? 'SCRIVE…' : 'RISCRIVI CON L’AI'}
+          </Button>
+        )}
       </div>
+
+      {/* Senza token il pulsante è spento, e va detto perché: non è rotto. */}
+      {!token && !written && (
+        <p className="t-micro dev__note">
+          Per riscriverlo serve il segreto: ATTIVA VINZ.MON.
+        </p>
+      )}
+      {problem && (
+        <p className="t-small">
+          <SystemLabel tone="alert">NON RISCRITTO</SystemLabel> {problem}
+        </p>
+      )}
+      {written && (
+        <p className="t-micro dev__note">
+          {showRaw
+            ? `concatenato · ${compiled.text.length} caratteri`
+            : `riscritto dall’AI · ${written.length} caratteri (prima ${compiled.text.length})`}
+        </p>
+      )}
 
       {showProvenance && (
         <div className="rowlist">
@@ -99,7 +156,7 @@ export function PromptPreview() {
         </div>
       )}
 
-      <pre className="dev__json dev__prompt">{compiled.text}</pre>
+      <pre className="dev__json dev__prompt">{shown}</pre>
 
       <Button
         block

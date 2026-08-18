@@ -229,6 +229,9 @@ Il salvataggio è passato dalla stessa strada: lo stato vive anche su
 **`/api/state`**, quindi cancellare i dati di Safari non fa più perdere il
 `.mon`. E **`/api/ingest`** è la porta per le Shortcut di iPhone.
 
+> 📄 **[docs/ATTIVAZIONE.md](docs/ATTIVAZIONE.md)** — la sequenza completa per
+> accendere tutto, in ordine, e le prove da fare una volta acceso. Parti da qui.
+>
 > 📄 **[docs/BACKEND.md](docs/BACKEND.md)** — le quattro variabili da mettere
 > su Netlify, come generare il token, e la Shortcut che manda i dati del
 > giorno. Quindici minuti, una volta sola.
@@ -297,6 +300,7 @@ src/
   i18n/it.ts         Stringhe
 
 docs/
+  ATTIVAZIONE.md     Accendere tutto, e cosa provare dopo
   SPEC_MAP.md        Dove vive ogni regola dei due documenti
   OPEN_ITEMS.md      Cosa NON è stato congelato, e perché
 ```
