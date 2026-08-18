@@ -1276,6 +1276,36 @@ check(
   'il listino non era raggiungibile: un contatore che sottostima è peggio di uno che non c’è',
 );
 
+/* 🔷 «Ora è tutto collegato ma genero e non vedo nulla.» */
+check(
+  '§29 DEV',
+  'senza creatura i pannelli lo DICONO, non spariscono',
+  lacksInCode('src/dev/ForgePanel.tsx', 'if (!mon) return null;') &&
+    lacksInCode('src/dev/BioSection.tsx', 'if (!mon) return null;') &&
+    lacksInCode('src/dev/PromptPreview.tsx', 'if (!mon) return null;') &&
+    lacksInCode('src/dev/AssetImport.tsx', 'if (!mon) return null;'),
+  'sparire non è un messaggio: la schermata c’era un secondo prima',
+);
+check(
+  '§29 DEV',
+  'e dicono che il batch NON fa nascere niente',
+  has('src/dev/NoMon.tsx', 'non fa nascere niente') &&
+    has('src/dev/ForgePanel.tsx', '<strong>non</strong> fa nascere'),
+  'è il motivo più probabile per cui uno preme «genera» e non vede nulla',
+);
+check(
+  '§29 DEV',
+  'e offrono la strada, non solo la diagnosi',
+  has('src/dev/ForgePanel.tsx', 'PORTAMI ALLA NASCITA'),
+  'la strada passa da un’altra scheda e da un pulsante nel prodotto: se la so, la offro',
+);
+check(
+  '§29 DEV',
+  'saltare l’attesa non salta la nascita',
+  has('src/dev/ForgePanel.tsx', 'Salta l’attesa, non la nascita'),
+  'la schiusa resta un momento del prodotto, non un pulsante di DEV',
+);
+
 /* 🔷 «Adesso mi aspetto che tutto vada con un solo click.» */
 check(
   '§22.4 FAI TUTTO',

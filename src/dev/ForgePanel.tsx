@@ -25,9 +25,10 @@ import { useActiveMon, useApp } from '../state/store';
 import { Button, SystemLabel } from '../system/components';
 import { AssetSlot } from '../system/AssetSlot';
 import { assetTypeDef } from '../engine/assets';
+import { PROGRESSION } from '../engine/progression';
 import type { AssetType } from '../engine/types';
 
-export function ForgePanel() {
+export function ForgePanel({ onClose }: { onClose?: () => void }) {
   const mon = useActiveMon();
   const token = useApp((s) => s.token);
   const forgeOne = useApp((s) => s.forgeOne);
@@ -47,7 +48,7 @@ export function ForgePanel() {
     void forgeOrder().then(setOrder);
   }, [forgeOrder]);
 
-  if (!mon) return null;
+  if (!mon) return <NoMonYet onClose={onClose} />;
 
   const current = at >= 0 && at < order.length ? order[at]! : null;
   const finished = at >= order.length && order.length > 0;
@@ -207,6 +208,65 @@ export function ForgePanel() {
           </Button>
         </>
       )}
+    </div>
+  );
+}
+
+/* ============================================================================
+   QUANDO NON C'È ANCORA NESSUNA CREATURA
+
+   🔷 «Ora è tutto collegato ma genero e non vedo nulla.»
+
+   ⚠️ Questo pannello faceva `return null`. Sparire non è un messaggio: chi
+   arriva qui dopo aver premuto GENERATE nel batch ha appena «generato» — solo
+   che il batch produce statistiche, non una creatura — e si trova davanti a
+   una schermata che non dice niente. Quattro pannelli facevano lo stesso.
+
+   🔒 E non basta spiegarlo: la strada per arrivare a una creatura passa da
+   un'altra scheda e da un pulsante nel prodotto. Se la so, la offro.
+   ========================================================================= */
+
+function NoMonYet({ onClose }: { onClose?: () => void }) {
+  const lifetime = useApp((s) => s.progression.sync.lifetime);
+  const grantSync = useApp((s) => s.grantSync);
+  const need = PROGRESSION.incubationSyncDays;
+  const missing = Math.max(0, need - lifetime);
+
+  return (
+    <div className="dev__section">
+      <p className="t-meta dev__label">FORGIA</p>
+      <p className="t-small dev__note">
+        Non c’è ancora nessuna creatura su cui lavorare.{' '}
+        {missing > 0 ? (
+          <>
+            L’incubazione chiede <strong>{need}</strong> giorni sincronizzati e
+            sei a <strong>{lifetime}</strong>.
+          </>
+        ) : (
+          <>L’incubazione è completa: manca solo di farla schiudere.</>
+        )}
+      </p>
+      <p className="t-micro dev__note">
+        ⚠️ GENERATE 10 / 50 / 200 qui sotto <strong>non</strong> fa nascere
+        niente: produce solo le statistiche per controllare le distribuzioni.
+        È il motivo più probabile per cui hai premuto «genera» e non hai visto
+        nulla.
+      </p>
+      <Button
+        block
+        variant="primary"
+        small
+        onClick={() => {
+          if (missing > 0) grantSync(missing);
+          onClose?.();
+        }}
+      >
+        {missing > 0 ? `PORTAMI ALLA NASCITA · +${missing} SYNC` : 'PORTAMI ALLA NASCITA'}
+      </Button>
+      <p className="t-micro dev__note">
+        Salta l’attesa, non la nascita: ti riporta nell’app, dove trovi il
+        pulsante per farla schiudere.
+      </p>
     </div>
   );
 }

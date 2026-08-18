@@ -12,6 +12,7 @@ import { useState } from 'react';
 import { useActiveMon, useApp } from '../state/store';
 import { Button, SystemLabel } from '../system/components';
 import { CopyButton } from '../system/CopyButton';
+import { NoMon } from './NoMon';
 import type { BioFile } from '../engine/types';
 
 export function BioSection() {
@@ -22,7 +23,7 @@ export function BioSection() {
   const [problem, setProblem] = useState<string | null>(null);
   const [showRaw, setShowRaw] = useState(false);
 
-  if (!mon) return null;
+  if (!mon) return <NoMon what="la bio" />;
 
   const written = mon.writtenBio ?? null;
   const shown: BioFile = written && !showRaw ? written : mon.bio;

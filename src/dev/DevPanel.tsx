@@ -192,7 +192,7 @@ export function DevPanel({ onClose, onGo }: { onClose: () => void; onGo?: (o: 'a
         {inGroup && tab === 'time' && <TimeSection />}
         {inGroup && tab === 'signals' && <SignalsSection />}
         {inGroup && tab === 'mindline' && <MindlineSection onClose={onClose} />}
-        {inGroup && tab === 'generate' && <GenerateSection />}
+        {inGroup && tab === 'generate' && <GenerateSection onClose={onClose} />}
         {inGroup && tab === 'bio' && <BioSection />}
         {inGroup && tab === 'voice' && <VoiceSection />}
         {inGroup && tab === 'prompt' && <PromptPreview />}
@@ -763,7 +763,7 @@ function ResetAllButton({ onReset, keptCount }: { onReset: () => void; keptCount
    GENERA — batch + ispezione di Character Data, rarità ed Heritage (§20.1/20.2)
    ========================================================================= */
 
-function GenerateSection() {
+function GenerateSection({ onClose }: { onClose: () => void }) {
   const mon = useActiveMon();
   const trace = useApp((s) => s.lastTrace);
   const [showJson, setShowJson] = useState(false);
@@ -772,7 +772,7 @@ function GenerateSection() {
     <div className="dev__section">
       {/* 🔷 «Tutto con un solo click.» Sta in cima a GENERA perché è la cosa
           che si fa SUBITO DOPO aver generato una creatura. */}
-      <ForgePanel />
+      <ForgePanel onClose={onClose} />
 
       <BatchGenerator />
 

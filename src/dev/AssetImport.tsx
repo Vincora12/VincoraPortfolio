@@ -21,6 +21,7 @@ import { buildManifest } from '../assets-pipeline/manifest';
 import { compilePrompt } from '../assets-pipeline/compiler';
 import { generationOrder } from '../assets-pipeline/generate';
 import { CopyButton } from '../system/CopyButton';
+import { NoMon } from './NoMon';
 import {
   clearAllAssets,
   importAssetFile,
@@ -78,7 +79,7 @@ export function AssetImport() {
   const [dragging, setDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  if (!mon) return null;
+  if (!mon) return <NoMon what="niente da caricare" />;
 
   const manifest = buildManifest(mon);
 

@@ -16,6 +16,7 @@ import { ASSET_TYPES } from '../engine/assets';
 import type { AssetType } from '../engine/types';
 import { compilePrompt, validateFragmentIds } from '../assets-pipeline/compiler';
 import { CopyButton } from '../system/CopyButton';
+import { NoMon } from './NoMon';
 import { downloadPackage } from '../assets-pipeline/exportPackage';
 
 export function PromptPreview() {
@@ -32,7 +33,7 @@ export function PromptPreview() {
      conta sapere com'è fatto. */
   const [showRaw, setShowRaw] = useState(false);
 
-  if (!mon) return null;
+  if (!mon) return <NoMon what="nessun prompt da compilare" />;
 
   const compiled = compilePrompt(mon, assetType);
   const broken = validateFragmentIds(compiled.fragmentIds);
