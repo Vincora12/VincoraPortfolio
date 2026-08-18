@@ -1357,6 +1357,26 @@ check(
   'due copie sono due posti dove dimenticare di marcare il master, e allora i prompt dopo perdono il riferimento in silenzio',
 );
 
+/* 🔷 «Scusa, che devo fare qui?» — con tre segreti diversi a schermo. */
+check(
+  '§19.5 ATTIVAZIONE',
+  'il passo 1 mostra il segreto che hai, non uno nuovo',
+  has('src/screens/Activate.tsx', 'const secret = token ?? proposed;'),
+  'un valore che cambia da sé sotto gli occhi di chi lo sta copiando non è una proposta, è un bersaglio mobile',
+);
+check(
+  '§19.5 ATTIVAZIONE',
+  'il segreto proposto è già nel campo del passo 3',
+  has('src/screens/Activate.tsx', 'setDraft(proposed);'),
+  'copiarlo da una finestra per incollarlo in quella sotto era un passaggio a mano che esisteva solo per farlo sbagliare',
+);
+check(
+  '§19.5 ATTIVAZIONE',
+  'dice che su Netlify ci deve essere ESATTAMENTE lo stesso',
+  has('src/screens/Activate.tsx', 'esattamente lo stesso'),
+  '«non coincidono» non dice quale dei valori a schermo dovrebbe coincidere',
+);
+
 check(
   '§19.5 ATTIVAZIONE',
   'ATTIVO vuol dire «qualcuno può rispondere», non «ci sono tutte le chiavi»',

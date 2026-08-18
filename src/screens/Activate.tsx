@@ -60,7 +60,25 @@ export function ActivateScreen({ onClose }: { onClose: () => void }) {
   /* Il segreto proposto si genera UNA volta e resta: rigenerarlo a ogni
      ridisegno vorrebbe dire che quello appena copiato su Netlify non è più
      quello a schermo, e non c'è modo di accorgersene. */
-  const [secret] = useState(freshSecret);
+  /* 🔶 Era `useState(freshSecret)` secco: un segreto NUOVO a ogni apertura,
+     anche quando in questo browser ce n'era già uno salvato. Il risultato era
+     una schermata che mostrava tre valori diversi — il proposto, quello nel
+     campo, quello su Netlify — e diceva «non coincidono» senza far capire
+     QUALE dei tre dovesse coincidere.
+
+     🔒 Adesso: se un segreto c'è già, si mostra QUELLO. Uno nuovo si genera
+     solo se lo chiedi. Un valore che cambia da sé sotto gli occhi di chi lo
+     sta copiando non è una proposta, è un bersaglio mobile. */
+  /* Senza token si propone subito: chi arriva qui la prima volta non deve
+     premere un pulsante per vedere la cosa che la schermata esiste per dargli. */
+  const [proposed, setProposed] = useState<string>(freshSecret);
+  const secret = token ?? proposed;
+  /* Il segreto proposto finisce SUBITO nel campo del passo 3: copiarlo da una
+     finestra per incollarlo in quella sotto era un passaggio a mano che
+     esisteva solo per farlo sbagliare. */
+  useEffect(() => {
+    setDraft(proposed);
+  }, [proposed]);
   const [draft, setDraft] = useState(token ?? '');
   const [setup, setSetup] = useState<SetupState | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
@@ -124,11 +142,32 @@ export function ActivateScreen({ onClose }: { onClose: () => void }) {
           done={setup?.serverToken === true}
           detail="Le funzioni stanno su un indirizzo pubblico. Questo è quello che le fa aprire solo a te."
         >
-          <p className="t-small">
-            Copia questo e mettilo su Netlify come variabile d'ambiente
-            chiamata <code>VINZMON_TOKEN</code>.
-          </p>
-          <Copyable value={secret} />
+          {token ? (
+            <>
+              <p className="t-small">
+                Questo è il segreto di questo browser. Su Netlify, nella
+                variabile <code>VINZMON_TOKEN</code>, deve esserci{' '}
+                <strong>esattamente lo stesso</strong>.
+              </p>
+              <Copyable value={secret} />
+              <p className="t-micro activate__note">
+                Su Netlify non si può rileggere, quindi se non sai cosa c'è
+                scritto là, la strada pulita è sostituirlo con questo.
+              </p>
+              <Button small onClick={() => setProposed(freshSecret())}>
+                GENERANE UNO NUOVO
+              </Button>
+            </>
+          ) : (
+            <>
+              <p className="t-small">
+                Copia questo e mettilo su Netlify come variabile d'ambiente
+                chiamata <code>VINZMON_TOKEN</code>. Poi incollalo anche al
+                passo 3: devono essere identici.
+              </p>
+              <Copyable value={secret} />
+            </>
+          )}
           {setup?.serverToken === false && (
             <p className="t-micro activate__bad">{setup.reason}</p>
           )}
