@@ -145,7 +145,7 @@ export async function writeBioWithAi(
   /** Chi la scrive, se hai scelto. Il server accetta solo modelli che conosce. */
   compilerModel?: string | null,
 ): Promise<BioOutcome> {
-  const { data, failure } = await ask<{ text: string }>(token, {
+  const { data, failure, detail } = await ask<{ text: string }>(token, {
     capability: 'prompt-compile',
     voiceModel: compilerModel,
     system: [{ text: BIO_RULES, cache: true }],
@@ -154,7 +154,7 @@ export async function writeBioWithAi(
     maxTokens: 2000,
   });
 
-  if (!data?.text) return { bio: null, failure, rejected: null };
+  if (!data?.text) return { bio: null, failure, rejected: detail ?? null };
 
   const parsed = parseBio(data.text);
   if (!parsed) return { bio: null, failure: null, rejected: 'risposta non leggibile come JSON' };

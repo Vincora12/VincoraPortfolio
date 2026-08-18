@@ -1380,6 +1380,29 @@ check(
   'quella chiamata generava dal prompt CONCATENATO: il ritratto sarebbe stato l’unico dei sei mai approvato, e per giunta senza riferimento di consistenza',
 );
 
+/* 🔷 «NON RISCRITTO — chiamata fallita (error)»: il compilatore non ha mai
+   funzionato nemmeno una volta, respinto da un tetto mio. */
+check(
+  '§10 COMPILATORE',
+  'il compilatore ha un tetto suo anche sul messaggio, non solo sul sistema',
+  has('netlify/functions/ai.ts', 'compilerUserChars') &&
+    has('netlify/functions/ai.ts', "capability === 'prompt-compile' ? LIMITS.compilerUserChars"),
+  'manda il prompt deterministico come messaggio utente: 16636 caratteri contro un tetto di 12000, respinto con 413 prima di partire',
+);
+check(
+  '§10 COMPILATORE',
+  'e un tetto sforato dice di quanto',
+  has('netlify/functions/ai.ts', 'caratteri contro un tetto di'),
+  '«messaggio troppo lungo» senza numeri fa sembrare un limite mio un guasto di rete',
+);
+check(
+  '§10 COMPILATORE',
+  'anche il testo dice perché è fallito, non solo le immagini',
+  has('netlify/functions/ai.ts', "{ error: 'risposta non disponibile', reason:") &&
+    has('src/ai/promptCompiler.ts', 'rejected: detail ?? null'),
+  'l’avevo sistemato per le immagini e lasciato muto per il testo: il compilatore è finito esattamente in quel buco',
+);
+
 /* 🔷 «Ma i prompt sono riscritti dall'AI? Se no non sono quelli giusti.» */
 check(
   '§10 COMPILATORE',

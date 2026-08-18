@@ -146,7 +146,7 @@ export async function compileWithAi(
 ): Promise<CompileOutcome> {
   const deterministic = compilePrompt(record, assetType).text;
 
-  const { data, failure } = await ask<{ text: string }>(token, {
+  const { data, failure, detail } = await ask<{ text: string }>(token, {
     capability: 'prompt-compile',
     voiceModel: compilerModel,
     system: [{ text: COMPILER_RULES, cache: true }],
@@ -160,7 +160,9 @@ export async function compileWithAi(
     maxTokens: 8000,
   });
 
-  if (!data?.text) return { text: null, failure, rejected: null };
+  /* Il motivo del server, quando ce n'è uno: «16636 caratteri contro un tetto
+     di 12000» si risolve, «error» no. */
+  if (!data?.text) return { text: null, failure, rejected: detail ?? null };
 
   const written = data.text.trim();
   const missing = survivingConstraints(record).filter(

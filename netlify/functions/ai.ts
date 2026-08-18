@@ -41,6 +41,20 @@ const LIMITS = {
      proprio il capitolo che stava applicando. */
   systemChars: 40_000,
   userChars: 12_000,
+  /**
+   * ⚠️ IL COMPILATORE MANDA IL PROMPT DETERMINISTICO COME MESSAGGIO UTENTE.
+   *
+   * Sedicimila e passa caratteri contro un tetto di dodicimila: OGNI chiamata
+   * del compilatore veniva respinta con 413 prima ancora di partire, e nel
+   * browser diventava «chiamata fallita (error)». Il compilatore non ha mai
+   * funzionato nemmeno una volta.
+   *
+   * Il commento qui sopra dice «il compilatore manda le regole come SISTEMA»,
+   * e per quelle avevo alzato il tetto a 40k. Ma i fatti della creatura
+   * viaggiano nell'altro campo, e quello era rimasto a 12k — un limite scritto
+   * per i messaggi di chat, applicato a una cosa che chat non è.
+   */
+  compilerUserChars: 40_000,
   turns: 24,
   imageBytes: 5 * 1024 * 1024,
   maxTokens: 4000,
@@ -165,7 +179,19 @@ export default async function handler(request: Request): Promise<Response> {
 
   const systemChars = system.reduce((n, b) => n + (b.text?.length ?? 0), 0);
   if (systemChars > LIMITS.systemChars) return json({ error: 'system troppo lungo' }, 413);
-  if (user.length > LIMITS.userChars) return json({ error: 'messaggio troppo lungo' }, 413);
+  /* 🔒 Il tetto dice DI QUANTO si è sforato. «Messaggio troppo lungo» senza
+     numeri è quello che ha fatto sembrare un guasto di rete un limite mio. */
+  const userCap =
+    capability === 'prompt-compile' ? LIMITS.compilerUserChars : LIMITS.userChars;
+  if (user.length > userCap) {
+    return json(
+      {
+        error: 'messaggio troppo lungo',
+        reason: `${user.length} caratteri contro un tetto di ${userCap}`,
+      },
+      413,
+    );
+  }
   if (user.trim().length === 0 && userBlocks.length === 0) {
     return json({ error: 'messaggio vuoto' }, 400);
   }
@@ -221,7 +247,13 @@ export default async function handler(request: Request): Promise<Response> {
 
   if (!result.ok) {
     console.warn('[ai] risposta non utilizzabile:', result.error);
-    return json({ error: 'risposta non disponibile' }, 502);
+    /* 🔶 Come per le immagini: il motivo torna indietro. L'avevo sistemato di
+       là e lasciato muto di qua, e il compilatore è finito esattamente in
+       quel buco — «chiamata fallita (error)» per tre giri. */
+    return json(
+      { error: 'risposta non disponibile', reason: (result.error ?? '').slice(0, 300) },
+      502,
+    );
   }
 
   return json({

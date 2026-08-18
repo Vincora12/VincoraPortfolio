@@ -13,7 +13,7 @@
    ========================================================================= */
 
 import { build } from 'esbuild';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -138,6 +138,22 @@ check(
   prompts.every((p) => p.content.length > 3000),
   'prompt completi, non brief (§30)',
   `il più corto è ${Math.min(...prompts.map((p) => p.content.length))} caratteri`,
+);
+
+/* 🔒 I DUE NUMERI CHE DEVONO PARLARSI.
+   Il compilatore manda il prompt deterministico come messaggio utente, e il
+   backend ha un tetto sui caratteri di quel campo. Erano 16636 contro 12000:
+   ogni chiamata respinta con 413 prima di partire, e nell'app diventava
+   «chiamata fallita (error)». Nessuno dei due numeri era sbagliato da solo —
+   sbagliato era che nessuno li confrontasse. Adesso li confronta questo. */
+const aiSrc = readFileSync(new URL('../netlify/functions/ai.ts', import.meta.url), 'utf8');
+const capMatch = aiSrc.match(/compilerUserChars:\s*([\d_]+)/);
+const cap = capMatch ? Number(capMatch[1].replace(/_/g, '')) : 0;
+const longest = Math.max(...prompts.map((p) => p.content.length));
+check(
+  cap > 0 && longest < cap,
+  'il prompt più lungo sta sotto il tetto del backend',
+  `${longest} caratteri contro un tetto di ${cap}`,
 );
 
 /* §30 — «The exact same Character Data must compile consistently across
