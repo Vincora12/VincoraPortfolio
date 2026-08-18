@@ -3986,12 +3986,16 @@
   gap: 6px;
 }
 
+/* 🔶 Era `display: flex` con `space-between`: due elementi, nome a sinistra e
+   stato a destra. Da quando la riga porta anche il prezzo e il perché, il flex
+   li avrebbe schiacciati sulla stessa linea in quattro colonne strette. Ora la
+   prima riga è nome + stato, e sotto stanno le due righe che si leggono. */
 .activate__voice {
   width: 100%;
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  gap: 4px 8px;
   background: var(--surface);
   border: 1px solid var(--hairline);
   padding: 8px 10px;
@@ -3999,6 +4003,19 @@
   color: inherit;
   cursor: pointer;
   text-align: left;
+}
+
+/* 🔒 `--muted-strong` e non `--muted`: è il prezzo, cioè la ragione per cui
+   questa riga esiste. Deve reggere il 4.5:1, non essere un sussurro. */
+.activate__price {
+  grid-column: 1 / -1;
+  color: var(--muted-strong);
+}
+
+.activate__why {
+  grid-column: 1 / -1;
+  color: var(--muted-strong);
+  line-height: 1.4;
 }
 
 .activate__voice[aria-current='true'] {

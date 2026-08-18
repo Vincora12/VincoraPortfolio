@@ -232,10 +232,19 @@ export const VOICE_CHOICES: VoiceChoice[] = [
      OpenAI ha entrambe. */
   {
     provider: 'openai',
+    model: 'gpt-5.6-luna',
+    label: 'GPT-5.6 Luna',
+    price: { input: 0.2, output: 1.2 },
+    it: 'Venticinque volte meno di Sol. A questo prezzo si prova senza pensarci — ma è il livello piccolo: se le risposte ti sembrano piatte, è questo il motivo, non il personaggio.',
+    webSearch: false,
+    data: 'OpenAI dichiara di non usare i dati delle API per addestrare i modelli senza adesione esplicita.',
+  },
+  {
+    provider: 'openai',
     model: 'gpt-5.6-terra',
     label: 'GPT-5.6 Terra',
     price: { input: 2, output: 12 },
-    it: 'La più economica delle quattro, e usa la stessa chiave delle immagini: con questa si parte con un fornitore solo. Qui dentro non cerca ancora sul web.',
+    it: 'Il livello di mezzo, e usa la stessa chiave delle immagini: con questa si parte con un fornitore solo. Qui dentro non cerca ancora sul web.',
     /* ⚠️ `false` perché `CAN.openai.webSearch` è `false` — e quel `false`
        descrive NOI, non OpenAI.
 
@@ -248,6 +257,15 @@ export const VOICE_CHOICES: VoiceChoice[] = [
 
        Finché non c'è, questo campo resta `false`: promettere la ricerca in
        una schermata che serve a decidere sarebbe peggio che non averla. */
+    webSearch: false,
+    data: 'OpenAI dichiara di non usare i dati delle API per addestrare i modelli senza adesione esplicita.',
+  },
+  {
+    provider: 'openai',
+    model: 'gpt-5.6-sol',
+    label: 'GPT-5.6 Sol',
+    price: { input: 5, output: 30 },
+    it: 'Il livello grosso di OpenAI. Costa come Opus 5 in ingresso e un po’ di più in uscita: è il confronto diretto da fare se vuoi sapere quale delle due aziende ti scrive meglio il personaggio.',
     webSearch: false,
     data: 'OpenAI dichiara di non usare i dati delle API per addestrare i modelli senza adesione esplicita.',
   },
@@ -423,10 +441,29 @@ export interface CompilerChoice {
 export const COMPILER_CHOICES: CompilerChoice[] = [
   {
     provider: 'openai',
+    model: 'gpt-5.6-luna',
+    label: 'GPT-5.6 Luna',
+    price: { input: 0.2, output: 1.2 },
+    /* ⚠️ Detto prima invece che scoperto dopo: qui il lavoro NON è piccolo.
+       §10 chiede di risolvere i conflitti fra livelli — umanoidità contro nomi
+       delle masse, densità contro numero di sistemi — che è esattamente la
+       cosa su cui un modello piccolo cede. A dieci volte meno vale provarlo,
+       ma se i prompt tornano generici sai già dove guardare. */
+    it: 'Dieci volte meno di Terra. Il lavoro però qui non è piccolo: deve sciogliere le contraddizioni fra i livelli, ed è la cosa su cui un modello piccolo cede per primo. Provalo, ma guarda i prompt che escono.',
+  },
+  {
+    provider: 'openai',
     model: 'gpt-5.6-terra',
     label: 'GPT-5.6 Terra',
     price: { input: 2, output: 12 },
-    it: 'Quello che hai chiesto tu, ed è anche il più economico dei due. Usa la chiave OPENAI_API_KEY che serve già per le immagini: nessuna variabile in più.',
+    it: 'Quello che hai chiesto tu, ed è il predefinito. Usa la chiave OPENAI_API_KEY che serve già per le immagini: nessuna variabile in più.',
+  },
+  {
+    provider: 'openai',
+    model: 'gpt-5.6-sol',
+    label: 'GPT-5.6 Sol',
+    price: { input: 5, output: 30 },
+    it: 'Il livello grosso. Un prompt riscritto è quasi tutta uscita — otto o novemila token — quindi qui il prezzo in uscita pesa più che altrove: circa 25 centesimi a prompt contro i 10 di Terra.',
   },
   {
     provider: 'anthropic',

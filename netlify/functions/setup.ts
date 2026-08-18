@@ -92,19 +92,29 @@ export default async function handler(request: Request): Promise<Response> {
 
   const cap = await checkCap();
 
+  /* 🔷 «Metti anche il prezzo vicino, così mi ricordo quanto si spende per
+     ognuno.» I prezzi erano già nei cataloghi e non uscivano di qui: la
+     schermata mostrava sei nomi e nessun numero, cioè chiedeva di scegliere
+     alla cieca proprio sulla cosa che si paga. */
   const voices = VOICE_CHOICES.map((c) => ({
     model: c.model,
     label: c.label,
+    price: c.price,
+    it: c.it,
     ready: Boolean(process.env[keyFor(c.provider)]),
   }));
   const compilers = COMPILER_CHOICES.map((c) => ({
     model: c.model,
     label: c.label,
+    price: c.price,
+    it: c.it,
     ready: Boolean(process.env[keyFor(c.provider)]),
   }));
   const images = IMAGE_CHOICES.map((c) => ({
     model: c.model,
     label: c.label,
+    perImage: c.perImage,
+    it: c.it,
     ready: Boolean(process.env[keyFor(c.provider)]),
   }));
 

@@ -375,6 +375,72 @@ function Copyable({ value }: { value: string }) {
    dire far decidere una cosa in base all'altra.
    -------------------------------------------------------------------------- */
 
+/* --- Una riga di scelta, con il prezzo -------------------------------------
+   🔷 «Metti anche il prezzo vicino, così mi ricordo quanto si spende per
+   ognuno.»
+
+   ⚠️ I prezzi stavano nei cataloghi del server e non uscivano mai di lì: la
+   schermata mostrava sei nomi e nessun numero, cioè chiedeva di scegliere alla
+   cieca proprio sulla cosa che si paga.
+
+   🔒 UNA RIGA SOLA PER TUTTE E TRE LE SCELTE. Erano tre copie quasi identiche;
+   con i prezzi da aggiungere sarebbero diventate tre posti dove scrivere il
+   numero in tre modi diversi.
+
+   🔒 Il prezzo grezzo E un ancoraggio concreto, dove esiste. «$2 per milione di
+   token» non dice niente a nessuno finché non sai quanti token è una cosa: per
+   il compilatore lo sappiamo (il tetto d'uscita è 8000), per le immagini pure
+   (si pagano a pezzo). Per la voce no — dipende da quanto scrivi — e lì il
+   numero inventato sarebbe peggio del numero assente.
+   -------------------------------------------------------------------------- */
+
+function ChoiceRow({
+  label,
+  price,
+  perUse,
+  it,
+  active,
+  ready,
+  onPick,
+}: {
+  label: string;
+  /** Dollari per milione, entrata e uscita. Assente per chi si paga a pezzo. */
+  price?: { input: number; output: number };
+  /** Il costo di UN uso, già in dollari, quando ha un senso dirlo. */
+  perUse?: string;
+  it?: string;
+  active: boolean;
+  ready: boolean;
+  onPick: () => void;
+}) {
+  return (
+    <li>
+      <button
+        type="button"
+        className="activate__voice"
+        aria-current={active ? 'true' : undefined}
+        disabled={!ready}
+        onClick={onPick}
+      >
+        <span className="t-meta">{label}</span>
+        <SystemLabel tone={active ? 'character' : ready ? 'default' : 'alert'}>
+          {active ? 'IN USO' : ready ? 'DISPONIBILE' : 'SERVE LA CHIAVE'}
+        </SystemLabel>
+        <span className="t-micro activate__price">
+          {price && (
+            <>
+              ${price.input} / ${price.output} per milione di token
+              {perUse ? ' · ' : ''}
+            </>
+          )}
+          {perUse}
+        </span>
+        {it && <span className="t-micro activate__why">{it}</span>}
+      </button>
+    </li>
+  );
+}
+
 /* --- Chi disegna (§22.4) ----------------------------------------------------
    🔷 «Ma io non ho potuto scegliere che AI immagini usare, vorrei la più
    recente lato immagine.»
@@ -405,19 +471,15 @@ function ImageChoicePanel({ setup }: { setup: SetupState | null }) {
       ) : (
         <ul className="activate__voices">
           {list.map((c) => (
-            <li key={c.model}>
-              <button
-                type="button"
-                className="activate__voice"
-                aria-current={c.model === active ? 'true' : undefined}
-                disabled={!c.ready}
-                onClick={() => setImageModel(c.model)}
-              >
-                <span className="t-meta">{c.label}</span>
-                {c.model === active && <SystemLabel tone="character">IN USO</SystemLabel>}
-                {!c.ready && <SystemLabel>MANCA LA CHIAVE</SystemLabel>}
-              </button>
-            </li>
+            <ChoiceRow
+              key={c.model}
+              label={c.label}
+              perUse={`$${c.perImage.toFixed(2)} a immagine · $${(c.perImage * 6).toFixed(2)} a creatura`}
+              it={c.it}
+              active={c.model === active}
+              ready={c.ready}
+              onPick={() => setImageModel(c.model === setup?.defaultImage ? null : c.model)}
+            />
           ))}
         </ul>
       )}
@@ -446,22 +508,18 @@ function CompilerChoicePanel({ setup }: { setup: SetupState | null }) {
       ) : (
         <ul className="activate__voices">
           {list.map((c) => (
-            <li key={c.model}>
-              <button
-                type="button"
-                className="activate__voice"
-                aria-current={c.model === active ? 'true' : undefined}
-                disabled={!c.ready}
-                onClick={() =>
-                  setCompilerModel(c.model === setup?.defaultCompiler ? null : c.model)
-                }
-              >
-                <span className="t-meta">{c.label}</span>
-                <SystemLabel tone={c.ready ? 'default' : 'alert'}>
-                  {c.model === active ? 'IN USO' : c.ready ? 'DISPONIBILE' : 'SERVE LA CHIAVE'}
-                </SystemLabel>
-              </button>
-            </li>
+            <ChoiceRow
+              key={c.model}
+              label={c.label}
+              price={c.price}
+              /* Il tetto d'uscita di una riscrittura è 8000 token, e l'uscita
+                 è quasi tutto il conto: sei prompt per creatura. */
+              perUse={`≈ $${(c.price.output * 0.008).toFixed(2)} a prompt · $${(c.price.output * 0.048).toFixed(2)} a creatura`}
+              it={c.it}
+              active={c.model === active}
+              ready={c.ready}
+              onPick={() => setCompilerModel(c.model === setup?.defaultCompiler ? null : c.model)}
+            />
           ))}
         </ul>
       )}
@@ -521,20 +579,18 @@ function VoiceChoicePanel({
       ) : (
         <ul className="activate__voices">
           {voices.map((v) => (
-            <li key={v.model}>
-              <button
-                type="button"
-                className="activate__voice"
-                aria-current={v.model === active ? 'true' : undefined}
-                disabled={!v.ready}
-                onClick={() => setVoiceModel(v.model === setup?.defaultVoice ? null : v.model)}
-              >
-                <span className="t-meta">{v.label}</span>
-                <SystemLabel tone={v.ready ? 'default' : 'alert'}>
-                  {v.model === active ? 'IN USO' : v.ready ? 'DISPONIBILE' : 'SERVE LA CHIAVE'}
-                </SystemLabel>
-              </button>
-            </li>
+            <ChoiceRow
+              key={v.model}
+              label={v.label}
+              price={v.price}
+              /* Nessun `perUse` qui, di proposito: quanto costa un messaggio
+                 dipende da quanto scrivi e da quanto risponde. Un numero
+                 inventato sarebbe peggio di nessun numero. */
+              it={v.it}
+              active={v.model === active}
+              ready={v.ready}
+              onPick={() => setVoiceModel(v.model === setup?.defaultVoice ? null : v.model)}
+            />
           ))}
         </ul>
       )}

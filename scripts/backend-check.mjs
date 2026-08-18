@@ -157,6 +157,36 @@ check(
   'e un modello che non conosciamo torna al predefinito',
 );
 
+/* 🔷 «Mettimi la possibilita di cambiare tra le varie intelligenze di OpenAI,
+   quindi Sol, Luna, Terra e altri, cosi li provo e decido quale tenere.» */
+for (const tier of ['gpt-5.6-luna', 'gpt-5.6-terra', 'gpt-5.6-sol']) {
+  check(
+    m.VOICE_CHOICES.some((c) => c.model === tier) &&
+      m.COMPILER_CHOICES.some((c) => c.model === tier),
+    `${tier} si puo scegliere sia per la voce sia per i prompt`,
+  );
+}
+/* 🔒 Un prezzo mancante o a zero renderebbe cieco il tetto proprio sulla scelta
+   che serve a spendere meno. */
+check(
+  [...m.VOICE_CHOICES, ...m.COMPILER_CHOICES].every(
+    (c) => c.price.input > 0 && c.price.output > 0,
+  ),
+  'ogni scelta ha un prezzo dichiarato, e nessuno e zero',
+);
+/* 🔒 E il prezzo del catalogo deve essere quello con cui il tetto conta: due
+   listini diversi vorrebbero dire una schermata che promette una cifra e un
+   contatore che ne addebita un'altra. */
+const disallineati = [...m.VOICE_CHOICES, ...m.COMPILER_CHOICES].filter((c) => {
+  const uno = m.costOf(c.model, { outputTokens: 1e6 });
+  return Math.abs(uno - c.price.output) > 0.001;
+});
+check(
+  disallineati.length === 0,
+  'il prezzo mostrato e lo stesso con cui il tetto conta',
+  disallineati.map((c) => c.label).join(', '),
+);
+
 /* --- §22.4 — CHI DISEGNA ----------------------------------------------------
    «Ma io non ho potuto scegliere che AI immagini usare, vorrei la piu recente
    lato immagine.» Era vero: la voce e il compilatore erano due menu, il

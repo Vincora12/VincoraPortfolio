@@ -1263,6 +1263,50 @@ check(
   'ritagliata a cerchio, un segno a filo del bordo perde le punte',
 );
 
+/* 🔷 «Mettimi la possibilità di cambiare tra le varie intelligenze di OpenAI,
+   quindi Sol, Luna, Terra e altri. Metti anche il prezzo vicino, così mi
+   ricordo quanto si spende per ognuno.» */
+check(
+  '§19.2 PREZZI',
+  'i tre livelli di OpenAI ci sono tutti',
+  ['luna', 'terra', 'sol'].every((t) => count(ROUTING_FILE, new RegExp(`gpt-5\\.6-${t}`, 'g')) >= 2),
+  'uno solo dei tre non è una scelta, è un predefinito con un nome esotico',
+);
+check(
+  '§19.2 PREZZI',
+  'il prezzo arriva fino allo schermo',
+  has('netlify/functions/setup.ts', 'price: c.price,') &&
+    has('src/screens/Activate.tsx', 'per milione di token'),
+  'i prezzi stavano nei cataloghi del server e non uscivano di lì: si sceglieva alla cieca proprio sulla cosa che si paga',
+);
+check(
+  '§19.2 PREZZI',
+  'e dove ha senso dice quanto costa UN uso',
+  has('src/screens/Activate.tsx', 'a prompt · $') &&
+    has('src/screens/Activate.tsx', 'a immagine · $'),
+  '«$2 per milione di token» non dice niente finché non sai quanti token è una cosa',
+);
+check(
+  '§19.2 PREZZI',
+  'ma non se lo inventa dove non si sa',
+  has('src/screens/Activate.tsx', 'Nessun `perUse` qui, di proposito'),
+  'quanto costa un messaggio dipende da quanto scrivi: un numero inventato è peggio di nessun numero',
+);
+check(
+  '§19.2 PREZZI',
+  'le tre liste di scelte sono una riga sola di codice',
+  count('src/screens/Activate.tsx', /<ChoiceRow/g) === 3 &&
+    count('src/screens/Activate.tsx', /className="activate__voice"/g) === 1,
+  'tre copie sarebbero tre posti dove scrivere il prezzo in tre modi diversi',
+);
+check(
+  '§19.2 PREZZI',
+  'il prezzo si legge davvero',
+  has('src/screens/screens.css', '.activate__price') &&
+    has('src/screens/screens.css', '--muted-strong'),
+  'è la ragione per cui quella riga esiste: deve reggere il 4.5:1, non essere un sussurro',
+);
+
 /* 🔷 «Ma io non ho potuto scegliere che AI immagini usare, vorrei la più
    recente lato immagine.» */
 check(

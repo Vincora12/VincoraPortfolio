@@ -231,6 +231,25 @@ export interface SetupVar {
   present: boolean;
 }
 
+/** Una scelta che si paga a token: la voce e chi scrive i prompt. */
+export interface ModelChoice {
+  model: string;
+  label: string;
+  /** Dollari per milione di token. Serve a scegliere sapendo cosa costa. */
+  price: { input: number; output: number };
+  it: string;
+  ready: boolean;
+}
+
+/** Una scelta che si paga a pezzo: chi disegna. */
+export interface ImageModelChoice {
+  model: string;
+  label: string;
+  perImage: number;
+  it: string;
+  ready: boolean;
+}
+
 export interface SetupState {
   /** `false` = il segreto non è configurato sul server: è l'errore n.1. */
   serverToken: boolean;
@@ -243,11 +262,11 @@ export interface SetupState {
    */
   ready?: { voice: boolean; compile: boolean; draw: boolean };
   vars?: SetupVar[];
-  voices?: { model: string; label: string; ready: boolean }[];
+  voices?: ModelChoice[];
   defaultVoice?: string;
-  compilers?: { model: string; label: string; ready: boolean }[];
+  compilers?: ModelChoice[];
   defaultCompiler?: string;
-  images?: { model: string; label: string; ready: boolean }[];
+  images?: ImageModelChoice[];
   defaultImage?: string;
   spentUsd?: number;
   capUsd?: number;

@@ -142,8 +142,20 @@ personaggio è stato scritto e tarato), **Claude Sonnet 5** e **Kimi K3** (entra
 $3/$15). Quelle la cui chiave manca sono spente, non nascoste.
 
 **Passo 5 · CHI SCRIVE I PROMPT** — porta solo la descrizione di una creatura,
-mai te. Si sceglie sui risultati visivi. Il predefinito è **GPT-5.6 Terra**
-($2/$12 per milione), l'alternativa è Claude Sonnet 5 ($3/$15).
+mai te. Si sceglie sui risultati visivi. Qui il costo per uso si può dire,
+perché il tetto d'uscita di una riscrittura è fissato a 8000 token:
+
+| Compilatore | $/milione | a prompt | a creatura (6) |
+|---|---|---:|---:|
+| GPT-5.6 Luna | $0,20 / $1,20 | ~$0,01 | ~$0,06 |
+| GPT-5.6 Terra *(predefinito)* | $2 / $12 | ~$0,10 | ~$0,58 |
+| Claude Sonnet 5 | $3 / $15 | ~$0,12 | ~$0,72 |
+| GPT-5.6 Sol | $5 / $30 | ~$0,24 | ~$1,44 |
+
+⚠️ Su Luna guarda cosa esce prima di tenerlo: qui il lavoro non è piccolo —
+deve sciogliere le contraddizioni fra i livelli (umanoidità contro nomi delle
+masse, densità contro numero di sistemi) ed è la cosa su cui un modello piccolo
+cede per primo.
 
 **Passo 6 · CHI DISEGNA** — prende quella descrizione e ne fa un'immagine.
 **GPT Image 2** (predefinito, il più recente: ragiona prima di disegnare e regge
