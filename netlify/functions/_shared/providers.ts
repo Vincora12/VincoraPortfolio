@@ -533,21 +533,35 @@ export async function generateImage(model: string, prompt: string): Promise<Imag
   const key = process.env.OPENAI_API_KEY;
   if (!key) return { ok: false, data: '', usage: {}, error: 'OPENAI_API_KEY mancante' };
 
-  try {
-    const res = await fetch('https://api.openai.com/v1/images/generations', {
+  /* ⚠️ `background: 'transparent'` è un extra: fa comodo (il .mon si ritaglia
+     da solo sullo sfondo dell'app) ma non è indispensabile, e i parametri
+     accettati cambiano da un modello di immagini all'altro. Se il modello lo
+     rifiuta si riprova senza, invece di restituire «non ha funzionato» per una
+     comodità.
+
+     🔒 Solo se l'errore parla DI QUEL parametro: un 401, un tetto di spesa o
+     un'organizzazione non verificata non si riprovano, si riportano. Stessa
+     regola del ripiego `max_completion_tokens` → `max_tokens`. */
+  const send = (extras: Record<string, unknown>) =>
+    fetch('https://api.openai.com/v1/images/generations', {
       method: 'POST',
       headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` },
-      body: JSON.stringify({
-        model,
-        prompt,
-        size: '1024x1024',
-        background: 'transparent',
-        n: 1,
-      }),
+      body: JSON.stringify({ model, prompt, size: '1024x1024', n: 1, ...extras }),
     });
 
+  try {
+    let res = await send({ background: 'transparent' });
+
     if (!res.ok) {
-      return { ok: false, data: '', usage: {}, error: `openai ${res.status}: ${await res.text()}` };
+      const detail = await res.text();
+      if (/background|unsupported parameter|unknown parameter|invalid_request/i.test(detail)) {
+        res = await send({});
+        if (!res.ok) {
+          return { ok: false, data: '', usage: {}, error: `openai ${res.status}: ${await res.text()}` };
+        }
+      } else {
+        return { ok: false, data: '', usage: {}, error: `openai ${res.status}: ${detail}` };
+      }
     }
 
     const body = (await res.json()) as { data?: { b64_json?: string }[] };

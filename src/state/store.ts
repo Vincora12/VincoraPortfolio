@@ -1689,14 +1689,16 @@ export const useApp = create<AppState>()(
 
         /* `replace` sempre: se sei qui è perché quell'immagine la vuoi adesso,
            e se ce n'era una vecchia la stai rifacendo apposta. */
-        const { made, failure } = await generateMissingAssets(
+        const { made, failure, detail } = await generateMissingAssets(
           get().token,
           rec,
           undefined,
           { only: [type], replace: true },
           get().imageModel,
         );
-        if (failure) return `immagine: ${failure}`;
+        /* Il motivo vero se c'è, il codice se non c'è: «openai 404: model not
+           found» si risolve cambiando modello, «error» non si risolve. */
+        if (failure) return `immagine: ${detail ?? failure}`;
         markAssetsMade(set, get, monName, made);
         return null;
       },

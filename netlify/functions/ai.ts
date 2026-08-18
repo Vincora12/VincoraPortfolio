@@ -137,7 +137,21 @@ export default async function handler(request: Request): Promise<Response> {
 
     if (!result.ok) {
       console.warn('[ai] immagine non generata:', result.error);
-      return json({ error: 'immagine non generata' }, 502);
+      /* 🔶 Tornava «immagine non generata» e basta, e il motivo restava solo
+         nei log della funzione — che vuol dire: per sapere perché non funziona
+         devi aprire il pannello di Netlify e leggere i log, cosa che dal
+         telefono non fai. «Un modello che non esiste» e «l'organizzazione non
+         è verificata per le immagini» sono due problemi diversi con due
+         rimedi diversi, e distinguerli è tutto.
+
+         🔒 Non è una fuga di segreti: è la risposta del FORNITORE, che non
+         contiene la chiave — le API non rimandano indietro la chiave con cui
+         le hai chiamate. Tagliata comunque, perché un errore lungo in una
+         schermata è un errore che nessuno legge. */
+      return json(
+        { error: 'immagine non generata', reason: (result.error ?? '').slice(0, 300) },
+        502,
+      );
     }
     return json({ image: result.data, warning: cap.warning });
   }

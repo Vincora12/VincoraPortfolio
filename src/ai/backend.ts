@@ -83,6 +83,8 @@ export interface AskRequest {
 export type BackendFailure = 'no-token' | 'offline' | 'unauthorized' | 'capped' | 'error';
 
 export interface BackendResult<T> {
+  /** Il motivo vero, quando il server ne manda uno. Va in DEV e nei guasti. */
+  detail?: string;
   data: T | null;
   failure: BackendFailure | null;
   /** Sopra la soglia d'avviso del mese: si continua, ma si dice. */
@@ -175,8 +177,13 @@ async function post<T>(
     | null;
 
   if (!response.ok || payload === null) {
-    console.warn('[backend] risposta non utilizzabile', response.status);
-    return { data: null, failure: 'error' };
+    /* 🔶 Qui il motivo veniva buttato. Il server lo manda — «openai 404: model
+       not found» è una cosa, «organization must be verified» è un'altra — e
+       chi guarda l'app vedeva solo «error». Due problemi diversi, due rimedi
+       diversi, un messaggio solo. */
+    const reason = (payload as { reason?: string } | null)?.reason;
+    console.warn('[backend] risposta non utilizzabile', response.status, reason ?? '');
+    return { data: null, failure: 'error', detail: reason };
   }
 
   noteBudget(payload.warning, payload.remainingUsd);

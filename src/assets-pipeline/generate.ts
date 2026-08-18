@@ -94,7 +94,7 @@ export async function generateMissingAssets(
   opts: GenerateOptions = {},
   /** Chi disegna, se hai scelto. Il server accetta solo modelli che conosce. */
   imageModel?: string | null,
-): Promise<{ made: AssetType[]; failure: BackendFailure | null }> {
+): Promise<{ made: AssetType[]; failure: BackendFailure | null; detail?: string }> {
   const name = record.data.name;
   const wanted = generationOrder()
     .filter((t) => (opts.only ? opts.only.includes(t) : true))
@@ -115,7 +115,7 @@ export async function generateMissingAssets(
          modo, e col tetto raggiunto insistere significherebbe solo sei
          rifiuti invece di uno. */
       onProgress?.({ type, done: made.length, total: wanted.length, failure: res.failure });
-      return { made, failure: res.failure };
+      return { made, failure: res.failure, detail: res.detail };
     }
 
     const file = pngFileFor(type, res.data.image);

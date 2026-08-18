@@ -1380,6 +1380,23 @@ check(
   'quella chiamata generava dal prompt CONCATENATO: il ritratto sarebbe stato l’unico dei sei mai approvato, e per giunta senza riferimento di consistenza',
 );
 
+/* 🔷 «Le immagini non vanno, ci provo e niente.» — e il motivo restava nei log
+   del server, cioe' dove dal telefono non guardi. */
+check(
+  '§22.4 GUASTI',
+  'quando un’immagine non parte, l’app dice PERCHÉ',
+  has('netlify/functions/ai.ts', "reason: (result.error ?? '').slice(0, 300)") &&
+    has('src/ai/backend.ts', "detail: reason") &&
+    has('src/state/store.ts', 'immagine: ${detail ?? failure}'),
+  '«modello inesistente» e «organizzazione non verificata» sono due problemi con due rimedi diversi',
+);
+check(
+  '§22.4 GUASTI',
+  'un parametro rifiutato non fa fallire tutta la richiesta',
+  has('netlify/functions/_shared/providers.ts', "let res = await send({ background: 'transparent' });"),
+  'lo sfondo trasparente è una comodità: i parametri accettati cambiano da un modello di immagini all’altro, e non vale perderci una generazione',
+);
+
 /* 🔷 «Ma la memoria, come la stai gestendo? Forse manca ancora un'AI che la
    gestisce, per questo parla un po' da coglione?» */
 check(
