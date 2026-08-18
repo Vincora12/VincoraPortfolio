@@ -685,6 +685,15 @@ try {
      reso questo pannello usabile: se un giorno tornasse ad aprirsi su TEMPO
      con quindici linguette in fila, questo controllo lo direbbe. */
   await shot('dev-inizio');
+  /* 🔷 §29 — la targhetta della build. Il controllo non guarda che ci sia un
+     elemento: guarda che dentro ci sia un COMMIT VERO. Una targhetta che dice
+     «sconosciuto» e' esattamente inutile per la domanda a cui deve rispondere,
+     e sarebbe passata da un controllo di sola presenza. */
+  const targhetta = await page.textContent('.dev__build');
+  if (!/^[0-9a-f]{7} · \d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test((targhetta ?? '').trim())) {
+    errors.push(`la targhetta della build dice «${targhetta}» invece di commit e ora`);
+  }
+
   const gruppi = await page.$$eval('.ftabs', (n) => n.length);
   if (gruppi !== 1) {
     errors.push(`DEV si apre con ${gruppi} file di linguette invece di una sola`);

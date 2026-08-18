@@ -1329,6 +1329,29 @@ check(
   has('src/screens/SpecimenProfile.tsx', 'label="CHARACTER DESIGN DNA"'),
 );
 
+check(
+  'VERSIONE §29',
+  'la targhetta la scrive la build, non la mia memoria',
+  has('vite.config.ts', '__BUILD__') && has('vite.config.ts', 'git rev-parse'),
+  'un numero da alzare a mano direbbe «aggiornato» a un sito vecchio il primo giorno che dimentico',
+);
+check(
+  'VERSIONE §29',
+  'su Netlify il commit arriva da chi lo sa',
+  has('vite.config.ts', 'COMMIT_REF'),
+);
+check(
+  'VERSIONE §29',
+  'se non si sa, si dice — non si inventa',
+  has('vite.config.ts', "return 'sconosciuto'"),
+  'una targhetta che mente è la ragione per cui la targhetta esiste',
+);
+check(
+  'VERSIONE §29',
+  'si vede aprendo DEV, non navigando dentro',
+  has('src/dev/DevPanel.tsx', 'buildLabel()'),
+);
+
 /* ============================================================================
    Sicurezza e tono — non negoziabili
    ========================================================================= */

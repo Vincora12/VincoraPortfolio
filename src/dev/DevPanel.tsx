@@ -27,6 +27,7 @@ import type { StatKey } from '../engine/types';
 import { BatchGenerator } from './BatchGenerator';
 import { AssetImport } from './AssetImport';
 import { CatalogSection } from './CatalogSection';
+import { buildInfo, buildLabel } from '../system/build';
 import { DesignTest } from './DesignTest';
 import { PromptPreview } from './PromptPreview';
 import { VoiceSection } from './VoiceSection';
@@ -157,7 +158,11 @@ export function DevPanel({ onClose, onGo }: { onClose: () => void; onGo?: (o: 'a
       <header className="dev__head">
         <div>
           <h1 className="t-display dev__title">DEV://VINZ.MON</h1>
-          <p className="t-micro">STRATO DI SIMULAZIONE — NON FA PARTE DEL PRODOTTO</p>
+          {/* 🔷 §29 — la targhetta sta QUI e non solo in INIZIO: la domanda
+              «si è aggiornato?» te la fai aprendo DEV, non navigando dentro. */}
+          <p className="t-micro">
+            STRATO DI SIMULAZIONE · <span className="dev__build">{buildLabel()}</span>
+          </p>
         </div>
         <IconButton icon="close" label="Chiudi il pannello" light onClick={onClose} />
       </header>
@@ -235,6 +240,7 @@ function StartSection({
   const setDailySignal = useApp((s) => s.setDailySignal);
   const resetAll = useApp((s) => s.resetAll);
   const keptCount = useApp((s) => s.kept.length);
+  const build = buildInfo();
 
   /* Un giorno «pieno»: si dichiara l'umore — che la simulazione non può
      inventare (§5) — e si chiude. È la sequenza che si fa a mano ogni volta
@@ -251,6 +257,26 @@ function StartSection({
         GIORNO {day} · {phase.toUpperCase()}
         {mon ? ` · ${mon.data.name}` : ' · nessuna creatura'}
       </p>
+
+      {/* ════════════════════════════════════════════════════════════════════
+          🔷 «Mi segni la versione, così so se si è aggiornato.»
+
+          Due righe, due domande diverse:
+          • commit e ora  → il sito è quello nuovo?
+          • compiler/config → le creature nuove nascono diverse da prima?
+
+          🔒 Nessuno di questi numeri lo scrivo a mano. Uno che dipendesse dal
+          fatto che me lo ricordo direbbe «aggiornato» a un sito vecchio il
+          primo giorno che dimentico — cioè mentirebbe proprio nel caso per cui
+          esiste.
+          ════════════════════════════════════════════════════════════════ */}
+      <p className="t-meta dev__label">VERSIONE</p>
+      <div className="rowlist">
+        <Row label="BUILD" value={build.commit} />
+        <Row label="COSTRUITA IL" value={build.at ? `${build.at} UTC` : '—'} />
+        {build.branch && <Row label="RAMO" value={build.branch} />}
+        <Row label="MOTORE DEI PROMPT" value={`compiler ${build.compiler} · config ${build.config}`} />
+      </div>
 
       {/* 1 — La voce è accesa? È la prima domanda perché è la sola che rende
              diverso tutto il resto: senza, ogni prova gira sul ripiego. */}
