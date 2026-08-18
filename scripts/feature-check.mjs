@@ -1163,6 +1163,19 @@ check(
 );
 check(
   '§29 DEV',
+  'ricominciare da capo si trova in INIZIO, non sepolto in una scheda',
+  has('src/dev/DevPanel.tsx', '<ResetAllButton onReset={resetAll} keptCount={keptCount} />') &&
+    has('src/dev/DevPanel.tsx', 'className="dev__danger"'),
+  'stava in fondo a MINDLINE, e raggruppando le schede era sparito',
+);
+check(
+  '§29 DEV',
+  'ma staccato dai comandi di tutti i giorni',
+  has('src/dev/dev.css', '.dev__danger'),
+  'accanto a «+1 GIORNO» un dito storto costerebbe mesi',
+);
+check(
+  '§29 DEV',
   'cambiando gruppo si apre la sua prima scheda',
   has('src/dev/DevPanel.tsx', 'const first = GROUPS.find((x) => x.id === g)?.tabs[0]'),
   'altrimenti resta a schermo una sezione che le linguette sopra non contengono',

@@ -219,6 +219,8 @@ function StartSection({
   const advanceDays = useApp((s) => s.advanceDays);
   const syncDay = useApp((s) => s.syncDay);
   const setDailySignal = useApp((s) => s.setDailySignal);
+  const resetAll = useApp((s) => s.resetAll);
+  const keptCount = useApp((s) => s.kept.length);
 
   /* Un giorno «pieno»: si dichiara l'umore — che la simulazione non può
      inventare (§5) — e si chiude. È la sequenza che si fa a mano ogni volta
@@ -281,6 +283,25 @@ function StartSection({
         umore, strumenti — sta nei gruppi qui sopra. Serve quando qualcosa non
         torna, non ogni volta.
       </p>
+
+      {/* ════════════════════════════════════════════════════════════════════
+          🔷 «Ho perso il pulsante per ricominciare tutto.»
+
+          Stava in fondo a MINDLINE, insieme alle forzature di eleggibilità.
+          Ci era finito quando quella era la scheda dove si «rimetteva a posto
+          la partita», e raggruppando le schede è diventato irraggiungibile:
+          due tocchi, poi scorrere una schermata lunga fino in fondo.
+
+          🔒 STA IN INIZIO PERCHÉ È LÌ CHE LO CERCHI, MA IN FONDO E STACCATO.
+          Ricominciare è la cosa più distruttiva dell'app: accanto a «+1
+          GIORNO» un dito storto costerebbe mesi. Il margine e la riga che lo
+          separa non sono decorazione — sono la distanza fra i comandi di tutti
+          i giorni e quello da cui non si torna.
+          ════════════════════════════════════════════════════════════════ */}
+      <div className="dev__danger">
+        <p className="t-meta dev__label">RICOMINCIA DA CAPO</p>
+        <ResetAllButton onReset={resetAll} keptCount={keptCount} />
+      </div>
     </div>
   );
 }
@@ -562,8 +583,6 @@ function MindlineSection({ onClose }: { onClose: () => void }) {
   const resetCurrentNode = useApp((s) => s.resetCurrentNode);
   const restoreNode = useApp((s) => s.restoreNode);
   const cloneScenario = useApp((s) => s.cloneScenario);
-  const resetAll = useApp((s) => s.resetAll);
-  const keptCount = useApp((s) => s.kept.length);
   const activeMonName = useApp((s) => s.activeMonName);
 
   const activeNodeId = activeMonName ? mons[activeMonName]?.data.mindline_node : null;
@@ -634,7 +653,6 @@ function MindlineSection({ onClose }: { onClose: () => void }) {
         nodo e l'eredità. CLONA crea un ramo parallelo per confronti a coppie.
       </p>
 
-      <ResetAllButton onReset={resetAll} keptCount={keptCount} />
     </div>
   );
 }

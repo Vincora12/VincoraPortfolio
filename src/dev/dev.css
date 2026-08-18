@@ -548,3 +548,12 @@
   flex-wrap: wrap;
   justify-content: flex-end;
 }
+
+/* 🔒 La distanza fra i comandi di tutti i giorni e quello da cui non si torna.
+   Il margine è il controllo: un dito storto su un telefono non deve poter
+   arrivare qui partendo da «+1 GIORNO». */
+.dev__danger {
+  margin-top: 28px;
+  padding-top: 14px;
+  border-top: 1px solid var(--hairline);
+}

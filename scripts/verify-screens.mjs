@@ -848,7 +848,14 @@ try {
   const keptBefore = await page.$$eval('.dexcard--kept', (n) => n.length);
 
   await click('.devtrigger', 'riapri DEV');
-  await devTab('CREATURA', 'MINDLINE');
+  /* 🔒 Il reset sta in INIZIO, cioè nella schermata che DEV apre da sola.
+     Era finito in fondo a MINDLINE e con il raggruppamento delle schede era
+     diventato irraggiungibile senza sapere già dov'era: questo controllo
+     fallisce se ci torna. Nessun `devTab` qui — deve essere la prima cosa. */
+  const resetVisibile = await page.locator(':text("RESET COMPLETO DELLA SIMULAZIONE")').count();
+  if (resetVisibile === 0) {
+    errors.push('il reset non è raggiungibile dalla schermata che DEV apre da sola');
+  }
   await click(byText('RESET COMPLETO DELLA SIMULAZIONE'), 'reset completo');
   /* 🔷 Il pulsante ora chiede conferma: un tocco solo non deve bastare, e il
      controllo deve accorgersene se un giorno la conferma sparisce. */
