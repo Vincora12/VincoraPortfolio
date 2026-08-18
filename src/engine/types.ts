@@ -207,6 +207,14 @@ export interface CharacterData {
    * alla Nomura sono due creature; lo stesso .mon in CEL e in INK è una
    * creatura resa in due modi.
    */
+  /**
+   * 🔷 §5 (MASTER v1.1) — quanto il corpo resta leggibile come umano, 1–5.
+   *
+   * ⚠️ Indipendente da `appearance`: quella dice come è RESO, questa quanto è
+   * UMANO. E indipendente dal realismo — un 4/5 può avere proporzioni da
+   * cartone estreme.
+   */
+  humanoidity: number;
   character_design_dna: string;
   /**
    * 🔷 §7 — i 2–4 riferimenti culturali ATTIVI di questa forma, per id.

@@ -31,7 +31,7 @@
    estrae. §29 impone di incrementare la versione quando cambiano tassonomie o
    pesi, e i .mon già generati restano immutabili con la versione con cui sono
    nati. */
-export const GENERATION_CONFIG_VERSION = '2.7.0';
+export const GENERATION_CONFIG_VERSION = '3.0.0';
 
 /* ============================================================================
    §2 — SEGNALI IN INGRESSO
@@ -111,6 +111,16 @@ export interface ArchetypeDef {
   structure: string;
   /** §21 — quanto occupa. Deve essere coerente con `structure`. */
   mass: ArchetypeMass;
+  /**
+   * §5 (MASTER v1.1) — scostamento dalla umanoidità di Family, in gradini.
+   *
+   * 🔒 Si dichiara SOLO dove questo archetipo è chiaramente più o meno umano
+   * degli altri della sua Family. Assente = quella della Family. Non si legge
+   * mai dal NOME dell'archetipo: «HUMANOID» nell'id è una coincidenza di
+   * catalogo, e leggerla sarebbe la stessa classe di difetto della taglia
+   * dedotta dalla posizione in elenco.
+   */
+  humanShift?: number;
 }
 
 export interface FamilyDef {
@@ -131,6 +141,33 @@ export interface FamilyDef {
   supportsHair: boolean;
   /** §9 — «eyewear is mandatory whenever anatomically possible». */
   supportsEyewear: boolean;
+  /**
+   * §5 (MASTER CHARACTER SYSTEM v1.1) — QUANTO PUÒ ALLONTANARSI DALL'UMANO.
+   *
+   * ════════════════════════════════════════════════════════════════════════
+   * 🔷 «I prompt del gioco creano sempre personaggi deformi.»
+   *
+   * ⚠️ QUESTA ERA LA CAUSA PRINCIPALE, E MANCAVA DEL TUTTO.
+   *
+   * Senza un livello dichiarato, il prompt diceva al modello che tipo di
+   * creatura fare e non gli diceva MAI quanto doveva restare leggibile come
+   * corpo. Una MACHINE // TRASH contaminata AQUA, senza un'ancora di
+   * umanoidità, non ha una forma di riferimento: il modello ne inventa una, e
+   * quello che inventa quando non ha un bersaglio è precisamente un ammasso.
+   *
+   * Il master la definisce come parametro 1–5, INDIPENDENTE dall'Appearance:
+   *   1  fondamentalmente non umano
+   *   2  creatura prima di tutto, con pochi appigli umani
+   *   3  ibrido: umano e non umano pesano uguale
+   *   4  chiaramente umanoide, il 25–35% può discostarsi
+   *   5  leggibilissimo come umano, la trasformazione sta in zone scelte
+   *
+   * 🔒 «Humanoidity does not equal realism»: un 4/5 può avere proporzioni da
+   * cartone estreme. Dice quanto è UMANO, non quanto è REALISTICO — e sono i
+   * due assi che questo progetto confondeva.
+   * ════════════════════════════════════════════════════════════════════════
+   */
+  humanoidity: [number, number];
 }
 
 export const FAMILIES: FamilyDef[] = [
@@ -143,6 +180,7 @@ export const FAMILIES: FamilyDef[] = [
     fit: { REC: 0.22, CARE: 0.18, warmth: 0.16, introspection: 0.14, discipline: 0.12, mystery: 0.1, social: 0.08 },
     supportsHair: true,
     supportsEyewear: true,
+    humanoidity: [3, 5],
     archetypes: [
       { id: 'HUMANOID', structure: 'Male-presenting celestial humanoid with anatomical wings.', mass: 'BALANCED' },
       { id: 'MANY-WING', structure: 'Several genuine wing masses; wing architecture dominates.', mass: 'MASSIVE' },
@@ -160,6 +198,7 @@ export const FAMILIES: FamilyDef[] = [
     fit: { ATK: 0.22, SPD: 0.2, impulsivity: 0.16, affection: 0.14, energy: 0.12, confidence: 0.08, playfulness: 0.08 },
     supportsHair: true,
     supportsEyewear: true,
+    humanoidity: [2, 4],
     archetypes: [
       { id: 'FELINE', structure: 'Cat-derived head/paws/tail/legs/fur.', mass: 'BALANCED' },
       { id: 'CANINE', structure: 'Dog/wolf-derived anatomy; social/pack body language.', mass: 'BALANCED' },
@@ -178,6 +217,7 @@ export const FAMILIES: FamilyDef[] = [
     fit: { ATK: 0.24, FORM: 0.18, confidence: 0.18, intensity: 0.14, discipline: 0.1, vanity: 0.08, mystery: 0.08 },
     supportsHair: false,
     supportsEyewear: true,
+    humanoidity: [2, 4],
     archetypes: [
       { id: 'HUMANOID', structure: 'Upright torso/limbs with true draconic head, scales, claws, tail.', mass: 'BALANCED' },
       { id: 'SERPENTINE', structure: 'Long body, reduced limbs, coils and axial silhouette.', mass: 'BALANCED' },
@@ -196,6 +236,7 @@ export const FAMILIES: FamilyDef[] = [
     fit: { DEF: 0.22, ATK: 0.18, vigilance: 0.18, stoicism: 0.16, discipline: 0.1, FORM: 0.08, distance: 0.08 },
     supportsHair: false,
     supportsEyewear: true,
+    humanoidity: [2, 4],
     archetypes: [
       { id: 'CERATOPSIAN', structure: 'Frill + horn + beaked quadruped grammar.', mass: 'MASSIVE' },
       { id: 'THEROPOD', structure: 'Biped predator anatomy, tail-led balance.', mass: 'BALANCED' },
@@ -214,6 +255,7 @@ export const FAMILIES: FamilyDef[] = [
     fit: { DISC: 0.22, ATK: 0.16, discipline: 0.16, technical: 0.16, control: 0.12, curiosity: 0.1, distance: 0.08 },
     supportsHair: false,
     supportsEyewear: true,
+    humanoidity: [1, 4],
     archetypes: [
       { id: 'VEHICLE', structure: 'Wheels/tracks/cabin/locomotion structures become anatomy.', mass: 'MASSIVE' },
       { id: 'TRASH', structure: 'Discarded/utility mechanical material organism.', mass: 'BALANCED' },
@@ -232,6 +274,7 @@ export const FAMILIES: FamilyDef[] = [
     fit: { REC: 0.22, SPD: 0.18, calm: 0.16, adaptability: 0.16, introspection: 0.1, warmth: 0.1, playfulness: 0.08 },
     supportsHair: false,
     supportsEyewear: true,
+    humanoidity: [1, 4],
     archetypes: [
       { id: 'FISH', structure: 'Fin/gill/tail-first aquatic anatomy.', mass: 'BALANCED' },
       { id: 'CEPHALOPOD', structure: 'Tentacle/mantle/siphon logic.', mass: 'BALANCED' },
@@ -250,6 +293,7 @@ export const FAMILIES: FamilyDef[] = [
     fit: { CARE: 0.24, REC: 0.2, patience: 0.16, warmth: 0.14, discipline: 0.1, calm: 0.08, introspection: 0.08 },
     supportsHair: false,
     supportsEyewear: true,
+    humanoidity: [1, 3],
     archetypes: [
       { id: 'FLOWER', structure: 'Bloom is primary identity mass.', mass: 'BALANCED' },
       { id: 'VINE', structure: 'Tendril/coil/creeping anatomy.', mass: 'COMPACT' },
@@ -268,6 +312,7 @@ export const FAMILIES: FamilyDef[] = [
     fit: { ATK: 0.2, confidence: 0.16, irritability: 0.16, arousal: 0.14, intensity: 0.12, theatricality: 0.12, impulsivity: 0.1 },
     supportsHair: true,
     supportsEyewear: true,
+    humanoidity: [3, 5],
     archetypes: [
       { id: 'HUMANOID', structure: 'Infernal humanoid but demon-first face/body.', mass: 'BALANCED' },
       { id: 'ONI', structure: 'Heavy horned mask/head mass and powerful build.', mass: 'MASSIVE' },
@@ -286,6 +331,7 @@ export const FAMILIES: FamilyDef[] = [
     fit: { melancholy: 0.18, introspection: 0.18, distance: 0.16, mystery: 0.14, lowREC: 0.12, vigilance: 0.12, darkCulture: 0.1 },
     supportsHair: true,
     supportsEyewear: true,
+    humanoidity: [3, 5],
     archetypes: [
       { id: 'GHOST', structure: 'Incomplete spectral floating body.', mass: 'COMPACT' },
       { id: 'SKELETON', structure: 'Bone architecture is primary body.', mass: 'BALANCED' },
@@ -304,6 +350,7 @@ export const FAMILIES: FamilyDef[] = [
     fit: { vigilance: 0.2, introspection: 0.18, curiosity: 0.18, mystery: 0.16, technical: 0.12, stress: 0.08, discipline: 0.08 },
     supportsHair: false,
     supportsEyewear: true,
+    humanoidity: [3, 5],
     archetypes: [
       { id: 'MANY-EYED', structure: 'Sensory structures dominate anatomy.', mass: 'BALANCED' },
       { id: 'DETACHED', structure: 'Body parts separated by impossible spacing.', mass: 'BALANCED' },
@@ -322,6 +369,7 @@ export const FAMILIES: FamilyDef[] = [
     fit: { DEF: 0.22, FORM: 0.18, discipline: 0.18, stoicism: 0.16, control: 0.1, ATK: 0.08, mystery: 0.08 },
     supportsHair: false,
     supportsEyewear: true,
+    humanoidity: [1, 3],
     archetypes: [
       { id: 'CRYSTAL', structure: 'Faceted translucent/crystalline body.', mass: 'BALANCED' },
       { id: 'STONE', structure: 'Monolithic rock/plate body.', mass: 'MASSIVE' },
@@ -340,6 +388,7 @@ export const FAMILIES: FamilyDef[] = [
     fit: { curiosity: 0.24, mystery: 0.18, novelty: 0.16, technical: 0.14, distance: 0.1, playfulness: 0.1, weirdCulture: 0.08 },
     supportsHair: false,
     supportsEyewear: true,
+    humanoidity: [1, 4],
     archetypes: [
       { id: 'GREY', structure: 'Cranial/eye-focused grey-adjacent grammar, aggressively varied.', mass: 'BALANCED' },
       { id: 'MULTI-LIMB', structure: 'Unfamiliar limb count and symmetry.', mass: 'MASSIVE' },
@@ -358,6 +407,7 @@ export const FAMILIES: FamilyDef[] = [
     fit: { CARE: 0.24, playfulness: 0.2, warmth: 0.14, sensoryCamp: 0.12, social: 0.1, absurdity: 0.1, curiosity: 0.1 },
     supportsHair: false,
     supportsEyewear: true,
+    humanoidity: [1, 3],
     archetypes: [
       { id: 'FRUIT', structure: 'Peel/rind/seed/stem/leaf anatomy.', mass: 'COMPACT' },
       { id: 'NOODLE', structure: 'Noodle mass is edible anatomy, never hair.', mass: 'BALANCED' },
@@ -376,6 +426,7 @@ export const FAMILIES: FamilyDef[] = [
     fit: { SPD: 0.22, DEF: 0.2, vigilance: 0.18, precision: 0.14, curiosity: 0.1, intensity: 0.08, technical: 0.08 },
     supportsHair: false,
     supportsEyewear: true,
+    humanoidity: [1, 3],
     archetypes: [
       { id: 'MANTIS', structure: 'Folded predatory forelimbs, triangular head.', mass: 'BALANCED' },
       { id: 'BEETLE', structure: 'Shell/elytra/horned exoskeleton.', mass: 'MASSIVE' },
@@ -394,6 +445,7 @@ export const FAMILIES: FamilyDef[] = [
     fit: { REC: 0.2, adaptability: 0.18, playfulness: 0.16, calm: 0.14, warmth: 0.12, curiosity: 0.1, SPD: 0.1 },
     supportsHair: false,
     supportsEyewear: true,
+    humanoidity: [2, 4],
     archetypes: [
       { id: 'TRI-EYED', structure: 'Integrated third eye/sensory structure.', mass: 'BALANCED' },
       { id: 'AXOLOTL', structure: 'External gills/frills and salamander body.', mass: 'BALANCED' },
@@ -412,6 +464,7 @@ export const FAMILIES: FamilyDef[] = [
     fit: { social: 0.2, vanity: 0.18, playfulness: 0.16, arousal: 0.14, fashionCamp: 0.12, warmth: 0.1, theatricality: 0.1 },
     supportsHair: true,
     supportsEyewear: true,
+    humanoidity: [3, 5],
     archetypes: [
       { id: 'HUMANOID', structure: 'Slender supernatural humanoid with non-feathered wings.', mass: 'BALANCED' },
       { id: 'PIXIE', structure: 'Compressed winged body, not automatically cute.', mass: 'COMPACT' },
@@ -430,6 +483,7 @@ export const FAMILIES: FamilyDef[] = [
     fit: { CARE: 0.22, REC: 0.18, introspection: 0.18, weirdness: 0.14, patience: 0.1, melancholy: 0.1, curiosity: 0.08 },
     supportsHair: false,
     supportsEyewear: true,
+    humanoidity: [1, 3],
     archetypes: [
       { id: 'CLUSTER', structure: 'Multiple caps/stalks/roots forming one organism.', mass: 'MASSIVE' },
       { id: 'CAP', structure: 'One dominant mushroom-cap identity mass.', mass: 'BALANCED' },
@@ -448,6 +502,7 @@ export const FAMILIES: FamilyDef[] = [
     fit: { CARE: 0.2, REC: 0.18, technical: 0.18, weirdness: 0.16, adaptability: 0.12, vigilance: 0.08, discipline: 0.08 },
     supportsHair: false,
     supportsEyewear: true,
+    humanoidity: [1, 2],
     archetypes: [
       { id: 'COLONY', structure: 'Several cellular units cooperating as one creature.', mass: 'BALANCED' },
       { id: 'BACTERIA', structure: 'Rod/coccus/spiral cellular grammar.', mass: 'COMPACT' },
@@ -468,6 +523,73 @@ export function familyDef(id: FamilyId): FamilyDef {
 }
 
 /** Tutte le Family sono estraibili: non esiste più una radice riservata. */
+
+/* ============================================================================
+   §5 — I CINQUE GRADINI DI UMANOIDITÀ, COME LI SCRIVE IL MASTER
+
+   🔒 Ogni gradino porta con sé i suoi DIVIETI, e sono la parte che conta.
+   «Chiaramente umanoide» da solo non impedisce niente: quello che impedisce
+   davvero un risultato deforme è dire cosa NON deve venire fuori — non uno
+   squalo in piedi, non un umano con addosso gli accessori da squalo, non un
+   furry. Sono le tre strade sbagliate che un modello prende quando gli chiedi
+   un ibrido senza dirgli dove sta il confine.
+   ========================================================================= */
+
+export interface HumanoidityLevel {
+  level: number;
+  rule: string;
+  avoid: string;
+  it: string;
+}
+
+export const HUMANOIDITY: HumanoidityLevel[] = [
+  {
+    level: 1,
+    rule: 'Fundamentally non-human. No requirement for a human skeleton or a human face. Bilateral symmetry is optional. The body plan may be organised around a function rather than around limbs.',
+    avoid:
+      'a human silhouette with the family texture painted on; a face arranged in the human eyes-nose-mouth order unless the anatomy genuinely produces it',
+    it: 'per niente umano',
+  },
+  {
+    level: 2,
+    rule: 'Creature first, with a few human-readable relational cues: something that reads as a head, something that reads as a front. Posture may be quadruped, coiled, floating or seated.',
+    avoid: 'an upright biped that is simply an animal standing on two legs; a furry-style anthropomorph',
+    it: 'creatura prima di tutto',
+  },
+  {
+    level: 3,
+    rule: 'Hybrid balance: human and non-human anatomy carry comparable weight. Roughly half the body follows a human plan and half does not, and the boundary between them is a designed decision rather than a blend.',
+    avoid: 'a human with attached animal parts; a costume read; an even smear between the two anatomies',
+    it: 'ibrido in equilibrio',
+  },
+  {
+    level: 4,
+    rule: 'Clearly humanoid: head, readable face, torso, two arms, two legs, hands, feet and upright posture are all immediately recognisable. Approximately 25–35% of the anatomy may depart from ordinary human anatomy.',
+    avoid:
+      'a literal animal standing upright; a human wearing accessories of the family; a conventional furry anthropomorph; a superhero suit',
+    it: 'chiaramente umanoide',
+  },
+  {
+    level: 5,
+    rule: 'Overwhelmingly human-readable. The transformation lives in selected anatomy, styling, material or supernatural systems rather than in the body plan. A viewer reads a person first and notices what is wrong second.',
+    avoid: 'a plain human with a prop; a cosplay read; an unmodified person',
+    it: 'quasi del tutto umano',
+  },
+];
+
+export function humanoidityLevel(level: number): HumanoidityLevel {
+  return HUMANOIDITY.find((h) => h.level === level) ?? HUMANOIDITY[2]!;
+}
+
+/**
+ * ⚠️ «Humanoidity does not equal realism» — il master lo dice a chiare
+ * lettere, e questa riga finisce nel prompt perché è la confusione più facile:
+ * un 4/5 può avere proporzioni da cartone estreme. Dice quanto è UMANO, non
+ * quanto è REALISTICO.
+ */
+export const HUMANOIDITY_NOT_REALISM =
+  'HUMANOIDITY is not realism. A 4/5 character may still have extreme stylised cartoon proportions. This value controls how HUMAN the body plan reads, never how realistically it is drawn.';
+
 export const SELECTABLE_FAMILIES = FAMILIES;
 
 /**
@@ -859,6 +981,25 @@ export interface DesignDnaDef {
   posture: string;
   /** Cosa sopravvive alla densità dichiarata, e cosa no. */
   detail: string;
+  /**
+   * 🔷 QUANTE masse primarie, contate.
+   *
+   * ⚠️ È la differenza fra un prompt che funziona e uno che produce ammassi.
+   * «Very few primary shapes» è un aggettivo e un modello non lo sa eseguire:
+   * riempie. «Circa cinque masse: testa+capelli, torso, bacino, gambe, borsa»
+   * lo sa eseguire, e la prova è che dove c'era un numero il risultato veniva
+   * bene.
+   */
+  masses: string;
+  /**
+   * 🔷 LA contraddizione di proporzione, con le percentuali.
+   *
+   * Il master chiede «ONE strong proportional exaggeration» e non dice quale:
+   * lasciarlo così significa che il modello se la inventa, e un'esagerazione
+   * inventata senza bersaglio è esattamente una deformità. Qui si dice cosa
+   * esagerare e di quanto.
+   */
+  exaggeration: string;
   it: string;
 }
 
@@ -880,6 +1021,10 @@ export const DESIGN_DNA: DesignDnaDef[] = [
       'Neutral three-quarter stance, weight even, alert. This is a portrait of a species, not an action pose.',
     detail:
       'Two or three secondary features at most. Texture is implied by silhouette, never by added linework.',
+    masses:
+      'Roughly SIX primary masses: head, torso, two limb pairs, one species organ, one tail or equivalent. Anything beyond six is a secondary feature and must attach to one of the six, never stand alone.',
+    exaggeration:
+      'The HEAD is about 25–30% larger than realistic proportion for the body; everything else stays close to natural. One species organ is then oversized against the head. The rest of the body must NOT be exaggerated: the contrast is the point.',
     it: 'chiarezza da icona, masse compatte, niente dettaglio che non dica qualcosa',
   },
   {
@@ -899,6 +1044,10 @@ export const DESIGN_DNA: DesignDnaDef[] = [
       'Strong diagonal, weight thrown onto one side. The negative space between limbs is itself a designed shape.',
     detail:
       'Near zero. Every retained line is structural; if a line is decorative it is removed.',
+    masses:
+      'About FOUR primary masses only: one huge mass, one tiny mass, and two limb silhouettes. The whole figure must be describable as «a big X on top of a small Y».',
+    exaggeration:
+      'One mass is roughly TWICE the size it should be and the adjacent one roughly HALF. Shoulders vs head, or head vs body — pick one pair and push both directions at once. Limbs taper to about a third of their starting width.',
     it: 'contrasti di proporzione aggressivi, la posa contiene già il movimento',
   },
   {
@@ -918,6 +1067,10 @@ export const DESIGN_DNA: DesignDnaDef[] = [
       'Bouncy, feet planted, slight forward lean. The hands are usually doing something.',
     detail:
       'Moderate. Hardware is drawn as a few large parts rather than many small ones: three big bolts instead of twenty rivets. Surfaces stay clean between the parts that matter, so each retained element still reads at a distance.',
+    masses:
+      'About SEVEN primary masses: the body core, two upper limbs, two lower limbs, one head mass and one crest or headgear mass. Hardware counts as ONE mass however many parts it appears to have.',
+    exaggeration:
+      'HEAD about 30% larger than realistic. Hands and feet about 20% larger. Torso compact and short. Limbs short and thick rather than long. No part of the body is thin.',
     it: 'costruzione amichevole e funzionale, idee complesse rese giocattoli',
   },
   {
@@ -937,6 +1090,10 @@ export const DESIGN_DNA: DesignDnaDef[] = [
       'Front-facing or flat three-quarter. Stiff, symmetrical, deliberately doll-like — the stillness is the style.',
     detail:
       'Almost eliminated. Test every feature: if it can be removed and the character is still recognisable from across a room, remove it.',
+    masses:
+      'About FIVE primary masses and no more: head+hair as ONE mass, one compact torso, one lower-body mass, two limb silhouettes. Every other feature must live inside one of those five, not beside them.',
+    exaggeration:
+      'BIG GRAPHIC HEAD — about 30–35% larger than realistic — against a TINY COMPACT TORSO, LONG SIMPLE LIMBS and ABSURDLY LARGE hands and feet, roughly 50–70% wider than ordinary. This is a deliberate contradiction, not a chibi: the body must NOT shrink to match the head.',
     it: 'pochissime forme, proporzioni estreme, la comicità sta nella sagoma',
   },
   {
@@ -956,6 +1113,10 @@ export const DESIGN_DNA: DesignDnaDef[] = [
       'Loose, off-balance, elastic. The pose is allowed to be physically impossible as long as it stays instantly drawable.',
     detail:
       'Minimal to the point of starkness: one bizarre specific instead of many small ones. If two odd features compete, keep the odder and delete the other. Surfaces are flat and empty between the few things that exist.',
+    masses:
+      'About FOUR primary masses: one body blob, one head barely distinct from it, and two noodle limbs. A fifth mass is allowed only if it is the single joke of the design.',
+    exaggeration:
+      'Limbs about THREE TIMES longer than the body is tall, and roughly a fifth of its width. The body stays small and simple. One feature — and only one — is at an openly impossible scale.',
     it: 'geometria ridotta all\'osso, anatomia elastica e impossibile',
   },
   {
@@ -975,6 +1136,10 @@ export const DESIGN_DNA: DesignDnaDef[] = [
       'Dynamic contrapposto, weight on the back foot, one hand raised, holding or reaching.',
     detail:
       'High but strictly hierarchical: silhouette first, then primary masses, then hardware, then micro-detail. Detail that flattens the silhouette is removed.',
+    masses:
+      'About EIGHT primary masses: head, torso, two arms, two legs, one layered garment mass, one hardware mass. Detail lives INSIDE these eight and never adds a ninth.',
+    exaggeration:
+      'Body about EIGHT heads tall — head small against the figure — with long legs, a narrow waist and hands about 20% larger than realistic. One shoulder or one limb carries visibly more volume than its twin.',
     it: 'dettaglio fitto ma gerarchico, proporzioni eroiche allungate, asimmetria',
   },
   {
@@ -994,6 +1159,10 @@ export const DESIGN_DNA: DesignDnaDef[] = [
       'Off-beat: slouched, hip cocked, weight dumped on one leg. Attitude is established before anatomy.',
     detail:
       'Selective and uneven: a lot of information in the face and hands, almost none elsewhere.',
+    masses:
+      'About FIVE primary masses: head, torso, two limb pairs, one garment mass. Face and hands carry the detail; everything else stays a plain shape.',
+    exaggeration:
+      'Either a HEAVY HEAD on a long thin neck with narrow shoulders, or a thick compact body with almost no neck — commit to one. Feet about 30% larger than realistic. One shoulder sits visibly higher than the other.',
     it: 'allampanato o tracagnotto secondo il caso, faccia spigolosa, attitudine da strada',
   },
 ];

@@ -17,6 +17,7 @@
 import {
   APPEARANCES,
   CULTURAL_ACTIVE_RANGE,
+  humanoidityLevel,
   CULTURAL_REFERENCES,
   culturalReference,
   DESIGN_DNA,
@@ -267,6 +268,27 @@ export function generateMon(ctx: GenerationContext): GenerationResult {
      DISEGNARE, non una conseguenza di chi è la creatura — legarla ai segnali
      produrrebbe «i .mon tristi si disegnano alla McCracken», che è una regola
      che nessuno ha deciso e che si vedrebbe dopo dieci creature. */
+  /* 🔷 §5 — QUANTO RESTA UMANO. Si estrae dentro l'intervallo dichiarato dalla
+     Family, spostato dall'archetipo quando quell'archetipo è chiaramente più o
+     meno umano degli altri della sua specie.
+
+     🔒 L'intervallo è della FAMILY e lo scostamento è DICHIARATO: non si legge
+     mai dal nome dell'archetipo. «HUMANOID» dentro un id è una coincidenza di
+     catalogo, e dedurne un valore sarebbe la stessa classe di difetto della
+     taglia dedotta dalla posizione in elenco — già corretta una volta. */
+  const archDef = family.archetypes.find((a) => a.id === archetype);
+  const [hLo, hHi] = family.humanoidity;
+  const humanoidity = Math.max(
+    1,
+    Math.min(5, pickInt(rng, hLo, hHi) + (archDef?.humanShift ?? 0)),
+  );
+  steps.push({
+    step: 5.5,
+    stage: 'HUMANOIDITY',
+    outcome: `${humanoidity}/5 — ${humanoidityLevel(humanoidity).it}`,
+    note: `${family.id} vive fra ${hLo} e ${hHi}${archDef?.humanShift ? `, ${archetype} sposta di ${archDef.humanShift}` : ''}`,
+  });
+
   const designDna = pick(rng, keepEnabled('design', DESIGN_DNA, (d) => d.id)).id;
   const culturalDna = resolveCulturalDna(rng, ctx);
   steps.push({
@@ -370,6 +392,7 @@ export function generateMon(ctx: GenerationContext): GenerationResult {
     mood_primary: moodPrimary,
     mood_secondary: moodSecondary,
     appearance,
+    humanoidity,
     character_design_dna: designDna,
     cultural_dna: culturalDna,
     rarity: rarity.rarity,

@@ -143,6 +143,11 @@ function selectFragmentIds(data: CharacterData, assetType: AssetType): string[] 
     ids.push('global.master_reference');
   }
 
+  /* 🔒 SUBITO PRIMA DELLA FAMILY, non dopo. Il livello di umanoidità è
+     l'ancora su cui la Family si appoggia: sapere che è una MACHINE senza
+     sapere quanto resta umana è precisamente l'informazione che produceva
+     ammassi. L'ordine dei blocchi qui è l'ordine in cui il modello costruisce. */
+  ids.push(`humanoidity.${data.humanoidity ?? 3}`);
   ids.push(`family.${slug(data.family)}`);
   ids.push(`archetype.${slug(data.family)}.${slug(data.family_archetype)}`);
   ids.push(`affinity.${slug(data.affinity)}`);
@@ -175,6 +180,8 @@ function selectFragmentIds(data: CharacterData, assetType: AssetType): string[] 
 
   ids.push(`rarity.${slug(data.rarity)}`);
   ids.push(ASSET_FRAGMENTS[assetType]!.id);
+  /* Ultimo di tutti: le due prove si fanno su quello che hai già deciso. */
+  ids.push('global.final_tests');
   ids.push('global.full_body', 'global.on_any_background', 'global.novelty');
 
   return ids;
@@ -362,6 +369,13 @@ function renderPalette(data: CharacterData): string {
     `- CONTRAST ${r.contrast}: holds the chord together; used in fewer, deliberate places.`,
     `- MICRO ACCENT${r.micro.length > 1 ? 'S' : ''} ${r.micro.join(' ')}: tiny quantities only.`,
     `- NEUTRALS ${r.neutralLight} / ${r.neutralDark}: dirty off-white and a black that is not pure black.`,
+    /* 🔒 LE PERCENTUALI, non «campi grandi». Il master dice «large graphic
+       colour fields matter more than multicoloured micro-detail», che è un
+       giudizio; questa è un'istruzione. Senza, l'acido finisce spruzzato
+       ovunque e la base non domina niente. */
+    'DISTRIBUTION — approximate, and it matters more than the exact hues:',
+    `~45% ${r.base} · ~20% neutrals · ~15% hair or its equivalent · ~12% ${r.contrast} · ~6% ${r.acidHero} · ~2% micro accents.`,
+    'The acid colour is under a tenth of the surface: that is what makes it read as acid.',
   ].join('\n');
 }
 

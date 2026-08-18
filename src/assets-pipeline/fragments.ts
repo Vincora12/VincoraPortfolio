@@ -23,6 +23,8 @@
 import {
   AFFINITIES,
   DESIGN_DNA,
+  HUMANOIDITY,
+  HUMANOIDITY_NOT_REALISM,
   APPEARANCE_RULES,
   FAMILIES,
   FASHIONS,
@@ -678,6 +680,25 @@ function designDnaFragment(d: (typeof DESIGN_DNA)[number]): PromptFragment {
       `POSTURE / GESTURE: ${d.posture}`,
       `SURVIVING DETAIL: ${d.detail}`,
       '',
+      /* 🔒 I DUE BLOCCHI CHE CONTANO I PEZZI. Tutto quello che sta sopra sono
+         regole; questi due sono quantità, e un modello di immagini esegue le
+         quantità. Il prompt che funzionava contava tutto — cinque ciocche,
+         cinque masse, tre gruppi di dita — e il nostro non contava niente. */
+      /* ⚠️ IL CONFLITTO CHE PRODUCEVA AMMASSI, RISOLTO PER ISCRITTO.
+
+         Le masse sono descritte con nomi umani — testa, torso, braccia — e a
+         HUMANOIDITY 1/5 quei nomi non esistono. Un modello che riceve
+         «fondamentalmente non umano» e «due braccia, due gambe» nella stessa
+         richiesta non sceglie: fa tutte e due le cose insieme, ed è
+         letteralmente così che nasce un corpo deforme.
+
+         🔒 Vince il PIANO DEL CORPO. Del designer resta il NUMERO, che è la
+         parte che serve; i nomi si traducono. Sette masse su un organismo
+         radiale restano sette masse. */
+      `PRIMARY MASSES — the COUNT is binding, the names are not: ${d.masses}`,
+      'If HUMANOIDITY says this body has no arms, legs or head, keep the NUMBER of primary masses and map it onto the body plan that HUMANOIDITY dictates. The body plan always wins over the naming; the count always wins over the urge to add one more.',
+      `PROPORTIONAL EXAGGERATION — this specific one, at this size: ${d.exaggeration}`,
+      '',
       `DETAIL DENSITY: ${d.density}/5. This controls how many visual decisions survive, not how much lore exists.`,
       d.density <= 2
         ? 'Compress every idea into as few primary shapes as possible. Anything that does not survive compression is dropped, not shrunk.'
@@ -727,6 +748,41 @@ export const HOUSE_COLOR_FRAGMENT: PromptFragment = {
   negative_prompt:
     'Do NOT default to a tasteful monochrome fantasy palette: one hue with its own tints and shades is a failure of this layer, however elegant. Do not desaturate the acid colour to make the image calmer.',
 };
+
+/* ============================================================================
+   MASTER CHARACTER SYSTEM v1.1 §5 — HUMANOIDITY
+
+   🔷 «I prompt del gioco creano sempre personaggi deformi, devo capire come
+   mai.»
+
+   ⚠️ QUESTA È LA CAUSA PRINCIPALE, ed era assente dal prompt.
+
+   Il prompt diceva CHE COSA fare — MACHINE, archetipo TRASH, contaminazione
+   AQUA — e non diceva mai quanto il risultato dovesse restare leggibile come
+   corpo. Un modello senza quel bersaglio non sceglie: interpola. E
+   l'interpolazione fra un'anatomia meccanica, una acquatica e una figura
+   umana, senza un'ancora, È l'ammasso deforme.
+
+   🔒 E i DIVIETI del livello contano quanto il livello. «Chiaramente
+   umanoide» da solo non impedisce niente; quello che impedisce davvero un
+   brutto risultato è nominare le tre strade sbagliate — l'animale in piedi,
+   l'umano con gli accessori addosso, il furry — perché sono esattamente
+   quelle che un modello prende quando gli chiedi un ibrido senza confine.
+   ========================================================================= */
+
+function humanoidityFragment(h: (typeof HUMANOIDITY)[number]): PromptFragment {
+  return {
+    id: `humanoidity.${h.level}`,
+    axis: 'global',
+    priority: 0,
+    positive_prompt: [
+      `HUMANOIDITY: ${h.level} / 5 — this controls the BODY PLAN and is mandatory.`,
+      h.rule,
+      HUMANOIDITY_NOT_REALISM,
+    ].join('\n'),
+    negative_prompt: h.avoid,
+  };
+}
 
 export const CULTURAL_FRAGMENT: PromptFragment = {
   id: 'cultural.compile',
@@ -951,6 +1007,38 @@ export const ASSET_FRAGMENTS: Record<string, PromptFragment> = {
    chiavi che esistono qui.
    ========================================================================= */
 
+/* ============================================================================
+   LE DUE PROVE FINALI (§13 del master, e il prompt che ha funzionato)
+
+   🔷 Il prompt che è venuto bene finiva con SILHOUETTE TEST e MEMORY TEST: due
+   verifiche che il modello può fare su sé stesso prima di consegnare.
+
+   🔒 Non sono decorazione. Sono l'unico modo che un prompt ha di dire «se
+   quello che hai fatto non passa questo, rifallo più semplice» — e la
+   semplificazione è precisamente il passaggio che, mancando, produceva ammassi
+   pieni di roba.
+   ========================================================================= */
+
+export const FINAL_TESTS_FRAGMENT: PromptFragment = {
+  id: 'global.final_tests',
+  axis: 'global',
+  priority: 12,
+  positive_prompt: [
+    'BEFORE FINISHING — two checks on your own result:',
+    '',
+    'SILHOUETTE TEST: imagine the whole character filled in solid black.',
+    'It must stay identifiable through its 3–4 named landmarks, in under one second.',
+    'If the black shape reads as a generic blob, the design has too many competing masses: merge them.',
+    '',
+    'MEMORY TEST: a viewer who sees this once must be able to redraw it roughly.',
+    'A recognisable simplified drawing should need about 12–15 shapes.',
+    'If it would need more, remove information — do not shrink it, remove it.',
+    '',
+    'If the result feels like a logo with no personality, increase facial attitude and asymmetry.',
+    'If it feels like a dense illustration, delete features until the two tests pass.',
+  ].join('\n'),
+};
+
 export const FRAGMENT_LIBRARY: Map<string, PromptFragment> = (() => {
   const all: PromptFragment[] = [
     ...GLOBAL_FRAGMENTS,
@@ -964,6 +1052,7 @@ export const FRAGMENT_LIBRARY: Map<string, PromptFragment> = (() => {
     ...MOODS.map(moodFragment),
     CHARACTER_DNA_FRAGMENT,
     CULTURAL_FRAGMENT,
+    ...HUMANOIDITY.map(humanoidityFragment),
     HOUSE_COLOR_FRAGMENT,
     HERITAGE_FRAGMENT,
     ...DESIGN_DNA.map(designDnaFragment),
@@ -972,6 +1061,7 @@ export const FRAGMENT_LIBRARY: Map<string, PromptFragment> = (() => {
     ...RARITY_TIERS.map(rarityFragment),
     ...VOICE_PRESETS.map(voiceFragment),
     ...Object.values(ASSET_FRAGMENTS),
+    FINAL_TESTS_FRAGMENT,
   ];
 
   const map = new Map<string, PromptFragment>();

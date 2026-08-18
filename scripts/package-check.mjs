@@ -314,6 +314,13 @@ const must = [
   ['§7  i riferimenti ATTIVI, non il serbatoio', 'ACTIVE CULTURAL DNA'],
   ['§8  il designer descrive la costruzione del viso', 'FACIAL CONSTRUCTION:'],
   ['§8  e la postura', 'POSTURE / GESTURE:'],
+  ['§8  quante masse, contate', 'PRIMARY MASSES —'],
+  ['§8  e quale esagerazione, con le misure', 'PROPORTIONAL EXAGGERATION —'],
+  ['§5  quanto resta umano', 'HUMANOIDITY:'],
+  ['§5  e non si confonde col realismo', 'HUMANOIDITY is not realism'],
+  ['§9  le percentuali di colore, non «campi grandi»', 'DISTRIBUTION —'],
+  ['     la prova di sagoma', 'SILHOUETTE TEST'],
+  ['     e quella di memoria', 'MEMORY TEST'],
   ['§9  la base dominante ha un ruolo dichiarato', 'DOMINANT BASE'],
   ['§9  l\'acid hero ha un ruolo dichiarato', 'ACID HERO'],
   ['§9  il monocromo elegante e\' vietato per nome', 'monochrome fantasy'],
@@ -432,6 +439,10 @@ const MARCATORI = [
   'ANATOMICAL SIMPLIFICATION:', 'CLOTHING CONSTRUCTION:', 'POSTURE / GESTURE:',
   'SURVIVING DETAIL:', 'DETAIL DENSITY:', 'Compress every idea', 'Layering, hardware',
   'Keep a clear primary read',
+  /* Le due righe che CONTANO i pezzi. Sono arrivate dopo, e questo controllo
+     le ha segnalate subito come «qualcosa d'altro e cambiato fra due prove»:
+     era il suo lavoro, e la risposta e' che appartengono al designer. */
+  'PRIMARY MASSES —', 'PROPORTIONAL EXAGGERATION —',
 ];
 
 const intrusi = [];
@@ -467,6 +478,31 @@ check(
   prove[0].text.includes('ASSET TYPE: CHARACTER MASTER') ||
     prove[0].text.includes('CHARACTER MASTER'),
   'e la prova gira sul corpo intero, non su un ritratto',
+);
+
+/* 🔒 IL CONFLITTO CHE PRODUCEVA AMMASSI. Le masse del designer sono descritte
+   con nomi umani; a HUMANOIDITY 1/5 quei nomi non esistono. Un prompt che dice
+   «fondamentalmente non umano» e «due braccia, due gambe» senza dire chi vince
+   fa fare al modello tutte e due le cose insieme — che e' letteralmente un
+   corpo deforme. */
+check(
+  testo.includes('The body plan always wins over the naming'),
+  'quando umanoidita e masse si contraddicono, il prompt dice chi vince',
+  'senza, il modello le esegue entrambe',
+);
+
+/* 🔷 «I prompt del gioco creano sempre personaggi deformi.» La misura che sta
+   dietro alla diagnosi: quante ISTRUZIONI NUMERICHE contiene un prompt. Un
+   modello non sa eseguire «pochissime forme»; sa eseguire «circa cinque». */
+/* ⚠️ La prima versione di questo conteggio guardava solo le parole in
+   MAIUSCOLO e diceva 10 su un prompt che ne aveva 50: una misura sbagliata che
+   avrebbe fatto rifare un lavoro gia' fatto. Ora conta anche le minuscole e le
+   cifre — che sono la meta' delle quantita' vere. */
+const numeriche = (testo.match(/\b(?:one|two|three|four|five|six|seven|eight|\d+)\b/gi) ?? []).length;
+check(
+  numeriche >= 35,
+  'il prompt dice QUANTE cose, non solo che tipo',
+  `${numeriche} istruzioni numeriche — «pochissime forme» non e eseguibile, «circa cinque» si`,
 );
 
 /* --- Esito ------------------------------------------------------------------ */
