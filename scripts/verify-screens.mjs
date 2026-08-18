@@ -719,6 +719,13 @@ try {
   await click(byText('PROVENIENZA'), 'provenienza frammenti');
   await shot('dev-prompt-provenienza');
 
+  /* 🔷 §8.1 — la bio. Senza segreto il pulsante che la fa riscrivere e' spento
+     di proposito: quello che si controlla qui e' che la schermata regga
+     comunque e mostri quella del motore, perche' e' lo stato in cui l'app si
+     trova al primo avvio di chiunque. */
+  await devTab('CREATURA', 'BIO');
+  await shot('dev-bio');
+
   await devTab('CREATURA', 'ASSET');
   /* 🔷 «Tienimi i prompt da copiare, sto mettendo le immagini a mano.»
      Il giro a mano vive su questa schermata: ogni slot deve avere il SUO

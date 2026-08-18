@@ -27,6 +27,7 @@ import type { StatKey } from '../engine/types';
 import { BatchGenerator } from './BatchGenerator';
 import { AssetImport } from './AssetImport';
 import { CatalogSection } from './CatalogSection';
+import { BioSection } from './BioSection';
 import { buildInfo, buildLabel } from '../system/build';
 import { DesignTest } from './DesignTest';
 import { PromptPreview } from './PromptPreview';
@@ -42,6 +43,7 @@ type DevTab =
   | 'signals'
   | 'mindline'
   | 'generate'
+  | 'bio'
   | 'voice'
   | 'prompt'
   | 'assets'
@@ -92,6 +94,7 @@ const GROUPS: { id: DevGroup; label: string; tabs: { id: DevTab; label: string }
     label: 'CREATURA',
     tabs: [
       { id: 'generate', label: 'GENERA' },
+      { id: 'bio', label: 'BIO' },
       { id: 'mindline', label: 'MINDLINE' },
       /* 🔷 v1.16 §15.3 — la rarità era l'unica parte del motore che non si
          poteva guardare mentre la si tarava. */
@@ -189,6 +192,7 @@ export function DevPanel({ onClose, onGo }: { onClose: () => void; onGo?: (o: 'a
         {inGroup && tab === 'signals' && <SignalsSection />}
         {inGroup && tab === 'mindline' && <MindlineSection onClose={onClose} />}
         {inGroup && tab === 'generate' && <GenerateSection />}
+        {inGroup && tab === 'bio' && <BioSection />}
         {inGroup && tab === 'voice' && <VoiceSection />}
         {inGroup && tab === 'prompt' && <PromptPreview />}
         {inGroup && tab === 'assets' && <AssetsSection />}

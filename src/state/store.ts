@@ -451,6 +451,8 @@ interface AppState {
    * ha retto i controlli — quello serve a DEV, non al prodotto.
    */
   compileAssetPrompt: (monName: string, assetType: AssetType) => Promise<string | null>;
+  /** §8.1 — fa riscrivere la bio. Torna il motivo del rifiuto, o `null`. */
+  writeBio: (monName: string) => Promise<string | null>;
 
   setBias: (patch: Partial<SimulationBias>) => void;
   setSignal: (key: StatKey, value: Signal) => void;
@@ -1560,6 +1562,27 @@ export const useApp = create<AppState>()(
         });
         return null;
       },
+      /* §8.1 — la bio la riscrive un modello, con la stessa disciplina dei
+         prompt: i fatti devono sopravvivere, e si scrive una volta sola. */
+      writeBio: async (monName) => {
+        const s = get();
+        const rec = s.mons[monName];
+        if (!rec) return 'nessuna creatura con questo nome';
+        if (rec.writtenBio) return null;
+
+        const { writeBioWithAi } = await import('../ai/bioWriter');
+        const { bio, failure, rejected } = await writeBioWithAi(s.token, rec, s.compilerModel);
+
+        if (!bio) return rejected ?? (failure ? `chiamata fallita (${failure})` : 'nessun testo');
+
+        set((cur) => {
+          const now = cur.mons[monName];
+          if (!now) return {};
+          return { mons: { ...cur.mons, [monName]: { ...now, writtenBio: bio } } };
+        });
+        return null;
+      },
+
       setBias: (patch) => set((s) => ({ bias: { ...s.bias, ...patch } })),
 
       setSignal: (key, value) =>

@@ -339,6 +339,18 @@ export interface MonRecord {
    * deterministico, che resta sempre valido e non costa niente.
    */
   compiledPrompts?: Partial<Record<AssetType, string>>;
+  /**
+   * 🔷 §8.1 — la bio riscritta da un modello, quando c'è.
+   *
+   * ⚠️ NON sostituisce `bio`, le sta accanto. `bio` resta quella
+   * deterministica: è la rete di sicurezza (una creatura nata senza chiave
+   * deve avere comunque un quaderno) ed è il termine di paragone in DEV.
+   * Chi mostra la bio all'utente legge `writtenBio ?? bio`.
+   *
+   * 🔒 SI SCRIVE UNA VOLTA SOLA. Una bio che cambia a ogni apertura non è una
+   * bio: è un generatore di frasi che ti gira intorno.
+   */
+  writtenBio?: BioFile;
 }
 
 /* --- CONVERSAZIONE ----------------------------------------------------------- */
@@ -404,6 +416,19 @@ export interface GenerationTrace {
 /* --- UTILITÀ ----------------------------------------------------------------- */
 
 /** Stem del nome, senza estensione: `VAZIEL.mon` → `VAZIEL`. */
+/**
+ * §8.1 — quale bio va sotto gli occhi: quella scritta dal modello se c'è,
+ * altrimenti quella del motore.
+ *
+ * 🔒 Sta QUI e non in ogni schermata perché i posti che mostrano la bio sono
+ * due (il quaderno e il dossier alla nascita) e diventeranno tre. Due `??`
+ * sparsi sono due posti dove dimenticarsene, e dimenticarsene vuol dire una
+ * schermata che mostra la versione vecchia senza che nessuno se ne accorga.
+ */
+export function readableBio(record: MonRecord): BioFile {
+  return record.writtenBio ?? record.bio;
+}
+
 export function displayName(canonical: string): string {
   return canonical.replace(/\.mon$/i, '');
 }

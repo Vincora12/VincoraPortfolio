@@ -33,7 +33,7 @@ import { Sigil } from '../system/AssetSlot';
 import { Row } from '../system/components';
 import { birthStatsFor } from '../engine/birthStats';
 import { STAT_LABELS, formatSignal } from '../engine/health';
-import { displayName } from '../engine/types';
+import { displayName, readableBio } from '../engine/types';
 import { haptic } from '../system/haptics';
 import { t } from '../i18n/it';
 
@@ -214,7 +214,7 @@ function MonDossier({ health }: { health: Parameters<typeof birthStatsFor>[0] })
 
       <section className="dossier__block">
         <p className="t-meta dossier__label">{t.splash.story}</p>
-        <p className="t-small dossier__story">{mon.bio.story}</p>
+        <p className="t-small dossier__story">{readableBio(mon).story}</p>
         <p className="t-micro dossier__note">{d.generation_reason_summary}</p>
       </section>
 

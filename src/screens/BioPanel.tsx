@@ -25,24 +25,25 @@
 import { AssetSlot } from '../system/AssetSlot';
 import { SpeciesName } from '../system/MonName';
 import type { MonRecord } from '../engine/types';
-import { displayName } from '../engine/types';
+import { displayName, readableBio } from '../engine/types';
 import { t } from '../i18n/it';
 
 export function BioPanel({ mon }: { mon: MonRecord }) {
   const d = mon.data;
   const short = displayName(d.name);
+  const bio = readableBio(mon);
 
   return (
     <div className="bionote">
       {/* Il racconto. Prima persona: è lui che tiene il quaderno. */}
       <section className="bionote__story">
-        <p className="bionote__lead">{mon.bio.story}</p>
+        <p className="bionote__lead">{bio.story}</p>
       </section>
 
       <section className="bionote__block">
         <p className="t-meta bionote__label">{t.bio.notes}</p>
         <ul className="bionote__notes">
-          {mon.bio.annotations.map((a, i) => (
+          {bio.annotations.map((a, i) => (
             <li key={i} className="bionote__note">
               <span className="bionote__arrow" aria-hidden="true">↳</span>
               {a}
@@ -66,7 +67,7 @@ export function BioPanel({ mon }: { mon: MonRecord }) {
       <section className="bionote__block">
         <p className="t-meta bionote__label">{t.bio.remembered}</p>
         <ul className="bionote__notes">
-          {mon.bio.rememberedDetails.map((r, i) => (
+          {bio.rememberedDetails.map((r, i) => (
             <li key={i} className="bionote__note">
               <span className="bionote__arrow" aria-hidden="true">↳</span>
               {r}
@@ -79,7 +80,7 @@ export function BioPanel({ mon }: { mon: MonRecord }) {
         <span className="bionote__tag">
           <SpeciesName />
         </span>
-        {mon.bio.tags.map((tag) => (
+        {bio.tags.map((tag) => (
           <span key={tag} className="bionote__tag">
             {tag}
           </span>

@@ -1159,6 +1159,53 @@ check(
   lacksInCode('netlify/functions/setup.ts', 'required: true'),
   'obbligatoria rispetto a cosa? a una scelta di fornitore che non hai ancora fatto',
 );
+/* ============================================================================
+   §8.1 — LA BIO
+
+   🔷 «Mi interessano le immagini e generare il personaggio, la bio, la storia.»
+   Cinque frasi fisse coi buchi riempiti sono lo stesso difetto dei prompt
+   concatenati, visto da un'altra parte.
+   ========================================================================= */
+
+check(
+  '§8.1 BIO',
+  'la bio la può scrivere un modello, non solo il modulo a cinque frasi',
+  has('src/ai/bioWriter.ts', 'writeBioWithAi'),
+);
+check(
+  '§8.1 BIO',
+  'ma non può inventare fatti: si controlla che siano sopravvissuti',
+  has('src/ai/bioWriter.ts', 'survivingFacts') &&
+    has('src/ai/bioWriter.ts', 'fatti persi'),
+);
+check(
+  '§8.1 BIO',
+  'e non può ricopiare quella di prima',
+  has('src/ai/bioWriter.ts', 'ha ricopiato quella di prima') &&
+    has('src/ai/bioWriter.ts', 'riapre con la formula vecchia'),
+  'riceve la bio deterministica come contesto, quindi ricopiarla è la strada più comoda',
+);
+check(
+  '§8.1 BIO',
+  'si scrive una volta sola',
+  has('src/state/store.ts', 'if (rec.writtenBio) return null;'),
+  'una bio che cambia a ogni apertura non è una bio',
+);
+check(
+  '§8.1 BIO',
+  'quella del motore non si butta: resta accanto',
+  has('src/engine/types.ts', 'writtenBio?: BioFile') &&
+    has('src/engine/types.ts', 'record.writtenBio ?? record.bio'),
+  'è la rete per chi nasce senza chiave, ed è il termine di paragone in DEV',
+);
+check(
+  '§8.1 BIO',
+  'e le schermate leggono da un posto solo',
+  lacksInCode('src/screens/BioPanel.tsx', 'mon.bio.') &&
+    lacksInCode('src/screens/Splash.tsx', 'mon.bio.'),
+  'due `??` sparsi sono due posti dove mostrare la versione vecchia senza accorgersene',
+);
+
 check(
   '§19.5 ATTIVAZIONE',
   'ATTIVO vuol dire «qualcuno può rispondere», non «ci sono tutte le chiavi»',
