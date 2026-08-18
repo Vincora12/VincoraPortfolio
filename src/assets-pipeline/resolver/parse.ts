@@ -16,7 +16,7 @@
    disobbedito sulla cosa che conta.
    ========================================================================= */
 
-import type { CreativeResolution } from './types';
+import type { CreativeResolution } from './vendor/types';
 
 /** Le chiavi che devono esserci tutte, con il conteggio che il master impone. */
 const SHAPE = {

@@ -20,10 +20,11 @@ import { useActiveMon, useApp } from '../state/store';
 import { Button, SystemLabel } from '../system/components';
 import { CopyButton } from '../system/CopyButton';
 import { NoMon } from './NoMon';
-import { resolverInputFor } from '../assets-pipeline/resolver/adapter';
-import { numericGrammarFor } from '../assets-pipeline/resolver/grammar';
-import { buildResolverPrompt } from '../assets-pipeline/resolver/resolverPrompt';
-import { compileFromResolution } from '../assets-pipeline/resolver/compile';
+import { characterDataFor } from '../assets-pipeline/resolver/adapter';
+/* 🔒 Tutto quello che segue viene dal pacchetto, intatto. Vedi `vendor/`. */
+import { numericGrammarFor } from '../assets-pipeline/resolver/vendor/rules';
+import { buildCreativeResolverPrompt } from '../assets-pipeline/resolver/vendor/resolver';
+import { compilePrompt } from '../assets-pipeline/resolver/vendor/compiler';
 
 export function ResolverSection() {
   const mon = useActiveMon();
@@ -36,15 +37,15 @@ export function ResolverSection() {
      volta e non a ogni tasto premuto nella casella. */
   const prepared = useMemo(() => {
     if (!mon) return null;
-    const input = resolverInputFor(mon);
+    const input = characterDataFor(mon);
     const numeric = numericGrammarFor(input);
-    return { input, numeric, prompt: buildResolverPrompt(input, numeric) };
+    return { input, numeric, prompt: buildCreativeResolverPrompt(input, numeric) };
   }, [mon]);
 
   if (!mon || !prepared) return <NoMon what="niente da risolvere" />;
 
   const resolution = mon.resolution ?? null;
-  const compiled = resolution ? compileFromResolution(prepared.input, resolution) : null;
+  const compiled = resolution ? compilePrompt(prepared.input, resolution) : null;
 
   return (
     <div className="dev__section">
@@ -145,7 +146,7 @@ export function ResolverSection() {
           </p>
           {compiled.warnings.length > 0 && (
             <ul className="rowlist">
-              {compiled.warnings.map((w, i) => (
+              {compiled.warnings.map((w: string, i: number) => (
                 <li key={i} className="t-micro dev__note">⚠️ {w}</li>
               ))}
             </ul>

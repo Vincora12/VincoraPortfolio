@@ -362,7 +362,7 @@ export interface MonRecord {
    * qui pesa di più: la risoluzione dice chi È questa creatura, e cambiarla
    * fra un asset e l'altro produrrebbe sei disegni di sei personaggi.
    */
-  resolution?: import('../assets-pipeline/resolver/types').CreativeResolution;
+  resolution?: import('../assets-pipeline/resolver/vendor/types').CreativeResolution;
 }
 
 /* --- CONVERSAZIONE ----------------------------------------------------------- */

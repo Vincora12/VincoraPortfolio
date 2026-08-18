@@ -991,32 +991,6 @@ export const MOOD_INPUT_RULES = {
  * anche al protocollo §12: due designer si confrontano bene solo se sono
  * descritti sugli stessi assi.
  */
-/**
- * 🔷 LA GRAMMATICA NUMERICA di un designer, prima che umanoidità e taglia la
- * pieghino.
- *
- * ⚠️ Ogni campo è FACOLTATIVO di proposito: a umanoidità 1–2 le proporzioni
- * umane non esistono e vanno TOLTE, non messe a 1.0. Un moltiplicatore neutro
- * dice «braccia di lunghezza normale» a una cosa che le braccia non ce le ha.
- */
-export interface NumericGrammar {
-  headScale?: number;
-  torsoLength?: number;
-  shoulderWidth?: number;
-  armLength?: number;
-  handScale?: number;
-  legLength?: number;
-  footScale?: number;
-  /** Quanto della sagoma occupa la massa dominante, in percentuale. */
-  dominantMassPercent?: [number, number];
-  eyewearFaceOccupancyPercent?: [number, number];
-  hairMassCount?: [number, number];
-  /** Gli unici due obbligatori: valgono per qualunque corpo. */
-  silhouetteLandmarkCount: [number, number];
-  clothingMassCount?: [number, number];
-  accessorySystemCount?: [number, number];
-}
-
 export interface DesignDnaDef {
   id: string;
   /** Densità di dettaglio dichiarata dal master, 1–5. */
@@ -1045,15 +1019,11 @@ export interface DesignDnaDef {
    * bene.
    */
   proportions: string;
-  /**
-   * 🔷 I MOLTIPLICATORI, IN NUMERI VERI (v1 §Numeric Visual Grammar).
-   *
-   * ⚠️ Non è un doppione di `proportions` e `counts`, che sono PROSA. Quelli
-   * il modello di immagini li legge; questi il codice li sa MODIFICARE — la
-   * grammatica cambia con umanoidità e taglia, e una frase non si può
-   * moltiplicare. Vedi `numericGrammarFor`.
-   */
-  numeric: NumericGrammar;
+  /* 🔶 Qui avevo innestato i moltiplicatori numerici del pacchetto v1. Tolti:
+     quelli vivono in `assets-pipeline/resolver/vendor/rules.ts`, che è il file
+     del pacchetto e non si tocca. Averli anche qui sarebbe stata una seconda
+     verità sullo stesso disegnatore, e la seconda verità è sempre quella che
+     resta indietro. */
   /**
    * 🔷 LA contraddizione di proporzione, con le percentuali.
    *
@@ -1069,7 +1039,6 @@ export interface DesignDnaDef {
 export const DESIGN_DNA: DesignDnaDef[] = [
   {
     id: 'KEN SUGIMORI',
-    numeric: { headScale: 1.15, torsoLength: 0.9, handScale: 1.2, footScale: 1.35, hairMassCount: [5, 7], silhouetteLandmarkCount: [3, 4], clothingMassCount: [2, 4], accessorySystemCount: [0, 3] },
     density: 2.75,
     proportion:
       'Compact. Head reads large against the body but never chibi. Limbs short and functional. Mass concentrates in the torso or in the single organ that identifies the species.',
@@ -1093,7 +1062,6 @@ export const DESIGN_DNA: DesignDnaDef[] = [
   },
   {
     id: 'GENNDY TARTAKOVSKY',
-    numeric: { headScale: 1.22, torsoLength: 0.7, armLength: 1.25, legLength: 1.25, handScale: 1.4, footScale: 1.5, hairMassCount: [4, 6], silhouetteLandmarkCount: [3, 4], clothingMassCount: [2, 4], accessorySystemCount: [0, 2] },
     density: 2,
     proportion:
       'Extreme contrast between adjacent masses: a tiny head on enormous shoulders, or the reverse. Limbs taper toward points. Nothing is average-sized.',
@@ -1117,7 +1085,6 @@ export const DESIGN_DNA: DesignDnaDef[] = [
   },
   {
     id: 'AKIRA TORIYAMA',
-    numeric: { headScale: 1.2, torsoLength: 0.87, armLength: 1.05, legLength: 0.95, handScale: 1.25, footScale: 1.45, hairMassCount: [5, 7], silhouetteLandmarkCount: [3, 4], clothingMassCount: [3, 4], accessorySystemCount: [1, 3] },
     density: 3,
     proportion:
       'Friendly and sturdy: large head, short strong limbs, small hands and feet with clear separated digits.',
@@ -1141,7 +1108,6 @@ export const DESIGN_DNA: DesignDnaDef[] = [
   },
   {
     id: 'CRAIG McCRACKEN',
-    numeric: { headScale: 1.35, torsoLength: 0.7, armLength: 1.08, legLength: 1.0, handScale: 1.3, footScale: 1.65, dominantMassPercent: [30, 45], eyewearFaceOccupancyPercent: [35, 55], hairMassCount: [4, 6], silhouetteLandmarkCount: [3, 4], clothingMassCount: [2, 4], accessorySystemCount: [0, 3] },
     density: 1.5,
     proportion:
       'Three to four primary masses in the whole character. The head or identity mass dominates and may occupy a third or more of the total. Limbs are thin simple appendages with no visible joints.',
@@ -1165,7 +1131,6 @@ export const DESIGN_DNA: DesignDnaDef[] = [
   },
   {
     id: 'PENDLETON WARD',
-    numeric: { headScale: 1.3, torsoLength: 0.75, handScale: 1.25, footScale: 1.55, hairMassCount: [4, 6], silhouetteLandmarkCount: [3, 4], clothingMassCount: [2, 4], accessorySystemCount: [0, 2] },
     density: 1.5,
     proportion:
       'Noodle limbs of impossible length against a simple bean or tube body. The head is barely distinct from the body it sits on.',
@@ -1189,7 +1154,6 @@ export const DESIGN_DNA: DesignDnaDef[] = [
   },
   {
     id: 'TETSUYA NOMURA',
-    numeric: { headScale: 1.15, torsoLength: 0.88, armLength: 1.1, legLength: 1.1, handScale: 1.22, footScale: 1.38, hairMassCount: [7, 10], silhouetteLandmarkCount: [3, 5], clothingMassCount: [4, 6], accessorySystemCount: [3, 6] },
     density: 5,
     proportion:
       'Tall, elongated, youthful heroic. Small head against the body, long legs, narrow waist, noticeably large hands.',
@@ -1213,7 +1177,6 @@ export const DESIGN_DNA: DesignDnaDef[] = [
   },
   {
     id: 'JAMIE HEWLETT',
-    numeric: { headScale: 1.18, torsoLength: 0.9, armLength: 1.15, legLength: 1.12, handScale: 1.28, footScale: 1.45, hairMassCount: [5, 7], silhouetteLandmarkCount: [3, 4], clothingMassCount: [3, 5], accessorySystemCount: [1, 4] },
     density: 3,
     proportion:
       'Either lanky with a heavy head and a long neck, or short and thick with no neck — pick one and commit fully. Feet are large.',

@@ -1,0 +1,16 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { compilePrompt } from "../src/compiler.js";
+import type { CharacterData, CreativeResolution } from "../src/types.js";
+import inputJson from "../examples/example_input.json" with { type: "json" };
+import resolutionJson from "../examples/example_resolution.json" with { type: "json" };
+
+test("compiler emits character-first prompt and excludes heritage logic", () => {
+  const out = compilePrompt(inputJson as CharacterData, resolutionJson as CreativeResolution);
+  assert.match(out.prompt, /CHARACTER FIRST/);
+  assert.match(out.prompt, /NUMERIC VISUAL GRAMMAR/);
+  assert.match(out.prompt, /SILHOUETTE TEST/);
+  assert.match(out.prompt, /MEMORY TEST/);
+  assert.doesNotMatch(out.prompt, /HERITAGE FROM PREVIOUS/);
+  assert.doesNotMatch(out.prompt, /20% translated Heritage/);
+});

@@ -1420,14 +1420,25 @@ check(
 check(
   '§10 DUE STADI',
   'al modello si chiedono DECISIONI, non un prompt scritto',
-  has('src/assets-pipeline/resolver/resolverPrompt.ts', 'Your job is NOT to write the final image prompt'),
+  has('src/assets-pipeline/resolver/vendor/resolver.ts', 'Your job is NOT to write the final image prompt'),
   'un testo si può solo rileggere, un oggetto si può controllare',
+);
+/* 🔷 «Non modificare il suo compilatore.» Avevo riscritto `compilePrompt` con
+   la nostra prosa dei designer e le nostre regole di Appearance: se il codice
+   non produce lo stesso testo che esce provando a mano in una chat, il
+   confronto per cui questa cosa esiste non vale niente. */
+check(
+  '§10 DUE STADI',
+  'i file del pacchetto stanno in vendor/ e non si toccano',
+  has('src/assets-pipeline/resolver/vendor/compiler.ts', 'export function compilePrompt') &&
+    has('src/assets-pipeline/resolver/vendor/rules.ts', 'DESIGN_DNA_RULES'),
+  'la firma dei quattro file è controllata in verify:package: se cambiano, si vede',
 );
 check(
   '§10 DUE STADI',
-  'e il prompt lo scrive codice, che non decide niente',
-  has('src/assets-pipeline/resolver/compile.ts', 'QUI DENTRO NON C\'È NESSUNA DECISIONE'),
-  'l’ordine delle sezioni È il prodotto: il personaggio deve venire prima, sempre',
+  'e tutto l’adattamento sta in un file solo',
+  has('src/assets-pipeline/resolver/adapter.ts', 'TRE FORZATURE DI TIPO, DICHIARATE'),
+  'i suoi tipi sono più stretti dei nostri dati in tre punti: il valore vero passa, il tipo si forza dove si vede',
 );
 check(
   '§10 DUE STADI',
@@ -1451,10 +1462,10 @@ check(
 );
 check(
   '§10 DUE STADI',
-  'i moltiplicatori stanno nella tabella dei designer, non in una seconda',
-  has(CONFIG, 'numeric: NumericGrammar') &&
-    lacksInCode('src/assets-pipeline/resolver/grammar.ts', 'KEN SUGIMORI'),
-  'due tabelle di designer sarebbero due verità sullo stesso disegnatore',
+  'i moltiplicatori stanno solo nel file del pacchetto',
+  lacksInCode(CONFIG, 'numeric: {') &&
+    has('src/assets-pipeline/resolver/vendor/rules.ts', 'headScale'),
+  'li avevo innestati anche nella nostra tabella: la seconda verità è sempre quella che resta indietro',
 );
 check(
   '§10 DUE STADI',

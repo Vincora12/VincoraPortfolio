@@ -14,6 +14,7 @@
 
 import { build } from 'esbuild';
 import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -34,10 +35,10 @@ export { buildPackageFiles } from '${cwd}/src/assets-pipeline/exportPackage.ts';
 export { buildManifest } from '${cwd}/src/assets-pipeline/manifest.ts';
 export { compilePrompt, validateFragmentIds, COMPILER_VERSION } from '${cwd}/src/assets-pipeline/compiler.ts';
 export { parseResolution } from '${cwd}/src/assets-pipeline/resolver/parse.ts';
-export { compileFromResolution } from '${cwd}/src/assets-pipeline/resolver/compile.ts';
-export { resolverInputFor } from '${cwd}/src/assets-pipeline/resolver/adapter.ts';
-export { buildResolverPrompt } from '${cwd}/src/assets-pipeline/resolver/resolverPrompt.ts';
-export { numericGrammarFor } from '${cwd}/src/assets-pipeline/resolver/grammar.ts';
+export { compilePrompt as compileFromResolution } from '${cwd}/src/assets-pipeline/resolver/vendor/compiler.ts';
+export { numericGrammarFor, DESIGN_DNA_RULES } from '${cwd}/src/assets-pipeline/resolver/vendor/rules.ts';
+export { buildCreativeResolverPrompt } from '${cwd}/src/assets-pipeline/resolver/vendor/resolver.ts';
+export { characterDataFor } from '${cwd}/src/assets-pipeline/resolver/adapter.ts';
 export { promptFor } from '${cwd}/src/assets-pipeline/promptFor.ts';
 export { DESIGN_DNA } from '${cwd}/src/engine/generation-config.ts';
 export { FRAGMENT_LIBRARY } from '${cwd}/src/assets-pipeline/fragments.ts';
@@ -569,9 +570,9 @@ check(
 
 /* --- Il giro completo su una creatura vera ---------------------------------- */
 
-const rInput = m.resolverInputFor(record);
+const rInput = m.characterDataFor(record);
 const rNumeric = m.numericGrammarFor(rInput);
-const rPrompt = m.buildResolverPrompt(rInput, rNumeric);
+const rPrompt = m.buildCreativeResolverPrompt(rInput, rNumeric);
 const rCompiled = m.compileFromResolution(rInput, esempio);
 
 check(
@@ -589,6 +590,33 @@ check(
   'al resolver si chiede un oggetto, e di TOGLIERE',
   'l’accumulo di quattro espedienti e il difetto che questo stadio cura',
 );
+/* 🔒 «Non modificare il suo compilatore.» Non e' una promessa: e' misurato.
+   I quattro file di `vendor/` devono restare identici a quelli del pacchetto,
+   e il modo di dimostrarlo e' far girare il SUO test sul NOSTRO codice. */
+check(
+  /CHARACTER FIRST/.test(rCompiled.prompt) &&
+    /NUMERIC VISUAL GRAMMAR/.test(rCompiled.prompt) &&
+    /SILHOUETTE TEST/.test(rCompiled.prompt) &&
+    /MEMORY TEST/.test(rCompiled.prompt) &&
+    !/HERITAGE FROM PREVIOUS/.test(rCompiled.prompt) &&
+    !/20% translated Heritage/.test(rCompiled.prompt),
+  'il test del pacchetto passa sul nostro codice',
+  'e il suo `tests/compiler.test.ts`, riga per riga',
+);
+/* 🔒 E la firma dei suoi file: se qualcuno li tocca, questo cambia. */
+const vendorFiles = ['types', 'rules', 'resolver', 'compiler'];
+const vendorHashes = vendorFiles.map((f) =>
+  createHash('md5')
+    .update(readFileSync(new URL(`../src/assets-pipeline/resolver/vendor/${f}.ts`, import.meta.url)))
+    .digest('hex')
+    .slice(0, 8),
+);
+check(
+  vendorHashes.join(' ') === 'eab16c82 8ab118ab ea6cf273 84219697',
+  'i quattro file del pacchetto sono ancora quelli',
+  vendorHashes.join(' '),
+);
+
 check(
   rCompiled.prompt.indexOf('CORE PERSONALITY') < rCompiled.prompt.indexOf('FAMILY / ARCHETYPE CONSTRUCTION'),
   'nel prompt finale il PERSONAGGIO viene prima della tassonomia',

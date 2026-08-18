@@ -26,8 +26,8 @@
 
 import type { AssetType, MonRecord } from '../engine/types';
 import { compilePrompt } from './compiler';
-import { resolverInputFor } from './resolver/adapter';
-import { compileFromResolution } from './resolver/compile';
+import { characterDataFor } from './resolver/adapter';
+import { compilePrompt as compileFromResolution } from './resolver/vendor/compiler';
 
 export type PromptSource = 'risoluzione' | 'riscritto' | 'concatenato';
 
@@ -42,7 +42,7 @@ export const RESOLVER_COVERS: AssetType[] = ['character_master'];
 export function promptFor(record: MonRecord, assetType: AssetType): PromptChoice {
   if (record.resolution && RESOLVER_COVERS.includes(assetType)) {
     return {
-      text: compileFromResolution(resolverInputFor(record), record.resolution).prompt,
+      text: compileFromResolution(characterDataFor(record), record.resolution).prompt,
       source: 'risoluzione',
     };
   }

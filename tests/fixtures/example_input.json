@@ -1,0 +1,27 @@
+{
+  "name": "VEXAMPLE.mon",
+  "rarity": "UNCOMMON",
+  "family": "BEAST",
+  "archetype": "SHARK",
+  "affinity": "ELECTRIC",
+  "size": "MEDIUM",
+  "humanoidity": 4,
+  "role": "COURIER",
+  "fashion": "Y2K MESSENGER / CLUB-SPORT",
+  "mood": ["HYPER", "COCKY", "FRIENDLY"],
+  "characterDesignDNA": "CRAIG McCRACKEN",
+  "detailDensity": 1.5,
+  "appearance": "CEL",
+  "palette": {
+    "dominantBase": {"hex": "#1240B8", "name": "deep cobalt"},
+    "acidHero": {"hex": "#E6FF00", "name": "toxic yellow"},
+    "contrast": {"hex": "#FF2EA6", "name": "hot magenta"},
+    "microAccent": {"hex": "#2AF6FF", "name": "electric cyan"},
+    "neutrals": [
+      {"hex": "#F4F2EA", "name": "off-white"},
+      {"hex": "#202024", "name": "charcoal"}
+    ]
+  },
+  "vinzIdentity": {"hairMode": "PARTIAL BLEACH", "eyewearCategory": "WRAPAROUND BUG-EYE"},
+  "activeCulturalDNA": ["urban courier culture", "Y2K sports-fashion optimism", "club culture", "experimental fashion eyewear"]
+}
