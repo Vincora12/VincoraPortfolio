@@ -78,8 +78,22 @@ a ogni apertura della schermata.
 
 Per le prove che vuoi fare adesso servono le prime tre.
 
-Lo scope va lasciato su *All scopes* / *All deploy contexts*: le funzioni girano
-in produzione e le variabili devono esistere lì.
+**Le due opzioni del modulo, e cosa scegliere.**
+
+*Scopes* — sul piano gratuito il radio è bloccato su **Specific scopes**, ma le
+spunte sotto dicono già *Builds*, *Functions*, *Runtime*. L'unica che conta è
+**Functions**: è lì che gira il codice che legge `process.env`. *Post processing*
+è l'iniezione di snippet nell'HTML e non ci riguarda. Quindi va bene com'è.
+
+*Contains secret values* — **spuntala**. Il valore diventa leggibile solo dal
+codice che gira sui server di Netlify, non più dall'interfaccia, dall'API o dalla
+CLI. Il prezzo è che non potrai rileggerlo: il segreto salvalo anche altrove.
+
+*Values* — spuntando «segreta», Netlify **obbliga** a *Different value for each
+deploy context*. Non è un problema: compila **Production** e basta. Il sito è
+servito dal branch di produzione, quindi è quello il contesto che conta.
+*Deploy Previews* e *Branch deploys* servono alle anteprime delle pull request e
+possono restare vuoti.
 
 **Poi ripubblica.** Le variabili nuove entrano in vigore solo con un deploy
 nuovo: *Deploys* → **Trigger deploy** → *Deploy site*. È l'errore più comune e
