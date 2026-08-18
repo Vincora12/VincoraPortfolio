@@ -42,19 +42,30 @@ const LIMITS = {
   systemChars: 40_000,
   userChars: 12_000,
   /**
-   * ⚠️ IL COMPILATORE MANDA IL PROMPT DETERMINISTICO COME MESSAGGIO UTENTE.
+   * ⚠️ NON È UN TETTO, È UN ALLARME.
    *
-   * Sedicimila e passa caratteri contro un tetto di dodicimila: OGNI chiamata
-   * del compilatore veniva respinta con 413 prima ancora di partire, e nel
-   * browser diventava «chiamata fallita (error)». Il compilatore non ha mai
-   * funzionato nemmeno una volta.
+   * 🔷 «Ma perché un limite? Ti stai incastrando da solo.» — ed era
+   * l'obiezione giusta.
    *
-   * Il commento qui sopra dice «il compilatore manda le regole come SISTEMA»,
-   * e per quelle avevo alzato il tetto a 40k. Ma i fatti della creatura
-   * viaggiano nell'altro campo, e quello era rimasto a 12k — un limite scritto
-   * per i messaggi di chat, applicato a una cosa che chat non è.
+   * `userChars` protegge da una cosa vera: un messaggio scritto da una persona
+   * può contenere qualunque cosa, e un ciclo che ci allega tutta la cronologia
+   * è la differenza fra venti centesimi e un mese finito in un pomeriggio.
+   *
+   * Ma il PROMPT COMPILATO non lo scrive nessuno: lo produce questo stesso
+   * progetto, da un catalogo chiuso, con un algoritmo deterministico. La sua
+   * dimensione è nota — `verify:package` la misura a ogni build e la confronta
+   * proprio con questo numero. Un tetto a runtime su una cosa che genero io
+   * non protegge da niente: può solo scattare quando il MIO numero è
+   * sbagliato. Ed è precisamente quello che è successo — 16636 contro 12000,
+   * ogni chiamata respinta con 413, il compilatore mai partito una volta.
+   *
+   * 🔒 Quindi questo numero non serve più a difendere il budget: da quello
+   * difende `MONTHLY_CAP_USD`, che è la difesa vera e non si può aggirare.
+   * Serve a far scoppiare rumorosamente un caso che, se arriva, è un BUG del
+   * compilatore — frammenti duplicati, un ciclo — non qualcosa che hai fatto
+   * tu. È tarato dieci volte sopra il prompt più lungo che esista.
    */
-  compilerUserChars: 40_000,
+  compilerUserChars: 200_000,
   turns: 24,
   imageBytes: 5 * 1024 * 1024,
   maxTokens: 4000,
@@ -187,7 +198,12 @@ export default async function handler(request: Request): Promise<Response> {
     return json(
       {
         error: 'messaggio troppo lungo',
-        reason: `${user.length} caratteri contro un tetto di ${userCap}`,
+        /* Dice DI QUANTO, e da quale dei due tetti: «messaggio troppo lungo»
+           senza numeri fa sembrare un limite mio un guasto di rete. */
+        reason:
+          capability === 'prompt-compile'
+            ? `${user.length} caratteri: è un bug del compilatore, non una cosa che hai fatto tu (allarme a ${userCap})`
+            : `${user.length} caratteri contro un tetto di ${userCap}`,
       },
       413,
     );

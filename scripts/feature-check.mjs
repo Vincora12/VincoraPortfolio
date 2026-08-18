@@ -1384,10 +1384,16 @@ check(
    funzionato nemmeno una volta, respinto da un tetto mio. */
 check(
   '§10 COMPILATORE',
-  'il compilatore ha un tetto suo anche sul messaggio, non solo sul sistema',
-  has('netlify/functions/ai.ts', 'compilerUserChars') &&
-    has('netlify/functions/ai.ts', "capability === 'prompt-compile' ? LIMITS.compilerUserChars"),
-  'manda il prompt deterministico come messaggio utente: 16636 caratteri contro un tetto di 12000, respinto con 413 prima di partire',
+  'quello che genera l’app non viene sbarrato da un tetto scritto per la chat',
+  has('netlify/functions/ai.ts', "capability === 'prompt-compile' ? LIMITS.compilerUserChars") &&
+    /compilerUserChars:\s*200_000/.test(read('netlify/functions/ai.ts') ?? ''),
+  'un tetto su una cosa che produce il mio stesso codice non protegge da niente: può solo scattare quando il MIO numero è sbagliato — e infatti il compilatore non è mai partito una volta',
+);
+check(
+  '§10 COMPILATORE',
+  'e chi difende il budget resta il tetto mensile',
+  has('netlify/functions/_shared/spend.ts', 'MONTHLY_CAP_USD'),
+  'la difesa vera è quella, e non si può aggirare: il resto sono allarmi',
 );
 check(
   '§10 COMPILATORE',
