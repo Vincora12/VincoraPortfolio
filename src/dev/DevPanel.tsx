@@ -28,6 +28,7 @@ import { BatchGenerator } from './BatchGenerator';
 import { AssetImport } from './AssetImport';
 import { CatalogSection } from './CatalogSection';
 import { BioSection } from './BioSection';
+import { ForgePanel } from './ForgePanel';
 import { buildInfo, buildLabel } from '../system/build';
 import { DesignTest } from './DesignTest';
 import { PromptPreview } from './PromptPreview';
@@ -769,6 +770,10 @@ function GenerateSection() {
 
   return (
     <div className="dev__section">
+      {/* 🔷 «Tutto con un solo click.» Sta in cima a GENERA perché è la cosa
+          che si fa SUBITO DOPO aver generato una creatura. */}
+      <ForgePanel />
+
       <BatchGenerator />
 
       {/* §29 — «The prototype must expose a GENERATION TRACE in DEV only

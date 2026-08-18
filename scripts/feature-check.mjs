@@ -1206,6 +1206,44 @@ check(
   'due `??` sparsi sono due posti dove mostrare la versione vecchia senza accorgersene',
 );
 
+/* 🔷 «Adesso mi aspetto che tutto vada con un solo click.» */
+check(
+  '§22.4 FAI TUTTO',
+  'un pulsante solo fa bio, prompt e immagini',
+  has('src/state/store.ts', 'forgeEverything: async (monName)'),
+);
+check(
+  '§22.4 FAI TUTTO',
+  'il master si genera per primo, non il ritratto',
+  has('src/state/store.ts', "const order = ['character_master' as AssetType].concat("),
+  'compiler.ts mette il riferimento di consistenza negli altri prompt solo se il master risulta già risolto: compilando tutto prima di generare, nessuno ce l’avrebbe',
+);
+check(
+  '§22.4 FAI TUTTO',
+  'si compila e si genera un asset alla volta, non tutto e poi tutto',
+  has('src/state/store.ts', 'only: [type],'),
+  'compilare in blocco è quello che farebbe perdere il riferimento a tutti e sei',
+);
+check(
+  '§22.4 FAI TUTTO',
+  'al primo no ci si ferma',
+  has('src/state/store.ts', 'immagine ${type}: ${failure}'),
+  'insistere sui cinque rimasti produrrebbe cinque rifiuti invece di uno',
+);
+check(
+  '§22.4 FAI TUTTO',
+  'il prezzo si dice PRIMA di premere',
+  has('src/dev/ForgePanel.tsx', '0,75 €'),
+  'un pulsante che scopre il conto dopo non è un pulsante, è una trappola',
+);
+check(
+  '§22.4 FAI TUTTO',
+  'segnare gli slot risolti è scritto in un posto solo',
+  has('src/state/store.ts', 'function markAssetsMade(') &&
+    count('src/state/store.ts', /markAssetsMade\(set, get, monName, made\)/g) === 2,
+  'due copie sono due posti dove dimenticare di marcare il master, e allora i prompt dopo perdono il riferimento in silenzio',
+);
+
 check(
   '§19.5 ATTIVAZIONE',
   'ATTIVO vuol dire «qualcuno può rispondere», non «ci sono tutte le chiavi»',

@@ -453,6 +453,15 @@ interface AppState {
   compileAssetPrompt: (monName: string, assetType: AssetType) => Promise<string | null>;
   /** §8.1 — fa riscrivere la bio. Torna il motivo del rifiuto, o `null`. */
   writeBio: (monName: string) => Promise<string | null>;
+  /**
+   * 🔷 «Adesso mi aspetto che tutto vada con un solo click.»
+   *
+   * Bio, sei prompt riscritti e sei immagini, in un colpo. Torna l'elenco di
+   * quello che NON è riuscito, vuoto se è andato tutto.
+   */
+  forgeEverything: (monName: string) => Promise<string[]>;
+  /** A che punto è il giro completo, o `null`. Solo per la UI. */
+  forgeProgress: { label: string; done: number; total: number } | null;
 
   setBias: (patch: Partial<SimulationBias>) => void;
   setSignal: (key: StatKey, value: Signal) => void;
@@ -548,6 +557,7 @@ const INITIAL = {
   /* §22.4 — l'avanzamento delle immagini. Telemetria della UI: non va salvata,
      e infatti `partialize` la butta via insieme al batch. */
   assetProgress: null as (GenerationProgress & { monName: string }) | null,
+  forgeProgress: null as { label: string; done: number; total: number } | null,
   /* §22.4 — quante volte hai chiesto di rifare una faccia. Vive fuori dal
      record perché è una cosa TUA, non della creatura. */
   faceRedos: 0,
@@ -1583,6 +1593,83 @@ export const useApp = create<AppState>()(
         return null;
       },
 
+      /* ============================================================================
+         🔷 «Adesso mi aspetto che tutto vada con un solo click.»
+
+         I pezzi c'erano tutti e nessuno li chiamava in fila: la bio si
+         riscriveva da DEV, i prompt uno per uno da un'altra scheda, e le
+         immagini partivano da sole ma leggendo il prompt CONCATENATO, perché
+         nessuno aveva compilato quello buono. Cioè: il compilatore esisteva e
+         le immagini non lo usavano quasi mai.
+
+         ⚠️ L'ORDINE NON È QUELLO DELLA NASCITA, ED È VOLUTO.
+
+         `generationOrder()` mette il ritratto per primo, perché alla nascita
+         conta vedere una faccia in fretta. Qui no: qui si compila e si genera
+         un asset alla volta, e il MASTER va per primo — `compiler.ts:142` mette
+         il riferimento di consistenza negli altri prompt solo quando il master
+         RISULTA già risolto. Compilando tutto in blocco prima di generare,
+         nessun prompt avrebbe quel riferimento e le sei immagini sarebbero sei
+         creature diverse: esattamente il problema da cui siamo partiti.
+
+         🔒 In serie e ci si ferma al primo no, come in `generateMissingAssets`:
+         sei richieste insieme arriverebbero insieme anche al tetto di spesa,
+         che le conterebbe tutte come «ancora sotto».
+
+         💶 Circa 90 centesimi a creatura: sei immagini (~$0,24), sei prompt
+         riscritti (~$0,60) e la bio (~$0,02). Chi preme il pulsante deve
+         saperlo PRIMA, e infatti la schermata lo dice.
+         ========================================================================= */
+      forgeProgress: null,
+      forgeEverything: async (monName) => {
+        const problems: string[] = [];
+        const rec0 = get().mons[monName];
+        if (!rec0) return ['nessuna creatura con questo nome'];
+
+        const { generationOrder, generateMissingAssets } = await import(
+          '../assets-pipeline/generate'
+        );
+        /* Master per primo, poi l'ordine di sempre. */
+        const order = ['character_master' as AssetType].concat(
+          generationOrder().filter((t) => t !== 'character_master'),
+        );
+
+        const total = 1 + order.length * 2;
+        let done = 0;
+        const step = (label: string) => set({ forgeProgress: { label, done: done++, total } });
+
+        try {
+          step('la bio');
+          const bioWhy = await get().writeBio(monName);
+          if (bioWhy) problems.push(`bio: ${bioWhy}`);
+
+          for (const type of order) {
+            step(`il prompt di ${type}`);
+            const why = await get().compileAssetPrompt(monName, type);
+            if (why) problems.push(`prompt ${type}: ${why}`);
+
+            step(`l’immagine di ${type}`);
+            const rec = get().mons[monName];
+            if (!rec) break;
+
+            const { made, failure } = await generateMissingAssets(get().token, rec, undefined, {
+              only: [type],
+            });
+            if (failure) {
+              /* 🔒 Il tetto o la rete: insistere sui cinque asset rimasti
+                 produrrebbe cinque rifiuti invece di uno. */
+              problems.push(`immagine ${type}: ${failure}`);
+              break;
+            }
+            markAssetsMade(set, get, monName, made);
+          }
+        } finally {
+          set({ forgeProgress: null });
+        }
+
+        return problems;
+      },
+
       setBias: (patch) => set((s) => ({ bias: { ...s.bias, ...patch } })),
 
       setSignal: (key, value) =>
@@ -1932,24 +2019,7 @@ export const useApp = create<AppState>()(
           /* Lo stato degli slot vive dentro i Character Data (§27
              `asset_manifest_status`), non sul record: è la creatura a sapere
              quali sue immagini esistono. */
-          const current = get().mons[monName];
-          if (made.length > 0 && current) {
-            set({
-              mons: {
-                ...get().mons,
-                [monName]: {
-                  ...current,
-                  data: {
-                    ...current.data,
-                    asset_manifest_status: made.reduce(
-                      (acc, t) => ({ ...acc, [t]: 'resolved' as const }),
-                      current.data.asset_manifest_status,
-                    ),
-                  },
-                },
-              },
-            });
-          }
+          markAssetsMade(set, get, monName, made);
           set({ assetProgress: null });
         });
       },
@@ -2079,7 +2149,16 @@ export const useApp = create<AppState>()(
       name: 'vinzmon.prototype.v4',
       version: 3,
       partialize: (s) => {
-        const { batch: _batch, lastToolUses: _tools, assetProgress: _p, ...rest } = s;
+        const {
+          batch: _batch,
+          lastToolUses: _tools,
+          assetProgress: _p,
+          /* Come `assetProgress`: è a che punto sta una cosa che sta girando
+             adesso. Salvarlo vorrebbe dire riaprire l'app su una barra ferma
+             al 40% di un lavoro che nessuno sta più facendo. */
+          forgeProgress: _f,
+          ...rest
+        } = s;
         return rest as AppState;
       },
       /* 🔒 Il modulo di taratura è la sorgente che il motore legge, e allo
@@ -2612,6 +2691,44 @@ function maybeReview(set: (p: Partial<AppState>) => void, get: () => AppState): 
 }
 
 /* --- Utilità ---------------------------------------------------------------- */
+
+/**
+ * Segna come risolti gli slot appena riempiti.
+ *
+ * 🔒 Lo stato degli slot vive dentro i Character Data (§27
+ * `asset_manifest_status`), non sul record: è la creatura a sapere quali sue
+ * immagini esistono.
+ *
+ * 🔶 Era scritto dentro `generateAssetsFor`. Da quando anche il giro completo
+ * genera immagini, due copie della stessa riga vorrebbero dire due posti dove
+ * dimenticare di marcare il master — e senza quel marchio i prompt successivi
+ * perdono il riferimento di consistenza in silenzio.
+ */
+function markAssetsMade(
+  set: (patch: Partial<AppState>) => void,
+  get: () => AppState,
+  monName: string,
+  made: readonly AssetType[],
+) {
+  if (made.length === 0) return;
+  const current = get().mons[monName];
+  if (!current) return;
+  set({
+    mons: {
+      ...get().mons,
+      [monName]: {
+        ...current,
+        data: {
+          ...current.data,
+          asset_manifest_status: made.reduce(
+            (acc, t) => ({ ...acc, [t]: 'resolved' as const }),
+            current.data.asset_manifest_status,
+          ),
+        },
+      },
+    },
+  });
+}
 
 function setAssetState(
   set: (fn: (s: AppState) => Partial<AppState>) => void,
