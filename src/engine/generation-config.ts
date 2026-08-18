@@ -31,7 +31,7 @@
    estrae. §29 impone di incrementare la versione quando cambiano tassonomie o
    pesi, e i .mon già generati restano immutabili con la versione con cui sono
    nati. */
-export const GENERATION_CONFIG_VERSION = '2.5.0';
+export const GENERATION_CONFIG_VERSION = '2.6.0';
 
 /* ============================================================================
    §2 — SEGNALI IN INGRESSO
@@ -824,19 +824,41 @@ export const MOOD_INPUT_RULES = {
    library; rejection removes it from active selection.»
    ========================================================================= */
 
+/**
+ * Le regole di costruzione di un designer, un asse per campo.
+ *
+ * ⚠️ CAMPI SEPARATI E NON UNA STRINGA SOLA, e non è pignoleria di struttura.
+ * La prima versione era un paragrafo per designer, e il risultato l'ha detto
+ * il feedback: «McCracken è ancora troppo corto, lascia molta più
+ * interpretazione al modello». Con un campo unico la lunghezza dipende da
+ * quanto avevo voglia di scrivere quel giorno; con gli assi dichiarati, un
+ * designer a cui manca la faccia o la postura è visibile — e c'è un controllo
+ * che lo fa fallire.
+ *
+ * 🔒 Gli assi sono quelli che il master §8 nomina: «proportion, shape
+ * language, facial construction, anatomical simplification, clothing
+ * construction, silhouette, gestural logic, posture, detail density». Servono
+ * anche al protocollo §12: due designer si confrontano bene solo se sono
+ * descritti sugli stessi assi.
+ */
 export interface DesignDnaDef {
   id: string;
   /** Densità di dettaglio dichiarata dal master, 1–5. */
   density: number;
-  /**
-   * Le regole di COSTRUZIONE, in inglese, così come entrano nel prompt.
-   *
-   * 🔒 Visive e operative, mai biografiche: «masse compatte leggibili» si può
-   * disegnare, «l'eleganza giapponese anni '90» no. È la regola che il master
-   * mette in testa a questo capitolo, ed è quella che distingue una libreria
-   * di stili da un elenco di nomi famosi.
-   */
-  construction: string;
+  /** Rapporti fra le masse: cosa è grande, cosa è piccolo, quanto. */
+  proportion: string;
+  /** Il vocabolario di forme: da che solidi è fatto. */
+  shapes: string;
+  /** Come è costruita la faccia — occhi, bocca, cosa porta l'espressione. */
+  face: string;
+  /** Cosa si semplifica e cosa si butta: mani, giunture, appendici. */
+  anatomy: string;
+  /** Come si risolvono i vestiti, o cosa li sostituisce. */
+  clothing: string;
+  /** Posa e gesto: dove sta il peso, cosa fa il corpo a riposo. */
+  posture: string;
+  /** Cosa sopravvive alla densità dichiarata, e cosa no. */
+  detail: string;
   it: string;
 }
 
@@ -844,50 +866,134 @@ export const DESIGN_DNA: DesignDnaDef[] = [
   {
     id: 'KEN SUGIMORI',
     density: 2.75,
-    construction:
-      'Iconic clarity; compact readable masses; species-character coherence; moderate exaggeration; every retained feature communicates identity, function or behaviour.',
+    proportion:
+      'Compact. Head reads large against the body but never chibi. Limbs short and functional. Mass concentrates in the torso or in the single organ that identifies the species.',
+    shapes:
+      'Rounded primaries close to nameable solids — egg, teardrop, wedge — with one or two decisive angular accents. No compound forms that cannot be described in a word.',
+    face:
+      'Large simple high-contrast eyes; mouth small or merely implied; expression carried by eye shape and brow angle rather than by drawn features.',
+    anatomy:
+      'Every appendage is justified by species function. No decorative extra limbs. Digits reduced to two or three readable shapes.',
+    clothing:
+      'Rarely garments: surface markings, plates, fur or shell patterns do the work clothing would do.',
+    posture:
+      'Neutral three-quarter stance, weight even, alert. This is a portrait of a species, not an action pose.',
+    detail:
+      'Two or three secondary features at most. Texture is implied by silhouette, never by added linework.',
     it: 'chiarezza da icona, masse compatte, niente dettaglio che non dica qualcosa',
   },
   {
     id: 'GENNDY TARTAKOVSKY',
     density: 2,
-    construction:
-      'Aggressive proportional contrast; directional geometry; strong negative space; action-readable silhouette; opposing masses; posture already implies motion.',
+    proportion:
+      'Extreme contrast between adjacent masses: a tiny head on enormous shoulders, or the reverse. Limbs taper toward points. Nothing is average-sized.',
+    shapes:
+      'Hard geometry — parallelograms, wedges, trapezoids. Straight lines set against one single large curve.',
+    face:
+      'Minimal. Eyes as slits or dots, brow as one heavy shape, no rendered interior. The head is a shape before it is a face.',
+    anatomy:
+      'Joints implied, never drawn. Hands become mitts, blades or blocks. Necks are either absent or exaggerated.',
+    clothing:
+      'Flat graphic shapes read as one silhouette: a cape, a coat, a wrap — one garment, never two. No layering, no hems, no folds. The garment edge is a hard geometric cut, not cloth behaving like cloth.',
+    posture:
+      'Strong diagonal, weight thrown onto one side. The negative space between limbs is itself a designed shape.',
+    detail:
+      'Near zero. Every retained line is structural; if a line is decorative it is removed.',
     it: 'contrasti di proporzione aggressivi, la posa contiene già il movimento',
   },
   {
     id: 'AKIRA TORIYAMA',
     density: 3,
-    construction:
-      'Friendly functional construction; clear rounded/compact masses with selective sharpness; expressive readable face; mechanical or anatomical ideas simplified into playful usable forms.',
+    proportion:
+      'Friendly and sturdy: large head, short strong limbs, small hands and feet with clear separated digits.',
+    shapes:
+      'Spheres and cylinders as primaries, with sharp accents reserved for hair, horns, spikes or antennae.',
+    face:
+      'Round eyes with visible whites, small nose, wide expressive mouth. Brows carry most of the emotion.',
+    anatomy:
+      'Mechanical or alien parts are simplified into toy-like modules with visible bolts, seams, dials and buttons — complexity becomes a thing you could hold.',
+    clothing:
+      'Simple garments with oversized collars, belts and boots. Fastenings are readable and few.',
+    posture:
+      'Bouncy, feet planted, slight forward lean. The hands are usually doing something.',
+    detail:
+      'Moderate. Hardware is drawn as a few large parts rather than many small ones: three big bolts instead of twenty rivets. Surfaces stay clean between the parts that matter, so each retained element still reads at a distance.',
     it: 'costruzione amichevole e funzionale, idee complesse rese giocattoli',
   },
   {
     id: 'CRAIG McCRACKEN',
     density: 1.5,
-    construction:
-      'Radical graphic economy; very few primary shapes; extreme proportion; facial information minimised; visual comedy carried by silhouette and scale contrast.',
+    proportion:
+      'Three to four primary masses in the whole character. The head or identity mass dominates and may occupy a third or more of the total. Limbs are thin simple appendages with no visible joints.',
+    shapes:
+      'Circles, ovals and rounded rectangles. Almost no compound forms: if a shape needs two words to describe, it is the wrong shape.',
+    face:
+      'Eyes as two large circles placed directly on the mass. Mouth is a single line. No nose. No ears unless the ears are the joke.',
+    anatomy:
+      'Hands and feet reduce to mitts or blobs. Fingers appear only when they carry the gag. No neck. No drawn musculature of any kind.',
+    clothing:
+      'A single flat colour block that reads as clothing, or nothing at all. No folds, no seams, no hems.',
+    posture:
+      'Front-facing or flat three-quarter. Stiff, symmetrical, deliberately doll-like — the stillness is the style.',
+    detail:
+      'Almost eliminated. Test every feature: if it can be removed and the character is still recognisable from across a room, remove it.',
     it: 'pochissime forme, proporzioni estreme, la comicità sta nella sagoma',
   },
   {
     id: 'PENDLETON WARD',
     density: 1.5,
-    construction:
-      'Extremely reduced geometry; simple body masses; thin or tubular limbs where useful; elastic impossible anatomy; bizarre proportional jokes; morphology may ignore physical plausibility while remaining instantly drawable.',
+    proportion:
+      'Noodle limbs of impossible length against a simple bean or tube body. The head is barely distinct from the body it sits on.',
+    shapes:
+      'Single-stroke outlines. Forms that could be drawn without lifting the pen. Nothing is constructed from parts.',
+    face:
+      'Dot eyes and a small mouth, placed unusually high or low on the mass. The expression comes from WHERE the features sit, not from what they are.',
+    anatomy:
+      'No skeleton is implied. Limbs bend anywhere along their length. The scale of one part may openly contradict the rest of the body.',
+    clothing:
+      'Usually none: the body is the design. When something is worn it is a single accessory that appears to float rather than to be fitted — no straps, no fastenings, no logic about how it stays on. Clothing never explains itself.',
+    posture:
+      'Loose, off-balance, elastic. The pose is allowed to be physically impossible as long as it stays instantly drawable.',
+    detail:
+      'Minimal to the point of starkness: one bizarre specific instead of many small ones. If two odd features compete, keep the odder and delete the other. Surfaces are flat and empty between the few things that exist.',
     it: 'geometria ridotta all\'osso, anatomia elastica e impossibile',
   },
   {
     id: 'TETSUYA NOMURA',
     density: 5,
-    construction:
-      'High hierarchical detail; elongated youthful heroic proportions when humanoid; layered clothing and anatomy; asymmetry; localised hardware; multiple detail scales; dense but silhouette-first.',
+    proportion:
+      'Tall, elongated, youthful heroic. Small head against the body, long legs, narrow waist, noticeably large hands.',
+    shapes:
+      'Layered planes. Belts, straps and zips act as structural lines that divide the masses. Left and right are deliberately not symmetrical.',
+    face:
+      'Fine features, large eyes with a detailed iris, sharp chin, long fringe crossing the face and breaking its outline.',
+    anatomy:
+      'Localised hardware: one shoulder armoured, one limb augmented or replaced. The rest stays anatomically plain so the intervention reads.',
+    clothing:
+      'Multiple layers with visible edges — hems, collars, straps and hanging elements that imply movement even at rest.',
+    posture:
+      'Dynamic contrapposto, weight on the back foot, one hand raised, holding or reaching.',
+    detail:
+      'High but strictly hierarchical: silhouette first, then primary masses, then hardware, then micro-detail. Detail that flattens the silhouette is removed.',
     it: 'dettaglio fitto ma gerarchico, proporzioni eroiche allungate, asimmetria',
   },
   {
     id: 'JAMIE HEWLETT',
     density: 3,
-    construction:
-      'Graphic lankiness or compact swagger depending on the concept; angular facial construction; fashion and street attitude; offbeat posture; selective exaggeration; strong visual personality with slightly abrasive charm.',
+    proportion:
+      'Either lanky with a heavy head and a long neck, or short and thick with no neck — pick one and commit fully. Feet are large.',
+    shapes:
+      'Angular with flattened planes. Cheekbones and jaw read as straight cuts rather than curves.',
+    face:
+      'Heavy-lidded eyes, long nose, mouth set off-centre. The face is asymmetric on purpose.',
+    anatomy:
+      'Large expressive hands with visible knuckles and tendons; the hands carry as much character as the face. Slouched spine, uneven shoulders, one hip higher. The body always looks like it has been standing there a while.',
+    clothing:
+      'Real streetwear silhouettes — a specific identifiable garment rather than a generic outfit.',
+    posture:
+      'Off-beat: slouched, hip cocked, weight dumped on one leg. Attitude is established before anatomy.',
+    detail:
+      'Selective and uneven: a lot of information in the face and hands, almost none elsewhere.',
     it: 'allampanato o tracagnotto secondo il caso, faccia spigolosa, attitudine da strada',
   },
 ];
@@ -1193,6 +1299,73 @@ export const CULTURAL_TAGS = [
 ] as const satisfies readonly { id: string; it: string; signal: SignalKey }[];
 
 export type CulturalTagId = (typeof CULTURAL_TAGS)[number]['id'];
+/* ============================================================================
+   MASTER CHARACTER SYSTEM v1.1 §7 — IL SERBATOIO DEI RIFERIMENTI
+
+   ⚠️ NON CONFONDERE CON `CULTURAL_TAGS` QUI SOPRA.
+
+     CULTURAL_TAGS        cosa piace a TE. Otto voci, le dichiari tu, e
+                          pesano su quale Family viene estratta.
+     CULTURAL_REFERENCES  il serbatoio del master. Da cui si estraggono i 2–4
+                          riferimenti ATTIVI di UNA forma, che finiscono nel
+                          prompt.
+
+   🔷 Dal feedback: «Stai passando all'immagine l'intero Available pool. Il
+   CLEAN dice che va combinato un piccolo numero di riferimenti distanti, non
+   semplicemente elencata tutta la libreria.»
+
+   Aveva ragione, ed era un fraintendimento mio del capitolo: avevo messo nel
+   prompt la LISTA DELLA SPESA invece della spesa. Un modello che riceve
+   quindici mondi possibili non ne combina tre: ne prende il minimo comune,
+   che è la creatura generica che §3 vieta.
+
+   🔒 IL `cluster` NON È UNA CATEGORIA, È UN VINCOLO. Il master chiede
+   riferimenti DISTANTI, e «distanti» va reso meccanico o non succede: due
+   estratti non possono venire dallo stesso gruppo. Senza, uscirebbe
+   «Final Fantasy + Kingdom Hearts + magical girl», che è un riferimento solo
+   detto tre volte.
+   ========================================================================= */
+
+export interface CulturalReference {
+  id: string;
+  /** Come entra nel prompt. In inglese, come tutto il resto del compilatore. */
+  en: string;
+  /** 🔒 Due riferimenti dello stesso cluster non escono mai insieme. */
+  cluster: 'PLAY' | 'SUBCULTURE' | 'FOLKLORE' | 'OBJECTS' | 'SACRED';
+  /** Quale dei TUOI interessi lo rende più probabile. */
+  signal: CulturalTagId;
+  it: string;
+}
+
+export const CULTURAL_REFERENCES: CulturalReference[] = [
+  { id: 'FF_KH', cluster: 'PLAY', signal: 'games', en: 'Final Fantasy / Kingdom Hearts character-design attitude', it: 'l’attitudine di Final Fantasy e Kingdom Hearts' },
+  { id: 'SHAMAN_KING', cluster: 'PLAY', signal: 'games', en: 'Shaman King conceptual spirit-object relationships', it: 'il rapporto fra spirito e oggetto di Shaman King' },
+  { id: 'MAGICAL_GIRL', cluster: 'PLAY', signal: 'queerCamp', en: 'magical-girl transformation logic', it: 'la logica di trasformazione delle maghette' },
+  { id: 'RANGERS', cluster: 'PLAY', signal: 'superhero', en: 'Power Rangers transformation confidence', it: 'la sicurezza da trasformazione dei Power Rangers' },
+
+  { id: 'Y2K', cluster: 'SUBCULTURE', signal: 'y2k', en: 'Y2K digital optimism', it: 'l’ottimismo digitale Y2K' },
+  { id: 'RAVE', cluster: 'SUBCULTURE', signal: 'queerCamp', en: 'club and rave culture', it: 'la cultura da club e da rave' },
+  { id: 'QUEER_FASHION', cluster: 'SUBCULTURE', signal: 'queerCamp', en: 'queer fashion image-making', it: 'la costruzione dell’immagine nella moda queer' },
+  { id: 'STREET_BOOTLEG', cluster: 'SUBCULTURE', signal: 'artDesignFashion', en: 'street, skate and bootleg graphics', it: 'la grafica da strada, skate e bootleg' },
+
+  { id: 'NAPOLI', cluster: 'FOLKLORE', signal: 'travel', en: 'Southern Italian and Neapolitan folklore and superstition', it: 'il folklore e la superstizione del sud e di Napoli' },
+  { id: 'YOKAI', cluster: 'FOLKLORE', signal: 'horrorWeird', en: 'yokai', it: 'gli yokai' },
+  { id: 'TAROT_MYTH', cluster: 'FOLKLORE', signal: 'horrorWeird', en: 'tarot, constellations and Greek myth', it: 'tarocchi, costellazioni e mito greco' },
+
+  { id: 'OBSOLETE_TECH', cluster: 'OBJECTS', signal: 'techAI', en: 'robots and obsolete electronics', it: 'robot ed elettronica obsoleta' },
+  { id: 'EYEWEAR_FASHION', cluster: 'OBJECTS', signal: 'artDesignFashion', en: 'contemporary fashion and eyewear', it: 'la moda contemporanea e l’occhialeria' },
+
+  { id: 'SACRED_ANATOMY', cluster: 'SACRED', signal: 'horrorWeird', en: 'unfamiliar sacred anatomy', it: 'un’anatomia sacra che non si riconosce' },
+  { id: 'COSMIC', cluster: 'SACRED', signal: 'horrorWeird', en: 'cosmic beings', it: 'creature cosmiche' },
+];
+
+export function culturalReference(id: string): CulturalReference | null {
+  return CULTURAL_REFERENCES.find((r) => r.id === id) ?? null;
+}
+
+/** Quanti riferimenti attivi ha una forma. Il master dice «a small number». */
+export const CULTURAL_ACTIVE_RANGE = { min: 2, max: 4 } as const;
+
 
 /* ============================================================================
    §28 — SICUREZZA E TONO, NON NEGOZIABILI

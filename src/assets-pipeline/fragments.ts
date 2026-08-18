@@ -38,7 +38,7 @@ import {
 } from '../engine/generation-config';
 
 /** §48 — versione del compilatore, salvata in ogni export per riproducibilità. */
-export const COMPILER_VERSION = '3.0.0';
+export const COMPILER_VERSION = '3.1.0';
 
 /* --- §30.1 — schema canonico del frammento --------------------------------- */
 
@@ -678,7 +678,19 @@ function designDnaFragment(d: (typeof DESIGN_DNA)[number]): PromptFragment {
     priority: AXIS_PRIORITY.design_dna,
     positive_prompt: [
       `CHARACTER DESIGN DNA: ${d.id} — construction rules only.`,
-      d.construction,
+      '',
+      /* 🔒 Un asse per riga, sempre gli stessi sette. È quello che rende
+         confrontabili due prove del protocollo §12: se un designer descrive
+         la faccia e un altro no, quello che vedi cambiare fra le due immagini
+         non è il designer, è quanto era scritto. */
+      `PROPORTION: ${d.proportion}`,
+      `SHAPE LANGUAGE: ${d.shapes}`,
+      `FACIAL CONSTRUCTION: ${d.face}`,
+      `ANATOMICAL SIMPLIFICATION: ${d.anatomy}`,
+      `CLOTHING CONSTRUCTION: ${d.clothing}`,
+      `POSTURE / GESTURE: ${d.posture}`,
+      `SURVIVING DETAIL: ${d.detail}`,
+      '',
       `DETAIL DENSITY: ${d.density}/5. This controls how many visual decisions survive, not how much lore exists.`,
       d.density <= 2
         ? 'Compress every idea into as few primary shapes as possible. Anything that does not survive compression is dropped, not shrunk.'
@@ -735,22 +747,16 @@ export const CULTURAL_FRAGMENT: PromptFragment = {
   priority: 0,
   positive_prompt: [
     'CULTURAL DNA — ingredients, never easter eggs:',
-    'Combine a SMALL number of DISTANT references conceptually, then translate them into',
-    'morphology, behaviour, fashion logic, transformation, colour or attitude.',
-    'The viewer should be able to remember this character without ever identifying a reference.',
-    '',
-    'Available pool, to draw from sparingly:',
-    'Final Fantasy / Kingdom Hearts; Shaman King spirit-object relationships;',
-    'magical-girl transformation logic; Power Rangers transformation confidence;',
-    'Y2K digital optimism; club and rave culture; queer fashion image-making;',
-    'Southern Italian and Neapolitan folklore and superstition; yokai;',
-    'tarot, constellations and Greek myth; robots and obsolete electronics;',
-    'street / skate / bootleg graphics; unfamiliar sacred anatomy;',
-    'cosmic beings; contemporary fashion and eyewear.',
+    'The ACTIVE references for this Form are listed in the Character DNA block below.',
+    'Combine ONLY those, conceptually, and translate them into morphology, behaviour,',
+    'fashion logic, transformation, colour or attitude — never into quotation.',
+    'The viewer should be able to remember this character without identifying a single reference.',
   ].join('\n'),
   negative_prompt:
-    'Never reproduce recognisable characters, costumes, logos, weapons, species, silhouettes or franchise iconography. A reference anyone can name is a failure.',
+    'Never reproduce recognisable characters, costumes, logos, weapons, species, silhouettes or franchise iconography. A reference anyone can name is a failure. Do not add references beyond the ones listed.',
 };
+
+/* ============================================================================
 
 /** §42 — DOODLE non è un Appearance: vive solo nella BIO. */
 export const DOODLE_FRAGMENT: PromptFragment = {

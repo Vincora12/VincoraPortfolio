@@ -310,6 +310,9 @@ const must = [
   ['§3  ritmo eroico giovane, non manichino', 'youthful character appeal'],
   ['§4  i capelli di VINZ: biondo scuro decolorato', 'DARK BLOND'],
   ['§7  la Cultural DNA come ingrediente', 'CULTURAL DNA'],
+  ['§7  i riferimenti ATTIVI, non il serbatoio', 'ACTIVE CULTURAL DNA'],
+  ['§8  il designer descrive la costruzione del viso', 'FACIAL CONSTRUCTION:'],
+  ['§8  e la postura', 'POSTURE / GESTURE:'],
   ['§9  la base dominante ha un ruolo dichiarato', 'DOMINANT BASE'],
   ['§9  l\'acid hero ha un ruolo dichiarato', 'ACID HERO'],
   ['§9  il monocromo elegante e\' vietato per nome', 'monochrome fantasy'],
@@ -319,6 +322,22 @@ const must = [
 for (const [label, needle] of must) {
   check(testo.includes(needle), label, needle);
 }
+
+/* 🔒 IL SERBATOIO NON DEVE TORNARE NEL PROMPT. Era l'errore segnalato: quindici
+   mondi possibili passati a ogni immagine invece dei due-quattro scelti. Un
+   modello che ne riceve quindici prende il minimo comune, che e' la creatura
+   generica. */
+check(
+  !testo.includes('Available pool'),
+  '§7 il serbatoio completo resta nel generatore, fuori dal prompt',
+  'la libreria intera nel prompt non e una scelta: e un elenco',
+);
+const attivi = (testo.match(/ACTIVE CULTURAL DNA[^\n]*/) ?? [''])[0];
+check(
+  attivi.split(' + ').length >= 2 && attivi.split(' + ').length <= 4,
+  '§7 e quelli attivi sono fra due e quattro',
+  attivi.slice(0, 110),
+);
 
 /* 🔒 E la vecchia priorita' NON deve tornare: diceva che il primo read e' la
    FAMILY, cioe' l'opposto di §11. */

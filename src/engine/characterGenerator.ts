@@ -16,6 +16,9 @@
 
 import {
   APPEARANCES,
+  CULTURAL_ACTIVE_RANGE,
+  CULTURAL_REFERENCES,
+  culturalReference,
   DESIGN_DNA,
   designDnaDef,
   ENGINE_WEIGHTS,
@@ -265,11 +268,19 @@ export function generateMon(ctx: GenerationContext): GenerationResult {
      produrrebbe «i .mon tristi si disegnano alla McCracken», che è una regola
      che nessuno ha deciso e che si vedrebbe dopo dieci creature. */
   const designDna = pick(rng, keepEnabled('design', DESIGN_DNA, (d) => d.id)).id;
+  const culturalDna = resolveCulturalDna(rng, ctx);
   steps.push({
     step: 11.5,
     stage: 'CHARACTER DESIGN DNA',
     outcome: `${designDna} · densità ${designDnaDef(designDna).density}/5`,
     note: 'costruzione, non resa: l’Appearance sopra decide la superficie',
+  });
+
+  steps.push({
+    step: 11.7,
+    stage: 'CULTURAL DNA',
+    outcome: culturalDna.map((id) => culturalReference(id)?.it ?? id).join(' + '),
+    note: `${culturalDna.length} riferimenti, uno per cluster: il master li vuole distanti`,
   });
 
   /* 12 — HERITAGE (§23) */
@@ -360,6 +371,7 @@ export function generateMon(ctx: GenerationContext): GenerationResult {
     mood_secondary: moodSecondary,
     appearance,
     character_design_dna: designDna,
+    cultural_dna: culturalDna,
     rarity: rarity.rarity,
     rarity_score: rarity.score,
     season: ctx.input.season ?? null,
@@ -623,6 +635,49 @@ function resolveFashion(rng: Rng, ctx: GenerationContext): string {
   }));
   scored.sort((a, b) => b.total - a.total);
   return scored[0]!.id;
+}
+
+/* ============================================================================
+   §7 (MASTER CHARACTER SYSTEM v1.1) — I RIFERIMENTI ATTIVI DI QUESTA FORMA
+
+   🔷 «Il sito dovrebbe prima ESTRARRE, per questa singola Form, qualcosa tipo
+   ACTIVE CULTURAL DNA: Neapolitan superstition + Y2K digital optimism +
+   botanical transformation — e poi il prompt dovrebbe contenere solo quei 2–4
+   elementi. La libreria completa può stare nel generatore, non nel prompt.»
+
+   🔒 DUE VINCOLI, E IL SECONDO È QUELLO CHE FA LA DIFFERENZA.
+
+   1. POCHI: da due a quattro. «A small number», dice il master.
+   2. DISTANTI: mai due dallo stesso cluster. Senza questo uscirebbe
+      «Final Fantasy + Kingdom Hearts + magical girl», che non sono tre
+      riferimenti combinati: è un riferimento solo, ripetuto tre volte. È
+      esattamente la convergenza che rende una creatura generica.
+
+   E i TUOI interessi pesano: un riferimento che risuona con una cosa che hai
+   dichiarato esce più facilmente. Pesa, non decide — se decidesse, ogni forma
+   pescherebbe dagli stessi due mondi e in sei mesi si assomiglierebbero tutte.
+   ========================================================================= */
+
+function resolveCulturalDna(rng: Rng, ctx: GenerationContext): string[] {
+  const mine = ctx.input.cultural;
+  const wanted = pickInt(rng, CULTURAL_ACTIVE_RANGE.min, CULTURAL_ACTIVE_RANGE.max);
+
+  const scored = CULTURAL_REFERENCES.map((r) => ({
+    ref: r,
+    /* Il peso dei tuoi interessi resta MINORITARIO rispetto al caso: 40 punti
+       contro 100. Serve a inclinare, non a scegliere. */
+    weight: rng() * 100 + (mine[r.signal] ? 40 : 0),
+  })).sort((a, b) => b.weight - a.weight);
+
+  const out: string[] = [];
+  const usedClusters = new Set<string>();
+  for (const { ref } of scored) {
+    if (out.length >= wanted) break;
+    if (usedClusters.has(ref.cluster)) continue;
+    usedClusters.add(ref.cluster);
+    out.push(ref.id);
+  }
+  return out;
 }
 
 /* ============================================================================

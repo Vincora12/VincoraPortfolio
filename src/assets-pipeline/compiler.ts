@@ -13,7 +13,7 @@
    ordine: è il contenuto di `fragment_ids.json`.
    ========================================================================= */
 
-import { GENERATION_CONFIG_VERSION } from '../engine/generation-config';
+import { GENERATION_CONFIG_VERSION, culturalReference } from '../engine/generation-config';
 import { idleMotionFor } from '../engine/idleMotion';
 import {
   ASSET_FRAGMENTS,
@@ -300,6 +300,7 @@ function renderCharacterDna(data: CharacterData): string {
        palette è parte dell'identità di QUESTA creatura, non una regola di
        casa: la regola di casa è il blocco `global.house_color_dna`. */
     renderPalette(data),
+    renderCultural(data),
     `behavioral contradictions: ${d.contradictions
       .map((c) => `${c.a} together with ${c.b}`)
       .join('; ')}`,
@@ -309,6 +310,24 @@ function renderCharacterDna(data: CharacterData): string {
     lines.push(`exact haircut / bleach solution: ${data.haircut}, ${data.hair_state}`);
   }
   return lines.join('\n');
+}
+
+/**
+ * I riferimenti ATTIVI di questa forma, e nient'altro.
+ *
+ * 🔶 Qui prima non c'era niente e nel frammento globale c'era il SERBATOIO
+ * INTERO — quindici mondi possibili passati a ogni immagine. Un modello che
+ * ne riceve quindici non ne combina tre: prende il minimo comune, che è la
+ * creatura generica. Adesso il serbatoio resta nel generatore e nel prompt
+ * arrivano solo i due-quattro che questa creatura ha davvero.
+ */
+function renderCultural(data: CharacterData): string {
+  /* §29 — una forma nata prima di questo campo non ne ha, e non gliene si
+     assegnano adesso: cambierebbe da cosa è fatta, retroattivamente. */
+  const ids = data.cultural_dna ?? [];
+  if (ids.length === 0) return 'active cultural DNA: none recorded for this Form.';
+  const names = ids.map((id) => culturalReference(id)?.en ?? id);
+  return `ACTIVE CULTURAL DNA (combine ONLY these, translated into anatomy and attitude): ${names.join(' + ')}`;
 }
 
 /**

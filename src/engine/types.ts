@@ -208,6 +208,15 @@ export interface CharacterData {
    * creatura resa in due modi.
    */
   character_design_dna: string;
+  /**
+   * 🔷 §7 — i 2–4 riferimenti culturali ATTIVI di questa forma, per id.
+   *
+   * ⚠️ Non è `cultural_affinities`, che sono i TUOI interessi dichiarati.
+   * Questi sono gli ingredienti scelti per questa creatura, uno per cluster,
+   * ed è l'unica cosa che finisce nel prompt: il serbatoio completo resta nel
+   * generatore.
+   */
+  cultural_dna: string[];
   palette_dna: PaletteDna;
   /** `null` quando l'anatomia non consente ottica (§9). */
   eyewear: EyewearSolution | null;

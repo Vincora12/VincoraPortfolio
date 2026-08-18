@@ -37,6 +37,7 @@ export { isValidMonName } from '${cwd}/src/engine/naming.ts';
 export { normalizePool } from '${cwd}/src/engine/rarity.ts';
 export { shouldDownload } from '${cwd}/src/state/store.ts';
 export { generatePaletteDna } from '${cwd}/src/engine/colorDna.ts';
+export { DESIGN_DNA, CULTURAL_REFERENCES, CULTURAL_ACTIVE_RANGE, culturalReference } from '${cwd}/src/engine/generation-config.ts';
 export { kinship, reactionsTo, arrivalPosts, weeklyPosts, weekFacts, roomNotice, unwritten, roomBlock, recognisedBy } from '${cwd}/src/engine/room.ts';
 export { parseRoomReply } from '${cwd}/src/ai/roomVoice.ts';
 export { generationOrder } from '${cwd}/src/assets-pipeline/generate.ts';
@@ -2583,6 +2584,62 @@ check(
   m.roomBlock([writtenPost], 20).includes('Do NOT recite'),
   'e gli si dice di non recitarlo',
   'sapere una cosa e citarla a memoria sono due cose diverse',
+);
+
+console.log('\n═══ §7/§8 — RIFERIMENTI E DESIGNER ═══\n');
+
+/* 🔷 «Stai passando all'immagine l'intero Available pool. Il CLEAN dice che va
+   combinato un piccolo numero di riferimenti DISTANTI.» */
+
+let fuoriRange = 0, ripetuti = 0, minimo = 99, massimo = 0;
+const usciti = new Map();
+for (let seed = 1; seed <= 3000; seed++) {
+  const d = m.generateFirstMon({
+    input, mindlineNodeId: `c${seed}`, originNodeId: null, lineageNames: [], seed,
+  }).record.data;
+  const ids = d.cultural_dna;
+  minimo = Math.min(minimo, ids.length);
+  massimo = Math.max(massimo, ids.length);
+  if (ids.length < m.CULTURAL_ACTIVE_RANGE.min || ids.length > m.CULTURAL_ACTIVE_RANGE.max) fuoriRange++;
+  const clusters = ids.map((id) => m.culturalReference(id).cluster);
+  if (new Set(clusters).size !== clusters.length) ripetuti++;
+  for (const id of ids) usciti.set(id, (usciti.get(id) ?? 0) + 1);
+}
+
+check(fuoriRange === 0, 'ogni forma ha da 2 a 4 riferimenti attivi, mai la libreria intera', `visti fra ${minimo} e ${massimo}`);
+check(ripetuti === 0, 'e sono DISTANTI: mai due dallo stesso cluster', 'senza, «Final Fantasy + Kingdom Hearts + magical girl» e un riferimento solo detto tre volte');
+check(
+  usciti.size === m.CULTURAL_REFERENCES.length,
+  'nessun riferimento resta escluso per sempre',
+  `${usciti.size} su ${m.CULTURAL_REFERENCES.length} sono usciti almeno una volta`,
+);
+/* 🔒 E nessuno deve dominare: se un cluster piccolo uscisse quasi sempre, i
+   .mon avrebbero tutti lo stesso sapore. */
+const quote = [...usciti.values()].map((n) => n / 3000);
+check(
+  Math.max(...quote) < 0.55,
+  'e nessuno domina tutte le nascite',
+  `il piu frequente esce nel ${Math.round(Math.max(...quote) * 100)}% delle forme`,
+);
+
+/* 🔷 «Il blocco Craig McCracken e ancora troppo corto. Il Master dice che il
+   DNA deve essere visuale e operativo — proporzioni, shape language, face,
+   anatomia, silhouette, postura.» La cura e' strutturale: sette assi
+   dichiarati, e nessuno puo' essere una riga di cortesia. */
+const ASSI = ['proportion', 'shapes', 'face', 'anatomy', 'clothing', 'posture', 'detail'];
+const corti = [];
+for (const d of m.DESIGN_DNA) {
+  for (const a of ASSI) {
+    if (!d[a] || d[a].length < 80) corti.push(`${d.id}/${a} (${(d[a] ?? '').length})`);
+  }
+}
+check(corti.length === 0, 'ogni designer descrive tutti e sette gli assi, e nessuno a mezza riga', corti.join(', ') || `${m.DESIGN_DNA.length} designer × ${ASSI.length} assi`);
+
+const mc = m.DESIGN_DNA.find((d) => d.id === 'CRAIG McCRACKEN');
+check(
+  mc && ASSI.reduce((n, a) => n + mc[a].length, 0) > 700,
+  'McCracken in particolare e specifico, non evocativo',
+  `${mc ? ASSI.reduce((n, a) => n + mc[a].length, 0) : 0} caratteri di regole di costruzione`,
 );
 
 console.log('\n═══ §9 — HOUSE COLOR DNA ═══\n');
