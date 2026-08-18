@@ -1380,6 +1380,22 @@ check(
   'quella chiamata generava dal prompt CONCATENATO: il ritratto sarebbe stato l’unico dei sei mai approvato, e per giunta senza riferimento di consistenza',
 );
 
+/* 🔷 «Nelle API c'è solo questo utilizzo»: cinque richieste di testo, ZERO di
+   immagini. Non fallite — mai partite. */
+check(
+  '§22.4 GUASTI',
+  'una riscrittura rifiutata non annulla l’immagine',
+  lacksInCode('src/state/store.ts', 'if (why) return `prompt: ${why}`;'),
+  'il prompt deterministico è sempre lì e sempre valido: rifiutare la riscrittura vuol dire usare quello di prima, non rinunciare all’immagine',
+);
+check(
+  '§22.4 GUASTI',
+  'e il motivo si sa lo stesso, dove serve',
+  has('src/state/store.ts', '[forgia] prompt non riscritto per') &&
+    has('src/dev/PromptPreview.tsx', 'RISCRIVI CON L’AI'),
+  'in DEV si vede se un prompt è riscritto o no: la stessa informazione, detta dove si può usare',
+);
+
 /* 🔷 «Le immagini non vanno, ci provo e niente.» — e il motivo restava nei log
    del server, cioe' dove dal telefono non guardi. */
 check(

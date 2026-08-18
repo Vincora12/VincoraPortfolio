@@ -1681,8 +1681,23 @@ export const useApp = create<AppState>()(
           });
         }
 
+        /* ⚠️ QUI L'IMMAGINE NON SI FERMA MAI, E PRIMA SI FERMAVA.
+           C'era `if (why) return`: se la riscrittura veniva RIFIUTATA — vincoli
+           persi, testo troppo corto — la funzione usciva e l'immagine non
+           veniva nemmeno chiesta. Il contatore di OpenAI lo diceva senza
+           ambiguità: cinque richieste di testo, ZERO di immagini.
+
+           🔒 Ed è assurdo proprio secondo la regola che avevo scritto io in
+           `promptCompiler`: «una riscrittura che perde un vincolo si butta e si
+           tiene quello deterministico». Quello deterministico è sempre lì,
+           sempre valido, e non costa niente. Rifiutare la riscrittura vuol dire
+           usare il prompt di prima, non rinunciare all'immagine.
+
+           Il motivo va nei log e non in faccia: in DEV → PROMPT IMMAGINI si
+           vede se un prompt è RISCRITTO o no, che è la stessa informazione
+           detta dove serve. */
         const why = await get().compileAssetPrompt(monName, type);
-        if (why) return `prompt: ${why}`;
+        if (why) console.warn(`[forgia] prompt non riscritto per ${type}:`, why);
 
         const rec = get().mons[monName];
         if (!rec) return 'nessuna creatura con questo nome';
@@ -1719,6 +1734,8 @@ export const useApp = create<AppState>()(
 
           for (const type of order) {
             step(assetLabel(type));
+            /* `forgeOne` non fallisce più per una riscrittura rifiutata: quello
+               che torna qui è un guasto dell'IMMAGINE, e su quello ci si ferma. */
             const why = await get().forgeOne(monName, type);
             if (why) {
               problems.push(`${assetLabel(type)}: ${why}`);
