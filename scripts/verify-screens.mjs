@@ -766,13 +766,29 @@ try {
   }
   await shot('dev-cataloghi-designer');
 
-  await click(byText('RIACCENDI TUTTO'), 'riaccendi tutto');
+  await click(byText('TUTTO AI PREDEFINITI'), 'torna ai predefiniti');
 
   /* 🔷 §12 — il protocollo di prova dei designer. Si controlla che ci siano
      tutti e sette con il loro prompt: una schermata di prova che ne mostra
      sei ha gia' falsato il confronto. */
   await devTab('CREATURA', 'PROVE');
   await shot('dev-prove-designer');
+  /* 🔷 «Una sezione dove posso scegliere io il personaggio.» Si prova
+     SCEGLIENDO: si fissa una Family e si guarda che la forma provata cambi
+     davvero. Sei menu che non spostano niente sono la cosa piu facile da
+     costruire e la piu inutile. */
+  const primaFamily = await page.textContent('.rowlist .row:nth-child(2)');
+  await page.selectOption('.test__picker:first-child select', 'MACHINE');
+  await sleep(400);
+  const dopoFamily = await page.textContent('.rowlist .row:nth-child(2)');
+  if (!/MACHINE/.test(dopoFamily ?? '')) {
+    errors.push(`fissata MACHINE, la forma provata resta «${(dopoFamily ?? '').slice(0, 40)}»`);
+  }
+  if (primaFamily === dopoFamily && /MACHINE/.test(primaFamily ?? '')) {
+    console.log('  §12  la forma era gia MACHINE: scelta non distinguibile in questo giro');
+  }
+  await shot('dev-prove-composta');
+
   const prove = await page.$$eval('.test__row', (n) => n.length);
   const copie = await page.$$eval('.test__row .btn', (n) => n.length);
   if (prove !== 7) errors.push(`il protocollo §12 mostra ${prove} designer invece di 7`);

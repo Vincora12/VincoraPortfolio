@@ -31,7 +31,7 @@
    estrae. §29 impone di incrementare la versione quando cambiano tassonomie o
    pesi, e i .mon già generati restano immutabili con la versione con cui sono
    nati. */
-export const GENERATION_CONFIG_VERSION = '2.6.0';
+export const GENERATION_CONFIG_VERSION = '2.7.0';
 
 /* ============================================================================
    §2 — SEGNALI IN INGRESSO
@@ -1013,7 +1013,13 @@ export function designDnaDef(id: string): DesignDnaDef {
  */
 export const DESIGN_DNA_RETIRED = ['KAZUMA KANEKO'] as const;
 
-export const APPEARANCES = ['DESIGNER TOY 3D', 'INK', 'CEL', 'ELASTIC CARTOON'] as const;
+/* ⚠️ ELASTIC CARTOON È STATA CANCELLATA, non spenta.
+   Il MASTER CHARACTER SYSTEM v1.1 §10 elenca tre Appearance — CEL, INK,
+   DESIGNER TOY 3D — e quella era un residuo della spec precedente. Le altre
+   tre restano nel catalogo anche quando sono spente, perché spegnere è una
+   preferenza reversibile; questa non c'è più perché il documento non la
+   prevede, ed è una cosa diversa. */
+export const APPEARANCES = ['DESIGNER TOY 3D', 'INK', 'CEL'] as const;
 export type Appearance = (typeof APPEARANCES)[number];
 
 export const APPEARANCE_RULES: Record<string, string> = {
@@ -1021,8 +1027,6 @@ export const APPEARANCE_RULES: Record<string, string> = {
     'Premium collectible toy sculpture; smooth simplified forms; matte vinyl/painted resin/translucent zones; 3–5 bold colors; full-body studio presentation.',
   INK: 'Street-ink / skate / DIY zine language; thick irregular black contours, large black masses, white negative space + acid spot color.',
   CEL: 'Flat graphic 2D cel language; controlled hard color blocks, decisive linework, readable anatomy/fashion.',
-  'ELASTIC CARTOON':
-    'Expressive stretch/compression and exaggerated pose while preserving creature anatomy.',
   DOODLE:
     'Sketchbook/personal-file representation with visible construction/corrections/notes; not a canonical Appearance.',
 };

@@ -1352,6 +1352,37 @@ check(
   has('src/dev/DevPanel.tsx', 'buildLabel()'),
 );
 
+check(
+  'CATALOGHI §20.3',
+  'quello che nasce spento è dichiarato in un posto solo',
+  has('src/engine/catalogTuning.ts', 'const DEFAULT_OFF'),
+);
+check(
+  'CATALOGHI §20.3',
+  '«riporta ai predefiniti» non riaccende quello che hai spento per sempre',
+  has('src/engine/catalogTuning.ts', 'off[axis] = new Set(DEFAULT_OFF[axis] ?? [])'),
+  'un pulsante che riaccende tutto rimette dentro proprio le voci che non vuoi',
+);
+check(
+  'CATALOGHI §20.3',
+  'ELASTIC CARTOON è cancellata, non spenta',
+  lacksInCode('src/engine/generation-config.ts', "'ELASTIC CARTOON'") &&
+    lacksInCode('src/assets-pipeline/fragments.ts', "'ELASTIC CARTOON'"),
+  'il master §10 elenca tre Appearance: quella era un residuo della spec vecchia',
+);
+check(
+  'PROVE §12',
+  'la forma si può comporre a mano',
+  has('src/dev/DesignTest.tsx', 'const PICKERS'),
+);
+check(
+  'PROVE §12',
+  'e passa dal generatore vero, non da campi sovrascritti',
+  has('src/dev/DesignTest.tsx', 'generateMon({') &&
+    has('src/dev/DesignTest.tsx', 'continuity: axes'),
+  'sovrascrivere i campi produrrebbe creature che non potrebbero mai nascere: su quelle non si impara niente',
+);
+
 /* ============================================================================
    Sicurezza e tono — non negoziabili
    ========================================================================= */

@@ -32,14 +32,61 @@
    silhouette, che sono tre dei sette assi.
    ========================================================================= */
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useApp, useActiveMon } from '../state/store';
 import { Button, Row, SystemLabel } from '../system/components';
 import { CopyButton } from '../system/CopyButton';
 import { compilePrompt } from '../assets-pipeline/compiler';
-import { DESIGN_DNA, culturalReference, designDnaDef } from '../engine/generation-config';
+import {
+  AFFINITIES,
+  DESIGN_DNA,
+  FAMILIES,
+  FASHIONS,
+  MOODS,
+  ROLES,
+  SIZES,
+  culturalReference,
+  designDnaDef,
+} from '../engine/generation-config';
 import { enabled, isEnabled, setCatalogEnabled } from '../engine/catalogTuning';
+import { generateMon } from '../engine/characterGenerator';
+import { generatorInput } from '../state/store';
+import type { ContinuityAxis } from '../engine/progression';
 import type { MonRecord } from '../engine/types';
+
+/* ============================================================================
+   COMPORRE LA FORMA A MANO
+
+   🔷 «Mettimi in prova una sezione dove posso scegliere io il personaggio,
+   così capisco io gli abbinamenti che mi piacciono e quali no.»
+
+   ════════════════════════════════════════════════════════════════════════════
+   🔒 NON SI COSTRUISCE UN CharacterData A MANO, SI FORZA IL GENERATORE.
+
+   Sarebbe stato più veloce prendere la creatura attiva e sovrascriverle i
+   campi scelti. Sarebbe stato anche sbagliato: la palette nasce da Family +
+   Affinity + Temperamento, gli occhiali dall'anatomia, il Character DNA da
+   tutto quanto. Cambiare `family` senza rifare il resto produce una creatura
+   che NON POTREBBE MAI NASCERE — e sugli abbinamenti impossibili non si impara
+   niente, perché non li vedrai mai davvero.
+
+   Quindi si passa dalla stessa porta di sempre: `generateMon` con l'ANCORA DI
+   CONTINUITÀ (§9.1), il meccanismo che già esiste per tenere fermi degli assi
+   fra una forma e l'altra. Gli assi che scegli sono ancorati, quelli su «a
+   caso» restano liberi, e tutto il resto — palette, occhiali, DNA, riferimenti
+   — si ricalcola coerente.
+   ════════════════════════════════════════════════════════════════════════════
+ */
+
+/** Gli assi che si possono fissare, con le loro voci. */
+const PICKERS: { axis: ContinuityAxis; label: string; options: readonly string[] }[] = [
+  { axis: 'family', label: 'FAMILY', options: FAMILIES.map((f) => f.id) },
+  { axis: 'affinity', label: 'AFFINITY', options: AFFINITIES.map((a) => a.id) },
+  { axis: 'size', label: 'TAGLIA', options: SIZES },
+  { axis: 'role', label: 'RUOLO', options: ROLES.map((r) => r.id) },
+  { axis: 'fashion', label: 'STILE', options: FASHIONS.map((f) => f.id) },
+  { axis: 'mood_primary', label: 'TEMPERAMENTO', options: MOODS.map((m) => m.id) },
+];
 
 /** Lo stesso .mon con un solo campo diverso. */
 function withDesigner(record: MonRecord, designer: string): MonRecord {
@@ -52,10 +99,46 @@ export function DesignTest() {
   const [, bump] = useState(0);
   const [problem, setProblem] = useState<string | null>(null);
 
+  /** Gli assi fissati a mano. Assente = «a caso». */
+  const [picked, setPicked] = useState<Partial<Record<ContinuityAxis, string>>>({});
+  /* Il seme cambia solo quando premi RIGENERA: senza, ogni tocco su un menu
+     ridisegnerebbe una creatura diversa e non capiresti mai cosa ha fatto la
+     tua scelta. */
+  const [seed, setSeed] = useState(1);
+
   /* La forma di prova è quella attiva. Se non c'è ancora nessuno — partita
      appena iniziata — si può usare un .mon della teca: è comunque una forma
      bloccata, che è tutto quello che il protocollo chiede. */
-  const record = active ?? kept[0]?.record ?? null;
+  const base = active ?? kept[0]?.record ?? null;
+
+  const axes = Object.keys(picked) as ContinuityAxis[];
+
+  const composed = useMemo(() => {
+    if (!base || axes.length === 0) return null;
+    /* Il «precedente» finto: esiste solo per portare i valori scelti dentro
+       l'ancora. Non finisce da nessuna parte, e non è una creatura. */
+    /* Il cast è dichiarato e circoscritto: `picked` arriva da menu costruiti
+       sui cataloghi veri, quindi i valori sono legali — ma TypeScript vede
+       `string`, e allargare i tipi di CharacterData per comodità di questa
+       schermata sarebbe il contrario di quello che quei tipi servono a fare. */
+    const previous: MonRecord = {
+      ...base,
+      data: { ...base.data, ...picked } as typeof base.data,
+    };
+    return generateMon({
+      input: generatorInput(useApp.getState()),
+      mindlineNodeId: base.data.mindline_node,
+      originNodeId: base.data.origin_node,
+      heritageOrigins: [],
+      lineageNames: [],
+      previous,
+      continuity: axes,
+      seed,
+    }).record;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [base, JSON.stringify(picked), seed]);
+
+  const record = composed ?? base;
 
   if (!record) {
     return (
@@ -79,6 +162,54 @@ export function DesignTest() {
 
   return (
     <div className="dev__section">
+      <p className="t-meta dev__label">COMPONI LA FORMA</p>
+      <p className="t-micro dev__note">
+        Fissa quello che vuoi provare, lascia il resto a caso. Tutto il resto —
+        palette, occhiali, DNA, riferimenti — si ricalcola coerente: quello che
+        vedi è una creatura che potrebbe nascere davvero.
+      </p>
+      <div className="test__pickers">
+        {PICKERS.map((p) => (
+          <label key={p.axis} className="test__picker">
+            <span className="t-micro">{p.label}</span>
+            <select
+              value={picked[p.axis] ?? ''}
+              onChange={(e) => {
+                const v = e.target.value;
+                setPicked((prev) => {
+                  const next = { ...prev };
+                  if (v) next[p.axis] = v;
+                  else delete next[p.axis];
+                  return next;
+                });
+              }}
+            >
+              <option value="">a caso</option>
+              {p.options.map((o) => (
+                <option key={o} value={o}>
+                  {o}
+                </option>
+              ))}
+            </select>
+          </label>
+        ))}
+      </div>
+      <div className="dev__row">
+        <Button small onClick={() => setSeed((n) => n + 1)}>
+          RIGENERA IL RESTO
+        </Button>
+        {axes.length > 0 && (
+          <Button small onClick={() => setPicked({})}>
+            TUTTO A CASO
+          </Button>
+        )}
+      </div>
+      <p className="t-micro dev__note">
+        {axes.length === 0
+          ? 'Niente fissato: si prova la forma attiva.'
+          : `${axes.length} ${axes.length === 1 ? 'asse fissato' : 'assi fissati'}. RIGENERA cambia solo quello che hai lasciato a caso.`}
+      </p>
+
       <p className="t-meta dev__label">FORMA BLOCCATA</p>
       <p className="t-micro dev__note">
         Tutto quello che segue è identico nei {live.length} prompt qui sotto.

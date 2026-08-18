@@ -37,6 +37,7 @@ export { isValidMonName } from '${cwd}/src/engine/naming.ts';
 export { normalizePool } from '${cwd}/src/engine/rarity.ts';
 export { shouldDownload } from '${cwd}/src/state/store.ts';
 export { generatePaletteDna } from '${cwd}/src/engine/colorDna.ts';
+export { AXES as CATALOG_AXES_INFO, CATALOG_AXES, enabled as catalogEnabled, isOffByDefault, resetCatalog, setCatalogEnabled } from '${cwd}/src/engine/catalogTuning.ts';
 export { DESIGN_DNA, CULTURAL_REFERENCES, CULTURAL_ACTIVE_RANGE, culturalReference } from '${cwd}/src/engine/generation-config.ts';
 export { kinship, reactionsTo, arrivalPosts, weeklyPosts, weekFacts, roomNotice, unwritten, roomBlock, recognisedBy } from '${cwd}/src/engine/room.ts';
 export { parseRoomReply } from '${cwd}/src/ai/roomVoice.ts';
@@ -244,6 +245,25 @@ check(
   firstRuns.every((d) => d.heritage_traits.length === 0),
   'il primo nodo non eredita da nessuno',
 );
+
+/* ════════════════════════════════════════════════════════════════════════════
+   🔒 IL BATCH GIRA CON TUTTO ACCESO, E VA DETTO PERCHÉ.
+
+   Da quando SLIME, FAIRY, INK e DESIGNER TOY 3D nascono spenti, i controlli di
+   raggiungibilità fallivano — giustamente, ma per la ragione sbagliata.
+
+   Quei controlli chiedono: «esiste una Family che il motore non può MAI
+   estrarre?» È una domanda sul motore, e la risposta «FAIRY» sarebbe un
+   difetto grave. «FAIRY è spenta perché a Vincenzo non piace» è invece una
+   preferenza, e le due cose non devono poter essere confuse: se il batch
+   girasse coi gusti attivi, il giorno che un difetto rendesse davvero
+   irraggiungibile una Family lo leggeremmo come «sarà spenta».
+
+   Le preferenze si controllano più sotto, separatamente e apposta.
+   ════════════════════════════════════════════════════════════════════════ */
+for (const axis of m.CATALOG_AXES) {
+  for (const id of m.CATALOG_AXES_INFO[axis].all) m.setCatalogEnabled(axis, id, true);
+}
 
 const lineage = [root.record.data.name];
 const results = [];
@@ -2584,6 +2604,64 @@ check(
   m.roomBlock([writtenPost], 20).includes('Do NOT recite'),
   'e gli si dice di non recitarlo',
   'sapere una cosa e citarla a memoria sono due cose diverse',
+);
+
+console.log('\n═══ §20.3 — QUELLO CHE NASCE SPENTO ═══\n');
+
+/* 🔷 «Metti sempre disabilitato SLIME, FAIRY, INK, cartoon e toy.» */
+
+m.resetCatalog();
+
+const SPENTI = [
+  ['family', 'FAIRY'],
+  ['affinity', 'SLIME'],
+  ['appearance', 'INK'],
+  ['appearance', 'DESIGNER TOY 3D'],
+];
+for (const [axis, id] of SPENTI) {
+  check(m.isOffByDefault(axis, id), `${id} nasce spento`, axis);
+}
+
+/* 🔒 E spento vuol dire che NON ESCE, non che e' scritto da qualche parte che
+   non dovrebbe. Si generano creature coi predefiniti e si guarda. */
+const conDefault = [];
+for (let i = 0; i < 800; i++) {
+  conDefault.push(m.generateFirstMon({
+    input, mindlineNodeId: `off_${i}`, originNodeId: null, lineageNames: [], seed: i + 5000,
+  }).record.data);
+}
+check(
+  !conDefault.some((d) => d.family === 'FAIRY'),
+  'e infatti FAIRY non nasce piu',
+  `${conDefault.length} creature`,
+);
+check(
+  !conDefault.some((d) => d.affinity === 'SLIME'),
+  'ne SLIME come contaminazione',
+);
+check(
+  conDefault.every((d) => d.appearance === 'CEL'),
+  'e la resa resta CEL: INK e DESIGNER TOY sono spente',
+  `rese viste: ${[...new Set(conDefault.map((d) => d.appearance))].join(', ')}`,
+);
+
+/* 🔒 ELASTIC CARTOON e' CANCELLATA, non spenta: il master §10 elenca tre
+   Appearance e quella era un residuo. Spegnere e' reversibile, cancellare no —
+   e la differenza va tenuta. */
+check(
+  !m.CATALOG_AXES_INFO.appearance.all.includes('ELASTIC CARTOON'),
+  'ELASTIC CARTOON non esiste piu nel catalogo',
+  `rese in catalogo: ${m.CATALOG_AXES_INFO.appearance.all.join(', ')}`,
+);
+
+/* 🔒 «Riaccendi» torna ai PREDEFINITI, non a tutto acceso: un pulsante che
+   riaccendesse ogni voce rimetterebbe dentro proprio le quattro che non vuoi,
+   ogni volta che annulli una prova. */
+m.setCatalogEnabled('family', 'FAIRY', true);
+m.resetCatalog('family');
+check(
+  !m.catalogEnabled('family').includes('FAIRY'),
+  'e «riporta ai predefiniti» non le riaccende',
 );
 
 console.log('\n═══ §7/§8 — RIFERIMENTI E DESIGNER ═══\n');

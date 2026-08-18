@@ -754,7 +754,12 @@ function activeRecord(s: AppState): MonRecord | null {
 }
 
 /** Costruisce l'input del generatore da tutto ciò che il prodotto misura. */
-function generatorInput(s: AppState): GeneratorInput {
+/**
+ * 🔶 Esportata da quando DEV → PROVE compone una forma a mano: quella
+ * schermata deve generare dalla STESSA porta del gioco vero, o proverebbe
+ * creature che non potrebbero nascere.
+ */
+export function generatorInput(s: AppState): GeneratorInput {
   const novelty =
     s.nodes.length === 0
       ? EMPTY_NOVELTY

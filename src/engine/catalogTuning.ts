@@ -91,14 +91,37 @@ export const AXES: Record<CatalogAxis, AxisInfo> = {
   },
 };
 
+/* ============================================================================
+   QUELLO CHE NASCE SPENTO
+
+   🔷 «Metti sempre disabilitato SLIME, FAIRY, INK, cartoon e toy.»
+
+   🔒 SPENTO DI PARTENZA NON È CANCELLATO. Queste voci restano nel catalogo,
+   si vedono, e si riaccendono con un tocco: sono gusti, e i gusti cambiano.
+   ELASTIC CARTOON invece è stata TOLTA dal codice, perché il master §10 non la
+   prevede — è una cosa diversa e va tenuta diversa.
+
+   ⚠️ E «RIACCENDI» torna A QUESTI, non a tutto acceso. Un pulsante che
+   riportasse ogni voce accesa rimetterebbe dentro proprio le cinque che hai
+   detto di non volere più, ogni volta che ti serve annullare una prova.
+   ========================================================================= */
+
+const DEFAULT_OFF: Partial<Record<CatalogAxis, readonly string[]>> = {
+  family: ['FAIRY'],
+  affinity: ['SLIME'],
+  appearance: ['INK', 'DESIGNER TOY 3D'],
+};
+
 /* --- Lo stato ------------------------------------------------------------- */
 
 type Disabled = Record<CatalogAxis, Set<string>>;
 
-const empty = (): Disabled =>
-  Object.fromEntries(CATALOG_AXES.map((a) => [a, new Set<string>()])) as Disabled;
+const fromDefaults = (): Disabled =>
+  Object.fromEntries(
+    CATALOG_AXES.map((a) => [a, new Set<string>(DEFAULT_OFF[a] ?? [])]),
+  ) as Disabled;
 
-let off: Disabled = empty();
+let off: Disabled = fromDefaults();
 
 /** Le voci accese di un asse. Il motore pesca SEMPRE da qui. */
 export function enabled(axis: CatalogAxis): string[] {
@@ -139,10 +162,19 @@ export function setCatalogEnabled(axis: CatalogAxis, id: string, on: boolean): s
   return [];
 }
 
-/** Riaccende tutto su un asse, o su tutti se non se ne indica uno. */
+/**
+ * Torna ai predefiniti su un asse, o su tutti.
+ *
+ * 🔒 Ai PREDEFINITI, non a «tutto acceso»: vedi `DEFAULT_OFF`.
+ */
 export function resetCatalog(axis?: CatalogAxis): void {
-  if (axis) off[axis] = new Set();
-  else off = empty();
+  if (axis) off[axis] = new Set(DEFAULT_OFF[axis] ?? []);
+  else off = fromDefaults();
+}
+
+/** Vero se questa voce nasce spenta. Serve a dirlo nella schermata. */
+export function isOffByDefault(axis: CatalogAxis, id: string): boolean {
+  return (DEFAULT_OFF[axis] ?? []).includes(id);
 }
 
 /** Quante voci sono spente, per asse. Per la riga di riepilogo in DEV. */

@@ -700,3 +700,36 @@
 .dev__build {
   font-family: var(--font-mono);
 }
+
+/* I menu per comporre la forma: due colonne su telefono, e l'etichetta sopra
+   invece che accanto — con sei menu affiancati a un'etichetta, il nome non ci
+   sta e si tronca proprio la parola che serve. */
+.test__pickers {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.test__picker {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.test__picker span {
+  color: var(--muted-strong);
+}
+
+.test__picker select {
+  font: inherit;
+  font-family: var(--font-mono);
+  font-size: var(--type-micro);
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--hairline);
+  padding: 5px 6px;
+  width: 100%;
+  min-width: 0;
+}

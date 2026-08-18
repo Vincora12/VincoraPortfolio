@@ -629,19 +629,6 @@ const APPEARANCE_DETAIL: Record<string, { visual: string[]; avoid: string }> = {
     avoid:
       'generic anime/JRPG character-select art, moe eyes, painterly rendering, soft gradients, realistic lighting, 3D materials, fashion-illustration elongation.',
   },
-  'ELASTIC CARTOON': {
-    visual: [
-      '- very readable large shapes',
-      '- controlled squash/stretch',
-      '- expressive face and pose',
-      '- exaggerated silhouette rhythm',
-      '- flat saturated colors',
-      '- clean dark outline',
-      '- minimal rendering',
-    ],
-    avoid:
-      'copying any existing TV cartoon, universal chibi proportions, automatic cuteness, rubber-hose sameness, over-detailed shading.',
-  },
 };
 
 function appearanceFragment(id: string): PromptFragment {

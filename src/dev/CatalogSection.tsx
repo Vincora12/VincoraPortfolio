@@ -31,6 +31,7 @@ import {
   catalogSummary,
   enabled,
   isEnabled,
+  isOffByDefault,
   resetCatalog,
   setCatalogEnabled,
   type CatalogAxis,
@@ -100,6 +101,9 @@ export function CatalogSection() {
                   {on ? '×' : ''}
                 </span>
                 <span className="t-meta cat__name">{id}</span>
+                {isOffByDefault(open, id) && (
+                  <span className="t-micro cat__note">spenta di partenza — si può riaccendere</span>
+                )}
                 {open === 'design' && (
                   <span className="t-micro cat__note">
                     densità {designDnaDef(id).density}/5 · {designDnaDef(id).it}
@@ -141,10 +145,10 @@ export function CatalogSection() {
 
       <div className="dev__row">
         <Button small onClick={() => { resetCatalog(open); setProblem(null); bump((n) => n + 1); }}>
-          RIACCENDI {AXES[open].label}
+          RIPORTA {AXES[open].label} AI PREDEFINITI
         </Button>
         <Button small onClick={() => { resetCatalog(); setProblem(null); bump((n) => n + 1); }}>
-          RIACCENDI TUTTO
+          TUTTO AI PREDEFINITI
         </Button>
       </div>
 
