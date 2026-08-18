@@ -136,10 +136,17 @@ export function buildMemoryBlock(sources: MemorySources): string {
     );
   }
 
+  /* ⚠️ ERANO SOTTO «THINGS YOU KNOW ABOUT HIM», E NON LO SONO.
+     `generateBio` riempie `rememberedDetails` con «La mia sagoma: …», «Torna
+     sempre: …», «Vengo anche da …»: sono fatti sulla CREATURA. Il modello si
+     vedeva presentare la propria sagoma come una cosa che sapeva di Vincenzo,
+     e da lì può dire qualsiasi cosa — è il tipo di errore che non fa sbagliare
+     una riga di codice, fa parlare a vanvera. */
   const details = bio?.rememberedDetails.slice(-REMEMBERED_DETAILS) ?? [];
   if (details.length > 0) {
     parts.push(
-      'THINGS YOU KNOW ABOUT HIM\n' + details.map((d) => `- ${trim(d)}`).join('\n'),
+      'THINGS ABOUT YOURSELF THAT KEEP COMING BACK\n' +
+        details.map((d) => `- ${trim(d)}`).join('\n'),
     );
   }
 
