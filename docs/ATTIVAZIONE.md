@@ -59,8 +59,13 @@ generatore crittografico del browser, 32 caratteri.
    RIVEDI L'ATTIVAZIONE)*
 3. Passo 1 · **IL SEGRETO** — tocca **COPIA**
 
-Tienilo negli appunti. Serve fra due passi e non lo rivedrai uguale: si rigenera
-a ogni apertura della schermata.
+Tienilo negli appunti: su Netlify, una volta salvato come segreto, non si può
+più rileggere.
+
+Se un segreto in questo browser c'è già, il passo 1 mostra **quello** — non uno
+nuovo. Serve perché quel valore e quello su Netlify devono essere identici, e
+una schermata che ne proponeva uno diverso a ogni apertura era il modo più
+rapido di ritrovarsi con tre segreti scollegati.
 
 ---
 
@@ -111,9 +116,10 @@ si manifesta come «il segreto non coincide» anche quando coincide.
 Torna sul sito, **ATTIVA VINZ.MON**:
 
 1. Passo 3 · **INCOLLA IL SEGRETO QUI** → incolla → **SALVA E CONTROLLA**
-2. Passo 2 · **LE CHIAVI** si popola da solo: ogni variabile dice `C'È`,
-   `MANCA` o `FACOLTATIVA`. Lo dice il server, non il browser — e non torna mai
-   il contenuto, solo se esiste.
+2. Passo 2 · **LE CHIAVI** si popola da solo: ogni variabile dice `C'È` o
+   `NON C'È`. Lo dice il server, non il browser — e non torna mai il contenuto,
+   solo se esiste. Nessuna è obbligatoria da sola: quello che serve è che
+   almeno una sappia dare la voce, e se manca lo dice in chiaro.
 3. In alto lo stato passa da `NON ANCORA ATTIVO` ad **`ATTIVO`**.
 
 Il segreto resta in questo browser. Ogni dispositivo va attivato una volta.
@@ -136,10 +142,29 @@ Due decisioni separate, con due criteri diversi.
 orecchio, e ogni opzione dice dove finiscono i dati. C'è un pulsante di prova:
 manda una frase vera e ti fa vedere la risposta.
 
-Quattro opzioni: **GPT-5.6 Terra** ($2/$12, la più economica, stessa chiave delle
-immagini, senza ricerca sul web), **Claude Opus 5** ($5/$25, quello con cui il
-personaggio è stato scritto e tarato), **Claude Sonnet 5** e **Kimi K3** (entrambi
-$3/$15). Quelle la cui chiave manca sono spente, non nascoste.
+Sei opzioni, con il prezzo scritto sotto ognuna:
+
+| Voce | $/milione (in / out) | Nota |
+|---|---|---|
+| GPT-5.6 Luna | $0,20 / $1,20 | il livello piccolo: venticinque volte meno di Sol |
+| GPT-5.6 Terra | $2 / $12 | il livello di mezzo, stessa chiave delle immagini |
+| Kimi K3 | $3 / $15 | Moonshot, azienda cinese: leggi le condizioni sui dati |
+| Claude Sonnet 5 | $3 / $15 | |
+| Claude Opus 5 | $5 / $25 | quello con cui il personaggio è stato scritto e tarato |
+| GPT-5.6 Sol | $5 / $30 | il livello grosso di OpenAI |
+
+Nessuna di queste righe dice quanto costa *un messaggio*, ed è voluto: dipende
+da quanto scrivi e da quanto risponde. Il conto vero, dopo un po' d'uso, sta in
+**DEV → SPESA → COSTI**.
+
+**GPT-5.6 Cyber** ($12,50 / $75) esiste e non è nella lista: richiede
+un'approvazione a parte, è pensato per ricerca di vulnerabilità e costa sei
+volte Sol. Sarebbe un pulsante che fallisce.
+
+Solo le due opzioni Anthropic hanno la ricerca sul web — non perché OpenAI non
+ce l'abbia, ma perché il nostro adattatore non la sa ancora chiedere.
+
+Quelle la cui chiave manca sono spente, non nascoste.
 
 **Passo 5 · CHI SCRIVE I PROMPT** — porta solo la descrizione di una creatura,
 mai te. Si sceglie sui risultati visivi. Qui il costo per uso si può dire,
