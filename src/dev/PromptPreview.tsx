@@ -46,7 +46,16 @@ export function PromptPreview() {
 
   return (
     <div className="dev__section">
-      <p className="t-meta dev__label">PROMPT COMPILATO (§30, §46)</p>
+      {/* 🔷 «Ma i prompt sono riscritti dall'AI? Se no non sono quelli giusti.»
+          Prima si poteva solo DEDURRE, da quale pulsante era presente. È la
+          domanda più importante che si possa fare a questa schermata, e la
+          risposta dev'essere la prima cosa che si legge. */}
+      <p className="t-meta dev__label">
+        PROMPT{' '}
+        <SystemLabel tone={written && !showRaw ? 'character' : 'alert'}>
+          {written && !showRaw ? 'RISCRITTO DALL’AI' : 'CONCATENATO DAI FRAMMENTI'}
+        </SystemLabel>
+      </p>
       <p className="t-micro dev__note">
         compiler {compiled.compilerVersion} · config {compiled.generationConfigVersion} ·{' '}
         {compiled.fragmentIds.length} frammenti · {compiled.text.length} caratteri

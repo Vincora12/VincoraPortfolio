@@ -1380,6 +1380,26 @@ check(
   'quella chiamata generava dal prompt CONCATENATO: il ritratto sarebbe stato l’unico dei sei mai approvato, e per giunta senza riferimento di consistenza',
 );
 
+/* 🔷 «Ma i prompt sono riscritti dall'AI? Se no non sono quelli giusti.» */
+check(
+  '§10 COMPILATORE',
+  'il pacchetto esportato porta il prompt RISCRITTO, se c’è',
+  has('src/assets-pipeline/exportPackage.ts', 'record.compiledPrompts?.[def.type] ?? compiled.text'),
+  'esportava sempre il concatenato: un pacchetto che sembra giusto e contiene il testo vecchio, cioè si provavano proprio i prompt che stavamo sostituendo',
+);
+check(
+  '§10 COMPILATORE',
+  'e lo dichiara, dentro il pacchetto',
+  has('src/assets-pipeline/exportPackage.ts', 'rewritten_by_ai'),
+  'aprendo uno zip di tre settimane fa non c’era modo di sapere da quale dei due venivano',
+);
+check(
+  '§10 COMPILATORE',
+  'e a schermo si legge, non si deduce',
+  has('src/dev/PromptPreview.tsx', 'CONCATENATO DAI FRAMMENTI'),
+  'prima si capiva solo da quale pulsante era presente: è la domanda più importante che si possa fare a quella schermata',
+);
+
 /* 🔷 «immagine: offline» — mentre le chiamate di testo passavano. */
 check(
   '§22.4 GUASTI',

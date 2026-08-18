@@ -50,13 +50,31 @@ export function buildPackageFiles(record: MonRecord): PackageFile[] {
 
   const fragmentIds: Record<string, string[]> = {};
   const combined: string[] = [];
+  /** Quali prompt escono dal compilatore AI e quali dalla concatenazione. */
+  const written: Record<string, boolean> = {};
 
   for (const def of ASSET_TYPES) {
     const compiled = compilePrompt(record, def.type);
-    files.push({ name: def.promptFile, content: compiled.text });
+    /* ⚠️ ESPORTAVA SEMPRE IL PROMPT CONCATENATO, anche quando quello riscritto
+       dall'AI esisteva. È il difetto peggiore di tutta questa pipeline, perché
+       non fallisce: consegna un pacchetto che sembra giusto e contiene il testo
+       vecchio. Chi lo usa a mano — che oggi è l'unica strada, visto il tetto di
+       10 secondi delle funzioni — provava i prompt che stavamo cercando di
+       sostituire, e ne traeva conclusioni sul compilatore che non lo
+       riguardavano.
+
+       🔒 La regola è la stessa di `generateMissingAssets`: se c'è quello
+       riscritto si usa quello, altrimenti il deterministico, che resta sempre
+       valido. Una porta sola per il prompt, comunque lo si consumi. */
+    const text = record.compiledPrompts?.[def.type] ?? compiled.text;
+    written[def.assetId] = Boolean(record.compiledPrompts?.[def.type]);
+
+    files.push({ name: def.promptFile, content: text });
     fragmentIds[def.assetId] = compiled.fragmentIds;
     combined.push(
-      `${'='.repeat(78)}\n${def.promptFile}  —  ${def.label}\n${'='.repeat(78)}\n\n${compiled.text}`,
+      `${'='.repeat(78)}\n${def.promptFile}  —  ${def.label}\n` +
+        `${written[def.assetId] ? 'riscritto dall’AI' : 'concatenato dai frammenti'}\n` +
+        `${'='.repeat(78)}\n\n${text}`,
     );
   }
 
@@ -73,6 +91,10 @@ export function buildPackageFiles(record: MonRecord): PackageFile[] {
         generation_config_version: record.data.generation_config_version,
         seed: record.data.seed,
         fragments_by_asset: fragmentIds,
+        /* 🔒 Dichiarato nel pacchetto: senza questa riga, aprendo uno zip di
+           tre settimane fa non c'è modo di sapere se quei prompt erano già
+           passati dal compilatore. */
+        rewritten_by_ai: written,
       },
       null,
       2,
