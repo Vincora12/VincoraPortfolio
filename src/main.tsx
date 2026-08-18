@@ -17,9 +17,15 @@ import './screens/screens.css';
 import './dev/dev.css';
 
 import { App } from './App';
+import { ErrorBoundary } from './system/ErrorBoundary';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    {/* 🔒 FUORI da tutto: un errore in App, in una schermata o in uno store
+        deve trovare qualcuno che lo racconti. Senza, resta lo sfondo grigio
+        del body e nessuno sa niente. */}
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
   </StrictMode>,
 );

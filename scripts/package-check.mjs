@@ -348,6 +348,40 @@ check(
   'gli slot nascono tutti vuoti: qui il master non c\'e\' ancora',
 );
 
+/* ============================================================================
+   §29 — UNA CREATURA NATA PRIMA NON DEVE FAR ESPLODERE NIENTE
+
+   🔷 «A me esce grigio.» Il grigio e' il fondo del body: vuol dire che non e'
+   stato disegnato niente, cioe' che qualcosa ha lanciato durante il render.
+
+   ⚠️ E oggi ne ho introdotto uno io: `palette_dna.roles` e
+   `character_design_dna` sono nati stamattina. Un .mon salvato IERI non li ha,
+   e §29 dice che una creatura porta scritta la versione con cui e' venuta al
+   mondo — non si riscrive. Quindi il compilatore deve reggerli, non ripararli.
+   ========================================================================= */
+
+const vecchio = JSON.parse(JSON.stringify(record));
+delete vecchio.data.palette_dna.roles;
+delete vecchio.data.character_design_dna;
+
+let esplose = null;
+let testoVecchio = '';
+try {
+  testoVecchio = m.compilePrompt(vecchio, 'profile_portrait').text;
+} catch (e) {
+  esplose = String(e);
+}
+
+check(esplose === null, 'un .mon nato prima di oggi compila senza esplodere', esplose ?? 'nessun errore');
+check(
+  testoVecchio.includes('generated before HOUSE COLOR DNA roles existed'),
+  'e dice da dove viene, invece di fingere di avere ruoli che non ha',
+);
+check(
+  !testoVecchio.includes('CHARACTER DESIGN DNA:'),
+  'non gli si assegna un designer a posteriori: cambierebbe com\'e fatto, retroattivamente',
+);
+
 /* --- Esito ------------------------------------------------------------------ */
 
 console.log(

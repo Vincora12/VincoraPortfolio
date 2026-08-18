@@ -39,6 +39,14 @@ function check(area, label, ok, detail = '') {
 
 const has = (file, needle) => (read(file) ?? '').includes(needle);
 const lacks = (file, needle) => !(read(file) ?? '').includes(needle);
+
+/* ⚠️ In questo progetto i commenti spiegano anche le cose che NON si fanno, e
+   per spiegarle le nominano. Un `lacks` sul testo intero inciampa nel commento
+   che dice «non usare `localStorage.clear()`» e dichiara presente proprio la
+   cosa che quel commento vieta. Questa versione guarda il codice. */
+const stripComments = (t) =>
+  (t ?? '').replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
+const lacksInCode = (file, needle) => !stripComments(read(file)).includes(needle);
 const count = (file, re) => ((read(file) ?? '').match(re) ?? []).length;
 
 /* ============================================================================
@@ -1264,6 +1272,32 @@ check(
   'ICONA §23.6',
   'niente alpha: su iOS un’icona trasparente viene composta su nero',
   has('src/system/favicon.ts', "ctx.fillStyle = '#ffffff'"),
+);
+
+check(
+  'ROTTURA §26',
+  'un errore di render non può più dare schermo grigio',
+  has('src/main.tsx', '<ErrorBoundary>') && existsSync('src/system/ErrorBoundary.tsx'),
+  'il grigio è il fondo del body: vuol dire che non è stato disegnato niente',
+);
+check(
+  'ROTTURA §26',
+  'la schermata di rottura dice COSA si è rotto',
+  has('src/system/ErrorBoundary.tsx', 'error.message || String(error)'),
+  'da un telefono non c’è una console da aprire: un messaggio generico non si ripara mai',
+);
+check(
+  'ROTTURA §26',
+  'cancellare tocca solo la chiave dell’app, non tutto il dominio',
+  has('src/system/ErrorBoundary.tsx', "localStorage.removeItem('vinzmon.prototype.v4')") &&
+    lacksInCode('src/system/ErrorBoundary.tsx', 'localStorage.clear()'),
+  'non è roba nostra da buttare',
+);
+check(
+  'ROTTURA §26',
+  'una creatura nata prima dei ruoli di palette non fa esplodere il compilatore',
+  has('src/assets-pipeline/compiler.ts', 'generated before HOUSE COLOR DNA roles existed'),
+  '§29: una creatura porta scritta la versione con cui è nata, non si riscrive',
 );
 
 /* ============================================================================

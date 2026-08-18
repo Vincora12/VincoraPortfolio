@@ -105,8 +105,14 @@ async function launchChromium() {
 const page = await browser.newPage({ viewport: { width: 460, height: 920 } });
 
 const errors = [];
+
+/* 🔒 Una sola finestra, dichiarata, in cui gli errori di console sono ATTESI:
+   quella in cui si rompe l'app di proposito per vedere se lo dice. Fuori da
+   lì il controllo resta severo — spegnerlo del tutto avrebbe voluto dire
+   perdere l'unica cosa che accorge quando una schermata esplode davvero. */
+let attesi = false;
 page.on('console', (m) => {
-  if (m.type() !== 'error') return;
+  if (m.type() !== 'error' || attesi) return;
   /* La posizione, non solo il testo: un avviso di React dice COSA è
      sbagliato e mai dove, e senza questo si finisce a indovinare quale delle
      quaranta liste dell'app è quella che sbaglia le chiavi. */
@@ -121,7 +127,13 @@ const shot = async (name) => {
   await sleep(220);
   step += 1;
   const file = `${OUT}/${String(step).padStart(2, '0')}-${name}.png`;
-  await page.locator('.proto-frame').screenshot({ path: file });
+  /* ⚠️ La cornice non c'e' SEMPRE: quando l'app si rompe, `App` non monta e
+     al suo posto c'e' la schermata di rottura, che vive fuori dal frame. Un
+     selettore fisso qui mandava lo script in timeout invece di fotografare
+     proprio la cosa che si voleva vedere. */
+  const frame = page.locator('.proto-frame');
+  if ((await frame.count()) > 0) await frame.screenshot({ path: file });
+  else await page.screenshot({ path: file });
   console.log(`  ✓ ${file}`);
 };
 
@@ -206,7 +218,46 @@ const hold = async (label) => {
 try {
   console.log(`\n═══ VERIFICA DELLE SCHERMATE — ${BASE} ═══\n`);
 
+  /* ════════════════════════════════════════════════════════════════════════
+     🔷 «A me esce grigio.»
+
+     Il grigio e' `#c9c9cf`, il fondo del body: vuol dire che React non ha
+     montato niente. Prima di percorrere l'app si prova che quello stato NON
+     puo' piu' esistere in silenzio — si sporca il salvataggio con qualcosa di
+     illeggibile, si apre, e si guarda se l'app dice cosa e' successo invece di
+     restare grigia.
+
+     🔒 Va fatto per PRIMO e con lo storage sporco, perche' e' esattamente la
+     situazione di chi ha l'app sul telefono da prima di un aggiornamento.
+     ════════════════════════════════════════════════════════════════════ */
+  attesi = true;
   await page.goto(`${BASE}/?dev=1`, { waitUntil: 'networkidle' });
+  await page.evaluate(() => {
+    localStorage.setItem(
+      'vinzmon.prototype.v4',
+      JSON.stringify({ version: 3, state: { phase: 'live', activeMonName: 'X', mons: { X: { data: null } } } }),
+    );
+  });
+  await page.reload({ waitUntil: 'networkidle' });
+  await sleep(500);
+
+  const rotto = await page.evaluate(() => ({
+    crash: !!document.querySelector('.crash'),
+    vuoto: (document.getElementById('root')?.childElementCount ?? 0) === 0,
+    testo: document.querySelector('.crash__what')?.textContent ?? '',
+  }));
+  if (rotto.vuoto) {
+    errors.push('con un salvataggio illeggibile l’app resta grigia: nessuna rete di sicurezza');
+  }
+  if (rotto.crash) {
+    if (rotto.testo.trim().length === 0) {
+      errors.push('la schermata di rottura non dice cosa si e rotto: inutile da un telefono');
+    }
+    await shot('00-rottura');
+    console.log(`  §26  con un salvataggio illeggibile l'app spiega invece di sparire`);
+  }
+
+  attesi = false;
   await page.evaluate(() => localStorage.clear());
   await page.reload({ waitUntil: 'networkidle' });
   await sleep(400);

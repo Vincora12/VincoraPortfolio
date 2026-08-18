@@ -233,3 +233,48 @@ select {
   white-space: nowrap;
   border: 0;
 }
+
+/* ============================================================================
+   LA SCHERMATA DI ROTTURA (§26)
+
+   🔒 Sta in `base.css` e non fra gli stili delle schermate perché deve
+   funzionare anche quando il resto non ha funzionato: dipende solo dai token,
+   e nessuna delle sue regole ha bisogno di una classe di componente.
+   ========================================================================= */
+
+.crash {
+  display: flex;
+  flex-direction: column;
+  gap: var(--u3);
+  padding: var(--u6);
+  background: var(--white);
+  color: var(--ink);
+  min-height: 100dvh;
+  justify-content: center;
+}
+
+.crash__label {
+  color: var(--char-accent, var(--ink));
+}
+
+.crash__what {
+  font-family: var(--font-mono);
+  font-size: var(--type-micro);
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  padding: var(--u3);
+  margin: 0;
+}
+
+.crash__where,
+.crash__last {
+  color: var(--muted-strong);
+}
+
+.crash__actions {
+  display: flex;
+  gap: var(--u2);
+  flex-wrap: wrap;
+}

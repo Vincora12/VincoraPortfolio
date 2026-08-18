@@ -163,7 +163,9 @@ function selectFragmentIds(data: CharacterData, assetType: AssetType): string[] 
   /* MASTER CHARACTER SYSTEM v1.1 §8 — chi lo costruisce. Va in OGNI asset,
      compreso il doodle: cambiare designer fra un asset e l'altro produrrebbe
      sei immagini di sei creature diverse con lo stesso nome. */
-  ids.push(`design.${slug(data.character_design_dna)}`);
+  /* Stessa regola: un .mon nato prima dell'§8 non ha un designer, e non gliene
+     si assegna uno adesso — cambierebbe come è fatto, retroattivamente. */
+  if (data.character_design_dna) ids.push(`design.${slug(data.character_design_dna)}`);
   if (data.heritage_traits.length > 0) ids.push('heritage.compile');
 
   // §42 — la BIO DOODLE non usa l'Appearance canonico: usa il doodle.
@@ -318,8 +320,22 @@ function renderCharacterDna(data: CharacterData): string {
  * quelli che non si notano quando sono giusti.
  */
 function renderPalette(data: CharacterData): string {
-  const r = data.palette_dna.roles;
   const n = data.palette_dna.swatch_names;
+
+  /* ⚠️ UNA CREATURA NATA PRIMA DI §9 NON HA I RUOLI, e §29 dice che una
+     creatura porta scritta la versione con cui è venuta al mondo: non si
+     riscrive. Quindi qui non si inventa un acid hero che non è mai esistito —
+     si stampa quello che quella creatura ha davvero, e si dice da dove viene.
+
+     Senza questo, il primo `compilePrompt` su un .mon salvato ieri leggeva
+     `roles.base` di un oggetto che non c'è: schermata grigia. */
+  const r = data.palette_dna.roles;
+  if (!r) {
+    return [
+      'PALETTE (generated before HOUSE COLOR DNA roles existed — use as a flat set):',
+      data.palette_dna.swatches.map((hex, i) => `${hex} (${n[i] ?? ''})`).join(' · '),
+    ].join('\n');
+  }
   return [
     'HOUSE COLOR DNA — each colour has a JOB, not just a value:',
     `- DOMINANT BASE ${r.base} (${n[0]?.split(' — ')[0] ?? ''}): large graphic fields. This is what is seen from across the room.`,
