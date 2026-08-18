@@ -115,12 +115,33 @@ function resolveConflicts(
    ========================================================================= */
 
 function selectFragmentIds(data: CharacterData, assetType: AssetType): string[] {
-  const ids: string[] = ['global.identity', 'global.gender'];
+  /* 🔒 L'ORDINE È IL DOCUMENTO. §11 del master: «The first visual read must be
+     CHARACTER; the second VINZ.MON identity; Family/Archetype/Role follow.»
+     Quindi le regole di casa — com'è fatto un personaggio, come si usano i
+     colori, chi è VINZ — stanno PRIMA di qualunque riga di tassonomia, e non
+     in fondo come postille. */
+  const ids: string[] = [
+    'global.identity',
+    'global.house_character_dna',
+    'global.house_color_dna',
+    'global.vinz_hair_identity',
+    'global.gender',
+  ];
 
   // 🔶 v1.9 §23.2 — ogni asset derivato porta l'ordine di allegare il master.
   // Sul master stesso non compare: lì il riferimento non esiste ancora, ed è
   // esattamente il motivo per cui va generato per primo.
-  if (assetType !== 'character_master') ids.push('global.master_reference');
+  /* ⚠️ SOLO SE IL MASTER ESISTE DAVVERO.
+     Prima la condizione era «tutti tranne il master», e reggeva finché il
+     master era la prima immagine generata. Da quando il RITRATTO è il primo
+     (§22.4 — è l'unico che si vede subito), quel blocco finiva nella primissima
+     immagine di una creatura e diceva: «allega il CHARACTER MASTER, dove testo
+     e immagine non concordano vince l'immagine» — puntando a un'immagine che
+     non esiste. La prima faccia nasceva da un prompt che dichiarava sé stesso
+     non autorevole. */
+  if (data.asset_manifest_status.character_master === 'resolved' && assetType !== 'character_master') {
+    ids.push('global.master_reference');
+  }
 
   ids.push(`family.${slug(data.family)}`);
   ids.push(`archetype.${slug(data.family)}.${slug(data.family_archetype)}`);
@@ -136,6 +157,9 @@ function selectFragmentIds(data: CharacterData, assetType: AssetType): string[] 
 
   ids.push(`mood.${slug(data.mood_primary)}`);
   ids.push('character_dna.compile');
+  /* §7 — la Cultural DNA. Entra sempre: è un modo di pensare la creatura, non
+     un tratto che alcune hanno e altre no. */
+  ids.push('cultural.compile');
   /* MASTER CHARACTER SYSTEM v1.1 §8 — chi lo costruisce. Va in OGNI asset,
      compreso il doodle: cambiare designer fra un asset e l'altro produrrebbe
      sei immagini di sei creature diverse con lo stesso nome. */
@@ -212,7 +236,22 @@ export function compilePrompt(record: MonRecord, assetType: AssetType): Compiled
       blocks.push(`SECONDARY MOOD NUANCE: ${data.mood_secondary}`);
     }
 
-    if (f.negative_prompt) blocks.push(f.negative_prompt);
+    /* ⚠️ QUI IL DIVIETO VENIVA STAMPATO NUDO, e alcuni frammenti si scrivono
+       l'etichetta da soli e altri no. Il risultato, sul blocco del genere,
+       era questa riga:
+
+         «feminine-coded styling used to soften the creature, gender ambiguity
+          treated as the concept, human gender markers pasted onto non-human
+          anatomy»
+
+       Una lista di cose da EVITARE, in mezzo a un prompt, senza una parola
+       che dica che sono da evitare. Letta da un modello di immagini è una
+       richiesta. Adesso l'etichetta la mette il compilatore, una volta sola e
+       per tutti — e chi ce l'aveva già non se la ritrova doppia. */
+    if (f.negative_prompt) {
+      const body = f.negative_prompt.replace(/^\s*(AVOID|NEGATIVE)\s*:\s*/i, '');
+      blocks.push(`AVOID: ${body}`);
+    }
     blocks.push('');
   }
 
@@ -220,7 +259,11 @@ export function compilePrompt(record: MonRecord, assetType: AssetType): Compiled
   blocks.push('Remove contradictions according to canonical priority.');
   blocks.push('Do not add unrequested taxonomy, costume, anatomy or props.');
   blocks.push('Return only the requested visual asset.');
-  blocks.push('CREATURE FIRST. STYLING SECOND.');
+  /* 🔶 Era «CREATURE FIRST. STYLING SECOND.», che adesso contraddirebbe la
+     prima riga del prompt: il master mette il CARATTERE prima della specie.
+     Una chiusura che smentisce l'apertura lascia decidere al modello quale
+     delle due contava. */
+  blocks.push('CHARACTER FIRST. The taxonomy is how it is built, not what it is for.');
 
   return {
     text: blocks.join('\n').replace(/\n{3,}/g, '\n\n').trim() + '\n',
@@ -248,9 +291,13 @@ function renderCharacterDna(data: CharacterData): string {
     `face / eye logic: ${d.face_logic}`,
     `body-language default: ${d.body_language}`,
     `recurring motif: ${d.recurring_motif}`,
-    `palette DNA: ${data.palette_dna.swatches
-      .map((hex, i) => `${hex} (${data.palette_dna.swatch_names[i]})`)
-      .join(' · ')}`,
+    /* 🔶 Era un elenco di cinque esadecimali con nomi generici — «primary»,
+       «light red tint» — cioè cinque colori senza un posto dove andare. Il
+       master §9 vuole i RUOLI, perché è il ruolo che dice dove il colore
+       finisce sul corpo. Sta qui e non in un frammento a parte perché la
+       palette è parte dell'identità di QUESTA creatura, non una regola di
+       casa: la regola di casa è il blocco `global.house_color_dna`. */
+    renderPalette(data),
     `behavioral contradictions: ${d.contradictions
       .map((c) => `${c.a} together with ${c.b}`)
       .join('; ')}`,
@@ -260,6 +307,27 @@ function renderCharacterDna(data: CharacterData): string {
     lines.push(`exact haircut / bleach solution: ${data.haircut}, ${data.hair_state}`);
   }
   return lines.join('\n');
+}
+
+/**
+ * La palette come ruoli, non come elenco.
+ *
+ * 🔒 L'ordine è quello del master, e non è casuale: la base per prima perché
+ * è quella che si vede da lontano, l'acido subito dopo perché è quello che
+ * decide se la creatura è una VINZ.MON, e i neutri per ultimi perché sono
+ * quelli che non si notano quando sono giusti.
+ */
+function renderPalette(data: CharacterData): string {
+  const r = data.palette_dna.roles;
+  const n = data.palette_dna.swatch_names;
+  return [
+    'HOUSE COLOR DNA — each colour has a JOB, not just a value:',
+    `- DOMINANT BASE ${r.base} (${n[0]?.split(' — ')[0] ?? ''}): large graphic fields. This is what is seen from across the room.`,
+    `- ACID HERO ${r.acidHero} (${n[1]?.split(' — ')[0] ?? ''}): marks signature anatomy, the eyewear, or the one feature that identifies this creature. It is NOT scattered.`,
+    `- CONTRAST ${r.contrast}: holds the chord together; used in fewer, deliberate places.`,
+    `- MICRO ACCENT${r.micro.length > 1 ? 'S' : ''} ${r.micro.join(' ')}: tiny quantities only.`,
+    `- NEUTRALS ${r.neutralLight} / ${r.neutralDark}: dirty off-white and a black that is not pure black.`,
+  ].join('\n');
 }
 
 function renderHeritage(data: CharacterData): string {

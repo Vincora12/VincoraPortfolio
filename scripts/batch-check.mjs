@@ -36,6 +36,7 @@ export { makeRng, randomSeed } from '${cwd}/src/engine/rng.ts';
 export { isValidMonName } from '${cwd}/src/engine/naming.ts';
 export { normalizePool } from '${cwd}/src/engine/rarity.ts';
 export { shouldDownload } from '${cwd}/src/state/store.ts';
+export { generatePaletteDna } from '${cwd}/src/engine/colorDna.ts';
 export { kinship, reactionsTo, arrivalPosts, weeklyPosts, weekFacts, roomNotice, unwritten, roomBlock, recognisedBy } from '${cwd}/src/engine/room.ts';
 export { parseRoomReply } from '${cwd}/src/ai/roomVoice.ts';
 export { generationOrder } from '${cwd}/src/assets-pipeline/generate.ts';
@@ -2582,6 +2583,88 @@ check(
   m.roomBlock([writtenPost], 20).includes('Do NOT recite'),
   'e gli si dice di non recitarlo',
   'sapere una cosa e citarla a memoria sono due cose diverse',
+);
+
+console.log('\n═══ §9 — HOUSE COLOR DNA ═══\n');
+
+/* ⚠️ Prima di questa correzione la palette era un MONOCROMO con tinte e ombre:
+   tre campioni su cinque erano lo stesso colore piu chiaro e piu scuro. Il
+   master §9 apre vietandolo per nome — «Do not default to tasteful monochrome
+   fantasy palettes» — quindi i controlli qui misurano la GEOMETRIA
+   dell'accordo, non la presenza dei campi. */
+
+const hexToHsl = (hex) => {
+  const n = parseInt(hex.slice(1), 16);
+  const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => v / 255);
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
+  const l = (max + min) / 2;
+  const sat = d === 0 ? 0 : d / (1 - Math.abs(2 * l - 1));
+  let h = 0;
+  if (d !== 0) {
+    if (max === r) h = 60 * (((g - b) / d) % 6);
+    else if (max === g) h = 60 * ((b - r) / d + 2);
+    else h = 60 * ((r - g) / d + 4);
+  }
+  return { h: (h + 360) % 360, s: sat, l };
+};
+const hueGap = (a, b) => { const d = Math.abs(a - b) % 360; return d > 180 ? 360 - d : d; };
+
+const MOODS_TO_TEST = ['SAD', 'STOIC', 'CALM', 'CHAOTIC', 'BRIGHT', 'CREEPY'];
+let acidFails = 0, flatFails = 0, monoFails = 0, worstAcid = 1;
+
+for (let i = 0; i < 4000; i++) {
+  const rng = m.makeRng(i + 1);
+  const fam = ['MACHINE', 'ANGEL', 'BEAST', 'MINERAL', 'FUNGUS', 'FAIRY'][i % 6];
+  const mood = MOODS_TO_TEST[i % MOODS_TO_TEST.length];
+  const p = m.generatePaletteDna(rng, fam, 'AQUA', mood);
+  const base = hexToHsl(p.roles.base);
+  const acid = hexToHsl(p.roles.acidHero);
+  const contrast = hexToHsl(p.roles.contrast);
+
+  worstAcid = Math.min(worstAcid, acid.s);
+  if (acid.s < 0.86) acidFails++;
+  // L'acido deve stare LONTANO dalla base, o e' una variante e non un eroe.
+  if (hueGap(acid.h, base.h) < 120) flatFails++;
+  // E il contrasto non deve essere ne' la base ne' l'acido.
+  if (hueGap(contrast.h, base.h) < 60 || hueGap(contrast.h, acid.h) < 45) monoFails++;
+}
+
+check(acidFails === 0, 'l\'acid hero e acido su OGNI temperamento', `saturazione minima ${worstAcid.toFixed(2)} su 4000`);
+check(flatFails === 0, 'e sta lontano dalla base: e un eroe, non una variante');
+check(monoFails === 0, 'il contrasto non coincide ne con la base ne con l\'acido');
+
+/* 🔒 Il pavimento sull'acido esiste per l'umore: i temperamenti cupi
+   abbassano la saturazione di venti punti e senza pavimento un .mon SAD
+   nascerebbe con un acid hero desaturato, cioe senza acid hero. */
+const sad = m.generatePaletteDna(m.makeRng(7), 'BEAST', 'AQUA', 'SAD');
+const bright = m.generatePaletteDna(m.makeRng(7), 'BEAST', 'AQUA', 'BRIGHT');
+check(
+  hexToHsl(sad.roles.base).l < hexToHsl(bright.roles.base).l + 0.02,
+  'un temperamento cupo scurisce la BASE',
+  `${hexToHsl(sad.roles.base).l.toFixed(2)} contro ${hexToHsl(bright.roles.base).l.toFixed(2)}`,
+);
+check(
+  hexToHsl(sad.roles.acidHero).s >= 0.86,
+  'ma non puo spegnere l\'acido: l\'umore cambia l\'atmosfera, non una regola di casa',
+  `saturazione ${hexToHsl(sad.roles.acidHero).s.toFixed(2)}`,
+);
+
+/* I micro accenti sono FACOLTATIVI nel master, e devono restarlo: una palette
+   che ha sempre il numero massimo di colori non ha piu un massimo. */
+let due = 0;
+for (let i = 0; i < 600; i++) {
+  if (m.generatePaletteDna(m.makeRng(i + 99), 'ANGEL', 'FIRE', 'CALM').roles.micro.length === 2) due++;
+}
+check(due > 60 && due < 360, 'il secondo micro accento c\'e a volte, non sempre', `${due} su 600`);
+
+/* 🔒 E ogni colore deve avere un RUOLO SCRITTO nel nome: il modello riceve i
+   nomi, non gli esadecimali, e «#f0ae06» non dice dove va a finire. */
+const named = m.generatePaletteDna(m.makeRng(3), 'MACHINE', 'ELECTRIC', 'FERAL');
+check(
+  named.swatch_names.some((n) => n.includes('ACID HERO')) &&
+    named.swatch_names.some((n) => n.includes('DOMINANT BASE')),
+  'i ruoli sono scritti nei nomi, non solo negli esadecimali',
+  named.swatch_names[1],
 );
 
 console.log('\n═══ VOCE — SOGLIA DI CACHE ═══\n');

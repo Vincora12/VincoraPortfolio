@@ -73,7 +73,31 @@ export interface Progression {
    §27 — CHARACTER DATA CONTRACT
    ========================================================================= */
 
-/** §27 palette_dna — la creatura è l'unica sorgente di colore della UI. */
+/**
+ * §27 palette_dna — la creatura è l'unica sorgente di colore della UI.
+ *
+ * 🔷 MASTER CHARACTER SYSTEM v1.1 §9 — HOUSE COLOR DNA. I colori non sono più
+ * un elenco: hanno RUOLI dichiarati, e il ruolo dice dove il colore va a
+ * finire sul corpo. Senza, il modello riceve cinque esadecimali e li sparge.
+ */
+export interface PaletteRoles {
+  /** Il campo grande. Domina la superficie. */
+  base: string;
+  /**
+   * 🔒 L'ACID HERO. Marca anatomia importante, occhiali, tratti firma — non si
+   * sparge. È il colore che rende la palette «energetica, sintetica,
+   * leggermente artificiale» invece che gradevole.
+   */
+  acidHero: string;
+  /** Il terzo colore, che tiene su l'accordo: né la base né l'acido. */
+  contrast: string;
+  /** Uno o due, in quantità piccolissime. */
+  micro: string[];
+  /** I due neutri: fondo chiaro e nero non-nero. */
+  neutralLight: string;
+  neutralDark: string;
+}
+
 export interface PaletteDna {
   primary: string;
   accent: string;
@@ -82,6 +106,8 @@ export interface PaletteDna {
   swatches: string[];
   /** Nomi leggibili, usati testualmente nei prompt (§40). */
   swatch_names: string[];
+  /** §9 — i ruoli, che il prompt legge al posto dell'elenco. */
+  roles: PaletteRoles;
 }
 
 /** §27 eyewear — §9 la rende obbligatoria dove l'anatomia lo consente. */

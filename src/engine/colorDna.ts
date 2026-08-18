@@ -117,6 +117,73 @@ const MOOD_TONE: Record<string, { sat: number; light: number }> = {
 
 /* --- Generazione ----------------------------------------------------------- */
 
+/* ============================================================================
+   MASTER CHARACTER SYSTEM v1.1 §9 — HOUSE COLOR DNA
+
+   ════════════════════════════════════════════════════════════════════════════
+   ⚠️ QUELLO CHE C'ERA PRIMA PRODUCEVA PRECISAMENTE CIÒ CHE IL MASTER VIETA.
+
+   Cinque campioni: primario, accento, TINTA del primario, OMBRA del primario,
+   accento slavato. Tre su cinque erano lo stesso colore più chiaro e più
+   scuro — cioè un monocromo con sfumature. Il master §9 apre così: «Do not
+   default to tasteful monochrome fantasy palettes».
+
+   Un esempio vero, generato prima di questa correzione:
+     #68373c rosso cupo · #b79fa2 tinta chiara · #170d0e ombra · #e9e4d8 luce
+   Elegante, e sbagliato: nessun colore acido, nessun contrasto, niente campi
+   grafici grandi. La palette di un concept fantasy, non di VINZ.MON.
+   ════════════════════════════════════════════════════════════════════════════
+
+   Adesso i colori hanno RUOLI, perché è il ruolo che dice dove vanno:
+
+     BASE       il campo grande, profondo e saturo
+     ACID HERO  🔒 marca anatomia importante, occhiali, tratti firma
+     CONTRAST   il terzo che tiene su l'accordo
+     MICRO      uno o due, in quantità piccolissime
+     NEUTRI     fondo sporco e nero non-nero
+
+   La relazione che il master indica come tendenza di casa — cobalto profondo,
+   giallo tossico, magenta caldo, ciano elettrico — non è copiata: è la
+   GEOMETRIA a essere riprodotta (distanza di tinta, salti di saturazione),
+   così ogni Family parte dalla sua tinta e arriva allo stesso tipo di accordo.
+   ========================================================================= */
+
+/* ────────────────────────────────────────────────────────────────────────────
+   LE TRE DISTANZE, MISURATE SULLA STESSA RUOTA E NELLO STESSO VERSO.
+
+   ⚠️ Prima acido e contrasto pescavano un lato a caso ciascuno, e quando
+   cadevano dallo stesso finivano addosso: base +170 e base +130 sono due
+   colori che a occhio sono lo stesso colore, e l'accordo a tre diventava un
+   accordo a due. Un controllo su 4000 palette lo ha fatto vedere.
+
+   Adesso le tre posizioni sono FISSE sulla ruota e si specchiano tutte
+   insieme: il verso cambia, le distanze fra loro no.
+
+     base   0°     il campo grande
+     micro  ~40°   vicino alla base, in quantità minima
+     acid   ~170°  quasi all'opposto: è l'eroe
+     contr  ~265°  in mezzo all'arco libero, lontano da entrambi
+   ──────────────────────────────────────────────────────────────────────── */
+
+/** Quasi all'opposto. Cobalto → giallo tossico ≈ 168°. */
+const ACID_DISTANCE: [number, number] = [150, 190];
+
+/** In mezzo all'arco che resta: lontano dalla base E dall'acido. */
+const CONTRAST_DISTANCE: [number, number] = [250, 280];
+
+/** Vicino alla base: cobalto → ciano elettrico ≈ 35°. */
+const MICRO_DISTANCE: [number, number] = [25, 55];
+
+/**
+ * 🔒 SOTTO QUESTA SATURAZIONE UN COLORE NON È PIÙ ACIDO.
+ *
+ * Serve perché l'umore sposta la saturazione, e i temperamenti cupi la
+ * abbassano di venti punti: senza questo pavimento un .mon SAD nascerebbe con
+ * un «acid hero» desaturato, cioè senza acid hero. L'umore può spegnere
+ * l'atmosfera, non può cancellare una regola di casa.
+ */
+const ACID_SAT_FLOOR = 0.86;
+
 export function generatePaletteDna(
   rng: Rng,
   family: string,
@@ -124,41 +191,73 @@ export function generatePaletteDna(
   mood: string,
 ): PaletteDna {
   const baseHue = pick(rng, FAMILY_HUES[family] ?? [200, 40, 300]);
-  const primaryHue = (baseHue + pickInt(rng, -12, 12) + 360) % 360;
-
   const tone = MOOD_TONE[mood] ?? { sat: 0, light: 0 };
+
+  /* Le Family acromatiche (hue 0 nel catalogo) restano scure e sporche sulla
+     BASE — è la loro identità — ma prendono comunque un acido pieno: il
+     master non ammette eccezioni su quello, e una creatura di metallo con un
+     solo colore tossico addosso è esattamente l'immagine che descrive. */
   const achromatic = baseHue === 0;
 
-  const primarySat = clamp01((achromatic ? 0.08 : 0.62) + tone.sat + rng() * 0.2);
-  const primaryLight = clamp01((achromatic ? 0.24 : 0.46) + tone.light + rng() * 0.1);
+  const dominantHue = (baseHue + pickInt(rng, -10, 10) + 360) % 360;
+  const baseSat = clamp01((achromatic ? 0.1 : 0.74) + tone.sat * 0.4 + rng() * 0.1);
+  const baseLight = clamp01((achromatic ? 0.2 : 0.34) + tone.light * 0.5 + rng() * 0.07);
 
-  // L'Affinity sposta la tinta dell'accento: è la contaminazione che si vede.
+  /* L'Affinity sposta l'ACIDO, non la base: la contaminazione si vede nel
+     colore che marca l'anatomia trasformata, che è dove sta davvero. */
   const shift = AFFINITY_HUE_SHIFT[affinity] ?? 40;
-  const accentHue = (primaryHue + shift + pickInt(rng, -10, 10) + 360) % 360;
-  const accentSat = clamp01(0.68 + tone.sat * 0.5 + rng() * 0.22);
-  const accentLight = clamp01(0.48 + rng() * 0.1);
+  /* Il verso: la stessa geometria, specchiata. Cambia quale metà della ruota
+     occupa l'accordo, non i rapporti al suo interno. */
+  const dir = rng() < 0.5 ? 1 : -1;
+  const at = (range: [number, number]) => (dominantHue + dir * pickInt(rng, ...range) + 720) % 360;
 
-  const primary = hslToHex(primaryHue, primarySat, primaryLight);
-  const accent = hslToHex(accentHue, accentSat, accentLight);
+  const acidHue = (at(ACID_DISTANCE) + dir * shift * 0.2 + 720) % 360;
+  const acidSat = Math.max(ACID_SAT_FLOOR, clamp01(0.95 + tone.sat * 0.2));
+  const acidLight = clamp01(0.56 + tone.light * 0.3 + rng() * 0.06);
 
-  // §12 DESIGNER TOY chiede «3–5 bold colors»: cinque campioni sono il tetto.
-  const swatches = [
-    primary,
-    accent,
-    hslToHex(primaryHue, primarySat * 0.45, Math.min(0.92, primaryLight + 0.36)),
-    hslToHex(primaryHue, primarySat * 0.85, Math.max(0.07, primaryLight - 0.28)),
-    hslToHex(accentHue, accentSat * 0.3, 0.88),
-  ];
+  const contrastHue = at(CONTRAST_DISTANCE);
+  const contrastSat = clamp01(0.86 + rng() * 0.1);
+  const contrastLight = clamp01(0.5 + rng() * 0.08);
 
+  const microHue = at(MICRO_DISTANCE);
+  const micro = [hslToHex(microHue, clamp01(0.9 + rng() * 0.08), clamp01(0.64 + rng() * 0.08))];
+  /* Il secondo micro accento è facoltativo nel master, e resta facoltativo
+     qui: due su tre volte non c'è. Una palette che ha sempre il numero
+     massimo di colori non ha più un massimo. */
+  if (rng() < 0.34) {
+    micro.push(hslToHex((acidHue + 180) % 360, clamp01(0.82 + rng() * 0.12), 0.7));
+  }
+
+  /* I neutri sono SPORCHI di base: un bianco puro e un nero puro sono i due
+     colori che rendono qualunque palette da software di grafica. */
+  const neutralLight = hslToHex(dominantHue, 0.06, 0.93);
+  const neutralDark = hslToHex(dominantHue, 0.16, 0.09);
+
+  const base = hslToHex(dominantHue, baseSat, baseLight);
+  const acidHero = hslToHex(acidHue, acidSat, acidLight);
+  const contrast = hslToHex(contrastHue, contrastSat, contrastLight);
+
+  const swatches = [base, acidHero, contrast, ...micro, neutralLight].slice(0, 5);
   const swatch_names = [
-    `${toneName(primarySat, primaryLight)} ${hueName(primaryHue)} (primary)`,
-    `${toneName(accentSat, accentLight)} ${hueName(accentHue)} (accent)`,
-    `light ${hueName(primaryHue)} tint`,
-    `deep ${hueName(primaryHue)} shade`,
-    `washed ${hueName(accentHue)} highlight`,
-  ];
+    `${toneName(baseSat, baseLight)} ${hueName(dominantHue)} — DOMINANT BASE, large graphic fields`,
+    `${toneName(acidSat, acidLight)} ${hueName(acidHue)} — ACID HERO, marks signature anatomy only`,
+    `${toneName(contrastSat, contrastLight)} ${hueName(contrastHue)} — CONTRAST`,
+    ...micro.map((_, i) => `${hueName(i === 0 ? microHue : (acidHue + 180) % 360)} — MICRO ACCENT, tiny quantities`),
+    `off-white ${hueName(dominantHue)} — NEUTRAL`,
+  ].slice(0, 5);
 
-  return { primary, accent, on_primary: readableOn(primary), swatches, swatch_names };
+  return {
+    /* 🔶 `primary`/`accent` restano, e sono la BASE e l'ACIDO: sono i due nomi
+       con cui il resto dell'app conosce già questa palette (§10.2 li mette nei
+       token della UI). Rinominarli avrebbe voluto dire toccare venti file per
+       un guadagno zero — i ruoli veri stanno in `roles`. */
+    primary: base,
+    accent: acidHero,
+    on_primary: readableOn(base),
+    swatches,
+    swatch_names,
+    roles: { base, acidHero, contrast, micro, neutralLight, neutralDark },
+  };
 }
 
 /* --- Applicazione alla UI (MASTER SPEC §10.2) ------------------------------ */

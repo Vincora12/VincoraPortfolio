@@ -38,7 +38,7 @@ import {
 } from '../engine/generation-config';
 
 /** §48 — versione del compilatore, salvata in ogni export per riproducibilità. */
-export const COMPILER_VERSION = '2.1.0';
+export const COMPILER_VERSION = '3.0.0';
 
 /* --- §30.1 — schema canonico del frammento --------------------------------- */
 
@@ -113,17 +113,107 @@ export const GLOBAL_FRAGMENTS: PromptFragment[] = [
     id: 'global.identity',
     axis: 'global',
     priority: 0,
+    /* ════════════════════════════════════════════════════════════════════════
+       🔶 QUI C'ERA «CREATURE FIRST. STYLING SECOND. The viewer must identify
+       FAMILY before Fashion, Role, eyewear or VINZ personal markers.»
+
+       Era la prima riga del prompt, e diceva l'OPPOSTO del master:
+
+         §11 — «The first visual read must be CHARACTER; the second should be
+         VINZ.MON identity; Family/Archetype/Role follow.»
+
+       La vecchia priorità ottimizzava per leggibilità TASSONOMICA: si deve
+       capire che è una MACHINE. Il risultato è precisamente quello che §3
+       vieta per nome — «a technical creature study»: una creatura corretta,
+       classificabile, e che non ti resta in mente.
+
+       ⚠️ Ma il divieto che ci stava dentro NON era decorativo, e resta: «non
+       trasformare le Family non umane in umani alla moda» è nato da un
+       fallimento vero, ed è ancora un fallimento vero. Cambia il posto: non è
+       più la premessa, è un paletto.
+       ════════════════════════════════════════════════════════════════════ */
     positive_prompt: [
       'Create one original VINZ.MON creature from the supplied canonical Character Data.',
       '',
-      'ABSOLUTE PRIORITY:',
-      'CREATURE FIRST. STYLING SECOND.',
-      'The viewer must identify FAMILY before Fashion, Role, eyewear or VINZ personal markers.',
-      'Do not turn non-human Families into fashionable humans.',
-      'Do not turn humanoid Families into ordinary humans wearing creature accessories.',
+      'READING ORDER — this is the goal, in this order:',
+      '1. CHARACTER. A viewer must meet a memorable individual before they can classify anything.',
+      '2. VINZ.MON identity: the eyewear and hair/hair-equivalent solution.',
+      '3. FAMILY, ARCHETYPE, ROLE — the taxonomy follows, it does not lead.',
+      '4. Cultural references are discovered last, or never, and that is correct.',
+      '',
       'Preserve all generated fields exactly:',
       'FAMILY, ARCHETYPE, AFFINITY, SIZE, ROLE, FASHION, MOOD, CHARACTER DNA,',
       'HERITAGE, APPEARANCE and palette DNA.',
+      'The taxonomy must be VISIBLE THROUGH CONSTRUCTION — never pasted on as costume,',
+      'and never solved by turning a non-human Family into a fashionable human.',
+    ].join('\n'),
+    tags: ['mandatory'],
+  },
+  {
+    /* ════════════════════════════════════════════════════════════════════════
+       MASTER CHARACTER SYSTEM v1.1 §3 — VINZ.MON HOUSE CHARACTER DNA
+
+       🔷 «Segui il documento, mi piace come escono con quello.»
+
+       Questo capitolo — il cuore del master — non entrava nel prompt in NESSUNA
+       forma. Cercando le sue parole nel testo compilato: «3–4 silhouette
+       landmarks» assente, «one proportional exaggeration» assente, «one
+       slightly ridiculous feature» assente, «facial attitude» assente.
+
+       ⚠️ E non è il CHARACTER DNA che c'era già: quello individua QUESTO .mon
+       fra i suoi simili (il suo tic di sagoma, il suo motivo ricorrente).
+       Questo dice come dev'essere costruito QUALUNQUE .mon per funzionare come
+       personaggio. È la differenza fra «cosa lo rende lui» e «cosa lo rende
+       uno che ti resta in mente», e mancava la seconda.
+       ════════════════════════════════════════════════════════════════════ */
+    id: 'global.house_character_dna',
+    axis: 'global',
+    priority: 0,
+    positive_prompt: [
+      'HOUSE CHARACTER DNA — non-negotiable, applies to every VINZ.MON:',
+      'The result must read FIRST as a memorable CHARACTER — not as lore, not as concept art,',
+      'not as a fashion mannequin, not as a technical creature study.',
+      '',
+      'BUILD IT WITH:',
+      '- ONE dominant identity mass that owns the silhouette.',
+      '- 3 to 4 silhouette landmarks that can be named out loud from across a room.',
+      '- ONE strong proportional exaggeration — something is decisively too big, too long or too small.',
+      '- ONE slightly ridiculous, over-specific or visually funny feature. Not a joke: a specific.',
+      '- ONE facial attitude readable before any lore is understood.',
+      '',
+      'PERSONALITY TARGET:',
+      'Approachable and energetic. A viewer should be able to imagine arguing with this character,',
+      'travelling with it, being annoyed by it, and becoming attached to it.',
+      'Charm does not mean childishness: sophistication must never erase character appeal.',
+      'Hair/hair-equivalent and eyewear actively participate in silhouette recognition.',
+      'Secondary detail never overpowers the primary character read.',
+      '',
+      'FOR HUMANOID FORMS:',
+      'Avoid the adult fashion-model mannequin. Prefer a younger, characterful heroic rhythm —',
+      'slightly larger head, expressive hands and feet, readable face, energetic posture.',
+      'The target is youthful character appeal, NOT chibi anatomy.',
+    ].join('\n'),
+    tags: ['mandatory'],
+  },
+  {
+    /* ════════════════════════════════════════════════════════════════════════
+       MASTER CHARACTER SYSTEM v1.1 §4 — VINZ IDENTITY: I CAPELLI
+
+       Nel prompt c'era la regola di RIPIEGO — «se la Family non ha capelli
+       plausibili, traducili» — e non c'era mai l'identità che quella regola
+       serve a proteggere. Un ripiego senza la cosa da cui ripiega.
+       ════════════════════════════════════════════════════════════════════ */
+    id: 'global.vinz_hair_identity',
+    axis: 'global',
+    priority: 0,
+    positive_prompt: [
+      'VINZ IDENTITY — HAIR:',
+      'Natural hair colour is DARK BLOND; the current styling is bleached.',
+      'A Form uses FULL BLEACH (reads platinum / almost white, dark blond surviving only as deep regrowth)',
+      'or PARTIAL BLEACH (visible dark-blond roots transitioning into platinum lengths and tips).',
+      'NEVER default to black hair.',
+      'Where morphology has no plausible hair, translate this into an anatomical hair-equivalent',
+      'rather than dropping the identity — or omit it when translation is impossible.',
     ].join('\n'),
     tags: ['mandatory'],
   },
@@ -602,6 +692,66 @@ function designDnaFragment(d: (typeof DESIGN_DNA)[number]): PromptFragment {
   };
 }
 
+/* ============================================================================
+   MASTER CHARACTER SYSTEM v1.1 §7 — CULTURAL DNA
+
+   ⚠️ NON ARRIVAVA MAI AL PROMPT. I tag culturali esistono nel codice da sempre,
+   ma alimentavano solo il PUNTEGGIO con cui si sceglie una Family: uscivano
+   in un numero e mai in una parola. Il capitolo §7 del master, nel testo
+   compilato, era zero righe.
+
+   🔒 «Ingredients, not a checklist of visible easter eggs.» È la regola che
+   rende questo blocco utile invece che dannoso: un riferimento riconoscibile
+   è un fallimento, non un successo. Va combinato, tradotto in morfologia, e
+   scoperto per ultimo — o mai, il che è ugualmente corretto.
+   ========================================================================= */
+
+/* ============================================================================
+   MASTER CHARACTER SYSTEM v1.1 §9 — HOUSE COLOR DNA (la regola di casa)
+
+   I colori di QUESTA creatura stanno nel Character DNA. Qui sta il modo di
+   usarli, che è uguale per tutte — e il divieto che apre il capitolo, che è la
+   cosa che la palette vecchia violava a ogni nascita.
+   ========================================================================= */
+
+export const HOUSE_COLOR_FRAGMENT: PromptFragment = {
+  id: 'global.house_color_dna',
+  axis: 'global',
+  priority: 0,
+  positive_prompt: [
+    'HOUSE COLOR DNA — how the palette is used:',
+    'LARGE GRAPHIC COLOUR FIELDS matter more than multicoloured micro-detail.',
+    'The acid colour identifies important anatomy, eyewear, fashion or signature features —',
+    'it is placed deliberately, never scattered as speckles across the body.',
+    'Overall chromatic identity: energetic, synthetic, youthful, slightly artificial.',
+  ].join('\n'),
+  negative_prompt:
+    'Do NOT default to a tasteful monochrome fantasy palette: one hue with its own tints and shades is a failure of this layer, however elegant. Do not desaturate the acid colour to make the image calmer.',
+};
+
+export const CULTURAL_FRAGMENT: PromptFragment = {
+  id: 'cultural.compile',
+  axis: 'global',
+  priority: 0,
+  positive_prompt: [
+    'CULTURAL DNA — ingredients, never easter eggs:',
+    'Combine a SMALL number of DISTANT references conceptually, then translate them into',
+    'morphology, behaviour, fashion logic, transformation, colour or attitude.',
+    'The viewer should be able to remember this character without ever identifying a reference.',
+    '',
+    'Available pool, to draw from sparingly:',
+    'Final Fantasy / Kingdom Hearts; Shaman King spirit-object relationships;',
+    'magical-girl transformation logic; Power Rangers transformation confidence;',
+    'Y2K digital optimism; club and rave culture; queer fashion image-making;',
+    'Southern Italian and Neapolitan folklore and superstition; yokai;',
+    'tarot, constellations and Greek myth; robots and obsolete electronics;',
+    'street / skate / bootleg graphics; unfamiliar sacred anatomy;',
+    'cosmic beings; contemporary fashion and eyewear.',
+  ].join('\n'),
+  negative_prompt:
+    'Never reproduce recognisable characters, costumes, logos, weapons, species, silhouettes or franchise iconography. A reference anyone can name is a failure.',
+};
+
 /** §42 — DOODLE non è un Appearance: vive solo nella BIO. */
 export const DOODLE_FRAGMENT: PromptFragment = {
   id: 'appearance.doodle_bio_only',
@@ -820,6 +970,8 @@ export const FRAGMENT_LIBRARY: Map<string, PromptFragment> = (() => {
     ...MARKER_FRAGMENTS,
     ...MOODS.map(moodFragment),
     CHARACTER_DNA_FRAGMENT,
+    CULTURAL_FRAGMENT,
+    HOUSE_COLOR_FRAGMENT,
     HERITAGE_FRAGMENT,
     ...DESIGN_DNA.map(designDnaFragment),
     ...Object.keys(APPEARANCE_DETAIL).map(appearanceFragment),

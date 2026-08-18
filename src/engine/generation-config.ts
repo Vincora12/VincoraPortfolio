@@ -31,7 +31,7 @@
    estrae. §29 impone di incrementare la versione quando cambiano tassonomie o
    pesi, e i .mon già generati restano immutabili con la versione con cui sono
    nati. */
-export const GENERATION_CONFIG_VERSION = '2.4.0';
+export const GENERATION_CONFIG_VERSION = '2.5.0';
 
 /* ============================================================================
    §2 — SEGNALI IN INGRESSO

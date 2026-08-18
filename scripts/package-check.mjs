@@ -163,9 +163,13 @@ check(
   drifting.join(', '),
 );
 
+/* 🔶 Puntava a «CREATURE FIRST. STYLING SECOND.», cioe' alla priorita' della
+   spec vecchia. Il master v1.1 §11 la ribalta: prima il CARATTERE, la
+   tassonomia segue. Il perno resta — ogni prompt deve dichiarare un ordine di
+   lettura — ma dichiara quello giusto. */
 check(
-  compiled.every((c) => c.text.includes('CREATURE FIRST. STYLING SECOND.')),
-  'ogni prompt porta la priorità assoluta di §31',
+  compiled.every((c) => c.text.includes('READING ORDER')),
+  'ogni prompt porta l\'ordine di lettura di §11',
 );
 
 /* 🔷 v1.14 §31.2 — «Transparent background» dice come SALVARLO, non come
@@ -282,6 +286,66 @@ check(
 check(
   Object.values(data.asset_manifest_status).every((s) => s === 'waiting'),
   'nasce con tutti gli slot asset vuoti (§21.2)',
+);
+
+/* ============================================================================
+   MASTER CHARACTER SYSTEM v1.1 — IL DOCUMENTO DEVE ESSERE NEL PROMPT
+
+   🔷 «Non sembra che i prompt lo seguano, come mai?» — perche' non lo
+   seguivano: tre capitoli su quattordici non entravano in NESSUNA forma nel
+   testo compilato, e la prima riga diceva l'opposto di §11.
+
+   🔒 Questi controlli guardano il TESTO VERO, non il codice: un frammento puo'
+   esistere nella libreria e non essere mai selezionato — che e' esattamente
+   com'e' andata la prima volta che li ho aggiunti.
+   ========================================================================= */
+
+const testo = compiled.find((c) => c.type === 'profile_portrait').text;
+const must = [
+  ['§3  il personaggio prima della tassonomia', 'memorable CHARACTER'],
+  ['§3  tre o quattro landmark di sagoma', 'silhouette landmarks'],
+  ['§3  una esagerazione di proporzione', 'proportional exaggeration'],
+  ['§3  una cosa leggermente ridicola', 'ridiculous'],
+  ['§3  un atteggiamento facciale immediato', 'facial attitude'],
+  ['§3  ritmo eroico giovane, non manichino', 'youthful character appeal'],
+  ['§4  i capelli di VINZ: biondo scuro decolorato', 'DARK BLOND'],
+  ['§7  la Cultural DNA come ingrediente', 'CULTURAL DNA'],
+  ['§9  la base dominante ha un ruolo dichiarato', 'DOMINANT BASE'],
+  ['§9  l\'acid hero ha un ruolo dichiarato', 'ACID HERO'],
+  ['§9  il monocromo elegante e\' vietato per nome', 'monochrome fantasy'],
+  ['§8  il Character Design DNA e\' costruzione', 'CHARACTER DESIGN DNA'],
+  ['§11 l\'ordine di lettura e\' dichiarato', 'READING ORDER'],
+];
+for (const [label, needle] of must) {
+  check(testo.includes(needle), label, needle);
+}
+
+/* 🔒 E la vecchia priorita' NON deve tornare: diceva che il primo read e' la
+   FAMILY, cioe' l'opposto di §11. */
+check(
+  !testo.includes('CREATURE FIRST. STYLING SECOND.'),
+  '§11 la vecchia priorita\' tassonomica non e\' tornata',
+  'era la prima E l\'ultima riga del prompt',
+);
+
+/* 🔒 Ogni divieto deve essere ETICHETTATO. Una lista di cose da evitare senza
+   una parola che lo dica, in mezzo a un prompt, e' una richiesta. */
+const senzaEtichetta = compiled.filter((c) =>
+  /\nfeminine-coded styling used to soften/.test(c.text),
+);
+check(
+  senzaEtichetta.length === 0,
+  'nessun divieto viene stampato nudo, senza AVOID:',
+  'letta da un modello di immagini, una lista di cose da evitare senza etichetta e\' una richiesta',
+);
+
+/* 🔒 Il riferimento al CHARACTER MASTER non puo' comparire prima che il master
+   esista: da quando il RITRATTO si genera per primo, quel blocco diceva alla
+   primissima immagine di obbedire a un'immagine che non c'e'. */
+check(
+  !testo.includes('CONSISTENCY REFERENCE'),
+  'la prima immagine non obbedisce a un riferimento che non esiste',
+  'gli slot nascono tutti vuoti: qui il master non c\'e\' ancora',
 );
 
 /* --- Esito ------------------------------------------------------------------ */
