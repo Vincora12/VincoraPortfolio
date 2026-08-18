@@ -306,6 +306,24 @@ try {
   await click('.splash__enter', 'vai in chat');
   await shot('06-companion-home');
 
+  /* 🔷 §23.6 — «il logo del mostro deve apparire anche nell'icona dell'app».
+     Non basta che il codice ci sia: la rasterizzazione passa da una canvas e
+     può fallire in silenzio, restituendo un PNG trasparente o niente. Qui si
+     guarda l'attributo VERO dopo la nascita. */
+  await sleep(600);
+  const icona = await page.evaluate(() => ({
+    apple: document.querySelector('link[rel="apple-touch-icon"]')?.getAttribute('href') ?? '',
+    manifest: document.querySelector('link[rel="manifest"]')?.getAttribute('href') ?? '',
+  }));
+  if (!icona.apple.startsWith('data:image/png;base64,')) {
+    errors.push(`apple-touch-icon è ancora «${icona.apple.slice(0, 40)}»: sulla home resta il globo`);
+  } else if (icona.apple.length < 500) {
+    errors.push('apple-touch-icon è un PNG vuoto: la canvas non ha disegnato niente');
+  }
+  if (!icona.manifest.startsWith('blob:')) {
+    errors.push('il manifest non è stato aggiornato: su Android l’icona resta quella statica');
+  }
+
   /* 🔷 §10.6 — la riga «come sta oggi», l'unica superficie di prodotto
      dell'umore. Qui deve esserci per forza: e appena nato, e NATO lascia
      l'appiglio 18 punti sotto la sua base. Se un giorno sparisse da questo

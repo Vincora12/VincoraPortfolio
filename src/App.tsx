@@ -17,7 +17,7 @@ import { preloadMonAssets } from './assets-pipeline/assetStore';
 import { Icon } from './system/Icon';
 import { haptic } from './system/haptics';
 import { PROGRESSION } from './engine/progression';
-import { applySigilFavicon } from './system/favicon';
+import { applySigilAppIcon, applySigilFavicon } from './system/favicon';
 import { t } from './i18n/it';
 
 import { SplashScreen } from './screens/Splash';
@@ -152,12 +152,19 @@ export function App() {
     applyPaletteDna(paletteDna);
   }, [paletteDna]);
 
-  /* 🔷 v1.15 §23.6 — il sigillo diventa l'icona della scheda, e cambia con la
-     creatura. Sulla schermata home dell'iPhone non può fare lo stesso: iOS
-     legge l'icona una volta sola, quando aggiungi la scorciatoia, e da lì la
-     tiene in cache per sempre. */
+  /* 🔷 v1.15 §23.6 — il sigillo è l'icona della scheda E quella che il
+     telefono userà se aggiungi l'app alla home.
+
+     ⚠️ La seconda mancava, e mancava proprio la metà che si vede di più:
+     `apple-touch-icon` puntava al globo statico, quindi chi si metteva l'app
+     sul telefono si portava a casa l'icona generica.
+
+     🔒 Resta il muro di iOS: l'icona viene letta UNA volta, quando aggiungi
+     la scorciatoia. Questo fa sì che in quel momento sia il sigillo di
+     ADESSO; per aggiornarla dopo un'evoluzione si toglie e si rimette. */
   useEffect(() => {
     applySigilFavicon(sigil);
+    void applySigilAppIcon(sigil);
   }, [sigil]);
 
   // Gli asset importati vivono in IndexedDB: vanno ricaricati a ogni avvio.

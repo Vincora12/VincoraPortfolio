@@ -86,8 +86,13 @@ export function sigilSvg(seed: SigilSeed, color = '%23111111'): string {
       ? `<circle cx='${r}' cy='${r}' r='${g.hole.toFixed(2)}' fill='%23ffffff'/>`
       : '';
 
+  /* ⚠️ `width`/`height` DICHIARATI, non solo il viewBox. Per la scheda del
+     browser sarebbero superflui; per essere disegnato dentro una canvas —
+     cioè per diventare l'icona dell'app — non lo sono: un SVG senza misura
+     intrinseca in alcuni browser si disegna come un'immagine 0×0, e il
+     risultato è un PNG trasparente invece di un errore. */
   return (
-    `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 ${BOX} ${BOX}'>` +
+    `<svg xmlns='http://www.w3.org/2000/svg' width='${BOX}' height='${BOX}' viewBox='0 0 ${BOX} ${BOX}'>` +
     `<rect width='${BOX}' height='${BOX}' fill='%23ffffff'/>` +
     rotated +
     ring +
@@ -117,3 +122,112 @@ export function applySigilFavicon(seed: SigilSeed | null): void {
   link.type = 'image/svg+xml';
   link.href = `data:image/svg+xml,${sigilSvg(seed)}`;
 }
+
+/* ============================================================================
+   L'ICONA SULLA SCHERMATA HOME (§23.6)
+
+   🔷 «Ti sei anche dimenticato che il logo del mostro deve apparire anche
+   nell'icona dell'app.»
+
+   Vero, e per metà: la scheda del browser aveva il sigillo dal primo giorno,
+   la schermata home no. `apple-touch-icon` puntava a un PNG statico — il globo
+   wireframe — quindi chi aggiungeva l'app al telefono si portava a casa
+   l'icona generica di sempre. Il pezzo che rendeva vera la frase «il marchio è
+   la tua creatura» era proprio quello che si vede di più.
+
+   ════════════════════════════════════════════════════════════════════════════
+   ⚠️ SERVE UN PNG, NON L'SVG CHE ABBIAMO GIÀ.
+
+   iOS non accetta SVG per `apple-touch-icon`. Quindi il sigillo va disegnato
+   dentro una canvas e riesportato: è l'unico passaggio in tutto il progetto in
+   cui un'immagine viene rasterizzata, ed è per questo che è isolato qui.
+
+   ⚠️ E RESTA IL MURO GIÀ DICHIARATO SOPRA: iOS legge l'icona UNA VOLTA,
+   quando aggiungi la scorciatoia. Questo codice fa sì che, in quel momento,
+   l'icona sia il sigillo di ADESSO invece del globo. Un'app già sulla home non
+   la cambia nessuno — per aggiornarla si toglie e si rimette, ed è un gesto
+   che vale la pena fare quando cambia forma.
+   ════════════════════════════════════════════════════════════════════════════
+
+   🔒 FALLISCE IN SILENZIO. Se la canvas non c'è, se il disegno non parte, se
+   il browser rifiuta: resta l'icona di prima e non succede niente. Un'icona è
+   la cosa meno importante che ci sia, e non deve poter rompere un avvio.
+   ========================================================================= */
+
+/** Le misure che servono: 180 per iOS, 512 per il manifest. */
+const ICON_SIZES = [180, 512] as const;
+
+/** Disegna il sigillo dentro una canvas e restituisce un PNG come data URI. */
+function rasterise(seed: SigilSeed, size: number): Promise<string | null> {
+  return new Promise((resolve) => {
+    try {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          canvas.width = size;
+          canvas.height = size;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) return resolve(null);
+          /* Il fondo bianco è già dentro l'SVG, ma si ridipinge: una canvas
+             nasce trasparente, e su iOS un'icona con alpha viene composta su
+             nero — il sigillo nero su nero sparirebbe. */
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, size, size);
+          ctx.drawImage(img, 0, 0, size, size);
+          resolve(canvas.toDataURL('image/png'));
+        } catch {
+          resolve(null);
+        }
+      };
+      img.onerror = () => resolve(null);
+      img.src = `data:image/svg+xml,${sigilSvg(seed)}`;
+    } catch {
+      resolve(null);
+    }
+  });
+}
+
+/**
+ * Mette il sigillo nell'icona che il telefono userà se aggiungi l'app.
+ *
+ * Aggiorna `apple-touch-icon` e sostituisce il manifest con uno costruito al
+ * volo che punta agli stessi PNG: senza il secondo pezzo, su Android l'icona
+ * resterebbe quella dichiarata nel file statico.
+ */
+export async function applySigilAppIcon(seed: SigilSeed | null): Promise<void> {
+  if (typeof document === 'undefined' || !seed) return;
+
+  const pngs = await Promise.all(ICON_SIZES.map((s) => rasterise(seed, s)));
+  const [png180, png512] = pngs;
+  if (!png180 || !png512) return;
+
+  const apple = document.querySelector<HTMLLinkElement>('link[rel="apple-touch-icon"]');
+  if (apple) apple.href = png180;
+
+  const link = document.querySelector<HTMLLinkElement>('link[rel="manifest"]');
+  if (!link) return;
+
+  try {
+    const res = await fetch(link.href);
+    const manifest = (await res.json()) as Record<string, unknown>;
+    manifest.icons = [
+      { src: png180, sizes: '180x180', type: 'image/png', purpose: 'any' },
+      { src: png512, sizes: '512x512', type: 'image/png', purpose: 'any' },
+    ];
+
+    /* 🔒 L'URL vecchio si revoca prima di crearne un altro: questa funzione
+       gira a ogni evoluzione, e un blob per forma lascerebbe in memoria tutti
+       i manifest di tutte le creature che ci sono state. */
+    if (lastManifestUrl) URL.revokeObjectURL(lastManifestUrl);
+    lastManifestUrl = URL.createObjectURL(
+      new Blob([JSON.stringify(manifest)], { type: 'application/manifest+json' }),
+    );
+    link.href = lastManifestUrl;
+  } catch {
+    /* Il manifest statico resta valido: l'icona su iOS è già a posto, e su
+       Android si perde solo l'aggiornamento. Nessun motivo di urlare. */
+  }
+}
+
+let lastManifestUrl: string | null = null;

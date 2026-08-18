@@ -1248,6 +1248,24 @@ check(
   has('src/engine/catalogTuning.ts', 'SPEGNERE NON È CANCELLARE'),
 );
 
+check(
+  'ICONA §23.6',
+  'il sigillo va anche nell’icona dell’app, non solo nella scheda',
+  has('src/App.tsx', 'applySigilAppIcon(sigil)') &&
+    has('src/system/favicon.ts', "querySelector<HTMLLinkElement>('link[rel=\"apple-touch-icon\"]')"),
+  'puntava a un PNG statico: chi si metteva l’app sul telefono si portava a casa il globo',
+);
+check(
+  'ICONA §23.6',
+  'l’icona non può rompere un avvio',
+  has('src/system/favicon.ts', 'img.onerror = () => resolve(null)'),
+);
+check(
+  'ICONA §23.6',
+  'niente alpha: su iOS un’icona trasparente viene composta su nero',
+  has('src/system/favicon.ts', "ctx.fillStyle = '#ffffff'"),
+);
+
 /* ============================================================================
    Sicurezza e tono — non negoziabili
    ========================================================================= */
