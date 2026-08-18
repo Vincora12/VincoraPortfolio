@@ -35,15 +35,20 @@ import { COMPILER_CHOICES, ROUTING, VOICE_CHOICES } from './_shared/routing';
 
 /** Le variabili che l'app può usare, e a cosa servono in italiano. */
 const VARS = [
+  /* 🔶 `required: true` su Anthropic era vero finché la voce si poteva dare
+     solo a lui. Da quando GPT-5.6 Terra è fra le scelte, «obbligatoria» sarebbe
+     una bugia: quello che serve davvero è ALMENO UNA chiave fra quelle che
+     sanno dare la voce, e quale sia lo decide chi la usa. È il senso stesso di
+     «cambiare fornitore senza perdere l'AI» — vedi `ready` più sotto. */
   {
     name: 'ANTHROPIC_API_KEY',
-    what: 'la voce del .mon e la riflessione settimanale',
-    required: true,
+    what: 'la voce del .mon, e la riflessione settimanale (quella solo lui)',
+    required: false,
     where: 'console.anthropic.com → API keys',
   },
   {
     name: 'OPENAI_API_KEY',
-    what: 'le immagini delle creature, e chi scrive i prompt',
+    what: 'le immagini, chi scrive i prompt, e la voce se scegli GPT',
     required: false,
     where: 'platform.openai.com → API keys',
   },
@@ -87,24 +92,33 @@ export default async function handler(request: Request): Promise<Response> {
 
   const cap = await checkCap();
 
+  const voices = VOICE_CHOICES.map((c) => ({
+    model: c.model,
+    label: c.label,
+    ready: Boolean(process.env[keyFor(c.provider)]),
+  }));
+  const compilers = COMPILER_CHOICES.map((c) => ({
+    model: c.model,
+    label: c.label,
+    ready: Boolean(process.env[keyFor(c.provider)]),
+  }));
+
   return json({
     serverToken: true,
+    /* 🔒 La risposta alla domanda «sono a posto?», calcolata QUI e non nel
+       browser. Non è «ci sono tutte le chiavi» ma «ce n'è una che basta»: una
+       schermata che dice MANCA di fianco a un fornitore che hai scelto di non
+       usare fa sembrare rotto quello che è solo una tua decisione. */
+    ready: {
+      voice: voices.some((v) => v.ready),
+      compile: compilers.some((c) => c.ready),
+    },
     vars: VARS.map((v) => ({ ...v, present: Boolean(process.env[v.name]) })),
-    /* Quali scelte di voce sono davvero utilizzabili adesso: una scelta il cui
+    /* Quali scelte sono davvero utilizzabili adesso: una scelta il cui
        fornitore non ha la chiave configurata è un pulsante che fallirebbe. */
-    voices: VOICE_CHOICES.map((c) => ({
-      model: c.model,
-      label: c.label,
-      ready: Boolean(process.env[keyFor(c.provider)]),
-    })),
+    voices,
     defaultVoice: ROUTING['character-voice'].model,
-    /* §10 — chi scrive i prompt. Stessa forma delle voci: si vede subito quali
-       sono utilizzabili adesso e quali chiederebbero una chiave che non c'è. */
-    compilers: COMPILER_CHOICES.map((c) => ({
-      model: c.model,
-      label: c.label,
-      ready: Boolean(process.env[keyFor(c.provider)]),
-    })),
+    compilers,
     defaultCompiler: ROUTING['prompt-compile'].model,
     spentUsd: cap.ledger.usd,
     capUsd: MONTHLY_CAP_USD,

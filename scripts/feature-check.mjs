@@ -1144,6 +1144,28 @@ check(
   'un salvataggio scaricato non ti sposta di fornitore',
   has('src/state/store.ts', 'voiceModel: local.voiceModel'),
 );
+/* 🔷 «Per adesso metto tutto ChatGPT, mi conviene per provare se funziona.»
+   Partire con un fornitore solo dev'essere possibile per DAVVERO, cioè anche
+   per la voce — che è l'unica cosa che questa schermata dice di accendere. */
+check(
+  '§19.2 FORNITORE',
+  'si può partire con un fornitore solo, voce compresa',
+  count(ROUTING_FILE, /provider: 'openai'/g) >= 2,
+  'con le sole immagini su OpenAI, una chiave sola non bastava ad accendere niente di parlante',
+);
+check(
+  '§19.5 ATTIVAZIONE',
+  'nessuna singola chiave è dichiarata obbligatoria',
+  lacksInCode('netlify/functions/setup.ts', 'required: true'),
+  'obbligatoria rispetto a cosa? a una scelta di fornitore che non hai ancora fatto',
+);
+check(
+  '§19.5 ATTIVAZIONE',
+  'ATTIVO vuol dire «qualcuno può rispondere», non «ci sono tutte le chiavi»',
+  has('netlify/functions/setup.ts', 'voice: voices.some((v) => v.ready)') &&
+    has('src/screens/Activate.tsx', 'setup.ready?.voice'),
+  'una schermata che dice MANCA di fianco a un fornitore che hai scelto di non usare fa sembrare rotto quello che è una tua decisione',
+);
 
 check(
   '§19.5 ATTIVAZIONE',

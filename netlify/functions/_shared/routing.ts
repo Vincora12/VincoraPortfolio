@@ -218,6 +218,23 @@ export interface VoiceChoice {
  * fidarsi di questo commento.
  */
 export const VOICE_CHOICES: VoiceChoice[] = [
+  /* 🔷 «Per adesso metto tutto ChatGPT, mi conviene per provare se funziona.»
+     Prima la voce si poteva scegliere solo fra Anthropic e Moonshot, quindi
+     partire con una chiave sola era possibile per i prompt e le immagini ma
+     NON per la voce — cioè per la cosa che questa schermata dice di accendere.
+     Era un limite mio, non del fornitore: serve `promptCache` e `thinking`, e
+     OpenAI ha entrambe. */
+  {
+    provider: 'openai',
+    model: 'gpt-5.6-terra',
+    label: 'GPT-5.6 Terra',
+    price: { input: 2, output: 12 },
+    it: 'La più economica delle quattro, e usa la stessa chiave delle immagini: con questa si parte con un fornitore solo. Non ha la ricerca sul web.',
+    /* ⚠️ `false` perché `CAN.openai.webSearch` è `false`: prometterla qui
+       sarebbe una bugia nella schermata che serve a decidere. */
+    webSearch: false,
+    data: 'OpenAI dichiara di non usare i dati delle API per addestrare i modelli senza adesione esplicita.',
+  },
   {
     provider: 'anthropic',
     model: 'claude-opus-5',

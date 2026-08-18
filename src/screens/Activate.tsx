@@ -83,8 +83,14 @@ export function ActivateScreen({ onClose }: { onClose: () => void }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const missing = setup?.vars?.filter((v) => v.required && !v.present) ?? [];
-  const live = Boolean(setup?.serverToken && setup.vars && missing.length === 0);
+  /* 🔶 Prima era «tutte le variabili obbligatorie ci sono», con Anthropic
+     obbligatoria. Da quando la voce si può dare anche a GPT quella riga
+     avrebbe detto NON ATTIVO a un'installazione che funziona benissimo con una
+     chiave sola. La domanda giusta è più semplice: c'è qualcuno che può
+     rispondere? La risposta la dà il server, che è l'unico a sapere quali
+     chiavi esistono. */
+  const live = Boolean(setup?.serverToken && setup.ready?.voice);
+  const canCompile = Boolean(setup?.ready?.compile);
 
   return (
     <div className="screen activate">
@@ -130,16 +136,19 @@ export function ActivateScreen({ onClose }: { onClose: () => void }) {
         <Step
           n={2}
           title="LE CHIAVI"
-          done={setup?.vars ? missing.length === 0 : false}
-          detail="Una sola è obbligatoria. Le altre accendono pezzi in più."
+          done={live}
+          detail="Ne basta una che sappia dare la voce. Le altre accendono pezzi in più."
         >
           {setup?.vars ? (
             <ul className="activate__vars">
               {setup.vars.map((v) => (
                 <li key={v.name} className="activate__var">
                   <span className="t-meta activate__varname">{v.name}</span>
-                  <SystemLabel tone={v.present ? 'character' : v.required ? 'alert' : 'default'}>
-                    {v.present ? "C'È" : v.required ? 'MANCA' : 'FACOLTATIVA'}
+                  {/* 🔒 Nessuna è più marcata MANCA da sola: mancherebbe solo
+                      rispetto a una scelta che non hai fatto. Quello che manca
+                      davvero, se manca, lo dice la riga qui sotto. */}
+                  <SystemLabel tone={v.present ? 'character' : 'default'}>
+                    {v.present ? "C'È" : 'NON C’È'}
                   </SystemLabel>
                   <span className="t-micro activate__varwhat">
                     {v.what} — {v.where}
@@ -154,6 +163,22 @@ export function ActivateScreen({ onClose }: { onClose: () => void }) {
               potergli parlare.
             </p>
           )}
+          {/* Cosa manca DAVVERO, se manca: una frase per ciascuna delle due
+              cose che le chiavi accendono, e nessuna delle due nomina un
+              fornitore preciso — perché nessuno dei due è obbligatorio. */}
+          {setup?.ready && !live && (
+            <p className="t-micro activate__bad">
+              Nessuna delle chiavi configurate sa dare la voce. Ne basta una fra
+              OpenAI, Anthropic e Moonshot.
+            </p>
+          )}
+          {setup?.ready && live && !canCompile && (
+            <p className="t-micro activate__note">
+              La voce c'è. Per far riscrivere i prompt dall'AI serve la chiave di
+              OpenAI o quella di Anthropic.
+            </p>
+          )}
+
           {/* 🔒 Il tetto va detto QUI, non dopo il primo conto: è l'unica
               protezione che non si può aggiungere a posteriori. */}
           <p className="t-micro activate__note">
@@ -216,7 +241,7 @@ export function ActivateScreen({ onClose }: { onClose: () => void }) {
         <Step
           n={5}
           title="CHI SCRIVE I PROMPT"
-          done={live}
+          done={canCompile}
           detail="Scrive le descrizioni delle immagini, una volta per creatura."
         >
           <CompilerChoicePanel setup={setup} />

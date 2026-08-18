@@ -128,10 +128,25 @@ check(
   m.COMPILER_CHOICES.map((c) => `${c.label} $${c.price.input}/$${c.price.output}`).join(' · '),
 );
 /* 🔒 La preferenza dal browser vale per la capacita giusta e non per le altre:
-   scegliere chi scrive i prompt non deve poter spostare la voce. */
+   ogni capacita risolve dentro il PROPRIO catalogo.
+
+   🔶 L'ago era su `gpt-5.6-terra` come «modello che non e una voce». Da quando
+   la voce si puo dare anche a OpenAI quel modello sta in tutti e due i
+   cataloghi, e l'ago diceva OK per il motivo sbagliato. Ora usa `kimi-k3`, che
+   e una voce e non un compilatore: se un giorno lo diventasse, questo controllo
+   va riscritto invece di essere tolto. */
 check(
-  m.resolveRoute('character-voice', 'gpt-5.6-terra').model === m.ROUTING['character-voice'].model,
-  'scegliere il compilatore non sposta la voce',
+  m.VOICE_CHOICES.some((c) => c.model === 'kimi-k3') &&
+    !m.COMPILER_CHOICES.some((c) => c.model === 'kimi-k3'),
+  'esiste un modello che sta in un catalogo solo, altrimenti la prova non prova niente',
+);
+check(
+  m.resolveRoute('prompt-compile', 'kimi-k3').model === m.ROUTING['prompt-compile'].model,
+  'una voce non diventa chi scrive i prompt',
+);
+check(
+  m.resolveRoute('character-voice', 'kimi-k3').model === 'kimi-k3',
+  'ma sulla capacita giusta la stessa scelta vale',
 );
 check(
   m.resolveRoute('prompt-compile', 'claude-sonnet-5').provider === 'anthropic',

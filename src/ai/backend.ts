@@ -221,6 +221,13 @@ export interface SetupState {
   /** `false` = il segreto non è configurato sul server: è l'errore n.1. */
   serverToken: boolean;
   reason?: string;
+  /**
+   * «Ce n'è abbastanza per partire?», deciso dal server.
+   *
+   * 🔒 Non è «ci sono tutte le chiavi»: è «ce n'è almeno una che sa fare
+   * questa cosa». Con una chiave OpenAI sola sono veri tutti e due.
+   */
+  ready?: { voice: boolean; compile: boolean };
   vars?: SetupVar[];
   voices?: { model: string; label: string; ready: boolean }[];
   defaultVoice?: string;

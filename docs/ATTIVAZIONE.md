@@ -70,13 +70,18 @@ a ogni apertura della schermata.
 
 | Nome | Valore | Serve per |
 |---|---|---|
-| `VINZMON_TOKEN` | il segreto del passo 2 | far aprire le funzioni solo a te — **obbligatoria** |
-| `ANTHROPIC_API_KEY` | console.anthropic.com → API keys | la voce del .mon e la riflessione settimanale — **obbligatoria** |
-| `OPENAI_API_KEY` | platform.openai.com → API keys | le immagini **e** chi scrive i prompt |
-| `GOOGLE_API_KEY` | aistudio.google.com → Get API key | leggere le foto dei piatti — facoltativa |
-| `MOONSHOT_API_KEY` | platform.moonshot.ai → API keys | solo se scegli Kimi K3 per la voce — facoltativa |
+| `VINZMON_TOKEN` | il segreto del passo 2 | far aprire le funzioni solo a te — **l'unica davvero obbligatoria** |
+| `OPENAI_API_KEY` | platform.openai.com → API keys | le immagini, chi scrive i prompt, **e la voce** se scegli GPT-5.6 Terra |
+| `ANTHROPIC_API_KEY` | console.anthropic.com → API keys | la voce con Claude, e la riflessione settimanale (quella solo lui) |
+| `GOOGLE_API_KEY` | aistudio.google.com → Get API key | leggere le foto dei piatti |
+| `MOONSHOT_API_KEY` | platform.moonshot.ai → API keys | solo se scegli Kimi K3 per la voce |
 
-Per le prove che vuoi fare adesso servono le prime tre.
+**Nessuna chiave di fornitore è obbligatoria da sola: ne serve almeno una che
+sappia dare la voce.** Con la sola `OPENAI_API_KEY` funzionano voce, prompt e
+immagini — cioè si può partire con un fornitore solo e aggiungerne dopo.
+
+L'unica cosa che nessun altro sa fare è la **riflessione settimanale**, che resta
+su Anthropic.
 
 **Le due opzioni del modulo, e cosa scegliere.**
 
@@ -130,6 +135,11 @@ Due decisioni separate, con due criteri diversi.
 **Passo 4 · CHI DÀ LA VOCE** — porta le tue conversazioni. Si sceglie a
 orecchio, e ogni opzione dice dove finiscono i dati. C'è un pulsante di prova:
 manda una frase vera e ti fa vedere la risposta.
+
+Quattro opzioni: **GPT-5.6 Terra** ($2/$12, la più economica, stessa chiave delle
+immagini, senza ricerca sul web), **Claude Opus 5** ($5/$25, quello con cui il
+personaggio è stato scritto e tarato), **Claude Sonnet 5** e **Kimi K3** (entrambi
+$3/$15). Quelle la cui chiave manca sono spente, non nascoste.
 
 **Passo 5 · CHI SCRIVE I PROMPT** — porta solo la descrizione di una creatura,
 mai te. Si sceglie sui risultati visivi. Il predefinito è **GPT-5.6 Terra**
