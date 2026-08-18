@@ -601,8 +601,15 @@ const voiceSrc = readFileSync(new URL('../src/ai/voicePrompt.ts', import.meta.ur
 const genSrc = readFileSync(new URL('../src/assets-pipeline/generate.ts', import.meta.url), 'utf8');
 const encSrc = readFileSync(new URL('../src/screens/Encounter.tsx', import.meta.url), 'utf8');
 
+/* 🔶 L'ago guardava `compilePrompt(record, type)` dentro `generate.ts`. La
+   scelta del prompt e' passata a `promptFor`, ma la decisione e' la stessa e
+   piu' forte scritta cosi': il prompt e' una FUNZIONE PURA della creatura e
+   del tipo di asset. Niente tentativo, niente seme, niente ora — o «rifalla»
+   chiederebbe un personaggio diverso invece di un altro tentativo. */
+const promptSrc = readFileSync(new URL('../src/assets-pipeline/promptFor.ts', import.meta.url), 'utf8');
 check(
-  !genSrc.includes('compilePrompt(record, type, ') && genSrc.includes('compilePrompt(record, type)'),
+  genSrc.includes('promptFor(record, type).text') &&
+    /export function promptFor\(record: MonRecord, assetType: AssetType\): PromptChoice/.test(promptSrc),
   'rifare una faccia usa lo STESSO prompt',
   'un prompt diverso sarebbe un altro personaggio, non un altro tentativo',
 );

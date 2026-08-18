@@ -25,6 +25,7 @@ import { ASSET_TYPES } from '../engine/assets';
 import type { MonRecord } from '../engine/types';
 import { displayName } from '../engine/types';
 import { COMPILER_VERSION, compilePrompt } from './compiler';
+import { promptFor } from './promptFor';
 import { buildManifest, expectedFileName } from './manifest';
 
 export interface PackageFile {
@@ -51,7 +52,7 @@ export function buildPackageFiles(record: MonRecord): PackageFile[] {
   const fragmentIds: Record<string, string[]> = {};
   const combined: string[] = [];
   /** Quali prompt escono dal compilatore AI e quali dalla concatenazione. */
-  const written: Record<string, boolean> = {};
+  const written: Record<string, string> = {};
 
   for (const def of ASSET_TYPES) {
     const compiled = compilePrompt(record, def.type);
@@ -66,14 +67,15 @@ export function buildPackageFiles(record: MonRecord): PackageFile[] {
        🔒 La regola è la stessa di `generateMissingAssets`: se c'è quello
        riscritto si usa quello, altrimenti il deterministico, che resta sempre
        valido. Una porta sola per il prompt, comunque lo si consumi. */
-    const text = record.compiledPrompts?.[def.type] ?? compiled.text;
-    written[def.assetId] = Boolean(record.compiledPrompts?.[def.type]);
+    const chosen = promptFor(record, def.type);
+    const text = chosen.text;
+    written[def.assetId] = chosen.source;
 
     files.push({ name: def.promptFile, content: text });
     fragmentIds[def.assetId] = compiled.fragmentIds;
     combined.push(
       `${'='.repeat(78)}\n${def.promptFile}  —  ${def.label}\n` +
-        `${written[def.assetId] ? 'riscritto dall’AI' : 'concatenato dai frammenti'}\n` +
+        `origine: ${chosen.source}\n` +
         `${'='.repeat(78)}\n\n${text}`,
     );
   }
@@ -94,7 +96,7 @@ export function buildPackageFiles(record: MonRecord): PackageFile[] {
         /* 🔒 Dichiarato nel pacchetto: senza questa riga, aprendo uno zip di
            tre settimane fa non c'è modo di sapere se quei prompt erano già
            passati dal compilatore. */
-        rewritten_by_ai: written,
+        prompt_source: written,
       },
       null,
       2,

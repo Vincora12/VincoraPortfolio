@@ -15,6 +15,7 @@ import { Button, Row, SystemLabel } from '../system/components';
 import { ASSET_TYPES } from '../engine/assets';
 import type { AssetType } from '../engine/types';
 import { compilePrompt, validateFragmentIds } from '../assets-pipeline/compiler';
+import { promptFor } from '../assets-pipeline/promptFor';
 import { CopyButton } from '../system/CopyButton';
 import { NoMon } from './NoMon';
 import { downloadPackage } from '../assets-pipeline/exportPackage';
@@ -41,8 +42,11 @@ export function PromptPreview() {
   /* §10 — la riscrittura dell'AI, se per QUESTO tipo di asset è già stata
      fatta. Si scrive una volta sola per creatura: un prompt che cambia a
      ogni tocco produrrebbe sei immagini di sei creature diverse. */
-  const written = mon.compiledPrompts?.[assetType] ?? null;
-  const shown = written && !showRaw ? written : compiled.text;
+  /* 🔶 Erano due stati — riscritto o no. Adesso le sorgenti sono tre, e la
+     terza è quella nuova: `promptFor` sa quale vince e dice quale ha scelto. */
+  const chosen = promptFor(mon, assetType);
+  const written = chosen.source !== 'concatenato' ? chosen.text : null;
+  const shown: string = written && !showRaw ? written : compiled.text;
 
   return (
     <div className="dev__section">
@@ -53,7 +57,7 @@ export function PromptPreview() {
       <p className="t-meta dev__label">
         PROMPT{' '}
         <SystemLabel tone={written && !showRaw ? 'character' : 'alert'}>
-          {written && !showRaw ? 'RISCRITTO DALL’AI' : 'CONCATENATO DAI FRAMMENTI'}
+          {showRaw || !written ? 'CONCATENATO DAI FRAMMENTI' : chosen.source.toUpperCase()}
         </SystemLabel>
       </p>
       <p className="t-micro dev__note">

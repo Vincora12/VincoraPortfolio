@@ -351,6 +351,18 @@ export interface MonRecord {
    * bio: è un generatore di frasi che ti gira intorno.
    */
   writtenBio?: BioFile;
+  /**
+   * 🔷 v1 COMPILER — le decisioni di design prese dal resolver.
+   *
+   * ⚠️ NON è un prompt: è l'oggetto con cui il prompt viene scritto. Il prompt
+   * si può sempre ricompilare da qui, quindi è questo che va conservato — un
+   * prompt salvato invecchia quando cambia il compilatore, una risoluzione no.
+   *
+   * 🔒 SI DECIDE UNA VOLTA SOLA. È la stessa regola dei prompt e della bio, e
+   * qui pesa di più: la risoluzione dice chi È questa creatura, e cambiarla
+   * fra un asset e l'altro produrrebbe sei disegni di sei personaggi.
+   */
+  resolution?: import('../assets-pipeline/resolver/types').CreativeResolution;
 }
 
 /* --- CONVERSAZIONE ----------------------------------------------------------- */

@@ -18,10 +18,10 @@ import { Button, Row, SystemLabel } from '../system/components';
 import { ASSET_TYPES, assetTypeDef } from '../engine/assets';
 import type { AssetType, MonRecord } from '../engine/types';
 import { buildManifest } from '../assets-pipeline/manifest';
-import { compilePrompt } from '../assets-pipeline/compiler';
 import { generationOrder } from '../assets-pipeline/generate';
 import { CopyButton } from '../system/CopyButton';
 import { NoMon } from './NoMon';
+import { promptFor } from '../assets-pipeline/promptFor';
 import {
   clearAllAssets,
   importAssetFile,
@@ -46,7 +46,7 @@ function PromptCell({ mon, type }: { mon: MonRecord; type: AssetType }) {
 
   return (
     <>
-      <CopyButton text={written ?? compilePrompt(mon, type).text} label="PROMPT" />
+      <CopyButton text={promptFor(mon, type).text} label="PROMPT" />
       {written ? (
         <SystemLabel tone="character">RISCRITTO</SystemLabel>
       ) : (

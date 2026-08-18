@@ -741,3 +741,18 @@
   margin: var(--u4) 0;
   max-width: 420px;
 }
+
+/* La casella dove si incolla la risoluzione. Poche righe di proposito: il
+   JSON è lungo e nessuno lo rilegge qui — quello che conta è che ci stia. */
+.dev__paste {
+  width: 100%;
+  margin: var(--u2) 0;
+  padding: var(--u2);
+  background: var(--white);
+  border: 1px solid var(--ink);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--ink);
+  resize: vertical;
+}

@@ -39,7 +39,7 @@ import { askImage } from '../ai/backend';
 import type { BackendFailure } from '../ai/backend';
 import { ASSET_TYPES } from '../engine/assets';
 import type { AssetType, MonRecord } from '../engine/types';
-import { compilePrompt } from './compiler';
+import { promptFor } from './promptFor';
 import { getAssetUrlSync, importAssetFile } from './assetStore';
 import { assetTypeDef } from '../engine/assets';
 
@@ -107,7 +107,7 @@ export async function generateMissingAssets(
        valido. La pipeline non compila da sé: chiedere una riscrittura a metà
        di una generazione di immagini vorrebbe dire due chiamate in fila con
        due modi diversi di fallire. */
-    const text = record.compiledPrompts?.[type] ?? compilePrompt(record, type).text;
+    const text = promptFor(record, type).text;
     const res = await askImage(token, text, imageModel);
 
     if (!res.data) {

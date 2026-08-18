@@ -1409,18 +1409,84 @@ check(
   'l’avevo sistemato per le immagini e lasciato muto per il testo: il compilatore è finito esattamente in quel buco',
 );
 
+/* ============================================================================
+   §10 v1 — IL COMPILATORE A DUE STADI
+
+   🔷 «Questo è quello fatto da ChatGPT, implementalo. Richiede comunque una
+   LLM come resolver, ma passo a lui intanto per capire se gli output grezzi
+   funzionano.»
+   ========================================================================= */
+
+check(
+  '§10 DUE STADI',
+  'al modello si chiedono DECISIONI, non un prompt scritto',
+  has('src/assets-pipeline/resolver/resolverPrompt.ts', 'Your job is NOT to write the final image prompt'),
+  'un testo si può solo rileggere, un oggetto si può controllare',
+);
+check(
+  '§10 DUE STADI',
+  'e il prompt lo scrive codice, che non decide niente',
+  has('src/assets-pipeline/resolver/compile.ts', 'QUI DENTRO NON C\'È NESSUNA DECISIONE'),
+  'l’ordine delle sezioni È il prodotto: il personaggio deve venire prima, sempre',
+);
+check(
+  '§10 DUE STADI',
+  'la risoluzione si può incollare a mano',
+  has('src/state/store.ts', 'useResolution: (monName, raw)') &&
+    has('src/dev/ResolverSection.tsx', 'USA QUESTA RISOLUZIONE'),
+  'la domanda «il metodo è giusto» non deve restare in ostaggio di una decisione di hosting',
+);
+check(
+  '§10 DUE STADI',
+  'e chi incolla usa la stessa validazione della chiamata automatica',
+  count('src/state/store.ts', /parseResolution\(/g) === 1 &&
+    has('src/assets-pipeline/resolver/parse.ts', 'export function parseResolution'),
+  'due copie vorrebbero dire che la strada a mano accetta cose che l’altra rifiuta',
+);
+check(
+  '§10 DUE STADI',
+  'cambiare risoluzione butta i prompt già compilati',
+  has('src/state/store.ts', 'resolution, compiledPrompts: undefined'),
+  'sono scritti DA quelle decisioni: tenerli sarebbe tenere il ritratto di un’altra creatura',
+);
+check(
+  '§10 DUE STADI',
+  'i moltiplicatori stanno nella tabella dei designer, non in una seconda',
+  has(CONFIG, 'numeric: NumericGrammar') &&
+    lacksInCode('src/assets-pipeline/resolver/grammar.ts', 'KEN SUGIMORI'),
+  'due tabelle di designer sarebbero due verità sullo stesso disegnatore',
+);
+check(
+  '§10 DUE STADI',
+  'un prompt ha una porta sola, qualunque sia la sorgente',
+  has('src/assets-pipeline/promptFor.ts', 'export function promptFor') &&
+    count('src/assets-pipeline/generate.ts', /promptFor\(record, type\)/g) === 1 &&
+    lacksInCode('src/dev/AssetImport.tsx', 'compilePrompt('),
+  'erano tre sorgenti e quattro consumatori: dodici occasioni di consegnare il testo sbagliato senza che niente fallisca',
+);
+check(
+  '§10 DUE STADI',
+  'e il limite di v1 è dichiarato, non nascosto',
+  has('src/assets-pipeline/promptFor.ts', 'RESOLVER_COVERS'),
+  'copre solo il CHARACTER MASTER: gli altri cinque restano sulla concatenazione, e deve vedersi',
+);
+
 /* 🔷 «Ma i prompt sono riscritti dall'AI? Se no non sono quelli giusti.» */
 check(
   '§10 COMPILATORE',
-  'il pacchetto esportato porta il prompt RISCRITTO, se c’è',
-  has('src/assets-pipeline/exportPackage.ts', 'record.compiledPrompts?.[def.type] ?? compiled.text'),
+  'il pacchetto esportato porta il prompt migliore che c’è',
+  /* 🔶 L'ago guardava il `??` scritto dentro l'export. Adesso la scelta la fa
+     `promptFor`, in un posto solo, e le sorgenti sono tre invece di due: la
+     decisione è la stessa — l'export non deve consegnare il concatenato
+     quando esiste di meglio — quindi guarda che passi da lì. */
+  has('src/assets-pipeline/exportPackage.ts', 'promptFor(record, def.type)'),
   'esportava sempre il concatenato: un pacchetto che sembra giusto e contiene il testo vecchio, cioè si provavano proprio i prompt che stavamo sostituendo',
 );
 check(
   '§10 COMPILATORE',
-  'e lo dichiara, dentro il pacchetto',
-  has('src/assets-pipeline/exportPackage.ts', 'rewritten_by_ai'),
-  'aprendo uno zip di tre settimane fa non c’era modo di sapere da quale dei due venivano',
+  'e dichiara da quale delle tre sorgenti viene',
+  has('src/assets-pipeline/exportPackage.ts', 'prompt_source'),
+  'aprendo uno zip di tre settimane fa non c’era modo di sapere da quale venivano',
 );
 check(
   '§10 COMPILATORE',
@@ -1903,7 +1969,10 @@ check(
 check(
   'COMPILATORE §10',
   'senza chiave resta quello deterministico',
-  has('src/assets-pipeline/generate.ts', 'record.compiledPrompts?.[type] ?? compilePrompt'),
+  /* 🔶 Il ripiego non sta più dentro `generate.ts`: sta in `promptFor`, che è
+     l'unico posto che sceglie fra le tre sorgenti. La decisione è che il
+     concatenato sia sempre l'ULTIMA parola e non manchi mai. */
+  has('src/assets-pipeline/promptFor.ts', "return { text: compilePrompt(record, assetType).text, source: 'concatenato' };"),
 );
 
 /* ============================================================================

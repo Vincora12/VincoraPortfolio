@@ -33,6 +33,12 @@ export { makeRng } from '${cwd}/src/engine/rng.ts';
 export { buildPackageFiles } from '${cwd}/src/assets-pipeline/exportPackage.ts';
 export { buildManifest } from '${cwd}/src/assets-pipeline/manifest.ts';
 export { compilePrompt, validateFragmentIds, COMPILER_VERSION } from '${cwd}/src/assets-pipeline/compiler.ts';
+export { parseResolution } from '${cwd}/src/assets-pipeline/resolver/parse.ts';
+export { compileFromResolution } from '${cwd}/src/assets-pipeline/resolver/compile.ts';
+export { resolverInputFor } from '${cwd}/src/assets-pipeline/resolver/adapter.ts';
+export { buildResolverPrompt } from '${cwd}/src/assets-pipeline/resolver/resolverPrompt.ts';
+export { numericGrammarFor } from '${cwd}/src/assets-pipeline/resolver/grammar.ts';
+export { promptFor } from '${cwd}/src/assets-pipeline/promptFor.ts';
 export { DESIGN_DNA } from '${cwd}/src/engine/generation-config.ts';
 export { FRAGMENT_LIBRARY } from '${cwd}/src/assets-pipeline/fragments.ts';
 `,
@@ -519,6 +525,115 @@ check(
   numeriche >= 35,
   'il prompt dice QUANTE cose, non solo che tipo',
   `${numeriche} istruzioni numeriche — «pochissime forme» non e eseguibile, «circa cinque» si`,
+);
+
+/* ============================================================================
+   IL COMPILATORE A DUE STADI (v1)
+
+   🔷 Pacchetto scritto altrove. Il controllo che vale piu' di tutti e' il
+   primo: la risoluzione D'ESEMPIO del pacchetto deve passare la NOSTRA
+   validazione. Se non passa, o abbiamo copiato male i limiti o li abbiamo
+   inventati — e in tutti e due i casi rifiuteremmo uscite buone.
+   ========================================================================= */
+
+console.log('\n═══ COMPILATORE A DUE STADI (v1) ═══\n');
+
+const esempio = JSON.parse(
+  readFileSync(new URL('../tests/fixtures/example_resolution.json', import.meta.url), 'utf8'),
+);
+
+const letta = m.parseResolution(JSON.stringify(esempio));
+check(
+  letta.problems.length === 0,
+  'la risoluzione d’esempio del pacchetto passa la nostra validazione',
+  letta.problems.join(' · '),
+);
+
+check(
+  m.parseResolution('```json\n' + JSON.stringify(esempio) + '\n```').problems.length === 0,
+  'e passa anche incorniciata in un blocco di codice',
+  'un modello che incornicia ha obbedito nella sostanza',
+);
+
+check(
+  m.parseResolution(JSON.stringify({ ...esempio, silhouetteLandmarks: ['a', 'b', 'c', 'd', 'e'] }))
+    .problems.length > 0,
+  'ma cinque punti di sagoma vengono rifiutati',
+  'il master ne vuole 3–4: e la differenza fra una sagoma e un ammasso',
+);
+
+check(
+  m.parseResolution('niente json qui').resolution === null,
+  'e una risposta che non e JSON non passa per buona',
+);
+
+/* --- Il giro completo su una creatura vera ---------------------------------- */
+
+const rInput = m.resolverInputFor(record);
+const rNumeric = m.numericGrammarFor(rInput);
+const rPrompt = m.buildResolverPrompt(rInput, rNumeric);
+const rCompiled = m.compileFromResolution(rInput, esempio);
+
+check(
+  rInput.family === record.data.family && rInput.characterDesignDNA === record.data.character_design_dna,
+  'i nostri fatti arrivano interi al resolver',
+);
+/* 🔒 v1 dice che ogni Forma e' fresca: l'eredita' NON deve viaggiare. */
+check(
+  !JSON.stringify(rInput).includes('heritage') && !rPrompt.includes('HERITAGE'),
+  'l’eredita non entra nel resolver, come chiede v1',
+  'ogni Forma e una manifestazione fresca, non una discendenza',
+);
+check(
+  rPrompt.includes('Output JSON only') && rPrompt.includes('MERGE'),
+  'al resolver si chiede un oggetto, e di TOGLIERE',
+  'l’accumulo di quattro espedienti e il difetto che questo stadio cura',
+);
+check(
+  rCompiled.prompt.indexOf('CORE PERSONALITY') < rCompiled.prompt.indexOf('FAMILY / ARCHETYPE CONSTRUCTION'),
+  'nel prompt finale il PERSONAGGIO viene prima della tassonomia',
+  'se l’immagine e un bel reperto tassonomico senza personalita, il compilatore ha fallito',
+);
+check(
+  rCompiled.prompt.includes('SILHOUETTE TEST') &&
+    rCompiled.prompt.includes('MEMORY TEST') &&
+    rCompiled.prompt.includes('APPEAL CHECK') &&
+    rCompiled.prompt.includes('VISUAL DNA — LOCK'),
+  'e ci sono tutte e quattro le prove del master',
+);
+check(
+  rCompiled.prompt.lastIndexOf('APPEARANCE —') > rCompiled.prompt.indexOf('VISUAL DNA — LOCK'),
+  'l’APPEARANCE viene per ultima: e resa, non costruzione',
+);
+
+/* 🔒 Umanoidita bassa: le proporzioni umane si TOLGONO, non si azzerano.
+   Un moltiplicatore neutro direbbe «braccia normali» a chi braccia non ne ha,
+   ed e' cosi' che nasce un corpo deforme. */
+const nonUmano = m.numericGrammarFor({ ...rInput, humanoidity: 1 });
+check(
+  nonUmano.headScale === undefined && nonUmano.armLength === undefined,
+  'a umanoidita 1 le proporzioni umane spariscono, non vanno a 1.0',
+  `restano: ${Object.keys(nonUmano).join(', ')}`,
+);
+check(
+  nonUmano.silhouetteLandmarkCount !== undefined,
+  'ma i punti di sagoma restano: valgono per qualunque corpo',
+);
+
+/* --- Una porta sola per il prompt -------------------------------------------- */
+
+check(
+  m.promptFor(record, 'character_master').source === 'concatenato',
+  'senza risoluzione il prompt resta quello di sempre',
+);
+check(
+  m.promptFor({ ...record, resolution: esempio }, 'character_master').source === 'risoluzione',
+  'con una risoluzione vince lei',
+);
+/* ⚠️ Limite dichiarato di v1: copre solo il CHARACTER MASTER. Che si veda. */
+check(
+  m.promptFor({ ...record, resolution: esempio }, 'profile_portrait').source === 'concatenato',
+  'ma v1 copre solo il CHARACTER MASTER, e gli altri cinque restano dov’erano',
 );
 
 /* --- Esito ------------------------------------------------------------------ */

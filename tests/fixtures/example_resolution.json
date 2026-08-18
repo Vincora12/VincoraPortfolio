@@ -1,0 +1,28 @@
+{
+  "corePersonality": [
+    "He is convinced every route can be improved.",
+    "He moves too fast and interrupts directions.",
+    "He is useful, friendly, impatient and slightly exhausting.",
+    "He dislikes waiting more than he dislikes being wrong."
+  ],
+  "dominantIdentityMass": "an oversized head / hair / eyewear zone",
+  "silhouetteLandmarks": ["five-part bleached hair crown", "enormous wraparound eyewear", "large dorsal fin", "huge off-center messenger bag"],
+  "proportionalExaggeration": "head ~1.35×, torso ~0.70×, feet ~1.65×",
+  "ridiculousSpecificFeature": "a tiny electroreceptive filament that points at the nearest active phone",
+  "facialAttitude": "one eyebrow higher, crooked grin: 'You're going the slow way.'",
+  "familySystems": ["one broad dorsal fin", "one simple fin-plane per forearm", "one compact asymmetric tail", "broad biological feet"],
+  "archetypeBodyPlan": "clearly humanoid shark-derived organism; human readability dominates",
+  "affinityZones": ["4–6 electroreceptive sensory points at temples and forearms", "tiny phone-seeking filament"],
+  "roleBehavior": ["slight forward lean", "one heel lifted", "one hand always near the bag strap", "free arm points before the body turns"],
+  "roleStructuralMotif": "one messenger bag approximately equal to torso visual volume",
+  "fashionMasses": ["cropped sleeveless courier jacket", "fitted sleeveless top", "one broad knee-length shorts mass", "one asymmetric hanging panel"],
+  "hairConstruction": "exactly five major masses; dark-blond shared roots, platinum lengths; one counter-direction front tuft",
+  "eyewearConstruction": "one continuous lens occupying roughly half the visible face; no detailed hinges or nose pads",
+  "culturalTranslation": ["compress Y2K into eyewear scale and acid color", "compress courier culture into bag scale and forward posture", "compress club culture into chromatic confidence and attitude"],
+  "asymmetryBudget": ["one counter-direction hair tuft", "one longer gesturing arm", "one leaning dorsal tip", "one hanging lower panel", "one-sided messenger bag"],
+  "negativeSpaces": ["between free arm and torso", "between bag and far leg", "between tail and legs"],
+  "detailBudget": ["5 hair masses", "1 eyewear mass", "1 head mass", "1 torso mass", "2 arms", "2 hands", "1 lower-garment mass", "2 legs", "2 oversized feet", "1 dorsal fin", "2 forearm fin planes", "1 tail", "1 messenger bag", "1 belt", "1 chain", "1 charm", "4–6 sensory dots", "1 filament", "STOP"],
+  "memorySentence": "the cocky bleached shark courier with giant acid glasses and the huge messenger bag",
+  "appealBehaviors": ["roll his eyes", "grin", "argue", "point aggressively", "run", "trip", "be embarrassed when the fin droops", "get pulled sideways by the bag"],
+  "visualDNALock": ["one oversized humanoid head", "five dark-blond-to-platinum hair masses", "one enormous wraparound lens", "one tiny compact torso", "two simple arms and large hands", "two long simple legs and huge feet", "one large dorsal fin", "two forearm fin planes", "one compact asymmetric tail", "one oversized messenger bag"]
+}

@@ -743,6 +743,22 @@ try {
   await devTab('CREATURA', 'BIO');
   await shot('dev-bio');
 
+  /* 🔷 v1 — il resolver a mano. Il pezzo che conta e' che il prompt da
+     incollare esista e sia lungo: e' l'unica strada che non dipende dal muro
+     dei dieci secondi. */
+  await devTab('CREATURA', 'RESOLVER');
+  const risolto = await page
+    .locator('.dev__section')
+    .first()
+    .textContent()
+    .catch(() => '');
+  if (!risolto || !/NON ANCORA RISOLTO/.test(risolto)) {
+    errors.push('la schermata del resolver non dice se la creatura e risolta');
+  }
+  const casella = await page.$$eval('.dev__paste', (n) => n.length);
+  if (casella !== 1) errors.push(`la casella dove incollare la risoluzione: ${casella}`);
+  await shot('dev-resolver');
+
   /* 🔷 §22.4 — la forgia. Senza segreto i pulsanti sono spenti di proposito:
      quello che si controlla qui e' che il prezzo sia scritto PRIMA, perche' e'
      l'unica cosa dell'app che con un tocco spende quasi un euro. */

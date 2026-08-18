@@ -40,6 +40,7 @@ import {
 import { evolveMon, generateFirstMon, generateMon } from '../engine/characterGenerator';
 import type { BackendFailure } from '../ai/backend';
 import { assetTypeDef } from '../engine/assets';
+import { parseResolution } from '../assets-pipeline/resolver/parse';
 import type { GenerationProgress } from '../assets-pipeline/generate';
 import {
   WEEKLY_EVERY,
@@ -463,6 +464,20 @@ interface AppState {
   compileAssetPrompt: (monName: string, assetType: AssetType) => Promise<string | null>;
   /** §8.1 — fa riscrivere la bio. Torna il motivo del rifiuto, o `null`. */
   writeBio: (monName: string) => Promise<string | null>;
+  /**
+   * 🔷 v1 COMPILER — accetta una risoluzione incollata a mano.
+   *
+   * ⚠️ Esiste perché il resolver come chiamata automatica oggi non può girare:
+   * le funzioni Netlify muoiono a 10 secondi. Ma il pezzo che serve davvero a
+   * capire se il metodo funziona è l'USCITA GREZZA, e quella si può ottenere
+   * incollando il prompt in una chat qualsiasi. Questa porta esiste per non
+   * tenere in ostaggio la domanda dietro una decisione di hosting.
+   *
+   * Torna l'elenco dei problemi, vuoto se è stata accettata.
+   */
+  useResolution: (monName: string, raw: string) => string[];
+  /** Butta la risoluzione, per rifarla. */
+  clearResolution: (monName: string) => void;
   /**
    * 🔷 «Adesso mi aspetto che tutto vada con un solo click.»
    *
@@ -1759,6 +1774,41 @@ export const useApp = create<AppState>()(
 
         return problems;
       },
+
+      useResolution: (monName, raw) => {
+        const rec = get().mons[monName];
+        if (!rec) return ['nessuna creatura con questo nome'];
+
+        /* Il controllo sta in `parse.ts` e non qui: è la stessa validazione
+           che userà la chiamata automatica quando potrà girare. Due copie
+           vorrebbero dire che la strada a mano accetta cose che quella
+           automatica rifiuta, o il contrario. */
+        const { resolution, problems } = parseResolution(raw);
+        if (!resolution) return problems;
+
+        set((cur) => {
+          const now = cur.mons[monName];
+          if (!now) return {};
+          /* 🔒 Cambiare la risoluzione invalida i prompt già compilati: sono
+             scritti DA quelle decisioni, e tenerli sarebbe tenere il ritratto
+             di un'altra creatura. */
+          return {
+            mons: {
+              ...cur.mons,
+              [monName]: { ...now, resolution, compiledPrompts: undefined },
+            },
+          };
+        });
+        return [];
+      },
+
+      clearResolution: (monName) =>
+        set((cur) => {
+          const now = cur.mons[monName];
+          if (!now) return {};
+          const { resolution: _dropped, ...kept } = now;
+          return { mons: { ...cur.mons, [monName]: { ...kept, compiledPrompts: undefined } } };
+        }),
 
       setBias: (patch) => set((s) => ({ bias: { ...s.bias, ...patch } })),
 
