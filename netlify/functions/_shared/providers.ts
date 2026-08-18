@@ -380,32 +380,65 @@ function openaiMessages(req: ProviderRequest): Record<string, unknown>[] {
   return out;
 }
 
-async function moonshot(req: ProviderRequest): Promise<ProviderResult> {
-  const key = process.env.MOONSHOT_API_KEY;
-  if (!key) return fail(req.model, 'MOONSHOT_API_KEY mancante');
+/* ============================================================================
+   IL PROTOCOLLO DI OPENAI, USATO DA DUE FORNITORI
 
-  try {
-    const res = await fetch('https://api.moonshot.ai/v1/chat/completions', {
+   Moonshot parla la lingua di OpenAI, e da quando anche OpenAI serve del testo
+   (§10 — il compilatore di prompt) i due adattatori erano diventati lo stesso
+   codice scritto due volte. Uno solo, con l'indirizzo e la chiave come
+   parametri.
+
+   ⚠️ IL NOME DEL TETTO DI USCITA CAMBIA FRA LE FAMIGLIE DI MODELLI: i modelli
+   che ragionano vogliono `max_completion_tokens`, i più vecchi `max_tokens`.
+   Da questa macchina non ho rete per verificarlo contro l'API vera, quindi
+   NON tiro a indovinare: si prova il primo e, se l'errore parla proprio di
+   quel parametro, si riprova con l'altro. Dieci righe che tolgono un modo di
+   fallire che sarebbe stato invisibile fino alla prima creatura.
+   ========================================================================= */
+
+async function openAiProtocol(
+  label: string,
+  url: string,
+  key: string,
+  req: ProviderRequest,
+): Promise<ProviderResult> {
+  const body = (tokensField: 'max_completion_tokens' | 'max_tokens') => ({
+    model: req.model,
+    messages: openaiMessages(req),
+    [tokensField]: req.maxTokens,
+    ...(req.tools?.length
+      ? {
+          tools: req.tools.map((t) => ({
+            type: 'function',
+            function: { name: t.name, description: t.description, parameters: t.schema },
+          })),
+        }
+      : {}),
+  });
+
+  const send = (tokensField: 'max_completion_tokens' | 'max_tokens') =>
+    fetch(url, {
       method: 'POST',
       headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` },
-      body: JSON.stringify({
-        model: req.model,
-        messages: openaiMessages(req),
-        max_tokens: req.maxTokens,
-        ...(req.tools?.length
-          ? {
-              tools: req.tools.map((t) => ({
-                type: 'function',
-                function: { name: t.name, description: t.description, parameters: t.schema },
-              })),
-            }
-          : {}),
-      }),
+      body: JSON.stringify(body(tokensField)),
     });
 
-    if (!res.ok) return fail(req.model, `moonshot ${res.status}: ${await res.text()}`);
+  try {
+    let res = await send('max_completion_tokens');
 
-    const body = (await res.json()) as {
+    if (!res.ok) {
+      const detail = await res.text();
+      /* Solo se l'errore parla DI QUEL parametro: un 401 o un tetto di spesa
+         non si riprovano, si riportano. */
+      if (/max_completion_tokens|max_tokens|unsupported parameter/i.test(detail)) {
+        res = await send('max_tokens');
+        if (!res.ok) return fail(req.model, `${label} ${res.status}: ${await res.text()}`);
+      } else {
+        return fail(req.model, `${label} ${res.status}: ${detail}`);
+      }
+    }
+
+    const out = (await res.json()) as {
       model?: string;
       choices?: {
         message?: {
@@ -421,7 +454,7 @@ async function moonshot(req: ProviderRequest): Promise<ProviderResult> {
       };
     };
 
-    const message = body.choices?.[0]?.message;
+    const message = out.choices?.[0]?.message;
     const text = (message?.content ?? '').trim();
 
     const toolUses: ToolUse[] = (message?.tool_calls ?? []).map((c) => ({
@@ -434,24 +467,42 @@ async function moonshot(req: ProviderRequest): Promise<ProviderResult> {
       input: safeJson(c.function?.arguments),
     }));
 
-    const cached = body.usage?.prompt_tokens_details?.cached_tokens ?? 0;
+    const cached = out.usage?.prompt_tokens_details?.cached_tokens ?? 0;
 
     return {
       ok: text.length > 0 || toolUses.length > 0,
       text,
       toolUses,
-      stopReason: body.choices?.[0]?.finish_reason,
-      model: body.model ?? req.model,
+      stopReason: out.choices?.[0]?.finish_reason,
+      model: out.model ?? req.model,
       usage: {
-        // ⚠️ Trappola 2: i token in cache sono GIÀ dentro `prompt_tokens`.
-        inputTokens: Math.max(0, (body.usage?.prompt_tokens ?? 0) - cached),
+        // ⚠️ I token in cache sono GIÀ dentro `prompt_tokens`.
+        inputTokens: Math.max(0, (out.usage?.prompt_tokens ?? 0) - cached),
         cacheReadTokens: cached,
-        outputTokens: body.usage?.completion_tokens ?? 0,
+        outputTokens: out.usage?.completion_tokens ?? 0,
       },
     };
   } catch (err) {
     return fail(req.model, String(err));
   }
+}
+
+async function moonshot(req: ProviderRequest): Promise<ProviderResult> {
+  const key = process.env.MOONSHOT_API_KEY;
+  if (!key) return fail(req.model, 'MOONSHOT_API_KEY mancante');
+  return openAiProtocol('moonshot', 'https://api.moonshot.ai/v1/chat/completions', key, req);
+}
+
+/**
+ * 🔷 §10 — OpenAI serve anche del TESTO, da quando il prompt lo scrive un
+ * modello. Le immagini continuano a passare da `generateImage`: hanno una
+ * forma di risposta diversa, e fingere che sia la stessa produrrebbe un tipo
+ * che mente.
+ */
+async function openaiText(req: ProviderRequest): Promise<ProviderResult> {
+  const key = process.env.OPENAI_API_KEY;
+  if (!key) return fail(req.model, 'OPENAI_API_KEY mancante');
+  return openAiProtocol('openai', 'https://api.openai.com/v1/chat/completions', key, req);
 }
 
 function safeJson(raw: string | undefined): unknown {
@@ -516,7 +567,7 @@ const ADAPTERS: Record<Provider, (r: ProviderRequest) => Promise<ProviderResult>
   moonshot,
   // Le immagini non passano da qui: hanno una forma di risposta diversa e
   // fingere che sia la stessa produrrebbe un tipo che mente.
-  openai: async (r) => fail(r.model, 'openai serve solo le immagini, via generateImage'),
+  openai: openaiText,
 };
 
 export function callProvider(provider: Provider, req: ProviderRequest): Promise<ProviderResult> {

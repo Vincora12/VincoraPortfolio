@@ -56,6 +56,11 @@ const PRICES: Record<string, Price> = {
      cache da quelli in ingresso: lì arrivano già sommati, e senza quella
      sottrazione questa riga conterebbe due volte lo stesso pezzo. */
   'kimi-k3': { input: 3, output: 15 },
+  /* GPT-5.6: l'uscita costa esattamente sei volte l'ingresso su tutti i
+     livelli. Terra è quello che compila i prompt. */
+  'gpt-5.6-terra': { input: 2, output: 12 },
+  'gpt-5.6-luna': { input: 0.2, output: 1.2 },
+  'gpt-5.6-sol': { input: 5, output: 30 },
   'gpt-image-1': { input: 0, output: 0, perImage: 0.04 },
 };
 

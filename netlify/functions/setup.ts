@@ -31,7 +31,7 @@
 
 import { authorize, denied, json } from './_shared/auth';
 import { checkCap, MONTHLY_CAP_USD } from './_shared/spend';
-import { ROUTING, VOICE_CHOICES } from './_shared/routing';
+import { COMPILER_CHOICES, ROUTING, VOICE_CHOICES } from './_shared/routing';
 
 /** Le variabili che l'app può usare, e a cosa servono in italiano. */
 const VARS = [
@@ -43,7 +43,7 @@ const VARS = [
   },
   {
     name: 'OPENAI_API_KEY',
-    what: 'le immagini delle creature',
+    what: 'le immagini delle creature, e chi scrive i prompt',
     required: false,
     where: 'platform.openai.com → API keys',
   },
@@ -98,6 +98,14 @@ export default async function handler(request: Request): Promise<Response> {
       ready: Boolean(process.env[keyFor(c.provider)]),
     })),
     defaultVoice: ROUTING['character-voice'].model,
+    /* §10 — chi scrive i prompt. Stessa forma delle voci: si vede subito quali
+       sono utilizzabili adesso e quali chiederebbero una chiave che non c'è. */
+    compilers: COMPILER_CHOICES.map((c) => ({
+      model: c.model,
+      label: c.label,
+      ready: Boolean(process.env[keyFor(c.provider)]),
+    })),
+    defaultCompiler: ROUTING['prompt-compile'].model,
     spentUsd: cap.ledger.usd,
     capUsd: MONTHLY_CAP_USD,
     month: cap.ledger.month,

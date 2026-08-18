@@ -61,7 +61,12 @@ export interface AskRequest {
   /** Solo per `image`. */
   prompt?: string;
   /**
-   * Chi vuoi che dia la voce, se hai scelto.
+   * Chi vuoi che serva questa richiesta, se hai scelto.
+   *
+   * 🔶 Si chiama ancora `voiceModel` perché è il nome che il server conosce, e
+   * rinominarlo su tutte e due le sponde per una capacità in più sarebbe un
+   * cambio di protocollo per zero guadagno. Vale per la voce e per il
+   * compilatore di prompt: `resolveRoute` sa a quale elenco guardare.
    *
    * 🔒 È una PREFERENZA, non un comando: il server la accetta solo se
    * corrisponde a una scelta che conosce e sa prezzare. Mandare qui il nome
@@ -219,6 +224,8 @@ export interface SetupState {
   vars?: SetupVar[];
   voices?: { model: string; label: string; ready: boolean }[];
   defaultVoice?: string;
+  compilers?: { model: string; label: string; ready: boolean }[];
+  defaultCompiler?: string;
   spentUsd?: number;
   capUsd?: number;
   month?: string;

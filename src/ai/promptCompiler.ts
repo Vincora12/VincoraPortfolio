@@ -141,11 +141,14 @@ export async function compileWithAi(
   token: string | null,
   record: MonRecord,
   assetType: AssetType,
+  /** Chi lo scrive, se hai scelto. Il server accetta solo modelli che conosce. */
+  compilerModel?: string | null,
 ): Promise<CompileOutcome> {
   const deterministic = compilePrompt(record, assetType).text;
 
   const { data, failure } = await ask<{ text: string }>(token, {
     capability: 'prompt-compile',
+    voiceModel: compilerModel,
     system: [{ text: COMPILER_RULES, cache: true }],
     user: [
       `ASSET TYPE: ${assetType}`,

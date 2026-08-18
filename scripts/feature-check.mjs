@@ -49,6 +49,9 @@ const stripComments = (t) =>
 const lacksInCode = (file, needle) => !stripComments(read(file)).includes(needle);
 const count = (file, re) => ((read(file) ?? '').match(re) ?? []).length;
 
+const ROUTING_FILE = 'netlify/functions/_shared/routing.ts';
+const PROVIDERS_FILE = 'netlify/functions/_shared/providers.ts';
+
 /* ============================================================================
    Separazione fra testo di interfaccia e testo dei prompt
 
@@ -1110,8 +1113,15 @@ check(
 check(
   '§19.2 FORNITORE',
   'la preferenza dal browser non è un comando',
-  has('netlify/functions/_shared/routing.ts', 'const choice = VOICE_CHOICES.find((c) => c.model === preferredModel)') &&
-    has('netlify/functions/ai.ts', 'resolveRoute(capability, payload.voiceModel)'),
+  /* La decisione: quello che arriva dal browser si CONFRONTA con un catalogo,
+     non si instrada. Non guardo più la riga esatta che fa il confronto — quella
+     è cambiata quando le scelte sono diventate due (voce e compilatore) — ma le
+     due metà che la rendono vera: che un confronto ci sia, e che la stringa non
+     finisca mai dritta dentro una rotta. */
+  has('netlify/functions/ai.ts', 'resolveRoute(capability, payload.voiceModel)') &&
+    count(ROUTING_FILE, /=== preferredModel/g) > 0 &&
+    count(ROUTING_FILE, /return ROUTING\[capability\]/g) > 0 &&
+    lacksInCode(ROUTING_FILE, 'model: preferredModel'),
   'un modello che il tetto non sa prezzare renderebbe cieco il contatore',
 );
 check(
@@ -1121,8 +1131,12 @@ check(
 );
 check(
   '§19.2 FORNITORE',
-  'i token in cache di Moonshot non si contano due volte',
-  has('netlify/functions/_shared/providers.ts', "Math.max(0, (body.usage?.prompt_tokens ?? 0) - cached)"),
+  'i token in cache non si contano due volte',
+  /* Vale per tutti i fornitori che parlano il protocollo OpenAI — Moonshot e
+     OpenAI stesso — perché ora condividono lo stesso lettore di `usage`.
+     La decisione è aritmetica: si SOTTRAGGONO, non si sommano. */
+  count(PROVIDERS_FILE, /prompt_tokens[^\n]*\)\s*-\s*cached/g) > 0 &&
+    lacksInCode(PROVIDERS_FILE, '+ cached'),
   'lì arrivano già dentro prompt_tokens: sommarli farebbe bloccare l’app prima del tempo',
 );
 check(

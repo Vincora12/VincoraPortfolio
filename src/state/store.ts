@@ -357,6 +357,14 @@ interface AppState {
   voiceModel: string | null;
 
   /**
+   * 🔷 §10 — chi scrive i prompt delle immagini. `null` = il predefinito.
+   *
+   * Sta accanto a `voiceModel` e non dentro una creatura per la stessa
+   * ragione: è configurazione di questo browser, non un pezzo della partita.
+   */
+  compilerModel: string | null;
+
+  /**
    * Quando hai ricominciato da capo l'ultima volta, o `null`.
    *
    * 🔒 È l'unica cosa che impedisce a una partita cancellata di tornare
@@ -434,6 +442,7 @@ interface AppState {
   setToken: (key: string | null) => void;
   /** 🔷 §19.2 — sceglie chi dà la voce. `null` torna al predefinito. */
   setVoiceModel: (model: string | null) => void;
+  setCompilerModel: (model: string | null) => void;
   /**
    * 🔷 v1.2 §10 — fa riscrivere il prompt di un asset dal compilatore.
    *
@@ -553,6 +562,7 @@ const INITIAL = {
   bias: DEFAULT_BIAS,
   token: null as string | null,
   voiceModel: null as string | null,
+  compilerModel: null as string | null,
   /* §21.3 — i .mon conservati. NON stanno in INITIAL per caso: `resetAll` li
      rimette a mano proprio perché devono sopravvivere a ricominciare. */
   kept: [] as KeptMon[],
@@ -1517,6 +1527,7 @@ export const useApp = create<AppState>()(
          comparisse una qui dentro, avrebbe smentito la premessa per cui
          questa funzione esiste. C'è un controllo che lo verifica. */
       setVoiceModel: (model) => set({ voiceModel: model }),
+      setCompilerModel: (model) => set({ compilerModel: model }),
 
       compileAssetPrompt: async (monName, assetType) => {
         const s = get();
@@ -1525,7 +1536,12 @@ export const useApp = create<AppState>()(
         if (rec.compiledPrompts?.[assetType]) return null;
 
         const { compileWithAi } = await import('../ai/promptCompiler');
-        const { text, failure, rejected } = await compileWithAi(s.token, rec, assetType);
+        const { text, failure, rejected } = await compileWithAi(
+          s.token,
+          rec,
+          assetType,
+          s.compilerModel,
+        );
 
         if (!text) return rejected ?? (failure ? `chiamata fallita (${failure})` : 'nessun testo');
 
@@ -2018,6 +2034,7 @@ export const useApp = create<AppState>()(
           /* Né per rimettere a posto chi dà la voce: è configurazione di
              questo browser, non un pezzo della partita. */
           voiceModel: get().voiceModel,
+          compilerModel: get().compilerModel,
           /* 🔒 LA TECA SOPRAVVIVE. È l'unica cosa che deve: ricominciare
              cancella la partita, non i ricordi che avevi deciso di tenere. */
           kept: get().kept,
@@ -2365,6 +2382,7 @@ export async function syncWithServer(): Promise<'locale' | 'scaricato' | 'niente
        soprattutto non deve poterti spostare su un fornitore diverso senza che
        tu l'abbia chiesto. */
     voiceModel: local.voiceModel,
+    compilerModel: local.compilerModel,
   });
   lastSavedSignature = JSON.stringify(snapshotFor(useApp.getState()));
   return 'scaricato';

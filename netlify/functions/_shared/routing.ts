@@ -82,7 +82,10 @@ const NEEDS: Record<Capability, Needs> = {
 const CAN: Record<Provider, Needs> = {
   anthropic: { promptCache: true, vision: true, thinking: true, webSearch: true },
   google: { vision: true, thinking: true, imageOut: true },
-  openai: { vision: true, thinking: true, imageOut: true },
+  /* 🔶 `promptCache: true` da quando OpenAI serve anche del testo: la cache è
+     implicita come su Moonshot — prefisso identico e primo. Le regole del
+     compilatore sono in cima e non cambiano mai, quindi aggancia. */
+  openai: { promptCache: true, vision: true, thinking: true, imageOut: true, webSearch: false },
 
   /* ⚠️ `promptCache: true` QUI SIGNIFICA UNA COSA DIVERSA, e la differenza va
      capita o il risparmio non arriva.
@@ -147,7 +150,9 @@ export const ROUTING: Record<Capability, Route> = {
   /* Sonnet e non Opus: è un lavoro lungo in uscita ma vincolato — i fatti
      arrivano già decisi, va scritta la forma. Costa circa due centesimi per
      creatura, una volta ogni ventotto giorni. */
-  'prompt-compile': { provider: 'anthropic', model: 'claude-sonnet-5' },
+  /* 🔶 Era Sonnet, scelto da me in silenzio. Il predefinito è quello che hai
+     chiesto tu, ed è anche il più economico: $2/$12 contro $3/$15. */
+  'prompt-compile': { provider: 'openai', model: 'gpt-5.6-terra' },
 };
 
 /* ============================================================================
@@ -252,8 +257,17 @@ export const VOICE_CHOICES: VoiceChoice[] = [
  * tetto di spesa smetterebbe di sapere cosa sta contando.
  */
 export function resolveRoute(capability: Capability, preferredModel?: string | null): Route {
-  if (capability !== 'character-voice' || !preferredModel) return ROUTING[capability];
-  const choice = VOICE_CHOICES.find((c) => c.model === preferredModel);
+  if (!preferredModel) return ROUTING[capability];
+
+  const pool =
+    capability === 'character-voice'
+      ? (VOICE_CHOICES as { provider: Provider; model: string }[])
+      : capability === 'prompt-compile'
+        ? (COMPILER_CHOICES as { provider: Provider; model: string }[])
+        : null;
+  if (!pool) return ROUTING[capability];
+
+  const choice = pool.find((c) => c.model === preferredModel);
   return choice ? { provider: choice.provider, model: choice.model } : ROUTING[capability];
 }
 
@@ -283,6 +297,64 @@ export function voiceChoiceProblems(choices = VOICE_CHOICES): string[] {
     problems.push(`la voce predefinita (${base.model}) non è fra le scelte`);
   }
 
+  return problems;
+}
+
+/* ============================================================================
+   CHI SCRIVE I PROMPT (§10)
+
+   🔷 «Sì, sarà ChatGPT.» — e io l'avevo mandato su Anthropic senza dirtelo.
+
+   ⚠️ È lo stesso conflitto d'interesse della voce, e stavolta l'ho fatto in
+   silenzio: ho scelto il fornitore di casa mia per una capacità nuova senza
+   nominare la scelta. Quindi diventa una scelta tua, come la voce.
+
+   🔒 Qui NON vale il ragionamento sulla privacy che vincola la voce: la
+   richiesta porta la descrizione di una creatura — famiglia, proporzioni,
+   colori — e niente di te. È il motivo per cui `prompt-compile` non sta in
+   `PERSONAL`, ed è anche il motivo per cui la scelta è libera.
+   ========================================================================= */
+
+export interface CompilerChoice {
+  provider: Provider;
+  model: string;
+  label: string;
+  price: { input: number; output: number };
+  it: string;
+}
+
+export const COMPILER_CHOICES: CompilerChoice[] = [
+  {
+    provider: 'openai',
+    model: 'gpt-5.6-terra',
+    label: 'GPT-5.6 Terra',
+    price: { input: 2, output: 12 },
+    it: 'Quello che hai chiesto tu, ed è anche il più economico dei due. Usa la chiave OPENAI_API_KEY che serve già per le immagini: nessuna variabile in più.',
+  },
+  {
+    provider: 'anthropic',
+    model: 'claude-sonnet-5',
+    label: 'Claude Sonnet 5',
+    price: { input: 3, output: 15 },
+    it: 'Quello che avevo scelto io. Usa la chiave che serve già per la voce. Tienilo come confronto, non come predefinito.',
+  },
+];
+
+/** Una scelta di compilatore che il suo fornitore non sa servire non deve esistere. */
+export function compilerChoiceProblems(choices = COMPILER_CHOICES): string[] {
+  const needs = NEEDS['prompt-compile'];
+  const problems: string[] = [];
+  for (const c of choices) {
+    for (const [need, required] of Object.entries(needs) as [keyof Needs, boolean][]) {
+      if (required && !CAN[c.provider][need]) {
+        problems.push(`${c.label} → ${c.provider} non offre ${need}`);
+      }
+    }
+  }
+  const base = ROUTING['prompt-compile'];
+  if (!choices.some((c) => c.model === base.model)) {
+    problems.push(`il compilatore predefinito (${base.model}) non è fra le scelte`);
+  }
   return problems;
 }
 

@@ -31,7 +31,7 @@ const out = join(cwd, 'node_modules', '.vinz-backend-check.mjs');
 writeFileSync(
   entry,
   `
-export { ROUTING, PERSONAL, VOICE_CHOICES, routingProblems, personalDataOnFreeTier, voiceChoiceProblems, resolveRoute } from '${cwd}/netlify/functions/_shared/routing.ts';
+export { ROUTING, PERSONAL, VOICE_CHOICES, COMPILER_CHOICES, routingProblems, personalDataOnFreeTier, voiceChoiceProblems, compilerChoiceProblems, resolveRoute } from '${cwd}/netlify/functions/_shared/routing.ts';
 export { costOf, currentMonth, MONTHLY_CAP_USD, WARN_AT, COST_PER_WEB_SEARCH } from '${cwd}/netlify/functions/_shared/spend.ts';
 `,
 );
@@ -108,6 +108,38 @@ check(
 check(
   m.routingProblems({ ...m.ROUTING }).length === 0,
   'e chi la serve sa fare quello che le serve',
+);
+
+/* 🔷 «Sì, sarà ChatGPT» — e io l'avevo mandato su Anthropic senza dirlo. Il
+   predefinito e' quello che ha chiesto lui, ed e' anche il piu' economico. */
+check(
+  m.ROUTING['prompt-compile'].provider === 'openai',
+  'il compilatore predefinito e quello che ha chiesto lui, non quello di casa mia',
+  `${m.ROUTING['prompt-compile'].model}`,
+);
+check(
+  m.compilerChoiceProblems().length === 0,
+  'ogni scelta di compilatore e servibile da chi la serve',
+  m.compilerChoiceProblems().join('; '),
+);
+check(
+  m.COMPILER_CHOICES.length >= 2,
+  'e ce ne sono almeno due, o non e una scelta',
+  m.COMPILER_CHOICES.map((c) => `${c.label} $${c.price.input}/$${c.price.output}`).join(' · '),
+);
+/* 🔒 La preferenza dal browser vale per la capacita giusta e non per le altre:
+   scegliere chi scrive i prompt non deve poter spostare la voce. */
+check(
+  m.resolveRoute('character-voice', 'gpt-5.6-terra').model === m.ROUTING['character-voice'].model,
+  'scegliere il compilatore non sposta la voce',
+);
+check(
+  m.resolveRoute('prompt-compile', 'claude-sonnet-5').provider === 'anthropic',
+  'ma la scelta del compilatore viene rispettata',
+);
+check(
+  m.resolveRoute('prompt-compile', 'modello-inventato').model === m.ROUTING['prompt-compile'].model,
+  'e un modello che non conosciamo torna al predefinito',
 );
 
 /* --- §19.2 — CAMBIARE CHI DA' LA VOCE --------------------------------------

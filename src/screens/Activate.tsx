@@ -213,6 +213,15 @@ export function ActivateScreen({ onClose }: { onClose: () => void }) {
           <VoiceChoicePanel setup={setup} tried={voiceTried} onTried={setVoiceTried} />
         </Step>
 
+        <Step
+          n={5}
+          title="CHI SCRIVE I PROMPT"
+          done={live}
+          detail="Scrive le descrizioni delle immagini, una volta per creatura."
+        >
+          <CompilerChoicePanel setup={setup} />
+        </Step>
+
         {busy && <p className="t-micro">controllo…</p>}
       </div>
     </div>
@@ -281,6 +290,63 @@ function Copyable({ value }: { value: string }) {
       <code className="activate__value">{value}</code>
       <CopyButton text={value} />
     </div>
+  );
+}
+
+/* --- Chi scrive i prompt (§10) ----------------------------------------------
+   🔒 SEPARATA da quella della voce, e non è pedanteria di interfaccia: sono
+   due decisioni con due criteri diversi. La voce si sceglie a orecchio e porta
+   le tue conversazioni; questa si sceglie sui risultati visivi e porta solo la
+   descrizione di una creatura. Metterle nello stesso interruttore vorrebbe
+   dire far decidere una cosa in base all'altra.
+   -------------------------------------------------------------------------- */
+
+function CompilerChoicePanel({ setup }: { setup: SetupState | null }) {
+  const chosen = useApp((s) => s.compilerModel);
+  const setCompilerModel = useApp((s) => s.setCompilerModel);
+
+  const list = setup?.compilers ?? [];
+  const active = chosen ?? setup?.defaultCompiler ?? null;
+
+  return (
+    <>
+      <p className="t-small">
+        Prende i fatti che il motore ha già deciso — famiglia, quanto resta
+        umano, proporzioni, colori — e li riscrive nella forma che un modello di
+        immagini sa eseguire. Non può cambiare i fatti: se una riscrittura ne
+        perde uno, viene buttata e resta quella di prima.
+      </p>
+
+      {list.length === 0 ? (
+        <p className="t-micro">Le opzioni si vedono dopo i primi tre passi.</p>
+      ) : (
+        <ul className="activate__voices">
+          {list.map((c) => (
+            <li key={c.model}>
+              <button
+                type="button"
+                className="activate__voice"
+                aria-current={c.model === active ? 'true' : undefined}
+                disabled={!c.ready}
+                onClick={() =>
+                  setCompilerModel(c.model === setup?.defaultCompiler ? null : c.model)
+                }
+              >
+                <span className="t-meta">{c.label}</span>
+                <SystemLabel tone={c.ready ? 'default' : 'alert'}>
+                  {c.model === active ? 'IN USO' : c.ready ? 'DISPONIBILE' : 'SERVE LA CHIAVE'}
+                </SystemLabel>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <p className="t-micro activate__note">
+        Costa circa due centesimi per creatura, una volta ogni ventotto giorni.
+        Senza chiave i prompt restano quelli di sempre e l’app funziona uguale.
+      </p>
+    </>
   );
 }
 
