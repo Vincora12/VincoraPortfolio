@@ -18,6 +18,9 @@ import { Button, Row, SystemLabel } from '../system/components';
 import { ASSET_TYPES, assetTypeDef } from '../engine/assets';
 import type { AssetType } from '../engine/types';
 import { buildManifest } from '../assets-pipeline/manifest';
+import { compilePrompt } from '../assets-pipeline/compiler';
+import { generationOrder } from '../assets-pipeline/generate';
+import { CopyButton } from '../system/CopyButton';
 import {
   clearAllAssets,
   importAssetFile,
@@ -184,22 +187,42 @@ export function AssetImport() {
         </>
       )}
 
-      <p className="t-meta dev__label">SLOT</p>
+      {/* ════════════════════════════════════════════════════════════════════
+          🔷 «Tienimi i prompt da copiare, sto iniziando a mettere a mano le
+          immagini per vedere se funziona.»
+
+          Il giro a mano è: copio il prompt → lo incollo altrove → salvo il PNG
+          → lo trascino qui sopra → passo al prossimo. Il testo da copiare
+          stava in un'altra scheda, quindi erano cinque passi con due cambi di
+          schermata dentro. Adesso ogni riga porta il suo.
+
+          🔒 IN ORDINE DI GENERAZIONE, non di catalogo: il ritratto per primo,
+          perché è l'unico che si vede subito — home, social, scaffale. Farlo
+          per ultimo vuol dire guardare un sigillo per un'ora avendo già
+          cinque immagini pronte.
+          ════════════════════════════════════════════════════════════════ */}
+      <p className="t-meta dev__label">SLOT E PROMPT</p>
       <div className="rowlist">
-        {ASSET_TYPES.map((a) => {
-          const resolved = mon.data.asset_manifest_status[a.type] === 'resolved';
+        {generationOrder().map((type) => {
+          const resolved = mon.data.asset_manifest_status[type] === 'resolved';
           return (
             <Row
-              key={a.type}
-              label={assetTypeDef(a.type).label}
+              key={type}
+              label={assetTypeDef(type).label}
               value={
-                resolved ? (
-                  <Button small variant="ghost" onClick={() => void drop(a.type)}>
-                    RIMUOVI
-                  </Button>
-                ) : (
-                  <SystemLabel tone="warning">WAITING</SystemLabel>
-                )
+                <span className="dev__slotrow">
+                  {resolved ? (
+                    <Button small variant="ghost" onClick={() => void drop(type)}>
+                      RIMUOVI
+                    </Button>
+                  ) : (
+                    <SystemLabel tone="warning">WAITING</SystemLabel>
+                  )}
+                  {/* Si copia anche per uno slot già risolto: se un'immagine
+                      non ti piace la rifai, e in quel momento serve lo STESSO
+                      testo — non uno diverso. */}
+                  <CopyButton text={compilePrompt(mon, type).text} label="PROMPT" />
+                </span>
               }
             />
           );

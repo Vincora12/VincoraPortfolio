@@ -537,3 +537,14 @@
   border-top: 1px solid var(--hairline);
   padding-top: 10px;
 }
+
+/* Stato dello slot e pulsante COPIA sulla stessa riga: il giro a mano si fa
+   scorrendo l'elenco dall'alto, e ogni riga deve dire com'è messa e dare
+   quello che serve senza aprire altro. */
+.dev__slotrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}

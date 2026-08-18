@@ -106,7 +106,13 @@ const page = await browser.newPage({ viewport: { width: 460, height: 920 } });
 
 const errors = [];
 page.on('console', (m) => {
-  if (m.type() === 'error') errors.push(`[console] ${m.text()}`);
+  if (m.type() !== 'error') return;
+  /* La posizione, non solo il testo: un avviso di React dice COSA è
+     sbagliato e mai dove, e senza questo si finisce a indovinare quale delle
+     quaranta liste dell'app è quella che sbaglia le chiavi. */
+  const l = m.location();
+  const where = l?.url ? ` (${l.url}:${l.lineNumber}:${l.columnNumber})` : '';
+  errors.push(`[console] ${m.text()}${where}`);
 });
 page.on('pageerror', (e) => errors.push(`[pageerror] ${e.message}`));
 
@@ -630,12 +636,20 @@ try {
   await devTab('VOCE', 'PROVA');
   await shot('dev-voce');
 
-  await devTab('VOCE', 'PROMPT');
+  await devTab('CREATURA', 'PROMPT IMMAGINI');
   await shot('dev-prompt-compilato');
   await click(byText('PROVENIENZA'), 'provenienza frammenti');
   await shot('dev-prompt-provenienza');
 
   await devTab('CREATURA', 'ASSET');
+  /* 🔷 «Tienimi i prompt da copiare, sto mettendo le immagini a mano.»
+     Il giro a mano vive su questa schermata: ogni slot deve avere il SUO
+     pulsante, o si torna a saltare fra due schede per ogni immagine. */
+  const slotCopie = await page.$$eval('.dev__slotrow .btn', (n) => n.length);
+  const slot = await page.$$eval('.dev__slotrow', (n) => n.length);
+  if (slot === 0 || slotCopie < slot) {
+    errors.push(`${slot} slot ma solo ${slotCopie} pulsanti per copiare il prompt`);
+  }
   await shot('dev-import-asset');
 
   await devTab('TEMPO', 'PROGRESSIONE');

@@ -29,6 +29,7 @@
 import { useEffect, useState } from 'react';
 import { useApp } from '../state/store';
 import { Button, IconButton, SystemLabel, TextField, Window } from '../system/components';
+import { CopyButton } from '../system/CopyButton';
 import { loadSetup, type SetupState } from '../ai/backend';
 import { t } from '../i18n/it';
 
@@ -120,7 +121,7 @@ export function ActivateScreen({ onClose }: { onClose: () => void }) {
             Copia questo e mettilo su Netlify come variabile d'ambiente
             chiamata <code>VINZMON_TOKEN</code>.
           </p>
-          <Copyable label="VINZMON_TOKEN" value={secret} />
+          <Copyable value={secret} />
           {setup?.serverToken === false && (
             <p className="t-micro activate__bad">{setup.reason}</p>
           )}
@@ -272,25 +273,13 @@ function Step({
 
 /* --- Un valore da copiare --------------------------------------------------- */
 
-function Copyable({ label, value }: { label: string; value: string }) {
-  const [copied, setCopied] = useState(false);
-
-  const copy = () => {
-    /* `navigator.clipboard` non c'è ovunque e fallisce senza HTTPS. Se non si
-       può copiare, il valore è comunque a schermo e selezionabile: si dice, e
-       non si finge che sia andata. */
-    void navigator.clipboard
-      ?.writeText(value)
-      .then(() => setCopied(true))
-      .catch(() => setCopied(false));
-  };
-
+function Copyable({ value }: { value: string }) {
   return (
     <div className="activate__copy">
+      {/* Il valore resta a schermo e selezionabile: se la copia non riesce —
+          e senza HTTPS non riesce — si ricopia a mano. */}
       <code className="activate__value">{value}</code>
-      <Button small onClick={copy} aria-label={`Copia ${label}`}>
-        {copied ? 'COPIATO' : 'COPIA'}
-      </Button>
+      <CopyButton text={value} />
     </div>
   );
 }

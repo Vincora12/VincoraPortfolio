@@ -15,30 +15,19 @@ import { Button, Row, SystemLabel } from '../system/components';
 import { ASSET_TYPES } from '../engine/assets';
 import type { AssetType } from '../engine/types';
 import { compilePrompt, validateFragmentIds } from '../assets-pipeline/compiler';
+import { CopyButton } from '../system/CopyButton';
 import { downloadPackage } from '../assets-pipeline/exportPackage';
 
 export function PromptPreview() {
   const mon = useActiveMon();
   const [assetType, setAssetType] = useState<AssetType>('character_master');
   const [showProvenance, setShowProvenance] = useState(false);
-  const [copied, setCopied] = useState(false);
   const [exporting, setExporting] = useState(false);
 
   if (!mon) return null;
 
   const compiled = compilePrompt(mon, assetType);
   const broken = validateFragmentIds(compiled.fragmentIds);
-
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(compiled.text);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // In assenza di permesso appunti resta l'export dello zip.
-      setCopied(false);
-    }
-  };
 
   return (
     <div className="dev__section">
@@ -82,9 +71,10 @@ export function PromptPreview() {
       )}
 
       <div className="dev__grid">
-        <Button small onClick={copy}>
-          {copied ? 'COPIATO' : 'COPY PROMPT'}
-        </Button>
+        {/* 🔶 Era una copia locale della stessa logica che sta in
+            `system/CopyButton`. Due punti dove sbagliare la stessa cosa —
+            e uno dei due diceva «COPIATO» anche quando la copia falliva. */}
+        <CopyButton text={compiled.text} label="COPIA IL PROMPT" />
         <Button small onClick={() => setShowProvenance((v) => !v)}>
           {showProvenance ? 'NASCONDI' : 'PROVENIENZA'}
         </Button>

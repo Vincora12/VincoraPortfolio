@@ -14,7 +14,7 @@
 import { useEffect, useState } from 'react';
 import { useApp, useActiveMon, useGrowth, useScan, useToday } from '../state/store';
 import { haptic } from '../system/haptics';
-import { Button, FolderTabs, IconButton, Row, SystemLabel, TextField } from '../system/components';
+import { Button, FolderTabs, IconButton, Row, TextField } from '../system/components';
 import {
   DAILY_SIGNALS,
   DAILY_SIGNAL_LABELS,
@@ -24,7 +24,6 @@ import { seedSpread } from '../engine/personalityScan';
 import { PERSONALITY_KEYS } from '../engine/signals';
 import { STAT_KEYS, UNKNOWN, isKnown } from '../engine/types';
 import type { StatKey } from '../engine/types';
-import { ASSET_TYPES } from '../engine/assets';
 import { BatchGenerator } from './BatchGenerator';
 import { AssetImport } from './AssetImport';
 import { PromptPreview } from './PromptPreview';
@@ -93,6 +92,11 @@ const GROUPS: { id: DevGroup; label: string; tabs: { id: DevTab; label: string }
          poteva guardare mentre la si tarava. */
       { id: 'rarity', label: 'RARITÀ' },
       { id: 'assets', label: 'ASSET' },
+      /* 🔶 Stava sotto VOCE, e era il posto sbagliato: questo è il prompt
+         delle IMMAGINI, non quello del personaggio. Chi genera una faccia a
+         mano arriva da qui — dalla creatura — e trovarsi il testo da copiare
+         due gruppi più in là è il modo di non trovarlo mai. */
+      { id: 'prompt', label: 'PROMPT IMMAGINI' },
     ],
   },
   {
@@ -100,7 +104,6 @@ const GROUPS: { id: DevGroup; label: string; tabs: { id: DevTab; label: string }
     label: 'VOCE',
     tabs: [
       { id: 'voice', label: 'PROVA' },
-      { id: 'prompt', label: 'PROMPT' },
       /* 🔶 v1.9 §15.1 — le memorie NON sono una schermata di prodotto:
          leggere l'archivio rompe l'illusione che si stia ricordando invece di
          registrare. Qui si controlla che ci siano. */
@@ -838,32 +841,13 @@ function GenerateSection() {
    ========================================================================= */
 
 function AssetsSection() {
-  const mon = useActiveMon();
-
+  /* Tutto il giro a mano — trascina, stato degli slot, prompt da copiare —
+     sta in `AssetImport`. Qui c'era un SECONDO elenco degli stessi slot che
+     avevo aggiunto sopra al primo: due liste della stessa cosa, una sotto
+     l'altra, sulla stessa schermata. */
   return (
     <div className="dev__section">
       <AssetImport />
-
-      {mon && (
-        <>
-          <p className="t-meta dev__label">STATO DEGLI SLOT</p>
-          <div className="rowlist">
-            {ASSET_TYPES.map((a) => (
-              <Row
-                key={a.type}
-                label={a.label}
-                value={
-                  mon.data.asset_manifest_status[a.type] === 'resolved' ? (
-                    <SystemLabel tone="positive">RISOLTO</SystemLabel>
-                  ) : (
-                    <SystemLabel tone="warning">WAITING</SystemLabel>
-                  )
-                }
-              />
-            ))}
-          </div>
-        </>
-      )}
     </div>
   );
 }
