@@ -37,6 +37,7 @@ export { isValidMonName } from '${cwd}/src/engine/naming.ts';
 export { normalizePool } from '${cwd}/src/engine/rarity.ts';
 export { shouldDownload } from '${cwd}/src/state/store.ts';
 export { generatePaletteDna } from '${cwd}/src/engine/colorDna.ts';
+export { HUMANOIDITY, HUMANOIDITY_FLOOR, humanoidityLevel, FAMILIES as FAMS } from '${cwd}/src/engine/generation-config.ts';
 export { AXES as CATALOG_AXES_INFO, CATALOG_AXES, enabled as catalogEnabled, isOffByDefault, resetCatalog, setCatalogEnabled } from '${cwd}/src/engine/catalogTuning.ts';
 export { DESIGN_DNA, CULTURAL_REFERENCES, CULTURAL_ACTIVE_RANGE, culturalReference } from '${cwd}/src/engine/generation-config.ts';
 export { kinship, reactionsTo, arrivalPosts, weeklyPosts, weekFacts, roomNotice, unwritten, roomBlock, recognisedBy } from '${cwd}/src/engine/room.ts';
@@ -2662,6 +2663,57 @@ m.resetCatalog('family');
 check(
   !m.catalogEnabled('family').includes('FAIRY'),
   'e «riporta ai predefiniti» non le riaccende',
+);
+
+console.log('\n═══ §5 — HUMANOIDITY ═══\n');
+
+/* 🔷 «I prompt creano sempre personaggi deformi» — questa mancava del tutto, ed
+   era l'ancora che diceva al modello quanto il corpo doveva restare leggibile.
+   🔷 «Nono vuol dire poco umano» — e il fondo della scala non e' «per niente». */
+
+const livelli = new Map();
+let fuori = 0;
+for (let seed = 1; seed <= 3000; seed++) {
+  const d = m.generateFirstMon({
+    input, mindlineNodeId: `h${seed}`, originNodeId: null, lineageNames: [], seed,
+  }).record.data;
+  livelli.set(d.humanoidity, (livelli.get(d.humanoidity) ?? 0) + 1);
+  if (d.humanoidity < 1 || d.humanoidity > 5) fuori++;
+}
+const visti = [...livelli.keys()].sort();
+console.log(`  ····  livelli visti: ${visti.map((l) => `${l}/5 (${livelli.get(l)})`).join(' · ')}`);
+
+check(fuori === 0, 'ogni forma ha un livello di umanoidita fra 1 e 5');
+check(
+  Math.min(...visti) >= m.HUMANOIDITY_FLOOR,
+  `nessuna forma scende sotto ${m.HUMANOIDITY_FLOOR}/5: VINZ.MON resta Vinz in un altro corpo`,
+  `il piu basso visto e ${Math.min(...visti)}/5`,
+);
+check(
+  visti.length >= 3,
+  'e la scala si usa davvero, non e un valore fisso travestito da parametro',
+  `${visti.length} livelli distinti su 3000 nascite`,
+);
+check(
+  m.humanoidityLevel(1).it === 'poco umano' &&
+    m.HUMANOIDITY.every((h) => !/per niente/i.test(h.it)),
+  'nessun gradino si chiama «per niente umano»',
+  'una cosa senza niente di umano non e piu lui, e §3 chiede comunque una faccia leggibile',
+);
+/* 🔒 Ogni gradino porta i suoi DIVIETI: sono la parte che impedisce davvero un
+   risultato brutto — l'animale in piedi, l'umano con gli accessori, il furry. */
+check(
+  m.HUMANOIDITY.every((h) => h.avoid && h.avoid.length > 40),
+  'ogni gradino dice anche cosa NON deve venire fuori',
+);
+/* 🔒 E gli intervalli devono avere senso: un MICROBE non puo' essere umanoide
+   come un ANGEL, o il parametro non sta misurando niente. */
+const microbe = m.FAMS.find((f) => f.id === 'MICROBE');
+const angel = m.FAMS.find((f) => f.id === 'ANGEL');
+check(
+  microbe.humanoidity[1] < angel.humanoidity[0] + 2,
+  'un MICROBE non arriva dove arriva un ANGEL',
+  `MICROBE ${microbe.humanoidity.join('–')} contro ANGEL ${angel.humanoidity.join('–')}`,
 );
 
 console.log('\n═══ §7/§8 — RIFERIMENTI E DESIGNER ═══\n');

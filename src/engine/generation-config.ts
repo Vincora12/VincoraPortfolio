@@ -255,7 +255,7 @@ export const FAMILIES: FamilyDef[] = [
     fit: { DISC: 0.22, ATK: 0.16, discipline: 0.16, technical: 0.16, control: 0.12, curiosity: 0.1, distance: 0.08 },
     supportsHair: false,
     supportsEyewear: true,
-    humanoidity: [1, 4],
+    humanoidity: [2, 4],
     archetypes: [
       { id: 'VEHICLE', structure: 'Wheels/tracks/cabin/locomotion structures become anatomy.', mass: 'MASSIVE' },
       { id: 'TRASH', structure: 'Discarded/utility mechanical material organism.', mass: 'BALANCED' },
@@ -274,7 +274,7 @@ export const FAMILIES: FamilyDef[] = [
     fit: { REC: 0.22, SPD: 0.18, calm: 0.16, adaptability: 0.16, introspection: 0.1, warmth: 0.1, playfulness: 0.08 },
     supportsHair: false,
     supportsEyewear: true,
-    humanoidity: [1, 4],
+    humanoidity: [2, 4],
     archetypes: [
       { id: 'FISH', structure: 'Fin/gill/tail-first aquatic anatomy.', mass: 'BALANCED' },
       { id: 'CEPHALOPOD', structure: 'Tentacle/mantle/siphon logic.', mass: 'BALANCED' },
@@ -293,7 +293,7 @@ export const FAMILIES: FamilyDef[] = [
     fit: { CARE: 0.24, REC: 0.2, patience: 0.16, warmth: 0.14, discipline: 0.1, calm: 0.08, introspection: 0.08 },
     supportsHair: false,
     supportsEyewear: true,
-    humanoidity: [1, 3],
+    humanoidity: [2, 3],
     archetypes: [
       { id: 'FLOWER', structure: 'Bloom is primary identity mass.', mass: 'BALANCED' },
       { id: 'VINE', structure: 'Tendril/coil/creeping anatomy.', mass: 'COMPACT' },
@@ -369,7 +369,7 @@ export const FAMILIES: FamilyDef[] = [
     fit: { DEF: 0.22, FORM: 0.18, discipline: 0.18, stoicism: 0.16, control: 0.1, ATK: 0.08, mystery: 0.08 },
     supportsHair: false,
     supportsEyewear: true,
-    humanoidity: [1, 3],
+    humanoidity: [2, 3],
     archetypes: [
       { id: 'CRYSTAL', structure: 'Faceted translucent/crystalline body.', mass: 'BALANCED' },
       { id: 'STONE', structure: 'Monolithic rock/plate body.', mass: 'MASSIVE' },
@@ -388,7 +388,7 @@ export const FAMILIES: FamilyDef[] = [
     fit: { curiosity: 0.24, mystery: 0.18, novelty: 0.16, technical: 0.14, distance: 0.1, playfulness: 0.1, weirdCulture: 0.08 },
     supportsHair: false,
     supportsEyewear: true,
-    humanoidity: [1, 4],
+    humanoidity: [2, 4],
     archetypes: [
       { id: 'GREY', structure: 'Cranial/eye-focused grey-adjacent grammar, aggressively varied.', mass: 'BALANCED' },
       { id: 'MULTI-LIMB', structure: 'Unfamiliar limb count and symmetry.', mass: 'MASSIVE' },
@@ -407,7 +407,7 @@ export const FAMILIES: FamilyDef[] = [
     fit: { CARE: 0.24, playfulness: 0.2, warmth: 0.14, sensoryCamp: 0.12, social: 0.1, absurdity: 0.1, curiosity: 0.1 },
     supportsHair: false,
     supportsEyewear: true,
-    humanoidity: [1, 3],
+    humanoidity: [2, 3],
     archetypes: [
       { id: 'FRUIT', structure: 'Peel/rind/seed/stem/leaf anatomy.', mass: 'COMPACT' },
       { id: 'NOODLE', structure: 'Noodle mass is edible anatomy, never hair.', mass: 'BALANCED' },
@@ -426,7 +426,7 @@ export const FAMILIES: FamilyDef[] = [
     fit: { SPD: 0.22, DEF: 0.2, vigilance: 0.18, precision: 0.14, curiosity: 0.1, intensity: 0.08, technical: 0.08 },
     supportsHair: false,
     supportsEyewear: true,
-    humanoidity: [1, 3],
+    humanoidity: [2, 3],
     archetypes: [
       { id: 'MANTIS', structure: 'Folded predatory forelimbs, triangular head.', mass: 'BALANCED' },
       { id: 'BEETLE', structure: 'Shell/elytra/horned exoskeleton.', mass: 'MASSIVE' },
@@ -483,7 +483,7 @@ export const FAMILIES: FamilyDef[] = [
     fit: { CARE: 0.22, REC: 0.18, introspection: 0.18, weirdness: 0.14, patience: 0.1, melancholy: 0.1, curiosity: 0.08 },
     supportsHair: false,
     supportsEyewear: true,
-    humanoidity: [1, 3],
+    humanoidity: [2, 3],
     archetypes: [
       { id: 'CLUSTER', structure: 'Multiple caps/stalks/roots forming one organism.', mass: 'MASSIVE' },
       { id: 'CAP', structure: 'One dominant mushroom-cap identity mass.', mass: 'BALANCED' },
@@ -502,7 +502,7 @@ export const FAMILIES: FamilyDef[] = [
     fit: { CARE: 0.2, REC: 0.18, technical: 0.18, weirdness: 0.16, adaptability: 0.12, vigilance: 0.08, discipline: 0.08 },
     supportsHair: false,
     supportsEyewear: true,
-    humanoidity: [1, 2],
+    humanoidity: [2, 3],
     archetypes: [
       { id: 'COLONY', structure: 'Several cellular units cooperating as one creature.', mass: 'BALANCED' },
       { id: 'BACTERIA', structure: 'Rod/coccus/spiral cellular grammar.', mass: 'COMPACT' },
@@ -542,13 +542,22 @@ export interface HumanoidityLevel {
   it: string;
 }
 
+/* ⚠️ IL GRADINO 1 SI CHIAMA «POCO UMANO», NON «PER NIENTE UMANO».
+
+   Non è una sfumatura di traduzione. VINZ.MON è Vinz trasformato in un altro
+   corpo possibile — «the result must feel like VINZ himself transformed» —
+   e §3 dichiara OBBLIGATORIO un atteggiamento facciale leggibile prima di
+   qualunque lore, e una creatura con cui uno si immagina di litigare.
+
+   Una cosa senza niente di umano non può avere quelle due proprietà. Quindi
+   anche in fondo alla scala resta un appiglio: POCO umano, non nessuno. */
 export const HUMANOIDITY: HumanoidityLevel[] = [
   {
     level: 1,
     rule: 'Fundamentally non-human. No requirement for a human skeleton or a human face. Bilateral symmetry is optional. The body plan may be organised around a function rather than around limbs.',
     avoid:
       'a human silhouette with the family texture painted on; a face arranged in the human eyes-nose-mouth order unless the anatomy genuinely produces it',
-    it: 'per niente umano',
+    it: 'poco umano',
   },
   {
     level: 2,
@@ -576,6 +585,25 @@ export const HUMANOIDITY: HumanoidityLevel[] = [
     it: 'quasi del tutto umano',
   },
 ];
+
+/**
+ * 🔒 IL PAVIMENTO È 2, E NESSUNA FAMILY ARRIVA A 1.
+ *
+ * Il gradino 1 resta definito perché il master lo definisce, ma nessuna Family
+ * lo può estrarre — nemmeno MICROBE. È una decisione di prodotto, non una
+ * dimenticanza, e nasce da una contraddizione dentro il master stesso:
+ *
+ *   §5 ammette «fundamentally non-human; no requirement for a human face»
+ *   §3 dichiara OBBLIGATORIO «ONE facial attitude readable before any lore»
+ *
+ * Non si può avere tutte e due. §3 dice di sé stesso «non-negotiable, applies
+ * to every VINZ.MON», e c'è la ragione più forte: VINZ.MON è Vinz trasformato
+ * in un altro corpo possibile. Una cosa senza niente di umano non è più lui.
+ *
+ * ⚠️ Se un giorno servisse davvero una forma da 1/5, si abbassa qui — non
+ * aggirando questo pavimento altrove.
+ */
+export const HUMANOIDITY_FLOOR = 2;
 
 export function humanoidityLevel(level: number): HumanoidityLevel {
   return HUMANOIDITY.find((h) => h.level === level) ?? HUMANOIDITY[2]!;
