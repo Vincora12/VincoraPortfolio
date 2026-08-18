@@ -136,6 +136,10 @@ function selectFragmentIds(data: CharacterData, assetType: AssetType): string[] 
 
   ids.push(`mood.${slug(data.mood_primary)}`);
   ids.push('character_dna.compile');
+  /* MASTER CHARACTER SYSTEM v1.1 §8 — chi lo costruisce. Va in OGNI asset,
+     compreso il doodle: cambiare designer fra un asset e l'altro produrrebbe
+     sei immagini di sei creature diverse con lo stesso nome. */
+  ids.push(`design.${slug(data.character_design_dna)}`);
   if (data.heritage_traits.length > 0) ids.push('heritage.compile');
 
   // §42 — la BIO DOODLE non usa l'Appearance canonico: usa il doodle.

@@ -31,7 +31,7 @@
    estrae. §29 impone di incrementare la versione quando cambiano tassonomie o
    pesi, e i .mon già generati restano immutabili con la versione con cui sono
    nati. */
-export const GENERATION_CONFIG_VERSION = '2.3.0';
+export const GENERATION_CONFIG_VERSION = '2.4.0';
 
 /* ============================================================================
    §2 — SEGNALI IN INGRESSO
@@ -791,6 +791,121 @@ export const MOOD_INPUT_RULES = {
    §12 — APPEARANCE
    Quattro canoniche + DOODLE, che NON è un Appearance ed è riservato alla BIO.
    ========================================================================= */
+
+/* ============================================================================
+   §8 (MASTER CHARACTER SYSTEM v1.1) — CHARACTER DESIGN DNA
+
+   🔷 Dal master nuovo: «Character Design DNA determina COSA il personaggio
+   sembra — proporzione, linguaggio delle forme, costruzione del viso,
+   semplificazione anatomica, costruzione dei vestiti, silhouette, postura,
+   densità di dettaglio. NON determina il mezzo di resa.»
+
+   ════════════════════════════════════════════════════════════════════════════
+   ⚠️ QUESTO NON È L'APPEARANCE, ED È LA DISTINZIONE CHE IL LIVELLO INTERO
+   ESISTE PER FARE.
+
+   APPEARANCE dice COME è reso: cel, inchiostro, vinile. Cambia la superficie.
+   CHARACTER DESIGN DNA dice COM'È COSTRUITO: quante masse, che proporzioni,
+   come è fatta la faccia. Cambia il personaggio.
+
+   Lo stesso .mon disegnato alla Ward e alla Nomura sono due creature diverse
+   rese uguali; lo stesso .mon in CEL e in INK è una creatura sola resa in due
+   modi. Confonderli produce prompt in cui «stile» significa due cose insieme e
+   nessuna delle due si controlla.
+   ════════════════════════════════════════════════════════════════════════════
+
+   🔒 KAZUMA KANEKO NON È QUI, e non è una dimenticanza: il master lo dichiara
+   «NOT ACTIVE / DO NOT SELECT». Sta scritto perché era attivo nelle versioni
+   precedenti, e una libreria che non dice cosa ha tolto lo fa rientrare al
+   primo che rilegge un documento vecchio.
+
+   💡 Si accendono e si spengono da DEV → CREATURA → CATALOGHI. Il master §12
+   lo prevede espressamente: «Approval means the designer remains in the active
+   library; rejection removes it from active selection.»
+   ========================================================================= */
+
+export interface DesignDnaDef {
+  id: string;
+  /** Densità di dettaglio dichiarata dal master, 1–5. */
+  density: number;
+  /**
+   * Le regole di COSTRUZIONE, in inglese, così come entrano nel prompt.
+   *
+   * 🔒 Visive e operative, mai biografiche: «masse compatte leggibili» si può
+   * disegnare, «l'eleganza giapponese anni '90» no. È la regola che il master
+   * mette in testa a questo capitolo, ed è quella che distingue una libreria
+   * di stili da un elenco di nomi famosi.
+   */
+  construction: string;
+  it: string;
+}
+
+export const DESIGN_DNA: DesignDnaDef[] = [
+  {
+    id: 'KEN SUGIMORI',
+    density: 2.75,
+    construction:
+      'Iconic clarity; compact readable masses; species-character coherence; moderate exaggeration; every retained feature communicates identity, function or behaviour.',
+    it: 'chiarezza da icona, masse compatte, niente dettaglio che non dica qualcosa',
+  },
+  {
+    id: 'GENNDY TARTAKOVSKY',
+    density: 2,
+    construction:
+      'Aggressive proportional contrast; directional geometry; strong negative space; action-readable silhouette; opposing masses; posture already implies motion.',
+    it: 'contrasti di proporzione aggressivi, la posa contiene già il movimento',
+  },
+  {
+    id: 'AKIRA TORIYAMA',
+    density: 3,
+    construction:
+      'Friendly functional construction; clear rounded/compact masses with selective sharpness; expressive readable face; mechanical or anatomical ideas simplified into playful usable forms.',
+    it: 'costruzione amichevole e funzionale, idee complesse rese giocattoli',
+  },
+  {
+    id: 'CRAIG McCRACKEN',
+    density: 1.5,
+    construction:
+      'Radical graphic economy; very few primary shapes; extreme proportion; facial information minimised; visual comedy carried by silhouette and scale contrast.',
+    it: 'pochissime forme, proporzioni estreme, la comicità sta nella sagoma',
+  },
+  {
+    id: 'PENDLETON WARD',
+    density: 1.5,
+    construction:
+      'Extremely reduced geometry; simple body masses; thin or tubular limbs where useful; elastic impossible anatomy; bizarre proportional jokes; morphology may ignore physical plausibility while remaining instantly drawable.',
+    it: 'geometria ridotta all\'osso, anatomia elastica e impossibile',
+  },
+  {
+    id: 'TETSUYA NOMURA',
+    density: 5,
+    construction:
+      'High hierarchical detail; elongated youthful heroic proportions when humanoid; layered clothing and anatomy; asymmetry; localised hardware; multiple detail scales; dense but silhouette-first.',
+    it: 'dettaglio fitto ma gerarchico, proporzioni eroiche allungate, asimmetria',
+  },
+  {
+    id: 'JAMIE HEWLETT',
+    density: 3,
+    construction:
+      'Graphic lankiness or compact swagger depending on the concept; angular facial construction; fashion and street attitude; offbeat posture; selective exaggeration; strong visual personality with slightly abrasive charm.',
+    it: 'allampanato o tracagnotto secondo il caso, faccia spigolosa, attitudine da strada',
+  },
+];
+
+export function designDnaDef(id: string): DesignDnaDef {
+  const d = DESIGN_DNA.find((x) => x.id === id);
+  if (!d) throw new Error(`Character Design DNA sconosciuto: ${id}`);
+  return d;
+}
+
+/**
+ * 🔒 Tolti dalla libreria, e scritti qui perché non rientrino.
+ *
+ * Un nome cancellato da un elenco non lascia traccia: fra sei mesi qualcuno
+ * rilegge un documento del 2025, lo trova, e lo rimette pensando che manchi
+ * per sbaglio. Un controllo in `feature-check` verifica che non ricompaiano.
+ */
+export const DESIGN_DNA_RETIRED = ['KAZUMA KANEKO'] as const;
 
 export const APPEARANCES = ['DESIGNER TOY 3D', 'INK', 'CEL', 'ELASTIC CARTOON'] as const;
 export type Appearance = (typeof APPEARANCES)[number];

@@ -22,6 +22,7 @@
 
 import {
   AFFINITIES,
+  DESIGN_DNA,
   APPEARANCE_RULES,
   FAMILIES,
   FASHIONS,
@@ -52,6 +53,7 @@ export type FragmentAxis =
   | 'marker'
   | 'mood'
   | 'character_dna'
+  | 'design_dna'
   | 'heritage'
   | 'appearance'
   | 'rarity'
@@ -88,6 +90,13 @@ export const AXIS_PRIORITY: Record<FragmentAxis, number> = {
   marker: 7,
   mood: 8,
   character_dna: 9,
+  /* 🔒 SUBITO PRIMA dell'Appearance e DOPO tutto il resto, e l'ordine è la
+     tesi del master: il Design DNA riscrive la COSTRUZIONE — proporzioni,
+     masse, faccia — quindi deve poter vincere sulla grammatica di Family e
+     Size; l'Appearance viene dopo e può toccare solo la superficie. Metterlo
+     prima della Family lo renderebbe un suggerimento; metterlo dopo
+     l'Appearance lo renderebbe un secondo modo di dire «resa». */
+  design_dna: 10,
   heritage: 10,
   appearance: 11,
   rarity: 11,
@@ -563,6 +572,36 @@ function appearanceFragment(id: string): PromptFragment {
   };
 }
 
+/* ============================================================================
+   MASTER CHARACTER SYSTEM v1.1 §8 — CHARACTER DESIGN DNA
+
+   🔒 QUESTO FRAMMENTO PARLA DI COSTRUZIONE, MAI DI RESA. Se un giorno ci
+   finisse dentro una parola come «cel», «inchiostro» o «vinile», starebbe
+   dicendo la stessa cosa dell'Appearance — e a quel punto due assi si
+   contendono lo stesso campo e nessuno dei due si controlla più.
+   ========================================================================= */
+
+function designDnaFragment(d: (typeof DESIGN_DNA)[number]): PromptFragment {
+  return {
+    id: `design.${slug(d.id)}`,
+    axis: 'design_dna',
+    priority: AXIS_PRIORITY.design_dna,
+    positive_prompt: [
+      `CHARACTER DESIGN DNA: ${d.id} — construction rules only.`,
+      d.construction,
+      `DETAIL DENSITY: ${d.density}/5. This controls how many visual decisions survive, not how much lore exists.`,
+      d.density <= 2
+        ? 'Compress every idea into as few primary shapes as possible. Anything that does not survive compression is dropped, not shrunk.'
+        : d.density >= 4.5
+          ? 'Layering, hardware and tertiary information are permitted, but the read must stay hierarchical: silhouette first, then primary masses, then detail.'
+          : 'Keep a clear primary read with a controlled second tier of detail.',
+      'This layer rewrites CONSTRUCTION — proportion, shape language, facial build, anatomical simplification, clothing construction, posture. It must visibly change how the character is built.',
+    ].join('\n'),
+    negative_prompt:
+      'Do NOT let this layer decide rendering medium, outlines, shading or material: that belongs to APPEARANCE. Do not name the designer or imitate a specific existing character.',
+  };
+}
+
 /** §42 — DOODLE non è un Appearance: vive solo nella BIO. */
 export const DOODLE_FRAGMENT: PromptFragment = {
   id: 'appearance.doodle_bio_only',
@@ -782,6 +821,7 @@ export const FRAGMENT_LIBRARY: Map<string, PromptFragment> = (() => {
     ...MOODS.map(moodFragment),
     CHARACTER_DNA_FRAGMENT,
     HERITAGE_FRAGMENT,
+    ...DESIGN_DNA.map(designDnaFragment),
     ...Object.keys(APPEARANCE_DETAIL).map(appearanceFragment),
     DOODLE_FRAGMENT,
     ...RARITY_TIERS.map(rarityFragment),

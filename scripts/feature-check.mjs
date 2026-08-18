@@ -1182,6 +1182,73 @@ check(
 );
 
 /* ============================================================================
+   MASTER CHARACTER SYSTEM v1.1 — §8 CHARACTER DESIGN DNA · §20.3 CATALOGHI
+   ========================================================================= */
+
+check(
+  'DESIGN DNA §8',
+  'la libreria ha i sette designer approvati',
+  ['KEN SUGIMORI', 'GENNDY TARTAKOVSKY', 'AKIRA TORIYAMA', 'CRAIG McCRACKEN',
+   'PENDLETON WARD', 'TETSUYA NOMURA', 'JAMIE HEWLETT']
+    .every((n) => has(CONFIG, `id: '${n}'`)),
+);
+check(
+  'DESIGN DNA §8',
+  'Kaneko è dichiarato fuori, non semplicemente assente',
+  has(CONFIG, "DESIGN_DNA_RETIRED = ['KAZUMA KANEKO']") &&
+    lacks(CONFIG, "{\n    id: 'KAZUMA KANEKO'"),
+  'un nome cancellato da un elenco rientra al primo che rilegge un documento vecchio',
+);
+check(
+  'DESIGN DNA §8',
+  'costruzione e resa restano due assi separati',
+  has('src/assets-pipeline/fragments.ts', "axis: 'design_dna'") &&
+    has('src/assets-pipeline/fragments.ts', 'that belongs to APPEARANCE'),
+  'se il Design DNA potesse decidere la resa, due assi si contenderebbero lo stesso campo',
+);
+check(
+  'DESIGN DNA §8',
+  'il designer finisce davvero nei prompt, in tutti gli asset',
+  has('src/assets-pipeline/compiler.ts', 'design.${slug(data.character_design_dna)}'),
+  'un campo in CharacterData che nessun prompt legge è lavoro fatto a metà',
+);
+check(
+  'DESIGN DNA §8',
+  'non dipende dai segnali: è come si disegna, non chi è',
+  has(GEN, "const designDna = pick(rng, keepEnabled('design'"),
+  '«i .mon tristi si disegnano alla McCracken» sarebbe una regola che nessuno ha deciso',
+);
+
+check(
+  'CATALOGHI §20.3',
+  'il motore pesca solo da quello che è acceso',
+  count(GEN, /keepEnabled\(/g) >= 6,
+  `${count(GEN, /keepEnabled\(/g)} assi filtrati`,
+);
+check(
+  'CATALOGHI §20.3',
+  'il filtro sta PRIMA del punteggio, non dopo',
+  has(GEN, "keepEnabled('family', SELECTABLE_FAMILIES"),
+  'filtrare i vincitori farebbe girare il softmax su una distribuzione che non esiste',
+);
+check(
+  'CATALOGHI §20.3',
+  'non si può spegnere tutto',
+  has('src/engine/catalogTuning.ts', 'ne devono restare almeno'),
+);
+check(
+  'CATALOGHI §20.3',
+  'le Family devono restarne almeno due',
+  has('src/engine/catalogTuning.ts', 'min: 2'),
+  'con una sola, ogni creatura nasce della stessa specie',
+);
+check(
+  'CATALOGHI §20.3',
+  'spegnere non tocca i .mon già nati',
+  has('src/engine/catalogTuning.ts', 'SPEGNERE NON È CANCELLARE'),
+);
+
+/* ============================================================================
    Sicurezza e tono — non negoziabili
    ========================================================================= */
 

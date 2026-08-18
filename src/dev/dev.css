@@ -557,3 +557,100 @@
   padding-top: 14px;
   border-top: 1px solid var(--hairline);
 }
+
+/* --- CATALOGHI (§20.3) ----------------------------------------------------- */
+
+.cat__summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.cat__chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  color: inherit;
+  font: inherit;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+.cat__chip[aria-current='true'] {
+  border-color: var(--ink);
+}
+
+.cat__count {
+  font-family: var(--font-mono);
+  font-size: var(--type-micro);
+}
+
+/* Un asse potato si vede dal riepilogo senza aprirlo. */
+.cat__count--cut {
+  color: var(--char-accent);
+}
+
+.cat__list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+}
+
+.cat__row {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  gap: 2px 8px;
+  align-items: center;
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--hairline);
+  color: inherit;
+  font: inherit;
+  padding: 7px 0;
+  cursor: pointer;
+  text-align: left;
+}
+
+/* 🔒 La casella è un quadrato con una × dentro, non un interruttore colorato:
+   in una schermata in cui l'unica cosa colorata deve restare l'accento del
+   personaggio, dodici pallini verdi sarebbero l'elemento più forte. */
+.cat__box {
+  width: 14px;
+  height: 14px;
+  border: 1px solid var(--muted-strong);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1;
+}
+
+.cat__row[aria-pressed='false'] .cat__name {
+  color: var(--muted-strong);
+  text-decoration: line-through;
+}
+
+.cat__row--retired {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.cat__note,
+.cat__bad {
+  grid-column: 2;
+  color: var(--muted-strong);
+}
+
+.cat__bad {
+  display: block;
+  margin-top: 8px;
+}
+
+.cat__space {
+  margin-top: 14px;
+}

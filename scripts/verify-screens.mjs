@@ -665,6 +665,31 @@ try {
      sincronamente: se ci fosse un errore nel motore uscirebbe QUI, prima che
      una creatura vera lo incontri. Vale la pena premerlo davvero invece di
      limitarsi a fotografare la scheda vuota. */
+  /* 🔷 §20.3 — CATALOGHI. Si prova SPEGNENDO davvero: una schermata di
+     interruttori che non spengono niente è la cosa più facile da costruire e
+     la più inutile. */
+  await devTab('CREATURA', 'CATALOGHI');
+  await shot('dev-cataloghi');
+  const primaAccese = await page.$$eval('.cat__row[aria-pressed="true"]', (n) => n.length);
+  await click('.cat__row', 'spegni la prima Family');
+  const dopoAccese = await page.$$eval('.cat__row[aria-pressed="true"]', (n) => n.length);
+  if (dopoAccese !== primaAccese - 1) {
+    errors.push(`spento una voce, ne restano accese ${dopoAccese} invece di ${primaAccese - 1}`);
+  }
+  await shot('dev-cataloghi-spento');
+
+  /* 🔒 I designer ritirati si vedono ma non si riaccendono: il master v1.1
+     dichiara Kaneko NOT ACTIVE, e un nome cancellato da un elenco rientra al
+     primo che rilegge un documento vecchio. */
+  await click('.cat__chip:last-child', 'apri CHARACTER DESIGN DNA');
+  const ritirati = await page.$$eval('.cat__row--retired', (n) => n.map((e) => e.textContent ?? ''));
+  if (!ritirati.some((r) => /KANEKO/i.test(r))) {
+    errors.push('i designer ritirati non sono dichiarati: Kaneko può rientrare di nascosto');
+  }
+  await shot('dev-cataloghi-designer');
+
+  await click(byText('RIACCENDI TUTTO'), 'riaccendi tutto');
+
   await devTab('CREATURA', 'RARITÀ');
   await shot('dev-rarita');
   await click(byText('Simula 500 nascite'), 'simula nascite');

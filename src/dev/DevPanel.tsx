@@ -26,6 +26,7 @@ import { STAT_KEYS, UNKNOWN, isKnown } from '../engine/types';
 import type { StatKey } from '../engine/types';
 import { BatchGenerator } from './BatchGenerator';
 import { AssetImport } from './AssetImport';
+import { CatalogSection } from './CatalogSection';
 import { PromptPreview } from './PromptPreview';
 import { VoiceSection } from './VoiceSection';
 import { CostSection } from './CostSection';
@@ -47,6 +48,7 @@ type DevTab =
   | 'memory'
   | 'mood'
   | 'rarity'
+  | 'catalog'
   | 'tools';
 
 /* ============================================================================
@@ -97,6 +99,10 @@ const GROUPS: { id: DevGroup; label: string; tabs: { id: DevTab; label: string }
          mano arriva da qui — dalla creatura — e trovarsi il testo da copiare
          due gruppi più in là è il modo di non trovarlo mai. */
       { id: 'prompt', label: 'PROMPT IMMAGINI' },
+      /* 🔷 §20.3 — accendere e spegnere Family, resa, designer, stile,
+         temperamento. Sta in CREATURA perché è quello che decide cosa può
+         nascere, non come si comporta poi. */
+      { id: 'catalog', label: 'CATALOGHI' },
     ],
   },
   {
@@ -180,6 +186,7 @@ export function DevPanel({ onClose, onGo }: { onClose: () => void; onGo?: (o: 'a
         {inGroup && tab === 'memory' && <MemorySection />}
         {inGroup && tab === 'mood' && <MoodSection />}
         {inGroup && tab === 'rarity' && <RaritySection />}
+        {inGroup && tab === 'catalog' && <CatalogSection />}
         {inGroup && tab === 'tools' && <ToolsSection />}
       </div>
     </div>

@@ -172,6 +172,16 @@ export interface CharacterData {
 
   season: string | null;
 
+  /**
+   * 🔷 MASTER CHARACTER SYSTEM v1.1 §8 — chi lo ha «disegnato».
+   *
+   * ⚠️ Non è `appearance`, ed è la distinzione che il master fa apposta:
+   * `appearance` dice COME è reso (cel, inchiostro, vinile), questo dice
+   * COM'È COSTRUITO (proporzioni, masse, faccia). Lo stesso .mon alla Ward e
+   * alla Nomura sono due creature; lo stesso .mon in CEL e in INK è una
+   * creatura resa in due modi.
+   */
+  character_design_dna: string;
   palette_dna: PaletteDna;
   /** `null` quando l'anatomia non consente ottica (§9). */
   eyewear: EyewearSolution | null;

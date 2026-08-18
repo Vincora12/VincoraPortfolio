@@ -16,6 +16,8 @@
 
 import {
   APPEARANCES,
+  DESIGN_DNA,
+  designDnaDef,
   ENGINE_WEIGHTS,
   EYEWEAR_CATEGORIES,
   FASHIONS,
@@ -40,6 +42,7 @@ import {
   type FamilyDef,
   type Size,
 } from './generation-config';
+import { keepEnabled } from './catalogTuning';
 import { chance, makeRng, pick, pickInt, pickMany, pickWeighted, type Rng } from './rng';
 import { buildSignalVector, evaluateFit, type GeneratorInput } from './signals';
 import { generatePaletteDna } from './colorDna';
@@ -252,8 +255,22 @@ export function generateMon(ctx: GenerationContext): GenerationResult {
   }
 
   /* 11 — APPEARANCE (§12), indipendente dall'anatomia */
-  const appearance: Appearance = pick(rng, APPEARANCES);
+  const appearance = pick(rng, keepEnabled('appearance', APPEARANCES, (a) => a)) as Appearance;
   steps.push({ step: 11, stage: 'APPEARANCE', outcome: appearance });
+
+  /* 🔷 MASTER CHARACTER SYSTEM v1.1 §8 — CHARACTER DESIGN DNA.
+     Si estrae a sorte fra quelli in libreria, e NON dipende da niente: non
+     dalla Family, non dai segnali, non dall'umore. È una scelta di come
+     DISEGNARE, non una conseguenza di chi è la creatura — legarla ai segnali
+     produrrebbe «i .mon tristi si disegnano alla McCracken», che è una regola
+     che nessuno ha deciso e che si vedrebbe dopo dieci creature. */
+  const designDna = pick(rng, keepEnabled('design', DESIGN_DNA, (d) => d.id)).id;
+  steps.push({
+    step: 11.5,
+    stage: 'CHARACTER DESIGN DNA',
+    outcome: `${designDna} · densità ${designDnaDef(designDna).density}/5`,
+    note: 'costruzione, non resa: l’Appearance sopra decide la superficie',
+  });
 
   /* 12 — HERITAGE (§23) */
   const heritage = translateHeritage(rng, ctx.heritageOrigins, family.id, affinity);
@@ -342,6 +359,7 @@ export function generateMon(ctx: GenerationContext): GenerationResult {
     mood_primary: moodPrimary,
     mood_secondary: moodSecondary,
     appearance,
+    character_design_dna: designDna,
     rarity: rarity.rarity,
     rarity_score: rarity.score,
     season: ctx.input.season ?? null,
@@ -435,7 +453,11 @@ function resolveFamily(
   const recent = ctx.input.novelty.recentFamilies;
 
   // Step 2–5: fit, penalità di novità, modificatore culturale, rumore.
-  const scored = SELECTABLE_FAMILIES.map((f) => {
+  /* 🔷 §20.3 — solo le Family accese in DEV → CATALOGHI. Il filtro sta QUI,
+     prima del punteggio, non dopo: filtrare i vincitori vorrebbe dire far
+     vincere una Family spenta e poi ripescare il secondo, che non è la stessa
+     cosa — il softmax lavorerebbe su una distribuzione che non esiste. */
+  const scored = keepEnabled('family', SELECTABLE_FAMILIES, (f) => f.id).map((f) => {
     const fit = evaluateFit(f.fit, signals);
 
     let noveltyPenalty = 0;
@@ -513,7 +535,7 @@ function resolveAffinity(rng: Rng, family: FamilyDef, ctx: GenerationContext): s
   const w = ENGINE_WEIGHTS.affinity;
   const recent = ctx.input.novelty.recentAffinities;
 
-  const scored = AFFINITIES.map((a) => {
+  const scored = keepEnabled('affinity', AFFINITIES, (a) => a.id).map((a) => {
     const healthMood = rng() * 100;
     const personality = rng() * 100;
     const novelty = recent.includes(a.id) ? 30 : 100;
@@ -580,7 +602,7 @@ function resolveSize(
 
 function resolveRole(rng: Rng): string {
   const w = ENGINE_WEIGHTS.role;
-  const scored = ROLES.map((r) => ({
+  const scored = keepEnabled('role', ROLES, (r) => r.id).map((r) => ({
     id: r.id,
     total: rng() * 100 * w.personality + rng() * 100 * w.cultural + rng() * 100 * w.mood + rng() * 100 * w.randomness,
   }));
@@ -591,7 +613,7 @@ function resolveRole(rng: Rng): string {
 function resolveFashion(rng: Rng, ctx: GenerationContext): string {
   const w = ENGINE_WEIGHTS.fashion;
   const recent = ctx.input.novelty.recentFashion;
-  const scored = FASHIONS.map((f) => ({
+  const scored = keepEnabled('fashion', FASHIONS, (f) => f.id).map((f) => ({
     id: f.id,
     total:
       rng() * 100 * w.tasteSeason +
@@ -667,7 +689,7 @@ function resolveMood(
     CREEPY: signals.weirdness * 0.6 + signals.distance * 0.4,
   };
 
-  const ranked = MOODS.map((m) => ({
+  const ranked = keepEnabled('mood', MOODS, (m) => m.id).map((m) => ({
     id: m.id,
     score: (affinityByMood[m.id] ?? 50) + (rng() * 2 - 1) * 15,
   })).sort((a, b) => b.score - a.score);
