@@ -1712,7 +1712,15 @@ export const useApp = create<AppState>()(
           get().imageModel,
         );
         /* Il motivo vero se c'è, il codice se non c'è: «openai 404: model not
-           found» si risolve cambiando modello, «error» non si risolve. */
+           found» si risolve cambiando modello, «error» non si risolve.
+
+           ⚠️ `timeout` merita parole sue: non è un guasto da riprovare, è il
+           tetto di 10 secondi delle funzioni Netlify contro una generazione
+           che ne impiega quindici o più. Riprovare non serve a niente, e
+           lasciarlo scritto come un codice manda a cercare dove non c'è. */
+        if (failure === 'timeout') {
+          return 'la funzione si è fermata a 10 secondi (limite di Netlify): una generazione di immagini non ci sta dentro';
+        }
         if (failure) return `immagine: ${detail ?? failure}`;
         markAssetsMade(set, get, monName, made);
         return null;

@@ -80,7 +80,25 @@ export interface AskRequest {
  * `capped` in particolare NON è un errore: è una decisione presa da te, e
  * l'app deve poterla raccontare invece di far finta che il modello sia rotto.
  */
-export type BackendFailure = 'no-token' | 'offline' | 'unauthorized' | 'capped' | 'error';
+export type BackendFailure =
+  | 'no-token'
+  | 'offline'
+  | 'unauthorized'
+  | 'capped'
+  | 'error'
+  /**
+   * 🔶 La funzione è stata uccisa mentre lavorava.
+   *
+   * ⚠️ Prima finiva sotto `offline`, ed è costato mezz'ora di caccia nel posto
+   * sbagliato: «offline» manda a controllare la rete, il deploy, il token —
+   * tutte cose a posto. Netlify ferma una funzione sincrona a 10 secondi (26
+   * sul piano Pro, a richiesta) e restituisce una pagina HTML: il
+   * content-type non è JSON, e per il codice diventava «non ci sono».
+   *
+   * Una generazione di immagini ne impiega 15–60. Non è un guasto: è un
+   * limite di piattaforma, e va detto con parole sue.
+   */
+  | 'timeout';
 
 export interface BackendResult<T> {
   /** Il motivo vero, quando il server ne manda uno. Va in DEV e nei guasti. */
@@ -166,10 +184,15 @@ async function post<T>(
 
   /* In sviluppo locale `/api/ai` restituisce l'HTML della pagina con un 200
      allegro. Senza questo controllo si proverebbe a leggerlo come JSON e si
-     otterrebbe un errore di parsing che non spiega niente a nessuno. */
+     otterrebbe un errore di parsing che non spiega niente a nessuno.
+
+     🔶 Ma non è tutto uguale: un 200 con HTML è «le funzioni non ci sono»,
+     un 502 o 504 con HTML è «la funzione è stata uccisa mentre lavorava».
+     Erano la stessa parola, e la parola era quella sbagliata delle due. */
   const kind = response.headers.get('content-type') ?? '';
   if (!kind.includes('application/json')) {
-    return { data: null, failure: 'offline' };
+    const killed = response.status === 502 || response.status === 504;
+    return { data: null, failure: killed ? 'timeout' : 'offline' };
   }
 
   const payload = (await response.json().catch(() => null)) as

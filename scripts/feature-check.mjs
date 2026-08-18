@@ -1380,6 +1380,21 @@ check(
   'quella chiamata generava dal prompt CONCATENATO: il ritratto sarebbe stato l’unico dei sei mai approvato, e per giunta senza riferimento di consistenza',
 );
 
+/* 🔷 «immagine: offline» — mentre le chiamate di testo passavano. */
+check(
+  '§22.4 GUASTI',
+  'una funzione uccisa non si chiama «offline»',
+  has('src/ai/backend.ts', "killed ? 'timeout' : 'offline'"),
+  '«offline» manda a controllare rete, deploy e token: tutte cose a posto. Netlify ferma una funzione sincrona a 10 secondi e risponde HTML',
+);
+check(
+  '§22.4 GUASTI',
+  'e il tetto dei 10 secondi si spiega, non si sigla',
+  has('src/state/store.ts', 'limite di Netlify') &&
+    has('src/screens/Activate.tsx', 'Netlify ferma una funzione dopo 10 secondi'),
+  'riprovare non serve a niente: è un limite di piattaforma, non un guasto',
+);
+
 /* 🔷 «Nelle API c'è solo questo utilizzo»: cinque richieste di testo, ZERO di
    immagini. Non fallite — mai partite. */
 check(

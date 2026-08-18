@@ -317,6 +317,8 @@ function fmt(usd: number | undefined): string {
  */
 function explain(failure: string): string {
   switch (failure) {
+    case 'timeout':
+      return 'La funzione è partita e non ha fatto in tempo a finire. Netlify ferma una funzione dopo 10 secondi (26 sul piano Pro): il testo ci sta, una generazione di immagini no.';
     case 'offline':
       return 'Le funzioni non rispondono. O il sito non è ancora stato ripubblicato dopo aver aggiunto le variabili, oppure stai girando in locale, dove /api non esiste.';
     case 'unauthorized':
