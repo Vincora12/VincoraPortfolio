@@ -349,10 +349,27 @@ try {
     errors.push(`il voto non si e registrato: ${votate} quadrati accesi invece di 4`);
   }
 
+  /* 🔷 §22.4 — le sei immagini si approvano una per una, e la sequenza dice a
+     che punto sta. Qui gira senza chiave, quindi nessuna immagine arriva: e'
+     precisamente il caso in cui §26 vieta di bloccare il flusso. */
+  const passo = await page
+    .locator('.facegate__note')
+    .first()
+    .textContent()
+    .catch(() => null);
+  if (!passo || !/1 di \d/.test(passo)) {
+    errors.push(`la nascita non dice a che punto sta la sequenza: "${passo ?? 'niente'}"`);
+  }
+
   /* 06 — LA HOME È IL PERSONAGGIO (v1.10 §13.7).
      Non è una schermata di benvenuto da superare: è la tab MON, con la barra
-     di navigazione sotto. Alla chat ci si va. */
-  await click(byText('BENVENUTO A CASA'), 'entra');
+     di navigazione sotto. Alla chat ci si va.
+
+     🔶 Cliccava «BENVENUTO A CASA», che era l'etichetta del caso «c'e' una
+     faccia». Senza chiave la faccia non c'e' mai, e l'ago si teneva in piedi
+     su un ramo che in questa camminata non veniva mai preso. La decisione da
+     verificare e' un'altra e piu' importante: SI ENTRA COMUNQUE. */
+  await click(byText('ENTRA'), 'entra senza immagini');
   await shot('06-home-personaggio');
   await click('.splash__enter', 'vai in chat');
   await shot('06-companion-home');
@@ -930,7 +947,9 @@ try {
   await hold('CAMBIA FORMA');
   await sleep(2600);
   await shot('14-new-encounter');
-  await click(byText('BENVENUTO A CASA'), 'entra');
+  /* Stessa ragione della nascita: senza chiave non c'e' nessuna immagine da
+     approvare, e la decisione da verificare e' che si entri comunque. */
+  await click(byText('ENTRA'), 'entra senza immagini');
   await enterIfSplash();
 
   /* 18 — HERITAGE DNA */

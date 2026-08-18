@@ -982,14 +982,16 @@ export const useApp = create<AppState>()(
            già nata e già visibile, il sigillo fa da faccia finché il ritratto
            non arriva. Non si tocca per il micro-growth: quella resta la stessa
            creatura, e le sue immagini pure. */
-        /* 🔷 SOLO IL RITRATTO. «Quando genero il nuovo mon, lui genera la
-           prima immagine, solo la prima, per mostrarmelo con tutta
-           l'animazione del nome — e se mi piace continua.»
+        /* 🔶 Qui partiva il ritratto da solo. Adesso non parte niente, e non è
+           una regressione: le immagini le chiede la schermata di incontro, una
+           per una, e le fa passare dal COMPILATORE — cosa che questa chiamata
+           non faceva. Generava dal prompt concatenato, cioè proprio quello che
+           produce le creature deformi.
 
-           È anche la scelta prudente: sei immagini fatte prima che tu le abbia
-           viste sono sei immagini pagate su una faccia che potrebbe non
-           piacerti. Il resto arriva quando dici di sì. */
-        get().generateAssetsFor(record.data.name, { only: ['profile_portrait'] });
+           🔒 Una porta sola. Se restasse anche questa, il ritratto esisterebbe
+           già quando la sequenza arriva al suo turno: sarebbe l'unico dei sei
+           mai approvato, e per giunta nato prima del master, quindi senza il
+           riferimento di consistenza che gli altri cinque hanno. */
         requestIntroduction(set, get, record);
       },
 
@@ -1183,14 +1185,16 @@ export const useApp = create<AppState>()(
            già nata e già visibile, il sigillo fa da faccia finché il ritratto
            non arriva. Non si tocca per il micro-growth: quella resta la stessa
            creatura, e le sue immagini pure. */
-        /* 🔷 SOLO IL RITRATTO. «Quando genero il nuovo mon, lui genera la
-           prima immagine, solo la prima, per mostrarmelo con tutta
-           l'animazione del nome — e se mi piace continua.»
+        /* 🔶 Qui partiva il ritratto da solo. Adesso non parte niente, e non è
+           una regressione: le immagini le chiede la schermata di incontro, una
+           per una, e le fa passare dal COMPILATORE — cosa che questa chiamata
+           non faceva. Generava dal prompt concatenato, cioè proprio quello che
+           produce le creature deformi.
 
-           È anche la scelta prudente: sei immagini fatte prima che tu le abbia
-           viste sono sei immagini pagate su una faccia che potrebbe non
-           piacerti. Il resto arriva quando dici di sì. */
-        get().generateAssetsFor(record.data.name, { only: ['profile_portrait'] });
+           🔒 Una porta sola. Se restasse anche questa, il ritratto esisterebbe
+           già quando la sequenza arriva al suo turno: sarebbe l'unico dei sei
+           mai approvato, e per giunta nato prima del master, quindi senza il
+           riferimento di consistenza che gli altri cinque hanno. */
         requestIntroduction(set, get, record);
       },
 

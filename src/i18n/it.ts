@@ -175,10 +175,22 @@ export const t = {
     keep: 'VA BENE COSÌ',
     redo: 'RIFALLA',
     redoing: 'Ci riprova…',
-    rest: 'Il resto arriva mentre parlate.',
-    needsToken: 'Serve la chiave per le immagini: DEV → VOCE → TOKEN.',
+    /* 🔶 Era «Il resto arriva mentre parlate»: le altre cinque immagini si
+       facevano da sole, dopo, senza che tu le vedessi. Adesso le guardi una
+       per una — «e le approvo tutte man mano». */
+    rest: 'Le altre te le mostro una per una.',
+    needsToken: 'Serve la chiave per le immagini: ATTIVA VINZ.MON.',
     ratePrompt: 'Quanto ti piace?',
     rated: 'Lo sa.',
+    /** Il passo corrente della sequenza: «2 di 6 · PROFILE PORTRAIT». */
+    step: (n: number, of: number, label: string) => `${n} di ${of} · ${label}`,
+    next: 'VA BENE, LA PROSSIMA',
+    last: 'VA BENE, ENTRIAMO',
+    /* 🔒 Si può SEMPRE entrare senza finire: §26 — nessun asset mancante
+       blocca il flusso. Le immagini che mancano si fanno dopo, dalla forgia. */
+    enough: 'BASTA COSÌ, ENTRIAMO',
+    later: 'Quelle che saltiamo restano da fare: le trovi in DEV → CREATURA → GENERA.',
+    masterFirst: 'Questa è la fonte: le altre cinque la useranno come riferimento.',
   },
 
   /* §21.4 — il filo della stanza */

@@ -9,97 +9,187 @@
    e la schermata resta comunque percorribile (§26).
    ========================================================================= */
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useApp, useActiveMon } from '../state/store';
 import { AssetSlot, Sigil, useAssetUrl } from '../system/AssetSlot';
 import { MonName, SpeciesName } from '../system/MonName';
 import { Button, SystemLabel } from '../system/components';
 import { displayName } from '../engine/types';
+import type { AssetType } from '../engine/types';
+import { assetTypeDef } from '../engine/assets';
 import { t } from '../i18n/it';
 
 /* ============================================================================
-   §22.4/§22.5 — LA FACCIA SI APPROVA PRIMA DI FARE IL RESTO
+   §22.4/§22.5 — LE IMMAGINI SI APPROVANO UNA PER UNA
 
    🔷 «Quando genero il nuovo mon, lui genera la prima immagine, solo la
    prima, per mostrarmelo con tutta l'animazione del nome. E se mi piace
    continua, se no lo faccio rigenerare con lo stesso prompt.»
+   🔷 «Poi mi fa vedere le altre e le approvo tutte man mano.»
 
-   🔒 IL PROMPT NON CAMBIA MAI. «Rifalla» non cerca un personaggio diverso:
-   chiede di nuovo la stessa cosa, perché a volte l'immagine esce storta. Se
-   cambiasse il prompt sarebbe un'altra creatura, e la creatura l'hanno decisa
-   i tuoi dati — non il fatto che la prima resa non ti convincesse.
+   ⚠️ COM'ERA, E PERCHÉ NON BASTAVA. Si approvava SOLO il ritratto; poi «VA
+   BENE COSÌ» faceva partire le altre cinque in sottofondo, senza che tu le
+   vedessi mai prima che fossero pagate. Il controllo c'era su una immagine su
+   sei — e le cinque non guardate sono cinque sesti della spesa.
 
-   ⚠️ E si può SEMPRE andare avanti, anche senza immagine. Senza chiave,
-   offline o col tetto pieno il pulsante resta e porta dentro: §26 — nessun
-   asset mancante blocca il flusso.
+   🔒 IL MASTER PER PRIMO. Non è l'ordine di prima. `compiler.ts:142` mette il
+   riferimento di consistenza negli altri cinque prompt solo quando il master
+   risulta risolto: se non è lui il primo, gli altri cinque non si somigliano
+   fra loro. È anche il motivo per cui approvarlo conta più degli altri, e la
+   schermata lo dice.
+
+   🔒 IL PROMPT NON CAMBIA MAI, QUI. «Rifalla» non cerca un personaggio
+   diverso: chiede di nuovo la stessa cosa, perché a volte l'immagine esce
+   storta. Se cambiasse il prompt sarebbe un'altra creatura, e la creatura
+   l'hanno decisa i tuoi dati — non il fatto che la prima resa non convincesse.
+   (Riscrivere il prompt si può, ma in DEV: è un'altra domanda.)
+
+   ⚠️ E SI PUÒ SEMPRE ENTRARE. Senza chiave, offline o col tetto pieno il
+   pulsante resta e porta dentro: §26 — nessun asset mancante blocca il flusso.
+   Quelle saltate si fanno dopo, dalla forgia.
    ========================================================================= */
 
-function FaceGate({ monName, onDone }: { monName: string; onDone: () => void }) {
-  const generate = useApp((s) => s.generateAssetsFor);
+function FaceGate({
+  monName,
+  onDone,
+  onStep,
+}: {
+  monName: string;
+  onDone: () => void;
+  /** Quale immagine sta guardando: la schermata dietro mostra quella. */
+  onStep: (type: AssetType | null) => void;
+}) {
+  const forgeOne = useApp((s) => s.forgeOne);
+  const forgeOrder = useApp((s) => s.forgeOrder);
   const rate = useApp((s) => s.rateMon);
   const rating = useApp((s) => s.mons[monName]?.rating ?? null);
-  const progress = useApp((s) => s.assetProgress);
-  const portrait = useAssetUrl(monName, 'profile_portrait');
-  const [redoing, setRedoing] = useState(false);
 
-  const working = progress?.monName === monName;
-  const noKey = progress?.failure === 'no-token';
+  const [order, setOrder] = useState<AssetType[]>([]);
+  const [at, setAt] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
 
-  const keep = () => {
-    /* Il resto parte adesso, e non blocca: si entra subito e le altre facce
-       arrivano mentre già parlate. */
-    generate(monName);
-    onDone();
-  };
+  const current = order[at] ?? null;
+  const shot = useAssetUrl(monName, current ?? 'profile_portrait');
 
-  const redo = () => {
-    setRedoing(true);
-    generate(monName, { only: ['profile_portrait'], replace: true });
-    window.setTimeout(() => setRedoing(false), 1200);
+  useEffect(() => {
+    void forgeOrder().then(setOrder);
+  }, [forgeOrder]);
+
+  useEffect(() => {
+    onStep(current);
+  }, [current, onStep]);
+
+  /* La prima parte da sola: quello che ha chiesto è «genera e me la mostra»,
+     non «genera se glielo dici». Le successive partono quando approvi la
+     precedente — cioè quando hai deciso di spendere. */
+  const make = useCallback(
+    async (type: AssetType) => {
+      setBusy(true);
+      setProblem(null);
+      const why = await forgeOne(monName, type);
+      setBusy(false);
+      setProblem(why);
+    },
+    [forgeOne, monName],
+  );
+
+  useEffect(() => {
+    if (order.length > 0 && at === 0 && !shot && !busy && problem === null) {
+      void make(order[0]!);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [order]);
+
+  if (order.length === 0) return null;
+
+  const last = at >= order.length - 1;
+
+  /**
+   * Il pulsante principale.
+   *
+   * ⚠️ Faceva sempre «avanti», anche quando l'etichetta diceva ENTRA — cioè
+   * quando l'immagine non c'era. Senza chiave premevi ENTRA e passavi al
+   * secondo asset, che pure lui non sarebbe arrivato: sei tocchi per uscire da
+   * una schermata che ti stava dicendo di entrare. Etichetta e azione devono
+   * dire la stessa cosa, sempre.
+   */
+  const primary = () => {
+    /* Niente immagine da approvare: non c'è niente da approvare, si entra.
+       §26 — nessun asset mancante blocca il flusso. */
+    if (!shot || last) {
+      onDone();
+      return;
+    }
+    const i = at + 1;
+    setAt(i);
+    void make(order[i]!);
   };
 
   return (
     <div className="facegate">
-      {/* ⚠️ Il voto NON dipende dall'immagine. Prima era legato al ritratto, e
-          senza chiave non compariva mai: ma quello che giudichi è la CREATURA
-          — nome, famiglia, rarità, il perché è venuta così — e quella c'è dal
-          primo istante. L'immagine è una delle cose che la compongono, non la
-          condizione per averne un'opinione. */}
-      {(
-        <div className="facegate__rate">
-          <span className="t-micro">{rating === null ? t.face.ratePrompt : t.face.rated}</span>
-          <span className="facegate__stars" role="group" aria-label={t.face.ratePrompt}>
-            {[1, 2, 3, 4, 5].map((n) => (
-              <button
-                key={n}
-                type="button"
-                className={`facegate__star ${rating !== null && n <= rating ? 'facegate__star--on' : ''}`}
-                aria-label={`${n} su 5`}
-                aria-pressed={rating === n}
-                onClick={() => rate(monName, rating === n ? null : n)}
-              >
-                {n <= (rating ?? 0) ? '\u25A0' : '\u25A1'}
-              </button>
-            ))}
-          </span>
-        </div>
-      )}
+      {/* ⚠️ Il voto NON dipende dall'immagine. Quello che giudichi è la
+          CREATURA — nome, famiglia, rarità, il perché è venuta così — e quella
+          c'è dal primo istante. L'immagine è una delle cose che la compongono,
+          non la condizione per averne un'opinione. */}
+      <div className="facegate__rate">
+        <span className="t-micro">{rating === null ? t.face.ratePrompt : t.face.rated}</span>
+        <span className="facegate__stars" role="group" aria-label={t.face.ratePrompt}>
+          {[1, 2, 3, 4, 5].map((n) => (
+            <button
+              key={n}
+              type="button"
+              className={`facegate__star ${rating !== null && n <= rating ? 'facegate__star--on' : ''}`}
+              aria-label={`${n} su 5`}
+              aria-pressed={rating === n}
+              onClick={() => rate(monName, rating === n ? null : n)}
+            >
+              {n <= (rating ?? 0) ? '\u25A0' : '\u25A1'}
+            </button>
+          ))}
+        </span>
+      </div>
 
-      {working && !portrait && <p className="t-micro facegate__note">{t.face.arriving}</p>}
-      {noKey && <p className="t-micro facegate__note">{t.face.needsToken}</p>}
+      <p className="t-micro facegate__note">
+        {t.face.step(at + 1, order.length, current ? assetTypeDef(current).label : '')}
+      </p>
+      {at === 0 && <p className="t-micro facegate__note">{t.face.masterFirst}</p>}
+
+      {busy && !shot && <p className="t-micro facegate__note">{t.face.arriving}</p>}
+      {problem && <p className="t-micro facegate__note">{problem}</p>}
 
       <div className="facegate__actions">
-        {portrait && (
-          <Button variant="secondary" small onClick={redo} disabled={redoing || working}>
-            {redoing || working ? t.face.redoing : t.face.redo}
+        {shot && (
+          <Button
+            variant="secondary"
+            small
+            disabled={busy}
+            onClick={() => current && void make(current)}
+          >
+            {busy ? t.face.redoing : t.face.redo}
           </Button>
         )}
-        <Button variant="primary" block onClick={keep}>
-          {portrait ? t.face.keep : t.encounter.welcome}
+        {/* 🔒 MAI `disabled`. È l'unico pulsante che porta dentro, e se una
+            chiamata resta appesa questo è l'unico modo di uscire dalla
+            schermata di nascita. §26 — nessun asset mancante, e nessuna
+            attesa di rete, blocca il flusso. RIFALLA sì, quello si spegne:
+            due richieste sovrapposte per lo stesso slot sono due pagate. */}
+        <Button variant="primary" block onClick={primary}>
+          {!shot ? t.encounter.enter : last ? t.face.last : t.face.next}
         </Button>
       </div>
 
-      {portrait && <p className="t-micro facegate__note">{t.face.rest}</p>}
+      {/* 🔒 La via d'uscita esiste sempre, e non è nascosta in fondo a un
+          menù: sei immagini sono sei attese, e nessuno deve essere costretto
+          ad arrivare in fondo per entrare in casa propria. */}
+      {shot && !last && (
+        <>
+          <Button small onClick={onDone}>
+            {t.face.enough}
+          </Button>
+          <p className="t-micro facegate__note">{t.face.later}</p>
+        </>
+      )}
     </div>
   );
 }
@@ -117,6 +207,9 @@ export function EncounterScreen({ variant }: { variant: 'first' | 'new' }) {
      primo tocco: un momento che non si può saltare diventa un ostacolo alla
      seconda volta che lo vedi. */
   const [beat, setBeat] = useState(0);
+  /* Quale immagine si sta approvando: il palco dietro deve mostrare QUELLA,
+     o approveresti alla cieca una cosa che non è quella a schermo. */
+  const [showing, setShowing] = useState<AssetType | null>(null);
   useEffect(() => {
     const ids = [
       window.setTimeout(() => setBeat(1), 700),
@@ -153,13 +246,14 @@ export function EncounterScreen({ variant }: { variant: 'first' | 'new' }) {
       )}
 
       <div className="encounter__stage">
-        {/* 🔷 §22.4 — alla nascita esiste SOLO il ritratto: gli altri cinque
-            si chiedono dopo che hai detto di sì. Quindi la catena parte da lì
-            e non dall'hero, che a questo punto non c'è ancora. */}
+        {/* 🔶 Era fisso sull'hero con due ripieghi. Adesso il palco segue la
+            sequenza di approvazione: mostra l'immagine su cui stai per dire
+            sì o no. Un palco che mostra una cosa mentre ne approvi un'altra
+            è peggio di un palco vuoto. */}
         <AssetSlot
           monName={d.name}
-          type="encounter_hero"
-          fallbackTypes={['character_master', 'profile_portrait']}
+          type={showing ?? 'character_master'}
+          fallbackTypes={['character_master', 'profile_portrait', 'encounter_hero']}
           alt={`${short}, arte di rivelazione`}
           className="encounter__art"
         />
@@ -198,7 +292,7 @@ export function EncounterScreen({ variant }: { variant: 'first' | 'new' }) {
           <Sigil seed={mon.sigil} size={40} />
         </div>
 
-        <FaceGate monName={d.name} onDone={enterLive} />
+        <FaceGate monName={d.name} onDone={enterLive} onStep={setShowing} />
       </div>
     </div>
   );

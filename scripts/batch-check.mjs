@@ -606,22 +606,37 @@ check(
   'rifare una faccia usa lo STESSO prompt',
   'un prompt diverso sarebbe un altro personaggio, non un altro tentativo',
 );
+/* 🔶 L'ago cercava `replace: true` dentro la schermata. Adesso la
+   sovrascrittura la decide `forgeOne` nello store — la schermata chiede
+   l'asset e basta. La decisione e' la stessa: si sovrascrive SOLO su
+   richiesta, mai per conto proprio. */
 check(
-  encSrc.includes('replace: true'),
+  storeSrc.includes('{ only: [type], replace: true }'),
   'e «rifalla» e l’unica cosa che puo sovrascrivere un asset',
 );
 check(
   genSrc.includes('opts.replace || getAssetUrlSync'),
   'senza richiesta esplicita non si rigenera niente',
 );
+/* 🔶 Era: approvare il ritratto faceva partire le altre CINQUE in sottofondo,
+   senza vederle. Adesso approvare fa partire LA PROSSIMA, che poi guardi.
+   E' quello che e' stato chiesto — «me le fa vedere e le approvo man mano» —
+   ed e' anche la versione che non paga cinque immagini mai guardate. */
 check(
-  encSrc.includes('onClick={keep}') && encSrc.includes('generate(monName);'),
-  'approvare la faccia fa partire il resto',
+  encSrc.includes('setAt(i);') && encSrc.includes('void make(order[i]!);'),
+  'approvare una faccia fa partire la prossima, non tutte',
 );
 check(
-  encSrc.includes('{portrait ? t.face.keep : t.encounter.welcome}'),
+  encSrc.includes("t.face.enough"),
+  'e si puo smettere a meta senza doverle fare tutte',
+);
+/* 🔒 La decisione e' che il pulsante che porta dentro esista SEMPRE e non si
+   possa spegnere: senza chiave, col tetto pieno, o con una chiamata appesa. */
+check(
+  encSrc.includes('if (!shot || last)') &&
+    !encSrc.includes('variant="primary" block disabled={busy}'),
   'ma si entra comunque, anche senza immagine (§26)',
-  'senza chiave o col tetto pieno il pulsante deve restare',
+  'senza chiave o col tetto pieno il pulsante deve restare, e non deve spegnersi mentre aspetta',
 );
 
 check(

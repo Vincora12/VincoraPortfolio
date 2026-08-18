@@ -1031,20 +1031,38 @@ check(
 check(
   'ASSET §22.4',
   'qualcuno chiama davvero il generatore di immagini',
+  /* 🔶 L'ago guardava la chiamata dentro `hatch`. Quella non c'è più: le
+     immagini le chiede la schermata di nascita, una per una. La decisione che
+     protegge è sempre la stessa — `askImage` non deve tornare a essere una
+     funzione che non chiama nessuno — quindi adesso chiede che ci sia un
+     chiamante NEL PRODOTTO, non in quella riga lì. */
   has('src/assets-pipeline/generate.ts', 'askImage(') &&
-    has('src/state/store.ts', "generateAssetsFor(record.data.name, { only: ['profile_portrait'] })"),
+    has('src/screens/Encounter.tsx', 'forgeOne(monName, type)'),
 );
 check(
   'ASSET §22.4',
   'la nascita non aspetta le immagini',
-  has('src/state/store.ts', 'void import(\'../assets-pipeline/generate\')'),
+  /* 🔶 Adesso la nascita UNA immagine la aspetta — è quello che è stato
+     chiesto: «genera la prima, me la mostra, io approvo». Quello che non
+     cambia è che l'attesa non possa intrappolarti: il pulsante che porta
+     dentro non si disabilita mai, nemmeno mentre una chiamata è in volo. */
+  lacksInCode('src/screens/Encounter.tsx', 'variant="primary" block disabled={busy}'),
   'sei chiamate di rete davanti a una schermata vuota non sono una nascita',
 );
 check(
   'ASSET §22.4',
-  'il ritratto si chiede per primo',
+  'il ritratto si chiede prima degli altri quattro',
   has('src/assets-pipeline/generate.ts', "const first: AssetType[] = ['profile_portrait'"),
   'e l’unico che si vede subito: generarlo per ultimo vuol dire aspettare gli altri',
+);
+/* ⚠️ Ma nella sequenza di approvazione il MASTER lo precede, ed è una
+   contraddizione voluta fra due regole vere: «prima quello che si vede» vale
+   quando le immagini arrivano da sole, «prima quello che gli altri citano»
+   vale quando le approvi una per una. Vedi `forgeOrder`. */
+check(
+  'ASSET §22.4',
+  'ma nella sequenza approvata il master lo precede',
+  count('src/state/store.ts', /'character_master'[^\n]*\.concat\(\s*generationOrder\(\)/g) > 0,
 );
 check(
   'ASSET §22.4',
@@ -1274,6 +1292,48 @@ check(
   has(ROUTING_FILE, 'arrotondati PER ECCESSO') &&
     has('netlify/functions/_shared/spend.ts', 'arrotondati PER ECCESSO'),
   'il listino non era raggiungibile: un contatore che sottostima è peggio di uno che non c’è',
+);
+
+/* 🔷 «Non possiamo fare che quando nasce una creatura lui automaticamente
+   genera la prima immagine, me la mostra, io approvo e poi mi fa vedere le
+   altre e le approvo tutte man mano?» */
+check(
+  '§22.4 NASCITA',
+  'alla nascita si approvano tutte e sei, una per una',
+  has('src/screens/Encounter.tsx', 'forgeOne') &&
+    has('src/screens/Encounter.tsx', 't.face.step('),
+  'prima si approvava solo il ritratto e le altre cinque partivano in sottofondo: il controllo era su un sesto della spesa',
+);
+check(
+  '§22.4 NASCITA',
+  'la prima parte da sola, le altre quando approvi',
+  has('src/screens/Encounter.tsx', 'if (order.length > 0 && at === 0'),
+  '«genera e me la mostra», non «genera se glielo dici» — ma le successive si pagano solo dopo un sì',
+);
+check(
+  '§22.4 NASCITA',
+  'il palco mostra l’immagine che stai approvando',
+  has('src/screens/Encounter.tsx', 'type={showing ?? ') &&
+    has('src/screens/Encounter.tsx', 'onStep={setShowing}'),
+  'un palco che mostra una cosa mentre ne approvi un’altra è peggio di un palco vuoto',
+);
+check(
+  '§22.4 NASCITA',
+  'niente immagine ⇒ il pulsante entra, non avanza',
+  has('src/screens/Encounter.tsx', 'if (!shot || last)'),
+  'diceva ENTRA e faceva «avanti»: sei tocchi per uscire da una schermata che ti diceva di entrare',
+);
+check(
+  '§22.4 NASCITA',
+  'e si può sempre smettere a metà',
+  has('src/screens/Encounter.tsx', 't.face.enough'),
+  'sei immagini sono sei attese: nessuno deve arrivare in fondo per entrare in casa propria',
+);
+check(
+  '§22.4 NASCITA',
+  'nessuna immagine parte più fuori dalla sequenza',
+  lacksInCode('src/state/store.ts', "generateAssetsFor(record.data.name"),
+  'quella chiamata generava dal prompt CONCATENATO: il ritratto sarebbe stato l’unico dei sei mai approvato, e per giunta senza riferimento di consistenza',
 );
 
 /* 🔷 «Ora è tutto collegato ma genero e non vedo nulla.» */
