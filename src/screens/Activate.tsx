@@ -156,9 +156,14 @@ export function ActivateScreen({ onClose }: { onClose: () => void }) {
             Ti serve solo copiarlo su Netlify.
           </p>
           <Copyable value={secret} />
+          {/* 🔶 Diceva «in tutti i campi contesto», ed era una scorciatoia
+              pigra che faceva fare lavoro in più. Il sito è servito dal branch
+              di produzione: Production è l'unico contesto che conta. Deploy
+              Preview e Branch deploy servono alle anteprime delle pull
+              request, Local development a `netlify dev`. */}
           <p className="t-micro activate__note">
             Netlify → <em>Environment variables</em> → <code>VINZMON_TOKEN</code> →
-            incollalo in <strong>tutti</strong> i campi contesto → poi{' '}
+            incollalo nel campo <strong>Production</strong> → poi{' '}
             <em>Deploys → Trigger deploy</em>. Le variabili nuove entrano in
             vigore solo con una pubblicazione nuova.
           </p>

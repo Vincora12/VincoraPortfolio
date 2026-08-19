@@ -92,10 +92,12 @@ codice che gira sui server di Netlify, non più dall'interfaccia, dall'API o dal
 CLI. Il prezzo è che non potrai rileggerlo: il segreto salvalo anche altrove.
 
 *Values* — spuntando «segreta», Netlify **obbliga** a *Different value for each
-deploy context*. Non è un problema: compila **Production** e basta. Il sito è
-servito dal branch di produzione, quindi è quello il contesto che conta.
-*Deploy Previews* e *Branch deploys* servono alle anteprime delle pull request e
-possono restare vuoti.
+deploy context*. Non è un problema: **compila solo Production**, gli altri
+lasciali vuoti.
+
+Il sito è servito dal branch di produzione, quindi Production è l'unico contesto
+che conta. *Deploy Previews* e *Branch deploys* servono alle anteprime delle pull
+request; *Local development* serve solo se lanci `netlify dev` dal computer.
 
 **Poi ripubblica.** Le variabili nuove entrano in vigore solo con un deploy
 nuovo: *Deploys* → **Trigger deploy** → *Deploy site*. È l'errore più comune e
