@@ -577,6 +577,20 @@ interface AppState {
    */
   forgottenLessons: string[];
   /**
+   * 🔷 «Vorrei poter scaricare la memoria, sistemarla con ChatGPT e
+   *    ridargliela.»
+   *
+   * Il documento tuo, se ce n'è uno. `null` = si usa quello del pacchetto.
+   *
+   * 🔒 L'originale non viene mai toccato: sta nel codice e torna con un
+   * pulsante. Una modifica che non si può annullare non è una modifica.
+   */
+  customMemory: string | null;
+  /** Quando l'hai data, per sapere quale delle due copie è più recente. */
+  customMemoryAt: string | null;
+  /** Adotta un documento come memoria. Stringa vuota o `null` = torna all'originale. */
+  setMemory: (testo: string | null) => void;
+  /**
    * Gli parli, e se c'è qualcosa da imparare resta.
    *
    * 🔒 Salva da sé invece di chiedere conferma: la lezione è VISIBILE
@@ -591,6 +605,15 @@ interface AppState {
   ) => Promise<{ reply: string | null; failure: BackendFailure | null; detail?: string; ms: number | null }>;
   /** Toglie una lezione. Non c'è nessun altro modo di toglierla, di proposito. */
   forgetLesson: (id: string) => void;
+  /**
+   * Le toglie tutte.
+   *
+   * 🔒 Esiste per UN caso solo: hai scaricato il documento, le lezioni erano
+   * dentro (sezione 15), le hai fatte consolidare nel testo e l'hai ridato.
+   * A quel punto tenerle anche nell'elenco vuol dire dirle due volte — e due
+   * copie della stessa regola non si sommano, si fanno concorrenza.
+   */
+  forgetAllLessons: () => void;
 
   /* --- §21.4 LA STANZA --- */
   room: RoomPost[];
@@ -665,6 +688,8 @@ const INITIAL = {
      mestiere imparato non è la partita. */
   lessons: [] as Lesson[],
   forgottenLessons: [] as string[],
+  customMemory: null as string | null,
+  customMemoryAt: null as string | null,
 
   /* §21.3 — i .mon conservati. NON stanno in INITIAL per caso: `resetAll` li
      rimette a mano proprio perché devono sopravvivere a ricominciare. */
@@ -1862,6 +1887,7 @@ export const useApp = create<AppState>()(
           testo,
           s.lessons,
           detto,
+          s.customMemory,
           s.activeMonName,
           s.compilerModel,
         );
@@ -1887,7 +1913,23 @@ export const useApp = create<AppState>()(
              peggio di otto nette: al momento di risolvere una creatura,
              regole che dicono quasi la stessa cosa non si sommano — si fanno
              concorrenza. */
-          const sostituite = replaces.filter((id) => s.lessons.some((l) => l.id === id));
+          /* ⚠️ AL MASSIMO UNA, E IL LIMITE STA NEL CODICE.
+
+             🔷 «Io adesso ne vedo sempre solo una: se ne metto un'altra si
+                cancella quella di prima.»
+
+             Era colpa mia. Avevo scritto al modello «usalo» a proposito della
+             sostituzione, e un modello trova che quasi tutto «tocca» qualcosa
+             che ha già: bastava una frase nuova per far sparire quella prima.
+
+             🔒 La regola nel prompt adesso dice il contrario, ma una regola
+             scritta a un modello è una richiesta, non una garanzia. Il tetto
+             qui è la garanzia: una lezione può mandarne in pensione UNA, mai
+             di più. Il consolidamento vero non si fa a colpi di chat — si fa
+             scaricando il documento, sistemandolo, e ridandoglielo. */
+          const sostituite = replaces
+            .filter((id) => s.lessons.some((l) => l.id === id))
+            .slice(0, 1);
           set((cur) => ({
             lessons: [...cur.lessons.filter((l) => !sostituite.includes(l.id)), nuova],
             /* Le vecchie diventano pietre tombali come una cancellazione a
@@ -1903,6 +1945,15 @@ export const useApp = create<AppState>()(
         return { reply, failure, detail, ms };
       },
 
+      setMemory: (testo) => {
+        const pulito = testo?.trim() ?? '';
+        set({
+          customMemory: pulito.length > 0 ? pulito : null,
+          customMemoryAt: new Date().toISOString(),
+        });
+        void pushLessons();
+      },
+
       forgetLesson: (id) => {
         set((cur) => ({
           lessons: cur.lessons.filter((l) => l.id !== id),
@@ -1913,6 +1964,16 @@ export const useApp = create<AppState>()(
         }));
         void pushLessons();
       },
+
+      forgetAllLessons: () =>
+        set((cur) => {
+          const ids = cur.lessons.map((l) => l.id);
+          void Promise.resolve().then(pushLessons);
+          return {
+            lessons: [],
+            forgottenLessons: [...new Set([...cur.forgottenLessons, ...ids])],
+          };
+        }),
 
       resolveWithAi: async (monName) => {
         const s = get();
@@ -1926,6 +1987,8 @@ export const useApp = create<AppState>()(
           /* 🔒 Quello che gli hai insegnato entra QUI, non solo nella chat:
              una lezione che vale solo mentre gliela dici non è una lezione. */
           s.lessons,
+          /* E il documento tuo, se gliene hai dato uno. */
+          s.customMemory,
           s.compilerModel,
         );
         if (!resolution) return { problems, repaired, ms, usedLessons };
@@ -2421,6 +2484,9 @@ export const useApp = create<AppState>()(
              apparteneva a nessuna delle creature buttate via. */
           lessons: get().lessons,
           forgottenLessons: get().forgottenLessons,
+          /* Come le lezioni: il mestiere non è la partita. */
+          customMemory: get().customMemory,
+          customMemoryAt: get().customMemoryAt,
         }),
     }),
     {
@@ -2680,6 +2746,10 @@ function snapshotFor(state: AppState): unknown {
        quel giorno — cancellando tutto quello che hai insegnato dopo. */
     lessons: _lessons,
     forgottenLessons: _forgotten,
+    /* Stessa ragione: ha una chiave sua, e due sorgenti di verità per la
+       stessa cosa vuol dire perderla nel momento peggiore. */
+    customMemory: _memoria,
+    customMemoryAt: _memoriaAt,
     ...rest
   } = state as AppState & Record<string, unknown>;
   return rest;
@@ -2742,6 +2812,8 @@ export async function pushLessons(): Promise<void> {
   const { data, failure } = await syncLessons(s.token, {
     lessons: s.lessons,
     forgotten: s.forgottenLessons,
+    memory: s.customMemory,
+    memoryAt: s.customMemoryAt,
   });
 
   if (failure || !data) {
@@ -2751,7 +2823,12 @@ export async function pushLessons(): Promise<void> {
     console.warn('[lezioni] non sincronizzate:', failure);
     return;
   }
-  useApp.setState({ lessons: data.lessons, forgottenLessons: data.forgotten });
+  useApp.setState({
+    lessons: data.lessons,
+    forgottenLessons: data.forgotten,
+    customMemory: data.memory ?? null,
+    customMemoryAt: data.memoryAt ?? null,
+  });
 }
 
 /**

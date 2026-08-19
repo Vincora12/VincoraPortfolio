@@ -453,6 +453,22 @@ check(
   'a parità di id vince la copia in arrivo: è l’unica dove il testo può essere stato corretto',
 );
 
+/* Il documento non si fonde: fra due vince il più recente. Unire due versioni
+   di un testo non dà un testo, dà un pasticcio. */
+const conDoc = (memory, memoryAt) => ({ lessons: [], forgotten: [], memory, memoryAt, savedAt: null });
+
+check(
+  m.mergeLessons(conDoc('vecchio', '2026-01-01'), conDoc('nuovo', '2026-08-01')).memory === 'nuovo',
+  'fra due documenti vince il più recente, in tutti e due i sensi',
+  m.mergeLessons(conDoc('nuovo', '2026-08-01'), conDoc('vecchio', '2026-01-01')).memory === 'nuovo'
+    ? 'anche invertendo'
+    : 'MA NON INVERTENDO',
+);
+check(
+  m.mergeLessons(conDoc('mio', '2026-08-01'), conDoc(null, null)).memory === 'mio',
+  'e un telefono che non ne ha uno non cancella quello dell’altro',
+);
+
 console.log(
   failures === 0 ? '\n✓ Backend conforme.\n' : `\n✗ ${failures} controlli falliti.\n`,
 );

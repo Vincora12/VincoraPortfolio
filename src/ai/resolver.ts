@@ -115,6 +115,8 @@ export async function resolveWithAi(
    * può provare senza montare mezza app.
    */
   lessons: readonly Lesson[] = [],
+  /** Il documento suo, se gliene ha dato uno al posto di quello del pacchetto. */
+  custom?: string | null,
   compilerModel?: string | null,
 ): Promise<ResolveOutcome> {
   const input = characterDataFor(record);
@@ -138,7 +140,7 @@ export async function resolveWithAi(
     capability: 'prompt-compile',
     voiceModel: compilerModel,
     system: [
-      { text: resolverMemoryWith(lessons), cache: true },
+      { text: resolverMemoryWith(lessons, custom), cache: true },
       /* ⚠️ LE LEZIONI, RIPETUTE QUI E IN FORMA DI ORDINE.
 
          🔷 «Gli ho messo la lezione, ma se faccio generare il prompt non

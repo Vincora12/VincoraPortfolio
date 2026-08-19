@@ -63,7 +63,11 @@ A lesson must NEVER:
 
 It may: change proportion habits, silhouette priorities, eyewear or hair logic, colour hierarchy, detail budgeting, what counts as failure, and how strictly to apply an existing rule.
 
-REPLACES — the ids of lessons you already have that this new one supersedes, refines or contradicts. Use it. A list of twenty overlapping rules is worse than eight sharp ones: when he tells you something that touches a lesson you already hold, write ONE better line that covers both and list the old id here, instead of stacking a near-duplicate. Leave it empty only when the new lesson genuinely stands alone.`;
+REPLACES — almost always an empty list. Default to KEEPING what you already have.
+
+Use it only when the new lesson makes an existing one WRONG: it contradicts it outright, or restates the same rule about the same thing so that holding both would be holding a duplicate. Two lessons about different aspects of design — one about eyewear and one about hands — are not duplicates even if both are about proportion. Two lessons about the same aspect from different angles are not duplicates either: they add up.
+
+NEVER list more than one id. If you believe several lessons should merge into one, do not do it here — say so in your reply and let Vinz decide. Silently deleting things he taught you is the worst thing you can do in this conversation: he cannot see what disappeared, and he will keep teaching you the same thing forever.`;
 
 /**
  * L'elenco che ha già, con gli id, per poter dire «questa sostituisce quella».
@@ -99,6 +103,8 @@ export async function teachResolver(
   lessons: readonly Lesson[],
   /** Quello che vi siete detti finora, dal più vecchio al più recente. */
   detto: readonly { mio: boolean; testo: string }[],
+  /** Il documento suo, se gliene ha dato uno. */
+  custom: string | null,
   about: string | null,
   compilerModel?: string | null,
 ): Promise<TeachOutcome> {
@@ -111,7 +117,7 @@ export async function teachResolver(
        dopo, in un blocco non marcato, perché non sono il pezzo che si ripete
        di più. */
     system: [
-      { text: resolverMemoryWith(lessons), cache: true },
+      { text: resolverMemoryWith(lessons, custom), cache: true },
       { text: TEACHER },
       { text: elenco(lessons) },
     ],

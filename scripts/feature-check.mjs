@@ -1483,7 +1483,7 @@ check(
   /* 🔶 Cercava l'array intero su una riga. Da quando accanto alla memoria c'è
      il blocco dei vincoli, l'array ha due elementi — ma la decisione è sempre
      quella: la memoria è il PRIMO blocco ed è marcata per la cache. */
-  has('src/ai/resolver.ts', '{ text: resolverMemoryWith(lessons), cache: true },') &&
+  has('src/ai/resolver.ts', 'resolverMemoryWith(lessons, custom), cache: true') &&
     has('src/ai/teach.ts', 'cache: true'),
   'un prefisso costante e primo è la condizione perché la cache agganci: in coda costerebbe pieno per sempre',
 );
@@ -1565,14 +1565,17 @@ check(
 check(
   '§10 DUE STADI',
   'e finisce davvero nella risoluzione, non solo nella chat',
-  has('src/ai/resolver.ts', 'resolverMemoryWith(lessons)') &&
+  has('src/ai/resolver.ts', 'resolverMemoryWith(lessons, custom)') &&
     has('src/state/store.ts', 's.lessons,'),
   'una lezione che vale solo mentre gliela dici non è una lezione',
 );
 check(
   '§10 DUE STADI',
   'le lezioni stanno in CODA al documento, mai prima',
-  has('src/assets-pipeline/resolver/memory.ts', 'return `${RESOLVER_MEMORY}'),
+  /* 🔶 Cercava il nome della costante. Da quando il documento si può
+     sostituire, la base è `base` — ma la decisione è identica: le lezioni si
+     accodano a quello che c'era, non gli si mettono davanti. */
+  has('src/assets-pipeline/resolver/memory.ts', 'return `${base}'),
   'il fornitore mette in cache un prefisso: mettendo davanti una parte che cambia a ogni lezione, la cache non aggancerebbe mai — stesso codice, dieci volte il prezzo, nessun errore',
 );
 check(
@@ -1611,6 +1614,54 @@ check(
   'nel prompt finale la lezione non comparirà mai per costruzione: cercarla lì è cercarla nell’unico posto dove abbiamo stabilito che non ci sarà',
 );
 
+/* 🔷 «Io adesso ne vedo sempre solo una: se ne metto un'altra si cancella
+   quella di prima.» — era colpa mia: avevo scritto al modello «usalo» a
+   proposito della sostituzione, e un modello trova che quasi tutto «tocca»
+   qualcosa che ha già. */
+check(
+  '§10 DUE STADI',
+  'una lezione può mandarne in pensione al massimo UNA, e il tetto è nel codice',
+  has('src/state/store.ts', '.slice(0, 1);') &&
+    has('src/ai/teach.ts', 'NEVER list more than one id'),
+  'una regola scritta a un modello è una richiesta, non una garanzia: la garanzia è il tetto',
+);
+
+/* 🔷 «Vorrei poter scaricare tutta la sua memoria come un documento, lavorarci
+   con ChatGPT, risistemarla e ridargliela senza dover passare da te.» */
+check(
+  '§10 DUE STADI',
+  'la memoria si scarica come documento e si può ridare',
+  has('src/assets-pipeline/resolver/memoryFile.ts', 'export function memoryDocument') &&
+    has('src/dev/MemoryView.tsx', 'DA ADESSO È QUESTA LA SUA MEMORIA'),
+  'finché la memoria è una costante nel codice, cambiarla vuol dire cambiare il codice e aspettare un deploy',
+);
+check(
+  '§10 DUE STADI',
+  'e quello che scarichi è il testo esatto che riceve, non un export addolcito',
+  has('src/dev/MemoryView.tsx', 'memoryDocument(testo)'),
+  'lavoreresti su una cosa e ne consegneresti un’altra, e nessuno se ne accorgerebbe finché le creature non vengono storte',
+);
+check(
+  '§10 DUE STADI',
+  'l’originale del pacchetto non si perde mai',
+  has('src/assets-pipeline/resolver/memory.ts', 'export function baseMemory') &&
+    has('src/dev/MemoryView.tsx', 'TORNA A QUELLA ORIGINALE'),
+  'una modifica che non si può annullare non è una modifica, e questo è il documento su cui poggia tutto il disegno',
+);
+check(
+  '§10 DUE STADI',
+  'e il documento non si fonde come le lezioni: fra due vince il più recente',
+  has('netlify/functions/lessons.ts', 'const piuRecente ='),
+  'unire due versioni di un testo non dà un testo, dà un pasticcio',
+);
+check(
+  '§10 DUE STADI',
+  'dopo averlo ridato si possono svuotare le lezioni, ma lo decidi tu',
+  has('src/state/store.ts', 'forgetAllLessons') &&
+    has('src/dev/MemoryView.tsx', 'SONO GIÀ DENTRO: SVUOTA LE LEZIONI'),
+  'non ho modo di sapere se le hai consolidate o se hai corretto una virgola: cancellare da sé quello che ti sei preso la briga di insegnare sarebbe il peggior automatismo dell’app',
+);
+
 /* 🔷 «Rendimi nell'app ben visibile tutta la sua memoria.» */
 check(
   '§10 DUE STADI',
@@ -1639,7 +1690,7 @@ check(
   '§10 DUE STADI',
   'e le regole si UNISCONO invece di impilarsi',
   has('src/ai/teach.ts', 'REPLACES') &&
-    has('src/state/store.ts', 'const sostituite = replaces.filter'),
+    has('src/state/store.ts', 'const sostituite = replaces'),
   'venti regole che si sovrappongono sono peggio di otto nette: al momento di risolvere non si sommano, si fanno concorrenza',
 );
 check(

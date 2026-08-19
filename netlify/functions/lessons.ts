@@ -43,6 +43,9 @@ const KEY = 'lessons';
 
 /** Una lezione è una riga. Mille righe sono già una vita di lavoro. */
 const MAX_LESSONS = 1000;
+/* Il documento sta dentro lo stesso tetto: il pacchetto ne pesa 17 kB, e mezzo
+   mega lascia spazio a una versione molto più ricca senza aprire la porta a un
+   file caricato per sbaglio. */
 const MAX_BYTES = 512 * 1024;
 
 interface Lesson {
@@ -57,10 +60,23 @@ interface Book {
   lessons: Lesson[];
   /** Gli id dimenticati. Restano per sempre: sono la memoria della rimozione. */
   forgotten: string[];
+  /**
+   * 🔷 «Vorrei scaricarla, sistemarla con ChatGPT e ridargliela.»
+   *
+   * Il documento sostituito, se ce n'è uno. `null` = quello del pacchetto.
+   *
+   * ⚠️ NON si fonde come le lezioni, e non sarebbe nemmeno pensabile: unire
+   * due versioni di un testo non dà un testo, dà un pasticcio. Fra due
+   * documenti vince il più RECENTE, ed è la regola giusta perché un documento
+   * lo riscrivi tutto in una volta, mentre le lezioni si aggiungono una alla
+   * volta.
+   */
+  memory?: string | null;
+  memoryAt?: string | null;
   savedAt: string | null;
 }
 
-const VUOTO: Book = { lessons: [], forgotten: [], savedAt: null };
+const VUOTO: Book = { lessons: [], forgotten: [], memory: null, memoryAt: null, savedAt: null };
 
 const store = () => getStore('vinzmon-state');
 
@@ -82,7 +98,17 @@ export function merge(a: Book, b: Book): Book {
     .filter((l) => !forgotten.includes(l.id))
     .sort((x, y) => x.at.localeCompare(y.at));
 
-  return { lessons, forgotten, savedAt: new Date().toISOString() };
+  /* Il più recente dei due, e in mancanza di data quello che ce l'ha. */
+  const piuRecente =
+    (b.memoryAt ?? '') > (a.memoryAt ?? '') ? b : a;
+
+  return {
+    lessons,
+    forgotten,
+    memory: piuRecente.memory ?? null,
+    memoryAt: piuRecente.memoryAt ?? null,
+    savedAt: new Date().toISOString(),
+  };
 }
 
 export default async function handler(request: Request): Promise<Response> {

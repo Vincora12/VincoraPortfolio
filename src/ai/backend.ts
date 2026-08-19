@@ -491,6 +491,9 @@ export interface LessonBook {
   lessons: Lesson[];
   /** Gli id dimenticati: senza, una cancellazione tornerebbe indietro. */
   forgotten: string[];
+  /** Il documento sostituito, se ce n'è uno. Fra due vince il più recente. */
+  memory?: string | null;
+  memoryAt?: string | null;
   savedAt: string | null;
 }
 
@@ -500,7 +503,7 @@ export function loadLessons(token: string | null): Promise<BackendResult<LessonB
 
 export function syncLessons(
   token: string | null,
-  book: { lessons: Lesson[]; forgotten: string[] },
+  book: { lessons: Lesson[]; forgotten: string[]; memory: string | null; memoryAt: string | null },
 ): Promise<BackendResult<LessonBook>> {
   return post<LessonBook>('/api/lessons', token, { ...book, savedAt: null }, 'PUT');
 }

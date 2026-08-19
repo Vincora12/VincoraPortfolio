@@ -264,14 +264,41 @@ export const MEMORY_FINGERPRINTS = [
    ========================================================================= */
 
 
-export function resolverMemoryWith(lessons: readonly Lesson[]): string {
-  if (lessons.length === 0) return RESOLVER_MEMORY;
+/* ============================================================================
+   LA MEMORIA SI PUÒ SOSTITUIRE, E RESTA UN FILE DELL'APP
+
+   🔷 «Vorrei poter scaricare tutta la sua memoria come un documento, lavorarci
+      con ChatGPT, risistemarla e ridargliela senza dover passare da te.»
+
+   ⚠️ FINCHÉ LA MEMORIA È UNA COSTANTE NEL CODICE, cambiarla vuol dire
+   cambiare il codice — cioè passare da me, aspettare un deploy, e non poterla
+   toccare mentre lavori. Da adesso il documento del pacchetto è il PUNTO DI
+   PARTENZA, non l'unica versione possibile: se ce n'è una tua, comanda quella.
+
+   🔒 L'originale non si perde MAI. Non viene sovrascritto né cancellato: resta
+   qui, nel codice, ed è sempre a un tocco di distanza. Una modifica che non si
+   può annullare non è una modifica, è un salto nel vuoto — e questo è il
+   documento su cui poggia tutto il disegno.
+   ========================================================================= */
+
+/** Il documento in vigore: il tuo se ce n'è uno, altrimenti quello originale. */
+export function baseMemory(custom?: string | null): string {
+  const t = custom?.trim();
+  return t && t.length > 0 ? t : RESOLVER_MEMORY;
+}
+
+export function resolverMemoryWith(
+  lessons: readonly Lesson[],
+  custom?: string | null,
+): string {
+  const base = baseMemory(custom);
+  if (lessons.length === 0) return base;
 
   const righe = lessons
     .map((l, i) => `L${i + 1}. ${l.text}`)
     .join('\n');
 
-  return `${RESOLVER_MEMORY}
+  return `${base}
 
 15. Lessons taught directly by Vinz
 These were added by Vinz after the document above, during real use. They are
