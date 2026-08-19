@@ -807,3 +807,41 @@
 .dev__lesson > .btn {
   align-self: flex-start;
 }
+
+/* --- La memoria del resolver, per sezioni ----------------------------------
+   🔷 «Rendimi ben visibile tutta la sua memoria.»
+
+   🔒 Chiuse ma tutte elencate: diciassettemila caratteri aperti sono una
+   parete che non si legge, quindici titoli si scorrono in due secondi.
+   -------------------------------------------------------------------------- */
+
+.dev__memsection {
+  border-bottom: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+}
+
+.dev__memsection > summary {
+  padding: var(--u3) 0;
+  cursor: pointer;
+  list-style: none;
+}
+
+.dev__memsection > summary::before {
+  content: '+ ';
+  opacity: 0.5;
+}
+
+.dev__memsection[open] > summary::before {
+  content: '– ';
+}
+
+.dev__memsection > summary::-webkit-details-marker {
+  display: none;
+}
+
+.dev__memory {
+  white-space: pre-wrap;
+  max-height: 50vh;
+  overflow-y: auto;
+  font-size: 11px;
+  line-height: 1.5;
+}

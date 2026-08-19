@@ -22,6 +22,8 @@ import { useState } from 'react';
 import { useApp } from '../state/store';
 import { Button, SystemLabel } from '../system/components';
 import { useElapsed, waitingText } from './useElapsed';
+import { MemoryView } from './MemoryView';
+import { resolverMemoryWith } from '../assets-pipeline/resolver/memory';
 
 interface Turno {
   id: string;
@@ -44,6 +46,9 @@ export function TeachSection() {
      imparato» sono due cose diverse, e la seconda è quella che stai cercando. */
   const [nota, setNota] = useState<string | null>(null);
   const waiting = useElapsed(busy);
+  /* 🔒 La STESSA funzione che compone il testo per il modello. Non una copia:
+     così non può esistere uno scarto fra quello che leggi e quello che sa. */
+  const memoria = resolverMemoryWith(lessons);
 
   const manda = async () => {
     const testo = bozza.trim();
@@ -173,6 +178,17 @@ export function TeachSection() {
           </ul>
         </>
       )}
+
+      {/* ════════════════════════════════════════════════════════════════════
+          🔷 «Rendimi nell'app ben visibile tutta la sua memoria.»
+
+          🔒 STA IN FONDO, e non è nasconderla: sopra c'è quello che FAI —
+          parlargli, e vedere cosa ha imparato — qui c'è quello che SA. Chi
+          apre questa scheda per insegnare qualcosa non deve scorrere
+          diciassettemila caratteri per arrivare alla casella di testo.
+          ════════════════════════════════════════════════════════════════ */}
+      <p className="t-meta dev__label">LA SUA MEMORIA, TUTTA</p>
+      <MemoryView testo={memoria} />
     </div>
   );
 }

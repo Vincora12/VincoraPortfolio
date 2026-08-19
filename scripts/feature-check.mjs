@@ -1579,6 +1579,21 @@ check(
     has('src/engine/types.ts', 'said: string;'),
   'se un giorno la riga tradotta risulta storta, il verbale è l’unico modo di sapere cosa intendevi',
 );
+/* 🔷 «Rendimi nell'app ben visibile tutta la sua memoria.» */
+check(
+  '§10 DUE STADI',
+  'la memoria si legge dentro l’app, tutta e per sezioni',
+  has('src/dev/MemoryView.tsx', 'export function MemoryView') &&
+    has('src/dev/TeachSection.tsx', '<MemoryView testo={memoria} />'),
+  'quindici titoli si scorrono in due secondi; diciassettemila caratteri aperti sono una parete che non si legge',
+);
+check(
+  '§10 DUE STADI',
+  'ed è il testo esatto che riceve, non un riassunto',
+  has('src/dev/TeachSection.tsx', 'const memoria = resolverMemoryWith(lessons)'),
+  'un riassunto mio letto al posto del suo è uno scarto che non si può più notare',
+);
+
 /* 🔷 «Deve capitare proprio come nella chat di ChatGPT: io parlo con lui, lui
    assegna delle informazioni e le mette insieme.» */
 check(
