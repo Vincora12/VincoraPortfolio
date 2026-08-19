@@ -35,6 +35,16 @@ export function ResolverSection() {
 
   const [busy, setBusy] = useState<string | null>(null);
   const waiting = useElapsed(busy !== null);
+  /* ⚠️ DUE NUMERI, NON UNO — 🔷 «Potrebbe essere anche che in quei secondi è
+     contato altro.»
+
+     Il totale è quello che vedi tu: parte quando premi. La chiamata è quello
+     che conta per la piattaforma. Fra i due ci stanno il caricamento del
+     codice, sedicimila caratteri di prompt da costruire, e alla fine il
+     salvataggio. Da un numero solo avevo dedotto una cosa sbagliata; con due
+     non c'è più niente da dedurre. */
+  const [lastMs, setLastMs] = useState<number | null>(null);
+  const [lastTotal, setLastTotal] = useState<number | null>(null);
   const [problems, setProblems] = useState<string[] | null>(null);
   const [repaired, setRepaired] = useState<string[]>([]);
   const [showManual, setShowManual] = useState(false);
@@ -52,10 +62,16 @@ export function ResolverSection() {
   const resolution = mon.resolution ?? null;
   const compiled = resolution ? compilePrompt(prepared.input, resolution) : null;
 
-  const run = async (label: string, job: () => Promise<{ problems: string[]; repaired: string[] }>) => {
+  const run = async (
+    label: string,
+    job: () => Promise<{ problems: string[]; repaired: string[]; ms?: number | null }>,
+  ) => {
     setBusy(label);
     setProblems(null);
+    const from = Date.now();
     const out = await job();
+    setLastTotal(Date.now() - from);
+    setLastMs(out.ms ?? null);
     setBusy(null);
     setProblems(out.problems);
     setRepaired(out.repaired);
@@ -140,6 +156,21 @@ export function ResolverSection() {
       )}
 
       {busy && <p className="t-small dev__note">{waitingText(busy, waiting)}</p>}
+
+      {/* 🔒 Resta a schermo DOPO, riuscita o no: è il numero che serve per
+          decidere se il problema è la piattaforma o la nostra app, e serve
+          quando la si guarda con calma, non solo mentre gira. */}
+      {!busy && lastTotal !== null && (
+        <p className="t-micro dev__note">
+          ultimo giro: <strong>{(lastTotal / 1000).toFixed(1)}s</strong> in tutto
+          {lastMs !== null && (
+            <>
+              , di cui <strong>{(lastMs / 1000).toFixed(1)}s</strong> di chiamata
+            </>
+          )}
+          . La differenza è codice, prompt e salvataggio — non la funzione.
+        </p>
+      )}
 
       {repaired.length > 0 && (
         <p className="t-micro dev__note">

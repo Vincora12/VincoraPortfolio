@@ -1972,6 +1972,18 @@ check(
     has('src/ai/backend.ts', 'detail: after(startedAt)'),
   'la soglia la posso sbagliare — l’ho fatto — i secondi trascorsi no',
 );
+/* 🔷 «Potrebbe essere anche che in quei secondi è contato altro.» — ed era
+   l'obiezione giusta contro una mia deduzione fatta in fretta: da un totale
+   che comprende caricamento del codice, costruzione del prompt e salvataggio
+   non si conclude niente sulla funzione. */
+check(
+  '§19.5 ATTIVAZIONE',
+  'il tempo della chiamata si misura separato da quello del pulsante',
+  has('src/ai/backend.ts', 'ms: Date.now() - startedAt') &&
+    has('src/dev/ResolverSection.tsx', 'di cui') &&
+    has('src/dev/ResolverSection.tsx', 'lastTotal'),
+  'da un numero solo si deducono cose sbagliate; con due non c’è più niente da dedurre',
+);
 check(
   '§19.5 ATTIVAZIONE',
   'e nessuna schermata annuncia un tetto che non ho verificato su questo sito',

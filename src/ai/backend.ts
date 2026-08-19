@@ -109,6 +109,23 @@ export interface BackendResult<T> {
   warning?: boolean;
   /** Quanto resta del tetto, in dollari. Presente quando il server lo manda. */
   remainingUsd?: number;
+  /**
+   * ⚠️ QUANTO È DURATA LA CHIAMATA. Solo la chiamata.
+   *
+   * 🔷 «Potrebbe essere anche che in quei secondi è contato altro.» — ed era
+   * l'obiezione giusta, contro una mia deduzione fatta troppo in fretta.
+   *
+   * Il contatore dell'interfaccia parte quando premi il pulsante, e fino alla
+   * risposta ci stanno dentro anche: il caricamento del pezzo di codice che
+   * serve (una richiesta di rete a sé, la prima volta), la costruzione di un
+   * prompt da sedicimila caratteri, e dopo la lettura del JSON, il
+   * salvataggio e il ridisegno. Da diciassette secondi TOTALI non si può
+   * concludere niente su quanto ha lavorato la funzione.
+   *
+   * 🔒 Questo numero misura una cosa sola: dalla `fetch` alla risposta. È
+   * l'unico che si può confrontare col tetto della piattaforma.
+   */
+  ms?: number;
 }
 
 export interface VoiceData {
@@ -219,10 +236,16 @@ async function post<T>(
     });
   } catch {
     // Niente rete, le funzioni non esistono (sviluppo locale)… oppure il muro.
-    return { data: null, failure: wall() ? 'timeout' : 'offline', detail: after(startedAt) };
+    return {
+      data: null,
+      failure: wall() ? 'timeout' : 'offline',
+      detail: after(startedAt),
+      ms: Date.now() - startedAt,
+    };
   }
 
-  if (response.status === 401) return { data: null, failure: 'unauthorized' };
+  if (response.status === 401)
+    return { data: null, failure: 'unauthorized', ms: Date.now() - startedAt };
 
   if (response.status === 402) {
     /* Il tetto. Si legge il corpo per sapere quanto è stato speso: è
@@ -230,7 +253,13 @@ async function post<T>(
     const body = await response.json().catch(() => null) as { spentUsd?: number } | null;
     noteBudget(true, 0);
     console.warn('[backend] tetto mensile raggiunto', body?.spentUsd);
-    return { data: null, failure: 'capped', warning: true, remainingUsd: 0 };
+    return {
+      data: null,
+      failure: 'capped',
+      warning: true,
+      remainingUsd: 0,
+      ms: Date.now() - startedAt,
+    };
   }
 
   /* In sviluppo locale `/api/ai` restituisce l'HTML della pagina con un 200
@@ -250,6 +279,7 @@ async function post<T>(
       data: null,
       failure: killed ? 'timeout' : 'offline',
       detail: `${after(startedAt)} · HTTP ${response.status}`,
+      ms: Date.now() - startedAt,
     };
   }
 
@@ -264,7 +294,7 @@ async function post<T>(
        diversi, un messaggio solo. */
     const reason = (payload as { reason?: string } | null)?.reason;
     console.warn('[backend] risposta non utilizzabile', response.status, reason ?? '');
-    return { data: null, failure: 'error', detail: reason };
+    return { data: null, failure: 'error', detail: reason, ms: Date.now() - startedAt };
   }
 
   noteBudget(payload.warning, payload.remainingUsd);
@@ -274,6 +304,7 @@ async function post<T>(
     failure: null,
     warning: payload.warning,
     remainingUsd: payload.remainingUsd,
+    ms: Date.now() - startedAt,
   };
 }
 

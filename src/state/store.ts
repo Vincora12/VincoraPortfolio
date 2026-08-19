@@ -482,7 +482,9 @@ interface AppState {
    * 🔷 «Proviamo con un'API.» Il primo stadio chiesto a un modello, invece che
    * copiato a mano. Torna i problemi, vuoti se è andata.
    */
-  resolveWithAi: (monName: string) => Promise<{ problems: string[]; repaired: string[] }>;
+  resolveWithAi: (
+    monName: string,
+  ) => Promise<{ problems: string[]; repaired: string[]; ms?: number | null }>;
   /**
    * 🔷 «Adesso mi aspetto che tutto vada con un solo click.»
    *
@@ -1813,12 +1815,12 @@ export const useApp = create<AppState>()(
         if (!rec) return { problems: ['nessuna creatura con questo nome'], repaired: [] };
 
         const { resolveWithAi } = await import('../ai/resolver');
-        const { resolution, problems, repaired } = await resolveWithAi(
+        const { resolution, problems, repaired, ms } = await resolveWithAi(
           s.token,
           rec,
           s.compilerModel,
         );
-        if (!resolution) return { problems, repaired };
+        if (!resolution) return { problems, repaired, ms };
 
         set((cur) => {
           const now = cur.mons[monName];
@@ -1832,7 +1834,7 @@ export const useApp = create<AppState>()(
             },
           };
         });
-        return { problems: [], repaired };
+        return { problems: [], repaired, ms };
       },
 
       clearResolution: (monName) =>

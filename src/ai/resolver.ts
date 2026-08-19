@@ -42,6 +42,14 @@ export interface ResolveOutcome {
   problems: string[];
   /** Cosa è stato aggiustato per leggerla. */
   repaired: string[];
+  /**
+   * Quanto ha impiegato LA CHIAMATA, in millisecondi.
+   *
+   * 🔒 Non è il tempo che vedi sul pulsante: quello comprende il caricamento
+   * del codice, la costruzione del prompt e il salvataggio. Questo è il solo
+   * numero confrontabile col tetto della piattaforma.
+   */
+  ms: number | null;
 }
 
 export async function resolveWithAi(
@@ -57,7 +65,7 @@ export async function resolveWithAi(
      modificarlo, e il testo che gira dev'essere identico a quello che si
      copia a mano — altrimenti i due percorsi danno risultati diversi e non si
      capisce più quale sia il metodo che stiamo giudicando. */
-  const { data, failure, detail } = await ask<{ text: string }>(token, {
+  const { data, failure, detail, ms } = await ask<{ text: string }>(token, {
     capability: 'prompt-compile',
     voiceModel: compilerModel,
     user: buildCreativeResolverPrompt(input, numeric),
@@ -84,9 +92,10 @@ export async function resolveWithAi(
       failure,
       problems: [detail ?? (failure ? `chiamata fallita (${failure})` : 'nessuna risposta')],
       repaired: [],
+      ms: ms ?? null,
     };
   }
 
   const { resolution, problems, repaired } = parseResolution(data.text);
-  return { resolution, failure: null, problems, repaired };
+  return { resolution, failure: null, problems, repaired, ms: ms ?? null };
 }
