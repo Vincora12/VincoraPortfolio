@@ -1579,6 +1579,35 @@ check(
     has('src/engine/types.ts', 'said: string;'),
   'se un giorno la riga tradotta risulta storta, il verbale è l’unico modo di sapere cosa intendevi',
 );
+/* 🔷 «Deve capitare proprio come nella chat di ChatGPT: io parlo con lui, lui
+   assegna delle informazioni e le mette insieme.» */
+check(
+  '§10 DUE STADI',
+  'il discorso continua: si ricorda cosa gli hai detto due messaggi fa',
+  has('src/ai/teach.ts', 'turns: detto.map(') &&
+    has('src/dev/TeachSection.tsx', 'turni.map((t) => ({ mio: t.mio, testo: t.testo }))'),
+  'senza, «no, intendevo il contrario» è una frase senza niente a cui riferirsi: non è una chat, sono biglietti staccati',
+);
+check(
+  '§10 DUE STADI',
+  'e le regole si UNISCONO invece di impilarsi',
+  has('src/ai/teach.ts', 'REPLACES') &&
+    has('src/state/store.ts', 'const sostituite = replaces.filter'),
+  'venti regole che si sovrappongono sono peggio di otto nette: al momento di risolvere non si sommano, si fanno concorrenza',
+);
+check(
+  '§10 DUE STADI',
+  'ma sostituire senza mettere niente al posto sarebbe cancellare',
+  has('src/ai/teach.ts', 'replaces: lesson ? replaces : []'),
+  'se non c’è una lezione nuova, le vecchie restano dove sono',
+);
+check(
+  '§10 DUE STADI',
+  'e «ha imparato» si giudica da cosa è cambiato, non da quante sono',
+  has('src/dev/TeachSection.tsx', 'const primaIds = lessons.map((l) => l.id)'),
+  'una lezione che ne sostituisce una vecchia lascia il conteggio identico: contare direbbe «niente di nuovo» proprio nel caso migliore',
+);
+
 check(
   '§10 DUE STADI',
   'si impara solo quando c’è qualcosa da imparare',

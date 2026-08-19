@@ -578,7 +578,11 @@ interface AppState {
    * prima aggiungerebbe un passo per proteggere da una cosa già reversibile.
    * E quello che hai detto tu resta accanto, parola per parola.
    */
-  teachResolver: (said: string) => Promise<{ reply: string | null; failure: BackendFailure | null; detail?: string; ms: number | null }>;
+  teachResolver: (
+    said: string,
+    /** Quello che vi siete già detti in questa schermata. */
+    detto: readonly { mio: boolean; testo: string }[],
+  ) => Promise<{ reply: string | null; failure: BackendFailure | null; detail?: string; ms: number | null }>;
   /** Toglie una lezione. Non c'è nessun altro modo di toglierla, di proposito. */
   forgetLesson: (id: string) => void;
 
@@ -1841,16 +1845,17 @@ export const useApp = create<AppState>()(
       },
 
       /* 🔷 «Metti una chat con lui, così gli insegno io.» */
-      teachResolver: async (said) => {
+      teachResolver: async (said, detto) => {
         const s = get();
         const testo = said.trim();
         if (!testo) return { reply: null, failure: null, ms: null };
 
         const { teachResolver } = await import('../ai/teach');
-        const { reply, lesson, failure, detail, ms } = await teachResolver(
+        const { reply, lesson, replaces, failure, detail, ms } = await teachResolver(
           s.token,
           testo,
           s.lessons,
+          detto,
           s.activeMonName,
           s.compilerModel,
         );
@@ -1867,7 +1872,22 @@ export const useApp = create<AppState>()(
             text: lesson,
             ...(s.activeMonName ? { about: s.activeMonName } : {}),
           };
-          set((cur) => ({ lessons: [...cur.lessons, nuova] }));
+          /* ⚠️ METTE INSIEME invece di impilare.
+
+             🔷 «Lui assegna delle informazioni e le mette insieme.»
+
+             Se la lezione nuova copre una che c'era già, quella vecchia esce e
+             ne resta UNA più precisa. Venti regole che si sovrappongono sono
+             peggio di otto nette: al momento di risolvere una creatura,
+             regole che dicono quasi la stessa cosa non si sommano — si fanno
+             concorrenza. */
+          const sostituite = replaces.filter((id) => s.lessons.some((l) => l.id === id));
+          set((cur) => ({
+            lessons: [...cur.lessons.filter((l) => !sostituite.includes(l.id)), nuova],
+            /* Le vecchie diventano pietre tombali come una cancellazione a
+               mano: altrimenti il server le rimanderebbe indietro. */
+            forgottenLessons: [...new Set([...cur.forgottenLessons, ...sostituite])],
+          }));
           /* Subito, non fra quattro secondi come il salvataggio della partita:
              una lezione è una riga sola, e il momento in cui la vuoi al sicuro
              è quello in cui l'hai appena detta. */

@@ -42,11 +42,14 @@ const TEACHER = `You are the VINZ.MON Creative Resolver, in a conversation with 
 
 He is teaching you about character design. Your memory (above) is what you already know. He may confirm something, contradict something, or add something new.
 
+This is a continuing conversation: what he said earlier in it is above. Read it as one discussion, not as separate notes.
+
 Answer with ONE JSON object and nothing else:
 
 {
   "reply": "your answer to Vinz, IN ITALIAN, at most three sentences",
-  "lesson": "one line in English, or null"
+  "lesson": "one line in English, or null",
+  "replaces": ["id", "..."]
 }
 
 REPLY — talk like an art director who is being corrected by the person whose taste he serves. Say what you understood, and if it changes something you already believed, say which. Do not flatter. If he is wrong about how the pipeline works, say so plainly.
@@ -58,12 +61,32 @@ A lesson must NEVER:
 - override Character Data the engine generates;
 - contain text intended for the final image prompt.
 
-It may: change proportion habits, silhouette priorities, eyewear or hair logic, colour hierarchy, detail budgeting, what counts as failure, and how strictly to apply an existing rule.`;
+It may: change proportion habits, silhouette priorities, eyewear or hair logic, colour hierarchy, detail budgeting, what counts as failure, and how strictly to apply an existing rule.
+
+REPLACES — the ids of lessons you already have that this new one supersedes, refines or contradicts. Use it. A list of twenty overlapping rules is worse than eight sharp ones: when he tells you something that touches a lesson you already hold, write ONE better line that covers both and list the old id here, instead of stacking a near-duplicate. Leave it empty only when the new lesson genuinely stands alone.`;
+
+/**
+ * L'elenco che ha già, con gli id, per poter dire «questa sostituisce quella».
+ *
+ * ⚠️ Sta QUI e non dentro la memoria: nella memoria gli id sarebbero rumore —
+ * quando risolve una creatura non gli serve sapere come si chiamano le sue
+ * regole. Gli servono solo mentre parla con te, che è l'unico momento in cui
+ * può cambiarle.
+ */
+function elenco(lessons: readonly Lesson[]): string {
+  if (lessons.length === 0) return 'You have no lessons from Vinz yet.';
+  return [
+    'Lessons you already hold, with their ids:',
+    ...lessons.map((l) => `${l.id} — ${l.text}`),
+  ].join('\n');
+}
 
 export interface TeachOutcome {
   reply: string | null;
   /** La riga da conservare, o `null` se non c'era niente da imparare. */
   lesson: string | null;
+  /** Gli id che la nuova lezione manda in pensione. */
+  replaces: string[];
   failure: BackendFailure | null;
   detail?: string;
   /** Quanto è durata la sola chiamata. */
@@ -74,6 +97,8 @@ export async function teachResolver(
   token: string | null,
   said: string,
   lessons: readonly Lesson[],
+  /** Quello che vi siete detti finora, dal più vecchio al più recente. */
+  detto: readonly { mio: boolean; testo: string }[],
   about: string | null,
   compilerModel?: string | null,
 ): Promise<TeachOutcome> {
@@ -88,7 +113,11 @@ export async function teachResolver(
     system: [
       { text: resolverMemoryWith(lessons), cache: true },
       { text: TEACHER },
+      { text: elenco(lessons) },
     ],
+    /* Il discorso di prima come turni veri, non incollato dentro il messaggio:
+       così lui sa chi ha detto cosa. */
+    turns: detto.map((t) => ({ role: t.mio ? ('user' as const) : ('assistant' as const), content: t.testo })),
     user: about ? `[stiamo guardando ${about}]\n${said}` : said,
     thinking: false,
     maxTokens: 700,
@@ -98,6 +127,7 @@ export async function teachResolver(
     return {
       reply: null,
       lesson: null,
+      replaces: [],
       failure,
       detail: detail ?? undefined,
       ms: ms ?? null,
@@ -116,7 +146,11 @@ export async function teachResolver(
  * mancava una graffa è il modo più stupido di perdere una cosa che avevi
  * appena detto — e la lezione, quella, la puoi sempre riscrivere a mano.
  */
-export function readTeaching(raw: string): { reply: string | null; lesson: string | null } {
+export function readTeaching(raw: string): {
+  reply: string | null;
+  lesson: string | null;
+  replaces: string[];
+} {
   const testo = raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
   const apre = testo.indexOf('{');
   const chiude = testo.lastIndexOf('}');
@@ -126,13 +160,19 @@ export function readTeaching(raw: string): { reply: string | null; lesson: strin
       const o = JSON.parse(testo.slice(apre, chiude + 1)) as {
         reply?: unknown;
         lesson?: unknown;
+        replaces?: unknown;
       };
       const reply = typeof o.reply === 'string' && o.reply.trim() ? o.reply.trim() : null;
       const lesson = typeof o.lesson === 'string' && o.lesson.trim() ? o.lesson.trim() : null;
-      if (reply) return { reply, lesson };
+      const replaces = Array.isArray(o.replaces)
+        ? o.replaces.filter((x): x is string => typeof x === 'string')
+        : [];
+      /* 🔒 Sostituire senza mettere niente al posto non è unire, è cancellare:
+         se non c'è una lezione nuova, gli id vecchi restano dove sono. */
+      if (reply) return { reply, lesson, replaces: lesson ? replaces : [] };
     } catch {
       /* Sotto. */
     }
   }
-  return { reply: testo || null, lesson: null };
+  return { reply: testo || null, lesson: null, replaces: [] };
 }

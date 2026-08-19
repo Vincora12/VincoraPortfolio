@@ -40,19 +40,37 @@ export function TeachSection() {
   const [turni, setTurni] = useState<Turno[]>([]);
   const [busy, setBusy] = useState(false);
   const [guasto, setGuasto] = useState<string | null>(null);
+  /* Cosa è successo alla memoria, in due parole. «Ha risposto» e «ha
+     imparato» sono due cose diverse, e la seconda è quella che stai cercando. */
+  const [nota, setNota] = useState<string | null>(null);
   const waiting = useElapsed(busy);
 
   const manda = async () => {
     const testo = bozza.trim();
     if (!testo || busy) return;
 
-    const prima = lessons.length;
+    /* ⚠️ Gli id di prima, non QUANTI erano. Da quando le lezioni si UNISCONO,
+       una nuova che ne sostituisce una vecchia lascia il conteggio identico:
+       contare direbbe «non ho imparato niente» proprio nel caso in cui ha
+       fatto il lavoro migliore. */
+    const primaIds = lessons.map((l) => l.id);
     setTurni((t) => [...t, { id: `m${Date.now()}`, mio: true, testo }]);
     setBozza('');
     setBusy(true);
     setGuasto(null);
+    setNota(null);
 
-    const { reply, failure, detail } = await teach(testo);
+    /* 🔒 Il discorso di prima, non solo l'ultima frase.
+
+       🔷 «Deve capitare proprio come nella chat di ChatGPT: io parlo con lui,
+          lui assegna delle informazioni e le mette insieme.»
+
+       Senza questo ogni messaggio ripartiva da zero, e «no, intendevo il
+       contrario» era una frase senza niente a cui riferirsi. */
+    const { reply, failure, detail } = await teach(
+      testo,
+      turni.map((t) => ({ mio: t.mio, testo: t.testo })),
+    );
     setBusy(false);
 
     if (reply) {
@@ -62,8 +80,19 @@ export function TeachSection() {
     /* 🔒 Se la memoria non è cresciuta si dice, invece di lasciar credere che
        abbia imparato: «ha risposto» e «ha imparato» sono due cose diverse, e
        la seconda è quella per cui esiste questa schermata. */
-    if (!failure && useApp.getState().lessons.length === prima) {
+    const dopo = useApp.getState().lessons;
+    const imparata = dopo.find((l) => !primaIds.includes(l.id));
+    if (!failure && !imparata) {
       setGuasto('ha risposto, ma non c’era niente di nuovo da tenere');
+    }
+    /* Quante ne ha mandate in pensione unendole in quella nuova. */
+    const unite = primaIds.length + (imparata ? 1 : 0) - dopo.length;
+    if (imparata && unite > 0) {
+      setNota(`ha unito ${unite + 1} regole in una`);
+    } else if (imparata) {
+      setNota('imparata');
+    } else {
+      setNota(null);
     }
   };
 
@@ -96,6 +125,11 @@ export function TeachSection() {
       )}
 
       {busy && <p className="t-small dev__note">{waitingText('ci sta pensando', waiting)}</p>}
+      {nota && (
+        <p className="t-micro dev__note">
+          <SystemLabel tone="character">{nota.toUpperCase()}</SystemLabel>
+        </p>
+      )}
       {guasto && <p className="t-micro dev__note">⚠️ {guasto}</p>}
 
       <textarea
