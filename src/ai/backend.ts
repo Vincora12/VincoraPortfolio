@@ -473,6 +473,105 @@ export function loadPing(token: string | null): Promise<BackendResult<PingState>
   return post<PingState>('/api/ping', token, undefined, 'GET');
 }
 
+/* --- Il lavoro lungo: si avvia, e si va a riprendere ------------------------
+
+   🔷 «Voglio far funzionare l'app con Sol. Che devi fare?»
+
+   ⚠️ IL MURO NON SI SUPERA ASPETTANDO MENO: SI SUPERA NON ASPETTANDO.
+
+   Finora ho affrontato i dieci secondi dalla parte sbagliata, abbassando il
+   ragionamento finché la risposta ci stesse. Il risultato è che scegliere Sol
+   costava il doppio e non dava niente: un Terra caro.
+
+   Qui invece nessuna chiamata aspetta il modello:
+
+     avvio    torna un identificativo in un istante
+     attesa   la tiene OpenAI, che non ha un muro
+     ritiro   «è pronto?», e anche questa torna in un istante
+
+   🔒 Il tempo passa nel BROWSER, non dentro una funzione. È l'unico posto di
+   tutta la catena dove aspettare non costa niente e non uccide nessuno.
+   -------------------------------------------------------------------------- */
+
+/** Ogni quanto si chiede se è pronto. */
+const RITMO_MS = 2500;
+
+/**
+ * Quanto si insiste prima di lasciar perdere.
+ *
+ * ⚠️ Otto minuti, e il numero non è a caso: OpenAI tiene il risultato per una
+ * decina di minuti, quindi chiedere più a lungo vorrebbe dire chiedere di una
+ * cosa che intanto è stata buttata. E un ragionamento che supera gli otto
+ * minuti non è lento: è incastrato.
+ */
+const PAZIENZA_MS = 8 * 60 * 1000;
+
+export interface LongOutcome {
+  text: string | null;
+  failure: BackendFailure | null;
+  detail?: string;
+  /** Quanto è durato in tutto, dall'avvio al ritiro. */
+  ms: number;
+}
+
+/**
+ * Avvia il lavoro e lo va a riprendere finché non è pronto.
+ *
+ * `onTick` riceve i secondi passati: serve a far vedere che è vivo, perché su
+ * un'attesa di minuti i puntini da soli non bastano più.
+ */
+export async function askLong(
+  token: string | null,
+  request: AskRequest & { effort?: 'none' | 'low' | 'medium' | 'high' },
+  onTick?: (secondi: number) => void,
+): Promise<LongOutcome> {
+  const from = Date.now();
+
+  const avvio = await post<{ jobId?: string }>('/api/ai', token, {
+    ...request,
+    background: true,
+  });
+
+  if (!avvio.data?.jobId) {
+    return {
+      text: null,
+      failure: avvio.failure ?? 'error',
+      detail: avvio.detail,
+      ms: Date.now() - from,
+    };
+  }
+
+  const jobId = avvio.data.jobId;
+
+  for (;;) {
+    if (Date.now() - from > PAZIENZA_MS) {
+      return { text: null, failure: 'timeout', detail: 'oltre otto minuti', ms: Date.now() - from };
+    }
+
+    await new Promise((r) => setTimeout(r, RITMO_MS));
+    onTick?.(Math.round((Date.now() - from) / 1000));
+
+    const giro = await post<{ text?: string; status?: string }>('/api/ai', token, {
+      capability: request.capability,
+      voiceModel: request.voiceModel,
+      jobId,
+    });
+
+    /* 🔒 Un giro andato storto NON chiude tutto: la rete di un telefono cade e
+       torna, e buttare via un lavoro che sta ancora girando dall'altra parte
+       per un buco di due secondi sarebbe la cosa più stupida di tutta questa
+       funzione. Si insiste finché la pazienza regge. */
+    if (giro.failure === 'offline' || giro.failure === 'timeout') continue;
+
+    if (giro.failure) {
+      return { text: null, failure: giro.failure, detail: giro.detail, ms: Date.now() - from };
+    }
+    if (giro.data?.text) {
+      return { text: giro.data.text, failure: null, ms: Date.now() - from };
+    }
+  }
+}
+
 /* --- Le lezioni, che non appartengono a nessuna partita ---------------------
 
    🔷 «No, devono sopravvivere sempre.»

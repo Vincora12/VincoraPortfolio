@@ -105,6 +105,17 @@ interface Payload {
    * peggiore in cui questo file possa rompersi.
    */
   voiceModel?: string;
+  /**
+   * 🔷 «Voglio far funzionare l'app con Sol.»
+   *
+   * Fai partire il lavoro invece di aspettarlo. Torna un identificativo, e la
+   * risposta si va a riprendere con `jobId`.
+   */
+  background?: boolean;
+  /** L'identificativo di un lavoro già partito: questa richiesta lo ritira. */
+  jobId?: string;
+  /** Quanto deve ragionare, quando parte in background. */
+  effort?: 'none' | 'low' | 'medium' | 'high';
 }
 
 const KNOWN: Capability[] = ['character-voice', 'vision-quick', 'text-cheap', 'image', 'prompt-compile'];
@@ -146,12 +157,40 @@ export default async function handler(request: Request): Promise<Response> {
   const capability = payload.capability as Capability;
   if (!KNOWN.includes(capability)) return json({ error: 'capacità sconosciuta' }, 400);
 
+
   /* 🔶 Qui c'era `ROUTING[capability]` secco, e la testata di questo file
      diceva che «il browser non sa quale fornitore ha risposto». Non è più
      vero, ed è un cambio di premessa voluto: da quando la voce la scegli tu,
      tenerti all'oscuro di chi sta rispondendo sarebbe nascondere una cosa che
      hai deciso. Infatti la risposta lo dice, in fondo. */
   const route = resolveRoute(capability, payload.voiceModel);
+
+  /* ════════════════════════════════════════════════════════════════════════
+     IL RITIRO DI UN LAVORO PARTITO PRIMA
+
+     ⚠️ Sta QUI, prima di tutti i controlli sulla lunghezza dei messaggi: una
+     richiesta che ritira non porta nessun messaggio, e farla passare dai
+     controlli del corpo la farebbe rifiutare per un campo vuoto che non
+     doveva esserci.
+     ════════════════════════════════════════════════════════════════════ */
+  if (payload.jobId) {
+    const { pollBackground } = await import('./_shared/background');
+    const out = await pollBackground(payload.jobId);
+
+    /* 🔒 Si registra la spesa SOLO quando è finito. Prima non c'è niente da
+       contare, e contarlo a ogni domanda «è pronto?» moltiplicherebbe il conto
+       per il numero di volte che abbiamo chiesto. */
+    if (out.status === 'completed' && (out.usage.inputTokens || out.usage.outputTokens)) {
+      await recordSpend(capability, route.model, out.usage);
+    }
+
+    if (out.status === 'completed') {
+      return json({ text: out.text, status: out.status, model: route.model, usage: out.usage });
+    }
+    if (out.ok) return json({ status: out.status });
+    return json({ error: 'lavoro non riuscito', reason: (out.error ?? '').slice(0, 300) }, 502);
+  }
+
 
   /* --- Immagini: forma di risposta diversa, percorso diverso --- */
 
@@ -243,6 +282,40 @@ export default async function handler(request: Request): Promise<Response> {
     // spedirla, altrimenti il tetto lo scopre il fornitore al posto nostro.
     const bytes = Math.floor((payload.image.data?.length ?? 0) * 0.75);
     if (bytes > LIMITS.imageBytes) return json({ error: 'immagine troppo grande' }, 413);
+  }
+
+  /* ════════════════════════════════════════════════════════════════════════
+     LA PARTENZA DI UN LAVORO LUNGO
+
+     🔷 «Voglio far funzionare l'app con Sol.»
+
+     ⚠️ Solo OpenAI, e solo perché è l'unico dei quattro che sa tenere il filo
+     per conto suo. Se un giorno la rotta di questa capacità cambiasse
+     fornitore, questa richiesta tornerebbe a essere una chiamata normale
+     invece di fallire: `background` è una PREFERENZA, non un requisito.
+     ════════════════════════════════════════════════════════════════════ */
+  if (payload.background && route.provider === 'openai') {
+    const { startBackground } = await import('./_shared/background');
+    const out = await startBackground({
+      model: route.model,
+      /* Un blocco solo, nell'ordine dei pezzi: è lo stesso prefisso su cui
+         poggia la cache dell'altra strada, e la memoria del resolver è
+         identica a ogni chiamata. */
+      instructions: system.map((b) => b.text).join('\n\n'),
+      user,
+      maxTokens: Math.min(payload.maxTokens ?? 2000, LIMITS.compilerTokens),
+      /* 🔒 QUI IL RAGIONAMENTO SI PUÒ CHIEDERE SUL SERIO, ed è tutto il punto:
+         sulla strada sincrona `medium` significava morire a dieci secondi, e
+         per questo scegliere Sol costava il doppio senza dare niente. Qui non
+         c'è nessun orologio, quindi il predefinito è `medium` e non `none`. */
+      effort: payload.effort ?? 'medium',
+    });
+
+    if (!out.ok) {
+      console.warn('[ai] avvio in background non riuscito:', out.error);
+      return json({ error: 'avvio non riuscito', reason: (out.error ?? '').slice(0, 300) }, 502);
+    }
+    return json({ jobId: out.jobId, status: 'queued', model: route.model });
   }
 
   const result = await callProvider(route.provider, {

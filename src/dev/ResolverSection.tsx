@@ -38,6 +38,13 @@ export function ResolverSection() {
 
   const [busy, setBusy] = useState<string | null>(null);
   const waiting = useElapsed(busy !== null);
+  /* ⚠️ I secondi che arrivano dalla catena, non quelli del cronometro locale.
+
+     Con la strada in background l'attesa può durare minuti, e sono minuti in
+     cui il telefono non sta facendo NIENTE: chiede ogni due secondi e aspetta.
+     Un contatore che gira senza che nessuno confermi che dall'altra parte si
+     sta lavorando è indistinguibile da un'app piantata. */
+  const [daServer, setDaServer] = useState<number | null>(null);
   /* ⚠️ DUE NUMERI, NON UNO — 🔷 «Potrebbe essere anche che in quei secondi è
      contato altro.»
 
@@ -87,6 +94,7 @@ export function ResolverSection() {
   ) => {
     setBusy(label);
     setProblems(null);
+    setDaServer(null);
     const from = Date.now();
     const out = await job();
     setLastTotal(Date.now() - from);
@@ -122,7 +130,11 @@ export function ResolverSection() {
             variant="primary"
             loading={busy !== null}
             disabled={!token}
-            onClick={() => void run('sta decidendo chi è', () => resolveWithAi(mon.data.name))}
+            onClick={() =>
+              void run('sta decidendo chi è', () =>
+                resolveWithAi(mon.data.name, setDaServer),
+              )
+            }
           >
             {busy ? `${busy.toUpperCase()}…` : 'DAMMI IL PROMPT'}
           </Button>
@@ -145,7 +157,7 @@ export function ResolverSection() {
               onClick={() => {
                 clearResolution(mon.data.name);
                 setProblems(null);
-                void run('ci ripensa', () => resolveWithAi(mon.data.name));
+                void run('ci ripensa', () => resolveWithAi(mon.data.name, setDaServer));
               }}
             >
               RIFALLO
@@ -158,7 +170,9 @@ export function ResolverSection() {
                    vecchia non c'entra più niente e se ne rifà una. */
                 rerollMon();
                 setProblems(null);
-                void run('nuova creatura', () => resolveWithAi(useApp.getState().activeMonName ?? ''));
+                void run('nuova creatura', () =>
+                  resolveWithAi(useApp.getState().activeMonName ?? '', setDaServer),
+                );
               }}
             >
               UN’ALTRA CREATURA
@@ -267,7 +281,27 @@ export function ResolverSection() {
         </>
       )}
 
-      {busy && <p className="t-small dev__note">{waitingText(busy, waiting)}</p>}
+      {busy && (
+        <>
+          <p className="t-small dev__note">{waitingText(busy, waiting)}</p>
+          {/* ⚠️ QUI AVEVO SCRITTO «puoi chiudere e riaprire, lo ritrova», e NON
+              È VERO: l'identificativo del lavoro vive in questa schermata e
+              chiudendo si perde. Il lavoro continua da OpenAI — e continua a
+              essere pagato — ma noi non sapremmo più dove andarlo a
+              riprendere.
+
+              🔒 Una riga che promette una comodità che non c'è è peggio di
+              nessuna riga: chiuderesti l'app fidandoti, e perderesti il lavoro
+              proprio credendo di averlo messo al sicuro. */}
+          {daServer !== null && (
+            <p className="t-micro dev__note">
+              Sta ragionando da {daServer}s. Il lavoro gira da OpenAI, non su
+              questo telefono — ma tieni aperta questa schermata: se la chiudi,
+              l’app perde il filo.
+            </p>
+          )}
+        </>
+      )}
 
       {/* 🔒 Resta a schermo DOPO, riuscita o no: è il numero che serve per
           decidere se il problema è la piattaforma o la nostra app, e serve

@@ -45,7 +45,7 @@
    ════════════════════════════════════════════════════════════════════════════
    ========================================================================= */
 
-import { ask } from './backend';
+import { askLong } from './backend';
 import type { BackendFailure } from './backend';
 import type { Lesson, MonRecord } from '../engine/types';
 import { characterDataFor } from '../assets-pipeline/resolver/adapter';
@@ -118,6 +118,8 @@ export async function resolveWithAi(
   /** Il documento suo, se gliene ha dato uno al posto di quello del pacchetto. */
   custom?: string | null,
   compilerModel?: string | null,
+  /** Quanti secondi sono passati: serve a far vedere che è vivo. */
+  onTick?: (secondi: number) => void,
 ): Promise<ResolveOutcome> {
   const input = characterDataFor(record);
   const numeric = numericGrammarFor(input);
@@ -136,67 +138,79 @@ export async function resolveWithAi(
      🔒 In testa e in cache perché è identica a ogni chiamata: un prefisso
      costante e primo è la condizione perché la cache del fornitore agganci.
      Messa in coda costerebbe pieno per sempre. */
-  const { data, failure, detail, ms } = await ask<{ text: string }>(token, {
-    capability: 'prompt-compile',
-    voiceModel: compilerModel,
-    system: [
-      { text: resolverMemoryWith(lessons, custom), cache: true },
-      /* ⚠️ LE LEZIONI, RIPETUTE QUI E IN FORMA DI ORDINE.
+  /* ⚠️ LA STRADA LUNGA, E ADESSO IL RAGIONAMENTO SI PUÒ CHIEDERE.
 
-         🔷 «Gli ho messo la lezione, ma se faccio generare il prompt non
-            sembra prenderla in considerazione.»
+     🔷 «Voglio far funzionare l'app con Sol.»
 
-         Nella memoria ci sono già — sezione 15 — ma stanno in fondo a
-         diciassettemila caratteri, e subito dopo arriva un prompt di altri
-         sedicimila che dice per filo e per segno cosa fare. È la posizione
-         più debole del contesto: quello che sta in mezzo pesa meno di quello
-         che sta agli estremi, ed è misurato, non un'impressione.
+     ⚠️ E CANCELLA UNA MIA CORREZIONE PRECEDENTE. Qui c'era scritto «ragionamento
+     basso, di proposito, perché il lavoro è vincolato». Era vero a metà: il
+     lavoro è vincolato davvero, ma il motivo per cui l'avevo abbassato era il
+     muro dei dieci secondi, non il compito. Avevo trasformato un limite di
+     piattaforma in una virtù di design, che è il modo più comodo di sbagliare.
 
-         🔒 Qui sono l'ULTIMA cosa che legge prima del compito, e non sono più
-         raccontate come preferenze: sono scritte come vincoli. Nella memoria
-         restano lo stesso, perché quello è il registro di cosa gli hai
-         insegnato e quando.
+     Adesso il lavoro parte da OpenAI e resta lì; noi chiediamo ogni due
+     secondi se è pronto. Nessuna chiamata aspetta il modello, quindi non c'è
+     più nessun orologio da rispettare — ed è l'unica ragione per cui Sol ha
+     senso: a ragionamento spento era un Terra che costa il doppio. */
+  const { text, failure, detail, ms } = await askLong(
+    token,
+    {
+      capability: 'prompt-compile',
+      voiceModel: compilerModel,
+      system: [
+        { text: resolverMemoryWith(lessons, custom), cache: true },
+        /* ⚠️ LE LEZIONI, RIPETUTE QUI E IN FORMA DI ORDINE.
 
-         🔒 E non rompono la cache: il blocco della memoria viene prima ed è
-         identico a ogni chiamata, quindi il prefisso aggancia comunque. */
-      ...(lessons.length > 0 ? [{ text: vincoliDa(lessons) }] : []),
-    ],
-    user: buildCreativeResolverPrompt(input, numeric),
-    /* ⚠️ RAGIONAMENTO BASSO, DI PROPOSITO — ed è la correzione di un mio errore.
-       Avevo scritto qui sopra «~800 token in uscita» contando solo il JSON: i
-       token di RAGIONAMENTO sono anch'essi token in uscita, e sono quelli che
-       fanno il tempo. A ragionamento predefinito questa chiamata non poteva
-       stare nei dieci secondi, e infatti non ci stava.
+           🔷 «Gli ho messo la lezione, ma se faccio generare il prompt non
+              sembra prenderla in considerazione.»
 
-       Chiedere `low` non è un risparmio a caso: questo lavoro è VINCOLATO —
-       i fatti arrivano dati, il formato è dettato riga per riga dal prompt del
-       pacchetto, la grammatica numerica è già calcolata. Non c'è niente da
-       scoprire, solo da scegliere. È la VOCE che deve pensare davvero, e
-       infatti quella chiede `thinking` e riceve `medium`. */
-    thinking: false,
-    /* La risoluzione d'esempio sta in ~800 token. Tremila è largo e non
-       rallenta: un modello si ferma quando ha finito, non quando riempie. */
-    maxTokens: 3000,
-  });
+           Nella memoria ci sono già — sezione 15 — ma stanno in fondo a
+           diciassettemila caratteri, e subito dopo arriva un prompt di altri
+           sedicimila che dice per filo e per segno cosa fare. È la posizione
+           più debole del contesto: quello che sta in mezzo pesa meno di quello
+           che sta agli estremi, ed è misurato, non un'impressione.
 
-  if (!data?.text) {
+           🔒 Qui sono l'ULTIMA cosa che legge prima del compito, e non sono
+           più raccontate come preferenze: sono scritte come vincoli. Nella
+           memoria restano lo stesso, perché quello è il registro di cosa gli
+           hai insegnato e quando. */
+        ...(lessons.length > 0 ? [{ text: vincoliDa(lessons) }] : []),
+      ],
+      /* 🔒 Il prompt del pacchetto, parola per parola, come messaggio utente.
+         La memoria non lo spezza: è un blocco separato, prima e sopra. */
+      user: buildCreativeResolverPrompt(input, numeric),
+      /* Decidere è esattamente il lavoro che vale la pena far ragionare. Non
+         `high`: i fatti arrivano dati, il formato è dettato riga per riga e la
+         grammatica numerica è già calcolata — `medium` è dove la resa smette
+         di crescere su un compito così vincolato. */
+      effort: 'medium',
+      /* 🔶 Da tremila a ottomila. Il tetto stretto serviva a non aspettare, e
+         adesso nessuno aspetta. Un modello che ragiona spende token anche per
+         pensare, e un tetto stretto lo taglia MENTRE pensa: produce un JSON
+         troncato, non una risposta più corta. */
+      maxTokens: 8000,
+    },
+    onTick,
+  );
+
+  if (!text) {
     return {
       resolution: null,
       failure,
       problems: [detail ?? (failure ? `chiamata fallita (${failure})` : 'nessuna risposta')],
       repaired: [],
       usedLessons: lessons.length,
-      ms: ms ?? null,
+      ms,
     };
   }
 
-  const { resolution, problems, repaired } = parseResolution(data.text);
+  const { resolution, problems, repaired } = parseResolution(text);
   return {
     resolution,
     failure: null,
     problems,
     repaired,
     usedLessons: lessons.length,
-    ms: ms ?? null,
+    ms,
   };
 }

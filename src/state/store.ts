@@ -486,6 +486,8 @@ interface AppState {
    */
   resolveWithAi: (
     monName: string,
+    /** Quanti secondi sta aspettando: l'attesa ora può durare minuti. */
+    onTick?: (secondi: number) => void,
   ) => Promise<{
     problems: string[];
     repaired: string[];
@@ -1985,7 +1987,7 @@ export const useApp = create<AppState>()(
           };
         }),
 
-      resolveWithAi: async (monName) => {
+      resolveWithAi: async (monName, onTick) => {
         const s = get();
         const rec = s.mons[monName];
         if (!rec) return { problems: ['nessuna creatura con questo nome'], repaired: [] };
@@ -2000,6 +2002,7 @@ export const useApp = create<AppState>()(
           /* E il documento tuo, se gliene hai dato uno. */
           s.customMemory,
           s.compilerModel,
+          onTick,
         );
         if (!resolution) return { problems, repaired, ms, usedLessons };
 

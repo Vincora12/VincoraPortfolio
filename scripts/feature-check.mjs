@@ -1614,6 +1614,54 @@ check(
   'nel prompt finale la lezione non comparirà mai per costruzione: cercarla lì è cercarla nell’unico posto dove abbiamo stabilito che non ci sarà',
 );
 
+/* ============================================================================
+   IL LAVORO LUNGO NON SI ASPETTA
+
+   🔷 «Voglio far funzionare l'app con Sol. Che devi fare?»
+
+   ⚠️ Per due giorni ho affrontato il muro dei dieci secondi dalla parte
+   sbagliata — abbassando il ragionamento finché la risposta ci stesse — e il
+   risultato era che scegliere Sol costava il doppio senza dare niente.
+   ========================================================================= */
+check(
+  '§19.1 FORNITORE',
+  'un lavoro lungo parte e si va a riprendere, invece di aspettarlo',
+  has('netlify/functions/_shared/background.ts', 'background: true') &&
+    has('netlify/functions/_shared/background.ts', 'export async function pollBackground'),
+  'nessuna delle chiamate aspetta il modello, quindi nessuna incontra il muro: il tempo lo tiene OpenAI, che non ne ha uno',
+);
+check(
+  '§19.1 FORNITORE',
+  'e lì il ragionamento si chiede sul serio',
+  has('src/ai/resolver.ts', "effort: 'medium',") &&
+    has('netlify/functions/ai.ts', "payload.effort ?? 'medium'"),
+  'a ragionamento spento Sol era un Terra che costa il doppio: è l’unica ragione per cui esiste questa strada',
+);
+check(
+  '§19.1 FORNITORE',
+  'un giro di ritiro andato storto non butta via il lavoro',
+  has('src/ai/backend.ts', "if (giro.failure === 'offline' || giro.failure === 'timeout') continue;"),
+  'la rete di un telefono cade e torna: buttare un lavoro che gira ancora dall’altra parte per un buco di due secondi sarebbe assurdo',
+);
+check(
+  '§19.1 FORNITORE',
+  'la spesa si registra quando è finito, non a ogni «è pronto?»',
+  has('netlify/functions/ai.ts', "if (out.status === 'completed' && (out.usage.inputTokens"),
+  'contarla a ogni domanda moltiplicherebbe il conto per il numero di volte che abbiamo chiesto',
+);
+check(
+  '§19.1 FORNITORE',
+  'e il tetto dei token si alza, perché non serviva più a non aspettare',
+  has('src/ai/resolver.ts', 'maxTokens: 8000,'),
+  'un tetto stretto taglia il modello MENTRE pensa: produce un JSON troncato, non una risposta più corta',
+);
+check(
+  '§19.1 FORNITORE',
+  'e non si promette che chiudendo l’app il lavoro si ritrovi',
+  has('src/dev/ResolverSection.tsx', 'l’app perde il filo'),
+  'una riga che promette una comodità che non c’è fa chiudere l’app fidandosi, e perdere il lavoro credendo di averlo messo al sicuro',
+);
+
 /* 🔷 «Quando genero con resolver devo poter dare un feedback che diventa una
    lezione per lui.» */
 check(
@@ -1766,12 +1814,17 @@ check(
   has('src/dev/ResolverSection.tsx', 'if (out.problems.length > 0) setShowManual(true);'),
   'è esattamente il momento in cui servono, ed è l’unico in cui vale la pena mostrarli',
 );
-check(
-  '§10 DUE STADI',
-  'e chiede molto meno di quello che moriva sul tempo',
-  has('src/ai/resolver.ts', 'maxTokens: 3000'),
-  'l’uscita è quella che costa tempo, e questa ne chiede una frazione di quella vecchia',
-);
+/* 🔶 QUI C'ERA: «e chiede molto meno di quello che moriva sul tempo»,
+   `maxTokens: 3000`.
+
+   ⚠️ QUELLA DECISIONE È STATA ROVESCIATA, non dimenticata. Il tetto stretto
+   serviva a stare dentro i dieci secondi delle funzioni; da quando il lavoro
+   parte in background e nessuno lo aspetta, quel motivo non esiste più — e
+   un tetto stretto su un modello che ragiona è dannoso, perché lo taglia
+   MENTRE pensa e produce un JSON troncato invece di una risposta più corta.
+
+   Il tetto nuovo (8000) è difeso dall'ago «e il tetto dei token si alza,
+   perché non serviva più a non aspettare», in §19.1. */
 /* 🔷 «Il prompt carica ma non va.»
    Il livello di ragionamento non veniva mandato affatto, quindi il modello
    girava al suo predefinito e ci metteva decine di secondi: oltre il muro dei
