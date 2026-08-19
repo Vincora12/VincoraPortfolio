@@ -22,6 +22,19 @@ export interface AssetTypeDef {
   stage: 0 | 1 | 2;
   /** Asset la cui immagine va allegata al prompt. Vuoto solo per il master. */
   dependsOn: AssetType[];
+  /**
+   * ⚠️ IL FORMATO NON È UN DETTAGLIO: È PARTE DELLA COMPOSIZIONE.
+   *
+   * Prima era murato a `1024x1024` dentro l'adattatore del fornitore, cioè
+   * nell'unico posto che non sa quale asset sta disegnando. Il risultato è che
+   * chiedevamo quadrata anche l'EXPRESSION SHEET, che è una griglia 3×2, e il
+   * ciclo di riposo, che è una striscia di frame in fila.
+   *
+   * 🔒 Una tavola a più riquadri chiesta quadrata nasce storta, e nessuna
+   * riga di prompt la raddrizza: il modello deve stiparci dentro sei facce in
+   * uno spazio che non ha la forma di sei facce.
+   */
+  size: '1024x1024' | '1536x1024' | '1024x1536';
   /** `asset_id` usato nel manifest (§24.4) e nel nome del file di prompt. */
   assetId: string;
   /** Indice del file di prompt nel pacchetto (§22.2). */
@@ -44,6 +57,7 @@ export const ASSET_TYPES: readonly AssetTypeDef[] = [
     stage: 0,
     dependsOn: [],
     assetId: 'master_01',
+    size: '1024x1536',
     promptFile: '01_CHARACTER_MASTER_PROMPT.txt',
     label: 'CHARACTER MASTER',
     purpose: 'Fonte di verità visiva. Riferimento di consistenza per ogni altro asset.',
@@ -54,6 +68,7 @@ export const ASSET_TYPES: readonly AssetTypeDef[] = [
     stage: 1,
     dependsOn: ['character_master'],
     assetId: 'portrait_01',
+    size: '1024x1024',
     promptFile: '02_PROFILE_PORTRAIT_PROMPT.txt',
     label: 'PROFILE PORTRAIT',
     purpose: 'Ritratto generato apposta per profilo, memorie, notifiche e nodi. Mai un ritaglio.',
@@ -64,6 +79,7 @@ export const ASSET_TYPES: readonly AssetTypeDef[] = [
     stage: 2,
     dependsOn: ['character_master'],
     assetId: 'doodle_01',
+    size: '1024x1024',
     promptFile: '03_BIO_DOODLE_PROMPT.txt',
     label: 'BIO DOODLE',
     purpose: 'Interpretazione da quaderno, usata SOLO in BIO / PERSONAL FILE. Non è un Appearance.',
@@ -74,6 +90,7 @@ export const ASSET_TYPES: readonly AssetTypeDef[] = [
     stage: 1,
     dependsOn: ['character_master'],
     assetId: 'reactions_01',
+    size: '1536x1024',
     promptFile: '04_REACTION_PACK_PROMPT.txt',
     label: 'EXPRESSION SHEET',
     purpose:
@@ -88,6 +105,7 @@ export const ASSET_TYPES: readonly AssetTypeDef[] = [
     stage: 1,
     dependsOn: ['character_master'],
     assetId: 'idle_01',
+    size: '1536x1024',
     promptFile: '05_IDLE_ANIMATION_PROMPT.txt',
     label: 'IDLE ANIMATION',
     purpose: 'Ciclo di respiro a 6 frame. Schermata d’ingresso e presenza viva in chat.',
@@ -98,6 +116,7 @@ export const ASSET_TYPES: readonly AssetTypeDef[] = [
     stage: 1,
     dependsOn: ['character_master'],
     assetId: 'hero_01',
+    size: '1024x1536',
     promptFile: '06_ENCOUNTER_HERO_PROMPT.txt',
     label: 'ENCOUNTER HERO',
     purpose: 'Asset di rivelazione per FIRST ENCOUNTER / NEW ENCOUNTER.',

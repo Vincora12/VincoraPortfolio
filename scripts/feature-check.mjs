@@ -1889,6 +1889,24 @@ check(
   'una diagnosi che stampa la chiave è la cosa da cui §19.3 ci ha portati via',
 );
 
+/* ⚠️ LA FORMA DELLA TAVOLA È UNA SCELTA DI COMPOSIZIONE, non un dettaglio
+   del fornitore. Stava murata a 1024x1024 dentro l'adattatore, cioè nell'unico
+   posto che non sa quale asset sta disegnando. */
+check(
+  '§23 ASSET',
+  'ogni asset dichiara la sua forma, e non la decide chi disegna',
+  has('src/engine/assets.ts', "size: '1536x1024'") &&
+    has('src/assets-pipeline/generate.ts', 'assetTypeDef(type).size'),
+  'l’EXPRESSION SHEET è una griglia 3×2 e il ciclo di riposo è una striscia: chiesti quadrati nascono storti',
+);
+check(
+  '§23 ASSET',
+  'e la misura che arriva da fuori si controlla dove non si può aggirare',
+  has(PROVIDERS_FILE, 'export const IMAGE_SIZES') &&
+    has('netlify/functions/ai.ts', 'IMAGE_SIZES.includes(asked as ImageSize)'),
+  'una misura inventata farebbe fallire la chiamata dopo averla pagata in attesa',
+);
+
 /* 🔷 «Metti in tutti questi pulsanti un loader.» */
 check(
   '§10.4 PRIMITIVE',

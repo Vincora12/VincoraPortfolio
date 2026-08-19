@@ -552,7 +552,27 @@ export interface ImageResult {
   error?: string;
 }
 
-export async function generateImage(model: string, prompt: string): Promise<ImageResult> {
+/**
+ * Le misure che OpenAI accetta.
+ *
+ * 🔒 Elenco CHIUSO e controllato qui, non nel browser. La misura arriva da
+ * fuori — la decide il tipo di asset — e tutto ciò che arriva da fuori si
+ * verifica dove non si può aggirare. Una misura inventata farebbe fallire la
+ * chiamata dopo averla pagata in attesa.
+ */
+export const IMAGE_SIZES = ['1024x1024', '1536x1024', '1024x1536'] as const;
+export type ImageSize = (typeof IMAGE_SIZES)[number];
+
+export async function generateImage(
+  model: string,
+  prompt: string,
+  /* ⚠️ Prima era murata a `1024x1024` proprio qui, cioè nell'unico posto che
+     non sa quale asset sta disegnando: l'EXPRESSION SHEET è una griglia 3×2 e
+     il ciclo di riposo è una striscia di frame, e li chiedevamo tutti e due
+     quadrati. Il quadrato non è neutro: è una scelta di composizione, e
+     prenderla qui vuol dire prenderla alla cieca. */
+  size: ImageSize = '1024x1024',
+): Promise<ImageResult> {
   const key = process.env.OPENAI_API_KEY;
   if (!key) return { ok: false, data: '', usage: {}, error: 'OPENAI_API_KEY mancante' };
 
@@ -569,7 +589,7 @@ export async function generateImage(model: string, prompt: string): Promise<Imag
     fetch('https://api.openai.com/v1/images/generations', {
       method: 'POST',
       headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` },
-      body: JSON.stringify({ model, prompt, size: '1024x1024', n: 1, ...extras }),
+      body: JSON.stringify({ model, prompt, size, n: 1, ...extras }),
     });
 
   try {

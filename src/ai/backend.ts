@@ -240,11 +240,19 @@ export function askImage(
    * più cosa sta prezzando.
    */
   imageModel?: string | null,
+  /**
+   * La forma della tavola. La decide il TIPO DI ASSET, non chi disegna: una
+   * griglia di espressioni e un ritratto singolo non hanno la stessa forma, e
+   * finché la misura stava dentro l'adattatore del fornitore nessuno dei due
+   * poteva dirlo.
+   */
+  size?: string,
 ): Promise<BackendResult<ImageData>> {
   return post<ImageData>('/api/ai', token, {
     capability: 'image',
     prompt,
     voiceModel: imageModel,
+    size,
   });
 }
 

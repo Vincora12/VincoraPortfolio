@@ -27,6 +27,8 @@ import {
   type SystemBlock,
   type ToolDef,
   type Turn,
+  IMAGE_SIZES,
+  type ImageSize,
 } from './_shared/providers';
 import { checkCap, recordSpend, MONTHLY_CAP_USD } from './_shared/spend';
 
@@ -78,6 +80,8 @@ const LIMITS = {
 
 interface Payload {
   capability?: string;
+  /** Solo per `image`: la forma della tavola, decisa dal tipo di asset. */
+  size?: string;
   system?: SystemBlock[];
   turns?: Turn[];
   user?: string;
@@ -157,7 +161,13 @@ export default async function handler(request: Request): Promise<Response> {
       return json({ error: 'prompt assente o troppo lungo' }, 400);
     }
 
-    const result = await generateImage(route.model, prompt);
+    /* 🔒 Una misura che non conosciamo non è un errore da 400: è una
+       richiesta di un client più vecchio, o più nuovo. Si torna al quadrato,
+       che è quello che si faceva prima e che va sempre bene. */
+    const asked = payload.size;
+    const size = IMAGE_SIZES.includes(asked as ImageSize) ? (asked as ImageSize) : undefined;
+
+    const result = await generateImage(route.model, prompt, size);
     if (result.ok) await recordSpend(capability, route.model, result.usage);
 
     if (!result.ok) {

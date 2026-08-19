@@ -108,7 +108,10 @@ export async function generateMissingAssets(
        di una generazione di immagini vorrebbe dire due chiamate in fila con
        due modi diversi di fallire. */
     const text = promptFor(record, type).text;
-    const res = await askImage(token, text, imageModel);
+    /* 🔒 La misura viene da `assetTypeDef`, cioè dal posto che SA cos'è questo
+       asset. Prima era un quadrato deciso dentro l'adattatore del fornitore,
+       uguale per tutti e sei — e per due di loro era la forma sbagliata. */
+    const res = await askImage(token, text, imageModel, assetTypeDef(type).size);
 
     if (!res.data) {
       /* 🔒 Ci si ferma al primo no. Senza chiave falliranno tutte allo stesso
