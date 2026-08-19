@@ -1469,8 +1469,22 @@ check(
   '§10 DUE STADI',
   'il resolver si può chiedere all’API, non solo copiare a mano',
   has('src/ai/resolver.ts', 'export async function resolveWithAi') &&
-    has('src/dev/ResolverSection.tsx', 'RISOLVI CON L’AI'),
+    has('src/dev/ResolverSection.tsx', 'DAMMI IL PROMPT'),
   'la parte che si può automatizzare (decidere) la fa l’API, quella che oggi non si può (disegnare) la fa lui portando il prompt dove vuole',
+);
+/* 🔷 «E fallo semplice che io possa cliccare e avviene tutto.» */
+check(
+  '§10 DUE STADI',
+  'un pulsante solo, e gli attrezzi da riparazione stanno chiusi',
+  has('src/dev/ResolverSection.tsx', 'showManual') &&
+    has('src/dev/ResolverSection.tsx', 'useState(false)'),
+  'mettere gli attrezzi davanti alla cosa che si usa ogni giorno fa sembrare difficile una cosa facile',
+);
+check(
+  '§10 DUE STADI',
+  'ma si aprono da sé quando qualcosa non va',
+  has('src/dev/ResolverSection.tsx', 'if (out.problems.length > 0) setShowManual(true);'),
+  'è esattamente il momento in cui servono, ed è l’unico in cui vale la pena mostrarli',
 );
 check(
   '§10 DUE STADI',

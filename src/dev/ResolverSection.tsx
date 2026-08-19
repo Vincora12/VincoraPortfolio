@@ -1,18 +1,16 @@
 /* ============================================================================
-   IL RESOLVER, A MANO (VINZ.MON PROMPT COMPILER v1)
+   UN TOCCO, ED È FATTO
 
-   🔷 «Richiede comunque una LLM come resolver, ma passo a lui intanto per
-   capire se gli output grezzi funzionano.»
+   🔷 «E fallo semplice che io possa cliccare e avviene tutto.»
 
-   ⚠️ È la schermata che tiene separate due domande che continuavano a
-   confondersi:
+   ⚠️ La versione di prima aveva tre passi numerati, una casella dove
+   incollare, una diagnosi degli errori di JSON e due pulsanti di copia. Tutta
+   roba che serve — ma serve QUANDO SI ROMPE, e mettere gli attrezzi da
+   riparazione davanti alla cosa che si usa ogni giorno è il modo più sicuro di
+   far sembrare difficile una cosa facile.
 
-     «il metodo è giusto?»   → si risponde incollando, stasera, gratis
-     «dove giriamo?»         → decisione di hosting, con dei costi
-
-   La seconda ha tenuto in ostaggio la prima per giorni. Qui il prompt del
-   resolver si copia, la risposta si incolla, e il prompt finale esce — senza
-   che nessuna funzione debba sopravvivere a dieci secondi.
+   Adesso: un pulsante. Quello che c'era prima è ancora tutto lì, chiuso dietro
+   «a mano», e si apre solo se qualcosa non va.
    ========================================================================= */
 
 import { useMemo, useState } from 'react';
@@ -21,24 +19,25 @@ import { Button, SystemLabel } from '../system/components';
 import { CopyButton } from '../system/CopyButton';
 import { NoMon } from './NoMon';
 import { characterDataFor } from '../assets-pipeline/resolver/adapter';
-/* 🔒 Tutto quello che segue viene dal pacchetto, intatto. Vedi `vendor/`. */
+/* 🔒 Dal pacchetto, intatti. Vedi `vendor/`. */
 import { numericGrammarFor } from '../assets-pipeline/resolver/vendor/rules';
 import { buildCreativeResolverPrompt } from '../assets-pipeline/resolver/vendor/resolver';
 import { compilePrompt } from '../assets-pipeline/resolver/vendor/compiler';
 
 export function ResolverSection() {
   const mon = useActiveMon();
-  const useResolution = useApp((s) => s.useResolution);
-  const resolveWithAi = useApp((s) => s.resolveWithAi);
   const token = useApp((s) => s.token);
+  const resolveWithAi = useApp((s) => s.resolveWithAi);
+  const useResolution = useApp((s) => s.useResolution);
   const clearResolution = useApp((s) => s.clearResolution);
-  const [draft, setDraft] = useState('');
+  const rerollMon = useApp((s) => s.resetCurrentNode);
+
+  const [busy, setBusy] = useState<string | null>(null);
   const [problems, setProblems] = useState<string[] | null>(null);
   const [repaired, setRepaired] = useState<string[]>([]);
-  const [busy, setBusy] = useState(false);
+  const [showManual, setShowManual] = useState(false);
+  const [draft, setDraft] = useState('');
 
-  /* I fatti e la grammatica non dipendono da cosa incolli: si calcolano una
-     volta e non a ogni tasto premuto nella casella. */
   const prepared = useMemo(() => {
     if (!mon) return null;
     const input = characterDataFor(mon);
@@ -51,122 +50,104 @@ export function ResolverSection() {
   const resolution = mon.resolution ?? null;
   const compiled = resolution ? compilePrompt(prepared.input, resolution) : null;
 
+  const run = async (label: string, job: () => Promise<{ problems: string[]; repaired: string[] }>) => {
+    setBusy(label);
+    setProblems(null);
+    const out = await job();
+    setBusy(null);
+    setProblems(out.problems);
+    setRepaired(out.repaired);
+    /* 🔒 Se è andata storta si apre da sé la parte a mano: è esattamente il
+       momento in cui quegli attrezzi servono, ed è l'unico in cui vale la pena
+       mostrarli. */
+    if (out.problems.length > 0) setShowManual(true);
+  };
+
   return (
     <div className="dev__section">
       <p className="t-meta dev__label">
-        RESOLVER{' '}
-        <SystemLabel tone={resolution ? 'character' : 'alert'}>
-          {resolution ? 'RISOLTO' : 'NON ANCORA RISOLTO'}
+        IL PROMPT{' '}
+        <SystemLabel tone={compiled ? 'character' : 'default'}>
+          {compiled ? 'PRONTO' : 'DA FARE'}
         </SystemLabel>
       </p>
 
-      <p className="t-micro dev__note">
-        Due stadi. Il primo decide <strong>chi è</strong> questa creatura e
-        consegna un oggetto; il secondo scrive il prompt da quelle decisioni,
-        senza deciderne nessuna. Finché le funzioni muoiono a dieci secondi, il
-        primo stadio lo fai tu incollando.
-      </p>
-
-      {/* 🔷 «Proviamo con un'API.» La strada corta viene per prima: quella a
-          mano resta sotto, perché è il ripiego quando questa non passa. */}
-      <p className="t-meta dev__label">CHIEDILO ALL’API</p>
-      <p className="t-micro dev__note">
-        ~1.600 token in ingresso e ~800 in uscita: un decimo di quello che
-        moriva contro i dieci secondi. Costa meno di un centesimo.
-      </p>
-      <Button
-        block
-        variant="primary"
-        small
-        disabled={busy || !token}
-        onClick={() => {
-          setBusy(true);
-          setProblems(null);
-          void resolveWithAi(mon.data.name)
-            .then((out) => {
-              setProblems(out.problems);
-              setRepaired(out.repaired);
-            })
-            .finally(() => setBusy(false));
-        }}
-      >
-        {busy ? 'STA DECIDENDO…' : 'RISOLVI CON L’AI'}
-      </Button>
-      {!token && <p className="t-micro dev__note">Serve il segreto: ATTIVA VINZ.MON.</p>}
-
-      <p className="t-meta dev__label">OPPURE A MANO</p>
-
-      {/* --- passo 1 --- */}
-      <p className="t-meta dev__label">1 · IL PROMPT DA INCOLLARE ALTROVE</p>
-      <p className="t-micro dev__note">
-        {prepared.prompt.length} caratteri · {prepared.input.family} /{' '}
-        {prepared.input.archetype} · {prepared.input.characterDesignDNA} ·
-        umanoidità {prepared.input.humanoidity}/5
-      </p>
-      <div className="dev__grid">
-        <CopyButton text={prepared.prompt} label="COPIA IL PROMPT DEL RESOLVER" />
-      </div>
-      <p className="t-micro dev__note">
-        Grammatica numerica già decisa qui:{' '}
-        <code>{JSON.stringify(prepared.numeric)}</code>
-      </p>
-
-      {/* --- passo 2 --- */}
-      <p className="t-meta dev__label">2 · LA RISPOSTA, INCOLLATA QUI</p>
-      <textarea
-        className="dev__paste"
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        placeholder='{ "corePersonality": [...], "dominantIdentityMass": "...", ... }'
-        rows={5}
-        aria-label="Risoluzione JSON"
-      />
-      <div className="dev__grid">
-        <Button
-          small
-          variant="primary"
-          disabled={draft.trim().length === 0}
-          onClick={() => {
-            const out = useResolution(mon.data.name, draft);
-            setProblems(out.problems);
-            setRepaired(out.repaired);
-            if (out.problems.length === 0) setDraft('');
-          }}
-        >
-          USA QUESTA RISOLUZIONE
-        </Button>
-        {resolution && (
+      {/* --- IL PULSANTE. Uno. --- */}
+      {!compiled && (
+        <>
+          <p className="t-micro dev__note">
+            Un modello decide chi è questa creatura, il codice scrive il prompt.
+            Meno di un centesimo, qualche secondo.
+          </p>
           <Button
-            small
-            onClick={() => {
-              clearResolution(mon.data.name);
-              setProblems(null);
-              setRepaired([]);
-            }}
+            block
+            variant="primary"
+            disabled={busy !== null || !token}
+            onClick={() => void run('sta decidendo chi è', () => resolveWithAi(mon.data.name))}
           >
-            BUTTALA
+            {busy ? `${busy.toUpperCase()}…` : 'DAMMI IL PROMPT'}
           </Button>
-        )}
-      </div>
+          {!token && <p className="t-micro dev__note">Serve il segreto: ATTIVA VINZ.MON.</p>}
+        </>
+      )}
 
-      {/* 🔒 I problemi si elencano TUTTI, non solo il primo: chi rimanda la
-          risposta a una chat vuole sapere tutto quello che c'è da correggere in
-          un giro solo, non scoprirlo uno alla volta. */}
-      {/* 🔒 Riparare in silenzio vorrebbe dire che un giorno una risposta
-          davvero rotta passerebbe per buona. Si ripara e si DICE. */}
+      {/* --- IL RISULTATO, che è l'unica cosa che serve davvero --- */}
+      {compiled && (
+        <>
+          <p className="t-micro dev__note">
+            {prepared.input.family} / {prepared.input.archetype} ·{' '}
+            {prepared.input.characterDesignDNA} · {compiled.prompt.length} caratteri
+          </p>
+          <CopyButton text={compiled.prompt} label="COPIA IL PROMPT" />
+          <div className="dev__grid">
+            <Button
+              small
+              disabled={busy !== null}
+              onClick={() => {
+                clearResolution(mon.data.name);
+                setProblems(null);
+                void run('ci ripensa', () => resolveWithAi(mon.data.name));
+              }}
+            >
+              RIFALLO
+            </Button>
+            <Button
+              small
+              disabled={busy !== null}
+              onClick={() => {
+                /* Un'altra creatura: cambia la creatura, quindi la risoluzione
+                   vecchia non c'entra più niente e se ne rifà una. */
+                rerollMon();
+                setProblems(null);
+                void run('nuova creatura', () => resolveWithAi(useApp.getState().activeMonName ?? ''));
+              }}
+            >
+              UN’ALTRA CREATURA
+            </Button>
+          </div>
+          {compiled.warnings.length > 0 && (
+            <ul className="rowlist">
+              {compiled.warnings.map((w: string, i: number) => (
+                <li key={i} className="t-micro dev__note">⚠️ {w}</li>
+              ))}
+            </ul>
+          )}
+          <pre className="dev__json dev__prompt">{compiled.prompt}</pre>
+        </>
+      )}
+
+      {busy && <p className="t-small dev__note">{busy}…</p>}
+
       {repaired.length > 0 && (
         <p className="t-micro dev__note">
-          Il testo è stato aggiustato per poterlo leggere: {repaired.join(' · ')}.
-          Succede copiando da un telefono — la punteggiatura intelligente di iOS
-          riscrive le virgolette, e non è colpa di chi ha risposto.
+          Testo aggiustato per leggerlo: {repaired.join(' · ')}.
         </p>
       )}
 
       {problems !== null && problems.length > 0 && (
         <>
           <p className="t-small">
-            <SystemLabel tone="alert">RIFIUTATA</SystemLabel> {problems.length}{' '}
-            {problems.length === 1 ? 'problema' : 'problemi'}
+            <SystemLabel tone="alert">NON RIUSCITO</SystemLabel>
           </p>
           <ul className="rowlist">
             {problems.map((p, i) => (
@@ -175,31 +156,40 @@ export function ResolverSection() {
           </ul>
         </>
       )}
-      {problems !== null && problems.length === 0 && (
-        <p className="t-small">
-          <SystemLabel tone="character">ACCETTATA</SystemLabel> i prompt già
-          compilati sono stati buttati: erano scritti dalle decisioni di prima.
-        </p>
-      )}
 
-      {/* --- passo 3 --- */}
-      {compiled && (
+      {/* --- Gli attrezzi, chiusi finché non servono --- */}
+      <Button small onClick={() => setShowManual((v) => !v)}>
+        {showManual ? 'NASCONDI IL MODO A MANO' : 'A MANO'}
+      </Button>
+
+      {showManual && (
         <>
-          <p className="t-meta dev__label">3 · IL PROMPT FINALE</p>
           <p className="t-micro dev__note">
-            {compiled.prompt.length} caratteri · master {compiled.masterVersion}
+            Se l’API non passa — il muro dei dieci secondi — si fa a mano: copia
+            il prompt qui sotto, incollalo in una chat, riporta la risposta.
           </p>
-          {compiled.warnings.length > 0 && (
-            <ul className="rowlist">
-              {compiled.warnings.map((w: string, i: number) => (
-                <li key={i} className="t-micro dev__note">⚠️ {w}</li>
-              ))}
-            </ul>
-          )}
-          <div className="dev__grid">
-            <CopyButton text={compiled.prompt} label="COPIA IL PROMPT FINALE" />
-          </div>
-          <pre className="dev__json dev__prompt">{compiled.prompt}</pre>
+          <CopyButton text={prepared.prompt} label="COPIA IL PROMPT DEL RESOLVER" />
+          <textarea
+            className="dev__paste"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder='{ "corePersonality": [...], ... }'
+            rows={4}
+            aria-label="Risoluzione JSON"
+          />
+          <Button
+            small
+            variant="primary"
+            disabled={draft.trim().length === 0}
+            onClick={() => {
+              const out = useResolution(mon.data.name, draft);
+              setProblems(out.problems);
+              setRepaired(out.repaired);
+              if (out.problems.length === 0) setDraft('');
+            }}
+          >
+            USA QUESTA RISPOSTA
+          </Button>
         </>
       )}
     </div>

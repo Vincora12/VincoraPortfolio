@@ -752,9 +752,22 @@ try {
     .first()
     .textContent()
     .catch(() => '');
-  if (!risolto || !/NON ANCORA RISOLTO/.test(risolto)) {
-    errors.push('la schermata del resolver non dice se la creatura e risolta');
+  if (!risolto || !/DA FARE/.test(risolto)) {
+    errors.push('la schermata del resolver non dice a che punto sta');
   }
+  /* Un pulsante solo, e dice cosa fa. */
+  if (!/DAMMI IL PROMPT/.test(risolto)) {
+    errors.push('manca il pulsante unico che fa tutto');
+  }
+  /* 🔷 «Fallo semplice che io possa cliccare e avviene tutto.» Gli attrezzi da
+     riparazione — la casella dove incollare, il prompt del resolver — stanno
+     CHIUSI finche' non servono: metterli davanti alla cosa che si usa ogni
+     giorno fa sembrare difficile una cosa facile. */
+  const casellaChiusa = await page.$$eval('.dev__paste', (n) => n.length);
+  if (casellaChiusa !== 0) {
+    errors.push('la casella per incollare a mano e aperta prima che serva');
+  }
+  await click(byText('A MANO'), 'apri il modo a mano');
   const casella = await page.$$eval('.dev__paste', (n) => n.length);
   if (casella !== 1) errors.push(`la casella dove incollare la risoluzione: ${casella}`);
   await shot('dev-resolver');
