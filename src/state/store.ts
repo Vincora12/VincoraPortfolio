@@ -562,6 +562,15 @@ interface AppState {
      🔷 «Gli insegno io, e quello che gli insegno resta anche se resetti.» */
   lessons: Lesson[];
   /**
+   * Gli id delle lezioni dimenticate.
+   *
+   * ⚠️ Senza questo elenco «DIMENTICALA» sarebbe un pulsante che non funziona:
+   * la fusione col server unisce gli insiemi, quindi una lezione tolta qui
+   * tornerebbe indietro dal server per sempre. La pietra tombale è come si
+   * cancella una cosa in un elenco che si fonde.
+   */
+  forgottenLessons: string[];
+  /**
    * Gli parli, e se c'è qualcosa da imparare resta.
    *
    * 🔒 Salva da sé invece di chiedere conferma: la lezione è VISIBILE
@@ -645,6 +654,7 @@ const INITIAL = {
      quello che c'è in `INITIAL` è quello che un reset rimette a zero. Il
      mestiere imparato non è la partita. */
   lessons: [] as Lesson[],
+  forgottenLessons: [] as string[],
 
   /* §21.3 — i .mon conservati. NON stanno in INITIAL per caso: `resetAll` li
      rimette a mano proprio perché devono sopravvivere a ricominciare. */
@@ -1858,13 +1868,25 @@ export const useApp = create<AppState>()(
             ...(s.activeMonName ? { about: s.activeMonName } : {}),
           };
           set((cur) => ({ lessons: [...cur.lessons, nuova] }));
+          /* Subito, non fra quattro secondi come il salvataggio della partita:
+             una lezione è una riga sola, e il momento in cui la vuoi al sicuro
+             è quello in cui l'hai appena detta. */
+          void pushLessons();
         }
 
         return { reply, failure, detail, ms };
       },
 
-      forgetLesson: (id) =>
-        set((cur) => ({ lessons: cur.lessons.filter((l) => l.id !== id) })),
+      forgetLesson: (id) => {
+        set((cur) => ({
+          lessons: cur.lessons.filter((l) => l.id !== id),
+          /* 🔒 L'id resta. È l'unico modo di far sopravvivere una
+             CANCELLAZIONE a una fusione: senza, il server la rimanderebbe
+             indietro al primo scambio. */
+          forgottenLessons: [...new Set([...cur.forgottenLessons, id])],
+        }));
+        void pushLessons();
+      },
 
       resolveWithAi: async (monName) => {
         const s = get();
@@ -2372,6 +2394,7 @@ export const useApp = create<AppState>()(
              che gli hai insegnato su come si disegnano le creature: quello non
              apparteneva a nessuna delle creature buttate via. */
           lessons: get().lessons,
+          forgottenLessons: get().forgottenLessons,
         }),
     }),
     {
@@ -2621,6 +2644,16 @@ function snapshotFor(state: AppState): unknown {
     token: _token,
     batch: _batch,
     lastTrace: _trace,
+    /* ⚠️ LE LEZIONI NO, E NON È UN'OTTIMIZZAZIONE.
+
+       Hanno una chiave loro (`/api/lessons`) proprio perché non appartengono a
+       una partita. Lasciarle anche qui dentro vorrebbe dire DUE sorgenti di
+       verità per la stessa cosa, e quella sbagliata vincerebbe nel momento
+       peggiore: quando il server ha una partita più avanti e l'app scarica il
+       suo salvataggio, si porterebbe dietro l'elenco delle lezioni com'era
+       quel giorno — cancellando tutto quello che hai insegnato dopo. */
+    lessons: _lessons,
+    forgottenLessons: _forgotten,
     ...rest
   } = state as AppState & Record<string, unknown>;
   return rest;
@@ -2657,6 +2690,55 @@ function scheduleRemoteSave(): void {
 }
 
 useApp.subscribe(scheduleRemoteSave);
+
+/* ============================================================================
+   LE LEZIONI VANNO E VENGONO PER CONTO LORO
+
+   🔷 «No, devono sopravvivere sempre.»
+
+   ⚠️ NON PASSANO DAL SALVATAGGIO DELLA PARTITA, e questa è la ragione per cui
+   esiste questo pezzo. Quel salvataggio è arbitrato dal giorno di gioco: dopo
+   un RICOMINCIA DA CAPO il giorno torna a 1, il server rifiuta di scrivere, e
+   tutto quello che gli insegni da lì in poi non arriverebbe mai.
+
+   🔒 E si spingono SUBITO, non col ritardo di quattro secondi della partita.
+   Il salvataggio della partita si accumula: se salta un giro, il prossimo
+   porta tutto lo stesso. Una lezione no — è una riga sola, detta una volta, e
+   il giro dopo potrebbe non esserci perché hai chiuso l'app.
+   ========================================================================= */
+
+/** Manda quello che sappiamo e adotta la fusione che torna indietro. */
+export async function pushLessons(): Promise<void> {
+  const s = useApp.getState();
+  if (!s.token) return;
+
+  const { syncLessons } = await import('../ai/backend');
+  const { data, failure } = await syncLessons(s.token, {
+    lessons: s.lessons,
+    forgotten: s.forgottenLessons,
+  });
+
+  if (failure || !data) {
+    /* 🔒 Non si annuncia e non si ritenta a raffica: la copia locale c'è, e la
+       prossima lezione riproverà da sé. Se la rete è giù, insistere non la
+       riaccende. */
+    console.warn('[lezioni] non sincronizzate:', failure);
+    return;
+  }
+  useApp.setState({ lessons: data.lessons, forgottenLessons: data.forgotten });
+}
+
+/**
+ * All'avvio: si prende quello che c'è sul server e lo si fonde con quello che
+ * c'è qui.
+ *
+ * ⚠️ Si SCRIVE, non si legge soltanto. Leggere e basta perderebbe le lezioni
+ * insegnate offline; scrivere e basta cancellerebbe quelle di un altro
+ * telefono. Il PUT fa tutt'e due, perché il server risponde con la fusione.
+ */
+export async function pullLessons(): Promise<void> {
+  await pushLessons();
+}
 
 /* ============================================================================
    CHI VINCE FRA IL TELEFONO E IL SERVER

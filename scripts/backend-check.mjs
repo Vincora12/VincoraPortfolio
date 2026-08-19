@@ -33,6 +33,7 @@ writeFileSync(
   `
 export { ROUTING, PERSONAL, VOICE_CHOICES, COMPILER_CHOICES, IMAGE_CHOICES, routingProblems, personalDataOnFreeTier, voiceChoiceProblems, compilerChoiceProblems, imageChoiceProblems, resolveRoute } from '${cwd}/netlify/functions/_shared/routing.ts';
 export { costOf, currentMonth, MONTHLY_CAP_USD, WARN_AT, COST_PER_WEB_SEARCH } from '${cwd}/netlify/functions/_shared/spend.ts';
+export { merge as mergeLessons } from '${cwd}/netlify/functions/lessons.ts';
 `,
 );
 
@@ -401,6 +402,55 @@ check(
   providersSource.includes('text.length > 0 || toolUses.length > 0'),
   '⚠️ una risposta senza testo ma con strumenti NON conta come guasto',
   'era il modo silenzioso in cui ogni giro di strumenti sarebbe fallito',
+);
+
+/* ============================================================================
+   LA FUSIONE DELLE LEZIONI
+
+   🔷 «No, devono sopravvivere sempre.»
+
+   ⚠️ È LA FUNZIONE CHE PUÒ FAR SPARIRE MESI DI LAVORO, quindi si prova qui e
+   non a occhio. Tre proprietà, e ognuna corrisponde a un modo concreto di
+   perdere tutto.
+   ========================================================================= */
+
+console.log('\n═══ LEZIONI — LA FUSIONE ═══\n');
+
+const L = (id, at) => ({ id, at, said: `detto ${id}`, text: `regola ${id}` });
+const libro = (lessons, forgotten = []) => ({ lessons, forgotten, savedAt: null });
+
+/* Il telefono rimasto indietro manda due lezioni; il server ne ha tre. */
+const vecchio = libro([L('a', '1'), L('b', '2')]);
+const server = libro([L('a', '1'), L('b', '2'), L('c', '3')]);
+
+check(
+  m.mergeLessons(server, vecchio).lessons.length === 3,
+  'un telefono rimasto indietro non cancella quello che ha imparato l’altro',
+  'due contro tre → tre',
+);
+
+/* Dimenticata su un telefono, ancora presente sull'altro. */
+const chiDimentica = libro([L('a', '1'), L('c', '3')], ['b']);
+const fuso = m.mergeLessons(server, chiDimentica);
+check(
+  fuso.lessons.every((l) => l.id !== 'b') && fuso.forgotten.includes('b'),
+  'una lezione dimenticata resta dimenticata, anche se l’altro ce l’ha ancora',
+  'senza pietra tombale «DIMENTICALA» sarebbe un pulsante che non funziona',
+);
+
+/* L'ordine in cui i telefoni parlano non deve cambiare il risultato. */
+const ab = JSON.stringify(m.mergeLessons(server, chiDimentica).lessons.map((l) => l.id));
+const ba = JSON.stringify(m.mergeLessons(chiDimentica, server).lessons.map((l) => l.id));
+check(
+  ab === ba,
+  'e il risultato non dipende da chi parla per primo',
+  `${ab} in tutti e due i sensi`,
+);
+
+check(
+  m.mergeLessons(libro([L('a', '1')]), libro([{ ...L('a', '1'), text: 'corretta' }]))
+    .lessons[0].text === 'corretta',
+  'a parità di id vince la copia in arrivo: è l’unica dove il testo può essere stato corretto',
 );
 
 console.log(

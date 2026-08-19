@@ -1536,6 +1536,29 @@ check(
   has('src/state/store.ts', 'lessons: get().lessons,'),
   'ricominciare cancella la partita, non il mestiere: una lezione non apparteneva a nessuna delle creature buttate via',
 );
+/* 🔷 «No, devono sopravvivere sempre.» — cioè anche al telefono, non solo al
+   reset. E questo non lo poteva fare il salvataggio della partita. */
+check(
+  '§10 DUE STADI',
+  'e sopravvive al telefono: hanno una chiave sul server tutta loro',
+  has('netlify/functions/lessons.ts', "export const config = { path: '/api/lessons' }") &&
+    has('src/state/store.ts', 'export async function pushLessons'),
+  '/api/state è arbitrato dal giorno di gioco, e dopo un reset il giorno torna a 1: da lì in poi non riuscirebbe più a scrivere niente',
+);
+check(
+  '§10 DUE STADI',
+  'una cancellazione lascia una pietra tombale, o tornerebbe indietro',
+  has('src/state/store.ts', 'forgottenLessons: [...new Set([...cur.forgottenLessons, id])]') &&
+    has('netlify/functions/lessons.ts', 'forgotten.includes(l.id)'),
+  'la fusione unisce gli insiemi: senza la pietra, il server rimanderebbe indietro la lezione tolta e «DIMENTICALA» non funzionerebbe',
+);
+check(
+  '§10 DUE STADI',
+  'e non stanno anche nel salvataggio della partita: una sola sorgente',
+  has('src/state/store.ts', 'lessons: _lessons,') &&
+    has('src/state/store.ts', 'forgottenLessons: _forgotten,'),
+  'scaricando un salvataggio più avanti l’app si porterebbe dietro le lezioni di quel giorno, cancellando tutto quello insegnato dopo',
+);
 check(
   '§10 DUE STADI',
   'e finisce davvero nella risoluzione, non solo nella chat',

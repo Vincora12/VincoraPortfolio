@@ -24,6 +24,8 @@
    ========================================================================= */
 
 /** Cosa si può chiedere. Gli stessi nomi che il backend conosce. */
+import type { Lesson } from '../engine/types';
+
 export type Capability = 'character-voice' | 'vision-quick' | 'text-cheap' | 'image' | 'prompt-compile';
 
 export interface SystemBlock {
@@ -469,6 +471,38 @@ export interface PingState {
 
 export function loadPing(token: string | null): Promise<BackendResult<PingState>> {
   return post<PingState>('/api/ping', token, undefined, 'GET');
+}
+
+/* --- Le lezioni, che non appartengono a nessuna partita ---------------------
+
+   🔷 «No, devono sopravvivere sempre.»
+
+   ⚠️ Chiave separata da `/api/state`, e non è pignoleria: quel salvataggio è
+   arbitrato dal GIORNO DI GIOCO, e dopo un RICOMINCIA DA CAPO il giorno torna
+   a 1. Il server rifiuterebbe di scrivere, e tutto quello che gli insegni
+   dopo un reset non arriverebbe mai.
+
+   🔒 Il PUT non manda «lo stato giusto»: manda quello che questo telefono sa,
+   e riceve indietro la FUSIONE. Chi scrive adotta il risultato, quindi due
+   telefoni convergono senza che nessuno dei due debba avere ragione.
+   -------------------------------------------------------------------------- */
+
+export interface LessonBook {
+  lessons: Lesson[];
+  /** Gli id dimenticati: senza, una cancellazione tornerebbe indietro. */
+  forgotten: string[];
+  savedAt: string | null;
+}
+
+export function loadLessons(token: string | null): Promise<BackendResult<LessonBook>> {
+  return post<LessonBook>('/api/lessons', token, undefined, 'GET');
+}
+
+export function syncLessons(
+  token: string | null,
+  book: { lessons: Lesson[]; forgotten: string[] },
+): Promise<BackendResult<LessonBook>> {
+  return post<LessonBook>('/api/lessons', token, { ...book, savedAt: null }, 'PUT');
 }
 
 /* --- Salvataggio ------------------------------------------------------------ */

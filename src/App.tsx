@@ -11,7 +11,14 @@
    ========================================================================= */
 
 import { useEffect, useState } from 'react';
-import { useApp, type Phase, syncWithServer, pullIngested, maybeSpeakFirst } from './state/store';
+import {
+  useApp,
+  type Phase,
+  syncWithServer,
+  pullIngested,
+  pullLessons,
+  maybeSpeakFirst,
+} from './state/store';
 import { applyPaletteDna } from './engine/colorDna';
 import { preloadMonAssets } from './assets-pipeline/assetStore';
 import { Icon } from './system/Icon';
@@ -189,6 +196,16 @@ export function App() {
          che sta per essere sostituito. */
       const applied = await pullIngested();
       if (applied > 0) console.info(`[sync] ${applied} segnali dalle scorciatoie`);
+
+      /* ⚠️ LE LEZIONI HANNO UN GIRO LORO, e va fatto anche quando il
+         salvataggio della partita è stato rifiutato.
+
+         🔒 `syncWithServer` è arbitrato dal giorno di gioco: dopo un
+         RICOMINCIA DA CAPO il server ha una copia più avanti e vince lui.
+         Le lezioni non c'entrano niente con quella contesa — non appartengono
+         a nessuna partita — e infatti stanno in una chiave separata, che
+         nessun reset può far tornare indietro. */
+      void pullLessons();
 
       /* 🔷 v1.14 §13.10 — e solo ALLA FINE il messaggio spontaneo, perché
          alcune delle cose che potrebbe dire dipendono dai dati appena
