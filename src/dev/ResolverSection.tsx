@@ -32,6 +32,7 @@ export function ResolverSection() {
   const clearResolution = useApp((s) => s.clearResolution);
   const [draft, setDraft] = useState('');
   const [problems, setProblems] = useState<string[] | null>(null);
+  const [repaired, setRepaired] = useState<string[]>([]);
 
   /* I fatti e la grammatica non dipendono da cosa incolli: si calcolano una
      volta e non a ogni tasto premuto nella casella. */
@@ -94,9 +95,10 @@ export function ResolverSection() {
           variant="primary"
           disabled={draft.trim().length === 0}
           onClick={() => {
-            const why = useResolution(mon.data.name, draft);
-            setProblems(why);
-            if (why.length === 0) setDraft('');
+            const out = useResolution(mon.data.name, draft);
+            setProblems(out.problems);
+            setRepaired(out.repaired);
+            if (out.problems.length === 0) setDraft('');
           }}
         >
           USA QUESTA RISOLUZIONE
@@ -107,6 +109,7 @@ export function ResolverSection() {
             onClick={() => {
               clearResolution(mon.data.name);
               setProblems(null);
+              setRepaired([]);
             }}
           >
             BUTTALA
@@ -117,6 +120,16 @@ export function ResolverSection() {
       {/* 🔒 I problemi si elencano TUTTI, non solo il primo: chi rimanda la
           risposta a una chat vuole sapere tutto quello che c'è da correggere in
           un giro solo, non scoprirlo uno alla volta. */}
+      {/* 🔒 Riparare in silenzio vorrebbe dire che un giorno una risposta
+          davvero rotta passerebbe per buona. Si ripara e si DICE. */}
+      {repaired.length > 0 && (
+        <p className="t-micro dev__note">
+          Il testo è stato aggiustato per poterlo leggere: {repaired.join(' · ')}.
+          Succede copiando da un telefono — la punteggiatura intelligente di iOS
+          riscrive le virgolette, e non è colpa di chi ha risposto.
+        </p>
+      )}
+
       {problems !== null && problems.length > 0 && (
         <>
           <p className="t-small">

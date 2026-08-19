@@ -475,7 +475,7 @@ interface AppState {
    *
    * Torna l'elenco dei problemi, vuoto se è stata accettata.
    */
-  useResolution: (monName: string, raw: string) => string[];
+  useResolution: (monName: string, raw: string) => { problems: string[]; repaired: string[] };
   /** Butta la risoluzione, per rifarla. */
   clearResolution: (monName: string) => void;
   /**
@@ -1777,14 +1777,14 @@ export const useApp = create<AppState>()(
 
       useResolution: (monName, raw) => {
         const rec = get().mons[monName];
-        if (!rec) return ['nessuna creatura con questo nome'];
+        if (!rec) return { problems: ['nessuna creatura con questo nome'], repaired: [] };
 
         /* Il controllo sta in `parse.ts` e non qui: è la stessa validazione
            che userà la chiamata automatica quando potrà girare. Due copie
            vorrebbero dire che la strada a mano accetta cose che quella
            automatica rifiuta, o il contrario. */
-        const { resolution, problems } = parseResolution(raw);
-        if (!resolution) return problems;
+        const { resolution, problems, repaired } = parseResolution(raw);
+        if (!resolution) return { problems, repaired };
 
         set((cur) => {
           const now = cur.mons[monName];
@@ -1799,7 +1799,7 @@ export const useApp = create<AppState>()(
             },
           };
         });
-        return [];
+        return { problems: [], repaired };
       },
 
       clearResolution: (monName) =>

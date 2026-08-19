@@ -1454,6 +1454,23 @@ check(
     has('src/assets-pipeline/resolver/parse.ts', 'export function parseResolution'),
   'due copie vorrebbero dire che la strada a mano accetta cose che l’altra rifiuta',
 );
+/* 🔷 «JSON non leggibile: unrecognized token '"'» — con le virgolette giuste
+   sotto gli occhi. Era iOS che le aveva riscritte copiando. */
+check(
+  '§10 DUE STADI',
+  'le virgolette che iOS riscrive non fanno buttare una risposta buona',
+  has('src/assets-pipeline/resolver/parse.ts', 'LE VIRGOLETTE DELL’IPHONE') ||
+    has('src/assets-pipeline/resolver/parse.ts', "LE VIRGOLETTE DELL'IPHONE"),
+  'da fuori sembra che il modello abbia risposto male, e invece ha risposto benissimo',
+);
+check(
+  '§10 DUE STADI',
+  'ma la riparazione si dichiara, non si fa di nascosto',
+  has('src/assets-pipeline/resolver/parse.ts', 'repaired: string[]') &&
+    has('src/dev/ResolverSection.tsx', 'Il testo è stato aggiustato'),
+  'aggiustare in silenzio vorrebbe dire che un giorno una risposta davvero rotta passerebbe per buona',
+);
+
 check(
   '§10 DUE STADI',
   'cambiare risoluzione butta i prompt già compilati',

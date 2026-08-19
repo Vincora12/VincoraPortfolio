@@ -49,6 +49,67 @@ export interface ParsedResolution {
   resolution: CreativeResolution | null;
   /** Perché non va bene. Vuoto se va bene. */
   problems: string[];
+  /** Cosa è stato aggiustato per farlo leggere. Vuoto se non serviva niente. */
+  repaired: string[];
+}
+
+/* ============================================================================
+   ⚠️ LE VIRGOLETTE DELL'IPHONE
+
+   Copiando da una chat su iOS, la punteggiatura intelligente trasforma le
+   virgolette dritte in tipografiche — " diventa “ e ” — e `JSON.parse` le
+   rifiuta con «unrecognized token». Da fuori sembra che il modello abbia
+   risposto male, e invece ha risposto benissimo: è il telefono che ha
+   riscritto il testo mentre lo copiavi.
+
+   🔒 SI RIPARA, MA SI DICE. Aggiustare in silenzio vorrebbe dire che un giorno
+   una risposta davvero rotta passerebbe per buona. Qui si prova prima il testo
+   com'è, e solo se non si legge si tenta la riparazione — dichiarandola.
+   ========================================================================= */
+
+const REPAIRS: { find: RegExp; put: string; says: string }[] = [
+  { find: /[\u201C\u201D\u201E\u201F]/g, put: '"', says: 'virgolette tipografiche → dritte' },
+  /* Lo spazio unificatore non è uno spazio valido in JSON, e iOS lo infila. */
+  { find: /\u00A0/g, put: ' ', says: 'spazi unificatori → spazi normali' },
+  /* Una virgola prima della graffa o della quadra chiusa: la lascia il modello,
+     non il telefono, ed è l'errore di battitura più comune di tutti. */
+  { find: /,(\s*[}\]])/g, put: '$1', says: 'virgola di troppo prima di una chiusura' },
+];
+
+/** Prova a leggere. Se non ci riesce, ripara e riprova, dicendo cosa ha fatto. */
+function readJson(text: string): {
+  obj: Record<string, unknown> | null;
+  error: string | null;
+  repaired: string[];
+} {
+  try {
+    return { obj: JSON.parse(text) as Record<string, unknown>, error: null, repaired: [] };
+  } catch {
+    /* Niente: si prova a riparare. L'errore che conta è quello DOPO. */
+  }
+
+  const repaired: string[] = [];
+  let fixed = text;
+  for (const r of REPAIRS) {
+    if (r.find.test(fixed)) {
+      fixed = fixed.replace(r.find, r.put);
+      repaired.push(r.says);
+    }
+  }
+
+  if (repaired.length === 0) {
+    try {
+      JSON.parse(text);
+    } catch (err) {
+      return { obj: null, error: String(err), repaired: [] };
+    }
+  }
+
+  try {
+    return { obj: JSON.parse(fixed) as Record<string, unknown>, error: null, repaired };
+  } catch (err) {
+    return { obj: null, error: String(err), repaired };
+  }
 }
 
 export function parseResolution(raw: string): ParsedResolution {
@@ -58,15 +119,19 @@ export function parseResolution(raw: string): ParsedResolution {
   const start = text.indexOf('{');
   const end = text.lastIndexOf('}');
   if (start < 0 || end <= start) {
-    return { resolution: null, problems: ['Non c’è nessun oggetto JSON qui dentro.'] };
+    return { resolution: null, problems: ['Non c’è nessun oggetto JSON qui dentro.'], repaired: [] };
   }
 
-  let obj: Record<string, unknown>;
-  try {
-    obj = JSON.parse(text.slice(start, end + 1)) as Record<string, unknown>;
-  } catch (err) {
-    return { resolution: null, problems: [`JSON non leggibile: ${String(err)}`] };
+  const read = readJson(text.slice(start, end + 1));
+  const repaired = read.repaired;
+  if (!read.obj) {
+    return {
+      resolution: null,
+      problems: [`JSON non leggibile: ${read.error ?? 'sconosciuto'}`],
+      repaired,
+    };
   }
+  const obj = read.obj;
 
   const problems: string[] = [];
 
@@ -87,6 +152,6 @@ export function parseResolution(raw: string): ParsedResolution {
     if (typeof v !== 'string' || v.trim().length < 3) problems.push(`${key}: manca`);
   }
 
-  if (problems.length > 0) return { resolution: null, problems };
-  return { resolution: obj as unknown as CreativeResolution, problems: [] };
+  if (problems.length > 0) return { resolution: null, problems, repaired };
+  return { resolution: obj as unknown as CreativeResolution, problems: [], repaired };
 }

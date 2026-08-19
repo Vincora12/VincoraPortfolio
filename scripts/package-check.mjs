@@ -568,6 +568,33 @@ check(
   'e una risposta che non e JSON non passa per buona',
 );
 
+/* ⚠️ LE VIRGOLETTE DELL'IPHONE. Copiando da una chat su iOS la punteggiatura
+   intelligente trasforma " in “ e ”, e JSON.parse le rifiuta con «unrecognized
+   token». Da fuori sembra che il modello abbia risposto male; ha risposto
+   benissimo, e' il telefono che ha riscritto il testo mentre lo copiavi. */
+const iosQuotes = JSON.stringify(esempio).replace(/"/g, (_m, i) => (i % 2 === 0 ? '\u201C' : '\u201D'));
+const iosRead = m.parseResolution(iosQuotes);
+check(
+  iosRead.resolution !== null && iosRead.repaired.length > 0,
+  'le virgolette tipografiche dell’iPhone vengono riparate',
+  iosRead.repaired.join(', '),
+);
+check(
+  m.parseResolution(JSON.stringify(esempio).replace(/: /g, ': \u00A0')).resolution !== null,
+  'e anche gli spazi unificatori',
+);
+/* 🔒 Ma riparare non vuol dire accettare tutto: una risposta davvero rotta
+   deve restare rotta, o un giorno passerebbe per buona. */
+check(
+  m.parseResolution('{ "corePersonality": [ }').resolution === null,
+  'una risposta davvero rotta resta rifiutata',
+);
+check(
+  m.parseResolution(JSON.stringify(esempio)).repaired.length === 0,
+  'e un JSON gia sano non viene toccato',
+  'aggiustare in silenzio quello che non ha bisogno nasconde i problemi veri',
+);
+
 /* --- Il giro completo su una creatura vera ---------------------------------- */
 
 const rInput = m.characterDataFor(record);
