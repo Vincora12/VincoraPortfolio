@@ -15,7 +15,7 @@
    ========================================================================= */
 
 import { useState } from 'react';
-import { useApp, useActiveMon } from '../state/store';
+import { stepModel, useApp, useActiveMon } from '../state/store';
 import { Button, SystemLabel, TextField, Window } from '../system/components';
 import { VOICE_MODEL, buildVoiceSystemPrompt } from '../ai/voicePrompt';
 
@@ -41,7 +41,15 @@ export function VoiceSection() {
 
     // Import dinamico: l'SDK pesa, e chi non usa la voce non deve scaricarlo.
     const { generateIntroduction } = await import('../ai/client');
-    const { result, failure } = await generateIntroduction(token, mon, mood);
+    /* 🔒 La prova deve usare la voce CHE HAI SCELTO, altrimenti giudichi un
+       modello e ne senti un altro. */
+    const { result, failure } = await generateIntroduction(
+      token,
+      mon,
+      mood,
+      [],
+      stepModel('voice'),
+    );
     setBusy(false);
 
     if (result) {

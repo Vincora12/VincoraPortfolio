@@ -90,6 +90,14 @@ export interface ProviderRequest {
   maxTokens: number;
   /** Ragiona prima di rispondere. Chi non sa farlo lo ignora. */
   thinking?: boolean;
+  /**
+   * Quanto ragionare, quando lo step lo dice per esteso. Vince su `thinking`.
+   *
+   * 🔒 Comprende `high` anche se nessuno step lo usa oggi: il tipo qui deve
+   * accettare tutto quello che il protocollo accetta, altrimenti il giorno che
+   * uno step lo chiede si rompe la compilazione in un punto che non c'entra.
+   */
+  effort?: 'none' | 'low' | 'medium' | 'high';
   /** Strumenti che il modello può chiamare. Li esegue il browser. */
   tools?: ToolDef[];
   /** Accendi la ricerca sul web, che gira dal fornitore. */
@@ -433,7 +441,11 @@ async function openAiProtocol(
 
      Resta `medium` per un caso solo: chi chiede di PENSARE e non ha strumenti
      per farlo. */
-  const effort = req.tools?.length ? 'none' : req.thinking ? 'medium' : 'none';
+  const effort = req.tools?.length
+    ? /* Con gli strumenti resta l'unico valore che passa, e vince su tutto:
+         non è una preferenza, è un requisito dell'API. */
+      'none'
+    : (req.effort ?? (req.thinking ? 'medium' : 'none'));
 
   const body = (tokensField: 'max_completion_tokens' | 'max_tokens', reasoning: boolean) => ({
     model: req.model,

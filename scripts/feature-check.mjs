@@ -1615,6 +1615,137 @@ check(
 );
 
 /* ============================================================================
+   UN MODELLO PER OGNI LAVORO (§19.3)
+
+   🔷 «Non voglio che scegliere SOL per il Character Master obblighi
+      automaticamente SOL per Bio, Teach o altri lavori.»
+   ========================================================================= */
+check(
+  '§19.3 STEP',
+  'ogni lavoro chiede il modello suo, non un menu condiviso',
+  has(ROUTING_FILE, 'export const AI_STEPS') &&
+    count('src/state/store.ts', /stepModel\('/g) >= 5,
+  'quattro lavori con profili incompatibili condividevano `compilerModel`: alzarlo per il primo pagava a vuoto gli altri tre',
+);
+check(
+  '§19.3 STEP',
+  'anche i quattro che prima non avevano voce in capitolo',
+  has('src/ai/reflect.ts', 'voiceModel: model') &&
+    has('src/ai/notebook.ts', 'voiceModel: model') &&
+    has('src/ai/roomVoice.ts', 'voiceModel: model') &&
+    has('src/ai/client.ts', 'voiceModel: model'),
+  'stanza, riflessione, taccuino e visione prendevano sempre il predefinito della rotta, senza che tu potessi dire niente',
+);
+check(
+  '§19.3 STEP',
+  'il catalogo si importa, non si ricopia',
+  has('src/state/store.ts', "from '../../netlify/functions/_shared/routing'") &&
+    lacksInCode('src/dev/ModelsSection.tsx', "'gpt-5.6-terra'"),
+  'una seconda copia dei nomi dei modelli in src/ sarebbe la cosa che va fuori sincrono per prima, e in silenzio',
+);
+check(
+  '§19.3 STEP',
+  'e la difesa resta al server: una stringa dal browser non sceglie il modello',
+  has(ROUTING_FILE, 'export function resolveRoute'),
+  'senza quel filtro il tetto di spesa smetterebbe di sapere cosa sta contando',
+);
+check(
+  '§19.3 STEP',
+  'una vecchia installazione si carica e riceve i predefiniti nuovi',
+  /* 🔒 Punta al file SENZA IMPORT, che è quello che `verify:backend` prova
+     davvero su quattro casi. Dentro `store.ts` sarebbe stata dietro a zustand
+     e a mezza app: verificabile solo aprendo l'app con un salvataggio vecchio,
+     cioè quando un errore ha già fatto danno. */
+  has('src/state/migrateSteps.ts', 'export function migratedStepModels') &&
+    has('src/state/migrateSteps.ts', 'if (vecchio.voiceModel) next.voice = vecchio.voiceModel;'),
+  'l’app è già in uso: nessuno deve resettare la partita per ricevere questa modifica',
+);
+check(
+  '§19.3 STEP',
+  '…ma `compilerModel` NON si migra, ed è una decisione dichiarata',
+  has('src/state/migrateSteps.ts', 'compilerModel → NIENTE') &&
+    lacksInCode('src/state/migrateSteps.ts', 'next.characterMaster = vecchio.compilerModel'),
+  'non era la preferenza di uno step ma di quattro messi insieme: portarla su tutti e quattro rimetterebbe in piedi il difetto lo stesso giorno',
+);
+check(
+  '§19.3 STEP',
+  'il preset economico non tocca gli step critici per la qualità',
+  has('src/state/store.ts', 'if (step.qualityCritical) continue;'),
+  '«non voglio un pulsante economico che mi peggiora i character»',
+);
+check(
+  '§19.3 STEP',
+  'e un controllo automatico impedisce di abbassare il Character Master',
+  has(ROUTING_FILE, 'deve restare critico per la qualità e in background'),
+  'se un giorno qualcuno lo abbassa «per far prima», si scopre alla build invece che guardando le creature',
+);
+check(
+  '§19.3 STEP',
+  'quanto ci mette ogni lavoro si misura, non si stima',
+  has('src/ai/telemetry.ts', 'export function noteRun') &&
+    has('src/state/store.ts', 'export async function runStep'),
+  'in questa sessione ho dedotto due volte i tempi da numeri che misuravano altro, e tutte e due le volte ha guidato una decisione di architettura',
+);
+check(
+  '§19.3 STEP',
+  'e il cronometro sta in un posto solo',
+  count('src/state/store.ts', /noteRun\(/g) === 2,
+  'misurato in otto posti, ognuno conterebbe pezzi diversi: una tabella che sembra dire qualcosa e non dice niente',
+);
+check(
+  '§19.3 STEP',
+  'il ritiro di un lavoro lungo parte fitto e poi rallenta',
+  has('src/ai/backend.ts', 'const RITMO_MS = [800, 1200, 1800, 2500];'),
+  'a intervallo fisso un lavoro finito subito dopo una domanda resta invisibile per altri 2,5 secondi, che su una risposta veloce è quasi tutta l’attesa',
+);
+
+/* ============================================================================
+   IL CONTRATTO STRUTTURALE DEL RESOLVER
+   🔷 «NON aggiungerle come L7/L8/L9 nella memoria. Sono regole strutturali.»
+   ========================================================================= */
+check(
+  '§10 DUE STADI',
+  'le tre regole del resolver sono un contratto, non lezioni di Vinz',
+  has('src/assets-pipeline/resolver/contract.ts', 'STRUCTURAL RESOLVER CONTRACT') &&
+    has('src/ai/resolver.ts', '{ text: RESOLVER_CONTRACT },'),
+  'fra le lezioni si potevano cancellare con un tocco, o perdere riscrivendo la memoria in una chat',
+);
+check(
+  '§10 DUE STADI',
+  'l’Affinity è logica di trasformazione prima che oggetto',
+  has('src/assets-pipeline/resolver/contract.ts', 'AFFINITY IS TRANSFORMATION LOGIC BEFORE OBJECT') &&
+    has('src/assets-pipeline/resolver/contract.ts', 'must never become a PROP'),
+  'MINERAL → cristallo appeso: l’immagine era giusta, l’errore era a monte',
+);
+check(
+  '§10 DUE STADI',
+  'nessun elemento può fare otto mestieri',
+  has('src/assets-pipeline/resolver/contract.ts', 'NO CONCEPT MONOPOLY') &&
+    has('src/assets-pipeline/resolver/contract.ts', 'at most TWO important functions'),
+  'lo stesso oggetto era sagoma, affinità, dettaglio ridicolo, meccanismo, asimmetria, metafora, ricordo e colore',
+);
+check(
+  '§10 DUE STADI',
+  'e ogni massa grande deve sembrare inevitabile senza sapere la storia',
+  has('src/assets-pipeline/resolver/contract.ts', 'MAJOR ELEMENT INEVITABILITY TEST') &&
+    has('src/assets-pipeline/resolver/contract.ts', 'Lore cannot rescue arbitrary morphology'),
+  'chi guarda vede la forma prima di leggere, e a quel punto ha già fallito',
+);
+check(
+  '§10 DUE STADI',
+  'il controllo di qualità è nella STESSA chiamata, non una seconda AI',
+  has('src/assets-pipeline/resolver/contract.ts', 'SELF-CHECK BEFORE YOU OUTPUT') &&
+    has('src/assets-pipeline/resolver/contract.ts', 'You get one output'),
+  'una seconda chiamata che critica e una terza che corregge sarebbero tre volte il tempo e tre volte il prezzo',
+);
+check(
+  '§10 DUE STADI',
+  'e il contratto sta nel prefisso stabile, dopo la memoria e prima delle lezioni',
+  has('src/ai/resolver.ts', 'Statico come la memoria e subito dopo di lei'),
+  'statico prima, variabile dopo: è la condizione perché la cache regga',
+);
+
+/* ============================================================================
    IL LAVORO LUNGO NON SI ASPETTA
 
    🔷 «Voglio far funzionare l'app con Sol. Che devi fare?»
@@ -1633,7 +1764,10 @@ check(
 check(
   '§19.1 FORNITORE',
   'e lì il ragionamento si chiede sul serio',
-  has('src/ai/resolver.ts', "effort: 'medium',") &&
+  /* 🔶 Il valore non sta più scritto nel resolver: sta nel catalogo degli
+     step, che è il posto giusto. La decisione è la stessa. */
+  has(ROUTING_FILE, "effort: 'medium'") &&
+    has('src/ai/resolver.ts', 'effort: AI_STEPS.characterMaster.effort') &&
     has('netlify/functions/ai.ts', "payload.effort ?? 'medium'"),
   'a ragionamento spento Sol era un Terra che costa il doppio: è l’unica ragione per cui esiste questa strada',
 );
@@ -1652,7 +1786,8 @@ check(
 check(
   '§19.1 FORNITORE',
   'e il tetto dei token si alza, perché non serviva più a non aspettare',
-  has('src/ai/resolver.ts', 'maxTokens: 8000,'),
+  has(ROUTING_FILE, 'maxTokens: 8000,') &&
+    has('src/ai/resolver.ts', 'maxTokens: AI_STEPS.characterMaster.maxTokens'),
   'un tetto stretto taglia il modello MENTRE pensa: produce un JSON troncato, non una risposta più corta',
 );
 check(
@@ -2243,7 +2378,7 @@ check(
 check(
   '§19.1 FORNITORE',
   'con gli strumenti il ragionamento è `none`, che è l’unico valore che passa',
-  has(PROVIDERS_FILE, "req.tools?.length ? 'none' :"),
+  has(PROVIDERS_FILE, 'req.tools?.length') && has(PROVIDERS_FILE, "? /* Con gli strumenti"),
   'GPT-5.6 rifiuta con 400 una richiesta con funzioni e uno sforzo diverso da none, e la rifiuta anche se non lo mandi: il suo predefinito è medium',
 );
 

@@ -40,6 +40,18 @@ import {
 import { evolveMon, generateFirstMon, generateMon } from '../engine/characterGenerator';
 import type { BackendFailure } from '../ai/backend';
 import type { CreativeResolution } from '../assets-pipeline/resolver/vendor/types';
+import { migratedStepModels, type VecchieScelte } from './migrateSteps';
+/* 🔒 IL CATALOGO SI IMPORTA, NON SI RICOPIA. `routing.ts` non ha un solo
+   import: è dati puri, e il browser lo può leggere com'è. Una seconda copia
+   dei nomi dei modelli in `src/` sarebbe la cosa che va fuori sincrono per
+   prima, e lo farebbe in silenzio. */
+import {
+  AI_STEPS,
+  AI_STEP_ORDER,
+  choicesFor,
+  modelForStep,
+  type AiStepId,
+} from '../../netlify/functions/_shared/routing';
 import { assetTypeDef } from '../engine/assets';
 import { parseResolution } from '../assets-pipeline/resolver/parse';
 import type { GenerationProgress } from '../assets-pipeline/generate';
@@ -376,6 +388,32 @@ interface AppState {
    */
   imageModel: string | null;
 
+  /* ════════════════════════════════════════════════════════════════════════
+     UN MODELLO PER OGNI LAVORO (§19.3)
+
+     🔷 «Non voglio che scegliere SOL per il Character Master obblighi
+        automaticamente SOL per Bio, Teach o altri lavori.»
+
+     ⚠️ I tre campi qui sopra sono la vecchia forma, e `compilerModel` era
+     quello rotto: un menu solo per quattro lavori con profili incompatibili.
+     Restano dichiarati perché un salvataggio vecchio li contiene, e la
+     migrazione li legge — non perché qualcuno li usi ancora.
+     ════════════════════════════════════════════════════════════════════ */
+  /** Solo le scelte ESPLICITE. Uno step assente usa il proprio predefinito. */
+  stepModels: Partial<Record<AiStepId, string>>;
+  /** Scegli il modello di uno step. `null` torna al suo predefinito. */
+  setStepModel: (step: AiStepId, model: string | null) => void;
+  /**
+   * Mette tutti gli step compatibili sul livello economico.
+   *
+   * 🔒 TRANNE IL CHARACTER MASTER, e non è una svista: «non voglio un
+   * pulsante economico che mi peggiora i character». Gli step marcati
+   * `qualityCritical` questo preset non li tocca.
+   */
+  useCheapPreset: () => void;
+  /** Rimette tutti gli step sui loro predefiniti. */
+  useQualityPreset: () => void;
+
   /**
    * Quando hai ricominciato da capo l'ultima volta, o `null`.
    *
@@ -694,6 +732,7 @@ const INITIAL = {
   voiceModel: null as string | null,
   compilerModel: null as string | null,
   imageModel: null as string | null,
+  stepModels: {} as Partial<Record<AiStepId, string>>,
   /* ⚠️ LE LEZIONI NON STANNO IN `INITIAL`, e per la stessa ragione della teca:
      quello che c'è in `INITIAL` è quello che un reset rimette a zero. Il
      mestiere imparato non è la partita. */
@@ -1673,6 +1712,29 @@ export const useApp = create<AppState>()(
       setCompilerModel: (model) => set({ compilerModel: model }),
       setImageModel: (model) => set({ imageModel: model }),
 
+      setStepModel: (step, model) =>
+        set((cur) => {
+          const next = { ...cur.stepModels };
+          if (model === null) delete next[step];
+          else next[step] = model;
+          return { stepModels: next };
+        }),
+
+      useCheapPreset: () =>
+        set(() => {
+          const next: Partial<Record<AiStepId, string>> = {};
+          for (const id of AI_STEP_ORDER) {
+            const step = AI_STEPS[id];
+            /* 🔒 La riga che protegge il prodotto. */
+            if (step.qualityCritical) continue;
+            const economico = choicesFor(step.capability).find((c) => c.model === 'gpt-5.6-luna');
+            if (economico) next[id] = economico.model;
+          }
+          return { stepModels: next };
+        }),
+
+      useQualityPreset: () => set({ stepModels: {} }),
+
       compileAssetPrompt: async (monName, assetType) => {
         const s = get();
         const rec = s.mons[monName];
@@ -1684,7 +1746,7 @@ export const useApp = create<AppState>()(
           s.token,
           rec,
           assetType,
-          s.compilerModel,
+          stepModel('imagePrompt'),
         );
 
         if (!text) return rejected ?? (failure ? `chiamata fallita (${failure})` : 'nessun testo');
@@ -1713,7 +1775,11 @@ export const useApp = create<AppState>()(
         if (rec.writtenBio) return null;
 
         const { writeBioWithAi } = await import('../ai/bioWriter');
-        const { bio, failure, rejected } = await writeBioWithAi(s.token, rec, s.compilerModel);
+        const { bio, failure, rejected } = await runStep(
+          'bio',
+          (model) => writeBioWithAi(s.token, rec, model),
+          (out) => ({ ok: out.bio !== null, why: out.rejected ?? out.failure ?? undefined }),
+        );
 
         if (!bio) return rejected ?? (failure ? `chiamata fallita (${failure})` : 'nessun testo');
 
@@ -1808,7 +1874,7 @@ export const useApp = create<AppState>()(
           rec,
           undefined,
           { only: [type], replace: true },
-          get().imageModel,
+          stepModel('image'),
         );
         /* Il motivo vero se c'è, il codice se non c'è: «openai 404: model not
            found» si risolve cambiando modello, «error» non si risolve.
@@ -1893,7 +1959,9 @@ export const useApp = create<AppState>()(
         if (!testo) return { reply: null, failure: null, ms: null };
 
         const { teachResolver } = await import('../ai/teach');
-        const { reply, lesson, replaces, failure, detail, ms } = await teachResolver(
+        const { reply, lesson, replaces, failure, detail, ms } = await runStep(
+          'teach',
+          (model) => teachResolver(
           s.token,
           testo,
           s.lessons,
@@ -1901,7 +1969,9 @@ export const useApp = create<AppState>()(
           s.customMemory,
           giudicando ?? null,
           s.activeMonName,
-          s.compilerModel,
+          model,
+          ),
+          (out) => ({ ok: out.reply !== null, why: out.detail ?? out.failure ?? undefined }),
         );
 
         /* 🔒 La lezione si salva solo se ce n'è una: a una domanda si risponde,
@@ -1993,7 +2063,9 @@ export const useApp = create<AppState>()(
         if (!rec) return { problems: ['nessuna creatura con questo nome'], repaired: [] };
 
         const { resolveWithAi } = await import('../ai/resolver');
-        const { resolution, problems, repaired, ms, usedLessons } = await resolveWithAi(
+        const { resolution, problems, repaired, ms, usedLessons } = await runStep(
+          'characterMaster',
+          (model) => resolveWithAi(
           s.token,
           rec,
           /* 🔒 Quello che gli hai insegnato entra QUI, non solo nella chat:
@@ -2001,8 +2073,10 @@ export const useApp = create<AppState>()(
           s.lessons,
           /* E il documento tuo, se gliene hai dato uno. */
           s.customMemory,
-          s.compilerModel,
+          model,
           onTick,
+          ),
+          (out) => ({ ok: out.resolution !== null, why: out.problems[0] }),
         );
         if (!resolution) return { problems, repaired, ms, usedLessons };
 
@@ -2365,7 +2439,7 @@ export const useApp = create<AppState>()(
             rec,
             (p) => set({ assetProgress: { monName, ...p } }),
             opts,
-            get().imageModel,
+            stepModel('image'),
           );
 
           /* Ogni «rifallo» si conta. Non serve al motore: serve a LUI, che nel
@@ -2439,7 +2513,7 @@ export const useApp = create<AppState>()(
           .filter((r): r is MonRecord => Boolean(r));
 
         const { writeRoomPost } = await import('../ai/roomVoice');
-        const { post: written, failure } = await writeRoomPost(s.token, post, author, voices);
+        const { post: written, failure } = await writeRoomPost(s.token, post, author, voices, stepModel('voice'));
         if (!written) return failure ?? 'error';
 
         set({
@@ -2489,6 +2563,8 @@ export const useApp = create<AppState>()(
           voiceModel: get().voiceModel,
           compilerModel: get().compilerModel,
           imageModel: get().imageModel,
+          /* Come gli altri: è configurazione di questo browser, non partita. */
+          stepModels: get().stepModels,
           /* 🔒 LA TECA SOPRAVVIVE. È l'unica cosa che deve: ricominciare
              cancella la partita, non i ricordi che avevi deciso di tenere. */
           kept: get().kept,
@@ -2536,6 +2612,7 @@ export const useApp = create<AppState>()(
          tipo di bug che si scopre dopo tre giorni di prove sbagliate. */
       onRehydrateStorage: () => (state) => {
         if (state?.dev.rarityThresholds) setRarityThresholds(state.dev.rarityThresholds);
+        if (state) migrateStepModels(state);
       },
     },
   ),
@@ -2798,6 +2875,63 @@ function scheduleRemoteSave(): void {
   }, SAVE_DEBOUNCE_MS);
 }
 
+/* La migrazione vera sta in `migrateSteps.ts`, senza import, per poterla
+   provare: qui c'è solo il punto in cui si applica. */
+function migrateStepModels(state: AppState): void {
+  state.stepModels = migratedStepModels(state as VecchieScelte) as AppState['stepModels'];
+}
+
+/**
+ * Il modello che serve uno step, pronto da mandare al server.
+ *
+ * 🔒 Passa da `modelForStep`, che è nel catalogo condiviso: un nome che non
+ * esiste nel listino della capacità torna al predefinito dello step invece di
+ * essere chiamato. La difesa vera resta comunque di là — `resolveRoute` sul
+ * server non si fida di niente che arrivi dal browser.
+ */
+export function stepModel(step: AiStepId): string {
+  return modelForStep(step, useApp.getState().stepModels[step]);
+}
+
+/**
+ * Fa girare uno step e ne registra la misura.
+ *
+ * 🔒 Il cronometro sta QUI e non dentro ogni modulo: misurato in un posto
+ * solo, i numeri di step diversi sono confrontabili. Misurato in otto posti,
+ * ognuno finirebbe per contare pezzi leggermente diversi — ed è esattamente
+ * come si costruisce una tabella che sembra dire qualcosa e non dice niente.
+ */
+export async function runStep<T>(
+  step: AiStepId,
+  job: (model: string) => Promise<T>,
+  esito: (out: T) => { ok: boolean; why?: string },
+): Promise<T> {
+  const model = stepModel(step);
+  const from = Date.now();
+  const { noteRun } = await import('../ai/telemetry');
+  try {
+    const out = await job(model);
+    const { ok, why } = esito(out);
+    noteRun(step, {
+      model,
+      ms: Date.now() - from,
+      background: AI_STEPS[step].background,
+      ok,
+      ...(why ? { why } : {}),
+    });
+    return out;
+  } catch (err) {
+    noteRun(step, {
+      model,
+      ms: Date.now() - from,
+      background: AI_STEPS[step].background,
+      ok: false,
+      why: String(err),
+    });
+    throw err;
+  }
+}
+
 useApp.subscribe(scheduleRemoteSave);
 
 /* ============================================================================
@@ -2925,6 +3059,7 @@ export async function syncWithServer(): Promise<'locale' | 'scaricato' | 'niente
     voiceModel: local.voiceModel,
     compilerModel: local.compilerModel,
     imageModel: local.imageModel,
+    stepModels: local.stepModels,
   });
   lastSavedSignature = JSON.stringify(snapshotFor(useApp.getState()));
   return 'scaricato';
@@ -3085,7 +3220,9 @@ function maybeReflect(set: (p: Partial<AppState>) => void, get: () => AppState):
   set({ lastReflectionDay: s.day });
 
   void import('../ai/reflect')
-    .then((m) => m.reflectOnWeek(s.token, record, s.memories, s.opinions, s.day))
+    .then((m) =>
+      m.reflectOnWeek(s.token, record, s.memories, s.opinions, s.day, stepModel('reflection')),
+    )
     .then(({ formed, contradicted }) => {
       if (formed.length === 0 && contradicted.length === 0) return;
 
@@ -3123,7 +3260,7 @@ function maybeReview(set: (p: Partial<AppState>) => void, get: () => AppState): 
   set({ lastNotebookDay: s.day });
 
   void import('../ai/notebook')
-    .then((m) => m.reviewVoice(s.token, evidence, s.voiceNotes, s.day))
+    .then((m) => m.reviewVoice(s.token, evidence, s.voiceNotes, s.day, stepModel('reflection')))
     .then(({ note }) => {
       if (!note) return;
       set({ voiceNotes: addNote(get().voiceNotes, note) });
@@ -3461,7 +3598,7 @@ function requestReply(
         /* §19.2 — chi risponde. Ultimo argomento e non primo di proposito:
            tutto quello che viene prima — il personaggio, l'umore, la memoria,
            gli strumenti, quello che sa di te — è identico per chiunque. */
-        s0.voiceModel,
+        stepModel('voice'),
       ),
     )
     .then(({ result }) => {
@@ -3490,7 +3627,7 @@ function readPhoto(
   if (!token) return;
 
   void import('../ai/client')
-    .then((m) => m.readPhotoSignals(token, dataUrl))
+    .then((m) => m.readPhotoSignals(token, dataUrl, stepModel('vision')))
     .then((found) => {
       if (!found) return;
       const s = get();

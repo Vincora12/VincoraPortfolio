@@ -34,6 +34,8 @@ writeFileSync(
 export { ROUTING, PERSONAL, VOICE_CHOICES, COMPILER_CHOICES, IMAGE_CHOICES, routingProblems, personalDataOnFreeTier, voiceChoiceProblems, compilerChoiceProblems, imageChoiceProblems, resolveRoute } from '${cwd}/netlify/functions/_shared/routing.ts';
 export { costOf, currentMonth, MONTHLY_CAP_USD, WARN_AT, COST_PER_WEB_SEARCH } from '${cwd}/netlify/functions/_shared/spend.ts';
 export { merge as mergeLessons } from '${cwd}/netlify/functions/lessons.ts';
+export { AI_STEPS, AI_STEP_ORDER, choicesFor, modelForStep, stepProblems } from '${cwd}/netlify/functions/_shared/routing.ts';
+export { migratedStepModels } from '${cwd}/src/state/migrateSteps.ts';
 `,
 );
 
@@ -467,6 +469,137 @@ check(
 check(
   m.mergeLessons(conDoc('mio', '2026-08-01'), conDoc(null, null)).memory === 'mio',
   'e un telefono che non ne ha uno non cancella quello dell’altro',
+);
+
+/* ============================================================================
+   UN MODELLO PER OGNI LAVORO (§19.3)
+
+   🔷 «Non voglio che scegliere SOL per il Character Master obblighi
+      automaticamente SOL per Bio, Teach o altri lavori.»
+   ========================================================================= */
+
+console.log('\n═══ AI — UN MODELLO PER STEP ═══\n');
+
+check(
+  m.stepProblems().length === 0,
+  'ogni step ha un predefinito che esiste nel catalogo della sua capacità',
+  m.stepProblems().join(' · ') || `${m.AI_STEP_ORDER.length} step`,
+);
+
+/* 1 · indipendenza — la proprietà per cui esiste tutto questo lavoro. */
+const soloBio = { bio: 'gpt-5.6-luna' };
+check(
+  m.modelForStep('characterMaster', soloBio.characterMaster) === 'gpt-5.6-sol',
+  'mettere Bio su Luna NON sposta il Character Master',
+  m.modelForStep('characterMaster', soloBio.characterMaster),
+);
+const soloTeach = { teach: 'gpt-5.6-luna' };
+check(
+  m.modelForStep('characterMaster', soloTeach.characterMaster) === 'gpt-5.6-sol',
+  'mettere Insegna su Luna NON sposta il Character Master',
+);
+check(
+  m.modelForStep('bio', soloBio.bio) === 'gpt-5.6-luna' &&
+    m.modelForStep('teach', undefined) === 'gpt-5.6-luna',
+  'e ogni step legge la propria scelta, non quella di un altro',
+);
+
+/* 2 · i predefiniti chiesti. */
+check(
+  m.AI_STEPS.characterMaster.fallback === 'gpt-5.6-sol',
+  'CHARACTER MASTER: il predefinito è Sol',
+  m.AI_STEPS.characterMaster.fallback,
+);
+check(
+  m.AI_STEPS.teach.fallback === 'gpt-5.6-luna' &&
+    m.AI_STEPS.bio.fallback === 'gpt-5.6-luna' &&
+    m.AI_STEPS.imagePrompt.fallback === 'gpt-5.6-luna',
+  'INSEGNA, BIO e PROMPT IMMAGINI: il predefinito è Luna',
+);
+check(
+  m.AI_STEPS.image.fallback === 'gpt-image-2' && m.AI_STEPS.vision.fallback === 'gemini-2.5-flash',
+  'IMMAGINI e VISIONE restano sui modelli loro, non su un modello di testo',
+);
+
+/* 3 · un nome inventato dal browser non passa. */
+check(
+  m.modelForStep('characterMaster', 'gpt-inventato-9') === 'gpt-5.6-sol' &&
+    m.modelForStep('bio', 'claude-opus-5') === 'gpt-5.6-luna',
+  'un modello fuori catalogo torna al predefinito dello step, non viene chiamato',
+  'anche un modello VERO ma di un’altra capacità',
+);
+
+/* 4 · il profilo: chi aspetta e chi no. */
+check(
+  m.AI_STEPS.characterMaster.background === true &&
+    m.AI_STEP_ORDER.filter((id) => m.AI_STEPS[id].background).length === 1,
+  'solo il Character Master parte in background',
+  'gli altri sono brevi: un giro di rete in più li rallenterebbe e basta',
+);
+check(
+  m.AI_STEPS.characterMaster.effort === 'medium' &&
+    m.AI_STEPS.teach.effort === 'none' &&
+    m.AI_STEPS.bio.effort === 'low',
+  'e il ragionamento è per step: medium, none, low',
+);
+check(
+  m.AI_STEPS.characterMaster.maxTokens >= 8000,
+  'il Character Master ha spazio per ragionare senza troncare il JSON',
+  `${m.AI_STEPS.characterMaster.maxTokens} token`,
+);
+
+/* 5 · il preset economico non tocca la qualità. */
+const economico = {};
+for (const id of m.AI_STEP_ORDER) {
+  if (m.AI_STEPS[id].qualityCritical) continue;
+  const luna = m.choicesFor(m.AI_STEPS[id].capability).find((c) => c.model === 'gpt-5.6-luna');
+  if (luna) economico[id] = luna.model;
+}
+check(
+  m.modelForStep('characterMaster', economico.characterMaster) === 'gpt-5.6-sol',
+  '⚠️ il preset ECONOMICO non sposta il Character Master da Sol',
+  'è la riga per cui il preset può esistere senza peggiorare i character',
+);
+check(
+  economico.bio === 'gpt-5.6-luna' && economico.teach === 'gpt-5.6-luna',
+  'ma mette su Luna tutto quello che si può',
+  Object.keys(economico).join(', '),
+);
+check(
+  economico.image === undefined && economico.voice === undefined,
+  'e non tocca né le immagini né la voce',
+  'un modello di testo non sostituisce un modello di disegno',
+);
+
+/* ⚠️ LA MIGRAZIONE È IL PUNTO PIÙ RISCHIOSO DI TUTTO IL LAVORO: l'app è già
+   in uso, e una vecchia installazione deve caricarsi senza perdere niente. */
+
+const vecchia = {
+  voiceModel: 'kimi-k3',
+  compilerModel: 'gpt-5.6-terra',
+  imageModel: 'gpt-image-1',
+};
+const migrata = m.migratedStepModels(vecchia);
+
+check(
+  migrata.voice === 'kimi-k3' && migrata.image === 'gpt-image-1',
+  'una vecchia installazione conserva la voce e il disegnatore che aveva scelto',
+  JSON.stringify(migrata),
+);
+check(
+  m.modelForStep('characterMaster', migrata.characterMaster) === 'gpt-5.6-sol',
+  '…e riceve i predefiniti nuovi dove prima c’era il menu condiviso',
+  '`compilerModel` valeva per quattro step insieme: non può diventare la scelta di uno',
+);
+check(
+  Object.keys(m.migratedStepModels({})).length === 0,
+  'un’installazione nuova parte senza scelte, cioè su tutti i predefiniti',
+);
+check(
+  m.migratedStepModels({ voiceModel: 'kimi-k3', stepModels: { bio: 'gpt-5.6-luna' } }).voice ===
+    undefined,
+  'e una già migrata non viene ripassata sopra',
+  'rifarlo cancellerebbe le scelte fatte dopo la migrazione',
 );
 
 console.log(

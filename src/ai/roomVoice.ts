@@ -84,6 +84,8 @@ export async function writeRoomPost(
   post: RoomPost,
   author: MonRecord,
   voices: readonly MonRecord[],
+  /** Chi lo scrive: è la stessa voce del .mon, quindi la stessa scelta. */
+  model?: string | null,
 ): Promise<WriteOutcome> {
   const cast = voices.map((v) => whoIs(v)).join('\n');
 
@@ -96,6 +98,7 @@ export async function writeRoomPost(
 
   const res = await ask(token, {
     capability: 'character-voice',
+    voiceModel: model,
     system: [{ text: RULES, cache: true }],
     user,
     maxTokens: 600,

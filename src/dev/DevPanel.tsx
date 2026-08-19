@@ -30,6 +30,7 @@ import { CatalogSection } from './CatalogSection';
 import { BioSection } from './BioSection';
 import { ForgePanel } from './ForgePanel';
 import { ResolverSection } from './ResolverSection';
+import { ModelsSection } from './ModelsSection';
 import { TeachSection } from './TeachSection';
 import { buildInfo, buildLabel } from '../system/build';
 import { DesignTest } from './DesignTest';
@@ -54,6 +55,7 @@ type DevTab =
   | 'assets'
   | 'progression'
   | 'cost'
+  | 'models'
   | 'memory'
   | 'mood'
   | 'rarity'
@@ -143,7 +145,17 @@ const GROUPS: { id: DevGroup; label: string; tabs: { id: DevTab; label: string }
       { id: 'tools', label: 'STRUMENTI' },
     ],
   },
-  { id: 'conti', label: 'SPESA', tabs: [{ id: 'cost', label: 'COSTI' }] },
+  {
+    id: 'conti',
+    label: 'SPESA',
+    tabs: [
+      { id: 'cost', label: 'COSTI' },
+      /* 🔷 «La UI deve farmi vedere chiaramente quale AI serve quale step.»
+         Sta sotto SPESA e non sotto VOCE perché la domanda che ci porta è
+         «quanto costa e quanto ci mette», non «come parla». */
+      { id: 'models', label: 'AI / MODELLI' },
+    ],
+  },
 ];
 
 /** In quale gruppo vive una scheda. Serve a non perdere il segno tornando indietro. */
@@ -211,6 +223,7 @@ export function DevPanel({ onClose, onGo }: { onClose: () => void; onGo?: (o: 'a
         {inGroup && tab === 'assets' && <AssetsSection />}
         {inGroup && tab === 'progression' && <ProgressionSection />}
         {inGroup && tab === 'cost' && <CostSection />}
+        {inGroup && tab === 'models' && <ModelsSection />}
         {inGroup && tab === 'memory' && <MemorySection />}
         {inGroup && tab === 'mood' && <MoodSection />}
         {inGroup && tab === 'rarity' && <RaritySection />}

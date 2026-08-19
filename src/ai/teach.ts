@@ -35,6 +35,7 @@ import type { BackendFailure } from './backend';
 import type { Lesson } from '../engine/types';
 import type { CreativeResolution } from '../assets-pipeline/resolver/vendor/types';
 import { resolverMemoryWith } from '../assets-pipeline/resolver/memory';
+import { AI_STEPS } from '../../netlify/functions/_shared/routing';
 
 /* 🔒 In inglese come la memoria: il resolver ragiona in quella lingua e gli si
    chiede di scrivere una riga che dovrà stare in mezzo alle altre. Solo la
@@ -156,8 +157,10 @@ export async function teachResolver(
     ]
       .filter(Boolean)
       .join('\n'),
-    thinking: false,
-    maxTokens: 700,
+    /* 🔒 Il profilo lo dice lo step, non questa riga: due frasi e una lezione
+       non hanno niente da scoprire. */
+    effort: AI_STEPS.teach.effort,
+    maxTokens: AI_STEPS.teach.maxTokens,
   });
 
   if (!data?.text) {

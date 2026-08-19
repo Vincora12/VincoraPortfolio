@@ -306,6 +306,8 @@ Rules:
 export async function readPhotoSignals(
   token: string | null,
   dataUrl: string,
+  /** Chi guarda la foto, se hai scelto. */
+  model?: string | null,
 ): Promise<PhotoSignals | null> {
   if (!token) return null;
 
@@ -315,6 +317,7 @@ export async function readPhotoSignals(
 
   const { data: result } = await ask<VoiceData & { usage?: Record<string, number> }>(token, {
     capability: 'vision-quick',
+    voiceModel: model,
     system: [{ text: PHOTO_SYSTEM }],
     user: 'Cosa vedi?',
     image: { mediaType: mediaType!, data: data! },

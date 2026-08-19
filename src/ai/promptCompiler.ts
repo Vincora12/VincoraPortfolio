@@ -44,6 +44,7 @@
 import { ask } from './backend';
 import type { BackendFailure } from './backend';
 import { compilePrompt } from '../assets-pipeline/compiler';
+import { AI_STEPS } from '../../netlify/functions/_shared/routing';
 import type { AssetType, MonRecord } from '../engine/types';
 
 /* --- Le regole del compilatore, dal documento ------------------------------ */
@@ -156,8 +157,8 @@ export async function compileWithAi(
       'THE FACTS, ALREADY DECIDED — every one of these must survive into your output:',
       deterministic,
     ].join('\n'),
-    thinking: true,
-    maxTokens: 8000,
+    effort: AI_STEPS.imagePrompt.effort,
+    maxTokens: AI_STEPS.imagePrompt.maxTokens,
   });
 
   /* Il motivo del server, quando ce n'è uno: «16636 caratteri contro un tetto

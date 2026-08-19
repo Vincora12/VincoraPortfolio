@@ -52,6 +52,8 @@ import { characterDataFor } from '../assets-pipeline/resolver/adapter';
 import { numericGrammarFor } from '../assets-pipeline/resolver/vendor/rules';
 import { buildCreativeResolverPrompt } from '../assets-pipeline/resolver/vendor/resolver';
 import { parseResolution } from '../assets-pipeline/resolver/parse';
+import { AI_STEPS } from '../../netlify/functions/_shared/routing';
+import { RESOLVER_CONTRACT } from '../assets-pipeline/resolver/contract';
 import { resolverMemoryWith } from '../assets-pipeline/resolver/memory';
 import type { CreativeResolution } from '../assets-pipeline/resolver/vendor/types';
 
@@ -159,6 +161,14 @@ export async function resolveWithAi(
       voiceModel: compilerModel,
       system: [
         { text: resolverMemoryWith(lessons, custom), cache: true },
+        /* ⚠️ IL CONTRATTO, NON IL GUSTO. Sta qui e non fra le lezioni perché
+           quelle sono SUE — le cancella, le riscrive, rifà il documento in una
+           chat — e queste devono sopravvivere a tutto questo: sono come il
+           resolver deve lavorare, non cosa a lui piace.
+
+           🔒 Statico come la memoria e subito dopo di lei: il prefisso resta
+           identico a ogni chiamata, quindi la cache regge lo stesso. */
+        { text: RESOLVER_CONTRACT },
         /* ⚠️ LE LEZIONI, RIPETUTE QUI E IN FORMA DI ORDINE.
 
            🔷 «Gli ho messo la lezione, ma se faccio generare il prompt non
@@ -183,12 +193,12 @@ export async function resolveWithAi(
          `high`: i fatti arrivano dati, il formato è dettato riga per riga e la
          grammatica numerica è già calcolata — `medium` è dove la resa smette
          di crescere su un compito così vincolato. */
-      effort: 'medium',
+      effort: AI_STEPS.characterMaster.effort,
       /* 🔶 Da tremila a ottomila. Il tetto stretto serviva a non aspettare, e
          adesso nessuno aspetta. Un modello che ragiona spende token anche per
          pensare, e un tetto stretto lo taglia MENTRE pensa: produce un JSON
          troncato, non una risposta più corta. */
-      maxTokens: 8000,
+      maxTokens: AI_STEPS.characterMaster.maxTokens,
     },
     onTick,
   );

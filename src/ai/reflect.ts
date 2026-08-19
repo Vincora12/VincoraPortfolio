@@ -78,6 +78,8 @@ export async function reflectOnWeek(
   memories: Memory[],
   existing: Opinion[],
   today: number,
+  /** Chi la scrive, se hai scelto. Il server accetta solo modelli che conosce. */
+  model?: string | null,
 ): Promise<ReflectionOutcome> {
   if (!token) return EMPTY;
 
@@ -105,6 +107,7 @@ ${held || '- nothing yet'}`;
      verifica. */
   const { data } = await ask<VoiceData & { usage?: Record<string, number> }>(token, {
     capability: 'text-cheap',
+    voiceModel: model,
     system: [{ text: SYSTEM }],
     user,
     maxTokens: 700,

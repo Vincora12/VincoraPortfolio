@@ -55,6 +55,8 @@ export async function reviewVoice(
   evidence: Evidence,
   existing: VoiceNote[],
   today: number,
+  /** Chi lo scrive, se hai scelto. */
+  model?: string | null,
 ): Promise<NotebookProposal> {
   if (!token) return NOTHING;
 
@@ -82,6 +84,7 @@ ${refused || '- none'}`;
 
   const { data } = await ask<VoiceData & { usage?: Record<string, number> }>(token, {
     capability: 'text-cheap',
+    voiceModel: model,
     system: [{ text: SYSTEM }],
     user,
     maxTokens: 500,

@@ -34,6 +34,7 @@
    ========================================================================= */
 
 import { ask } from './backend';
+import { AI_STEPS } from '../../netlify/functions/_shared/routing';
 import type { BackendFailure } from './backend';
 import type { BioFile, MonRecord } from '../engine/types';
 import { displayName } from '../engine/types';
@@ -150,8 +151,11 @@ export async function writeBioWithAi(
     voiceModel: compilerModel,
     system: [{ text: BIO_RULES, cache: true }],
     user: factsOf(record),
-    thinking: true,
-    maxTokens: 2000,
+    /* 🔶 Era `thinking: true`, cioè `medium`. La bio è un testo corto e i
+       controlli deterministici che la giudicano non sono cambiati: `low`
+       basta, e quello che non basta lo BOCCIA il validatore, non il prezzo. */
+    effort: AI_STEPS.bio.effort,
+    maxTokens: AI_STEPS.bio.maxTokens,
   });
 
   if (!data?.text) return { bio: null, failure, rejected: detail ?? null };

@@ -53,6 +53,14 @@ export interface AskRequest {
   user?: string;
   image?: { mediaType: string; data: string };
   thinking?: boolean;
+  /**
+   * Quanto ragionare, detto per esteso.
+   *
+   * ⚠️ `thinking` sa dire due cose sole — sì o no — e gli step ne vogliono
+   * tre: il Character Master `medium`, Bio e Prompt immagini `low`, Insegna
+   * `none`. Quando c'è, questo campo vince su `thinking`.
+   */
+  effort?: 'none' | 'low' | 'medium';
   maxTokens?: number;
   /** Strumenti che il modello può chiamare. Li esegue il browser. */
   tools?: ToolDefinition[];
@@ -493,8 +501,27 @@ export function loadPing(token: string | null): Promise<BackendResult<PingState>
    tutta la catena dove aspettare non costa niente e non uccide nessuno.
    -------------------------------------------------------------------------- */
 
-/** Ogni quanto si chiede se è pronto. */
-const RITMO_MS = 2500;
+/**
+ * Ogni quanto si chiede se è pronto — e NON è un numero fisso.
+ *
+ * ⚠️ A intervallo fisso di 2,5 secondi un lavoro finito subito dopo una
+ * domanda resta invisibile per altri 2,5: su una risposta veloce è quasi tutto
+ * il tempo che percepisci, ed è tempo in cui non sta succedendo niente.
+ *
+ * 🔒 La scala parte fitta e si allarga. Le prime domande costano poco — sono
+ * chiamate a vuoto di pochi byte, non token — e coprono il caso in cui il
+ * modello ha già finito. Quando è chiaro che ci vorrà, si rallenta: un lavoro
+ * da un minuto non ha bisogno di essere interrogato trenta volte.
+ *
+ * Con questa scala una risposta pronta a 1s si vede a 0,8s invece che a 2,5;
+ * un lavoro da 60s costa 27 domande invece di 24. Il prezzo è nullo — il
+ * ritiro non consuma token — e il guadagno si sente proprio dove serve.
+ */
+const RITMO_MS = [800, 1200, 1800, 2500];
+
+function attesa(giro: number): number {
+  return RITMO_MS[Math.min(giro, RITMO_MS.length - 1)]!;
+}
 
 /**
  * Quanto si insiste prima di lasciar perdere.
@@ -522,7 +549,7 @@ export interface LongOutcome {
  */
 export async function askLong(
   token: string | null,
-  request: AskRequest & { effort?: 'none' | 'low' | 'medium' | 'high' },
+  request: AskRequest,
   onTick?: (secondi: number) => void,
 ): Promise<LongOutcome> {
   const from = Date.now();
@@ -543,12 +570,12 @@ export async function askLong(
 
   const jobId = avvio.data.jobId;
 
-  for (;;) {
+  for (let passo = 0; ; passo++) {
     if (Date.now() - from > PAZIENZA_MS) {
       return { text: null, failure: 'timeout', detail: 'oltre otto minuti', ms: Date.now() - from };
     }
 
-    await new Promise((r) => setTimeout(r, RITMO_MS));
+    await new Promise((r) => setTimeout(r, attesa(passo)));
     onTick?.(Math.round((Date.now() - from) / 1000));
 
     const giro = await post<{ text?: string; status?: string }>('/api/ai', token, {

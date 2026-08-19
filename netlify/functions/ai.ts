@@ -326,6 +326,7 @@ export default async function handler(request: Request): Promise<Response> {
     userBlocks,
     image: payload.image,
     thinking: Boolean(payload.thinking),
+    ...(payload.effort ? { effort: payload.effort } : {}),
     tools,
     webSearch,
     /* Un prompt compilato è lungo per definizione — il riferimento che

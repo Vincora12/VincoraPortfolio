@@ -845,3 +845,13 @@
   font-size: 11px;
   line-height: 1.5;
 }
+
+/* --- AI / MODELLI: una riga per lavoro ------------------------------------- */
+
+.dev__step {
+  display: flex;
+  flex-direction: column;
+  gap: var(--u2);
+  padding: var(--u4) 0;
+  border-bottom: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+}

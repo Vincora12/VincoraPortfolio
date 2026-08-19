@@ -548,3 +548,248 @@ export function personalDataOnFreeTier(routing = ROUTING): Capability[] {
   const FREE_TIER: Provider[] = ['google'];
   return PERSONAL.filter((c) => FREE_TIER.includes(routing[c].provider));
 }
+
+/* ============================================================================
+   GLI STEP: CHI CHIEDE COSA, E CON QUALE MODELLO (§19.3)
+
+   🔷 «Non voglio che scegliere SOL per il Character Master obblighi
+      automaticamente SOL per Bio, Teach o altri lavori. E non voglio che
+      scegliere LUNA per una funzione economica abbassi involontariamente la
+      qualità del Character Master.»
+
+   ⚠️ IL DIFETTO ERA REALE E STRUTTURALE. Quattro lavori diversi condividevano
+   la capacità `prompt-compile` e la stessa preferenza `compilerModel`:
+
+     il Creative Resolver   interpreta vincoli, scioglie conflitti, fa art
+                            direction, sacrifica idee — è IL lavoro
+     INSEGNA                due frasi e una lezione
+     BIO                    un JSON corto
+     PROMPT IMMAGINI        una riscrittura
+
+   Un menu solo per quattro profili incompatibili: alzarlo per il primo
+   pagava a vuoto gli altri tre, abbassarlo per gli altri tre rovinava il
+   primo. E altri quattro step — la stanza, la riflessione, il taccuino, le
+   foto — non avevano nessuna preferenza: prendevano sempre il predefinito
+   della rotta senza che tu potessi dire niente.
+
+   ════════════════════════════════════════════════════════════════════════════
+   🔒 DUE LIVELLI, E LA DIFFERENZA È TUTTO IL PUNTO.
+
+     CAPACITÀ  cosa serve saper fare. Decide quali modelli sono AMMISSIBILI,
+               e resta la difesa: il server non chiama niente che non sappia
+               prezzare.
+     STEP      quale lavoro è. Decide quale modello si PREFERISCE, come si
+               aspetta la risposta, quanto deve ragionare e quanto può
+               scrivere.
+
+   Lo step non aggira la capacità: le passa davanti. La preferenza viaggia nel
+   campo che il server già conosce e `resolveRoute` la accetta solo se
+   corrisponde a una voce del catalogo — un nome inventato dal browser torna
+   al predefinito invece di essere chiamato.
+   ════════════════════════════════════════════════════════════════════════════
+   ========================================================================= */
+
+export type AiStepId =
+  | 'characterMaster'
+  | 'teach'
+  | 'bio'
+  | 'imagePrompt'
+  | 'voice'
+  | 'reflection'
+  | 'vision'
+  | 'image';
+
+export interface AiStep {
+  id: AiStepId;
+  /** Come si chiama per te. Mai «compiler»: devi capire cosa stai scegliendo. */
+  label: string;
+  /** A cosa serve, in una riga. */
+  it: string;
+  capability: Capability;
+  /**
+   * Il modello quando non hai scelto niente.
+   *
+   * ⚠️ NON è `ROUTING[capability]`, ed è la ragione per cui questo campo
+   * esiste: quattro step condividono `prompt-compile`, e il predefinito della
+   * rotta è per forza uno solo. Qui ognuno ha il suo.
+   */
+  fallback: string;
+  /**
+   * Il lavoro può superare la finestra della funzione, quindi parte e si va a
+   * riprendere.
+   *
+   * 🔒 È una proprietà dello STEP, non del modello. Un lavoro che può durare
+   * minuti va protetto anche il giorno che ci metti sopra un modello veloce;
+   * un lavoro di due frasi non va rallentato di un giro di rete solo perché
+   * quel giorno ci hai messo un modello lento.
+   */
+  background: boolean;
+  /** Quanto deve ragionare, dove il fornitore lo accetta. */
+  effort: 'none' | 'low' | 'medium';
+  maxTokens: number;
+  /** Qui la qualità viene prima della velocità, e non si baratta. */
+  qualityCritical: boolean;
+}
+
+export const AI_STEPS: Record<AiStepId, AiStep> = {
+  /* ⚠️ SOL, ED È L'UNICA RIGA CHE NON SI TOCCA PER RISPARMIARE.
+     🔷 «Anche nel preset economico il Character Master resta Sol. Non voglio
+        un pulsante "economico" che mi peggiora i character.» */
+  characterMaster: {
+    id: 'characterMaster',
+    label: 'CHARACTER MASTER',
+    it: 'Decide chi è la creatura: scioglie i conflitti fra i livelli e fa le scelte di disegno. È qui che si spende in qualità.',
+    capability: 'prompt-compile',
+    fallback: 'gpt-5.6-sol',
+    background: true,
+    effort: 'medium',
+    /* Alto perché un modello che ragiona spende token anche per pensare: un
+       tetto stretto lo taglia MENTRE pensa e produce un JSON troncato. */
+    maxTokens: 8000,
+    qualityCritical: true,
+  },
+  teach: {
+    id: 'teach',
+    label: 'INSEGNA',
+    it: 'Ti risponde quando gli insegni qualcosa, e ne ricava la regola da tenere. Due frasi.',
+    capability: 'prompt-compile',
+    fallback: 'gpt-5.6-luna',
+    background: false,
+    effort: 'none',
+    maxTokens: 700,
+    qualityCritical: false,
+  },
+  bio: {
+    id: 'bio',
+    label: 'BIO',
+    it: 'Scrive la storia della creatura. Testo corto, e i controlli deterministici restano identici.',
+    capability: 'prompt-compile',
+    fallback: 'gpt-5.6-luna',
+    background: false,
+    effort: 'low',
+    maxTokens: 2000,
+    qualityCritical: false,
+  },
+  imagePrompt: {
+    id: 'imagePrompt',
+    label: 'PROMPT IMMAGINI',
+    it: 'Riscrive i prompt dei cinque asset che il Character Master non copre. Fino a cinque volte per creatura.',
+    capability: 'prompt-compile',
+    fallback: 'gpt-5.6-luna',
+    background: false,
+    effort: 'low',
+    maxTokens: 8000,
+    qualityCritical: false,
+  },
+  voice: {
+    id: 'voice',
+    label: 'VOCE',
+    it: 'Come parla il .mon, in chat e nella stanza. Si giudica a orecchio, non a numeri.',
+    capability: 'character-voice',
+    fallback: 'claude-opus-5',
+    background: false,
+    effort: 'medium',
+    maxTokens: 2000,
+    qualityCritical: true,
+  },
+  reflection: {
+    id: 'reflection',
+    label: 'RIFLESSIONE',
+    it: 'La lettura settimanale e gli appunti. È l’unico lavoro piccolo che legge mesi della tua storia in un colpo solo.',
+    capability: 'text-cheap',
+    fallback: 'claude-haiku-4-5',
+    background: false,
+    effort: 'low',
+    maxTokens: 700,
+    qualityCritical: false,
+  },
+  vision: {
+    id: 'vision',
+    label: 'VISIONE',
+    it: 'Guarda una foto e dichiara cosa c’è. Nel dubbio, niente.',
+    capability: 'vision-quick',
+    fallback: 'gemini-2.5-flash',
+    background: false,
+    effort: 'none',
+    maxTokens: 400,
+    qualityCritical: false,
+  },
+  image: {
+    id: 'image',
+    label: 'IMMAGINI',
+    it: 'Disegna. Un modello di testo qui non sostituisce niente.',
+    capability: 'image',
+    fallback: 'gpt-image-2',
+    background: false,
+    effort: 'none',
+    maxTokens: 0,
+    qualityCritical: true,
+  },
+};
+
+/** L'ordine in cui si mostrano: prima quello che decide, poi il resto. */
+export const AI_STEP_ORDER: AiStepId[] = [
+  'characterMaster',
+  'bio',
+  'imagePrompt',
+  'image',
+  'voice',
+  'teach',
+  'reflection',
+  'vision',
+];
+
+/** Il catalogo dei modelli ammissibili per una capacità. */
+export function choicesFor(
+  capability: Capability,
+): { provider: Provider; model: string; label: string }[] {
+  if (capability === 'character-voice') return VOICE_CHOICES;
+  if (capability === 'prompt-compile') return COMPILER_CHOICES;
+  if (capability === 'image') return IMAGE_CHOICES;
+  /* Vision e text-cheap non hanno ancora un catalogo di scelte: la rotta è
+     quella e basta. Un elenco di uno solo è più onesto di un menu finto. */
+  return [{ ...ROUTING[capability], label: ROUTING[capability].model }];
+}
+
+/**
+ * Il modello che serve questo step: quello che hai scelto, o il suo predefinito.
+ *
+ * 🔒 Non torna mai `null`: uno step senza preferenza deve comunque poter dire
+ * al server quale modello vuole, altrimenti ricadrebbe sul predefinito della
+ * CAPACITÀ — che è condiviso fra quattro step, ed è esattamente il difetto che
+ * questo strato esiste per togliere.
+ */
+export function modelForStep(step: AiStepId, chosen?: string | null): string {
+  const def = AI_STEPS[step];
+  if (!chosen) return def.fallback;
+  const ok = choicesFor(def.capability).some((c) => c.model === chosen);
+  return ok ? chosen : def.fallback;
+}
+
+/**
+ * Quello che non torna nel catalogo degli step.
+ *
+ * ⚠️ Uno step il cui predefinito non esiste nel catalogo della sua capacità
+ * ricadrebbe in silenzio sulla rotta condivisa: nessun errore, nessun avviso,
+ * e Sol che diventa Terra senza che nessuno se ne accorga. È il modo esatto in
+ * cui questa architettura può tornare rotta, quindi si controlla a ogni build.
+ */
+export function stepProblems(steps = AI_STEPS): string[] {
+  const problems: string[] = [];
+  for (const step of Object.values(steps)) {
+    const pool = choicesFor(step.capability);
+    if (!pool.some((c) => c.model === step.fallback)) {
+      problems.push(`${step.label} → «${step.fallback}» non è nel catalogo di ${step.capability}`);
+    }
+    if (step.background && step.capability !== 'prompt-compile') {
+      problems.push(`${step.label} → il lavoro in background esiste solo per prompt-compile`);
+    }
+  }
+  /* 🔒 E la riga che protegge il prodotto: il Character Master deve restare
+     sul livello alto. Se un giorno qualcuno lo abbassa «per far prima»,
+     questo controllo lo dice prima che venga pubblicato. */
+  if (!steps.characterMaster.qualityCritical || steps.characterMaster.background === false) {
+    problems.push('CHARACTER MASTER → deve restare critico per la qualità e in background');
+  }
+  return problems;
+}
