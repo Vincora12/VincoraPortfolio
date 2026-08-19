@@ -756,3 +756,54 @@
   color: var(--ink);
   resize: vertical;
 }
+
+/* --- INSEGNA: la conversazione e le lezioni --------------------------------
+   🔷 «Metti una chat con lui, così gli insegno io.»
+
+   🔒 Le due voci si distinguono per ALLINEAMENTO e non per colore: qui dentro
+   il colore e' gia' occupato — rosso = DEV, e un terzo colore in una schermata
+   che ne ha gia' due significa chiedere di impararlo.
+   -------------------------------------------------------------------------- */
+
+.dev__talk {
+  display: flex;
+  flex-direction: column;
+  gap: var(--u2);
+  margin: var(--u3) 0;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+
+.dev__talk p {
+  margin: 0;
+  padding: var(--u2) var(--u3);
+  border: 1px solid currentColor;
+  border-radius: var(--radius);
+  font-size: 13px;
+  line-height: 1.45;
+  max-width: 86%;
+}
+
+.dev__talk-mine {
+  align-self: flex-end;
+  opacity: 0.72;
+}
+
+.dev__talk-his {
+  align-self: flex-start;
+}
+
+/* 🔒 Ogni lezione porta con se' cosa avevi detto TU e il modo di cancellarla.
+   Una riga sola con la sola versione tradotta sarebbe una regola di cui non
+   puoi piu' verificare l'origine. */
+.dev__lesson {
+  display: flex;
+  flex-direction: column;
+  gap: var(--u2);
+  padding: var(--u3) 0;
+  border-bottom: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+}
+
+.dev__lesson > .btn {
+  align-self: flex-start;
+}

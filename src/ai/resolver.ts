@@ -47,12 +47,12 @@
 
 import { ask } from './backend';
 import type { BackendFailure } from './backend';
-import type { MonRecord } from '../engine/types';
+import type { Lesson, MonRecord } from '../engine/types';
 import { characterDataFor } from '../assets-pipeline/resolver/adapter';
 import { numericGrammarFor } from '../assets-pipeline/resolver/vendor/rules';
 import { buildCreativeResolverPrompt } from '../assets-pipeline/resolver/vendor/resolver';
 import { parseResolution } from '../assets-pipeline/resolver/parse';
-import { RESOLVER_MEMORY } from '../assets-pipeline/resolver/memory';
+import { resolverMemoryWith } from '../assets-pipeline/resolver/memory';
 import type { CreativeResolution } from '../assets-pipeline/resolver/vendor/types';
 
 export interface ResolveOutcome {
@@ -75,6 +75,15 @@ export interface ResolveOutcome {
 export async function resolveWithAi(
   token: string | null,
   record: MonRecord,
+  /**
+   * Quello che gli hai insegnato tu, in coda al documento.
+   *
+   * 🔒 Passate da fuori e non lette qui dentro: questo file non deve sapere
+   * dove sono conservate. È la stessa ragione per cui non legge `record` dal
+   * negozio — una funzione che va a prendersi da sé i suoi ingredienti non si
+   * può provare senza montare mezza app.
+   */
+  lessons: readonly Lesson[] = [],
   compilerModel?: string | null,
 ): Promise<ResolveOutcome> {
   const input = characterDataFor(record);
@@ -97,7 +106,7 @@ export async function resolveWithAi(
   const { data, failure, detail, ms } = await ask<{ text: string }>(token, {
     capability: 'prompt-compile',
     voiceModel: compilerModel,
-    system: [{ text: RESOLVER_MEMORY, cache: true }],
+    system: [{ text: resolverMemoryWith(lessons), cache: true }],
     user: buildCreativeResolverPrompt(input, numeric),
     /* ⚠️ RAGIONAMENTO BASSO, DI PROPOSITO — ed è la correzione di un mio errore.
        Avevo scritto qui sopra «~800 token in uscita» contando solo il JSON: i

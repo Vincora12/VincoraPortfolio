@@ -30,6 +30,7 @@ import { CatalogSection } from './CatalogSection';
 import { BioSection } from './BioSection';
 import { ForgePanel } from './ForgePanel';
 import { ResolverSection } from './ResolverSection';
+import { TeachSection } from './TeachSection';
 import { buildInfo, buildLabel } from '../system/build';
 import { DesignTest } from './DesignTest';
 import { PromptPreview } from './PromptPreview';
@@ -47,6 +48,7 @@ type DevTab =
   | 'generate'
   | 'bio'
   | 'resolver'
+  | 'teach'
   | 'voice'
   | 'prompt'
   | 'assets'
@@ -99,6 +101,11 @@ const GROUPS: { id: DevGroup; label: string; tabs: { id: DevTab; label: string }
       { id: 'generate', label: 'GENERA' },
       { id: 'bio', label: 'BIO' },
       { id: 'resolver', label: 'RESOLVER' },
+      /* 🔷 «Metti una chat con lui, così gli insegno io.» Accanto a RESOLVER
+         perché è lo stesso interlocutore, e separata perché è un'altra cosa:
+         là si chiede un prompt per la creatura di adesso, qui si cambia come
+         verranno risolte tutte quelle dopo. */
+      { id: 'teach', label: 'INSEGNA' },
       { id: 'mindline', label: 'MINDLINE' },
       /* 🔷 v1.16 §15.3 — la rarità era l'unica parte del motore che non si
          poteva guardare mentre la si tarava. */
@@ -198,6 +205,7 @@ export function DevPanel({ onClose, onGo }: { onClose: () => void; onGo?: (o: 'a
         {inGroup && tab === 'generate' && <GenerateSection onClose={onClose} />}
         {inGroup && tab === 'bio' && <BioSection />}
         {inGroup && tab === 'resolver' && <ResolverSection />}
+        {inGroup && tab === 'teach' && <TeachSection />}
         {inGroup && tab === 'voice' && <VoiceSection />}
         {inGroup && tab === 'prompt' && <PromptPreview />}
         {inGroup && tab === 'assets' && <AssetsSection />}

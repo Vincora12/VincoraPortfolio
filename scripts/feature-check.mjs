@@ -1477,12 +1477,16 @@ check(
 check(
   '§10 DUE STADI',
   'la memoria del gusto arriva al resolver, in testa e in cache',
-  has('src/ai/resolver.ts', 'system: [{ text: RESOLVER_MEMORY, cache: true }]'),
+  /* 🔶 Cercava `RESOLVER_MEMORY` secco. Da quando la memoria cresce con le
+     lezioni il nome è `resolverMemoryWith(...)`, ma la decisione è la stessa:
+     primo blocco, marcato per la cache. */
+  has('src/ai/resolver.ts', 'system: [{ text: resolverMemoryWith(lessons), cache: true }]') &&
+    has('src/ai/teach.ts', 'cache: true'),
   'un prefisso costante e primo è la condizione perché la cache agganci: in coda costerebbe pieno per sempre',
 );
 check(
   '§10 DUE STADI',
-  '…e SOLO al resolver: non alla voce, non alla vecchia riscrittura dei prompt',
+  '…e SOLO al resolver e alla sua chat: non alla voce, non alla vecchia riscrittura',
   ['promptCompiler', 'client', 'voicePrompt', 'bioWriter', 'roomVoice', 'reflect', 'notebook']
     .every((f) => lacksInCode(`src/ai/${f}.ts`, 'RESOLVER_MEMORY')),
   'la riscrittura riscrive un prompt esistente: darle una memoria di gusto le farebbe cambiare decisioni che non è lei a prendere',
@@ -1510,6 +1514,54 @@ check(
   has('src/dev/ResolverSection.tsx', '1 · COPIA LA MEMORIA') &&
     has('src/dev/ResolverSection.tsx', '2 · COPIA IL PROMPT DEL RESOLVER'),
   'se a mano si copiasse solo il prompt, i due percorsi non sarebbero confrontabili: uno saprebbe come si decide e l’altro no',
+);
+
+/* ============================================================================
+   INSEGNARE AL RESOLVER
+
+   🔷 «Vorrei poter parlare con il resolver: metti una chat con lui, così gli
+      insegno io, e quello che gli insegno resta nella memoria anche se
+      resetti.»
+   ========================================================================= */
+check(
+  '§10 DUE STADI',
+  'al resolver ci si può parlare, e non è la voce del .mon',
+  has('src/ai/teach.ts', 'export async function teachResolver') &&
+    has('src/dev/DevPanel.tsx', "{ id: 'teach', label: 'INSEGNA' }"),
+  'il .mon parla di sé; questo è la parte che decide come sono fatte le creature, e ci parli come a un art director',
+);
+check(
+  '§10 DUE STADI',
+  'quello che gli insegni sopravvive a RICOMINCIA DA CAPO',
+  has('src/state/store.ts', 'lessons: get().lessons,'),
+  'ricominciare cancella la partita, non il mestiere: una lezione non apparteneva a nessuna delle creature buttate via',
+);
+check(
+  '§10 DUE STADI',
+  'e finisce davvero nella risoluzione, non solo nella chat',
+  has('src/ai/resolver.ts', 'resolverMemoryWith(lessons)') &&
+    has('src/state/store.ts', 's.lessons,'),
+  'una lezione che vale solo mentre gliela dici non è una lezione',
+);
+check(
+  '§10 DUE STADI',
+  'le lezioni stanno in CODA al documento, mai prima',
+  has('src/assets-pipeline/resolver/memory.ts', 'return `${RESOLVER_MEMORY}'),
+  'il fornitore mette in cache un prefisso: mettendo davanti una parte che cambia a ogni lezione, la cache non aggancerebbe mai — stesso codice, dieci volte il prezzo, nessun errore',
+);
+check(
+  '§10 DUE STADI',
+  'e quello che hai detto tu resta accanto, parola per parola',
+  has('src/dev/TeachSection.tsx', 'gli avevi detto') &&
+    has('src/engine/types.ts', 'said: string;'),
+  'se un giorno la riga tradotta risulta storta, il verbale è l’unico modo di sapere cosa intendevi',
+);
+check(
+  '§10 DUE STADI',
+  'si impara solo quando c’è qualcosa da imparare',
+  has('src/state/store.ts', 'if (lesson) {') &&
+    has('src/dev/TeachSection.tsx', 'non c’era niente di nuovo da tenere'),
+  'un modello costretto a produrre una riga a ogni giro ne inventerebbe, e la memoria si riempirebbe di regole che nessuno ha chiesto',
 );
 
 /* 🔷 «Proviamo con un'API. Facciamogli fare solo il prompt finale, quello lo do

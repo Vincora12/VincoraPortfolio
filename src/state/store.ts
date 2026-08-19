@@ -130,6 +130,7 @@ import type {
   GenerationTrace,
   HealthState,
   Memory,
+  Lesson,
   MindlineNode,
   MonRecord,
   Progression,
@@ -557,6 +558,21 @@ interface AppState {
   /** Il voto che hai dato alla forma attiva, 1–5, o `null`. */
   rateMon: (monName: string, stars: number | null) => void;
 
+  /* --- LE LEZIONI AL RESOLVER --------------------------------------------
+     🔷 «Gli insegno io, e quello che gli insegno resta anche se resetti.» */
+  lessons: Lesson[];
+  /**
+   * Gli parli, e se c'è qualcosa da imparare resta.
+   *
+   * 🔒 Salva da sé invece di chiedere conferma: la lezione è VISIBILE
+   * nell'elenco subito sotto e si cancella con un tocco, quindi una conferma
+   * prima aggiungerebbe un passo per proteggere da una cosa già reversibile.
+   * E quello che hai detto tu resta accanto, parola per parola.
+   */
+  teachResolver: (said: string) => Promise<{ reply: string | null; failure: BackendFailure | null; detail?: string; ms: number | null }>;
+  /** Toglie una lezione. Non c'è nessun altro modo di toglierla, di proposito. */
+  forgetLesson: (id: string) => void;
+
   /* --- §21.4 LA STANZA --- */
   room: RoomPost[];
   /** Scrive il testo di un post. 🔒 Se è già scritto non fa niente. */
@@ -625,6 +641,11 @@ const INITIAL = {
   voiceModel: null as string | null,
   compilerModel: null as string | null,
   imageModel: null as string | null,
+  /* ⚠️ LE LEZIONI NON STANNO IN `INITIAL`, e per la stessa ragione della teca:
+     quello che c'è in `INITIAL` è quello che un reset rimette a zero. Il
+     mestiere imparato non è la partita. */
+  lessons: [] as Lesson[],
+
   /* §21.3 — i .mon conservati. NON stanno in INITIAL per caso: `resetAll` li
      rimette a mano proprio perché devono sopravvivere a ricominciare. */
   kept: [] as KeptMon[],
@@ -1809,6 +1830,42 @@ export const useApp = create<AppState>()(
         return { problems: [], repaired };
       },
 
+      /* 🔷 «Metti una chat con lui, così gli insegno io.» */
+      teachResolver: async (said) => {
+        const s = get();
+        const testo = said.trim();
+        if (!testo) return { reply: null, failure: null, ms: null };
+
+        const { teachResolver } = await import('../ai/teach');
+        const { reply, lesson, failure, detail, ms } = await teachResolver(
+          s.token,
+          testo,
+          s.lessons,
+          s.activeMonName,
+          s.compilerModel,
+        );
+
+        /* 🔒 La lezione si salva solo se ce n'è una: a una domanda si risponde,
+           non si impara. Un modello che deve produrre una riga a ogni giro
+           finirebbe per inventarne, e la memoria si riempirebbe di regole che
+           nessuno ha mai chiesto. */
+        if (lesson) {
+          const nuova: Lesson = {
+            id: `L${Date.now().toString(36)}`,
+            at: new Date().toISOString(),
+            said: testo,
+            text: lesson,
+            ...(s.activeMonName ? { about: s.activeMonName } : {}),
+          };
+          set((cur) => ({ lessons: [...cur.lessons, nuova] }));
+        }
+
+        return { reply, failure, detail, ms };
+      },
+
+      forgetLesson: (id) =>
+        set((cur) => ({ lessons: cur.lessons.filter((l) => l.id !== id) })),
+
       resolveWithAi: async (monName) => {
         const s = get();
         const rec = s.mons[monName];
@@ -1818,6 +1875,9 @@ export const useApp = create<AppState>()(
         const { resolution, problems, repaired, ms } = await resolveWithAi(
           s.token,
           rec,
+          /* 🔒 Quello che gli hai insegnato entra QUI, non solo nella chat:
+             una lezione che vale solo mentre gliela dici non è una lezione. */
+          s.lessons,
           s.compilerModel,
         );
         if (!resolution) return { problems, repaired, ms };
@@ -2308,6 +2368,10 @@ export const useApp = create<AppState>()(
           /* 🔒 LA TECA SOPRAVVIVE. È l'unica cosa che deve: ricominciare
              cancella la partita, non i ricordi che avevi deciso di tenere. */
           kept: get().kept,
+          /* 🔒 E LE LEZIONI PURE. Ricominciare cancella la partita, non quello
+             che gli hai insegnato su come si disegnano le creature: quello non
+             apparteneva a nessuna delle creature buttate via. */
+          lessons: get().lessons,
         }),
     }),
     {

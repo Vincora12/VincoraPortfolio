@@ -295,6 +295,36 @@ export interface Memory {
   monName: string;
 }
 
+/* --- LE LEZIONI AL RESOLVER --------------------------------------------------
+
+   🔷 «Vorrei poter parlare con il resolver, così gli insegno io, e quello che
+      gli insegno resta nella memoria anche se resetti.»
+
+   ⚠️ SONO UNA COSA DIVERSA DAI RICORDI, e vale la pena dirlo perché si
+   somigliano: un `Memory` è una cosa SUCCESSA a una creatura, e muore con la
+   partita. Una `Lesson` è una cosa IMPARATA su come si disegna, e non
+   appartiene a nessuna creatura. Per questo sopravvive al reset insieme alla
+   teca: ricominciare cancella la partita, non il mestiere.
+   -------------------------------------------------------------------------- */
+
+export interface Lesson {
+  id: string;
+  /** Quando gliel'hai insegnata. */
+  at: string;
+  /**
+   * ⚠️ COSA HAI DETTO TU, PAROLA PER PAROLA E IN ITALIANO.
+   *
+   * 🔒 Non viene mai riscritto. È il verbale: se un giorno la riga qui sotto
+   * risulta storta, questo campo è l'unico modo di sapere cosa avevi detto
+   * davvero invece di fidarsi della traduzione che ne era stata fatta.
+   */
+  said: string;
+  /** La riga come la legge il resolver, in inglese, nella sua lingua. */
+  text: string;
+  /** La creatura di cui stavate parlando, se ce n'era una. */
+  about?: string;
+}
+
 /* --- MINDLINE ---------------------------------------------------------------- */
 
 export type NodeKind = 'origin' | 'evolution' | 'branch';

@@ -1,3 +1,5 @@
+import type { Lesson } from '../../engine/types';
+
 /* ============================================================================
    LA MEMORIA DEL RESOLVER (VINZ_MON_RESOLVER_MEMORY_v1)
 
@@ -237,3 +239,47 @@ export const MEMORY_FINGERPRINTS = [
   'Portable taste memory',
   'Character Critic checklist',
 ];
+
+/* ============================================================================
+   LA MEMORIA CRESCIUTA: IL DOCUMENTO PIÙ QUELLO CHE GLI HAI INSEGNATO TU
+
+   🔷 «Vorrei poter parlare con il resolver, così gli insegno io, e quello che
+      gli insegno resta nella memoria anche se resetti.»
+
+   ⚠️ LE LEZIONI VANNO IN CODA, E NON È UN DETTAGLIO DI IMPAGINAZIONE.
+
+   Il fornitore mette in cache un PREFISSO: la parte iniziale identica fra una
+   chiamata e l'altra. Il documento non cambia mai, le lezioni cambiano ogni
+   volta che ne aggiungi una. Mettendole prima, il prefisso cambierebbe a ogni
+   lezione nuova e la cache non aggancerebbe MAI: stesso codice, dieci volte
+   il prezzo, nessun errore.
+
+   In coda: le prime ~4.250 parole restano identiche e costano un decimo,
+   e solo la parte tua si paga piena.
+
+   🔒 E VALGONO LE STESSE QUATTRO REGOLE del documento — non sono un canale
+   privilegiato per aggirarle. Una lezione orienta COME si decide; non
+   sostituisce i dati generati, non inventa tassonomia, e non finisce nel
+   prompt immagine.
+   ========================================================================= */
+
+
+export function resolverMemoryWith(lessons: readonly Lesson[]): string {
+  if (lessons.length === 0) return RESOLVER_MEMORY;
+
+  const righe = lessons
+    .map((l, i) => `L${i + 1}. ${l.text}`)
+    .join('\n');
+
+  return `${RESOLVER_MEMORY}
+
+15. Lessons taught directly by Vinz
+These were added by Vinz after the document above, during real use. They are
+the most recent expression of his taste: when one of them conflicts with an
+older preference note above, THIS SECTION WINS — the document itself says the
+newer explicit project decision wins.
+They remain preferences about HOW to resolve, exactly like the rest of this
+memory. They never replace generated Character Data, never introduce new
+taxonomy, and never appear in the final image prompt.
+${righe}`;
+}
