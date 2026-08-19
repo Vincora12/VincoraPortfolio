@@ -402,10 +402,26 @@ async function openAiProtocol(
   key: string,
   req: ProviderRequest,
 ): Promise<ProviderResult> {
-  const body = (tokensField: 'max_completion_tokens' | 'max_tokens') => ({
+  /* ⚠️ QUANTO DEVE RAGIONARE, DETTO.
+     🔷 «Il prompt carica ma non va.»
+
+     Questo campo non veniva mandato affatto, quindi GPT-5.6 girava al suo
+     predefinito — `medium` — e su un briefing di millesei token ci mette
+     decine di secondi: molto oltre i dieci delle funzioni.
+
+     ⚠️ E la mia stima era sbagliata in un modo che conta: avevo detto «~800
+     token in uscita» contando solo il JSON. I token di RAGIONAMENTO sono
+     anch'essi token in uscita, e sono quelli che fanno il tempo. Non contarli
+     è il motivo per cui pensavo che la chiamata ci stesse.
+
+     Il resolver è un lavoro vincolato — i fatti sono dati, il formato è
+     dettato — quindi `low` gli basta. La voce, che deve pensare davvero,
+     chiede `thinking` e riceve `medium`. */
+  const body = (tokensField: 'max_completion_tokens' | 'max_tokens', reasoning: boolean) => ({
     model: req.model,
     messages: openaiMessages(req),
     [tokensField]: req.maxTokens,
+    ...(reasoning ? { reasoning_effort: req.thinking ? 'medium' : 'low' } : {}),
     ...(req.tools?.length
       ? {
           tools: req.tools.map((t) => ({
@@ -416,22 +432,29 @@ async function openAiProtocol(
       : {}),
   });
 
-  const send = (tokensField: 'max_completion_tokens' | 'max_tokens') =>
+  const send = (tokensField: 'max_completion_tokens' | 'max_tokens', reasoning: boolean) =>
     fetch(url, {
       method: 'POST',
       headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` },
-      body: JSON.stringify(body(tokensField)),
+      body: JSON.stringify(body(tokensField, reasoning)),
     });
 
   try {
-    let res = await send('max_completion_tokens');
+    let res = await send('max_completion_tokens', true);
 
     if (!res.ok) {
       const detail = await res.text();
-      /* Solo se l'errore parla DI QUEL parametro: un 401 o un tetto di spesa
-         non si riprovano, si riportano. */
-      if (/max_completion_tokens|max_tokens|unsupported parameter/i.test(detail)) {
-        res = await send('max_tokens');
+      /* Solo se l'errore parla DI UN PARAMETRO: un 401 o un tetto di spesa non
+         si riprovano, si riportano. E si riprova togliendo QUELLO nominato —
+         prima il nome del campo dei token, poi lo sforzo di ragionamento, che
+         non tutti i modelli accettano. */
+      if (/max_completion_tokens|max_tokens|unsupported parameter|unknown parameter/i.test(detail)) {
+        res = await send('max_tokens', true);
+        if (!res.ok) res = await send('max_completion_tokens', false);
+        if (!res.ok) res = await send('max_tokens', false);
+        if (!res.ok) return fail(req.model, `${label} ${res.status}: ${await res.text()}`);
+      } else if (/reasoning/i.test(detail)) {
+        res = await send('max_completion_tokens', false);
         if (!res.ok) return fail(req.model, `${label} ${res.status}: ${await res.text()}`);
       } else {
         return fail(req.model, `${label} ${res.status}: ${detail}`);

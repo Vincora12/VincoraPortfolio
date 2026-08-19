@@ -1492,7 +1492,31 @@ check(
   '§10 DUE STADI',
   'e chiede molto meno di quello che moriva sul tempo',
   has('src/ai/resolver.ts', 'maxTokens: 3000'),
-  'l’uscita è quella che costa tempo, e qui è un decimo: 800 token contro 8000',
+  'l’uscita è quella che costa tempo, e questa ne chiede una frazione di quella vecchia',
+);
+/* 🔷 «Il prompt carica ma non va.»
+   Il livello di ragionamento non veniva mandato affatto, quindi il modello
+   girava al suo predefinito e ci metteva decine di secondi: oltre il muro dei
+   dieci. Le tre righe qui sotto tengono ferme le tre decisioni che ne sono
+   uscite. */
+check(
+  '§10 DUE STADI',
+  'quanto deve ragionare il modello lo decidiamo noi, non il suo predefinito',
+  has(PROVIDERS_FILE, 'reasoning_effort: req.thinking'),
+  'lasciato al predefinito, un modello che ragiona sfonda i dieci secondi delle funzioni e la chiamata muore sempre',
+);
+check(
+  '§10 DUE STADI',
+  'e se un modello quel parametro non lo accetta, si riprova senza',
+  has(PROVIDERS_FILE, "/reasoning/i.test(detail)"),
+  'non tutte le famiglie lo prendono, e un 400 su un parametro non deve far sembrare rotta la chiave',
+);
+check(
+  '§10 DUE STADI',
+  'il resolver chiede il ragionamento basso: il suo lavoro è vincolato',
+  has('src/ai/resolver.ts', 'thinking: false') &&
+    lacksInCode('src/ai/resolver.ts', 'thinking: true'),
+  'i fatti sono dati e il formato è dettato: non c’è niente da scoprire, solo da scegliere — è la voce che deve pensare davvero',
 );
 check(
   '§10 DUE STADI',

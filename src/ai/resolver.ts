@@ -12,11 +12,14 @@
    compilatore non aveva nemmeno in teoria:
 
      vecchio   ~4.000 token in ingresso, fino a 8.000 in USCITA
-     questo    ~1.600 in ingresso, ~800 in uscita
+     questo    ~1.600 in ingresso, ~800 di JSON — PIÙ il ragionamento
 
-   L'uscita è quella che costa tempo — si genera un token alla volta — e qui è
-   un decimo. Se anche così non basta, il messaggio adesso dice `timeout` con
-   parole sue, e la strada a mano resta lì accanto.
+   L'uscita è quella che costa tempo — si genera un token alla volta. Il conto
+   qui sopra era incompleto la prima volta che l'ho scritto: contava il JSON e
+   basta, e i token di ragionamento sono anch'essi uscita. Per questo la
+   chiamata chiede `thinking: false` (vedi sotto). Se anche così non basta, il
+   messaggio adesso dice `timeout` con parole sue, e la strada a mano resta lì
+   accanto.
 
    🔒 La validazione è la STESSA di quella incollata a mano: `parseResolution`.
    Due controlli diversi vorrebbero dire che la strada automatica accetta cose
@@ -58,7 +61,18 @@ export async function resolveWithAi(
     capability: 'prompt-compile',
     voiceModel: compilerModel,
     user: buildCreativeResolverPrompt(input, numeric),
-    thinking: true,
+    /* ⚠️ RAGIONAMENTO BASSO, DI PROPOSITO — ed è la correzione di un mio errore.
+       Avevo scritto qui sopra «~800 token in uscita» contando solo il JSON: i
+       token di RAGIONAMENTO sono anch'essi token in uscita, e sono quelli che
+       fanno il tempo. A ragionamento predefinito questa chiamata non poteva
+       stare nei dieci secondi, e infatti non ci stava.
+
+       Chiedere `low` non è un risparmio a caso: questo lavoro è VINCOLATO —
+       i fatti arrivano dati, il formato è dettato riga per riga dal prompt del
+       pacchetto, la grammatica numerica è già calcolata. Non c'è niente da
+       scoprire, solo da scegliere. È la VOCE che deve pensare davvero, e
+       infatti quella chiede `thinking` e riceve `medium`. */
+    thinking: false,
     /* La risoluzione d'esempio sta in ~800 token. Tremila è largo e non
        rallenta: un modello si ferma quando ha finito, non quando riempie. */
     maxTokens: 3000,
