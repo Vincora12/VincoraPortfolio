@@ -46,6 +46,14 @@ export function ResolverSection() {
      non c'è più niente da dedurre. */
   const [lastMs, setLastMs] = useState<number | null>(null);
   const [lastTotal, setLastTotal] = useState<number | null>(null);
+  /* ⚠️ Con quante lezioni è partita.
+
+     🔷 «Gli ho messo la lezione ma non sembra prenderla in considerazione.»
+
+     Da fuori «non è arrivata» e «è arrivata e non l'ha usata» sono lo stesso
+     schermo. Questo numero le separa, e solo la prima è colpa del codice. */
+  const [conLezioni, setConLezioni] = useState<number | null>(null);
+  const [vediDecisioni, setVediDecisioni] = useState(false);
   const [problems, setProblems] = useState<string[] | null>(null);
   const [repaired, setRepaired] = useState<string[]>([]);
   const [showManual, setShowManual] = useState(false);
@@ -65,7 +73,12 @@ export function ResolverSection() {
 
   const run = async (
     label: string,
-    job: () => Promise<{ problems: string[]; repaired: string[]; ms?: number | null }>,
+    job: () => Promise<{
+      problems: string[];
+      repaired: string[];
+      ms?: number | null;
+      usedLessons?: number;
+    }>,
   ) => {
     setBusy(label);
     setProblems(null);
@@ -73,6 +86,7 @@ export function ResolverSection() {
     const out = await job();
     setLastTotal(Date.now() - from);
     setLastMs(out.ms ?? null);
+    setConLezioni(out.usedLessons ?? null);
     setBusy(null);
     setProblems(out.problems);
     setRepaired(out.repaired);
@@ -152,6 +166,32 @@ export function ResolverSection() {
               ))}
             </ul>
           )}
+          {/* ════════════════════════════════════════════════════════════════
+              ⚠️ LE DECISIONI, ED È QUI CHE SI GUARDA SE UNA LEZIONE HA MORSO.
+
+              🔷 «Gli ho messo la lezione ma non sembra prenderla in
+                 considerazione.»
+
+              🔒 Nel prompt finale la lezione NON comparirà MAI — è la regola
+              numero uno che hai dato tu. Quello che cambia è la DECISIONE:
+              «niente occhiali tondi» non si legge nel prompt, si legge in
+              `eyewearConstruction`. Cercarla nel testo finale è cercarla
+              nell'unico posto dove abbiamo stabilito che non ci sarà.
+              ════════════════════════════════════════════════════════════ */}
+          <Button small onClick={() => setVediDecisioni((v) => !v)}>
+            {vediDecisioni ? 'NASCONDI LE DECISIONI' : 'VEDI LE 21 DECISIONI'}
+          </Button>
+          {vediDecisioni && resolution && (
+            <>
+              <p className="t-micro dev__note">
+                È qui che una lezione si vede: nel prompt finale non comparirà
+                mai, perché la memoria non ci deve finire.
+              </p>
+              <pre className="dev__json dev__memory">
+                {JSON.stringify(resolution, null, 2)}
+              </pre>
+            </>
+          )}
           <pre className="dev__json dev__prompt">{compiled.prompt}</pre>
         </>
       )}
@@ -170,6 +210,14 @@ export function ResolverSection() {
             </>
           )}
           . La differenza è codice, prompt e salvataggio — non la funzione.
+          {conLezioni !== null && (
+            <>
+              {' '}
+              Risolto con <strong>{conLezioni}</strong>{' '}
+              {conLezioni === 1 ? 'lezione' : 'lezioni'}.
+              {conLezioni === 0 && ' Se ne avevi insegnate, non sono arrivate.'}
+            </>
+          )}
         </p>
       )}
 

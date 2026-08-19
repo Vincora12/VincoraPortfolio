@@ -55,6 +55,29 @@ import { parseResolution } from '../assets-pipeline/resolver/parse';
 import { resolverMemoryWith } from '../assets-pipeline/resolver/memory';
 import type { CreativeResolution } from '../assets-pipeline/resolver/vendor/types';
 
+/**
+ * Le lezioni come ordini, non come racconto.
+ *
+ * ⚠️ «Vinz prefers X» e «X. This overrides the document above» sono la stessa
+ * informazione con due forze diverse, e la seconda è quella che serve quando
+ * il resto del contesto tira in direzione opposta.
+ */
+function vincoliDa(lessons: readonly Lesson[]): string {
+  return [
+    'ACTIVE CONSTRAINTS FROM VINZ — read these last, apply them first.',
+    '',
+    'These are decisions Vinz made himself, after the memory document above.',
+    'They are not preferences to weigh: they are binding. Where any of them',
+    'touches something the document or your habits would resolve differently,',
+    'THEY WIN, and your resolution must visibly reflect them.',
+    '',
+    ...lessons.map((l) => `- ${l.text}`),
+    '',
+    'They still never override generated Character Data and never introduce',
+    'new taxonomy. They change HOW you resolve, not WHAT the Form is.',
+  ].join('\n');
+}
+
 export interface ResolveOutcome {
   resolution: CreativeResolution | null;
   failure: BackendFailure | null;
@@ -62,6 +85,14 @@ export interface ResolveOutcome {
   problems: string[];
   /** Cosa è stato aggiustato per leggerla. */
   repaired: string[];
+  /**
+   * Con quante lezioni è stata fatta.
+   *
+   * ⚠️ Serve a separare due guasti che da fuori sono identici: «la lezione non
+   * è arrivata» e «è arrivata e non l'ha usata». Zero qui significa il primo,
+   * ed è l'unico dei due che è colpa del codice.
+   */
+  usedLessons: number;
   /**
    * Quanto ha impiegato LA CHIAMATA, in millisecondi.
    *
@@ -106,7 +137,28 @@ export async function resolveWithAi(
   const { data, failure, detail, ms } = await ask<{ text: string }>(token, {
     capability: 'prompt-compile',
     voiceModel: compilerModel,
-    system: [{ text: resolverMemoryWith(lessons), cache: true }],
+    system: [
+      { text: resolverMemoryWith(lessons), cache: true },
+      /* ⚠️ LE LEZIONI, RIPETUTE QUI E IN FORMA DI ORDINE.
+
+         🔷 «Gli ho messo la lezione, ma se faccio generare il prompt non
+            sembra prenderla in considerazione.»
+
+         Nella memoria ci sono già — sezione 15 — ma stanno in fondo a
+         diciassettemila caratteri, e subito dopo arriva un prompt di altri
+         sedicimila che dice per filo e per segno cosa fare. È la posizione
+         più debole del contesto: quello che sta in mezzo pesa meno di quello
+         che sta agli estremi, ed è misurato, non un'impressione.
+
+         🔒 Qui sono l'ULTIMA cosa che legge prima del compito, e non sono più
+         raccontate come preferenze: sono scritte come vincoli. Nella memoria
+         restano lo stesso, perché quello è il registro di cosa gli hai
+         insegnato e quando.
+
+         🔒 E non rompono la cache: il blocco della memoria viene prima ed è
+         identico a ogni chiamata, quindi il prefisso aggancia comunque. */
+      ...(lessons.length > 0 ? [{ text: vincoliDa(lessons) }] : []),
+    ],
     user: buildCreativeResolverPrompt(input, numeric),
     /* ⚠️ RAGIONAMENTO BASSO, DI PROPOSITO — ed è la correzione di un mio errore.
        Avevo scritto qui sopra «~800 token in uscita» contando solo il JSON: i
@@ -131,10 +183,18 @@ export async function resolveWithAi(
       failure,
       problems: [detail ?? (failure ? `chiamata fallita (${failure})` : 'nessuna risposta')],
       repaired: [],
+      usedLessons: lessons.length,
       ms: ms ?? null,
     };
   }
 
   const { resolution, problems, repaired } = parseResolution(data.text);
-  return { resolution, failure: null, problems, repaired, ms: ms ?? null };
+  return {
+    resolution,
+    failure: null,
+    problems,
+    repaired,
+    usedLessons: lessons.length,
+    ms: ms ?? null,
+  };
 }

@@ -1480,7 +1480,10 @@ check(
   /* 🔶 Cercava `RESOLVER_MEMORY` secco. Da quando la memoria cresce con le
      lezioni il nome è `resolverMemoryWith(...)`, ma la decisione è la stessa:
      primo blocco, marcato per la cache. */
-  has('src/ai/resolver.ts', 'system: [{ text: resolverMemoryWith(lessons), cache: true }]') &&
+  /* 🔶 Cercava l'array intero su una riga. Da quando accanto alla memoria c'è
+     il blocco dei vincoli, l'array ha due elementi — ma la decisione è sempre
+     quella: la memoria è il PRIMO blocco ed è marcata per la cache. */
+  has('src/ai/resolver.ts', '{ text: resolverMemoryWith(lessons), cache: true },') &&
     has('src/ai/teach.ts', 'cache: true'),
   'un prefisso costante e primo è la condizione perché la cache agganci: in coda costerebbe pieno per sempre',
 );
@@ -1579,6 +1582,35 @@ check(
     has('src/engine/types.ts', 'said: string;'),
   'se un giorno la riga tradotta risulta storta, il verbale è l’unico modo di sapere cosa intendevi',
 );
+/* 🔷 «Gli ho messo la lezione ma se faccio generare il prompt non sembra
+   prenderla in considerazione.» */
+check(
+  '§10 DUE STADI',
+  'le lezioni sono anche l’ultima cosa che legge prima del compito',
+  has('src/ai/resolver.ts', 'ACTIVE CONSTRAINTS FROM VINZ') &&
+    has('src/ai/resolver.ts', 'lessons.length > 0 ? [{ text: vincoliDa(lessons) }] : []'),
+  'in fondo a diciassettemila caratteri, seguite da altri sedicimila, stavano nella posizione più debole del contesto',
+);
+check(
+  '§10 DUE STADI',
+  'e lì sono ordini, non racconto',
+  has('src/ai/resolver.ts', 'THEY WIN'),
+  '«Vinz preferisce X» e «X, e vince su tutto» sono la stessa informazione con due forze diverse',
+);
+check(
+  '§10 DUE STADI',
+  'si vede con quante lezioni è stata risolta',
+  has('src/ai/resolver.ts', 'usedLessons: lessons.length') &&
+    has('src/dev/ResolverSection.tsx', 'Risolto con'),
+  '«non è arrivata» e «è arrivata e non l’ha usata» sono lo stesso schermo, e solo la prima è colpa del codice',
+);
+check(
+  '§10 DUE STADI',
+  'e si possono guardare le decisioni, non solo il prompt',
+  has('src/dev/ResolverSection.tsx', 'VEDI LE 21 DECISIONI'),
+  'nel prompt finale la lezione non comparirà mai per costruzione: cercarla lì è cercarla nell’unico posto dove abbiamo stabilito che non ci sarà',
+);
+
 /* 🔷 «Rendimi nell'app ben visibile tutta la sua memoria.» */
 check(
   '§10 DUE STADI',

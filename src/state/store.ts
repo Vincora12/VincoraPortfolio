@@ -485,7 +485,13 @@ interface AppState {
    */
   resolveWithAi: (
     monName: string,
-  ) => Promise<{ problems: string[]; repaired: string[]; ms?: number | null }>;
+  ) => Promise<{
+    problems: string[];
+    repaired: string[];
+    ms?: number | null;
+    /** Con quante lezioni è stata fatta. Zero = non sono arrivate. */
+    usedLessons?: number;
+  }>;
   /**
    * 🔷 «Adesso mi aspetto che tutto vada con un solo click.»
    *
@@ -1914,7 +1920,7 @@ export const useApp = create<AppState>()(
         if (!rec) return { problems: ['nessuna creatura con questo nome'], repaired: [] };
 
         const { resolveWithAi } = await import('../ai/resolver');
-        const { resolution, problems, repaired, ms } = await resolveWithAi(
+        const { resolution, problems, repaired, ms, usedLessons } = await resolveWithAi(
           s.token,
           rec,
           /* 🔒 Quello che gli hai insegnato entra QUI, non solo nella chat:
@@ -1922,7 +1928,7 @@ export const useApp = create<AppState>()(
           s.lessons,
           s.compilerModel,
         );
-        if (!resolution) return { problems, repaired, ms };
+        if (!resolution) return { problems, repaired, ms, usedLessons };
 
         set((cur) => {
           const now = cur.mons[monName];
@@ -1936,7 +1942,7 @@ export const useApp = create<AppState>()(
             },
           };
         });
-        return { problems: [], repaired, ms };
+        return { problems: [], repaired, ms, usedLessons };
       },
 
       clearResolution: (monName) =>
