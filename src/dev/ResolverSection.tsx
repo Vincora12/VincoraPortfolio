@@ -168,7 +168,7 @@ export function ResolverSection() {
       {showManual && (
         <>
           <p className="t-micro dev__note">
-            Se l’API non passa — il muro dei dieci secondi — si fa a mano: copia
+            Se l’API non passa — Netlify ferma la funzione prima — si fa a mano: copia
             il prompt qui sotto, incollalo in una chat, riporta la risposta.
           </p>
           <CopyButton text={prepared.prompt} label="COPIA IL PROMPT DEL RESOLVER" />

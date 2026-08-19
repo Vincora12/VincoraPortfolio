@@ -152,13 +152,39 @@ function noteBudget(warning: boolean | undefined, remaining: number | undefined)
 /* --- La chiamata ------------------------------------------------------------ */
 
 /**
- * Il tetto delle funzioni sincrone di Netlify, con un margine.
+ * La soglia oltre la quale «è fallita» significa «l'hanno fermata».
  *
- * ⚠️ Dieci secondi è il limite dichiarato; nove e mezzo è la soglia da cui in
- * poi «è fallita» significa quasi sempre «l'hanno fermata». Una connessione
- * assente non arriva mai fin lì: fallisce nel primo secondo.
+ * ⚠️ QUESTO NUMERO ERA 9.500, ED ERA SBAGLIATO — mio errore, e di quelli che
+ * costano decisioni.
+ *
+ * 🔷 «Ora va, anche se è arrivato a 17 secondi.»
+ *
+ * Una chiamata che TORNA a diciassette secondi dimostra che il tetto di
+ * questo sito è più alto di diciassette. Avevo ripetuto «dieci secondi» per
+ * due giorni prendendolo dalla documentazione generale invece che dal sito
+ * vero, e su quella premessa ho consigliato di spostarsi altrove o di
+ * passare a un piano a pagamento. La premessa era da verificare, non da
+ * ripetere.
+ *
+ * 🔒 VENTIQUATTRO, e non un numero più aggressivo: sotto c'è tutto lo spazio
+ * in cui una chiamata può ancora riuscire, e chiamare «muro» un guasto che
+ * muro non è ricrea esattamente il problema che questa soglia doveva
+ * risolvere — una parola che manda a cercare dove non c'è niente.
+ *
+ * ⚠️ E il numero da guardare non è questo: è quello che finisce nel messaggio.
+ * I secondi veri li riporta `detail`, e quelli non dipendono da cosa credo io.
  */
-const NETLIFY_WALL_MS = 9_500;
+const NETLIFY_WALL_MS = 24_000;
+
+/**
+ * Quanto è durata, in parole.
+ *
+ * 🔒 È l'informazione che non dipende da nessuna mia convinzione: la soglia
+ * qui sopra la posso sbagliare — l'ho appena fatto — i secondi trascorsi no.
+ */
+function after(startedAt: number): string {
+  return `dopo ${((Date.now() - startedAt) / 1000).toFixed(1)}s`;
+}
 
 async function post<T>(
   path: string,
@@ -193,7 +219,7 @@ async function post<T>(
     });
   } catch {
     // Niente rete, le funzioni non esistono (sviluppo locale)… oppure il muro.
-    return { data: null, failure: wall() ? 'timeout' : 'offline' };
+    return { data: null, failure: wall() ? 'timeout' : 'offline', detail: after(startedAt) };
   }
 
   if (response.status === 401) return { data: null, failure: 'unauthorized' };
@@ -220,7 +246,11 @@ async function post<T>(
        sempre 502 quando uccide una funzione, ma ci mette sempre dieci
        secondi. */
     const killed = response.status === 502 || response.status === 504 || wall();
-    return { data: null, failure: killed ? 'timeout' : 'offline' };
+    return {
+      data: null,
+      failure: killed ? 'timeout' : 'offline',
+      detail: `${after(startedAt)} · HTTP ${response.status}`,
+    };
   }
 
   const payload = (await response.json().catch(() => null)) as

@@ -20,6 +20,19 @@
 
 import { useEffect, useState } from 'react';
 
+/**
+ * ⚠️ La soglia qui sotto NON è più «dieci secondi».
+ *
+ * 🔷 «Ora va, anche se è arrivato a 17 secondi.» — e una chiamata che torna a
+ * diciassette dimostra che il tetto di questo sito è più alto di diciassette.
+ * Avevo ripetuto «dieci» prendendolo dalla documentazione generale invece che
+ * dal sito vero.
+ *
+ * 🔒 Quindi la riga non annuncia più un limite: dice i secondi, e da un certo
+ * punto in poi dice che è tanto. Il numero è vero comunque; il limite era una
+ * mia convinzione.
+ */
+
 /** Secondi interi da quando `active` è diventato vero. Zero quando è falso. */
 export function useElapsed(active: boolean): number {
   const [seconds, setSeconds] = useState(0);
@@ -49,6 +62,7 @@ export function useElapsed(active: boolean): number {
  * ancora guardare lo schermo mentre succede.
  */
 export function waitingText(label: string, seconds: number): string {
-  if (seconds >= 10) return `${label}… ${seconds}s — oltre i dieci secondi delle funzioni`;
+  if (seconds >= 20) return `${label}… ${seconds}s — sta per finire il tempo della funzione`;
+  if (seconds >= 10) return `${label}… ${seconds}s — più del solito`;
   return seconds > 0 ? `${label}… ${seconds}s` : `${label}…`;
 }

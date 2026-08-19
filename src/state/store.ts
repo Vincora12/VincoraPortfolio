@@ -1739,7 +1739,7 @@ export const useApp = create<AppState>()(
            che ne impiega quindici o più. Riprovare non serve a niente, e
            lasciarlo scritto come un codice manda a cercare dove non c'è. */
         if (failure === 'timeout') {
-          return 'la funzione si è fermata a 10 secondi (limite di Netlify): una generazione di immagini non ci sta dentro';
+          return 'la funzione è stata fermata da Netlify prima che l’immagine fosse pronta';
         }
         if (failure) return `immagine: ${detail ?? failure}`;
         markAssetsMade(set, get, monName, made);

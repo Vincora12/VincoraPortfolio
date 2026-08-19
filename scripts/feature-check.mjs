@@ -1616,13 +1616,17 @@ check(
   '§22.4 GUASTI',
   'una funzione uccisa non si chiama «offline»',
   has('src/ai/backend.ts', "killed ? 'timeout' : 'offline'"),
-  '«offline» manda a controllare rete, deploy e token: tutte cose a posto. Netlify ferma una funzione sincrona a 10 secondi e risponde HTML',
+  '«offline» manda a controllare rete, deploy e token: tutte cose a posto, mentre la funzione era stata fermata dalla piattaforma',
 );
+/* 🔶 Questo ago cercava la frase «Netlify ferma una funzione dopo 10 secondi»,
+   e quella frase adesso NON DEVE PIÙ ESISTERE: il numero era sbagliato per
+   questo sito. La decisione però è la stessa di sempre — un limite di
+   piattaforma si spiega a parole, non si sigla con un codice. */
 check(
   '§22.4 GUASTI',
-  'e il tetto dei 10 secondi si spiega, non si sigla',
-  has('src/state/store.ts', 'limite di Netlify') &&
-    has('src/screens/Activate.tsx', 'Netlify ferma una funzione dopo 10 secondi'),
+  'una funzione fermata si spiega, non si sigla',
+  has('src/state/store.ts', 'fermata da Netlify') &&
+    has('src/screens/Activate.tsx', 'Netlify l’ha fermata prima della risposta'),
   'riprovare non serve a niente: è un limite di piattaforma, non un guasto',
 );
 
@@ -1952,11 +1956,28 @@ check(
 );
 check(
   '§10 DUE STADI',
-  'e dove c’è il muro dei dieci secondi si vedono i secondi',
+  'quanto sta durando si vede mentre dura',
   has('src/dev/useElapsed.ts', 'export function useElapsed') &&
     has('src/dev/ResolverSection.tsx', 'waitingText(busy, waiting)') &&
     has('src/dev/ForgePanel.tsx', 'waitingText(busy, waiting)'),
   'morire al nono secondo e morire al quarantesimo sono due problemi senza niente in comune, e senza il numero sono lo stesso schermo che gira',
+);
+/* 🔷 «Ora va, anche se è arrivato a 17 secondi.» — cioè il tetto di questo
+   sito è più alto di diciassette, e io avevo ripetuto «dieci» per due giorni
+   prendendolo dalla documentazione generale invece che dal sito vero. */
+check(
+  '§19.5 ATTIVAZIONE',
+  'i secondi veri finiscono nel messaggio, non solo la mia idea del limite',
+  has('src/ai/backend.ts', 'function after(startedAt: number)') &&
+    has('src/ai/backend.ts', 'detail: after(startedAt)'),
+  'la soglia la posso sbagliare — l’ho fatto — i secondi trascorsi no',
+);
+check(
+  '§19.5 ATTIVAZIONE',
+  'e nessuna schermata annuncia un tetto che non ho verificato su questo sito',
+  lacks('src/screens/Activate.tsx', '10 secondi') &&
+    lacks('src/state/store.ts', "fermata a 10 secondi"),
+  'dire un numero sbagliato con sicurezza manda a cambiare piattaforma per un problema che non c’era',
 );
 
 check(
