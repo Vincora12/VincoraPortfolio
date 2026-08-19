@@ -479,6 +479,11 @@ interface AppState {
   /** Butta la risoluzione, per rifarla. */
   clearResolution: (monName: string) => void;
   /**
+   * 🔷 «Proviamo con un'API.» Il primo stadio chiesto a un modello, invece che
+   * copiato a mano. Torna i problemi, vuoti se è andata.
+   */
+  resolveWithAi: (monName: string) => Promise<{ problems: string[]; repaired: string[] }>;
+  /**
    * 🔷 «Adesso mi aspetto che tutto vada con un solo click.»
    *
    * Bio, sei prompt riscritti e sei immagini, in un colpo. Torna l'elenco di
@@ -1792,6 +1797,34 @@ export const useApp = create<AppState>()(
           /* 🔒 Cambiare la risoluzione invalida i prompt già compilati: sono
              scritti DA quelle decisioni, e tenerli sarebbe tenere il ritratto
              di un'altra creatura. */
+          return {
+            mons: {
+              ...cur.mons,
+              [monName]: { ...now, resolution, compiledPrompts: undefined },
+            },
+          };
+        });
+        return { problems: [], repaired };
+      },
+
+      resolveWithAi: async (monName) => {
+        const s = get();
+        const rec = s.mons[monName];
+        if (!rec) return { problems: ['nessuna creatura con questo nome'], repaired: [] };
+
+        const { resolveWithAi } = await import('../ai/resolver');
+        const { resolution, problems, repaired } = await resolveWithAi(
+          s.token,
+          rec,
+          s.compilerModel,
+        );
+        if (!resolution) return { problems, repaired };
+
+        set((cur) => {
+          const now = cur.mons[monName];
+          if (!now) return {};
+          /* Stessa regola della strada a mano: la risoluzione nuova invalida i
+             prompt scritti da quella vecchia. */
           return {
             mons: {
               ...cur.mons,

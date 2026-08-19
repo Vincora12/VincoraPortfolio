@@ -1463,6 +1463,35 @@ check(
     has('src/assets-pipeline/resolver/parse.ts', "LE VIRGOLETTE DELL'IPHONE"),
   'da fuori sembra che il modello abbia risposto male, e invece ha risposto benissimo',
 );
+/* 🔷 «Proviamo con un'API. Facciamogli fare solo il prompt finale, quello lo do
+   a ChatGPT.» */
+check(
+  '§10 DUE STADI',
+  'il resolver si può chiedere all’API, non solo copiare a mano',
+  has('src/ai/resolver.ts', 'export async function resolveWithAi') &&
+    has('src/dev/ResolverSection.tsx', 'RISOLVI CON L’AI'),
+  'la parte che si può automatizzare (decidere) la fa l’API, quella che oggi non si può (disegnare) la fa lui portando il prompt dove vuole',
+);
+check(
+  '§10 DUE STADI',
+  'e chiede molto meno di quello che moriva sul tempo',
+  has('src/ai/resolver.ts', 'maxTokens: 3000'),
+  'l’uscita è quella che costa tempo, e qui è un decimo: 800 token contro 8000',
+);
+check(
+  '§10 DUE STADI',
+  'il prompt che gira è identico a quello che si copia',
+  has('src/ai/resolver.ts', 'buildCreativeResolverPrompt(input, numeric)') &&
+    has('src/dev/ResolverSection.tsx', 'buildCreativeResolverPrompt(input, numeric)'),
+  'se i due percorsi mandassero testi diversi non si capirebbe più quale metodo stiamo giudicando',
+);
+check(
+  '§10 DUE STADI',
+  'e la risposta dell’API passa dalla stessa validazione di quella incollata',
+  count('src/ai/resolver.ts', /parseResolution\(/g) === 1,
+  'due controlli diversi vorrebbero dire che una strada accetta cose che l’altra rifiuta',
+);
+
 /* 🔷 «Unable to parse JSON string» — il messaggio di Safari, che non dice
    né dove né se il testo è semplicemente tagliato. */
 check(

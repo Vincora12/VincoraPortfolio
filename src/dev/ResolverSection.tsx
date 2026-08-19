@@ -29,10 +29,13 @@ import { compilePrompt } from '../assets-pipeline/resolver/vendor/compiler';
 export function ResolverSection() {
   const mon = useActiveMon();
   const useResolution = useApp((s) => s.useResolution);
+  const resolveWithAi = useApp((s) => s.resolveWithAi);
+  const token = useApp((s) => s.token);
   const clearResolution = useApp((s) => s.clearResolution);
   const [draft, setDraft] = useState('');
   const [problems, setProblems] = useState<string[] | null>(null);
   const [repaired, setRepaired] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
 
   /* I fatti e la grammatica non dipendono da cosa incolli: si calcolano una
      volta e non a ogni tasto premuto nella casella. */
@@ -63,6 +66,35 @@ export function ResolverSection() {
         senza deciderne nessuna. Finché le funzioni muoiono a dieci secondi, il
         primo stadio lo fai tu incollando.
       </p>
+
+      {/* 🔷 «Proviamo con un'API.» La strada corta viene per prima: quella a
+          mano resta sotto, perché è il ripiego quando questa non passa. */}
+      <p className="t-meta dev__label">CHIEDILO ALL’API</p>
+      <p className="t-micro dev__note">
+        ~1.600 token in ingresso e ~800 in uscita: un decimo di quello che
+        moriva contro i dieci secondi. Costa meno di un centesimo.
+      </p>
+      <Button
+        block
+        variant="primary"
+        small
+        disabled={busy || !token}
+        onClick={() => {
+          setBusy(true);
+          setProblems(null);
+          void resolveWithAi(mon.data.name)
+            .then((out) => {
+              setProblems(out.problems);
+              setRepaired(out.repaired);
+            })
+            .finally(() => setBusy(false));
+        }}
+      >
+        {busy ? 'STA DECIDENDO…' : 'RISOLVI CON L’AI'}
+      </Button>
+      {!token && <p className="t-micro dev__note">Serve il segreto: ATTIVA VINZ.MON.</p>}
+
+      <p className="t-meta dev__label">OPPURE A MANO</p>
 
       {/* --- passo 1 --- */}
       <p className="t-meta dev__label">1 · IL PROMPT DA INCOLLARE ALTROVE</p>
