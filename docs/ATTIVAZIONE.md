@@ -49,25 +49,17 @@ deploy è fallito, sta in *Deploys* → il primo della lista, con il log intero.
 
 ## 2 · Prendere il segreto
 
-Il segreto è quello che fa aprire le funzioni solo a te. Dietro a quell'indirizzo
-ci sono trenta euro al mese, quindi non lo scegli tu: lo genera l'app con il
-generatore crittografico del browser, 32 caratteri.
+Il segreto fa aprire le funzioni solo a te. **Lo genera l'app da sola, una volta,
+e lo salva.** Non cambia più: non c'è niente da inventare e niente da incollare.
 
-1. Apri il sito appena pubblicato
+1. Apri il sito
 2. In alto c'è **ATTIVA VINZ.MON** — toccalo
-   *(se non lo vedi, un token è già salvato in questo browser: DEV → INIZIO →
-   RIVEDI L'ATTIVAZIONE)*
+   *(se non lo vedi, è già salvato: DEV → INIZIO → RIVEDI L'ATTIVAZIONE)*
 3. Passo 1 · **IL SEGRETO** — tocca **COPIA**
 
-Tienilo negli appunti: su Netlify, una volta salvato come segreto, non si può
-più rileggere.
-
-Se un segreto in questo browser c'è già, il passo 1 mostra **quello** — non uno
-nuovo. Serve perché quel valore e quello su Netlify devono essere identici, e
-una schermata che ne proponeva uno diverso a ogni apertura era il modo più
-rapido di ritrovarsi con tre segreti scollegati.
-
----
+⚠️ Su Netlify, una volta salvato come segreto, **non si può rileggere**. Se ti
+serve su un secondo dispositivo, copialo da qui prima — oppure sul dispositivo
+nuovo apri *HO GIÀ UN SEGRETO ALTROVE* e incollalo lì.
 
 ## 3 · Mettere le variabili su Netlify
 
@@ -111,11 +103,23 @@ si manifesta come «il segreto non coincide» anche quando coincide.
 
 ---
 
-## 4 · Incollare il segreto nell'app
+## 4 · Controllare
 
-Torna sul sito, **ATTIVA VINZ.MON**:
+Torna sul sito, **ATTIVA VINZ.MON**, passo 3 · **CONTROLLA**. Non c'è niente da
+incollare: il segreto è già qui.
 
-1. Passo 3 · **INCOLLA IL SEGRETO QUI** → incolla → **SALVA E CONTROLLA**
+Tre righe dicono cosa è vero e cosa no:
+
+| | |
+|---|---|
+| **IL SEGRETO, QUI** | generato e salvato in questo browser |
+| **LO STESSO, SU NETLIFY** | il server ci apre, oppure no |
+| **UNA CHIAVE CHE PARLA** | almeno una fra OpenAI, Anthropic e Moonshot |
+
+Se la seconda dice `NO`, quasi sempre è perché **non hai ripubblicato** dopo aver
+messo la variabile: le variabili nuove entrano in vigore solo con un deploy nuovo.
+
+1. Premi **CONTROLLA ADESSO**
 2. Passo 2 · **LE CHIAVI** si popola da solo: ogni variabile dice `C'È` o
    `NON C'È`. Lo dice il server, non il browser — e non torna mai il contenuto,
    solo se esiste. Nessuna è obbligatoria da sola: quello che serve è che

@@ -1756,23 +1756,26 @@ check(
 );
 
 /* 🔷 «Scusa, che devo fare qui?» — con tre segreti diversi a schermo. */
+/* 🔷 «Continua a cambiare, e anche se lo collego non mi dice attivato.» */
 check(
   '§19.5 ATTIVAZIONE',
-  'il passo 1 mostra il segreto che hai, non uno nuovo',
-  has('src/screens/Activate.tsx', 'const secret = token ?? proposed;'),
-  'un valore che cambia da sé sotto gli occhi di chi lo sta copiando non è una proposta, è un bersaglio mobile',
+  'il segreto si genera UNA volta e si salva subito',
+  has('src/screens/Activate.tsx', 'if (!token) setToken(freshSecret());') &&
+    has('src/screens/Activate.tsx', 'const secret = token ?? \'\';'),
+  'ne faceva uno nuovo a ogni apertura e non lo salvava: chi non chiudeva il giro al primo colpo trovava un valore diverso da quello appena messo su Netlify — e di là non si rilegge',
 );
 check(
   '§19.5 ATTIVAZIONE',
-  'il segreto proposto è già nel campo del passo 3',
-  has('src/screens/Activate.tsx', 'setDraft(proposed);'),
-  'copiarlo da una finestra per incollarlo in quella sotto era un passaggio a mano che esisteva solo per farlo sbagliare',
+  'e non c’è più niente da incollare nel caso normale',
+  has('src/screens/Activate.tsx', 'HO GIÀ UN SEGRETO ALTROVE'),
+  'un campo da riempire con un valore che l’app ha già è un passaggio che esiste solo per farlo sbagliare',
 );
 check(
   '§19.5 ATTIVAZIONE',
-  'dice che su Netlify ci deve essere ESATTAMENTE lo stesso',
-  has('src/screens/Activate.tsx', 'esattamente lo stesso'),
-  '«non coincidono» non dice quale dei valori a schermo dovrebbe coincidere',
+  'e quando non è attivo dice QUALE delle tre cose manca',
+  has('src/screens/Activate.tsx', 'LO STESSO, SU NETLIFY') &&
+    has('src/screens/Activate.tsx', 'UNA CHIAVE CHE PARLA'),
+  'una causa sola non basta: le cose che devono essere vere sono tre, e sapere quale manca è la differenza fra «riprovo» e «so cosa fare»',
 );
 
 check(

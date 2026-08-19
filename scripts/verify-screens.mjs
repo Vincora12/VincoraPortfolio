@@ -118,6 +118,19 @@ page.on('console', (m) => {
      quaranta liste dell'app è quella che sbaglia le chiavi. */
   const l = m.location();
   const where = l?.url ? ` (${l.url}:${l.lineNumber}:${l.columnNumber})` : '';
+
+  /* ⚠️ UNA ECCEZIONE STRETTA, E SOLO IN LOCALE: `/api/*` non esiste quando
+     serve `vite`, che pubblica solo i file statici. Da quando il segreto si
+     genera da se' al primo avvio, l'app CREDE di essere configurata e prova a
+     chiamare — e il 404 che ne esce non e' un guasto, e' la condizione che
+     `ai/backend.ts` documenta in testata.
+
+     🔒 Vale SOLO senza VERIFY_BASE: contro il sito vero le funzioni ci sono, e
+     li' un 404 su /api sarebbe un guasto in piena regola. Un'eccezione che
+     valesse dappertutto spegnerebbe il controllo proprio dove serve. */
+  const apiInLocale = !process.env.VERIFY_BASE && /\/api\//.test(`${m.text()}${where}`);
+  if (apiInLocale && /404|Failed to load resource/i.test(m.text())) return;
+
   errors.push(`[console] ${m.text()}${where}`);
 });
 page.on('pageerror', (e) => errors.push(`[pageerror] ${e.message}`));

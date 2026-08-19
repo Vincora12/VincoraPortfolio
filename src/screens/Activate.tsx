@@ -69,17 +69,26 @@ export function ActivateScreen({ onClose }: { onClose: () => void }) {
      🔒 Adesso: se un segreto c'è già, si mostra QUELLO. Uno nuovo si genera
      solo se lo chiedi. Un valore che cambia da sé sotto gli occhi di chi lo
      sta copiando non è una proposta, è un bersaglio mobile. */
-  /* Senza token si propone subito: chi arriva qui la prima volta non deve
-     premere un pulsante per vedere la cosa che la schermata esiste per dargli. */
-  const [proposed, setProposed] = useState<string>(freshSecret);
-  const secret = token ?? proposed;
-  /* Il segreto proposto finisce SUBITO nel campo del passo 3: copiarlo da una
-     finestra per incollarlo in quella sotto era un passaggio a mano che
-     esisteva solo per farlo sbagliare. */
+  /* ════════════════════════════════════════════════════════════════════════
+     ⚠️ IL SEGRETO SI GENERA UNA VOLTA E SI SALVA SUBITO.
+
+     🔷 «Continua a cambiare.» Era vero, ed era questo: `useState(freshSecret)`
+     ne faceva uno NUOVO a ogni apertura della schermata e non lo salvava mai.
+     Chi non riusciva a completare il giro al primo colpo si ritrovava, alla
+     visita dopo, un valore diverso da quello che aveva appena messo su
+     Netlify — e non poteva accorgersene, perché di là non si rilegge.
+
+     🔒 Adesso: se non c'è, se ne fa uno e si SALVA. Da quel momento è quello,
+     e resta quello. Non c'è più niente da incollare in questa schermata: c'è
+     una cosa da copiare, e va messa su Netlify.
+     ════════════════════════════════════════════════════════════════════════ */
   useEffect(() => {
-    setDraft(proposed);
-  }, [proposed]);
-  const [draft, setDraft] = useState(token ?? '');
+    if (!token) setToken(freshSecret());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const secret = token ?? '';
+  const [draft, setDraft] = useState('');
+  const [showPaste, setShowPaste] = useState(false);
   const [setup, setSetup] = useState<SetupState | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -140,36 +149,55 @@ export function ActivateScreen({ onClose }: { onClose: () => void }) {
           n={1}
           title="IL SEGRETO"
           done={setup?.serverToken === true}
-          detail="Le funzioni stanno su un indirizzo pubblico. Questo è quello che le fa aprire solo a te."
+          detail="Le funzioni stanno su un indirizzo pubblico. Questo le fa aprire solo a te."
         >
-          {token ? (
-            <>
-              <p className="t-small">
-                Questo è il segreto di questo browser. Su Netlify, nella
-                variabile <code>VINZMON_TOKEN</code>, deve esserci{' '}
-                <strong>esattamente lo stesso</strong>.
-              </p>
-              <Copyable value={secret} />
-              <p className="t-micro activate__note">
-                Su Netlify non si può rileggere, quindi se non sai cosa c'è
-                scritto là, la strada pulita è sostituirlo con questo.
-              </p>
-              <Button small onClick={() => setProposed(freshSecret())}>
-                GENERANE UNO NUOVO
-              </Button>
-            </>
-          ) : (
-            <>
-              <p className="t-small">
-                Copia questo e mettilo su Netlify come variabile d'ambiente
-                chiamata <code>VINZMON_TOKEN</code>. Poi incollalo anche al
-                passo 3: devono essere identici.
-              </p>
-              <Copyable value={secret} />
-            </>
-          )}
+          <p className="t-small">
+            È già salvato in questo browser e <strong>non cambia più</strong>.
+            Ti serve solo copiarlo su Netlify.
+          </p>
+          <Copyable value={secret} />
+          <p className="t-micro activate__note">
+            Netlify → <em>Environment variables</em> → <code>VINZMON_TOKEN</code> →
+            incollalo in <strong>tutti</strong> i campi contesto → poi{' '}
+            <em>Deploys → Trigger deploy</em>. Le variabili nuove entrano in
+            vigore solo con una pubblicazione nuova.
+          </p>
           {setup?.serverToken === false && (
             <p className="t-micro activate__bad">{setup.reason}</p>
+          )}
+
+          {/* 🔒 Rigenerare e incollarne un altro sono le due cose che servono
+              raramente e rovinano tutto se premute per sbaglio: stanno chiuse.
+              Il secondo caso è vero — un dispositivo nuovo deve poter ricevere
+              il segreto che gli altri hanno già. */}
+          <Button small onClick={() => setShowPaste((v) => !v)}>
+            {showPaste ? 'CHIUDI' : 'HO GIÀ UN SEGRETO ALTROVE'}
+          </Button>
+          {showPaste && (
+            <>
+              <p className="t-micro activate__note">
+                Se questo browser è nuovo e il segreto è già su Netlify,
+                incollalo qui invece di sostituirlo.
+              </p>
+              <TextField
+                value={draft}
+                onChange={setDraft}
+                placeholder="VINZMON_TOKEN"
+                label="Il segreto che hai già"
+              />
+              <Button
+                small
+                variant="primary"
+                disabled={draft.trim().length < 24 || busy}
+                onClick={() => {
+                  setToken(draft.trim());
+                  void check(draft.trim());
+                  setShowPaste(false);
+                }}
+              >
+                USA QUESTO
+              </Button>
+            </>
           )}
         </Step>
 
@@ -231,41 +259,57 @@ export function ActivateScreen({ onClose }: { onClose: () => void }) {
 
         <Step
           n={3}
-          title="INCOLLA IL SEGRETO QUI"
-          done={Boolean(token)}
-          detail="Lo stesso di sopra. Resta in questo browser."
+          title="CONTROLLA"
+          done={live}
+          detail="Dopo aver messo il segreto su Netlify e ripubblicato."
         >
-          <TextField
-            value={draft}
-            onChange={setDraft}
-            placeholder="VINZMON_TOKEN"
-            label="Segreto"
-          />
-          <div className="activate__row">
-            <Button
-              variant="primary"
-              small
-              disabled={draft.trim().length === 0 || busy}
-              onClick={() => {
-                setToken(draft);
-                void check(draft.trim());
-              }}
-            >
-              SALVA E CONTROLLA
-            </Button>
-            {token && (
-              <Button
-                small
-                onClick={() => {
-                  setToken(null);
-                  setDraft('');
-                  setSetup(null);
-                }}
-              >
-                TOGLI
-              </Button>
-            )}
-          </div>
+          {/* ⚠️ «Anche se lo collego non mi dice attivato.» Prima qui c'era un
+              campo da riempire e un messaggio con UNA causa. Ma le cose che
+              devono essere vere sono tre, e sapere QUALE delle tre manca è
+              tutta la differenza fra «riprovo» e «so cosa fare». */}
+          <ul className="activate__vars">
+            <li className="activate__var">
+              <span className="t-meta activate__varname">IL SEGRETO, QUI</span>
+              <SystemLabel tone={token ? 'character' : 'alert'}>
+                {token ? "C'È" : 'MANCA'}
+              </SystemLabel>
+              <span className="t-micro activate__varwhat">
+                generato e salvato in questo browser
+              </span>
+            </li>
+            <li className="activate__var">
+              <span className="t-meta activate__varname">LO STESSO, SU NETLIFY</span>
+              <SystemLabel tone={setup?.serverToken ? 'character' : 'alert'}>
+                {setup === null ? '…' : setup.serverToken ? 'COINCIDE' : 'NO'}
+              </SystemLabel>
+              <span className="t-micro activate__varwhat">
+                {setup === null
+                  ? 'sto chiedendo al server'
+                  : setup.serverToken
+                    ? 'il server ci ha aperto'
+                    : (setup.reason ?? 'il server non ci riconosce: ripubblica dopo averlo messo')}
+              </span>
+            </li>
+            <li className="activate__var">
+              <span className="t-meta activate__varname">UNA CHIAVE CHE PARLA</span>
+              <SystemLabel tone={setup?.ready?.voice ? 'character' : 'alert'}>
+                {setup?.ready ? (setup.ready.voice ? "C'È" : 'MANCA') : '…'}
+              </SystemLabel>
+              <span className="t-micro activate__varwhat">
+                una fra OpenAI, Anthropic e Moonshot
+              </span>
+            </li>
+          </ul>
+
+          <Button
+            variant="primary"
+            block
+            small
+            disabled={busy}
+            onClick={() => void check(token)}
+          >
+            {busy ? 'CONTROLLO…' : 'CONTROLLA ADESSO'}
+          </Button>
           {problem && <p className="t-micro activate__bad">{problem}</p>}
         </Step>
 
