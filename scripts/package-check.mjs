@@ -40,6 +40,7 @@ export { numericGrammarFor, DESIGN_DNA_RULES } from '${cwd}/src/assets-pipeline/
 export { buildCreativeResolverPrompt } from '${cwd}/src/assets-pipeline/resolver/vendor/resolver.ts';
 export { characterDataFor } from '${cwd}/src/assets-pipeline/resolver/adapter.ts';
 export { promptFor } from '${cwd}/src/assets-pipeline/promptFor.ts';
+export { RESOLVER_MEMORY, MEMORY_FINGERPRINTS } from '${cwd}/src/assets-pipeline/resolver/memory.ts';
 export { DESIGN_DNA } from '${cwd}/src/engine/generation-config.ts';
 export { FRAGMENT_LIBRARY } from '${cwd}/src/assets-pipeline/fragments.ts';
 `,
@@ -715,6 +716,46 @@ check(
 check(
   m.promptFor({ ...record, resolution: esempio }, 'profile_portrait').source === 'concatenato',
   'ma v1 copre solo il CHARACTER MASTER, e gli altri cinque restano dov’erano',
+);
+
+/* ============================================================================
+   LA MEMORIA DEL RESOLVER NON ESCE DAL RESOLVER
+
+   🔷 «Non deve mai essere copiata, riassunta o accodata per intero nel prompt
+      immagine finale.»
+
+   ⚠️ Il confine è già garantito dai TIPI — il compilatore del pacchetto prende
+   `CharacterData` e `CreativeResolution`, e non c'è nessun parametro da cui
+   quel testo possa entrare. Ma i tipi non proteggono da un modello che copia
+   mezza tabella dentro un campo di testo della RISOLUZIONE: quella sì che
+   arriva al compilatore, ed è la strada per cui la regola può rompersi senza
+   che niente fallisca.
+   ========================================================================= */
+
+const finali = [
+  ...EXPECTED.filter((n) => n.endsWith('_PROMPT.txt')).map(
+    (n) => files.find((f) => f.name === n)?.text ?? '',
+  ),
+  m.promptFor({ ...record, resolution: esempio }, 'character_master').text,
+];
+
+const trapelate = m.MEMORY_FINGERPRINTS.filter((frase) =>
+  finali.some((testo) => testo.includes(frase)),
+);
+check(
+  trapelate.length === 0,
+  'nessun pezzo della memoria del resolver finisce nei prompt immagine',
+  trapelate.length === 0 ? `${m.MEMORY_FINGERPRINTS.length} impronte cercate` : trapelate.join(', '),
+);
+
+/* 🔒 E il contrario: che la memoria ci sia davvero, e sia quella intera. Un
+   controllo che passa perché il file è vuoto non controlla niente. */
+check(
+  m.RESOLVER_MEMORY.length > 15000 &&
+    m.RESOLVER_MEMORY.includes('CHARACTER-DESIGN MEMORY PACK') &&
+    m.RESOLVER_MEMORY.includes('Character Critic checklist'),
+  'la memoria è trascritta intera, dall’intestazione alla checklist finale',
+  `${m.RESOLVER_MEMORY.length} caratteri`,
 );
 
 /* --- Esito ------------------------------------------------------------------ */

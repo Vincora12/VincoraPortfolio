@@ -24,6 +24,25 @@
    🔒 La validazione è la STESSA di quella incollata a mano: `parseResolution`.
    Due controlli diversi vorrebbero dire che la strada automatica accetta cose
    che l'altra rifiuta.
+
+   ════════════════════════════════════════════════════════════════════════════
+   DUE STRATI, E NON SI TOCCANO
+
+     LA MEMORIA (`resolver/memory.ts`)   come si decide — il gusto, i numeri
+                                          che hanno reso, i fallimenti noti
+     IL PROMPT  (`vendor/resolver.ts`)   cosa c'è da decidere — questa creatura
+
+   🔒 Il primo va nel blocco di sistema, il secondo nel messaggio utente,
+   integro. Il compilatore che viene dopo riceve solo le DECISIONI: la memoria
+   non lo raggiunge nemmeno volendo, perché `compilePrompt` prende
+   `CharacterData` e `CreativeResolution` e non ha nessun altro parametro.
+
+   ⚠️ E la memoria non deve MAI finire nel prompt immagine, né copiata né
+   riassunta. `verify:package` lo verifica cercando nove frasi che esistono
+   solo lì dentro: i tipi tengono il confine, ma non impediscono a un modello
+   di copiare mezza tabella dentro un campo di testo della risoluzione — che
+   invece al compilatore ci arriva.
+   ════════════════════════════════════════════════════════════════════════════
    ========================================================================= */
 
 import { ask } from './backend';
@@ -33,6 +52,7 @@ import { characterDataFor } from '../assets-pipeline/resolver/adapter';
 import { numericGrammarFor } from '../assets-pipeline/resolver/vendor/rules';
 import { buildCreativeResolverPrompt } from '../assets-pipeline/resolver/vendor/resolver';
 import { parseResolution } from '../assets-pipeline/resolver/parse';
+import { RESOLVER_MEMORY } from '../assets-pipeline/resolver/memory';
 import type { CreativeResolution } from '../assets-pipeline/resolver/vendor/types';
 
 export interface ResolveOutcome {
@@ -64,10 +84,20 @@ export async function resolveWithAi(
      fra sistema e utente per guadagnare la cache: spezzarlo vorrebbe dire
      modificarlo, e il testo che gira dev'essere identico a quello che si
      copia a mano — altrimenti i due percorsi danno risultati diversi e non si
-     capisce più quale sia il metodo che stiamo giudicando. */
+     capisce più quale sia il metodo che stiamo giudicando.
+
+     ⚠️ E LA MEMORIA NON LO SPEZZA: è un blocco SEPARATO, prima e sopra. Il
+     messaggio utente resta il prompt del pacchetto integro, byte per byte.
+     Quella decisione vale ancora — quello che cambia è cosa il modello sa
+     PRIMA di leggerlo, non cosa legge.
+
+     🔒 In testa e in cache perché è identica a ogni chiamata: un prefisso
+     costante e primo è la condizione perché la cache del fornitore agganci.
+     Messa in coda costerebbe pieno per sempre. */
   const { data, failure, detail, ms } = await ask<{ text: string }>(token, {
     capability: 'prompt-compile',
     voiceModel: compilerModel,
+    system: [{ text: RESOLVER_MEMORY, cache: true }],
     user: buildCreativeResolverPrompt(input, numeric),
     /* ⚠️ RAGIONAMENTO BASSO, DI PROPOSITO — ed è la correzione di un mio errore.
        Avevo scritto qui sopra «~800 token in uscita» contando solo il JSON: i

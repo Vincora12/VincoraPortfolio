@@ -24,6 +24,7 @@ import { characterDataFor } from '../assets-pipeline/resolver/adapter';
 import { numericGrammarFor } from '../assets-pipeline/resolver/vendor/rules';
 import { buildCreativeResolverPrompt } from '../assets-pipeline/resolver/vendor/resolver';
 import { compilePrompt } from '../assets-pipeline/resolver/vendor/compiler';
+import { RESOLVER_MEMORY } from '../assets-pipeline/resolver/memory';
 
 export function ResolverSection() {
   const mon = useActiveMon();
@@ -199,10 +200,24 @@ export function ResolverSection() {
       {showManual && (
         <>
           <p className="t-micro dev__note">
-            Se l’API non passa — Netlify ferma la funzione prima — si fa a mano: copia
-            il prompt qui sotto, incollalo in una chat, riporta la risposta.
+            Se l’API non passa — Netlify ferma la funzione prima — si fa a mano:
+            incolla in una chat <strong>prima la memoria</strong>, poi il
+            prompt, e riporta qui la risposta.
           </p>
-          <CopyButton text={prepared.prompt} label="COPIA IL PROMPT DEL RESOLVER" />
+          {/* ⚠️ DUE PULSANTI, E L'ORDINE CONTA.
+
+              🔒 La strada automatica manda la memoria in testa e il prompt del
+              pacchetto dopo. Se qui si copiasse solo il prompt, i due percorsi
+              non sarebbero più confrontabili: uno saprebbe come si prendono le
+              decisioni e l'altro no, e giudicando il risultato non si saprebbe
+              se stiamo giudicando il metodo o l'assenza della memoria.
+
+              Sono separati e non un blocco unico perché ~33.000 caratteri in
+              un colpo solo alcune chat li rifiutano, e perché la memoria si
+              incolla una volta per conversazione: il prompt cambia a ogni
+              creatura, lei no. */}
+          <CopyButton text={RESOLVER_MEMORY} label="1 · COPIA LA MEMORIA" />
+          <CopyButton text={prepared.prompt} label="2 · COPIA IL PROMPT DEL RESOLVER" />
           <textarea
             className="dev__paste"
             value={draft}

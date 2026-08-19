@@ -1465,6 +1465,53 @@ check(
     has('src/assets-pipeline/resolver/parse.ts', "LE VIRGOLETTE DELL'IPHONE"),
   'da fuori sembra che il modello abbia risposto male, e invece ha risposto benissimo',
 );
+/* ============================================================================
+   LA MEMORIA DEL RESOLVER (VINZ_MON_RESOLVER_MEMORY_v1)
+
+   🔷 «Usala come memoria di progetto persistente SOLO per il Creative
+      Resolver. Non è Character Data. I dati grezzi restano canonici. Il
+      compilatore riceve le decisioni già prese e non deve reinterpretarla.»
+
+   Quattro regole, quattro modi diversi di romperle, quattro aghi.
+   ========================================================================= */
+check(
+  '§10 DUE STADI',
+  'la memoria del gusto arriva al resolver, in testa e in cache',
+  has('src/ai/resolver.ts', 'system: [{ text: RESOLVER_MEMORY, cache: true }]'),
+  'un prefisso costante e primo è la condizione perché la cache agganci: in coda costerebbe pieno per sempre',
+);
+check(
+  '§10 DUE STADI',
+  '…e SOLO al resolver: non alla voce, non alla vecchia riscrittura dei prompt',
+  ['promptCompiler', 'client', 'voicePrompt', 'bioWriter', 'roomVoice', 'reflect', 'notebook']
+    .every((f) => lacksInCode(`src/ai/${f}.ts`, 'RESOLVER_MEMORY')),
+  'la riscrittura riscrive un prompt esistente: darle una memoria di gusto le farebbe cambiare decisioni che non è lei a prendere',
+);
+check(
+  '§10 DUE STADI',
+  'il prompt del pacchetto resta il messaggio utente, intero',
+  has('src/ai/resolver.ts', 'user: buildCreativeResolverPrompt(input, numeric)'),
+  'la memoria è un blocco separato sopra, non un pezzo aggiunto dentro: quel testo dev’essere identico a quello che si copia a mano',
+);
+check(
+  '§10 DUE STADI',
+  'il compilatore non può vederla nemmeno volendo',
+  /* 🔶 Cercava «MEMORY» dappertutto, e il compilatore del pacchetto contiene
+     legittimamente il suo MEMORY TEST. La decisione non è «la parola non
+     compare»: è che il MODULO della memoria non è raggiungibile da lì. */
+  lacksInCode('src/assets-pipeline/promptFor.ts', 'RESOLVER_MEMORY') &&
+    lacksInCode('src/assets-pipeline/resolver/vendor/compiler.ts', 'RESOLVER_MEMORY') &&
+    lacksInCode('src/assets-pipeline/resolver/vendor/compiler.ts', "from './memory"),
+  'non è una promessa ma una proprietà dei tipi: compilePrompt prende CharacterData e CreativeResolution, e non c’è parametro da cui quel testo entri',
+);
+check(
+  '§10 DUE STADI',
+  'e la strada a mano copia prima la memoria, poi il prompt',
+  has('src/dev/ResolverSection.tsx', '1 · COPIA LA MEMORIA') &&
+    has('src/dev/ResolverSection.tsx', '2 · COPIA IL PROMPT DEL RESOLVER'),
+  'se a mano si copiasse solo il prompt, i due percorsi non sarebbero confrontabili: uno saprebbe come si decide e l’altro no',
+);
+
 /* 🔷 «Proviamo con un'API. Facciamogli fare solo il prompt finale, quello lo do
    a ChatGPT.» */
 check(
