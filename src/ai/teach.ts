@@ -33,6 +33,7 @@
 import { ask } from './backend';
 import type { BackendFailure } from './backend';
 import type { Lesson } from '../engine/types';
+import type { CreativeResolution } from '../assets-pipeline/resolver/vendor/types';
 import { resolverMemoryWith } from '../assets-pipeline/resolver/memory';
 
 /* 🔒 In inglese come la memoria: il resolver ragiona in quella lingua e gli si
@@ -51,6 +52,8 @@ Answer with ONE JSON object and nothing else:
   "lesson": "one line in English, or null",
   "replaces": ["id", "..."]
 }
+
+When a resolution of yours is shown to you before his words, his feedback is about that resolution. Name what you actually chose, then turn it into a rule that would have prevented it — not a rule about that one creature.
 
 REPLY — talk like an art director who is being corrected by the person whose taste he serves. Say what you understood, and if it changes something you already believed, say which. Do not flatter. If he is wrong about how the pipeline works, say so plainly.
 
@@ -105,6 +108,19 @@ export async function teachResolver(
   detto: readonly { mio: boolean; testo: string }[],
   /** Il documento suo, se gliene ha dato uno. */
   custom: string | null,
+  /**
+   * ⚠️ LA RISOLUZIONE SU CUI STA RICEVENDO IL GIUDIZIO, quando c'è.
+   *
+   * 🔷 «Quando genero con resolver devo poter dare un feedback che diventa una
+   *    lezione per lui.»
+   *
+   * Fa una differenza grossa fra due lezioni che nascono dalla stessa frase.
+   * «Gli occhiali sono banali» detto nel vuoto diventa «prefer bolder
+   * eyewear», che è un consiglio da poster. Detto MENTRE lui ha davanti la
+   * scelta che ha fatto — `eyewearConstruction: "simple round frames"` —
+   * diventa una regola che sa cosa stava sbagliando.
+   */
+  giudicando: CreativeResolution | null,
   about: string | null,
   compilerModel?: string | null,
 ): Promise<TeachOutcome> {
@@ -124,7 +140,22 @@ export async function teachResolver(
     /* Il discorso di prima come turni veri, non incollato dentro il messaggio:
        così lui sa chi ha detto cosa. */
     turns: detto.map((t) => ({ role: t.mio ? ('user' as const) : ('assistant' as const), content: t.testo })),
-    user: about ? `[stiamo guardando ${about}]\n${said}` : said,
+    user: [
+      about ? `[stiamo guardando ${about}]` : '',
+      /* 🔒 La risoluzione va nel messaggio UTENTE e non nel sistema: è il
+         compito di adesso, non una cosa che sa da sempre. Nel sistema
+         sporcherebbe la cache — cambia a ogni creatura. */
+      giudicando
+        ? [
+            '[you resolved this Form as follows — his feedback below is about THIS:]',
+            JSON.stringify(giudicando, null, 1),
+            '',
+          ].join('\n')
+        : '',
+      said,
+    ]
+      .filter(Boolean)
+      .join('\n'),
     thinking: false,
     maxTokens: 700,
   });

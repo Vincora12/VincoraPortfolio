@@ -1614,6 +1614,35 @@ check(
   'nel prompt finale la lezione non comparirà mai per costruzione: cercarla lì è cercarla nell’unico posto dove abbiamo stabilito che non ci sarà',
 );
 
+/* 🔷 «Quando genero con resolver devo poter dare un feedback che diventa una
+   lezione per lui.» */
+check(
+  '§10 DUE STADI',
+  'il giudizio si dà davanti alla creatura appena risolta',
+  has('src/dev/ResolverSection.tsx', 'COSA NON TORNA?') &&
+    has('src/dev/ResolverSection.tsx', 'DIVENTA UNA LEZIONE'),
+  'la correzione arriva nel momento in cui la vedi, non ricordandotela dopo in un’altra scheda',
+);
+check(
+  '§10 DUE STADI',
+  'e il modello vede la scelta che sta difendendo',
+  has('src/ai/teach.ts', 'giudicando: CreativeResolution | null') &&
+    has('src/dev/ResolverSection.tsx', 'void teach(testo, [], resolution)'),
+  '«gli occhiali sono banali» nel vuoto diventa un consiglio da poster; detto davanti a eyewearConstruction diventa una regola che sa cosa stava sbagliando',
+);
+check(
+  '§10 DUE STADI',
+  'la risoluzione giudicata viaggia nel messaggio, non nel sistema',
+  lacksInCode('src/ai/teach.ts', '{ text: JSON.stringify(giudicando'),
+  'nel sistema sporcherebbe la cache: cambia a ogni creatura, e il prefisso costante è tutto il risparmio',
+);
+check(
+  '§10 DUE STADI',
+  'e si dice che vale dalla PROSSIMA creatura, non da questa',
+  has('src/dev/ResolverSection.tsx', 'Vale dalla prossima creatura'),
+  'una lezione non riscrive la risoluzione che hai davanti, e lasciarlo credere farebbe premere RIFALLO a vuoto',
+);
+
 /* 🔷 «Io adesso ne vedo sempre solo una: se ne metto un'altra si cancella
    quella di prima.» — era colpa mia: avevo scritto al modello «usalo» a
    proposito della sostituzione, e un modello trova che quasi tutto «tocca»

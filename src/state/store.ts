@@ -39,6 +39,7 @@ import {
 } from '../engine/progression';
 import { evolveMon, generateFirstMon, generateMon } from '../engine/characterGenerator';
 import type { BackendFailure } from '../ai/backend';
+import type { CreativeResolution } from '../assets-pipeline/resolver/vendor/types';
 import { assetTypeDef } from '../engine/assets';
 import { parseResolution } from '../assets-pipeline/resolver/parse';
 import type { GenerationProgress } from '../assets-pipeline/generate';
@@ -602,6 +603,14 @@ interface AppState {
     said: string,
     /** Quello che vi siete già detti in questa schermata. */
     detto: readonly { mio: boolean; testo: string }[],
+    /**
+     * La risoluzione su cui lo stai giudicando, se il feedback nasce lì.
+     *
+     * 🔷 «Quando genero con resolver devo poter dare un feedback che diventa
+     *    una lezione.» Senza questo, la lezione nasce da una frase sospesa;
+     *    con questo nasce guardando la scelta che l'ha provocata.
+     */
+    giudicando?: CreativeResolution | null,
   ) => Promise<{ reply: string | null; failure: BackendFailure | null; detail?: string; ms: number | null }>;
   /** Toglie una lezione. Non c'è nessun altro modo di toglierla, di proposito. */
   forgetLesson: (id: string) => void;
@@ -1876,7 +1885,7 @@ export const useApp = create<AppState>()(
       },
 
       /* 🔷 «Metti una chat con lui, così gli insegno io.» */
-      teachResolver: async (said, detto) => {
+      teachResolver: async (said, detto, giudicando) => {
         const s = get();
         const testo = said.trim();
         if (!testo) return { reply: null, failure: null, ms: null };
@@ -1888,6 +1897,7 @@ export const useApp = create<AppState>()(
           s.lessons,
           detto,
           s.customMemory,
+          giudicando ?? null,
           s.activeMonName,
           s.compilerModel,
         );

@@ -30,6 +30,8 @@ export function ResolverSection() {
   const mon = useActiveMon();
   const token = useApp((s) => s.token);
   const resolveWithAi = useApp((s) => s.resolveWithAi);
+  const teach = useApp((s) => s.teachResolver);
+  const lessons = useApp((s) => s.lessons);
   const useResolution = useApp((s) => s.useResolution);
   const clearResolution = useApp((s) => s.clearResolution);
   const rerollMon = useApp((s) => s.resetCurrentNode);
@@ -54,6 +56,9 @@ export function ResolverSection() {
      schermo. Questo numero le separa, e solo la prima è colpa del codice. */
   const [conLezioni, setConLezioni] = useState<number | null>(null);
   const [vediDecisioni, setVediDecisioni] = useState(false);
+  const [critica, setCritica] = useState('');
+  const [risposta, setRisposta] = useState<string | null>(null);
+  const [insegna, setInsegna] = useState(false);
   const [problems, setProblems] = useState<string[] | null>(null);
   const [repaired, setRepaired] = useState<string[]>([]);
   const [showManual, setShowManual] = useState(false);
@@ -192,6 +197,72 @@ export function ResolverSection() {
               </pre>
             </>
           )}
+          {/* ════════════════════════════════════════════════════════════════
+              ⚠️ IL GIUDIZIO SI DÀ QUI, DAVANTI A QUELLO CHE HA FATTO.
+
+              🔷 «Quando genero con resolver devo poter dare un feedback che
+                 diventa una lezione per lui.»
+
+              🔒 E la stessa frase vale il doppio detta qui invece che in
+              INSEGNA. «Gli occhiali sono banali» detto nel vuoto diventa
+              «preferisci occhiali più audaci», che è un consiglio da poster.
+              Detto mentre lui ha davanti la scelta che ha fatto diventa una
+              regola che sa cosa stava sbagliando.
+              ════════════════════════════════════════════════════════════ */}
+          <p className="t-meta dev__label">COSA NON TORNA?</p>
+          <p className="t-micro dev__note">
+            Dillo adesso, guardando questa creatura. Diventa una regola per
+            tutte quelle dopo, non una correzione di questa.
+          </p>
+          <textarea
+            className="dev__paste"
+            value={critica}
+            onChange={(e) => setCritica(e.target.value)}
+            placeholder="Gli occhiali sono banali, e il corpo è troppo umano per 2/5…"
+            rows={3}
+            aria-label="Il tuo giudizio su questa risoluzione"
+          />
+          <Button
+            block
+            small
+            loading={busy !== null}
+            disabled={!token || critica.trim().length === 0}
+            onClick={() => {
+              const testo = critica.trim();
+              const prima = useApp.getState().lessons.map((l) => l.id);
+              setCritica('');
+              setRisposta(null);
+              setBusy('ci sta pensando');
+              void teach(testo, [], resolution).then((out) => {
+                setBusy(null);
+                setRisposta(out.reply);
+                const dopo = useApp.getState().lessons;
+                setInsegna(dopo.some((l) => !prima.includes(l.id)));
+              });
+            }}
+          >
+            DIVENTA UNA LEZIONE
+          </Button>
+          {risposta && (
+            <>
+              <p className="t-small dev__note">{risposta}</p>
+              <p className="t-micro dev__note">
+                {insegna ? (
+                  <>
+                    <SystemLabel tone="character">IMPARATA</SystemLabel> ora ha{' '}
+                    {lessons.length} {lessons.length === 1 ? 'lezione' : 'lezioni'}.
+                    Vale dalla prossima creatura: questa resta com'è.
+                  </>
+                ) : (
+                  <>
+                    <SystemLabel>NON IMPARATA</SystemLabel> ha risposto, ma non
+                    c'era niente di durevole da tenere.
+                  </>
+                )}
+              </p>
+            </>
+          )}
+
           <pre className="dev__json dev__prompt">{compiled.prompt}</pre>
         </>
       )}
