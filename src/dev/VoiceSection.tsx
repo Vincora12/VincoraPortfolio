@@ -116,7 +116,7 @@ export function VoiceSection() {
             <p className="t-small">
               Chiede a <strong>{mon.data.name}</strong> di presentarsi, come farà alla nascita.
             </p>
-            <Button block variant="primary" disabled={busy} onClick={() => void tryVoice()}>
+            <Button block variant="primary" loading={busy} onClick={() => void tryVoice()}>
               {busy ? 'STA SCRIVENDO…' : 'GENERA UNA PRESENTAZIONE'}
             </Button>
 

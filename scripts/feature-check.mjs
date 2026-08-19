@@ -1842,6 +1842,82 @@ check(
   '«token sbagliato, funzioni non pubblicate o rete assente» era una frase sola per tre problemi',
 );
 
+/* 🔷 «Non arriva proprio la richiesta su ChatGPT API.» — e non c'era modo di
+   sapere se fosse vero. Quattro guasti diversi davano lo stesso schermo. */
+check(
+  '§19.5 ATTIVAZIONE',
+  'si prova a parlare col fornitore, non solo a contare le chiavi',
+  has('netlify/functions/ping.ts', 'export const config = { path: \'/api/ping\' }') &&
+    has('src/screens/Activate.tsx', 'loadPing(withToken)'),
+  '«la chiave c’è» non ha mai voluto dire «la chiave funziona», ed è in quello spazio che stava il guasto',
+);
+check(
+  '§19.5 ATTIVAZIONE',
+  'la prova chiede l’elenco dei modelli, che non costa e non può andare in timeout',
+  has('netlify/functions/ping.ts', 'modelsWeUse'),
+  'una diagnosi che può morire per lo stesso motivo che sta diagnosticando non diagnostica niente',
+);
+check(
+  '§19.5 ATTIVAZIONE',
+  'e dice se i nomi dei modelli che usiamo esistono davvero in quell’account',
+  has('netlify/functions/ping.ts', 'unknownModels'),
+  'un nome sbagliato viene rifiutato prima di essere pagato, quindi sul cruscotto non compare: da fuori è identico a «non arriva niente»',
+);
+check(
+  '§19.5 ATTIVAZIONE',
+  'la prova va sullo stesso indirizzo delle chiamate vere',
+  has('netlify/functions/ping.ts', 'https://api.openai.com/v1/models') &&
+    has('netlify/functions/_shared/providers.ts', 'https://api.openai.com/v1/'),
+  'un esito verde su un host diverso da quello che fallisce non direbbe niente',
+);
+/* ⚠️ DUE VOLTE HO PUNTATO QUESTO AGO SULLA FORMA E DUE VOLTE È INCIAMPATO
+   SULLE RIGHE GIUSTE: prima su `p.headers(key),`, poi su `'x-api-key': key`.
+   Sono tutt'e due la chiave usata come si deve — nell'INTESTAZIONE DELLA
+   RICHIESTA, che è il posto dove serve.
+
+   🔒 La decisione non è «la parola chiave non compare». È: LA FORMA CHE
+   ATTRAVERSA IL FILO NON HA UN CAMPO PER LA CHIAVE. E quella forma è
+   dichiarata, si chiama `ProviderProbe`, e si può leggere. */
+const PING_SHAPE =
+  (read('netlify/functions/ping.ts') ?? '').match(
+    /export interface ProviderProbe \{[\s\S]*?\n\}/,
+  )?.[0] ?? '';
+check(
+  '§19.5 ATTIVAZIONE',
+  'e non torna mai una chiave, nemmeno un pezzo',
+  PING_SHAPE.includes('configured: boolean') && !/\bkey\b/i.test(PING_SHAPE),
+  'una diagnosi che stampa la chiave è la cosa da cui §19.3 ci ha portati via',
+);
+
+/* 🔷 «Metti in tutti questi pulsanti un loader.» */
+check(
+  '§10.4 PRIMITIVE',
+  'un pulsante che aspetta si muove, e non solo cambia scritta',
+  has('src/system/components.tsx', 'export function Wait()') &&
+    has('src/system/system.css', '@keyframes wait-pulse'),
+  'una scritta ferma è lo stesso pixel al secondo zero e al secondo trenta: non distingue «sto lavorando» da «sono morto»',
+);
+check(
+  '§10.4 PRIMITIVE',
+  'e mentre aspetta non si può premere di nuovo',
+  has('src/system/components.tsx', 'disabled={disabled || loading}'),
+  'un secondo tocco è un secondo lavoro identico e una seconda spesa, ed è quello che si fa quando non si capisce se è vivo',
+);
+check(
+  '§10.4 PRIMITIVE',
+  'ma resta leggibile: sotto c’è scritto cosa sta facendo',
+  has('src/system/system.css', '.btn--loading:disabled'),
+  'l’opacità da disabilitato spegnerebbe proprio la riga che serve di più mentre aspetti',
+);
+check(
+  '§10 DUE STADI',
+  'e dove c’è il muro dei dieci secondi si vedono i secondi',
+  has('src/dev/useElapsed.ts', 'export function useElapsed') &&
+    has('src/dev/ResolverSection.tsx', 'waitingText(busy, waiting)') &&
+    has('src/dev/ForgePanel.tsx', 'waitingText(busy, waiting)'),
+  'morire al nono secondo e morire al quarantesimo sono due problemi senza niente in comune, e senza il numero sono lo stesso schermo che gira',
+);
+
 check(
   '§29 DEV',
   'DEV si apre su INIZIO e non su quindici linguette',

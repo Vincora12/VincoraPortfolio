@@ -112,7 +112,7 @@ function PostCard({ post }: { post: RoomPost }) {
               leggibile anche a costo zero. */}
           <p className="post__about t-small">{post.about}</p>
           <div className="post__actions">
-            <Button variant="secondary" small onClick={write} disabled={busy}>
+            <Button variant="secondary" small onClick={write} loading={busy}>
               {busy ? t.room.writing : t.room.write}
             </Button>
           </div>

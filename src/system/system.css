@@ -67,6 +67,57 @@
   width: 100%;
 }
 
+/* --- L'ATTESA, CHE SI MUOVE ------------------------------------------------
+   🔷 «Metti in tutti questi pulsanti un loader.»
+
+   Una scritta ferma che finisce con tre puntini disegnati non distingue «sto
+   lavorando» da «sono morto»: sono esattamente lo stesso pixel al secondo
+   zero e al secondo trenta. Questi si muovono.
+
+   🔒 Sono gli stessi della bolla della chat, per costruzione: l'app dice già
+   «qualcosa sta arrivando» in un modo, e inventarne un secondo per la stessa
+   cosa vorrebbe dire chiedere di impararla due volte.
+
+   Il pulsante che aspetta resta LEGGIBILE — niente opacita' da disabilitato:
+   sotto ci sta scritto cosa sta facendo, ed e' la riga che serve di piu'
+   proprio mentre aspetti.
+   ------------------------------------------------------------------------- */
+
+.wait {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.wait i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.35;
+  animation: wait-pulse 1.25s ease-in-out infinite;
+}
+
+.wait i:nth-child(2) { animation-delay: 0.16s; }
+.wait i:nth-child(3) { animation-delay: 0.32s; }
+
+@keyframes wait-pulse {
+  0%, 62%, 100% { opacity: 0.35; transform: translateY(0); }
+  31% { opacity: 1; transform: translateY(-3px); }
+}
+
+.btn--loading:disabled {
+  opacity: 1;
+  cursor: progress;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wait i {
+    animation: none;
+    opacity: 0.6;
+  }
+}
+
 /* --- HOLD BUTTON ------------------------------------------------------------
    Il riempimento è la conferma: cresce da sinistra sotto l'etichetta e, quando
    arriva in fondo, il bottone si inverte per un istante prima di partire. --- */

@@ -15,6 +15,7 @@
 
 import { useMemo, useState } from 'react';
 import { useActiveMon, useApp } from '../state/store';
+import { useElapsed, waitingText } from './useElapsed';
 import { Button, SystemLabel } from '../system/components';
 import { CopyButton } from '../system/CopyButton';
 import { NoMon } from './NoMon';
@@ -33,6 +34,7 @@ export function ResolverSection() {
   const rerollMon = useApp((s) => s.resetCurrentNode);
 
   const [busy, setBusy] = useState<string | null>(null);
+  const waiting = useElapsed(busy !== null);
   const [problems, setProblems] = useState<string[] | null>(null);
   const [repaired, setRepaired] = useState<string[]>([]);
   const [showManual, setShowManual] = useState(false);
@@ -82,7 +84,8 @@ export function ResolverSection() {
           <Button
             block
             variant="primary"
-            disabled={busy !== null || !token}
+            loading={busy !== null}
+            disabled={!token}
             onClick={() => void run('sta decidendo chi è', () => resolveWithAi(mon.data.name))}
           >
             {busy ? `${busy.toUpperCase()}…` : 'DAMMI IL PROMPT'}
@@ -102,7 +105,7 @@ export function ResolverSection() {
           <div className="dev__grid">
             <Button
               small
-              disabled={busy !== null}
+              loading={busy !== null}
               onClick={() => {
                 clearResolution(mon.data.name);
                 setProblems(null);
@@ -113,7 +116,7 @@ export function ResolverSection() {
             </Button>
             <Button
               small
-              disabled={busy !== null}
+              loading={busy !== null}
               onClick={() => {
                 /* Un'altra creatura: cambia la creatura, quindi la risoluzione
                    vecchia non c'entra più niente e se ne rifà una. */
@@ -136,7 +139,7 @@ export function ResolverSection() {
         </>
       )}
 
-      {busy && <p className="t-small dev__note">{busy}…</p>}
+      {busy && <p className="t-small dev__note">{waitingText(busy, waiting)}</p>}
 
       {repaired.length > 0 && (
         <p className="t-micro dev__note">

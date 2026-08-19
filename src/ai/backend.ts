@@ -334,6 +334,46 @@ export async function loadSetup(token: string | null): Promise<BackendResult<Set
   return data ? { data, failure: null } : { data: null, failure: 'error' };
 }
 
+/* --- «Ma la richiesta arriva davvero?» --------------------------------------
+
+   🔷 «Non arriva proprio la richiesta su ChatGPT API.»
+
+   ⚠️ Quattro guasti diversi producevano lo stesso schermo che gira, e uno dei
+   quattro — un NOME DI MODELLO che il fornitore non conosce — assomiglia
+   esattamente a «non arriva niente», perché una richiesta rifiutata non
+   compare fra quelle pagate sul cruscotto.
+
+   `/api/ping` chiede al fornitore l'elenco dei suoi modelli: non costa niente,
+   non consuma token, e risponde in un secondo. Quindi non può fallire per il
+   motivo che sta indagando — ed è l'unica ragione per cui una diagnosi vale
+   qualcosa.
+   -------------------------------------------------------------------------- */
+
+export interface ProviderProbe {
+  provider: string;
+  envVar: string;
+  configured: boolean;
+  /** La richiesta è partita ED è arrivata: abbiamo una risposta HTTP. */
+  reachable: boolean;
+  /** Il fornitore ha accettato la chiave. */
+  authorized: boolean;
+  status: number | null;
+  ms: number;
+  error?: string;
+  models: { model: string; known: boolean }[];
+}
+
+export interface PingState {
+  providers: ProviderProbe[];
+  anyAlive: boolean;
+  /** `fornitore/modello` per ogni nome che il fornitore non conosce. */
+  unknownModels: string[];
+}
+
+export function loadPing(token: string | null): Promise<BackendResult<PingState>> {
+  return post<PingState>('/api/ping', token, undefined, 'GET');
+}
+
 /* --- Salvataggio ------------------------------------------------------------ */
 
 export interface RemoteSave {

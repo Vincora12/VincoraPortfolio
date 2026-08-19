@@ -48,7 +48,8 @@ export function BioSection() {
         ) : (
           <Button
             small
-            disabled={busy || !token}
+            loading={busy}
+            disabled={!token}
             onClick={() => {
               setBusy(true);
               setProblem(null);

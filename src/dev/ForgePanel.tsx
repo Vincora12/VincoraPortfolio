@@ -27,6 +27,7 @@ import { AssetSlot } from '../system/AssetSlot';
 import { assetTypeDef } from '../engine/assets';
 import { PROGRESSION } from '../engine/progression';
 import type { AssetType } from '../engine/types';
+import { useElapsed, waitingText } from './useElapsed';
 
 export function ForgePanel({ onClose }: { onClose?: () => void }) {
   const mon = useActiveMon();
@@ -53,6 +54,7 @@ export function ForgePanel({ onClose }: { onClose?: () => void }) {
   const current = at >= 0 && at < order.length ? order[at]! : null;
   const finished = at >= order.length && order.length > 0;
   const running = busy !== null || progress !== null;
+  const waiting = useElapsed(running);
 
   /** Un passo: mostra cosa sta facendo mentre lo fa. */
   const run = async (label: string, job: () => Promise<string | null>) => {
@@ -100,14 +102,22 @@ export function ForgePanel({ onClose }: { onClose?: () => void }) {
             Quattro centesimi a immagine, dieci a prompt riscritto. Tutto
             insieme fa circa <strong>0,75 €</strong> a creatura.
           </p>
-          <Button block variant="primary" small disabled={running || !token} onClick={() => void start()}>
+          <Button
+            block
+            variant="primary"
+            small
+            loading={running}
+            disabled={!token}
+            onClick={() => void start()}
+          >
             {running ? 'IN CORSO…' : 'COMINCIA'}
           </Button>
           {/* Il giro cieco resta, per quando non c'è voglia di guardare. */}
           <Button
             block
             small
-            disabled={running || !token}
+            loading={running}
+            disabled={!token}
             onClick={() => {
               setBlindReport(null);
               void forgeEverything(mon.data.name).then(setBlindReport);
@@ -155,7 +165,7 @@ export function ForgePanel({ onClose }: { onClose?: () => void }) {
             />
           </figure>
 
-          {busy && <p className="t-small dev__note">{busy}…</p>}
+          {busy && <p className="t-small dev__note">{waitingText(busy, waiting)}</p>}
           {problem && (
             <p className="t-small">
               <SystemLabel tone="alert">NON RIUSCITA</SystemLabel> {problem}
@@ -166,14 +176,14 @@ export function ForgePanel({ onClose }: { onClose?: () => void }) {
             <Button
               small
               variant="primary"
-              disabled={running}
+              loading={running}
               onClick={() => void next()}
             >
               {at + 1 < order.length ? 'VA BENE, AVANTI' : 'VA BENE, FINITO'}
             </Button>
             <Button
               small
-              disabled={running}
+              loading={running}
               onClick={() => void run('rifaccio l’immagine', () => forgeOne(mon.data.name, current))}
             >
               RIFAI L’IMMAGINE · $0,04
@@ -184,7 +194,7 @@ export function ForgePanel({ onClose }: { onClose?: () => void }) {
                 pulsante vorrebbe dire pagare la riscrittura ogni volta. */}
             <Button
               small
-              disabled={running}
+              loading={running}
               onClick={() =>
                 void run('riscrivo il prompt', () =>
                   forgeOne(mon.data.name, current, { rewritePrompt: true }),

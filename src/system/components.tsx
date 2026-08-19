@@ -19,6 +19,26 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   icon?: IconName;
   /** Ritorno aptico al tocco. `false` per i comandi che non meritano un colpo. */
   haptics?: HapticKind | false;
+  /**
+   * ⚠️ STA LAVORANDO, E SI VEDE CHE SI MUOVE.
+   *
+   * 🔷 «Metti in tutti questi pulsanti un loader.»
+   *
+   * Prima ogni pulsante cambiava la sua scritta — «STA DECIDENDO CHI È…» — e
+   * lì si fermava. Una scritta ferma con tre puntini disegnati è
+   * INDISTINGUIBILE da un pulsante bloccato: dopo trenta secondi non sai se
+   * stai aspettando o se è morto, ed è esattamente la differenza che serviva
+   * sapere.
+   *
+   * I puntini qui si muovono davvero, e sono gli stessi della bolla della
+   * chat: nell'app «qualcosa sta arrivando» si dice già in un modo, e un
+   * secondo modo per la stessa cosa sarebbe una lingua in più da imparare.
+   *
+   * 🔒 Disabilita da sé. Un pulsante che sta lavorando e resta premibile è un
+   * secondo lavoro identico e una seconda spesa, ed è la cosa che uno fa
+   * istintivamente proprio quando non capisce se è vivo.
+   */
+  loading?: boolean;
 }
 
 export function Button({
@@ -27,6 +47,8 @@ export function Button({
   small,
   icon,
   haptics = 'tick',
+  loading = false,
+  disabled,
   children,
   className = '',
   onClick,
@@ -37,6 +59,7 @@ export function Button({
     `btn--${variant}`,
     block ? 'btn--block' : '',
     small ? 'btn--sm' : '',
+    loading ? 'btn--loading' : '',
     className,
   ]
     .filter(Boolean)
@@ -45,6 +68,8 @@ export function Button({
     <button
       type="button"
       className={cls}
+      disabled={disabled || loading}
+      aria-busy={loading || undefined}
       onClick={(e) => {
         // Dentro il gestore del gesto: fuori di qui i browser lo ignorano.
         if (haptics) haptic(haptics);
@@ -52,9 +77,26 @@ export function Button({
       }}
       {...rest}
     >
-      {icon && <Icon name={icon} size={small ? 14 : 16} />}
+      {loading ? <Wait /> : icon && <Icon name={icon} size={small ? 14 : 16} />}
       {children}
     </button>
+  );
+}
+
+/**
+ * I tre puntini che si muovono. Nudi di proposito: vanno dentro un pulsante,
+ * dentro una riga, dentro quello che serve.
+ *
+ * 🔒 `aria-hidden`: chi ascolta lo schermo riceve già `aria-busy` sul pulsante,
+ * e tre puntini letti ad alta voce non sono un'informazione.
+ */
+export function Wait() {
+  return (
+    <span className="wait" aria-hidden="true">
+      <i />
+      <i />
+      <i />
+    </span>
   );
 }
 

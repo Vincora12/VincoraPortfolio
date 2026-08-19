@@ -163,7 +163,7 @@ export function RaritySection() {
       </p>
 
       <div className="dev__control">
-        <Button block onClick={run} disabled={busy}>
+        <Button block onClick={run} loading={busy}>
           {busy ? 'Sto simulando…' : sample ? 'Rifai il campione' : `Simula ${SAMPLE} nascite`}
         </Button>
       </div>

@@ -163,7 +163,7 @@ function FaceGate({
           <Button
             variant="secondary"
             small
-            disabled={busy}
+            loading={busy}
             onClick={() => current && void make(current)}
           >
             {busy ? t.face.redoing : t.face.redo}

@@ -52,7 +52,8 @@ function PromptCell({ mon, type }: { mon: MonRecord; type: AssetType }) {
       ) : (
         <Button
           small
-          disabled={busy || !token}
+          loading={busy}
+          disabled={!token}
           onClick={() => {
             setBusy(true);
             setProblem(null);

@@ -30,7 +30,13 @@ import { useEffect, useState } from 'react';
 import { useApp } from '../state/store';
 import { Button, IconButton, SystemLabel, TextField, Window } from '../system/components';
 import { CopyButton } from '../system/CopyButton';
-import { loadSetup, type SetupState } from '../ai/backend';
+import {
+  loadPing,
+  loadSetup,
+  type PingState,
+  type ProviderProbe,
+  type SetupState,
+} from '../ai/backend';
 import { t } from '../i18n/it';
 
 /* --- Il segreto ------------------------------------------------------------ */
@@ -90,17 +96,33 @@ export function ActivateScreen({ onClose }: { onClose: () => void }) {
   const [draft, setDraft] = useState('');
   const [showPaste, setShowPaste] = useState(false);
   const [setup, setSetup] = useState<SetupState | null>(null);
+  const [ping, setPing] = useState<PingState | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [voiceTried, setVoiceTried] = useState<string | null>(null);
 
+  /* ⚠️ DUE DOMANDE DIVERSE, UN PULSANTE SOLO.
+
+     `/api/setup` dice cosa è CONFIGURATO: la chiave c'è, il segreto coincide.
+     `/api/ping` dice cosa FUNZIONA: il fornitore risponde, accetta la chiave,
+     e conosce i nomi dei modelli che gli chiediamo.
+
+     🔒 Sono separate perché la prima è sempre vera prima della seconda —
+     «la chiave c'è» non ha mai voluto dire «la chiave funziona», ed è
+     esattamente in quello spazio che stava «non arriva proprio la richiesta».
+     Ma si chiedono insieme, perché nessuno preme due pulsanti per sapere una
+     cosa sola. */
   const check = async (withToken: string | null) => {
     setBusy(true);
     setProblem(null);
-    const { data, failure } = await loadSetup(withToken);
+    const [setupOut, pingOut] = await Promise.all([
+      loadSetup(withToken),
+      loadPing(withToken),
+    ]);
     setBusy(false);
-    setSetup(data);
-    if (failure) setProblem(explain(failure));
+    setSetup(setupOut.data);
+    setPing(pingOut.data);
+    if (setupOut.failure) setProblem(explain(setupOut.failure));
   };
 
   // Al primo arrivo si guarda com'è messo il server, senza aspettare un tocco:
@@ -193,7 +215,8 @@ export function ActivateScreen({ onClose }: { onClose: () => void }) {
               <Button
                 small
                 variant="primary"
-                disabled={draft.trim().length < 24 || busy}
+                loading={busy}
+                disabled={draft.trim().length < 24}
                 onClick={() => {
                   setToken(draft.trim());
                   void check(draft.trim());
@@ -304,13 +327,35 @@ export function ActivateScreen({ onClose }: { onClose: () => void }) {
                 una fra OpenAI, Anthropic e Moonshot
               </span>
             </li>
+            {/* ⚠️ LA QUARTA RIGA, ED È QUELLA CHE MANCAVA.
+
+                🔷 «Non arriva proprio la richiesta su ChatGPT API.»
+
+                Le tre sopra dicono cosa è CONFIGURATO. Nessuna delle tre ha
+                mai provato a parlare col fornitore — quindi tutte e tre
+                potevano dire «C'È» mentre ogni chiamata vera moriva. */}
+            <li className="activate__var">
+              <span className="t-meta activate__varname">IL FORNITORE RISPONDE</span>
+              <SystemLabel tone={ping?.anyAlive ? 'character' : 'alert'}>
+                {ping === null ? '…' : ping.anyAlive ? 'SÌ' : 'NO'}
+              </SystemLabel>
+              <span className="t-micro activate__varwhat">
+                {ping === null
+                  ? 'sto provando a parlargli'
+                  : ping.anyAlive
+                    ? 'gli abbiamo parlato adesso, e ci ha accettati'
+                    : 'nessun fornitore configurato ci ha risposto'}
+              </span>
+            </li>
           </ul>
+
+          {ping !== null && <ProviderProbes ping={ping} />}
 
           <Button
             variant="primary"
             block
             small
-            disabled={busy}
+            loading={busy}
             onClick={() => void check(token)}
           >
             {busy ? 'CONTROLLO…' : 'CONTROLLA ADESSO'}
@@ -503,6 +548,80 @@ function ChoiceRow({
    grossa del progetto.
    -------------------------------------------------------------------------- */
 
+/* ============================================================================
+   COSA HA DETTO OGNI FORNITORE, QUANDO GLI ABBIAMO PARLATO ADESSO
+
+   🔒 Una riga per fornitore CONFIGURATO. Quelli senza chiave non compaiono:
+   una riga rossa accanto a un fornitore che hai scelto di non usare fa
+   sembrare rotta una tua decisione.
+   ========================================================================= */
+
+function ProviderProbes({ ping }: { ping: PingState }) {
+  const seen = ping.providers.filter((p) => p.configured);
+  if (seen.length === 0) {
+    return (
+      <p className="t-micro activate__note">
+        Nessuna chiave configurata: non c’è ancora niente da provare.
+      </p>
+    );
+  }
+  return (
+    <ul className="activate__vars">
+      {seen.map((p) => (
+        <li key={p.provider} className="activate__var">
+          <span className="t-meta activate__varname">{p.provider.toUpperCase()}</span>
+          <SystemLabel tone={probeTone(p)}>{probeVerdict(p)}</SystemLabel>
+          <span className="t-micro activate__varwhat">{probeDetail(p)}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function probeTone(p: ProviderProbe): 'character' | 'warning' | 'alert' {
+  if (!p.authorized) return 'alert';
+  return p.models.some((m) => !m.known) ? 'warning' : 'character';
+}
+
+function probeVerdict(p: ProviderProbe): string {
+  if (!p.reachable) return 'MUTO';
+  if (!p.authorized) return `RIFIUTA ${p.status ?? ''}`.trim();
+  return p.models.some((m) => !m.known) ? 'NOMI' : `${p.ms} MS`;
+}
+
+/**
+ * La riga che dice cosa fare.
+ *
+ * ⚠️ L'ordine dei casi è l'ordine in cui vanno guardati: se non risponde, il
+ * nome del modello non conta ancora niente. Metterli allo stesso livello
+ * manderebbe a cambiare un modello mentre il problema è la rete.
+ */
+function probeDetail(p: ProviderProbe): string {
+  if (!p.reachable) {
+    return p.error ?? 'nessuna risposta: la richiesta non è mai arrivata';
+  }
+  if (!p.authorized) {
+    /* 🔒 401 e 429 si somigliano solo per il fatto che sono numeri. Il primo è
+       la chiave, il secondo è il conto. */
+    if (p.status === 401 || p.status === 403) {
+      return 'ha risposto, ma non accetta questa chiave: è sbagliata, revocata, o di un altro progetto';
+    }
+    if (p.status === 429) {
+      return 'ha risposto, ma sei oltre il suo limite: è il tetto dalla parte del fornitore, non nostro';
+    }
+    return `ha risposto ${p.status ?? ''} — ${p.error ?? 'senza spiegare'}`;
+  }
+  const unknown = p.models.filter((m) => !m.known).map((m) => m.model);
+  if (unknown.length === 0) {
+    return `risponde in ${p.ms} ms e conosce tutti i ${p.models.length} modelli che gli chiediamo`;
+  }
+  /* ⚠️ QUESTA È LA FRASE PER CUI ESISTE TUTTA LA FUNZIONE. Un nome che il
+     fornitore non conosce fa fallire la chiamata PRIMA che ci sia qualcosa da
+     pagare — quindi sul cruscotto non compare niente, e da fuori sembra
+     identico a «la richiesta non parte». */
+  return `non conosce ${unknown.join(', ')}: una richiesta con questo nome viene rifiutata subito, e per questo non compare fra quelle pagate`;
+}
+
 function ImageChoicePanel({ setup }: { setup: SetupState | null }) {
   const chosen = useApp((s) => s.imageModel);
   const setImageModel = useApp((s) => s.setImageModel);
@@ -648,7 +767,7 @@ function VoiceChoicePanel({
 
       {mon && (
         <div className="activate__row">
-          <Button variant="primary" small disabled={busy || !token} onClick={tryVoice}>
+          <Button variant="primary" small loading={busy} disabled={!token} onClick={tryVoice}>
             {busy ? 'PARLA…' : 'FALLO PARLARE'}
           </Button>
         </div>
