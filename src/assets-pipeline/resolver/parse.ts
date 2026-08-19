@@ -76,6 +76,118 @@ const REPAIRS: { find: RegExp; put: string; says: string }[] = [
   { find: /,(\s*[}\]])/g, put: '$1', says: 'virgola di troppo prima di una chiusura' },
 ];
 
+/**
+ * Gli a capo dentro una stringa.
+ *
+ * ⚠️ Non è una `REPAIRS` come le altre perché non è una sostituzione cieca:
+ * un `\n` fuori dalle stringhe è spaziatura legittima e va lasciato stare,
+ * dentro una stringa è sempre illegale e va protetto. Distinguere i due casi
+ * richiede di sapere dove si è, quindi si scorre.
+ */
+function escapeBreaksInStrings(text: string): { out: string; changed: boolean } {
+  let inString = false;
+  let escaped = false;
+  let changed = false;
+  let out = '';
+  for (const c of text) {
+    if (escaped) {
+      out += c;
+      escaped = false;
+      continue;
+    }
+    if (c === '\\') {
+      out += c;
+      escaped = true;
+      continue;
+    }
+    if (c === '"') {
+      inString = !inString;
+      out += c;
+      continue;
+    }
+    if (inString && (c === '\n' || c === '\r' || c === '\t')) {
+      out += c === '\t' ? '\\t' : '\\n';
+      changed = true;
+      continue;
+    }
+    out += c;
+  }
+  return { out, changed };
+}
+
+/* ============================================================================
+   DOVE È IL PROBLEMA, NON SOLO CHE C'È UN PROBLEMA
+
+   ⚠️ «Unable to parse JSON string» è il messaggio di Safari, e non dice niente:
+   né la posizione, né il carattere, né se il testo è semplicemente TAGLIATO.
+   Su un telefono, incollare metà risposta è il modo più facile di sbagliare —
+   e produce esattamente quel messaggio.
+
+   🔒 Quindi la diagnosi la facciamo noi. Un errore che dice «mancano tre
+   graffe: sembra tagliato» si risolve in dieci secondi; «unable to parse» si
+   risolve riprovando a caso.
+   ========================================================================= */
+
+function diagnose(text: string): string[] {
+  const out: string[] = [];
+
+  /* Le graffe e le quadre si contano SOLO fuori dalle stringhe: una parentesi
+     dentro una frase non è una parentesi del JSON. */
+  let inString = false;
+  let escaped = false;
+  let curly = 0;
+  let square = 0;
+  let quotes = 0;
+  let rawBreak = -1;
+
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i]!;
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (c === '\\') {
+      escaped = true;
+      continue;
+    }
+    if (c === '"') {
+      inString = !inString;
+      quotes++;
+      continue;
+    }
+    if (inString) {
+      /* Un a capo vero dentro una stringa è sempre illegale in JSON, ed è
+         quello che succede quando una risposta lunga viene incollata a pezzi. */
+      if ((c === '\n' || c === '\r' || c === '\t') && rawBreak < 0) rawBreak = i;
+      continue;
+    }
+    if (c === '{') curly++;
+    else if (c === '}') curly--;
+    else if (c === '[') square++;
+    else if (c === ']') square--;
+  }
+
+  if (quotes % 2 !== 0) {
+    out.push(`ci sono ${quotes} virgolette: un numero dispari, quindi una stringa resta aperta`);
+  }
+  if (curly > 0) out.push(`mancano ${curly} graffe chiuse: sembra tagliato prima della fine`);
+  if (curly < 0) out.push(`ci sono ${-curly} graffe chiuse in più: sembra tagliato all'inizio`);
+  if (square > 0) out.push(`mancano ${square} quadre chiuse`);
+  if (square < 0) out.push(`ci sono ${-square} quadre chiuse in più`);
+  if (rawBreak >= 0) {
+    out.push(`c'è un a capo dentro una stringa, intorno al carattere ${rawBreak}`);
+  }
+
+  if (out.length === 0) {
+    /* Nessuna delle cause comuni: si dice almeno com'è fatto il testo, che è
+       già abbastanza per accorgersi di un incolla venuto male. */
+    const head = text.slice(0, 50).replace(/\s+/g, ' ');
+    const tail = text.slice(-50).replace(/\s+/g, ' ');
+    out.push(`${text.length} caratteri · comincia con «${head}» · finisce con «${tail}»`);
+  }
+  return out;
+}
+
 /** Prova a leggere. Se non ci riesce, ripara e riprova, dicendo cosa ha fatto. */
 function readJson(text: string): {
   obj: Record<string, unknown> | null;
@@ -95,6 +207,12 @@ function readJson(text: string): {
       fixed = fixed.replace(r.find, r.put);
       repaired.push(r.says);
     }
+  }
+
+  const breaks = escapeBreaksInStrings(fixed);
+  if (breaks.changed) {
+    fixed = breaks.out;
+    repaired.push('a capo dentro una stringa');
   }
 
   if (repaired.length === 0) {
@@ -125,9 +243,11 @@ export function parseResolution(raw: string): ParsedResolution {
   const read = readJson(text.slice(start, end + 1));
   const repaired = read.repaired;
   if (!read.obj) {
+    /* 🔒 Il messaggio del browser PRIMA, la nostra diagnosi DOPO: il primo dice
+       che non si legge, la seconda dice perché. */
     return {
       resolution: null,
-      problems: [`JSON non leggibile: ${read.error ?? 'sconosciuto'}`],
+      problems: [`JSON non leggibile: ${read.error ?? 'sconosciuto'}`, ...diagnose(text.slice(start, end + 1))],
       repaired,
     };
   }

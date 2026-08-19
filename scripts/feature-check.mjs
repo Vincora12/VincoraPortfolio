@@ -1463,6 +1463,25 @@ check(
     has('src/assets-pipeline/resolver/parse.ts', "LE VIRGOLETTE DELL'IPHONE"),
   'da fuori sembra che il modello abbia risposto male, e invece ha risposto benissimo',
 );
+/* 🔷 «Unable to parse JSON string» — il messaggio di Safari, che non dice
+   né dove né se il testo è semplicemente tagliato. */
+check(
+  '§10 DUE STADI',
+  'un JSON che non si legge dice PERCHÉ, non solo che non si legge',
+  has('src/assets-pipeline/resolver/parse.ts', 'function diagnose(') &&
+    has('src/assets-pipeline/resolver/parse.ts', 'sembra tagliato prima della fine'),
+  'un errore che dice «mancano tre graffe» si risolve in dieci secondi, «unable to parse» si risolve riprovando a caso',
+);
+check(
+  '§10 DUE STADI',
+  'e le graffe si contano fuori dalle stringhe, non dentro',
+  /* La decisione è che il conteggio sappia dove si trova, non la frase con cui
+     l'ho spiegata — che va a capo, e un ago su un commento a capo è un ago che
+     inciampa nella formattazione invece che nel codice. */
+  count('src/assets-pipeline/resolver/parse.ts', /inString/g) >= 4,
+  'contarle tutte darebbe una diagnosi sbagliata proprio sui testi lunghi, che sono quelli che si tagliano',
+);
+
 check(
   '§10 DUE STADI',
   'ma la riparazione si dichiara, non si fa di nascosto',

@@ -595,6 +595,32 @@ check(
   'aggiustare in silenzio quello che non ha bisogno nasconde i problemi veri',
 );
 
+/* ⚠️ «Unable to parse JSON string» e' il messaggio di Safari e non dice niente:
+   ne' dove, ne' se il testo e' semplicemente TAGLIATO. Su un telefono incollare
+   meta' risposta e' il modo piu' facile di sbagliare, e produce esattamente
+   quel messaggio. La diagnosi la facciamo noi. */
+const tagliato = m.parseResolution(
+  JSON.stringify(esempio).slice(0, Math.floor(JSON.stringify(esempio).length * 0.6)) + '}',
+);
+check(
+  tagliato.resolution === null &&
+    tagliato.problems.some((p) => /tagliato|virgolette/.test(p)),
+  'un incolla tagliato a meta dice CHE e tagliato',
+  tagliato.problems.slice(1).join(' · '),
+);
+
+/* Un a capo dentro una stringa e' sempre illegale in JSON, e succede quando
+   una risposta lunga viene incollata a pezzi. Si ripara: il contenuto resta
+   identico, cambia solo come e' scritto. */
+const conACapo = m.parseResolution(
+  JSON.stringify(esempio).replace('"corePersonality":[', '"corePersonality":["frase\ncon a capo",'),
+);
+check(
+  conACapo.resolution !== null && conACapo.repaired.includes('a capo dentro una stringa'),
+  'e un a capo dentro una stringa si ripara',
+  conACapo.repaired.join(', '),
+);
+
 /* --- Il giro completo su una creatura vera ---------------------------------- */
 
 const rInput = m.characterDataFor(record);
