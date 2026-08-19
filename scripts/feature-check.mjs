@@ -1443,8 +1443,10 @@ check(
 check(
   '§10 DUE STADI',
   'la risoluzione si può incollare a mano',
+  /* La decisione è che la strada a mano ESISTA, non come si chiama il pulsante
+     — che è già cambiato una volta quando la schermata è stata semplificata. */
   has('src/state/store.ts', 'useResolution: (monName, raw)') &&
-    has('src/dev/ResolverSection.tsx', 'USA QUESTA RISOLUZIONE'),
+    has('src/dev/ResolverSection.tsx', 'useResolution(mon.data.name, draft)'),
   'la domanda «il metodo è giusto» non deve restare in ostaggio di una decisione di hosting',
 );
 check(
@@ -1529,7 +1531,7 @@ check(
   '§10 DUE STADI',
   'ma la riparazione si dichiara, non si fa di nascosto',
   has('src/assets-pipeline/resolver/parse.ts', 'repaired: string[]') &&
-    has('src/dev/ResolverSection.tsx', 'Il testo è stato aggiustato'),
+    has('src/dev/ResolverSection.tsx', '{repaired.join('),
   'aggiustare in silenzio vorrebbe dire che un giorno una risposta davvero rotta passerebbe per buona',
 );
 
