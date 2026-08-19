@@ -151,6 +151,15 @@ function noteBudget(warning: boolean | undefined, remaining: number | undefined)
 
 /* --- La chiamata ------------------------------------------------------------ */
 
+/**
+ * Il tetto delle funzioni sincrone di Netlify, con un margine.
+ *
+ * ⚠️ Dieci secondi è il limite dichiarato; nove e mezzo è la soglia da cui in
+ * poi «è fallita» significa quasi sempre «l'hanno fermata». Una connessione
+ * assente non arriva mai fin lì: fallisce nel primo secondo.
+ */
+const NETLIFY_WALL_MS = 9_500;
+
 async function post<T>(
   path: string,
   token: string | null,
@@ -158,6 +167,22 @@ async function post<T>(
   method = 'POST',
 ): Promise<BackendResult<T>> {
   if (!token) return { data: null, failure: 'no-token' };
+
+  /* ⚠️ SI GUARDA L'OROLOGIO, ED È L'UNICO MODO DI DISTINGUERLE.
+
+     🔷 «Dice chiamata fallita offline. Adesso ha detto timeout.»
+
+     Erano LO STESSO EVENTO. Netlify uccide una funzione sincrona a dieci
+     secondi, e come lo comunica non è deterministico: a volte risponde 502 —
+     e allora leggevamo `timeout` — a volte chiude il collegamento e basta,
+     e allora la `fetch` esplode e leggevamo `offline`. Stesso muro, due
+     parole, e una delle due mandava a controllare la rete.
+
+     🔒 Il tempo trascorso le separa senza ambiguità: una rete che non c'è
+     fallisce SUBITO, una funzione uccisa fallisce DOPO NOVE SECONDI E MEZZO.
+     Non è un'euristica delicata — è un ordine di grandezza. */
+  const startedAt = Date.now();
+  const wall = () => Date.now() - startedAt >= NETLIFY_WALL_MS;
 
   let response: Response;
   try {
@@ -167,8 +192,8 @@ async function post<T>(
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
   } catch {
-    // Niente rete, o le funzioni non esistono (sviluppo locale).
-    return { data: null, failure: 'offline' };
+    // Niente rete, le funzioni non esistono (sviluppo locale)… oppure il muro.
+    return { data: null, failure: wall() ? 'timeout' : 'offline' };
   }
 
   if (response.status === 401) return { data: null, failure: 'unauthorized' };
@@ -191,7 +216,10 @@ async function post<T>(
      Erano la stessa parola, e la parola era quella sbagliata delle due. */
   const kind = response.headers.get('content-type') ?? '';
   if (!kind.includes('application/json')) {
-    const killed = response.status === 502 || response.status === 504;
+    /* Il codice quando c'è, l'orologio quando non basta: Netlify non risponde
+       sempre 502 quando uccide una funzione, ma ci mette sempre dieci
+       secondi. */
+    const killed = response.status === 502 || response.status === 504 || wall();
     return { data: null, failure: killed ? 'timeout' : 'offline' };
   }
 

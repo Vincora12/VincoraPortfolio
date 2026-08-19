@@ -417,11 +417,29 @@ async function openAiProtocol(
      Il resolver è un lavoro vincolato — i fatti sono dati, il formato è
      dettato — quindi `low` gli basta. La voce, che deve pensare davvero,
      chiede `thinking` e riceve `medium`. */
+  /* ⚠️ `none`, NON `low`, ed è la correzione di un mio mezzo passo.
+     🔷 «Dice chiamata fallita offline. Adesso ha detto timeout.»
+
+     Sono LO STESSO EVENTO: Netlify uccide la funzione a dieci secondi e a
+     volte risponde 502, a volte chiude il collegamento e basta. Due parole,
+     un muro solo. `low` non bastava a starci dentro.
+
+     🔒 E CON GLI STRUMENTI `none` NON È UN'OTTIMIZZAZIONE, È L'UNICO VALORE
+     CHE PASSA: su /v1/chat/completions GPT-5.6 rifiuta con 400 una richiesta
+     che ha funzioni e uno sforzo di ragionamento diverso da `none` — e la
+     rifiuta anche se non lo mandi affatto, perché il suo predefinito è
+     `medium`. Era un modo di fallire che non avevamo nemmeno visto, perché la
+     voce sta su Anthropic finché non scegli GPT.
+
+     Resta `medium` per un caso solo: chi chiede di PENSARE e non ha strumenti
+     per farlo. */
+  const effort = req.tools?.length ? 'none' : req.thinking ? 'medium' : 'none';
+
   const body = (tokensField: 'max_completion_tokens' | 'max_tokens', reasoning: boolean) => ({
     model: req.model,
     messages: openaiMessages(req),
     [tokensField]: req.maxTokens,
-    ...(reasoning ? { reasoning_effort: req.thinking ? 'medium' : 'low' } : {}),
+    ...(reasoning ? { reasoning_effort: effort } : {}),
     ...(req.tools?.length
       ? {
           tools: req.tools.map((t) => ({

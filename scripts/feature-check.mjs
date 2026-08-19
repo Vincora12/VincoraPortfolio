@@ -1502,7 +1502,7 @@ check(
 check(
   '§10 DUE STADI',
   'quanto deve ragionare il modello lo decidiamo noi, non il suo predefinito',
-  has(PROVIDERS_FILE, 'reasoning_effort: req.thinking'),
+  has(PROVIDERS_FILE, 'reasoning_effort: effort') && has(PROVIDERS_FILE, 'const effort ='),
   'lasciato al predefinito, un modello che ragiona sfonda i dieci secondi delle funzioni e la chiamata muore sempre',
 );
 check(
@@ -1887,6 +1887,29 @@ check(
   'e non torna mai una chiave, nemmeno un pezzo',
   PING_SHAPE.includes('configured: boolean') && !/\bkey\b/i.test(PING_SHAPE),
   'una diagnosi che stampa la chiave è la cosa da cui §19.3 ci ha portati via',
+);
+
+/* 🔷 «Dice chiamata fallita offline. Adesso ha detto timeout.» — erano lo
+   stesso evento riportato in due modi, e uno dei due mandava a controllare la
+   rete mentre il problema era la piattaforma. */
+check(
+  '§19.5 ATTIVAZIONE',
+  'una funzione uccisa si chiama timeout anche quando arriva come «offline»',
+  has('src/ai/backend.ts', 'NETLIFY_WALL_MS') &&
+    has('src/ai/backend.ts', "failure: wall() ? 'timeout' : 'offline'"),
+  'Netlify non risponde sempre 502 quando uccide una funzione, ma ci mette sempre dieci secondi',
+);
+check(
+  '§19.5 ATTIVAZIONE',
+  'e le si distingue guardando l’orologio, non indovinando',
+  has('src/ai/backend.ts', 'const startedAt = Date.now()'),
+  'una rete che non c’è fallisce subito, una funzione uccisa fallisce dopo nove secondi e mezzo: è un ordine di grandezza, non una sfumatura',
+);
+check(
+  '§19.1 FORNITORE',
+  'con gli strumenti il ragionamento è `none`, che è l’unico valore che passa',
+  has(PROVIDERS_FILE, "req.tools?.length ? 'none' :"),
+  'GPT-5.6 rifiuta con 400 una richiesta con funzioni e uno sforzo diverso da none, e la rifiuta anche se non lo mandi: il suo predefinito è medium',
 );
 
 /* ⚠️ LA FORMA DELLA TAVOLA È UNA SCELTA DI COMPOSIZIONE, non un dettaglio
