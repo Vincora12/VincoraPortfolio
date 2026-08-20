@@ -47,6 +47,7 @@ import {
   type Size,
 } from './generation-config';
 import { keepEnabled } from './catalogTuning';
+import { locked } from './generation-config';
 import { chance, makeRng, pick, pickInt, pickMany, pickWeighted, type Rng } from './rng';
 import { buildSignalVector, evaluateFit, type GeneratorInput } from './signals';
 import { generatePaletteDna } from './colorDna';
@@ -87,6 +88,24 @@ export interface GenerationContext {
   seed: number;
   /** §25 DEV://UNLOCK_ALL. */
   devUnlockAll?: boolean;
+  /**
+   * ⚠️ QUESTA CHIAMATA STA FUORI DALLA TEST PHASE, e lo dichiara.
+   *
+   * 🔷 La fase ferma Family, taglia e disegnatore per ogni forma nuova. Ma
+   * due chiamanti esistono APPOSTA per esplorare quello spazio:
+   *
+   *   DEV → PROVE     il protocollo §12 confronta i disegnatori a Family
+   *                   fissata. Con la fase attiva restava incollato ad ANGEL
+   *                   e non confrontava più niente.
+   *   verify:batch    misura l'equità delle distribuzioni del motore. Tre
+   *                   assi fermi le azzerano, e quei controlli servono a
+   *                   provare che il motore è giusto, non la fase.
+   *
+   * 🔒 Un'eccezione DICHIARATA da chi chiama, non dedotta qui: se il
+   * generatore provasse a indovinare chi ha diritto di uscire dalla fase,
+   * la fase non sarebbe più una garanzia.
+   */
+  ignoreTestPhase?: boolean;
   /** §16 — traguardo o ricorrenza, alimenta l'ultima componente del punteggio. */
   hiddenEvent?: boolean;
 }
@@ -130,15 +149,29 @@ export function generateMon(ctx: GenerationContext): GenerationResult {
   /* 04 — FAMILY (§17). Il passo 03 sulla rarità si risolve alla fine, quando
      la configurazione esiste: qui si registra solo l'eleggibilità. */
   const { family: drawnFamily, candidates: familyCandidates } = resolveFamily(rng, ctx, signals);
-  const family = anchored('family') ? familyDef(prev!.family) : drawnFamily;
+  /* 🔒 TEST PHASE 01 — l'ancora della fase di prova viene PRIMA di quella di
+     continuità: è più forte perché è temporanea e dichiarata, mentre la
+     continuità è una proprietà della partita. */
+  const fuoriFase = ctx.ignoreTestPhase === true;
+  const lockedFamily = fuoriFase ? null : locked('family');
+  const family = lockedFamily
+    ? familyDef(lockedFamily)
+    : anchored('family')
+      ? familyDef(prev!.family)
+      : drawnFamily;
   steps.push({
     step: 4,
     stage: 'FAMILY',
     outcome: family.id,
     candidates: familyCandidates,
-    note: anchored('family')
-      ? 'tenuta ferma dall’ancora di continuità'
-      : `softmax su tutte e ${SELECTABLE_FAMILIES.length} (temperatura ${ENGINE_WEIGHTS.family.temperature}); qui i primi ${ENGINE_WEIGHTS.family.topN}`,
+    /* ⚠️ La traccia dice che è FERMA, non che è stata estratta. Una traccia
+       che mostra dei candidati e non dice che il risultato era già deciso
+       racconta un sorteggio che non è avvenuto. */
+    note: lockedFamily
+      ? 'ferma dalla TEST PHASE 01 · gli altri candidati restano a catalogo'
+      : anchored('family')
+        ? 'tenuta ferma dall’ancora di continuità'
+        : `softmax su tutte e ${SELECTABLE_FAMILIES.length} (temperatura ${ENGINE_WEIGHTS.family.temperature}); qui i primi ${ENGINE_WEIGHTS.family.topN}`,
   });
 
   /* 05 — ARCHETIPO (§18). Si può ancorare solo insieme alla Family: un
@@ -160,8 +193,17 @@ export function generateMon(ctx: GenerationContext): GenerationResult {
 
   /* 07 — SIZE (§21) */
   const { size: drawnSize, score: sizeScore } = resolveSize(rng, signals, family, archetype);
-  let size = anchored('size') ? prev!.size : drawnSize;
-  steps.push({ step: 7, stage: 'SIZE', outcome: `${size} (score ${sizeScore.toFixed(1)})` });
+  const lockedSize = fuoriFase ? null : locked('size');
+  let size = lockedSize ?? (anchored('size') ? prev!.size : drawnSize);
+  steps.push({
+    step: 7,
+    stage: 'SIZE',
+    outcome: `${size} (score ${sizeScore.toFixed(1)})`,
+    /* Il punteggio si continua a calcolare e a mostrare anche da fermi: è
+       l'unico modo di vedere, quando la fase finisce, che taglia sarebbe
+       uscita. */
+    ...(lockedSize ? { note: 'ferma dalla TEST PHASE 01 · il punteggio resta quello vero' } : {}),
+  });
 
   /* 08 — ROLE (§20) */
   const drawnRole = resolveRole(rng);
@@ -289,13 +331,27 @@ export function generateMon(ctx: GenerationContext): GenerationResult {
     note: `${family.id} vive fra ${hLo} e ${hHi}${archDef?.humanShift ? `, ${archetype} sposta di ${archDef.humanShift}` : ''}`,
   });
 
-  const designDna = pick(rng, keepEnabled('design', DESIGN_DNA, (d) => d.id)).id;
+  /* 🔒 TEST PHASE 01 — il disegnatore resta KEN, e gli altri sei restano nel
+     catalogo: `DESIGN_DNA` non viene toccato, il sorteggio riparte da solo
+     quando la fase si spegne. */
+  const lockedDesigner = fuoriFase ? null : locked('characterDesigner');
+  /* ⚠️ L'ESTRAZIONE SI FA COMUNQUE, anche da fermi, e poi si sovrascrive.
+
+     Saltarla sembrerebbe più pulito e invece sposterebbe la sequenza casuale
+     di tutto quello che viene dopo — Cultural DNA compreso. Lo stesso seme
+     darebbe creature diverse a fase accesa e a fase spenta, e il giorno che
+     la spegni non potresti più confrontare niente con quello che avevi
+     visto. */
+  const drawnDesigner = pick(rng, keepEnabled('design', DESIGN_DNA, (d) => d.id)).id;
+  const designDna = lockedDesigner ?? drawnDesigner;
   const culturalDna = resolveCulturalDna(rng, ctx);
   steps.push({
     step: 11.5,
     stage: 'CHARACTER DESIGN DNA',
     outcome: `${designDna} · densità ${designDnaDef(designDna).density}/5`,
-    note: 'costruzione, non resa: l’Appearance sopra decide la superficie',
+    note: lockedDesigner
+      ? 'fermo dalla TEST PHASE 01 · definisce la lingua, non una soluzione ricorrente'
+      : 'costruzione, non resa: l’Appearance sopra decide la superficie',
   });
 
   steps.push({

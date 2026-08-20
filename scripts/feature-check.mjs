@@ -1700,6 +1700,48 @@ check(
 );
 
 /* ============================================================================
+   TEST PHASE 01 — 🔷 «FAMILY = ANGEL. SIZE = TINY. DESIGNER = KEN.»
+   ========================================================================= */
+check(
+  'TEST PHASE',
+  'tre assi fermi, dichiarati in un posto solo',
+  has('src/engine/generation-config.ts', 'export const TEST_PHASE: TestPhase') &&
+    count('src/engine/characterGenerator.ts', /locked\('/g) === 3,
+  'family, size e disegnatore: fermarli altrove vorrebbe dire tre interruttori da ricordare di spegnere',
+);
+check(
+  'TEST PHASE',
+  'è un’ancora, non una potatura: i cataloghi restano interi',
+  lacksInCode('src/engine/generation-config.ts', 'DESIGN_DNA = DESIGN_DNA.filter'),
+  'gli altri sei disegnatori devono restare disponibili per le fasi dopo',
+);
+check(
+  'TEST PHASE',
+  'il disegnatore si estrae comunque, e poi si sovrascrive',
+  has('src/engine/characterGenerator.ts', 'const drawnDesigner = pick(rng'),
+  'saltare l’estrazione sposterebbe la sequenza casuale di tutto quello che viene dopo: lo stesso seme darebbe creature diverse a fase accesa e spenta',
+);
+check(
+  'TEST PHASE',
+  'e la traccia dice che è ferma, non che è stata estratta',
+  has('src/engine/characterGenerator.ts', 'ferma dalla TEST PHASE 01'),
+  'una traccia che mostra dei candidati senza dire che il risultato era già deciso racconta un sorteggio che non è avvenuto',
+);
+check(
+  'TEST PHASE',
+  'il resolver sa che è una fase, non un personaggio da rifare',
+  has('src/assets-pipeline/resolver/taste.ts', 'TEST_PHASE.enabled') &&
+    has('src/assets-pipeline/resolver/taste.ts', 'one fixed halo or wing construction'),
+  'un modello che vede tre assi fermi e nient’altro tratta i tre valori come UN personaggio e comincia a rifarlo',
+);
+check(
+  'TEST PHASE',
+  'e che una taglia ferma non è una proporzione ferma',
+  has('src/assets-pipeline/resolver/taste.ts', 'not a locked proportion'),
+  'TINY è una strategia di compressione, e va decisa da capo per ogni forma',
+);
+
+/* ============================================================================
    IL GUSTO DI VINZ, RIATTACCATO AL RESOLVER
 
    ⚠️ La ricerca c'era da sempre in `generation-config.ts` — 18 grammatiche di
@@ -2596,7 +2638,12 @@ check(
 check(
   'DESIGN DNA §8',
   'non dipende dai segnali: è come si disegna, non chi è',
-  has(GEN, "const designDna = pick(rng, keepEnabled('design'"),
+  /* 🔶 La variabile si chiama `drawnDesigner` da quando la TEST PHASE può
+     sovrascriverla. La decisione non cambia: l'estrazione è un sorteggio dal
+     catalogo, non una funzione dei segnali — e si fa comunque, anche da
+     fermi, per non spostare la sequenza casuale. */
+  has(GEN, "const drawnDesigner = pick(rng, keepEnabled('design'") &&
+    has(GEN, 'const designDna = lockedDesigner ?? drawnDesigner;'),
   '«i .mon tristi si disegnano alla McCracken» sarebbe una regola che nessuno ha deciso',
 );
 

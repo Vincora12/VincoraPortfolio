@@ -41,7 +41,7 @@ export { buildCreativeResolverPrompt } from '${cwd}/src/assets-pipeline/resolver
 export { characterDataFor } from '${cwd}/src/assets-pipeline/resolver/adapter.ts';
 export { promptFor } from '${cwd}/src/assets-pipeline/promptFor.ts';
 export { tasteBrief, formeGiaViste } from '${cwd}/src/assets-pipeline/resolver/taste.ts';
-export { FASHIONS, SIZE_GRAMMAR, HAIR_STATES, HUMANOIDITY } from '${cwd}/src/engine/generation-config.ts';
+export { FASHIONS, SIZE_GRAMMAR, HAIR_STATES, HUMANOIDITY, TEST_PHASE, lockedIn, DESIGN_DNA as ALL_DESIGNERS, FAMILIES, SIZES } from '${cwd}/src/engine/generation-config.ts';
 export { RESOLVER_MEMORY, MEMORY_FINGERPRINTS } from '${cwd}/src/assets-pipeline/resolver/memory.ts';
 export { DESIGN_DNA } from '${cwd}/src/engine/generation-config.ts';
 export { FRAGMENT_LIBRARY } from '${cwd}/src/assets-pipeline/fragments.ts';
@@ -890,6 +890,111 @@ check(
   !brief.includes('do not repeat these solutions'),
   'ma la prima creatura non riceve un elenco vuoto di cose da non ripetere',
 );
+
+/* ============================================================================
+   TEST PHASE 01 — TRE ASSI FERMI, TUTTO IL RESTO LIBERO
+   🔷 «FAMILY = ANGEL. SIZE = TINY. CHARACTER DESIGNER = KEN.»
+   ========================================================================= */
+
+console.log('\n═══ TEST PHASE 01 ═══\n');
+
+const forme = [];
+for (let seed = 1; seed <= 30; seed++) {
+  forme.push(
+    m.generateMon({
+      input,
+      mindlineNodeId: `tp_${seed}`,
+      originNodeId: 'node_000',
+      heritageOrigins: m.selectHeritageOrigins(m.makeRng(seed * 17), first.record),
+      lineageNames: [first.record.data.name],
+      previous: first.record,
+      seed: seed * 3301,
+    }).record,
+  );
+}
+
+if (m.TEST_PHASE.enabled) {
+  check(
+    forme.every((r) => r.data.family === m.TEST_PHASE.family),
+    `trenta forme e la Family è sempre ${m.TEST_PHASE.family}`,
+    [...new Set(forme.map((r) => r.data.family))].join(', '),
+  );
+  check(
+    forme.every((r) => r.data.size === m.TEST_PHASE.size),
+    `e la taglia è sempre ${m.TEST_PHASE.size}`,
+    [...new Set(forme.map((r) => r.data.size))].join(', '),
+  );
+  check(
+    forme.every((r) => r.data.character_design_dna === m.TEST_PHASE.characterDesigner),
+    `e il disegnatore è sempre ${m.TEST_PHASE.characterDesigner}`,
+    [...new Set(forme.map((r) => r.data.character_design_dna))].join(', '),
+  );
+
+  /* 🔒 L'ANCORA NON DEVE POTATURA IL CATALOGO. Gli altri restano tutti. */
+  check(
+    m.ALL_DESIGNERS.length === 7 && m.FAMILIES.length > 1 && m.SIZES.length === 3,
+    'ma i cataloghi non sono stati potati: gli altri restano disponibili',
+    `${m.ALL_DESIGNERS.length} disegnatori · ${m.FAMILIES.length} Family · ${m.SIZES.length} taglie`,
+  );
+  check(
+    m.TEST_PHASE.characterDesigner === m.ALL_DESIGNERS.find(
+      (d) => d.id === m.TEST_PHASE.characterDesigner,
+    )?.id,
+    'e l’id fermo esiste davvero a catalogo',
+    'un id che non risolve tornerebbe al sorteggio in silenzio',
+  );
+
+  /* ⚠️ IL PUNTO VERO: dentro lo spazio chiuso la variazione deve RESTARE. */
+  const varia = (f) => new Set(forme.map(f)).size;
+  check(
+    varia((r) => r.data.family_archetype) >= 3,
+    'dentro lo spazio chiuso gli archetipi variano ancora',
+    `${varia((r) => r.data.family_archetype)} archetipi diversi su 30 forme`,
+  );
+  check(
+    varia((r) => r.data.humanoidity) >= 2 && varia((r) => r.data.fashion) >= 5,
+    'e umanoidità e stile pure',
+    `${varia((r) => r.data.humanoidity)} livelli · ${varia((r) => r.data.fashion)} stili`,
+  );
+  /* ⚠️ SOGLIA CONTRO IL SERBATOIO, NON CONTRO UN NUMERO INVENTATO. Qui avevo
+     scritto «>= 10 tic di sagoma» senza guardare che il catalogo ne contiene
+     SETTE: un controllo che non può passare per costruzione, e che avrebbe
+     accusato il codice per sempre. La copertura piena è anche più forte. */
+  check(
+    varia((r) => r.data.eyewear?.category ?? '—') >= 4 &&
+      varia((r) => r.data.character_dna.silhouette_quirk) === 7,
+    'occhiali e tic di sagoma restano genuinamente diversi',
+    `${varia((r) => r.data.eyewear?.category ?? '—')} categorie di occhiali · tutti e ${varia((r) => r.data.character_dna.silhouette_quirk)} i tic del catalogo`,
+  );
+
+  /* 🔒 E L'INTERRUTTORE DEVE FUNZIONARE NEI DUE SENSI. Una fase temporanea
+     che non si sa spegnere non è temporanea. */
+  const spenta = { ...m.TEST_PHASE, enabled: false };
+  check(
+    m.lockedIn(spenta, 'family') === null &&
+      m.lockedIn(spenta, 'size') === null &&
+      m.lockedIn(spenta, 'characterDesigner') === null,
+    'a fase spenta i tre assi tornano al sorteggio',
+    'nessun valore fermo resta appeso',
+  );
+  check(
+    m.lockedIn(m.TEST_PHASE, 'characterDesigner') === m.TEST_PHASE.characterDesigner,
+    'e ad accesa tornano fermi',
+  );
+
+  /* E il resolver deve SAPERE che è una fase, o tratta i tre valori come un
+     personaggio solo e comincia a rifarlo. */
+  const b = m.tasteBrief(forme[0]);
+  check(
+    b.includes('TEST PHASE') && b.includes('recurring character'),
+    'il resolver sa che è una fase, non un personaggio da ripetere',
+  );
+  check(
+    b.includes('one fixed halo or wing construction') && b.includes('not a locked proportion'),
+    'e sa cosa il blocco NON deve diventare',
+    'aureola fissa, silhouette ricorrente, proporzione bloccata',
+  );
+}
 
 /* --- Esito ------------------------------------------------------------------ */
 

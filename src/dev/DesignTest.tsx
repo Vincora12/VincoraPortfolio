@@ -133,6 +133,10 @@ export function DesignTest() {
       lineageNames: [],
       previous,
       continuity: axes,
+      /* 🔒 §12 esiste per confrontare i disegnatori a Family fissata: con la
+         TEST PHASE attiva questa prova resterebbe incollata ad ANGEL e a KEN,
+         cioè smetterebbe di essere una prova. */
+      ignoreTestPhase: true,
       seed,
     }).record;
     // eslint-disable-next-line react-hooks/exhaustive-deps

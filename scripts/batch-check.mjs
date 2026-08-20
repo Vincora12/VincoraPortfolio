@@ -29,6 +29,7 @@ writeFileSync(
   entry,
   `
 export { generateMon, generateFirstMon } from '${cwd}/src/engine/characterGenerator.ts';
+export { TEST_PHASE } from '${cwd}/src/engine/generation-config.ts';
 export { selectHeritageOrigins } from '${cwd}/src/engine/heritage.ts';
 export { neutralPersonality, EMPTY_NOVELTY, buildNoveltyMemory } from '${cwd}/src/engine/signals.ts';
 export { initialHealthState, applyDay, simulateDayInput, DEFAULT_BIAS } from '${cwd}/src/engine/health.ts';
@@ -80,6 +81,30 @@ await build({
 });
 
 const m = await import(`file://${out}`);
+
+/* ============================================================================
+   ⚠️ QUESTA SUITE MISURA IL MOTORE, NON LA FASE DI PROVA.
+
+   TEST PHASE 01 ferma Family, taglia e disegnatore, e con tre assi fermi ogni
+   distribuzione qui dentro va a zero per costruzione: «tutte le Family
+   raggiungibili» diventa 1 su 18, «le tre taglie compaiono» diventa TINY.
+
+   🔒 Quei controlli non vanno indeboliti né riscritti: provano che il motore è
+   EQUO, e devono continuare a farlo mentre la fase gira — altrimenti per tutta
+   la durata della fase nessuno si accorgerebbe di una regressione vera nel
+   sorteggio. Quindi si spengono la fase per la durata di questa suite, lo si
+   dichiara a voce alta, e in fondo la si riaccende per verificare il blocco.
+   ========================================================================= */
+
+const FASE_ERA_ACCESA = m.TEST_PHASE.enabled;
+if (FASE_ERA_ACCESA) {
+  m.TEST_PHASE.enabled = false;
+  console.log(
+    `\n⚠️  TEST PHASE 01 è ACCESA (${m.TEST_PHASE.family} · ${m.TEST_PHASE.size} · ${m.TEST_PHASE.characterDesigner}).`,
+  );
+  console.log('   Sospesa per questa suite: qui si misura l’equità del motore, non la fase.');
+  console.log('   Il blocco viene verificato in fondo, e da `verify:package`.\n');
+}
 const C = m.CONFIG;
 
 let failures = 0;
@@ -2899,6 +2924,40 @@ check(
   `il briefing della voce supera i ${CACHE_MIN_TOKENS} token minimi per la cache`,
   `~${voiceTokens} token (${voicePrompt.length} caratteri)`,
 );
+
+/* --- E ADESSO IL BLOCCO, RIACCESO ------------------------------------------- */
+
+if (FASE_ERA_ACCESA) {
+  m.TEST_PHASE.enabled = true;
+  const bloccate = [];
+  for (let i = 1; i <= 12; i++) {
+    bloccate.push(
+      m.generateFirstMon({
+        input,
+        mindlineNodeId: `lock_${i}`,
+        originNodeId: null,
+        lineageNames: [],
+        seed: i * 911,
+      }).record,
+    );
+  }
+  check(
+    bloccate.every(
+      (r) =>
+        r.data.family === m.TEST_PHASE.family &&
+        r.data.size === m.TEST_PHASE.size &&
+        r.data.character_design_dna === m.TEST_PHASE.characterDesigner,
+    ),
+    'con la fase riaccesa i tre assi tornano fermi',
+    `${m.TEST_PHASE.family} · ${m.TEST_PHASE.size} · ${m.TEST_PHASE.characterDesigner}`,
+  );
+  check(
+    new Set(bloccate.map((r) => r.data.family_archetype)).size >= 2 &&
+      new Set(bloccate.map((r) => r.data.fashion)).size >= 4,
+    'e dentro il blocco la variazione resta',
+    `${new Set(bloccate.map((r) => r.data.family_archetype)).size} archetipi · ${new Set(bloccate.map((r) => r.data.fashion)).size} stili su 12`,
+  );
+}
 
 console.log(
   failures === 0 ? '\n✓ Tutti i controlli superati.\n' : `\n✗ ${failures} controlli falliti.\n`,

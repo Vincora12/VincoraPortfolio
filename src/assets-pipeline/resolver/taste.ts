@@ -47,6 +47,7 @@ import {
   HUMANOIDITY,
   NO_HUMAN_HAIR_RULE,
   SIZE_GRAMMAR,
+  TEST_PHASE,
 } from '../../engine/generation-config';
 import { CATALOG_AXES, AXES, enabled, isCatalogTuned } from '../../engine/catalogTuning';
 import type { MonRecord } from '../../engine/types';
@@ -196,6 +197,43 @@ out of this face's anatomy, the Family, the Archetype, the Humanoidity, the
 Character Design DNA, the Fashion grammar and the Cultural DNA. Different
 Forms must produce genuinely different eyewear silhouettes — do not resolve
 repeatedly into a visor, a continuous face mask or a single skull plate.`);
+  }
+
+  /* ⚠️ LA FASE DI PROVA VA DETTA AL RESOLVER, E VA DETTA COSÌ.
+
+     🔷 «KEN definisce la lingua del character design, non deve forzare una
+        silhouette ricorrente, un'anatomia d'angelo fissa, una faccia sola,
+        una tavolozza sola o sempre la stessa aureola.»
+
+     ⚠️ Un modello che vede tre assi fermi e non riceve nient'altro fa la cosa
+     più naturale del mondo: tratta i tre valori come UN personaggio, e
+     comincia a rifarlo. È il rischio specifico di questa fase, ed è il
+     contrario di quello che serve — i tre assi sono fermi PROPRIO per poter
+     giudicare quanto varia tutto il resto. */
+  if (TEST_PHASE.enabled) {
+    parti.push(`TEST PHASE — three axes are deliberately locked.
+
+  FAMILY = ${TEST_PHASE.family}   SIZE = ${TEST_PHASE.size}   DESIGNER = ${TEST_PHASE.characterDesigner}
+
+They are held still so that everything else can be judged. This is NOT a
+recurring character: it is the same three constraints handed to a fresh
+design problem each time.
+
+⚠️ The locked designer defines a character-design LANGUAGE — how form is
+constructed, simplified and read. It must never harden into:
+
+  - one recurring body shape        - one fixed face
+  - one recurring silhouette        - one fixed palette
+  - one fixed ${TEST_PHASE.family} anatomy${' '.repeat(Math.max(0, 8 - TEST_PHASE.family.length))}      - one fixed halo or wing construction
+
+⚠️ And a locked SIZE is not a locked proportion. ${TEST_PHASE.size} is a
+compression strategy: which mass dominates, and what gets shortened, must be
+decided again for every Form from what that Form already is.
+
+Morphological variation inside this locked space must be MAXIMUM. Treat every
+generation as a brand-new character-design problem that happens to share three
+constraints with the previous one — the way two illustrators given the same
+brief produce two different creatures, not two drafts of one.`);
   }
 
   if (spenti.length > 0) {

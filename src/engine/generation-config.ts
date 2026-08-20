@@ -618,6 +618,79 @@ export function humanoidityLevel(level: number): HumanoidityLevel {
 export const HUMANOIDITY_NOT_REALISM =
   'HUMANOIDITY is not realism. A 4/5 character may still have extreme stylised cartoon proportions. This value controls how HUMAN the body plan reads, never how realistically it is drawn.';
 
+/* ============================================================================
+   TEST PHASE 01 — TRE VALORI FERMI, TUTTO IL RESTO LIBERO
+
+   🔷 «FAMILY = ANGEL. SIZE = TINY. CHARACTER DESIGNER = KEN.»
+
+   Serve a guardare la variazione DENTRO uno spazio chiuso: se ogni creatura
+   cambia anche specie, taglia e disegnatore, non si capisce mai se la
+   differenza fra due forme viene dal generatore o dal fatto che sono due cose
+   diverse. Fermando i tre assi più grossi, quello che resta a muoversi è il
+   disegno del personaggio — che è la cosa che stiamo giudicando.
+
+   ════════════════════════════════════════════════════════════════════════════
+   🔒 È UN'ANCORA, NON UNA POTATURA.
+
+   Non toglie niente dai cataloghi: le altre Family, le altre taglie e gli
+   altri sei disegnatori restano tutti al loro posto, selezionabili, e
+   `DESIGN_DNA` non viene toccato. Spegnendo `enabled` il sorteggio riparte
+   esattamente com'era.
+
+   ⚠️ E NON È `catalogTuning`, che pure fa una cosa simile: quello ha un
+   minimo di due Family per costruzione — «con una sola, ogni creatura nasce
+   della stessa specie e il generatore diventa un timbro» — ed è la regola
+   giusta per l'uso normale. Qui il timbro lo vogliamo, ed è temporaneo:
+   metterlo in `catalogTuning` avrebbe voluto dire indebolire una difesa
+   permanente per una fase di prova.
+   ════════════════════════════════════════════════════════════════════════════
+
+   ⚠️ KEN DEFINISCE LA LINGUA, NON LA SOLUZIONE. Bloccare il disegnatore non
+   deve produrre una silhouette ricorrente, un'anatomia d'angelo fissa, una
+   faccia sola, una tavolozza sola o sempre la stessa aureola. Ogni nascita
+   resta un problema di disegno da capo: la variazione morfologica dentro
+   ANGEL × TINY × KEN deve restare massima. Il resolver lo riceve scritto —
+   vedi `resolver/taste.ts`.
+   ========================================================================= */
+
+export interface TestPhase {
+  enabled: boolean;
+  family: string;
+  size: Size;
+  characterDesigner: string;
+}
+
+export const TEST_PHASE: TestPhase = {
+  enabled: true,
+  family: 'ANGEL',
+  size: 'TINY',
+  /* 🔒 L'id intero del catalogo, non l'abbreviazione: «KEN» da solo non
+     esiste in `DESIGN_DNA`, e un id che non risolve tornerebbe in silenzio al
+     sorteggio — cioè la fase di prova non sarebbe ferma e nessuno lo saprebbe. */
+  characterDesigner: 'KEN SUGIMORI',
+};
+
+/**
+ * Il valore fermo di un asse, o `null` se la fase è spenta.
+ *
+ * 🔒 La versione pura prende la fase come argomento PER POTERLA PROVARE
+ * spenta: altrimenti l'unico modo di verificare che il sorteggio riparte
+ * sarebbe modificare il file, girare, e rimettere a posto — cioè fidarsi di
+ * aver rimesso a posto.
+ */
+export function lockedIn<K extends keyof Omit<TestPhase, 'enabled'>>(
+  phase: TestPhase,
+  axis: K,
+): TestPhase[K] | null {
+  return phase.enabled ? phase[axis] : null;
+}
+
+export function locked<K extends keyof Omit<TestPhase, 'enabled'>>(
+  axis: K,
+): TestPhase[K] | null {
+  return lockedIn(TEST_PHASE, axis);
+}
+
 export const SELECTABLE_FAMILIES = FAMILIES;
 
 /**
