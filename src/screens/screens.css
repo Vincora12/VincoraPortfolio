@@ -2343,6 +2343,108 @@
   align-items: center;
   justify-content: center;
   width: 100%;
+  /* Lo spazio in fondo è per la fila di adesivi, che sborda oltre il bordo di
+     sotto della foto: senza, finirebbe sotto il pulsante. */
+  padding-bottom: var(--u5);
+}
+
+/* ⚠️ IL RIFERIMENTO DEGLI ADESIVI È LA FOTO, NON IL RIQUADRO.
+
+   Il riquadro è alto mezza videata sempre; la foto dentro è alta quanto è.
+   Ancorando gli adesivi al riquadro finivano staccati, sospesi sotto una
+   creatura più piccola dello spazio che le è stato dato — cioè esattamente
+   l'effetto «legenda» che non volevamo.
+
+   `inline-flex` fa stringere questo involucro sulla foto vera, e da lì il
+   `bottom` negativo qui sotto morde il bordo giusto. */
+.splash__photo {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  max-width: 100%;
+  max-height: 46vh;
+}
+
+.splash__photo > .idlemon,
+.splash__photo > .idlemon--sprite {
+  max-height: 46vh;
+}
+
+/* ============================================================================
+   GLI ADESIVI DELLE ESPRESSIONI
+
+   🔷 «Sulla foto adesivi attaccati delle varie espressioni, come se fosse
+      sticker, in basso.»
+
+   ⚠️ SBORDANO DI PROPOSITO. Stanno a cavallo del bordo di sotto della foto,
+   non allineati dentro: un adesivo allineato al bordo è una legenda, un
+   adesivo che sborda è stato attaccato lì da qualcuno. È tutta la differenza
+   fra le due cose, e sta in questa riga di `bottom` negativo.
+   ========================================================================= */
+.stickers {
+  position: absolute;
+  left: 0;
+  right: 0;
+  /* Negativo: la fila sta A CAVALLO del bordo di sotto. Un adesivo allineato
+     dentro è una legenda; uno che sborda è stato attaccato lì da qualcuno. */
+  bottom: -20px;
+  z-index: 1;
+  display: flex;
+  /* ⚠️ UNA FILA SOLA, SEMPRE. Con l'a-capo permesso, sei adesivi più larghi
+     della foto si dispongono su due righe e la riga di sopra sale in mezzo
+     alla creatura — coprendole la faccia invece di stare sul bordo. Non è
+     un'ipotesi: è quello che faceva. */
+  flex-wrap: nowrap;
+  align-items: flex-end;
+  justify-content: center;
+  gap: var(--u);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  /* Non intercetta il tocco: sotto c'è la foto, e la fila non è un comando. */
+  pointer-events: none;
+}
+
+.sticker {
+  /* 44 e non 52: sei da 52 più gli spazi superano la larghezza della foto su
+     un telefono stretto, e la fila andrebbe a capo. */
+  width: 44px;
+  height: 44px;
+  flex: 0 0 auto;
+  overflow: hidden;
+  /* Il bordo bianco spesso è quello che rende un ritaglio un adesivo. Bianco
+     letterale, come il fondo della schermata: è il taglio della carta, non un
+     colore del tema. */
+  border: 3px solid #ffffff;
+  border-radius: 50%;
+  background: var(--paper);
+  box-shadow: var(--shadow-hard-sm);
+  transform: rotate(var(--tilt, 0deg));
+}
+
+.sticker__art {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background-repeat: no-repeat;
+}
+
+/* Il foglio delle espressioni non c'è ancora: la casella resta, vuota e
+   dichiarata. Sei ritratti uguali al posto di sei espressioni sarebbero una
+   bugia sul contenuto (§18A). */
+.sticker--empty {
+  background: transparent;
+  border-style: dashed;
+  border-color: var(--hairline);
+  border-width: 2px;
+  box-shadow: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sticker {
+    transform: none;
+  }
 }
 
 .splash__stage .rotation {
@@ -2355,15 +2457,35 @@
   flex-direction: column;
   align-items: center;
   gap: 2px;
+  /* 🔴 SENZA QUESTA RIGA IL NOME NON SI VEDEVA. Vedi `.splash__name`. */
+  width: 100%;
   text-align: center;
 }
 
-/* I nomi sono generati e possono essere lunghi: meglio che vadano a capo che
-   toccare i bordi. */
+/* ⚠️ 🔴 IL NOME ERA INVISIBILE, E NON PER UN COLORE.
+
+   `MonName fit` rimpicciolisce il corpo finché il nome ci sta, e lo fa con
+   `100cqi` — «il cento per cento della larghezza del contenitore». Il
+   contenitore è `.monname-fit`, che dichiara `container-type: inline-size`.
+
+   Ma un elemento con `container-type: inline-size` NON PUÒ misurare la
+   propria larghezza guardando cosa contiene: è il senso stesso del
+   contenimento. Se nessuno gliela dà da fuori, quella larghezza vale zero —
+   e `100cqi` di zero è zero, quindi il corpo del carattere diventa zero.
+
+   Qui dentro la larghezza da fuori non arrivava: `.splash__id` è una colonna
+   flex con `align-items: center`, che stringe ogni figlio sul suo contenuto.
+   Larghezza dal contenuto, contenuto misurato sulla larghezza — il cerchio si
+   chiude su zero, e il nome spariva senza che niente segnalasse un errore.
+
+   🔒 `width: 100%` qui e sul genitore rompe il cerchio: la larghezza arriva
+   dalla pagina, e il nome ha finalmente qualcosa su cui calcolarsi. È anche
+   il motivo per cui `max-width: 100%` non bastava — un massimo non è una
+   misura. */
 .splash__name {
+  width: 100%;
   font-size: var(--type-display-xl);
   line-height: 0.95;
-  max-width: 100%;
   overflow-wrap: anywhere;
 }
 
@@ -3106,6 +3228,13 @@
 .dossier__story {
   color: var(--muted-strong);
   line-height: 1.55;
+}
+
+/* La BIO dentro il dossier: il quaderno ha già il suo margine interno, quindi
+   qui si toglie quello del blocco e si lascia respirare il foglio. */
+.dossier__block > .bionote {
+  padding-left: 0;
+  padding-right: 0;
 }
 
 .dossier__sigil {

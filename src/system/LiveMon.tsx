@@ -77,6 +77,72 @@ export function IdleMon({
   );
 }
 
+/* ============================================================================
+   GLI ADESIVI DELLE ESPRESSIONI (§23.1)
+
+   🔷 «Sulla foto, adesivi attaccati delle varie espressioni, come se fosse
+      sticker, in basso.»
+
+   Le sei espressioni sono già un asset — l'EXPRESSION SHEET, griglia 3×2 — e
+   fino a oggi si vedevano una alla volta, in testa alla chat, quella che
+   serviva in quel momento. Tutte insieme sul bordo della foto sono un'altra
+   cosa: non «come sta adesso», ma **di quante facce è capace**.
+
+   ⚠️ QUANDO IL FOGLIO NON C'È, GLI ADESIVI RESTANO VUOTI, E NON È UN RIPIEGO.
+   `MonFace` da solo ripiegherebbe sul ritratto: sei adesivi con SEI VOLTE LA
+   STESSA FACCIA, che è peggio di sei caselle vuote — dice una bugia sul
+   contenuto invece di dire che manca. §18A vieta di inventare arte, e sei
+   copie di un'immagine spacciate per sei espressioni diverse sono arte
+   inventata anche se ogni singolo pixel è vero.
+
+   🔒 Le caselle vuote restano SEI e restano al loro posto: la fila non cambia
+   forma quando il foglio arriva, quindi quello che vedi vuoto è esattamente
+   dove finirà l'immagine.
+   ========================================================================= */
+
+export function ExpressionStickers({ monName, alt }: { monName: string; alt: string }) {
+  const sheet = useAssetUrl(monName, 'reaction_pack');
+
+  return (
+    <ul className="stickers" aria-label={`Espressioni di ${alt}`}>
+      {EXPRESSIONS.map((e, i) => {
+        const col = i % EXPRESSION_SPEC.columns;
+        const row = Math.floor(i / EXPRESSION_SPEC.columns);
+        /* L'inclinazione viene dalla POSIZIONE, non dal caso: gli adesivi
+           stanno storti sempre allo stesso modo a ogni apertura. Uno storto a
+           caso a ogni render sarebbe un'animazione che nessuno ha chiesto. */
+        const tilt = [-7, 4, -3, 6, -5, 3][i];
+
+        return (
+          <li
+            key={e}
+            className={`sticker ${sheet ? '' : 'sticker--empty'}`}
+            style={{ ['--tilt' as string]: `${tilt}deg` }}
+            title={sheet ? e.toLowerCase() : `${e.toLowerCase()} — non ancora disponibile`}
+          >
+            {sheet ? (
+              <span
+                className="sticker__art"
+                role="img"
+                aria-label={`${alt}, ${e.toLowerCase()}`}
+                style={{
+                  backgroundImage: `url(${sheet})`,
+                  backgroundSize: `${EXPRESSION_SPEC.columns * 100}% ${EXPRESSION_SPEC.rows * 100}%`,
+                  backgroundPosition: `${(col * 100) / (EXPRESSION_SPEC.columns - 1)}% ${
+                    (row * 100) / (EXPRESSION_SPEC.rows - 1)
+                  }%`,
+                }}
+              />
+            ) : (
+              <span className="sr-only">{`${e.toLowerCase()} — non ancora disponibile`}</span>
+            )}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 /* --- Busto che cambia espressione ------------------------------------------ */
 
 export function MonFace({

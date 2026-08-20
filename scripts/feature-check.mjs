@@ -627,6 +627,75 @@ check(
   (read(APP) ?? '').indexOf('overlay ? (') < (read(APP) ?? '').indexOf('onCreature ? ('),
   'con la splash aperta il pannello DEV si apriva sotto e non si vedeva',
 );
+/* ============================================================================
+   LA SCHERMATA DEL .MON, RIFATTA
+
+   🔷 «Nome in alto. Sulla foto adesivi attaccati delle varie espressioni, come
+      se fosse sticker, in basso. Poi abbiamo bio e doodle e altre cose su di
+      lui, tutto nella prima schermata a scorrimento.»
+   ========================================================================= */
+
+const SPLASH = 'src/screens/Splash.tsx';
+const SCREENS_CSS = 'src/screens/screens.css';
+
+check(
+  'INGRESSO §13.7',
+  'il nome sta sopra la foto',
+  (read(SPLASH) ?? '').indexOf('splash__id') < (read(SPLASH) ?? '').indexOf('splash__stage'),
+  'sotto, si guardava una creatura senza sapere chi fosse',
+);
+/* 🔴 L'ago che sarebbe servito prima. Il nome c'era, in cima, con il suo corpo
+   display — e non si vedeva: `100cqi` dentro un contenitore stretto sul
+   contenuto vale zero, quindi il carattere veniva zero. Nessun errore da
+   nessuna parte.
+
+   ⚠️ Punta alla LARGHEZZA DICHIARATA, che è la decisione, non al valore del
+   corpo: `min(1em, ...)` può cambiare, il fatto che la misura debba arrivare
+   da fuori no. */
+check(
+  'INGRESSO §13.7',
+  'e ha una larghezza vera su cui calcolarsi',
+  /\.splash__id\s*\{[^}]*width:\s*100%/.test(read(SCREENS_CSS) ?? '') &&
+    /\.splash__name\s*\{[^}]*width:\s*100%/.test(read(SCREENS_CSS) ?? ''),
+  'con la larghezza presa dal contenuto, `100cqi` vale zero e il nome sparisce',
+);
+check(
+  'INGRESSO §13.7',
+  'gli adesivi sono ancorati alla foto, non al riquadro',
+  has(SPLASH, 'splash__photo') && /\.splash__photo\s*\{[^}]*position:\s*relative/.test(read(SCREENS_CSS) ?? ''),
+  'il riquadro è alto mezza videata sempre: ancorati lì restavano sospesi',
+);
+check(
+  'INGRESSO §13.7',
+  'e stanno a cavallo del bordo, su una fila sola',
+  /\.stickers\s*\{[^}]*bottom:\s*-/.test(read(SCREENS_CSS) ?? '') &&
+    /\.stickers\s*\{[^}]*flex-wrap:\s*nowrap/.test(read(SCREENS_CSS) ?? ''),
+  'allineati dentro sono una legenda; a capo coprono la faccia',
+);
+/* 🔒 §18A. Il ripiego di `MonFace` è il ritratto: usato per sei adesivi
+   darebbe sei volte la stessa faccia spacciata per sei espressioni. Una
+   casella vuota dice la verità, sei copie no. */
+check(
+  'INGRESSO §13.7',
+  'senza il foglio, gli adesivi restano vuoti invece di mostrare sei volte il ritratto',
+  has('src/system/LiveMon.tsx', 'sticker--empty') &&
+    !/ExpressionStickers[\s\S]{0,1200}<MonFace/.test(read('src/system/LiveMon.tsx') ?? ''),
+);
+check(
+  'INGRESSO §13.7',
+  'bio e doodle stanno nella prima schermata',
+  has(SPLASH, '<BioPanel mon={mon} />'),
+  'tutto quello che il personaggio è, in una pagina che scorre',
+);
+/* ⚠️ La bio è UNA. Riscriverne una seconda versione qui sarebbe due quaderni
+   che invecchiano separati — e il primo sintomo sarebbe che la scheda e la
+   home raccontano due storie diverse della stessa creatura. */
+check(
+  'INGRESSO §13.7',
+  'ed è lo stesso quaderno della scheda, non una copia',
+  lacksInCode(SPLASH, 'readableBio') && has('src/screens/SpecimenProfile.tsx', 'BioPanel'),
+);
+
 /* 🔷 «È ancora nera questa schermata.»
 
    ⚠️ L'AGO PUNTA ALLA DECISIONE, NON AL COLORE. Non cerca `#ffffff` da nessuna

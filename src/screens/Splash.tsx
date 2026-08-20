@@ -26,14 +26,15 @@
 
 import { useState } from 'react';
 import { useApp, useActiveMon, useIncubation } from '../state/store';
-import { IdleMon } from '../system/LiveMon';
+import { ExpressionStickers, IdleMon } from '../system/LiveMon';
 import { EggVessel } from '../system/EggVessel';
 import { MonName, SpeciesName } from '../system/MonName';
 import { Sigil } from '../system/AssetSlot';
 import { Row } from '../system/components';
+import { BioPanel } from './BioPanel';
 import { birthStatsFor } from '../engine/birthStats';
 import { STAT_LABELS, formatSignal } from '../engine/health';
-import { displayName, readableBio } from '../engine/types';
+import { displayName } from '../engine/types';
 import { haptic } from '../system/haptics';
 import { t } from '../i18n/it';
 
@@ -67,13 +68,48 @@ export function SplashScreen({ onEnter }: { onEnter: () => void }) {
 
   return (
     <div className="splash">
-      {/* Tutto lo spazio va alla creatura: è il motivo per cui la schermata
-          esiste.
+      {/* ══════════════════════════════════════════════════════════════════════
+          🔷 «Nome in alto. Sulla foto adesivi attaccati delle varie
+             espressioni, come se fosse sticker, in basso. Poi abbiamo bio e
+             doodle e altre cose su di lui, tutto nella prima schermata a
+             scorrimento.»
 
-          ⚠️ NON è un pulsante. Lo era, e apriva la chat — ma dentro c'è un
-          visore che si trascina per ruotare, e un trascinamento dentro un
-          pulsante finisce sempre in un click involontario. Adesso la creatura
-          risponde al gesto che le appartiene, e alla chat si va dalla porta. */}
+          🔶 L'ORDINE È CAMBIATO, E IL CAMBIO HA UNA RAGIONE OLTRE AL GUSTO.
+          Il nome stava SOTTO la figura: si guardava una creatura senza sapere
+          chi fosse e poi si scopriva come si chiamava. Sopra, la pagina si
+          legge come una scheda — prima di chi parliamo, poi la sua faccia,
+          poi cosa c'è da sapere.
+
+          🔒 In incubazione il nome non c'è ancora, e non si inventa un
+          segnaposto: al suo posto sta il conto dei giorni, che è l'unica cosa
+          vera in quel momento.
+          ══════════════════════════════════════════════════════════════════ */}
+      <div className="splash__id">
+        {incubating ? (
+          <>
+            <span className="t-display splash__name">{t.incubation.title}</span>
+            <span className="t-meta splash__form">
+              {inc.day} / {inc.total} {t.incubation.day}
+            </span>
+          </>
+        ) : (
+          <>
+            <span className="t-display splash__name">
+              <MonName name={mon!.data.name} fit />
+            </span>
+            <span className="t-meta splash__form">
+              <SpeciesName /> · {mon!.data.evolution_state?.label ?? 'BASIC FORM'}
+            </span>
+          </>
+        )}
+      </div>
+
+      {/* La foto. Tutto lo spazio va alla creatura: è il motivo per cui la
+          schermata esiste.
+
+          ⚠️ NON è un pulsante. Lo era, e apriva la chat — ma un tocco che
+          parte da qui compete con lo scroll della pagina, e su un telefono
+          vince sempre il tocco per sbaglio. Alla chat si va dalla porta. */}
       <div className="splash__stage">
         {incubating ? (
           /* Toccare l'uovo lo fa saltare. Non porta da nessuna parte, ed è il
@@ -95,66 +131,40 @@ export function SplashScreen({ onEnter }: { onEnter: () => void }) {
             />
           </button>
         ) : (
-          /* 🔷 v1.11 §23.3 — la creatura non gira: respira. Qui c'era il
-             visore a trascinamento, uscito insieme al suo asset — otto viste
-             coerenti erano il pezzo più caro del pacchetto in cambio di un
-             gesto che si prova una volta. Un ciclo leggero in loop fa lo
-             stesso lavoro meglio, con quattro frame invece di otto. */
-          /* 🔶 E ADESSO STA FERMA ANCHE QUI. Il `still` era arrivato solo
-             sulla scheda, perché avevo letto «non farlo fluttuare» come una
-             richiesta sul documento della creatura. Era la stessa frase che
-             chiedeva il fondo bianco, e il fondo bianco lo voleva QUI: è
-             questa la schermata di cui parlava.
-
-             ⚠️ Il respiro non torna da solo: togliere `still` è tutto quello
-             che serve, se un giorno la creatura ferma sembra un ritaglio. */
-          <IdleMon monName={mon!.data.name} alt={displayName(mon!.data.name)} still />
-        )}
-      </div>
-
-      <div className="splash__id">
-        {incubating ? (
           <>
-            <span className="t-display splash__name">{t.incubation.title}</span>
-            <span className="t-meta splash__form">
-              {inc.day} / {inc.total} {t.incubation.day}
-            </span>
-          </>
-        ) : (
-          <>
-            <span className="t-display splash__name">
-              <MonName name={mon!.data.name} fit />
-            </span>
-            <span className="t-meta splash__form">
-              <SpeciesName /> · {mon!.data.evolution_state?.label ?? 'BASIC FORM'}
-            </span>
+            {/* 🔷 v1.11 §23.3 — la creatura non gira: respira. Qui c'era il
+                visore a trascinamento, uscito insieme al suo asset.
+
+                🔶 E adesso sta ferma: «non farlo fluttuare, tienilo fisso».
+                Togliere `still` è tutto quello che serve per riavere il
+                respiro. */}
+            {/* ⚠️ L'INVOLUCRO NON È DECORATIVO: stringe sulla foto vera, e gli
+                adesivi si ancorano a LUI, non al riquadro alto mezza videata.
+                Ancorati al riquadro restavano sospesi sotto la creatura. */}
+            <div className="splash__photo">
+              <IdleMon monName={mon!.data.name} alt={displayName(mon!.data.name)} still />
+              {/* Gli adesivi stanno SULLA foto, a cavallo del bordo di sotto —
+                  non in una fila sotto di essa. È la differenza fra un adesivo
+                  attaccato e una legenda. */}
+              <ExpressionStickers monName={mon!.data.name} alt={displayName(mon!.data.name)} />
+            </div>
           </>
         )}
       </div>
 
       {/* 🔷 v1.15 §13.12 — L'INGRESSO È UN PULSANTE, NON UNA SUPERFICIE.
 
-          Da quando la pagina scorre, «tocca il personaggio per entrare»
-          sarebbe un gesto che compete con lo scroll: il dito parte sulla
-          creatura, la pagina si muove, e ti ritrovi in chat senza averlo
-          chiesto. Su iPhone succede tutte le volte.
-
-          Un pulsante con scritto cosa fa è anche più chiaro di una superficie
-          che si tocca e basta — la perdita è zero. */}
+          Un pulsante con scritto cosa fa è più chiaro di una superficie che si
+          tocca e basta, e non litiga con lo scroll. */}
       <button type="button" className="splash__enter" onClick={enter}>
         <span className="t-display">{incubating ? t.splash.chat : t.splash.talk}</span>
         <span aria-hidden="true">→</span>
       </button>
 
       {/* ======================================================================
-          🔷 v1.15 §13.12 — QUELLO CHE STA SOTTO.
+          QUELLO CHE STA SOTTO.
 
-          Qui c'era un tasto in alto a destra che portava al profilo: un'icona
-          senza nome verso un posto che non sapevi prima di arrivarci. Stessa
-          malattia della freccia di invio, stessa cura — sparisce, e la roba
-          che c'era dietro scende qui.
-
-          🔒 LA REGOLA DI COSA SCENDE: sotto il personaggio va quello che il
+          🔒 LA REGOLA DI COSA SCENDE QUI: sotto la foto va quello che il
           personaggio È. Quello che è storia o macchinario resta dov'è —
           l'Heritage sta nella Mindline, perché parla di chi c'era PRIMA di
           lui, non di lui; il calendario e la timeline hanno la loro tab.
@@ -175,6 +185,29 @@ function MonDossier({ health }: { health: Parameters<typeof birthStatsFor>[0] })
 
   return (
     <div className="dossier">
+      {/* --- BIO E DOODLE, PER PRIMI -----------------------------------------
+          🔷 «Poi abbiamo bio e doodle e altre cose su di lui.»
+
+          🔶 QUI C'ERA UN BLOCCO «LA SUA STORIA» CHE STAMPAVA LA SOLA PRIMA
+          RIGA della bio, ed è uscito. Non l'ho spostato: era un riassunto di
+          una cosa che esiste già intera altrove, e due versioni della stessa
+          bio in due schermate diverse invecchiano separate.
+
+          🔒 È LO STESSO `BioPanel` DELLA SCHEDA, non una copia impaginata
+          uguale. Il quaderno — racconto, appunti, disegno, cose che si porta
+          dietro, etichette — si scrive in un posto solo: se domani cambia,
+          cambia in tutti e due i posti perché è lo stesso componente.
+
+          ⚠️ E IL DOODLE RESTA DENTRO DI LUI, non lo tiro fuori per metterlo
+          in cima. GB §12: il doodle è il linguaggio della BIO, non un
+          Appearance — sta a metà pagina perché è un disegno fatto mentre si
+          scriveva, e in cima diventerebbe una copertina.
+          -------------------------------------------------------------------- */}
+      <section className="dossier__block">
+        <p className="t-meta dossier__label">{t.bio.title}</p>
+        <BioPanel mon={mon} />
+      </section>
+
       {/* --- LE STATISTICHE, CONGELATE ---------------------------------------
           La differenza con la schermata ME è tutto il punto e va detta a
           parole, non lasciata dedurre: là ci sono i tuoi numeri di OGGI, qui
@@ -218,11 +251,10 @@ function MonDossier({ health }: { health: Parameters<typeof birthStatsFor>[0] })
           <Row label="RARITÀ" value={d.rarity} />
           <Row label="TEMPERAMENTO" value={d.mood_secondary ? `${d.mood_primary} · ${d.mood_secondary}` : d.mood_primary} />
         </div>
-      </section>
-
-      <section className="dossier__block">
-        <p className="t-meta dossier__label">{t.splash.story}</p>
-        <p className="t-small dossier__story">{readableBio(mon).story}</p>
+        {/* 🔒 PERCHÉ È FATTO COSÌ, sotto le etichette che lo dicono. Stava in
+            fondo al blocco «la sua storia», che è uscito, e non è una cosa
+            che si butta con la scatola: è l'unica riga dell'app che collega
+            questi assi ai giorni che li hanno prodotti. */}
         <p className="t-micro dossier__note">{d.generation_reason_summary}</p>
       </section>
 
