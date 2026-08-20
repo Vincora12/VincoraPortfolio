@@ -1075,11 +1075,36 @@
   padding: var(--u2) var(--u4);
 }
 
+/* 🔷 «La scheda mon la devi fare su sfondo bianco, perché il character master
+   è su bianco. E non farlo fluttuare: tienilo fisso.»
+
+   ⚠️ IL MASTER È DISEGNATO PER IL BIANCO. Esce con lo sfondo trasparente
+   (`background: 'transparent'` nella richiesta al fornitore) da un prompt che
+   descrive una figura su fondo chiaro: appoggiarlo sul nero della schermata
+   vuol dire guardare contorni pensati per un'altra base, e giudicare male una
+   creatura che invece è giusta.
+
+   🔒 Bianco QUI e non dappertutto: questa è la scheda, il documento della
+   creatura, il posto dove la si esamina. La home resta scura perché lì il
+   .mon vive dentro l'app, non viene ispezionato. */
 .specimen__stage {
   flex: 0 0 auto;
   height: 300px;
-  padding: 0 var(--u4);
+  margin: 0 var(--u4);
+  padding: var(--u4);
   overflow: hidden;
+  /* ⚠️ BIANCO VERO, NON `var(--white)`.
+
+     Sotto `[data-field='ink']` — l'inversione riservata agli eventi — quel
+     token diventa #0b0b0c. Usandolo, la scheda sarebbe nera proprio nelle
+     schermate dove la si guarda di più, e il master tornerebbe fuori posto.
+     Qui il bianco non è un colore del tema: è il fondo per cui l'immagine è
+     stata disegnata, e non cambia quando cambia la schermata. */
+  background: #ffffff;
+  /* Il contorno segue il tema: è cornice dell'app, non fondo dell'immagine. */
+  border: var(--border) solid var(--ink);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-hard-sm);
 }
 
 .specimen__sync {

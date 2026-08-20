@@ -27,12 +27,31 @@ import {
 
 /* --- Corpo intero che respira ---------------------------------------------- */
 
-export function IdleMon({ monName, alt }: { monName: string; alt: string }) {
+export function IdleMon({
+  monName,
+  alt,
+  /**
+   * ⚠️ FERMA, SENZA RESPIRO NÉ CICLO.
+   *
+   * 🔷 «Non farlo fluttuare, tienilo fisso.»
+   *
+   * Sulla schermata di casa il movimento serve: una creatura ferma lì è un
+   * ritaglio. Sulla SCHEDA no — è il documento della creatura, e una cosa che
+   * si guarda per leggerla non deve muoversi mentre la leggi. Sono due usi
+   * diversi della stessa immagine, e per questo è un parametro e non una
+   * regola globale.
+   */
+  still = false,
+}: {
+  monName: string;
+  alt: string;
+  still?: boolean;
+}) {
   const strip = useAssetUrl(monName, 'idle_animation');
 
   // Con lo sprite: animazione a passi, un frame per passo. `steps()` è
   // l'unico modo di far scattare un background senza interpolare fra i frame.
-  if (strip) {
+  if (strip && !still) {
     return (
       <span
         className="idlemon idlemon--sprite"
@@ -52,7 +71,7 @@ export function IdleMon({ monName, alt }: { monName: string; alt: string }) {
   // Senza sprite: il master respira. Nessun disegno inventato, solo il
   // movimento che l'asset porterebbe.
   return (
-    <span className="idlemon idlemon--breathing">
+    <span className={still ? 'idlemon' : 'idlemon idlemon--breathing'}>
       <AssetSlot monName={monName} type="character_master" alt={alt} className="idlemon__art" />
     </span>
   );

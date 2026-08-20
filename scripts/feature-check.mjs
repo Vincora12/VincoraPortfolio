@@ -1699,6 +1699,22 @@ check(
   'a intervallo fisso un lavoro finito subito dopo una domanda resta invisibile per altri 2,5 secondi, che su una risposta veloce è quasi tutta l’attesa',
 );
 
+/* 🔷 «La scheda mon su sfondo bianco, e non farlo fluttuare: tienilo fisso.» */
+check(
+  '§24 SCHEDA',
+  'la scheda mostra il master sul bianco per cui è stato disegnato',
+  has('src/screens/screens.css', 'background: #ffffff;') &&
+    has('src/screens/screens.css', 'BIANCO VERO, NON `var(--white)`'),
+  'il master esce con lo sfondo trasparente da un prompt che descrive una figura su fondo chiaro: sul nero si giudica male una creatura che è giusta',
+);
+check(
+  '§24 SCHEDA',
+  'e sta fermo: è un documento, non una presenza',
+  has('src/system/LiveMon.tsx', 'still = false,') &&
+    has('src/screens/SpecimenProfile.tsx', 'still />'),
+  'sulla home il respiro serve — una creatura ferma lì è un ritaglio — ma una cosa che si legge non deve muoversi mentre la leggi',
+);
+
 /* 🔷 «Perché i temperamenti sono 2? Deve essere 1.» */
 check(
   'MOOD §22',

@@ -118,7 +118,10 @@ export function SpecimenProfileScreen({
         {/* 🔷 v1.11 §23.3 — era la rotazione a trascinamento. Adesso è la
             stessa creatura viva della schermata di casa: un ciclo leggero,
             quattro frame invece di otto. */}
-        <IdleMon monName={d.name} alt={displayName(d.name)} />
+        {/* 🔷 «Non farlo fluttuare, tienilo fisso.» La scheda è il documento
+            della creatura: si guarda per leggerla, e una cosa che si legge non
+            deve muoversi. Sulla home il respiro resta. */}
+        <IdleMon monName={d.name} alt={displayName(d.name)} still />
       </div>
 
       <div className="specimen__sync">
