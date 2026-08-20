@@ -626,6 +626,31 @@ check(
   (read(APP) ?? '').indexOf('overlay ? (') < (read(APP) ?? '').indexOf('onCreature ? ('),
   'con la splash aperta il pannello DEV si apriva sotto e non si vedeva',
 );
+/* 🔷 «È ancora nera questa schermata.»
+
+   ⚠️ L'AGO PUNTA ALLA DECISIONE, NON AL COLORE. Non cerca `#ffffff` da nessuna
+   parte: cerca che la home della creatura NON entri più nel campo inchiostro.
+   È da lì che veniva il nero — `--white` diventa #0b0b0c sotto
+   `[data-field='ink']` — e finché `onCreature` non concorre a `inkField`,
+   qualunque bianco scritto nel CSS regge. Scritto al contrario, l'ago
+   morirebbe alla prima riscrittura del foglio di stile. */
+check(
+  'INGRESSO §13.7',
+  'la home della creatura non è più campo inchiostro',
+  lacksInCode(APP, 'onCreature ||') && has(APP, "INK_PHASES.includes(phase) ||"),
+  'il character master esce su fondo chiaro: sul nero se ne giudicano male i contorni',
+);
+check(
+  'INGRESSO §13.7',
+  'ma l’incubazione lo resta',
+  has(APP, "'incubation'") && /INK_PHASES[^\n]*incubation/.test(read(APP) ?? ''),
+  'lì non c’è nessun master da guardare: c’è un uovo, ed è un evento',
+);
+check(
+  'INGRESSO §13.7',
+  'la creatura non fluttua né sulla home né sulla scheda',
+  has('src/screens/Splash.tsx', 'still />') && has('src/screens/SpecimenProfile.tsx', 'still'),
+);
 check(
   'INGRESSO §13.7',
   'la faccia sta in alto, non accanto a ogni battuta',

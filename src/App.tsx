@@ -246,9 +246,23 @@ export function App() {
     monView === 'creature' &&
     (phase === 'incubation' || (phase === 'live' && tab === 'mon' && activeMonName !== null));
 
-  // Il board mostra anche la MINDLINE su campo nero, non solo le fasi evento.
+  /* Il board mostra anche la MINDLINE su campo nero, non solo le fasi evento.
+
+     🔶 E LA HOME DEL .MON NE È USCITA. Qui c'era `onCreature ||`, cioè: ovunque
+     si veda la creatura, campo nero. Era una regola presa quando la creatura
+     era un disegno nostro fatto per il nero.
+
+     🔷 «È ancora nera questa schermata.»
+
+     Il character master esce su fondo chiaro e con lo sfondo trasparente: sul
+     nero se ne guardano i contorni appoggiati su una base per cui non sono
+     stati disegnati, e si giudica male una creatura che invece è giusta. La
+     home è il posto dove la si guarda più di ogni altro, quindi è il posto
+     dove sbagliare fondo costa di più.
+
+     🔒 L'INCUBAZIONE RESTA NERA, e non per dimenticanza: è in `INK_PHASES`.
+     Lì non c'è nessun master da guardare — c'è un uovo, ed è un evento. */
   const inkField =
-    onCreature ||
     INK_PHASES.includes(phase) ||
     overlay === 'dev' ||
     (phase === 'live' && tab === 'mindline' && !overlay);

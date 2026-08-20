@@ -100,7 +100,15 @@ export function SplashScreen({ onEnter }: { onEnter: () => void }) {
              coerenti erano il pezzo più caro del pacchetto in cambio di un
              gesto che si prova una volta. Un ciclo leggero in loop fa lo
              stesso lavoro meglio, con quattro frame invece di otto. */
-          <IdleMon monName={mon!.data.name} alt={displayName(mon!.data.name)} />
+          /* 🔶 E ADESSO STA FERMA ANCHE QUI. Il `still` era arrivato solo
+             sulla scheda, perché avevo letto «non farlo fluttuare» come una
+             richiesta sul documento della creatura. Era la stessa frase che
+             chiedeva il fondo bianco, e il fondo bianco lo voleva QUI: è
+             questa la schermata di cui parlava.
+
+             ⚠️ Il respiro non torna da solo: togliere `still` è tutto quello
+             che serve, se un giorno la creatura ferma sembra un ritaglio. */
+          <IdleMon monName={mon!.data.name} alt={displayName(mon!.data.name)} still />
         )}
       </div>
 
