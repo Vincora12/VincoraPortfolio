@@ -17,7 +17,6 @@ import {
   applyDay,
   initialHealthState,
   simulateDayInput,
-  trend,
   type SimulationBias,
 } from '../engine/health';
 import {
@@ -56,15 +55,6 @@ import {
 import { assetTypeDef } from '../engine/assets';
 import { parseResolution } from '../assets-pipeline/resolver/parse';
 import type { GenerationProgress } from '../assets-pipeline/generate';
-import {
-  WEEKLY_EVERY,
-  arrivalPosts,
-  recognisedBy,
-  roomBlock,
-  weekFacts,
-  weeklyPosts,
-  type RoomPost,
-} from '../engine/room';
 import {
   resetRarityThresholds,
   setRarityThresholds,
@@ -668,9 +658,7 @@ interface AppState {
   forgetAllLessons: () => void;
 
   /* --- §21.4 LA STANZA --- */
-  room: RoomPost[];
   /** Scrive il testo di un post. 🔒 Se è già scritto non fa niente. */
-  writeRoom: (postId: string) => Promise<BackendFailure | null>;
 }
 
 /* --- Stato iniziale -------------------------------------------------------- */
@@ -749,7 +737,6 @@ const INITIAL = {
   kept: [] as KeptMon[],
   /* §21.4 — il filo della stanza. I post nascono da eventi veri e restano
      senza testo finché non lo chiedi: niente si genera da solo. */
-  room: [] as RoomPost[],
   /* Vero appena il pannello DEV fa saltare del tempo. Serve a marcare i .mon
      conservati: una creatura nata da giorni saltati non è nata dai tuoi dati,
      e la teca deve dirlo invece di lasciartelo indovinare. */
@@ -1259,24 +1246,11 @@ export const useApp = create<AppState>()(
           }),
         });
 
-        /* 🔒 §21.4 — NEL DEX NON NASCE NIENTE, SI ARRIVA.
-           La forma che smette di essere attiva entra nella stanza, e gli altri
-           la accolgono. Separato dal commento sulla faccia nuova di VINZ:
-           sono due cose diverse, una guarda dentro e una guarda fuori. */
-        const arrived = arrivalPosts(
-          previous,
-          record.data,
-          { residents: Object.values(s.mons), active: record.data.name },
-          s.day,
-        );
-
-        /* 🔷 §10.6 + §21.4 — «VINZ.MON sa tutto quello che accade nell'app.»
-           Nella stanza stanno accogliendo la forma che se ne va e commentando
-           la faccia nuova. Finora la faccia nuova, di là, non lo sentiva: era
-           l'unica con un umore, ed era l'unica che nella stanza non c'è mai.
-           Se qualcuno lì dentro la riconosce come una dei suoi, l'appiglio le
-           torna su — solo su, mai giù (vedi `MI_HANNO_RICONOSCIUTO`). */
-        const recognised = recognisedBy(record.data, Object.values(s.mons));
+        /* 🔶 QUI NASCEVANO I POST DELLA STANZA, e con loro il riconoscimento
+           che alzava l'appiglio della forma nuova (`MI_HANNO_RICONOSCIUTO`).
+           MIND.SOCIAL è uscita: l'evento d'umore resta nel catalogo, perché
+           toglierlo cambierebbe come si comportano gli umori, ma adesso non lo
+           scatena più nessuno. Quando la stanza torna, torna anche lui. */
 
         // 🔶 Niente `carryMemoriesThroughBranch`: la memoria non si filtra più.
         // VINZ.MON è una entità sola e le memorie sono sue, non della forma —
@@ -1304,10 +1278,7 @@ export const useApp = create<AppState>()(
             }),
           ],
           memories: s.memories,
-          room: [...s.room, ...arrived],
-          mood: touchMood(s, record.data.mood_primary, [
-            recognised.length > 0 ? 'MI_HANNO_RICONOSCIUTO' : null,
-          ]),
+          mood: touchMood(s, record.data.mood_primary, []),
           chat: [...s.chat, openingMessage(record, s.day, s.token !== null)].slice(-60),
           pendingHeritage: [],
           pendingPlan: null,
@@ -2533,37 +2504,6 @@ export const useApp = create<AppState>()(
         return entry.id;
       },
 
-      /* ============================================================================
-         §21.4 — SCRIVERE UN POST
-
-         🔒 Se il testo c'è già non si tocca. Una cosa che cambia a ogni
-         rilettura non è un ricordo, ed è la stessa regola che vale per le
-         memorie e per i .mon già nati.
-         ========================================================================= */
-      writeRoom: async (postId) => {
-        const s = get();
-        const post = s.room.find((p) => p.id === postId);
-        if (!post || post.text !== null) return null;
-
-        const author = s.mons[post.from] ?? s.kept.find((k) => k.record.data.name === post.from)?.record;
-        if (!author) return 'error';
-
-        const voices = post.voices
-          .map((n) => s.mons[n] ?? s.kept.find((k) => k.record.data.name === n)?.record)
-          .filter((r): r is MonRecord => Boolean(r));
-
-        const { writeRoomPost } = await import('../ai/roomVoice');
-        const { post: written, failure } = await writeRoomPost(s.token, post, author, voices, stepModel('voice'));
-        if (!written) return failure ?? 'error';
-
-        set({
-          room: get().room.map((p) =>
-            p.id === postId ? { ...p, text: written.text, comments: written.comments } : p,
-          ),
-        });
-        return null;
-      },
-
       /* §22.5 — il voto. Sta sul record perché è un giudizio su QUELLA forma,
          e resta attaccato a lei anche quando finisce nella teca. */
       rateMon: (monName, stars) => {
@@ -3105,46 +3045,6 @@ export async function syncWithServer(): Promise<'locale' | 'scaricato' | 'niente
   return 'scaricato';
 }
 
-/* ============================================================================
-   §21.4 — IL GIRO SETTIMANALE
-
-   🔒 Nessun ciclo e nessun tick: questa gira SOLO quando avanza un giorno, che
-   è già una cosa che succede. Non c'è niente acceso mentre l'app è chiusa.
-
-   E i post nascono senza testo. Il testo lo chiedi tu, se ti va — vedi
-   `writeRoom`.
-   ========================================================================= */
-function maybeWeeklyRound(set: (p: Partial<AppState>) => void, get: () => AppState): void {
-  const s = get();
-  if (s.day % WEEKLY_EVERY !== 0) return;
-
-  // Serve qualcuno nella stanza: la forma attiva non partecipa.
-  const residents = Object.values(s.mons).filter((r) => r.data.name !== s.activeMonName);
-  if (residents.length === 0) return;
-
-  // Già fatto per questo giorno? Non se ne fanno due.
-  if (s.room.some((p) => p.kind === 'SETTIMANA' && p.day === s.day)) return;
-
-  const from = Math.max(1, s.day - WEEKLY_EVERY + 1);
-  let closed = 0;
-  for (let d = from; d <= s.day; d++) if (s.days[d]?.status === 'SYNCED') closed += 1;
-
-  const moved = STAT_KEYS.map((k) => ({ key: k, delta: trend(s.health, k, WEEKLY_EVERY) }))
-    .filter((m): m is { key: StatKey; delta: number } => isKnown(m.delta))
-    .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))[0] ?? null;
-
-  const said =
-    [...s.chat].reverse().find((m) => m.from === 'vinz' && m.day >= from)?.text ?? null;
-
-  const posts = weeklyPosts(
-    { residents, active: s.activeMonName },
-    s.day,
-    weekFacts({ day: s.day, closed, moved, said: said ? said.slice(0, 120) : null }),
-  );
-
-  if (posts.length > 0) set({ room: [...s.room, ...posts] });
-}
-
 /** Segna che questa partita ha saltato del tempo dal pannello DEV. */
 function markAccelerated(set: (p: Partial<AppState>) => void, get: () => AppState): void {
   if (!get().usedDevTime) set({ usedDevTime: true });
@@ -3224,7 +3124,6 @@ function advanceOneDay(set: (p: Partial<AppState>) => void, get: () => AppState)
   applyPlannedRest(set, get);
   maybeReflect(set, get);
   maybeReview(set, get);
-  maybeWeeklyRound(set, get);
   maybeSpeakFirst();
 }
 
@@ -3537,9 +3436,12 @@ function requestIntroduction(
       const index = s.chat.findIndex((m) => m.id === id);
       if (index === -1) return; // la partita è andata avanti: non si riscrive il passato
 
+      /* Stessa cintura della risposta: una presentazione vuota lascerebbe la
+         creatura senza la sua prima frase, che è quella che si rilegge. */
+      const vera = result?.text?.trim() ? result.text : null;
       const chat = [...s.chat];
-      chat[index] = result
-        ? { ...chat[index]!, text: result.text, fallback: false, pending: false }
+      chat[index] = vera
+        ? { ...chat[index]!, text: vera, fallback: false, pending: false }
         : { ...chat[index]!, pending: false };
 
       set({ chat });
@@ -3613,15 +3515,10 @@ function requestReply(
     /* Le opinioni stanno nello STESSO blocco della memoria, non in uno terzo:
        cambiano con la stessa lentezza — una volta a settimana — quindi
        condividono la stessa voce di cache. Un blocco in più sarebbe un punto
-       di cache in più speso per niente (e sono quattro in tutto). */
+       di cache in più speso per niente. */
     memory: [
       buildMemoryBlock({ memories: s0.memories, bio: record.bio, today: s0.day }),
       opinions,
-      /* 🔷 §21.4 — cosa si dice di lui nella stanza. Sta QUI e non nel
-         briefing: cambia ogni settimana come le opinioni, quindi divide la
-         stessa voce di cache invece di invalidare il briefing — che non
-         cambia mai — a ogni giro settimanale. */
-      roomBlock(s0.room, s0.day),
     ]
       .filter((p) => p.length > 0)
       .join('\n\n'),
@@ -3667,8 +3564,13 @@ function requestReply(
       // quella bolla non c'è più, non si riscrive il passato.
       if (get().chat.findIndex((m) => m.id === messageId) === -1) return;
 
-      const text = result ? result.text : spoken;
-      playReveal(set, get, messageId, text, planReveal(text, rhythm), !result);
+      /* 🔒 LA CINTURA, OLTRE ALLA BRETELLA. `client.ts` già rifiuta una risposta
+         senza testo, ma questa riga è l'ultimo posto prima dello schermo: una
+         stringa vuota qui diventa una bolla grigia vuota, che è peggio di un
+         ripiego perché sembra una scelta del .mon invece di un guasto. */
+      const vera = result?.text?.trim() ? result.text : null;
+      const text = vera ?? spoken;
+      playReveal(set, get, messageId, text, planReveal(text, rhythm), !vera);
     })
     /* 🔴 STESSO GUASTO DELLA PRESENTAZIONE, e qui pesa di più: è la chat.
 

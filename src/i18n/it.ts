@@ -36,7 +36,7 @@ export const t = {
   archive: {
     map: 'MIND.MAP',
     dex: 'MIND.DEX',
-    social: 'MIND.SOCIAL',
+    /* 🔶 `social: 'MIND.SOCIAL'` è uscita insieme alla schermata. */
   },
 
   /* 00 INGRESSO (MS v1.9 §13.1) */
@@ -204,20 +204,6 @@ export const t = {
     masterHold: 'Se non ti convince, rifallo adesso: da qui in poi le altre cinque copiano lui.',
   },
 
-  /* §21.4 — il filo della stanza */
-  room: {
-    title: 'MIND.SOCIAL',
-    empty:
-      'Ancora nessuno nella stanza. Ci si arriva smettendo di essere la forma attiva.',
-    alone: 'Non c’era nessuno.',
-    write: 'LEGGI COSA SI SONO DETTI',
-    writing: 'Stanno scrivendo…',
-    needsToken: 'Serve la chiave: DEV → VOCE → TOKEN.',
-    failed: 'Non sono riusciti a dirlo. Riprova.',
-    likeOne: 'mi piace',
-    likeMany: 'mi piace',
-    toSay: 'hanno qualcosa da dire',
-  },
 
   /* 07 REGISTRA (MS v1.9 §5.2) — un campo solo, niente moduli */
   input: {

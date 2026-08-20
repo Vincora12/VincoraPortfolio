@@ -127,7 +127,6 @@ const VISTA = {
   mon: '.archive__seg:nth-child(1)',
   map: '.archive__seg:nth-child(2)',
   dex: '.archive__seg:nth-child(3)',
-  social: '.archive__seg:nth-child(4)',
   me: '.archive__seg:nth-child(1)',
   giorni: '.archive__seg:nth-child(2)',
 };
@@ -1052,43 +1051,18 @@ try {
      esista, che la scheda si disegni — non dice niente sul difetto che conta.
      ========================================================================= */
 
-  /* 🔷 §21.4 — il filo. A questo punto del percorso c'e stata un'evoluzione,
-     quindi nella stanza deve essere arrivato qualcuno. Il post esiste SENZA
-     testo: si controlla che si veda comunque il fatto e chi si e schierato,
-     perche e la parte che deve funzionare anche senza chiave. */
+  /* 🔶 QUI IL PERCORSO ENTRAVA IN MIND.SOCIAL e controllava il filo: i post
+     senza testo, le facce, nessun campo di scrittura. È uscito con la
+     schermata. 🔷 «Mindsocial togliamolo proprio: voglio cercare di farlo
+     funzionare e poi aggiungo.» */
+
+  /* 🔶 E con loro il controllo di contrasto sui post, che nasceva da un
+     difetto vero fatto lì dentro. La lezione non si perde: `contrastoDi` resta,
+     e viene usato su tutte le altre superfici. */
+
+  /* 🔒 L'overlay dell'heritage va chiuso, o sotto non c'è nessuna barra da
+     toccare. Stava dentro il blocco tolto: se ne va con lui e va rimesso. */
   await click('.specimen__head .btn-icon', 'chiudi heritage');
-  await click(TAB.mon, 'tab MON');
-  await click(VISTA.social, 'vista MIND.SOCIAL');
-  await page.waitForSelector('.post', { timeout: 5000 });
-  await shot('19-filo');
-
-  const senzaTesto = await page.$$eval('.post__about', (n) => n.length);
-  if (senzaTesto === 0) {
-    errors.push('nel filo nessun post mostra il fatto da cui nasce');
-  }
-  /* 🔒 Ogni post ha una faccia. Le immagini non esistono ancora, quindi qui si
-     sta guardando il SIGILLO che fa da avatar: se un giorno quel ripiego
-     sparisse, il social diventerebbe una colonna di riquadri vuoti e nessun
-     errore lo direbbe. */
-  const facce = await page.$$eval('.post .avatar > *', (n) => n.length);
-  const posts = await page.$$eval('.post', (n) => n.length);
-  if (facce < posts) {
-    errors.push(`nel filo ${posts - facce} post su ${posts} non hanno una faccia`);
-  }
-
-  const campi = await page.$$eval('.room input, .room textarea', (n) => n.length);
-  if (campi > 0) {
-    errors.push(`il filo ha ${campi} campi di testo: qui si legge e basta`);
-  }
-
-  /* ⚠️ CONTRASTO — questo controllo nasce da un difetto vero fatto qui.
-     Avevo colorato il nome di chi pubblica con `--paper`, che su campo bianco e
-     chiaro ma su campo inchiostro vale #141416: cioe una SUPERFICIE, non un
-     testo. Risultato: nero su nero, e nessun errore da nessuna parte.
-     Una regola statica sui token sarebbe fragile — `--paper` su fondo `--ink` e
-     giusto. Quello che si puo misurare senza ambiguita e il risultato. */
-  await contrastoDi('.post__from, .post__text, .post__about', 'nel filo');
-
   await click(TAB.mon, 'tab MON');
   await click(VISTA.dex, 'vista MIND.DEX');
   /* La scheda giusta e quella marcata «ora»: lo scaffale e in ordine di

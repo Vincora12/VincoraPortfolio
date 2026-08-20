@@ -40,7 +40,6 @@ import { EvolutionScreen } from './screens/Evolution';
 import { NewBranchScreen } from './screens/NewBranch';
 import { SpecimenProfileScreen } from './screens/SpecimenProfile';
 import { DexScreen } from './screens/Dex';
-import { RoomScreen } from './screens/Room';
 import { MindlineMapScreen } from './screens/MindlineMap';
 import { CalendarScreen } from './screens/SyncCalendar';
 import { ActivateScreen } from './screens/Activate';
@@ -75,7 +74,7 @@ import { PageReader } from './screens/PageReader';
 export type Tab = 'chat' | 'mon' | 'me';
 
 /** Le viste dentro MON. La prima è la creatura. */
-export type MonView = 'mon' | 'map' | 'dex' | 'social';
+export type MonView = 'mon' | 'map' | 'dex';
 
 /** Le viste dentro ME. La prima sono i numeri di oggi. */
 export type MeView = 'me' | 'calendar';
@@ -491,9 +490,17 @@ function ViewSwitch<V extends string>({
    sono cinque bersagli stretti». Vero allora, irrilevante adesso: le voci in
    fondo sono TRE, e queste non ne aggiungono nessuna — stanno dentro una.
 
-   🔒 MIND.SOCIAL RESTA, anche se non è stata nominata. Toglierla sarebbe stato
-   buttare via una schermata intera approfittando di un riordino, e un
-   riordino che perde pezzi non è un riordino.
+   🔶 MIND.SOCIAL È USCITA, e questa volta è stata chiesta.
+
+   🔷 «Vogliamo togliere un po' di cose che complicano il progetto e ora non
+      servono? Tipo mindsocial togliamolo proprio: voglio cercare di farlo
+      funzionare e poi aggiungo.»
+
+   Era una funzione intera — post settimanali fra le forme vecchie, commenti,
+   una chiamata AI sua — appesa a un'app la cui parte centrale, la
+   conversazione, non è ancora affidabile. Non è stata tolta perché era
+   sbagliata: è stata tolta perché non è il momento. Quando la chat regge, si
+   rimette (è tutta in un commit solo, in fondo alla storia).
    ========================================================================= */
 
 function MonTab({
@@ -507,10 +514,6 @@ function MonTab({
   onGo: (o: Overlay) => void;
   onEnterChat: () => void;
 }) {
-  /* 🔷 §21.4 — il pallino sul filo: qualcosa è successo e non l'hai ancora
-     letto. Non è una notifica che chiede attenzione, è un segno che c'è. */
-  const pending = useApp((s) => s.room.some((p) => p.text === null));
-
   return (
     <div className="archive">
       <ViewSwitch
@@ -521,14 +524,12 @@ function MonTab({
           { id: 'mon', label: t.nav.mon },
           { id: 'map', label: t.archive.map },
           { id: 'dex', label: t.archive.dex },
-          { id: 'social', label: t.archive.social, dot: pending },
         ]}
       />
 
       {view === 'mon' && <SplashScreen onEnter={onEnterChat} />}
       {view === 'map' && <MindlineMapScreen onGo={onGo} />}
       {view === 'dex' && <DexScreen onGo={onGo} />}
-      {view === 'social' && <RoomScreen />}
     </div>
   );
 }

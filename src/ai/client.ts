@@ -192,6 +192,38 @@ async function speak(
 
   if (!data) return { result: null, failure: asVoiceFailure(failure ?? 'error') };
 
+  /* ════════════════════════════════════════════════════════════════════════
+     🔴 UNA RISPOSTA ARRIVATA VUOTA È UNA RISPOSTA CHE NON È ARRIVATA.
+
+     🔷 «Sai che non risponde.»
+
+     Qui c'era solo `if (!data)`. Ma `data` può esistere benissimo con dentro
+     `text: ''` — succede quando il modello chiude il turno con una chiamata a
+     uno strumento e nessuna frase, o quando il tetto di token se ne va tutto
+     nel ragionamento. In quel caso questa funzione tornava un successo con una
+     stringa vuota, e chi chiama faceva la cosa che gli era stata detta di
+     fare: mostrarla.
+
+     Il risultato a schermo è una BOLLA GRIGIA VUOTA. Non i puntini che
+     girano — quella è un'attesa, e si capisce. Una bolla vuota è una risposta
+     arrivata: sembra che il .mon abbia deciso di non dire niente.
+
+     🔒 Il ripiego deterministico esiste per questo (§17), e da qui lo si
+     raggiunge tornando `result: null`. Chi chiama lo mostra già marcato come
+     ripiego, quindi si vede subito che la voce vera non è arrivata.
+
+     ⚠️ `trim()` e non `length > 0`: uno spazio o un a-capo da soli sono una
+     bolla vuota identica, e sono l'uscita più probabile di un turno finito
+     male.
+     ════════════════════════════════════════════════════════════════════════ */
+  if (!(data.text ?? '').trim()) {
+    console.warn('[voce] il modello ha risposto senza testo: uso il ripiego', {
+      model: data.model,
+      strumentiUsati: (data.toolUses ?? []).map((u) => u.name),
+    });
+    return { result: null, failure: 'error' };
+  }
+
   return { result: { text: data.text, model: data.model }, failure: null };
 }
 

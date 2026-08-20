@@ -634,10 +634,13 @@ check(
 check(
   'INGRESSO §13.7',
   'e il riordino non ha perso nessuna schermata',
-  ['MindlineMapScreen', 'DexScreen', 'RoomScreen', 'CalendarScreen', 'MeOverviewScreen'].every((c) =>
+  /* 🔶 `RoomScreen` era in questa lista, ed è uscita: MIND.SOCIAL è stata
+     tolta su richiesta. Le altre quattro restano, e restano dove il riordino
+     le ha messe. */
+  ['MindlineMapScreen', 'DexScreen', 'CalendarScreen', 'MeOverviewScreen'].every((c) =>
     has(APP, `<${c}`),
   ),
-  'mind.map, mind.dex e mind.social sotto MON; il calendario sotto ME',
+  'mind.map e mind.dex sotto MON; il calendario sotto ME',
 );
 /* 🔷 v1.14 — l'ago cercava la riga letterale `{phase === 'live' && !overlay &&
    <TabBar`. La condizione e' stata estratta in una costante perche' serve
@@ -1878,7 +1881,8 @@ check(
 check(
   '§10 DUE STADI',
   '…e SOLO al resolver e alla sua chat: non alla voce, non alla vecchia riscrittura',
-  ['promptCompiler', 'client', 'voicePrompt', 'bioWriter', 'roomVoice', 'reflect', 'notebook']
+  /* 🔶 `roomVoice` è uscito con MIND.SOCIAL. */
+  ['promptCompiler', 'client', 'voicePrompt', 'bioWriter', 'reflect', 'notebook']
     .every((f) => lacksInCode(`src/ai/${f}.ts`, 'RESOLVER_MEMORY')),
   'la riscrittura riscrive un prompt esistente: darle una memoria di gusto le farebbe cambiare decisioni che non è lei a prendere',
 );
@@ -2020,9 +2024,8 @@ check(
   'anche i quattro che prima non avevano voce in capitolo',
   has('src/ai/reflect.ts', 'voiceModel: model') &&
     has('src/ai/notebook.ts', 'voiceModel: model') &&
-    has('src/ai/roomVoice.ts', 'voiceModel: model') &&
     has('src/ai/client.ts', 'voiceModel: model'),
-  'stanza, riflessione, taccuino e visione prendevano sempre il predefinito della rotta, senza che tu potessi dire niente',
+  'riflessione, taccuino e visione prendevano sempre il predefinito della rotta, senza che tu potessi dire niente',
 );
 check(
   '§19.3 STEP',
