@@ -2314,6 +2314,12 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  /* ⚠️ `clip` E NON `hidden`. Gli adesivi ai bordi sporgono di proposito e
+     possono uscire di qualche pixel dal margine della pagina: senza questa
+     riga comparirebbe una barra di scorrimento orizzontale su una pagina che
+     orizzontalmente non ha niente da mostrare. `hidden` renderebbe la pagina
+     scorribile in quella direzione — `clip` taglia e basta. */
+  overflow-x: clip;
   overscroll-behavior: contain;
   display: flex;
   flex-direction: column;
@@ -2343,9 +2349,9 @@
   align-items: center;
   justify-content: center;
   width: 100%;
-  /* Lo spazio in fondo è per la fila di adesivi, che sborda oltre il bordo di
-     sotto della foto: senza, finirebbe sotto il pulsante. */
-  padding-bottom: var(--u5);
+  /* Spazio in fondo per gli adesivi che sbordano sotto la foto: senza,
+     finirebbero addosso al pulsante. */
+  padding-bottom: var(--u6);
 }
 
 /* ⚠️ IL RIFERIMENTO DEGLI ADESIVI È LA FOTO, NON IL RIQUADRO.
@@ -2374,44 +2380,31 @@
 /* ============================================================================
    GLI ADESIVI DELLE ESPRESSIONI
 
-   🔷 «Sulla foto adesivi attaccati delle varie espressioni, come se fosse
-      sticker, in basso.»
+   🔷 «Sulla foto adesivi attaccati delle varie espressioni.»
+   🔷 «Sparsi e un po' storti, come se fossero veri adesivi attaccati.»
 
-   ⚠️ SBORDANO DI PROPOSITO. Stanno a cavallo del bordo di sotto della foto,
-   non allineati dentro: un adesivo allineato al bordo è una legenda, un
-   adesivo che sborda è stato attaccato lì da qualcuno. È tutta la differenza
-   fra le due cose, e sta in questa riga di `bottom` negativo.
+   🔶 QUI C'ERA UNA FILA — `display: flex`, `nowrap`, tutti alti uguale. Una
+   fila regolare non legge come «attaccati», legge come «disposti»: si vede la
+   griglia sotto. Adesso ogni adesivo ha il suo posto, la sua misura e la sua
+   pendenza, decisi uno per uno in `LiveMon.tsx` — qui resta solo il modo di
+   metterli, che è in posizione assoluta sulla foto.
    ========================================================================= */
 .stickers {
   position: absolute;
-  left: 0;
-  right: 0;
-  /* Negativo: la fila sta A CAVALLO del bordo di sotto. Un adesivo allineato
-     dentro è una legenda; uno che sborda è stato attaccato lì da qualcuno. */
-  bottom: -20px;
+  inset: 0;
   z-index: 1;
-  display: flex;
-  /* ⚠️ UNA FILA SOLA, SEMPRE. Con l'a-capo permesso, sei adesivi più larghi
-     della foto si dispongono su due righe e la riga di sopra sale in mezzo
-     alla creatura — coprendole la faccia invece di stare sul bordo. Non è
-     un'ipotesi: è quello che faceva. */
-  flex-wrap: nowrap;
-  align-items: flex-end;
-  justify-content: center;
-  gap: var(--u);
   margin: 0;
   padding: 0;
   list-style: none;
-  /* Non intercetta il tocco: sotto c'è la foto, e la fila non è un comando. */
+  /* Non intercetta il tocco: sotto c'è la foto, e gli adesivi non sono
+     comandi. */
   pointer-events: none;
 }
 
 .sticker {
-  /* 44 e non 52: sei da 52 più gli spazi superano la larghezza della foto su
-     un telefono stretto, e la fila andrebbe a capo. */
-  width: 44px;
-  height: 44px;
-  flex: 0 0 auto;
+  position: absolute;
+  /* `left`, `bottom`, `width`, `height` e `--tilt` arrivano uno per uno da
+     `SCATTER` in `LiveMon.tsx`: sono lo sparpagliamento, non uno stile. */
   overflow: hidden;
   /* Il bordo bianco spesso è quello che rende un ritaglio un adesivo. Bianco
      letterale, come il fondo della schermata: è il taglio della carta, non un
@@ -2441,6 +2434,8 @@
   box-shadow: none;
 }
 
+/* La pendenza è decorazione, non informazione: chi ha chiesto meno movimento
+   la perde senza perdere niente. Il posto e la misura restano. */
 @media (prefers-reduced-motion: reduce) {
   .sticker {
     transform: none;

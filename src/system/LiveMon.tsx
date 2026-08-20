@@ -82,6 +82,7 @@ export function IdleMon({
 
    🔷 «Sulla foto, adesivi attaccati delle varie espressioni, come se fosse
       sticker, in basso.»
+   🔷 «Sparsi e un po' storti, come se fossero veri adesivi attaccati.»
 
    Le sei espressioni sono già un asset — l'EXPRESSION SHEET, griglia 3×2 — e
    fino a oggi si vedevano una alla volta, in testa alla chat, quella che
@@ -95,10 +96,55 @@ export function IdleMon({
    copie di un'immagine spacciate per sei espressioni diverse sono arte
    inventata anche se ogni singolo pixel è vero.
 
-   🔒 Le caselle vuote restano SEI e restano al loro posto: la fila non cambia
-   forma quando il foglio arriva, quindi quello che vedi vuoto è esattamente
-   dove finirà l'immagine.
+   🔒 Le caselle vuote restano SEI e restano al loro posto: lo sparpagliamento
+   non cambia quando il foglio arriva, quindi quello che vedi vuoto è
+   esattamente dove finirà l'immagine.
    ========================================================================= */
+
+/* ----------------------------------------------------------------------------
+   DOVE STA OGNI ADESIVO
+
+   🔶 ERANO UNA FILA ORDINATA, tutti della stessa misura, tutti alla stessa
+   altezza, con una pendenza appena accennata. Una fila regolare non legge
+   come «attaccati»: legge come «disposti». La differenza fra le due cose non
+   è la pendenza — è che in una fila regolare si vede la griglia sotto.
+
+   Quindi variano tre cose insieme, perché una sola non basta:
+   • la POSIZIONE, sparsa lungo la fascia bassa e a cavallo dei bordi
+   • la MISURA, perché adesivi tutti uguali restano una collezione
+   • l'INCLINAZIONE, abbastanza da vedersi
+
+   🔒 MA È UNA TABELLA, NON UN SORTEGGIO. Numeri a caso vorrebbero dire adesivi
+   che saltano a ogni render — un movimento che nessuno ha chiesto, e nessun
+   modo di dire «quello lì a sinistra» perché la volta dopo non c'è più. Sono
+   sparsi una volta sola, e restano dove sono.
+
+   ⚠️ TUTTI NELLA METÀ BASSA, e non per timidezza: sopra c'è la faccia della
+   creatura, ed è la cosa che questa schermata esiste per far vedere. Un
+   adesivo su un occhio è un adesivo che copre il prodotto. `verify:features`
+   legge questi numeri e si arrabbia se uno passa il 50%.
+
+   `left` e `bottom` possono uscire dai bordi, ed è voluto: un adesivo che
+   sborda è stato attaccato lì, uno allineato dentro è una didascalia.
+   -------------------------------------------------------------------------- */
+
+interface Piazzamento {
+  /** Da sinistra, in percentuale della foto. Fuori dai bordi è voluto. */
+  left: string;
+  /** Dal fondo. Negativo = a cavallo del bordo di sotto. */
+  bottom: string;
+  size: number;
+  tilt: number;
+}
+
+const SCATTER: Piazzamento[] = [
+  { left: '-4%', bottom: '9%', size: 44, tilt: -14 },
+  { left: '13%', bottom: '-4%', size: 38, tilt: 7 },
+  { left: '32%', bottom: '7%', size: 50, tilt: -5 },
+  { left: '53%', bottom: '-6%', size: 41, tilt: 12 },
+  { left: '71%', bottom: '3%', size: 47, tilt: -9 },
+  { left: '88%', bottom: '14%', size: 36, tilt: 6 },
+];
 
 export function ExpressionStickers({ monName, alt }: { monName: string; alt: string }) {
   const sheet = useAssetUrl(monName, 'reaction_pack');
@@ -108,16 +154,19 @@ export function ExpressionStickers({ monName, alt }: { monName: string; alt: str
       {EXPRESSIONS.map((e, i) => {
         const col = i % EXPRESSION_SPEC.columns;
         const row = Math.floor(i / EXPRESSION_SPEC.columns);
-        /* L'inclinazione viene dalla POSIZIONE, non dal caso: gli adesivi
-           stanno storti sempre allo stesso modo a ogni apertura. Uno storto a
-           caso a ogni render sarebbe un'animazione che nessuno ha chiesto. */
-        const tilt = [-7, 4, -3, 6, -5, 3][i];
+        const p = SCATTER[i]!;
 
         return (
           <li
             key={e}
             className={`sticker ${sheet ? '' : 'sticker--empty'}`}
-            style={{ ['--tilt' as string]: `${tilt}deg` }}
+            style={{
+              left: p.left,
+              bottom: p.bottom,
+              width: p.size,
+              height: p.size,
+              ['--tilt' as string]: `${p.tilt}deg`,
+            }}
             title={sheet ? e.toLowerCase() : `${e.toLowerCase()} — non ancora disponibile`}
           >
             {sheet ? (

@@ -637,6 +637,7 @@ check(
 
 const SPLASH = 'src/screens/Splash.tsx';
 const SCREENS_CSS = 'src/screens/screens.css';
+const STICKERS = 'src/system/LiveMon.tsx';
 
 check(
   'INGRESSO §13.7',
@@ -665,12 +666,44 @@ check(
   has(SPLASH, 'splash__photo') && /\.splash__photo\s*\{[^}]*position:\s*relative/.test(read(SCREENS_CSS) ?? ''),
   'il riquadro è alto mezza videata sempre: ancorati lì restavano sospesi',
 );
+/* 🔶 QUESTO AGO GUARDAVA UNA FILA. Cercava `flex-wrap: nowrap` sulla fila
+   degli adesivi, che era la forma di allora: sei cerchi uguali, allineati,
+   appena inclinati.
+
+   🔷 «Sparsi e un po' storti, come se fossero veri adesivi attaccati.»
+
+   La fila non c'è più, quindi cercare `nowrap` vorrebbe dire cercare una cosa
+   che abbiamo deciso di togliere. Le DECISIONI sopravvissute al cambio sono
+   due, e sono queste: gli adesivi sbordano, e nessuno finisce sulla faccia. */
+const SCATTER_BLOCK = (read(STICKERS) ?? '').match(/const SCATTER[\s\S]*?\n\];/)?.[0] ?? '';
+const SCATTER_BOTTOMS = [...SCATTER_BLOCK.matchAll(/bottom:\s*'(-?[\d.]+)%'/g)].map((m) =>
+  Number(m[1]),
+);
+
 check(
   'INGRESSO §13.7',
-  'e stanno a cavallo del bordo, su una fila sola',
-  /\.stickers\s*\{[^}]*bottom:\s*-/.test(read(SCREENS_CSS) ?? '') &&
-    /\.stickers\s*\{[^}]*flex-wrap:\s*nowrap/.test(read(SCREENS_CSS) ?? ''),
-  'allineati dentro sono una legenda; a capo coprono la faccia',
+  'gli adesivi sbordano dalla foto invece di stare allineati dentro',
+  SCATTER_BOTTOMS.some((b) => b < 0),
+  'uno allineato dentro è una didascalia; uno che sborda è stato attaccato lì',
+);
+/* ⚠️ È L'AGO CHE CONTA DAVVERO DI TUTTO IL GRUPPO. Sparpagliare a mano vuol
+   dire che un numero sbagliato piazza un adesivo su un occhio, e quella è
+   l'unica cosa che questa schermata esiste per far vedere. Il limite è la
+   metà bassa, misurata, non «più o meno in basso». */
+check(
+  'INGRESSO §13.7',
+  'e nessuno sale sopra la faccia della creatura',
+  SCATTER_BOTTOMS.length > 0 && SCATTER_BOTTOMS.every((b) => b < 50),
+  `il più alto sta al ${Math.max(...SCATTER_BOTTOMS)}% dal fondo`,
+);
+/* 🔒 Numeri a caso vorrebbero dire adesivi che saltano a ogni render: un
+   movimento che nessuno ha chiesto, e nessun modo di dire «quello lì a
+   sinistra» perché la volta dopo non c'è più. */
+check(
+  'INGRESSO §13.7',
+  'lo sparpagliamento è una tabella, non un sorteggio',
+  SCATTER_BOTTOMS.length === 6 && lacksInCode(STICKERS, 'Math.random'),
+  `${SCATTER_BOTTOMS.length} posti fissi, uno per espressione`,
 );
 /* 🔒 §18A. Il ripiego di `MonFace` è il ritratto: usato per sei adesivi
    darebbe sei volte la stessa faccia spacciata per sei espressioni. Una
