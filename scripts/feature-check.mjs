@@ -849,6 +849,50 @@ check(
   has('src/App.tsx', 'applySkin(skin);') && has('src/state/store.ts', '  skin: RESET_SKIN,'),
 );
 
+/* 🔷 «Staccagli tutto riguardante la sua personalità e la possibilità di
+   fallback, facciamolo neutro, e usiamolo solo per modificare l'app.» */
+
+/* ⚠️ NON SI AGGIUNGE UNA RIGA AL BRIEFING: SE NE USA UN ALTRO. Il briefing
+   della voce è lungo sedicimila caratteri e dice, in fondo — cioè nel posto
+   che pesa di più — «scegli una cosa da dire, una risposta corta è finita».
+   Sono le regole giuste per conversare e quelle sbagliate per un turno in cui
+   la cosa da fare è CHIAMARE UNO STRUMENTO. Una riga in più lì dentro è una
+   regola in minoranza. */
+check(
+  'COSTRUZIONE',
+  'in modalità costruzione il briefing del personaggio non parte proprio',
+  has('src/ai/voicePrompt.ts', 'export function buildOperatorPrompt') &&
+    has('src/ai/client.ts', '? [{ text: buildOperatorPrompt(), cache: true }]'),
+  'aggiungere «usa gli strumenti» a un briefing che dice di conversare è una regola in minoranza',
+);
+/* 🔒 Memorie e opinioni sono materiale del personaggio: qui il personaggio non
+   c'è, e portarsele dietro sarebbe rimettere per la porta di servizio quello
+   che si è appena tolto. */
+check(
+  'COSTRUZIONE',
+  'e non si porta dietro memoria né turni del personaggio',
+  has('src/ai/client.ts', 'const turns: Turn[] = build ? [] : [...(memory?.turns ?? [])];'),
+);
+/* ⚠️ IL RIPIEGO È GIUSTO IN CHAT E VELENOSO SU UN BANCO DI LAVORO: dice «ok»
+   dove non è successo niente, e chi legge crede che la modifica sia andata
+   invece che la chiamata sia fallita. */
+check(
+  'COSTRUZIONE',
+  'e un guasto si legge invece di nascondersi dietro una frase di cortesia',
+  has('src/state/store.ts', "s0.buildMode ? `— nessuna risposta (${failure ?? 'errore'})` : spoken"),
+  'una frase di ripiego su un banco di lavoro fa sembrare riuscita una chiamata fallita',
+);
+/* 🔴 E QUESTO ERA UN GUASTO VERO, non una scelta: `output_config.effort` era
+   murato a `low` sul percorso Anthropic e ignorava chi chiamava. A sforzo
+   basso il modello sceglie la strada corta — rispondere — invece di decidere
+   quale strumento usare. */
+check(
+  'COSTRUZIONE',
+  'e lo sforzo richiesto arriva davvero al fornitore',
+  has('netlify/functions/_shared/providers.ts', "output_config: { effort: req.effort ?? 'low' }"),
+  'era murato a `low`: ogni chiamata Anthropic girava a sforzo basso qualunque cosa avesse chiesto',
+);
+
 /* 🔷 «Vorrei anche togliere pulsanti e spostare elementi.» */
 const LAYOUT = 'src/engine/layout.ts';
 
@@ -1468,8 +1512,19 @@ check(
 check(
   'VOCE §17',
   'una risposta che fallisce non lascia la bolla appesa',
+  /* 🔶 L'ago cercava `playReveal(..., spoken, ...)` alla lettera, e in modalità
+     costruzione quel testo non è più `spoken`: è l'errore, scritto.
+
+     ⚠️ E la decisione non è nemmeno «arrivare a playReveal»: i due punti la
+     risolvono in due modi diversi e giusti — la risposta rivela un testo, la
+     presentazione spegne e basta il `pending`, perché lì la bolla il suo testo
+     ce l'ha già. La cosa che conta, e che vale per tutti e due, è che nessun
+     `.catch` esca lasciando la bolla appesa. */
   count('src/state/store.ts', /\.catch\(\(e: unknown\) => \{/g) >= 2 &&
-    has('src/state/store.ts', 'playReveal(set, get, messageId, spoken, planReveal(spoken, rhythm), true);'),
+    count(
+      'src/state/store.ts',
+      /\.catch\(\(e: unknown\) => \{[\s\S]{0,600}?(playReveal\(|pending: false)/g,
+    ) >= 2,
   'senza catch la promessa rifiutata non arriva mai a `playReveal` e i puntini restano per sempre',
 );
 check(

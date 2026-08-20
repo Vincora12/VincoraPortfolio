@@ -42,6 +42,8 @@ const SAMPLE_ARGS: Record<string, unknown> = {
 };
 
 export function ToolsSection() {
+  const buildMode = useApp((st) => st.buildMode);
+  const setBuildMode = useApp((st) => st.setBuildMode);
   const runMonTool = useApp((s) => s.runMonTool);
   const pages = useApp((s) => s.pages);
   const reminders = useApp((s) => s.reminders);
@@ -73,6 +75,31 @@ export function ToolsSection() {
 
   return (
     <div className="dev__section">
+      {/* ════════════════════════════════════════════════════════════════════
+          🔷 «Staccagli tutto riguardante la sua personalità e la possibilità
+             di fallback, facciamolo neutro, e usiamolo solo per modificare
+             l'app — così uso quello per continuare lo sviluppo.»
+
+          ⚠️ STA IN CIMA, PRIMA DELL'ELENCO. È l'interruttore che decide se gli
+          strumenti qui sotto verranno usati davvero o soltanto raccontati: con
+          il briefing del personaggio addosso, «togli il pulsante» produce una
+          risposta garbata e nessuna modifica.
+          ════════════════════════════════════════════════════════════════ */}
+      <p className="t-meta dev__label">MODALITÀ COSTRUZIONE</p>
+      <p className="t-small dev__note">
+        {buildMode
+          ? 'Acceso: nessun personaggio, nessuna memoria, nessun ripiego. Se una chiamata fallisce lo vedi scritto invece di leggere una frase di cortesia.'
+          : 'Spento: parla in personaggio. Per fare modifiche all’app conviene accenderlo — con il briefing addosso risponde invece di usare gli strumenti.'}
+      </p>
+      <Button
+        block
+        small
+        variant={buildMode ? 'primary' : 'secondary'}
+        onClick={() => setBuildMode(!buildMode)}
+      >
+        {buildMode ? 'TORNA AL PERSONAGGIO' : 'ACCENDI LA MODALITÀ COSTRUZIONE'}
+      </Button>
+
       <p className="t-meta dev__label">STRUMENTI DISPONIBILI · {TOOLS.length}</p>
       <p className="t-small dev__note">
         Quello che vedi sotto è esattamente il testo che tornerebbe al modello.

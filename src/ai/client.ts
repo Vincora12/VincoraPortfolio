@@ -25,7 +25,7 @@ import type { MonRecord } from '../engine/types';
 import type { MoodState } from '../engine/mood';
 import type { Turn } from '../engine/memoryContext';
 import type { VoiceNote } from '../engine/notebook';
-import { buildVoiceSystemPrompt, introductionRequest } from './voicePrompt';
+import { buildOperatorPrompt, buildVoiceSystemPrompt, introductionRequest } from './voicePrompt';
 import { ask, type BackendFailure, type VoiceData } from './backend';
 import {
   assistantTurn,
@@ -129,21 +129,38 @@ async function speak(
      gli strumenti sono gli stessi per chiunque risponda. È esattamente il
      motivo per cui cambiare fornitore non perde niente. */
   voiceModel?: string | null,
+  /**
+   * 🔷 MODALITÀ COSTRUZIONE — «facciamolo neutro, e usiamolo solo per
+   * modificare l'app».
+   *
+   * ⚠️ Quando è accesa NON si aggiunge niente al briefing: se ne usa un ALTRO,
+   * corto, senza personaggio. Vedi `buildOperatorPrompt` per perché una riga
+   * in più dentro sedicimila caratteri che dicono di conversare è una regola
+   * in minoranza.
+   *
+   * 🔒 E la memoria non entra: memorie e opinioni sono materiale del
+   * personaggio, e qui il personaggio non c'è.
+   */
+  opts?: { build?: boolean; effort?: 'none' | 'low' | 'medium' },
 ): Promise<VoiceOutcome> {
-  const system = [
-    /* Il briefing non cambia mai dentro una conversazione: in cache.
-       ⚠️ L'awareness ci sta DENTRO e non a parte: cambia raramente — un voto,
-       una faccia rifatta — e metterla in un blocco suo invaliderebbe la cache
-       del briefing ogni volta che tocchi una stellina. */
-    { text: buildVoiceSystemPrompt(record, mood, notes, awareness), cache: true },
-    // La memoria cambia una volta al giorno: seconda voce di cache, così
-    // quella del briefing non si invalida mai.
-    ...(memory ? [{ text: memory.memory, cache: true }] : []),
-  ];
+  const build = opts?.build === true;
+
+  const system = build
+    ? [{ text: buildOperatorPrompt(), cache: true }]
+    : [
+        /* Il briefing non cambia mai dentro una conversazione: in cache.
+           ⚠️ L'awareness ci sta DENTRO e non a parte: cambia raramente — un
+           voto, una faccia rifatta — e metterla in un blocco suo invaliderebbe
+           la cache del briefing ogni volta che tocchi una stellina. */
+        { text: buildVoiceSystemPrompt(record, mood, notes, awareness), cache: true },
+        // La memoria cambia una volta al giorno: seconda voce di cache, così
+        // quella del briefing non si invalida mai.
+        ...(memory ? [{ text: memory.memory, cache: true }] : []),
+      ];
 
   /* I turni crescono a ogni giro di strumenti: partono dalla conversazione
      vera e ci si aggiungono le chiamate e i risultati. */
-  const turns: Turn[] = [...(memory?.turns ?? [])];
+  const turns: Turn[] = build ? [] : [...(memory?.turns ?? [])];
   let userBlocks: Record<string, unknown>[] | undefined;
   let data: (VoiceData & { usage?: Record<string, number> }) | null = null;
   let failure: BackendFailure | null = null;
@@ -162,6 +179,7 @@ async function speak(
       user: userTurn,
       userBlocks,
       thinking: deliberate,
+      effort: opts?.effort,
       /* All'ultimo giro gli strumenti si tolgono: se li avesse ancora
          potrebbe chiuderne uno nuovo proprio mentre non c'è più nessuno a
          eseguirlo, e la conversazione finirebbe senza una frase. */
@@ -273,11 +291,16 @@ export async function generateReply(
   tools?: ToolRuntime,
   awareness?: Awareness,
   voiceModel?: string | null,
+  opts?: { build?: boolean; effort?: 'none' | 'low' | 'medium' },
 ): Promise<VoiceOutcome> {
   if (!token) return { result: null, failure: 'no-key' };
-  const turn = context ? `${userText}\n\n[${context}]` : userText;
+  /* 🔒 In costruzione il contesto non si allega: dice cosa il sistema ha già
+     registrato dal messaggio, ed è una cortesia verso il personaggio. Qui
+     sarebbe rumore fra l'ordine e lo strumento. */
+  const turn = context && !opts?.build ? `${userText}\n\n[${context}]` : userText;
   return speak(
     token, record, turn, 'reply', mood, memory, notes, deliberate, tools, awareness, voiceModel,
+    opts,
   );
 }
 

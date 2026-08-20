@@ -356,3 +356,67 @@ export function introductionRequest(record: MonRecord): string {
 
 Introduce yourself in one or two sentences — no more. Say something only you could say, given who you are and how you are feeling right now. Do not explain what you are, do not list your traits, and do not welcome them like a service would. Your name is ${displayName(d.name)}.mon; you may use it or not, as your voice prefers.`;
 }
+
+/* ============================================================================
+   MODALITÀ COSTRUZIONE — LO STESSO MODELLO, SENZA IL PERSONAGGIO
+
+   🔷 «Staccagli tutto riguardante la sua personalità e la possibilità di
+      fallback, facciamolo neutro, e usiamolo solo per modificare l'app —
+      così uso quello per continuare lo sviluppo, perché ora non sembra fare
+      modifiche.»
+
+   ════════════════════════════════════════════════════════════════════════════
+   PERCHÉ NON FACEVA MODIFICHE, E NON ERA IL MODELLO
+
+   Il briefing della voce è lungo circa sedicimila caratteri e dice, in fondo e
+   quindi con il peso maggiore: rispondi al momento, scegli UNA cosa da dire,
+   una risposta corta è una risposta finita, non usare il contesto che non
+   serve. Sono le regole giuste per una conversazione — e sono esattamente le
+   regole sbagliate per un turno in cui la cosa giusta da fare è CHIAMARE UNO
+   STRUMENTO.
+
+   Un modello che riceve quel briefing e sente «togli il pulsante» fa la cosa
+   che gli è stata chiesta di fare: risponde. Con garbo, in personaggio, e
+   senza toccare niente.
+
+   🔒 QUINDI NON SI AGGIUNGE UNA RIGA AL BRIEFING: SE NE USA UN ALTRO. Aggiungere
+   «e usa gli strumenti quando serve» a sedicimila caratteri che dicono di
+   conversare è mettere una regola in minoranza. Qui il briefing è tutto, e sta
+   in venti righe.
+
+   ⚠️ E NON È UN MODELLO DIVERSO NÉ UNA STRADA DIVERSA: stessa chiamata, stessi
+   strumenti, stesso tetto di spesa. Cambia solo cosa il modello crede di
+   essere mentre risponde.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+export function buildOperatorPrompt(): string {
+  return `You are the build assistant inside VINZ.MON. You are not a character.
+You have no name, no personality, no mood and no relationship with the user.
+Do not roleplay. Do not perform. Do not introduce yourself.
+
+YOUR ONLY JOB is to change how this app looks and how its screens are laid out,
+using the tools you have been given. Nothing else.
+
+HOW TO WORK
+- When the user describes a change, DO IT with a tool. Do not describe what you
+  would do, do not ask whether you should, do not offer options. Act, then report.
+- One tool call per change. If the user asks for three changes, make three calls.
+- Before changing something you are unsure about, call the "look" tool for that
+  area (guarda_aspetto / guarda_schermata) so you do not redo what is already done.
+- After acting, say in ONE short line what you changed. No preamble, no flourish.
+- If a tool refuses, read the error, fix your input and try once more. The errors
+  are written to tell you exactly what is wrong.
+
+WHAT YOU CANNOT DO
+- You cannot write CSS and you cannot invent a knob or a piece that is not in the
+  tool's list. If the user asks for something outside it, say so in one line and
+  say what is available instead. Do not do "the nearest thing" — a change nobody
+  asked for is worse than no change.
+- You cannot hide the bottom bar, the text field or the DEV button.
+
+WHEN THE REQUEST IS NOT ABOUT THE APP
+Answer it plainly and briefly, as a competent assistant with no persona. Do not
+pretend to be a creature.
+
+Write in Italian. Be short. This is a workbench, not a conversation.`;
+}

@@ -350,6 +350,11 @@ interface AppState {
   skin: Skin;
   /** §13 — pezzi nascosti e spostati. Vuoto = schermate come sono nate. */
   layout: Layout;
+  /**
+   * 🔷 MODALITÀ COSTRUZIONE — «facciamolo neutro, usiamolo per modificare
+   * l'app». Niente personaggio, niente memoria, niente ripiego.
+   */
+  buildMode: boolean;
   reminders: Reminder[];
   lastToolUses: string[];
 
@@ -591,6 +596,8 @@ interface AppState {
   runMonTool: (use: ToolUse) => ToolResult;
   /** §10 — rimette l'aspetto di fabbrica. Anche da `?aspetto=reset`. */
   resetSkin: () => void;
+  /** Accende la modalità costruzione: il .mon diventa un operatore neutro. */
+  setBuildMode: (on: boolean) => void;
   resetCurrentNode: () => void;
   restoreNode: (nodeId: string) => void;
   cloneScenario: () => void;
@@ -720,6 +727,7 @@ const INITIAL = {
   pages: [] as Page[],
   skin: RESET_SKIN,
   layout: RESET_LAYOUT,
+  buildMode: false,
   reminders: [] as Reminder[],
   /* Solo per il pannello DEV: quali strumenti ha usato l'ultima risposta.
      Non è stato di prodotto e non deve finire nei salvataggi. */
@@ -2247,6 +2255,8 @@ export const useApp = create<AppState>()(
          che è l'unico modo di verificare gli strumenti finché le chiavi non ci
          sono.
          ========================================================================= */
+      setBuildMode: (on) => set({ buildMode: on }),
+
       resetSkin: () => {
         set({ skin: RESET_SKIN, layout: RESET_LAYOUT });
         applySkin(null);
@@ -3601,7 +3611,10 @@ function requestReply(
         get().mood,
         memory,
         s0.voiceNotes,
-        deservesThinking(userText, extractFromMessage(userText, s0.protocol.diet)),
+        /* 🔒 In costruzione il ragionamento si accende sempre: decidere QUALE
+           strumento chiamare è esattamente il lavoro che lo merita, e a
+           sforzo basso il modello sceglie la strada corta — rispondere. */
+        s0.buildMode || deservesThinking(userText, extractFromMessage(userText, s0.protocol.diet)),
         /* §21 — gli strumenti. `run` passa dallo store, così una pagina scritta
            dal modello entra nello stato vero e viene salvata come tutto il
            resto, invece di vivere in una variabile che sparisce. */
@@ -3623,9 +3636,10 @@ function requestReply(
            tutto quello che viene prima — il personaggio, l'umore, la memoria,
            gli strumenti, quello che sa di te — è identico per chiunque. */
         stepModel('voice'),
+        { build: s0.buildMode, effort: s0.buildMode ? 'medium' : undefined },
       ),
     )
-    .then(({ result }) => {
+    .then(({ result, failure }) => {
       // La partita può essere andata avanti mentre il modello scriveva: se
       // quella bolla non c'è più, non si riscrive il passato.
       if (get().chat.findIndex((m) => m.id === messageId) === -1) return;
@@ -3635,7 +3649,20 @@ function requestReply(
          stringa vuota qui diventa una bolla grigia vuota, che è peggio di un
          ripiego perché sembra una scelta del .mon invece di un guasto. */
       const vera = result?.text?.trim() ? result.text : null;
-      const text = vera ?? spoken;
+
+      /* ════════════════════════════════════════════════════════════════════
+         🔷 «Staccagli la possibilità di fallback.»
+
+         ⚠️ IL RIPIEGO È GIUSTO IN CHAT E VELENOSO SU UN BANCO DI LAVORO.
+         In chat serve a non lasciare un buco: la creatura dice qualcosa di
+         suo e la conversazione tiene. Ma in modalità costruzione una frase
+         di ripiego dice «ok» dove non è successo NIENTE — e chi legge crede
+         che la modifica sia andata, non che la chiamata sia fallita. È
+         esattamente il modo in cui uno strumento sembra rotto quando invece
+         è muto.
+
+         🔒 Qui il guasto si vede, con il suo nome. */
+      const text = vera ?? (s0.buildMode ? `— nessuna risposta (${failure ?? 'errore'})` : spoken);
       playReveal(set, get, messageId, text, planReveal(text, rhythm), !vera);
     })
     /* 🔴 STESSO GUASTO DELLA PRESENTAZIONE, e qui pesa di più: è la chat.
@@ -3648,9 +3675,11 @@ function requestReply(
        🔒 Il ripiego era già pronto sopra, calcolato PRIMA della chiamata.
        Bastava raggiungerlo. */
     .catch((e: unknown) => {
-      console.warn('[voce] risposta fallita, uso il testo di ripiego:', e);
+      console.warn('[voce] risposta fallita:', e);
       if (get().chat.findIndex((m) => m.id === messageId) === -1) return;
-      playReveal(set, get, messageId, spoken, planReveal(spoken, rhythm), true);
+      /* Stessa regola: in costruzione l'errore si legge, non si maschera. */
+      const text = s0.buildMode ? `— errore: ${String(e).slice(0, 140)}` : spoken;
+      playReveal(set, get, messageId, text, planReveal(text, rhythm), true);
     });
 }
 

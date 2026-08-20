@@ -158,7 +158,14 @@ async function anthropic(req: ProviderRequest): Promise<ProviderResult> {
         model: req.model,
         max_tokens: req.maxTokens,
         fallbacks: 'default',
-        output_config: { effort: 'low' },
+        /* 🔴 ERA MURATO A `'low'`, E IGNORAVA CHI CHIAMAVA.
+           `req.effort` esisteva, arrivava fin qui e non veniva letto: ogni
+           chiamata Anthropic girava a sforzo basso qualunque cosa avesse
+           chiesto il chiamante. Su una conversazione in personaggio non si
+           notava; su un turno che deve DECIDERE di usare uno strumento sì —
+           a sforzo basso il modello risponde e basta, che è la strada più
+           corta. Il valore di prima resta il predefinito. */
+        output_config: { effort: req.effort ?? 'low' },
         // Il ragionamento si spegne dove non serve: su due frasi in
         // personaggio non aggiunge niente e l'uscita si paga cinque volte
         // l'entrata. Lo decide chi chiama, non questo file.
