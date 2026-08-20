@@ -17,7 +17,7 @@
 
 import { del, get, keys, set } from 'idb-keyval';
 import type { AssetType, MonRecord } from '../engine/types';
-import { assetTypeDef } from '../engine/assets';
+import { ASSET_TYPES, assetTypeDef } from '../engine/assets';
 import { buildManifest, resolveAssetIdFromFileName } from './manifest';
 
 /** Chiave di storage: un .mon può avere un solo file per slot. */
@@ -260,18 +260,27 @@ export async function importAssetFile(
   };
 }
 
+/* ============================================================================
+   🔴 LA SECONDA META' DELLO STESSO GUASTO
+
+   Qui mancava `idle_01`, come mancava nella tabella dei nomi file. L'effetto è
+   piu' subdolo del primo: l'import RIUSCIVA — il file finiva in magazzino e
+   l'immagine compariva — ma tornava `type: null`, e la schermata segna lo slot
+   come pieno solo se le arriva un tipo. Quindi l'idle si vedeva e insieme
+   risultava WAITING, e il contatore «x/6 slot risolti» non si muoveva.
+
+   🔒 ADESSO LA TABELLA SI COSTRUISCE DA `ASSET_TYPES`, che è dove i sei slot
+   sono gia' dichiarati con il loro `assetId`. Una tabella scritta a mano
+   accanto a un catalogo e' una lista che qualcuno deve ricordarsi di
+   aggiornare — e nessuno se l'e' ricordata per due versioni.
+
+   🔷 v1.15 §23.5 — `sigil_01` non c'e' piu': il sigillo e' un disegno del
+   sito, non un file da importare. Un pacchetto vecchio che lo contiene non e'
+   nel catalogo, quindi torna `null`, cioe' «non so cosa farmene» — che e' la
+   verita'.
+   ========================================================================= */
 function assetTypeFromId(assetId: string): AssetType | null {
-  const map: Record<string, AssetType> = {
-    master_01: 'character_master',
-    portrait_01: 'profile_portrait',
-    doodle_01: 'bio_doodle',
-    reactions_01: 'reaction_pack',
-    hero_01: 'encounter_hero',
-    // 🔷 v1.15 §23.5 — `sigil_01` non c'è più: il sigillo è un disegno del
-    // sito, non un file da importare. Un pacchetto vecchio che lo contiene
-    // torna `null`, cioè «non so cosa farmene», che è la verità.
-  };
-  return map[assetId] ?? null;
+  return ASSET_TYPES.find((a) => a.assetId === assetId)?.type ?? null;
 }
 
 /* --- Rimozione ------------------------------------------------------------- */

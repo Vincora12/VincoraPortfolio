@@ -43,18 +43,47 @@ export interface AssetManifest {
 
 const SLUG = (name: string) => displayName(name).toLowerCase();
 
+/* ============================================================================
+   🔴 IL SUFFISSO MANCANTE CHE MANGIAVA TUTTI GLI IMPORT
+
+   🔷 «Ne carico uno e me lo mette automaticamente in idle, e poi basta, non ne
+   posso caricare altri.»
+
+   `idle_01` NON era in questa tabella. Nessun errore, nessun crollo: il `??`
+   in fondo faceva da rete e il nome atteso diventava `nome_idle_01.png`
+   invece di `nome_idle.png`. Una lettera fuori posto in un nome di file —
+   sembra niente.
+
+   Ma il riconoscimento in fondo a questo file ricava il suffisso tagliando
+   TUTTO fino all'ultimo trattino basso. Su `nome_idle_01.png` l'ultimo
+   trattino è quello prima di `01`, quindi il suffisso di IDLE diventava la
+   stringa `01`. E a quel punto ogni file il cui nome contiene «01» — una data,
+   un orario, `ChatGPT Image ... 01_10.png`, il numero di versione — finiva in
+   IDLE. Il primo ci finiva, il secondo ci ricadeva sopra, e sembrava che
+   l'import si fosse rotto: in realtà scriveva sei volte nella stessa casella.
+
+   🔒 La tabella adesso è completa E il riconoscimento non si fida più di
+   ricavare il suffisso a mano (vedi `suffixOf`). Due difese, perché la prima
+   è già saltata una volta senza fare rumore.
+
+   🔶 `rotation_01` è uscito: quell'asset non esiste più da v1.11. Una riga per
+   uno slot che nessuno genera è un suffisso in più che può agganciare per
+   sbaglio, cioè esattamente il guasto qui sopra.
+   ========================================================================= */
+
 /** Nome file atteso per un asset. L'import lo usa per il match automatico. */
 export function expectedFileName(record: MonRecord, assetId: string): string {
-  const suffixes: Record<string, string> = {
-    master_01: 'master',
-    rotation_01: 'rotation',
-    portrait_01: 'portrait',
-    doodle_01: 'doodle',
-    reactions_01: 'reactions',
-    hero_01: 'hero',
-  };
-  return `${SLUG(record.data.name)}_${suffixes[assetId] ?? assetId}.png`;
+  return `${SLUG(record.data.name)}_${SUFFIXES[assetId] ?? assetId}.png`;
 }
+
+const SUFFIXES: Record<string, string> = {
+  master_01: 'master',
+  portrait_01: 'portrait',
+  doodle_01: 'doodle',
+  reactions_01: 'reactions',
+  idle_01: 'idle',
+  hero_01: 'hero',
+};
 
 export function buildManifest(record: MonRecord): AssetManifest {
   const assets: ManifestEntry[] = ASSET_TYPES.map((def) => {
@@ -132,10 +161,31 @@ export function resolveAssetIdFromFileName(
   if (byId) return byId.asset_id;
 
   const bySuffix = manifest.assets.find((a) => {
-    const suffix = a.file.replace(/^.*_/, '').replace(/\.png$/, '');
+    const suffix = suffixOf(a.file, `${SLUG(manifest.mon)}_`);
+    /* 🔒 UN SUFFISSO CORTO O NUMERICO NON AGGANCIA MAI.
+
+       È la seconda difesa contro il guasto descritto in testa al file: se
+       domani una voce del manifest tornasse a chiamarsi `..._01.png`, questa
+       riga la lascia semplicemente non riconosciuta — che manda alla
+       mappatura manuale, cioè al posto giusto — invece di farla diventare la
+       calamita di ogni file con un numero nel nome. */
+    if (suffix.length < 3 || /^\d+$/.test(suffix)) return false;
     return lower.includes(suffix);
   });
   if (bySuffix) return bySuffix.asset_id;
 
   return null;
+}
+
+/**
+ * Il suffisso di un nome atteso: `vaziel_master.png` → `master`.
+ *
+ * ⚠️ Toglie il PREFISSO NOTO, non «tutto fino all'ultimo trattino». Il taglio
+ * a partire dal fondo sembra equivalente e non lo è: basta un suffisso che
+ * contenga un trattino perché legga solo l'ultimo pezzo, ed è così che
+ * `idle_01` diventava `01`.
+ */
+function suffixOf(file: string, prefix: string): string {
+  const base = file.toLowerCase().replace(/\.png$/, '');
+  return base.startsWith(prefix) ? base.slice(prefix.length) : base;
 }

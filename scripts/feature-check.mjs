@@ -50,6 +50,7 @@ const lacksInCode = (file, needle) => !stripComments(read(file)).includes(needle
 const count = (file, re) => ((read(file) ?? '').match(re) ?? []).length;
 
 const ROUTING_FILE = 'netlify/functions/_shared/routing.ts';
+const IMPORT_UI = 'src/dev/AssetImport.tsx';
 const PROVIDERS_FILE = 'netlify/functions/_shared/providers.ts';
 
 /* ============================================================================
@@ -634,6 +635,32 @@ check(
    `[data-field='ink']` — e finché `onCreature` non concorre a `inkField`,
    qualunque bianco scritto nel CSS regge. Scritto al contrario, l'ago
    morirebbe alla prima riscrittura del foglio di stile. */
+/* 🔷 «Ne carico uno e poi basta, non ne posso caricare altri.»
+
+   ⚠️ Il guasto grosso — «01» come suffisso buono per tutto — lo prende
+   `verify:package`, che fa girare il riconoscimento per davvero. Qui restano
+   le due decisioni di INTERFACCIA che rendevano il sintomo peggiore di com'era:
+   la lista che si azzerava, e il campo file che non riemetteva l'evento sullo
+   stesso file. */
+check(
+  'IMPORT §22.3',
+  'la lista degli import si accumula',
+  has(IMPORT_UI, 'setPending((prev) => [...prev,') &&
+    lacksInCode(IMPORT_UI, 'setPending(unmatched)'),
+  'il secondo import buttava via i file del primo ancora da mappare',
+);
+check(
+  'IMPORT §22.3',
+  'e lo stesso file si può riscegliere',
+  has(IMPORT_UI, "e.target.value = ''"),
+  'senza svuotare il campo il browser non riemette `change` sullo stesso nome',
+);
+check(
+  'IMPORT §22.3',
+  'lo slot di un file importato lo dice il catalogo, non una lista a mano',
+  has('src/assets-pipeline/assetStore.ts', 'ASSET_TYPES.find((a) => a.assetId === assetId)'),
+  'la lista scritta a mano aveva perso `idle_01` per due versioni',
+);
 check(
   'INGRESSO §13.7',
   'la home della creatura non è più campo inchiostro',

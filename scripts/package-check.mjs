@@ -32,7 +32,8 @@ export { neutralPersonality, EMPTY_NOVELTY } from '${cwd}/src/engine/signals.ts'
 export { initialHealthState, applyDay, simulateDayInput, DEFAULT_BIAS } from '${cwd}/src/engine/health.ts';
 export { makeRng } from '${cwd}/src/engine/rng.ts';
 export { buildPackageFiles } from '${cwd}/src/assets-pipeline/exportPackage.ts';
-export { buildManifest } from '${cwd}/src/assets-pipeline/manifest.ts';
+export { buildManifest, resolveAssetIdFromFileName } from '${cwd}/src/assets-pipeline/manifest.ts';
+export { ASSET_TYPES } from '${cwd}/src/engine/assets.ts';
 export { compilePrompt, validateFragmentIds, COMPILER_VERSION } from '${cwd}/src/assets-pipeline/compiler.ts';
 export { parseResolution } from '${cwd}/src/assets-pipeline/resolver/parse.ts';
 export { compilePrompt as compileFromResolution } from '${cwd}/src/assets-pipeline/resolver/vendor/compiler.ts';
@@ -1032,6 +1033,89 @@ if (m.TEST_PHASE.enabled) {
     b.includes('one fixed halo or wing construction') && b.includes('not a locked proportion'),
     'e sa cosa il blocco NON deve diventare',
     'aureola fissa, silhouette ricorrente, proporzione bloccata',
+  );
+}
+
+/* ============================================================================
+   IMPORT DEGLI ASSET — IL RICONOSCIMENTO DEI NOMI FILE
+
+   🔷 «Ne carico uno e me lo mette automaticamente in idle, e poi basta, non ne
+   posso caricare altri.»
+
+   Il guasto era invisibile a ogni controllo esistente perché non rompeva
+   niente: `idle_01` mancava dalla tabella dei suffissi, il nome atteso
+   diventava `nome_idle_01.png`, e il suffisso ricavato da quel nome era la
+   stringa «01». Da lì in poi ogni file con un numero nel nome — una data, un
+   orario, `ChatGPT Image ... 01_10.png` — finiva nello slot IDLE.
+
+   ⚠️ PERCHÉ IL CONTROLLO STA QUI E NON FRA GLI AGHI. Un ago cerca del testo
+   nel codice: avrebbe potuto verificare che la voce `idle_01` esiste, ma non
+   che il riconoscimento FUNZIONA. E il guasto non era una riga mancante — era
+   una conseguenza a due passi di una riga mancante. Qui il codice gira per
+   davvero, e si guarda cosa risponde.
+   ========================================================================= */
+
+console.log('\nIMPORT — RICONOSCIMENTO DEI NOMI FILE\n');
+
+{
+  /* 1. Ogni slot si riconosce dal proprio nome atteso. Il giro base: chiedi il
+        pacchetto, ChatGPT ti dà i file con quei nomi, li trascini. */
+  const sbagliati = manifest.assets.filter(
+    (a) => m.resolveAssetIdFromFileName(manifest, a.file) !== a.asset_id,
+  );
+  check(
+    sbagliati.length === 0,
+    'ogni slot si riconosce dal proprio nome atteso',
+    sbagliati.map((a) => a.asset_id).join(', ') || `${manifest.assets.length} su ${manifest.assets.length}`,
+  );
+
+  /* 2. E NESSUNO SI RICONOSCE DAL NOME DI UN ALTRO. È questo il controllo che
+        avrebbe preso il guasto: `idle_01` rispondeva anche per gli altri
+        cinque. Un riconoscimento che dice sempre sì è peggio di uno che dice
+        sempre no, perché sembra funzionare. */
+  const collisioni = [];
+  for (const a of manifest.assets) {
+    for (const b of manifest.assets) {
+      if (a === b) continue;
+      if (m.resolveAssetIdFromFileName(manifest, b.file) === a.asset_id) {
+        collisioni.push(`${b.file} → ${a.asset_id}`);
+      }
+    }
+  }
+  check(collisioni.length === 0, 'e nessuno risponde per conto di un altro', collisioni.join(' · '));
+
+  /* 3. Un nome che non dice niente non viene indovinato. Meglio la mappatura
+        manuale di uno slot pescato a caso: lo slot sbagliato lo scopri
+        guardando l'immagine, e a quel punto hai già rifatto il giro. */
+  const anonimi = [
+    'ChatGPT Image 20 ago 2026, 01_10_33.png',
+    'download (1).png',
+    'IMG_0142.png',
+    'immagine 01.png',
+    'schermata 2026-01-20.png',
+  ];
+  const indovinati = anonimi.filter((f) => m.resolveAssetIdFromFileName(manifest, f) !== null);
+  check(
+    indovinati.length === 0,
+    'un nome che non dice niente resta non riconosciuto',
+    indovinati.map((f) => `${f} → ${m.resolveAssetIdFromFileName(manifest, f)}`).join(' · '),
+  );
+
+  /* 4. E ogni asset_id del manifest è uno slot vero. Era l'altra metà dello
+        stesso guasto: l'import riusciva, l'immagine compariva, ma tornava un
+        tipo nullo e lo slot restava contato come vuoto. */
+  const fuoriCatalogo = manifest.assets.filter(
+    (a) => !m.ASSET_TYPES.some((t) => t.assetId === a.asset_id),
+  );
+  check(
+    fuoriCatalogo.length === 0,
+    'ogni asset_id del manifest è uno slot dichiarato nel catalogo',
+    fuoriCatalogo.map((a) => a.asset_id).join(', '),
+  );
+  check(
+    manifest.assets.length === m.ASSET_TYPES.length,
+    'e il manifest copre tutti gli slot, nessuno escluso',
+    `${manifest.assets.length} / ${m.ASSET_TYPES.length}`,
   );
 }
 

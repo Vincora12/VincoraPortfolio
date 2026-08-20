@@ -100,8 +100,19 @@ export function AssetImport() {
       }
     }
 
-    setResults(out);
-    setPending(unmatched);
+    /* ⚠️ SI ACCUMULA, NON SI SOSTITUISCE.
+
+       🔷 «Ne carico uno e poi basta, non ne posso caricare altri.»
+
+       Qui c'era `setPending(unmatched)`: il secondo import buttava via la
+       lista del primo. Un file in attesa di mappatura spariva dallo schermo
+       senza essere stato assegnato, e senza dire niente — da fuori è
+       identico a «l'import non funziona più».
+
+       🔒 La chiave della riga è nome + indice, quindi due file con lo stesso
+       nome restano due righe distinte. */
+    setResults((prev) => [...prev, ...out]);
+    setPending((prev) => [...prev, ...unmatched]);
   };
 
   /** Mappatura manuale per i file che il nome non ha permesso di risolvere. */
@@ -155,7 +166,15 @@ export function AssetImport() {
           accept="image/*"
           multiple
           className="sr-only"
-          onChange={(e) => e.target.files && void handleFiles(e.target.files)}
+          /* ⚠️ IL CAMPO SI SVUOTA DOPO. Senza, riscegliere LO STESSO file non
+             emette `change` — il browser vede lo stesso valore e tace. Dopo un
+             import andato male è proprio quel file che si riprova, e sembra
+             che il pulsante abbia smesso di funzionare. */
+          onChange={(e) => {
+            const chosen = e.target.files;
+            if (chosen) void handleFiles(chosen);
+            e.target.value = '';
+          }}
         />
         <Button small onClick={() => inputRef.current?.click()}>
           SCEGLI I FILE
