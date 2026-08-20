@@ -26,7 +26,7 @@
 
 import { useState } from 'react';
 import { useApp, useActiveMon, useIncubation } from '../state/store';
-import { ExpressionStickers, IdleMon } from '../system/LiveMon';
+import { IdleMon, Sticker } from '../system/LiveMon';
 import { EggVessel } from '../system/EggVessel';
 import { MonName, SpeciesName } from '../system/MonName';
 import { Sigil } from '../system/AssetSlot';
@@ -85,6 +85,12 @@ export function SplashScreen({ onEnter }: { onEnter: () => void }) {
           vera in quel momento.
           ══════════════════════════════════════════════════════════════════ */}
       <div className="splash__id">
+        {/* 🔒 GLI ADESIVI SOLO A CREATURA NATA. In incubazione non esiste
+            nessun foglio di espressioni, e nemmeno una faccia: attaccarli qui
+            sarebbe promettere sei espressioni di un uovo. */}
+        {!incubating && mon && (
+          <Sticker monName={mon.data.name} alt={displayName(mon.data.name)} n={0} className="stick--name" />
+        )}
         {incubating ? (
           <>
             <span className="t-display splash__name">{t.incubation.title}</span>
@@ -143,10 +149,10 @@ export function SplashScreen({ onEnter }: { onEnter: () => void }) {
                 Ancorati al riquadro restavano sospesi sotto la creatura. */}
             <div className="splash__photo">
               <IdleMon monName={mon!.data.name} alt={displayName(mon!.data.name)} still />
-              {/* Gli adesivi stanno SULLA foto, a cavallo del bordo di sotto —
-                  non in una fila sotto di essa. È la differenza fra un adesivo
-                  attaccato e una legenda. */}
-              <ExpressionStickers monName={mon!.data.name} alt={displayName(mon!.data.name)} />
+              {/* A cavallo dei bordi, non allineati dentro: è la differenza fra
+                  un adesivo attaccato e una didascalia. */}
+              <Sticker monName={mon!.data.name} alt={displayName(mon!.data.name)} n={1} className="stick--photoL" />
+              <Sticker monName={mon!.data.name} alt={displayName(mon!.data.name)} n={2} className="stick--photoR" />
             </div>
           </>
         )}
@@ -156,10 +162,19 @@ export function SplashScreen({ onEnter }: { onEnter: () => void }) {
 
           Un pulsante con scritto cosa fa è più chiaro di una superficie che si
           tocca e basta, e non litiga con lo scroll. */}
-      <button type="button" className="splash__enter" onClick={enter}>
-        <span className="t-display">{incubating ? t.splash.chat : t.splash.talk}</span>
-        <span aria-hidden="true">→</span>
-      </button>
+      {/* ⚠️ L'INVOLUCRO ESISTE PER L'ADESIVO, e non poteva essere il pulsante.
+          Un adesivo dentro il pulsante sarebbe parte del bersaglio: appoggiare
+          il dito lì sopra aprirebbe la chat. Fuori, e con il tocco disattivato
+          (vedi `.sticker`), il pulsante resta grande quanto sembra. */}
+      <div className="splash__door">
+        <button type="button" className="splash__enter" onClick={enter}>
+          <span className="t-display">{incubating ? t.splash.chat : t.splash.talk}</span>
+          <span aria-hidden="true">→</span>
+        </button>
+        {!incubating && mon && (
+          <Sticker monName={mon.data.name} alt={displayName(mon.data.name)} n={3} className="stick--door" />
+        )}
+      </div>
 
       {/* ======================================================================
           QUELLO CHE STA SOTTO.
@@ -205,7 +220,12 @@ function MonDossier({ health }: { health: Parameters<typeof birthStatsFor>[0] })
           -------------------------------------------------------------------- */}
       <section className="dossier__block">
         <p className="t-meta dossier__label">{t.bio.title}</p>
-        <BioPanel mon={mon} />
+        <BioPanel
+          mon={mon}
+          sticker={
+            <Sticker monName={d.name} alt={displayName(d.name)} n={4} className="stick--doodle" />
+          }
+        />
       </section>
 
       {/* --- LE STATISTICHE, CONGELATE ---------------------------------------
@@ -258,8 +278,12 @@ function MonDossier({ health }: { health: Parameters<typeof birthStatsFor>[0] })
         <p className="t-micro dossier__note">{d.generation_reason_summary}</p>
       </section>
 
+      {/* 🔒 IL SIGILLO STA DA SOLO IN MEZZO A UNA RIGA VUOTA: è l'ultimo
+          punto della pagina dove c'è spazio vero, e l'unico posto del dossier
+          dove un adesivo non finisce addosso a una riga di testo. */}
       <div className="dossier__sigil">
         <Sigil seed={mon.sigil} size={40} />
+        <Sticker monName={d.name} alt={displayName(d.name)} n={5} className="stick--sigil" />
       </div>
     </div>
   );

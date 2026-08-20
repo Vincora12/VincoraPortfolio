@@ -22,13 +22,28 @@
    perché ti fa cercare la funzione.
    ========================================================================= */
 
+import type { ReactNode } from 'react';
 import { AssetSlot } from '../system/AssetSlot';
 import { SpeciesName } from '../system/MonName';
 import type { MonRecord } from '../engine/types';
 import { displayName, readableBio } from '../engine/types';
 import { t } from '../i18n/it';
 
-export function BioPanel({ mon }: { mon: MonRecord }) {
+export function BioPanel({
+  mon,
+  /**
+   * Un adesivo da appiccicare sull'angolo del disegno.
+   *
+   * ⚠️ ARRIVA DA FUORI, non se lo mette da sé. Questo quaderno lo mostrano
+   * due schermate — la home e la scheda — e sulla scheda gli adesivi non ci
+   * sono: sono un'idea della home. Un componente che decidesse da sé di
+   * metterceli li metterebbe in tutti e due i posti.
+   */
+  sticker,
+}: {
+  mon: MonRecord;
+  sticker?: ReactNode;
+}) {
   const d = mon.data;
   const short = displayName(d.name);
   const bio = readableBio(mon);
@@ -54,7 +69,11 @@ export function BioPanel({ mon }: { mon: MonRecord }) {
 
       {/* Il disegno, a metà pagina. GB §12: il DOODLE è il linguaggio della
           BIO, non un Appearance — e questo è l'unico posto in cui compare. */}
+      {/* 🔒 L'ANGOLO DI UN DISEGNO È UN POSTO VERO PER UN ADESIVO, e non è
+          una scelta estetica: qui sotto c'è una cornice, non una riga da
+          leggere. Un adesivo sopra un testo non è un adesivo, è un ostacolo. */}
       <figure className="bionote__drawing">
+        {sticker}
         <AssetSlot
           monName={d.name}
           type="bio_doodle"

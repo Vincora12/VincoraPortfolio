@@ -80,125 +80,75 @@ export function IdleMon({
 /* ============================================================================
    GLI ADESIVI DELLE ESPRESSIONI (§23.1)
 
-   🔷 «Sulla foto, adesivi attaccati delle varie espressioni, come se fosse
-      sticker, in basso.»
+   🔷 «Sulla foto, adesivi attaccati delle varie espressioni.»
    🔷 «Sparsi e un po' storti, come se fossero veri adesivi attaccati.»
+   🔷 «Puoi scontornarle e farle sembrare più degli adesivi?»
+   🔷 «Più grandi e sparsi nella pagina in vari punti.»
 
    Le sei espressioni sono già un asset — l'EXPRESSION SHEET, griglia 3×2 — e
-   fino a oggi si vedevano una alla volta, in testa alla chat, quella che
-   serviva in quel momento. Tutte insieme sul bordo della foto sono un'altra
-   cosa: non «come sta adesso», ma **di quante facce è capace**.
+   in chat se ne vede una alla volta, quella che serve in quel momento. Sparse
+   per la pagina sono un'altra cosa: non «come sta adesso», ma di quante facce
+   è capace.
 
-   ⚠️ QUANDO IL FOGLIO NON C'È, GLI ADESIVI RESTANO VUOTI, E NON È UN RIPIEGO.
+   🔶 NON SONO PIÙ UN GRUPPO, SONO SEI PEZZI SINGOLI. Stavano tutti dentro un
+   contenitore sulla foto, e finché il posto era uno andava bene. Adesso i
+   posti sono sei, lungo tutta la pagina: un contenitore solo non può stare in
+   sei punti diversi, e inventare coordinate per una pagina che scorre e
+   cambia altezza col contenuto sarebbe indovinare.
+
+   🔒 QUINDI OGNI ADESIVO SI ATTACCA A UN PEZZO VERO — il nome, la foto, il
+   pulsante, la bio, le statistiche — e il POSTO lo dichiara il CSS accanto a
+   quel pezzo. Se domani il dossier cambia ordine, gli adesivi si spostano con
+   lui invece di restare appesi a un numero.
+
+   ⚠️ QUANDO IL FOGLIO NON C'È, RESTANO CASELLE VUOTE, E NON È UN RIPIEGO.
    `MonFace` da solo ripiegherebbe sul ritratto: sei adesivi con SEI VOLTE LA
    STESSA FACCIA, che è peggio di sei caselle vuote — dice una bugia sul
    contenuto invece di dire che manca. §18A vieta di inventare arte, e sei
    copie di un'immagine spacciate per sei espressioni diverse sono arte
    inventata anche se ogni singolo pixel è vero.
-
-   🔒 Le caselle vuote restano SEI e restano al loro posto: lo sparpagliamento
-   non cambia quando il foglio arriva, quindi quello che vedi vuoto è
-   esattamente dove finirà l'immagine.
    ========================================================================= */
 
-/* ----------------------------------------------------------------------------
-   DOVE STA OGNI ADESIVO
-
-   🔶 ERANO UNA FILA ORDINATA, tutti della stessa misura, tutti alla stessa
-   altezza, con una pendenza appena accennata. Una fila regolare non legge
-   come «attaccati»: legge come «disposti». La differenza fra le due cose non
-   è la pendenza — è che in una fila regolare si vede la griglia sotto.
-
-   Quindi variano tre cose insieme, perché una sola non basta:
-   • la POSIZIONE, sparsa lungo la fascia bassa e a cavallo dei bordi
-   • la MISURA, perché adesivi tutti uguali restano una collezione
-   • l'INCLINAZIONE, abbastanza da vedersi
-
-   🔒 MA È UNA TABELLA, NON UN SORTEGGIO. Numeri a caso vorrebbero dire adesivi
-   che saltano a ogni render — un movimento che nessuno ha chiesto, e nessun
-   modo di dire «quello lì a sinistra» perché la volta dopo non c'è più. Sono
-   sparsi una volta sola, e restano dove sono.
-
-   ⚠️ TUTTI NELLA METÀ BASSA, e non per timidezza: sopra c'è la faccia della
-   creatura, ed è la cosa che questa schermata esiste per far vedere. Un
-   adesivo su un occhio è un adesivo che copre il prodotto. `verify:features`
-   legge questi numeri e si arrabbia se uno passa il 50%.
-
-   `left` e `bottom` possono uscire dai bordi, ed è voluto: un adesivo che
-   sborda è stato attaccato lì, uno allineato dentro è una didascalia.
-   -------------------------------------------------------------------------- */
-
-interface Piazzamento {
-  /** Da sinistra, in percentuale della foto. Fuori dai bordi è voluto. */
-  left: string;
-  /** Dal fondo. Negativo = a cavallo del bordo di sotto. */
-  bottom: string;
-  size: number;
-  tilt: number;
-}
-
-/* 🔶 LE MISURE SONO QUASI RADDOPPIATE, e non per gusto.
-
-   Una cella del foglio è 512×512. A 36 pixel la rimpicciolivo diciassette
-   volte: la testa veniva quindici pixel, l'occhio meno di due. E le sei
-   espressioni si distinguono per «tratti che si ammorbidiscono», «lettura
-   asimmetrica», «spento» — differenze del volto, che sotto una certa misura
-   non esistono proprio. Erano sei macchie colorate uguali.
-
-   Da 56 a 80 la riduzione scende a 6–9 volte, cioè meno di quella della
-   faccia in chat, e un'espressione si legge. */
-const SCATTER: Piazzamento[] = [
-  { left: '-5%', bottom: '8%', size: 72, tilt: -13 },
-  { left: '15%', bottom: '-5%', size: 60, tilt: 8 },
-  { left: '33%', bottom: '9%', size: 80, tilt: -5 },
-  { left: '53%', bottom: '-6%', size: 64, tilt: 12 },
-  { left: '71%', bottom: '4%', size: 74, tilt: -9 },
-  { left: '90%', bottom: '21%', size: 56, tilt: 6 },
-];
-
-export function ExpressionStickers({ monName, alt }: { monName: string; alt: string }) {
+export function Sticker({
+  monName,
+  alt,
+  /** Quale delle sei. È anche la posizione nella griglia del foglio. */
+  n,
+  /** Dove va: una classe di piazzamento, dichiarata accanto al pezzo che lo ospita. */
+  className,
+}: {
+  monName: string;
+  alt: string;
+  n: number;
+  className: string;
+}) {
   const sheet = useAssetUrl(monName, 'reaction_pack');
+  const e = EXPRESSIONS[n]!;
+  const col = n % EXPRESSION_SPEC.columns;
+  const row = Math.floor(n / EXPRESSION_SPEC.columns);
 
   return (
-    <ul className="stickers" aria-label={`Espressioni di ${alt}`}>
-      {EXPRESSIONS.map((e, i) => {
-        const col = i % EXPRESSION_SPEC.columns;
-        const row = Math.floor(i / EXPRESSION_SPEC.columns);
-        const p = SCATTER[i]!;
-
-        return (
-          <li
-            key={e}
-            className={`sticker ${sheet ? '' : 'sticker--empty'}`}
-            style={{
-              left: p.left,
-              bottom: p.bottom,
-              width: p.size,
-              height: p.size,
-              ['--tilt' as string]: `${p.tilt}deg`,
-            }}
-            title={sheet ? e.toLowerCase() : `${e.toLowerCase()} — non ancora disponibile`}
-          >
-            {sheet ? (
-              <span
-                className="sticker__art"
-                role="img"
-                aria-label={`${alt}, ${e.toLowerCase()}`}
-                style={{
-                  backgroundImage: `url(${sheet})`,
-                  backgroundSize: `${EXPRESSION_SPEC.columns * 100}% ${EXPRESSION_SPEC.rows * 100}%`,
-                  backgroundPosition: `${(col * 100) / (EXPRESSION_SPEC.columns - 1)}% ${
-                    (row * 100) / (EXPRESSION_SPEC.rows - 1)
-                  }%`,
-                }}
-              />
-            ) : (
-              <span className="sr-only">{`${e.toLowerCase()} — non ancora disponibile`}</span>
-            )}
-          </li>
-        );
-      })}
-    </ul>
+    <span
+      className={`sticker ${className} ${sheet ? '' : 'sticker--empty'}`}
+      title={sheet ? e.toLowerCase() : `${e.toLowerCase()} — non ancora disponibile`}
+    >
+      {sheet ? (
+        <span
+          className="sticker__art"
+          role="img"
+          aria-label={`${alt}, ${e.toLowerCase()}`}
+          style={{
+            backgroundImage: `url(${sheet})`,
+            backgroundSize: `${EXPRESSION_SPEC.columns * 100}% ${EXPRESSION_SPEC.rows * 100}%`,
+            backgroundPosition: `${(col * 100) / (EXPRESSION_SPEC.columns - 1)}% ${
+              (row * 100) / (EXPRESSION_SPEC.rows - 1)
+            }%`,
+          }}
+        />
+      ) : (
+        <span className="sr-only">{`${e.toLowerCase()} — non ancora disponibile`}</span>
+      )}
+    </span>
   );
 }
 

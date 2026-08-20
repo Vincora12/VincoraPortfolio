@@ -2389,23 +2389,28 @@
    pendenza, decisi uno per uno in `LiveMon.tsx` — qui resta solo il modo di
    metterli, che è in posizione assoluta sulla foto.
    ========================================================================= */
-.stickers {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  /* Non intercetta il tocco: sotto c'è la foto, e gli adesivi non sono
-     comandi. */
-  pointer-events: none;
-}
+/* ============================================================================
+   GLI ADESIVI — LE REGOLE COMUNI
 
+   🔷 «Più grandi e sparsi nella pagina in vari punti.»
+
+   🔶 QUI C'ERA UN CONTENITORE UNICO SULLA FOTO, con dentro tutti e sei. È
+   uscito: un contenitore solo non può stare in sei punti diversi della
+   pagina. Ogni adesivo adesso si attacca al pezzo che lo ospita — il nome, la
+   foto, il pulsante, la bio, le statistiche — e la sua posizione sta scritta
+   accanto a quel pezzo, più giù.
+
+   ⚠️ `pointer-events: none` È LA RIGA CHE PROTEGGE I PULSANTI. Uno degli
+   adesivi sta a cavallo di PARLAGLI: senza questa riga il dito che lo tocca
+   NON aprirebbe la chat, perché colpirebbe l'adesivo. Un pulsante che smette
+   di rispondere su un pezzo di sé è il difetto peggiore di tutti, perché
+   sembra che l'app si sia bloccata.
+   ========================================================================= */
 .sticker {
   position: absolute;
-  /* `left`, `bottom`, `width`, `height` e `--tilt` arrivano uno per uno da
-     `SCATTER` in `LiveMon.tsx`: sono lo sparpagliamento, non uno stile. */
+  z-index: 2;
   transform: rotate(var(--tilt, 0deg));
+  pointer-events: none;
 }
 
 /* ============================================================================
@@ -2460,6 +2465,100 @@
   border-radius: var(--radius);
 }
 
+/* ----------------------------------------------------------------------------
+   I SEI POSTI
+
+   🔒 STANNO TUTTI SUL MARGINE, e mai in mezzo al testo. Un adesivo sopra una
+   riga da leggere non è un adesivo: è un ostacolo. Sbordare oltre il bordo
+   della pagina invece va benissimo — `overflow-x: clip` su `.splash` li taglia
+   senza aprire una barra di scorrimento, ed è esattamente l'aria di una cosa
+   attaccata sopra a un foglio.
+
+   ⚠️ MA SBORDARE HA UNA MISURA. Al primo giro li avevo mandati fuori di 26-34
+   pixel: sommati ai 16 di margine della pagina, di un adesivo da 84 restava
+   visibile una scheggia. Un adesivo tagliato a metà è ancora un adesivo; uno
+   tagliato per tre quarti è sporcizia sul bordo. Adesso escono di 14-22, cioè
+   sempre meno di un quarto della loro larghezza.
+
+   🔒 E NESSUNO COPRE LA FACCIA. Sulla foto stanno tutti e due in basso: sopra
+   c'è la creatura, che è la cosa per cui questa schermata esiste.
+
+   🔴 IL PRIMO GIRO L'AVEVA SCRITTO E NON L'AVEVA FATTO. Avevo attaccato due
+   adesivi al blocco della bio e a quello delle statistiche, dove il testo
+   occupa tutta la colonna: uno finiva sopra «non stavi recuperando niente»,
+   l'altro sopra «COM'ERI QUANDO È NATO». La regola stava in questo commento,
+   i numeri dicevano il contrario, e nessun controllo automatico poteva
+   accorgersene — l'ho visto solo rendendo la pagina con le sagome finte.
+
+   Quindi i posti sono SOLO quelli dove la pagina ha spazio vero: il nome
+   (centrato, con i lati liberi), la foto, il pulsante (testo al centro),
+   l'angolo del disegno (che è una cornice) e il sigillo (che sta da solo in
+   mezzo a una riga vuota). Non uno in più.
+   -------------------------------------------------------------------------- */
+
+.stick--name {
+  top: -12px;
+  left: -16px;
+  width: 88px;
+  height: 88px;
+  --tilt: -15deg;
+}
+
+.stick--photoL {
+  bottom: -20px;
+  left: -22px;
+  width: 104px;
+  height: 104px;
+  --tilt: 11deg;
+}
+
+.stick--photoR {
+  bottom: 6px;
+  right: -22px;
+  width: 92px;
+  height: 92px;
+  --tilt: -8deg;
+}
+
+.splash__door {
+  position: relative;
+  width: 100%;
+}
+
+.stick--door {
+  top: -34px;
+  right: -14px;
+  width: 84px;
+  height: 84px;
+  --tilt: 13deg;
+}
+
+/* Sull'angolo del disegno del quaderno: sotto c'è una cornice, non un testo. */
+.bionote__drawing {
+  position: relative;
+}
+
+.stick--doodle {
+  top: -26px;
+  right: -18px;
+  width: 92px;
+  height: 92px;
+  --tilt: -11deg;
+}
+
+/* Accanto al sigillo, che sta da solo in mezzo a una riga vuota. */
+.dossier__sigil {
+  position: relative;
+}
+
+.stick--sigil {
+  top: -22px;
+  left: 6%;
+  width: 88px;
+  height: 88px;
+  --tilt: 9deg;
+}
+
 /* La pendenza è decorazione, non informazione: chi ha chiesto meno movimento
    la perde senza perdere niente. Il posto e la misura restano. */
 @media (prefers-reduced-motion: reduce) {
@@ -2481,6 +2580,8 @@
   /* 🔴 SENZA QUESTA RIGA IL NOME NON SI VEDEVA. Vedi `.splash__name`. */
   width: 100%;
   text-align: center;
+  /* Ospita il primo adesivo. */
+  position: relative;
 }
 
 /* ⚠️ 🔴 IL NOME ERA INVISIBILE, E NON PER UN COLORE.

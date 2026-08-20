@@ -639,6 +639,13 @@ const SPLASH = 'src/screens/Splash.tsx';
 const SCREENS_CSS = 'src/screens/screens.css';
 const STICKERS = 'src/system/LiveMon.tsx';
 
+/* I sei posti degli adesivi, letti dal CSS: è lì che sono dichiarati. */
+const STICK_RULES = [...(read(SCREENS_CSS) ?? '').matchAll(/\.stick--[a-zA-Z]+\s*\{[^}]*\}/g)].map(
+  (m) => m[0],
+);
+const STICK_W = STICK_RULES.map((r) => Number(r.match(/width:\s*(\d+)px/)?.[1] ?? 0));
+
+
 check(
   'INGRESSO §13.7',
   'il nome sta sopra la foto',
@@ -662,84 +669,73 @@ check(
 );
 check(
   'INGRESSO §13.7',
-  'gli adesivi sono ancorati alla foto, non al riquadro',
+  'quelli sulla foto sono ancorati alla foto, non al riquadro',
   has(SPLASH, 'splash__photo') && /\.splash__photo\s*\{[^}]*position:\s*relative/.test(read(SCREENS_CSS) ?? ''),
   'il riquadro è alto mezza videata sempre: ancorati lì restavano sospesi',
 );
-/* 🔶 QUESTO AGO GUARDAVA UNA FILA. Cercava `flex-wrap: nowrap` sulla fila
-   degli adesivi, che era la forma di allora: sei cerchi uguali, allineati,
-   appena inclinati.
-
-   🔷 «Sparsi e un po' storti, come se fossero veri adesivi attaccati.»
-
-   La fila non c'è più, quindi cercare `nowrap` vorrebbe dire cercare una cosa
-   che abbiamo deciso di togliere. Le DECISIONI sopravvissute al cambio sono
-   due, e sono queste: gli adesivi sbordano, e nessuno finisce sulla faccia. */
-const SCATTER_BLOCK = (read(STICKERS) ?? '').match(/const SCATTER[\s\S]*?\n\];/)?.[0] ?? '';
-const SCATTER_BOTTOMS = [...SCATTER_BLOCK.matchAll(/bottom:\s*'(-?[\d.]+)%'/g)].map((m) =>
-  Number(m[1]),
-);
-
+/* 🔒 Sopra c'è la creatura, che è la cosa per cui questa schermata esiste. */
 check(
   'INGRESSO §13.7',
-  'gli adesivi sbordano dalla foto invece di stare allineati dentro',
-  SCATTER_BOTTOMS.some((b) => b < 0),
+  'e stanno tutti e due in basso, mai sulla faccia',
+  STICK_RULES.filter((r) => /\.stick--photo/.test(r)).every((r) => /bottom:/.test(r) && !/top:/.test(r)),
+);
+/* 🔶 QUESTI AGHI GUARDAVANO UNA TABELLA IN TYPESCRIPT. Gli adesivi stavano
+   tutti sulla foto, sparpagliati da un array di coordinate, e gli aghi
+   leggevano quell'array.
+
+   🔷 «Più grandi e sparsi nella pagina in vari punti.»
+
+   I posti adesso sono sei, lungo tutta la pagina, e ognuno è dichiarato nel
+   CSS accanto al pezzo che lo ospita — perché la posizione di una cosa
+   rispetto al nome, alla foto o al pulsante è un fatto di impaginazione, non
+   di dati. Quindi gli aghi leggono il CSS. Le DECISIONI sono le stesse. */
+check(
+  'INGRESSO §13.7',
+  'gli adesivi sono sparsi in sei punti diversi della pagina',
+  STICK_RULES.length === 6,
+  `${STICK_RULES.length} posti dichiarati`,
+);
+check(
+  'INGRESSO §13.7',
+  'e sbordano invece di stare allineati dentro',
+  STICK_RULES.filter((r) => /(left|right|top|bottom):\s*-/.test(r)).length >= 4,
   'uno allineato dentro è una didascalia; uno che sborda è stato attaccato lì',
 );
-/* ⚠️ È L'AGO CHE CONTA DAVVERO DI TUTTO IL GRUPPO. Sparpagliare a mano vuol
-   dire che un numero sbagliato piazza un adesivo su un occhio, e quella è
-   l'unica cosa che questa schermata esiste per far vedere. Il limite è la
-   metà bassa, misurata, non «più o meno in basso». */
-check(
-  'INGRESSO §13.7',
-  'e nessuno sale sopra la faccia della creatura',
-  SCATTER_BOTTOMS.length > 0 && SCATTER_BOTTOMS.every((b) => b < 50),
-  `il più alto sta al ${Math.max(...SCATTER_BOTTOMS)}% dal fondo`,
-);
-/* 🔒 Numeri a caso vorrebbero dire adesivi che saltano a ogni render: un
-   movimento che nessuno ha chiesto, e nessun modo di dire «quello lì a
-   sinistra» perché la volta dopo non c'è più. */
-check(
-  'INGRESSO §13.7',
-  'lo sparpagliamento è una tabella, non un sorteggio',
-  SCATTER_BOTTOMS.length === 6 && lacksInCode(STICKERS, 'Math.random'),
-  `${SCATTER_BOTTOMS.length} posti fissi, uno per espressione`,
-);
-/* 🔷 «Ma puoi scontornarle e farle sembrare più degli adesivi?»
+/* ⚠️ QUELLO CHE HO SBAGLIATO IO. La regola «mai sopra una riga di testo» era
+   scritta nel commento del CSS mentre i numeri facevano il contrario: due
+   adesivi finivano sopra la bio e sopra «COM'ERI QUANDO È NATO». Nessun
+   controllo poteva vederlo — l'ho scoperto rendendo la pagina.
 
-   🔶 QUI PRIMA NON C'ERA NIENTE, perché gli adesivi erano cerchi con la
-   cornice e non c'era nessuna decisione delicata da proteggere. Adesso sì: il
-   contorno segue la SAGOMA, e basta rimettere un `overflow: hidden` o un
-   `border-radius: 50%` per tornare a tagliare via orecchie e corna senza che
-   niente si lamenti. */
-const STICKER_ART = (read(SCREENS_CSS) ?? '').match(/\.sticker__art\s*\{[^}]*\}/)?.[0] ?? '';
-const STICKER_BOX = (read(SCREENS_CSS) ?? '').match(/\n\.sticker\s*\{[^}]*\}/)?.[0] ?? '';
-
+   🔒 Quello che un ago PUÒ tenere è che gli adesivi restino attaccati SOLO ai
+   cinque punti in cui lo spazio c'è: il nome, la foto, il pulsante, l'angolo
+   del disegno e il sigillo. Un nome nuovo qui dentro vuol dire un posto nuovo,
+   e un posto nuovo va guardato a schermo prima di fidarsi. */
 check(
   'INGRESSO §13.7',
-  'il contorno bianco segue la sagoma, non un cerchio',
-  (STICKER_ART.match(/drop-shadow\([^)]*#ffffff\)/g) ?? []).length >= 8,
-  'con meno di otto direzioni il bordo si spezza sulle punte — corna e orecchie',
+  'e stanno solo dove la pagina ha spazio vero, mai su una riga da leggere',
+  ['--name', '--photoL', '--photoR', '--door', '--doodle', '--sigil'].every((n) =>
+    STICK_RULES.some((r) => r.startsWith(`.stick${n}`)),
+  ),
+  'i blocchi di testo occupano tutta la colonna: lì un adesivo è un ostacolo',
 );
-/* ⚠️ Il foglio esce con lo sfondo trasparente e i MARGINI PARI: negli angoli
-   della cella ci stanno le punte della sagoma. Ritagliare in tondo toglie
-   esattamente quello che rende riconoscibile una creatura. */
+/* ⚠️ L'ADESIVO SUL PULSANTE È IL MOTIVO PER CUI QUESTO AGO ESISTE. Senza
+   `pointer-events: none`, il dito che tocca la parte di PARLAGLI coperta
+   dall'adesivo NON apre la chat: colpisce l'adesivo. Un pulsante che smette
+   di rispondere su un pezzo di sé sembra un'app bloccata. */
 check(
   'INGRESSO §13.7',
-  'e niente ritaglia la sagoma',
-  !/overflow:\s*hidden/.test(STICKER_BOX) && !/border-radius/.test(STICKER_BOX),
-  'il ritaglio l’ha già fatto chi ha disegnato il foglio',
+  'e non rubano il tocco al pulsante che coprono',
+  /\n\.sticker\s*\{[^}]*pointer-events:\s*none/.test(read(SCREENS_CSS) ?? ''),
 );
 /* 🔒 512 pixel di cella ridotti a 36 sono diciassette volte: la testa viene
    quindici pixel e l'occhio meno di due, e le sei espressioni si distinguono
    per differenze del volto. Sotto una certa misura non sono sei espressioni,
    sono sei macchie. */
-const SCATTER_SIZES = [...SCATTER_BLOCK.matchAll(/size:\s*(\d+)/g)].map((m) => Number(m[1]));
 check(
   'INGRESSO §13.7',
   'e sono abbastanza grandi perché un’espressione si veda',
-  SCATTER_SIZES.length > 0 && Math.min(...SCATTER_SIZES) >= 52,
-  `il più piccolo è ${Math.min(...SCATTER_SIZES)}px — una cella del foglio è 512`,
+  STICK_W.length === 6 && Math.min(...STICK_W) >= 80,
+  `il più piccolo è ${Math.min(...STICK_W)}px — una cella del foglio è 512`,
 );
 
 /* 🔒 §18A. Il ripiego di `MonFace` è il ritratto: usato per sei adesivi
@@ -751,10 +747,14 @@ check(
   has('src/system/LiveMon.tsx', 'sticker--empty') &&
     !/ExpressionStickers[\s\S]{0,1200}<MonFace/.test(read('src/system/LiveMon.tsx') ?? ''),
 );
+/* 🔶 L'ago cercava `<BioPanel mon={mon} />` su una riga sola: la forma di
+   quel giorno. Adesso il quaderno riceve anche un adesivo, quindi la chiamata
+   sta su più righe — e la DECISIONE («la bio sta nella prima schermata, ed è
+   quella vera») non è cambiata di un millimetro. */
 check(
   'INGRESSO §13.7',
   'bio e doodle stanno nella prima schermata',
-  has(SPLASH, '<BioPanel mon={mon} />'),
+  has(SPLASH, '<BioPanel') && has(SPLASH, 'mon={mon}'),
   'tutto quello che il personaggio è, in una pagina che scorre',
 );
 /* ⚠️ La bio è UNA. Riscriverne una seconda versione qui sarebbe due quaderni
