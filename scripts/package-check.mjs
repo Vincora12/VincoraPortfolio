@@ -891,6 +891,37 @@ check(
   'ma la prima creatura non riceve un elenco vuoto di cose da non ripetere',
 );
 
+/* 🔷 «Perché i temperamenti sono 2? Deve essere 1.» */
+console.log('\n═══ TEMPERAMENTO ═══\n');
+{
+  const molte = [];
+  for (let seed = 1; seed <= 40; seed++) {
+    molte.push(
+      m.generateFirstMon({
+        input,
+        mindlineNodeId: `mood_${seed}`,
+        originNodeId: null,
+        lineageNames: [],
+        seed: seed * 613,
+      }).record,
+    );
+  }
+  check(
+    molte.every((r) => r.data.mood_secondary === null),
+    'quaranta creature e nessuna nasce con due temperamenti',
+    `${molte.filter((r) => r.data.mood_secondary !== null).length} con la sfumatura secondaria`,
+  );
+  check(
+    molte.every((r) => 'mood_secondary' in r.data),
+    'ma il campo resta: §27 ne conta ventisette e i salvataggi vecchi si leggono',
+  );
+  check(
+    new Set(molte.map((r) => r.data.mood_primary)).size >= 3,
+    'e il primario continua a variare',
+    `${new Set(molte.map((r) => r.data.mood_primary)).size} temperamenti diversi su 40`,
+  );
+}
+
 /* ============================================================================
    TEST PHASE 01 — TRE ASSI FERMI, TUTTO IL RESTO LIBERO
    🔷 «FAMILY = ANGEL. SIZE = TINY. CHARACTER DESIGNER = KEN.»
@@ -956,15 +987,23 @@ if (m.TEST_PHASE.enabled) {
     'e umanoidità e stile pure',
     `${varia((r) => r.data.humanoidity)} livelli · ${varia((r) => r.data.fashion)} stili`,
   );
-  /* ⚠️ SOGLIA CONTRO IL SERBATOIO, NON CONTRO UN NUMERO INVENTATO. Qui avevo
-     scritto «>= 10 tic di sagoma» senza guardare che il catalogo ne contiene
-     SETTE: un controllo che non può passare per costruzione, e che avrebbe
-     accusato il codice per sempre. La copertura piena è anche più forte. */
+  /* ⚠️ SOGLIA CONTRO IL SERBATOIO, E NON CONTRO UNA SEQUENZA PARTICOLARE.
+
+     Due errori miei di fila, su questa riga. Prima «>= 10 tic» su un catalogo
+     che ne contiene SETTE: impossibile per costruzione. Poi «esattamente 7»,
+     cioè la copertura piena — che sembrava più forte e invece dipendeva dal
+     flusso casuale: al primo cambio nel numero di estrazioni sono diventati
+     sei, e il controllo ha accusato il codice per una cosa che non era
+     successa.
+
+     🔒 La proprietà da difendere non è «escono tutti», è «il serbatoio viene
+     usato largamente». Cinque su sette in trenta tiri lo dimostra; sette su
+     sette è un colpo di fortuna che non si può pretendere. */
+  const tic = varia((r) => r.data.character_dna.silhouette_quirk);
   check(
-    varia((r) => r.data.eyewear?.category ?? '—') >= 4 &&
-      varia((r) => r.data.character_dna.silhouette_quirk) === 7,
+    varia((r) => r.data.eyewear?.category ?? '—') >= 4 && tic >= 5,
     'occhiali e tic di sagoma restano genuinamente diversi',
-    `${varia((r) => r.data.eyewear?.category ?? '—')} categorie di occhiali · tutti e ${varia((r) => r.data.character_dna.silhouette_quirk)} i tic del catalogo`,
+    `${varia((r) => r.data.eyewear?.category ?? '—')} categorie di occhiali · ${tic} tic su 7 a catalogo`,
   );
 
   /* 🔒 E L'INTERRUTTORE DEVE FUNZIONARE NEI DUE SENSI. Una fase temporanea

@@ -48,7 +48,7 @@ import {
 } from './generation-config';
 import { keepEnabled } from './catalogTuning';
 import { locked } from './generation-config';
-import { chance, makeRng, pick, pickInt, pickMany, pickWeighted, type Rng } from './rng';
+import { makeRng, pick, pickInt, pickMany, pickWeighted, type Rng } from './rng';
 import { buildSignalVector, evaluateFit, type GeneratorInput } from './signals';
 import { generatePaletteDna } from './colorDna';
 import { buildSigil } from './sigil';
@@ -828,10 +828,29 @@ function resolveMood(
     score: (affinityByMood[m.id] ?? 50) + (rng() * 2 - 1) * 15,
   })).sort((a, b) => b.score - a.score);
 
-  // §22 — un primario e una sfumatura secondaria facoltativa.
+  /* ⚠️ UN TEMPERAMENTO SOLO. 🔷 «Perché i temperamenti sono 2? Deve essere 1.»
+
+     🔶 Qui c'era `chance(rng, 0.45)`: il 45% delle creature nasceva con una
+     sfumatura secondaria, citando §22 «un primario e una sfumatura secondaria
+     facoltativa».
+
+     ⚠️ E LAVORAVA CONTRO IL RESTO DEL SISTEMA. La memoria del resolver chiede
+     di ridurre la personalità a UNA contraddizione sociale riconoscibile e a
+     UN'idea dominante; il contratto strutturale vieta che un elemento faccia
+     più mestieri. Due temperamenti danno al modello due direzioni emotive da
+     servire insieme, e quello che esce non è più ricco: è meno deciso. Il
+     documento dice anche che «quando una regola nuova è in conflitto con una
+     preferenza vecchia, vince la decisione esplicita più recente».
+
+     🔒 IL CAMPO RESTA, sempre `null`: §27 conta ventisette campi e
+     `verify:package` lo verifica, e i salvataggi vecchi che una sfumatura ce
+     l'hanno continuano a leggersi. Tutto quello che lo usa — voce, bio,
+     stanza, profilo, compilatore — già lo salta quando è vuoto.
+
+     Per rimetterlo: `secondary: chance(rng, 0.45) ? ranked[1]!.id : null`. */
   return {
     primary: ranked[0]!.id,
-    secondary: chance(rng, 0.45) ? ranked[1]!.id : null,
+    secondary: null,
   };
 }
 

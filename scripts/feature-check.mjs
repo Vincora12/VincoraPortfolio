@@ -1699,6 +1699,20 @@ check(
   'a intervallo fisso un lavoro finito subito dopo una domanda resta invisibile per altri 2,5 secondi, che su una risposta veloce è quasi tutta l’attesa',
 );
 
+/* 🔷 «Perché i temperamenti sono 2? Deve essere 1.» */
+check(
+  'MOOD §22',
+  'una creatura nasce con UN temperamento',
+  has(GEN, 'secondary: null,') && lacksInCode(GEN, 'chance(rng, 0.45)'),
+  'due direzioni emotive da servire insieme non danno più ricchezza: danno meno decisione, e contraddicono «una sola contraddizione» della memoria',
+);
+check(
+  'MOOD §22',
+  'ma il campo resta, sempre vuoto',
+  has('src/engine/types.ts', 'mood_secondary: string | null;'),
+  '§27 conta ventisette campi, e un salvataggio vecchio che la sfumatura ce l’ha deve continuare a leggersi',
+);
+
 /* ============================================================================
    TEST PHASE 01 — 🔷 «FAMILY = ANGEL. SIZE = TINY. DESIGNER = KEN.»
    ========================================================================= */
