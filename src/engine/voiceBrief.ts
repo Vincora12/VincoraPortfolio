@@ -43,7 +43,7 @@
    righe; uno estremo con nove. Nessuno con dodici.
    ========================================================================= */
 
-import { VOICE_AXES, voicePresetDef } from './generation-config';
+import { VOICE_AXES, VOICE_PRESETS } from './generation-config';
 import type { VoiceAxisId } from './generation-config';
 import type { VoiceDna } from './types';
 
@@ -157,8 +157,19 @@ export function voiceBrief(voice: VoiceDna, presetId: string): VoiceBrief {
   const lines: string[] = [];
 
   /* Il preset per primo: è la linea di base, e dirla per prima evita che le
-     righe degli assi vengano lette come l'intero carattere. */
-  lines.push(`baseline register — ${voicePresetDef(presetId).tone}`);
+     righe degli assi vengano lette come l'intero carattere.
+
+     🔴 E LA RICERCA NON PUÒ LANCIARE. `voicePresetDef` lancia su un preset che
+     non conosce, e questa funzione gira mentre si costruisce il briefing della
+     chat: un .mon nato con un preset poi tolto dal catalogo faceva esplodere
+     la costruzione del prompt — cioè, da fuori, «non risponde». Un catalogo
+     che cambia è normale; una chat che muore perché è cambiato non lo è.
+
+     🔒 Senza preset si perde UNA riga su nove e restano tutti gli assi: la
+     creatura parla lo stesso, un po' più generica. È incomparabilmente meglio
+     del silenzio. */
+  const preset = VOICE_PRESETS.find((p) => p.id === presetId);
+  if (preset) lines.push(`baseline register — ${preset.tone}`);
 
   for (const axis of VOICE_AXES) {
     const value = numero(voice, axis.id);

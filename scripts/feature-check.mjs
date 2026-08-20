@@ -1352,6 +1352,46 @@ check(
 );
 
 /* ════════════════════════════════════════════════════════════════════════════
+   🔴 «SAI CHE NON RISPONDE»
+
+   Le due catene che portano una risposta in chat finivano con `.then()` e
+   basta. Costruire il briefing tocca quattro cataloghi — Family, Affinity,
+   Role, Mood — e ognuna di quelle funzioni LANCIA su un valore che non
+   conosce. Un .mon nato con un'etichetta poi rinominata faceva fallire la
+   costruzione del prompt, la promessa veniva rifiutata, e nessuno la
+   raccoglieva: `pending` restava vero per sempre.
+
+   I puntini continuano. Non arriva niente. Non c'è nessun errore da nessuna
+   parte. Da fuori è identico a «il modello ci sta mettendo molto», e non lo
+   scopri mai.
+
+   🔒 Il ripiego deterministico c'era già, calcolato PRIMA della chiamata
+   apposta (§17). Era il pezzo che non veniva raggiunto.
+   ════════════════════════════════════════════════════════════════════════════ */
+check(
+  'VOCE §17',
+  'una risposta che fallisce non lascia la bolla appesa',
+  count('src/state/store.ts', /\.catch\(\(e: unknown\) => \{/g) >= 2 &&
+    has('src/state/store.ts', 'playReveal(set, get, messageId, spoken, planReveal(spoken, rhythm), true);'),
+  'senza catch la promessa rifiutata non arriva mai a `playReveal` e i puntini restano per sempre',
+);
+check(
+  'VOCE §17',
+  'e nemmeno la presentazione alla nascita',
+  has('src/state/store.ts', "console.warn('[voce] presentazione fallita"),
+);
+/* ⚠️ I CATALOGHI CONTINUANO A LANCIARE, ed è giusto: un'etichetta sconosciuta
+   è un errore vero e va detto forte. Quello che non deve succedere è che un
+   errore vero fermi la conversazione invece di degradarla. */
+check(
+  'VOCE §17',
+  'ma la lettura della voce non lancia su un preset sconosciuto',
+  has('src/engine/voiceBrief.ts', 'VOICE_PRESETS.find((p) => p.id === presetId)') &&
+    lacksInCode('src/engine/voiceBrief.ts', 'voicePresetDef('),
+  'un catalogo che cambia è normale; una chat che muore perché è cambiato non lo è',
+);
+
+/* ════════════════════════════════════════════════════════════════════════════
    V1 — LA VOCE È LATENTE, NON RECITATA
    ════════════════════════════════════════════════════════════════════════════ */
 check(

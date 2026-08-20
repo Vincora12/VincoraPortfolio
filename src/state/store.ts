@@ -3543,6 +3543,27 @@ function requestIntroduction(
         : { ...chat[index]!, pending: false };
 
       set({ chat });
+    })
+    /* 🔴 QUESTA CATENA NON AVEVA UN `catch`, E LA BOLLA RESTAVA APPESA.
+
+       Un errore SINCRONO dentro `generateIntroduction` — costruire il briefing
+       tocca il catalogo dei preset, e `voicePresetDef` LANCIA su un preset che
+       non conosce — rifiuta la promessa. Senza nessuno che la raccoglie, il
+       `.then` qui sopra non gira mai: `pending` resta vero, i puntini
+       continuano, e non arriva niente. Da fuori è indistinguibile da «il
+       modello ci sta mettendo molto», e non lo si scopre mai perché non c'è
+       nessun errore da nessuna parte.
+
+       🔒 Il ripiego deterministico c'era già ed era il pezzo che non veniva
+       raggiunto: qui basta smettere di aspettare. */
+    .catch((e: unknown) => {
+      console.warn('[voce] presentazione fallita, resta il testo di ripiego:', e);
+      const s = get();
+      const index = s.chat.findIndex((m) => m.id === id);
+      if (index === -1) return;
+      const chat = [...s.chat];
+      chat[index] = { ...chat[index]!, pending: false };
+      set({ chat });
     });
 }
 
@@ -3648,6 +3669,20 @@ function requestReply(
 
       const text = result ? result.text : spoken;
       playReveal(set, get, messageId, text, planReveal(text, rhythm), !result);
+    })
+    /* 🔴 STESSO GUASTO DELLA PRESENTAZIONE, e qui pesa di più: è la chat.
+
+       `.then` senza `.catch`. Un errore sincrono nella costruzione del
+       briefing — o qualunque altra eccezione lungo la strada — rifiuta la
+       promessa e `playReveal` non viene chiamato: la bolla resta `pending`
+       per sempre. I puntini vanno, e il .mon «non risponde».
+
+       🔒 Il ripiego era già pronto sopra, calcolato PRIMA della chiamata.
+       Bastava raggiungerlo. */
+    .catch((e: unknown) => {
+      console.warn('[voce] risposta fallita, uso il testo di ripiego:', e);
+      if (get().chat.findIndex((m) => m.id === messageId) === -1) return;
+      playReveal(set, get, messageId, spoken, planReveal(spoken, rhythm), true);
     });
 }
 
@@ -3680,7 +3715,11 @@ function readPhoto(
         }
       }
       if (days !== s.days) set({ days });
-    });
+    })
+    /* Stessa regola delle altre due catene: una promessa senza `catch` è un
+       errore che nessuno vedrà mai. Qui non lascia niente appeso, ma tacere
+       resta la scelta peggiore. */
+    .catch((e: unknown) => console.warn('[foto] lettura fallita:', e));
 }
 
 /* --- Selettori --------------------------------------------------------------
