@@ -705,6 +705,43 @@ check(
   SCATTER_BOTTOMS.length === 6 && lacksInCode(STICKERS, 'Math.random'),
   `${SCATTER_BOTTOMS.length} posti fissi, uno per espressione`,
 );
+/* 🔷 «Ma puoi scontornarle e farle sembrare più degli adesivi?»
+
+   🔶 QUI PRIMA NON C'ERA NIENTE, perché gli adesivi erano cerchi con la
+   cornice e non c'era nessuna decisione delicata da proteggere. Adesso sì: il
+   contorno segue la SAGOMA, e basta rimettere un `overflow: hidden` o un
+   `border-radius: 50%` per tornare a tagliare via orecchie e corna senza che
+   niente si lamenti. */
+const STICKER_ART = (read(SCREENS_CSS) ?? '').match(/\.sticker__art\s*\{[^}]*\}/)?.[0] ?? '';
+const STICKER_BOX = (read(SCREENS_CSS) ?? '').match(/\n\.sticker\s*\{[^}]*\}/)?.[0] ?? '';
+
+check(
+  'INGRESSO §13.7',
+  'il contorno bianco segue la sagoma, non un cerchio',
+  (STICKER_ART.match(/drop-shadow\([^)]*#ffffff\)/g) ?? []).length >= 8,
+  'con meno di otto direzioni il bordo si spezza sulle punte — corna e orecchie',
+);
+/* ⚠️ Il foglio esce con lo sfondo trasparente e i MARGINI PARI: negli angoli
+   della cella ci stanno le punte della sagoma. Ritagliare in tondo toglie
+   esattamente quello che rende riconoscibile una creatura. */
+check(
+  'INGRESSO §13.7',
+  'e niente ritaglia la sagoma',
+  !/overflow:\s*hidden/.test(STICKER_BOX) && !/border-radius/.test(STICKER_BOX),
+  'il ritaglio l’ha già fatto chi ha disegnato il foglio',
+);
+/* 🔒 512 pixel di cella ridotti a 36 sono diciassette volte: la testa viene
+   quindici pixel e l'occhio meno di due, e le sei espressioni si distinguono
+   per differenze del volto. Sotto una certa misura non sono sei espressioni,
+   sono sei macchie. */
+const SCATTER_SIZES = [...SCATTER_BLOCK.matchAll(/size:\s*(\d+)/g)].map((m) => Number(m[1]));
+check(
+  'INGRESSO §13.7',
+  'e sono abbastanza grandi perché un’espressione si veda',
+  SCATTER_SIZES.length > 0 && Math.min(...SCATTER_SIZES) >= 52,
+  `il più piccolo è ${Math.min(...SCATTER_SIZES)}px — una cella del foglio è 512`,
+);
+
 /* 🔒 §18A. Il ripiego di `MonFace` è il ritratto: usato per sei adesivi
    darebbe sei volte la stessa faccia spacciata per sei espressioni. Una
    casella vuota dice la verità, sei copie no. */

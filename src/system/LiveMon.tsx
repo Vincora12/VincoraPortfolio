@@ -137,13 +137,23 @@ interface Piazzamento {
   tilt: number;
 }
 
+/* 🔶 LE MISURE SONO QUASI RADDOPPIATE, e non per gusto.
+
+   Una cella del foglio è 512×512. A 36 pixel la rimpicciolivo diciassette
+   volte: la testa veniva quindici pixel, l'occhio meno di due. E le sei
+   espressioni si distinguono per «tratti che si ammorbidiscono», «lettura
+   asimmetrica», «spento» — differenze del volto, che sotto una certa misura
+   non esistono proprio. Erano sei macchie colorate uguali.
+
+   Da 56 a 80 la riduzione scende a 6–9 volte, cioè meno di quella della
+   faccia in chat, e un'espressione si legge. */
 const SCATTER: Piazzamento[] = [
-  { left: '-4%', bottom: '9%', size: 44, tilt: -14 },
-  { left: '13%', bottom: '-4%', size: 38, tilt: 7 },
-  { left: '32%', bottom: '7%', size: 50, tilt: -5 },
-  { left: '53%', bottom: '-6%', size: 41, tilt: 12 },
-  { left: '71%', bottom: '3%', size: 47, tilt: -9 },
-  { left: '88%', bottom: '14%', size: 36, tilt: 6 },
+  { left: '-5%', bottom: '8%', size: 72, tilt: -13 },
+  { left: '15%', bottom: '-5%', size: 60, tilt: 8 },
+  { left: '33%', bottom: '9%', size: 80, tilt: -5 },
+  { left: '53%', bottom: '-6%', size: 64, tilt: 12 },
+  { left: '71%', bottom: '4%', size: 74, tilt: -9 },
+  { left: '90%', bottom: '21%', size: 56, tilt: 6 },
 ];
 
 export function ExpressionStickers({ monName, alt }: { monName: string; alt: string }) {

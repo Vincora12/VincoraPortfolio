@@ -2350,8 +2350,8 @@
   justify-content: center;
   width: 100%;
   /* Spazio in fondo per gli adesivi che sbordano sotto la foto: senza,
-     finirebbero addosso al pulsante. */
-  padding-bottom: var(--u6);
+     finirebbero addosso al pulsante. Cresciuto insieme a loro. */
+  padding-bottom: 34px;
 }
 
 /* ⚠️ IL RIFERIMENTO DEGLI ADESIVI È LA FOTO, NON IL RIQUADRO.
@@ -2405,33 +2405,59 @@
   position: absolute;
   /* `left`, `bottom`, `width`, `height` e `--tilt` arrivano uno per uno da
      `SCATTER` in `LiveMon.tsx`: sono lo sparpagliamento, non uno stile. */
-  overflow: hidden;
-  /* Il bordo bianco spesso è quello che rende un ritaglio un adesivo. Bianco
-     letterale, come il fondo della schermata: è il taglio della carta, non un
-     colore del tema. */
-  border: 3px solid #ffffff;
-  border-radius: 50%;
-  background: var(--paper);
-  box-shadow: var(--shadow-hard-sm);
   transform: rotate(var(--tilt, 0deg));
 }
 
+/* ============================================================================
+   🔷 «Ma puoi scontornarle e farle sembrare più degli adesivi?»
+
+   🔶 QUI C'ERA UN CERCHIO CON LA CORNICE BIANCA, e faceva la cosa sbagliata
+   due volte:
+
+   1. Un cerchio con la cornice è una MEDAGLIETTA, non un adesivo. Un adesivo
+      vero è FUSTELLATO: il bianco segue la sagoma del disegno, non una forma
+      decisa a priori.
+   2. Il ritaglio tondo MANGIAVA LA SAGOMA. Le espressioni escono con lo
+      sfondo trasparente e i margini pari, quindi negli angoli della cella ci
+      stanno orecchie, corna, capelli — proprio le cose che rendono
+      riconoscibile una creatura. Il cerchio le tagliava via.
+
+   ⚠️ COME FUNZIONA IL CONTORNO. `drop-shadow` non disegna un rettangolo:
+   segue il canale alfa dell'elemento, cioè la sagoma vera del PNG. Otto
+   ombre bianche a raggiera, una per direzione, sommate fanno un bordo pieno
+   attorno al disegno; la nona, grigia e morbida, è l'ombra che stacca
+   l'adesivo dalla foto.
+
+   🔒 OTTO E NON QUATTRO: con le sole quattro direzioni cardinali gli angoli
+   della sagoma restano scoperti e il contorno si vede spezzato sulle punte —
+   che su questi disegni sono corna e orecchie, cioè la parte che si guarda.
+
+   🔒 Niente `overflow: hidden` e niente `border-radius`: non c'è più niente
+   da ritagliare. Il ritaglio lo ha già fatto chi ha disegnato il foglio.
+   ========================================================================= */
 .sticker__art {
   display: block;
   width: 100%;
   height: 100%;
   background-repeat: no-repeat;
+  filter:
+    drop-shadow(2px 0 0 #ffffff) drop-shadow(-2px 0 0 #ffffff)
+    drop-shadow(0 2px 0 #ffffff) drop-shadow(0 -2px 0 #ffffff)
+    drop-shadow(1.4px 1.4px 0 #ffffff) drop-shadow(-1.4px 1.4px 0 #ffffff)
+    drop-shadow(1.4px -1.4px 0 #ffffff) drop-shadow(-1.4px -1.4px 0 #ffffff)
+    drop-shadow(2px 3px 2px rgba(0, 0, 0, 0.28));
 }
 
 /* Il foglio delle espressioni non c'è ancora: la casella resta, vuota e
    dichiarata. Sei ritratti uguali al posto di sei espressioni sarebbero una
-   bugia sul contenuto (§18A). */
+   bugia sul contenuto (§18A).
+
+   🔒 Qui il contorno non si può fare — non c'è nessuna sagoma da seguire — e
+   infatti la casella non finge di essere un adesivo: è un riquadro
+   tratteggiato che dice «qui ci va una faccia». */
 .sticker--empty {
-  background: transparent;
-  border-style: dashed;
-  border-color: var(--hairline);
-  border-width: 2px;
-  box-shadow: none;
+  border: 2px dashed var(--hairline);
+  border-radius: var(--radius);
 }
 
 /* La pendenza è decorazione, non informazione: chi ha chiesto meno movimento
