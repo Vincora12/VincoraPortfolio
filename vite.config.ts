@@ -44,6 +44,17 @@ const BUILD = {
 
 export default defineConfig({
   plugins: [react()],
+  build: {
+    /* 🔷 Il laboratorio del cervello è una pagina separata, non una rotta
+       dell'app. I due ingressi producono due bundle distinti: /brain non può
+       importare per sbaglio memoria, personalità o Character Data. */
+    rolldownOptions: {
+      input: {
+        app: fileURLToPath(new URL('./index.html', import.meta.url)),
+        brain: fileURLToPath(new URL('./brain/index.html', import.meta.url)),
+      },
+    },
+  },
   define: {
     __BUILD__: JSON.stringify(BUILD),
   },

@@ -244,6 +244,110 @@ async function anthropic(req: ProviderRequest): Promise<ProviderResult> {
   }
 }
 
+export type StreamResult =
+  | { ok: false; error: string }
+  | {
+      ok: true;
+      body: ReadableStream<Uint8Array>;
+      completed: Promise<{ model: string; usage: Usage }>;
+    };
+
+/**
+ * Stream minimale per BRAIN LAB.
+ *
+ * 🔒 Non sostituisce l'adattatore normale e non porta strumenti: traduce gli
+ * eventi Anthropic in solo testo. Il browser non vede né chiavi né protocollo
+ * del fornitore, e la spesa viene restituita alla porta quando lo stream chiude.
+ */
+export async function streamAnthropic(
+  req: ProviderRequest,
+  signal?: AbortSignal,
+): Promise<StreamResult> {
+  const key = process.env.ANTHROPIC_API_KEY;
+  if (!key) return { ok: false, error: 'ANTHROPIC_API_KEY mancante' };
+
+  let response: Response;
+  try {
+    response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      signal,
+      headers: {
+        'content-type': 'application/json',
+        'x-api-key': key,
+        'anthropic-version': '2023-06-01',
+        'anthropic-beta': 'server-side-fallback-2026-07-01',
+      },
+      body: JSON.stringify({
+        model: req.model,
+        max_tokens: req.maxTokens,
+        stream: true,
+        fallbacks: 'default',
+        output_config: { effort: req.effort ?? 'low' },
+        thinking: { type: 'disabled' },
+        system: [],
+        messages: [...req.turns, { role: 'user', content: req.user }],
+      }),
+    });
+  } catch (error) {
+    return { ok: false, error: String(error) };
+  }
+
+  if (!response.ok || !response.body) {
+    return { ok: false, error: `anthropic ${response.status}: ${await response.text()}` };
+  }
+
+  let finish!: (value: { model: string; usage: Usage }) => void;
+  const completed = new Promise<{ model: string; usage: Usage }>((resolve) => { finish = resolve; });
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  const encoder = new TextEncoder();
+  let buffer = '';
+  let model = req.model;
+  const usage: Usage = {};
+
+  const body = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      try {
+        while (true) {
+          const { value, done } = await reader.read();
+          buffer += decoder.decode(value, { stream: !done });
+          const events = buffer.split('\n\n');
+          buffer = events.pop() ?? '';
+
+          for (const event of events) {
+            const data = event.split('\n').find((line) => line.startsWith('data: '))?.slice(6);
+            if (!data) continue;
+            const parsed = JSON.parse(data) as {
+              type?: string;
+              message?: { model?: string; usage?: Record<string, number> };
+              delta?: { type?: string; text?: string };
+              usage?: Record<string, number>;
+            };
+            if (parsed.message?.model) model = parsed.message.model;
+            if (parsed.message?.usage) usage.inputTokens = parsed.message.usage.input_tokens ?? 0;
+            if (parsed.usage) usage.outputTokens = parsed.usage.output_tokens ?? usage.outputTokens ?? 0;
+            if (parsed.type === 'content_block_delta' && parsed.delta?.type === 'text_delta' && parsed.delta.text) {
+              controller.enqueue(encoder.encode(parsed.delta.text));
+            }
+          }
+          if (done) break;
+        }
+        finish({ model, usage });
+        controller.close();
+      } catch (error) {
+        finish({ model, usage });
+        controller.error(error);
+      }
+    },
+    cancel() {
+      void reader.cancel();
+      finish({ model, usage });
+    },
+  });
+
+  return { ok: true, body, completed };
+}
+
 /* --- Google -----------------------------------------------------------------
    Serve solo la lettura delle foto. I blocchi di sistema qui diventano una
    sola istruzione: Gemini non ha il concetto di più blocchi con cache, e

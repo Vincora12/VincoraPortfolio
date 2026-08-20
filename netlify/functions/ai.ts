@@ -24,6 +24,7 @@ import { resolveRoute, type Capability } from './_shared/routing';
 import {
   callProvider,
   generateImage,
+  streamAnthropic,
   type SystemBlock,
   type ToolDef,
   type Turn,
@@ -118,6 +119,8 @@ interface Payload {
   jobId?: string;
   /** Quanto deve ragionare, quando parte in background. */
   effort?: 'none' | 'low' | 'medium' | 'high';
+  /** Laboratorio /brain: risposta progressiva, senza memoria né strumenti. */
+  stream?: boolean;
 }
 
 const KNOWN: Capability[] = ['character-voice', 'vision-quick', 'text-cheap', 'image', 'prompt-compile'];
@@ -291,6 +294,42 @@ export default async function handler(request: Request): Promise<Response> {
     // spedirla, altrimenti il tetto lo scopre il fornitore al posto nostro.
     const bytes = Math.floor((payload.image.data?.length ?? 0) * 0.75);
     if (bytes > LIMITS.imageBytes) return json({ error: 'immagine troppo grande' }, 413);
+  }
+
+  /* 🔷 BRAIN LAB V0 — un ramo volutamente stretto. Nessun prompt di sistema,
+     nessuno strumento, nessuna memoria: prima si dimostra che il tubo dello
+     streaming funziona senza trascinarsi dietro il cervello precedente. */
+  if (payload.stream) {
+    if (route.provider !== 'anthropic') {
+      return json({ error: 'streaming non disponibile per questo modello' }, 400);
+    }
+    if (system.length || tools.length || userBlocks.length || payload.image) {
+      return json({ error: 'il laboratorio V0 accetta solo testo' }, 400);
+    }
+
+    const streamed = await streamAnthropic(
+      {
+        model: route.model,
+        system: [],
+        turns,
+        user,
+        maxTokens: Math.min(payload.maxTokens ?? 2000, LIMITS.maxTokens),
+      },
+      request.signal,
+    );
+    if (!streamed.ok) return json({ error: 'stream non disponibile', reason: streamed.error }, 502);
+
+    void streamed.completed.then(async ({ model, usage }) => {
+      if (usage.inputTokens || usage.outputTokens) await recordSpend(capability, model, usage);
+    }).catch((error) => console.warn('[ai] spesa dello stream non registrata:', error));
+
+    return new Response(streamed.body, {
+      headers: {
+        'content-type': 'text/plain; charset=utf-8',
+        'cache-control': 'no-store',
+        'x-content-type-options': 'nosniff',
+      },
+    });
   }
 
   /* ════════════════════════════════════════════════════════════════════════

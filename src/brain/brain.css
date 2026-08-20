@@ -1,0 +1,39 @@
+* { box-sizing: border-box; }
+html, body, #root { min-height: 100%; margin: 0; }
+body { background: var(--paper); color: var(--ink); font-family: var(--font-ui); }
+button, textarea { font: inherit; }
+
+.brain {
+  width: min(760px, 100%);
+  min-height: 100dvh;
+  margin: 0 auto;
+  background: var(--white);
+  border-inline: var(--border-thick) solid var(--ink);
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+}
+.brain__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--u4);
+  padding: max(var(--u5), env(safe-area-inset-top)) var(--u5) var(--u4);
+  border-bottom: var(--border-thick) solid var(--ink);
+}
+.brain__header h1 { margin: 0; font-family: var(--font-display); font-size: 30px; font-style: italic; line-height: 1; }
+.brain__header span, .brain__message > span { font-family: var(--font-mono); font-size: var(--type-micro); letter-spacing: .1em; }
+.brain__messages { min-height: 0; overflow-y: auto; padding: var(--u5); }
+.brain__empty { max-width: 430px; margin: 18vh auto 0; text-align: center; }
+.brain__empty strong { font-family: var(--font-display); font-size: var(--type-display-m); text-transform: uppercase; }
+.brain__empty p { color: var(--muted-strong); line-height: 1.5; }
+.brain__message { max-width: 82%; margin-bottom: var(--u5); }
+.brain__message--user { margin-left: auto; }
+.brain__message > span { display: block; margin-bottom: var(--u2); color: var(--muted-strong); }
+.brain__message p { margin: 0; padding: var(--u4); border: var(--border) solid var(--ink); line-height: 1.55; white-space: pre-wrap; }
+.brain__message--user p { background: var(--ink); color: var(--white); }
+.brain__error { padding: var(--u3); border: var(--border) solid var(--signal-alert); color: #a00000; }
+.brain__composer { display: grid; grid-template-columns: 1fr auto; gap: var(--u3); padding: var(--u4) var(--u5) max(var(--u4), env(safe-area-inset-bottom)); border-top: var(--border-thick) solid var(--ink); }
+.brain__composer textarea { resize: none; min-height: 54px; padding: var(--u3); border: var(--border) solid var(--ink); border-radius: 0; background: var(--white); }
+.brain__composer button { min-width: 88px; padding: 0 var(--u4); border: var(--border) solid var(--ink); background: var(--ink); color: var(--white); font-family: var(--font-mono); font-weight: 600; }
+.brain__composer button:disabled { opacity: .35; }
+@media (max-width: 760px) { .brain { border: 0; } .brain__header span { display: none; } }
