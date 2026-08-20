@@ -1,10 +1,7 @@
-export interface BrainTurn {
-  role: 'user' | 'assistant';
-  content: string;
-}
+import type { BrainMessage } from './store/types';
 
 /** Legge soltanto il token tecnico già salvato dall'app principale. */
-function savedToken(): string | null {
+export function savedToken(): string | null {
   try {
     const raw = localStorage.getItem('vinzmon.prototype.v4');
     const parsed = raw ? (JSON.parse(raw) as { state?: { token?: unknown } }) : null;
@@ -15,7 +12,7 @@ function savedToken(): string | null {
 }
 
 export async function streamReply(
-  turns: BrainTurn[],
+  turns: BrainMessage[],
   user: string,
   signal: AbortSignal,
   onChunk: (chunk: string) => void,
@@ -30,7 +27,7 @@ export async function streamReply(
     body: JSON.stringify({
       capability: 'character-voice',
       stream: true,
-      turns,
+      turns: turns.map(({ role, content }) => ({ role, content })),
       user,
       maxTokens: 2000,
     }),

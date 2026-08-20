@@ -23,6 +23,7 @@ button, textarea { font: inherit; }
 .brain__header h1 { margin: 0; font-family: var(--font-display); font-size: 30px; font-style: italic; line-height: 1; }
 .brain__header span, .brain__message > span { font-family: var(--font-mono); font-size: var(--type-micro); letter-spacing: .1em; }
 .brain__messages { min-height: 0; overflow-y: auto; padding: var(--u5); }
+.brain__loading { margin-top: 20vh; text-align: center; font: var(--type-meta) var(--font-mono); }
 .brain__empty { max-width: 430px; margin: 18vh auto 0; text-align: center; }
 .brain__empty strong { font-family: var(--font-display); font-size: var(--type-display-m); text-transform: uppercase; }
 .brain__empty p { color: var(--muted-strong); line-height: 1.5; }
