@@ -117,6 +117,43 @@ export function getAssetUrlSync(monName: string, type: AssetType): string | null
   return urlCache.get(storageKey(monName, assetTypeDef(type).assetId)) ?? null;
 }
 
+/* ============================================================================
+   L'IMMAGINE DA ALLEGARE
+
+   ⚠️ IL PROMPT LO PROMETTEVA E NESSUNO LO MANTENEVA.
+
+   Dal Profile Portrait in poi, ogni prompt contiene: «allega il CHARACTER
+   MASTER e trattalo come l'unica fonte di verità visiva; dove testo e immagine
+   non concordano, vince l'immagine». La condizione era pure giusta — la riga
+   compare solo quando il master risulta risolto.
+
+   🔴 Ma la richiesta partiva su `/v1/images/generations`, che accetta SOLO
+   TESTO. Nessuna immagine è mai stata allegata. Il modello leggeva
+   un'istruzione a consultare un riferimento che non riceveva, e insieme una
+   riga che declassava il testo — cioè il peggio dei due mondi: nessuna
+   immagine, e le parole dichiarate non autorevoli.
+
+   È il motivo per cui le sei immagini non si somigliavano, e non era il
+   modello a sbagliare.
+   ========================================================================= */
+
+/** Il PNG di un asset in base64, senza prefisso, o `null` se non c'è. */
+export async function assetBase64(monName: string, type: AssetType): Promise<string | null> {
+  const blob = await get<Blob>(storageKey(monName, assetTypeDef(type).assetId));
+  if (!blob) return null;
+
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  /* A pezzi: `String.fromCharCode(...bytes)` su un PNG da qualche centinaio di
+     kB sfonda lo stack degli argomenti, e lo fa solo sulle immagini grandi —
+     cioè si scoprirebbe in produzione e non in prova. */
+  let bin = '';
+  const passo = 0x8000;
+  for (let i = 0; i < bytes.length; i += passo) {
+    bin += String.fromCharCode(...bytes.subarray(i, i + passo));
+  }
+  return btoa(bin);
+}
+
 /** Carica dal database e popola la cache. Idempotente. */
 export async function loadAsset(monName: string, type: AssetType): Promise<string | null> {
   const key = storageKey(monName, assetTypeDef(type).assetId);

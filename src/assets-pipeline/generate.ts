@@ -40,7 +40,7 @@ import type { BackendFailure } from '../ai/backend';
 import { ASSET_TYPES } from '../engine/assets';
 import type { AssetType, MonRecord } from '../engine/types';
 import { promptFor } from './promptFor';
-import { getAssetUrlSync, importAssetFile } from './assetStore';
+import { assetBase64, getAssetUrlSync, importAssetFile } from './assetStore';
 import { assetTypeDef } from '../engine/assets';
 
 /**
@@ -111,7 +111,29 @@ export async function generateMissingAssets(
     /* 🔒 La misura viene da `assetTypeDef`, cioè dal posto che SA cos'è questo
        asset. Prima era un quadrato deciso dentro l'adattatore del fornitore,
        uguale per tutti e sei — e per due di loro era la forma sbagliata. */
-    const res = await askImage(token, text, imageModel, assetTypeDef(type).size);
+    /* ════════════════════════════════════════════════════════════════════
+       IL RIFERIMENTO, FINALMENTE ALLEGATO DAVVERO
+
+       ⚠️ `dependsOn` lo dichiarava dal primo giorno — «asset la cui immagine
+       va allegata al prompt» — e nessuno lo allegava. Dal Profile Portrait in
+       poi il prompt diceva già «allega il CHARACTER MASTER, dove testo e
+       immagine non concordano vince l'immagine», e partiva su un indirizzo che
+       accetta solo testo.
+
+       🔒 Si allega quello che `dependsOn` dichiara, non «il master» scritto a
+       mano qui: il giorno che un asset dipenderà anche dal ritratto, questa
+       riga non cambia.
+       ════════════════════════════════════════════════════════════════════ */
+    const dipende = assetTypeDef(type).dependsOn[0] ?? null;
+    const reference = dipende ? await assetBase64(name, dipende) : null;
+
+    const res = await askImage(
+      token,
+      text,
+      imageModel,
+      assetTypeDef(type).size,
+      reference,
+    );
 
     if (!res.data) {
       /* 🔒 Ci si ferma al primo no. Senza chiave falliranno tutte allo stesso

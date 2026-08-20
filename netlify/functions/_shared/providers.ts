@@ -602,6 +602,19 @@ export async function generateImage(
      quadrati. Il quadrato non è neutro: è una scelta di composizione, e
      prenderla qui vuol dire prenderla alla cieca. */
   size: ImageSize = '1024x1024',
+  /**
+   * ⚠️ IL CHARACTER MASTER DA ALLEGARE, in base64. Quando c'è, la richiesta
+   * NON va su `/v1/images/generations` — che accetta solo testo — ma su
+   * `/v1/images/edits`, che accetta immagini di riferimento.
+   *
+   * 🔴 Dal Profile Portrait in poi il prompt diceva già «allega il CHARACTER
+   * MASTER e trattalo come l'unica fonte di verità visiva; dove testo e
+   * immagine non concordano vince l'immagine». Nessuna immagine è mai stata
+   * allegata: il modello riceveva l'ordine di consultare un riferimento
+   * assente E il testo dichiarato non autorevole. È il motivo per cui le sei
+   * immagini non si somigliavano, e non era il modello a sbagliare.
+   */
+  reference?: string | null,
 ): Promise<ImageResult> {
   const key = process.env.OPENAI_API_KEY;
   if (!key) return { ok: false, data: '', usage: {}, error: 'OPENAI_API_KEY mancante' };
@@ -615,12 +628,38 @@ export async function generateImage(
      🔒 Solo se l'errore parla DI QUEL parametro: un 401, un tetto di spesa o
      un'organizzazione non verificata non si riprovano, si riportano. Stessa
      regola del ripiego `max_completion_tokens` → `max_tokens`. */
-  const send = (extras: Record<string, unknown>) =>
+  /* Senza riferimento: la strada di sempre, testo e basta. */
+  const sendText = (extras: Record<string, unknown>) =>
     fetch('https://api.openai.com/v1/images/generations', {
       method: 'POST',
       headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` },
       body: JSON.stringify({ model, prompt, size, n: 1, ...extras }),
     });
+
+  /* Con riferimento: multipart, perché l'immagine è un file e non un campo
+     JSON. Le intestazioni NON si scrivono a mano — il confine del multipart lo
+     genera `FormData` e va dichiarato nel content-type: metterlo a mano è il
+     modo classico di far fallire questa chiamata con un 400 illeggibile. */
+  const sendWithReference = (extras: Record<string, unknown>) => {
+    const form = new FormData();
+    form.append('model', model);
+    form.append('prompt', prompt);
+    form.append('size', size);
+    form.append('n', '1');
+    for (const [k, v] of Object.entries(extras)) form.append(k, String(v));
+    const bytes = Uint8Array.from(atob(reference as string), (c) => c.charCodeAt(0));
+    /* 🔒 `image[]` e non `image`: è la forma che accetta più riferimenti, ed è
+       quella giusta anche con uno solo — il giorno che alleghiamo anche il
+       ritratto non cambia niente qui. */
+    form.append('image[]', new Blob([bytes], { type: 'image/png' }), 'master.png');
+    return fetch('https://api.openai.com/v1/images/edits', {
+      method: 'POST',
+      headers: { authorization: `Bearer ${key}` },
+      body: form,
+    });
+  };
+
+  const send = reference ? sendWithReference : sendText;
 
   try {
     let res = await send({ background: 'transparent' });

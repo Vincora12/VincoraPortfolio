@@ -93,6 +93,8 @@ interface Payload {
   webSearch?: boolean;
   /** Solo per `image`. */
   prompt?: string;
+  /** Solo per `image`: il CHARACTER MASTER da allegare, in base64. */
+  reference?: string;
   /**
    * Chi deve dare la voce, se non quello predefinito.
    *
@@ -206,7 +208,14 @@ export default async function handler(request: Request): Promise<Response> {
     const asked = payload.size;
     const size = IMAGE_SIZES.includes(asked as ImageSize) ? (asked as ImageSize) : undefined;
 
-    const result = await generateImage(route.model, prompt, size);
+    /* 🔒 Il riferimento passa dallo stesso tetto in byte dell'import a mano:
+       è un PNG che arriva dal browser, e un tetto su una cosa che arriva da
+       fuori non è mai una comodità. */
+    const reference = payload.reference ?? null;
+    if (reference && reference.length * 0.75 > LIMITS.imageBytes) {
+      return json({ error: 'immagine di riferimento troppo grande' }, 413);
+    }
+    const result = await generateImage(route.model, prompt, size, reference);
     if (result.ok) await recordSpend(capability, route.model, result.usage);
 
     if (!result.ok) {

@@ -1699,6 +1699,49 @@ check(
   'a intervallo fisso un lavoro finito subito dopo una domanda resta invisibile per altri 2,5 secondi, che su una risposta veloce è quasi tutta l’attesa',
 );
 
+/* ============================================================================
+   IL RIFERIMENTO ALLEGATO DAVVERO
+
+   🔷 «Quando genero l'immagine portrait, lui come prompt non mette il
+      character master. Controlla.»
+
+   ⚠️ Il prompt lo prometteva dal primo giorno e nessuno lo manteneva: dal
+   Profile Portrait in poi diceva «allega il CHARACTER MASTER, dove testo e
+   immagine non concordano vince l'immagine», e la richiesta partiva su
+   `/v1/images/generations`, che accetta solo testo.
+   ========================================================================= */
+check(
+  '§23 ASSET',
+  'il master si allega davvero, non si promette e basta',
+  has(PROVIDERS_FILE, "'https://api.openai.com/v1/images/edits'") &&
+    has('src/assets-pipeline/generate.ts', 'await assetBase64(name, dipende)'),
+  'il modello riceveva l’ordine di consultare un riferimento assente E il testo dichiarato non autorevole: il peggio dei due mondi',
+);
+check(
+  '§23 ASSET',
+  'e si allega quello che `dependsOn` dichiara, non «il master» scritto a mano',
+  has('src/assets-pipeline/generate.ts', 'assetTypeDef(type).dependsOn[0]'),
+  'il giorno che un asset dipenderà anche dal ritratto, quella riga non cambia',
+);
+check(
+  '§23 ASSET',
+  'senza riferimento resta la strada di prima',
+  has(PROVIDERS_FILE, 'const send = reference ? sendWithReference : sendText;'),
+  'il CHARACTER MASTER non ha niente da allegare, ed è il primo che si genera',
+);
+check(
+  '§23 ASSET',
+  'il PNG in arrivo dal browser passa dallo stesso tetto in byte',
+  has('netlify/functions/ai.ts', 'immagine di riferimento troppo grande'),
+  'un tetto su una cosa che arriva da fuori non è mai una comodità',
+);
+check(
+  '§23 ASSET',
+  'e il riferimento si legge a pezzi, non in un colpo',
+  has('src/assets-pipeline/assetStore.ts', 'const passo = 0x8000;'),
+  '`String.fromCharCode(...bytes)` sfonda lo stack solo sulle immagini grandi: si scoprirebbe in produzione, non in prova',
+);
+
 /* 🔷 «La scheda mon su sfondo bianco, e non farlo fluttuare: tienilo fisso.» */
 check(
   '§24 SCHEDA',

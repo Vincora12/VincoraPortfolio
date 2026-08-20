@@ -346,11 +346,14 @@ export function askImage(
    * poteva dirlo.
    */
   size?: string,
+  /** Il CHARACTER MASTER da allegare, in base64: la consistenza vera. */
+  reference?: string | null,
 ): Promise<BackendResult<ImageData>> {
   return post<ImageData>('/api/ai', token, {
     capability: 'image',
     prompt,
     voiceModel: imageModel,
+    ...(reference ? { reference } : {}),
     size,
   });
 }
