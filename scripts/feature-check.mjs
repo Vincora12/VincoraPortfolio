@@ -587,7 +587,8 @@ check(
 check(
   'INGRESSO §13.7',
   'l’ingresso vale anche durante l’incubazione',
-  has(APP, "phase === 'incubation' ||") && has('src/screens/Splash.tsx', 'EggVessel'),
+  has(APP, "phase === 'incubation' && onEgg") && has('src/screens/Splash.tsx', 'EggVessel'),
+  'nei sette giorni non c’è barra sotto: la porta dell’uovo è l’unica che c’è',
 );
 check(
   'INGRESSO §13.7',
@@ -595,17 +596,48 @@ check(
   lacks('src/screens/Splash.tsx', 'AUTO_ENTER_MS') &&
     has('src/screens/Splash.tsx', 'splash__enter'),
 );
+/* 🔶 QUESTI DUE AGHI CERCAVANO `'creature' | 'chat'`. Era lo stato che diceva
+   se dentro MON stavi guardando la creatura o la conversazione — e la
+   conversazione adesso è una TAB, non una vista dentro MON.
+
+   🔷 «Il nav sotto deve avere prima la chat.»
+
+   Le DECISIONI da tenere sono le stesse di allora, e valgono ancora: rientrare
+   in una tab la riporta alla sua prima vista, e un cambio di fase riporta
+   tutto all'inizio — quando l'uovo si schiude, quello che ti aspetta non è più
+   lo stesso. Cambiano solo i nomi delle viste. */
 check(
   'INGRESSO §13.7',
-  'la home è il personaggio, non una schermata da superare',
-  has(APP, "useState<'creature' | 'chat'>('creature')") &&
-    has(APP, "if (next === 'mon') setMonView('creature');"),
-  'rientrando nella tab MON si riparte sempre dalla creatura',
+  'rientrare in una tab la riporta alla sua prima vista',
+  has(APP, "if (next === 'mon') setMonView('mon');") &&
+    has(APP, "if (next === 'me') setMeView('me');"),
+  'una tab che si riapre dove l’avevi lasciata sembra non aver risposto al tocco',
 );
 check(
   'INGRESSO §13.7',
-  'si riparte dalla creatura a ogni cambio di fase',
-  has(APP, "useEffect(() => setMonView('creature'), [phase])"),
+  'e a ogni cambio di fase si riparte dall’inizio',
+  /useEffect\(\(\) => \{\s*setMonView\('mon'\);\s*setMeView\('me'\);\s*setOnEgg\(true\);\s*\}, \[phase\]\)/.test(
+    read(APP) ?? '',
+  ),
+);
+/* 🔷 «Appena entri c'è la chat aperta.» È l'inversione di gerarchia di tutta
+   la barra: la conversazione non è più una cosa che si raggiunge da dentro un
+   profilo, è il posto dove si arriva. */
+check(
+  'INGRESSO §13.7',
+  'e appena entri c’è la chat',
+  has(APP, "useState<Tab>('chat')") && has(APP, "{ id: 'chat', label: t.nav.chat"),
+);
+/* 🔒 Niente è stato tolto nel riordino: le quattro schermate della vecchia
+   barra ci sono tutte, due scese di un livello sotto la voce di cui parlano.
+   Un riordino che perde pezzi non è un riordino. */
+check(
+  'INGRESSO §13.7',
+  'e il riordino non ha perso nessuna schermata',
+  ['MindlineMapScreen', 'DexScreen', 'RoomScreen', 'CalendarScreen', 'MeOverviewScreen'].every((c) =>
+    has(APP, `<${c}`),
+  ),
+  'mind.map, mind.dex e mind.social sotto MON; il calendario sotto ME',
 );
 /* 🔷 v1.14 — l'ago cercava la riga letterale `{phase === 'live' && !overlay &&
    <TabBar`. La condizione e' stata estratta in una costante perche' serve
@@ -713,7 +745,7 @@ check(
 check(
   'INGRESSO §13.7',
   'e stanno solo dove la pagina ha spazio vero, mai su una riga da leggere',
-  ['--name', '--photoL', '--photoR', '--door', '--doodle', '--sigil'].every((n) =>
+  ['--bio', '--photoL', '--photoR', '--door', '--doodle', '--sigil'].every((n) =>
     STICK_RULES.some((r) => r.startsWith(`.stick${n}`)),
   ),
   'i blocchi di testo occupano tutta la colonna: lì un adesivo è un ostacolo',

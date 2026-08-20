@@ -13,6 +13,8 @@
 
 export const t = {
   nav: {
+    /* 🔷 «Prima la chat, appena entri c'è la chat aperta.» */
+    chat: 'CHAT',
     mon: 'MON',
     me: 'ME',
     calendar: 'GIORNI',

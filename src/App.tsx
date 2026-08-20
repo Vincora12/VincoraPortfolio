@@ -50,7 +50,35 @@ import { DailyScanScreen } from './screens/DailyScan';
 import { DevPanel } from './dev/DevPanel';
 import { PageReader } from './screens/PageReader';
 
-export type Tab = 'mon' | 'me' | 'calendar' | 'mindline';
+/* ============================================================================
+   🔷 «Il nav sotto deve avere prima la chat — appena entri c'è la chat aperta
+      — poi al centro il mon, e nel mon metti altre tab con la mind.map e il
+      mind.dex; e poi c'è ME, con anche i giorni dentro.»
+
+   🔶 DA QUATTRO A TRE, e non è una potatura: è un cambio di gerarchia.
+
+   Prima la barra elencava quattro POSTI allo stesso livello — MON, ME, GIORNI,
+   MINDLINE — e il posto dove si passa il tempo, la conversazione, non c'era
+   nemmeno: ci si arrivava da dentro MON, con un pulsante. L'app diceva di
+   essere «companion-first» e faceva della chat una sotto-vista.
+
+   Adesso la barra elenca tre RELAZIONI:
+     CHAT   parlare con lui        ← ed è quello che è aperto quando entri
+     MON    chi è, e da dove viene ← con dentro mind.map, mind.dex, mind.social
+     ME     come sto io            ← con dentro i giorni
+
+   🔒 Niente è stato tolto. Le quattro schermate di prima ci sono tutte: due
+   sono scese di un livello, sotto la voce di cui parlano. La mind.map racconta
+   le forme del .mon, quindi sta in MON; il calendario racconta i miei giorni,
+   quindi sta in ME.
+   ========================================================================= */
+export type Tab = 'chat' | 'mon' | 'me';
+
+/** Le viste dentro MON. La prima è la creatura. */
+export type MonView = 'mon' | 'map' | 'dex' | 'social';
+
+/** Le viste dentro ME. La prima sono i numeri di oggi. */
+export type MeView = 'me' | 'calendar';
 export type Overlay =
   | null
   | 'specimen'
@@ -96,20 +124,43 @@ export function App() {
   const devEnabled = useApp((s) => s.dev.enabled);
   const setDev = useApp((s) => s.setDev);
 
-  const [tab, setTab] = useState<Tab>('mon');
+  /* 🔷 «Appena entri c'è la chat aperta.» */
+  const [tab, setTab] = useState<Tab>('chat');
   const [overlay, setOverlay] = useState<Overlay>(null);
 
-  /* 🔷 v1.10 §13.7 — LA HOME È IL PERSONAGGIO.
-     
-     Non è una schermata di benvenuto da superare: è dove stai. La tab MON ha
-     due viste — la creatura e la conversazione — e quella di partenza è
-     sempre la creatura. Alla chat ci si va, e ci si torna.
-     
-     Si riparte dalla creatura in tre casi: al primo avvio, a ogni cambio di
-     fase (quando l'uovo si schiude, quello che ti aspetta non è più lo
-     stesso) e ogni volta che si rientra nella tab MON. */
-  const [monView, setMonView] = useState<'creature' | 'chat'>('creature');
-  useEffect(() => setMonView('creature'), [phase]);
+  /* 🔶 QUESTO STATO DICEVA «creatura o chat». Non serve più a quello: la chat
+     è una tab sua. Adesso dice quale delle quattro viste di MON stai
+     guardando, e la prima è sempre la creatura.
+
+     🔒 STA QUI E NON DENTRO `MonTab` per una ragione precisa: il campo nero
+     dipende da questa scelta — la mind.map si guarda su fondo scuro — e il
+     campo nero lo decide la cornice, che sta a questo livello. Uno stato
+     chiuso dentro la tab obbligherebbe a rimbalzarlo su, che è lo stesso
+     stato con un giro in più.
+
+     Si riparte dalla creatura al primo avvio, a ogni cambio di fase (quando
+     l'uovo si schiude, quello che ti aspetta non è più lo stesso) e ogni volta
+     che si rientra nella tab. */
+  const [monView, setMonView] = useState<MonView>('mon');
+  const [meView, setMeView] = useState<MeView>('me');
+
+  /* ⚠️ L'INCUBAZIONE HA UNA PORTA SUA, e non può usare le tab.
+
+     🔴 L'avevo dimenticato riordinando la barra, e l'incubazione si era
+     bloccata: il vecchio `monView` faceva due lavori — quale vista di MON, e
+     «uovo o conversazione con l'uovo» — e nel separarli mi ero portato dietro
+     solo il primo. Toccare la porta non faceva più niente, perché la barra in
+     quei sette giorni non c'è e non c'è nessuna tab dove andare.
+
+     🔒 Quindi resta un interruttore suo, che vale SOLO in incubazione: guardo
+     l'uovo, oppure gli sto parlando. */
+  const [onEgg, setOnEgg] = useState(true);
+
+  useEffect(() => {
+    setMonView('mon');
+    setMeView('me');
+    setOnEgg(true);
+  }, [phase]);
 
   /* ============================================================================
      §21.2 — L'INDIRIZZO DI UNA PAGINA
@@ -150,7 +201,10 @@ export function App() {
   }, [overlay]);
 
   const goTab = (next: Tab) => {
-    if (next === 'mon') setMonView('creature');
+    /* Rientrare in una tab la riporta alla sua prima vista: una tab che si
+       riapre dove l'avevi lasciata sembra non aver risposto al tocco. */
+    if (next === 'mon') setMonView('mon');
+    if (next === 'me') setMeView('me');
     setTab(next);
   };
 
@@ -242,9 +296,10 @@ export function App() {
      decidono se l'app viene riaperta non avevano nessun momento di presenza.
      §12/01 resta rispettato — l'uovo non anticipa niente, ed è la stessa cosa
      che si vede in piccolo nella barra della chat. */
-  const onCreature =
-    monView === 'creature' &&
-    (phase === 'incubation' || (phase === 'live' && tab === 'mon' && activeMonName !== null));
+  /* 🔶 ERA ANCHE LA HOME DI MON, e adesso non più: quella la rende `MonTab`,
+     come prima delle sue quattro viste. Qui resta solo l'INCUBAZIONE, che non
+     è una tab — è una fase, senza barra sotto e senza niente accanto. */
+  const onCreature = phase === 'incubation' && onEgg;
 
   /* Il board mostra anche la MINDLINE su campo nero, non solo le fasi evento.
 
@@ -265,7 +320,10 @@ export function App() {
   const inkField =
     INK_PHASES.includes(phase) ||
     overlay === 'dev' ||
-    (phase === 'live' && tab === 'mindline' && !overlay);
+    /* 🔶 Era `tab === 'mindline'`, che non esiste più. La DECISIONE non è
+       cambiata: le tre viste d'archivio si guardano su campo nero, la
+       creatura no. Sono scese dentro MON, quindi la condizione le segue. */
+    (phase === 'live' && tab === 'mon' && monView !== 'mon' && !overlay);
 
   // Con la tab bar in fondo, il margine di sistema lo prende lei: il composer
   // non deve aggiungere il suo, o resterebbe uno spazio vuoto doppio.
@@ -290,19 +348,23 @@ export function App() {
         {overlay ? (
           <OverlayScreen overlay={overlay} onClose={() => setOverlay(null)} onGo={setOverlay} />
         ) : onCreature ? (
-          <SplashScreen onEnter={() => setMonView('chat')} />
+          <SplashScreen onEnter={() => setOnEgg(false)} />
         ) : (
           <PhaseScreen
             phase={phase}
             tab={tab}
+            monView={monView}
+            meView={meView}
+            onMonView={setMonView}
+            onMeView={setMeView}
             onGo={setOverlay}
-            onBack={() => setMonView('creature')}
+            onEnterChat={() => goTab('chat')}
+            onBackToMon={() => goTab('mon')}
           />
         )}
 
         {/* 🔷 La barra resta anche sulla creatura: è una tab, non una
-            schermata che copre tutto. Da lì si va a ME, GIORNI e MINDLINE
-            senza dover prima entrare in chat. */}
+            schermata che copre tutto. */}
         {hasTabBar && <TabBar tab={tab} onChange={goTab} />}
       </div>
     </div>
@@ -314,14 +376,24 @@ export function App() {
 function PhaseScreen({
   phase,
   tab,
+  monView,
+  meView,
+  onMonView,
+  onMeView,
   onGo,
-  onBack,
+  onEnterChat,
+  onBackToMon,
 }: {
   phase: Phase;
   tab: Tab;
+  monView: MonView;
+  meView: MeView;
+  onMonView: (v: MonView) => void;
+  onMeView: (v: MeView) => void;
   onGo: (o: Overlay) => void;
-  /** Torna all'ingresso, dove la creatura sta in grande (§13.7). */
-  onBack: () => void;
+  onEnterChat: () => void;
+  /** Torna dove la creatura sta in grande (§13.7). */
+  onBackToMon: () => void;
 }) {
   switch (phase) {
     case 'scan':
@@ -342,87 +414,164 @@ function PhaseScreen({
       return <NewBranchScreen />;
     case 'live':
       switch (tab) {
+        case 'chat':
+          return <CompanionHomeScreen onGo={onGo} onBack={onBackToMon} />;
         case 'mon':
-          return <CompanionHomeScreen onGo={onGo} onBack={onBack} />;
+          return <MonTab view={monView} onView={onMonView} onGo={onGo} onEnterChat={onEnterChat} />;
         case 'me':
-          return <MeOverviewScreen onGo={onGo} />;
-        case 'calendar':
-          return <CalendarScreen onGo={onGo} />;
-        case 'mindline':
-          return <ArchiveTab onGo={onGo} />;
+          return <MeTab view={meView} onView={onMeView} onGo={onGo} />;
       }
   }
 }
 
 /* ============================================================================
-   🔷 v1.14 §12.5 — ARCHIVIO: DUE VISTE, UNA TAB
+   IL SELETTORE DI VISTA DENTRO UNA TAB
 
-   MIND.MAP e MIND.DEX rispondono a due domande diverse — «come sono arrivato
-   qui» e «chi sono stato» — e devono continuare a sembrarlo: fonderle in una
-   cosa sola farebbe leggere «ho collezionato dodici creature», che è il
-   contrario di quello che il progetto dice (§33: una sola entità e le sue
-   forme).
+   🔶 ERA SCRITTO A MANO DENTRO L'ARCHIVIO, tre pulsanti copiati uno dall'altro.
+   Adesso serve in due posti — dentro MON e dentro ME — e due copie di tre
+   pulsanti sono il modo in cui due schermate cominciano a comportarsi
+   diversamente senza che nessuno l'abbia deciso.
 
-   ⚠️ Ma non meritano una QUINTA scheda in fondo. Cinque voci su uno schermo
-   da telefono sono cinque bersagli stretti, e la navigazione principale
-   smette di essere leggibile a colpo d'occhio. Stanno nella stessa tab con
-   un segmento sopra: la distinzione vive nelle etichette, che è dove serve.
+   🔒 Le classi restano `archive__*`: sono già nel foglio di stile e già
+   provate. Rinominarle sarebbe stato un secondo cambio, dentro un cambio già
+   grosso, per guadagnare un nome più bello.
    ========================================================================= */
 
-function ArchiveTab({ onGo }: { onGo: (o: Overlay) => void }) {
-  const [view, setView] = useState<'mindline' | 'dex' | 'room'>('mindline');
+function ViewSwitch<V extends string>({
+  label,
+  view,
+  onView,
+  items,
+}: {
+  label: string;
+  view: V;
+  onView: (v: V) => void;
+  items: { id: V; label: string; dot?: boolean }[];
+}) {
+  return (
+    <div className="archive__switch" role="tablist" aria-label={label}>
+      {items.map((item) => (
+        <button
+          key={item.id}
+          type="button"
+          role="tab"
+          aria-selected={view === item.id}
+          className="archive__seg"
+          onClick={() => {
+            haptic('tick');
+            onView(item.id);
+          }}
+        >
+          {item.label}
+          {item.dot && <span className="archive__dot" aria-hidden="true" />}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/* ============================================================================
+   MON — CHI È, E DA DOVE VIENE
+
+   🔷 «Al centro il mon, e nel mon metti altre tab con la mind.map e il
+      mind.dex.»
+
+   🔶 LE TRE VISTE D'ARCHIVIO ERANO UNA TAB A SÉ, in fondo alla barra. Erano
+   già insieme fra loro per una ragione scritta allora (v1.14 §12.5): MIND.MAP
+   e MIND.DEX rispondono a due domande diverse — «come sono arrivato qui» e
+   «chi sono stato» — e fonderle farebbe leggere «ho collezionato dodici
+   creature», che è il contrario di §33: una sola entità e le sue forme.
+
+   Quella ragione regge ancora, e adesso ne dice una in più: se sono le forme
+   di UNA creatura, il posto dove stanno è dentro quella creatura. Erano
+   accanto a lei; adesso sono dentro.
+
+   ⚠️ E CADE L'OBIEZIONE CHE LE TENEVA FUORI. Allora avevo scritto: «non
+   meritano una QUINTA scheda in fondo, cinque voci su uno schermo da telefono
+   sono cinque bersagli stretti». Vero allora, irrilevante adesso: le voci in
+   fondo sono TRE, e queste non ne aggiungono nessuna — stanno dentro una.
+
+   🔒 MIND.SOCIAL RESTA, anche se non è stata nominata. Toglierla sarebbe stato
+   buttare via una schermata intera approfittando di un riordino, e un
+   riordino che perde pezzi non è un riordino.
+   ========================================================================= */
+
+function MonTab({
+  view,
+  onView,
+  onGo,
+  onEnterChat,
+}: {
+  view: MonView;
+  onView: (v: MonView) => void;
+  onGo: (o: Overlay) => void;
+  onEnterChat: () => void;
+}) {
   /* 🔷 §21.4 — il pallino sul filo: qualcosa è successo e non l'hai ancora
      letto. Non è una notifica che chiede attenzione, è un segno che c'è. */
   const pending = useApp((s) => s.room.some((p) => p.text === null));
 
   return (
     <div className="archive">
-      <div className="archive__switch" role="tablist" aria-label="Archivio">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={view === 'mindline'}
-          className="archive__seg"
-          onClick={() => {
-            haptic('tick');
-            setView('mindline');
-          }}
-        >
-          {t.archive.map}
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={view === 'dex'}
-          className="archive__seg"
-          onClick={() => {
-            haptic('tick');
-            setView('dex');
-          }}
-        >
-          {t.archive.dex}
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={view === 'room'}
-          className="archive__seg"
-          onClick={() => {
-            haptic('tick');
-            setView('room');
-          }}
-        >
-          {t.archive.social}
-          {pending && <span className="archive__dot" aria-hidden="true" />}
-        </button>
-      </div>
+      <ViewSwitch
+        label="Viste del .mon"
+        view={view}
+        onView={onView}
+        items={[
+          { id: 'mon', label: t.nav.mon },
+          { id: 'map', label: t.archive.map },
+          { id: 'dex', label: t.archive.dex },
+          { id: 'social', label: t.archive.social, dot: pending },
+        ]}
+      />
 
-      {view === 'mindline' && <MindlineMapScreen onGo={onGo} />}
+      {view === 'mon' && <SplashScreen onEnter={onEnterChat} />}
+      {view === 'map' && <MindlineMapScreen onGo={onGo} />}
       {view === 'dex' && <DexScreen onGo={onGo} />}
-      {view === 'room' && <RoomScreen />}
+      {view === 'social' && <RoomScreen />}
     </div>
   );
 }
+
+/* ============================================================================
+   ME — COME STO IO
+
+   🔷 «E poi c'è ME, con anche i giorni dentro.»
+
+   🔒 Il calendario era una tab primaria per decisione di v1.8 §13. Scende, e
+   la ragione è la stessa per cui allora era salito: dice quanto ti sei
+   presentato, cioè una cosa su di TE. Sotto ME sta accanto ai numeri che
+   parlano della stessa persona, invece che accanto alla creatura che non li
+   ha prodotti.
+   ========================================================================= */
+
+function MeTab({
+  view,
+  onView,
+  onGo,
+}: {
+  view: MeView;
+  onView: (v: MeView) => void;
+  onGo: (o: Overlay) => void;
+}) {
+  return (
+    <div className="archive">
+      <ViewSwitch
+        label="Viste di ME"
+        view={view}
+        onView={onView}
+        items={[
+          { id: 'me', label: t.nav.me },
+          { id: 'calendar', label: t.nav.calendar },
+        ]}
+      />
+
+      {view === 'me' && <MeOverviewScreen onGo={onGo} />}
+      {view === 'calendar' && <CalendarScreen onGo={onGo} />}
+    </div>
+  );
+}
+
 
 /* --- Overlay --------------------------------------------------------------- */
 
@@ -460,12 +609,20 @@ function OverlayScreen({
 /* --- Navigazione persistente (§11) ----------------------------------------- */
 
 function TabBar({ tab, onChange }: { tab: Tab; onChange: (t: Tab) => void }) {
-  const items: { id: Tab; label: string; icon: 'mon' | 'me' | 'scan' | 'mindline' }[] = [
+  /* 🔶 QUATTRO POSTI SONO DIVENTATI TRE RELAZIONI, e l'ordine è il messaggio:
+     la conversazione è la PRIMA, non una cosa che si raggiunge da dentro un
+     profilo. Il .mon sta al centro perché è il centro.
+
+     🔶 v1.8 §13 aveva promosso il calendario a superficie primaria. Adesso
+     scende dentro ME — non declassato, riavvicinato: dice quanto ti sei
+     presentato, cioè una cosa su di te.
+
+     🔒 Tre bersagli invece di quattro vuol dire tre bersagli più larghi, su
+     uno schermo dove il dito è il puntatore. */
+  const items: { id: Tab; label: string; icon: 'tell' | 'mon' | 'me' }[] = [
+    { id: 'chat', label: t.nav.chat, icon: 'tell' },
     { id: 'mon', label: t.nav.mon, icon: 'mon' },
     { id: 'me', label: t.nav.me, icon: 'me' },
-    // 🔶 v1.8 §13 promuove il calendario a superficie primaria.
-    { id: 'calendar', label: t.nav.calendar, icon: 'scan' },
-    { id: 'mindline', label: t.nav.mindline, icon: 'mindline' },
   ];
 
   return (

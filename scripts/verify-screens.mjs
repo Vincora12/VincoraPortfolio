@@ -104,6 +104,34 @@ async function launchChromium() {
 }
 const page = await browser.newPage({ viewport: { width: 460, height: 920 } });
 
+/* ============================================================================
+   I BERSAGLI DELLA NAVIGAZIONE
+
+   🔶 IL COPIONE CLICCAVA `nth-child(4)` PER ARRIVARE ALLA MINDLINE, e simili.
+   Con la barra passata da quattro voci a tre — e con due schermate scese
+   dentro le altre — quei numeri indicavano posti diversi da quelli scritti
+   nei commenti accanto. Un copione che clicca numeri è un copione che smette
+   di dire dove sta andando.
+
+   🔒 Qui i numeri hanno un nome. Se domani l'ordine cambia si cambia questa
+   tabella, non trenta righe sparse.
+   ========================================================================= */
+const TAB = {
+  chat: '.tabbar__item:nth-child(1)',
+  mon: '.tabbar__item:nth-child(2)',
+  me: '.tabbar__item:nth-child(3)',
+};
+
+/** Le viste dentro MON, e dentro ME. */
+const VISTA = {
+  mon: '.archive__seg:nth-child(1)',
+  map: '.archive__seg:nth-child(2)',
+  dex: '.archive__seg:nth-child(3)',
+  social: '.archive__seg:nth-child(4)',
+  me: '.archive__seg:nth-child(1)',
+  giorni: '.archive__seg:nth-child(2)',
+};
+
 const errors = [];
 
 /* 🔒 Una sola finestra, dichiarata, in cui gli errori di console sono ATTESI:
@@ -382,7 +410,11 @@ try {
      faccia». Senza chiave la faccia non c'e' mai, e l'ago si teneva in piedi
      su un ramo che in questa camminata non veniva mai preso. La decisione da
      verificare e' un'altra e piu' importante: SI ENTRA COMUNQUE. */
+  /* 🔶 E ADESSO SI NASCE DENTRO LA CHAT. La barra ha tre voci — CHAT, MON, ME
+     — e la prima è quella aperta: «appena entri c'è la chat aperta». Quindi
+     alla creatura ci si va, non ci si torna. */
   await click(byText('ENTRA'), 'entra senza immagini');
+  await click(TAB.mon, 'tab MON');
   await shot('06-home-personaggio');
   await click('.splash__enter', 'vai in chat');
   await shot('06-companion-home');
@@ -643,7 +675,8 @@ try {
 
   /* 15 — SPECIMEN PROFILE: adesso ci si arriva dalla Mindline, che e' il posto
      dove si guarda una forma qualsiasi e non solo quella attiva. */
-  await click('.tabbar__item:nth-child(4)', 'tab MINDLINE');
+  await click(TAB.mon, 'tab MON');
+  await click(VISTA.map, 'vista MIND.MAP');
   await click('.mindline__node--active', 'nodo attivo');
   await click(byText('SPECIMEN'), 'profilo');
   await shot('15-specimen-stats');
@@ -657,14 +690,16 @@ try {
   await click(byText('ASSET'), 'tab asset');
   await shot('15-specimen-asset');
   await click('.specimen__head .btn-icon', 'indietro');
-  await click('.tabbar__item:nth-child(1)', 'torna su MON');
+  await click(TAB.mon, 'torna su MON');
+  await click(VISTA.mon, 'vista MON');
 
   /* 09 — ME */
-  await click('.tabbar__item:nth-child(2)', 'tab ME');
+  await click(TAB.me, 'tab ME');
   await shot('09-me-overview');
 
   /* GIORNI — calendario a date vere, oggi in grande (v1.9 §14.1) */
-  await click('.tabbar__item:nth-child(3)', 'tab GIORNI');
+  await click(TAB.me, 'tab ME');
+  await click(VISTA.giorni, 'vista GIORNI');
   await shot('09b-calendario');
   // §14 vuole il dettaglio del giorno con i tre segnali e la provenienza.
   await click('.cal__cell--today', 'dettaglio di oggi');
@@ -682,10 +717,12 @@ try {
   await click(byText('Cazzaro'), 'mood cazzaro');
   await shot('08-daily-scan-selezionato');
   await click(byText('REGISTRA'), 'registra mood');
-  await click('.tabbar__item:nth-child(3)', 'torna a GIORNI');
+  await click(TAB.me, 'torna in ME');
+  await click(VISTA.giorni, 'torna a GIORNI');
 
   /* 17 — MINDLINE: senza selezione si vede solo la topologia */
-  await click('.tabbar__item:nth-child(4)', 'tab MINDLINE');
+  await click(TAB.mon, 'tab MON');
+  await click(VISTA.map, 'vista MIND.MAP');
   await shot('17-mindline');
 
   // Il dettaglio del nodo esiste solo dopo averlo toccato.
@@ -694,11 +731,11 @@ try {
 
   /* 🔷 v1.14 §12.5 — MIND.DEX: la seconda vista della stessa tab. Lo scaffale
      di chi sei stato, per immagine invece che come albero. */
-  await click('.archive__seg:nth-child(2)', 'vista MIND.DEX');
+  await click(VISTA.dex, 'vista MIND.DEX');
   await shot('17-dex');
   await click('.dexcard', 'una forma dello scaffale');
   await shot('17-dex-dettaglio');
-  await click('.archive__seg:nth-child(1)', 'torna alla MINDLINE');
+  await click(VISTA.map, 'torna alla MIND.MAP');
   /* Tornando indietro la vista si rimonta e la selezione del nodo si perde:
      e' il comportamento giusto — cambiare vista e' una navigazione, non un
      ritorno — ma il giro deve riselezionare per proseguire. */
@@ -938,7 +975,7 @@ try {
 
   /* La pagina appena scritta deve esserci per davvero: si apre, si legge, e
      si controlla che il markdown sia diventato struttura invece che testo. */
-  await click('.tabbar__item:nth-child(2)', 'tab ME');
+  await click(TAB.me, 'tab ME');
   await click('.pagerow', 'apri la pagina');
   await page.waitForSelector('.md__table', { timeout: 5000 });
   await shot('21-pagina');
@@ -960,7 +997,7 @@ try {
 
   await click('.pagereader__head .btn-icon', 'chiudi la pagina');
 
-  await click('.tabbar__item:nth-child(1)', 'tab MON');
+  await click(TAB.mon, 'tab MON');
   await shot('06-shift-disponibile');
   await click('.devtrigger', 'riapri DEV');
 
@@ -995,7 +1032,8 @@ try {
   await enterIfSplash();
 
   /* 18 — HERITAGE DNA */
-  await click('.tabbar__item:nth-child(4)', 'tab MINDLINE');
+  await click(TAB.mon, 'tab MON');
+  await click(VISTA.map, 'vista MIND.MAP');
   await shot('17-mindline-ramificata');
   await click('.mindline__node--active', 'nodo attivo');
   await click(byText('HERITAGE DNA'), 'heritage');
@@ -1015,8 +1053,8 @@ try {
      testo: si controlla che si veda comunque il fatto e chi si e schierato,
      perche e la parte che deve funzionare anche senza chiave. */
   await click('.specimen__head .btn-icon', 'chiudi heritage');
-  await click('.tabbar__item:nth-child(4)', 'tab MINDLINE');
-  await click('.archive__seg:nth-child(3)', 'vista MIND.SOCIAL');
+  await click(TAB.mon, 'tab MON');
+  await click(VISTA.social, 'vista MIND.SOCIAL');
   await page.waitForSelector('.post', { timeout: 5000 });
   await shot('19-filo');
 
@@ -1047,8 +1085,8 @@ try {
      giusto. Quello che si puo misurare senza ambiguita e il risultato. */
   await contrastoDi('.post__from, .post__text, .post__about', 'nel filo');
 
-  await click('.tabbar__item:nth-child(4)', 'tab MINDLINE');
-  await click('.archive__seg:nth-child(2)', 'vista MIND.DEX');
+  await click(TAB.mon, 'tab MON');
+  await click(VISTA.dex, 'vista MIND.DEX');
   /* La scheda giusta e quella marcata «ora»: lo scaffale e in ordine di
      comparsa, e dopo un branch la prima non e piu quella attiva. */
   await click('.dexcard:has(.dexcard__day:text-is(\"ora\"))', 'la forma attiva');

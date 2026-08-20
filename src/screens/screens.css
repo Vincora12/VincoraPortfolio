@@ -2496,12 +2496,37 @@
    mezzo a una riga vuota). Non uno in più.
    -------------------------------------------------------------------------- */
 
-.stick--name {
-  top: -12px;
-  left: -16px;
-  width: 88px;
-  height: 88px;
-  --tilt: -15deg;
+/* ⚠️ LA FASCIA È LA REGOLA, NON LA DECORAZIONE.
+
+   🔷 «Mettili in punti dove, anche se il testo è più lungo, non viene
+      coperto.»
+
+   Un adesivo appoggiato sopra un blocco di testo è sicuro finché quel testo
+   resta corto — e la bio la scrive un modello, quindi non lo resta per
+   decisione di nessuno. Qui il blocco si apre 64 pixel di spazio in cima e
+   l'adesivo vive lì dentro: la sicurezza non dipende più da quanto è lungo il
+   testo, perché il testo comincia sotto di lui in ogni caso.
+
+   🔒 E sta A DESTRA perché l'etichetta della sezione sta a sinistra ed è
+   corta: `BIO`, `CHI È`, `COM'ERI QUANDO È NATO`. Nessuna arriva neanche
+   vicino al bordo destro, e sono etichette fisse — non testo generato. */
+/* 🔴 E `position: relative` NON È UN DETTAGLIO. Senza, l'adesivo qui dentro
+   non trova nessun antenato posizionato e va ad ancorarsi alla cornice
+   dell'app: si vedeva in alto a destra dello schermo, sopra il selettore
+   delle viste, a mezza pagina di distanza dal blocco a cui appartiene.
+
+   Nessun errore, nessun avviso: solo un adesivo nel posto sbagliato. */
+.dossier__block--stickered {
+  position: relative;
+  padding-top: 64px;
+}
+
+.stick--bio {
+  top: -10px;
+  right: 2%;
+  width: 92px;
+  height: 92px;
+  --tilt: -13deg;
 }
 
 .stick--photoL {
@@ -3169,27 +3194,43 @@
   flex: 1;
 }
 
+/* 🔶 IL FONDO ERA `var(--ink)`, CIOÈ SEMPRE SCURO. Andava bene quando questo
+   selettore viveva solo dentro l'archivio, che sta su campo nero. Adesso sta
+   anche in cima a MON — che è bianco — e a ME: un nastro nero fisso sopra una
+   pagina chiara sarebbe un pezzo di un'altra app.
+
+   🔒 `var(--white)` non vuol dire «bianco»: vuol dire «il fondo di questa
+   schermata». Su campo nero diventa scuro da sé, e il selettore torna quello
+   di prima senza una riga in più. */
 .archive__switch {
   display: flex;
   border-bottom: 1px solid var(--hairline);
-  background: var(--ink);
+  background: var(--white);
 }
 
+/* ⚠️ QUATTRO SEGMENTI, NON PIÙ TRE. Dentro MON ci sono MON, MIND.MAP,
+   MIND.DEX e MIND.SOCIAL: con i margini di prima l'ultima etichetta usciva
+   dal bordo. Meno spaziatura fra le lettere e meno margine ai lati, e i
+   quattro nomi ci stanno interi — che è il minimo per una barra il cui unico
+   lavoro è dire dove stai. */
 .archive__seg {
   flex: 1;
-  padding: var(--u2) var(--u);
+  min-width: 0;
+  white-space: nowrap;
+  padding: var(--u2) 2px;
   border: 0;
   background: transparent;
   color: var(--muted);
   font: inherit;
   font-size: var(--type-meta);
-  letter-spacing: 0.08em;
+  letter-spacing: 0.01em;
   text-transform: uppercase;
   cursor: pointer;
 }
 
+/* Stessa logica: `--ink` è «il colore del testo qui», non «nero». */
 .archive__seg[aria-selected='true'] {
-  color: var(--paper);
+  color: var(--ink);
   box-shadow: inset 0 -2px 0 var(--char-primary);
 }
 

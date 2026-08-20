@@ -85,12 +85,21 @@ export function SplashScreen({ onEnter }: { onEnter: () => void }) {
           vera in quel momento.
           ══════════════════════════════════════════════════════════════════ */}
       <div className="splash__id">
-        {/* 🔒 GLI ADESIVI SOLO A CREATURA NATA. In incubazione non esiste
-            nessun foglio di espressioni, e nemmeno una faccia: attaccarli qui
-            sarebbe promettere sei espressioni di un uovo. */}
-        {!incubating && mon && (
-          <Sticker monName={mon.data.name} alt={displayName(mon.data.name)} n={0} className="stick--name" />
-        )}
+        {/* 🔶 QUI C'ERA UN ADESIVO, IN ALTO A SINISTRA, ED È USCITO.
+
+            🔷 «Attenzione: mettili in punti dove, anche se il testo è più
+               lungo, non viene coperto. Tipo in alto a sinistra non lo
+               metterei.»
+
+            Ha ragione, e la ragione è misurabile: il nome è generato, va da 4
+            a 9 caratteri di stem, e `MonName fit` gli fa occupare tutta la
+            larghezza disponibile. Un nome corto lascia i lati liberi, uno
+            lungo no — e siccome il corpo si adatta, il nome CRESCE fino a
+            riempire lo spazio invece di lasciarne. Quel posto è sicuro solo
+            per certi nomi, e quali nomi escano non lo decidiamo noi.
+
+            🔒 È il posto dove l'adesivo NON va, e lo dico qui perché è dove
+            si tornerebbe a metterlo. */}
         {incubating ? (
           <>
             <span className="t-display splash__name">{t.incubation.title}</span>
@@ -218,7 +227,13 @@ function MonDossier({ health }: { health: Parameters<typeof birthStatsFor>[0] })
           Appearance — sta a metà pagina perché è un disegno fatto mentre si
           scriveva, e in cima diventerebbe una copertina.
           -------------------------------------------------------------------- */}
-      <section className="dossier__block">
+      <section className="dossier__block dossier__block--stickered">
+        {/* 🔒 STA NELLA FASCIA VUOTA SOPRA L'ETICHETTA, non addosso al testo:
+            il blocco qui sotto si apre uno spazio apposta (vedi
+            `.dossier__block--stickered`), e l'adesivo ci vive dentro. Lo
+            spazio non è decorativo — è la condizione perché il testo, per
+            quanto cresca, non incontri mai l'adesivo. */}
+        <Sticker monName={d.name} alt={displayName(d.name)} n={0} className="stick--bio" />
         <p className="t-meta dossier__label">{t.bio.title}</p>
         <BioPanel
           mon={mon}
