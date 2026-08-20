@@ -40,6 +40,8 @@ export { numericGrammarFor, DESIGN_DNA_RULES } from '${cwd}/src/assets-pipeline/
 export { buildCreativeResolverPrompt } from '${cwd}/src/assets-pipeline/resolver/vendor/resolver.ts';
 export { characterDataFor } from '${cwd}/src/assets-pipeline/resolver/adapter.ts';
 export { promptFor } from '${cwd}/src/assets-pipeline/promptFor.ts';
+export { tasteBrief, formeGiaViste } from '${cwd}/src/assets-pipeline/resolver/taste.ts';
+export { FASHIONS, SIZE_GRAMMAR, HAIR_STATES, HUMANOIDITY } from '${cwd}/src/engine/generation-config.ts';
 export { RESOLVER_MEMORY, MEMORY_FINGERPRINTS } from '${cwd}/src/assets-pipeline/resolver/memory.ts';
 export { DESIGN_DNA } from '${cwd}/src/engine/generation-config.ts';
 export { FRAGMENT_LIBRARY } from '${cwd}/src/assets-pipeline/fragments.ts';
@@ -756,6 +758,137 @@ check(
     m.RESOLVER_MEMORY.includes('Character Critic checklist'),
   'la memoria è trascritta intera, dall’intestazione alla checklist finale',
   `${m.RESOLVER_MEMORY.length} caratteri`,
+);
+
+/* ============================================================================
+   IL GUSTO RIATTACCATO: SI GUARDA L'OUTPUT, NON L'ETICHETTA
+
+   ⚠️ «Non considerare sufficienti LABEL diversi. Ispeziona l'output vero.»
+   Quindi qui si generano forme diverse e si legge cosa esce, invece di
+   verificare che una costante esista.
+   ========================================================================= */
+
+console.log('\n═══ GUSTO — LA RICERCA ARRIVA AL RESOLVER ═══\n');
+
+const brief = m.tasteBrief(record);
+
+check(
+  brief.includes('STAGE A') && brief.includes('STAGE B'),
+  'il resolver riceve la disciplina in due tempi: prima la direzione, poi la forma',
+  'senza, «TRANSPARENT/CRYSTAL» collassa in un visore al primo colpo',
+);
+
+/* La grammatica della moda: la `language` del catalogo, non l'etichetta. */
+const suaFashion = m.FASHIONS.find((f) => f.id === record.data.fashion);
+check(
+  suaFashion !== undefined && brief.includes(suaFashion.language),
+  'la grammatica della MODA arriva per esteso, non solo il nome',
+  `${record.data.fashion} → «${suaFashion?.language.slice(0, 52)}…»`,
+);
+
+/* La grammatica di Size: era usata dal vecchio compilatore e persa dal nuovo. */
+check(
+  brief.includes(m.SIZE_GRAMMAR[record.data.size].rule),
+  'la grammatica di SIZE arriva per esteso',
+  `${record.data.size} → «${m.SIZE_GRAMMAR[record.data.size].rule.slice(0, 46)}…»`,
+);
+
+/* Humanoidity con il suo `avoid`: è la riga che impedisce l'umano verniciato. */
+const suoHum = m.HUMANOIDITY.find((h) => h.level === record.data.humanoidity);
+check(
+  suoHum !== undefined && brief.includes(suoHum.avoid),
+  'HUMANOIDITY arriva con il suo AVOID, non solo col numero',
+  `${record.data.humanoidity}/5`,
+);
+
+/* Decolorazione e taglio: il taglio non arrivava proprio al resolver. */
+const suoHair = m.HAIR_STATES.find((h) => h.id === record.data.hair_state);
+check(
+  suoHair === undefined || brief.includes(suoHair.prompt),
+  'il trattamento di DECOLORAZIONE arriva per esteso',
+  record.data.hair_state ?? 'nessuna decolorazione (anatomia senza capelli)',
+);
+check(
+  record.data.haircut === null || brief.includes(record.data.haircut),
+  'e il TAGLIO scelto dal motore arriva: prima non gli veniva passato affatto',
+  record.data.haircut ?? 'nessun taglio (anatomia senza capelli)',
+);
+
+check(
+  brief.includes('five-spike') && brief.includes('not a construction'),
+  'le tre trappole note sono nominate: cinque punte, visore, torso più grande',
+  brief.includes('bigger torso') ? 'tutte e tre' : 'MANCA il torso',
+);
+
+/* ⚠️ FORME DIVERSE DEVONO PRODURRE BRIEFING DIVERSI. Se il briefing fosse
+   uguale per tutti, avremmo ricollegato una costante, non il gusto. */
+const briefs = new Set();
+const grammatiche = new Set();
+for (let seed = 1; seed <= 24; seed++) {
+  const r = m.generateMon({
+    input,
+    mindlineNodeId: `node_${seed}`,
+    originNodeId: 'node_000',
+    heritageOrigins: m.selectHeritageOrigins(m.makeRng(seed * 13), first.record),
+    lineageNames: [first.record.data.name],
+    previous: first.record,
+    seed: seed * 7919,
+  }).record;
+  const b = m.tasteBrief(r);
+  briefs.add(b);
+  grammatiche.add(`${r.data.fashion}|${r.data.size}|${r.data.humanoidity}|${r.data.haircut}`);
+}
+check(
+  briefs.size >= 18,
+  'ventiquattro forme producono briefing genuinamente diversi',
+  `${briefs.size} briefing distinti su 24 · ${grammatiche.size} combinazioni di grammatica`,
+);
+
+/* ⚠️ La creatura di riferimento non ha anatomia da capelli, quindi i due
+   controlli sopra sono passati «a vuoto». Qui se ne cerca una che ce l'ha:
+   il taglio è il campo che al resolver non arrivava PROPRIO, ed è il motivo
+   per cui ogni testa non umana finiva a cinque punte. */
+let conCapelli = null;
+for (let seed = 1; seed <= 40 && !conCapelli; seed++) {
+  const r = m.generateMon({
+    input,
+    mindlineNodeId: `hair_${seed}`,
+    originNodeId: 'node_000',
+    heritageOrigins: m.selectHeritageOrigins(m.makeRng(seed * 31), first.record),
+    lineageNames: [first.record.data.name],
+    previous: first.record,
+    seed: seed * 5081,
+  }).record;
+  if (r.data.haircut && r.data.hair_state) conCapelli = r;
+}
+const briefCapelli = conCapelli ? m.tasteBrief(conCapelli) : '';
+check(
+  conCapelli !== null &&
+    briefCapelli.includes(conCapelli.data.haircut) &&
+    briefCapelli.includes(m.HAIR_STATES.find((h) => h.id === conCapelli.data.hair_state).prompt),
+  'su una forma CON capelli arrivano sia il taglio sia la decolorazione',
+  conCapelli ? `${conCapelli.data.haircut} · ${conCapelli.data.hair_state}` : 'nessuna trovata',
+);
+
+/* E l'anti-ripetizione: se le forme di prima hanno già risolto qualcosa,
+   il resolver lo deve sapere. */
+const conStoria = m.tasteBrief(record, [
+  {
+    hairConstruction: 'five upright bleached spikes',
+    eyewearConstruction: 'continuous transparent visor',
+    proportionalExaggeration: 'oversized torso',
+    dominantIdentityMass: 'chest',
+  },
+]);
+check(
+  conStoria.includes('five upright bleached spikes') &&
+    conStoria.includes('do not repeat these solutions'),
+  'e quello che le forme precedenti hanno già fatto gli viene detto',
+  'senza, ogni creatura riparte senza sapere di ripetersi',
+);
+check(
+  !brief.includes('do not repeat these solutions'),
+  'ma la prima creatura non riceve un elenco vuoto di cose da non ripetere',
 );
 
 /* --- Esito ------------------------------------------------------------------ */

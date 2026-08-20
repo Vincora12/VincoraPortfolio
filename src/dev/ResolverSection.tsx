@@ -25,6 +25,8 @@ import { numericGrammarFor } from '../assets-pipeline/resolver/vendor/rules';
 import { buildCreativeResolverPrompt } from '../assets-pipeline/resolver/vendor/resolver';
 import { compilePrompt } from '../assets-pipeline/resolver/vendor/compiler';
 import { RESOLVER_MEMORY } from '../assets-pipeline/resolver/memory';
+import { RESOLVER_CONTRACT } from '../assets-pipeline/resolver/contract';
+import { formeGiaViste, tasteBrief } from '../assets-pipeline/resolver/taste';
 
 export function ResolverSection() {
   const mon = useActiveMon();
@@ -369,8 +371,20 @@ export function ResolverSection() {
               un colpo solo alcune chat li rifiutano, e perché la memoria si
               incolla una volta per conversazione: il prompt cambia a ogni
               creatura, lei no. */}
+          {/* ⚠️ TRE PEZZI, E L'ORDINE È QUELLO CHE VIAGGIA DAVVERO.
+
+              🔒 La strada automatica manda memoria + contratto + gusto e poi
+              il prompt del pacchetto. Se qui si copiasse solo memoria e
+              prompt, i due percorsi non sarebbero più confrontabili — e
+              soprattutto la strada a mano perderebbe proprio la ricerca
+              (grammatiche di moda, taglio, decolorazione, Size) che era il
+              pezzo mancante. */}
           <CopyButton text={RESOLVER_MEMORY} label="1 · COPIA LA MEMORIA" />
-          <CopyButton text={prepared.prompt} label="2 · COPIA IL PROMPT DEL RESOLVER" />
+          <CopyButton
+            text={`${RESOLVER_CONTRACT}\n\n${tasteBrief(mon, formeGiaViste(Object.values(useApp.getState().mons), mon.data.name))}`}
+            label="2 · COPIA CONTRATTO E GUSTO"
+          />
+          <CopyButton text={prepared.prompt} label="3 · COPIA IL PROMPT DEL RESOLVER" />
           <textarea
             className="dev__paste"
             value={draft}

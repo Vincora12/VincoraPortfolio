@@ -54,6 +54,7 @@ import { buildCreativeResolverPrompt } from '../assets-pipeline/resolver/vendor/
 import { parseResolution } from '../assets-pipeline/resolver/parse';
 import { AI_STEPS } from '../../netlify/functions/_shared/routing';
 import { RESOLVER_CONTRACT } from '../assets-pipeline/resolver/contract';
+import { tasteBrief, type FormeGiaViste } from '../assets-pipeline/resolver/taste';
 import { resolverMemoryWith } from '../assets-pipeline/resolver/memory';
 import type { CreativeResolution } from '../assets-pipeline/resolver/vendor/types';
 
@@ -122,6 +123,8 @@ export async function resolveWithAi(
   compilerModel?: string | null,
   /** Quanti secondi sono passati: serve a far vedere che è vivo. */
   onTick?: (secondi: number) => void,
+  /** Cosa hanno già risolto le forme precedenti, per non ripetersi. */
+  storia: FormeGiaViste[] = [],
 ): Promise<ResolveOutcome> {
   const input = characterDataFor(record);
   const numeric = numericGrammarFor(input);
@@ -169,6 +172,15 @@ export async function resolveWithAi(
            🔒 Statico come la memoria e subito dopo di lei: il prefisso resta
            identico a ogni chiamata, quindi la cache regge lo stesso. */
         { text: RESOLVER_CONTRACT },
+        /* ⚠️ IL GUSTO, RIATTACCATO — e non è nel prefisso in cache di
+           proposito: cambia a ogni creatura, perché contiene la grammatica
+           DELLE SUE etichette e cosa hanno già fatto le forme di prima.
+           Metterlo prima romperebbe il prefisso costante e la cache non
+           aggancerebbe più niente.
+
+           🔒 Sta DOPO il contratto e PRIMA delle lezioni: statico prima,
+           variabile dopo. */
+        { text: tasteBrief(record, storia) },
         /* ⚠️ LE LEZIONI, RIPETUTE QUI E IN FORMA DI ORDINE.
 
            🔷 «Gli ho messo la lezione, ma se faccio generare il prompt non

@@ -1515,7 +1515,7 @@ check(
   '§10 DUE STADI',
   'e la strada a mano copia prima la memoria, poi il prompt',
   has('src/dev/ResolverSection.tsx', '1 · COPIA LA MEMORIA') &&
-    has('src/dev/ResolverSection.tsx', '2 · COPIA IL PROMPT DEL RESOLVER'),
+    has('src/dev/ResolverSection.tsx', '3 · COPIA IL PROMPT DEL RESOLVER'),
   'se a mano si copiasse solo il prompt, i due percorsi non sarebbero confrontabili: uno saprebbe come si decide e l’altro no',
 );
 
@@ -1697,6 +1697,84 @@ check(
   'il ritiro di un lavoro lungo parte fitto e poi rallenta',
   has('src/ai/backend.ts', 'const RITMO_MS = [800, 1200, 1800, 2500];'),
   'a intervallo fisso un lavoro finito subito dopo una domanda resta invisibile per altri 2,5 secondi, che su una risposta veloce è quasi tutta l’attesa',
+);
+
+/* ============================================================================
+   IL GUSTO DI VINZ, RIATTACCATO AL RESOLVER
+
+   ⚠️ La ricerca c'era da sempre in `generation-config.ts` — 18 grammatiche di
+   moda con la loro `language`, 6 direzioni di taglio, 3 decolorazioni col loro
+   `prompt`, la grammatica di Size, i livelli di Humanoidity col loro `avoid` —
+   e il vecchio compilatore a frammenti la usava. Il resolver nuovo riceveva
+   solo le ETICHETTE.
+   ========================================================================= */
+check(
+  '§9 GUSTO',
+  'al resolver arriva la grammatica dietro l’etichetta, non solo l’etichetta',
+  has('src/assets-pipeline/resolver/taste.ts', 'export function tasteBrief') &&
+    has('src/ai/resolver.ts', '{ text: tasteBrief(record, storia) },'),
+  'STREET senza la sua `language` diventa felpa e sneaker; GIANT senza SIZE_GRAMMAR diventa un torso più grande',
+);
+check(
+  '§9 GUSTO',
+  'e il taglio, che al resolver non arrivava proprio',
+  has('src/assets-pipeline/resolver/taste.ts', 'HAIRCUT DIRECTION') &&
+    lacksInCode('src/assets-pipeline/resolver/adapter.ts', 'haircut'),
+  'il motore sceglieva fra sei direzioni e il resolver non le vedeva: ogni testa non umana finiva a cinque punte',
+);
+check(
+  '§9 GUSTO',
+  'la ricerca viene dal progetto, non da me',
+  has('src/assets-pipeline/resolver/taste.ts', "from '../../engine/generation-config'") &&
+    has('src/assets-pipeline/resolver/taste.ts', 'riga di conoscenza generica'),
+  'sostituire il gusto di Vinz con un gusto medio sulla moda sarebbe il modo esatto di perderlo una seconda volta',
+);
+check(
+  '§9 GUSTO',
+  'due tempi: prima la direzione, poi la soluzione per QUESTO corpo',
+  has('src/assets-pipeline/resolver/taste.ts', 'STAGE A') &&
+    has('src/assets-pipeline/resolver/taste.ts', 'STAGE B'),
+  '«TRANSPARENT/CRYSTAL» è una direzione, non un visore; «FULL BLEACH» è un trattamento, non cinque punte',
+);
+check(
+  '§9 GUSTO',
+  'quello che Vinz ha SPENTO nei cataloghi arriva come rifiuto esplicito',
+  has('src/assets-pipeline/resolver/taste.ts', 'function spentiDaVinz') &&
+    has('src/assets-pipeline/resolver/taste.ts', 'WHAT VINZ HAS SWITCHED OFF'),
+  'DEV → CATALOGHI è «accendere e spegnere quello che piace», e non arrivava a nessuna AI: serviva solo a filtrare il sorteggio',
+);
+check(
+  '§9 GUSTO',
+  'e le forme già risolte gli vengono dette, per non ripetersi',
+  has('src/assets-pipeline/resolver/taste.ts', 'export function formeGiaViste') &&
+    has('src/state/store.ts', 'formeGiaViste(Object.values(s.mons), monName)'),
+  'senza, ogni creatura riparte senza sapere di stare rifacendo la stessa testa',
+);
+check(
+  '§9 GUSTO',
+  'il gusto NON sta nel prefisso in cache, e le cose statiche sì',
+  has('src/ai/resolver.ts', 'cambia a ogni creatura, perché contiene la grammatica'),
+  'contiene la grammatica di QUESTA creatura: davanti romperebbe il prefisso costante e la cache non aggancerebbe più niente',
+);
+check(
+  '§9 GUSTO',
+  'e non sostituisce i Character Data: li legge',
+  has('src/assets-pipeline/resolver/taste.ts', 'Character Data stays canonical') &&
+    lacksInCode('src/assets-pipeline/resolver/taste.ts', 'record.data.fashion ='),
+  'FAMILY dice cosa È la creatura; questo blocco dice come si legge quello che è',
+);
+check(
+  '§9 GUSTO',
+  'la strada a mano copia gli stessi tre pezzi che viaggiano',
+  has('src/dev/ResolverSection.tsx', '2 · COPIA CONTRATTO E GUSTO'),
+  'altrimenti la strada a mano perderebbe proprio la ricerca che era il pezzo mancante',
+);
+check(
+  '§9 GUSTO',
+  'la stranezza non è deformazione',
+  has('src/assets-pipeline/resolver/taste.ts', 'Weirdness is not deformation') &&
+    has('src/assets-pipeline/resolver/taste.ts', 'Character appeal comes before biological novelty'),
+  'umanoidità bassa vuol dire piano corporeo non umano, non grottesco',
 );
 
 /* ============================================================================

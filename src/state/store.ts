@@ -41,6 +41,7 @@ import { evolveMon, generateFirstMon, generateMon } from '../engine/characterGen
 import type { BackendFailure } from '../ai/backend';
 import type { CreativeResolution } from '../assets-pipeline/resolver/vendor/types';
 import { migratedStepModels, type VecchieScelte } from './migrateSteps';
+import { formeGiaViste } from '../assets-pipeline/resolver/taste';
 /* 🔒 IL CATALOGO SI IMPORTA, NON SI RICOPIA. `routing.ts` non ha un solo
    import: è dati puri, e il browser lo può leggere com'è. Una seconda copia
    dei nomi dei modelli in `src/` sarebbe la cosa che va fuori sincrono per
@@ -2075,6 +2076,10 @@ export const useApp = create<AppState>()(
           s.customMemory,
           model,
           onTick,
+          /* 🔒 Le forme già risolte, per l'anti-ripetizione. Passate da qui e
+             non lette dentro il resolver: quel file non deve sapere dove sono
+             conservate le creature. */
+          formeGiaViste(Object.values(s.mons), monName),
           ),
           (out) => ({ ok: out.resolution !== null, why: out.problems[0] }),
         );
