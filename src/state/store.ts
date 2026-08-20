@@ -53,6 +53,13 @@ import {
   type AiStepId,
 } from '../../netlify/functions/_shared/routing';
 import { assetTypeDef } from '../engine/assets';
+import {
+  RESET_SKIN,
+  applySkin,
+  cambia as cambiaSkin,
+  describeSkin,
+  type Skin,
+} from '../engine/skin';
 import { parseResolution } from '../assets-pipeline/resolver/parse';
 import type { GenerationProgress } from '../assets-pipeline/generate';
 import {
@@ -331,6 +338,8 @@ interface AppState {
   lastTrace: GenerationTrace | null;
   batch: BatchCandidate[];
   pages: Page[];
+  /** §10 — l'aspetto scelto insieme a lui. Vuoto = di fabbrica. */
+  skin: Skin;
   reminders: Reminder[];
   lastToolUses: string[];
 
@@ -570,6 +579,8 @@ interface AppState {
   removePage: (slug: string) => void;
   /** §21 — esegue uno strumento con i dati veri. Usato dalla voce e da DEV. */
   runMonTool: (use: ToolUse) => ToolResult;
+  /** §10 — rimette l'aspetto di fabbrica. Anche da `?aspetto=reset`. */
+  resetSkin: () => void;
   resetCurrentNode: () => void;
   restoreNode: (nodeId: string) => void;
   cloneScenario: () => void;
@@ -697,6 +708,7 @@ const INITIAL = {
      stare nel salvataggio: una pagina che sparisce svuotando la cache di
      Safari sarebbe peggio di non averla mai avuta. */
   pages: [] as Page[],
+  skin: RESET_SKIN,
   reminders: [] as Reminder[],
   /* Solo per il pannello DEV: quali strumenti ha usato l'ultima risposta.
      Non è stato di prodotto e non deve finire nei salvataggi. */
@@ -2224,6 +2236,11 @@ export const useApp = create<AppState>()(
          che è l'unico modo di verificare gli strumenti finché le chiavi non ci
          sono.
          ========================================================================= */
+      resetSkin: () => {
+        set({ skin: RESET_SKIN });
+        applySkin(null);
+      },
+
       runMonTool: (use) => {
         const s = get();
         const rec = activeRecord(s);
@@ -2262,6 +2279,24 @@ export const useApp = create<AppState>()(
             );
             if (outcome.ok) set({ reminders });
             return outcome;
+          },
+
+          /* 🔷 §10 — l'aspetto, dentro un catalogo chiuso. Vedi `engine/skin.ts`
+             per perché non è CSS libero. */
+          skinNow: () => describeSkin(get().skin),
+
+          changeSkin: (what, value) => {
+            const esito = cambiaSkin(get().skin, what, value);
+            if (esito.ok && esito.skin) {
+              set({ skin: esito.skin });
+              applySkin(esito.skin);
+            }
+            return { ok: esito.ok, error: esito.error };
+          },
+
+          resetSkin: () => {
+            set({ skin: RESET_SKIN });
+            applySkin(null);
           },
         };
 

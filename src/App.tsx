@@ -20,6 +20,7 @@ import {
   maybeSpeakFirst,
 } from './state/store';
 import { applyPaletteDna } from './engine/colorDna';
+import { applySkin } from './engine/skin';
 import { preloadMonAssets } from './assets-pipeline/assetStore';
 import { Icon } from './system/Icon';
 import { haptic } from './system/haptics';
@@ -211,6 +212,38 @@ export function App() {
   useEffect(() => {
     applyPaletteDna(paletteDna);
   }, [paletteDna]);
+
+  /* 🔷 §10 — L'ASPETTO SCELTO PARLANDO CON LUI.
+
+     ⚠️ E VA RIMESSO A OGNI AVVIO, non solo quando cambia. La pelle vive nello
+     stato salvato; i token CSS no — quelli sono attributi di un elemento che
+     al ricaricamento nasce pulito. Senza questa riga una modifica sparirebbe
+     alla prima riapertura e sembrerebbe che non l'avesse fatta.
+
+     🔒 Sta DOPO la palette e non prima: il Color DNA scrive `--char-*`, la
+     pelle scrive `--white`, `--ink` e compagnia. Non si toccano — e l'ordine
+     lo dice comunque, così resta vero anche se un giorno si sovrapponessero. */
+  const skin = useApp((s) => s.skin);
+  useEffect(() => {
+    applySkin(skin);
+  }, [skin]);
+
+  /* ⚠️ LA VIA DI FUGA, E NON È PARANOIA.
+
+     Il catalogo è chiuso e i valori sono validati, ma resta una combinazione
+     che nessuna validazione può escludere: inchiostro e sfondo dello stesso
+     colore. Due modifiche legittime prese una alla volta, e l'app diventa
+     illeggibile — compreso il pulsante DEV che servirebbe per rimetterla a
+     posto, e compreso il campo per dirglielo.
+
+     🔒 `?aspetto=reset` non passa dalla UI: si scrive nella barra
+     dell'indirizzo, che funziona anche quando lo schermo è bianco su bianco.
+     È l'unico comando dell'app che non ha bisogno di vedere l'app. */
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('aspetto') !== 'reset') return;
+    useApp.getState().resetSkin();
+    window.history.replaceState(null, '', window.location.pathname);
+  }, []);
 
   /* 🔷 v1.15 §23.6 — il sigillo è l'icona della scheda E quella che il
      telefono userà se aggiungi l'app alla home.

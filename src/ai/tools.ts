@@ -42,6 +42,7 @@ import type { DailySync } from '../engine/progression';
 import { DAILY_SIGNALS } from '../engine/progression';
 import type { Page, NewPage } from '../engine/pages';
 import { pagesDigest } from '../engine/pages';
+import { MANOPOLE } from '../engine/skin';
 
 /* --- La forma di uno strumento ---------------------------------------------- */
 
@@ -85,6 +86,12 @@ export interface ToolContext {
   updatePage: (slug: string, heading: string, body: string) => { ok: boolean; error?: string };
   /** Mette un promemoria. */
   remember: (text: string, inDays: number, everyDays: number | null) => { ok: boolean; error?: string };
+  /** Com'è l'aspetto adesso, a parole. */
+  skinNow: () => string;
+  /** Cambia una manopola d'aspetto, o spiega perché no. §10 — catalogo chiuso. */
+  changeSkin: (what: string, value: string) => { ok: boolean; error?: string };
+  /** Rimette l'aspetto di fabbrica. */
+  resetSkin: () => void;
 }
 
 /* ============================================================================
@@ -162,6 +169,47 @@ export const TOOLS: ToolDef[] = [
       },
       required: ['nome', 'sezione', 'testo'],
     },
+  },
+  /* ════════════════════════════════════════════════════════════════════════
+     🔷 «Permetti all'AI di poter modificare la UI — solo la UI, l'estetica.»
+
+     ⚠️ NON PRENDE CSS, E NON È PIGRIZIA. Un campo libero che finisce in un
+     foglio di stile può spegnere l'app — testo bianco su bianco, la barra
+     nascosta — e l'unica strada per tornare indietro passa dall'app che nel
+     frattempo non si vede. Qui il modello sceglie DENTRO un catalogo chiuso
+     (`engine/skin.ts`), come sceglie dentro le tassonomie di generazione.
+
+     🔒 Restano fuori i colori dei segnali e l'accento del personaggio: i primi
+     perché §17 li accoppia a una parola, e un rosso che diventa verde fa
+     mentire la parola; il secondo perché è chi è lui, non una preferenza.
+     ════════════════════════════════════════════════════════════════════════ */
+  {
+    name: 'cambia_aspetto',
+    description: [
+      'Cambia UNA cosa dell’aspetto dell’app. Solo estetica: colori, spessori, spazi, carattere.',
+      'Non puoi scrivere CSS e non puoi toccare niente che non sia in questo elenco.',
+      '',
+      'Cosa puoi cambiare:',
+      ...MANOPOLE.map((m) => `- ${m.id} → ${m.cosa}`),
+      '',
+      'I colori si scrivono #rrggbb. Le misure in pixel. Le scelte con il loro nome.',
+      'Per rimettere tutto com’era: usa "reset" come cosa.',
+      'Cambia una manopola alla volta e digli cosa hai fatto, non incollargli i valori.',
+    ].join('\n'),
+    schema: {
+      type: 'object',
+      properties: {
+        cosa: { type: 'string', description: 'Il nome della manopola, o "reset".' },
+        valore: { type: 'string', description: 'Il valore nuovo. Vuoto se cosa è "reset".' },
+      },
+      required: ['cosa'],
+    },
+  },
+  {
+    name: 'guarda_aspetto',
+    description:
+      'Dice com’è l’aspetto adesso e cosa è già stato cambiato. Usalo prima di cambiare, per non rifare una cosa già fatta.',
+    schema: { type: 'object', properties: {} },
   },
   {
     name: 'ricorda_di',
@@ -306,6 +354,29 @@ export function runTool(use: ToolUse, ctx: ToolContext): ToolResult {
         const res = ctx.updatePage(str(args.nome), str(args.sezione), typeof args.testo === 'string' ? args.testo : '');
         if (!res.ok) return fail(res.error ?? 'La pagina non è stata aggiornata.');
         return ok('Fatto. La sezione è cambiata, il resto della pagina è rimasto com’era.');
+      }
+
+      case 'guarda_aspetto':
+        return ok(ctx.skinNow());
+
+      case 'cambia_aspetto': {
+        const cosa = str(args.cosa).toLowerCase();
+        if (cosa.length === 0) return fail('Manca cosa cambiare.');
+
+        if (cosa === 'reset') {
+          ctx.resetSkin();
+          return ok('Fatto: aspetto rimesso com’era di fabbrica.');
+        }
+
+        const valore = str(args.valore);
+        if (valore.length === 0) return fail(`Manca il valore nuovo per «${cosa}».`);
+
+        const res = ctx.changeSkin(cosa, valore);
+        /* 🔒 L'errore torna al MODELLO, non all'utente: è scritto per farlo
+           correggere da solo — «fuori scala, sta fra 0 e 24» — invece di
+           finire in faccia a chi sta solo chiacchierando. */
+        if (!res.ok) return fail(res.error ?? 'Non si può cambiare così.');
+        return ok(`Fatto: «${cosa}» adesso è ${valore}. Si vede subito. Se non gli piace, dillo e lo rimetto.`);
       }
 
       case 'ricorda_di': {

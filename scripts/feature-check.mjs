@@ -801,6 +801,54 @@ check(
   lacksInCode(SPLASH, 'readableBio') && has('src/screens/SpecimenProfile.tsx', 'BioPanel'),
 );
 
+/* ════════════════════════════════════════════════════════════════════════════
+   🔷 «Permetti all'AI di poter modificare la UI — solo la UI, l'estetica.»
+   ════════════════════════════════════════════════════════════════════════════ */
+const SKIN = 'src/engine/skin.ts';
+
+/* ⚠️ È L'AGO CHE CONTA. Uno strumento che accetta CSS libero può spegnere
+   l'app — e l'unica strada per rimetterla a posto passa dall'app che nel
+   frattempo non si vede. Il catalogo chiuso è tutta la sicurezza che c'è. */
+check(
+  'ASPETTO §10',
+  'può cambiare solo le manopole dichiarate, mai CSS libero',
+  has(SKIN, 'export const MANOPOLE') &&
+    lacksInCode('src/ai/tools.ts', 'innerHTML') &&
+    lacksInCode(SKIN, 'insertRule') &&
+    lacksInCode(SKIN, 'styleSheet'),
+  'un campo libero che finisce in un foglio di stile può rendere l’app illeggibile',
+);
+/* 🔒 §17 — uno stato colorato porta sempre anche una parola. Se il rosso
+   dell'allarme diventasse verde, la parola resterebbe giusta e il colore
+   mentirebbe. E `--char-*` è chi è la creatura, non una preferenza. */
+check(
+  'ASPETTO §10',
+  'e i segnali e l’accento del personaggio restano fuori dal catalogo',
+  /* 🔒 `lacksInCode` toglie i commenti prima di cercare: qui sopra quei token
+     sono NOMINATI, in un commento che spiega perché sono esclusi. Cercarli nel
+     file grezzo farebbe fallire l'ago proprio sulla spiegazione della regola
+     che deve difendere. */
+  lacksInCode(SKIN, '--signal-') && lacksInCode(SKIN, '--char-'),
+  'un rosso d’allarme che diventa verde fa mentire la parola che ci sta accanto',
+);
+/* ⚠️ Il catalogo non può escludere inchiostro e sfondo dello stesso colore:
+   sono due modifiche legittime prese una alla volta. Serve una strada di
+   ritorno che non abbia bisogno di vedere lo schermo. */
+check(
+  'ASPETTO §10',
+  'e si torna indietro anche a schermo illeggibile',
+  has('src/App.tsx', "get('aspetto') !== 'reset'") && has('src/state/store.ts', 'resetSkin: () => {'),
+  '`?aspetto=reset` si scrive nella barra dell’indirizzo, che funziona sempre',
+);
+/* 🔒 I token CSS vivono su un elemento che al ricaricamento nasce pulito: la
+   pelle sta nello stato salvato e va riscritta a ogni avvio, o sembrerebbe
+   che la modifica non fosse mai stata fatta. */
+check(
+  'ASPETTO §10',
+  'e l’aspetto scelto sopravvive a un ricaricamento',
+  has('src/App.tsx', 'applySkin(skin);') && has('src/state/store.ts', '  skin: RESET_SKIN,'),
+);
+
 /* 🔷 «È ancora nera questa schermata.»
 
    ⚠️ L'AGO PUNTA ALLA DECISIONE, NON AL COLORE. Non cerca `#ffffff` da nessuna
