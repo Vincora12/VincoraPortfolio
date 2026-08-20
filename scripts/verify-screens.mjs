@@ -829,7 +829,11 @@ try {
   const forgia = await page.$$eval('.dev__section', (n) =>
     n.map((e) => e.textContent ?? '').join(' '),
   );
-  if (!forgia.includes('0,75')) {
+  /* 🔶 CERCAVA LA STRINGA `0,75`. Era il prezzo di quel giorno, non la
+     decisione: adesso che i cinque prompt derivati non si fanno più riscrivere
+     il conto è sceso, e l'ago sarebbe fallito su un MIGLIORAMENTO. Quello che
+     va difeso è che un prezzo ci sia, scritto prima di premere. */
+  if (!/\d+,\d+\s*€/.test(forgia)) {
     errors.push('la forgia non dice quanto costa prima di premere');
   }
   await shot('dev-forgia');

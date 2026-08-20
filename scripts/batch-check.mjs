@@ -601,8 +601,12 @@ check(
    §22.4/§22.5/§22.6 — LA FACCIA, IL VOTO, E QUELLO CHE SA
 
    Tre difetti da sorvegliare, e nessuno dei tre fa fallire niente:
-   • il ritratto non e piu il primo → aspetti cinque immagini per vedere l'unica
-     che stai guardando
+   • 🔶 il MASTER non e piu il primo → gli altri cinque nascono senza il
+     riferimento che dovrebbero copiare, e diventano cinque creature diverse.
+     (Qui c'era «il ritratto non e piu il primo → aspetti cinque immagini per
+     vedere l'unica che stai guardando». Era impazienza scambiata per
+     architettura: il ritratto per primo faceva nascere la faccia canonica
+     senza la faccia canonica.)
    • «rifalla» cambia il prompt → non e piu la stessa creatura, e la creatura
      l'hanno decisa i suoi dati
    • quello che sa di te diventa un rimprovero → §28 dice che non puo darti
@@ -613,8 +617,8 @@ console.log('\n═══ §22.4 — LA FACCIA E IL VOTO ═══\n');
 
 const order = m.generationOrder();
 check(
-  order[0] === 'profile_portrait',
-  'il ritratto e il primo della fila',
+  order[0] === 'character_master',
+  'il master e il primo della fila',
   order.join(' → '),
 );
 check(

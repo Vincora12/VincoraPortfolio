@@ -153,7 +153,15 @@ function FaceGate({
       <p className="t-micro facegate__note">
         {t.face.step(at + 1, order.length, current ? assetTypeDef(current).label : '')}
       </p>
-      {at === 0 && <p className="t-micro facegate__note">{t.face.masterFirst}</p>}
+      {at === 0 && (
+        <>
+          <p className="t-micro facegate__note">{t.face.masterFirst}</p>
+          {/* 🔷 «Il master, poi STOP. Solo dopo che lo tengo, il resto.»
+              La generazione si ferma davvero qui: il pulsante sotto non dice
+              «avanti», dice cosa succede se lo premi. */}
+          {shot && <p className="t-micro facegate__note">{t.face.masterHold}</p>}
+        </>
+      )}
 
       {busy && !shot && <p className="t-micro facegate__note">{t.face.arriving}</p>}
       {problem && <p className="t-micro facegate__note">{problem}</p>}
@@ -174,8 +182,19 @@ function FaceGate({
             schermata di nascita. §26 — nessun asset mancante, e nessuna
             attesa di rete, blocca il flusso. RIFALLA sì, quello si spegne:
             due richieste sovrapposte per lo stesso slot sono due pagate. */}
+        {/* ⚠️ L'ETICHETTA DEL PRIMO PASSO NON È «AVANTI».
+            Sul master premere questo pulsante non è scorrere una galleria: è
+            accettare il personaggio e autorizzare le altre cinque immagini.
+            Un pulsante che dice «la prossima» dove si decide una spesa è un
+            pulsante che mente sull'entità di quello che fa. */}
         <Button variant="primary" block onClick={primary}>
-          {!shot ? t.encounter.enter : last ? t.face.last : t.face.next}
+          {!shot
+            ? t.encounter.enter
+            : last
+              ? t.face.last
+              : at === 0
+                ? t.face.masterAccept
+                : t.face.next}
         </Button>
       </div>
 

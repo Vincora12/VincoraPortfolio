@@ -18,9 +18,12 @@
       a una schermata vuota trasformerebbe il momento della nascita in una
       barra di caricamento.
 
-   2. IL RITRATTO PER PRIMO. È l'unico che si vede subito — home, social,
-      scaffale. Generarlo per ultimo vorrebbe dire aspettare tutti gli altri
-      per vedere la cosa che guardi.
+   2. 🔶 IL MASTER PER PRIMO. Qui c'era scritto «il ritratto per primo, è
+      l'unico che si vede subito». Era impazienza travestita da architettura:
+      il master è la fonte di verità visiva, e ogni altro asset si genera
+      allegando la SUA immagine. Generarne un altro prima vuol dire produrre
+      la faccia canonica senza la faccia canonica. L'ordine adesso lo decidono
+      le dipendenze dichiarate, non una lista di preferenze.
 
    3. QUELLO CHE C'È NON SI RIGENERA MAI. Stessa regola dei ricordi e dei post:
       una faccia che cambia a ogni apertura non è una faccia.
@@ -37,7 +40,7 @@
 
 import { askImage } from '../ai/backend';
 import type { BackendFailure } from '../ai/backend';
-import { ASSET_TYPES } from '../engine/assets';
+import { generationOrder as ordineCanonico } from '../engine/assets';
 import type { AssetType, MonRecord } from '../engine/types';
 import { promptFor } from './promptFor';
 import { assetBase64, getAssetUrlSync, importAssetFile } from './assetStore';
@@ -46,14 +49,22 @@ import { assetTypeDef } from '../engine/assets';
 /**
  * L'ordine in cui si chiedono.
  *
- * 🔒 Il ritratto per primo, poi il master. Il resto nell'ordine del catalogo.
- * Non è un dettaglio di comodità: decide quanti secondi passano fra la nascita
- * e la prima faccia che vedi.
+ * 🔴 QUI C'ERA IL RITRATTO PER PRIMO, E ROMPEVA LA CONSISTENZA.
+ *
+ * La ragione scritta allora era «è l'unico che si vede subito: generarlo per
+ * ultimo vuol dire aspettare tutti gli altri per vedere la cosa che guardi».
+ * Vera come impazienza, sbagliata come architettura: ogni asset derivato porta
+ * l'ordine «allega il CHARACTER MASTER e trattalo come l'unica verità visiva»,
+ * e quella riga compare solo se il master ESISTE. Con il ritratto per primo la
+ * prima immagine nasceva senza riferimento — e siccome era la prima che
+ * vedevi, diventava lei la faccia; poi arrivava il master, che era un'altra
+ * creatura.
+ *
+ * 🔒 Adesso l'ordine è UNO SOLO e viene dalle dipendenze dichiarate in
+ * `assets.ts`. Non c'è più una seconda lista che può contraddire la prima.
  */
 export function generationOrder(): AssetType[] {
-  const first: AssetType[] = ['profile_portrait', 'character_master'];
-  const rest = ASSET_TYPES.map((a) => a.type).filter((t) => !first.includes(t));
-  return [...first, ...rest];
+  return ordineCanonico().map((a) => a.type);
 }
 
 export interface GenerateOptions {

@@ -29,6 +29,7 @@ import {
   SystemLabel,
 } from '../system/components';
 import { ASSET_TYPES } from '../engine/assets';
+import { voiceBrief } from '../engine/voiceBrief';
 import {
   SIZE_GRAMMAR,
   VOICE_AXES,
@@ -250,13 +251,26 @@ export function SpecimenProfileScreen({
               </div>
             </section>
 
-            {/* §13/§14 — preset di partenza e i dodici assi mutati sopra. */}
+            {/* §13/§14 — preset di partenza e i dodici assi mutati sopra.
+
+                🔒 I NUMERI GREZZI RESTANO QUI, TUTTI E DODICI. La chat non li
+                riceve più — riceve la lettura sintetica qui sotto — ma questo
+                è il posto dove si ispeziona una creatura, e una sintesi senza
+                i numeri da cui viene non si può controllare. */}
             <section className="specimen__block">
               <p className="t-meta">VOICE DNA</p>
               <div className="rowlist">
                 <Row
                   label="PRESET"
                   value={`${d.voice_preset} · ${voicePresetDef(d.voice_preset).it}`}
+                />
+                {/* ⚠️ QUELLO CHE LEGGE DAVVERO LA CHAT. I dodici numeri sotto
+                    sono la fonte; queste righe sono quello che arriva al
+                    modello. Vederle accanto ai numeri è l'unico modo di
+                    accorgersi se la traduzione ha perso qualcosa. */}
+                <Row
+                  label="COME LEGGE"
+                  value={voiceBrief(d.voice_dna, d.voice_preset).lines.slice(1).join(' · ') || '—'}
                 />
                 <Row
                   label="DEVIAZIONI"

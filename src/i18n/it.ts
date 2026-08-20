@@ -193,6 +193,15 @@ export const t = {
     enough: 'BASTA COSÌ, ENTRIAMO',
     later: 'Quelle che saltiamo restano da fare: le trovi in DEV → CREATURA → GENERA.',
     masterFirst: 'Questa è la fonte: le altre cinque la useranno come riferimento.',
+    /* ⚠️ QUI SI DECIDE UNA SPESA, E PRIMA NON SI CAPIVA.
+
+       Il pulsante diceva «VA BENE, LA PROSSIMA» anche sulla PRIMA immagine —
+       cioè sul master, che è quello che decide chi è la creatura. Sembrava un
+       passo avanti in una galleria; era il momento in cui si accetta il
+       personaggio e si autorizzano le altre cinque immagini.
+       🔷 «Genera il master, poi STOP. Solo dopo che lo tengo, il resto.» */
+    masterAccept: 'TIENILO · GENERA IL RESTO',
+    masterHold: 'Se non ti convince, rifallo adesso: da qui in poi le altre cinque copiano lui.',
   },
 
   /* §21.4 — il filo della stanza */

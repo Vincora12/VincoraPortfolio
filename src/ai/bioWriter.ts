@@ -38,6 +38,7 @@ import { AI_STEPS } from '../../netlify/functions/_shared/routing';
 import type { BackendFailure } from './backend';
 import type { BioFile, MonRecord } from '../engine/types';
 import { displayName } from '../engine/types';
+import { voiceBrief } from '../engine/voiceBrief';
 
 /* --- Le regole, in cache --------------------------------------------------- */
 
@@ -50,16 +51,40 @@ import { displayName } from '../engine/types';
  * dell'utente. È l'opposto dei prompt immagine, che sono in inglese perché li
  * legge un modello di immagini.
  */
-const BIO_RULES = [
+export const BIO_RULES = [
   'Sei il .mon stesso e stai scrivendo il tuo quaderno personale. Prima persona, maschile.',
-  'Ricevi i fatti che ti riguardano, già decisi. Li racconti; non ne aggiungi e non ne togli.',
   '',
-  'COSA PUOI E NON PUOI FARE',
-  '- NON puoi cambiare un fatto: il giorno in cui sei arrivato, i segnali che erano in campo,',
-  '  le tue contraddizioni, quello che vuoi, cosa ti arriva dall’eredità.',
+  /* ════════════════════════════════════════════════════════════════════════
+     🔶 QUI PRIMA C'ERA: «Ricevi i fatti che ti riguardano. Li racconti; non ne
+     aggiungi e non ne togli.»
+
+     «Non ne togli» era l'errore, ed era mio. Il modello riceve venti fatti —
+     Family, archetipo, affinità, taglia, ruolo, fashion, umore, contraddizioni,
+     spinte, tratti, il trucco anatomico, la sagoma, il motivo ricorrente, il
+     linguaggio del corpo, gli occhiali, l'eredità — e gli si diceva di non
+     toglierne nessuno. Ha fatto quello che gli era stato chiesto: un collage
+     corretto. Ogni frase vera, e nessuna che suoni come una persona.
+
+     Una bio non deve documentare i Character Data. I Character Data sono già
+     salvati altrove, per intero, e nessuno chiede alla bio di essere la loro
+     copia in prosa.
+     ════════════════════════════════════════════════════════════════════════ */
+  'I FATTI SONO UN SERBATOIO, NON UNA LISTA DA SPUNTARE.',
+  '- Non devi nominarli tutti. Non devi nominarne nemmeno la metà.',
+  '- Lasciarne fuori la maggior parte è la cosa GIUSTA, non una mancanza.',
+  '- Non nominare mai una cosa solo perché te l’hanno data.',
+  '',
+  'UN PENSIERO SOLO, AL CENTRO.',
+  'Una bio riuscita è organizzata intorno a UNA idea su te stesso. Qualcosa',
+  'tipo «faccio il sicuro, ma prima guardo dove si mettono gli altri».',
+  'Poi tiri dentro solo quello che appartiene davvero a quel pensiero: forse',
+  'una contraddizione, forse un dettaglio del corpo, forse un modo di stare.',
+  'Il resto resta fuori, anche se è vero.',
+  '',
+  'COSA NON PUOI FARE',
+  '- NON puoi cambiare un fatto, né inventarne di nuovi.',
   '- NON puoi inventare episodi, persone, luoghi o oggetti che non ti sono stati dati.',
   '  Non hai una memoria di eventi: sei appena nato. Hai solo quello che sei.',
-  '- PUOI e DEVI scegliere tu l’ordine, il ritmo e la lunghezza delle frasi.',
   '',
   'COME SCRIVI',
   '- Parli a chi ti ha fatto nascere, dandogli del tu. Non ti presenti in terza persona.',
@@ -69,14 +94,26 @@ const BIO_RULES = [
   '- Niente elenchi, niente titoli, niente markdown, niente virgolette caporali.',
   '- Non nominare mai un designer, un franchise o un personaggio esistente.',
   '- Non dire mai «utente», «sistema», «generato», «algoritmo», «dati».',
+  '- Non usare mai i nomi di catalogo come parole tue: nessuno dice «sono un ANGEL',
+  '  MESSENGER di affinità MACHINE». Quelle etichette descrivono come sei fatto,',
+  '  non come parli.',
   '',
+  /* ⚠️ TRE CAMPI, TRE LAVORI DIVERSI. Prima erano tre riassunti degli stessi
+     fatti con tre lunghezze diverse — e si vedeva: la storia diceva le
+     contraddizioni, gli appunti le ridicevano più corte, i dettagli le
+     ridicevano ancora. Adesso ognuno ha un compito che gli altri due non
+     possono fare. */
   'COSA CONSEGNI — un oggetto JSON, e nient’altro:',
   '{',
-  '  "story": "4-7 frasi. Da dove vieni e cosa ti tiene insieme. Il giorno esatto va detto,',
-  '            ma non per forza per primo.",',
-  '  "annotations": ["3-5 appunti a margine, una riga ciascuno, come scritti di fretta.",',
-  '                  "Cose che ammetti su di te. Almeno uno deve essere scomodo."],',
-  '  "rememberedDetails": ["2-4 dettagli fisici o abitudini che ti riconoscono da lontano."]',
+  '  "story": "3-6 frasi. UN pensiero su di te, portato fino in fondo. Non un riassunto',
+  '            di cosa sei: una cosa che hai capito o che non hai ancora capito.',
+  '            Il giorno esatto va detto, ma non per forza per primo e non come apertura.",',
+  '  "annotations": ["2-4 appunti a margine, come scritti di fretta e per te, non per lui.",',
+  '                  "Ammissioni, dubbi, piccole antipatie, cose che ti danno fastidio.",',
+  '                  "Spontanei. NON altri tratti del catalogo detti più corti."],',
+  '  "rememberedDetails": ["2-3 dettagli CONCRETI che ti fanno riconoscere da lontano:",',
+  '                        "un’abitudine visibile, un gesto, un segno. Qui puoi essere",',
+  '                        "asciutto e fattuale: non devono essere poetici."]',
   '}',
   '',
   'Solo il JSON. Nessuna premessa, nessun commento, nessun blocco di codice.',
@@ -104,11 +141,29 @@ export interface BioOutcome {
   rejected: string | null;
 }
 
-/** I fatti, come li legge il modello: la stessa roba che il motore ha deciso. */
+/**
+ * Il serbatoio, come lo legge il modello.
+ *
+ * 🔶 SI CHIAMAVA «I FATTI» ED È LO STESSO ELENCO. Quello che cambia è come
+ * viene presentato: prima arrivava senza una riga che dicesse cosa farne, e
+ * senza quella riga un elenco è una lista di cose da dire. Adesso la prima
+ * riga dice che è materiale, e le regole in testa dicono che sceglierne pochi
+ * è la cosa giusta.
+ *
+ * ⚠️ IL VOICE DNA ENTRA COME VOCE, NON COME NUMERI. Non i dodici assi grezzi —
+ * un modello che deve ragionare su dodici numeri mentre scrive quattro frasi
+ * fa la media di tutto e non scrive come nessuno. Entra la lettura sintetica
+ * di `voiceBrief`, la stessa che usa la chat: così una creatura silenziosa
+ * scrive poco davvero, e una teatrale si allarga, senza che nessuno glielo
+ * ordini asse per asse.
+ */
 function factsOf(record: MonRecord): string {
   const d = record.data;
   const dna = d.character_dna;
+  const { lines, length } = voiceBrief(d.voice_dna, d.voice_preset);
   return [
+    'IL SERBATOIO. Prendi quello che serve al pensiero che scegli, lascia il resto.',
+    '',
     `IL TUO NOME: ${displayName(d.name)}`,
     `IL GIORNO IN CUI SEI ARRIVATO: ${d.generated_at_day}`,
     `COSA SEI: ${d.family} / ${d.family_archetype}, affinità ${d.affinity}, taglia ${d.size}`,
@@ -133,6 +188,17 @@ function factsOf(record: MonRecord): string {
     '',
     'I SEGNALI CHE ERANO IN CAMPO QUEL GIORNO, come li ha visti chi ti ha fatto nascere:',
     record.bio.story,
+    '',
+    /* 🔒 In fondo e non in cima: è come SCRIVI, non cosa scrivi. Messo fra i
+       fatti verrebbe letto come un altro fatto da raccontare — «sono uno che
+       parla poco» — che è esattamente il collage che stiamo togliendo. */
+    'COME PARLI — è il tuo modo, non un argomento di cui parlare:',
+    ...lines.map((l) => `- ${l}`),
+    length === 'short'
+      ? 'Sei uno che dice poco: la tua bio può essere più corta della media, e va bene.'
+      : length === 'long'
+        ? 'Ti allarghi quando una cosa ti interessa: la tua bio può essere più lunga della media.'
+        : 'Lunghezza media.',
   ].join('\n');
 }
 

@@ -1272,21 +1272,146 @@ check(
   lacksInCode('src/screens/Encounter.tsx', 'variant="primary" block disabled={busy}'),
   'sei chiamate di rete davanti a una schermata vuota non sono una nascita',
 );
+/* ════════════════════════════════════════════════════════════════════════════
+   🔴 QUI C'ERANO DUE AGHI CHE DIFENDEVANO DUE ORDINI OPPOSTI.
+
+   Il primo pretendeva `const first: AssetType[] = ['profile_portrait', …]` in
+   `generate.ts` — «è l'unico che si vede subito». Il secondo pretendeva che
+   lo store rimettesse il master in testa. E il commento in mezzo lo chiamava
+   «una contraddizione voluta fra due regole vere».
+
+   Non era voluta: era un guasto con una giustificazione addosso. Ogni asset
+   derivato porta l'ordine «allega il CHARACTER MASTER, è lui il personaggio»,
+   e quella riga compare solo se il master ESISTE. Con il ritratto per primo,
+   la prima immagine di una creatura nasceva senza riferimento — e siccome era
+   la prima che vedevi, diventava lei la faccia. Poi arrivava il master, che
+   era un'altra creatura.
+
+   🔒 L'ordine adesso è UNO e viene dalle dipendenze dichiarate. `verify:package`
+   lo fa girare per davvero e controlla che nessun asset esca prima di quello
+   da cui dipende; qui resta la decisione: nessuna seconda lista.
+   ════════════════════════════════════════════════════════════════════════════ */
 check(
   'ASSET §22.4',
-  'il ritratto si chiede prima degli altri quattro',
-  has('src/assets-pipeline/generate.ts', "const first: AssetType[] = ['profile_portrait'"),
-  'e l’unico che si vede subito: generarlo per ultimo vuol dire aspettare gli altri',
+  'l’ordine di generazione viene dalle dipendenze, non da una lista a mano',
+  lacksInCode('src/assets-pipeline/generate.ts', "const first: AssetType[] = ['profile_portrait'") &&
+    has('src/engine/assets.ts', 'a.dependsOn.every((d) => fatti.has(d))'),
+  'il ritratto per primo faceva nascere la faccia canonica senza la faccia canonica',
 );
-/* ⚠️ Ma nella sequenza di approvazione il MASTER lo precede, ed è una
-   contraddizione voluta fra due regole vere: «prima quello che si vede» vale
-   quando le immagini arrivano da sole, «prima quello che gli altri citano»
-   vale quando le approvi una per una. Vedi `forgeOrder`. */
 check(
   'ASSET §22.4',
-  'ma nella sequenza approvata il master lo precede',
-  count('src/state/store.ts', /'character_master'[^\n]*\.concat\(\s*generationOrder\(\)/g) > 0,
+  'e non esiste più una seconda lista che possa contraddire la prima',
+  count('src/assets-pipeline/generate.ts', /export function generationOrder/g) === 1 &&
+    has('src/assets-pipeline/generate.ts', 'ordineCanonico().map'),
 );
+/* ════════════════════════════════════════════════════════════════════════════
+   V1 — L'AI DECIDE UNA VOLTA, POI IL SISTEMA USA IL RISULTATO
+
+   🔷 «Il Character Master è la decisione visiva. Gli asset derivati la
+      conservano e la mettono in scena. Niente riscrittura AI in mezzo.»
+
+   Il conto di prima, per una creatura nuova: sei riscritture di prompt da un
+   modello di testo, più il Resolver, più la bio. Otto chiamate di testo. Cinque
+   di quelle riscritture rimasticavano un personaggio già deciso.
+   ════════════════════════════════════════════════════════════════════════════ */
+check(
+  'ASSET §22.4',
+  'i cinque derivati hanno un template tecnico, non un briefing',
+  has('src/assets-pipeline/derived.ts', 'export function derivedPrompt') &&
+    has('src/assets-pipeline/promptFor.ts', "source: 'derivato'"),
+  'il personaggio è già deciso e l’immagine viene allegata: al testo resta la trasformazione',
+);
+/* ⚠️ È L'AGO CHE VALE PIÙ DI TUTTI QUESTI. Una riscrittura chiesta per un
+   asset derivato è, per costruzione, un modello di testo pagato per
+   riformulare una decisione già presa. Il giorno che questa riga torna a
+   chiamarla per tutti, il risparmio sparisce senza che niente si rompa —
+   ed è il modo in cui una semplificazione si disfa in silenzio. */
+check(
+  'ASSET §22.4',
+  'e per loro non si chiama più il riscrittore di prompt',
+  has('src/state/store.ts', 'const tecnico = usaTemplateDerivati(prima) && derivedPrompt(type) !== null;') &&
+    has('src/state/store.ts', 'if (!tecnico) {'),
+  'chiamare un modello per riformulare quello che il programma già sa è spesa senza decisione',
+);
+/* 🔒 §29 — una creatura tiene la versione con cui è nata. Le vecchie non hanno
+   una risoluzione, quindi non entrano mai in questa strada. */
+check(
+  'ASSET §22.4',
+  'ma le creature nate prima restano sulla loro strada',
+  has('src/assets-pipeline/promptFor.ts', 'record.resolution != null &&'),
+  'senza risoluzione il template derivato non scatta e vale il prompt di sempre',
+);
+/* 🔷 «Genera il master, poi STOP. Solo dopo che lo tengo, il resto.» */
+check(
+  'ASSET §22.4',
+  'sul master il pulsante dice che si sta accettando, non «avanti»',
+  has('src/screens/Encounter.tsx', 'at === 0') &&
+    has('src/screens/Encounter.tsx', 't.face.masterAccept') &&
+    has('src/i18n/it.ts', 'GENERA IL RESTO'),
+  'lì non si scorre una galleria: si accetta il personaggio e si autorizzano cinque immagini',
+);
+
+/* ════════════════════════════════════════════════════════════════════════════
+   V1 — LA VOCE È LATENTE, NON RECITATA
+   ════════════════════════════════════════════════════════════════════════════ */
+check(
+  'VOCE §13',
+  'il Voice DNA arriva al modello come tendenze, non come dodici numeri',
+  has('src/engine/voiceBrief.ts', 'export function voiceBriefBlock') &&
+    lacksInCode('src/ai/voicePrompt.ts', 'YOUR VOICE PARAMETERS'),
+  'dodici parametri con l’ordine di farli vedere producono una risposta che li esibisce tutti',
+);
+/* 🔒 IL VOICE DNA NON È STATO TOLTO, ed è la cosa che questa revisione poteva
+   rompere. Preset, mutazione ampia e deviazioni restano dov'erano. */
+check(
+  'VOCE §13',
+  'ma il Voice DNA non è stato toccato: preset, mutazione, deviazioni',
+  has('src/engine/voiceDna.ts', 'const preset = pickPreset(rng, dna, moodPrimary);') &&
+    has('src/engine/voiceDna.ts', 'base + (rng() - 0.5) * 70') &&
+    has('src/engine/voiceDna.ts', 'voice.deviations = deviations;'),
+  '§14: il preset è una linea di base, non una classe',
+);
+check(
+  'VOCE §13',
+  'e il Character DNA continua a orientare il preset',
+  has('src/engine/voiceDna.ts', "dna.traits.includes('teatrale')") &&
+    has('src/engine/voiceDna.ts', "dna.traits.includes('tecnico')"),
+);
+/* 🔒 I numeri restano ispezionabili: una sintesi senza la fonte non si
+   controlla. */
+check(
+  'VOCE §13',
+  'i dodici numeri restano visibili dove si ispeziona una creatura',
+  has('src/screens/SpecimenProfile.tsx', 'VOICE_AXES.map((axis)') &&
+    has('src/screens/SpecimenProfile.tsx', 'voiceBrief(d.voice_dna, d.voice_preset)'),
+  'la lettura sintetica accanto ai numeri da cui viene: è l’unico modo di vedere se ha perso qualcosa',
+);
+/* ⚠️ LA SINTESI È CODICE. Aggiungere una chiamata a un modello per farsi
+   riformulare una tabella sarebbe la stessa spesa senza decisione che abbiamo
+   appena tolto dai prompt derivati. */
+check(
+  'VOCE §13',
+  'e la sintesi non costa una chiamata: è una tabella letta dal codice',
+  lacksInCode('src/engine/voiceBrief.ts', 'ask(') && lacksInCode('src/engine/voiceBrief.ts', 'fetch('),
+);
+
+/* ════════════════════════════════════════════════════════════════════════════
+   V1 — LA BIO SCEGLIE, NON COPRE
+   ════════════════════════════════════════════════════════════════════════════ */
+check(
+  'BIO §8.1',
+  'i fatti sono un serbatoio, non una lista da spuntare',
+  has('src/ai/bioWriter.ts', 'SERBATOIO, NON UNA LISTA DA SPUNTARE') &&
+    lacksInCode('src/ai/bioWriter.ts', 'non ne aggiungi e non ne togli'),
+  '«non ne togli» è la riga che produceva il collage: ogni fatto vero, nessuna persona',
+);
+check(
+  'BIO §8.1',
+  'e il Voice DNA entra come voce, non come numeri',
+  has('src/ai/bioWriter.ts', 'voiceBrief(d.voice_dna, d.voice_preset)'),
+  'la stessa lettura che usa la chat: una creatura silenziosa scrive poco davvero',
+);
+
 check(
   'ASSET §22.4',
   'quello che c’e non si rigenera mai',
@@ -2590,18 +2715,18 @@ check(
   'un pulsante solo fa bio, prompt e immagini',
   has('src/state/store.ts', 'forgeEverything: async (monName)'),
 );
+/* 🔶 L'ago cercava che lo store rimettesse il master in testa a mano —
+   `['character_master'].concat(generationOrder())`. Quella riga esisteva solo
+   perché `generationOrder()` cominciava col ritratto: era una toppa. Adesso
+   l'ordine canonico ha già il master primo per costruzione, e la toppa è
+   uscita. La DECISIONE è la stessa e si controlla meglio: che i due giri —
+   quello approvato a mano e quello completo — usino LO STESSO ordine. */
 check(
   '§22.4 FAI TUTTO',
-  'il master si genera per primo, non il ritratto',
-  /* L'ordine adesso lo decide `forgeOrder`, una volta per tutti e due i giri
-     (quello cieco e quello approvato a mano). L'ago guarda che il master sia
-     messo davanti a quello che torna `generationOrder()`, non la riga in cui
-     era scritto quando c'era un giro solo. */
-  count(
-    'src/state/store.ts',
-    /'character_master'[^\n]*\.concat\(\s*generationOrder\(\)/g,
-  ) > 0,
-  'compiler.ts mette il riferimento di consistenza negli altri prompt solo se il master risulta già risolto: compilando tutto prima di generare, nessuno ce l’avrebbe',
+  'il giro approvato e quello completo usano lo stesso ordine',
+  has('src/state/store.ts', 'return generationOrder();') &&
+    lacksInCode('src/state/store.ts', "['character_master' as AssetType].concat"),
+  'due ordini diversi per la stessa sequenza sono due sequenze che prima o poi divergono',
 );
 check(
   '§22.4 FAI TUTTO',

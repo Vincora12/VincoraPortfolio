@@ -288,9 +288,47 @@ export const GENERATION_STAGES: readonly { stage: 0 | 1 | 2; label: string; note
   },
 ];
 
-/** Gli asset da produrre, nell'ordine giusto. */
+/* ============================================================================
+   L'ORDINE DI PRODUZIONE, IN UN POSTO SOLO
+
+   🔴 CE N'ERANO DUE, E DICEVANO IL CONTRARIO.
+
+   Questa funzione ordinava per `stage` — master, poi gli stadi 1, poi il
+   doodle — ed era giusta. Ma non la chiamava nessuno: era codice morto. Quella
+   viva stava in `assets-pipeline/generate.ts` e cominciava con il RITRATTO,
+   per una ragione che allora sembrava buona («è l'unico che si vede subito»).
+
+   ⚠️ Il ritratto per primo rompe la cosa che tiene insieme le sei immagini.
+   Ogni asset derivato porta l'ordine «allega il CHARACTER MASTER e trattalo
+   come l'unica verità visiva» — che compare solo se il master ESISTE. Con il
+   ritratto per primo, il primo disegno di una creatura nasceva senza
+   riferimento e diventava lui, di fatto, la faccia canonica; poi arrivava il
+   master, che era un'altra creatura.
+
+   🔒 ADESSO L'ORDINE LO DECIDONO LE DIPENDENZE, non una lista scritta a mano.
+   `dependsOn` dichiara già chi ha bisogno di chi: un asset esce solo quando
+   tutto quello da cui dipende è già uscito. Il giorno che un asset dipenderà
+   dal ritratto invece che dal master, l'ordine si aggiusta da sé.
+   ========================================================================= */
+
+/** Gli asset da produrre, in un ordine che rispetta `dependsOn`. */
 export function generationOrder(): AssetTypeDef[] {
-  return [...ASSET_TYPES].sort((a, b) => a.stage - b.stage);
+  const fatti = new Set<AssetType>();
+  const out: AssetTypeDef[] = [];
+  const restanti = [...ASSET_TYPES];
+
+  while (restanti.length > 0) {
+    const i = restanti.findIndex((a) => a.dependsOn.every((d) => fatti.has(d)));
+    /* 🔒 Un ciclo fra dipendenze non può passare in silenzio: senza questa
+       riga la lista uscirebbe corta e mancherebbero delle immagini senza che
+       niente lo dica. Meglio un errore che sei asset che diventano quattro. */
+    if (i < 0) throw new Error(`dipendenze circolari fra gli asset: ${restanti.map((a) => a.type).join(', ')}`);
+    const [def] = restanti.splice(i, 1);
+    fatti.add(def!.type);
+    out.push(def!);
+  }
+
+  return out;
 }
 
 /** Quanti frame disegnati costa un asset: un foglio ne vale più di uno. */

@@ -257,10 +257,11 @@ export function AssetImport() {
           stava in un'altra scheda, quindi erano cinque passi con due cambi di
           schermata dentro. Adesso ogni riga porta il suo.
 
-          🔒 IN ORDINE DI GENERAZIONE, non di catalogo: il ritratto per primo,
-          perché è l'unico che si vede subito — home, social, scaffale. Farlo
-          per ultimo vuol dire guardare un sigillo per un'ora avendo già
-          cinque immagini pronte.
+          🔶 IN ORDINE DI GENERAZIONE, non di catalogo — e adesso quell'ordine
+          comincia dal MASTER. Qui c'era scritto «il ritratto per primo, è
+          l'unico che si vede subito»: era impazienza scambiata per
+          architettura. Gli altri cinque si generano ALLEGANDO l'immagine del
+          master, quindi prima di lui non c'è niente da allegare.
           ════════════════════════════════════════════════════════════════ */}
       <p className="t-meta dev__label">SLOT E PROMPT</p>
       <div className="rowlist">

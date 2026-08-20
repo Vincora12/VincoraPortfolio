@@ -537,7 +537,9 @@ interface AppState {
   /**
    * 🔷 «Adesso mi aspetto che tutto vada con un solo click.»
    *
-   * Bio, sei prompt riscritti e sei immagini, in un colpo. Torna l'elenco di
+   * 🔶 Bio, sei immagini e — solo per il master — un prompt riscritto. Qui
+   * c'era scritto «sei prompt riscritti»: era vero, ed era il difetto. Cinque
+   * di quelle riscritture rimasticavano un personaggio già deciso. Torna l'elenco di
    * quello che NON è riuscito, vuoto se è andato tutto.
    */
   forgeEverything: (monName: string) => Promise<string[]>;
@@ -1801,31 +1803,37 @@ export const useApp = create<AppState>()(
          nessuno aveva compilato quello buono. Cioè: il compilatore esisteva e
          le immagini non lo usavano quasi mai.
 
-         ⚠️ L'ORDINE NON È QUELLO DELLA NASCITA, ED È VOLUTO.
+         🔶 L'ORDINE ERA DOPPIO, E ADESSO È UNO SOLO.
 
-         `generationOrder()` mette il ritratto per primo, perché alla nascita
-         conta vedere una faccia in fretta. Qui no: qui si compila e si genera
-         un asset alla volta, e il MASTER va per primo — `compiler.ts:142` mette
-         il riferimento di consistenza negli altri prompt solo quando il master
-         RISULTA già risolto. Compilando tutto in blocco prima di generare,
-         nessun prompt avrebbe quel riferimento e le sei immagini sarebbero sei
-         creature diverse: esattamente il problema da cui siamo partiti.
+         Qui c'era scritto: «`generationOrder()` mette il ritratto per primo
+         perché alla nascita conta vedere una faccia in fretta; qui invece il
+         master va per primo». Due ordini per la stessa sequenza, con una
+         spiegazione che li giustificava tutti e due.
+
+         Il master va per primo e basta: gli altri cinque si generano ALLEGANDO
+         la sua immagine, e prima di lui non c'è niente da allegare. L'ordine
+         adesso viene dalle dipendenze dichiarate in `assets.ts`, una volta per
+         tutti e due i giri.
 
          🔒 In serie e ci si ferma al primo no, come in `generateMissingAssets`:
          sei richieste insieme arriverebbero insieme anche al tetto di spesa,
          che le conterebbe tutte come «ancora sotto».
 
-         💶 Circa 90 centesimi a creatura: sei immagini (~$0,24), sei prompt
-         riscritti (~$0,60) e la bio (~$0,02). Chi preme il pulsante deve
-         saperlo PRIMA, e infatti la schermata lo dice.
+         💶 🔶 IL CONTO È SCESO. Era «circa 90 centesimi: sei immagini (~$0,24),
+         sei prompt riscritti (~$0,60) e la bio (~$0,02)». Adesso il prompt
+         riscritto è UNO — quello del master — perché per i cinque derivati il
+         testo è un template deterministico. La voce più grossa di quel conto
+         era la parte che non decideva niente.
          ========================================================================= */
       forgeProgress: null,
 
+      /* 🔶 QUI SI RIMETTEVA IL MASTER IN TESTA A MANO, perché `generationOrder()`
+         cominciava con il ritratto. Adesso l'ordine canonico nasce dalle
+         dipendenze dichiarate e il master è già primo per costruzione: due
+         liste che dicevano cose diverse sono diventate una. */
       forgeOrder: async () => {
         const { generationOrder } = await import('../assets-pipeline/generate');
-        return ['character_master' as AssetType].concat(
-          generationOrder().filter((t) => t !== 'character_master'),
-        );
+        return generationOrder();
       },
 
       /* 🔷 «O con click consecutivi che mi mostra tutte le immagini, le approvo
@@ -1862,8 +1870,35 @@ export const useApp = create<AppState>()(
            Il motivo va nei log e non in faccia: in DEV → PROMPT IMMAGINI si
            vede se un prompt è RISCRITTO o no, che è la stessa informazione
            detta dove serve. */
-        const why = await get().compileAssetPrompt(monName, type);
-        if (why) console.warn(`[forgia] prompt non riscritto per ${type}:`, why);
+        /* ════════════════════════════════════════════════════════════════
+           🔶 LA RISCRITTURA NON SI CHIEDE PIÙ PER GLI ASSET DERIVATI.
+
+           Prima ogni asset passava di qui: sei chiamate a un modello di testo
+           per sei immagini. Ma dal ritratto in poi non c'è niente da decidere
+           — il personaggio l'ha deciso il Resolver e sta nel master, che viene
+           ALLEGATO. Il testo che accompagna quell'immagine è un ordine di
+           produzione: «stesso personaggio, cambia solo l'inquadratura». Lo sa
+           già il programma, e chiamare un modello per farselo riformulare è
+           spesa senza nessuna decisione dentro.
+
+           🔒 Il master invece continua a passare da qui. È l'unico posto dove
+           una riscrittura può ancora migliorare qualcosa, ed è anche l'unico
+           asset senza riferimento da allegare.
+
+           🔒 E le creature VECCHIE non cambiano strada: senza `resolution`
+           `usaTemplateDerivati` è falso e la riscrittura si chiede come sempre.
+           ════════════════════════════════════════════════════════════════ */
+        const prima = get().mons[monName];
+        if (!prima) return 'nessuna creatura con questo nome';
+
+        const { usaTemplateDerivati } = await import('../assets-pipeline/promptFor');
+        const { derivedPrompt } = await import('../assets-pipeline/derived');
+        const tecnico = usaTemplateDerivati(prima) && derivedPrompt(type) !== null;
+
+        if (!tecnico) {
+          const why = await get().compileAssetPrompt(monName, type);
+          if (why) console.warn(`[forgia] prompt non riscritto per ${type}:`, why);
+        }
 
         const rec = get().mons[monName];
         if (!rec) return 'nessuna creatura con questo nome';

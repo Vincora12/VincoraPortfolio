@@ -93,14 +93,20 @@ export function ForgePanel({ onClose }: { onClose?: () => void }) {
       {at < 0 && (
         <>
           <p className="t-micro dev__note">
-            La bio, poi un asset alla volta: si scrive il prompt, si genera
-            l’immagine, la guardi e decidi. Il <strong>master</strong> è il
-            primo perché è quello che gli altri cinque prompt citano: se viene
-            male e tiri dritto, le altre cinque ereditano la creatura sbagliata.
+            La bio, poi un asset alla volta: la guardi e decidi. Il{' '}
+            <strong>master</strong> è il primo perché è quello che gli altri
+            cinque ricevono <em>allegato</em>: se viene male e tiri dritto, le
+            altre cinque copiano la creatura sbagliata.
           </p>
+          {/* 🔶 IL CONTO ERA 0,75 € E ORA È MENO DELLA METÀ. Diceva «quattro
+              centesimi a immagine, dieci a prompt riscritto»: sei prompt
+              riscritti erano sessanta centesimi, cioè la voce più grossa — e
+              cinque di quei sei rimasticavano un personaggio già deciso dal
+              Resolver. Adesso il prompt riscritto è uno solo. */}
           <p className="t-micro dev__note">
-            Quattro centesimi a immagine, dieci a prompt riscritto. Tutto
-            insieme fa circa <strong>0,75 €</strong> a creatura.
+            Quattro centesimi a immagine. Il prompt lo si fa riscrivere solo per
+            il master: gli altri cinque sono template tecnici, e non costano
+            niente. Tutto insieme circa <strong>0,35 €</strong> a creatura.
           </p>
           <Button
             block

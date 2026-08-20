@@ -40,7 +40,13 @@ export { compilePrompt as compileFromResolution } from '${cwd}/src/assets-pipeli
 export { numericGrammarFor, DESIGN_DNA_RULES } from '${cwd}/src/assets-pipeline/resolver/vendor/rules.ts';
 export { buildCreativeResolverPrompt } from '${cwd}/src/assets-pipeline/resolver/vendor/resolver.ts';
 export { characterDataFor } from '${cwd}/src/assets-pipeline/resolver/adapter.ts';
-export { promptFor } from '${cwd}/src/assets-pipeline/promptFor.ts';
+export { BIO_RULES, survivingFacts } from '${cwd}/src/ai/bioWriter.ts';
+export { promptFor, usaTemplateDerivati } from '${cwd}/src/assets-pipeline/promptFor.ts';
+export { derivedPrompt, derivedCovers } from '${cwd}/src/assets-pipeline/derived.ts';
+export { generationOrder } from '${cwd}/src/engine/assets.ts';
+export { voiceBrief, voiceBriefBlock } from '${cwd}/src/engine/voiceBrief.ts';
+export { buildVoiceSystemPrompt } from '${cwd}/src/ai/voicePrompt.ts';
+export { generateVoiceDna } from '${cwd}/src/engine/voiceDna.ts';
 export { tasteBrief, formeGiaViste } from '${cwd}/src/assets-pipeline/resolver/taste.ts';
 export { FASHIONS, SIZE_GRAMMAR, HAIR_STATES, HUMANOIDITY, TEST_PHASE, lockedIn, DESIGN_DNA as ALL_DESIGNERS, FAMILIES, SIZES } from '${cwd}/src/engine/generation-config.ts';
 export { RESOLVER_MEMORY, MEMORY_FINGERPRINTS } from '${cwd}/src/assets-pipeline/resolver/memory.ts';
@@ -1116,6 +1122,286 @@ console.log('\nIMPORT — RICONOSCIMENTO DEI NOMI FILE\n');
     manifest.assets.length === m.ASSET_TYPES.length,
     'e il manifest copre tutti gli slot, nessuno escluso',
     `${manifest.assets.length} / ${m.ASSET_TYPES.length}`,
+  );
+}
+
+/* ============================================================================
+   IL MASTER DECIDE, I DERIVATI CONSERVANO
+
+   🔷 «Character Data → Resolver → Character Master → l'identità visiva è
+      decisa → prompt tecnici corti + immagine di riferimento → asset derivati.»
+
+   Questi controlli fanno girare la pipeline vera. Sono qui e non fra gli aghi
+   perché quello che va verificato non è che una riga esista: è che i prompt
+   PRODOTTI abbiano davvero le proprietà che diciamo.
+   ========================================================================= */
+
+console.log('\nMASTER → DERIVATI\n');
+
+{
+  /* Una risoluzione vera, non un segnaposto: il prompt del master la compila
+     davvero, e un oggetto finto lo farebbe esplodere invece di misurarlo. */
+  const RISOLTA = m.parseResolution(JSON.stringify(esempio)).resolution;
+  if (!RISOLTA) throw new Error('la risoluzione di prova non si legge: il controllo non può girare');
+
+  /* 1. L'ordine di produzione rispetta le dipendenze: il master per primo. */
+  const ordine = m.generationOrder().map((a) => a.type);
+  check(
+    ordine[0] === 'character_master',
+    'il CHARACTER MASTER si genera per primo',
+    ordine.join(' → '),
+  );
+
+  const fatti = new Set();
+  const fuoriPosto = [];
+  for (const def of m.generationOrder()) {
+    for (const d of def.dependsOn) if (!fatti.has(d)) fuoriPosto.push(`${def.type} prima di ${d}`);
+    fatti.add(def.type);
+  }
+  check(
+    fuoriPosto.length === 0,
+    'e nessun asset esce prima di ciò da cui dipende',
+    fuoriPosto.join(' · '),
+  );
+
+  /* 2. Una creatura nuova col master risolto passa ai template tecnici. */
+  const nato = {
+    ...record,
+    resolution: RISOLTA,
+    data: {
+      ...record.data,
+      asset_manifest_status: { ...record.data.asset_manifest_status, character_master: 'resolved' },
+    },
+  };
+  check(m.usaTemplateDerivati(nato), 'una creatura nuova col master pronto usa i template tecnici');
+
+  /* 3. Il master NON passa dai template: lui è quello che decide. */
+  check(
+    m.derivedPrompt('character_master') === null,
+    'il master non ha un template tecnico',
+    'la sua strada è il Resolver: un template lì sarebbe un personaggio senza nessuno che l’ha pensato',
+  );
+
+  /* 4/5. I derivati sono molto più piccoli del master, e non ripetono il
+     briefing completo. È il cuore di tutta la revisione. */
+  const master = m.promptFor(nato, 'character_master');
+  const derivati = m.derivedCovers().map((t) => ({ t, p: m.promptFor(nato, t) }));
+
+  check(
+    derivati.every((d) => d.p.source === 'derivato'),
+    'i cinque derivati prendono il template tecnico',
+    derivati.map((d) => `${d.t}=${d.p.source}`).join(' '),
+  );
+
+  const piuLungo = Math.max(...derivati.map((d) => d.p.text.length));
+  check(
+    piuLungo * 3 < master.text.length,
+    'e sono almeno tre volte più corti del master',
+    `master ${master.text.length} · derivato più lungo ${piuLungo}`,
+  );
+
+  /* ⚠️ LE PAROLE CHE NON DEVONO PIÙ COMPARIRE. Non perché siano sbagliate:
+     perché sono GIÀ DECISE, e ripeterle invita il modello a rideciderle. È
+     esattamente il difetto che rendeva le sei immagini sei creature diverse. */
+  const VIETATE = [
+    record.data.family,
+    record.data.family_archetype,
+    record.data.affinity,
+    record.data.role,
+    record.data.fashion,
+    record.data.mood_primary,
+    'CULTURAL',
+    'DESIGN DNA',
+    'rarity',
+    'archetype',
+  ].filter(Boolean);
+
+  const sporchi = [];
+  for (const { t, p } of derivati) {
+    const su = p.text.toUpperCase();
+    for (const v of VIETATE) if (su.includes(String(v).toUpperCase())) sporchi.push(`${t}: ${v}`);
+  }
+  check(
+    sporchi.length === 0,
+    'e non ripetono nessuna decisione già presa',
+    sporchi.join(' · '),
+  );
+
+  /* Ma dicono tutti la cosa che conta: il riferimento è il personaggio. */
+  check(
+    derivati.every((d) => /CHARACTER MASTER/.test(d.p.text) && /PRESERVE/.test(d.p.text)),
+    'mentre dicono tutti di conservare il master allegato',
+  );
+
+  /* 7. Le creature VECCHIE non cambiano strada. */
+  const vecchio = {
+    ...record,
+    resolution: null,
+    compiledPrompts: { profile_portrait: 'PROMPT STORICO DI QUESTA CREATURA' },
+  };
+  check(
+    !m.usaTemplateDerivati(vecchio) &&
+      m.promptFor(vecchio, 'profile_portrait').source === 'riscritto',
+    'una creatura nata prima tiene il prompt con cui è nata (§29)',
+    m.promptFor(vecchio, 'profile_portrait').source,
+  );
+  check(
+    m.promptFor({ ...record, resolution: null, compiledPrompts: undefined }, 'bio_doodle').source ===
+      'concatenato',
+    'e senza prompt riscritto torna alla concatenazione, che vale sempre',
+  );
+
+  /* 9. Rifare il master non deve tirarsi dietro i derivati: finché il master
+        non è `resolved`, i derivati non hanno nemmeno un template da usare. */
+  const senzaMaster = { ...record, resolution: RISOLTA };
+  check(
+    !m.usaTemplateDerivati(senzaMaster),
+    'senza il master risolto nessun derivato parte',
+    'un template che dice «guarda il riferimento» puntando al vuoto è l’errore da cui veniamo',
+  );
+}
+
+/* ============================================================================
+   LA VOCE — DODICI ASSI RESTANO, DODICI ISTRUZIONI NO
+
+   🔷 «Il Voice DNA descrive tendenze, non obblighi.»
+   ========================================================================= */
+
+console.log('\nVOICE DNA — TENDENZE, NON ISTRUZIONI\n');
+
+{
+  /* 1-5. L'identità sopravvive: preset dal Character DNA, assi mutati sopra,
+     due creature dello stesso preset restano diverse. */
+  const a = m.generateVoiceDna(m.makeRng(11), record.data.character_dna, record.data.mood_primary);
+  const b = m.generateVoiceDna(m.makeRng(22), record.data.character_dna, record.data.mood_primary);
+
+  check(typeof a.preset === 'string' && a.preset.length > 0, 'il preset si genera ancora', a.preset);
+
+  const assi = Object.keys(a.voice).filter((k) => typeof a.voice[k] === 'number');
+  check(assi.length === 12, 'e i dodici assi ci sono tutti', `${assi.length}/12`);
+
+  const diversi = assi.filter((k) => a.voice[k] !== b.voice[k]);
+  check(
+    diversi.length >= 6,
+    'due creature restano riconoscibilmente diverse',
+    `${diversi.length} assi su 12 differiscono`,
+  );
+
+  check(
+    Array.isArray(a.voice.deviations),
+    'e le deviazioni dal preset restano registrate',
+    (a.voice.deviations ?? []).join(' · ') || 'nessuna',
+  );
+
+  /* 6-7. La sintesi non appiattisce: due voci diverse producono letture
+     diverse. Se le collassasse, avremmo tolto la personalità invece del
+     copione — ed è il rischio principale di tutta questa modifica. */
+  const la = m.voiceBrief(a.voice, a.preset).lines.join('|');
+  const lb = m.voiceBrief(b.voice, b.preset).lines.join('|');
+  check(la !== lb, 'e la lettura sintetica NON le fa collassare nella stessa voce');
+
+  /* La sintesi tiene solo gli assi marcati: mai dodici righe. */
+  const righe = m.voiceBrief(a.voice, a.preset).lines.length;
+  check(
+    righe >= 2 && righe <= 11,
+    'la lettura tiene solo gli assi marcati, mai tutti e dodici',
+    `${righe} righe`,
+  );
+
+  /* Il blocco dice esplicitamente che sono tendenze. */
+  const blocco = m.voiceBriefBlock(a.voice, a.preset);
+  check(
+    /TENDENCIES, not obligations/.test(blocco) && /invisible in any single reply/.test(blocco),
+    'e dichiara di essere tendenze, non obblighi',
+  );
+
+  /* ⚠️ E il prompt vero NON contiene più i numeri grezzi. Era la forma che
+     produceva la risposta-curriculum: dodici parametri con l'ordine di farli
+     vedere. */
+  const prompt = m.buildVoiceSystemPrompt(record);
+  check(
+    !/\/100 \(/.test(prompt) && !/VOICE PARAMETERS/.test(prompt),
+    'il system prompt non contiene più i dodici numeri grezzi',
+  );
+
+  /* Il contratto conversazionale: cosa il prompt deve PERMETTERE. */
+  const permessi = [
+    ['ignorare il contesto non pertinente', /Ignoring most of it is/],
+    ['risposte corte', /Short answers are complete answers/],
+    /* 🔒 Le espressioni tollerano l'a-capo: il testo è impaginato a mano e una
+       frase può spezzarsi in mezzo. Un ago che cerca la riga invece della
+       frase fallisce alla prima rimpaginazione, che non è un cambio di
+       decisione. */
+    ['risposte lunghe quando servono', /at\s+whatever length it takes/],
+    ['non chiudere sempre con una domanda', /Do not end on a question out of habit/],
+    ['dissentire', /You do not default to agreeing/],
+    ['non sapere', /non ne sono ancora convinto/],
+    ['un centro di gravità solo', /one centre of gravity, not five/],
+  ];
+  for (const [nome, re] of permessi) {
+    check(re.test(prompt), `il prompt permette esplicitamente: ${nome}`);
+  }
+
+  /* 🔒 E la sicurezza resta severa: allentare la recita non allenta le regole. */
+  check(
+    /ABSOLUTE RULES/.test(prompt) && /the rule wins and the adjustment is void/.test(prompt),
+    'mentre le regole assolute restano severe',
+  );
+  check(
+    /Loose in performance, strict in\s+substance/.test(prompt) &&
+      /leggi_i_miei_dati/.test(prompt),
+    'e gli strumenti restano obbligatori quando la risposta dipende dai dati veri',
+  );
+}
+
+/* ============================================================================
+   LA BIO — UN PENSIERO, NON UNA SCHEDA
+
+   🔷 «La bio sembra un collage di Character Data invece di qualcosa scritto da
+      un individuo.»
+   ========================================================================= */
+
+console.log('\nBIO — SELEZIONE, NON COPERTURA\n');
+
+{
+  const r = m.BIO_RULES;
+
+  check(
+    /SERBATOIO, NON UNA LISTA DA SPUNTARE/.test(r),
+    'le regole dicono che i fatti sono un serbatoio, non una lista',
+  );
+  check(
+    /Lasciarne fuori la maggior parte è la cosa GIUSTA/.test(r),
+    'e che lasciarne fuori la maggior parte è corretto',
+  );
+  check(/UN PENSIERO SOLO, AL CENTRO/.test(r), 'e che la bio si organizza intorno a una idea sola');
+  check(
+    !/non ne aggiungi e non ne togli/.test(r),
+    'e non chiedono più di non togliere niente',
+    'era la riga che produceva il collage: ogni fatto vero, nessuna persona',
+  );
+
+  /* ⚠️ TRE CAMPI, TRE LAVORI. Se le istruzioni dei tre campi si somigliano,
+     si somiglieranno anche le uscite: tre riassunti degli stessi fatti con
+     tre lunghezze diverse. */
+  check(
+    /appunti a margine/.test(r) && /NON altri tratti del catalogo detti più corti/.test(r),
+    'gli appunti hanno un lavoro loro, diverso dalla storia',
+  );
+  check(
+    /non devono essere poetici/.test(r),
+    'e i dettagli riconoscibili possono essere asciutti',
+    'chiedere poesia a tutti e tre i campi è il modo di ottenere tre volte la stessa cosa',
+  );
+
+  /* 🔒 Il validatore resta MINIMO. Un controllo che pretende venti parole
+     chiave costringe a scrivere male per contenerle — è il modo in cui un
+     controllo severo produce esattamente il difetto che voleva impedire. */
+  const richiesti = m.survivingFacts(record);
+  check(
+    richiesti.length === 1 && richiesti[0] === String(record.data.generated_at_day),
+    'si valida solo il fatto davvero canonico: il giorno',
+    richiesti.join(' · '),
   );
 }
 
