@@ -43,6 +43,7 @@ import { DAILY_SIGNALS } from '../engine/progression';
 import type { Page, NewPage } from '../engine/pages';
 import { pagesDigest } from '../engine/pages';
 import { MANOPOLE } from '../engine/skin';
+import { PEZZI } from '../engine/layout';
 
 /* --- La forma di uno strumento ---------------------------------------------- */
 
@@ -90,8 +91,14 @@ export interface ToolContext {
   skinNow: () => string;
   /** Cambia una manopola d'aspetto, o spiega perché no. §10 — catalogo chiuso. */
   changeSkin: (what: string, value: string) => { ok: boolean; error?: string };
-  /** Rimette l'aspetto di fabbrica. */
+  /** Rimette l'aspetto di fabbrica — colori E disposizione. */
   resetSkin: () => void;
+  /** Cosa è nascosto o spostato adesso, a parole. */
+  layoutNow: () => string;
+  /** Nasconde o rimostra un pezzo dichiarato. §13 — catalogo chiuso. */
+  showPiece: (id: string, visible: boolean) => { ok: boolean; error?: string };
+  /** Sposta un pezzo dentro la sua colonna. */
+  movePiece: (id: string, at: number) => { ok: boolean; error?: string };
 }
 
 /* ============================================================================
@@ -209,6 +216,48 @@ export const TOOLS: ToolDef[] = [
     name: 'guarda_aspetto',
     description:
       'Dice com’è l’aspetto adesso e cosa è già stato cambiato. Usalo prima di cambiare, per non rifare una cosa già fatta.',
+    schema: { type: 'object', properties: {} },
+  },
+  /* ════════════════════════════════════════════════════════════════════════
+     🔷 «Vorrei anche togliere pulsanti e spostare elementi, e immaginarmi le
+        schermate in modo diverso.»
+
+     ⚠️ NON È MANIPOLAZIONE DEL DOM. Il modello non descrive un elemento e non
+     scrive un selettore: nomina un pezzo che esiste nel catalogo. Da lì il
+     codice — non lui — scrive due sole forme di regola, «nascondi» e «metti in
+     posizione N».
+
+     🔒 Tre pezzi non si possono nascondere, ed è la ragione per cui questo
+     strumento può esistere: la barra in fondo, il campo per scrivere e la
+     scorciatoia DEV sono le tre strade per dirgli di rimettere le cose a
+     posto. Un catalogo che permettesse di nascondere il campo di testo
+     sarebbe un catalogo usabile una volta sola.
+     ════════════════════════════════════════════════════════════════════════ */
+  {
+    name: 'cambia_schermata',
+    description: [
+      'Nasconde, rimostra o sposta un pezzo delle schermate. Solo disposizione: non crea niente di nuovo.',
+      '',
+      'I pezzi che ci sono:',
+      ...PEZZI.map((p) => `- ${p.id} (${p.dove}) → ${p.cosa}${p.riordinabile ? '' : ' · solo nascondere'}`),
+      '',
+      'azione: "nascondi" | "mostra" | "sposta". Con "sposta" serve anche posizione (1 = in cima).',
+      'La barra in fondo, il campo di testo e il pulsante DEV non si toccano: servono a disfare.',
+      'Un pezzo alla volta. Poi digli cosa hai fatto con parole tue.',
+    ].join('\n'),
+    schema: {
+      type: 'object',
+      properties: {
+        pezzo: { type: 'string', description: 'Il nome del pezzo.' },
+        azione: { type: 'string', enum: ['nascondi', 'mostra', 'sposta'] },
+        posizione: { type: 'number', description: 'Solo con "sposta". 1 = in cima.' },
+      },
+      required: ['pezzo', 'azione'],
+    },
+  },
+  {
+    name: 'guarda_schermata',
+    description: 'Dice quali pezzi sono nascosti o spostati adesso. Guarda prima di cambiare.',
     schema: { type: 'object', properties: {} },
   },
   {
@@ -377,6 +426,34 @@ export function runTool(use: ToolUse, ctx: ToolContext): ToolResult {
            finire in faccia a chi sta solo chiacchierando. */
         if (!res.ok) return fail(res.error ?? 'Non si può cambiare così.');
         return ok(`Fatto: «${cosa}» adesso è ${valore}. Si vede subito. Se non gli piace, dillo e lo rimetto.`);
+      }
+
+      case 'guarda_schermata':
+        return ok(ctx.layoutNow());
+
+      case 'cambia_schermata': {
+        const pezzo = str(args.pezzo);
+        const azione = str(args.azione).toLowerCase();
+        if (pezzo.length === 0) return fail('Manca quale pezzo.');
+
+        if (azione === 'nascondi' || azione === 'mostra') {
+          const res = ctx.showPiece(pezzo, azione === 'mostra');
+          if (!res.ok) return fail(res.error ?? 'Non si può.');
+          return ok(
+            azione === 'nascondi'
+              ? `Fatto: «${pezzo}» non si vede più. Per rimetterlo basta che me lo dica.`
+              : `Fatto: «${pezzo}» è tornato.`,
+          );
+        }
+
+        if (azione === 'sposta') {
+          const at = typeof args.posizione === 'number' ? args.posizione : NaN;
+          const res = ctx.movePiece(pezzo, at);
+          if (!res.ok) return fail(res.error ?? 'Non si può.');
+          return ok(`Fatto: «${pezzo}» adesso è in posizione ${Math.round(at)}.`);
+        }
+
+        return fail('L’azione è "nascondi", "mostra" o "sposta".');
       }
 
       case 'ricorda_di': {

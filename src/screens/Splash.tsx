@@ -84,7 +84,7 @@ export function SplashScreen({ onEnter }: { onEnter: () => void }) {
           segnaposto: al suo posto sta il conto dei giorni, che è l'unica cosa
           vera in quel momento.
           ══════════════════════════════════════════════════════════════════ */}
-      <div className="splash__id">
+      <div className="splash__id" data-pezzo="nome">
         {/* 🔶 QUI C'ERA UN ADESIVO, IN ALTO A SINISTRA, ED È USCITO.
 
             🔷 «Attenzione: mettili in punti dove, anche se il testo è più
@@ -125,7 +125,7 @@ export function SplashScreen({ onEnter }: { onEnter: () => void }) {
           ⚠️ NON è un pulsante. Lo era, e apriva la chat — ma un tocco che
           parte da qui compete con lo scroll della pagina, e su un telefono
           vince sempre il tocco per sbaglio. Alla chat si va dalla porta. */}
-      <div className="splash__stage">
+      <div className="splash__stage" data-pezzo="foto">
         {incubating ? (
           /* Toccare l'uovo lo fa saltare. Non porta da nessuna parte, ed è il
              punto: un'app viva ha almeno una cosa che risponde per il gusto
@@ -175,7 +175,7 @@ export function SplashScreen({ onEnter }: { onEnter: () => void }) {
           Un adesivo dentro il pulsante sarebbe parte del bersaglio: appoggiare
           il dito lì sopra aprirebbe la chat. Fuori, e con il tocco disattivato
           (vedi `.sticker`), il pulsante resta grande quanto sembra. */}
-      <div className="splash__door">
+      <div className="splash__door" data-pezzo="parlagli">
         <button type="button" className="splash__enter" onClick={enter}>
           <span className="t-display">{incubating ? t.splash.chat : t.splash.talk}</span>
           <span aria-hidden="true">→</span>
@@ -208,7 +208,7 @@ function MonDossier({ health }: { health: Parameters<typeof birthStatsFor>[0] })
   const birth = birthStatsFor(health, d.generated_at_day);
 
   return (
-    <div className="dossier">
+    <div className="dossier" data-pezzo="dossier">
       {/* --- BIO E DOODLE, PER PRIMI -----------------------------------------
           🔷 «Poi abbiamo bio e doodle e altre cose su di lui.»
 
@@ -227,7 +227,7 @@ function MonDossier({ health }: { health: Parameters<typeof birthStatsFor>[0] })
           Appearance — sta a metà pagina perché è un disegno fatto mentre si
           scriveva, e in cima diventerebbe una copertina.
           -------------------------------------------------------------------- */}
-      <section className="dossier__block dossier__block--stickered">
+      <section className="dossier__block dossier__block--stickered" data-pezzo="bio">
         {/* 🔒 STA NELLA FASCIA VUOTA SOPRA L'ETICHETTA, non addosso al testo:
             il blocco qui sotto si apre uno spazio apposta (vedi
             `.dossier__block--stickered`), e l'adesivo ci vive dentro. Lo
@@ -250,7 +250,7 @@ function MonDossier({ health }: { health: Parameters<typeof birthStatsFor>[0] })
           momento, e questi numeri sono la sua anatomia — se seguissero i tuoi
           di adesso sarebbe un grafico della tua salute con sopra una faccia.
           -------------------------------------------------------------------- */}
-      <section className="dossier__block">
+      <section className="dossier__block" data-pezzo="statistiche">
         <p className="t-meta dossier__label">{t.splash.stats}</p>
 
         {birth.lost ? (
@@ -275,7 +275,7 @@ function MonDossier({ health }: { health: Parameters<typeof birthStatsFor>[0] })
         )}
       </section>
 
-      <section className="dossier__block">
+      <section className="dossier__block" data-pezzo="identita">
         <p className="t-meta dossier__label">{t.splash.identity}</p>
         <div className="rowlist">
           <Row label="FAMILY" value={`${d.family} // ${d.family_archetype}`} />
@@ -296,7 +296,7 @@ function MonDossier({ health }: { health: Parameters<typeof birthStatsFor>[0] })
       {/* 🔒 IL SIGILLO STA DA SOLO IN MEZZO A UNA RIGA VUOTA: è l'ultimo
           punto della pagina dove c'è spazio vero, e l'unico posto del dossier
           dove un adesivo non finisce addosso a una riga di testo. */}
-      <div className="dossier__sigil">
+      <div className="dossier__sigil" data-pezzo="sigillo">
         <Sigil seed={mon.sigil} size={40} />
         <Sticker monName={d.name} alt={displayName(d.name)} n={5} className="stick--sigil" />
       </div>

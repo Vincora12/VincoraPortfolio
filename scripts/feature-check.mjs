@@ -849,6 +849,52 @@ check(
   has('src/App.tsx', 'applySkin(skin);') && has('src/state/store.ts', '  skin: RESET_SKIN,'),
 );
 
+/* 🔷 «Vorrei anche togliere pulsanti e spostare elementi.» */
+const LAYOUT = 'src/engine/layout.ts';
+
+/* ⚠️ È L'AGO CHE CONTA, e non è lo stesso di `skin.ts`. Lì il rischio era un
+   colore illeggibile; qui è un elemento che sparisce. Il modello non deve
+   poter nominare un selettore: nomina un PEZZO di una tabella, e le regole le
+   scrive il codice — due forme sole, `display:none` e `order`. */
+check(
+  'SCHERMATE §13',
+  'può spostare solo i pezzi dichiarati, mai scrivere selettori',
+  has(LAYOUT, 'export const PEZZI') &&
+    has(LAYOUT, 'const noti = new Set(PEZZI.map((p) => p.attr));') &&
+    lacksInCode(LAYOUT, 'querySelector') &&
+    lacksInCode(LAYOUT, 'innerHTML'),
+  'una regola scritta dal modello può nascondere qualsiasi cosa, compresa la via di ritorno',
+);
+/* 🔒 SENZA QUESTO L'INTERO STRUMENTO È UNA TRAPPOLA. Nascondere il campo di
+   testo si può fare una volta sola: dopo, non c'è più nessun posto da cui
+   chiedere di rimetterlo. */
+check(
+  'SCHERMATE §13',
+  'e i tre pezzi che servono a disfare non si possono nascondere',
+  has(LAYOUT, "export const INTOCCABILI = ['barra', 'campo-testo', 'dev']") &&
+    has(LAYOUT, 'INTOCCABILI as readonly string[]).includes'),
+  'la barra, il campo di testo e DEV sono le tre strade per dirgli di rimettere le cose',
+);
+/* 🔒 Le etichette devono esistere sugli elementi VERI: un catalogo che nomina
+   pezzi inesistenti accetta il comando e non fa niente, che è peggio di
+   rifiutarlo. */
+check(
+  'SCHERMATE §13',
+  'e i pezzi del catalogo esistono davvero nelle schermate',
+  ['nome', 'foto', 'parlagli', 'bio', 'statistiche', 'identita', 'sigillo'].every((id) =>
+    has('src/screens/Splash.tsx', `data-pezzo="${id}"`),
+  ) && has('src/screens/CompanionHome.tsx', 'data-pezzo="faccia"'),
+);
+/* 🔶 La via di fuga ripara ADESSO due cose. Da quando si nascondono pezzi,
+   «non si vede niente» ha due cause e chi scrive quell'indirizzo non sa
+   quale gli è capitata. */
+check(
+  'SCHERMATE §13',
+  'e `?aspetto=reset` rimette anche i pezzi, non solo i colori',
+  has('src/state/store.ts', 'set({ skin: RESET_SKIN, layout: RESET_LAYOUT });'),
+  'una via di fuga che ripara solo una delle due cause non è una via di fuga',
+);
+
 /* 🔷 «È ancora nera questa schermata.»
 
    ⚠️ L'AGO PUNTA ALLA DECISIONE, NON AL COLORE. Non cerca `#ffffff` da nessuna

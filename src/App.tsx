@@ -21,6 +21,7 @@ import {
 } from './state/store';
 import { applyPaletteDna } from './engine/colorDna';
 import { applySkin } from './engine/skin';
+import { applyLayout } from './engine/layout';
 import { preloadMonAssets } from './assets-pipeline/assetStore';
 import { Icon } from './system/Icon';
 import { haptic } from './system/haptics';
@@ -228,6 +229,13 @@ export function App() {
     applySkin(skin);
   }, [skin]);
 
+  /* §13 — i pezzi nascosti e spostati. Stessa ragione della pelle: le regole
+     vivono in un tag di stile che al ricaricamento non c'è. */
+  const layout = useApp((s) => s.layout);
+  useEffect(() => {
+    applyLayout(layout);
+  }, [layout]);
+
   /* ⚠️ LA VIA DI FUGA, E NON È PARANOIA.
 
      Il catalogo è chiuso e i valori sono validati, ma resta una combinazione
@@ -238,7 +246,13 @@ export function App() {
 
      🔒 `?aspetto=reset` non passa dalla UI: si scrive nella barra
      dell'indirizzo, che funziona anche quando lo schermo è bianco su bianco.
-     È l'unico comando dell'app che non ha bisogno di vedere l'app. */
+     È l'unico comando dell'app che non ha bisogno di vedere l'app.
+
+     🔶 E ADESSO RIMETTE ANCHE I PEZZI. Da quando si possono nascondere degli
+     elementi, «non si vede niente» ha due cause possibili — un colore o un
+     pezzo sparito — e chi scrive quell'indirizzo non sa quale delle due gli
+     è capitata. Una via di fuga che ne ripara solo una non è una via di
+     fuga. */
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get('aspetto') !== 'reset') return;
     useApp.getState().resetSkin();
@@ -726,7 +740,7 @@ function StatusBar({
 
   return (
     <div className="proto-statusbar t-micro">
-      <span className="proto-statusbar__day">
+      <span className="proto-statusbar__day" data-pezzo="giorno">
         {t.common.day} {day}
       </span>
 

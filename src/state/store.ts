@@ -60,6 +60,14 @@ import {
   describeSkin,
   type Skin,
 } from '../engine/skin';
+import {
+  RESET_LAYOUT,
+  applyLayout,
+  describeLayout,
+  mostra as mostraPezzo,
+  sposta as spostaPezzo,
+  type Layout,
+} from '../engine/layout';
 import { parseResolution } from '../assets-pipeline/resolver/parse';
 import type { GenerationProgress } from '../assets-pipeline/generate';
 import {
@@ -340,6 +348,8 @@ interface AppState {
   pages: Page[];
   /** §10 — l'aspetto scelto insieme a lui. Vuoto = di fabbrica. */
   skin: Skin;
+  /** §13 — pezzi nascosti e spostati. Vuoto = schermate come sono nate. */
+  layout: Layout;
   reminders: Reminder[];
   lastToolUses: string[];
 
@@ -709,6 +719,7 @@ const INITIAL = {
      Safari sarebbe peggio di non averla mai avuta. */
   pages: [] as Page[],
   skin: RESET_SKIN,
+  layout: RESET_LAYOUT,
   reminders: [] as Reminder[],
   /* Solo per il pannello DEV: quali strumenti ha usato l'ultima risposta.
      Non è stato di prodotto e non deve finire nei salvataggi. */
@@ -2237,8 +2248,9 @@ export const useApp = create<AppState>()(
          sono.
          ========================================================================= */
       resetSkin: () => {
-        set({ skin: RESET_SKIN });
+        set({ skin: RESET_SKIN, layout: RESET_LAYOUT });
         applySkin(null);
+        applyLayout(null);
       },
 
       runMonTool: (use) => {
@@ -2294,9 +2306,28 @@ export const useApp = create<AppState>()(
             return { ok: esito.ok, error: esito.error };
           },
 
-          resetSkin: () => {
-            set({ skin: RESET_SKIN });
-            applySkin(null);
+          resetSkin: () => get().resetSkin(),
+
+          /* 🔷 §13 — togliere pulsanti e spostare elementi. Vedi
+             `engine/layout.ts` per perché non è manipolazione del DOM. */
+          layoutNow: () => describeLayout(get().layout),
+
+          showPiece: (id, visible) => {
+            const e = mostraPezzo(get().layout, id, visible);
+            if (e.ok && e.layout) {
+              set({ layout: e.layout });
+              applyLayout(e.layout);
+            }
+            return { ok: e.ok, error: e.error };
+          },
+
+          movePiece: (id, at) => {
+            const e = spostaPezzo(get().layout, id, at);
+            if (e.ok && e.layout) {
+              set({ layout: e.layout });
+              applyLayout(e.layout);
+            }
+            return { ok: e.ok, error: e.error };
           },
         };
 

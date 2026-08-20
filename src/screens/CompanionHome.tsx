@@ -113,6 +113,7 @@ export function CompanionHomeScreen({ onGo, onBack }: { onGo: (o: Overlay) => vo
         <button
           type="button"
           className="home__face"
+          data-pezzo="faccia"
           onClick={onBack}
           aria-label={`Guarda ${short} in grande`}
         >
@@ -133,7 +134,7 @@ export function CompanionHomeScreen({ onGo, onBack }: { onGo: (o: Overlay) => vo
             Il profilo non è stato tolto: è sceso sotto il personaggio nella
             home, dove ci arrivi scorrendo. Un gesto che tutti conoscono al
             posto di un'icona che nessuno sa leggere. */}
-        <span className="home__identity">
+        <span className="home__identity" data-pezzo="riga-identita">
           <span className="home__identitytext">
             <span className="home__name t-display">
               <MonName name={d.name} fit />
@@ -169,6 +170,7 @@ export function CompanionHomeScreen({ onGo, onBack }: { onGo: (o: Overlay) => vo
         <button
           type="button"
           className="home__sync home__sync--ready"
+          data-pezzo="riga-sync"
           onClick={() => {
             haptic('impact');
             openShift();
@@ -184,6 +186,7 @@ export function CompanionHomeScreen({ onGo, onBack }: { onGo: (o: Overlay) => vo
       ) : (
         <span
           className="home__sync"
+          data-pezzo="riga-sync"
           role="progressbar"
           aria-label={`${t.home.sync} — ${event.have} di ${event.need}`}
           aria-valuenow={event.have}
