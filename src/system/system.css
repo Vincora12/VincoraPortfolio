@@ -541,11 +541,12 @@
 .tabbar {
   display: flex;
   flex: 0 0 auto;
+  align-items: flex-start;
+  height: max(40px, env(safe-area-inset-bottom));
   border-top: var(--border-thick) solid var(--ink);
   background: var(--ink);
-  /* Sotto c'è la barra di casa dell'iPhone: senza questo, le etichette
-     MON / ME / GIORNI ci finiscono sotto. */
-  padding-bottom: env(safe-area-inset-bottom);
+  /* La barra Home e il nav condividono lo stesso spazio invece di sommarsi. */
+  padding-bottom: 0;
 }
 
 .tabbar__item {
