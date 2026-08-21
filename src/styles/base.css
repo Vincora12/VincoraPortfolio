@@ -120,7 +120,7 @@ select {
 @media (max-width: 860px) {
   html,
   body {
-    background: #111111;
+    background: #000000;
   }
 
   .proto-stage {
