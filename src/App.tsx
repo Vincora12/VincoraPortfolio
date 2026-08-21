@@ -48,12 +48,15 @@ import { HistoryScreen } from './screens/History';
 import { DailyScanScreen } from './screens/DailyScan';
 import { DevPanel } from './dev/DevPanel';
 import { PageReader } from './screens/PageReader';
-const Brain = lazy(() => import('./brain/Brain').then((module) => ({ default: module.Brain })));
+import type { ToolUse } from './ai/tools';
+const IntegratedChat = lazy(() => import('./assistant-original/IntegratedChat').then((module) => ({ default: module.IntegratedChat })));
 
-function LazyBrain(props: Omit<ComponentProps<typeof Brain>, 'embedded'>) {
+const runChatTool = (use: ToolUse) => useApp.getState().runMonTool(use);
+
+function LazyChat(props: ComponentProps<typeof IntegratedChat>) {
   return (
     <Suspense fallback={<div className="brain-loader" aria-label="Apertura chat"><strong>VINZ.MON</strong><span /></div>}>
-      <Brain embedded {...props} />
+      <IntegratedChat {...props} />
     </Suspense>
   );
 }
@@ -416,11 +419,11 @@ export function App() {
         {overlay ? (
           <OverlayScreen overlay={overlay} onClose={() => setOverlay(null)} onGo={setOverlay} />
         ) : assistantOpen ? (
-          <LazyBrain runTool={(use) => useApp.getState().runMonTool(use)} voiceModel={voiceModel} onModelChange={setVoiceModel} />
+          <LazyChat runTool={runChatTool} voiceModel={voiceModel} onModelChange={setVoiceModel} />
         ) : phase === 'live' ? (
           <>
             <div className={`live-chat ${tab === 'chat' ? '' : 'live-chat--hidden'}`}>
-              <LazyBrain runTool={(use) => useApp.getState().runMonTool(use)} voiceModel={voiceModel} onModelChange={setVoiceModel} />
+              <LazyChat runTool={runChatTool} voiceModel={voiceModel} onModelChange={setVoiceModel} />
             </div>
             {tab !== 'chat' && (
               <PhaseScreen
@@ -499,7 +502,7 @@ function PhaseScreen({
     case 'live':
       switch (tab) {
         case 'chat':
-          return <LazyBrain runTool={(use) => useApp.getState().runMonTool(use)} />;
+          return <LazyChat runTool={runChatTool} />;
         case 'mon':
           return <MonTab view={monView} onView={onMonView} onGo={onGo} onEnterChat={onEnterChat} />;
         case 'me':

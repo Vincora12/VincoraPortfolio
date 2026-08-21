@@ -79,7 +79,7 @@ export async function streamReply(
   return { costUsd: 0 };
 }
 
-const TOOL_INTENT = /\b(miei dati|mia salute|come sto|dormit|allenat|mangiat|giornat|protocollo|ricordami|promemoria|pagina|aspetto|schermata)\b/i;
+const TOOL_INTENT = /\b(miei dati|mia salute|come sto|dormit\w*|allenat\w*|allenamento|palestra|workout|corsa|camminata|mangiat\w*|pasto|colazione|pranzo|cena|spuntino|calorie|proteine|peso|dieta|giornat\w*|protocollo|ricordami|promemoria|pagina|aspetto|schermata)\b/i;
 
 /** Usa il loop strumenti solo quando la richiesta riguarda dati o azioni locali. */
 export function shouldUseLocalTools(text: string): boolean {
@@ -93,6 +93,7 @@ export async function replyWithLocalTools(
   onChunk: (chunk: string) => void,
   run: (use: ToolUse) => ToolResult,
   voiceModel?: string | null,
+  image?: { mediaType: string; data: string },
 ): Promise<ChatCost> {
   const token = savedToken();
   if (!token) throw new Error('Prima attiva VINZ.MON: manca il token.');
@@ -126,6 +127,7 @@ export async function replyWithLocalTools(
         system,
         turns: history,
         user: currentUser,
+        ...(round === 0 && image ? { image } : {}),
         ...(userBlocks ? { userBlocks } : {}),
         tools: round < 3 ? TOOLS : [],
         webSearch: true,

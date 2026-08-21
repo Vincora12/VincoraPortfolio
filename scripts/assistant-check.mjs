@@ -43,6 +43,8 @@ const cloneSource = readFileSync(
 );
 const cloneStyles = readFileSync(join(cwd, 'src/assistant-original/styles.css'), 'utf8');
 const cloneMain = readFileSync(join(cwd, 'src/assistant-original/main.tsx'), 'utf8');
+const integratedChat = readFileSync(join(cwd, 'src/assistant-original/IntegratedChat.tsx'), 'utf8');
+const appSource = readFileSync(join(cwd, 'src/App.tsx'), 'utf8');
 const netlifyRuntime = readFileSync(
   join(cwd, 'src/assistant-original/netlify-runtime.ts'),
   'utf8',
@@ -66,6 +68,10 @@ check(
   cloneMain.includes('selectedRuntime === "mock" ? mockChatModel : netlifyChatModel'),
   'il backend reale è il runtime predefinito',
 );
+check(integratedChat.includes('createNetlifyChatModel(runTool)'), 'il clone integrato riceve gli strumenti VINZ.MON');
+check(appSource.includes("./assistant-original/IntegratedChat"), 'la Chat principale usa il clone approvato');
+check(!appSource.includes("lazy(() => import('./brain/Brain')"), 'la vecchia interfaccia Chat non viene più caricata');
+check(netlifyRuntime.includes('const image = imageOf(last)'), 'una foto del pasto arriva anche al ciclo degli strumenti');
 
 const preferences = m.assistantRequestPreferences(
   { modelName: 'claude-sonnet-5', reasoningEffort: 'high' },

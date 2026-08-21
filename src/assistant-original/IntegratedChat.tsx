@@ -1,5 +1,4 @@
-import { StrictMode, useMemo, type FC } from "react";
-import { createRoot } from "react-dom/client";
+import { useEffect, useMemo, type FC } from "react";
 import {
   AssistantRuntimeProvider,
   CompositeAttachmentAdapter,
@@ -12,11 +11,10 @@ import {
   createLocalStorageAdapter,
   createSimpleTitleAdapter,
 } from "@assistant-ui/core/react";
+import type { ToolResult, ToolUse } from "@/ai/tools";
+import { createNetlifyChatModel } from "./netlify-runtime";
 import { ChatSurface } from "./chat-surface";
-import { mockChatModel } from "./mock-runtime";
-import { netlifyChatModel } from "./netlify-runtime";
-import "@fontsource-variable/inter";
-import "./standalone.css";
+import "./styles.css";
 
 const storage = {
   getItem: async (key: string) => localStorage.getItem(key),
@@ -35,32 +33,32 @@ const attachments = new CompositeAttachmentAdapter([
   new SimpleTextAttachmentAdapter(),
 ]);
 
-const selectedRuntime = new URLSearchParams(window.location.search).get("runtime");
-const chatModel = selectedRuntime === "mock" ? mockChatModel : netlifyChatModel;
+type IntegratedChatProps = {
+  runTool: (use: ToolUse) => ToolResult;
+  voiceModel?: string | null;
+  onModelChange?: (model: string) => void;
+};
 
-const App: FC = () => {
-  const model = useMemo(() => chatModel, []);
+export const IntegratedChat: FC<IntegratedChatProps> = ({
+  runTool,
+  voiceModel,
+  onModelChange,
+}) => {
+  useEffect(() => {
+    document.documentElement.classList.add("dark");
+  }, []);
+  const model = useMemo(() => createNetlifyChatModel(runTool), [runTool]);
   const runtime = useRemoteThreadListRuntime({
     adapter: threadAdapter,
     runtimeHook: () =>
       useLocalRuntime(model, {
-        adapters: {
-          attachments,
-        },
+        adapters: { attachments },
       }),
   });
 
   return (
     <AssistantRuntimeProvider runtime={runtime}>
-      <div className="h-dvh overflow-hidden"><ChatSurface /></div>
+      <ChatSurface model={voiceModel} onModelChange={onModelChange} />
     </AssistantRuntimeProvider>
   );
 };
-
-document.documentElement.classList.add("dark");
-
-createRoot(document.getElementById("root")!).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-);
