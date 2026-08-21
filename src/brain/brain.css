@@ -12,6 +12,12 @@ button, textarea { font: inherit; }
   display: grid;
   grid-template-rows: auto 1fr auto;
 }
+.brain--embedded {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  border: 0;
+}
 .brain__header {
   display: flex;
   align-items: baseline;
@@ -30,10 +36,18 @@ button, textarea { font: inherit; }
 .brain__message { max-width: 82%; margin-bottom: var(--u5); }
 .brain__message--user { margin-left: auto; }
 .brain__message > span { display: block; margin-bottom: var(--u2); color: var(--muted-strong); }
-.brain__message p { margin: 0; padding: var(--u4); border: var(--border) solid var(--ink); line-height: 1.55; white-space: pre-wrap; }
-.brain__message--user p { background: var(--ink); color: var(--white); }
+.brain__bubble { padding: var(--u4); border: var(--border) solid var(--ink); line-height: 1.55; }
+.brain__bubble > p { margin: 0; white-space: pre-wrap; }
+.brain__bubble .md__p:first-child { margin-top: 0; }
+.brain__bubble .md__p:last-child { margin-bottom: 0; }
+.brain__message--user .brain__bubble { background: var(--ink); color: var(--white); }
+.brain__bubble small { display: block; margin-top: var(--u3); font-family: var(--font-mono); }
 .brain__error { padding: var(--u3); border: var(--border) solid var(--signal-alert); color: #a00000; }
-.brain__composer { display: grid; grid-template-columns: 1fr auto; gap: var(--u3); padding: var(--u4) var(--u5) max(var(--u4), env(safe-area-inset-bottom)); border-top: var(--border-thick) solid var(--ink); }
+.brain__composer { display: grid; grid-template-columns: auto 1fr auto; gap: var(--u3); padding: var(--u4) var(--u5) max(var(--u4), env(safe-area-inset-bottom)); border-top: var(--border-thick) solid var(--ink); }
+.brain__attachment { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: var(--u3); padding: var(--u2) var(--u3); border: var(--border) solid var(--ink); font-family: var(--font-mono); font-size: var(--type-micro); }
+.brain__attachment button { min-width: 0; padding: var(--u2); border: 0; background: transparent; color: inherit; }
+.brain__attach { width: 54px; min-height: 54px; display: grid; place-items: center; border: var(--border) solid var(--ink); cursor: pointer; font-size: 24px; }
+.brain__attach input { position: absolute; width: 1px; height: 1px; opacity: 0; }
 .brain__composer textarea { resize: none; min-height: 54px; padding: var(--u3); border: var(--border) solid var(--ink); border-radius: 0; background: var(--white); }
 .brain__composer button { min-width: 88px; padding: 0 var(--u4); border: var(--border) solid var(--ink); background: var(--ink); color: var(--white); font-family: var(--font-mono); font-weight: 600; }
 .brain__composer button:disabled { opacity: .35; }

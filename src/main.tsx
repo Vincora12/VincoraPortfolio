@@ -15,6 +15,7 @@ import './system/system.css';
 import './system/assets.css';
 import './screens/screens.css';
 import './dev/dev.css';
+import './brain/brain.css';
 
 import { App } from './App';
 import { ErrorBoundary } from './system/ErrorBoundary';

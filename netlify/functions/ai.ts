@@ -119,7 +119,7 @@ interface Payload {
   jobId?: string;
   /** Quanto deve ragionare, quando parte in background. */
   effort?: 'none' | 'low' | 'medium' | 'high';
-  /** Laboratorio /brain: risposta progressiva, senza memoria né strumenti. */
+  /** Risposta progressiva per la chat. */
   stream?: boolean;
 }
 
@@ -296,23 +296,23 @@ export default async function handler(request: Request): Promise<Response> {
     if (bytes > LIMITS.imageBytes) return json({ error: 'immagine troppo grande' }, 413);
   }
 
-  /* 🔷 BRAIN LAB V0 — un ramo volutamente stretto. Nessun prompt di sistema,
-     nessuno strumento, nessuna memoria: prima si dimostra che il tubo dello
-     streaming funziona senza trascinarsi dietro il cervello precedente. */
+  /* Streaming della chat V1. Il contesto neutrale è ammesso, mentre strumenti,
+     risultati di strumenti e immagini seguiranno il loop orchestrato. */
   if (payload.stream) {
     if (route.provider !== 'anthropic') {
       return json({ error: 'streaming non disponibile per questo modello' }, 400);
     }
-    if (system.length || tools.length || userBlocks.length || payload.image) {
-      return json({ error: 'il laboratorio V0 accetta solo testo' }, 400);
+    if (tools.length || userBlocks.length || payload.image) {
+      return json({ error: 'lo streaming accetta testo e contesto' }, 400);
     }
 
     const streamed = await streamAnthropic(
       {
         model: route.model,
-        system: [],
+        system,
         turns,
         user,
+        webSearch,
         maxTokens: Math.min(payload.maxTokens ?? 2000, LIMITS.maxTokens),
       },
       request.signal,

@@ -34,7 +34,6 @@ import { PersonalityScanScreen } from './screens/PersonalityScan';
 import { ProtocolSetupScreen } from './screens/ProtocolSetup';
 import { IncubationScreen } from './screens/Incubation';
 import { EncounterScreen } from './screens/Encounter';
-import { CompanionHomeScreen } from './screens/CompanionHome';
 import { UniversalInputScreen } from './screens/UniversalInput';
 import { MeOverviewScreen } from './screens/MeOverview';
 import { MindlineShiftScreen } from './screens/MindlineShift';
@@ -50,6 +49,7 @@ import { HistoryScreen } from './screens/History';
 import { DailyScanScreen } from './screens/DailyScan';
 import { DevPanel } from './dev/DevPanel';
 import { PageReader } from './screens/PageReader';
+import { Brain } from './brain/Brain';
 
 /* ============================================================================
    🔷 «Il nav sotto deve avere prima la chat — appena entri c'è la chat aperta
@@ -405,7 +405,6 @@ export function App() {
             onMeView={setMeView}
             onGo={setOverlay}
             onEnterChat={() => goTab('chat')}
-            onBackToMon={() => goTab('mon')}
           />
         )}
 
@@ -428,7 +427,6 @@ function PhaseScreen({
   onMeView,
   onGo,
   onEnterChat,
-  onBackToMon,
 }: {
   phase: Phase;
   tab: Tab;
@@ -438,8 +436,6 @@ function PhaseScreen({
   onMeView: (v: MeView) => void;
   onGo: (o: Overlay) => void;
   onEnterChat: () => void;
-  /** Torna dove la creatura sta in grande (§13.7). */
-  onBackToMon: () => void;
 }) {
   switch (phase) {
     case 'scan':
@@ -461,7 +457,7 @@ function PhaseScreen({
     case 'live':
       switch (tab) {
         case 'chat':
-          return <CompanionHomeScreen onGo={onGo} onBack={onBackToMon} />;
+          return <Brain embedded />;
         case 'mon':
           return <MonTab view={monView} onView={onMonView} onGo={onGo} onEnterChat={onEnterChat} />;
         case 'me':
