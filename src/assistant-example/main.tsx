@@ -10,11 +10,11 @@ import {
 import { createLocalStorageAdapter, createSimpleTitleAdapter } from '@assistant-ui/core/react';
 import { MarkdownTextPrimitive } from '@assistant-ui/react-markdown';
 import {
-  ArrowDown, ArrowUp, AudioLines, Check, ChevronDown, ChevronLeft, ChevronRight, Copy,
-  Menu, Mic, Moon, PanelLeft, Pencil, Plus, RefreshCw, Share2, Square,
+  ArrowDown, ArrowUp, AudioLines, Check, ChevronLeft, ChevronRight, Copy,
+  Menu, Mic, PanelLeft, Pencil, Plus, RefreshCw, Share2, Square,
   ThumbsDown, ThumbsUp, Volume2, X,
 } from 'lucide-react';
-import { createChatModel } from '../brain/Brain';
+import { mockChatModel } from './mockRuntime';
 import '@fontsource-variable/inter';
 import './style.css';
 
@@ -154,23 +154,17 @@ const Thread: FC = () => (
 const ChatGPTClone: FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(true);
-  return <div className="clone-demo">
-    <header className="clone-demo-bar">
-      <div className="clone-demo-brand"><span className="clone-logo">▱</span><strong>assistant-ui</strong><i /><span>ChatGPT</span><ChevronDown size={13} /></div>
-      <div className="clone-demo-links"><span>Docs</span><span className="clone-github">●</span><Moon size={17} /></div>
-    </header>
-    <div className="clone-shell">
+  return <div className="clone-shell">
       <Sidebar open={sidebarOpen} collapsed={collapsed} onClose={() => setSidebarOpen(false)} onToggle={() => setCollapsed((value) => !value)} />
       <main className="clone-main">
         <IconButton label="Open chat history" className="clone-menu" onClick={() => setSidebarOpen(true)}><Menu size={20} /></IconButton>
         <Thread />
       </main>
-    </div>
   </div>;
 };
 
 function Runtime() {
-  const model = useMemo(() => createChatModel(), []);
+  const model = useMemo(() => mockChatModel, []);
   const runtime = useRemoteThreadListRuntime({ adapter: threadAdapter, runtimeHook: () => useLocalRuntime(model, { adapters: { attachments, dictation: new WebSpeechDictationAdapter() } }) });
   return <AssistantRuntimeProvider runtime={runtime}><ChatGPTClone /></AssistantRuntimeProvider>;
 }
