@@ -3678,6 +3678,86 @@
 .proto-frame:has(.me-health) .tabbar__item { color: #111318; }
 .proto-frame:has(.me-health) .tabbar__item[aria-current='page']::before { background: #f0a600; }
 
+/* ME recap — diario compilato dall'AI, interfaccia nera ad alta densità */
+.me-health {
+  --mh-line: #747780;
+  --mh-muted: #a4a7b0;
+  background: #020306;
+  color: #f7f7f9;
+  color-scheme: dark;
+}
+.me-health__header { min-height: 64px; border-color: #292c33; background: #020306; }
+.me-health__header h1 { color: #fff; font-style: italic; }
+.me-health__header p { color: #d5d6dc; }
+.me-health__header button { border: 1px solid #8b8e96; background: transparent; color: #fff; box-shadow: none; }
+.me-health__tabs { border-color: #292c33; background: #020306; }
+.me-health__tabs button { min-height: 42px; color: #8e919a; }
+.me-health__tabs button[aria-current='page'] { color: #f8f8fa; }
+.me-health__scroll { padding: 10px 18px 22px; background: #020306; scrollbar-color: var(--mh-accent) #111319; }
+.me-health__goal,
+.me-health__nutrition,
+.me-health__section,
+.me-health__weight,
+.me-health__game,
+.me-health__today,
+.me-health__sync { margin-bottom: 8px; border: 1px solid var(--mh-line); border-radius: 0; background: #050609; box-shadow: none; }
+.me-health__goal { position: relative; min-height: 112px; margin: 0 0 8px; padding: 16px 70px 14px 16px; display: flex; flex-direction: column; align-items: flex-start; gap: 7px; border-bottom: 1px solid var(--mh-line); }
+.me-health__goal span { color: #c8cad1; font-size: 10px; }
+.me-health__goal strong { color: #fff; font-size: 34px; font-style: italic; font-weight: 850; line-height: 1; text-transform: uppercase; }
+.me-health__goal small { color: #b3b6bf; font: 500 9px/1 var(--font-mono); letter-spacing: .12em; }
+.me-health__goal > i { position: absolute; right: 18px; bottom: 22px; width: 44px; height: 44px; display: grid; place-items: center; border: 0; border-radius: 0; background: transparent; color: var(--mh-accent); }
+.me-health__goal > i svg { width: 38px; height: 38px; }
+.me-health__nutrition { min-height: 0; display: block; border-bottom: 1px solid var(--mh-line); }
+.me-health__calories { min-height: 100px; padding: 14px 16px 12px; display: block; border: 0; border-bottom: 1px solid #363941; }
+.me-health__calories > div:first-child { width: 100%; }
+.me-health__calories small:first-child { display: block; margin-bottom: 13px; color: #c8cad1; font: 500 10px/1 var(--font-mono); letter-spacing: .12em; }
+.me-health__calories strong { color: #fff; font-size: 34px; }
+.me-health__calories span { color: #d1d3d9; font-size: 11px; }
+.me-health__macros { min-height: 78px; padding: 12px 16px; gap: 16px; }
+.me-health__macros div { gap: 7px; padding-left: 16px; border-color: #4b4e56; border-left-style: dashed; }
+.me-health__macros span { color: #bfc2ca; font-size: 9px; }
+.me-health__macros strong { color: #fff; font-size: 20px; font-style: italic; }
+.me-health__macros strong small { color: #fff; font-size: 11px; }
+.me-health__segments { height: 8px; margin-top: 8px; gap: 3px; }
+.me-health__segments b { border-color: #8e9199; background: transparent; }
+.me-health__segments b.is-filled { border-color: var(--mh-accent); background: var(--mh-accent); }
+.me-health__today { padding: 14px 0 0; }
+.me-health__today > h2 { margin: 0 16px 12px; color: #c8cad1; font: 600 10px/1 var(--font-mono); letter-spacing: .12em; }
+.me-health__today > div { display: grid; grid-template-columns: repeat(3, 1fr); }
+.me-health__today article { min-width: 0; min-height: 86px; padding: 8px 10px 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; border-left: 1px dashed #565962; text-align: center; }
+.me-health__today article:first-child { border-left: 0; }
+.me-health__today svg { width: 24px; height: 24px; color: #f1f2f4; }
+.me-health__today strong { max-width: 100%; overflow: hidden; color: #fff; font-family: var(--font-display); font-size: 15px; font-style: italic; font-weight: 800; line-height: 1.1; text-overflow: ellipsis; white-space: nowrap; }
+.me-health__today strong small { font-size: 10px; }
+.me-health__today span { color: #aeb1ba; font: 500 8px/1 var(--font-mono); letter-spacing: .08em; }
+.me-health__game { padding: 14px 16px; }
+.me-health__game h2 { color: #c8cad1; }
+.me-health__game span { color: #d1d3d9; }
+.me-health__game strong { color: #e3e4e8; }
+.me-health__sync { min-height: 44px; padding: 0 14px; display: flex; align-items: center; justify-content: space-between; gap: 12px; color: #b6b9c1; font: 500 8px/1 var(--font-mono); letter-spacing: .08em; }
+.me-health__sync strong { display: inline-flex; align-items: center; gap: 6px; color: var(--mh-accent); font-weight: 500; white-space: nowrap; }
+.me-health__sync svg { width: 14px; height: 14px; }
+.me-health__actions { display: grid; grid-template-columns: 1.15fr 1fr; gap: 8px; padding-bottom: 2px; }
+.me-health__actions button { min-height: 52px; display: inline-flex; align-items: center; justify-content: center; gap: 10px; border: 1px solid #8b8e96; border-radius: 0; background: transparent; color: #f7f7f9; font: 600 10px/1 var(--font-mono); letter-spacing: .06em; }
+.me-health__actions button:first-child { border-color: var(--mh-accent); background: var(--mh-accent); color: var(--char-on-primary, #fff); }
+.me-health__actions svg { width: 20px; height: 20px; }
+.me-health__section h2, .me-health__weight span, .me-health__game h2 { color: #d5d7dd; }
+.me-health__section > header button, .me-health__weight button, .me-health__row small { color: var(--mh-accent); }
+.me-health__row { border-color: #292c33; }
+.me-health__row strong, .me-health__weight strong, .me-health__plan h2 { color: #fff; }
+.me-health__row p, .me-health__plan p { color: #b9bbc3; }
+.me-health__row small, .me-health__row time { color: #989ba4; }
+.me-health__empty { color: #aeb1ba; }
+.proto-frame:has(.me-health) .tabbar { border-top: 1px solid #292c33; background: #07080a; }
+.proto-frame:has(.me-health) .tabbar__item { color: #f3f3f5; }
+.proto-frame:has(.me-health) .tabbar__item[aria-current='page']::before { background: var(--mh-accent); }
+
+@media (max-height: 760px) {
+  .me-health__goal { min-height: 96px; }
+  .me-health__calories { min-height: 88px; }
+  .me-health__today article { min-height: 76px; }
+}
+
 /* 🔷 v1.10 §13.9 — la creatura sulla schermata home.
 
    Il visore di rotazione occupa lo spazio e risponde al trascinamento; quando
