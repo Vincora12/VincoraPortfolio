@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   ActionBarPrimitive,
   AssistantRuntimeProvider,
@@ -265,6 +266,103 @@ function modelProvider(model: string): string {
   return 'OPENAI';
 }
 
+function ChatManager({ onClose }: { onClose: () => void }) {
+  const aui = useAui();
+  const topicIds = useAuiState((s) => s.threads.threadIds);
+  const [revision, setRevision] = useState(0);
+  const refresh = () => setRevision((value) => value + 1);
+  const item = (id: string) => aui.threads.item({ id });
+  const topics = topicIds.map((id, index) => {
+    const state = item(id).getState();
+    const custom = state.custom ?? {};
+    return {
+      id,
+      title: state.title ?? 'Nuova chat',
+      color: typeof custom.vinzColor === 'string' ? custom.vinzColor : '#262626',
+      order: typeof custom.vinzOrder === 'number' ? custom.vinzOrder : index,
+      groupId: typeof custom.vinzGroupId === 'string' ? custom.vinzGroupId : null,
+      groupName: typeof custom.vinzGroupName === 'string' ? custom.vinzGroupName : 'Gruppo',
+    };
+  }).sort((a, b) => a.order - b.order);
+  void revision;
+
+  const patch = (id: string, values: Record<string, unknown>) => {
+    const current = item(id).getState().custom ?? {};
+    item(id).updateCustom({ ...current, ...values });
+  };
+  const normalizeOrder = (ids: string[]) => {
+    ids.forEach((id, index) => patch(id, { vinzOrder: index }));
+    refresh();
+  };
+  const move = (id: string, direction: -1 | 1) => {
+    const ids = topics.map((topic) => topic.id);
+    const from = ids.indexOf(id);
+    const to = Math.max(0, Math.min(ids.length - 1, from + direction));
+    if (from === to) return;
+    ids.splice(to, 0, ids.splice(from, 1)[0]!);
+    normalizeOrder(ids);
+  };
+  const rename = (id: string, title: string) => {
+    const next = window.prompt('Rinomina chat', title)?.trim();
+    if (next) { item(id).rename(next); refresh(); }
+  };
+  const moveToGroup = (id: string, groupId: string) => {
+    if (groupId === '__new') {
+      const name = window.prompt('Nome del nuovo gruppo', 'Nuovo gruppo')?.trim();
+      if (!name) return;
+      patch(id, { vinzGroupId: `group-${Date.now()}`, vinzGroupName: name, vinzGroupLeader: true });
+    } else if (!groupId) {
+      patch(id, { vinzGroupId: null, vinzGroupName: null, vinzGroupLeader: false });
+    } else {
+      const group = topics.find((topic) => topic.groupId === groupId);
+      patch(id, { vinzGroupId: groupId, vinzGroupName: group?.groupName ?? 'Gruppo', vinzGroupLeader: false });
+    }
+    refresh();
+  };
+  const groups = Array.from(new Map(topics.filter((topic) => topic.groupId).map((topic) => [topic.groupId!, topic.groupName])).entries());
+  const renderTopic = (topic: typeof topics[number]) => (
+    <article className="aui-manager__topic" key={topic.id} style={{ '--topic-color': topic.color } as React.CSSProperties}>
+      <button className="aui-manager__open" type="button" onClick={() => { item(topic.id).switchTo(); onClose(); }}>
+        <i aria-hidden="true" />
+        <span>{topic.title}</span>
+      </button>
+      <div className="aui-manager__actions">
+        <button type="button" aria-label={`Sposta ${topic.title} in alto`} onClick={() => move(topic.id, -1)}>↑</button>
+        <button type="button" aria-label={`Sposta ${topic.title} in basso`} onClick={() => move(topic.id, 1)}>↓</button>
+        <button type="button" aria-label={`Rinomina ${topic.title}`} onClick={() => rename(topic.id, topic.title)}>✎</button>
+        <label>
+          <span className="sr-only">Gruppo di {topic.title}</span>
+          <select value={topic.groupId ?? ''} onChange={(event) => moveToGroup(topic.id, event.target.value)}>
+            <option value="">NESSUN GRUPPO</option>
+            {groups.map(([id, name]) => <option value={id} key={id}>{name.toUpperCase()}</option>)}
+            <option value="__new">＋ NUOVO GRUPPO</option>
+          </select>
+        </label>
+      </div>
+    </article>
+  );
+
+  return (
+    <section className="aui-manager" aria-label="Gestisci chat">
+      <header className="aui-manager__header">
+        <button type="button" onClick={onClose} aria-label="Chiudi gestione chat">×</button>
+        <h2>Chat</h2>
+        <ThreadListPrimitive.New className="aui-manager__new" aria-label="Nuova chat">＋</ThreadListPrimitive.New>
+      </header>
+      <div className="aui-manager__body">
+        {topics.filter((topic) => !topic.groupId).map(renderTopic)}
+        {groups.map(([groupId, groupName]) => (
+          <section className="aui-manager__group" key={groupId}>
+            <h3>{groupName}</h3>
+            {topics.filter((topic) => topic.groupId === groupId).map(renderTopic)}
+          </section>
+        ))}
+        {topics.length === 0 && <p className="aui-manager__empty">Le tue chat appariranno qui.</p>}
+      </div>
+    </section>
+  );
+}
+
 function Composer() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const waveRef = useRef<HTMLDivElement>(null);
@@ -414,6 +512,7 @@ function ChatSurface({ embedded, voiceModel, onModelChange }: { embedded: boolea
   const topicListRef = useRef<HTMLDivElement>(null);
   const groupTargetRef = useRef<string | null>(null);
   const [modelMenu, setModelMenu] = useState(false);
+  const [managerOpen, setManagerOpen] = useState(false);
   const [models, setModels] = useState<ModelChoice[]>([]);
   const [defaultModel, setDefaultModel] = useState<string | null>(null);
   const [topicMenu, setTopicMenu] = useState<TopicMenuState>(null);
@@ -564,6 +663,7 @@ function ChatSurface({ embedded, voiceModel, onModelChange }: { embedded: boolea
                 <ThreadListPrimitive.Items components={{ ThreadListItem: TopicTab }} />
             </TopicContext.Provider>
             <ThreadListPrimitive.New className="aui-topics__new" aria-label="Nuova chat">＋</ThreadListPrimitive.New>
+            <button type="button" className="aui-topics__manage" aria-label="Gestisci chat" onClick={() => setManagerOpen(true)}>☰</button>
           </ThreadListPrimitive.Root>
           <div className="aui-subtopics">
             <TopicContext.Provider value={topicController}>
@@ -617,6 +717,7 @@ function ChatSurface({ embedded, voiceModel, onModelChange }: { embedded: boolea
           </ThreadPrimitive.ViewportFooter>
         </ThreadPrimitive.Viewport>
       </ThreadPrimitive.Root>
+      {managerOpen && createPortal(<ChatManager onClose={() => setManagerOpen(false)} />, document.body)}
     </main>
   );
 }
