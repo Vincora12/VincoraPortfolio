@@ -178,7 +178,7 @@ export const CloneThreadShell: FC<CloneThreadShellProps> = ({
 
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
         {!mobileControlled && (
-          <div className="absolute top-2 left-2 z-20 md:hidden">
+          <div className="vinz-chat-menu absolute left-2 z-20 md:hidden">
             <SheetTrigger
               render={
                 <Button

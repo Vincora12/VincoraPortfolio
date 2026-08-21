@@ -15,7 +15,7 @@ export const ChatSurface: FC<ChatSurfaceProps> = ({ model, onModelChange }) => (
       aria-hidden="true"
       className="vinz-chat-top-fade pointer-events-none absolute inset-x-0 top-0 z-10 md:hidden"
     />
-    <div className="absolute top-2 right-3 z-30">
+    <div className="vinz-chat-model absolute right-3 z-30">
       <ModelSelector
         models={MODELS}
         value={model && MODELS.some((item) => item.id === model) ? model : undefined}

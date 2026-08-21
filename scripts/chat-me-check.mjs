@@ -58,8 +58,8 @@ const ctx = {
 const replies = [
   {
     toolUses: [{ id: 'meal-1', name: 'registra_pasto', input: {
-      pasto: 'pranzo', descrizione: 'Riso e pollo', kcal: 540,
-      proteine: 42, carboidrati: 62, grassi: 11,
+      pasto: 'spuntino', descrizione: 'Una banana', kcal: 105,
+      proteine: 1.3, carboidrati: 27, grassi: 0.4,
     } }],
     costUsd: 0.001,
     model: 'test-model',
@@ -75,23 +75,29 @@ const replies = [
   { text: 'Allenamento registrato in ME.', costUsd: 0.001, model: 'test-model' },
 ];
 const originalFetch = globalThis.fetch;
-globalThis.fetch = async () => new Response(JSON.stringify(replies.shift()), {
-  status: 200,
-  headers: { 'content-type': 'application/json' },
-});
+const toolCounts = [];
+globalThis.fetch = async (_url, init) => {
+  const request = JSON.parse(String(init?.body ?? '{}'));
+  toolCounts.push(Array.isArray(request.tools) ? request.tools.length : 0);
+  return new Response(JSON.stringify(replies.shift()), {
+    status: 200,
+    headers: { 'content-type': 'application/json' },
+  });
+};
 
 try {
   check(m.shouldUseLocalTools('Ho mangiato riso e pollo'), 'un pasto raccontato attiva gli strumenti locali');
   check(m.shouldUseLocalTools('Mi sono allenato per 45 minuti'), 'un allenamento raccontato attiva gli strumenti locali');
   const run = (use) => m.runTool(use, ctx);
-  await m.replyWithLocalTools([], 'A pranzo ho mangiato riso e pollo.', new AbortController().signal, () => {}, run, 'test-model');
+  await m.replyWithLocalTools([], 'Ho mangiato una banana.', new AbortController().signal, () => {}, run, 'test-model');
   await m.replyWithLocalTools([], 'Ho fatto 45 minuti di lower body.', new AbortController().signal, () => {}, run, 'test-model');
   const journal = m.readHealthJournal();
   check(journal.meals.length === 1, 'il pasto detto in chat entra nel diario ME');
-  check(journal.meals[0]?.description === 'Riso e pollo', 'ME legge descrizione e nutrienti del pasto');
+  check(journal.meals[0]?.description === 'Una banana', 'ME legge descrizione e nutrienti del pasto');
   check(journal.workouts.length === 1, 'l’allenamento detto in chat entra nel diario ME');
   check(journal.workouts[0]?.minutes === 45, 'ME legge durata e dettagli dell’allenamento');
   check(journal.meals[0]?.source === 'chat' && journal.workouts[0]?.source === 'chat', 'la provenienza resta CHAT');
+  check(toolCounts.every((count) => count <= 12), 'ogni richiesta resta entro il limite di 12 strumenti');
 } finally {
   globalThis.fetch = originalFetch;
 }

@@ -55,7 +55,7 @@ export const ChatGPT: FC = () => {
         </AuiIf>
 
         <AuiIf condition={(s) => !s.thread.isEmpty}>
-          <ThreadPrimitive.Viewport className="flex grow flex-col gap-8 overflow-y-scroll pt-16">
+          <ThreadPrimitive.Viewport className="vinz-chat-thread-viewport flex grow flex-col gap-8 overflow-y-scroll pt-16">
             <ThreadPrimitive.Messages>
               {({ message }) => {
                 if (message.composer.isEditing) return <EditComposer />;
@@ -624,7 +624,7 @@ const ChatCostTotal: FC = () => {
     }, 0),
   );
   return (
-    <div className="pointer-events-none absolute top-3 left-12 z-30 text-[11px] leading-4 font-medium text-[#737373] tabular-nums md:left-1/2 md:-translate-x-1/2 dark:text-[#8e8e8e]">
+    <div className="vinz-chat-cost pointer-events-none absolute left-12 z-30 text-[11px] leading-4 font-medium text-[#737373] tabular-nums md:left-1/2 md:-translate-x-1/2 dark:text-[#8e8e8e]">
       Chat {formatCost(total)}
     </div>
   );

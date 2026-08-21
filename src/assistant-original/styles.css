@@ -9,6 +9,47 @@
 @custom-variant data-open (&:where([data-state="open"], [data-open]:not([data-open="false"])));
 @custom-variant data-closed (&:where([data-state="closed"], [data-closed]:not([data-closed="false"])));
 
+/* Tailwind senza il reset globale: il clone riceve il suo reset, mentre MON,
+   ME e la navbar mantengono intatti i propri token. */
+@layer base {
+  .assistant-clone *,
+  .assistant-clone *::before,
+  .assistant-clone *::after,
+  [data-slot="popover-content"],
+  [data-slot="popover-content"] *,
+  [data-slot="sheet-content"],
+  [data-slot="sheet-content"] * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    border: 0 solid;
+  }
+
+  .assistant-clone button,
+  .assistant-clone input,
+  .assistant-clone textarea,
+  .assistant-clone select,
+  [data-slot="popover-content"] button,
+  [data-slot="popover-content"] input,
+  [data-slot="sheet-content"] button,
+  [data-slot="sheet-content"] input {
+    color: inherit;
+    background: transparent;
+    font: inherit;
+    letter-spacing: inherit;
+  }
+
+  .assistant-clone button,
+  .assistant-clone select {
+    text-transform: none;
+    appearance: button;
+  }
+
+  .assistant-clone textarea {
+    resize: none;
+  }
+}
+
 @theme inline {
   --font-sans: "Inter Variable", Inter, ui-sans-serif, system-ui, sans-serif;
   --radius-sm: calc(var(--radius) - 4px);
@@ -107,7 +148,7 @@ body[data-scroll-locked] {
 }
 
 .vinz-chat-top-fade {
-  height: 4rem;
+  height: calc(env(safe-area-inset-top, 0px) + 4rem);
   background: linear-gradient(
     to bottom,
     #000 0,
@@ -116,6 +157,33 @@ body[data-scroll-locked] {
     rgb(0 0 0 / 32%) 84%,
     transparent 100%
   );
+}
+
+.assistant-clone {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  isolation: isolate;
+}
+
+/* Il focus globale di VINZ.MON è rettangolare e appartiene alle schermate
+   tecniche. Nel composer il clone usa già il proprio ring arrotondato. */
+.assistant-clone :focus-visible {
+  outline: none;
+  outline-offset: 0;
+}
+
+.vinz-chat-model,
+.vinz-chat-menu {
+  top: calc(env(safe-area-inset-top, 0px) + 0.5rem);
+}
+
+.vinz-chat-cost {
+  top: calc(env(safe-area-inset-top, 0px) + 0.75rem);
+}
+
+.vinz-chat-thread-viewport {
+  padding-top: calc(env(safe-area-inset-top, 0px) + 4rem);
 }
 
 .aui-md p {

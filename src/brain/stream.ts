@@ -115,6 +115,10 @@ export async function replyWithLocalTools(
   let userBlocks: Record<string, unknown>[] | undefined;
   let totalCostUsd = 0;
   let lastModel: string | undefined;
+  /* Il backend accetta al massimo 12 strumenti per richiesta. Quelli salute
+     sono in testa al catalogo; il limite evita che una frase come «ho
+     mangiato una banana» venga rifiutata prima ancora che il modello la legga. */
+  const availableTools = TOOLS.slice(0, 12);
 
   for (let round = 0; round < 4; round++) {
     const response = await fetch('/api/ai', {
@@ -129,7 +133,7 @@ export async function replyWithLocalTools(
         user: currentUser,
         ...(round === 0 && image ? { image } : {}),
         ...(userBlocks ? { userBlocks } : {}),
-        tools: round < 3 ? TOOLS : [],
+        tools: round < 3 ? availableTools : [],
         webSearch: true,
         effort: 'none',
         maxTokens: 2000,
