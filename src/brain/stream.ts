@@ -1,6 +1,8 @@
 import type { BrainMessage } from './store/types';
 import { TOOLS, assistantTurn, resultBlocks, type ToolResult, type ToolUse } from '../ai/tools';
 
+export type ChatCost = { costUsd: number; model?: string };
+
 /** Legge soltanto il token tecnico già salvato dall'app principale. */
 export function savedToken(): string | null {
   try {
@@ -19,7 +21,7 @@ export async function streamReply(
   onChunk: (chunk: string) => void,
   image?: { mediaType: string; data: string },
   voiceModel?: string | null,
-): Promise<void> {
+): Promise<ChatCost> {
   const token = savedToken();
   if (!token) throw new Error('Prima attiva VINZ.MON: manca il token.');
 
@@ -60,10 +62,10 @@ export async function streamReply(
 
   const contentType = response.headers.get('content-type') ?? '';
   if (contentType.includes('application/json')) {
-    const body = await response.json() as { text?: string };
+    const body = await response.json() as { text?: string; costUsd?: number; model?: string };
     if (!body.text) throw new Error(image ? 'Non sono riuscito a leggere l’immagine.' : 'La risposta è arrivata vuota.');
     onChunk(body.text);
-    return;
+    return { costUsd: body.costUsd ?? 0, model: body.model };
   }
 
   const reader = response.body.getReader();
@@ -74,6 +76,7 @@ export async function streamReply(
     const chunk = decoder.decode(value, { stream: true });
     if (chunk) onChunk(chunk);
   }
+  return { costUsd: 0 };
 }
 
 const TOOL_INTENT = /\b(miei dati|mia salute|come sto|dormit|allenat|mangiat|giornat|protocollo|ricordami|promemoria|pagina|aspetto|schermata)\b/i;
@@ -90,7 +93,7 @@ export async function replyWithLocalTools(
   onChunk: (chunk: string) => void,
   run: (use: ToolUse) => ToolResult,
   voiceModel?: string | null,
-): Promise<void> {
+): Promise<ChatCost> {
   const token = savedToken();
   if (!token) throw new Error('Prima attiva VINZ.MON: manca il token.');
 
@@ -109,6 +112,8 @@ export async function replyWithLocalTools(
   );
   let currentUser = user;
   let userBlocks: Record<string, unknown>[] | undefined;
+  let totalCostUsd = 0;
+  let lastModel: string | undefined;
 
   for (let round = 0; round < 4; round++) {
     const response = await fetch('/api/ai', {
@@ -133,16 +138,20 @@ export async function replyWithLocalTools(
       toolUses?: ToolUse[];
       error?: string;
       reason?: string;
+      costUsd?: number;
+      model?: string;
     } | null;
     if (!response.ok || !body) {
       throw new Error(body?.reason ?? body?.error ?? `Richiesta fallita (${response.status}).`);
     }
+    totalCostUsd += body.costUsd ?? 0;
+    lastModel = body.model ?? lastModel;
 
     const uses = body.toolUses ?? [];
     if (uses.length === 0) {
       if (!body.text?.trim()) throw new Error('La risposta è arrivata vuota.');
       onChunk(body.text);
-      return;
+      return { costUsd: totalCostUsd, model: lastModel };
     }
 
     history.push(assistantTurn(body.text ?? '', uses) as { role: 'assistant'; content: unknown });

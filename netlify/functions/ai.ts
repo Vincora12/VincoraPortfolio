@@ -389,8 +389,9 @@ export default async function handler(request: Request): Promise<Response> {
   /* Si registra anche quando la risposta è vuota o rifiutata: il fornitore ha
      comunque letto l'ingresso e lo fa pagare. Un contatore che segna solo i
      successi è un contatore che sottostima proprio nei giorni storti. */
+  let costUsd = 0;
   if (result.usage.inputTokens || result.usage.outputTokens || result.usage.webSearches) {
-    await recordSpend(capability, result.model, result.usage);
+    costUsd = await recordSpend(capability, result.model, result.usage);
   }
 
   if (!result.ok) {
@@ -417,6 +418,7 @@ export default async function handler(request: Request): Promise<Response> {
     provider: route.provider,
     webSearchOn: webSearch,
     usage: result.usage,
+    costUsd,
     warning: cap.warning,
     remainingUsd: cap.remainingUsd,
   });

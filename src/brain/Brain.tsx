@@ -24,7 +24,7 @@ import RecordPlugin from 'wavesurfer.js/dist/plugins/record.esm.js';
 import { DndContext, MouseSensor, TouchSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, horizontalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS as DndCSS } from '@dnd-kit/utilities';
-import { replyWithLocalTools, savedToken, shouldUseLocalTools, streamReply } from './stream';
+import { replyWithLocalTools, savedToken, shouldUseLocalTools, streamReply, type ChatCost } from './stream';
 import { loadSetup, type ModelChoice } from '../ai/backend';
 import type { BrainMessage } from './store/types';
 import type { ToolResult, ToolUse } from '../ai/tools';
@@ -45,6 +45,25 @@ const attachments = new CompositeAttachmentAdapter([
   new SimpleImageAttachmentAdapter(),
   new SimpleTextAttachmentAdapter(),
 ]);
+
+const DAILY_COST_KEY = 'vinzmon.chat.daily-cost.v1';
+
+function formatCost(value: number): string {
+  if (value === 0) return '$0.00';
+  if (value < 0.01) return `$${value.toFixed(4)}`;
+  return `$${value.toFixed(2)}`;
+}
+
+function addDailyCost(costUsd: number) {
+  if (!(costUsd > 0)) return;
+  const day = new Date().toLocaleDateString('en-CA');
+  try {
+    const saved = JSON.parse(localStorage.getItem(DAILY_COST_KEY) ?? '{}') as Record<string, number>;
+    saved[day] = (saved[day] ?? 0) + costUsd;
+    localStorage.setItem(DAILY_COST_KEY, JSON.stringify(saved));
+    window.dispatchEvent(new Event('vinzmon-cost-update'));
+  } catch { /* Il contatore non deve mai bloccare la chat. */ }
+}
 
 function messageText(message: ThreadMessage): string {
   return message.content.flatMap((part) => part.type === 'text' ? [part.text] : []).join('\n').trim();
@@ -84,6 +103,7 @@ function createChatModel(runTool?: (use: ToolUse) => ToolResult, voiceModel?: st
       let waiting: (() => void) | null = null;
       let finished = false;
       let failure: unknown;
+      let cost: ChatCost = { costUsd: 0 };
       const onChunk = (chunk: string) => {
         chunks.push(chunk);
         waiting?.();
@@ -92,6 +112,7 @@ function createChatModel(runTool?: (use: ToolUse) => ToolResult, voiceModel?: st
       const request = (runTool && shouldUseLocalTools(user) && !image
         ? replyWithLocalTools(history, user, abortSignal, onChunk, runTool, voiceModel)
         : streamReply(history, user, abortSignal, onChunk, image, voiceModel))
+        .then((result) => { cost = result; addDailyCost(result.costUsd); })
         .catch((error: unknown) => { failure = error; })
         .finally(() => {
           finished = true;
@@ -108,6 +129,7 @@ function createChatModel(runTool?: (use: ToolUse) => ToolResult, voiceModel?: st
       }
       await request;
       if (failure) throw failure;
+      yield { content: [{ type: 'text', text: answer }], metadata: { custom: { costUsd: cost.costUsd, model: cost.model } } };
     },
   };
 }
@@ -137,12 +159,40 @@ function AssistantMessage() {
         <MessagePrimitive.Parts components={{ Text: () => <MarkdownTextPrimitive defer /> }} />
         <MessagePrimitive.Error><ErrorMessage /></MessagePrimitive.Error>
       </div>
+      <MessageCost />
       <ActionBarPrimitive.Root className="aui-actions" hideWhenRunning>
         <ActionBarPrimitive.Copy className="aui-action">COPIA</ActionBarPrimitive.Copy>
         <ActionBarPrimitive.Reload className="aui-action">RIPROVA</ActionBarPrimitive.Reload>
       </ActionBarPrimitive.Root>
     </MessagePrimitive.Root>
   );
+}
+
+function MessageCost() {
+  const value = useAuiState((s) => s.message.metadata.custom.costUsd);
+  const cost = typeof value === 'number' ? value : 0;
+  return <small className="aui-message-cost">COSTO {formatCost(cost)}</small>;
+}
+
+function CostSummary() {
+  const messages = useAuiState((s) => s.thread.messages);
+  const chatCost = messages.reduce((sum, message) => {
+    const value = message.metadata.custom.costUsd;
+    return sum + (typeof value === 'number' ? value : 0);
+  }, 0);
+  const readToday = () => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(DAILY_COST_KEY) ?? '{}') as Record<string, number>;
+      return saved[new Date().toLocaleDateString('en-CA')] ?? 0;
+    } catch { return 0; }
+  };
+  const [today, setToday] = useState(readToday);
+  useEffect(() => {
+    const update = () => setToday(readToday());
+    window.addEventListener('vinzmon-cost-update', update);
+    return () => window.removeEventListener('vinzmon-cost-update', update);
+  }, []);
+  return <div className="aui-cost-summary"><span>CHAT {formatCost(chatCost)}</span><span>OGGI {formatCost(today)}</span></div>;
 }
 
 function ErrorMessage() {
@@ -537,6 +587,7 @@ function ChatSurface({ embedded, voiceModel, onModelChange }: { embedded: boolea
             )}
           </div>
         )}
+        <CostSummary />
         {topicMenu && (
           <div className="aui-topic-menu" style={{ left: Math.min(topicMenu.x, window.innerWidth - 230), top: Math.min(topicMenu.y + 12, window.innerHeight - 170) }}>
             <button type="button" data-topic-action="rename" onClick={() => { if (skipTopicClickRef.current) skipTopicClickRef.current = false; else renameTopic(); }}>RINOMINA</button>

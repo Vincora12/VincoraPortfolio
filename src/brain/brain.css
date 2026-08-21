@@ -117,6 +117,7 @@ button, textarea { font: inherit; }
 .aui-topics__new { flex: 0 0 auto; width: 30px; height: 30px; padding: 0; border: 1px solid var(--aui-border); border-radius: 50%; background: #171717; color: #f5f5f5; font-size: 18px; }
 .aui-model-picker { position: relative; flex: 0 0 auto; }
 .aui-model-chip { margin: 0 var(--u3) 6px 0; padding: 7px 9px; border: 0; border-radius: 14px; background: #171717; color: #ddd; font-size: 10px; font-weight: 650; }
+.aui-cost-summary { order: 4; width: 100%; display: flex; justify-content: flex-end; gap: 10px; padding: 0 var(--u3) 5px; color: #777; font: 600 8px/1 var(--font-mono); letter-spacing: .04em; }
 .aui-model-menu { position: absolute; top: calc(100% + 5px); right: var(--u3); width: min(260px, calc(100vw - 24px)); padding: 7px; border: 1px solid #303030; border-radius: 18px; background: rgba(24,24,24,.98); box-shadow: 0 14px 38px rgba(0,0,0,.55); }
 .aui-model-option { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 12px; border: 0; border-radius: 12px; background: transparent; color: #f4f4f4; text-align: left; }
 .aui-model-option span { font-size: 13px; font-weight: 650; }
@@ -149,6 +150,7 @@ button, textarea { font: inherit; }
 .aui-markdown pre { overflow-x: auto; padding: var(--u4); background: #171717; border: 1px solid var(--aui-border); border-radius: 10px; }
 .aui-markdown code { font-family: var(--font-mono); font-size: .9em; }
 .aui-actions { display: flex; gap: var(--u3); margin-top: var(--u2); }
+.aui-message-cost { display: block; margin-top: 4px; color: #666; font: 600 8px/1 var(--font-mono); letter-spacing: .04em; }
 .aui-action { padding: var(--u2) 0; border: 0; background: transparent; color: var(--aui-muted); font-family: var(--font-ui); font-size: 11px; }
 .aui-error { margin-top: var(--u3); padding: 12px 14px; border: 1px solid #f1b5b5; border-radius: 10px; background: #fff7f7; color: #a00000; }
 .aui-composer { width: min(100%, 720px); margin: 0 auto; padding: 6px; border: 1px solid #383838; border-radius: 26px; background: #151515; box-shadow: none; }
