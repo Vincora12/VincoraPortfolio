@@ -21,6 +21,7 @@ import { MarkdownTextPrimitive } from '@assistant-ui/react-markdown';
 import WaveSurfer from 'wavesurfer.js';
 import RecordPlugin from 'wavesurfer.js/dist/plugins/record.esm.js';
 import { replyWithLocalTools, savedToken, shouldUseLocalTools, streamReply } from './stream';
+import { loadSetup, type ModelChoice } from '../ai/backend';
 import type { BrainMessage } from './store/types';
 import type { ToolResult, ToolUse } from '../ai/tools';
 
@@ -159,6 +160,12 @@ function TopicTab() {
 function modelLabel(model?: string | null): string {
   if (!model) return '5.6 Terra';
   return model.replace(/^gpt-/, '').replace(/-/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function modelProvider(model: string): string {
+  if (model.startsWith('claude')) return 'ANTHROPIC';
+  if (model.startsWith('kimi')) return 'MOONSHOT';
+  return 'OPENAI';
 }
 
 function Composer() {
@@ -304,7 +311,20 @@ function Composer() {
   );
 }
 
-function ChatSurface({ embedded, voiceModel, onSettings }: { embedded: boolean; voiceModel?: string | null; onSettings?: () => void }) {
+function ChatSurface({ embedded, voiceModel, onModelChange }: { embedded: boolean; voiceModel?: string | null; onModelChange?: (model: string) => void }) {
+  const [modelMenu, setModelMenu] = useState(false);
+  const [models, setModels] = useState<ModelChoice[]>([]);
+  const [defaultModel, setDefaultModel] = useState<string | null>(null);
+  const activeModel = voiceModel ?? defaultModel;
+
+  useEffect(() => {
+    if (!modelMenu || models.length) return;
+    void loadSetup(savedToken()).then(({ data }) => {
+      setModels(data?.voices ?? []);
+      setDefaultModel(data?.defaultVoice ?? null);
+    });
+  }, [modelMenu, models.length]);
+
   return (
     <main className={`brain aui-chat ${embedded ? 'brain--embedded' : ''}`}>
       <nav className="aui-topics" aria-label="Chat aperte">
@@ -312,7 +332,29 @@ function ChatSurface({ embedded, voiceModel, onSettings }: { embedded: boolean; 
           <ThreadListPrimitive.Items components={{ ThreadListItem: TopicTab }} />
           <ThreadListPrimitive.New className="aui-topics__new" aria-label="Nuova chat">＋</ThreadListPrimitive.New>
         </ThreadListPrimitive.Root>
-        {onSettings && <button type="button" className="aui-model-chip" aria-label="Cambia modello AI" onClick={onSettings}>{modelLabel(voiceModel)}</button>}
+        {onModelChange && (
+          <div className="aui-model-picker">
+            <button type="button" className="aui-model-chip" aria-label="Cambia modello AI" aria-expanded={modelMenu} onClick={() => setModelMenu((open) => !open)}>{modelLabel(voiceModel)}⌄</button>
+            {modelMenu && (
+              <div className="aui-model-menu" role="menu" aria-label="Scegli AI">
+                {models.length === 0 ? <span className="aui-model-menu__loading">CARICAMENTO…</span> : models.map((choice) => (
+                  <button
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={choice.model === activeModel}
+                    className={`aui-model-option ${choice.model === activeModel ? 'is-active' : ''}`}
+                    disabled={!choice.ready}
+                    key={choice.model}
+                    onClick={() => { onModelChange(choice.model); setModelMenu(false); }}
+                  >
+                    <span>{choice.label.replace(/^GPT-/, '')}</span>
+                    <small>{modelProvider(choice.model)}{!choice.ready ? ' · API MANCANTE' : ''}</small>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </nav>
       <ThreadPrimitive.Root className="aui-thread">
         <ThreadPrimitive.Viewport className="aui-thread__viewport">
@@ -330,15 +372,15 @@ function ChatSurface({ embedded, voiceModel, onSettings }: { embedded: boolean; 
   );
 }
 
-function Runtime({ embedded, runTool, voiceModel, onSettings }: { embedded: boolean; runTool?: (use: ToolUse) => ToolResult; voiceModel?: string | null; onSettings?: () => void }) {
+function Runtime({ embedded, runTool, voiceModel, onModelChange }: { embedded: boolean; runTool?: (use: ToolUse) => ToolResult; voiceModel?: string | null; onModelChange?: (model: string) => void }) {
   const model = useMemo(() => createChatModel(runTool, voiceModel), [runTool, voiceModel]);
   const runtime = useRemoteThreadListRuntime({
     adapter: threadAdapter,
     runtimeHook: () => useLocalRuntime(model, { adapters: { attachments } }),
   });
-  return <AssistantRuntimeProvider runtime={runtime}><ChatSurface embedded={embedded} voiceModel={voiceModel} onSettings={onSettings} /></AssistantRuntimeProvider>;
+  return <AssistantRuntimeProvider runtime={runtime}><ChatSurface embedded={embedded} voiceModel={voiceModel} onModelChange={onModelChange} /></AssistantRuntimeProvider>;
 }
 
-export function Brain({ embedded = false, runTool, voiceModel, onSettings }: { embedded?: boolean; runTool?: (use: ToolUse) => ToolResult; voiceModel?: string | null; onSettings?: () => void }) {
-  return <Runtime embedded={embedded} runTool={runTool} voiceModel={voiceModel} onSettings={onSettings} />;
+export function Brain({ embedded = false, runTool, voiceModel, onModelChange }: { embedded?: boolean; runTool?: (use: ToolUse) => ToolResult; voiceModel?: string | null; onModelChange?: (model: string) => void }) {
+  return <Runtime embedded={embedded} runTool={runTool} voiceModel={voiceModel} onModelChange={onModelChange} />;
 }
