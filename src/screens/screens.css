@@ -3758,6 +3758,66 @@
   .me-health__today article { min-height: 76px; }
 }
 
+/* Cornice ottagonale dello HUD: fondo-linea + pannello interno a 1px. */
+.me-health__goal,
+.me-health__nutrition,
+.me-health__section,
+.me-health__weight,
+.me-health__game,
+.me-health__today,
+.me-health__sync {
+  --mh-cut: 9px;
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border: 0;
+  clip-path: polygon(var(--mh-cut) 0, calc(100% - var(--mh-cut)) 0, 100% var(--mh-cut), 100% calc(100% - var(--mh-cut)), calc(100% - var(--mh-cut)) 100%, var(--mh-cut) 100%, 0 calc(100% - var(--mh-cut)), 0 var(--mh-cut));
+  background: var(--mh-line);
+}
+.me-health__goal::before,
+.me-health__nutrition::before,
+.me-health__section::before,
+.me-health__weight::before,
+.me-health__game::before,
+.me-health__today::before,
+.me-health__sync::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: 1px;
+  clip-path: polygon(calc(var(--mh-cut) - 1px) 0, calc(100% - var(--mh-cut) + 1px) 0, 100% calc(var(--mh-cut) - 1px), 100% calc(100% - var(--mh-cut) + 1px), calc(100% - var(--mh-cut) + 1px) 100%, calc(var(--mh-cut) - 1px) 100%, 0 calc(100% - var(--mh-cut) + 1px), 0 calc(var(--mh-cut) - 1px));
+  background: #050609;
+}
+
+/* Il vecchio stile di STAT applicava altezza e riempimento a ogni <b>:
+   qui i segmenti sono nuovamente confinati nella loro riga. */
+.me-health__game .me-health__segments {
+  min-width: 0;
+  width: 100%;
+  height: 7px;
+  display: flex;
+  overflow: hidden;
+  margin: 0;
+  background: transparent;
+}
+.me-health__game .me-health__segments b {
+  flex: 1 1 0;
+  width: auto;
+  min-width: 0;
+  height: 7px;
+  border: 1px solid #8e9199;
+  background: transparent;
+}
+.me-health__game .me-health__segments b.is-filled {
+  border-color: var(--mh-accent);
+  background: var(--mh-accent);
+}
+
+.me-health__actions button {
+  --mh-action-cut: 9px;
+  clip-path: polygon(var(--mh-action-cut) 0, calc(100% - var(--mh-action-cut)) 0, 100% var(--mh-action-cut), 100% calc(100% - var(--mh-action-cut)), calc(100% - var(--mh-action-cut)) 100%, var(--mh-action-cut) 100%, 0 calc(100% - var(--mh-action-cut)), 0 var(--mh-action-cut));
+}
+
 /* 🔷 v1.10 §13.9 — la creatura sulla schermata home.
 
    Il visore di rotazione occupa lo spazio e risponde al trascinamento; quando
