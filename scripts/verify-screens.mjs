@@ -441,6 +441,31 @@ try {
      l'appiglio 18 punti sotto la sua base. Se un giorno sparisse da questo
      punto, vorrebbe dire che nessuno la vedra mai piu da nessuna parte —
      e' successo gia una volta, ed e' il motivo per cui l'abbiamo costruita. */
+  /* V1 — la vecchia chat in personaggio è stata sostituita dall'assistente
+     neutrale. La prova non simula una chiave: verifica il turno locale,
+     l'errore leggibile e la possibilità di riprovare senza perdere il testo. */
+  await page.locator('.brain__composer textarea').fill('Spiegami in breve che cosa sai fare');
+  await click('.brain__composer button[type="submit"]', 'invia nella Chat V1');
+  await page.locator('.brain__error').waitFor({ state: 'visible' });
+  const chatV1 = await page.evaluate(() => ({
+    user: document.querySelector('.brain__message--user')?.textContent ?? '',
+    error: document.querySelector('.brain__error')?.textContent ?? '',
+    retry: !!document.querySelector('.brain__error button'),
+    threads: !!document.querySelector('.brain__history'),
+    attachment: !!document.querySelector('.brain__attach input[type="file"]'),
+  }));
+  if (!chatV1.user.includes('Spiegami')) throw new Error('Chat V1: il messaggio utente non resta a schermo');
+  if (!chatV1.error.includes('token')) throw new Error('Chat V1: il guasto non spiega che manca il token');
+  if (!chatV1.retry || !chatV1.threads || !chatV1.attachment) {
+    throw new Error(`Chat V1 incompleta: ${JSON.stringify(chatV1)}`);
+  }
+  await shot('06-chat-v1');
+  console.log('  Chat V1  turno locale, errore, retry, cronologia e allegati verificati');
+
+  /* Il blocco sotto conserva le vecchie prove come memoria di regressione,
+     ma non gira più: descriveva umore e risposta del personaggio, cioè
+     VINZ.MIND, esplicitamente fuori dalla V1. */
+  if (false) {
   const umore = await page.$$eval('.home__mood', (n) => n.map((e) => e.textContent ?? ''));
   if (umore.length === 0) {
     errors.push('appena nato, la home non dice come sta: la riga d\'umore non c\'e');
@@ -671,6 +696,7 @@ try {
   console.log(`  §21.3  sei statistiche congelate alla nascita, sotto la faccia`);
 
   await click('.splash__enter', 'torna in chat');
+  }
 
   /* 15 — SPECIMEN PROFILE: adesso ci si arriva dalla Mindline, che e' il posto
      dove si guarda una forma qualsiasi e non solo quella attiva. */
