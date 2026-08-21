@@ -111,6 +111,7 @@ button, textarea { font: inherit; }
 .aui-topic__group { align-self: stretch; padding: 0 9px; border: 0; border-right: 1px solid rgba(255,255,255,.12); border-radius: 15px 0 0 15px; background: rgba(255,255,255,.09); color: #fff; font-size: 9px; font-weight: 700; white-space: nowrap; }
 .aui-topic.is-group-collapsed .aui-topic__trigger, .aui-topic.is-group-collapsed .aui-topic__close { display: none; }
 .aui-topics.is-organizing .aui-topic { animation: aui-topic-wiggle 150ms ease-in-out infinite alternate; outline: 1px dashed #777; }
+.aui-topics.is-organizing .aui-topic { touch-action: none; }
 .aui-topic__trigger { min-width: 0; max-width: 165px; padding: 9px 6px 9px 13px; border: 0; background: transparent; color: inherit; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .aui-topic__close { width: 28px; height: 28px; padding: 0; border: 0; background: transparent; color: var(--aui-muted); font-size: 15px; }
 .aui-topics__new { flex: 0 0 auto; width: 30px; height: 30px; padding: 0; border: 1px solid var(--aui-border); border-radius: 50%; background: #171717; color: #f5f5f5; font-size: 18px; }

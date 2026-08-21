@@ -174,7 +174,7 @@ function TopicTab({ subtopic = false }: { subtopic?: boolean }) {
   const groupName = typeof custom.vinzGroupName === 'string' ? custom.vinzGroupName : 'Gruppo';
   const isLeader = custom.vinzGroupLeader === true;
   const groupOpen = groupId ? controller?.openGroups.has(groupId) : true;
-  const sortable = useSortable({ id, disabled: controller?.movingId !== id });
+  const sortable = useSortable({ id, disabled: { draggable: controller?.movingId !== id, droppable: false } });
   const clearHold = () => { if (holdRef.current) window.clearTimeout(holdRef.current); holdRef.current = null; };
   if ((groupId && !isLeader && !subtopic) || (subtopic && (!groupId || isLeader || !groupOpen))) return null;
 
@@ -197,7 +197,7 @@ function TopicTab({ subtopic = false }: { subtopic?: boolean }) {
           controller?.openMenu({ id, title, x, y, groupId: groupId ?? undefined, groupName, groupLeader: isLeader });
         }, 480);
       }}
-      onPointerUp={(event) => { clearHold(); if (controller?.movingId && controller.movingId !== id) controller.dropOn(id, event.clientX); }}
+      onPointerUp={clearHold}
       onPointerCancel={clearHold}
       onPointerLeave={clearHold}
     >
