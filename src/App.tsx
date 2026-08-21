@@ -692,10 +692,10 @@ function TabBar({ tab, onChange }: { tab: Tab; onChange: (t: Tab) => void }) {
 
      🔒 Tre bersagli invece di quattro vuol dire tre bersagli più larghi, su
      uno schermo dove il dito è il puntatore. */
-  const items: { id: Tab; label: string; icon: 'tell' | 'mon' | 'me' }[] = [
-    { id: 'chat', label: t.nav.chat, icon: 'tell' },
-    { id: 'mon', label: t.nav.mon, icon: 'mon' },
-    { id: 'me', label: t.nav.me, icon: 'me' },
+  const items: { id: Tab; label: string; activeLabel: string; icon: 'tell' | 'mon' | 'me' }[] = [
+    { id: 'chat', label: t.nav.chat, activeLabel: 'CHAT', icon: 'tell' },
+    { id: 'mon', label: t.nav.mon, activeLabel: 'VINZ.MON', icon: 'mon' },
+    { id: 'me', label: t.nav.me, activeLabel: 'ME', icon: 'me' },
   ];
 
   return (
@@ -713,7 +713,7 @@ function TabBar({ tab, onChange }: { tab: Tab; onChange: (t: Tab) => void }) {
           }}
         >
           <Icon name={item.icon} size={15} strokeWidth={2} />
-          <span className="sr-only">{item.label}</span>
+          <span className="tabbar__label">{item.activeLabel}</span>
         </button>
       ))}
     </nav>

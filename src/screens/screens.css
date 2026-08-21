@@ -3685,7 +3685,7 @@
   color: #f7f7f9;
   color-scheme: dark;
 }
-.me-health__header { min-height: 64px; border-color: #292c33; background: var(--mh-bg); }
+.me-health__header { min-height: 54px; border-color: #292c33; background: var(--mh-bg); }
 .me-health__header h1 { color: #fff; font-style: italic; }
 .me-health__header p { color: #d5d6dc; }
 .me-health__header button { border: 1px solid #8b8e96; background: transparent; color: #fff; box-shadow: none; }

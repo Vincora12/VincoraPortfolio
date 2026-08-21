@@ -542,46 +542,60 @@
   display: flex;
   flex: 0 0 auto;
   align-items: flex-start;
-  height: max(40px, env(safe-area-inset-bottom));
-  border-top: 1px solid #242429;
+  justify-content: center;
+  gap: 5px;
+  height: calc(54px + env(safe-area-inset-bottom));
+  padding: 6px 14px env(safe-area-inset-bottom);
+  border-top: 0;
   background: #000;
-  /* La barra Home e il nav condividono lo stesso spazio invece di sommarsi. */
-  padding-bottom: 0;
 }
 
 .tabbar__item {
-  flex: 1;
+  position: relative;
+  flex: 0 0 48px;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
   justify-content: center;
-  gap: 0;
-  min-height: 32px;
-  padding: 1px 0;
-  border: 0;
-  background: transparent;
+  gap: 10px;
+  height: 42px;
+  min-height: 42px;
+  padding: 0 14px;
+  border: 1px solid #29292e;
+  border-radius: 22px;
+  background: #0b0b0c;
   color: #f4f4f6;
-  opacity: 0.5;
+  opacity: 0.55;
   font-family: var(--font-mono);
-  font-size: 8px;
-  letter-spacing: 0.14em;
+  font-size: 10px;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
+  transition: flex-basis var(--dur-base) var(--ease-system), color var(--dur-fast) linear, opacity var(--dur-fast) linear;
 }
 
 .tabbar__item[aria-current='page'] {
+  flex-basis: 148px;
   opacity: 1;
   color: var(--char-accent);
+  border-color: #3a3a40;
+  background: #111113;
   font-weight: 700;
 }
+
+.tabbar__label {
+  display: none;
+  overflow: hidden;
+  color: #f7f7f9;
+  white-space: nowrap;
+}
+
+.tabbar__item[aria-current='page'] .tabbar__label { display: block; }
 
 /* Lo stato attivo non è solo opacità: porta anche una barra (§17). */
 .tabbar__item[aria-current='page']::before {
   content: none;
 }
 
-.tabbar__item {
-  position: relative;
-}
 
 /* --- VISUAL LANGUAGE (board: SCANNER / SIGNAL / GLITCH / DATA) ------------- */
 
