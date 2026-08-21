@@ -104,6 +104,18 @@ body[data-scroll-locked] {
   padding-right: 0 !important;
 }
 
+.vinz-chat-top-fade {
+  height: 7rem;
+  background: linear-gradient(
+    to bottom,
+    #000 0,
+    #000 38%,
+    rgb(0 0 0 / 92%) 55%,
+    rgb(0 0 0 / 58%) 73%,
+    transparent 100%
+  );
+}
+
 .aui-md p {
   margin-block: 0 0.75rem;
 }
