@@ -715,7 +715,7 @@ function TabBar({ tab, onChange }: { tab: Tab; onChange: (t: Tab) => void }) {
             onChange(item.id);
           }}
         >
-          <Icon name={item.icon} size={18} strokeWidth={2} />
+          <Icon name={item.icon} size={15} strokeWidth={2} />
           {item.label}
         </button>
       ))}
