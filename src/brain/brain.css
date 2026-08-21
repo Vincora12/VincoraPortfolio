@@ -115,7 +115,8 @@ button, textarea { font: inherit; }
 .aui-model-option:disabled { opacity: .28; }
 .aui-model-menu__loading { display: block; padding: 13px; color: #777; font: 500 9px/1 var(--font-mono); letter-spacing: .08em; }
 .aui-drawer-layer { position: fixed; z-index: 10000; inset: 0; background: rgba(0,0,0,.62); }
-.aui-drawer { width: min(88vw, 390px); height: 100%; overflow: hidden; background: #090909; color: #f5f5f5; box-shadow: 18px 0 45px rgba(0,0,0,.5); animation: aui-drawer-in 180ms ease-out; }
+.aui-drawer { width: min(88vw, 390px); height: 100%; overflow: hidden; background: #090909; color: #f5f5f5; box-shadow: 18px 0 45px rgba(0,0,0,.5); animation: aui-drawer-in 180ms ease-out; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.aui-drawer button { touch-action: manipulation; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
 @keyframes aui-drawer-in { from { translate: -100% 0; } to { translate: 0; } }
 .aui-drawer__header { display: flex; align-items: center; justify-content: space-between; min-height: 58px; padding: max(8px, env(safe-area-inset-top)) 14px 8px; border-bottom: 1px solid #292929; }
 .aui-drawer__header h2 { margin: 0; font-size: 19px; text-transform: uppercase; }
@@ -133,8 +134,12 @@ button, textarea { font: inherit; }
 .aui-tree-row__main small { margin-left: auto; color: #777; font: 600 7px/1 var(--font-mono); letter-spacing: .06em; }
 .aui-tree-row__more { flex: 0 0 auto; width: 38px; height: 38px; padding: 0; border: 0; background: transparent; color: #888; font-size: 11px; }
 .aui-tree-menu { position: absolute; z-index: 5; top: 42px; right: 4px; width: 228px; padding: 8px; border: 1px solid #343434; border-radius: 16px; background: #1b1b1b; box-shadow: 0 14px 35px rgba(0,0,0,.55); }
-.aui-tree-menu > button, .aui-tree-menu label { width: 100%; display: flex; align-items: center; justify-content: space-between; padding: 10px; border: 0; border-radius: 9px; background: transparent; color: #eee; font: 650 9px/1 var(--font-mono); letter-spacing: .05em; text-align: left; }
-.aui-tree-menu select { max-width: 120px; border: 0; background: #2b2b2b; color: #eee; font-size: 10px; }
+.aui-tree-menu > button { width: 100%; display: flex; align-items: center; justify-content: space-between; padding: 10px; border: 0; border-radius: 9px; background: transparent; color: #eee; font: 650 9px/1 var(--font-mono); letter-spacing: .05em; text-align: left; }
+.aui-tree-menu > button.is-danger { margin-top: 5px; color: #ff7777; }
+.aui-tree-menu__label { display: block; padding: 10px 10px 5px; color: #777; font: 650 8px/1 var(--font-mono); letter-spacing: .06em; }
+.aui-tree-menu__destinations { max-height: 132px; overflow-y: auto; padding: 2px 4px 7px; border-bottom: 1px solid #303030; }
+.aui-tree-menu__destinations button { width: 100%; padding: 9px; border: 0; border-radius: 8px; background: transparent; color: #ddd; font-size: 11px; text-align: left; }
+.aui-tree-menu__destinations button.is-active { background: #333; color: #fff; }
 .aui-tree-menu__choices { display: flex; gap: 6px; padding: 7px 5px; border-bottom: 1px solid #303030; }
 .aui-tree-menu__choices button { width: 24px; height: 24px; display: grid; place-items: center; padding: 0; border: 1px solid rgba(255,255,255,.16); border-radius: 50%; background: transparent; color: #eee; font-size: 12px; }
 .aui-thread { min-height: 0; overflow: hidden; }

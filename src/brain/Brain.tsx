@@ -231,12 +231,13 @@ function ChatDrawer({ onClose }: { onClose: () => void }) {
   const [layout, setLayout] = useState(readChatTree);
   const [menuId, setMenuId] = useState<string | null>(null);
   const [visualOverrides, setVisualOverrides] = useState<Record<string, { icon?: string; color?: string }>>({});
+  const [hiddenIds, setHiddenIds] = useState(() => new Set<string>());
   const saveLayout = (next: ChatTreeLayout) => { setLayout(next); localStorage.setItem(CHAT_TREE_KEY, JSON.stringify(next)); };
   const nodes = useMemo(() => {
     const map = new Map<string, ChatTreeNode>();
     map.set('root', { id: 'root', name: 'Chat', kind: 'root', icon: '', color: '', parentId: null });
     layout.groups.forEach((group) => map.set(group.id, { ...group, kind: 'group' }));
-    threadItems.forEach((thread) => {
+    threadItems.filter((thread) => !hiddenIds.has(thread.id)).forEach((thread) => {
       const custom = thread.custom ?? {};
       const visual = visualOverrides[thread.id] ?? {};
       map.set(thread.id, {
@@ -249,7 +250,7 @@ function ChatDrawer({ onClose }: { onClose: () => void }) {
       });
     });
     return map;
-  }, [layout, threadItems, visualOverrides]);
+  }, [hiddenIds, layout, threadItems, visualOverrides]);
   const nodesRef = useRef(nodes);
   nodesRef.current = nodes;
   const childrenOf = (parentId: string) => {
@@ -288,6 +289,25 @@ function ChatDrawer({ onClose }: { onClose: () => void }) {
   };
   const moveChat = (id: string, parentId: string) => saveLayout({ ...layout, placements: { ...layout.placements, [id]: parentId || null } });
   const patchGroup = (id: string, patch: Partial<ChatGroup>) => saveLayout({ ...layout, groups: layout.groups.map((group) => group.id === id ? { ...group, ...patch } : group) });
+  const deleteChat = (id: string, name: string) => {
+    if (!window.confirm(`Eliminare la chat “${name}”?`)) return;
+    aui.threads.item({ id }).archive();
+    setHiddenIds((current) => new Set(current).add(id));
+    const placements = { ...layout.placements };
+    delete placements[id];
+    saveLayout({ ...layout, placements });
+    setMenuId(null);
+  };
+  const deleteGroup = (id: string, name: string, parentId: string | null) => {
+    if (!window.confirm(`Eliminare il gruppo “${name}”? Le chat resteranno disponibili.`)) return;
+    const placements = { ...layout.placements };
+    Object.keys(placements).forEach((threadId) => { if (placements[threadId] === id) placements[threadId] = parentId; });
+    saveLayout({
+      placements,
+      groups: layout.groups.filter((group) => group.id !== id).map((group) => group.parentId === id ? { ...group, parentId } : group),
+    });
+    setMenuId(null);
+  };
 
   return (
     <div className="aui-drawer-layer" role="presentation" onPointerDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
@@ -323,11 +343,17 @@ function ChatDrawer({ onClose }: { onClose: () => void }) {
                       <>
                         <button type="button" onClick={() => { const name = window.prompt('Rinomina gruppo', node.name)?.trim(); if (name) patchGroup(node.id, { name }); }}>RINOMINA</button>
                         <button type="button" onClick={() => createGroup(node.id)}>NUOVO SOTTOGRUPPO</button>
+                        <button type="button" className="is-danger" onClick={() => deleteGroup(node.id, node.name, node.parentId)}>ELIMINA GRUPPO</button>
                       </>
                     ) : (
                       <>
                         <button type="button" onClick={() => { const name = window.prompt('Rinomina chat', node.name)?.trim(); if (name) void renameThread(node.id, name); }}>RINOMINA</button>
-                        <label>SPOSTA IN<select value={node.parentId ?? ''} onChange={(event) => moveChat(node.id, event.target.value)}><option value="">CHAT</option>{layout.groups.map((group) => <option value={group.id} key={group.id}>{group.name}</option>)}</select></label>
+                        <span className="aui-tree-menu__label">SPOSTA IN</span>
+                        <div className="aui-tree-menu__destinations">
+                          <button type="button" className={!node.parentId ? 'is-active' : ''} onClick={() => { moveChat(node.id, ''); setMenuId(null); }}>CHAT</button>
+                          {layout.groups.map((group) => <button type="button" className={node.parentId === group.id ? 'is-active' : ''} key={group.id} onClick={() => { moveChat(node.id, group.id); setMenuId(null); }}>{group.name}</button>)}
+                        </div>
+                        <button type="button" className="is-danger" onClick={() => deleteChat(node.id, node.name)}>ELIMINA CHAT</button>
                       </>
                     )}
                   </div>
