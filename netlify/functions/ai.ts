@@ -108,6 +108,11 @@ interface Payload {
    * peggiore in cui questo file possa rompersi.
    */
   voiceModel?: string;
+  /** Configurazione standard inviata dal runtime assistant-ui. */
+  config?: {
+    modelName?: string;
+    reasoningEffort?: string;
+  };
   /**
    * 🔷 «Voglio far funzionare l'app con Sol.»
    *
@@ -121,6 +126,26 @@ interface Payload {
   effort?: 'none' | 'low' | 'medium' | 'high';
   /** Risposta progressiva per la chat. */
   stream?: boolean;
+}
+
+type Effort = NonNullable<Payload['effort']>;
+
+/** Traduce la configurazione assistant-ui mantenendo i campi legacy compatibili. */
+export function assistantRequestPreferences(
+  config: Payload['config'],
+  legacyModel?: string,
+  legacyEffort?: Effort,
+): { modelName?: string; effort?: Effort } {
+  const requestedEffort = config?.reasoningEffort;
+  const effort: Effort | undefined =
+    requestedEffort === 'low' || requestedEffort === 'medium' || requestedEffort === 'high'
+      ? requestedEffort
+      : legacyEffort;
+  const modelName = config?.modelName ?? legacyModel;
+  return {
+    ...(modelName ? { modelName } : {}),
+    ...(effort ? { effort } : {}),
+  };
 }
 
 const KNOWN: Capability[] = ['character-voice', 'vision-quick', 'text-cheap', 'image', 'prompt-compile'];
@@ -168,7 +193,9 @@ export default async function handler(request: Request): Promise<Response> {
      vero, ed è un cambio di premessa voluto: da quando la voce la scegli tu,
      tenerti all'oscuro di chi sta rispondendo sarebbe nascondere una cosa che
      hai deciso. Infatti la risposta lo dice, in fondo. */
-  const route = resolveRoute(capability, payload.voiceModel);
+  const preferences = assistantRequestPreferences(payload.config, payload.voiceModel, payload.effort);
+  const route = resolveRoute(capability, preferences.modelName);
+  const selectedEffort = preferences.effort;
 
   /* ════════════════════════════════════════════════════════════════════════
      IL RITIRO DI UN LAVORO PARTITO PRIMA
@@ -313,6 +340,7 @@ export default async function handler(request: Request): Promise<Response> {
         turns,
         user,
         webSearch,
+        ...(selectedEffort ? { effort: selectedEffort } : {}),
         maxTokens: Math.min(payload.maxTokens ?? 2000, LIMITS.maxTokens),
       },
       request.signal,
@@ -325,7 +353,7 @@ export default async function handler(request: Request): Promise<Response> {
 
     return new Response(streamed.body, {
       headers: {
-        'content-type': 'text/plain; charset=utf-8',
+        'content-type': 'text/event-stream; charset=utf-8',
         'cache-control': 'no-store',
         'x-content-type-options': 'nosniff',
       },
@@ -356,7 +384,7 @@ export default async function handler(request: Request): Promise<Response> {
          sulla strada sincrona `medium` significava morire a dieci secondi, e
          per questo scegliere Sol costava il doppio senza dare niente. Qui non
          c'è nessun orologio, quindi il predefinito è `medium` e non `none`. */
-      effort: payload.effort ?? 'medium',
+      effort: selectedEffort ?? 'medium',
     });
 
     if (!out.ok) {
@@ -374,7 +402,7 @@ export default async function handler(request: Request): Promise<Response> {
     userBlocks,
     image: payload.image,
     thinking: Boolean(payload.thinking),
-    ...(payload.effort ? { effort: payload.effort } : {}),
+    ...(selectedEffort ? { effort: selectedEffort } : {}),
     tools,
     webSearch,
     /* Un prompt compilato è lungo per definizione — il riferimento che
@@ -410,6 +438,7 @@ export default async function handler(request: Request): Promise<Response> {
     /* Il server non esegue niente: dice quali strumenti il modello vuole e
        lascia fare al browser, che è l'unico posto dove i dati esistono. */
     toolUses: result.toolUses,
+    sources: result.sources,
     stopReason: result.stopReason,
     model: result.model,
     /* Chi ha risposto davvero, e se la ricerca sul web era accesa. Serve

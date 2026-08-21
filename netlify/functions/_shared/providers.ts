@@ -56,6 +56,81 @@ export interface ToolUse {
   input: unknown;
 }
 
+/** Una fonte realmente restituita dal fornitore, mai ricavata dal testo. */
+export interface Source {
+  title: string;
+  url: string;
+  domain?: string;
+}
+
+type AnthropicCitation = {
+  type?: string;
+  title?: string | null;
+  url?: string;
+  source?: string;
+};
+
+type AnthropicSearchResult = {
+  type?: string;
+  title?: string;
+  url?: string;
+};
+
+type AnthropicContentBlock = {
+  type: string;
+  text?: string;
+  id?: string;
+  name?: string;
+  input?: unknown;
+  citations?: AnthropicCitation[];
+  content?: AnthropicSearchResult[] | { type?: string; error_code?: string };
+};
+
+function domainOf(url: string): string | undefined {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '');
+  } catch {
+    return undefined;
+  }
+}
+
+function asSource(value: { title?: string | null; url?: string; source?: string }): Source | null {
+  const url = value.url ?? value.source;
+  if (!url || !/^https?:\/\//i.test(url)) return null;
+  const domain = domainOf(url);
+  return {
+    title: value.title?.trim() || domain || url,
+    url,
+    ...(domain ? { domain } : {}),
+  };
+}
+
+function uniqueSources(sources: readonly Source[]): Source[] {
+  return [...new Map(sources.map((source) => [source.url, source])).values()];
+}
+
+/** Estrae soltanto risultati/citazioni strutturati dell'API Anthropic. */
+export function extractAnthropicSources(blocks: readonly AnthropicContentBlock[]): Source[] {
+  const sources: Source[] = [];
+  for (const block of blocks) {
+    if (block.type === 'web_search_tool_result' && Array.isArray(block.content)) {
+      for (const result of block.content) {
+        if (result.type !== 'web_search_result') continue;
+        const source = asSource(result);
+        if (source) sources.push(source);
+      }
+    }
+    for (const citation of block.citations ?? []) {
+      if (citation.type !== 'web_search_result_location' && citation.type !== 'search_result_location') {
+        continue;
+      }
+      const source = asSource(citation);
+      if (source) sources.push(source);
+    }
+  }
+  return uniqueSources(sources);
+}
+
 /**
  * Il contenuto di un turno. Una stringa nel caso normale; una lista di blocchi
  * quando ci sono dentro chiamate di strumenti e i loro risultati — che è
@@ -112,6 +187,8 @@ export interface ProviderResult {
   model: string;
   /** Strumenti che il modello vuole far eseguire prima di continuare. */
   toolUses: ToolUse[];
+  /** Fonti strutturate restituite dal fornitore e realmente consultate. */
+  sources: Source[];
   /** Perché si è fermato. `tool_use` significa «aspetto i risultati». */
   stopReason?: string;
   /** Solo per i log del server. */
@@ -119,7 +196,7 @@ export interface ProviderResult {
 }
 
 function fail(model: string, error: string): ProviderResult {
-  return { ok: false, text: '', usage: {}, model, toolUses: [], error };
+  return { ok: false, text: '', usage: {}, model, toolUses: [], sources: [], error };
 }
 
 /* --- Anthropic --------------------------------------------------------------
@@ -201,7 +278,7 @@ async function anthropic(req: ProviderRequest): Promise<ProviderResult> {
     const body = (await res.json()) as {
       model?: string;
       stop_reason?: string;
-      content?: { type: string; text?: string; id?: string; name?: string; input?: unknown }[];
+      content?: AnthropicContentBlock[];
       usage?: Record<string, number> & {
         server_tool_use?: { web_search_requests?: number };
       };
@@ -229,6 +306,7 @@ async function anthropic(req: ProviderRequest): Promise<ProviderResult> {
       ok: text.length > 0 || toolUses.length > 0,
       text,
       toolUses,
+      sources: extractAnthropicSources(blocks),
       stopReason: body.stop_reason,
       model: body.model ?? req.model,
       usage: {
@@ -251,6 +329,14 @@ export type StreamResult =
       body: ReadableStream<Uint8Array>;
       completed: Promise<{ model: string; usage: Usage }>;
     };
+
+export type AiStreamEvent =
+  | { type: 'search_started' }
+  | { type: 'source_found'; source: Source }
+  | { type: 'answer_started' }
+  | { type: 'answer_delta'; delta: string }
+  | { type: 'answer_completed'; model: string; usage: Usage; sources: Source[] }
+  | { type: 'error'; message: string };
 
 /** Stream testuale della Chat V1, con contesto neutrale e ricerca web. */
 export async function streamAnthropic(
@@ -305,6 +391,21 @@ export async function streamAnthropic(
   let buffer = '';
   let model = req.model;
   const usage: Usage = {};
+  const foundSources: Source[] = [];
+  const foundUrls = new Set<string>();
+  let answerStarted = false;
+
+  const encode = (event: AiStreamEvent) =>
+    encoder.encode(`data: ${JSON.stringify(event)}\n\n`);
+
+  const pushSource = (controller: ReadableStreamDefaultController<Uint8Array>, value: unknown) => {
+    if (!value || typeof value !== 'object') return;
+    const source = asSource(value as AnthropicSearchResult);
+    if (!source || foundUrls.has(source.url)) return;
+    foundUrls.add(source.url);
+    foundSources.push(source);
+    controller.enqueue(encode({ type: 'source_found', source }));
+  };
 
   const body = new ReadableStream<Uint8Array>({
     async start(controller) {
@@ -321,7 +422,8 @@ export async function streamAnthropic(
             const parsed = JSON.parse(data) as {
               type?: string;
               message?: { model?: string; usage?: Record<string, number> };
-              delta?: { type?: string; text?: string };
+              content_block?: AnthropicContentBlock;
+              delta?: { type?: string; text?: string; citation?: AnthropicCitation };
               usage?: Record<string, number> & {
                 server_tool_use?: { web_search_requests?: number };
               };
@@ -333,17 +435,45 @@ export async function streamAnthropic(
               usage.webSearches =
                 parsed.usage.server_tool_use?.web_search_requests ?? usage.webSearches ?? 0;
             }
+            if (parsed.type === 'content_block_start') {
+              const block = parsed.content_block;
+              if (block?.type === 'server_tool_use' && block.name === 'web_search') {
+                controller.enqueue(encode({ type: 'search_started' }));
+              }
+              if (block?.type === 'web_search_tool_result' && Array.isArray(block.content)) {
+                for (const result of block.content) {
+                  if (result.type === 'web_search_result') pushSource(controller, result);
+                }
+              }
+            }
+
+            if (parsed.type === 'content_block_delta' && parsed.delta?.type === 'citations_delta') {
+              const citation = parsed.delta.citation;
+              if (
+                citation?.type === 'web_search_result_location' ||
+                citation?.type === 'search_result_location'
+              ) {
+                pushSource(controller, citation);
+              }
+            }
+
             if (parsed.type === 'content_block_delta' && parsed.delta?.type === 'text_delta' && parsed.delta.text) {
-              controller.enqueue(encoder.encode(parsed.delta.text));
+              if (!answerStarted) {
+                answerStarted = true;
+                controller.enqueue(encode({ type: 'answer_started' }));
+              }
+              controller.enqueue(encode({ type: 'answer_delta', delta: parsed.delta.text }));
             }
           }
           if (done) break;
         }
+        controller.enqueue(encode({ type: 'answer_completed', model, usage, sources: foundSources }));
         finish({ model, usage });
         controller.close();
       } catch (error) {
         finish({ model, usage });
-        controller.error(error);
+        controller.enqueue(encode({ type: 'error', message: String(error) }));
+        controller.close();
       }
     },
     cancel() {
@@ -408,6 +538,7 @@ async function google(req: ProviderRequest): Promise<ProviderResult> {
       ok: text.length > 0,
       text,
       toolUses: [],
+      sources: [],
       model: req.model,
       usage: {
         inputTokens: body.usageMetadata?.promptTokenCount ?? 0,
@@ -644,6 +775,7 @@ async function openAiProtocol(
       ok: text.length > 0 || toolUses.length > 0,
       text,
       toolUses,
+      sources: [],
       stopReason: out.choices?.[0]?.finish_reason,
       model: out.model ?? req.model,
       usage: {
