@@ -98,8 +98,8 @@ button, textarea { font: inherit; }
   letter-spacing: 0;
 }
 .aui-thread { min-height: 0; overflow: hidden; }
-.aui-thread__viewport { height: 100%; overflow-y: auto; padding: 28px 24px; scroll-padding-bottom: 140px; }
-.aui-thread__footer { position: sticky; bottom: calc(-1 * var(--u5)); z-index: 5; margin: var(--u6) calc(-1 * var(--u5)) calc(-1 * var(--u5)); padding: var(--u3) var(--u5) max(var(--u4), env(safe-area-inset-bottom)); background: linear-gradient(transparent, var(--white) 24%); }
+.aui-thread__viewport { height: 100%; overflow-y: auto; display: flex; flex-direction: column; padding: 28px 24px 0; scroll-padding-bottom: 110px; }
+.aui-thread__footer { position: sticky; bottom: 0; z-index: 5; flex: 0 0 auto; margin: auto calc(-1 * var(--u5)) 0; padding: var(--u4) var(--u5); background: linear-gradient(transparent, var(--white) 22%); }
 .aui-message { width: min(100%, 720px); margin: 0 auto 28px; }
 .aui-message--user { display: flex; flex-direction: column; align-items: flex-end; }
 .aui-message__bubble { max-width: 100%; line-height: 1.65; overflow-wrap: anywhere; }
@@ -134,8 +134,8 @@ button, textarea { font: inherit; }
 .aui-thread-item__trigger { flex: 1; min-width: 0; padding: var(--u4) 0; border: 0; background: transparent; color: inherit; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .aui-thread-item__archive { width: 40px; border: 0; background: transparent; font-size: 18px; }
 @media (max-width: 600px) {
-  .aui-thread__viewport { padding: var(--u4) var(--u3); }
-  .aui-thread__footer { margin-inline: calc(-1 * var(--u3)); margin-bottom: calc(-1 * var(--u4)); padding-inline: var(--u3); }
+  .aui-thread__viewport { padding: var(--u4) var(--u3) 0; }
+  .aui-thread__footer { margin-inline: calc(-1 * var(--u3)); padding-inline: var(--u3); }
   .aui-message { margin-bottom: var(--u5); }
   .aui-message--user .aui-message__bubble { max-width: 90%; }
 }

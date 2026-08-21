@@ -118,6 +118,11 @@ select {
 /* A schermo stretto il frame diventa l'intera finestra: il prototipo si apre
    direttamente sul telefono senza cornice finta. */
 @media (max-width: 860px) {
+  html,
+  body {
+    background: #111111;
+  }
+
   .proto-stage {
     position: fixed;
     inset: 0;
@@ -138,6 +143,22 @@ select {
   .proto-frame:has(.aui-composer__input:focus) .tabbar {
     display: none;
   }
+}
+
+.live-chat {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.live-chat--hidden {
+  display: none;
+}
+
+.brain-loader {
+  flex: 1;
+  min-height: 0;
+  background: var(--white);
 }
 
 .screen {

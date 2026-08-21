@@ -10,7 +10,7 @@
    §26 — i controlli DEV non compaiono mai senza dev mode attiva.
    ========================================================================= */
 
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState, type ComponentProps } from 'react';
 import {
   useApp,
   type Phase,
@@ -49,7 +49,15 @@ import { HistoryScreen } from './screens/History';
 import { DailyScanScreen } from './screens/DailyScan';
 import { DevPanel } from './dev/DevPanel';
 import { PageReader } from './screens/PageReader';
-import { Brain } from './brain/Brain';
+const Brain = lazy(() => import('./brain/Brain').then((module) => ({ default: module.Brain })));
+
+function LazyBrain({ runTool }: { runTool: ComponentProps<typeof Brain>['runTool'] }) {
+  return (
+    <Suspense fallback={<div className="brain-loader" aria-label="Apertura chat" />}>
+      <Brain embedded runTool={runTool} />
+    </Suspense>
+  );
+}
 
 /* ============================================================================
    🔷 «Il nav sotto deve avere prima la chat — appena entri c'è la chat aperta
@@ -398,7 +406,25 @@ export function App() {
         {overlay ? (
           <OverlayScreen overlay={overlay} onClose={() => setOverlay(null)} onGo={setOverlay} />
         ) : assistantOpen ? (
-          <Brain embedded runTool={(use) => useApp.getState().runMonTool(use)} />
+          <LazyBrain runTool={(use) => useApp.getState().runMonTool(use)} />
+        ) : phase === 'live' ? (
+          <>
+            <div className={`live-chat ${tab === 'chat' ? '' : 'live-chat--hidden'}`}>
+              <LazyBrain runTool={(use) => useApp.getState().runMonTool(use)} />
+            </div>
+            {tab !== 'chat' && (
+              <PhaseScreen
+                phase={phase}
+                tab={tab}
+                monView={monView}
+                meView={meView}
+                onMonView={setMonView}
+                onMeView={setMeView}
+                onGo={setOverlay}
+                onEnterChat={() => goTab('chat')}
+              />
+            )}
+          </>
         ) : onCreature ? (
           <SplashScreen onEnter={() => setOnEgg(false)} />
         ) : (
@@ -463,7 +489,7 @@ function PhaseScreen({
     case 'live':
       switch (tab) {
         case 'chat':
-          return <Brain embedded runTool={(use) => useApp.getState().runMonTool(use)} />;
+          return <LazyBrain runTool={(use) => useApp.getState().runMonTool(use)} />;
         case 'mon':
           return <MonTab view={monView} onView={onMonView} onGo={onGo} onEnterChat={onEnterChat} />;
         case 'me':
