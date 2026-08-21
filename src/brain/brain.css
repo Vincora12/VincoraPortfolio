@@ -101,13 +101,14 @@ button, textarea { font: inherit; }
   font-weight: 550;
   letter-spacing: 0;
 }
-.aui-topics { overflow: hidden; border-bottom: 1px solid var(--aui-border); background: #000; }
-.aui-topics__list { display: flex; align-items: center; gap: 6px; overflow-x: auto; padding: max(6px, env(safe-area-inset-top)) var(--u3) 6px; scrollbar-width: none; }
+.aui-topics { display: flex; align-items: flex-end; overflow: hidden; border-bottom: 1px solid var(--aui-border); background: #000; }
+.aui-topics__list { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; overflow-x: auto; padding: max(6px, env(safe-area-inset-top)) var(--u3) 6px; scrollbar-width: none; }
 .aui-topics__list::-webkit-scrollbar { display: none; }
 .aui-topic { flex: 0 0 auto; display: flex; align-items: center; max-width: 180px; border-radius: 15px; background: var(--aui-soft); color: #f5f5f5; }
 .aui-topic__trigger { min-width: 0; max-width: 145px; padding: 7px 4px 7px 11px; border: 0; background: transparent; color: inherit; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .aui-topic__close { width: 28px; height: 28px; padding: 0; border: 0; background: transparent; color: var(--aui-muted); font-size: 15px; }
 .aui-topics__new { flex: 0 0 auto; width: 30px; height: 30px; padding: 0; border: 1px solid var(--aui-border); border-radius: 50%; background: #171717; color: #f5f5f5; font-size: 18px; }
+.aui-model-chip { flex: 0 0 auto; margin: 0 var(--u3) 6px 0; padding: 7px 9px; border: 0; border-radius: 14px; background: #171717; color: #ddd; font-size: 10px; font-weight: 650; }
 .aui-thread { min-height: 0; overflow: hidden; }
 .aui-thread__viewport { height: 100%; overflow-y: auto; display: flex; flex-direction: column; padding: 28px 24px 0; scroll-padding-bottom: 110px; }
 .aui-thread__footer { position: sticky; bottom: 0; z-index: 5; flex: 0 0 auto; margin: auto calc(-1 * var(--u5)) 0; padding: var(--u4) var(--u5); background: linear-gradient(transparent, #000 22%); }
@@ -130,9 +131,8 @@ button, textarea { font: inherit; }
 .aui-composer__input::placeholder { color: #888; }
 .aui-composer__input:focus { outline: 0; background: transparent; }
 .aui-composer__attach, .aui-composer__send, .aui-composer__cancel { flex: 0 0 auto; min-width: 42px; height: 42px; border: 0; border-radius: 50%; font-family: var(--font-ui); font-size: 0; font-weight: 700; }
-.aui-composer__model { flex: 0 0 auto; max-width: 92px; padding: 0 2px; border: 0; background: transparent; color: #e8e8e8; font-size: 11px; font-weight: 650; white-space: nowrap; }
-.aui-composer__mic { flex: 0 0 auto; width: 42px; height: 42px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: #f5f5f5; font-size: 12px; }
-.aui-composer__mic::after { content: 'MIC'; margin-left: 2px; font-size: 10px; font-weight: 650; }
+.aui-composer__mic { flex: 0 0 auto; width: 42px; height: 42px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%; background: transparent; color: #f5f5f5; }
+.aui-composer__mic svg { width: 25px; height: 25px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .aui-composer__mic.is-listening { color: #c62828; }
 .aui-composer__row.is-recording { align-items: center; min-height: 52px; }
 .aui-record__cancel, .aui-record__send { flex: 0 0 auto; width: 42px; height: 42px; padding: 0; border: 0; border-radius: 50%; }
@@ -147,7 +147,7 @@ button, textarea { font: inherit; }
 @keyframes aui-wave { from { transform: scaleY(.35); } to { transform: scaleY(1); } }
 @media (prefers-reduced-motion: reduce) { .aui-record__wave span { animation: none; } }
 .aui-composer__attach { background: transparent; color: #f5f5f5; font-size: 22px; }
-.aui-composer__send, .aui-composer__cancel { padding: 0; background: #f5f5f5; color: #111; }
+.aui-composer__send, .aui-composer__cancel { padding: 0; background: #0a84ff; color: #fff; }
 .aui-composer__send::after { content: '↑'; font-size: 18px; }
 .aui-composer__cancel::after { content: '■'; font-size: 12px; }
 .aui-composer__send:disabled { opacity: .25; }

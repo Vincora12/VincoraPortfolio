@@ -159,7 +159,7 @@ function modelLabel(model?: string | null): string {
   return model.replace(/^gpt-/, '').replace(/-/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-function Composer({ voiceModel, onSettings }: { voiceModel?: string | null; onSettings?: () => void }) {
+function Composer() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const recognitionRef = useRef<{ start: () => void; stop: () => void } | null>(null);
   const [listening, setListening] = useState(false);
@@ -249,14 +249,13 @@ function Composer({ voiceModel, onSettings }: { voiceModel?: string | null; onSe
         ) : (
           <>
         <ComposerPrimitive.AddAttachment className="aui-composer__attach" aria-label="Allega file">＋</ComposerPrimitive.AddAttachment>
-        <ComposerPrimitive.Input ref={inputRef} className="aui-composer__input" placeholder="Chiedi qualsiasi cosa…" aria-label="Messaggio" submitOnEnter />
-        {onSettings && <button type="button" className="aui-composer__model" aria-label="Cambia modello AI" onClick={onSettings}>{modelLabel(voiceModel)}</button>}
+        <ComposerPrimitive.Input ref={inputRef} className="aui-composer__input" placeholder="Scrivi a VINZ.MON" aria-label="Messaggio" submitOnEnter />
         <button
           type="button"
           className={`aui-composer__mic ${listening ? 'is-listening' : ''}`}
           aria-label="Avvia dettatura"
           onClick={startDictation}
-        >●</button>
+        ><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15a4 4 0 0 0 4-4V6a4 4 0 1 0-8 0v5a4 4 0 0 0 4 4Zm7-4a7 7 0 0 1-14 0M12 18v4M9 22h6" /></svg></button>
         <ComposerPrimitive.Send className="aui-composer__send">INVIA</ComposerPrimitive.Send>
         <ComposerPrimitive.Cancel className="aui-composer__cancel">STOP</ComposerPrimitive.Cancel>
           </>
@@ -274,6 +273,7 @@ function ChatSurface({ embedded, voiceModel, onSettings }: { embedded: boolean; 
           <ThreadListPrimitive.Items components={{ ThreadListItem: TopicTab }} />
           <ThreadListPrimitive.New className="aui-topics__new" aria-label="Nuova chat">＋</ThreadListPrimitive.New>
         </ThreadListPrimitive.Root>
+        {onSettings && <button type="button" className="aui-model-chip" aria-label="Cambia modello AI" onClick={onSettings}>{modelLabel(voiceModel)}</button>}
       </nav>
       <ThreadPrimitive.Root className="aui-thread">
         <ThreadPrimitive.Viewport className="aui-thread__viewport">
@@ -283,7 +283,7 @@ function ChatSurface({ embedded, voiceModel, onSettings }: { embedded: boolean; 
           <ThreadPrimitive.Messages components={{ UserMessage, AssistantMessage }} />
           <ThreadPrimitive.ViewportFooter className="aui-thread__footer">
             <ThreadPrimitive.ScrollToBottom className="aui-scroll" aria-label="Vai in fondo">↓</ThreadPrimitive.ScrollToBottom>
-            <Composer voiceModel={voiceModel} onSettings={onSettings} />
+            <Composer />
           </ThreadPrimitive.ViewportFooter>
         </ThreadPrimitive.Viewport>
       </ThreadPrimitive.Root>
