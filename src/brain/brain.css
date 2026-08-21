@@ -102,7 +102,7 @@ button, textarea { font: inherit; }
   letter-spacing: 0;
 }
 .aui-topics { overflow: hidden; border-bottom: 1px solid var(--aui-border); background: #000; }
-.aui-topics__list { display: flex; align-items: center; gap: 6px; overflow-x: auto; padding: 6px var(--u3); scrollbar-width: none; }
+.aui-topics__list { display: flex; align-items: center; gap: 6px; overflow-x: auto; padding: max(6px, env(safe-area-inset-top)) var(--u3) 6px; scrollbar-width: none; }
 .aui-topics__list::-webkit-scrollbar { display: none; }
 .aui-topic { flex: 0 0 auto; display: flex; align-items: center; max-width: 180px; border-radius: 15px; background: var(--aui-soft); color: #f5f5f5; }
 .aui-topic__trigger { min-width: 0; max-width: 145px; padding: 7px 4px 7px 11px; border: 0; background: transparent; color: inherit; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
