@@ -16,6 +16,8 @@ interface Message {
   ts: string;
   role: Role;
   content: string;
+  context?: string;
+  attachment?: { kind: 'image' | 'document'; name: string };
   interrupted?: boolean;
 }
 
@@ -40,6 +42,7 @@ interface AppendPayload {
 
 const STATE_KEY = 'state';
 const MAX_MESSAGE_CHARS = 12_000;
+const MAX_CONTEXT_CHARS = 10_000;
 const MAX_CONVERSATIONS = 100;
 const store = () => getStore('vinzmon-brain');
 
@@ -62,6 +65,14 @@ function validMessage(value: unknown): value is Message {
     typeof message.content === 'string' &&
     message.content.length > 0 &&
     message.content.length <= MAX_MESSAGE_CHARS &&
+    (message.context === undefined ||
+      (typeof message.context === 'string' && message.context.length <= MAX_CONTEXT_CHARS)) &&
+    (message.attachment === undefined ||
+      (typeof message.attachment === 'object' &&
+        message.attachment !== null &&
+        (message.attachment.kind === 'image' || message.attachment.kind === 'document') &&
+        typeof message.attachment.name === 'string' &&
+        message.attachment.name.length <= 180)) &&
     (message.interrupted === undefined || typeof message.interrupted === 'boolean')
   );
 }

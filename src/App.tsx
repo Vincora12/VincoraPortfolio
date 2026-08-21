@@ -144,6 +144,8 @@ export function App() {
      che si rientra nella tab. */
   const [monView, setMonView] = useState<MonView>('mon');
   const [meView, setMeView] = useState<MeView>('me');
+  /* V1: la Chat è sempre raggiungibile, anche prima di configurare il Game. */
+  const [assistantOpen, setAssistantOpen] = useState(false);
 
   /* ⚠️ L'INCUBAZIONE HA UNA PORTA SUA, e non può usare le tab.
 
@@ -385,6 +387,8 @@ export function App() {
           showDev={devEnabled && overlay !== 'dev'}
           onOpenDev={() => setOverlay('dev')}
           onActivate={() => setOverlay('activate')}
+          assistantOpen={assistantOpen}
+          onToggleAssistant={() => setAssistantOpen((open) => !open)}
         />
 
         {/* ⚠️ L'ordine conta: l'ingresso stava PRIMA dell'overlay, quindi con
@@ -393,6 +397,8 @@ export function App() {
             saluto. */}
         {overlay ? (
           <OverlayScreen overlay={overlay} onClose={() => setOverlay(null)} onGo={setOverlay} />
+        ) : assistantOpen ? (
+          <Brain embedded />
         ) : onCreature ? (
           <SplashScreen onEnter={() => setOnEgg(false)} />
         ) : (
@@ -715,10 +721,14 @@ function StatusBar({
   showDev,
   onOpenDev,
   onActivate,
+  assistantOpen,
+  onToggleAssistant,
 }: {
   showDev: boolean;
   onOpenDev: () => void;
   onActivate: () => void;
+  assistantOpen: boolean;
+  onToggleAssistant: () => void;
 }) {
   const day = useApp((s) => s.day);
   const sync = useApp((s) => s.progression.sync.lifetime);
@@ -761,6 +771,11 @@ function StatusBar({
             impianto — avrebbe voluto dire nasconderlo proprio a chi apre
             l'app per la prima volta. */}
         <ActivateChip onClick={onActivate} />
+        {phase !== 'live' && (
+          <button type="button" className="devtrigger" onClick={onToggleAssistant}>
+            {assistantOpen ? 'GAME' : 'CHAT'}
+          </button>
+        )}
         {/* Il trigger DEV sta qui e non fluttuante sopra la schermata:
             in overlay senza tab bar copriva il contenuto. */}
         {showDev && (

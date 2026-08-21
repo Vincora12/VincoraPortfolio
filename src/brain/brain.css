@@ -4,6 +4,7 @@ body { background: var(--paper); color: var(--ink); font-family: var(--font-ui);
 button, textarea { font: inherit; }
 
 .brain {
+  position: relative;
   width: min(760px, 100%);
   min-height: 100dvh;
   margin: 0 auto;
@@ -19,16 +20,25 @@ button, textarea { font: inherit; }
   border: 0;
 }
 .brain__header {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: baseline;
-  justify-content: space-between;
   gap: var(--u4);
   padding: max(var(--u5), env(safe-area-inset-top)) var(--u5) var(--u4);
   border-bottom: var(--border-thick) solid var(--ink);
 }
-.brain__header h1 { margin: 0; font-family: var(--font-display); font-size: 30px; font-style: italic; line-height: 1; }
+.brain__header h1 { margin: 0; font-family: var(--font-display); font-size: 30px; font-style: italic; line-height: 1; text-align: center; }
+.brain__header button { border: 0; background: transparent; padding: var(--u2); font-family: var(--font-mono); font-size: var(--type-micro); font-weight: 600; }
+.brain__history { justify-self: start; }
+.brain__new { justify-self: end; }
 .brain__header span, .brain__message > span { font-family: var(--font-mono); font-size: var(--type-micro); letter-spacing: .1em; }
 .brain__messages { min-height: 0; overflow-y: auto; padding: var(--u5); }
+.brain__threads { position: absolute; z-index: 20; inset: 0; overflow-y: auto; padding: max(var(--u5), env(safe-area-inset-top)) var(--u5); background: var(--white); color: var(--ink); }
+.brain__threads-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--u5); padding-bottom: var(--u4); border-bottom: var(--border-thick) solid var(--ink); font-family: var(--font-mono); }
+.brain__threads-head button { border: 0; background: transparent; font-family: var(--font-mono); font-weight: 600; }
+.brain__threads > button { width: 100%; display: grid; grid-template-columns: 1fr auto; gap: var(--u3); padding: var(--u4) 0; border: 0; border-bottom: var(--border) solid var(--ink); background: transparent; color: inherit; text-align: left; }
+.brain__threads > button.is-active { background: var(--ink); color: var(--white); padding-inline: var(--u3); }
+.brain__threads small { font-family: var(--font-mono); }
 .brain__loading { margin-top: 20vh; text-align: center; font: var(--type-meta) var(--font-mono); }
 .brain__empty { max-width: 430px; margin: 18vh auto 0; text-align: center; }
 .brain__empty strong { font-family: var(--font-display); font-size: var(--type-display-m); text-transform: uppercase; }
@@ -42,7 +52,11 @@ button, textarea { font: inherit; }
 .brain__bubble .md__p:last-child { margin-bottom: 0; }
 .brain__message--user .brain__bubble { background: var(--ink); color: var(--white); }
 .brain__bubble small { display: block; margin-top: var(--u3); font-family: var(--font-mono); }
+.brain__bubble .brain__file { margin: 0 0 var(--u3); padding-bottom: var(--u2); border-bottom: 1px solid currentColor; overflow-wrap: anywhere; }
+.brain__copy { margin-top: var(--u2); padding: var(--u2) 0; border: 0; background: transparent; color: var(--muted-strong); font-family: var(--font-mono); font-size: var(--type-micro); }
 .brain__error { padding: var(--u3); border: var(--border) solid var(--signal-alert); color: #a00000; }
+.brain__error p { margin: 0 0 var(--u3); }
+.brain__error button { padding: var(--u2) var(--u3); border: var(--border) solid currentColor; background: transparent; color: inherit; font-family: var(--font-mono); font-weight: 600; }
 .brain__composer { display: grid; grid-template-columns: auto 1fr auto; gap: var(--u3); padding: var(--u4) var(--u5) max(var(--u4), env(safe-area-inset-bottom)); border-top: var(--border-thick) solid var(--ink); }
 .brain__attachment { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: var(--u3); padding: var(--u2) var(--u3); border: var(--border) solid var(--ink); font-family: var(--font-mono); font-size: var(--type-micro); }
 .brain__attachment button { min-width: 0; padding: var(--u2); border: 0; background: transparent; color: inherit; }

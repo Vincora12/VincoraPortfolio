@@ -14,7 +14,10 @@ export function Brain({ embedded = false }: { embedded?: boolean }) {
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
   const [image, setImage] = useState<{ name: string; mediaType: string; data: string } | null>(null);
+  const [document, setDocument] = useState<{ name: string; text: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showThreads, setShowThreads] = useState(false);
+  const [copied, setCopied] = useState<string | null>(null);
   const abort = useRef<AbortController | null>(null);
   const end = useRef<HTMLDivElement | null>(null);
   const active = state.conversations.find((item) => item.id === state.activeConversationId);
@@ -31,14 +34,20 @@ export function Brain({ embedded = false }: { embedded?: boolean }) {
   async function send(event: FormEvent) {
     event.preventDefault();
     const text = draft.trim();
-    if ((!text && !image) || busy) return;
+    if ((!text && !image && !document) || busy) return;
 
     const conversationId = active?.id ?? id('thread');
     const userMessage: BrainMessage = {
       id: id('msg'),
       ts: new Date().toISOString(),
       role: 'user',
-      content: text || 'Analizza questa immagine.',
+      content: text || (image ? 'Analizza questa immagine.' : 'Analizza questo documento.'),
+      ...(document ? {
+        context: `FILE: ${document.name}\n${document.text}`,
+        attachment: { kind: 'document' as const, name: document.name },
+      } : image ? {
+        attachment: { kind: 'image' as const, name: image.name },
+      } : {}),
     };
     setDraft('');
     setError(null);
@@ -50,7 +59,13 @@ export function Brain({ embedded = false }: { embedded?: boolean }) {
     let answer = '';
 
     try {
-      await streamReply(messages, text || 'Analizza questa immagine.', controller.signal, (chunk) => {
+      await streamReply(
+        messages,
+        document
+          ? `${text || 'Analizza questo documento.'}\n\n[ALLEGATO]\nFILE: ${document.name}\n${document.text}`
+          : text || 'Analizza questa immagine.',
+        controller.signal,
+        (chunk) => {
         answer += chunk;
         setState((current) => {
           const next = structuredClone(current);
@@ -61,7 +76,9 @@ export function Brain({ embedded = false }: { embedded?: boolean }) {
           else conversation.messages.push({ id: 'streaming', ts: new Date().toISOString(), role: 'assistant', content: answer });
           return next;
         });
-      }, image ? { mediaType: image.mediaType, data: image.data } : undefined);
+        },
+        image ? { mediaType: image.mediaType, data: image.data } : undefined,
+      );
     } catch (cause) {
       if (!controller.signal.aborted) {
         setError(cause instanceof Error ? cause.message : 'La risposta si è interrotta.');
@@ -79,6 +96,7 @@ export function Brain({ embedded = false }: { embedded?: boolean }) {
       } else setState(withUser);
       setBusy(false);
       setImage(null);
+      setDocument(null);
       abort.current = null;
     }
   }
@@ -91,9 +109,49 @@ export function Brain({ embedded = false }: { embedded?: boolean }) {
   return (
     <main className={`brain ${embedded ? 'brain--embedded' : ''}`}>
       <header className="brain__header">
+        <button className="brain__history" type="button" onClick={() => setShowThreads((value) => !value)}>
+          CHAT
+        </button>
         <h1>VINZ.MON</h1>
-        <span>ASSISTENTE PERSONALE</span>
+        <button
+          className="brain__new"
+          type="button"
+          onClick={() => {
+            setState((current) => ({ ...current, activeConversationId: null }));
+            setShowThreads(false);
+            setError(null);
+          }}
+        >
+          NUOVA
+        </button>
       </header>
+
+      {showThreads && (
+        <aside className="brain__threads" aria-label="Conversazioni">
+          <div className="brain__threads-head">
+            <strong>CONVERSAZIONI</strong>
+            <button type="button" onClick={() => setShowThreads(false)}>CHIUDI</button>
+          </div>
+          {state.conversations.length === 0 ? (
+            <p>Nessuna conversazione salvata.</p>
+          ) : (
+            state.conversations.map((conversation) => (
+              <button
+                type="button"
+                key={conversation.id}
+                className={conversation.id === state.activeConversationId ? 'is-active' : ''}
+                onClick={() => {
+                  setState((current) => ({ ...current, activeConversationId: conversation.id }));
+                  setShowThreads(false);
+                }}
+              >
+                <strong>{conversation.title}</strong>
+                <small>{new Date(conversation.updatedAt).toLocaleDateString('it-IT')}</small>
+              </button>
+            ))
+          )}
+        </aside>
+      )}
 
       <section className="brain__messages" aria-live="polite">
         {loading && <div className="brain__loading">CARICAMENTO…</div>}
@@ -104,41 +162,84 @@ export function Brain({ embedded = false }: { embedded?: boolean }) {
           </div>
         )}
         {messages.map((message, index) => (
-          <article className={`brain__message brain__message--${message.role}`} key={index}>
+          <article className={`brain__message brain__message--${message.role}`} key={message.id || index}>
             <span>{message.role === 'user' ? 'TU' : 'BRAIN'}</span>
             <div className="brain__bubble">
               {message.role === 'assistant' ? (
                 <Markdown source={message.content} />
               ) : (
-                <p>{message.content}</p>
+                <>
+                  {message.attachment && <small className="brain__file">{message.attachment.name}</small>}
+                  <p>{message.content}</p>
+                </>
               )}
               {message.interrupted && <small>[INTERROTTA]</small>}
             </div>
+            {message.role === 'assistant' && message.id !== 'streaming' && (
+              <button
+                type="button"
+                className="brain__copy"
+                onClick={() => {
+                  void navigator.clipboard.writeText(message.content).then(() => {
+                    setCopied(message.id);
+                    window.setTimeout(() => setCopied(null), 1200);
+                  });
+                }}
+              >
+                {copied === message.id ? 'COPIATO' : 'COPIA'}
+              </button>
+            )}
           </article>
         ))}
-        {error && <p className="brain__error">{error}</p>}
+        {error && (
+          <div className="brain__error" role="alert">
+            <p>{error}</p>
+            {messages.at(-1)?.role === 'user' && (
+              <button
+                type="button"
+                onClick={() => {
+                  setDraft(messages.at(-1)?.content ?? '');
+                  setError(null);
+                }}
+              >
+                RIPROVA
+              </button>
+            )}
+          </div>
+        )}
         <div ref={end} />
       </section>
 
       <form className="brain__composer" onSubmit={send}>
-        {image && (
+        {(image || document) && (
           <div className="brain__attachment">
-            <span>{image.name}</span>
-            <button type="button" onClick={() => setImage(null)}>RIMUOVI</button>
+            <span>{image?.name ?? document?.name}</span>
+            <button type="button" onClick={() => { setImage(null); setDocument(null); }}>RIMUOVI</button>
           </div>
         )}
         <label className="brain__attach">
           <span aria-hidden="true">＋</span><span className="sr-only">Allega immagine</span>
           <input
             type="file"
-            accept="image/jpeg,image/png,image/webp,image/gif"
+            accept="image/jpeg,image/png,image/webp,image/gif,text/plain,text/markdown,text/csv,application/json"
             disabled={busy}
             onChange={(event) => {
               const file = event.currentTarget.files?.[0];
               event.currentTarget.value = '';
               if (!file) return;
               if (file.size > 5 * 1024 * 1024) {
-                setError('L’immagine supera 5 MB.');
+                setError('L’allegato supera 5 MB.');
+                return;
+              }
+              if (!file.type.startsWith('image/')) {
+                const reader = new FileReader();
+                reader.onload = () => {
+                  const text = String(reader.result ?? '');
+                  if (text.length > 9_000) setError('Documento abbreviato ai primi 9.000 caratteri.');
+                  setDocument({ name: file.name, text: text.slice(0, 9_000) });
+                  setImage(null);
+                };
+                reader.readAsText(file);
                 return;
               }
               const reader = new FileReader();
@@ -167,7 +268,7 @@ export function Brain({ embedded = false }: { embedded?: boolean }) {
         {busy ? (
           <button type="button" onClick={stop}>STOP</button>
         ) : (
-          <button type="submit" disabled={!draft.trim() && !image}>INVIA</button>
+          <button type="submit" disabled={!draft.trim() && !image && !document}>INVIA</button>
         )}
       </form>
     </main>

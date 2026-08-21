@@ -5,6 +5,9 @@ export interface BrainMessage {
   ts: string;
   role: BrainRole;
   content: string;
+  /** Contesto allegato non mostrato nella bolla, limitato e salvato col turno. */
+  context?: string;
+  attachment?: { kind: 'image' | 'document'; name: string };
   interrupted?: boolean;
 }
 

@@ -41,7 +41,10 @@ export async function streamReply(
       system,
       webSearch: !image,
       ...(image ? { image } : {}),
-      turns: turns.map(({ role, content }) => ({ role, content })),
+      turns: turns.map(({ role, content, context }) => ({
+        role,
+        content: context ? `${content}\n\n[ALLEGATO]\n${context}` : content,
+      })),
       user,
       maxTokens: 2000,
     }),
