@@ -154,7 +154,12 @@ function TopicTab() {
   );
 }
 
-function Composer() {
+function modelLabel(model?: string | null): string {
+  if (!model) return '5.6 Terra';
+  return model.replace(/^gpt-/, '').replace(/-/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function Composer({ voiceModel, onSettings }: { voiceModel?: string | null; onSettings?: () => void }) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const recognitionRef = useRef<{ start: () => void; stop: () => void } | null>(null);
   const [listening, setListening] = useState(false);
@@ -245,6 +250,7 @@ function Composer() {
           <>
         <ComposerPrimitive.AddAttachment className="aui-composer__attach" aria-label="Allega file">＋</ComposerPrimitive.AddAttachment>
         <ComposerPrimitive.Input ref={inputRef} className="aui-composer__input" placeholder="Chiedi qualsiasi cosa…" aria-label="Messaggio" submitOnEnter />
+        {onSettings && <button type="button" className="aui-composer__model" aria-label="Cambia modello AI" onClick={onSettings}>{modelLabel(voiceModel)}</button>}
         <button
           type="button"
           className={`aui-composer__mic ${listening ? 'is-listening' : ''}`}
@@ -260,7 +266,7 @@ function Composer() {
   );
 }
 
-function ChatSurface({ embedded }: { embedded: boolean; onSettings?: () => void }) {
+function ChatSurface({ embedded, voiceModel, onSettings }: { embedded: boolean; voiceModel?: string | null; onSettings?: () => void }) {
   return (
     <main className={`brain aui-chat ${embedded ? 'brain--embedded' : ''}`}>
       <nav className="aui-topics" aria-label="Chat aperte">
@@ -277,7 +283,7 @@ function ChatSurface({ embedded }: { embedded: boolean; onSettings?: () => void 
           <ThreadPrimitive.Messages components={{ UserMessage, AssistantMessage }} />
           <ThreadPrimitive.ViewportFooter className="aui-thread__footer">
             <ThreadPrimitive.ScrollToBottom className="aui-scroll" aria-label="Vai in fondo">↓</ThreadPrimitive.ScrollToBottom>
-            <Composer />
+            <Composer voiceModel={voiceModel} onSettings={onSettings} />
           </ThreadPrimitive.ViewportFooter>
         </ThreadPrimitive.Viewport>
       </ThreadPrimitive.Root>
@@ -291,7 +297,7 @@ function Runtime({ embedded, runTool, voiceModel, onSettings }: { embedded: bool
     adapter: threadAdapter,
     runtimeHook: () => useLocalRuntime(model, { adapters: { attachments } }),
   });
-  return <AssistantRuntimeProvider runtime={runtime}><ChatSurface embedded={embedded} onSettings={onSettings} /></AssistantRuntimeProvider>;
+  return <AssistantRuntimeProvider runtime={runtime}><ChatSurface embedded={embedded} voiceModel={voiceModel} onSettings={onSettings} /></AssistantRuntimeProvider>;
 }
 
 export function Brain({ embedded = false, runTool, voiceModel, onSettings }: { embedded?: boolean; runTool?: (use: ToolUse) => ToolResult; voiceModel?: string | null; onSettings?: () => void }) {
