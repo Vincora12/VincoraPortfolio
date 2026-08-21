@@ -51,10 +51,10 @@ import { DevPanel } from './dev/DevPanel';
 import { PageReader } from './screens/PageReader';
 const Brain = lazy(() => import('./brain/Brain').then((module) => ({ default: module.Brain })));
 
-function LazyBrain({ runTool }: { runTool: ComponentProps<typeof Brain>['runTool'] }) {
+function LazyBrain(props: Omit<ComponentProps<typeof Brain>, 'embedded'>) {
   return (
     <Suspense fallback={<div className="brain-loader" aria-label="Apertura chat" />}>
-      <Brain embedded runTool={runTool} />
+      <Brain embedded {...props} />
     </Suspense>
   );
 }
@@ -131,6 +131,7 @@ export function App() {
     s.activeMonName ? (s.mons[s.activeMonName]?.sigil ?? null) : null,
   );
   const devEnabled = useApp((s) => s.dev.enabled);
+  const voiceModel = useApp((s) => s.voiceModel);
   const setDev = useApp((s) => s.setDev);
 
   /* 🔷 «Appena entri c'è la chat aperta.» */
@@ -406,11 +407,11 @@ export function App() {
         {overlay ? (
           <OverlayScreen overlay={overlay} onClose={() => setOverlay(null)} onGo={setOverlay} />
         ) : assistantOpen ? (
-          <LazyBrain runTool={(use) => useApp.getState().runMonTool(use)} />
+          <LazyBrain runTool={(use) => useApp.getState().runMonTool(use)} voiceModel={voiceModel} onSettings={() => setOverlay('activate')} />
         ) : phase === 'live' ? (
           <>
             <div className={`live-chat ${tab === 'chat' ? '' : 'live-chat--hidden'}`}>
-              <LazyBrain runTool={(use) => useApp.getState().runMonTool(use)} />
+              <LazyBrain runTool={(use) => useApp.getState().runMonTool(use)} voiceModel={voiceModel} onSettings={() => setOverlay('activate')} />
             </div>
             {tab !== 'chat' && (
               <PhaseScreen
@@ -714,7 +715,7 @@ function TabBar({ tab, onChange }: { tab: Tab; onChange: (t: Tab) => void }) {
             onChange(item.id);
           }}
         >
-          <Icon name={item.icon} size={20} strokeWidth={2} />
+          <Icon name={item.icon} size={18} strokeWidth={2} />
           {item.label}
         </button>
       ))}

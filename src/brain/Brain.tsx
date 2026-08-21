@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActionBarPrimitive,
   AssistantRuntimeProvider,
@@ -64,7 +64,7 @@ function imageFrom(message: ThreadMessage): { mediaType: string; data: string } 
   return undefined;
 }
 
-function createChatModel(runTool?: (use: ToolUse) => ToolResult): ChatModelAdapter {
+function createChatModel(runTool?: (use: ToolUse) => ToolResult, voiceModel?: string | null): ChatModelAdapter {
   return {
     async *run({ messages, abortSignal }) {
       const last = messages.at(-1);
@@ -83,8 +83,8 @@ function createChatModel(runTool?: (use: ToolUse) => ToolResult): ChatModelAdapt
         waiting = null;
       };
       const request = (runTool && shouldUseLocalTools(user) && !image
-        ? replyWithLocalTools(history, user, abortSignal, onChunk, runTool)
-        : streamReply(history, user, abortSignal, onChunk, image))
+        ? replyWithLocalTools(history, user, abortSignal, onChunk, runTool, voiceModel)
+        : streamReply(history, user, abortSignal, onChunk, image, voiceModel))
         .catch((error: unknown) => { failure = error; })
         .finally(() => {
           finished = true;
@@ -154,6 +154,17 @@ function ThreadListItem() {
   );
 }
 
+function TopicTab() {
+  return (
+    <ThreadListItemPrimitive.Root className="aui-topic">
+      <ThreadListItemPrimitive.Trigger className="aui-topic__trigger">
+        <ThreadListItemPrimitive.Title fallback="Nuova chat" />
+      </ThreadListItemPrimitive.Trigger>
+      <ThreadListItemPrimitive.Archive className="aui-topic__close" aria-label="Chiudi chat">×</ThreadListItemPrimitive.Archive>
+    </ThreadListItemPrimitive.Root>
+  );
+}
+
 function ThreadList({ close }: { close: () => void }) {
   return (
     <aside className="aui-sidebar" aria-label="Conversazioni">
@@ -167,12 +178,52 @@ function ThreadList({ close }: { close: () => void }) {
 }
 
 function Composer() {
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const recognitionRef = useRef<{ start: () => void; stop: () => void } | null>(null);
+  const [listening, setListening] = useState(false);
+
+  useEffect(() => () => recognitionRef.current?.stop(), []);
+
+  const dictate = () => {
+    if (listening) return recognitionRef.current?.stop();
+    const Recognition = (window as unknown as {
+      webkitSpeechRecognition?: new () => {
+        lang: string;
+        interimResults: boolean;
+        onresult: ((event: { results: ArrayLike<{ 0: { transcript: string } }> }) => void) | null;
+        onend: (() => void) | null;
+        onerror: (() => void) | null;
+        start: () => void;
+        stop: () => void;
+      };
+    }).webkitSpeechRecognition;
+    if (!Recognition) return;
+    const recognition = new Recognition();
+    recognition.lang = 'it-IT';
+    recognition.interimResults = false;
+    recognition.onresult = (event) => {
+      const transcript = event.results[0]?.[0]?.transcript?.trim();
+      const input = inputRef.current;
+      if (!transcript || !input) return;
+      const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
+      setter?.call(input, input.value ? `${input.value} ${transcript}` : transcript);
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.focus();
+    };
+    recognition.onend = () => setListening(false);
+    recognition.onerror = () => setListening(false);
+    recognitionRef.current = recognition;
+    setListening(true);
+    recognition.start();
+  };
+
   return (
     <ComposerPrimitive.Root className="aui-composer">
       <ComposerPrimitive.Attachments components={{ Attachment }} />
       <div className="aui-composer__row">
         <ComposerPrimitive.AddAttachment className="aui-composer__attach" aria-label="Allega file">＋</ComposerPrimitive.AddAttachment>
-        <ComposerPrimitive.Input className="aui-composer__input" placeholder="Chiedi qualsiasi cosa…" aria-label="Messaggio" submitOnEnter />
+        <ComposerPrimitive.Input ref={inputRef} className="aui-composer__input" placeholder="Chiedi qualsiasi cosa…" aria-label="Messaggio" submitOnEnter />
+        <button type="button" className={`aui-composer__mic ${listening ? 'is-listening' : ''}`} aria-label={listening ? 'Ferma dettatura' : 'Dettatura'} onClick={dictate}>●</button>
         <ComposerPrimitive.Send className="aui-composer__send">INVIA</ComposerPrimitive.Send>
         <ComposerPrimitive.Cancel className="aui-composer__cancel">STOP</ComposerPrimitive.Cancel>
       </div>
@@ -180,15 +231,24 @@ function Composer() {
   );
 }
 
-function ChatSurface({ embedded }: { embedded: boolean }) {
+function ChatSurface({ embedded, onSettings }: { embedded: boolean; onSettings?: () => void }) {
   const [showThreads, setShowThreads] = useState(false);
   return (
     <main className={`brain aui-chat ${embedded ? 'brain--embedded' : ''}`}>
       <header className="brain__header">
         <button className="brain__history" type="button" onClick={() => setShowThreads(true)}>CHAT</button>
         <h1>VINZ.MON</h1>
-        <ThreadListPrimitive.New className="brain__new">NUOVA</ThreadListPrimitive.New>
+        <div className="brain__right">
+          {onSettings && <button type="button" className="brain__settings" aria-label="Impostazioni AI" onClick={onSettings}>AI</button>}
+          <ThreadListPrimitive.New className="brain__new">NUOVA</ThreadListPrimitive.New>
+        </div>
       </header>
+      <nav className="aui-topics" aria-label="Chat aperte">
+        <ThreadListPrimitive.Root className="aui-topics__list">
+          <ThreadListPrimitive.Items components={{ ThreadListItem: TopicTab }} />
+          <ThreadListPrimitive.New className="aui-topics__new" aria-label="Nuova chat">＋</ThreadListPrimitive.New>
+        </ThreadListPrimitive.Root>
+      </nav>
       {showThreads ? <ThreadList close={() => setShowThreads(false)} /> : null}
       <ThreadPrimitive.Root className="aui-thread">
         <ThreadPrimitive.Viewport className="aui-thread__viewport">
@@ -206,15 +266,15 @@ function ChatSurface({ embedded }: { embedded: boolean }) {
   );
 }
 
-function Runtime({ embedded, runTool }: { embedded: boolean; runTool?: (use: ToolUse) => ToolResult }) {
-  const model = useMemo(() => createChatModel(runTool), [runTool]);
+function Runtime({ embedded, runTool, voiceModel, onSettings }: { embedded: boolean; runTool?: (use: ToolUse) => ToolResult; voiceModel?: string | null; onSettings?: () => void }) {
+  const model = useMemo(() => createChatModel(runTool, voiceModel), [runTool, voiceModel]);
   const runtime = useRemoteThreadListRuntime({
     adapter: threadAdapter,
     runtimeHook: () => useLocalRuntime(model, { adapters: { attachments } }),
   });
-  return <AssistantRuntimeProvider runtime={runtime}><ChatSurface embedded={embedded} /></AssistantRuntimeProvider>;
+  return <AssistantRuntimeProvider runtime={runtime}><ChatSurface embedded={embedded} onSettings={onSettings} /></AssistantRuntimeProvider>;
 }
 
-export function Brain({ embedded = false, runTool }: { embedded?: boolean; runTool?: (use: ToolUse) => ToolResult }) {
-  return <Runtime embedded={embedded} runTool={runTool} />;
+export function Brain({ embedded = false, runTool, voiceModel, onSettings }: { embedded?: boolean; runTool?: (use: ToolUse) => ToolResult; voiceModel?: string | null; onSettings?: () => void }) {
+  return <Runtime embedded={embedded} runTool={runTool} voiceModel={voiceModel} onSettings={onSettings} />;
 }

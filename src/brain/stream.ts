@@ -18,6 +18,7 @@ export async function streamReply(
   signal: AbortSignal,
   onChunk: (chunk: string) => void,
   image?: { mediaType: string; data: string },
+  voiceModel?: string | null,
 ): Promise<void> {
   const token = savedToken();
   if (!token) throw new Error('Prima attiva VINZ.MON: manca il token.');
@@ -38,6 +39,7 @@ export async function streamReply(
     headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
     body: JSON.stringify({
       capability: 'character-voice',
+      voiceModel,
       stream: false,
       system,
       webSearch: !image,
@@ -87,6 +89,7 @@ export async function replyWithLocalTools(
   signal: AbortSignal,
   onChunk: (chunk: string) => void,
   run: (use: ToolUse) => ToolResult,
+  voiceModel?: string | null,
 ): Promise<void> {
   const token = savedToken();
   if (!token) throw new Error('Prima attiva VINZ.MON: manca il token.');
@@ -114,6 +117,7 @@ export async function replyWithLocalTools(
       headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
       body: JSON.stringify({
         capability: 'character-voice',
+        voiceModel,
         system,
         turns: history,
         user: currentUser,

@@ -31,6 +31,7 @@ button, textarea { font: inherit; }
 .brain__header button { border: 0; background: transparent; padding: var(--u2); font-family: var(--font-mono); font-size: var(--type-micro); font-weight: 600; }
 .brain__history { justify-self: start; }
 .brain__new { justify-self: end; }
+.brain__right { justify-self: end; display: flex; align-items: center; gap: var(--u2); }
 .brain__header span, .brain__message > span { font-family: var(--font-mono); font-size: var(--type-micro); letter-spacing: .1em; }
 .brain__messages { min-height: 0; overflow-y: auto; padding: var(--u5); }
 .brain__threads { position: absolute; z-index: 20; inset: 0; overflow-y: auto; padding: max(var(--u5), env(safe-area-inset-top)) var(--u5); background: var(--white); color: var(--ink); }
@@ -97,6 +98,13 @@ button, textarea { font: inherit; }
   font-weight: 550;
   letter-spacing: 0;
 }
+.aui-topics { overflow: hidden; border-bottom: 1px solid var(--aui-border); background: #fff; }
+.aui-topics__list { display: flex; align-items: center; gap: 6px; overflow-x: auto; padding: 6px var(--u3); scrollbar-width: none; }
+.aui-topics__list::-webkit-scrollbar { display: none; }
+.aui-topic { flex: 0 0 auto; display: flex; align-items: center; max-width: 180px; border-radius: 15px; background: var(--aui-soft); }
+.aui-topic__trigger { min-width: 0; max-width: 145px; padding: 7px 4px 7px 11px; border: 0; background: transparent; color: inherit; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.aui-topic__close { width: 28px; height: 28px; padding: 0; border: 0; background: transparent; color: var(--aui-muted); font-size: 15px; }
+.aui-topics__new { flex: 0 0 auto; width: 30px; height: 30px; padding: 0; border: 1px solid var(--aui-border); border-radius: 50%; background: #fff; color: #202123; font-size: 18px; }
 .aui-thread { min-height: 0; overflow: hidden; }
 .aui-thread__viewport { height: 100%; overflow-y: auto; display: flex; flex-direction: column; padding: 28px 24px 0; scroll-padding-bottom: 110px; }
 .aui-thread__footer { position: sticky; bottom: 0; z-index: 5; flex: 0 0 auto; margin: auto calc(-1 * var(--u5)) 0; padding: var(--u4) var(--u5); background: linear-gradient(transparent, var(--white) 22%); }
@@ -113,9 +121,14 @@ button, textarea { font: inherit; }
 .aui-action { padding: var(--u2) 0; border: 0; background: transparent; color: var(--aui-muted); font-family: var(--font-ui); font-size: 11px; }
 .aui-error { margin-top: var(--u3); padding: 12px 14px; border: 1px solid #f1b5b5; border-radius: 10px; background: #fff7f7; color: #a00000; }
 .aui-composer { width: min(100%, 720px); margin: 0 auto; padding: 6px; border: 1px solid #d7d7d7; border-radius: 26px; background: #fff; box-shadow: 0 5px 18px rgb(0 0 0 / 7%); }
+.aui-composer:focus-within { border-color: #d7d7d7; outline: 0; box-shadow: 0 5px 18px rgb(0 0 0 / 7%); }
 .aui-composer__row { display: flex; align-items: flex-end; gap: var(--u2); }
-.aui-composer__input { flex: 1; min-width: 0; min-height: 44px; max-height: 180px; resize: none; padding: 11px var(--u2); border: 0; outline: 0; background: transparent; color: var(--ink); font-size: 16px; line-height: 1.45; }
+.aui-composer__input { flex: 1; min-width: 0; min-height: 44px; max-height: 180px; resize: none; padding: 11px var(--u2); border: 0; outline: 0; background: transparent; color: var(--ink); font-size: 16px; line-height: 1.45; -webkit-tap-highlight-color: transparent; }
+.aui-composer__input:focus { outline: 0; background: transparent; }
 .aui-composer__attach, .aui-composer__send, .aui-composer__cancel { flex: 0 0 auto; min-width: 42px; height: 42px; border: 0; border-radius: 50%; font-family: var(--font-ui); font-size: 0; font-weight: 700; }
+.aui-composer__mic { flex: 0 0 auto; width: 42px; height: 42px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: #202123; font-size: 12px; }
+.aui-composer__mic::after { content: 'MIC'; margin-left: 2px; font-size: 10px; font-weight: 650; }
+.aui-composer__mic.is-listening { color: #c62828; }
 .aui-composer__attach { background: transparent; color: #202123; font-size: 22px; }
 .aui-composer__send, .aui-composer__cancel { padding: 0; background: #202123; color: #fff; }
 .aui-composer__send::after { content: '↑'; font-size: 18px; }
