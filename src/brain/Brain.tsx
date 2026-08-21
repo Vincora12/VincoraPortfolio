@@ -1,14 +1,21 @@
 import { FormEvent, useEffect, useRef, useState } from 'react';
-import { streamReply } from './stream';
+import { replyWithLocalTools, shouldUseLocalTools, streamReply } from './stream';
 import { appendMessage, loadBrain } from './store/client';
 import { EMPTY_BRAIN, type BrainMessage, type BrainState } from './store/types';
 import { Markdown } from '../system/Markdown';
+import type { ToolResult, ToolUse } from '../ai/tools';
 
 function id(prefix: string): string {
   return `${prefix}_${crypto.randomUUID().replaceAll('-', '')}`;
 }
 
-export function Brain({ embedded = false }: { embedded?: boolean }) {
+export function Brain({
+  embedded = false,
+  runTool,
+}: {
+  embedded?: boolean;
+  runTool?: (use: ToolUse) => ToolResult;
+}) {
   const [state, setState] = useState<BrainState>(EMPTY_BRAIN);
   const [loading, setLoading] = useState(true);
   const [draft, setDraft] = useState('');
@@ -59,13 +66,10 @@ export function Brain({ embedded = false }: { embedded?: boolean }) {
     let answer = '';
 
     try {
-      await streamReply(
-        messages,
-        document
-          ? `${text || 'Analizza questo documento.'}\n\n[ALLEGATO]\nFILE: ${document.name}\n${document.text}`
-          : text || 'Analizza questa immagine.',
-        controller.signal,
-        (chunk) => {
+      const prompt = document
+        ? `${text || 'Analizza questo documento.'}\n\n[ALLEGATO]\nFILE: ${document.name}\n${document.text}`
+        : text || 'Analizza questa immagine.';
+      const onChunk = (chunk: string) => {
         answer += chunk;
         setState((current) => {
           const next = structuredClone(current);
@@ -76,9 +80,25 @@ export function Brain({ embedded = false }: { embedded?: boolean }) {
           else conversation.messages.push({ id: 'streaming', ts: new Date().toISOString(), role: 'assistant', content: answer });
           return next;
         });
-        },
-        image ? { mediaType: image.mediaType, data: image.data } : undefined,
-      );
+      };
+
+      if (runTool && shouldUseLocalTools(text) && !image && !document) {
+        await replyWithLocalTools(
+          messages,
+          prompt,
+          controller.signal,
+          onChunk,
+          runTool,
+        );
+      } else {
+        await streamReply(
+          messages,
+          prompt,
+          controller.signal,
+          onChunk,
+          image ? { mediaType: image.mediaType, data: image.data } : undefined,
+        );
+      }
     } catch (cause) {
       if (!controller.signal.aborted) {
         setError(cause instanceof Error ? cause.message : 'La risposta si è interrotta.');

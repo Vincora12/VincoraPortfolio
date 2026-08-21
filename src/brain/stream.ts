@@ -1,4 +1,5 @@
 import type { BrainMessage } from './store/types';
+import { TOOLS, assistantTurn, resultBlocks, type ToolResult, type ToolUse } from '../ai/tools';
 
 /** Legge soltanto il token tecnico già salvato dall'app principale. */
 export function savedToken(): string | null {
@@ -70,4 +71,79 @@ export async function streamReply(
     const chunk = decoder.decode(value, { stream: true });
     if (chunk) onChunk(chunk);
   }
+}
+
+const TOOL_INTENT = /\b(miei dati|mia salute|come sto|dormit|allenat|mangiat|giornat|protocollo|ricordami|promemoria|pagina|aspetto|schermata)\b/i;
+
+/** Usa il loop strumenti solo quando la richiesta riguarda dati o azioni locali. */
+export function shouldUseLocalTools(text: string): boolean {
+  return TOOL_INTENT.test(text);
+}
+
+export async function replyWithLocalTools(
+  turns: BrainMessage[],
+  user: string,
+  signal: AbortSignal,
+  onChunk: (chunk: string) => void,
+  run: (use: ToolUse) => ToolResult,
+): Promise<void> {
+  const token = savedToken();
+  if (!token) throw new Error('Prima attiva VINZ.MON: manca il token.');
+
+  const system = [{
+    text: [
+      'You are VINZ.MON, a neutral high-quality personal AI assistant.',
+      'Answer in the user language. Use tools whenever the answer depends on personal data or the user asks for an action.',
+      'Never claim an action succeeded unless its tool result confirms it. Be concise and natural.',
+    ].join(' '),
+  }];
+  const history: Array<{ role: 'user' | 'assistant'; content: unknown }> = turns.map(
+    ({ role, content, context }) => ({
+      role,
+      content: context ? `${content}\n\n[ALLEGATO]\n${context}` : content,
+    }),
+  );
+  let currentUser = user;
+  let userBlocks: Record<string, unknown>[] | undefined;
+
+  for (let round = 0; round < 4; round++) {
+    const response = await fetch('/api/ai', {
+      method: 'POST',
+      signal,
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        capability: 'character-voice',
+        system,
+        turns: history,
+        user: currentUser,
+        ...(userBlocks ? { userBlocks } : {}),
+        tools: round < 3 ? TOOLS : [],
+        webSearch: true,
+        effort: 'none',
+        maxTokens: 2000,
+      }),
+    });
+    const body = await response.json().catch(() => null) as {
+      text?: string;
+      toolUses?: ToolUse[];
+      error?: string;
+      reason?: string;
+    } | null;
+    if (!response.ok || !body) {
+      throw new Error(body?.reason ?? body?.error ?? `Richiesta fallita (${response.status}).`);
+    }
+
+    const uses = body.toolUses ?? [];
+    if (uses.length === 0) {
+      if (!body.text?.trim()) throw new Error('La risposta è arrivata vuota.');
+      onChunk(body.text);
+      return;
+    }
+
+    history.push(assistantTurn(body.text ?? '', uses) as { role: 'assistant'; content: unknown });
+    userBlocks = resultBlocks(uses.map(run));
+    currentUser = '';
+  }
+
+  throw new Error('La richiesta ha usato troppi passaggi. Prova a dividerla in due.');
 }

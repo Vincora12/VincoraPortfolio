@@ -398,7 +398,7 @@ export function App() {
         {overlay ? (
           <OverlayScreen overlay={overlay} onClose={() => setOverlay(null)} onGo={setOverlay} />
         ) : assistantOpen ? (
-          <Brain embedded />
+          <Brain embedded runTool={(use) => useApp.getState().runMonTool(use)} />
         ) : onCreature ? (
           <SplashScreen onEnter={() => setOnEgg(false)} />
         ) : (
@@ -463,7 +463,7 @@ function PhaseScreen({
     case 'live':
       switch (tab) {
         case 'chat':
-          return <Brain embedded />;
+          return <Brain embedded runTool={(use) => useApp.getState().runMonTool(use)} />;
         case 'mon':
           return <MonTab view={monView} onView={onMonView} onGo={onGo} onEnterChat={onEnterChat} />;
         case 'me':
