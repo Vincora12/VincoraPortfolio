@@ -19,7 +19,7 @@ import { createLocalStorageAdapter, createSimpleTitleAdapter, useMessageError } 
 import { MarkdownTextPrimitive } from '@assistant-ui/react-markdown';
 import { useAuiState } from '@assistant-ui/store';
 import { useAui } from '@assistant-ui/store';
-import { hotkeysCoreFeature, selectionFeature, syncDataLoaderFeature } from '@headless-tree/core';
+import { createOnDropHandler, dragAndDropFeature, hotkeysCoreFeature, selectionFeature, syncDataLoaderFeature } from '@headless-tree/core';
 import { useTree } from '@headless-tree/react';
 import WaveSurfer from 'wavesurfer.js';
 import RecordPlugin from 'wavesurfer.js/dist/plugins/record.esm.js';
@@ -211,7 +211,7 @@ function modelProvider(model: string): string {
 }
 
 type ChatGroup = { id: string; name: string; parentId: string | null; icon: string; color: string };
-type ChatTreeLayout = { groups: ChatGroup[]; placements: Record<string, string | null> };
+type ChatTreeLayout = { groups: ChatGroup[]; placements: Record<string, string | null>; orders?: Record<string, string[]> };
 type ChatTreeNode = { id: string; name: string; kind: 'root' | 'group' | 'chat'; icon: string; color: string; parentId: string | null };
 const CHAT_TREE_KEY = 'vinzmon.chat.tree.v1';
 const CHAT_ICONS = ['●', '★', '◆', '✦', '♥', '☾', '☀', '⚡'];
@@ -232,7 +232,9 @@ function ChatDrawer({ onClose }: { onClose: () => void }) {
   const [menuId, setMenuId] = useState<string | null>(null);
   const [visualOverrides, setVisualOverrides] = useState<Record<string, { icon?: string; color?: string }>>({});
   const [hiddenIds, setHiddenIds] = useState(() => new Set<string>());
-  const saveLayout = (next: ChatTreeLayout) => { setLayout(next); localStorage.setItem(CHAT_TREE_KEY, JSON.stringify(next)); };
+  const layoutRef = useRef(layout);
+  layoutRef.current = layout;
+  const saveLayout = (next: ChatTreeLayout) => { layoutRef.current = next; setLayout(next); localStorage.setItem(CHAT_TREE_KEY, JSON.stringify(next)); };
   const nodes = useMemo(() => {
     const map = new Map<string, ChatTreeNode>();
     map.set('root', { id: 'root', name: 'Chat', kind: 'root', icon: '', color: '', parentId: null });
@@ -255,8 +257,25 @@ function ChatDrawer({ onClose }: { onClose: () => void }) {
   nodesRef.current = nodes;
   const childrenOf = (parentId: string) => {
     const normalized = parentId === 'root' ? null : parentId;
-    return Array.from(nodesRef.current.values()).filter((node) => node.kind !== 'root' && node.parentId === normalized).map((node) => node.id);
+    const children = Array.from(nodesRef.current.values()).filter((node) => node.kind !== 'root' && node.parentId === normalized).map((node) => node.id);
+    const order = layoutRef.current.orders?.[parentId] ?? [];
+    return children.sort((a, b) => {
+      const ai = order.indexOf(a); const bi = order.indexOf(b);
+      return (ai < 0 ? 9999 : ai) - (bi < 0 ? 9999 : bi);
+    });
   };
+  const handleDrop = createOnDropHandler<ChatTreeNode>((parent, newChildren) => {
+    const next = { ...layoutRef.current, placements: { ...layoutRef.current.placements }, groups: [...layoutRef.current.groups], orders: { ...(layoutRef.current.orders ?? {}) } };
+    const parentId = parent.getId();
+    const normalizedParent = parentId === 'root' ? null : parentId;
+    newChildren.forEach((id) => {
+      const node = nodesRef.current.get(id);
+      if (node?.kind === 'group') next.groups = next.groups.map((group) => group.id === id ? { ...group, parentId: normalizedParent } : group);
+      if (node?.kind === 'chat') next.placements[id] = normalizedParent;
+    });
+    next.orders![parentId] = newChildren;
+    saveLayout(next);
+  });
   const tree = useTree<ChatTreeNode>({
     rootItemId: 'root',
     initialState: { expandedItems: layout.groups.map((group) => group.id) },
@@ -267,7 +286,10 @@ function ChatDrawer({ onClose }: { onClose: () => void }) {
       getChildren: childrenOf,
     },
     indent: 18,
-    features: [syncDataLoaderFeature, selectionFeature, hotkeysCoreFeature],
+    canReorder: true,
+    seperateDragHandle: true,
+    onDrop: handleDrop,
+    features: [syncDataLoaderFeature, selectionFeature, hotkeysCoreFeature, dragAndDropFeature],
   });
   useEffect(() => tree.rebuildTree(), [nodes]);
 
@@ -324,6 +346,7 @@ function ChatDrawer({ onClose }: { onClose: () => void }) {
             const menuOpen = menuId === node.id;
             return (
               <div {...item.getProps()} className={`aui-tree-row ${node.kind === 'group' ? 'is-group' : ''} ${current ? 'is-current' : ''}`} key={node.id} style={{ paddingLeft: item.getItemMeta().level * 18 }}>
+                <button type="button" className="aui-tree-row__drag" aria-label={`Sposta ${node.name}`} {...item.getDragHandleProps()}>≡</button>
                 <button type="button" className="aui-tree-row__main" onClick={(event) => {
                   event.stopPropagation();
                   if (node.kind === 'group') item.isExpanded() ? item.collapse() : item.expand();
@@ -361,6 +384,7 @@ function ChatDrawer({ onClose }: { onClose: () => void }) {
               </div>
             );
           })}
+          <div className="aui-tree-drag-line" style={tree.getDragLineStyle()} />
         </div>
       </aside>
     </div>
