@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActionBarPrimitive,
   AssistantRuntimeProvider,
@@ -18,6 +18,7 @@ import {
 } from '@assistant-ui/react';
 import { createLocalStorageAdapter, createSimpleTitleAdapter, useMessageError } from '@assistant-ui/core/react';
 import { MarkdownTextPrimitive } from '@assistant-ui/react-markdown';
+import { useAui, useAuiState } from '@assistant-ui/store';
 import WaveSurfer from 'wavesurfer.js';
 import RecordPlugin from 'wavesurfer.js/dist/plugins/record.esm.js';
 import { replyWithLocalTools, savedToken, shouldUseLocalTools, streamReply } from './stream';
@@ -146,10 +147,54 @@ function ErrorMessage() {
   return <div className="aui-error" role="alert">{typeof error === 'string' ? error : 'La risposta si è interrotta. Riprova.'}</div>;
 }
 
+type TopicMenuState = { id: string; title: string; x: number; y: number; groupId?: string; groupName?: string; groupLeader?: boolean } | null;
+type TopicController = {
+  openMenu: (menu: NonNullable<TopicMenuState>) => void;
+  movingId: string | null;
+  dropOn: (targetId: string, clientX: number) => void;
+  openGroups: Set<string>;
+  toggleGroup: (groupId: string) => void;
+};
+const TopicContext = createContext<TopicController | null>(null);
+
 function TopicTab() {
+  const controller = useContext(TopicContext);
+  const id = useAuiState((s) => s.threadListItem.id);
+  const title = useAuiState((s) => s.threadListItem.title ?? 'Nuova chat');
+  const savedCustom = useAuiState((s) => s.threadListItem.custom);
+  const custom = savedCustom ?? {};
+  const holdRef = useRef<number | null>(null);
+  const heldRef = useRef(false);
+  const color = typeof custom.vinzColor === 'string' ? custom.vinzColor : '#262626';
+  const order = typeof custom.vinzOrder === 'number' ? custom.vinzOrder : 9999;
+  const groupId = typeof custom.vinzGroupId === 'string' ? custom.vinzGroupId : null;
+  const groupName = typeof custom.vinzGroupName === 'string' ? custom.vinzGroupName : 'Gruppo';
+  const isLeader = custom.vinzGroupLeader === true;
+  const groupOpen = groupId ? controller?.openGroups.has(groupId) : true;
+  const clearHold = () => { if (holdRef.current) window.clearTimeout(holdRef.current); holdRef.current = null; };
+
   return (
-    <ThreadListItemPrimitive.Root className="aui-topic">
-      <ThreadListItemPrimitive.Trigger className="aui-topic__trigger">
+    <ThreadListItemPrimitive.Root
+      className={`aui-topic ${groupId ? 'is-grouped' : ''} ${isLeader && !groupOpen ? 'is-group-collapsed' : ''} ${groupId && !isLeader && !groupOpen ? 'is-group-hidden' : ''}`}
+      style={{ '--topic-color': color, order } as React.CSSProperties}
+      data-topic-id={id}
+      data-topic-group={groupId ?? undefined}
+      onPointerDown={(event) => {
+        if (controller?.movingId) return;
+        heldRef.current = false;
+        const { clientX: x, clientY: y } = event;
+        holdRef.current = window.setTimeout(() => {
+          heldRef.current = true;
+          navigator.vibrate?.(25);
+          controller?.openMenu({ id, title, x, y, groupId: groupId ?? undefined, groupName, groupLeader: isLeader });
+        }, 480);
+      }}
+      onPointerUp={(event) => { clearHold(); if (controller?.movingId && controller.movingId !== id) controller.dropOn(id, event.clientX); }}
+      onPointerCancel={clearHold}
+      onPointerLeave={clearHold}
+    >
+      {isLeader && groupId && <button type="button" className="aui-topic__group" onClick={() => controller?.toggleGroup(groupId)}>▦ {groupName}</button>}
+      <ThreadListItemPrimitive.Trigger className="aui-topic__trigger" onClick={(event) => { if (heldRef.current || controller?.movingId) event.preventDefault(); }}>
         <ThreadListItemPrimitive.Title fallback="Nuova chat" />
       </ThreadListItemPrimitive.Trigger>
       <ThreadListItemPrimitive.Archive className="aui-topic__close" aria-label="Chiudi chat">×</ThreadListItemPrimitive.Archive>
@@ -312,10 +357,89 @@ function Composer() {
 }
 
 function ChatSurface({ embedded, voiceModel, onModelChange }: { embedded: boolean; voiceModel?: string | null; onModelChange?: (model: string) => void }) {
+  const aui = useAui();
   const [modelMenu, setModelMenu] = useState(false);
   const [models, setModels] = useState<ModelChoice[]>([]);
   const [defaultModel, setDefaultModel] = useState<string | null>(null);
+  const [topicMenu, setTopicMenu] = useState<TopicMenuState>(null);
+  const [movingId, setMovingId] = useState<string | null>(null);
+  const [openGroups, setOpenGroups] = useState(() => new Set<string>());
+  const skipTopicClickRef = useRef(false);
   const activeModel = voiceModel ?? defaultModel;
+
+  const item = (id: string) => aui.threads.item({ id });
+  const patchTopic = (id: string, patch: Record<string, unknown>) => {
+    const current = item(id).getState().custom ?? {};
+    item(id).updateCustom({ ...current, ...patch });
+  };
+  const renameTopic = () => {
+    if (!topicMenu) return;
+    const renamingGroup = topicMenu.groupLeader && topicMenu.groupId;
+    const next = window.prompt(renamingGroup ? 'Rinomina gruppo' : 'Rinomina topic', renamingGroup ? topicMenu.groupName : topicMenu.title)?.trim();
+    if (next && renamingGroup) {
+      document.querySelectorAll<HTMLElement>(`[data-topic-group="${CSS.escape(renamingGroup)}"]`).forEach((node) => node.dataset.topicId && patchTopic(node.dataset.topicId, { vinzGroupName: next }));
+    } else if (next) item(topicMenu.id).rename(next);
+    setTopicMenu(null);
+  };
+  const colorTopic = (color: string) => {
+    if (topicMenu?.groupLeader && topicMenu.groupId) {
+      document.querySelectorAll<HTMLElement>(`[data-topic-group="${CSS.escape(topicMenu.groupId)}"]`).forEach((node) => node.dataset.topicId && patchTopic(node.dataset.topicId, { vinzColor: color }));
+    } else if (topicMenu) patchTopic(topicMenu.id, { vinzColor: color });
+    setTopicMenu(null);
+  };
+  useEffect(() => {
+    if (!topicMenu) return;
+    const actionAt = (event: PointerEvent) => document.elementFromPoint(event.clientX, event.clientY)?.closest<HTMLElement>('[data-topic-action]');
+    const onMove = (event: PointerEvent) => {
+      if (actionAt(event)?.dataset.topicAction === 'move') {
+        setMovingId(topicMenu.id);
+        setTopicMenu(null);
+        navigator.vibrate?.(18);
+      }
+    };
+    const onUp = (event: PointerEvent) => {
+      const action = actionAt(event);
+      if (action?.dataset.topicAction === 'rename') { skipTopicClickRef.current = true; renameTopic(); }
+      else if (action?.dataset.topicAction === 'color' && action.dataset.color) { skipTopicClickRef.current = true; colorTopic(action.dataset.color); }
+    };
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp, { once: true });
+    return () => {
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+    };
+  }, [topicMenu]);
+  const dropOn = (targetId: string, clientX: number) => {
+    if (!movingId || movingId === targetId) return setMovingId(null);
+    const targetNode = document.querySelector<HTMLElement>(`[data-topic-id="${CSS.escape(targetId)}"]`);
+    const rect = targetNode?.getBoundingClientRect();
+    const middle = rect ? clientX > rect.left + rect.width * .25 && clientX < rect.right - rect.width * .25 : true;
+    if (middle) {
+      const groupId = `group-${Date.now()}`;
+      const groupName = window.prompt('Nome del gruppo', 'Nuovo gruppo')?.trim() || 'Nuovo gruppo';
+      patchTopic(targetId, { vinzGroupId: groupId, vinzGroupName: groupName, vinzGroupLeader: true });
+      patchTopic(movingId, { vinzGroupId: groupId, vinzGroupName: groupName, vinzGroupLeader: false });
+      setOpenGroups((current) => new Set(current).add(groupId));
+    } else {
+      const nodes = Array.from(document.querySelectorAll<HTMLElement>('[data-topic-id]'));
+      const ids = nodes.map((node) => node.dataset.topicId!).filter((id) => id !== movingId);
+      const targetIndex = Math.max(0, ids.indexOf(targetId) + (rect && clientX > rect.left + rect.width / 2 ? 1 : 0));
+      ids.splice(targetIndex, 0, movingId);
+      ids.forEach((id, index) => patchTopic(id, { vinzOrder: index, vinzGroupId: null, vinzGroupName: null, vinzGroupLeader: false }));
+    }
+    setMovingId(null);
+  };
+  const topicController = useMemo<TopicController>(() => ({
+    openMenu: setTopicMenu,
+    movingId,
+    dropOn,
+    openGroups,
+    toggleGroup: (groupId) => setOpenGroups((current) => {
+      const next = new Set(current);
+      if (next.has(groupId)) next.delete(groupId); else next.add(groupId);
+      return next;
+    }),
+  }), [movingId, openGroups]);
 
   useEffect(() => {
     if (!modelMenu || models.length) return;
@@ -327,9 +451,11 @@ function ChatSurface({ embedded, voiceModel, onModelChange }: { embedded: boolea
 
   return (
     <main className={`brain aui-chat ${embedded ? 'brain--embedded' : ''}`}>
-      <nav className="aui-topics" aria-label="Chat aperte">
+      <nav className={`aui-topics ${movingId ? 'is-organizing' : ''}`} aria-label="Chat aperte">
         <ThreadListPrimitive.Root className="aui-topics__list">
-          <ThreadListPrimitive.Items components={{ ThreadListItem: TopicTab }} />
+          <TopicContext.Provider value={topicController}>
+            <ThreadListPrimitive.Items components={{ ThreadListItem: TopicTab }} />
+          </TopicContext.Provider>
           <ThreadListPrimitive.New className="aui-topics__new" aria-label="Nuova chat">＋</ThreadListPrimitive.New>
         </ThreadListPrimitive.Root>
         {onModelChange && (
@@ -355,6 +481,16 @@ function ChatSurface({ embedded, voiceModel, onModelChange }: { embedded: boolea
             )}
           </div>
         )}
+        {topicMenu && (
+          <div className="aui-topic-menu" style={{ left: Math.min(topicMenu.x, window.innerWidth - 230), top: Math.min(topicMenu.y + 12, window.innerHeight - 170) }}>
+            <button type="button" data-topic-action="rename" onClick={() => { if (skipTopicClickRef.current) skipTopicClickRef.current = false; else renameTopic(); }}>RINOMINA</button>
+            <button type="button" data-topic-action="move" onClick={() => { setMovingId(topicMenu.id); setTopicMenu(null); }}>SPOSTA / RAGGRUPPA</button>
+            <div className="aui-topic-menu__colors" aria-label="Cambia colore">
+              {['#262626', '#7d3f45', '#9b6a28', '#41644a', '#315d77', '#594c79'].map((color) => <button type="button" key={color} data-topic-action="color" data-color={color} aria-label={`Colore ${color}`} style={{ background: color }} onClick={() => { if (skipTopicClickRef.current) skipTopicClickRef.current = false; else colorTopic(color); }} />)}
+            </div>
+          </div>
+        )}
+        {movingId && <div className="aui-organize-hint">SPOSTA TRA LE TAB · SOPRA UNA TAB CREA UN GRUPPO</div>}
       </nav>
       <ThreadPrimitive.Root className="aui-thread">
         <ThreadPrimitive.Viewport className="aui-thread__viewport">
