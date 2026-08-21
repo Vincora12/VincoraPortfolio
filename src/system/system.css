@@ -543,8 +543,8 @@
   flex: 0 0 auto;
   align-items: flex-start;
   height: max(40px, env(safe-area-inset-bottom));
-  border-top: var(--border-thick) solid var(--ink);
-  background: var(--ink);
+  border-top: 1px solid #242429;
+  background: #0b0b0c;
   /* La barra Home e il nav condividono lo stesso spazio invece di sommarsi. */
   padding-bottom: 0;
 }
@@ -560,7 +560,7 @@
   padding: 1px 0;
   border: 0;
   background: transparent;
-  color: var(--white);
+  color: #f4f4f6;
   opacity: 0.5;
   font-family: var(--font-mono);
   font-size: 8px;
@@ -570,17 +570,13 @@
 
 .tabbar__item[aria-current='page'] {
   opacity: 1;
+  color: var(--char-accent);
   font-weight: 700;
 }
 
 /* Lo stato attivo non è solo opacità: porta anche una barra (§17). */
 .tabbar__item[aria-current='page']::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  width: 28px;
-  height: 2px;
-  background: var(--char-accent);
+  content: none;
 }
 
 .tabbar__item {

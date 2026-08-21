@@ -3674,9 +3674,6 @@
 .me-health__plan { padding: 8px 14px 22px; }
 .me-health__plan h2 { color: #111318; font-family: var(--font-display); font-size: 20px; font-weight: 800; }
 .me-health__plan p { color: #565b64; font-family: var(--font-ui); font-size: 11px; line-height: 1.55; }
-.proto-frame:has(.me-health) .tabbar { border-top: 1px solid var(--mh-line); background: #fff; }
-.proto-frame:has(.me-health) .tabbar__item { color: #111318; }
-.proto-frame:has(.me-health) .tabbar__item[aria-current='page']::before { background: #f0a600; }
 
 /* ME recap — diario compilato dall'AI, interfaccia nera ad alta densità */
 .me-health {
@@ -3753,9 +3750,6 @@
 .me-health__row small, .me-health__row time { color: #989ba4; }
 .me-health__empty { color: #aeb1ba; }
 .proto-frame:has(.me-health) { background: #000; }
-.proto-frame:has(.me-health) .tabbar { border-top: var(--border-thick) solid var(--ink); background: var(--ink); }
-.proto-frame:has(.me-health) .tabbar__item { color: var(--white); }
-.proto-frame:has(.me-health) .tabbar__item[aria-current='page']::before { background: var(--mh-accent); }
 
 @media (max-height: 760px) {
   .me-health__goal { min-height: 96px; }

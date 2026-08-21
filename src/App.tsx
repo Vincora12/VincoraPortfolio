@@ -157,7 +157,7 @@ export function App() {
   const [assistantOpen, setAssistantOpen] = useState(false);
 
   useEffect(() => {
-    const openChat = () => { setAssistantOpen(false); setTab('chat'); };
+    const openChat = () => { setAssistantOpen(false); setOverlay(null); setTab('chat'); };
     window.addEventListener('vinzmon-open-chat', openChat);
     return () => window.removeEventListener('vinzmon-open-chat', openChat);
   }, []);
@@ -223,6 +223,7 @@ export function App() {
        riapre dove l'avevi lasciata sembra non aver risposto al tocco. */
     if (next === 'mon') setMonView('mon');
     if (next === 'me') setMeView('me');
+    setOverlay(null);
     setTab(next);
   };
 
@@ -390,7 +391,7 @@ export function App() {
 
   // Con la tab bar in fondo, il margine di sistema lo prende lei: il composer
   // non deve aggiungere il suo, o resterebbe uno spazio vuoto doppio.
-  const hasTabBar = phase === 'live' && !overlay;
+  const hasTabBar = phase === 'live' && overlay !== 'dev' && overlay !== 'activate';
 
   return (
     <div className="proto-stage">
