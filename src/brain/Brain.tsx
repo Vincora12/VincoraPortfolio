@@ -239,7 +239,7 @@ function ChatDrawer({ onClose }: { onClose: () => void }) {
     const map = new Map<string, ChatTreeNode>();
     map.set('root', { id: 'root', name: 'Chat', kind: 'root', icon: '', color: '', parentId: null });
     layout.groups.forEach((group) => map.set(group.id, { ...group, kind: 'group' }));
-    threadItems.filter((thread) => !hiddenIds.has(thread.id)).forEach((thread) => {
+    threadItems.filter((thread) => thread.status !== 'archived' && !hiddenIds.has(thread.id)).forEach((thread) => {
       const custom = thread.custom ?? {};
       const visual = visualOverrides[thread.id] ?? {};
       map.set(thread.id, {
