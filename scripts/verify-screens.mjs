@@ -91,6 +91,8 @@ async function launchChromium() {
       .flatMap((d) => [
         join(root, d, 'chrome-linux', 'chrome'),
         join(root, d, 'chrome-linux', 'headless_shell'),
+        join(root, d, 'chrome-mac-arm64', 'Google Chrome for Testing.app', 'Contents', 'MacOS', 'Google Chrome for Testing'),
+        join(root, d, 'chrome-mac', 'Google Chrome for Testing.app', 'Contents', 'MacOS', 'Google Chrome for Testing'),
       ])
       .filter((p) => existsSync(p));
 
@@ -444,15 +446,15 @@ try {
   /* V1 — la vecchia chat in personaggio è stata sostituita dall'assistente
      neutrale. La prova non simula una chiave: verifica il turno locale,
      l'errore leggibile e la possibilità di riprovare senza perdere il testo. */
-  await page.locator('.brain__composer textarea').fill('Spiegami in breve che cosa sai fare');
-  await click('.brain__composer button[type="submit"]', 'invia nella Chat V1');
-  await page.locator('.brain__error').waitFor({ state: 'visible' });
+  await page.getByRole('textbox', { name: 'Messaggio' }).fill('Spiegami in breve che cosa sai fare');
+  await page.getByRole('button', { name: 'INVIA' }).click();
+  await page.locator('.aui-error').waitFor({ state: 'visible' });
   const chatV1 = await page.evaluate(() => ({
-    user: document.querySelector('.brain__message--user')?.textContent ?? '',
-    error: document.querySelector('.brain__error')?.textContent ?? '',
-    retry: !!document.querySelector('.brain__error button'),
+    user: document.querySelector('.aui-message--user')?.textContent ?? '',
+    error: document.querySelector('.aui-error')?.textContent ?? '',
+    retry: [...document.querySelectorAll('.aui-action')].some((node) => node.textContent?.includes('RIPROVA')),
     threads: !!document.querySelector('.brain__history'),
-    attachment: !!document.querySelector('.brain__attach input[type="file"]'),
+    attachment: !!document.querySelector('.aui-composer__attach'),
   }));
   if (!chatV1.user.includes('Spiegami')) throw new Error('Chat V1: il messaggio utente non resta a schermo');
   if (!chatV1.error.includes('token')) throw new Error('Chat V1: il guasto non spiega che manca il token');
