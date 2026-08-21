@@ -170,6 +170,7 @@ function Composer() {
   const [mode, setMode] = useState<'idle' | 'starting' | 'recording' | 'transcribing'>('idle');
   const [seconds, setSeconds] = useState(0);
   const [dictationError, setDictationError] = useState<string | null>(null);
+  const [pendingTranscript, setPendingTranscript] = useState<string | null>(null);
 
   useEffect(() => () => {
     recordRef.current?.destroy();
@@ -197,6 +198,12 @@ function Composer() {
     input.focus();
     window.setTimeout(() => document.querySelector<HTMLButtonElement>('.aui-composer__send')?.click(), 80);
   };
+
+  useEffect(() => {
+    if (mode !== 'idle' || !pendingTranscript) return;
+    insertAndSend(pendingTranscript);
+    setPendingTranscript(null);
+  }, [mode, pendingTranscript]);
 
   const startDictation = async () => {
     if (mode !== 'idle') return;
@@ -237,7 +244,7 @@ function Composer() {
         setMode('transcribing');
         try {
           const text = await transcribe(blob);
-          insertAndSend(text);
+          setPendingTranscript(text);
         } catch (error) {
           setDictationError(error instanceof Error ? error.message : 'Trascrizione non riuscita.');
         } finally { setMode('idle'); }
