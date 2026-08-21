@@ -184,8 +184,8 @@ function Composer() {
 
   useEffect(() => () => recognitionRef.current?.stop(), []);
 
-  const dictate = () => {
-    if (listening) return recognitionRef.current?.stop();
+  const startDictation = () => {
+    if (recognitionRef.current || listening) return;
     const Recognition = (window as unknown as {
       webkitSpeechRecognition?: new () => {
         lang: string;
@@ -210,12 +210,20 @@ function Composer() {
       input.dispatchEvent(new Event('input', { bubbles: true }));
       input.focus();
     };
-    recognition.onend = () => setListening(false);
-    recognition.onerror = () => setListening(false);
+    recognition.onend = () => {
+      recognitionRef.current = null;
+      setListening(false);
+    };
+    recognition.onerror = () => {
+      recognitionRef.current = null;
+      setListening(false);
+    };
     recognitionRef.current = recognition;
     setListening(true);
     recognition.start();
   };
+
+  const stopDictation = () => recognitionRef.current?.stop();
 
   return (
     <ComposerPrimitive.Root className="aui-composer">
@@ -223,7 +231,16 @@ function Composer() {
       <div className="aui-composer__row">
         <ComposerPrimitive.AddAttachment className="aui-composer__attach" aria-label="Allega file">＋</ComposerPrimitive.AddAttachment>
         <ComposerPrimitive.Input ref={inputRef} className="aui-composer__input" placeholder="Chiedi qualsiasi cosa…" aria-label="Messaggio" submitOnEnter />
-        <button type="button" className={`aui-composer__mic ${listening ? 'is-listening' : ''}`} aria-label={listening ? 'Ferma dettatura' : 'Dettatura'} onClick={dictate}>●</button>
+        <button
+          type="button"
+          className={`aui-composer__mic ${listening ? 'is-listening' : ''}`}
+          aria-label="Tieni premuto per dettare"
+          onPointerDown={(event) => { event.preventDefault(); event.currentTarget.setPointerCapture(event.pointerId); startDictation(); }}
+          onPointerUp={(event) => { event.preventDefault(); stopDictation(); }}
+          onPointerCancel={stopDictation}
+          onKeyDown={(event) => { if ((event.key === ' ' || event.key === 'Enter') && !event.repeat) startDictation(); }}
+          onKeyUp={(event) => { if (event.key === ' ' || event.key === 'Enter') stopDictation(); }}
+        >●</button>
         <ComposerPrimitive.Send className="aui-composer__send">INVIA</ComposerPrimitive.Send>
         <ComposerPrimitive.Cancel className="aui-composer__cancel">STOP</ComposerPrimitive.Cancel>
       </div>
