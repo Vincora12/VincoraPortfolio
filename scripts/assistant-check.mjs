@@ -50,6 +50,10 @@ check(cloneSource.includes('fetch("/api/transcribe"'), 'l’audio passa dal back
 check(cloneSource.includes('setPendingTranscript'), 'la trascrizione torna nel composer');
 check(cloneStyles.includes('.vinz-record__wave.is-loading'), 'avvio e trascrizione hanno un loader dedicato');
 check(!cloneMain.includes('WebSpeechDictationAdapter'), 'la vecchia dettatura browser non è più collegata');
+check(
+  cloneMain.includes('selectedRuntime === "mock" ? mockChatModel : netlifyChatModel'),
+  'il backend reale è il runtime predefinito',
+);
 
 const preferences = m.assistantRequestPreferences(
   { modelName: 'claude-sonnet-5', reasoningEffort: 'high' },

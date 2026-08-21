@@ -38,7 +38,7 @@ const attachments = new CompositeAttachmentAdapter([
 ]);
 
 const selectedRuntime = new URLSearchParams(window.location.search).get("runtime");
-const chatModel = selectedRuntime === "backend" ? netlifyChatModel : mockChatModel;
+const chatModel = selectedRuntime === "mock" ? mockChatModel : netlifyChatModel;
 
 const App: FC = () => {
   const model = useMemo(() => chatModel, []);

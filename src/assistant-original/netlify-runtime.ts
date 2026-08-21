@@ -50,7 +50,7 @@ function withText(
   return text ? [...parts, { type: "text", text }] : [...parts];
 }
 
-/** Runtime reale opzionale: `?runtime=backend`. Il mock resta il checkpoint predefinito. */
+/** Runtime reale predefinito. Il mock locale resta disponibile con `?runtime=mock`. */
 export const netlifyChatModel: ChatModelAdapter = {
   async *run({ messages, abortSignal, context }) {
     const token = savedToken();
