@@ -430,6 +430,23 @@ function Composer() {
   };
 
   useEffect(() => {
+    const prepare = (event: Event) => {
+      const prompt = (event as CustomEvent<{ prompt?: string }>).detail?.prompt ?? '';
+      window.setTimeout(() => {
+        const input = inputRef.current;
+        if (!input) return;
+        const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
+        setter?.call(input, prompt);
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.focus();
+        input.setSelectionRange(prompt.length, prompt.length);
+      }, 80);
+    };
+    window.addEventListener('vinzmon-open-chat', prepare);
+    return () => window.removeEventListener('vinzmon-open-chat', prepare);
+  }, []);
+
+  useEffect(() => {
     if (mode !== 'idle' || !pendingTranscript) return;
     insertAndSend(pendingTranscript);
     setPendingTranscript(null);

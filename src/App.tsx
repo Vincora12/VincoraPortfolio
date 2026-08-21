@@ -156,6 +156,12 @@ export function App() {
   /* V1: la Chat è sempre raggiungibile, anche prima di configurare il Game. */
   const [assistantOpen, setAssistantOpen] = useState(false);
 
+  useEffect(() => {
+    const openChat = () => { setAssistantOpen(false); setTab('chat'); };
+    window.addEventListener('vinzmon-open-chat', openChat);
+    return () => window.removeEventListener('vinzmon-open-chat', openChat);
+  }, []);
+
   /* ⚠️ L'INCUBAZIONE HA UNA PORTA SUA, e non può usare le tab.
 
      🔴 L'avevo dimenticato riordinando la barra, e l'incubazione si era

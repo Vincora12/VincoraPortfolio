@@ -26,6 +26,7 @@ export type HealthJournal = {
   weights: WeightLog[];
   dietPlan: { title: string; text: string; updatedAt: string } | null;
   targets: { kcal: number; protein: number; carbs: number; fat: number };
+  display: { focus: 'today' | 'diet' | 'sport' | 'progress'; goal: string };
 };
 
 const KEY = 'vinzmon.health.journal.v1';
@@ -33,6 +34,7 @@ export const HEALTH_JOURNAL_EVENT = 'vinzmon-health-journal';
 const EMPTY: HealthJournal = {
   meals: [], workouts: [], weights: [], dietPlan: null,
   targets: { kcal: 2200, protein: 150, carbs: 275, fat: 73 },
+  display: { focus: 'today', goal: '' },
 };
 
 export function readHealthJournal(): HealthJournal {
@@ -44,6 +46,7 @@ export function readHealthJournal(): HealthJournal {
       workouts: Array.isArray(saved.workouts) ? saved.workouts : [],
       weights: Array.isArray(saved.weights) ? saved.weights : [],
       targets: { ...EMPTY.targets, ...(saved.targets ?? {}) },
+      display: { ...EMPTY.display, ...(saved.display ?? {}) },
     };
   } catch { return EMPTY; }
 }
@@ -74,6 +77,11 @@ export function addWeight(kg: number, source: WeightLog['source'] = 'chat') {
 export function setDietPlan(title: string, text: string) {
   const journal = readHealthJournal();
   return save({ ...journal, dietPlan: { title, text, updatedAt: new Date().toISOString() } });
+}
+
+export function configureHealthDisplay(focus: HealthJournal['display']['focus'], goal: string) {
+  const journal = readHealthJournal();
+  return save({ ...journal, display: { focus, goal } });
 }
 
 export function removeHealthEntry(kind: 'meal' | 'workout' | 'weight', entryId: string) {

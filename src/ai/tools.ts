@@ -103,6 +103,7 @@ export interface ToolContext {
   logWorkout: (input: { title: string; details: string; minutes: number }) => void;
   logWeight: (kg: number) => void;
   saveDiet: (title: string, text: string) => void;
+  configureHealth: (focus: 'today' | 'diet' | 'sport' | 'progress', goal: string) => void;
 }
 
 /* ============================================================================
@@ -157,6 +158,11 @@ export const TOOLS: ToolDef[] = [
     name: 'imposta_dieta',
     description: 'Salva nella sezione DIETA un piano alimentare fornito dall’utente, anche estratto da un file allegato. Conserva indicazioni, pasti e quantità senza inventare dati mancanti.',
     schema: { type: 'object', properties: { titolo: { type: 'string' }, testo: { type: 'string' } }, required: ['titolo', 'testo'] },
+  },
+  {
+    name: 'personalizza_me',
+    description: 'Adatta la schermata ME al periodo attuale: sceglie la sezione prioritaria e mostra un obiettivo breve concordato con l’utente. Non inventare obiettivi medici o numeri.',
+    schema: { type: 'object', properties: { priorita: { type: 'string', enum: ['today', 'diet', 'sport', 'progress'] }, obiettivo: { type: 'string' } }, required: ['priorita', 'obiettivo'] },
   },
   {
     name: 'elenca_le_pagine',
@@ -411,6 +417,12 @@ export function runTool(use: ToolUse, ctx: ToolContext): ToolResult {
         if (!title || !text) return fail('Titolo o contenuto della dieta mancanti.');
         ctx.saveDiet(title, text);
         return ok('Dieta salvata nella sezione ME → DIETA.');
+      }
+      case 'personalizza_me': {
+        const focus = str(args.priorita) as 'today' | 'diet' | 'sport' | 'progress';
+        if (!['today', 'diet', 'sport', 'progress'].includes(focus)) return fail('Priorità ME non valida.');
+        ctx.configureHealth(focus, str(args.obiettivo));
+        return ok('Schermata ME adattata al periodo attuale.');
       }
       case 'leggi_i_miei_dati': {
         const what = str(args.cosa);

@@ -85,7 +85,7 @@ import {
   type Reminder,
 } from './pagesSlice';
 import { runTool, TOOLS, type ToolContext, type ToolResult, type ToolUse } from '../ai/tools';
-import { addMeal, addWeight, addWorkout, setDietPlan } from '../engine/healthJournal';
+import { addMeal, addWeight, addWorkout, configureHealthDisplay, setDietPlan } from '../engine/healthJournal';
 import { selectHeritageOrigins, type HeritageOrigin } from '../engine/heritage';
 import { createNode, makeNodeId, nextChapter } from '../engine/mindline';
 import { makeMemory, rollDailyEvent } from '../engine/simulation';
@@ -2344,6 +2344,7 @@ export const useApp = create<AppState>()(
           logWorkout: (input) => { addWorkout(input, 'chat'); },
           logWeight: (kg) => { addWeight(kg, 'chat'); },
           saveDiet: (title, text) => { setDietPlan(title, text); },
+          configureHealth: (focus, goal) => { configureHealthDisplay(focus, goal); },
         };
 
         return runTool(use, ctx);
