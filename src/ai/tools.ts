@@ -99,6 +99,10 @@ export interface ToolContext {
   showPiece: (id: string, visible: boolean) => { ok: boolean; error?: string };
   /** Sposta un pezzo dentro la sua colonna. */
   movePiece: (id: string, at: number) => { ok: boolean; error?: string };
+  logMeal: (input: { slot: 'colazione' | 'pranzo' | 'cena' | 'spuntino'; description: string; kcal: number; protein: number; carbs: number; fat: number }) => void;
+  logWorkout: (input: { title: string; details: string; minutes: number }) => void;
+  logWeight: (kg: number) => void;
+  saveDiet: (title: string, text: string) => void;
 }
 
 /* ============================================================================
@@ -130,6 +134,29 @@ export const TOOLS: ToolDef[] = [
       },
       required: ['cosa'],
     },
+  },
+  {
+    name: 'registra_pasto',
+    description: 'Registra nella sezione ME un pasto raccontato in chat o riconosciuto da una foto. Se quantità o valori nutrizionali sono incerti, chiedi conferma prima di usarlo.',
+    schema: { type: 'object', properties: {
+      pasto: { type: 'string', enum: ['colazione', 'pranzo', 'cena', 'spuntino'] },
+      descrizione: { type: 'string' }, kcal: { type: 'number' }, proteine: { type: 'number' }, carboidrati: { type: 'number' }, grassi: { type: 'number' },
+    }, required: ['pasto', 'descrizione', 'kcal', 'proteine', 'carboidrati', 'grassi'] },
+  },
+  {
+    name: 'registra_allenamento',
+    description: 'Registra nella sezione ME un allenamento che l’utente dice di aver completato.',
+    schema: { type: 'object', properties: { titolo: { type: 'string' }, dettagli: { type: 'string' }, minuti: { type: 'number' } }, required: ['titolo', 'dettagli', 'minuti'] },
+  },
+  {
+    name: 'registra_peso',
+    description: 'Registra nella sezione ME una nuova misurazione del peso.',
+    schema: { type: 'object', properties: { kg: { type: 'number' } }, required: ['kg'] },
+  },
+  {
+    name: 'imposta_dieta',
+    description: 'Salva nella sezione DIETA un piano alimentare fornito dall’utente, anche estratto da un file allegato. Conserva indicazioni, pasti e quantità senza inventare dati mancanti.',
+    schema: { type: 'object', properties: { titolo: { type: 'string' }, testo: { type: 'string' } }, required: ['titolo', 'testo'] },
   },
   {
     name: 'elenca_le_pagine',
@@ -359,6 +386,32 @@ export function runTool(use: ToolUse, ctx: ToolContext): ToolResult {
 
   try {
     switch (use.name) {
+      case 'registra_pasto': {
+        const slot = str(args.pasto) as 'colazione' | 'pranzo' | 'cena' | 'spuntino';
+        if (!['colazione', 'pranzo', 'cena', 'spuntino'].includes(slot)) return fail('Il tipo di pasto non è valido.');
+        const numbers = [args.kcal, args.proteine, args.carboidrati, args.grassi].map(Number);
+        if (numbers.some((value) => !Number.isFinite(value) || value < 0)) return fail('I valori nutrizionali non sono validi.');
+        ctx.logMeal({ slot, description: str(args.descrizione), kcal: numbers[0]!, protein: numbers[1]!, carbs: numbers[2]!, fat: numbers[3]! });
+        return ok('Pasto registrato in ME.');
+      }
+      case 'registra_allenamento': {
+        const minutes = Number(args.minuti);
+        if (!Number.isFinite(minutes) || minutes < 0) return fail('La durata non è valida.');
+        ctx.logWorkout({ title: str(args.titolo), details: str(args.dettagli), minutes });
+        return ok('Allenamento registrato in ME.');
+      }
+      case 'registra_peso': {
+        const kg = Number(args.kg);
+        if (!Number.isFinite(kg) || kg < 20 || kg > 400) return fail('Il peso non sembra valido.');
+        ctx.logWeight(kg);
+        return ok('Peso aggiornato in ME.');
+      }
+      case 'imposta_dieta': {
+        const title = str(args.titolo); const text = str(args.testo);
+        if (!title || !text) return fail('Titolo o contenuto della dieta mancanti.');
+        ctx.saveDiet(title, text);
+        return ok('Dieta salvata nella sezione ME → DIETA.');
+      }
       case 'leggi_i_miei_dati': {
         const what = str(args.cosa);
         const back = clampDays(args.giorni, 7);

@@ -42,7 +42,6 @@ import { NewBranchScreen } from './screens/NewBranch';
 import { SpecimenProfileScreen } from './screens/SpecimenProfile';
 import { DexScreen } from './screens/Dex';
 import { MindlineMapScreen } from './screens/MindlineMap';
-import { CalendarScreen } from './screens/SyncCalendar';
 import { ActivateScreen } from './screens/Activate';
 import { HeritageDnaScreen } from './screens/HeritageDna';
 import { HistoryScreen } from './screens/History';
@@ -626,8 +625,8 @@ function MonTab({
    ========================================================================= */
 
 function MeTab({
-  view,
-  onView,
+  view: _view,
+  onView: _onView,
   onGo,
 }: {
   view: MeView;
@@ -635,20 +634,7 @@ function MeTab({
   onGo: (o: Overlay) => void;
 }) {
   return (
-    <div className="archive">
-      <ViewSwitch
-        label="Viste di ME"
-        view={view}
-        onView={onView}
-        items={[
-          { id: 'me', label: t.nav.me },
-          { id: 'calendar', label: t.nav.calendar },
-        ]}
-      />
-
-      {view === 'me' && <MeOverviewScreen onGo={onGo} />}
-      {view === 'calendar' && <CalendarScreen onGo={onGo} />}
-    </div>
+    <div className="archive"><MeOverviewScreen onGo={onGo} /></div>
   );
 }
 

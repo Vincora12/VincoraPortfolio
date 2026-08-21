@@ -1,215 +1,53 @@
-/* ============================================================================
-   09 — ME OVERVIEW (§12)
-
-   "FORM / ATK / SPD / DEF / REC / CARE, Condition e scorciatoie di dominio."
-
-   §11 — questo è il livello di verità analitica. La presenza della creatura è
-   secondaria: qui non compare.
-
-   🔶 v1.9 §4.1 — la schermata dichiara in testa la distinzione che prima
-   lasciava indovinare. Vedere CONDITION, DISC, CONFIDENZA e SYNC nella stessa
-   pagina faceva sembrare che fossero quattro punteggi dello stesso gioco,
-   quando §4 dice l'opposto: «Health truth and game progression stay separate».
-
-   Quindi: qui c'è **come stai**, e non fa crescere niente. SYNC — quanto
-   VINZ.MON ti ha potuto leggere — è l'unica cosa che fa crescere, e sta in
-   fondo, separata e detta a parole.
-
-   Via due numeri che nessuno sapeva leggere:
-   • **DISC** misurava la costanza, ed era l'ultimo residuo del modello a
-     valute: un punteggio su quanto sei bravo a presentarti. Adesso quella cosa
-     la dice il calendario, mostrando i giorni invece di riassumerli in un voto.
-   • **CONFIDENZA DEL DATO** è un concetto del motore — quanto il generatore si
-     fida della finestra recente — non un fatto sulla persona. È rimasto in DEV,
-     dove serve.
-   ========================================================================= */
-
+import { useEffect, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react';
 import type { Overlay } from '../App';
-import { useApp, useProtocol } from '../state/store';
-import { ScreenHead, SegmentedBar, SystemLabel, Window } from '../system/components';
-import { sortPages } from '../engine/pages';
-import { STAT_LABELS, formatDelta, formatSignal, trend } from '../engine/health';
-import { describeDiet, describeTraining } from '../engine/protocol';
-import { STAT_KEYS, isKnown } from '../engine/types';
-import { t } from '../i18n/it';
+import { useApp } from '../state/store';
+import { STAT_KEYS, isKnown, type HealthState } from '../engine/types';
+import { HEALTH_JOURNAL_EVENT, addMeal, addWeight, addWorkout, readHealthJournal, removeHealthEntry, type HealthJournal } from '../engine/healthJournal';
 
-export function MeOverviewScreen({ onGo }: { onGo: (o: Overlay) => void }) {
+type View = 'today' | 'diet' | 'sport' | 'progress';
+type Quick = 'meal' | 'workout' | 'weight' | null;
+const localDay = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+const today = () => localDay(new Date());
+const isToday = (at: string) => localDay(new Date(at)) === today();
+const num = (v: FormDataEntryValue | null) => Math.max(0, Number(v) || 0);
+const time = (at: string) => new Intl.DateTimeFormat('it-IT', { hour: '2-digit', minute: '2-digit' }).format(new Date(at));
+
+export function MeOverviewScreen({ onGo: _onGo }: { onGo: (o: Overlay) => void }) {
   const health = useApp((s) => s.health);
-  const progression = useApp((s) => s.progression);
-  const { protocol } = useProtocol();
-  const reopenProtocol = useApp((s) => s.reopenProtocol);
-
-  const anyUnknown = STAT_KEYS.some((k) => !isKnown(health.stats[k].value));
-
-  return (
-    <div className="screen">
-      <ScreenHead title={t.me.title} sub={t.me.subtitle} />
-
-      <div className="screen__body me">
-        {/* 🔶 La riga che toglie l'ambiguità prima di mostrare qualunque
-             numero: quello che segue non è un punteggio. */}
-        <p className="t-small me__preamble">{t.me.preamble}</p>
-
-        <Pages onGo={onGo} />
-
-        {/* --- CONDITION: stato del giorno, con il nome di sistema accanto alla
-             domanda a cui risponde. «CONDITION» da solo non si capisce. --- */}
-        <Window title={`CONDITION · ${t.me.conditionTitle}`}>
-          <div className="me__condition">
-            <span className="me__big t-display">{formatSignal(health.condition)}</span>
-            <div className="me__conditionbar">
-              <SegmentedBar
-                value={isKnown(health.condition) ? health.condition / 100 : 'unknown'}
-                segments={20}
-                readout={isKnown(health.condition) ? `${Math.round(health.condition)}/100` : undefined}
-                tone={
-                  !isKnown(health.condition)
-                    ? 'character'
-                    : health.condition > 65
-                      ? 'positive'
-                      : health.condition > 40
-                        ? 'warning'
-                        : 'alert'
-                }
-              />
-              {/* Una spiegazione si legge come una frase: il maiuscoletto
-                  monospaziato è per le etichette, non per i periodi. */}
-              <p className="t-small me__note">{t.me.conditionNote}</p>
-            </div>
-          </div>
-        </Window>
-
-        {/* --- Le sei metriche di §3 --- */}
-        <div className="me__stats">
-          {STAT_KEYS.map((key) => {
-            const entry = health.stats[key];
-            const t7 = trend(health, key, 7);
-            return (
-              <section key={key} className="statcard">
-                <header className="statcard__head">
-                  <span className="statcard__key t-display">{key}</span>
-                  <span className="statcard__value t-display">{formatSignal(entry.value)}</span>
-                </header>
-
-                <SegmentedBar
-                  value={isKnown(entry.value) ? entry.value / 100 : 'unknown'}
-                  segments={16}
-                />
-
-                {/* Una riga sola invece di tre: cosa misura, come si muove,
-                    quanto è affidabile. Le etichette lunghe stavano ripetute
-                    sei volte e non aggiungevano niente dopo la prima lettura. */}
-                <div className="statcard__meta t-micro">
-                  <span className="statcard__label">{STAT_LABELS[key]}</span>
-                  <span title={t.me.trend7}>7G {formatDelta(t7)}</span>
-                  <span title={t.me.confidence}>{Math.round(entry.confidence * 100)}%</span>
-                </div>
-              </section>
-            );
-          })}
-        </div>
-
-        {/* --- L'unica cosa che fa crescere. Separata, e detta a parole. --- */}
-        <Window title={`SYNC · ${t.me.syncTitle}`}>
-          <div className="me__game">
-            <div className="me__gameitem">
-              <span className="t-meta">{t.me.syncTotal}</span>
-              <span className="t-display">{progression.sync.lifetime}</span>
-            </div>
-            <div className="me__gameitem">
-              <span className="t-meta">{t.me.syncInForm}</span>
-              <span className="t-display">{progression.sync.inForm}</span>
-            </div>
-            <div className="me__gameitem">
-              <span className="t-meta">{t.home.bond}</span>
-              <span className="t-display">{Math.round(progression.bond * 100)}%</span>
-            </div>
-          </div>
-          <p className="t-small me__note">{t.me.syncNote}</p>
-        </Window>
-
-        {/* 🔶 v1.10 §5.3 — il protocollo vive qui perché è l'unica cosa in
-             questa schermata che l'utente ha DICHIARATO invece che essere
-             stata misurata su di lui. Ed è modificabile: una dieta cambia, e
-             un metro che non si può aggiornare diventa una bugia in un mese. */}
-        <Window title={t.protocol.edit}>
-          <button type="button" className="me__protocol" onClick={reopenProtocol}>
-            <span className="me__protocolbody">
-              {describeDiet(protocol.diet) || describeTraining(protocol.training) ? (
-                <>
-                  {describeDiet(protocol.diet) && (
-                    <span className="t-small">{describeDiet(protocol.diet)}</span>
-                  )}
-                  {describeTraining(protocol.training) && (
-                    <span className="t-small me__protocoltraining">
-                      {describeTraining(protocol.training)}
-                    </span>
-                  )}
-                </>
-              ) : (
-                <span className="t-small me__protocolempty">{t.protocol.none}</span>
-              )}
-            </span>
-            <span className="me__protocolgo" aria-hidden="true">→</span>
-          </button>
-        </Window>
-
-        {anyUnknown && (
-          <p className="me__unknown t-small">
-            <SystemLabel tone="warning">UNKNOWN</SystemLabel> {t.me.unknownNote}
-          </p>
-        )}
-      </div>
+  const [journal, setJournal] = useState(readHealthJournal);
+  const [view, setView] = useState<View>('today');
+  const [quick, setQuick] = useState<Quick>(null);
+  useEffect(() => { const update = () => setJournal(readHealthJournal()); window.addEventListener(HEALTH_JOURNAL_EVENT, update); return () => window.removeEventListener(HEALTH_JOURNAL_EVENT, update); }, []);
+  const meals = journal.meals.filter((x) => isToday(x.at));
+  const workouts = journal.workouts.filter((x) => isToday(x.at));
+  const total = meals.reduce((s, x) => ({ kcal: s.kcal + x.kcal, protein: s.protein + x.protein, carbs: s.carbs + x.carbs, fat: s.fat + x.fat }), { kcal: 0, protein: 0, carbs: 0, fat: 0 });
+  const submit = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault(); const d = new FormData(e.currentTarget);
+    if (quick === 'meal') addMeal({ slot: String(d.get('slot')) as 'colazione' | 'pranzo' | 'cena' | 'spuntino', description: String(d.get('description')), kcal: num(d.get('kcal')), protein: num(d.get('protein')), carbs: num(d.get('carbs')), fat: num(d.get('fat')) }, 'manual');
+    if (quick === 'workout') addWorkout({ title: String(d.get('title')), details: String(d.get('details')), minutes: num(d.get('minutes')) }, 'manual');
+    if (quick === 'weight') addWeight(num(d.get('kg')), 'manual');
+    setQuick(null);
+  };
+  const remove = (kind: 'meal' | 'workout' | 'weight', id: string) => {
+    if (window.confirm('Eliminare questa registrazione?')) removeHealthEntry(kind, id);
+  };
+  return <div className="screen me-health">
+    <header className="me-health__header"><div><h1>ME</h1><p>{new Intl.DateTimeFormat('it-IT', { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date())}</p></div><button type="button" aria-label="Aggiungi dato" onClick={() => setQuick(quick ? null : 'meal')}>＋</button></header>
+    <nav className="me-health__tabs">{([['today', 'OGGI'], ['diet', 'DIETA'], ['sport', 'SPORT'], ['progress', 'PROGRESSI']] as const).map(([id, label]) => <button type="button" key={id} aria-current={view === id ? 'page' : undefined} onClick={() => setView(id)}>{label}</button>)}</nav>
+    {quick && <QuickForm kind={quick} setKind={setQuick} close={() => setQuick(null)} submit={submit} />}
+    <div className="me-health__scroll">
+      {view === 'today' && <><Nutrition total={total} targets={journal.targets} /><Section title="PASTI DI OGGI" action="AGGIUNGI PASTO" click={() => setQuick('meal')}>{meals.length ? meals.map(x => <Row key={x.id} title={x.slot} text={x.description} meta={`${x.kcal} kcal · P ${x.protein}g · C ${x.carbs}g · G ${x.fat}g`} when={time(x.at)} chat={x.source === 'chat'} remove={() => remove('meal', x.id)} />) : <Empty text="Nessun pasto registrato. Puoi scriverlo direttamente in chat." />}</Section><Section title="ALLENAMENTO DI OGGI" action="LOG RAPIDO" click={() => setQuick('workout')}>{workouts.length ? workouts.map(x => <Row key={x.id} title={x.title} text={x.details} meta={`${x.minutes} minuti`} when={time(x.at)} chat={x.source === 'chat'} remove={() => remove('workout', x.id)} />) : <Empty text="Nessun allenamento registrato oggi." />}</Section><Weight weight={journal.weights.at(-1)?.kg} click={() => setQuick('weight')} /><Game health={health} /></>}
+      {view === 'diet' && <><Section title="PIANO ALIMENTARE">{journal.dietPlan ? <article className="me-health__plan"><h2>{journal.dietPlan.title}</h2><p>{journal.dietPlan.text}</p><small>Aggiornato {new Date(journal.dietPlan.updatedAt).toLocaleDateString('it-IT')}</small></article> : <Empty text="Allega la dieta in chat: VINZ.MON la leggerà e la salverà qui." />}</Section><Section title="STORICO PASTI">{journal.meals.length ? [...journal.meals].reverse().map(x => <Row key={x.id} title={x.slot} text={x.description} meta={`${x.kcal} kcal`} when={new Date(x.at).toLocaleDateString('it-IT')} chat={x.source === 'chat'} remove={() => remove('meal', x.id)} />) : <Empty text="Lo storico si riempirà dalla chat o dal log manuale." />}</Section></>}
+      {view === 'sport' && <Section title="ALLENAMENTI" action="NUOVO" click={() => setQuick('workout')}>{journal.workouts.length ? [...journal.workouts].reverse().map(x => <Row key={x.id} title={x.title} text={x.details} meta={`${x.minutes} minuti`} when={new Date(x.at).toLocaleDateString('it-IT')} chat={x.source === 'chat'} remove={() => remove('workout', x.id)} />) : <Empty text="Racconta un allenamento in chat oppure aggiungilo qui." />}</Section>}
+      {view === 'progress' && <><Section title="PESO" action="AGGIORNA" click={() => setQuick('weight')}>{journal.weights.length ? [...journal.weights].reverse().map(x => <Row key={x.id} title={`${x.kg.toFixed(1)} kg`} text="Peso corporeo" meta={x.source === 'chat' ? 'Registrato dalla chat' : 'Inserimento manuale'} when={new Date(x.at).toLocaleDateString('it-IT')} remove={() => remove('weight', x.id)} />) : <Empty text="Aggiungi la prima misurazione." />}</Section><Game health={health} /></>}
     </div>
-  );
+  </div>;
 }
 
-/* ============================================================================
-   LE PAGINE (§21.2)
-
-   🔷 «Se gli chiedo qualcosa lui può tornarmi indietro una pagina.»
-
-   Stanno in ME e non in una tab loro per due motivi. Il primo è che una quinta
-   tab su un telefono è una tab che nessuno preme. Il secondo è più vero: ME è
-   già «le tue cose», e una pagina della dieta è una tua cosa — non un'altra
-   sezione dell'app.
-
-   ⚠️ Il blocco NON compare finché non c'è niente dentro. Un riquadro vuoto che
-   dice «qui appariranno le pagine» è una promessa che l'app fa al posto del
-   .mon, e finché lui non ne ha scritta una è una promessa che non può
-   mantenere.
-   ========================================================================= */
-
-function Pages({ onGo }: { onGo: (o: Overlay) => void }) {
-  const pages = useApp((s) => s.pages);
-  const day = useApp((s) => s.day);
-
-  if (pages.length === 0) return null;
-
-  return (
-    <Window title={`PAGINE · ${pages.length}`}>
-      <div className="rowlist">
-        {sortPages(pages).map((p) => {
-          const age = day - p.updatedDay;
-          return (
-            <button
-              key={p.slug}
-              type="button"
-              className="pagerow"
-              onClick={() => onGo(`page:${p.slug}`)}
-            >
-              <span className="pagerow__title">{p.title}</span>
-              <span className="t-micro pagerow__meta">
-                {p.pinned && <SystemLabel tone="character">IN CIMA</SystemLabel>}
-                <span>
-                  {age === 0 ? 'oggi' : age === 1 ? 'ieri' : `${age} giorni fa`}
-                </span>
-                <span aria-hidden="true">→</span>
-              </span>
-            </button>
-          );
-        })}
-      </div>
-    </Window>
-  );
-}
+function Nutrition({ total, targets }: { total: HealthJournal['targets']; targets: HealthJournal['targets'] }) { return <section className="me-health__nutrition"><div className="me-health__calories"><strong>{total.kcal.toLocaleString('it-IT')}</strong><span>/ {targets.kcal.toLocaleString('it-IT')} kcal</span><i style={{ '--progress': `${Math.min(100, total.kcal / targets.kcal * 100)}%` } as CSSProperties} /></div><div className="me-health__macros">{(['protein', 'carbs', 'fat'] as const).map(k => <div key={k}><span>{k === 'protein' ? 'PROTEINE' : k === 'carbs' ? 'CARBOIDRATI' : 'GRASSI'}</span><strong>{total[k]} g</strong><i><b style={{ width: `${Math.min(100, total[k] / targets[k] * 100)}%` }} /></i><small>{total[k]} / {targets[k]}</small></div>)}</div></section>; }
+function Section({ title, action, click, children }: { title: string; action?: string; click?: () => void; children: ReactNode }) { return <section className="me-health__section"><header><h2>{title}</h2>{action && <button type="button" onClick={click}>＋ {action}</button>}</header>{children}</section>; }
+function Row({ title, text, meta, when, chat, remove }: { title: string; text: string; meta: string; when: string; chat?: boolean; remove: () => void }) { return <article className="me-health__row"><div><strong>{title}</strong><p>{text}</p><small>{meta}{chat ? ' · DALLA CHAT' : ''}</small></div><time>{when}</time><button type="button" aria-label={`Elimina ${title}`} onClick={remove}>×</button></article>; }
+function Empty({ text }: { text: string }) { return <p className="me-health__empty">{text}</p>; }
+function Weight({ weight, click }: { weight?: number; click: () => void }) { return <section className="me-health__weight"><div><span>PESO CORPOREO</span><strong>{weight ? `${weight.toFixed(1)} kg` : '—'}</strong></div><button type="button" onClick={click}>AGGIORNA</button></section>; }
+function Game({ health }: { health: HealthState }) { const labels: Record<string, string> = { ATK: 'FORZA', SPD: 'VELOCITÀ', DEF: 'RESISTENZA', DISC: 'DISCIPLINA' }; const values = [...STAT_KEYS.filter(k => ['ATK', 'SPD', 'DEF'].includes(k)).map(k => [k, health.stats[k].value] as const), ['DISC', health.disc] as const]; return <section className="me-health__game"><h2>STATISTICHE VINZ.MON</h2><div>{values.map(([k, v]) => <article key={k}><span>{labels[k]}</span><strong>{isKnown(v) ? Math.round(v) : '—'}</strong><i><b style={{ width: `${isKnown(v) ? v : 0}%` }} /></i></article>)}</div></section>; }
+function QuickForm({ kind, setKind, close, submit }: { kind: Exclude<Quick, null>; setKind: (v: Quick) => void; close: () => void; submit: (e: FormEvent<HTMLFormElement>) => void }) { return <div className="me-health__quick"><nav>{([['meal', 'PASTO'], ['workout', 'SPORT'], ['weight', 'PESO']] as const).map(([id, label]) => <button type="button" key={id} aria-current={kind === id ? 'page' : undefined} onClick={() => setKind(id)}>{label}</button>)}</nav><form onSubmit={submit}>{kind === 'meal' && <><select name="slot"><option value="colazione">Colazione</option><option value="pranzo">Pranzo</option><option value="cena">Cena</option><option value="spuntino">Spuntino</option></select><input name="description" required placeholder="Cosa hai mangiato?" /><div><input name="kcal" inputMode="decimal" placeholder="kcal" /><input name="protein" inputMode="decimal" placeholder="proteine" /><input name="carbs" inputMode="decimal" placeholder="carboidrati" /><input name="fat" inputMode="decimal" placeholder="grassi" /></div></>}{kind === 'workout' && <><input name="title" required placeholder="Allenamento" /><input name="details" placeholder="Esercizi, serie, ripetizioni" /><input name="minutes" inputMode="decimal" placeholder="Minuti" /></>}{kind === 'weight' && <input name="kg" required inputMode="decimal" placeholder="Peso in kg" />}<footer><button type="button" onClick={close}>ANNULLA</button><button type="submit">SALVA</button></footer></form></div>; }
