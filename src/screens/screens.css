@@ -3691,10 +3691,12 @@
 .me-health__header p { color: #d5d6dc; }
 .me-health__header button { border: 1px solid #8b8e96; background: transparent; color: #fff; box-shadow: none; }
 .me-health__tabs { border-color: #292c33; background: #020306; }
+.me-health__tabs { grid-template-columns: repeat(3, 1fr); }
 .me-health__tabs button { min-height: 42px; color: #8e919a; }
 .me-health__tabs button[aria-current='page'] { color: #f8f8fa; }
 .me-health__scroll { padding: 10px 18px 22px; background: #020306; scrollbar-color: var(--mh-accent) #111319; }
 .me-health__goal,
+.me-health__progress,
 .me-health__nutrition,
 .me-health__section,
 .me-health__weight,
@@ -3775,6 +3777,7 @@
   background: var(--mh-line);
 }
 .me-health__goal::before,
+.me-health__progress::before,
 .me-health__nutrition::before,
 .me-health__section::before,
 .me-health__weight::before,
@@ -3788,6 +3791,32 @@
   clip-path: polygon(calc(var(--mh-cut) - 1px) 0, calc(100% - var(--mh-cut) + 1px) 0, 100% calc(var(--mh-cut) - 1px), 100% calc(100% - var(--mh-cut) + 1px), calc(100% - var(--mh-cut) + 1px) 100%, calc(var(--mh-cut) - 1px) 100%, 0 calc(100% - var(--mh-cut) + 1px), 0 calc(var(--mh-cut) - 1px));
   background: #050609;
 }
+
+.me-health__progress {
+  --mh-cut: 9px;
+  position: relative;
+  isolation: isolate;
+  width: 100%;
+  min-height: 132px;
+  margin: 0 0 8px;
+  padding: 14px 16px 11px;
+  overflow: hidden;
+  border: 0;
+  clip-path: polygon(var(--mh-cut) 0, calc(100% - var(--mh-cut)) 0, 100% var(--mh-cut), 100% calc(100% - var(--mh-cut)), calc(100% - var(--mh-cut)) 100%, var(--mh-cut) 100%, 0 calc(100% - var(--mh-cut)), 0 var(--mh-cut));
+  background: var(--mh-line);
+  color: #f7f7f9;
+  text-align: left;
+}
+.me-health__progress header,
+.me-health__progress footer { position: relative; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.me-health__progress header span,
+.me-health__progress footer { color: #b9bcc5; font: 500 8px/1 var(--font-mono); letter-spacing: .1em; }
+.me-health__progress header strong { color: var(--mh-accent); font: 600 9px/1 var(--font-mono); letter-spacing: .08em; }
+.me-health__progress svg { position: relative; z-index: 1; width: 100%; height: 70px; overflow: visible; }
+.me-health__progress svg path { fill: none; stroke: #555861; stroke-width: 1; }
+.me-health__progress svg polyline { fill: none; stroke: var(--mh-accent); stroke-width: 2.5; vector-effect: non-scaling-stroke; }
+.me-health__progress svg circle { fill: #050609; stroke: var(--mh-accent); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.me-health__progress p { position: relative; z-index: 1; min-height: 70px; display: flex; align-items: center; margin: 0; color: #aeb1ba; font-size: 11px; line-height: 1.45; }
 
 /* Il vecchio stile di STAT applicava altezza e riempimento a ogni <b>:
    qui i segmenti sono nuovamente confinati nella loro riga. */
