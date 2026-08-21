@@ -221,6 +221,10 @@ function Composer() {
         waveColor: '#a6a6a6',
         progressColor: '#f5f5f5',
         cursorWidth: 0,
+        barWidth: 3,
+        barGap: 2,
+        barRadius: 3,
+        barHeight: 1.15,
         normalize: true,
         interact: false,
       });
@@ -271,7 +275,12 @@ function Composer() {
         {mode !== 'idle' ? (
           <>
             <button type="button" className="aui-record__cancel" aria-label="Annulla registrazione" disabled={mode === 'starting' || mode === 'transcribing'} onClick={() => finishDictation(false)}>■</button>
-            <div ref={waveRef} className={`aui-record__wave ${mode === 'starting' || mode === 'transcribing' ? 'is-loading' : ''}`} aria-label={mode === 'starting' ? 'Avvio microfono' : mode === 'transcribing' ? 'Trascrizione in corso' : 'Livello del microfono'} />
+            <div
+              ref={waveRef}
+              className={`aui-record__wave ${mode === 'starting' || mode === 'transcribing' ? 'is-loading' : ''}`}
+              data-status={mode === 'transcribing' ? 'TRASCRIZIONE IN CORSO' : 'AVVIO MICROFONO'}
+              aria-label={mode === 'starting' ? 'Avvio microfono' : mode === 'transcribing' ? 'Trascrizione in corso' : 'Livello del microfono'}
+            />
             <time className="aui-record__time">{Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, '0')}</time>
             <button type="button" className="aui-record__send" aria-label="Invia dettatura" disabled={mode === 'starting' || mode === 'transcribing'} onClick={() => finishDictation(true)}>↑</button>
           </>
