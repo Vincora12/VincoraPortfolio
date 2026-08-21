@@ -3604,7 +3604,7 @@
 
 /* ME — pelle ottica/Y2K dalla reference health */
 .me-health {
-  --mh-accent: #1476e5;
+  --mh-accent: var(--char-accent, #1476e5);
   --mh-line: #d9dce2;
   --mh-muted: #737883;
   background: #fafbfc;
