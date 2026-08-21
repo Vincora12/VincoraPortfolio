@@ -18,7 +18,7 @@ import {
 } from '@assistant-ui/react';
 import { createLocalStorageAdapter, createSimpleTitleAdapter, useMessageError } from '@assistant-ui/core/react';
 import { MarkdownTextPrimitive } from '@assistant-ui/react-markdown';
-import { replyWithLocalTools, shouldUseLocalTools, streamReply } from './stream';
+import { replyWithLocalTools, savedToken, shouldUseLocalTools, streamReply } from './stream';
 import type { BrainMessage } from './store/types';
 import type { ToolResult, ToolUse } from '../ai/tools';
 
@@ -161,90 +161,122 @@ function modelLabel(model?: string | null): string {
 
 function Composer() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const recognitionRef = useRef<{ start: () => void; stop: () => void } | null>(null);
-  const [listening, setListening] = useState(false);
-  const [seconds, setSeconds] = useState(0);
-  const transcriptRef = useRef('');
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const frameRef = useRef<number | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
   const submitAfterRef = useRef(false);
+  const [mode, setMode] = useState<'idle' | 'recording' | 'transcribing'>('idle');
+  const [seconds, setSeconds] = useState(0);
+  const [levels, setLevels] = useState(() => Array(18).fill(.08) as number[]);
+  const [dictationError, setDictationError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!listening) return;
+    if (mode !== 'recording') return;
     const timer = window.setInterval(() => setSeconds((value) => value + 1), 1000);
     return () => window.clearInterval(timer);
-  }, [listening]);
-  useEffect(() => () => recognitionRef.current?.stop(), []);
+  }, [mode]);
+  useEffect(() => () => {
+    if (frameRef.current) cancelAnimationFrame(frameRef.current);
+    recorderRef.current?.stop();
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    void audioContextRef.current?.close();
+  }, []);
 
-  const startDictation = () => {
-    if (recognitionRef.current || listening) return;
-    const Recognition = (window as unknown as {
-      webkitSpeechRecognition?: new () => {
-        lang: string;
-        interimResults: boolean;
-        continuous: boolean;
-        onresult: ((event: { results: ArrayLike<{ 0: { transcript: string } }> }) => void) | null;
-        onend: (() => void) | null;
-        onerror: (() => void) | null;
-        start: () => void;
-        stop: () => void;
+  const cleanupAudio = () => {
+    if (frameRef.current) cancelAnimationFrame(frameRef.current);
+    frameRef.current = null;
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+    void audioContextRef.current?.close();
+    audioContextRef.current = null;
+  };
+
+  const transcribe = async (blob: Blob) => {
+    const token = savedToken();
+    if (!token) throw new Error('Prima attiva VINZ.MON.');
+    const extension = blob.type.includes('mp4') ? 'm4a' : 'webm';
+    const form = new FormData();
+    form.set('file', new File([blob], `voice.${extension}`, { type: blob.type }));
+    const response = await fetch('/api/transcribe', { method: 'POST', headers: { authorization: `Bearer ${token}` }, body: form });
+    const body = await response.json().catch(() => null) as { text?: string; error?: string; reason?: string } | null;
+    if (!response.ok || !body?.text) throw new Error(body?.reason ?? body?.error ?? 'Trascrizione non riuscita.');
+    return body.text;
+  };
+
+  const startDictation = async () => {
+    if (mode !== 'idle') return;
+    setDictationError(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      const audioContext = new AudioContext();
+      audioContextRef.current = audioContext;
+      const analyser = audioContext.createAnalyser();
+      analyser.fftSize = 64;
+      audioContext.createMediaStreamSource(stream).connect(analyser);
+      const data = new Uint8Array(analyser.frequencyBinCount);
+      const draw = () => {
+        analyser.getByteFrequencyData(data);
+        setLevels(Array.from({ length: 18 }, (_, index) => Math.max(.08, (data[index % data.length] ?? 0) / 255)));
+        frameRef.current = requestAnimationFrame(draw);
       };
-    }).webkitSpeechRecognition;
-    if (!Recognition) return;
-    const recognition = new Recognition();
-    recognition.lang = 'it-IT';
-    recognition.interimResults = false;
-    recognition.continuous = true;
-    recognition.onresult = (event) => {
-      const transcript = event.results[0]?.[0]?.transcript?.trim();
-      if (transcript) transcriptRef.current = `${transcriptRef.current} ${transcript}`.trim();
-    };
-    recognition.onend = () => {
-      const input = inputRef.current;
-      if (input && transcriptRef.current) {
-        const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
-        setter?.call(input, input.value ? `${input.value} ${transcriptRef.current}` : transcriptRef.current);
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-        input.focus();
-      }
-      const submit = submitAfterRef.current;
-      recognitionRef.current = null;
-      transcriptRef.current = '';
+      draw();
+
+      const preferred = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : '';
+      const recorder = new MediaRecorder(stream, preferred ? { mimeType: preferred } : undefined);
+      recorderRef.current = recorder;
+      chunksRef.current = [];
       submitAfterRef.current = false;
-      setListening(false);
+      recorder.ondataavailable = (event) => { if (event.data.size) chunksRef.current.push(event.data); };
+      recorder.onstop = async () => {
+        const submit = submitAfterRef.current;
+        const blob = new Blob(chunksRef.current, { type: recorder.mimeType || 'audio/webm' });
+        cleanupAudio();
+        recorderRef.current = null;
+        setSeconds(0);
+        if (!submit) { setMode('idle'); return; }
+        setMode('transcribing');
+        try {
+          const text = await transcribe(blob);
+          const input = inputRef.current;
+          if (input) {
+            const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
+            setter?.call(input, input.value ? `${input.value} ${text}` : text);
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+            input.focus();
+            window.setTimeout(() => document.querySelector<HTMLButtonElement>('.aui-composer__send')?.click(), 50);
+          }
+        } catch (error) {
+          setDictationError(error instanceof Error ? error.message : 'Trascrizione non riuscita.');
+        } finally { setMode('idle'); }
+      };
+      recorder.start(250);
       setSeconds(0);
-      if (submit) window.setTimeout(() => document.querySelector<HTMLButtonElement>('.aui-composer__send')?.click(), 50);
-    };
-    recognition.onerror = () => {
-      recognitionRef.current = null;
-      setListening(false);
-    };
-    recognitionRef.current = recognition;
-    transcriptRef.current = '';
-    submitAfterRef.current = false;
-    setSeconds(0);
-    setListening(true);
-    recognition.start();
+      setMode('recording');
+    } catch {
+      cleanupAudio();
+      setDictationError('Consenti l’accesso al microfono e riprova.');
+      setMode('idle');
+    }
   };
 
-  const cancelDictation = () => {
-    transcriptRef.current = '';
-    submitAfterRef.current = false;
-    recognitionRef.current?.stop();
-  };
-  const sendDictation = () => {
-    submitAfterRef.current = true;
-    recognitionRef.current?.stop();
+  const finishDictation = (submit: boolean) => {
+    submitAfterRef.current = submit;
+    if (recorderRef.current?.state !== 'inactive') recorderRef.current?.stop();
   };
 
   return (
     <ComposerPrimitive.Root className="aui-composer">
       <ComposerPrimitive.Attachments components={{ Attachment }} />
-      <div className={`aui-composer__row ${listening ? 'is-recording' : ''}`}>
-        {listening ? (
+      <div className={`aui-composer__row ${mode !== 'idle' ? 'is-recording' : ''}`}>
+        {mode !== 'idle' ? (
           <>
-            <button type="button" className="aui-record__cancel" aria-label="Annulla registrazione" onClick={cancelDictation}>■</button>
-            <div className="aui-record__wave" aria-hidden="true">{Array.from({ length: 18 }, (_, index) => <span key={index} />)}</div>
+            <button type="button" className="aui-record__cancel" aria-label="Annulla registrazione" disabled={mode === 'transcribing'} onClick={() => finishDictation(false)}>■</button>
+            <div className={`aui-record__wave ${mode === 'transcribing' ? 'is-loading' : ''}`} aria-label={mode === 'transcribing' ? 'Trascrizione in corso' : 'Livello del microfono'}>{levels.map((level, index) => <span key={index} style={{ height: `${Math.round(12 + level * 88)}%` }} />)}</div>
             <time className="aui-record__time">{Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, '0')}</time>
-            <button type="button" className="aui-record__send" aria-label="Invia dettatura" onClick={sendDictation}>↑</button>
+            <button type="button" className="aui-record__send" aria-label="Invia dettatura" disabled={mode === 'transcribing'} onClick={() => finishDictation(true)}>↑</button>
           </>
         ) : (
           <>
@@ -252,7 +284,7 @@ function Composer() {
         <ComposerPrimitive.Input ref={inputRef} className="aui-composer__input" placeholder="Scrivi a VINZ.MON" aria-label="Messaggio" submitOnEnter />
         <button
           type="button"
-          className={`aui-composer__mic ${listening ? 'is-listening' : ''}`}
+          className="aui-composer__mic"
           aria-label="Avvia dettatura"
           onClick={startDictation}
         ><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15a4 4 0 0 0 4-4V6a4 4 0 1 0-8 0v5a4 4 0 0 0 4 4Zm7-4a7 7 0 0 1-14 0M12 18v4M9 22h6" /></svg></button>
@@ -261,6 +293,7 @@ function Composer() {
           </>
         )}
       </div>
+      {dictationError && <p className="aui-record__error" role="alert">{dictationError}</p>}
     </ComposerPrimitive.Root>
   );
 }

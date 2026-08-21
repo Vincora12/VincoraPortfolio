@@ -53,7 +53,7 @@ const Brain = lazy(() => import('./brain/Brain').then((module) => ({ default: mo
 
 function LazyBrain(props: Omit<ComponentProps<typeof Brain>, 'embedded'>) {
   return (
-    <Suspense fallback={<div className="brain-loader" aria-label="Apertura chat" />}>
+    <Suspense fallback={<div className="brain-loader" aria-label="Apertura chat"><strong>VINZ.MON</strong><span /></div>}>
       <Brain embedded {...props} />
     </Suspense>
   );

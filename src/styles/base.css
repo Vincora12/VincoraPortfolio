@@ -158,8 +158,13 @@ select {
 .brain-loader {
   flex: 1;
   min-height: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: var(--u4);
   background: var(--white);
 }
+.brain-loader span { width: 22px; height: 22px; border: 2px solid #333; border-top-color: #fff; border-radius: 50%; animation: boot-spin .8s linear infinite; }
 
 .screen {
   flex: 1;
