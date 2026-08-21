@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   ActionBarPrimitive,
   AssistantRuntimeProvider,
@@ -17,6 +18,9 @@ import {
 import { createLocalStorageAdapter, createSimpleTitleAdapter, useMessageError } from '@assistant-ui/core/react';
 import { MarkdownTextPrimitive } from '@assistant-ui/react-markdown';
 import { useAuiState } from '@assistant-ui/store';
+import { useAui } from '@assistant-ui/store';
+import { hotkeysCoreFeature, selectionFeature, syncDataLoaderFeature } from '@headless-tree/core';
+import { useTree } from '@headless-tree/react';
 import WaveSurfer from 'wavesurfer.js';
 import RecordPlugin from 'wavesurfer.js/dist/plugins/record.esm.js';
 import { replyWithLocalTools, savedToken, shouldUseLocalTools, streamReply, type ChatCost } from './stream';
@@ -206,6 +210,137 @@ function modelProvider(model: string): string {
   return 'OPENAI';
 }
 
+type ChatGroup = { id: string; name: string; parentId: string | null; icon: string; color: string };
+type ChatTreeLayout = { groups: ChatGroup[]; placements: Record<string, string | null> };
+type ChatTreeNode = { id: string; name: string; kind: 'root' | 'group' | 'chat'; icon: string; color: string; parentId: string | null };
+const CHAT_TREE_KEY = 'vinzmon.chat.tree.v1';
+const CHAT_ICONS = ['●', '★', '◆', '✦', '♥', '☾', '☀', '⚡'];
+const CHAT_COLORS = ['#8a8a8a', '#d85d67', '#d99735', '#5f9f73', '#4e8daf', '#8874bd'];
+
+function readChatTree(): ChatTreeLayout {
+  try {
+    const value = JSON.parse(localStorage.getItem(CHAT_TREE_KEY) ?? '') as ChatTreeLayout;
+    if (Array.isArray(value.groups) && value.placements) return value;
+  } catch { /* Prima apertura. */ }
+  return { groups: [], placements: {} };
+}
+
+function ChatDrawer({ onClose }: { onClose: () => void }) {
+  const aui = useAui();
+  const { threadItems, mainThreadId } = useAuiState((s) => s.threads);
+  const [layout, setLayout] = useState(readChatTree);
+  const [menuId, setMenuId] = useState<string | null>(null);
+  const [visualOverrides, setVisualOverrides] = useState<Record<string, { icon?: string; color?: string }>>({});
+  const saveLayout = (next: ChatTreeLayout) => { setLayout(next); localStorage.setItem(CHAT_TREE_KEY, JSON.stringify(next)); };
+  const nodes = useMemo(() => {
+    const map = new Map<string, ChatTreeNode>();
+    map.set('root', { id: 'root', name: 'Chat', kind: 'root', icon: '', color: '', parentId: null });
+    layout.groups.forEach((group) => map.set(group.id, { ...group, kind: 'group' }));
+    threadItems.forEach((thread) => {
+      const custom = thread.custom ?? {};
+      const visual = visualOverrides[thread.id] ?? {};
+      map.set(thread.id, {
+        id: thread.id,
+        name: thread.title ?? 'Nuova chat',
+        kind: 'chat',
+        icon: visual.icon ?? (typeof custom.vinzIcon === 'string' ? custom.vinzIcon : '●'),
+        color: visual.color ?? (typeof custom.vinzColor === 'string' ? custom.vinzColor : '#8a8a8a'),
+        parentId: layout.placements[thread.id] ?? null,
+      });
+    });
+    return map;
+  }, [layout, threadItems, visualOverrides]);
+  const nodesRef = useRef(nodes);
+  nodesRef.current = nodes;
+  const childrenOf = (parentId: string) => {
+    const normalized = parentId === 'root' ? null : parentId;
+    return Array.from(nodesRef.current.values()).filter((node) => node.kind !== 'root' && node.parentId === normalized).map((node) => node.id);
+  };
+  const tree = useTree<ChatTreeNode>({
+    rootItemId: 'root',
+    initialState: { expandedItems: layout.groups.map((group) => group.id) },
+    getItemName: (item) => item.getItemData().name,
+    isItemFolder: (item) => item.getItemData().kind !== 'chat',
+    dataLoader: {
+      getItem: (id) => nodesRef.current.get(id) ?? nodesRef.current.get('root')!,
+      getChildren: childrenOf,
+    },
+    indent: 18,
+    features: [syncDataLoaderFeature, selectionFeature, hotkeysCoreFeature],
+  });
+  useEffect(() => tree.rebuildTree(), [nodes]);
+
+  const patchThread = async (id: string, patch: Record<string, unknown>) => {
+    const item = aui.threads.item({ id });
+    if (item.getState().status === 'new') await item.initialize();
+    item.updateCustom({ ...(item.getState().custom ?? {}), ...patch });
+    setVisualOverrides((current) => ({ ...current, [id]: { ...current[id], ...(typeof patch.vinzIcon === 'string' ? { icon: patch.vinzIcon } : {}), ...(typeof patch.vinzColor === 'string' ? { color: patch.vinzColor } : {}) } }));
+  };
+  const renameThread = async (id: string, name: string) => {
+    const item = aui.threads.item({ id });
+    if (item.getState().status === 'new') await item.initialize();
+    item.rename(name);
+  };
+  const createGroup = (parentId: string | null = null) => {
+    const name = window.prompt(parentId ? 'Nome del sottogruppo' : 'Nome del gruppo')?.trim();
+    if (!name) return;
+    saveLayout({ ...layout, groups: [...layout.groups, { id: `folder-${Date.now()}`, name, parentId, icon: '◆', color: '#8a8a8a' }] });
+  };
+  const moveChat = (id: string, parentId: string) => saveLayout({ ...layout, placements: { ...layout.placements, [id]: parentId || null } });
+  const patchGroup = (id: string, patch: Partial<ChatGroup>) => saveLayout({ ...layout, groups: layout.groups.map((group) => group.id === id ? { ...group, ...patch } : group) });
+
+  return (
+    <div className="aui-drawer-layer" role="presentation" onPointerDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <aside className="aui-drawer" aria-label="Le tue chat">
+        <header className="aui-drawer__header">
+          <h2>Chat</h2>
+          <div><button type="button" onClick={() => createGroup()} aria-label="Nuovo gruppo">＋</button><button type="button" onClick={onClose} aria-label="Chiudi menu chat">×</button></div>
+        </header>
+        <div {...tree.getContainerProps()} className="aui-chat-tree">
+          {tree.getItems().map((item) => {
+            const node = item.getItemData();
+            if (node.kind === 'root') return null;
+            const current = node.kind === 'chat' && node.id === mainThreadId;
+            const menuOpen = menuId === node.id;
+            return (
+              <div {...item.getProps()} className={`aui-tree-row ${node.kind === 'group' ? 'is-group' : ''} ${current ? 'is-current' : ''}`} key={node.id} style={{ paddingLeft: item.getItemMeta().level * 18 }}>
+                <button type="button" className="aui-tree-row__main" onClick={(event) => {
+                  event.stopPropagation();
+                  if (node.kind === 'group') item.isExpanded() ? item.collapse() : item.expand();
+                  else { aui.threads.switchToThread(node.id); onClose(); }
+                }}>
+                  {node.kind === 'group' && <span className="aui-tree-row__chevron">{item.isExpanded() ? '⌄' : '›'}</span>}
+                  <span className="aui-tree-row__icon" style={{ color: node.color }}>{node.icon}</span>
+                  <span>{node.name}</span>
+                  {current && <small>CORRENTE</small>}
+                </button>
+                <button type="button" className="aui-tree-row__more" aria-label={`Modifica ${node.name}`} onClick={(event) => { event.stopPropagation(); setMenuId(menuOpen ? null : node.id); }}>•••</button>
+                {menuOpen && (
+                  <div className="aui-tree-menu" onClick={(event) => event.stopPropagation()}>
+                    <div className="aui-tree-menu__choices">{CHAT_ICONS.map((icon) => <button type="button" key={icon} onClick={() => node.kind === 'chat' ? void patchThread(node.id, { vinzIcon: icon }) : patchGroup(node.id, { icon })}>{icon}</button>)}</div>
+                    <div className="aui-tree-menu__choices">{CHAT_COLORS.map((color) => <button type="button" key={color} aria-label={`Colore ${color}`} style={{ background: color }} onClick={() => node.kind === 'chat' ? void patchThread(node.id, { vinzColor: color }) : patchGroup(node.id, { color })} />)}</div>
+                    {node.kind === 'group' ? (
+                      <>
+                        <button type="button" onClick={() => { const name = window.prompt('Rinomina gruppo', node.name)?.trim(); if (name) patchGroup(node.id, { name }); }}>RINOMINA</button>
+                        <button type="button" onClick={() => createGroup(node.id)}>NUOVO SOTTOGRUPPO</button>
+                      </>
+                    ) : (
+                      <>
+                        <button type="button" onClick={() => { const name = window.prompt('Rinomina chat', node.name)?.trim(); if (name) void renameThread(node.id, name); }}>RINOMINA</button>
+                        <label>SPOSTA IN<select value={node.parentId ?? ''} onChange={(event) => moveChat(node.id, event.target.value)}><option value="">CHAT</option>{layout.groups.map((group) => <option value={group.id} key={group.id}>{group.name}</option>)}</select></label>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </aside>
+    </div>
+  );
+}
+
 function Composer() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const waveRef = useRef<HTMLDivElement>(null);
@@ -351,6 +486,7 @@ function Composer() {
 
 function ChatSurface({ embedded, voiceModel, onModelChange }: { embedded: boolean; voiceModel?: string | null; onModelChange?: (model: string) => void }) {
   const [modelMenu, setModelMenu] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [models, setModels] = useState<ModelChoice[]>([]);
   const [defaultModel, setDefaultModel] = useState<string | null>(null);
   const activeModel = voiceModel ?? defaultModel;
@@ -366,6 +502,8 @@ function ChatSurface({ embedded, voiceModel, onModelChange }: { embedded: boolea
   return (
     <main className={`brain aui-chat ${embedded ? 'brain--embedded' : ''}`}>
       <nav className="aui-chat-tools" aria-label="Impostazioni chat">
+        <button type="button" className="aui-chat-menu-button" aria-label="Apri elenco chat" onClick={() => setDrawerOpen(true)}>☰</button>
+        <div className="aui-chat-tools__spacer" />
         {onModelChange && (
           <div className="aui-model-picker">
             <button type="button" className="aui-model-chip" aria-label="Cambia modello AI" aria-expanded={modelMenu} onClick={() => setModelMenu((open) => !open)}>{modelLabel(voiceModel)}⌄</button>
@@ -403,6 +541,7 @@ function ChatSurface({ embedded, voiceModel, onModelChange }: { embedded: boolea
           </ThreadPrimitive.ViewportFooter>
         </ThreadPrimitive.Viewport>
       </ThreadPrimitive.Root>
+      {drawerOpen && createPortal(<ChatDrawer onClose={() => setDrawerOpen(false)} />, document.body)}
     </main>
   );
 }
