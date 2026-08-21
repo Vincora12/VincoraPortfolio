@@ -13,9 +13,12 @@ import {
   useAui,
   useAuiState,
 } from "@assistant-ui/react";
-import { useEffect, useState, type FC } from "react";
+import { useEffect, useRef, useState, type FC } from "react";
 import { TooltipIconButton } from "@/assistant-original/components/assistant-ui/tooltip-icon-button";
 import { useShallow } from "zustand/shallow";
+import WaveSurfer from "wavesurfer.js";
+import RecordPlugin from "wavesurfer.js/dist/plugins/record.esm.js";
+import { savedToken } from "@/brain/stream";
 import {
   ArrowUpIcon,
   AudioLines,
@@ -87,6 +90,168 @@ const EmptyState: FC = () => {
 };
 
 const Composer: FC<{ placeholder: string }> = ({ placeholder }) => {
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const waveRef = useRef<HTMLDivElement>(null);
+  const waveSurferRef = useRef<WaveSurfer | null>(null);
+  const recordRef = useRef<RecordPlugin | null>(null);
+  const submitAfterRef = useRef(false);
+  const [mode, setMode] = useState<
+    "idle" | "starting" | "recording" | "transcribing"
+  >("idle");
+  const [seconds, setSeconds] = useState(0);
+  const [dictationError, setDictationError] = useState<string | null>(null);
+  const [pendingTranscript, setPendingTranscript] = useState<string | null>(null);
+
+  useEffect(
+    () => () => {
+      recordRef.current?.destroy();
+      waveSurferRef.current?.destroy();
+    },
+    [],
+  );
+
+  const transcribe = async (blob: Blob) => {
+    const token = savedToken();
+    if (!token) throw new Error("Prima attiva VINZ.MON.");
+    const extension = blob.type.includes("mp4") ? "m4a" : "webm";
+    const form = new FormData();
+    form.set(
+      "file",
+      new File([blob], `voice.${extension}`, { type: blob.type }),
+    );
+    const response = await fetch("/api/transcribe", {
+      method: "POST",
+      headers: { authorization: `Bearer ${token}` },
+      body: form,
+    });
+    const body = (await response.json().catch(() => null)) as
+      | { text?: string; error?: string; reason?: string }
+      | null;
+    if (!response.ok || !body?.text) {
+      throw new Error(
+        body?.reason ?? body?.error ?? "Trascrizione non riuscita.",
+      );
+    }
+    return body.text;
+  };
+
+  const insertAndSend = (text: string) => {
+    const input = inputRef.current;
+    if (!input) return;
+    const setter = Object.getOwnPropertyDescriptor(
+      HTMLTextAreaElement.prototype,
+      "value",
+    )?.set;
+    setter?.call(input, input.value ? `${input.value} ${text}` : text);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    input.focus();
+    window.setTimeout(
+      () =>
+        document
+          .querySelector<HTMLButtonElement>(".vinz-clone-composer__send")
+          ?.click(),
+      100,
+    );
+  };
+
+  useEffect(() => {
+    if (mode !== "idle" || !pendingTranscript) return;
+    insertAndSend(pendingTranscript);
+    setPendingTranscript(null);
+  }, [mode, pendingTranscript]);
+
+  const startDictation = async () => {
+    if (mode !== "idle") return;
+    setDictationError(null);
+    setMode("starting");
+    try {
+      await new Promise<void>((resolve) =>
+        requestAnimationFrame(() => resolve()),
+      );
+      if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
+        throw new Error("Microfono non supportato da questo browser.");
+      }
+      if (!waveRef.current) throw new Error("Registratore non pronto. Riprova.");
+
+      recordRef.current?.destroy();
+      waveSurferRef.current?.destroy();
+      const wavesurfer = WaveSurfer.create({
+        container: waveRef.current,
+        height: 34,
+        waveColor: "#a6a6a6",
+        progressColor: "#f5f5f5",
+        cursorWidth: 0,
+        barWidth: 3,
+        barGap: 2,
+        barRadius: 3,
+        barHeight: 1.15,
+        normalize: true,
+        interact: false,
+      });
+      const safari = /^((?!chrome|android).)*safari/i.test(
+        navigator.userAgent,
+      );
+      const record = wavesurfer.registerPlugin(
+        RecordPlugin.create({
+          ...(safari && MediaRecorder.isTypeSupported("audio/mp4")
+            ? { mimeType: "audio/mp4" }
+            : {}),
+          scrollingWaveform: true,
+          scrollingWaveformWindow: 4,
+          renderRecordedAudio: false,
+          mediaRecorderTimeslice: 500,
+        }),
+      );
+      waveSurferRef.current = wavesurfer;
+      recordRef.current = record;
+      submitAfterRef.current = false;
+      record.on("record-progress", (duration) =>
+        setSeconds(Math.floor(duration / 1000)),
+      );
+      record.on("record-end", async (blob) => {
+        const submit = submitAfterRef.current;
+        record.stopMic();
+        setSeconds(0);
+        if (!submit) {
+          setMode("idle");
+          return;
+        }
+        setMode("transcribing");
+        try {
+          setPendingTranscript(await transcribe(blob));
+        } catch (error) {
+          setDictationError(
+            error instanceof Error
+              ? error.message
+              : "Trascrizione non riuscita.",
+          );
+        } finally {
+          setMode("idle");
+        }
+      });
+      await record.startRecording({
+        channelCount: 1,
+        echoCancellation: true,
+        noiseSuppression: true,
+      });
+      setSeconds(0);
+      setMode("recording");
+    } catch (error) {
+      recordRef.current?.stopMic();
+      setDictationError(
+        error instanceof Error && error.message
+          ? error.message
+          : "Consenti l’accesso al microfono e riprova.",
+      );
+      setMode("idle");
+    }
+  };
+
+  const finishDictation = (submit: boolean) => {
+    submitAfterRef.current = submit;
+    if (recordRef.current?.isRecording()) recordRef.current.stopRecording();
+  };
+
   return (
     <ComposerPrimitive.Root className="group/composer flex w-full flex-col rounded-[28px] border border-[#e5e5e5] bg-white px-2 py-2 focus-within:border-[#d0d0d0] dark:border-transparent dark:bg-[#212121] dark:focus-within:border-transparent">
       <AuiIf condition={(s) => s.composer.attachments.length > 0}>
@@ -97,6 +262,51 @@ const Composer: FC<{ placeholder: string }> = ({ placeholder }) => {
         </div>
       </AuiIf>
 
+      {mode !== "idle" ? (
+        <div className="vinz-record flex min-h-9 items-center gap-1">
+          <button
+            type="button"
+            className="vinz-record__cancel"
+            aria-label="Annulla registrazione"
+            disabled={mode === "starting" || mode === "transcribing"}
+            onClick={() => finishDictation(false)}
+          >
+            <span />
+          </button>
+          <div
+            ref={waveRef}
+            className={cn(
+              "vinz-record__wave",
+              (mode === "starting" || mode === "transcribing") &&
+                "is-loading",
+            )}
+            data-status={
+              mode === "transcribing"
+                ? "TRASCRIZIONE IN CORSO"
+                : "AVVIO MICROFONO"
+            }
+            aria-label={
+              mode === "starting"
+                ? "Avvio microfono"
+                : mode === "transcribing"
+                  ? "Trascrizione in corso"
+                  : "Livello del microfono"
+            }
+          />
+          <time className="vinz-record__time">
+            {Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, "0")}
+          </time>
+          <button
+            type="button"
+            className="vinz-record__send"
+            aria-label="Invia dettatura"
+            disabled={mode === "starting" || mode === "transcribing"}
+            onClick={() => finishDictation(true)}
+          >
+            <ArrowUpIcon className="size-6" />
+          </button>
+        </div>
+      ) : (
       <div className="flex items-end gap-1">
         <ComposerPrimitive.AddAttachment asChild>
           <TooltipIconButton
@@ -111,6 +321,7 @@ const Composer: FC<{ placeholder: string }> = ({ placeholder }) => {
         </ComposerPrimitive.AddAttachment>
 
         <ComposerPrimitive.Input
+          ref={inputRef}
           autoFocus
           placeholder={placeholder}
           rows={1}
@@ -118,14 +329,22 @@ const Composer: FC<{ placeholder: string }> = ({ placeholder }) => {
         />
 
         <div className="flex shrink-0 items-center gap-1">
-          <ComposerPrimaryAction />
+          <ComposerPrimaryAction onDictate={startDictation} />
         </div>
       </div>
+      )}
+      {dictationError && (
+        <p className="px-2 pt-1 text-[11px] text-[#ff8a8a]" role="alert">
+          {dictationError}
+        </p>
+      )}
     </ComposerPrimitive.Root>
   );
 };
 
-const ComposerPrimaryAction: FC = () => {
+const ComposerPrimaryAction: FC<{ onDictate: () => void }> = ({
+  onDictate,
+}) => {
   return (
     <div className="flex items-center gap-1">
       <AuiIf condition={(s) => s.thread.isRunning}>
@@ -135,45 +354,28 @@ const ComposerPrimaryAction: FC = () => {
       </AuiIf>
 
       <AuiIf
-        condition={(s) => !s.thread.isRunning && s.composer.dictation != null}
+        condition={(s) => !s.thread.isRunning && !s.composer.isEmpty}
       >
-        <ComposerPrimitive.StopDictation
-          className="flex size-9 items-center justify-center rounded-full bg-[#0d0d0d] text-white dark:bg-white dark:text-black"
-          aria-label="Stop dictation"
-        >
-          <div className="size-2.5 animate-pulse rounded-[2px] bg-current" />
-        </ComposerPrimitive.StopDictation>
-      </AuiIf>
-
-      <AuiIf
-        condition={(s) =>
-          !s.thread.isRunning &&
-          s.composer.dictation == null &&
-          !s.composer.isEmpty
-        }
-      >
-        <ComposerPrimitive.Send className="flex size-9 items-center justify-center rounded-full bg-[#0d0d0d] text-white transition-opacity disabled:opacity-30 dark:bg-white dark:text-black">
+        <ComposerPrimitive.Send className="vinz-clone-composer__send flex size-9 items-center justify-center rounded-full bg-[#0d0d0d] text-white transition-opacity disabled:opacity-30 dark:bg-white dark:text-black">
           <ArrowUpIcon className="size-6" />
         </ComposerPrimitive.Send>
       </AuiIf>
 
       <AuiIf
         condition={(s) =>
-          !s.thread.isRunning &&
-          s.composer.dictation == null &&
-          s.composer.isEmpty
+          !s.thread.isRunning && s.composer.isEmpty
         }
       >
-        <ComposerPrimitive.Dictate asChild>
-          <TooltipIconButton
-            tooltip="Dictate"
-            side="top"
-            aria-label="Dictate"
-            className="flex size-9 items-center justify-center rounded-full text-[#5d5d5d] transition-colors hover:bg-black/[0.07] hover:text-[#5d5d5d] dark:text-[#cdcdcd] dark:hover:bg-white/15 dark:hover:text-[#cdcdcd]"
-          >
-            <Mic className="size-5" />
-          </TooltipIconButton>
-        </ComposerPrimitive.Dictate>
+        <TooltipIconButton
+          type="button"
+          tooltip="Dictate"
+          side="top"
+          aria-label="Dictate"
+          onClick={onDictate}
+          className="flex size-9 items-center justify-center rounded-full text-[#5d5d5d] transition-colors hover:bg-black/[0.07] hover:text-[#5d5d5d] dark:text-[#cdcdcd] dark:hover:bg-white/15 dark:hover:text-[#cdcdcd]"
+        >
+          <Mic className="size-5" />
+        </TooltipIconButton>
 
         <TooltipIconButton
           type="button"

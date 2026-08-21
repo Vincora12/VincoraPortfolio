@@ -1,6 +1,6 @@
 /* Verifica offline del contratto assistant-ui ↔ backend. Nessuna API key o rete. */
 import { build } from 'esbuild';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -36,6 +36,20 @@ const check = (ok, label) => {
 };
 
 console.log('\n═══ ASSISTANT-UI CONTRACT ═══\n');
+
+const cloneSource = readFileSync(
+  join(cwd, 'src/assistant-original/components/examples/chatgpt.tsx'),
+  'utf8',
+);
+const cloneStyles = readFileSync(join(cwd, 'src/assistant-original/styles.css'), 'utf8');
+const cloneMain = readFileSync(join(cwd, 'src/assistant-original/main.tsx'), 'utf8');
+check(cloneSource.includes('RecordPlugin.create'), 'la dettatura usa il registratore audio VINZ.MON');
+check(cloneSource.includes('scrollingWaveform: true'), 'l’onda scorre con l’audio reale');
+check(cloneSource.includes('TRASCRIZIONE IN CORSO'), 'lo stato di trascrizione resta visibile');
+check(cloneSource.includes('fetch("/api/transcribe"'), 'l’audio passa dal backend protetto');
+check(cloneSource.includes('setPendingTranscript'), 'la trascrizione torna nel composer');
+check(cloneStyles.includes('.vinz-record__wave.is-loading'), 'avvio e trascrizione hanno un loader dedicato');
+check(!cloneMain.includes('WebSpeechDictationAdapter'), 'la vecchia dettatura browser non è più collegata');
 
 const preferences = m.assistantRequestPreferences(
   { modelName: 'claude-sonnet-5', reasoningEffort: 'high' },

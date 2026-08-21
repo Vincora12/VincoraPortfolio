@@ -5,7 +5,6 @@ import {
   CompositeAttachmentAdapter,
   SimpleImageAttachmentAdapter,
   SimpleTextAttachmentAdapter,
-  WebSpeechDictationAdapter,
   useLocalRuntime,
   useRemoteThreadListRuntime,
 } from "@assistant-ui/react";
@@ -49,7 +48,6 @@ const App: FC = () => {
       useLocalRuntime(model, {
         adapters: {
           attachments,
-          dictation: new WebSpeechDictationAdapter(),
         },
       }),
   });

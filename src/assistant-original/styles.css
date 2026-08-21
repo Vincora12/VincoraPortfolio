@@ -135,6 +135,90 @@ body[data-scroll-locked] {
   opacity: 0.72;
 }
 
+.vinz-record__cancel,
+.vinz-record__send {
+  display: grid;
+  flex: 0 0 auto;
+  width: 2.25rem;
+  height: 2.25rem;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+}
+
+.vinz-record__cancel {
+  background: transparent;
+  color: #ececec;
+}
+
+.vinz-record__cancel span {
+  width: 0.625rem;
+  height: 0.625rem;
+  border-radius: 2px;
+  background: currentColor;
+}
+
+.vinz-record__send {
+  background: #ececec;
+  color: #0d0d0d;
+}
+
+.vinz-record__cancel:disabled,
+.vinz-record__send:disabled {
+  opacity: 0.3;
+}
+
+.vinz-record__wave {
+  flex: 1;
+  min-width: 0;
+  height: 2.125rem;
+  overflow: hidden;
+}
+
+.vinz-record__wave.is-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  color: #b4b4b4;
+  font-size: 0.625rem;
+  font-weight: 650;
+  letter-spacing: 0.07em;
+}
+
+.vinz-record__wave.is-loading > * {
+  display: none;
+}
+
+.vinz-record__wave.is-loading::before {
+  content: attr(data-status);
+  white-space: nowrap;
+}
+
+.vinz-record__wave.is-loading::after {
+  content: "";
+  width: 0.75rem;
+  height: 0.75rem;
+  border: 2px solid #444;
+  border-top-color: #ececec;
+  border-radius: 50%;
+  animation: vinz-record-spin 700ms linear infinite;
+}
+
+.vinz-record__time {
+  flex: 0 0 auto;
+  min-width: 2.25rem;
+  color: #ececec;
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+}
+
+@keyframes vinz-record-spin {
+  to { transform: rotate(360deg); }
+}
+
 .shimmer {
   color: transparent;
   background: linear-gradient(90deg, transparent, var(--foreground), transparent);
@@ -151,5 +235,11 @@ body[data-scroll-locked] {
   body {
     padding-top: env(safe-area-inset-top);
     padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vinz-record__wave.is-loading::after {
+    animation: none;
   }
 }
