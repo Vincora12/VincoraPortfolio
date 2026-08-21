@@ -89,7 +89,7 @@ function imageFrom(message: ThreadMessage): { mediaType: string; data: string } 
   return undefined;
 }
 
-function createChatModel(runTool?: (use: ToolUse) => ToolResult, voiceModel?: string | null): ChatModelAdapter {
+export function createChatModel(runTool?: (use: ToolUse) => ToolResult, voiceModel?: string | null): ChatModelAdapter {
   return {
     async *run({ messages, abortSignal }) {
       const last = messages.at(-1);

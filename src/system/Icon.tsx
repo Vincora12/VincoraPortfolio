@@ -12,6 +12,7 @@ export type IconName =
   | 'me'
   | 'mindline'
   | 'camera'
+  | 'microphone'
   | 'tell'
   | 'measure'
   | 'workout'
@@ -71,6 +72,12 @@ const PATHS: Record<IconName, ReactElement> = {
     <>
       <path d="M3 7h4l1.5-2h7L17 7h4v13H3z" />
       <circle cx="12" cy="13" r="4" />
+    </>
+  ),
+  microphone: (
+    <>
+      <rect x="8" y="3" width="8" height="12" rx="4" />
+      <path d="M5 11a7 7 0 0 0 14 0M12 18v3M9 21h6" />
     </>
   ),
   tell: (

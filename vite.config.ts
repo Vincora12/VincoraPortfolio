@@ -52,6 +52,7 @@ export default defineConfig({
       input: {
         app: fileURLToPath(new URL('./index.html', import.meta.url)),
         brain: fileURLToPath(new URL('./brain/index.html', import.meta.url)),
+        assistantExample: fileURLToPath(new URL('./assistant-example/index.html', import.meta.url)),
       },
     },
   },
