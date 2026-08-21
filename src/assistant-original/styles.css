@@ -112,6 +112,29 @@ body[data-scroll-locked] {
   margin-bottom: 0;
 }
 
+.vinz-assistant-meta [data-slot="tool-fallback-root"] {
+  flex-basis: 100%;
+}
+
+.vinz-assistant-meta [data-slot="tool-fallback-trigger"] {
+  gap: 0.375rem;
+  padding-block: 0.125rem;
+  font-size: 0.6875rem;
+  opacity: 0.72;
+}
+
+.vinz-assistant-meta [data-slot="tool-fallback-trigger-icon"],
+.vinz-assistant-meta [data-slot="tool-fallback-trigger-chevron"] {
+  width: 0.75rem;
+  height: 0.75rem;
+}
+
+.vinz-assistant-meta [data-slot="source"] {
+  padding: 0.125rem 0.375rem;
+  font-size: 0.6875rem;
+  opacity: 0.72;
+}
+
 .shimmer {
   color: transparent;
   background: linear-gradient(90deg, transparent, var(--foreground), transparent);

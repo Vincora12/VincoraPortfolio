@@ -205,7 +205,7 @@ const ThreadScrollToBottom: FC = () => {
 
 const UserMessage: FC = () => {
   return (
-    <MessagePrimitive.Root className="relative mx-auto flex w-full max-w-3xl flex-col items-end gap-1">
+    <MessagePrimitive.Root className="relative mx-auto flex w-full max-w-3xl flex-col items-end gap-1 px-2 sm:px-0">
       <div className="flex flex-row flex-wrap justify-end gap-2">
         <MessagePrimitive.Attachments
           components={{ Attachment: ChatGPTAttachmentUI }}
@@ -276,20 +276,17 @@ const assistantActionClassName =
 
 const AssistantMessage: FC = () => {
   return (
-    <MessagePrimitive.Root className="relative mx-auto flex w-full max-w-3xl flex-col">
+    <MessagePrimitive.Root className="relative mx-auto flex w-full max-w-3xl flex-col px-2 sm:px-0">
       <div className="text-[#0d0d0d] dark:text-[#ececec]">
         <MessagePrimitive.Parts>
           {({ part }) => {
             if (part.type === "text") return <MarkdownText />;
-            if (part.type === "source") return <Sources {...part} />;
-            if (part.type === "tool-call")
-              return part.toolUI ?? <ToolFallback {...part} />;
             return null;
           }}
         </MessagePrimitive.Parts>
       </div>
 
-      <div className="-ml-2 flex items-center pt-1">
+      <div className="flex items-center pt-1">
         <ActionBarPrimitive.Root hideWhenRunning className="flex items-center">
           <ActionBarPrimitive.Copy asChild>
             <TooltipIconButton
@@ -377,6 +374,17 @@ const AssistantMessage: FC = () => {
           </ActionBarMorePrimitive.Root>
         </ActionBarPrimitive.Root>
         <BranchPicker className="ml-1" />
+      </div>
+
+      <div className="vinz-assistant-meta mt-1 flex flex-wrap items-center gap-1 text-xs text-[#8e8e8e]">
+        <MessagePrimitive.Parts>
+          {({ part }) => {
+            if (part.type === "source") return <Sources {...part} />;
+            if (part.type === "tool-call")
+              return part.toolUI ?? <ToolFallback {...part} />;
+            return null;
+          }}
+        </MessagePrimitive.Parts>
       </div>
     </MessagePrimitive.Root>
   );
