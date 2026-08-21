@@ -21,9 +21,7 @@ import { MarkdownTextPrimitive } from '@assistant-ui/react-markdown';
 import { useAui, useAuiState } from '@assistant-ui/store';
 import WaveSurfer from 'wavesurfer.js';
 import RecordPlugin from 'wavesurfer.js/dist/plugins/record.esm.js';
-import { DndContext, MouseSensor, TouchSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
-import { SortableContext, horizontalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
-import { CSS as DndCSS } from '@dnd-kit/utilities';
+import Sortable, { type MoveEvent, type SortableEvent } from 'sortablejs';
 import { replyWithLocalTools, savedToken, shouldUseLocalTools, streamReply, type ChatCost } from './stream';
 import { loadSetup, type ModelChoice } from '../ai/backend';
 import type { BrainMessage } from './store/types';
@@ -204,7 +202,6 @@ type TopicMenuState = { id: string; title: string; x: number; y: number; groupId
 type TopicController = {
   openMenu: (menu: NonNullable<TopicMenuState>) => void;
   movingId: string | null;
-  dropOn: (targetId: string, clientX: number) => void;
   openGroups: Set<string>;
   toggleGroup: (groupId: string) => void;
 };
@@ -224,16 +221,13 @@ function TopicTab({ subtopic = false }: { subtopic?: boolean }) {
   const groupName = typeof custom.vinzGroupName === 'string' ? custom.vinzGroupName : 'Gruppo';
   const isLeader = custom.vinzGroupLeader === true;
   const groupOpen = groupId ? controller?.openGroups.has(groupId) : true;
-  const sortable = useSortable({ id, disabled: { draggable: controller?.movingId !== id, droppable: false } });
   const clearHold = () => { if (holdRef.current) window.clearTimeout(holdRef.current); holdRef.current = null; };
   if ((groupId && !isLeader && !subtopic) || (subtopic && (!groupId || isLeader || !groupOpen))) return null;
 
   return (
     <ThreadListItemPrimitive.Root
       className={`aui-topic ${groupId ? 'is-grouped' : ''} ${isLeader ? 'is-group-leader' : ''} ${isLeader && !groupOpen ? 'is-group-collapsed' : ''} ${groupId && !isLeader && !groupOpen ? 'is-group-hidden' : ''}`}
-      style={{ '--topic-color': color, order, transform: DndCSS.Transform.toString(sortable.transform), transition: sortable.transition, zIndex: sortable.isDragging ? 90 : undefined, scale: sortable.isDragging ? '.94' : undefined } as React.CSSProperties}
-      ref={sortable.setNodeRef}
-      {...(controller?.movingId === id ? { ...sortable.attributes, ...sortable.listeners } : {})}
+      style={{ '--topic-color': color, order } as React.CSSProperties}
       data-topic-id={id}
       data-topic-group={groupId ?? undefined}
       onContextMenu={(event) => event.preventDefault()}
@@ -416,11 +410,9 @@ function Composer() {
 
 function ChatSurface({ embedded, voiceModel, onModelChange }: { embedded: boolean; voiceModel?: string | null; onModelChange?: (model: string) => void }) {
   const aui = useAui();
-  const topicIds = useAuiState((s) => s.threads.threadIds);
-  const sensors = useSensors(
-    useSensor(TouchSensor, { activationConstraint: { delay: 160, tolerance: 8 } }),
-    useSensor(MouseSensor, { activationConstraint: { distance: 4 } }),
-  );
+  useAuiState((s) => s.threads.threadIds);
+  const topicListRef = useRef<HTMLDivElement>(null);
+  const groupTargetRef = useRef<string | null>(null);
   const [modelMenu, setModelMenu] = useState(false);
   const [models, setModels] = useState<ModelChoice[]>([]);
   const [defaultModel, setDefaultModel] = useState<string | null>(null);
@@ -480,54 +472,74 @@ function ChatSurface({ embedded, voiceModel, onModelChange }: { embedded: boolea
     const timer = window.setTimeout(() => document.addEventListener('pointerdown', close), 0);
     return () => { window.clearTimeout(timer); document.removeEventListener('pointerdown', close); };
   }, [topicMenu]);
-  const dropOn = (targetId: string, clientX: number) => {
-    if (!movingId || movingId === targetId) return setMovingId(null);
-    const targetNode = document.querySelector<HTMLElement>(`[data-topic-id="${CSS.escape(targetId)}"]`);
-    const rect = targetNode?.getBoundingClientRect();
-    const middle = rect ? clientX > rect.left + rect.width * .25 && clientX < rect.right - rect.width * .25 : true;
-    if (middle) {
-      const groupId = `group-${Date.now()}`;
-      const groupName = window.prompt('Nome del gruppo', 'Nuovo gruppo')?.trim() || 'Nuovo gruppo';
-      patchTopic(targetId, { vinzGroupId: groupId, vinzGroupName: groupName, vinzGroupLeader: true });
-      patchTopic(movingId, { vinzGroupId: groupId, vinzGroupName: groupName, vinzGroupLeader: false });
-      setOpenGroups((current) => new Set(current).add(groupId));
-    } else {
-      const nodes = Array.from(document.querySelectorAll<HTMLElement>('[data-topic-id]'));
-      const ids = nodes.map((node) => node.dataset.topicId!).filter((id) => id !== movingId);
-      const targetIndex = Math.max(0, ids.indexOf(targetId) + (rect && clientX > rect.left + rect.width / 2 ? 1 : 0));
-      ids.splice(targetIndex, 0, movingId);
-      ids.forEach((id, index) => patchTopic(id, { vinzOrder: index, vinzGroupId: null, vinzGroupName: null, vinzGroupLeader: false }));
-    }
-    setMovingId(null);
-  };
-  const finishDrag = ({ active, over, delta }: DragEndEvent) => {
-    if (!over || active.id === over.id) { setMovingId(null); return; }
-    const moving = String(active.id);
-    const target = String(over.id);
-    const targetNode = document.querySelector<HTMLElement>(`[data-topic-id="${CSS.escape(target)}"]`);
-    const rect = targetNode?.getBoundingClientRect();
-    const activeNode = document.querySelector<HTMLElement>(`[data-topic-id="${CSS.escape(moving)}"]`);
-    const start = activeNode?.getBoundingClientRect();
-    const centerX = (start?.left ?? 0) + (start?.width ?? 0) / 2 + delta.x;
-    if (rect && centerX > rect.left + rect.width * .28 && centerX < rect.right - rect.width * .28) {
-      const groupId = `group-${Date.now()}`;
-      const groupName = window.prompt('Nome del gruppo', 'Nuovo gruppo')?.trim() || 'Nuovo gruppo';
-      patchTopic(target, { vinzGroupId: groupId, vinzGroupName: groupName, vinzGroupLeader: true });
-      patchTopic(moving, { vinzGroupId: groupId, vinzGroupName: groupName, vinzGroupLeader: false });
-      setOpenGroups((current) => new Set(current).add(groupId));
-      targetNode?.animate([{ scale: '1' }, { scale: '1.12' }, { scale: '1' }], { duration: 280, easing: 'ease-out' });
-    } else {
-      const ids = Array.from(document.querySelectorAll<HTMLElement>('[data-topic-id]')).map((node) => node.dataset.topicId!).filter((id) => id !== moving);
-      const at = Math.max(0, ids.indexOf(target) + (rect && centerX > rect.left + rect.width / 2 ? 1 : 0));
-      ids.splice(at, 0, moving);
-      ids.forEach((id, index) => patchTopic(id, { vinzOrder: index, vinzGroupId: null, vinzGroupName: null, vinzGroupLeader: false }));
-    }
-    setMovingId(null);
-  };
+  useEffect(() => {
+    const list = topicListRef.current;
+    if (!list || !movingId) return;
+    const pointX = (event: Event | undefined) => {
+      if (event instanceof TouchEvent) return event.touches[0]?.clientX ?? event.changedTouches[0]?.clientX;
+      return event instanceof MouseEvent || event instanceof PointerEvent ? event.clientX : undefined;
+    };
+    const clearTarget = () => {
+      list.querySelector('.is-group-target')?.classList.remove('is-group-target');
+      groupTargetRef.current = null;
+    };
+    const sortable = Sortable.create(list, {
+      draggable: '.aui-topic',
+      animation: 220,
+      easing: 'cubic-bezier(.2,.8,.2,1)',
+      forceFallback: true,
+      fallbackOnBody: true,
+      fallbackTolerance: 3,
+      scroll: true,
+      scrollSensitivity: 55,
+      scrollSpeed: 14,
+      ghostClass: 'aui-topic--ghost',
+      chosenClass: 'aui-topic--chosen',
+      dragClass: 'aui-topic--drag',
+      onMove: (event: MoveEvent, originalEvent?: Event) => {
+        const related = event.related.closest<HTMLElement>('[data-topic-id]');
+        const dragged = event.dragged.closest<HTMLElement>('[data-topic-id]');
+        if (!related || !dragged || related === dragged) { clearTarget(); return true; }
+        const x = pointX(originalEvent);
+        const rect = related.getBoundingClientRect();
+        const grouping = x !== undefined && x > rect.left + rect.width * .3 && x < rect.right - rect.width * .3;
+        list.querySelector('.is-group-target')?.classList.remove('is-group-target');
+        if (grouping) {
+          related.classList.add('is-group-target');
+          groupTargetRef.current = related.dataset.topicId ?? null;
+          return false;
+        }
+        groupTargetRef.current = null;
+        return true;
+      },
+      onEnd: (event: SortableEvent) => {
+        const moving = event.item.dataset.topicId;
+        const target = groupTargetRef.current;
+        clearTarget();
+        if (!moving) return setMovingId(null);
+        if (target && target !== moving) {
+          const groupId = `group-${Date.now()}`;
+          const groupName = window.prompt('Nome del gruppo', 'Nuovo gruppo')?.trim() || 'Nuovo gruppo';
+          patchTopic(target, { vinzGroupId: groupId, vinzGroupName: groupName, vinzGroupLeader: true });
+          patchTopic(moving, { vinzGroupId: groupId, vinzGroupName: groupName, vinzGroupLeader: false });
+          setOpenGroups((current) => new Set(current).add(groupId));
+          document.querySelector<HTMLElement>(`[data-topic-id="${CSS.escape(target)}"]`)?.animate(
+            [{ scale: '1' }, { scale: '1.14' }, { scale: '1' }],
+            { duration: 300, easing: 'ease-out' },
+          );
+        } else {
+          Array.from(list.querySelectorAll<HTMLElement>(':scope > .aui-topic')).forEach((node, index) => {
+            if (node.dataset.topicId) patchTopic(node.dataset.topicId, { vinzOrder: index, vinzGroupId: null, vinzGroupName: null, vinzGroupLeader: false });
+          });
+        }
+        setMovingId(null);
+      },
+    });
+    return () => sortable.destroy();
+  }, [movingId]);
   const topicController = useMemo<TopicController>(() => ({
     openMenu: setTopicMenu,
     movingId,
-    dropOn,
     openGroups,
     toggleGroup: (groupId) => setOpenGroups((current) => {
       const next = new Set(current);
@@ -547,23 +559,17 @@ function ChatSurface({ embedded, voiceModel, onModelChange }: { embedded: boolea
   return (
     <main className={`brain aui-chat ${embedded ? 'brain--embedded' : ''}`}>
       <nav className={`aui-topics ${movingId ? 'is-organizing' : ''}`} aria-label="Chat aperte">
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={finishDrag}>
-          <ThreadListPrimitive.Root className="aui-topics__list">
+          <ThreadListPrimitive.Root className="aui-topics__list" ref={topicListRef}>
             <TopicContext.Provider value={topicController}>
-              <SortableContext items={[...topicIds]} strategy={horizontalListSortingStrategy}>
                 <ThreadListPrimitive.Items components={{ ThreadListItem: TopicTab }} />
-              </SortableContext>
             </TopicContext.Provider>
             <ThreadListPrimitive.New className="aui-topics__new" aria-label="Nuova chat">＋</ThreadListPrimitive.New>
           </ThreadListPrimitive.Root>
           <div className="aui-subtopics">
             <TopicContext.Provider value={topicController}>
-              <SortableContext items={[...topicIds]} strategy={horizontalListSortingStrategy}>
                 <ThreadListPrimitive.Items>{() => <TopicTab subtopic />}</ThreadListPrimitive.Items>
-              </SortableContext>
             </TopicContext.Provider>
           </div>
-        </DndContext>
         {onModelChange && (
           <div className="aui-model-picker">
             <button type="button" className="aui-model-chip" aria-label="Cambia modello AI" aria-expanded={modelMenu} onClick={() => setModelMenu((open) => !open)}>{modelLabel(voiceModel)}⌄</button>
