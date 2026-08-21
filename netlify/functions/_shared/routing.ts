@@ -146,7 +146,7 @@ export interface Route {
    ========================================================================= */
 
 export const ROUTING: Record<Capability, Route> = {
-  'character-voice': { provider: 'anthropic', model: 'claude-opus-5' },
+  'character-voice': { provider: 'openai', model: 'gpt-5.6-terra' },
   'vision-quick': { provider: 'google', model: 'gemini-2.5-flash' },
   'text-cheap': { provider: 'anthropic', model: 'claude-haiku-4-5' },
   /* 🔶 Era `gpt-image-1`, e nessuno l'aveva mai scelto: la voce e il

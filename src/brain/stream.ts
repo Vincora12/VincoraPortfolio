@@ -38,7 +38,7 @@ export async function streamReply(
     headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
     body: JSON.stringify({
       capability: 'character-voice',
-      stream: !image,
+      stream: false,
       system,
       webSearch: !image,
       ...(image ? { image } : {}),
@@ -56,9 +56,10 @@ export async function streamReply(
     throw new Error(detail?.reason ?? detail?.error ?? `Richiesta fallita (${response.status}).`);
   }
 
-  if (image) {
+  const contentType = response.headers.get('content-type') ?? '';
+  if (contentType.includes('application/json')) {
     const body = await response.json() as { text?: string };
-    if (!body.text) throw new Error('Non sono riuscito a leggere l’immagine.');
+    if (!body.text) throw new Error(image ? 'Non sono riuscito a leggere l’immagine.' : 'La risposta è arrivata vuota.');
     onChunk(body.text);
     return;
   }
