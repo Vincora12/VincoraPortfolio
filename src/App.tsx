@@ -392,13 +392,15 @@ export function App() {
         className={`proto-frame ${hasTabBar ? 'has-tabbar' : ''}`}
         data-field={inkField ? 'ink' : undefined}
       >
-        <StatusBar
-          showDev={devEnabled && overlay !== 'dev'}
-          onOpenDev={() => setOverlay('dev')}
-          onActivate={() => setOverlay('activate')}
-          assistantOpen={assistantOpen}
-          onToggleAssistant={() => setAssistantOpen((open) => !open)}
-        />
+        {!assistantOpen && (phase !== 'live' || tab === 'mon') && (
+          <StatusBar
+            showDev={devEnabled && overlay !== 'dev'}
+            onOpenDev={() => setOverlay('dev')}
+            onActivate={() => setOverlay('activate')}
+            assistantOpen={assistantOpen}
+            onToggleAssistant={() => setAssistantOpen((open) => !open)}
+          />
+        )}
 
         {/* ⚠️ L'ordine conta: l'ingresso stava PRIMA dell'overlay, quindi con
             la splash aperta il pannello DEV si apriva sotto e non si vedeva.

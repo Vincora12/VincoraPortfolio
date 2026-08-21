@@ -143,17 +143,6 @@ function ErrorMessage() {
   return <div className="aui-error" role="alert">{typeof error === 'string' ? error : 'La risposta si è interrotta. Riprova.'}</div>;
 }
 
-function ThreadListItem() {
-  return (
-    <ThreadListItemPrimitive.Root className="aui-thread-item">
-      <ThreadListItemPrimitive.Trigger className="aui-thread-item__trigger">
-        <ThreadListItemPrimitive.Title fallback="Nuova conversazione" />
-      </ThreadListItemPrimitive.Trigger>
-      <ThreadListItemPrimitive.Archive className="aui-thread-item__archive" aria-label="Archivia">×</ThreadListItemPrimitive.Archive>
-    </ThreadListItemPrimitive.Root>
-  );
-}
-
 function TopicTab() {
   return (
     <ThreadListItemPrimitive.Root className="aui-topic">
@@ -165,23 +154,19 @@ function TopicTab() {
   );
 }
 
-function ThreadList({ close }: { close: () => void }) {
-  return (
-    <aside className="aui-sidebar" aria-label="Conversazioni">
-      <div className="aui-sidebar__head"><strong>CONVERSAZIONI</strong><button type="button" onClick={close}>CHIUDI</button></div>
-      <ThreadListPrimitive.Root>
-        <ThreadListPrimitive.New className="aui-new" onClick={close}>＋ NUOVA CHAT</ThreadListPrimitive.New>
-        <ThreadListPrimitive.Items components={{ ThreadListItem }} />
-      </ThreadListPrimitive.Root>
-    </aside>
-  );
-}
-
 function Composer() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const recognitionRef = useRef<{ start: () => void; stop: () => void } | null>(null);
   const [listening, setListening] = useState(false);
+  const [seconds, setSeconds] = useState(0);
+  const transcriptRef = useRef('');
+  const submitAfterRef = useRef(false);
 
+  useEffect(() => {
+    if (!listening) return;
+    const timer = window.setInterval(() => setSeconds((value) => value + 1), 1000);
+    return () => window.clearInterval(timer);
+  }, [listening]);
   useEffect(() => () => recognitionRef.current?.stop(), []);
 
   const startDictation = () => {
@@ -190,6 +175,7 @@ function Composer() {
       webkitSpeechRecognition?: new () => {
         lang: string;
         interimResults: boolean;
+        continuous: boolean;
         onresult: ((event: { results: ArrayLike<{ 0: { transcript: string } }> }) => void) | null;
         onend: (() => void) | null;
         onerror: (() => void) | null;
@@ -201,72 +187,88 @@ function Composer() {
     const recognition = new Recognition();
     recognition.lang = 'it-IT';
     recognition.interimResults = false;
+    recognition.continuous = true;
     recognition.onresult = (event) => {
       const transcript = event.results[0]?.[0]?.transcript?.trim();
-      const input = inputRef.current;
-      if (!transcript || !input) return;
-      const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
-      setter?.call(input, input.value ? `${input.value} ${transcript}` : transcript);
-      input.dispatchEvent(new Event('input', { bubbles: true }));
-      input.focus();
+      if (transcript) transcriptRef.current = `${transcriptRef.current} ${transcript}`.trim();
     };
     recognition.onend = () => {
+      const input = inputRef.current;
+      if (input && transcriptRef.current) {
+        const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
+        setter?.call(input, input.value ? `${input.value} ${transcriptRef.current}` : transcriptRef.current);
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.focus();
+      }
+      const submit = submitAfterRef.current;
       recognitionRef.current = null;
+      transcriptRef.current = '';
+      submitAfterRef.current = false;
       setListening(false);
+      setSeconds(0);
+      if (submit) window.setTimeout(() => document.querySelector<HTMLButtonElement>('.aui-composer__send')?.click(), 50);
     };
     recognition.onerror = () => {
       recognitionRef.current = null;
       setListening(false);
     };
     recognitionRef.current = recognition;
+    transcriptRef.current = '';
+    submitAfterRef.current = false;
+    setSeconds(0);
     setListening(true);
     recognition.start();
   };
 
-  const stopDictation = () => recognitionRef.current?.stop();
+  const cancelDictation = () => {
+    transcriptRef.current = '';
+    submitAfterRef.current = false;
+    recognitionRef.current?.stop();
+  };
+  const sendDictation = () => {
+    submitAfterRef.current = true;
+    recognitionRef.current?.stop();
+  };
 
   return (
     <ComposerPrimitive.Root className="aui-composer">
       <ComposerPrimitive.Attachments components={{ Attachment }} />
-      <div className="aui-composer__row">
+      <div className={`aui-composer__row ${listening ? 'is-recording' : ''}`}>
+        {listening ? (
+          <>
+            <button type="button" className="aui-record__cancel" aria-label="Annulla registrazione" onClick={cancelDictation}>■</button>
+            <div className="aui-record__wave" aria-hidden="true">{Array.from({ length: 18 }, (_, index) => <span key={index} />)}</div>
+            <time className="aui-record__time">{Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, '0')}</time>
+            <button type="button" className="aui-record__send" aria-label="Invia dettatura" onClick={sendDictation}>↑</button>
+          </>
+        ) : (
+          <>
         <ComposerPrimitive.AddAttachment className="aui-composer__attach" aria-label="Allega file">＋</ComposerPrimitive.AddAttachment>
         <ComposerPrimitive.Input ref={inputRef} className="aui-composer__input" placeholder="Chiedi qualsiasi cosa…" aria-label="Messaggio" submitOnEnter />
         <button
           type="button"
           className={`aui-composer__mic ${listening ? 'is-listening' : ''}`}
-          aria-label="Tieni premuto per dettare"
-          onPointerDown={(event) => { event.preventDefault(); event.currentTarget.setPointerCapture(event.pointerId); startDictation(); }}
-          onPointerUp={(event) => { event.preventDefault(); stopDictation(); }}
-          onPointerCancel={stopDictation}
-          onKeyDown={(event) => { if ((event.key === ' ' || event.key === 'Enter') && !event.repeat) startDictation(); }}
-          onKeyUp={(event) => { if (event.key === ' ' || event.key === 'Enter') stopDictation(); }}
+          aria-label="Avvia dettatura"
+          onClick={startDictation}
         >●</button>
         <ComposerPrimitive.Send className="aui-composer__send">INVIA</ComposerPrimitive.Send>
         <ComposerPrimitive.Cancel className="aui-composer__cancel">STOP</ComposerPrimitive.Cancel>
+          </>
+        )}
       </div>
     </ComposerPrimitive.Root>
   );
 }
 
-function ChatSurface({ embedded, onSettings }: { embedded: boolean; onSettings?: () => void }) {
-  const [showThreads, setShowThreads] = useState(false);
+function ChatSurface({ embedded }: { embedded: boolean; onSettings?: () => void }) {
   return (
     <main className={`brain aui-chat ${embedded ? 'brain--embedded' : ''}`}>
-      <header className="brain__header">
-        <button className="brain__history" type="button" onClick={() => setShowThreads(true)}>CHAT</button>
-        <h1>VINZ.MON</h1>
-        <div className="brain__right">
-          {onSettings && <button type="button" className="brain__settings" aria-label="Impostazioni AI" onClick={onSettings}>AI</button>}
-          <ThreadListPrimitive.New className="brain__new">NUOVA</ThreadListPrimitive.New>
-        </div>
-      </header>
       <nav className="aui-topics" aria-label="Chat aperte">
         <ThreadListPrimitive.Root className="aui-topics__list">
           <ThreadListPrimitive.Items components={{ ThreadListItem: TopicTab }} />
           <ThreadListPrimitive.New className="aui-topics__new" aria-label="Nuova chat">＋</ThreadListPrimitive.New>
         </ThreadListPrimitive.Root>
       </nav>
-      {showThreads ? <ThreadList close={() => setShowThreads(false)} /> : null}
       <ThreadPrimitive.Root className="aui-thread">
         <ThreadPrimitive.Viewport className="aui-thread__viewport">
           <ThreadPrimitive.Empty>

@@ -129,6 +129,18 @@ button, textarea { font: inherit; }
 .aui-composer__mic { flex: 0 0 auto; width: 42px; height: 42px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: #202123; font-size: 12px; }
 .aui-composer__mic::after { content: 'MIC'; margin-left: 2px; font-size: 10px; font-weight: 650; }
 .aui-composer__mic.is-listening { color: #c62828; }
+.aui-composer__row.is-recording { align-items: center; min-height: 52px; }
+.aui-record__cancel, .aui-record__send { flex: 0 0 auto; width: 42px; height: 42px; padding: 0; border: 0; border-radius: 50%; }
+.aui-record__cancel { background: transparent; color: #202123; font-size: 13px; }
+.aui-record__send { background: #202123; color: #fff; font-size: 24px; }
+.aui-record__wave { flex: 1; min-width: 0; height: 30px; display: flex; align-items: center; justify-content: space-around; gap: 2px; overflow: hidden; }
+.aui-record__wave span { width: 3px; height: 30%; border-radius: 2px; background: #777; animation: aui-wave 700ms ease-in-out infinite alternate; }
+.aui-record__wave span:nth-child(3n) { height: 80%; animation-delay: -420ms; }
+.aui-record__wave span:nth-child(3n + 1) { height: 48%; animation-delay: -180ms; }
+.aui-record__wave span:nth-child(4n) { height: 100%; animation-delay: -560ms; }
+.aui-record__time { flex: 0 0 auto; min-width: 38px; color: #202123; font-variant-numeric: tabular-nums; font-size: 13px; font-weight: 650; }
+@keyframes aui-wave { from { transform: scaleY(.35); } to { transform: scaleY(1); } }
+@media (prefers-reduced-motion: reduce) { .aui-record__wave span { animation: none; } }
 .aui-composer__attach { background: transparent; color: #202123; font-size: 22px; }
 .aui-composer__send, .aui-composer__cancel { padding: 0; background: #202123; color: #fff; }
 .aui-composer__send::after { content: '↑'; font-size: 18px; }
