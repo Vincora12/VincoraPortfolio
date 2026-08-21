@@ -10,8 +10,8 @@ import {
 import { createLocalStorageAdapter, createSimpleTitleAdapter } from '@assistant-ui/core/react';
 import { MarkdownTextPrimitive } from '@assistant-ui/react-markdown';
 import {
-  ArrowDown, ArrowUp, AudioLines, Check, ChevronLeft, ChevronRight, Copy,
-  Menu, Mic, PanelLeft, Pencil, Plus, RefreshCw, Share2, Square,
+  ArrowDown, ArrowUp, AudioLines, Check, ChevronDown, ChevronLeft, ChevronRight, Copy,
+  Menu, Mic, Moon, PanelLeft, Pencil, Plus, RefreshCw, Share2, Square,
   ThumbsDown, ThumbsUp, Volume2, X,
 } from 'lucide-react';
 import { createChatModel } from '../brain/Brain';
@@ -50,12 +50,11 @@ const Sidebar: FC<{ open: boolean; collapsed: boolean; onClose: () => void; onTo
     <aside className={`clone-sidebar ${collapsed ? 'is-collapsed' : ''} ${open ? 'is-mobile-open' : ''}`}>
       <div className="clone-sidebar-head">
         <IconButton label={collapsed ? 'Mostra cronologia' : 'Nascondi cronologia'} onClick={onToggle}><PanelLeft size={19} /></IconButton>
-        {!collapsed && <strong>Chat</strong>}
+        {!collapsed && <strong>Chats</strong>}
         <IconButton label="Chiudi" className="clone-mobile-close" onClick={onClose}><X size={19} /></IconButton>
       </div>
       <ThreadListPrimitive.Root className="clone-thread-list">
-        <ThreadListPrimitive.New className="clone-new-thread" onClick={onClose}><Pencil size={18} /><span>Nuova chat</span></ThreadListPrimitive.New>
-        {!collapsed && <div className="clone-history-label">Le tue chat</div>}
+        <ThreadListPrimitive.New className="clone-new-thread" onClick={onClose}><Plus size={18} /><span>New chat</span></ThreadListPrimitive.New>
         <ThreadListPrimitive.Items components={{ ThreadListItem: ThreadItem }} />
       </ThreadListPrimitive.Root>
     </aside>
@@ -133,7 +132,7 @@ const AssistantMessage: FC = () => (
 );
 
 const EmptyState: FC = () => (
-  <div className="clone-empty"><div className="clone-empty-inner"><h1>Da dove iniziamo?</h1><Composer placeholder="Chiedi qualsiasi cosa" /></div></div>
+  <div className="clone-empty"><div className="clone-empty-inner"><h1>Where should we begin?</h1><Composer placeholder="Ask anything" /></div></div>
 );
 
 const Thread: FC = () => (
@@ -144,8 +143,8 @@ const Thread: FC = () => (
         <ThreadPrimitive.Messages components={{ UserMessage, AssistantMessage }} />
         <ThreadPrimitive.ViewportFooter className="clone-footer">
           <ThreadPrimitive.ScrollToBottom asChild><IconButton label="Vai in fondo" className="clone-scroll"><ArrowDown size={20} /></IconButton></ThreadPrimitive.ScrollToBottom>
-          <Composer placeholder="Chiedi qualsiasi cosa" />
-          <p>VINZ.MON può commettere errori. Verifica le informazioni importanti.</p>
+          <Composer placeholder="Ask anything" />
+          <p>ChatGPT can make mistakes. Check important info.</p>
         </ThreadPrimitive.ViewportFooter>
       </ThreadPrimitive.Viewport>
     </AuiIf>
@@ -154,20 +153,19 @@ const Thread: FC = () => (
 
 const ChatGPTClone: FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [collapsed, setCollapsed] = useState(false);
-  const [model, setModel] = useState('gpt-5.6-sol');
-  return <div className="clone-shell">
-    <Sidebar open={sidebarOpen} collapsed={collapsed} onClose={() => setSidebarOpen(false)} onToggle={() => setCollapsed((value) => !value)} />
-    <main className="clone-main">
-      <header className="clone-header">
-        <IconButton label="Apri cronologia" className="clone-menu" onClick={() => setSidebarOpen(true)}><Menu size={20} /></IconButton>
-        <select value={model} onChange={(event) => setModel(event.target.value)} aria-label="Modello AI">
-          <option value="gpt-5.6-sol">5.6 Sol</option><option value="gpt-5.6-terra">5.6 Terra</option><option value="claude-sonnet">Claude Sonnet</option><option value="gemini-pro">Gemini Pro</option>
-        </select>
-        <ThreadListPrimitive.New asChild><IconButton label="Nuova chat"><Pencil size={20} /></IconButton></ThreadListPrimitive.New>
-      </header>
-      <Thread />
-    </main>
+  const [collapsed, setCollapsed] = useState(true);
+  return <div className="clone-demo">
+    <header className="clone-demo-bar">
+      <div className="clone-demo-brand"><span className="clone-logo">▱</span><strong>assistant-ui</strong><i /><span>ChatGPT</span><ChevronDown size={13} /></div>
+      <div className="clone-demo-links"><span>Docs</span><span className="clone-github">●</span><Moon size={17} /></div>
+    </header>
+    <div className="clone-shell">
+      <Sidebar open={sidebarOpen} collapsed={collapsed} onClose={() => setSidebarOpen(false)} onToggle={() => setCollapsed((value) => !value)} />
+      <main className="clone-main">
+        <IconButton label="Open chat history" className="clone-menu" onClick={() => setSidebarOpen(true)}><Menu size={20} /></IconButton>
+        <Thread />
+      </main>
+    </div>
   </div>;
 };
 

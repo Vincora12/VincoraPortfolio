@@ -4,7 +4,14 @@ html, body, #root { width: 100%; height: 100%; margin: 0; }
 body { overflow: hidden; background: #000; }
 button, textarea, select { font: inherit; }
 button { color: inherit; cursor: pointer; }
-.clone-shell { display: flex; width: 100%; height: 100%; overflow: hidden; background: #000; }
+.clone-demo { width: 100%; height: 100%; display: flex; flex-direction: column; background: #000; }
+.clone-demo-bar { height: 48px; flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; border-bottom: 1px solid #202020; background: #0d0d0d; color: #b4b4b4; font-size: 14px; }
+.clone-demo-brand, .clone-demo-links { display: flex; align-items: center; gap: 10px; }
+.clone-demo-brand strong { color: #ececec; font-weight: 600; }
+.clone-demo-brand i { width: 1px; height: 20px; background: #343434; }
+.clone-demo-links { gap: 16px; }
+.clone-logo { color: #fff; font-size: 23px; line-height: 1; transform: rotate(90deg); }
+.clone-shell { min-height: 0; flex: 1; display: flex; width: 100%; overflow: hidden; background: #000; }
 .clone-sidebar { width: 260px; flex: 0 0 auto; display: flex; flex-direction: column; overflow: hidden; background: #171717; transition: width .2s ease, transform .2s ease; }
 .clone-sidebar.is-collapsed { width: 52px; }
 .clone-sidebar-head { height: 54px; flex: 0 0 auto; display: flex; align-items: center; gap: 8px; padding: 8px; }
@@ -18,18 +25,12 @@ button { color: inherit; cursor: pointer; }
 .clone-sidebar.is-collapsed .clone-thread-list { padding-inline: 8px; overflow: hidden; }
 .clone-sidebar.is-collapsed .clone-new-thread { width: 36px; padding: 0 9px; }
 .clone-sidebar.is-collapsed .clone-new-thread span, .clone-sidebar.is-collapsed .clone-thread-item { display: none; }
-.clone-history-label { margin: 22px 9px 8px; color: #b4b4b4; font-size: 12px; font-weight: 600; }
 .clone-thread-item { display: flex; align-items: center; min-width: 0; height: 40px; border-radius: 9px; }
 .clone-thread-trigger { min-width: 0; height: 100%; flex: 1; overflow: hidden; padding: 0 9px; border: 0; background: transparent; color: #ececec; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
 .clone-thread-delete { width: 34px; height: 34px; display: grid; place-items: center; border: 0; background: transparent; opacity: 0; }
 .clone-thread-item:hover .clone-thread-delete { opacity: .75; }
 .clone-main { min-width: 0; flex: 1; display: flex; flex-direction: column; background: #000; }
-.clone-header { position: absolute; z-index: 10; top: 0; right: 0; left: 260px; height: 56px; display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; pointer-events: none; transition: left .2s ease; }
-.clone-sidebar.is-collapsed + .clone-main .clone-header { left: 52px; }
-.clone-header > * { pointer-events: auto; }
-.clone-header select { padding: 8px 28px 8px 11px; border: 0; border-radius: 9px; outline: 0; background: transparent; color: #ececec; font-weight: 600; }
-.clone-header select:hover { background: #212121; }
-.clone-menu { visibility: hidden; }
+.clone-menu { position: absolute; z-index: 10; top: 58px; left: 9px; visibility: hidden; }
 .clone-thread { min-height: 0; flex: 1; display: flex; flex-direction: column; background: #000; }
 .clone-empty { flex: 1; display: flex; align-items: center; justify-content: center; padding: 0 18px 16vh; }
 .clone-empty-inner { width: min(100%, 768px); display: flex; flex-direction: column; gap: 24px; }
@@ -69,6 +70,9 @@ button { color: inherit; cursor: pointer; }
 .clone-attachment-remove { position: absolute; top: 3px; right: 3px; width: 24px; height: 24px; display: grid; place-items: center; border: 0; border-radius: 50%; background: #1a1a1a; }
 .clone-backdrop { display: none; }
 @media (max-width: 720px) {
+  .clone-demo-bar { padding: 0 16px; }
+  .clone-demo-brand strong { display: none; }
+  .clone-demo-links span { display: inline; }
   .clone-sidebar, .clone-sidebar.is-collapsed { position: fixed; z-index: 30; inset: 0 auto 0 0; width: min(86vw, 320px); transform: translateX(-102%); }
   .clone-sidebar.is-mobile-open { transform: translateX(0); }
   .clone-sidebar.is-collapsed .clone-thread-list { padding: 3px 10px 14px; overflow-y: auto; }
@@ -77,8 +81,7 @@ button { color: inherit; cursor: pointer; }
   .clone-mobile-close { display: inline-grid; margin-left: auto; }
   .clone-sidebar-head strong { display: block; }
   .clone-backdrop { position: fixed; z-index: 29; inset: 0; display: block; border: 0; background: rgba(0,0,0,.62); }
-  .clone-header, .clone-sidebar.is-collapsed + .clone-main .clone-header { left: 0; height: calc(54px + env(safe-area-inset-top)); padding-top: max(8px, env(safe-area-inset-top)); }
-  .clone-menu { visibility: visible; }
+  .clone-menu { top: calc(58px + env(safe-area-inset-top)); visibility: visible; }
   .clone-empty { padding-inline: 14px; }
   .clone-empty-inner { gap: 22px; }
   .clone-viewport { padding: calc(70px + env(safe-area-inset-top)) 14px 0; }
