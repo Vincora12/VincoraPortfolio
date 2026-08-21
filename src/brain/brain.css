@@ -106,7 +106,7 @@ button, textarea { font: inherit; }
 .aui-chat-menu-button { width: 38px; height: 34px; margin: 0 0 6px var(--u3); padding: 0; border: 0; background: transparent; color: #ddd; font-size: 20px; }
 .aui-model-picker { position: relative; flex: 0 0 auto; }
 .aui-model-chip { margin: 0 var(--u3) 6px 0; padding: 7px 9px; border: 0; border-radius: 14px; background: #171717; color: #ddd; font-size: 10px; font-weight: 650; }
-.aui-cost-summary { display: flex; gap: 10px; padding: 0 var(--u3) 6px 0; color: #777; font: 600 8px/1 var(--font-mono); letter-spacing: .04em; }
+.aui-cost-summary { position: absolute; left: 50%; bottom: 9px; translate: -50% 0; display: flex; gap: 10px; color: #777; font: 600 8px/1 var(--font-mono); letter-spacing: .04em; white-space: nowrap; }
 .aui-model-menu { position: absolute; top: calc(100% + 5px); right: var(--u3); width: min(260px, calc(100vw - 24px)); padding: 7px; border: 1px solid #303030; border-radius: 18px; background: rgba(24,24,24,.98); box-shadow: 0 14px 38px rgba(0,0,0,.55); }
 .aui-model-option { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 12px; border: 0; border-radius: 12px; background: transparent; color: #f4f4f4; text-align: left; }
 .aui-model-option span { font-size: 13px; font-weight: 650; }
@@ -192,7 +192,6 @@ button, textarea { font: inherit; }
 .aui-composer__row:has(.aui-composer__cancel:not(:disabled)) .aui-composer__send { display: none; }
 .aui-attachment { display: inline-flex; align-items: center; gap: var(--u2); max-width: 100%; margin: var(--u1) var(--u2) var(--u2) 0; padding: var(--u2) var(--u3); border: 1px solid var(--aui-border); border-radius: 12px; background: var(--aui-soft); font-family: var(--font-ui); font-size: 12px; }
 .aui-attachment__remove { border: 0; background: transparent; color: inherit; font-size: 18px; line-height: 1; }
-.aui-scroll { display: block; width: 34px; height: 34px; margin: 0 auto var(--u2); border: 1px solid var(--aui-border); border-radius: 50%; background: #171717; color: var(--aui-muted); box-shadow: none; }
 .aui-sidebar { position: absolute; z-index: 30; inset: 0; overflow-y: auto; padding: max(var(--u5), env(safe-area-inset-top)) var(--u5); background: #fff; }
 .aui-sidebar__head { display: flex; align-items: center; justify-content: space-between; padding-bottom: var(--u4); border-bottom: 1px solid var(--aui-border); font-family: var(--font-ui); }
 .aui-sidebar__head button { border: 0; background: transparent; font-family: inherit; font-weight: 700; }

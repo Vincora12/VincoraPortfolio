@@ -553,6 +553,7 @@ function ChatSurface({ embedded, voiceModel, onModelChange }: { embedded: boolea
     <main className={`brain aui-chat ${embedded ? 'brain--embedded' : ''}`}>
       <nav className="aui-chat-tools" aria-label="Impostazioni chat">
         <button type="button" className="aui-chat-menu-button" aria-label="Apri elenco chat" onClick={() => setDrawerOpen(true)}>☰</button>
+        <CostSummary />
         <div className="aui-chat-tools__spacer" />
         {onModelChange && (
           <div className="aui-model-picker">
@@ -577,7 +578,6 @@ function ChatSurface({ embedded, voiceModel, onModelChange }: { embedded: boolea
             )}
           </div>
         )}
-        <CostSummary />
       </nav>
       <ThreadPrimitive.Root className="aui-thread">
         <ThreadPrimitive.Viewport className="aui-thread__viewport">
@@ -586,7 +586,6 @@ function ChatSurface({ embedded, voiceModel, onModelChange }: { embedded: boolea
           </ThreadPrimitive.Empty>
           <ThreadPrimitive.Messages components={{ UserMessage, AssistantMessage }} />
           <ThreadPrimitive.ViewportFooter className="aui-thread__footer">
-            <ThreadPrimitive.ScrollToBottom className="aui-scroll" aria-label="Vai in fondo">↓</ThreadPrimitive.ScrollToBottom>
             <Composer />
           </ThreadPrimitive.ViewportFooter>
         </ThreadPrimitive.Viewport>
