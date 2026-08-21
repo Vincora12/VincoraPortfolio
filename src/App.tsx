@@ -709,6 +709,7 @@ function TabBar({ tab, onChange }: { tab: Tab; onChange: (t: Tab) => void }) {
           key={item.id}
           type="button"
           className="tabbar__item"
+          aria-label={item.label}
           aria-current={tab === item.id ? 'page' : undefined}
           onClick={() => {
             haptic('tick');
@@ -716,7 +717,7 @@ function TabBar({ tab, onChange }: { tab: Tab; onChange: (t: Tab) => void }) {
           }}
         >
           <Icon name={item.icon} size={15} strokeWidth={2} />
-          {item.label}
+          <span className="sr-only">{item.label}</span>
         </button>
       ))}
     </nav>
