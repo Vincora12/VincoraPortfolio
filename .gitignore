@@ -8,3 +8,6 @@ screenshots/
 # Bundle temporaneo di scripts/backend-check.mjs (dev'essere dentro il
 # progetto perche' Node risolva @netlify/blobs, quindi non puo' stare in /tmp).
 node_modules/.vinz-backend-check.mjs
+
+# Local Netlify folder
+.netlify
