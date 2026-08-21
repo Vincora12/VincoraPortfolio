@@ -104,7 +104,8 @@ button, textarea { font: inherit; }
 .aui-topics { position: relative; z-index: 20; display: flex; align-items: flex-end; overflow: visible; border-bottom: 1px solid var(--aui-border); background: #000; }
 .aui-topics__list { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; overflow-x: auto; padding: max(6px, env(safe-area-inset-top)) var(--u3) 6px; scrollbar-width: none; }
 .aui-topics__list::-webkit-scrollbar { display: none; }
-.aui-topic { position: relative; flex: 0 0 auto; display: flex; align-items: center; max-width: 220px; border-radius: 15px; background: var(--topic-color, var(--aui-soft)); color: #f5f5f5; touch-action: pan-x; }
+.aui-topic { position: relative; flex: 0 0 auto; display: flex; align-items: center; max-width: 220px; border-radius: 15px; background: var(--topic-color, var(--aui-soft)); color: #f5f5f5; touch-action: pan-x; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.aui-topic *, .aui-topic-menu, .aui-topic-menu * { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
 .aui-topic.is-group-hidden { display: none; }
 .aui-topic__group { align-self: stretch; padding: 0 9px; border: 0; border-right: 1px solid rgba(255,255,255,.12); border-radius: 15px 0 0 15px; background: rgba(255,255,255,.09); color: #fff; font-size: 9px; font-weight: 700; white-space: nowrap; }
 .aui-topic.is-group-collapsed .aui-topic__trigger, .aui-topic.is-group-collapsed .aui-topic__close { display: none; }

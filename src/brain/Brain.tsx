@@ -179,6 +179,7 @@ function TopicTab() {
       style={{ '--topic-color': color, order } as React.CSSProperties}
       data-topic-id={id}
       data-topic-group={groupId ?? undefined}
+      onContextMenu={(event) => event.preventDefault()}
       onPointerDown={(event) => {
         if (controller?.movingId) return;
         heldRef.current = false;
