@@ -3629,7 +3629,7 @@
 .me-health__goal > i { display: grid; flex: 0 0 48px; height: 48px; place-items: center; border-radius: 5px; background: #f1f5fb; color: var(--mh-accent); }
 .me-health__goal > i svg { width: 28px; height: 28px; }
 .me-health__goal span { color: var(--mh-muted); font: 600 8px/1 var(--font-mono); letter-spacing: .16em; }
-.me-health__goal strong { flex: 1; color: #111318; font-size: 14px; line-height: 1.25; text-align: left; }
+.me-health__goal strong { flex: 1; color: #111318; font-family: var(--font-display); font-size: 15px; font-weight: 750; line-height: 1.2; text-align: left; }
 .me-health__nutrition { display: block; min-height: 0; border-bottom: 1px solid var(--mh-line); }
 .me-health__calories { min-height: 118px; display: flex; flex-direction: row; justify-content: space-between; align-items: center; padding: 14px 16px; border-right: 0; border-bottom: 1px solid var(--mh-line); }
 .me-health__calories > div:first-child { flex: 1; min-width: 0; }
@@ -3639,25 +3639,25 @@
 .me-health__ring svg { position: absolute; inset: 0; width: 100%; height: 100%; rotate: -90deg; }
 .me-health__ring circle { fill: none; stroke: #e9edf3; stroke-width: 5; }
 .me-health__ring circle:last-child { stroke: var(--mh-accent); stroke-linecap: butt; transition: stroke-dashoffset 300ms ease-out; }
-.me-health__ring strong { display: block; font: 700 15px/1 var(--font-mono); }
+.me-health__ring strong { display: block; font-family: var(--font-display); font-size: 17px; font-weight: 800; line-height: 1; }
 .me-health__ring small { display: block; margin-top: 5px; font: 500 6px/1 var(--font-mono); letter-spacing: .08em; }
 .me-health__macros { min-height: 76px; padding: 10px 14px; gap: 10px; }
 .me-health__macros div { gap: 6px; padding-left: 10px; border-left: 1px solid var(--mh-line); }
 .me-health__macros div:first-child { padding-left: 0; border-left: 0; }
 .me-health__macros span { color: var(--mh-accent); font: 600 8px/1 var(--font-mono); letter-spacing: .1em; }
-.me-health__macros strong { color: #111318; font: 700 14px/1 var(--font-mono); }
+.me-health__macros strong { color: #111318; font-family: var(--font-display); font-size: 15px; font-weight: 750; line-height: 1; }
 .me-health__macros strong small { color: var(--mh-muted); font-size: 9px; font-weight: 500; }
 .me-health__segments { display: flex; width: 100%; height: 8px; gap: 2px; margin-top: 10px; background: transparent; }
 .me-health__segments b { flex: 1; height: 100%; border: 1px solid #aeb4bf; background: #fff; }
 .me-health__segments b.is-filled { border-color: var(--mh-accent); background: var(--mh-accent); }
 .me-health__section > header { min-height: 42px; padding: 0 12px; }
 .me-health__section h2, .me-health__game h2 { color: #252830; font: 600 9px/1 var(--font-mono); letter-spacing: .12em; }
-.me-health__section > header button, .me-health__weight button { color: var(--mh-accent); font: 600 8px/1 var(--font-mono); }
+.me-health__section > header button, .me-health__weight button { color: var(--mh-accent); font-family: var(--font-ui); font-size: 10px; font-weight: 700; line-height: 1; }
 .me-health__section > header button { display: inline-flex; align-items: center; gap: 4px; }
 .me-health__section > header button svg { width: 12px; height: 12px; }
 .me-health__row { min-height: 52px; margin: 0 10px; padding: 7px 0; border-color: #e6e8ec; }
-.me-health__row strong { font: 600 10px/1 var(--font-mono); letter-spacing: .05em; }
-.me-health__row p { margin: 4px 0 2px; color: #656a73; font-size: 10px; }
+.me-health__row strong { font-family: var(--font-display); font-size: 12px; font-weight: 700; line-height: 1.1; }
+.me-health__row p { margin: 4px 0 2px; color: #656a73; font-family: var(--font-ui); font-size: 10px; line-height: 1.35; }
 .me-health__row small, .me-health__row time { color: #818691; font-size: 7px; }
 .me-health__row small { color: var(--mh-accent); }
 .me-health__row > button { color: #8c929d; }
@@ -3672,8 +3672,8 @@
 .me-health__game strong { margin: 0; color: #50555f; font: 600 8px/1 var(--font-mono); text-align: right; }
 .me-health__game .me-health__segments { height: 7px; margin: 0; }
 .me-health__plan { padding: 8px 14px 22px; }
-.me-health__plan h2 { color: #111318; font-size: 18px; }
-.me-health__plan p { color: #565b64; font-size: 11px; }
+.me-health__plan h2 { color: #111318; font-family: var(--font-display); font-size: 20px; font-weight: 800; }
+.me-health__plan p { color: #565b64; font-family: var(--font-ui); font-size: 11px; line-height: 1.55; }
 .proto-frame:has(.me-health) .tabbar { border-top: 1px solid var(--mh-line); background: #fff; }
 .proto-frame:has(.me-health) .tabbar__item { color: #111318; }
 .proto-frame:has(.me-health) .tabbar__item[aria-current='page']::before { background: #f0a600; }
