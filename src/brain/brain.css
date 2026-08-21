@@ -114,7 +114,7 @@ button, textarea { font: inherit; }
 .aui-error { margin-top: var(--u3); padding: 12px 14px; border: 1px solid #f1b5b5; border-radius: 10px; background: #fff7f7; color: #a00000; }
 .aui-composer { width: min(100%, 720px); margin: 0 auto; padding: 6px; border: 1px solid #d7d7d7; border-radius: 26px; background: #fff; box-shadow: 0 5px 18px rgb(0 0 0 / 7%); }
 .aui-composer__row { display: flex; align-items: flex-end; gap: var(--u2); }
-.aui-composer__input { flex: 1; min-width: 0; min-height: 44px; max-height: 180px; resize: none; padding: 11px var(--u2); border: 0; outline: 0; background: transparent; color: var(--ink); line-height: 1.45; }
+.aui-composer__input { flex: 1; min-width: 0; min-height: 44px; max-height: 180px; resize: none; padding: 11px var(--u2); border: 0; outline: 0; background: transparent; color: var(--ink); font-size: 16px; line-height: 1.45; }
 .aui-composer__attach, .aui-composer__send, .aui-composer__cancel { flex: 0 0 auto; min-width: 42px; height: 42px; border: 0; border-radius: 50%; font-family: var(--font-ui); font-size: 0; font-weight: 700; }
 .aui-composer__attach { background: transparent; color: #202123; font-size: 22px; }
 .aui-composer__send, .aui-composer__cancel { padding: 0; background: #202123; color: #fff; }
