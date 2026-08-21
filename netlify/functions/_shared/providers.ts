@@ -252,13 +252,7 @@ export type StreamResult =
       completed: Promise<{ model: string; usage: Usage }>;
     };
 
-/**
- * Stream minimale per BRAIN LAB.
- *
- * 🔒 Non sostituisce l'adattatore normale e non porta strumenti: traduce gli
- * eventi Anthropic in solo testo. Il browser non vede né chiavi né protocollo
- * del fornitore, e la spesa viene restituita alla porta quando lo stream chiude.
- */
+/** Stream testuale della Chat V1, con contesto neutrale e ricerca web. */
 export async function streamAnthropic(
   req: ProviderRequest,
   signal?: AbortSignal,
@@ -284,7 +278,14 @@ export async function streamAnthropic(
         fallbacks: 'default',
         output_config: { effort: req.effort ?? 'low' },
         thinking: { type: 'disabled' },
-        system: [],
+        ...(req.webSearch
+          ? { tools: [{ type: 'web_search_20260209', name: 'web_search' }] }
+          : {}),
+        system: req.system.map((block) => ({
+          type: 'text',
+          text: block.text,
+          ...(block.cache ? { cache_control: { type: 'ephemeral' } } : {}),
+        })),
         messages: [...req.turns, { role: 'user', content: req.user }],
       }),
     });
@@ -321,11 +322,17 @@ export async function streamAnthropic(
               type?: string;
               message?: { model?: string; usage?: Record<string, number> };
               delta?: { type?: string; text?: string };
-              usage?: Record<string, number>;
+              usage?: Record<string, number> & {
+                server_tool_use?: { web_search_requests?: number };
+              };
             };
             if (parsed.message?.model) model = parsed.message.model;
             if (parsed.message?.usage) usage.inputTokens = parsed.message.usage.input_tokens ?? 0;
-            if (parsed.usage) usage.outputTokens = parsed.usage.output_tokens ?? usage.outputTokens ?? 0;
+            if (parsed.usage) {
+              usage.outputTokens = parsed.usage.output_tokens ?? usage.outputTokens ?? 0;
+              usage.webSearches =
+                parsed.usage.server_tool_use?.web_search_requests ?? usage.webSearches ?? 0;
+            }
             if (parsed.type === 'content_block_delta' && parsed.delta?.type === 'text_delta' && parsed.delta.text) {
               controller.enqueue(encoder.encode(parsed.delta.text));
             }
