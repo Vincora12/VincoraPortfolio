@@ -14,6 +14,7 @@ import {
   useAuiState,
 } from "@assistant-ui/react";
 import { useEffect, useRef, useState, type FC } from "react";
+import { useMessageError } from "@assistant-ui/core/react";
 import { TooltipIconButton } from "@/assistant-original/components/assistant-ui/tooltip-icon-button";
 import { useShallow } from "zustand/shallow";
 import WaveSurfer from "wavesurfer.js";
@@ -47,6 +48,7 @@ import { CloneThreadShell } from "./clone-thread-shell";
 export const ChatGPT: FC = () => {
   return (
     <CloneThreadShell>
+      <ChatCostTotal />
       <ThreadPrimitive.Root className="flex h-full flex-col items-stretch bg-white px-4 text-[#0d0d0d] dark:bg-black dark:text-[#ececec]">
         <AuiIf condition={(s) => s.thread.isEmpty}>
           <EmptyState />
@@ -474,7 +476,7 @@ const EditComposer: FC = () => {
 };
 
 const assistantActionClassName =
-  "flex size-8 items-center justify-center rounded-lg text-[#5d5d5d] transition-colors hover:bg-black/[0.07] hover:text-[#5d5d5d] dark:text-[#cdcdcd] dark:hover:bg-white/15 dark:hover:text-[#cdcdcd]";
+  "flex size-9 items-center justify-center rounded-none border-0 bg-transparent p-2 text-[#5d5d5d] transition-[color,opacity,transform] hover:bg-transparent hover:text-[#0d0d0d] active:scale-90 active:opacity-55 data-[copied]:text-[#0d0d0d] data-[submitted]:text-[#0d0d0d] dark:text-[#b4b4b4] dark:hover:bg-transparent dark:hover:text-[#ececec] dark:data-[copied]:text-[#ececec] dark:data-[submitted]:text-[#ececec]";
 
 const AssistantMessage: FC = () => {
   return (
@@ -486,6 +488,9 @@ const AssistantMessage: FC = () => {
             return null;
           }}
         </MessagePrimitive.Parts>
+        <MessagePrimitive.Error>
+          <AssistantError />
+        </MessagePrimitive.Error>
       </div>
 
       <div className="flex items-center pt-1">
@@ -578,6 +583,8 @@ const AssistantMessage: FC = () => {
         <BranchPicker className="ml-1" />
       </div>
 
+      <MessageCost />
+
       <div className="vinz-assistant-meta mt-1 flex flex-wrap items-center gap-1 text-xs text-[#8e8e8e]">
         <MessagePrimitive.Parts>
           {({ part }) => {
@@ -589,6 +596,52 @@ const AssistantMessage: FC = () => {
         </MessagePrimitive.Parts>
       </div>
     </MessagePrimitive.Root>
+  );
+};
+
+function formatCost(value: number): string {
+  if (value === 0) return "$0.0000";
+  if (value < 0.0001) return "<$0.0001";
+  if (value < 0.01) return `$${value.toFixed(4)}`;
+  return `$${value.toFixed(2)}`;
+}
+
+const MessageCost: FC = () => {
+  const value = useAuiState((s) => s.message.metadata.custom.costUsd);
+  const cost = typeof value === "number" ? formatCost(value) : "—";
+  return (
+    <small className="mt-0.5 text-[11px] leading-4 text-[#737373] tabular-nums dark:text-[#8e8e8e]">
+      Costo risposta {cost}
+    </small>
+  );
+};
+
+const ChatCostTotal: FC = () => {
+  const total = useAuiState((s) =>
+    s.thread.messages.reduce((sum, message) => {
+      const value = message.metadata.custom.costUsd;
+      return sum + (typeof value === "number" ? value : 0);
+    }, 0),
+  );
+  return (
+    <div className="pointer-events-none absolute top-3 left-12 z-30 text-[11px] leading-4 font-medium text-[#737373] tabular-nums md:left-1/2 md:-translate-x-1/2 dark:text-[#8e8e8e]">
+      Chat {formatCost(total)}
+    </div>
+  );
+};
+
+const AssistantError: FC = () => {
+  const error = useMessageError();
+  const message =
+    typeof error === "string"
+      ? error
+      : error instanceof Error
+        ? error.message
+        : "La risposta si è interrotta. Riprova.";
+  return (
+    <p role="alert" className="mt-2 text-sm leading-5 text-[#d14f4f] dark:text-[#ff8585]">
+      {message}
+    </p>
   );
 };
 

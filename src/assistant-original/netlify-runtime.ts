@@ -6,12 +6,25 @@ import type {
 import { savedToken } from "@/brain/stream";
 
 type Source = { title: string; url: string; domain?: string };
+type Usage = {
+  inputTokens?: number;
+  outputTokens?: number;
+  cacheReadTokens?: number;
+  cacheWriteTokens?: number;
+  webSearches?: number;
+};
 type StreamEvent =
   | { type: "search_started" }
   | { type: "source_found"; source: Source }
   | { type: "answer_started" }
   | { type: "answer_delta"; delta: string }
-  | { type: "answer_completed"; sources: Source[] }
+  | {
+      type: "answer_completed";
+      model: string;
+      usage: Usage;
+      costUsd: number;
+      sources: Source[];
+    }
   | { type: "error"; message: string };
 
 function textOf(message: ThreadMessage | undefined): string {
@@ -94,10 +107,20 @@ export const netlifyChatModel: ChatModelAdapter = {
     }
 
     if (!useStream) {
-      const body = (await response.json()) as { text?: string; sources?: Source[] };
+      const body = (await response.json()) as {
+        text?: string;
+        sources?: Source[];
+        costUsd?: number;
+        model?: string;
+      };
       const parts = (body.sources ?? []).map(sourcePart);
       if (!body.text) throw new Error("La risposta è arrivata vuota.");
-      yield { content: withText(parts, body.text) };
+      yield {
+        content: withText(parts, body.text),
+        metadata: {
+          custom: { costUsd: body.costUsd ?? 0, model: body.model ?? modelName },
+        },
+      };
       return;
     }
 
@@ -107,6 +130,8 @@ export const netlifyChatModel: ChatModelAdapter = {
     let buffer = "";
     let answer = "";
     let searching = false;
+    let costUsd = 0;
+    let answeredBy = modelName;
     const sources = new Map<string, Source>();
 
     const snapshot = () => {
@@ -130,6 +155,8 @@ export const netlifyChatModel: ChatModelAdapter = {
         if (event.type === "answer_delta") answer += event.delta;
         if (event.type === "answer_completed") {
           searching = false;
+          costUsd = event.costUsd;
+          answeredBy = event.model;
           for (const source of event.sources) sources.set(source.url, source);
         }
         if (event.type === "error") throw new Error(event.message);
@@ -141,6 +168,9 @@ export const netlifyChatModel: ChatModelAdapter = {
     const completeParts: ThreadAssistantMessagePart[] = [];
     if (sources.size > 0) completeParts.push(searchPart(true));
     completeParts.push(...[...sources.values()].map(sourcePart));
-    yield { content: withText(completeParts, answer) };
+    yield {
+      content: withText(completeParts, answer),
+      metadata: { custom: { costUsd, model: answeredBy } },
+    };
   },
 };

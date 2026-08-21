@@ -92,5 +92,9 @@ export const mockChatModel: ChatModelAdapter = {
         content: [...parts, { type: "text", text: streamed }],
       };
     }
+    yield {
+      content: [...parts, { type: "text", text: streamed }],
+      metadata: { custom: { costUsd: 0, model } },
+    };
   },
 };

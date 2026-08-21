@@ -105,13 +105,13 @@ body[data-scroll-locked] {
 }
 
 .vinz-chat-top-fade {
-  height: 7rem;
+  height: 4rem;
   background: linear-gradient(
     to bottom,
     #000 0,
-    #000 38%,
-    rgb(0 0 0 / 92%) 55%,
-    rgb(0 0 0 / 58%) 73%,
+    #000 56%,
+    rgb(0 0 0 / 88%) 67%,
+    rgb(0 0 0 / 32%) 84%,
     transparent 100%
   );
 }

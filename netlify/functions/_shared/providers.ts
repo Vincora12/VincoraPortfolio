@@ -19,7 +19,7 @@
    ========================================================================= */
 
 import type { Provider } from './routing';
-import type { Usage } from './spend';
+import { costOf, type Usage } from './spend';
 
 /* --- La forma comune -------------------------------------------------------- */
 
@@ -335,7 +335,7 @@ export type AiStreamEvent =
   | { type: 'source_found'; source: Source }
   | { type: 'answer_started' }
   | { type: 'answer_delta'; delta: string }
-  | { type: 'answer_completed'; model: string; usage: Usage; sources: Source[] }
+  | { type: 'answer_completed'; model: string; usage: Usage; costUsd: number; sources: Source[] }
   | { type: 'error'; message: string };
 
 /** Stream testuale della Chat V1, con contesto neutrale e ricerca web. */
@@ -429,7 +429,11 @@ export async function streamAnthropic(
               };
             };
             if (parsed.message?.model) model = parsed.message.model;
-            if (parsed.message?.usage) usage.inputTokens = parsed.message.usage.input_tokens ?? 0;
+            if (parsed.message?.usage) {
+              usage.inputTokens = parsed.message.usage.input_tokens ?? 0;
+              usage.cacheReadTokens = parsed.message.usage.cache_read_input_tokens ?? 0;
+              usage.cacheWriteTokens = parsed.message.usage.cache_creation_input_tokens ?? 0;
+            }
             if (parsed.usage) {
               usage.outputTokens = parsed.usage.output_tokens ?? usage.outputTokens ?? 0;
               usage.webSearches =
@@ -467,7 +471,13 @@ export async function streamAnthropic(
           }
           if (done) break;
         }
-        controller.enqueue(encode({ type: 'answer_completed', model, usage, sources: foundSources }));
+        controller.enqueue(encode({
+          type: 'answer_completed',
+          model,
+          usage,
+          costUsd: costOf(model, usage),
+          sources: foundSources,
+        }));
         finish({ model, usage });
         controller.close();
       } catch (error) {

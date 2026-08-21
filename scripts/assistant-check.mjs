@@ -43,6 +43,10 @@ const cloneSource = readFileSync(
 );
 const cloneStyles = readFileSync(join(cwd, 'src/assistant-original/styles.css'), 'utf8');
 const cloneMain = readFileSync(join(cwd, 'src/assistant-original/main.tsx'), 'utf8');
+const netlifyRuntime = readFileSync(
+  join(cwd, 'src/assistant-original/netlify-runtime.ts'),
+  'utf8',
+);
 check(cloneSource.includes('RecordPlugin.create'), 'la dettatura usa il registratore audio VINZ.MON');
 check(cloneSource.includes('scrollingWaveform: true'), 'l’onda scorre con l’audio reale');
 check(cloneSource.includes('TRASCRIZIONE IN CORSO'), 'lo stato di trascrizione resta visibile');
@@ -50,6 +54,14 @@ check(cloneSource.includes('fetch("/api/transcribe"'), 'l’audio passa dal back
 check(cloneSource.includes('setPendingTranscript'), 'la trascrizione torna nel composer');
 check(cloneStyles.includes('.vinz-record__wave.is-loading'), 'avvio e trascrizione hanno un loader dedicato');
 check(!cloneMain.includes('WebSpeechDictationAdapter'), 'la vecchia dettatura browser non è più collegata');
+check(cloneSource.includes('ChatCostTotal'), 'il totale della chat resta visibile in alto');
+check(cloneSource.includes('MessageCost'), 'ogni risposta mostra il proprio costo');
+check(cloneSource.includes('MessagePrimitive.Error'), 'gli errori del backend sono visibili nella chat');
+check(cloneSource.includes('data-[submitted]'), 'le icone mantengono il feedback dopo il click');
+check(
+  netlifyRuntime.includes('metadata: { custom: { costUsd'),
+  'il costo del backend viene salvato nel messaggio',
+);
 check(
   cloneMain.includes('selectedRuntime === "mock" ? mockChatModel : netlifyChatModel'),
   'il backend reale è il runtime predefinito',
@@ -142,6 +154,11 @@ try {
       'emette answer_delta senza perdere testo',
     );
     check(types.at(-1) === 'answer_completed', 'chiude con answer_completed');
+    const completed = events.find((event) => event.type === 'answer_completed');
+    check(
+      typeof completed?.costUsd === 'number' && completed.costUsd > 0,
+      'lo stream restituisce il costo reale della risposta',
+    );
   }
 } finally {
   globalThis.fetch = originalFetch;
