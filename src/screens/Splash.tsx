@@ -187,28 +187,23 @@ export function SplashScreen({ onEnter }: { onEnter: () => void }) {
                   un adesivo attaccato e una didascalia. */}
               <Sticker monName={mon!.data.name} alt={displayName(mon!.data.name)} n={1} className="stick--photoL" />
               <Sticker monName={mon!.data.name} alt={displayName(mon!.data.name)} n={2} className="stick--photoR" />
+              <Sticker monName={mon!.data.name} alt={displayName(mon!.data.name)} n={3} className="stick--photoC" />
             </div>
           </>
         )}
       </div>
 
-      {/* 🔷 v1.15 §13.12 — L'INGRESSO È UN PULSANTE, NON UNA SUPERFICIE.
-
-          Un pulsante con scritto cosa fa è più chiaro di una superficie che si
-          tocca e basta, e non litiga con lo scroll. */}
-      {/* ⚠️ L'INVOLUCRO ESISTE PER L'ADESIVO, e non poteva essere il pulsante.
-          Un adesivo dentro il pulsante sarebbe parte del bersaglio: appoggiare
-          il dito lì sopra aprirebbe la chat. Fuori, e con il tocco disattivato
-          (vedi `.sticker`), il pulsante resta grande quanto sembra. */}
-      <div className="splash__door" data-pezzo="parlagli">
-        <button type="button" className="splash__enter" onClick={enter}>
-          <span className="t-display">{incubating ? t.splash.chat : t.splash.talk}</span>
-          <span aria-hidden="true">→</span>
-        </button>
-        {!incubating && mon && (
-          <Sticker monName={mon.data.name} alt={displayName(mon.data.name)} n={3} className="stick--door" />
-        )}
-      </div>
+      {/* Durante l'incubazione questa resta l'unica porta disponibile. Dopo la
+          nascita PARLAGLI esce: la Chat ha già la propria voce nel nav fisso e
+          qui lo spazio appartiene interamente alla creatura e agli sticker. */}
+      {incubating && (
+        <div className="splash__door">
+          <button type="button" className="splash__enter" onClick={enter}>
+            <span className="t-display">{t.splash.chat}</span>
+            <span aria-hidden="true">→</span>
+          </button>
+        </div>
+      )}
 
       {/* ======================================================================
           QUELLO CHE STA SOTTO.

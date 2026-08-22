@@ -2466,17 +2466,35 @@
    foto, il pulsante, la bio, le statistiche — e la sua posizione sta scritta
    accanto a quel pezzo, più giù.
 
-   ⚠️ `pointer-events: none` È LA RIGA CHE PROTEGGE I PULSANTI. Uno degli
-   adesivi sta a cavallo di PARLAGLI: senza questa riga il dito che lo tocca
-   NON aprirebbe la chat, perché colpirebbe l'adesivo. Un pulsante che smette
-   di rispondere su un pezzo di sé è il difetto peggiore di tutti, perché
-   sembra che l'app si sia bloccata.
+   Adesso sono oggetti della pagina: si prendono direttamente e si spostano.
+   `touch-action: none` vale solo sopra la loro sagoma, così il dito trascina
+   lo sticker senza selezionare testo; fuori da lì la pagina scorre normale.
    ========================================================================= */
 .sticker {
   position: absolute;
   z-index: 2;
-  transform: rotate(var(--tilt, 0deg));
-  pointer-events: none;
+  transform: translate3d(var(--drag-x, 0), var(--drag-y, 0), 0) rotate(var(--tilt, 0deg));
+  transform-origin: center;
+  pointer-events: auto;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  cursor: grab;
+  transition: filter 140ms ease, scale 140ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.sticker:focus-visible {
+  outline: 2px solid var(--char-primary);
+  outline-offset: 5px;
+}
+
+.sticker--dragging {
+  z-index: 20;
+  scale: 1.08;
+  cursor: grabbing;
+  filter: drop-shadow(0 10px 10px rgba(0, 0, 0, 0.24));
+  transition: none;
 }
 
 /* ============================================================================
@@ -2611,17 +2629,17 @@
   --tilt: -8deg;
 }
 
-.splash__door {
-  position: relative;
-  width: 100%;
-}
-
-.stick--door {
-  top: -34px;
-  right: -14px;
+.stick--photoC {
+  bottom: -30px;
+  right: 18%;
   width: 84px;
   height: 84px;
   --tilt: 13deg;
+}
+
+.splash__door {
+  position: relative;
+  width: 100%;
 }
 
 /* Sull'angolo del disegno del quaderno: sotto c'è una cornice, non un testo. */
@@ -2654,7 +2672,7 @@
    la perde senza perdere niente. Il posto e la misura restano. */
 @media (prefers-reduced-motion: reduce) {
   .sticker {
-    transform: none;
+    transition: none;
   }
 }
 
