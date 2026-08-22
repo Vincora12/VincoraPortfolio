@@ -23,8 +23,6 @@
 import {
   AFFINITIES,
   DESIGN_DNA,
-  HUMANOIDITY,
-  HUMANOIDITY_NOT_REALISM,
   APPEARANCE_RULES,
   FAMILIES,
   FASHIONS,
@@ -702,7 +700,7 @@ function designDnaFragment(d: (typeof DESIGN_DNA)[number]): PromptFragment {
          design intent into measurable visual constraints.» */
       `PROPORTIONS — multipliers against realistic human proportion: ${d.proportions}`,
       `COUNTS — the numbers are binding, the names are not: ${d.counts}`,
-      'If HUMANOIDITY says this body has no arms, legs or head, keep the NUMBERS and map them onto the body plan that HUMANOIDITY dictates. The body plan always wins over the naming; the count always wins over the urge to add one more.',
+      'Map these numeric counts onto the body plan defined by FAMILY and ARCHETYPE. Their anatomy always wins over human naming; the count always wins over the urge to add one more.',
       '',
       `DETAIL DENSITY: ${d.density}/5. This controls how many visual decisions survive, not how much lore exists.`,
       d.density <= 2
@@ -774,20 +772,6 @@ export const HOUSE_COLOR_FRAGMENT: PromptFragment = {
    l'umano con gli accessori addosso, il furry — perché sono esattamente
    quelle che un modello prende quando gli chiedi un ibrido senza confine.
    ========================================================================= */
-
-function humanoidityFragment(h: (typeof HUMANOIDITY)[number]): PromptFragment {
-  return {
-    id: `humanoidity.${h.level}`,
-    axis: 'global',
-    priority: 0,
-    positive_prompt: [
-      `HUMANOIDITY: ${h.level} / 5 — this controls the BODY PLAN and is mandatory.`,
-      h.rule,
-      HUMANOIDITY_NOT_REALISM,
-    ].join('\n'),
-    negative_prompt: h.avoid,
-  };
-}
 
 export const CULTURAL_FRAGMENT: PromptFragment = {
   id: 'cultural.compile',
@@ -1066,7 +1050,6 @@ export const FRAGMENT_LIBRARY: Map<string, PromptFragment> = (() => {
     ...MOODS.map(moodFragment),
     CHARACTER_DNA_FRAGMENT,
     CULTURAL_FRAGMENT,
-    ...HUMANOIDITY.map(humanoidityFragment),
     HOUSE_COLOR_FRAGMENT,
     HERITAGE_FRAGMENT,
     ...DESIGN_DNA.map(designDnaFragment),

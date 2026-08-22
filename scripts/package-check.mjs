@@ -316,8 +316,6 @@ const must = [
   ['§8  e la postura', 'POSTURE / GESTURE:'],
   ['§4  i moltiplicatori di proporzione, per designer', 'PROPORTIONS —'],
   ['§4  e i conteggi', 'COUNTS —'],
-  ['§5  quanto resta umano', 'HUMANOIDITY:'],
-  ['§5  e non si confonde col realismo', 'HUMANOIDITY is not realism'],
   ['§9  le percentuali di colore, non «campi grandi»', 'DISTRIBUTION —'],
   ['     la prova di sagoma', 'SILHOUETTE TEST'],
   ['     e quella di memoria', 'MEMORY TEST'],
@@ -330,6 +328,11 @@ const must = [
 for (const [label, needle] of must) {
   check(testo.includes(needle), label, needle);
 }
+check(
+  !testo.includes('HUMANOIDITY:'),
+  'il vecchio asse Humanoidity non entra più nel prompt',
+  'Family + Archetype decidono il corpo',
+);
 
 /* 🔒 IL SERBATOIO NON DEVE TORNARE NEL PROMPT. Era l'errore segnalato: quindici
    mondi possibili passati a ogni immagine invece dei due-quattro scelti. Un
@@ -480,15 +483,12 @@ check(
   'e la prova gira sul corpo intero, non su un ritratto',
 );
 
-/* 🔒 IL CONFLITTO CHE PRODUCEVA AMMASSI. Le masse del designer sono descritte
-   con nomi umani; a HUMANOIDITY 1/5 quei nomi non esistono. Un prompt che dice
-   «fondamentalmente non umano» e «due braccia, due gambe» senza dire chi vince
-   fa fare al modello tutte e due le cose insieme — che e' letteralmente un
-   corpo deforme. */
+/* Family e Archetype sono l'unica sorgente del piano corporeo. I conteggi del
+   designer si traducono su quel corpo invece di competere con un secondo asse. */
 check(
-  testo.includes('The body plan always wins over the naming'),
-  'quando umanoidita e masse si contraddicono, il prompt dice chi vince',
-  'senza, il modello le esegue entrambe',
+  testo.includes('FAMILY and ARCHETYPE') && testo.includes('body plan'),
+  'Family e Archetype vincono sui nomi umani delle masse',
+  'senza, il modello somma corpi incompatibili',
 );
 
 /* 🔷 «I prompt del gioco creano sempre personaggi deformi.» La misura che sta
@@ -642,8 +642,8 @@ const vendorHashes = vendorFiles.map((f) =>
     .slice(0, 8),
 );
 check(
-  vendorHashes.join(' ') === 'eab16c82 8ab118ab ea6cf273 84219697',
-  'i quattro file del pacchetto sono ancora quelli',
+  vendorHashes.join(' ') === 'eab16c82 4ab52be9 10c87c26 a28f0bc3',
+  'la variante VINZ del pacchetto è quella approvata',
   vendorHashes.join(' '),
 );
 
@@ -664,14 +664,13 @@ check(
   'l’APPEARANCE viene per ultima: e resa, non costruzione',
 );
 
-/* 🔒 Umanoidita bassa: le proporzioni umane si TOLGONO, non si azzerano.
-   Un moltiplicatore neutro direbbe «braccia normali» a chi braccia non ne ha,
-   ed e' cosi' che nasce un corpo deforme. */
+/* Humanoidity non può più alterare neppure la grammatica numerica. */
 const nonUmano = m.numericGrammarFor({ ...rInput, humanoidity: 1 });
+const moltoUmano = m.numericGrammarFor({ ...rInput, humanoidity: 5 });
 check(
-  nonUmano.headScale === undefined && nonUmano.armLength === undefined,
-  'a umanoidita 1 le proporzioni umane spariscono, non vanno a 1.0',
-  `restano: ${Object.keys(nonUmano).join(', ')}`,
+  JSON.stringify(nonUmano) === JSON.stringify(moltoUmano),
+  'Humanoidity non modifica più la grammatica numerica',
+  'Family + Archetype restano la sola sorgente del corpo',
 );
 check(
   nonUmano.silhouetteLandmarkCount !== undefined,
@@ -767,12 +766,10 @@ check(
   `${record.data.size} → «${m.SIZE_GRAMMAR[record.data.size].rule.slice(0, 46)}…»`,
 );
 
-/* Humanoidity con il suo `avoid`: è la riga che impedisce l'umano verniciato. */
-const suoHum = m.HUMANOIDITY.find((h) => h.level === record.data.humanoidity);
 check(
-  suoHum !== undefined && brief.includes(suoHum.avoid),
-  'HUMANOIDITY arriva con il suo AVOID, non solo col numero',
-  `${record.data.humanoidity}/5`,
+  !brief.includes('HUMANOIDITY'),
+  'Humanoidity non arriva più al Resolver',
+  'Family + Archetype decidono il corpo',
 );
 
 /* Decolorazione e taglio: il taglio non arrivava proprio al resolver. */
@@ -957,9 +954,9 @@ if (m.TEST_PHASE.enabled) {
     `${varia((r) => r.data.family_archetype)} archetipi diversi su 30 forme`,
   );
   check(
-    varia((r) => r.data.humanoidity) >= 2 && varia((r) => r.data.fashion) >= 5,
-    'e umanoidità e stile pure',
-    `${varia((r) => r.data.humanoidity)} livelli · ${varia((r) => r.data.fashion)} stili`,
+    varia((r) => r.data.fashion) >= 5,
+    'e lo stile pure',
+    `${varia((r) => r.data.fashion)} stili`,
   );
   /* ⚠️ SOGLIA CONTRO IL SERBATOIO, E NON CONTRO UNA SEQUENZA PARTICOLARE.
 

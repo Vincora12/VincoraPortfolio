@@ -24,7 +24,7 @@ SOURCE-OF-TRUTH PRINCIPLES:
 - No Heritage / previous-mindline logic.
 
 RAW CHARACTER DATA:
-${JSON.stringify(data, null, 2)}
+${JSON.stringify({ ...data, humanoidity: undefined }, null, 2)}
 
 CHARACTER DESIGN DNA:
 ${data.characterDesignDNA}
@@ -49,7 +49,7 @@ Resolve this Form into JSON with EXACTLY these keys:
   "affinityZones": ["1–3 transformed zones only"],
   "roleBehavior": ["2–5 visible behaviors"],
   "roleStructuralMotif": "zero or one dominant role-derived structural motif",
-  "fashionMasses": ["2–6 large masses depending on density/humanoidity"],
+  "fashionMasses": ["2–6 large masses depending on density and anatomy"],
   "hairConstruction": "include mass count and bleach logic",
   "eyewearConstruction": "include geometry and face occupancy when relevant",
   "culturalTranslation": ["translate only ACTIVE references into attitude/movement/shape/color/transform logic"],
@@ -67,6 +67,7 @@ IMPORTANT:
 - If Family/Affinity/Role/Fashion all want separate gimmicks, MERGE or DROP weaker ones.
 - Preserve only 3–4 primary silhouette landmarks.
 - Keep the character socially imaginable.
+- Family and Archetype alone define the body plan. Never make a Form animalistic unless Family, Archetype or BEAST Affinity explicitly requires it.
 - Output JSON only.
 `.trim();
 }

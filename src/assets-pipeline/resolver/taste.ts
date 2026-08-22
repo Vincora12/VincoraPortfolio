@@ -44,7 +44,6 @@ import {
   FASHIONS,
   HAIRCUTS,
   HAIR_STATES,
-  HUMANOIDITY,
   NO_HUMAN_HAIR_RULE,
   SIZE_GRAMMAR,
   TEST_PHASE,
@@ -117,7 +116,6 @@ export function tasteBrief(record: MonRecord, storia: FormeGiaViste[] = []): str
 
   const fashion = FASHIONS.find((f) => f.id === d.fashion);
   const size = SIZE_GRAMMAR[d.size as keyof typeof SIZE_GRAMMAR];
-  const hum = HUMANOIDITY.find((h) => h.level === d.humanoidity);
   const hair = HAIR_STATES.find((h) => h.id === d.hair_state);
   const cut = HAIRCUTS.find((h) => h.id === d.haircut);
   const eyewear = EYEWEAR_CATEGORIES.find((e) => e.id === d.eyewear?.category);
@@ -135,7 +133,7 @@ what he has explicitly rejected. Read it before you decide anything.
   STAGE A — choose a DIRECTION: which styling grammar, which bleach treatment,
             which haircut direction, which eyewear category, which cultural
             references, which proportional strategy.
-  STAGE B — only after Family, Archetype, Humanoidity, Role, personality and
+  STAGE B — only after Family, Archetype, Role, personality and
             silhouette are settled, build the exact solution for THIS body.
 
 "TRANSPARENT/CRYSTAL" is a direction, not a visor. "FULL BLEACH" is a
@@ -167,17 +165,6 @@ horns, appendages, or a Family-specific structure. Choose from what this
 creature already is.`);
   }
 
-  if (hum) {
-    parti.push(`HUMANOIDITY — ${d.humanoidity}/5
-${riga(hum.rule)}
-AVOID: ${riga(hum.avoid)}
-
-⚠️ Low Humanoidity means a non-human BODY PLAN. It does not mean grotesque.
-Weirdness is not deformation: carry ONE dominant strange idea, optionally one
-secondary, and let every other system support them instead of competing.
-Character appeal comes before biological novelty.`);
-  }
-
   const capelli = [
     hair ? `BLEACH TREATMENT — ${hair.id}\n${riga(hair.prompt)}` : '',
     cut ? `HAIRCUT DIRECTION — ${cut.id} (${riga(cut.en)})` : '',
@@ -193,7 +180,7 @@ Do not default a non-human head to a five-spike crest.`,
     parti.push(`EYEWEAR CATEGORY — ${eyewear.id}
 
 ⚠️ The category is a direction, not a construction. Its actual shape must come
-out of this face's anatomy, the Family, the Archetype, the Humanoidity, the
+out of this face's anatomy, the Family, the Archetype, the
 Character Design DNA, the Fashion grammar and the Cultural DNA. Different
 Forms must produce genuinely different eyewear silhouettes — do not resolve
 repeatedly into a visor, a continuous face mask or a single skull plate.`);

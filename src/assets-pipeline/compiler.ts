@@ -143,11 +143,9 @@ function selectFragmentIds(data: CharacterData, assetType: AssetType): string[] 
     ids.push('global.master_reference');
   }
 
-  /* 🔒 SUBITO PRIMA DELLA FAMILY, non dopo. Il livello di umanoidità è
-     l'ancora su cui la Family si appoggia: sapere che è una MACHINE senza
-     sapere quanto resta umana è precisamente l'informazione che produceva
-     ammassi. L'ordine dei blocchi qui è l'ordine in cui il modello costruisce. */
-  ids.push(`humanoidity.${data.humanoidity ?? 3}`);
+  /* Il piano corporeo appartiene a Family + Archetype. Un secondo asse
+     numerico che chiedeva di essere contemporaneamente più o meno umano
+     produceva ibridi bestiali anche quando la tassonomia non li prevedeva. */
   ids.push(`family.${slug(data.family)}`);
   ids.push(`archetype.${slug(data.family)}.${slug(data.family_archetype)}`);
   ids.push(`affinity.${slug(data.affinity)}`);
