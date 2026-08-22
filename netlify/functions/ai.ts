@@ -91,6 +91,8 @@ interface Payload {
   thinking?: boolean;
   maxTokens?: number;
   tools?: ToolDef[];
+  /** Nome di uno degli strumenti forniti da imporre in questo giro. */
+  toolChoice?: string;
   webSearch?: boolean;
   /** Solo per `image`. */
   prompt?: string;
@@ -308,6 +310,13 @@ export default async function handler(request: Request): Promise<Response> {
   if (JSON.stringify(tools).length > LIMITS.toolChars) {
     return json({ error: 'strumenti troppo lunghi' }, 413);
   }
+  const toolChoice =
+    typeof payload.toolChoice === 'string' && tools.some((tool) => tool.name === payload.toolChoice)
+      ? payload.toolChoice
+      : undefined;
+  if (payload.toolChoice && !toolChoice) {
+    return json({ error: 'strumento richiesto non disponibile' }, 400);
+  }
 
   /* 🔒 La ricerca sul web si accende SOLO dove la conversazione è già di
      quel fornitore. Accenderla altrove vorrebbe dire mandare la domanda —
@@ -404,6 +413,7 @@ export default async function handler(request: Request): Promise<Response> {
     thinking: Boolean(payload.thinking),
     ...(selectedEffort ? { effort: selectedEffort } : {}),
     tools,
+    ...(toolChoice ? { toolChoice } : {}),
     webSearch,
     /* Un prompt compilato è lungo per definizione — il riferimento che
        funziona sta sui 12k caratteri — quindi questa capacità ha un tetto

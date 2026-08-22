@@ -10,7 +10,7 @@ const entry = join(dir, 'entry.ts');
 const out = join(cwd, 'node_modules', '.vinz-chat-me-check.mjs');
 
 writeFileSync(entry, `
-export { replyWithLocalTools, shouldUseLocalTools } from '${cwd}/src/brain/stream.ts';
+export { replyWithLocalTools, shouldUseLocalTools, requiredWriteTool } from '${cwd}/src/brain/stream.ts';
 export { runTool } from '${cwd}/src/ai/tools.ts';
 export { addMeal, addWorkout, readHealthJournal } from '${cwd}/src/engine/healthJournal.ts';
 `);
@@ -76,9 +76,11 @@ const replies = [
 ];
 const originalFetch = globalThis.fetch;
 const toolCounts = [];
+const toolChoices = [];
 globalThis.fetch = async (_url, init) => {
   const request = JSON.parse(String(init?.body ?? '{}'));
   toolCounts.push(Array.isArray(request.tools) ? request.tools.length : 0);
+  toolChoices.push(request.toolChoice ?? null);
   return new Response(JSON.stringify(replies.shift()), {
     status: 200,
     headers: { 'content-type': 'application/json' },
@@ -88,6 +90,8 @@ globalThis.fetch = async (_url, init) => {
 try {
   check(m.shouldUseLocalTools('Ho mangiato riso e pollo'), 'un pasto raccontato attiva gli strumenti locali');
   check(m.shouldUseLocalTools('Mi sono allenato per 45 minuti'), 'un allenamento raccontato attiva gli strumenti locali');
+  check(m.requiredWriteTool('Ho mangiato una banana.') === 'registra_pasto', 'un pasto dichiarato impone la scrittura in ME');
+  check(m.requiredWriteTool('Ho fatto 45 minuti di lower body.') === 'registra_allenamento', 'un allenamento dichiarato impone la scrittura in ME');
   const run = (use) => m.runTool(use, ctx);
   await m.replyWithLocalTools([], 'Ho mangiato una banana.', new AbortController().signal, () => {}, run, 'test-model');
   await m.replyWithLocalTools([], 'Ho fatto 45 minuti di lower body.', new AbortController().signal, () => {}, run, 'test-model');
@@ -98,6 +102,7 @@ try {
   check(journal.workouts[0]?.minutes === 45, 'ME legge durata e dettagli dell’allenamento');
   check(journal.meals[0]?.source === 'chat' && journal.workouts[0]?.source === 'chat', 'la provenienza resta CHAT');
   check(toolCounts.every((count) => count <= 12), 'ogni richiesta resta entro il limite di 12 strumenti');
+  check(toolChoices[0] === 'registra_pasto' && toolChoices[2] === 'registra_allenamento', 'il backend riceve lo strumento obbligatorio corretto');
 } finally {
   globalThis.fetch = originalFetch;
 }

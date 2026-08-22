@@ -12,7 +12,7 @@ const out = join(cwd, 'node_modules', '.vinz-assistant-check.mjs');
 writeFileSync(
   entry,
   `
-export { extractAnthropicSources, streamAnthropic } from '${cwd}/netlify/functions/_shared/providers.ts';
+export { callProvider, extractAnthropicSources, streamAnthropic } from '${cwd}/netlify/functions/_shared/providers.ts';
 export { assistantRequestPreferences } from '${cwd}/netlify/functions/ai.ts';
 export { resolveRoute } from '${cwd}/netlify/functions/_shared/routing.ts';
 `,
@@ -54,6 +54,10 @@ check(cloneSource.includes('scrollingWaveform: true'), 'l’onda scorre con l’
 check(cloneSource.includes('TRASCRIZIONE IN CORSO'), 'lo stato di trascrizione resta visibile');
 check(cloneSource.includes('fetch("/api/transcribe"'), 'l’audio passa dal backend protetto');
 check(cloneSource.includes('setPendingTranscript'), 'la trascrizione torna nel composer');
+check(
+  cloneSource.includes('aui.thread.composer().send()') || cloneSource.includes('composer.send()'),
+  'la trascrizione viene inviata dal runtime, senza simulare un click',
+);
 check(cloneStyles.includes('.vinz-record__wave.is-loading'), 'avvio e trascrizione hanno un loader dedicato');
 check(!cloneMain.includes('WebSpeechDictationAdapter'), 'la vecchia dettatura browser non è più collegata');
 check(cloneSource.includes('ChatCostTotal'), 'il totale della chat resta visibile in alto');
@@ -170,6 +174,47 @@ try {
   globalThis.fetch = originalFetch;
   if (originalKey === undefined) delete process.env.ANTHROPIC_API_KEY;
   else process.env.ANTHROPIC_API_KEY = originalKey;
+}
+
+const originalOpenAiKey = process.env.OPENAI_API_KEY;
+let openAiRequest;
+process.env.OPENAI_API_KEY = 'test-only';
+globalThis.fetch = async (_url, init) => {
+  openAiRequest = JSON.parse(String(init?.body ?? '{}'));
+  return new Response(JSON.stringify({
+    model: 'gpt-5.6-sol',
+    choices: [{
+      message: {
+        content: null,
+        tool_calls: [{
+          id: 'meal-1',
+          function: { name: 'registra_pasto', arguments: '{"pasto":"spuntino"}' },
+        }],
+      },
+      finish_reason: 'tool_calls',
+    }],
+    usage: { prompt_tokens: 10, completion_tokens: 5 },
+  }), { status: 200, headers: { 'content-type': 'application/json' } });
+};
+try {
+  const forced = await m.callProvider('openai', {
+    model: 'gpt-5.6-sol', system: [], turns: [], user: 'Ho mangiato una banana',
+    maxTokens: 200, effort: 'none',
+    tools: [{ name: 'registra_pasto', description: 'Registra', schema: { type: 'object' } }],
+    toolChoice: 'registra_pasto',
+  });
+  check(
+    openAiRequest?.tool_choice?.function?.name === 'registra_pasto',
+    'OpenAI riceve la scrittura del pasto come strumento obbligatorio',
+  );
+  check(
+    forced.toolUses?.[0]?.name === 'registra_pasto',
+    'la chiamata obbligatoria torna al ciclo strumenti',
+  );
+} finally {
+  globalThis.fetch = originalFetch;
+  if (originalOpenAiKey === undefined) delete process.env.OPENAI_API_KEY;
+  else process.env.OPENAI_API_KEY = originalOpenAiKey;
 }
 
 if (failures) {

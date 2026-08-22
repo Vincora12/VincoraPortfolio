@@ -86,6 +86,20 @@ export function shouldUseLocalTools(text: string): boolean {
   return TOOL_INTENT.test(text);
 }
 
+/** Le registrazioni esplicite non devono dipendere dalla buona volontà del modello. */
+export function requiredWriteTool(text: string): string | undefined {
+  if (/\b(?:ho\s+(?:mangiato|bevuto)|a\s+(?:colazione|pranzo|cena)\s+ho|registra(?:mi)?\s+(?:questo\s+)?pasto)\b/i.test(text)) {
+    return 'registra_pasto';
+  }
+  if (/\b(?:mi\s+sono\s+allenat\w*|ho\s+fatto\s+[^.!?]*(?:allenamento|palestra|workout|corsa|camminata|cardio|lower|upper)|registra(?:mi)?\s+(?:questo\s+)?allenamento)\b/i.test(text)) {
+    return 'registra_allenamento';
+  }
+  if (/\b(?:peso|sono)\s*(?:oggi\s*)?(?:circa\s*)?\d+(?:[.,]\d+)?\s*kg\b/i.test(text)) {
+    return 'registra_peso';
+  }
+  return undefined;
+}
+
 export async function replyWithLocalTools(
   turns: BrainMessage[],
   user: string,
@@ -119,6 +133,7 @@ export async function replyWithLocalTools(
      sono in testa al catalogo; il limite evita che una frase come «ho
      mangiato una banana» venga rifiutata prima ancora che il modello la legga. */
   const availableTools = TOOLS.slice(0, 12);
+  const forcedWrite = requiredWriteTool(user);
 
   for (let round = 0; round < 4; round++) {
     const response = await fetch('/api/ai', {
@@ -134,6 +149,7 @@ export async function replyWithLocalTools(
         ...(round === 0 && image ? { image } : {}),
         ...(userBlocks ? { userBlocks } : {}),
         tools: round < 3 ? availableTools : [],
+        ...(round === 0 && forcedWrite ? { toolChoice: forcedWrite } : {}),
         webSearch: true,
         effort: 'none',
         maxTokens: 2000,

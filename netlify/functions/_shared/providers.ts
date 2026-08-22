@@ -175,6 +175,8 @@ export interface ProviderRequest {
   effort?: 'none' | 'low' | 'medium' | 'high';
   /** Strumenti che il modello può chiamare. Li esegue il browser. */
   tools?: ToolDef[];
+  /** Impone uno strumento quando l'intento di scrittura è inequivocabile. */
+  toolChoice?: string;
   /** Accendi la ricerca sul web, che gira dal fornitore. */
   webSearch?: boolean;
 }
@@ -263,6 +265,9 @@ async function anthropic(req: ProviderRequest): Promise<ProviderResult> {
                 ...(req.webSearch ? [{ type: 'web_search_20260209', name: 'web_search' }] : []),
               ],
             }
+          : {}),
+        ...(req.toolChoice
+          ? { tool_choice: { type: 'tool', name: req.toolChoice } }
           : {}),
         system: req.system.map((b) => ({
           type: 'text',
@@ -717,6 +722,14 @@ async function openAiProtocol(
             type: 'function',
             function: { name: t.name, description: t.description, parameters: t.schema },
           })),
+          ...(req.toolChoice
+            ? {
+                tool_choice: {
+                  type: 'function',
+                  function: { name: req.toolChoice },
+                },
+              }
+            : {}),
         }
       : {}),
   });

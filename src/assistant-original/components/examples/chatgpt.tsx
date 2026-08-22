@@ -92,6 +92,7 @@ const EmptyState: FC = () => {
 };
 
 const Composer: FC<{ placeholder: string }> = ({ placeholder }) => {
+  const aui = useAui();
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const waveRef = useRef<HTMLDivElement>(null);
   const waveSurferRef = useRef<WaveSurfer | null>(null);
@@ -138,22 +139,10 @@ const Composer: FC<{ placeholder: string }> = ({ placeholder }) => {
   };
 
   const insertAndSend = (text: string) => {
-    const input = inputRef.current;
-    if (!input) return;
-    const setter = Object.getOwnPropertyDescriptor(
-      HTMLTextAreaElement.prototype,
-      "value",
-    )?.set;
-    setter?.call(input, input.value ? `${input.value} ${text}` : text);
-    input.dispatchEvent(new Event("input", { bubbles: true }));
-    input.focus();
-    window.setTimeout(
-      () =>
-        document
-          .querySelector<HTMLButtonElement>(".vinz-clone-composer__send")
-          ?.click(),
-      100,
-    );
+    const composer = aui.thread.composer();
+    const current = composer.getState().text.trim();
+    composer.setText(current ? `${current} ${text}` : text);
+    composer.send();
   };
 
   useEffect(() => {
@@ -381,10 +370,10 @@ const ComposerPrimaryAction: FC<{ onDictate: () => void }> = ({
 
         <TooltipIconButton
           type="button"
-          tooltip="Use voice mode"
+          tooltip="Dictate"
           side="top"
-          aria-hidden="true"
-          tabIndex={-1}
+          aria-label="Dictate"
+          onClick={onDictate}
           className="flex size-9 items-center justify-center rounded-full bg-[#0d0d0d] text-white hover:bg-[#0d0d0d] dark:bg-white dark:text-black dark:hover:bg-white"
         >
           <AudioLines className="size-5" />
@@ -632,12 +621,15 @@ const ChatCostTotal: FC = () => {
 
 const AssistantError: FC = () => {
   const error = useMessageError();
-  const message =
+  const raw =
     typeof error === "string"
       ? error
       : error instanceof Error
         ? error.message
         : "La risposta si è interrotta. Riprova.";
+  const message = /load failed|failed to fetch|networkerror/i.test(raw)
+    ? "Connessione interrotta. Tocca Riprova."
+    : raw;
   return (
     <p role="alert" className="mt-2 text-sm leading-5 text-[#d14f4f] dark:text-[#ff8585]">
       {message}

@@ -148,13 +148,13 @@ body[data-scroll-locked] {
 }
 
 .vinz-chat-top-fade {
-  height: calc(env(safe-area-inset-top, 0px) + 4rem);
+  height: calc(env(safe-area-inset-top, 0px) + 6.75rem);
   background: linear-gradient(
     to bottom,
     #000 0,
-    #000 56%,
-    rgb(0 0 0 / 88%) 67%,
-    rgb(0 0 0 / 32%) 84%,
+    #000 68%,
+    rgb(0 0 0 / 92%) 76%,
+    rgb(0 0 0 / 38%) 90%,
     transparent 100%
   );
 }
@@ -183,7 +183,7 @@ body[data-scroll-locked] {
 }
 
 .vinz-chat-thread-viewport {
-  padding-top: calc(env(safe-area-inset-top, 0px) + 4rem);
+  padding-top: calc(env(safe-area-inset-top, 0px) + 6.25rem);
 }
 
 .aui-md p {
