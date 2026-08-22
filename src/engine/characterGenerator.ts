@@ -890,16 +890,16 @@ const FACE_LOGIC = [
 ];
 
 const ANGEL_FACE_LOGIC = [
-  'esattamente due occhi simmetrici e molto leggibili',
-  'esattamente due occhi, leggermente diversi per forma ma non per numero',
-  'esattamente due occhi disposti sullo stesso volto umanoide',
-  'esattamente due occhi grandi; nessun occhio aggiuntivo sul corpo o sulle ali',
+  'due occhi principali simmetrici e molto leggibili',
+  'due occhi principali leggermente diversi per forma',
+  'due occhi principali disposti sul volto umanoide',
+  'due grandi occhi principali come punto focale del personaggio',
 ];
 
 const CHERUB_FACE_LOGIC = [
-  'più teste chiaramente separate, ognuna con esattamente due occhi',
-  'tre teste espressive sullo stesso corpo umanoide, ciascuna con esattamente due occhi',
-  'una testa principale e teste secondarie più piccole, tutte con esattamente due occhi',
+  'più teste chiaramente separate e occhi secondari distribuiti sulle ali; i due occhi principali restano il punto focale',
+  'tre teste espressive sullo stesso corpo umanoide e numerosi occhi alari, con due occhi principali dominanti',
+  'una testa principale e teste secondarie più piccole, più occhi sulle ali; i due occhi principali guidano la lettura',
 ];
 
 const BODY_LANGUAGE = [
