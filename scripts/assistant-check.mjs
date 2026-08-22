@@ -69,6 +69,10 @@ check(
   'il costo del backend viene salvato nel messaggio',
 );
 check(
+  netlifyRuntime.includes('Pasto aggiunto in ME') && cloneSource.includes('MessageUpdates'),
+  'ogni scrittura conferma sotto al messaggio quale sezione ha aggiornato',
+);
+check(
   cloneMain.includes('selectedRuntime === "mock" ? mockChatModel : netlifyChatModel'),
   'il backend reale è il runtime predefinito',
 );

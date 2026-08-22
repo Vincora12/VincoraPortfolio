@@ -80,6 +80,21 @@ async function* runWithLocalTools(
   let finished = false;
   let failure: unknown;
   let cost: ChatCost = { costUsd: 0 };
+  const updates: string[] = [];
+
+  const runAndDescribe = (use: ToolUse): ToolResult => {
+    const result = runTool(use);
+    if (result.isError) return result;
+    const label = ({
+      registra_pasto: "Pasto aggiunto in ME",
+      registra_allenamento: "Allenamento aggiunto in ME",
+      registra_peso: "Peso aggiornato in ME",
+      imposta_dieta: "Piano alimentare aggiornato in ME",
+      personalizza_me: "Schermata ME aggiornata",
+    } as Record<string, string>)[use.name];
+    if (label && !updates.includes(label)) updates.push(label);
+    return result;
+  };
 
   const request = replyWithLocalTools(
     history,
@@ -90,7 +105,7 @@ async function* runWithLocalTools(
       waiting?.();
       waiting = null;
     },
-    runTool,
+    runAndDescribe,
     modelName,
     image,
   )
@@ -114,7 +129,13 @@ async function* runWithLocalTools(
   if (failure) throw failure;
   yield {
     content: [{ type: "text" as const, text: answer }],
-    metadata: { custom: { costUsd: cost.costUsd, model: cost.model ?? modelName } },
+    metadata: {
+      custom: {
+        costUsd: cost.costUsd,
+        model: cost.model ?? modelName,
+        updates,
+      },
+    },
   };
 }
 

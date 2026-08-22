@@ -573,6 +573,7 @@ const AssistantMessage: FC = () => {
       </div>
 
       <MessageCost />
+      <MessageUpdates />
 
       <div className="vinz-assistant-meta mt-1 flex flex-wrap items-center gap-1 text-xs text-[#8e8e8e]">
         <MessagePrimitive.Parts>
@@ -602,6 +603,30 @@ const MessageCost: FC = () => {
     <small className="mt-0.5 text-[11px] leading-4 text-[#737373] tabular-nums dark:text-[#8e8e8e]">
       Costo risposta {cost}
     </small>
+  );
+};
+
+const MessageUpdates: FC = () => {
+  const value = useAuiState((s) => s.message.metadata.custom.updates);
+  const updates = Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [];
+  if (updates.length === 0) return null;
+  return (
+    <div className="mt-1 flex flex-col gap-1" aria-live="polite">
+      {updates.map((update) => (
+        <small
+          key={update}
+          className="flex min-h-5 items-center gap-1.5 text-[11px] leading-4 text-[#a8a8a8]"
+        >
+          <CheckIcon
+            className="size-3.5 shrink-0 text-[var(--char-accent)]"
+            aria-hidden="true"
+          />
+          {update}
+        </small>
+      ))}
+    </div>
   );
 };
 
