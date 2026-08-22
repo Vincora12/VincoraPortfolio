@@ -196,6 +196,18 @@ export type Phase =
   | 'new-encounter';
 
 export type EvolutionKind = 'evolution' | 'mega-evolution';
+const ANGEL_ARCHETYPES_BY_STAGE: readonly (readonly string[])[] = [
+  ['PUTTO', 'MESSENGER'],
+  ['WARRIOR', 'VIRTUE'],
+  ['POWER', 'DOMINION'],
+  ['CHERUB', 'THRONE'],
+  ['SERAPH'],
+];
+
+function angelArchetypesForStage(stage: number): readonly string[] {
+  return ANGEL_ARCHETYPES_BY_STAGE[Math.min(Math.max(0, stage), ANGEL_ARCHETYPES_BY_STAGE.length - 1)]!;
+}
+
 export interface EvolutionJob {
   kind: EvolutionKind | 'hatch';
   status: 'running' | 'ready' | 'error';
@@ -1161,6 +1173,7 @@ export const useApp = create<AppState>()(
             formNumber: 1,
             activeDays: s.progression.sync.lifetime,
           }),
+          allowedArchetypes: angelArchetypesForStage(0),
         });
 
         set({
@@ -1409,8 +1422,10 @@ export const useApp = create<AppState>()(
            Mega Evoluzione conserva soltanto il temperamento: è sempre la
            stessa entità, ma il corpo può essere completamente diverso. */
         const continuity: readonly ContinuityAxis[] = kind === 'evolution'
-          ? ['family', 'family_archetype', 'size', 'role', 'fashion', 'mood_primary']
+          ? ['family', 'size', 'role', 'fashion', 'mood_primary']
           : ['mood_primary'];
+        const previousStage = previous.data.evolution_state?.stage ?? 0;
+        const nextStage = kind === 'evolution' ? previousStage + 1 : 0;
         const nodeId = makeNodeId(s.nodes.length);
         const { record, trace } = generateMon({
           input: generatorInput(s),
@@ -1423,12 +1438,12 @@ export const useApp = create<AppState>()(
           seed: randomSeed(),
           devUnlockAll: s.dev.unlockAll,
           hiddenEvent: hiddenEventFor({ day: s.day, formNumber: s.nodes.length + 1, activeDays: s.progression.sync.lifetime }),
+          allowedArchetypes: angelArchetypesForStage(nextStage),
         });
 
         /* EVOLUZIONE approfondisce la stessa Forma; MEGA cambia corpo e apre
            una nuova Forma, che riparte leggibile come una Basic. La ricchezza
            visiva così diventa una conseguenza del percorso, non del caso. */
-        const previousStage = previous.data.evolution_state?.stage ?? 0;
         record.data.evolution_state = kind === 'evolution'
           ? {
               label: ['BASIC FORM', 'POWER FORM', 'HYPER FORM', 'OVERDRIVE FORM', 'TERMINAL FORM'][Math.min(previousStage + 1, 4)]!,

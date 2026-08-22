@@ -108,6 +108,10 @@ export interface GenerationContext {
   ignoreTestPhase?: boolean;
   /** §16 — traguardo o ricorrenza, alimenta l'ultima componente del punteggio. */
   hiddenEvent?: boolean;
+  /** Limita gli archetipi quando lo stadio della Forma ha una grammatica
+   * propria. Se nessun ID appartiene alla Family estratta, il catalogo resta
+   * invariato (serve quando la Family non è ANGEL). */
+  allowedArchetypes?: readonly string[];
 }
 
 export interface GenerationResult {
@@ -285,7 +289,7 @@ export function generateMon(ctx: GenerationContext): GenerationResult {
         if (v) ((affinity = v), (forced = 'AFFINITY'));
       }
       if (!forced && free('family_archetype')) {
-        const v = other(family.archetypes.map((a) => a.id), archetype);
+        const v = other(archetypePool(family, ctx).map((a) => a.id), archetype);
         if (v) ((archetype = v), (forced = 'ARCHETYPE'));
       }
 
@@ -604,7 +608,8 @@ function resolveArchetype(rng: Rng, family: FamilyDef, ctx: GenerationContext): 
      separa è quanto di recente sono stati usati. Poi si ESTRAE — non si prende
      il massimo — perché con l'argmax la voce con il punteggio medio più alto
      vince quasi sempre, e «quasi sempre» ripetuto per anni vuol dire «sempre». */
-  const entries = family.archetypes.map((a) => {
+  const pool = archetypePool(family, ctx);
+  const entries = pool.map((a) => {
     const key = `${family.id}/${a.id}`;
     const noveltyPenalty =
       recent[0] === key ? w.immediateRepeatPenalty : recent.includes(key) ? w.recentPenalty : 0;
@@ -616,6 +621,13 @@ function resolveArchetype(rng: Rng, family: FamilyDef, ctx: GenerationContext): 
   });
 
   return pickWeighted(rng, entries);
+}
+
+function archetypePool(family: FamilyDef, ctx: GenerationContext): FamilyDef['archetypes'] {
+  const limited = ctx.allowedArchetypes
+    ? family.archetypes.filter((a) => ctx.allowedArchetypes!.includes(a.id))
+    : [];
+  return limited.length > 0 ? limited : family.archetypes;
 }
 
 /* ============================================================================
@@ -877,6 +889,13 @@ const FACE_LOGIC = [
   'la bocca è una struttura, non una fessura',
 ];
 
+const ANGEL_FACE_LOGIC = [
+  'esattamente due occhi simmetrici e molto leggibili',
+  'esattamente due occhi, leggermente diversi per forma ma non per numero',
+  'esattamente due occhi disposti sullo stesso volto umanoide',
+  'esattamente due occhi grandi; nessun occhio aggiuntivo sul corpo o sulle ali',
+];
+
 const BODY_LANGUAGE = [
   'sta sempre leggermente rivolto altrove',
   'occupa più spazio di quanto serva',
@@ -920,7 +939,7 @@ function generateCharacterDna(
   return {
     silhouette_quirk: pick(rng, SILHOUETTE_QUIRKS),
     anatomical_gimmick: `una zona ${affinity} innestata su anatomia ${family.id} / ${archetype}`,
-    face_logic: pick(rng, FACE_LOGIC),
+    face_logic: pick(rng, family.id === 'ANGEL' ? ANGEL_FACE_LOGIC : FACE_LOGIC),
     body_language: pick(rng, BODY_LANGUAGE),
     recurring_motif: pick(rng, [
       'un piccolo segno ripetuto tre volte',
