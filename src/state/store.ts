@@ -1508,20 +1508,14 @@ export const useApp = create<AppState>()(
               return;
             }
 
-            const previous = job.previousName ? current.mons[job.previousName] : null;
-            if (!previous) throw new Error('Forma precedente non trovata');
+            /* La nuova Forma è pronta ma NON è ancora quella attiva. Nome,
+               immagine, statistiche e voce cambiano solo quando l'utente
+               tocca il banner e apre la rivelazione. */
             set({
-              mons: { ...current.mons, [previous.data.name]: { ...previous, retiredOnDay: current.day }, [record.data.name]: finished },
-              activeMonName: record.data.name,
-              formsDiscovered: current.formsDiscovered + 1,
-              nodes: [...current.nodes, createNode({ index: current.nodes.length, kind: 'branch', monName: record.data.name, parentId: previous.data.mindline_node, day: current.day, chapter: nextChapter(current.nodes, 'branch'), label: job.kind === 'mega-evolution' ? 'MEGA EVOLUZIONE' : 'EVOLUZIONE' })],
-              mood: touchMood(current, record.data.mood_primary, []),
-              chat: [...current.chat, openingMessage(record, current.day, current.token !== null)].slice(-60),
-              progression: { ...current.progression, sync: { ...current.progression.sync, inForm: 0, sinceGrowth: 0 } },
+              mons: { ...current.mons, [record.data.name]: finished },
               evolutionJob: { ...job, serverJobId, status: 'ready', done: result.made.length, total: result.made.length, label: 'NUOVO MON PRONTO', error: null },
             });
             void preloadMonAssets(record.data.name);
-            requestIntroduction(set, get, record);
             void notifyEvolutionReady(record.data.name);
           } catch (error) {
             set((current) => ({ evolutionJob: current.evolutionJob?.candidateName === job.candidateName ? { ...current.evolutionJob, status: 'error', error: String(error) } : current.evolutionJob }));
@@ -1532,9 +1526,27 @@ export const useApp = create<AppState>()(
       },
 
       revealFormEvolution: () => {
-        const job = get().evolutionJob;
+        const current = get();
+        const job = current.evolutionJob;
         if (job?.status !== 'ready') return;
-        set({ phase: job.kind === 'hatch' ? 'first-encounter' : 'new-encounter' });
+        if (job.kind === 'hatch') {
+          set({ phase: 'first-encounter' });
+          return;
+        }
+        const previous = job.previousName ? current.mons[job.previousName] : null;
+        const record = current.mons[job.candidateName];
+        if (!previous || !record) return;
+        set({
+          phase: 'new-encounter',
+          mons: { ...current.mons, [previous.data.name]: { ...previous, retiredOnDay: current.day } },
+          activeMonName: record.data.name,
+          formsDiscovered: current.formsDiscovered + 1,
+          nodes: [...current.nodes, createNode({ index: current.nodes.length, kind: 'branch', monName: record.data.name, parentId: previous.data.mindline_node, day: current.day, chapter: nextChapter(current.nodes, 'branch'), label: job.kind === 'mega-evolution' ? 'MEGA EVOLUZIONE' : 'EVOLUZIONE' })],
+          mood: touchMood(current, record.data.mood_primary, []),
+          chat: [...current.chat, openingMessage(record, current.day, current.token !== null)].slice(-60),
+          progression: { ...current.progression, sync: { ...current.progression.sync, inForm: 0, sinceGrowth: 0 } },
+        });
+        requestIntroduction(set, get, record);
       },
 
       retryFormEvolution: () => {

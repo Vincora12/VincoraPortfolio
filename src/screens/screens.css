@@ -155,6 +155,7 @@
   align-items: center;
   justify-content: center;
   padding: var(--u4);
+  opacity: 0;
 }
 
 .encounter__art {
@@ -169,6 +170,8 @@
   gap: var(--u3);
   padding: var(--u6) var(--u4) var(--u4);
   background: linear-gradient(to top, var(--white) 62%, transparent);
+  opacity: 0;
+  pointer-events: none;
 }
 
 .encounter__head {
@@ -2877,8 +2880,10 @@
 }
 
 /* La creatura non compare: sale. Solo dopo che il sipario si è alzato. */
-.encounter--beat2 .encounter__stage {
-  animation: encounter-rise 620ms var(--ease-system) backwards;
+.encounter--beat2 .encounter__stage,
+.encounter--beat3 .encounter__stage {
+  opacity: 1;
+  animation: encounter-rise 620ms var(--ease-system) both;
 }
 
 @keyframes encounter-rise {
@@ -2888,8 +2893,10 @@
   }
 }
 
-.encounter--beat2 .encounter__overlay {
-  animation: reveal-in 500ms var(--ease-system) 220ms backwards;
+.encounter--beat3 .encounter__overlay {
+  opacity: 1;
+  pointer-events: auto;
+  animation: reveal-in 500ms var(--ease-system) both;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -2898,7 +2905,8 @@
     animation-duration: 1ms;
   }
   .encounter--beat2 .encounter__stage,
-  .encounter--beat2 .encounter__overlay {
+  .encounter--beat3 .encounter__stage,
+  .encounter--beat3 .encounter__overlay {
     animation: none;
   }
 }

@@ -42,6 +42,7 @@ export function DexScreen({ onGo }: { onGo: (o: Overlay) => void }) {
   const mons = useApp((s) => s.mons);
   const nodes = useApp((s) => s.nodes);
   const activeMonName = useApp((s) => s.activeMonName);
+  const evolutionJob = useApp((s) => s.evolutionJob);
   const restoreNode = useApp((s) => s.restoreNode);
   const kept = useApp((s) => s.kept);
   const keepActiveMon = useApp((s) => s.keepActiveMon);
@@ -56,7 +57,12 @@ export function DexScreen({ onGo }: { onGo: (o: Overlay) => void }) {
   const dayOf = (name: string) =>
     nodes.find((n) => n.monName === name)?.day ?? Number.MAX_SAFE_INTEGER;
 
-  const shelf = Object.values(mons).sort((a, b) => dayOf(a.data.name) - dayOf(b.data.name));
+  const hiddenCandidate = evolutionJob?.status === 'running' || evolutionJob?.status === 'ready'
+    ? evolutionJob.candidateName
+    : null;
+  const shelf = Object.values(mons)
+    .filter((mon) => mon.data.name !== hiddenCandidate)
+    .sort((a, b) => dayOf(a.data.name) - dayOf(b.data.name));
   const selected = picked ? mons[picked] : null;
   const keptOfActive = kept.some((k) => k.record.data.name === activeMonName);
   const selectedNode = picked ? nodes.find((n) => n.monName === picked) : null;

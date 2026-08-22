@@ -49,7 +49,9 @@ import { t } from '../i18n/it';
    Quelle saltate si fanno dopo, dalla forgia.
    ========================================================================= */
 
-function FaceGate({
+/** Strumento DEV storico per rigenerare un singolo asset; non fa più parte
+ * del percorso d'incontro visibile all'utente. */
+export function FaceGate({
   monName,
   onDone,
   onStep,
@@ -239,13 +241,11 @@ export function EncounterScreen({ variant }: { variant: 'first' | 'new' }) {
      primo tocco: un momento che non si può saltare diventa un ostacolo alla
      seconda volta che lo vedi. */
   const [beat, setBeat] = useState(0);
-  /* Quale immagine si sta approvando: il palco dietro deve mostrare QUELLA,
-     o approveresti alla cieca una cosa che non è quella a schermo. */
-  const [showing, setShowing] = useState<AssetType | null>(null);
   useEffect(() => {
     const ids = [
-      window.setTimeout(() => setBeat(1), 700),
-      window.setTimeout(() => setBeat(2), 1900),
+      window.setTimeout(() => setBeat(1), 450),
+      window.setTimeout(() => setBeat(2), 1450),
+      window.setTimeout(() => setBeat(3), 2250),
     ];
     return () => ids.forEach(window.clearTimeout);
   }, []);
@@ -259,7 +259,7 @@ export function EncounterScreen({ variant }: { variant: 'first' | 'new' }) {
   return (
     <div
       className={`screen screen--ink encounter encounter--beat${beat}`}
-      onClick={() => setBeat(2)}
+      onClick={() => setBeat(3)}
     >
       {/* La battuta 0–1: campo nero e il nome che arriva battendo. */}
       {beat < 2 && (
@@ -278,13 +278,9 @@ export function EncounterScreen({ variant }: { variant: 'first' | 'new' }) {
       )}
 
       <div className="encounter__stage">
-        {/* 🔶 Era fisso sull'hero con due ripieghi. Adesso il palco segue la
-            sequenza di approvazione: mostra l'immagine su cui stai per dire
-            sì o no. Un palco che mostra una cosa mentre ne approvi un'altra
-            è peggio di un palco vuoto. */}
         <AssetSlot
           monName={d.name}
-          type={showing ?? 'character_toy'}
+          type="character_toy"
           fallbackTypes={['character_master']}
           alt={`${short}, arte di rivelazione`}
           className="encounter__art"
@@ -324,7 +320,9 @@ export function EncounterScreen({ variant }: { variant: 'first' | 'new' }) {
           <Sigil seed={mon.sigil} size={40} />
         </div>
 
-        <FaceGate monName={d.name} onDone={enterLive} onStep={setShowing} />
+        <Button variant="primary" block onClick={enterLive}>
+          {t.encounter.enter}
+        </Button>
       </div>
     </div>
   );
