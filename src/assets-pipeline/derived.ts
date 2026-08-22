@@ -49,7 +49,7 @@
    ========================================================================= */
 
 import type { AssetType } from '../engine/types';
-import { EXPRESSION_SPEC, IDLE_SPEC, assetTypeDef } from '../engine/assets';
+import { EXPRESSION_SPEC, assetTypeDef } from '../engine/assets';
 
 /**
  * La testata comune: identità bloccata, e cosa non si tocca.
@@ -59,7 +59,7 @@ import { EXPRESSION_SPEC, IDLE_SPEC, assetTypeDef } from '../engine/assets';
  * «cambia l'inquadratura» viene letto come permesso di rifare il resto.
  */
 const BLOCCO = [
-  'The attached image is the CHARACTER MASTER of this character.',
+  'The attached image is the CHARACTER MASTER CEL of this character.',
   'It is the exact and only source of visual truth. This is the SAME character.',
   '',
   'PRESERVE EXACTLY, without reinterpretation:',
@@ -74,16 +74,16 @@ const BLOCCO = [
 /** La coda comune: cosa non deve comparire nel file. */
 const CODA = 'No text, no labels, no watermark, no frame borders, no signature.';
 
-/* --- I cinque lavori di produzione ----------------------------------------- */
+/* --- I tre lavori di produzione -------------------------------------------- */
 
 const LAVORO: Partial<Record<AssetType, string[]>> = {
-  /* §22.2 02 — un ritratto leggibile, buono per un'interfaccia. */
-  profile_portrait: [
-    'PRODUCTION TASK: profile portrait of this character.',
-    'Change ONLY framing and camera: head and upper chest, centred, facing the',
-    'viewer, eyes clearly readable at small size.',
-    'Even lighting. Transparent background. The face must stay legible when the',
-    'image is displayed at 64 pixels.',
+  character_toy: [
+    'PRODUCTION TASK: turn this exact CEL character into its definitive collectible TOY version.',
+    'This TOY is the principal image of the character throughout the product.',
+    'Preserve the exact silhouette, anatomy, face, outfit, colours and identity markers.',
+    'Translate only the rendering and materials into a premium physical collectible toy.',
+    'Full body, centred, completely visible, generous margins.',
+    'Pure optical white (#FFFFFF) seamless background. No environment or decorative scene.',
   ],
 
   /* §22.2 04 — la griglia delle espressioni. L'ordine è indicizzato per
@@ -98,30 +98,6 @@ const LAVORO: Partial<Record<AssetType, string[]>> = {
     'Identical bust framing, identical scale, identical eye line in every frame.',
     'Transparent background. Even margins. The sheet must split into',
     `${EXPRESSION_SPEC.frames} equal frames of identical dimensions.`,
-  ],
-
-  /* §23.3 — un ciclo di respiro, non una posa. */
-  idle_animation: [
-    'PRODUCTION TASK: idle animation strip of this character.',
-    `One sheet, ${IDLE_SPEC.frames} frames, single row, read left to right: a seamless`,
-    'breathing loop of the same character standing at rest.',
-    `The loop is played ${IDLE_SPEC.playback}, so frame 01 and frame ${String(IDLE_SPEC.frames).padStart(2, '0')} are the two`,
-    'extremes of the motion, NOT a repeat of each other.',
-    '',
-    'Motion budget is deliberately small: chest and mass rise and fall, plus a',
-    'slight weight shift. Feet stay planted. The character never travels across',
-    'the canvas. Identical framing, scale and horizontal position in every frame.',
-    `${IDLE_SPEC.anchor} anchor. Transparent background.`,
-  ],
-
-  /* §22.2 06 — messa in scena. Qui la posa PUÒ cambiare, il personaggio no. */
-  encounter_hero: [
-    'PRODUCTION TASK: hero reveal image of this character.',
-    'This is a staging task, not a design task.',
-    'You MAY change pose, framing, camera angle, staging and energy.',
-    'You may NOT change anatomy, identity, face construction, outfit, palette,',
-    'hair, eyewear or core proportions.',
-    'Full figure, vertical composition, dramatic but readable.',
   ],
 
   /* §42 / GB §12 — il doodle è un cambio di MEZZO, non di creatura. */

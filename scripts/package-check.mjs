@@ -121,22 +121,13 @@ const check = (ok, label, detail = '') => {
 console.log(`\n═══ PACCHETTO ASSET REQUEST — ${record.data.name} ═══\n`);
 console.log('CONTENUTO (§22.2)');
 
-/* 🔷 v1.15 §23.5 — gli asset da generare sono SEI, non piu sette: il sigillo
-   e uscito dalla pipeline ed e tornato a essere un disegno del sito. Un segno
-   che deve reggere a 24px, derivare dai dati in modo verificabile ed esistere
-   dal primo giorno e' una cosa che il codice fa meglio di un modello di
-   immagini — che a «estremamente semplice» risponde aggiungendo dettaglio.
-
-   Con character data, manifest, prompt compilato, id dei frammenti e readme
-   fanno 11 file. */
+/* Pipeline V1 definitiva: CEL tecnico, Toy principale, Doodle e Sticker. */
 const EXPECTED = [
   '00_CHARACTER_DATA.json',
   '01_CHARACTER_MASTER_PROMPT.txt',
-  '02_PROFILE_PORTRAIT_PROMPT.txt',
+  '02_CHARACTER_TOY_PROMPT.txt',
   '03_BIO_DOODLE_PROMPT.txt',
   '04_REACTION_PACK_PROMPT.txt',
-  '05_IDLE_ANIMATION_PROMPT.txt',
-  '06_ENCOUNTER_HERO_PROMPT.txt',
   'compiled_prompt.txt',
   'fragment_ids.json',
   'ASSET_MANIFEST.json',
@@ -179,8 +170,7 @@ check(
    è il fatto che gli stessi frammenti di identità entrino in tutti quanti. */
 
 const ASSET_TYPES = [
-  'character_master', 'profile_portrait', 'bio_doodle',
-  'reaction_pack', 'idle_animation', 'encounter_hero',
+  'character_master', 'character_toy', 'bio_doodle', 'reaction_pack',
 ];
 
 const compiled = ASSET_TYPES.map((t) => ({ type: t, ...m.compilePrompt(record, t) }));
@@ -242,40 +232,17 @@ check(
   'fragment_ids.json registra compiler, config e seed (§48)',
 );
 
-/* --- §23.3: il ciclo di riposo ---------------------------------------------
-   🔷 v1.11 — qui c'erano dodici controlli sullo SPRITE DI ROTAZIONE: griglia
-   8 × 1, otto angoli espliciti, nessuna deriva di camera, ancoraggio
-   bottom-center. Erano giusti, e l'asset non esiste più.
-
-   Otto viste coerenti dello stesso personaggio sono la cosa più cara e più
-   fragile che si possa chiedere a un modello di immagini, in cambio di un
-   gesto che si prova una volta. Al suo posto c'è l'IDLE, che fa il lavoro che
-   contava — la creatura è viva — con quattro frame invece di otto.
-   -------------------------------------------------------------------------- */
-
-console.log('\nCICLO DI RIPOSO (§23.3)');
-
-const idle = files.find((f) => f.name === '05_IDLE_ANIMATION_PROMPT.txt').content;
-
-const REQUIRED_IN_IDLE = [
-  ['consistenza assoluta', 'ABSOLUTE CONSISTENCY'],
-  ['sfondo trasparente', 'Transparent background'],
-  ['inquadratura identica in ogni frame', 'Identical framing'],
-  ['divisibile in 4 frame uguali', 'split into 4 equal sprite frames'],
-  ['ping-pong dichiarato', 'ping-pong'],
-];
-
-for (const [label, needle] of REQUIRED_IN_IDLE) {
-  check(idle.includes(needle), label);
-}
-
 /* --- §24.4: forma del manifest --------------------------------------------- */
 
 console.log('\nMANIFEST (§24.4)');
 
-const idleEntry = manifest.assets.find((a) => a.asset_id === 'idle_01');
-check(idleEntry?.frames === 4, 'idle: frames = 4', String(idleEntry?.frames));
-check(idleEntry?.columns === 4 && idleEntry?.rows === 1, 'idle: griglia 4 × 1');
+const toyEntry = manifest.assets.find((a) => a.asset_id === 'toy_01');
+check(toyEntry?.background === 'opaque', 'toy: sfondo bianco ottico opaco');
+check(toyEntry?.aspect_ratio === '3:4', 'toy: formato verticale 3:4');
+check(
+  !manifest.assets.some((a) => ['portrait_01', 'idle_01', 'hero_01'].includes(a.asset_id)),
+  'nessun asset storico nella pipeline automatica',
+);
 check(
   !manifest.assets.some((a) => a.asset_id === 'rotation_01'),
   'nessuna rotazione nel manifest (§23.3)',
@@ -334,7 +301,7 @@ check(
    com'e' andata la prima volta che li ho aggiunti.
    ========================================================================= */
 
-const testo = compiled.find((c) => c.type === 'profile_portrait').text;
+const testo = compiled.find((c) => c.type === 'character_toy').text;
 const must = [
   ['§3  il personaggio prima della tassonomia', 'memorable CHARACTER'],
   ['§3  tre o quattro landmark di sagoma', 'silhouette landmarks'],
@@ -427,7 +394,7 @@ delete vecchio.data.character_design_dna;
 let esplose = null;
 let testoVecchio = '';
 try {
-  testoVecchio = m.compilePrompt(vecchio, 'profile_portrait').text;
+  testoVecchio = m.compilePrompt(vecchio, 'character_toy').text;
 } catch (e) {
   esplose = String(e);
 }

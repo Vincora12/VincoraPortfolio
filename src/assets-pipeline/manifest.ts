@@ -78,6 +78,7 @@ export function expectedFileName(record: MonRecord, assetId: string): string {
 
 const SUFFIXES: Record<string, string> = {
   master_01: 'master',
+  toy_01: 'toy',
   portrait_01: 'portrait',
   doodle_01: 'doodle',
   reactions_01: 'reactions',
@@ -92,7 +93,7 @@ export function buildManifest(record: MonRecord): AssetManifest {
       type: manifestType(def.type),
       file: expectedFileName(record, def.assetId),
       usage: def.usage,
-      background: def.type === 'bio_doodle' || def.type === 'encounter_hero' ? 'opaque' : 'transparent',
+      background: def.type === 'bio_doodle' || def.type === 'character_toy' ? 'opaque' : 'transparent',
     };
 
     if (def.type === 'reaction_pack') {

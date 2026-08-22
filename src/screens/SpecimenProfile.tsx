@@ -392,7 +392,8 @@ export function SpecimenProfileScreen({
               <div className="specimen__preview">
                 <AssetSlot
                   monName={d.name}
-                  type="character_master"
+                  type="character_toy"
+                  fallbackTypes={['character_master']}
                   alt={`${short}, character master`}
                 />
               </div>

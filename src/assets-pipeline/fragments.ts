@@ -895,6 +895,13 @@ export const ASSET_FRAGMENTS: Record<string, PromptFragment> = {
     ].join('\n'),
     negative_prompt: 'No UI. No text. No labels.',
   },
+  character_toy: {
+    id: 'asset.character_toy',
+    axis: 'asset',
+    priority: AXIS_PRIORITY.asset,
+    positive_prompt: 'ASSET TYPE: CHARACTER MASTER TOY. Principal full-body product image on pure optical white.',
+    negative_prompt: 'No redesign. No environment. No text.',
+  },
   profile_portrait: {
     id: 'asset.profile_portrait',
     axis: 'asset',

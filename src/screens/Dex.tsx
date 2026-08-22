@@ -87,7 +87,7 @@ export function DexScreen({ onGo }: { onGo: (o: Overlay) => void }) {
                   <span className="dexcard__art">
                     <AssetSlot
                       monName={name}
-                      type="profile_portrait"
+                      type="character_toy"
                       fallbackTypes={['character_master']}
                       alt={displayName(name)}
                       fit="cover"
@@ -126,7 +126,7 @@ export function DexScreen({ onGo }: { onGo: (o: Overlay) => void }) {
                   <span className="dexcard__art">
                     <AssetSlot
                       monName={k.assetName}
-                      type="profile_portrait"
+                      type="character_toy"
                       fallbackTypes={['character_master']}
                       alt={displayName(k.record.data.name)}
                       fit="cover"

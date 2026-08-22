@@ -60,7 +60,7 @@ export function NewBranchScreen() {
           <div className="branch__portrait">
             <AssetSlot
               monName={mon.data.name}
-              type="profile_portrait"
+              type="character_toy"
               fallbackTypes={['character_master']}
               alt={short}
               compactPlaceholder

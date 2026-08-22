@@ -9,7 +9,7 @@
    e la schermata resta comunque percorribile (§26).
    ========================================================================= */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useApp, useActiveMon } from '../state/store';
 import { AssetSlot, Sigil, useAssetUrl } from '../system/AssetSlot';
 import { MonName, SpeciesName } from '../system/MonName';
@@ -70,11 +70,20 @@ function FaceGate({
   const [problem, setProblem] = useState<string | null>(null);
 
   const current = order[at] ?? null;
-  const shot = useAssetUrl(monName, current ?? 'profile_portrait');
+  const shot = useAssetUrl(monName, current ?? 'character_toy');
+  const cel = useAssetUrl(monName, 'character_master');
+  const booted = useRef(false);
 
   useEffect(() => {
-    void forgeOrder().then(setOrder);
-  }, [forgeOrder]);
+    if (booted.current) return;
+    booted.current = true;
+    void forgeOrder().then(async (fullOrder) => {
+      /* Il CEL è un passaggio tecnico e non viene mai mostrato. Lo prepariamo
+         prima del Toy, poi l'utente approva soltanto gli asset utilizzati. */
+      if (!cel) await forgeOne(monName, 'character_master');
+      setOrder(fullOrder.filter((type) => type !== 'character_master'));
+    });
+  }, [cel, forgeOne, forgeOrder, monName]);
 
   useEffect(() => {
     onStep(current);
@@ -271,8 +280,8 @@ export function EncounterScreen({ variant }: { variant: 'first' | 'new' }) {
             è peggio di un palco vuoto. */}
         <AssetSlot
           monName={d.name}
-          type={showing ?? 'character_master'}
-          fallbackTypes={['character_master', 'profile_portrait', 'encounter_hero']}
+          type={showing ?? 'character_toy'}
+          fallbackTypes={['character_master']}
           alt={`${short}, arte di rivelazione`}
           className="encounter__art"
         />

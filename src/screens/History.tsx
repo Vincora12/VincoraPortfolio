@@ -73,7 +73,7 @@ export function HistoryScreen({ onClose }: { onClose: () => void }) {
                     {rec && (
                       <AssetSlot
                         monName={n.monName}
-                        type="profile_portrait"
+                        type="character_toy"
                         fallbackTypes={['character_master']}
                         alt={displayName(n.monName)}
                         fit="cover"

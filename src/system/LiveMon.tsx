@@ -21,7 +21,6 @@ import { AssetSlot, useAssetUrl } from './AssetSlot';
 import {
   EXPRESSION_SPEC,
   EXPRESSIONS,
-  IDLE_SPEC,
   type Expression,
 } from '../engine/assets';
 
@@ -47,32 +46,11 @@ export function IdleMon({
   alt: string;
   still?: boolean;
 }) {
-  const strip = useAssetUrl(monName, 'idle_animation');
-
-  // Con lo sprite: animazione a passi, un frame per passo. `steps()` è
-  // l'unico modo di far scattare un background senza interpolare fra i frame.
-  if (strip && !still) {
-    return (
-      <span
-        className="idlemon idlemon--sprite"
-        role="img"
-        aria-label={alt}
-        style={{
-          backgroundImage: `url(${strip})`,
-          backgroundSize: `${IDLE_SPEC.frames * 100}% 100%`,
-          animationDuration: `${(IDLE_SPEC.frames * 2) / IDLE_SPEC.fps}s`,
-          ['--idle-frames' as string]: IDLE_SPEC.frames,
-          ['--idle-step' as string]: `${100 / (IDLE_SPEC.frames - 1)}%`,
-        }}
-      />
-    );
-  }
-
-  // Senza sprite: il master respira. Nessun disegno inventato, solo il
-  // movimento che l'asset porterebbe.
+  // Il Toy è l'immagine principale. L'eventuale respiro è solo UI e non
+  // richiede più la generazione di un asset animato separato.
   return (
     <span className={still ? 'idlemon' : 'idlemon idlemon--breathing'}>
-      <AssetSlot monName={monName} type="character_master" alt={alt} className="idlemon__art" />
+      <AssetSlot monName={monName} type="character_toy" fallbackTypes={['character_master']} alt={alt} className="idlemon__art" />
     </span>
   );
 }
@@ -207,7 +185,7 @@ export function MonFace({
     >
       <AssetSlot
         monName={monName}
-        type="profile_portrait"
+        type="character_toy"
         fallbackTypes={['character_master']}
         alt={alt}
         fit="cover"

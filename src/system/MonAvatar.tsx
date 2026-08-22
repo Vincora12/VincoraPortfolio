@@ -39,7 +39,7 @@ interface MonAvatarProps {
 }
 
 export function MonAvatar({ monName, sigil, size = 40 }: MonAvatarProps) {
-  const { url } = useAssetUrlChain(monName, ['profile_portrait', 'character_master']);
+  const { url } = useAssetUrlChain(monName, ['character_toy', 'character_master']);
 
   return (
     <span

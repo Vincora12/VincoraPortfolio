@@ -50,7 +50,7 @@ export function HeritageDnaScreen({ onClose }: { onClose: () => void }) {
                   {fromName && (
                     <AssetSlot
                       monName={fromName}
-                      type="profile_portrait"
+                      type="character_toy"
                       fallbackTypes={['character_master']}
                       alt={displayName(fromName)}
                       fit="cover"
@@ -75,7 +75,7 @@ export function HeritageDnaScreen({ onClose }: { onClose: () => void }) {
                 <div className="heritage__portrait">
                   <AssetSlot
                     monName={d.name}
-                    type="profile_portrait"
+                    type="character_toy"
                     fallbackTypes={['character_master']}
                     alt={short}
                     fit="cover"

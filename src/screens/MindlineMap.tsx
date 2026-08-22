@@ -197,7 +197,7 @@ export function MindlineMapScreen({ onGo }: { onGo: (o: Overlay) => void }) {
                 {mons[selected.monName] && (
                   <AssetSlot
                     monName={selected.monName}
-                    type="profile_portrait"
+                    type="character_toy"
                     fallbackTypes={['character_master']}
                     alt={displayName(selected.monName)}
                     fit="cover"

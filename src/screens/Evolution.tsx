@@ -55,7 +55,8 @@ export function EvolutionScreen() {
         <div className="evolution__stage">
           <AssetSlot
             monName={d.name}
-            type="character_master"
+            type="character_toy"
+            fallbackTypes={['character_master']}
             alt={`${short}, nuova forma`}
             className="evolution__art"
           />
