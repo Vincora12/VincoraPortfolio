@@ -1200,9 +1200,7 @@ console.log('\nMASTER → DERIVATI\n');
   /* Ma dicono tutti la cosa che conta: il riferimento è il personaggio. */
   check(
     derivati.every(
-      (d) =>
-        /(CHARACTER MASTER|MASTER VISUAL REFERENCE|attached character image)/i.test(d.p.text) &&
-        /PRESERVE/i.test(d.p.text),
+      (d) => /(CHARACTER MASTER|MASTER VISUAL REFERENCE)/.test(d.p.text) && /PRESERVE/.test(d.p.text),
     ),
     'mentre dicono tutti di conservare il master allegato',
   );
