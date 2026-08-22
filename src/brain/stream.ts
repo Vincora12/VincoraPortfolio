@@ -88,6 +88,20 @@ export type MealConfirmation = {
 };
 export type WorkoutConfirmation = { status: 'needs-confirmation' | 'confirmed' };
 
+const WEEKDAY = String.raw`(?:lunedi|martedi|mercoledi|giovedi|venerdi|sabato|domenica)`;
+
+/** Distingue un allenamento programmato da uno già svolto. */
+export function isWorkoutPlanIntent(text: string): boolean {
+  const normalized = text.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const mentionsPlan = /\b(?:piano|programma|scheda)\b/i.test(normalized)
+    && /\b(?:allenament\w*|palestra|workout)\b/i.test(normalized);
+  const schedulesDay = new RegExp(
+    String.raw`\b(?:inserisc\w*|aggiung\w*|mett\w*|programm\w*|pianific\w*|spost\w*|modific\w*)\b[^.!?]*\b(?:allenament\w*|palestra|workout)\b[^.!?]*\b${WEEKDAY}\b|\b${WEEKDAY}\b[^.!?]*\b(?:inserisc\w*|aggiung\w*|mett\w*|programm\w*|pianific\w*|spost\w*|modific\w*)\b[^.!?]*\b(?:allenament\w*|palestra|workout)\b`,
+    'i',
+  ).test(normalized);
+  return mentionsPlan || schedulesDay;
+}
+
 export function isMealLogIntent(text: string): boolean {
   if (/^\s*(?:cosa|che cosa|quanto|quanti|quante)\b.*\b(?:mangiat\w*|bevut\w*)/i.test(text)) return false;
   if (/\bnon\s+ho\s+(?:mangiato|bevuto)\b/i.test(text)) return false;
@@ -95,6 +109,7 @@ export function isMealLogIntent(text: string): boolean {
 }
 
 export function isWorkoutLogIntent(text: string): boolean {
+  if (isWorkoutPlanIntent(text)) return false;
   if (/^\s*(?:cosa|che cosa|quanto|quanti|quante)\b.*\b(?:allenat\w*|cors\w*|camminat\w*)/i.test(text)) return false;
   if (/\bnon\s+(?:mi\s+sono\s+allenat\w*|ho\s+fatto\s+(?:allenamento|sport))\b/i.test(text)) return false;
   return /\b(?:mi\s+sono\s+allenat\w*|ho\s+(?:corso|camminato|nuotato|pedalato)|ho\s+fatto\s+[^.!?]*(?:allenamento|palestra|workout|corsa|camminata|cardio|lower|upper)|(?:registra|aggiungi|segna(?:lo)?)\w*\s+[^.!?]*(?:allenament\w*|sport|workout|corsa|camminata)|allenamento\s+(?:completato|fatto)|corsa\s+\d|camminata\s+\d)\b/i.test(text);
@@ -107,7 +122,8 @@ export function shouldUseLocalTools(text: string): boolean {
 
 /** Le registrazioni esplicite non devono dipendere dalla buona volontà del modello. */
 export function requiredWriteTool(text: string): string | undefined {
-  if (/\b(?:crea|scrivi|prepara|imposta|fammi|salva|aggiorna)\w*\b[^.!?]*\b(?:piano|programma|scheda)\b[^.!?]*\b(?:allenamento|allenamenti|palestra|workout)\b/i.test(text)
+  if (isWorkoutPlanIntent(text)
+    || /\b(?:crea|scrivi|prepara|imposta|fammi|salva|aggiorna)\w*\b[^.!?]*\b(?:piano|programma|scheda)\b[^.!?]*\b(?:allenamento|allenamenti|palestra|workout)\b/i.test(text)
     || /\b(?:piano|programma|scheda)\b[^.!?]*\b(?:allenamento|allenamenti|palestra|workout)\b[^.!?]*\b(?:crea|scrivi|prepara|imposta|fammi|salva|aggiorna)\w*\b/i.test(text)) {
     return 'imposta_piano_allenamento';
   }
@@ -131,6 +147,9 @@ export async function replyWithLocalTools(
   const token = savedToken();
   if (!token) throw new Error('Prima attiva VINZ.MON: manca il token.');
 
+  const workoutPlanContext = isWorkoutPlanIntent(user)
+    ? run({ id: 'read-workout-plan', name: 'leggi_me', input: { sezione: 'sport' } }).content
+    : '';
   const system = [{
     text: [
       'You are VINZ.MON, a neutral high-quality personal AI assistant.',
@@ -150,6 +169,9 @@ export async function replyWithLocalTools(
         ? 'The user has just confirmed the workout. Call registra_allenamento now.'
         : '',
       'The AI may read and update every ME journal field through its dedicated tools: diet, nutrition targets, meals, completed workouts, workout plan, weight and period goal. Never directly invent or edit VINZ.MON game stats; they are deterministic.',
+      workoutPlanContext
+        ? `The user is editing the workout schedule. Here is the current ME SPORT data: ${workoutPlanContext}. Preserve every existing day not explicitly changed, then call imposta_piano_allenamento. A weekday request refers to the plan, never to a completed workout.`
+        : '',
     ].join(' '),
   }];
   const history: Array<{ role: 'user' | 'assistant'; content: unknown }> = turns.map(

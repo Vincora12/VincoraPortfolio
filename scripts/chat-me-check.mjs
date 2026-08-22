@@ -10,9 +10,9 @@ const entry = join(dir, 'entry.ts');
 const out = join(cwd, 'node_modules', '.vinz-chat-me-check.mjs');
 
 writeFileSync(entry, `
-export { replyWithLocalTools, shouldUseLocalTools, requiredWriteTool, isMealLogIntent, isWorkoutLogIntent } from '${cwd}/src/brain/stream.ts';
+export { replyWithLocalTools, shouldUseLocalTools, requiredWriteTool, isMealLogIntent, isWorkoutLogIntent, isWorkoutPlanIntent } from '${cwd}/src/brain/stream.ts';
 export { runTool } from '${cwd}/src/ai/tools.ts';
-export { addMeal, addWorkout, addWeight, configureHealthDisplay, configureHealthTargets, healthJournalReport, readHealthJournal, setDietPlan, updateLatestMeal, updateLatestWeight, updateLatestWorkout } from '${cwd}/src/engine/healthJournal.ts';
+export { addMeal, addWorkout, addWeight, configureHealthDisplay, configureHealthTargets, healthJournalReport, readHealthJournal, setDietPlan, setWorkoutPlan, updateLatestMeal, updateLatestWeight, updateLatestWorkout } from '${cwd}/src/engine/healthJournal.ts';
 `);
 
 await build({
@@ -58,6 +58,7 @@ const ctx = {
   logWeight: (kg) => m.addWeight(kg, 'chat'),
   updateWeight: (kg) => m.updateLatestWeight(kg),
   saveDiet: (title, text) => m.setDietPlan(title, text),
+  saveWorkoutPlan: (title, text) => m.setWorkoutPlan(title, text),
   configureTargets: (targets) => m.configureHealthTargets(targets),
   configureHealth: (focus, goal) => m.configureHealthDisplay(focus, goal),
 };
@@ -94,11 +95,13 @@ const replies = [
 ];
 const originalFetch = globalThis.fetch;
 const toolCounts = [];
+const toolNames = [];
 const toolChoices = [];
 const imageCounts = [];
 globalThis.fetch = async (_url, init) => {
   const request = JSON.parse(String(init?.body ?? '{}'));
   toolCounts.push(Array.isArray(request.tools) ? request.tools.length : 0);
+  toolNames.push(Array.isArray(request.tools) ? request.tools.map((tool) => tool.name) : []);
   toolChoices.push(request.toolChoice ?? null);
   imageCounts.push(Array.isArray(request.images) ? request.images.length : 0);
   return new Response(JSON.stringify(replies.shift()), {
@@ -118,6 +121,9 @@ try {
   check(!m.isWorkoutLogIntent('Quanto mi sono allenato oggi?'), 'una domanda sullo sport non viene scambiata per un nuovo allenamento');
   check(m.requiredWriteTool('Ho mangiato una banana.') === undefined, 'il pasto non viene salvato prima della conferma');
   check(m.requiredWriteTool('Ho fatto 45 minuti di lower body.') === undefined, 'l’allenamento non viene salvato prima della conferma');
+  check(m.isWorkoutPlanIntent('Inserisci allenamento il lunedì'), 'un allenamento assegnato a un giorno viene riconosciuto come piano');
+  check(!m.isWorkoutLogIntent('Inserisci allenamento il lunedì'), 'un allenamento futuro non viene scambiato per uno svolto');
+  check(m.requiredWriteTool('Inserisci allenamento il lunedì') === 'imposta_piano_allenamento', 'la modifica del lunedì aggiorna il piano in ME');
   const run = (use) => m.runTool(use, ctx);
   let proposal = '';
   await m.replyWithLocalTools(
@@ -143,12 +149,20 @@ try {
     [], 'Sì', new AbortController().signal, () => {}, run, 'test-model', [], undefined,
     { status: 'confirmed' },
   );
+  replies.push(
+    { toolUses: [{ id: 'plan-1', name: 'imposta_piano_allenamento', input: { titolo: 'Piano settimanale', testo: 'Lunedì: allenamento' } }], costUsd: 0.001, model: 'test-model' },
+    { text: 'Allenamento inserito lunedì nel piano.', costUsd: 0.001, model: 'test-model' },
+  );
+  await m.replyWithLocalTools(
+    [], 'Inserisci allenamento il lunedì', new AbortController().signal, () => {}, run, 'test-model', [], undefined, undefined,
+  );
   const journal = m.readHealthJournal();
   check(journal.meals.length === 2, 'i pasti confermati in chat entrano nel diario ME');
   check(journal.meals[0]?.description === 'Una banana', 'ME legge descrizione e nutrienti del pasto');
   check(journal.meals[0]?.slot === 'spuntino', 'il primo spuntino riempie il momento fisso');
   check(journal.meals[1]?.slot === 'extra', 'un secondo pasto nello stesso momento diventa extra');
   check(journal.workouts.length === 1, 'l’allenamento detto in chat entra nel diario ME');
+  check(journal.workoutPlan?.text.includes('Lunedì'), 'l’allenamento futuro entra nel piano settimanale');
   check(journal.workouts[0]?.minutes === 45, 'ME legge durata e dettagli dell’allenamento');
   check(journal.meals[0]?.source === 'chat' && journal.workouts[0]?.source === 'chat', 'la provenienza resta CHAT');
   check(toolCounts.every((count) => count <= 12), 'ogni richiesta resta entro il limite di 12 strumenti');
@@ -156,7 +170,7 @@ try {
   check(toolChoices[0] === null && toolChoices[1] === 'registra_pasto', 'la scrittura del pasto diventa obbligatoria solo dopo il sì');
   check(workoutProposal.includes('Confermi che registro questo **allenamento** in ME?'), 'anche l’allenamento chiede conferma prima del salvataggio');
   check(toolChoices[6] === 'registra_allenamento', 'il backend forza la scrittura dell’allenamento solo dopo il sì');
-  check(toolCounts[0] === 8 && toolCounts[5] === 8, 'prima della conferma gli strumenti di scrittura del nuovo log non vengono esposti al modello');
+  check(!toolNames[0]?.includes('registra_pasto') && !toolNames[5]?.includes('registra_allenamento'), 'prima della conferma gli strumenti di scrittura del nuovo log non vengono esposti al modello');
   check(imageCounts[0] === 2, 'le due foto del pasto arrivano insieme al ciclo che aggiorna ME');
   run({ id: 'diet-1', name: 'imposta_dieta', input: { titolo: 'Piano settimanale', testo: 'Colazione: yogurt' } });
   run({ id: 'targets-1', name: 'imposta_obiettivi_nutrizionali', input: { kcal: 2100, proteine: 160 } });
