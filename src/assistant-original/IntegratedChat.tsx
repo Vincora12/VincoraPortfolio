@@ -15,7 +15,7 @@ import { createNetlifyChatModel } from "./netlify-runtime";
 import { VinzImageAttachmentAdapter } from "./image-attachment";
 import { ChatSurface } from "./chat-surface";
 import "./styles.css";
-import { serverBackedStorage } from "@/system/serverStorage";
+import { migrateStoragePrefix, serverBackedStorage } from "@/system/serverStorage";
 
 const threadAdapter = createLocalStorageAdapter({
   storage: serverBackedStorage,
@@ -41,6 +41,7 @@ export const IntegratedChat: FC<IntegratedChatProps> = ({
 }) => {
   useEffect(() => {
     document.documentElement.classList.add("dark");
+    void migrateStoragePrefix("assistant-ui-official-chatgpt:");
   }, []);
   const model = useMemo(() => createNetlifyChatModel(runTool), [runTool]);
   const runtime = useRemoteThreadListRuntime({

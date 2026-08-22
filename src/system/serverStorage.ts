@@ -35,3 +35,22 @@ export const serverBackedStorage = {
     } catch { /* Non bloccare la chat se la rete manca. */ }
   },
 };
+
+/** Migra le chiavi già presenti senza sovrascrivere una copia server esistente. */
+export async function migrateStoragePrefix(prefix: string): Promise<void> {
+  const keys = Array.from({ length: localStorage.length }, (_, index) => localStorage.key(index))
+    .filter((key): key is string => Boolean(key?.startsWith(prefix)));
+  for (const key of keys) {
+    const local = localStorage.getItem(key);
+    if (local === null) continue;
+    const headers = auth();
+    if (!headers) return;
+    try {
+      const response = await fetch(`/api/user-data?key=${encodeURIComponent(key)}`, { headers, cache: 'no-store' });
+      if (!response.ok) continue;
+      const { value } = await response.json() as { value: string | null };
+      if (typeof value === 'string') localStorage.setItem(key, value);
+      else await serverBackedStorage.setItem(key, local);
+    } catch { /* Riprova alla prossima apertura. */ }
+  }
+}
