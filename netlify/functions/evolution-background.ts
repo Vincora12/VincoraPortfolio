@@ -26,11 +26,22 @@ type Job = {
 
 const ALLOWED_ASSETS = new Set(['master_01', 'toy_01', 'doodle_01', 'reactions_01']);
 const store = () => getStore('vinzmon-evolution');
+const permanentStore = () => getStore({ name: 'vinzmon-assets', consistency: 'strong' });
 const jobKey = (id: string) => `job:${id}`;
 const assetKey = (id: string, assetId: string) => `asset:${id}:${assetId}`;
+const permanentAssetKey = (name: string, assetId: string) => `asset:${encodeURIComponent(name)}:${encodeURIComponent(assetId)}`;
 
 function bytes(base64: string): Uint8Array {
   return Uint8Array.from(atob(base64), (char) => char.charCodeAt(0));
+}
+
+function base64(buffer: ArrayBuffer): string {
+  const input = new Uint8Array(buffer);
+  let output = '';
+  for (let offset = 0; offset < input.length; offset += 0x8000) {
+    output += String.fromCharCode(...input.subarray(offset, offset + 0x8000));
+  }
+  return btoa(output);
 }
 
 function saferPrompt(prompt: string): string {
@@ -103,10 +114,22 @@ export default async function evolutionBackground(request: Request): Promise<voi
     assets: [],
     updatedAt: new Date().toISOString(),
   };
-  await save(job);
 
+  /* Un retry riparte dal primo asset mancante. Gli asset già conclusi sono
+     permanenti e non vanno né rigenerati né ripagati. */
   let master: string | null = null;
   for (const item of items) {
+    const existing = await permanentStore().get(permanentAssetKey(candidateName, item.assetId), { type: 'arrayBuffer' });
+    if (!existing) continue;
+    await store().set(assetKey(id, item.assetId), existing);
+    job.assets.push({ type: item.type, assetId: item.assetId });
+    job.done += 1;
+    if (item.type === 'character_master') master = base64(existing);
+  }
+  await save(job);
+
+  for (const item of items) {
+    if (job.assets.some((asset) => asset.assetId === item.assetId)) continue;
     const cap = await checkCap();
     if (cap.blocked) {
       job.status = 'error';
@@ -133,8 +156,8 @@ export default async function evolutionBackground(request: Request): Promise<voi
       imageBytes.byteOffset + imageBytes.byteLength,
     ) as ArrayBuffer;
     await store().set(assetKey(id, item.assetId), imageBuffer);
-    await getStore({ name: 'vinzmon-assets', consistency: 'strong' }).set(
-      `asset:${encodeURIComponent(candidateName)}:${encodeURIComponent(item.assetId)}`,
+    await permanentStore().set(
+      permanentAssetKey(candidateName, item.assetId),
       imageBuffer,
       { metadata: { contentType: 'image/png' } },
     );
