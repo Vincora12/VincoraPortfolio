@@ -172,6 +172,7 @@ async function* runWithLocalTools(
       registra_peso: "Peso aggiornato in ME",
       correggi_ultimo_peso: "Peso corretto in ME",
       imposta_dieta: "Piano alimentare aggiornato in ME",
+      imposta_piano_allenamento: "Piano allenamento aggiornato in ME",
       imposta_obiettivi_nutrizionali: "Obiettivi nutrizionali aggiornati in ME",
       personalizza_me: "Schermata ME aggiornata",
     } as Record<string, string>)[use.name];

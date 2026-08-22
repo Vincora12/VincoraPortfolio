@@ -125,6 +125,58 @@
   border-color: var(--border);
 }
 
+/* I menu vivono in un portal fuori da `.assistant-clone`: qui ricevono una
+   superficie opaca e un livello assoluto, così iOS non li compone dietro a
+   messaggi, composer o drawer. */
+[data-slot="popover-positioner"] {
+  z-index: 2147483000 !important;
+}
+
+[data-slot="popover-content"] {
+  z-index: 2147483000 !important;
+  border: 1px solid rgb(255 255 255 / 14%) !important;
+  background: #212121 !important;
+  color: #ececec !important;
+  box-shadow: 0 14px 40px rgb(0 0 0 / 62%) !important;
+  opacity: 1 !important;
+}
+
+[data-slot="model-selector-content"],
+[data-slot="model-selector-content"] [data-slot="command"],
+[data-slot="model-selector-content"] [data-slot="command-list"] {
+  background: #212121 !important;
+  color: #ececec !important;
+  opacity: 1 !important;
+}
+
+[data-slot="model-selector-content"] [data-slot="command-item"] {
+  color: #ececec !important;
+}
+
+[data-slot="model-selector-content"] [data-slot="command-item"] [class*="muted"] {
+  color: #b4b4b4 !important;
+}
+
+[data-slot="aui_thread-list-item-more-content"] {
+  background: #212121 !important;
+  color: #ececec !important;
+}
+
+[data-slot="aui_thread-list-item-more-item"] {
+  border: 0 !important;
+  background: transparent !important;
+  color: #ececec !important;
+}
+
+[data-slot="aui_thread-list-item-more-item"]:hover,
+[data-slot="aui_thread-list-item-more-item"]:focus-visible {
+  background: #2f2f2f !important;
+}
+
+[data-slot="aui_thread-list-item-more-item"]:last-child {
+  color: #ff8585 !important;
+}
+
 .assistant-clone button,
 .assistant-clone input,
 .assistant-clone textarea,

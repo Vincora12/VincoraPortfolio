@@ -15,6 +15,8 @@ writeFileSync(
 export { callProvider, extractAnthropicSources, extractOpenAIResponseSources, streamAnthropic } from '${cwd}/netlify/functions/_shared/providers.ts';
 export { assistantRequestPreferences } from '${cwd}/netlify/functions/ai.ts';
 export { resolveRoute } from '${cwd}/netlify/functions/_shared/routing.ts';
+export { runTool as runLocalTool } from '${cwd}/src/ai/tools.ts';
+export { requiredWriteTool } from '${cwd}/src/brain/stream.ts';
 `,
 );
 
@@ -53,6 +55,8 @@ const threadListSource = readFileSync(
 const cloneMain = readFileSync(join(cwd, 'src/assistant-original/main.tsx'), 'utf8');
 const integratedChat = readFileSync(join(cwd, 'src/assistant-original/IntegratedChat.tsx'), 'utf8');
 const appSource = readFileSync(join(cwd, 'src/App.tsx'), 'utf8');
+const healthJournalSource = readFileSync(join(cwd, 'src/engine/healthJournal.ts'), 'utf8');
+const toolSource = readFileSync(join(cwd, 'src/ai/tools.ts'), 'utf8');
 const netlifyRuntime = readFileSync(
   join(cwd, 'src/assistant-original/netlify-runtime.ts'),
   'utf8',
@@ -140,6 +144,29 @@ check(
   netlifyRuntime.includes('Obiettivi nutrizionali aggiornati in ME') &&
     netlifyRuntime.includes('Piano alimentare aggiornato in ME'),
   'la chat mostra quando aggiorna dieta e obiettivi della schermata ME',
+);
+let savedWorkoutPlan;
+const workoutPlanResult = m.runLocalTool(
+  {
+    id: 'workout-plan-test',
+    name: 'imposta_piano_allenamento',
+    input: { titolo: 'Piano 3 giorni', testo: 'Lunedì: lower body' },
+  },
+  {
+    saveWorkoutPlan: (title, body) => { savedWorkoutPlan = { title, body }; },
+  },
+);
+check(
+  !workoutPlanResult.isError &&
+    savedWorkoutPlan?.title === 'Piano 3 giorni' &&
+    savedWorkoutPlan?.body === 'Lunedì: lower body' &&
+    toolSource.includes("name: 'imposta_piano_allenamento'") &&
+    healthJournalSource.includes('workoutPlan:'),
+  'la chat può scrivere e sostituire il piano allenamento mostrato in ME',
+);
+check(
+  m.requiredWriteTool('Creami un nuovo piano di allenamento') === 'imposta_piano_allenamento',
+  'una richiesta esplicita attiva automaticamente la scrittura del piano allenamento',
 );
 
 const preferences = m.assistantRequestPreferences(

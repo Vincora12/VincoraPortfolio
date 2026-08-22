@@ -107,6 +107,7 @@ export interface ToolContext {
   logWeight: (kg: number) => void;
   updateWeight: (kg: number) => boolean;
   saveDiet: (title: string, text: string) => void;
+  saveWorkoutPlan: (title: string, text: string) => void;
   configureTargets: (targets: Partial<{ kcal: number; protein: number; carbs: number; fat: number }>) => void;
   configureHealth: (focus: 'today' | 'diet' | 'sport' | 'progress', goal: string) => void;
 }
@@ -143,7 +144,7 @@ export const TOOLS: ToolDef[] = [
   },
   {
     name: 'leggi_me',
-    description: 'Legge i dati reali mostrati nella schermata ME: pasti, allenamenti, peso, dieta, obiettivi nutrizionali e obiettivo del periodo. Usalo prima di correggere o modificare dati esistenti.',
+    description: 'Legge i dati reali mostrati nella schermata ME: pasti, allenamenti svolti, piano di allenamento, peso, dieta, obiettivi nutrizionali e obiettivo del periodo. Usalo prima di correggere o modificare dati esistenti.',
     schema: { type: 'object', properties: {
       sezione: { type: 'string', enum: ['today', 'diet', 'sport', 'progress', 'all'] },
     }, required: ['sezione'] },
@@ -188,6 +189,11 @@ export const TOOLS: ToolDef[] = [
   {
     name: 'imposta_dieta',
     description: 'Salva nella sezione DIETA un piano alimentare fornito dall’utente, anche estratto da un file allegato. Conserva indicazioni, pasti e quantità senza inventare dati mancanti.',
+    schema: { type: 'object', properties: { titolo: { type: 'string' }, testo: { type: 'string' } }, required: ['titolo', 'testo'] },
+  },
+  {
+    name: 'imposta_piano_allenamento',
+    description: 'Crea o sostituisce il piano di allenamento mostrato in ME → SPORT. Organizza giorni, esercizi, serie, ripetizioni, recuperi e note usando soltanto le informazioni concordate con l’utente.',
     schema: { type: 'object', properties: { titolo: { type: 'string' }, testo: { type: 'string' } }, required: ['titolo', 'testo'] },
   },
   {
@@ -500,6 +506,12 @@ export function runTool(use: ToolUse, ctx: ToolContext): ToolResult {
         if (!title || !text) return fail('Titolo o contenuto della dieta mancanti.');
         ctx.saveDiet(title, text);
         return ok('Dieta salvata nella sezione ME → DIETA.');
+      }
+      case 'imposta_piano_allenamento': {
+        const title = str(args.titolo); const text = str(args.testo);
+        if (!title || !text) return fail('Titolo o contenuto del piano di allenamento mancanti.');
+        ctx.saveWorkoutPlan(title, text);
+        return ok('Piano di allenamento salvato nella sezione ME → SPORT.');
       }
       case 'imposta_obiettivi_nutrizionali': {
         const targets: Partial<{ kcal: number; protein: number; carbs: number; fat: number }> = {};

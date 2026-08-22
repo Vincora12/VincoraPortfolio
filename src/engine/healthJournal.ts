@@ -25,6 +25,7 @@ export type HealthJournal = {
   workouts: WorkoutLog[];
   weights: WeightLog[];
   dietPlan: { title: string; text: string; updatedAt: string } | null;
+  workoutPlan: { title: string; text: string; updatedAt: string } | null;
   targets: { kcal: number; protein: number; carbs: number; fat: number };
   display: { focus: 'today' | 'diet' | 'sport' | 'progress'; goal: string };
 };
@@ -32,7 +33,7 @@ export type HealthJournal = {
 const KEY = 'vinzmon.health.journal.v1';
 export const HEALTH_JOURNAL_EVENT = 'vinzmon-health-journal';
 const EMPTY: HealthJournal = {
-  meals: [], workouts: [], weights: [], dietPlan: null,
+  meals: [], workouts: [], weights: [], dietPlan: null, workoutPlan: null,
   targets: { kcal: 2200, protein: 150, carbs: 275, fat: 73 },
   display: { focus: 'today', goal: '' },
 };
@@ -83,6 +84,11 @@ export function addWeight(kg: number, source: WeightLog['source'] = 'chat') {
 export function setDietPlan(title: string, text: string) {
   const journal = readHealthJournal();
   return save({ ...journal, dietPlan: { title, text, updatedAt: new Date().toISOString() } });
+}
+
+export function setWorkoutPlan(title: string, text: string) {
+  const journal = readHealthJournal();
+  return save({ ...journal, workoutPlan: { title, text, updatedAt: new Date().toISOString() } });
 }
 
 export function configureHealthDisplay(focus: HealthJournal['display']['focus'], goal: string) {
@@ -149,7 +155,7 @@ export function healthJournalReport(section: 'today' | 'diet' | 'sport' | 'progr
   const data = {
     ...(section === 'today' || section === 'all' ? { today: { meals: todayMeals, workouts: todayWorkouts } } : {}),
     ...(section === 'diet' || section === 'all' ? { dietPlan: journal.dietPlan, targets: journal.targets } : {}),
-    ...(section === 'sport' || section === 'all' ? { workouts: journal.workouts.slice(-20) } : {}),
+    ...(section === 'sport' || section === 'all' ? { workoutPlan: journal.workoutPlan, workouts: journal.workouts.slice(-20) } : {}),
     ...(section === 'progress' || section === 'all' ? { weights: journal.weights.slice(-20), display: journal.display } : {}),
   };
   return JSON.stringify(data);

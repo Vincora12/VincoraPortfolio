@@ -79,7 +79,7 @@ export async function streamReply(
   return { costUsd: 0 };
 }
 
-const TOOL_INTENT = /\b(miei dati|mia salute|come sto|\bme\b|dormit\w*|allenat\w*|allenamento|palestra|workout|corsa|camminata|mangiat\w*|bevut\w*|pasto|colazione|pranzo|cena|spuntino|merenda|extra|calori\w*|kcal|protein\w*|carbo\w*|grass\w*|macro|peso|dieta|obiettiv\w*|target|corregg\w*|modific\w*|giornat\w*|protocollo|ricordami|promemoria|pagina|aspetto|schermata)\b/i;
+const TOOL_INTENT = /\b(miei dati|mia salute|come sto|\bme\b|dormit\w*|allenat\w*|allenamento|palestra|workout|programma|piano|scheda|corsa|camminata|mangiat\w*|bevut\w*|pasto|colazione|pranzo|cena|spuntino|merenda|extra|calori\w*|kcal|protein\w*|carbo\w*|grass\w*|macro|peso|dieta|obiettiv\w*|target|corregg\w*|modific\w*|giornat\w*|protocollo|ricordami|promemoria|pagina|aspetto|schermata)\b/i;
 
 export type ChatMealSlot = 'colazione' | 'spuntino' | 'pranzo' | 'merenda' | 'cena' | 'extra';
 export type MealConfirmation = {
@@ -107,6 +107,10 @@ export function shouldUseLocalTools(text: string): boolean {
 
 /** Le registrazioni esplicite non devono dipendere dalla buona volontà del modello. */
 export function requiredWriteTool(text: string): string | undefined {
+  if (/\b(?:crea|scrivi|prepara|imposta|fammi|salva|aggiorna)\w*\b[^.!?]*\b(?:piano|programma|scheda)\b[^.!?]*\b(?:allenamento|allenamenti|palestra|workout)\b/i.test(text)
+    || /\b(?:piano|programma|scheda)\b[^.!?]*\b(?:allenamento|allenamenti|palestra|workout)\b[^.!?]*\b(?:crea|scrivi|prepara|imposta|fammi|salva|aggiorna)\w*\b/i.test(text)) {
+    return 'imposta_piano_allenamento';
+  }
   if (/\b(?:peso|sono)\s*(?:oggi\s*)?(?:circa\s*)?\d+(?:[.,]\d+)?\s*kg\b/i.test(text)) {
     return 'registra_peso';
   }
@@ -145,7 +149,7 @@ export async function replyWithLocalTools(
       workoutConfirmation?.status === 'confirmed'
         ? 'The user has just confirmed the workout. Call registra_allenamento now.'
         : '',
-      'The AI may read and update every ME journal field through its dedicated tools: diet, nutrition targets, meals, workouts, weight and period goal. Never directly invent or edit VINZ.MON game stats; they are deterministic.',
+      'The AI may read and update every ME journal field through its dedicated tools: diet, nutrition targets, meals, completed workouts, workout plan, weight and period goal. Never directly invent or edit VINZ.MON game stats; they are deterministic.',
     ].join(' '),
   }];
   const history: Array<{ role: 'user' | 'assistant'; content: unknown }> = turns.map(
@@ -164,7 +168,7 @@ export async function replyWithLocalTools(
   const healthToolNames = new Set([
     'leggi_i_miei_dati', 'leggi_me', 'registra_pasto', 'correggi_ultimo_pasto',
     'registra_allenamento', 'correggi_ultimo_allenamento', 'registra_peso',
-    'correggi_ultimo_peso', 'imposta_dieta', 'imposta_obiettivi_nutrizionali', 'personalizza_me',
+    'correggi_ultimo_peso', 'imposta_dieta', 'imposta_piano_allenamento', 'imposta_obiettivi_nutrizionali', 'personalizza_me',
   ]);
   const isHealthRequest = /\b(me|salute|pasto|mangiat\w*|bevut\w*|colazione|spuntino|pranzo|merenda|cena|extra|calori\w*|protein\w*|carbo\w*|grass\w*|macro|diet\w*|allenat\w*|palestra|workout|corsa|camminata|peso|kg|obiettiv\w*)\b/i.test(user)
     || Boolean(mealConfirmation || workoutConfirmation);

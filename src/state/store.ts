@@ -93,6 +93,7 @@ import {
   configureHealthTargets,
   healthJournalReport,
   setDietPlan,
+  setWorkoutPlan,
   updateLatestMeal,
   updateLatestWeight,
   updateLatestWorkout,
@@ -2359,6 +2360,7 @@ export const useApp = create<AppState>()(
           logWeight: (kg) => { addWeight(kg, 'chat'); },
           updateWeight: (kg) => updateLatestWeight(kg),
           saveDiet: (title, text) => { setDietPlan(title, text); },
+          saveWorkoutPlan: (title, text) => { setWorkoutPlan(title, text); },
           configureTargets: (targets) => { configureHealthTargets(targets); },
           configureHealth: (focus, goal) => { configureHealthDisplay(focus, goal); },
         };
