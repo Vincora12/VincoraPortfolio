@@ -81,7 +81,13 @@ export function SplashScreen({ onEnter }: { onEnter: () => void }) {
           onClick={() => evolutionJob?.status === 'ready' ? revealFormEvolution() : evolutionJob?.status === 'error' ? retryFormEvolution() : !evolutionJob ? openFormEvolution() : undefined}
         >
           <span className="t-meta">
-            {!evolutionJob ? 'EVOLUZIONE DISPONIBILE' : evolutionJob.status === 'running' ? 'NUOVO MON IN CREAZIONE' : evolutionJob.status === 'ready' ? 'NUOVO MON PRONTO' : 'GENERAZIONE INTERROTTA'}
+            {!evolutionJob
+              ? 'EVOLUZIONE DISPONIBILE'
+              : evolutionJob.status === 'running'
+                ? evolutionJob.kind === 'hatch' ? 'PRIMO MON IN CREAZIONE' : 'NUOVO MON IN CREAZIONE'
+                : evolutionJob.status === 'ready'
+                  ? evolutionJob.kind === 'hatch' ? 'PRIMO MON PRONTO' : 'NUOVO MON PRONTO'
+                  : 'GENERAZIONE INTERROTTA'}
           </span>
           <span className="t-micro">{evolutionJob?.label ?? 'TOCCA PER SCEGLIERE'}</span>
           {evolutionJob?.status === 'running' ? <span>{evolutionJob.done}/{evolutionJob.total}</span> : <span aria-hidden="true">→</span>}

@@ -180,7 +180,11 @@ export function CompanionHomeScreen({ onGo, onBack }: { onGo: (o: Overlay) => vo
           <span className="home__evolution-orbit" aria-hidden="true" />
           <span className="home__evolution-copy">
             <strong className="t-meta">
-              {evolutionJob.status === 'running' ? 'NUOVO MON IN CREAZIONE' : evolutionJob.status === 'ready' ? 'NUOVO MON PRONTO' : 'GENERAZIONE INTERROTTA'}
+              {evolutionJob.status === 'running'
+                ? evolutionJob.kind === 'hatch' ? 'PRIMO MON IN CREAZIONE' : 'NUOVO MON IN CREAZIONE'
+                : evolutionJob.status === 'ready'
+                  ? evolutionJob.kind === 'hatch' ? 'PRIMO MON PRONTO' : 'NUOVO MON PRONTO'
+                  : 'GENERAZIONE INTERROTTA'}
             </strong>
             <span className="t-micro">{evolutionJob.status === 'error' ? evolutionJob.error : evolutionJob.label}</span>
           </span>

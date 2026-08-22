@@ -197,9 +197,9 @@ export type Phase =
 
 export type EvolutionKind = 'evolution' | 'mega-evolution';
 export interface EvolutionJob {
-  kind: EvolutionKind;
+  kind: EvolutionKind | 'hatch';
   status: 'running' | 'ready' | 'error';
-  previousName: string;
+  previousName: string | null;
   candidateName: string;
   done: number;
   total: number;
@@ -1164,7 +1164,9 @@ export const useApp = create<AppState>()(
         });
 
         set({
-          phase: 'first-encounter',
+          /* Come una trasformazione: l'app resta utilizzabile mentre il
+             server prepara CEL, Toy, doodle e reaction. */
+          phase: 'live',
           mons: { [record.data.name]: record },
           activeMonName: record.data.name,
           nodes: [
@@ -1180,6 +1182,17 @@ export const useApp = create<AppState>()(
           ],
           lastTrace: trace,
           chat: [openingMessage(record, s.day, s.token !== null)],
+          evolutionJob: {
+            kind: 'hatch',
+            status: 'running',
+            previousName: null,
+            candidateName: record.data.name,
+            done: 0,
+            total: generationOrder().length,
+            label: 'PREPARAZIONE CHARACTER MASTER',
+            error: null,
+            serverJobId: null,
+          },
           // §10.6 — nasce sul punto di riposo del suo temperamento, e la
           // nascita stessa e il primo evento: tono e carica su, appiglio
           // GIU. Uno appena arrivato non e sicuro di stare qui.
@@ -1192,20 +1205,8 @@ export const useApp = create<AppState>()(
         });
 
         void preloadMonAssets(record.data.name);
-        /* 🔒 §22.4 — le facce partono da sole e NON si aspettano: la creatura è
-           già nata e già visibile, il sigillo fa da faccia finché il ritratto
-           non arriva. Non si tocca per il micro-growth: quella resta la stessa
-           creatura, e le sue immagini pure. */
-        /* 🔶 Qui partiva il ritratto da solo. Adesso non parte niente, e non è
-           una regressione: le immagini le chiede la schermata di incontro, una
-           per una, e le fa passare dal COMPILATORE — cosa che questa chiamata
-           non faceva. Generava dal prompt concatenato, cioè proprio quello che
-           produce le creature deformi.
-
-           🔒 Una porta sola. Se restasse anche questa, il ritratto esisterebbe
-           già quando la sequenza arriva al suo turno: sarebbe l'unico dei sei
-           mai approvato, e per giunta nato prima del master, quindi senza il
-           riferimento di consistenza che gli altri cinque hanno. */
+        if (s.token) void import('../system/pushNotifications').then(({ enableEvolutionNotifications }) => enableEvolutionNotifications(s.token as string));
+        void get().resumeFormEvolution();
         requestIntroduction(set, get, record);
       },
 
@@ -1495,8 +1496,19 @@ export const useApp = create<AppState>()(
             }
 
             const current = get();
-            const previous = current.mons[job.previousName];
             const finished = current.mons[job.candidateName] ?? record;
+            if (job.kind === 'hatch') {
+              set({
+                mons: { ...current.mons, [record.data.name]: finished },
+                activeMonName: record.data.name,
+                evolutionJob: { ...job, serverJobId, status: 'ready', done: result.made.length, total: result.made.length, label: 'PRIMO MON PRONTO', error: null },
+              });
+              void preloadMonAssets(record.data.name);
+              void notifyEvolutionReady(record.data.name);
+              return;
+            }
+
+            const previous = job.previousName ? current.mons[job.previousName] : null;
             if (!previous) throw new Error('Forma precedente non trovata');
             set({
               mons: { ...current.mons, [previous.data.name]: { ...previous, retiredOnDay: current.day }, [record.data.name]: finished },
@@ -1520,8 +1532,9 @@ export const useApp = create<AppState>()(
       },
 
       revealFormEvolution: () => {
-        if (get().evolutionJob?.status !== 'ready') return;
-        set({ phase: 'new-encounter' });
+        const job = get().evolutionJob;
+        if (job?.status !== 'ready') return;
+        set({ phase: job.kind === 'hatch' ? 'first-encounter' : 'new-encounter' });
       },
 
       retryFormEvolution: () => {

@@ -63,6 +63,7 @@ function FaceGate({
   const forgeOrder = useApp((s) => s.forgeOrder);
   const rate = useApp((s) => s.rateMon);
   const rating = useApp((s) => s.mons[monName]?.rating ?? null);
+  const assetStatus = useApp((s) => s.mons[monName]?.data.asset_manifest_status);
 
   const [order, setOrder] = useState<AssetType[]>([]);
   const [at, setAt] = useState(0);
@@ -132,7 +133,10 @@ function FaceGate({
     }
     const i = at + 1;
     setAt(i);
-    void make(order[i]!);
+    const next = order[i]!;
+    /* Nel flusso hatch/evoluzione gli asset sono già stati preparati dal
+       server: sfogliarli non deve generarli e pagarli una seconda volta. */
+    if (assetStatus?.[next] !== 'resolved') void make(next);
   };
 
   return (
