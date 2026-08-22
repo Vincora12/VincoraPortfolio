@@ -90,6 +90,71 @@ export function configureHealthDisplay(focus: HealthJournal['display']['focus'],
   return save({ ...journal, display: { focus, goal } });
 }
 
+export function configureHealthTargets(targets: Partial<HealthJournal['targets']>) {
+  const journal = readHealthJournal();
+  return save({ ...journal, targets: { ...journal.targets, ...targets } });
+}
+
+export function updateLatestMeal(
+  slot: MealLog['slot'],
+  patch: Partial<Pick<MealLog, 'slot' | 'description' | 'kcal' | 'protein' | 'carbs' | 'fat'>>,
+): boolean {
+  const journal = readHealthJournal();
+  let index = -1;
+  for (let cursor = journal.meals.length - 1; cursor >= 0; cursor--) {
+    if (journal.meals[cursor]?.slot === slot) { index = cursor; break; }
+  }
+  if (index < 0) return false;
+  const current = journal.meals[index]!;
+  let nextSlot = patch.slot ?? current.slot;
+  if (nextSlot !== 'extra') {
+    const day = localDay(new Date(current.at));
+    const occupied = journal.meals.some(
+      (meal, mealIndex) => mealIndex !== index && meal.slot === nextSlot && localDay(new Date(meal.at)) === day,
+    );
+    if (occupied) nextSlot = 'extra';
+  }
+  const meals = journal.meals.map((meal, mealIndex) => mealIndex === index
+    ? { ...meal, ...patch, slot: nextSlot }
+    : meal);
+  save({ ...journal, meals });
+  return true;
+}
+
+export function updateLatestWorkout(patch: Partial<Pick<WorkoutLog, 'title' | 'details' | 'minutes'>>): boolean {
+  const journal = readHealthJournal();
+  if (!journal.workouts.length) return false;
+  const workouts = journal.workouts.map((workout, index) => index === journal.workouts.length - 1
+    ? { ...workout, ...patch }
+    : workout);
+  save({ ...journal, workouts });
+  return true;
+}
+
+export function updateLatestWeight(kg: number): boolean {
+  const journal = readHealthJournal();
+  if (!journal.weights.length) return false;
+  const weights = journal.weights.map((weight, index) => index === journal.weights.length - 1
+    ? { ...weight, kg }
+    : weight);
+  save({ ...journal, weights });
+  return true;
+}
+
+export function healthJournalReport(section: 'today' | 'diet' | 'sport' | 'progress' | 'all' = 'all'): string {
+  const journal = readHealthJournal();
+  const day = localDay(new Date());
+  const todayMeals = journal.meals.filter((meal) => localDay(new Date(meal.at)) === day);
+  const todayWorkouts = journal.workouts.filter((workout) => localDay(new Date(workout.at)) === day);
+  const data = {
+    ...(section === 'today' || section === 'all' ? { today: { meals: todayMeals, workouts: todayWorkouts } } : {}),
+    ...(section === 'diet' || section === 'all' ? { dietPlan: journal.dietPlan, targets: journal.targets } : {}),
+    ...(section === 'sport' || section === 'all' ? { workouts: journal.workouts.slice(-20) } : {}),
+    ...(section === 'progress' || section === 'all' ? { weights: journal.weights.slice(-20), display: journal.display } : {}),
+  };
+  return JSON.stringify(data);
+}
+
 export function removeHealthEntry(kind: 'meal' | 'workout' | 'weight', entryId: string) {
   const journal = readHealthJournal();
   return save({

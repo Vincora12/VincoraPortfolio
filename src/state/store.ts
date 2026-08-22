@@ -85,7 +85,18 @@ import {
   type Reminder,
 } from './pagesSlice';
 import { runTool, TOOLS, type ToolContext, type ToolResult, type ToolUse } from '../ai/tools';
-import { addMeal, addWeight, addWorkout, configureHealthDisplay, setDietPlan } from '../engine/healthJournal';
+import {
+  addMeal,
+  addWeight,
+  addWorkout,
+  configureHealthDisplay,
+  configureHealthTargets,
+  healthJournalReport,
+  setDietPlan,
+  updateLatestMeal,
+  updateLatestWeight,
+  updateLatestWorkout,
+} from '../engine/healthJournal';
 import { selectHeritageOrigins, type HeritageOrigin } from '../engine/heritage';
 import { createNode, makeNodeId, nextChapter } from '../engine/mindline';
 import { makeMemory, rollDailyEvent } from '../engine/simulation';
@@ -2340,10 +2351,15 @@ export const useApp = create<AppState>()(
             }
             return { ok: e.ok, error: e.error };
           },
+          readMe: (section) => healthJournalReport(section),
           logMeal: (input) => { addMeal(input, 'chat'); },
+          updateMeal: (slot, patch) => updateLatestMeal(slot, patch),
           logWorkout: (input) => { addWorkout(input, 'chat'); },
+          updateWorkout: (patch) => updateLatestWorkout(patch),
           logWeight: (kg) => { addWeight(kg, 'chat'); },
+          updateWeight: (kg) => updateLatestWeight(kg),
           saveDiet: (title, text) => { setDietPlan(title, text); },
+          configureTargets: (targets) => { configureHealthTargets(targets); },
           configureHealth: (focus, goal) => { configureHealthDisplay(focus, goal); },
         };
 

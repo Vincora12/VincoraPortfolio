@@ -10,9 +10,9 @@ const entry = join(dir, 'entry.ts');
 const out = join(cwd, 'node_modules', '.vinz-chat-me-check.mjs');
 
 writeFileSync(entry, `
-export { replyWithLocalTools, shouldUseLocalTools, requiredWriteTool, isMealLogIntent } from '${cwd}/src/brain/stream.ts';
+export { replyWithLocalTools, shouldUseLocalTools, requiredWriteTool, isMealLogIntent, isWorkoutLogIntent } from '${cwd}/src/brain/stream.ts';
 export { runTool } from '${cwd}/src/ai/tools.ts';
-export { addMeal, addWorkout, readHealthJournal } from '${cwd}/src/engine/healthJournal.ts';
+export { addMeal, addWorkout, addWeight, configureHealthDisplay, configureHealthTargets, healthJournalReport, readHealthJournal, setDietPlan, updateLatestMeal, updateLatestWeight, updateLatestWorkout } from '${cwd}/src/engine/healthJournal.ts';
 `);
 
 await build({
@@ -50,9 +50,16 @@ const ctx = {
   remember: () => ({ ok: false }), skinNow: () => '', changeSkin: () => ({ ok: false }),
   resetSkin: () => {}, layoutNow: () => '', showPiece: () => ({ ok: false }),
   movePiece: () => ({ ok: false }),
+  readMe: (section) => m.healthJournalReport(section),
   logMeal: (input) => m.addMeal(input, 'chat'),
+  updateMeal: (slot, patch) => m.updateLatestMeal(slot, patch),
   logWorkout: (input) => m.addWorkout(input, 'chat'),
-  logWeight: () => {}, saveDiet: () => {}, configureHealth: () => {},
+  updateWorkout: (patch) => m.updateLatestWorkout(patch),
+  logWeight: (kg) => m.addWeight(kg, 'chat'),
+  updateWeight: (kg) => m.updateLatestWeight(kg),
+  saveDiet: (title, text) => m.setDietPlan(title, text),
+  configureTargets: (targets) => m.configureHealthTargets(targets),
+  configureHealth: (focus, goal) => m.configureHealthDisplay(focus, goal),
 };
 
 const replies = [
@@ -75,6 +82,7 @@ const replies = [
     model: 'test-model',
   },
   { text: 'Pasto extra registrato in ME.', costUsd: 0.001, model: 'test-model' },
+  { text: 'Hai corso per 45 minuti.', costUsd: 0.001, model: 'test-model' },
   {
     toolUses: [{ id: 'workout-1', name: 'registra_allenamento', input: {
       titolo: 'Lower body', dettagli: 'Squat e affondi', minuti: 45,
@@ -106,8 +114,10 @@ try {
   check(m.isMealLogIntent('Mangio questo come cena'), 'un pasto con foto avvia la conferma del momento');
   check(!m.isMealLogIntent('Cosa ho mangiato a pranzo?'), 'una domanda sul diario non viene scambiata per un nuovo pasto');
   check(!m.isMealLogIntent('Non ho mangiato nulla'), 'un pasto saltato non viene registrato per errore');
+  check(m.isWorkoutLogIntent('Ho fatto 45 minuti di lower body.'), 'un allenamento dichiarato avvia la conferma');
+  check(!m.isWorkoutLogIntent('Quanto mi sono allenato oggi?'), 'una domanda sullo sport non viene scambiata per un nuovo allenamento');
   check(m.requiredWriteTool('Ho mangiato una banana.') === undefined, 'il pasto non viene salvato prima della conferma');
-  check(m.requiredWriteTool('Ho fatto 45 minuti di lower body.') === 'registra_allenamento', 'un allenamento dichiarato impone la scrittura in ME');
+  check(m.requiredWriteTool('Ho fatto 45 minuti di lower body.') === undefined, 'l’allenamento non viene salvato prima della conferma');
   const run = (use) => m.runTool(use, ctx);
   let proposal = '';
   await m.replyWithLocalTools(
@@ -123,7 +133,16 @@ try {
     [], 'Confermo', new AbortController().signal, () => {}, run, 'test-model',
     [], { status: 'confirmed', slot: 'spuntino' },
   );
-  await m.replyWithLocalTools([], 'Ho fatto 45 minuti di lower body.', new AbortController().signal, () => {}, run, 'test-model');
+  let workoutProposal = '';
+  await m.replyWithLocalTools(
+    [], 'Ho fatto 45 minuti di lower body.', new AbortController().signal,
+    (chunk) => { workoutProposal += chunk; }, run, 'test-model', [], undefined,
+    { status: 'needs-confirmation' },
+  );
+  await m.replyWithLocalTools(
+    [], 'Sì', new AbortController().signal, () => {}, run, 'test-model', [], undefined,
+    { status: 'confirmed' },
+  );
   const journal = m.readHealthJournal();
   check(journal.meals.length === 2, 'i pasti confermati in chat entrano nel diario ME');
   check(journal.meals[0]?.description === 'Una banana', 'ME legge descrizione e nutrienti del pasto');
@@ -135,9 +154,22 @@ try {
   check(toolCounts.every((count) => count <= 12), 'ogni richiesta resta entro il limite di 12 strumenti');
   check(proposal.includes('Confermi che lo registro come **spuntino**?'), 'prima del salvataggio chiede conferma del momento intuito');
   check(toolChoices[0] === null && toolChoices[1] === 'registra_pasto', 'la scrittura del pasto diventa obbligatoria solo dopo il sì');
-  check(toolChoices[5] === 'registra_allenamento', 'il backend riceve lo strumento obbligatorio per l’allenamento');
-  check(toolCounts[0] === 11, 'prima della conferma registra_pasto non viene esposto al modello');
+  check(workoutProposal.includes('Confermi che registro questo **allenamento** in ME?'), 'anche l’allenamento chiede conferma prima del salvataggio');
+  check(toolChoices[6] === 'registra_allenamento', 'il backend forza la scrittura dell’allenamento solo dopo il sì');
+  check(toolCounts[0] === 8 && toolCounts[5] === 8, 'prima della conferma gli strumenti di scrittura del nuovo log non vengono esposti al modello');
   check(imageCounts[0] === 2, 'le due foto del pasto arrivano insieme al ciclo che aggiorna ME');
+  run({ id: 'diet-1', name: 'imposta_dieta', input: { titolo: 'Piano settimanale', testo: 'Colazione: yogurt' } });
+  run({ id: 'targets-1', name: 'imposta_obiettivi_nutrizionali', input: { kcal: 2100, proteine: 160 } });
+  run({ id: 'meal-fix-1', name: 'correggi_ultimo_pasto', input: { pasto: 'spuntino', kcal: 110 } });
+  run({ id: 'workout-fix-1', name: 'correggi_ultimo_allenamento', input: { minuti: 50 } });
+  run({ id: 'weight-1', name: 'registra_peso', input: { kg: 80 } });
+  run({ id: 'weight-fix-1', name: 'correggi_ultimo_peso', input: { kg: 79.8 } });
+  const updated = m.readHealthJournal();
+  check(updated.dietPlan?.text.includes('yogurt'), 'l’AI può scrivere o sostituire la dieta in ME');
+  check(updated.targets.kcal === 2100 && updated.targets.protein === 160, 'l’AI può modificare i target nutrizionali senza cambiare gli altri');
+  check(updated.meals[0]?.kcal === 110 && updated.workouts[0]?.minutes === 50, 'l’AI può correggere pasti e allenamenti già presenti');
+  check(updated.weights[0]?.kg === 79.8, 'l’AI può registrare e correggere il peso');
+  check(m.healthJournalReport('all').includes('Piano settimanale'), 'l’AI può rileggere i valori reali prima di modificarli');
 } finally {
   globalThis.fetch = originalFetch;
 }

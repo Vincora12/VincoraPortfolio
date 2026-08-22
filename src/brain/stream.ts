@@ -79,18 +79,25 @@ export async function streamReply(
   return { costUsd: 0 };
 }
 
-const TOOL_INTENT = /\b(miei dati|mia salute|come sto|dormit\w*|allenat\w*|allenamento|palestra|workout|corsa|camminata|mangiat\w*|bevut\w*|pasto|colazione|pranzo|cena|spuntino|merenda|extra|calorie|proteine|peso|dieta|giornat\w*|protocollo|ricordami|promemoria|pagina|aspetto|schermata)\b/i;
+const TOOL_INTENT = /\b(miei dati|mia salute|come sto|\bme\b|dormit\w*|allenat\w*|allenamento|palestra|workout|corsa|camminata|mangiat\w*|bevut\w*|pasto|colazione|pranzo|cena|spuntino|merenda|extra|calori\w*|kcal|protein\w*|carbo\w*|grass\w*|macro|peso|dieta|obiettiv\w*|target|corregg\w*|modific\w*|giornat\w*|protocollo|ricordami|promemoria|pagina|aspetto|schermata)\b/i;
 
 export type ChatMealSlot = 'colazione' | 'spuntino' | 'pranzo' | 'merenda' | 'cena' | 'extra';
 export type MealConfirmation = {
   status: 'needs-confirmation' | 'confirmed';
   slot: ChatMealSlot;
 };
+export type WorkoutConfirmation = { status: 'needs-confirmation' | 'confirmed' };
 
 export function isMealLogIntent(text: string): boolean {
   if (/^\s*(?:cosa|che cosa|quanto|quanti|quante)\b.*\b(?:mangiat\w*|bevut\w*)/i.test(text)) return false;
   if (/\bnon\s+ho\s+(?:mangiato|bevuto)\b/i.test(text)) return false;
   return /\b(?:ho\s+(?:mangiato|bevuto)|(?:mangio|bevo)\b|pasto|colazione|pranzo|cena|spuntino|merenda|snack|registra(?:mi)?\s+(?:questo\s+)?pasto)\b/i.test(text);
+}
+
+export function isWorkoutLogIntent(text: string): boolean {
+  if (/^\s*(?:cosa|che cosa|quanto|quanti|quante)\b.*\b(?:allenat\w*|cors\w*|camminat\w*)/i.test(text)) return false;
+  if (/\bnon\s+(?:mi\s+sono\s+allenat\w*|ho\s+fatto\s+(?:allenamento|sport))\b/i.test(text)) return false;
+  return /\b(?:mi\s+sono\s+allenat\w*|ho\s+(?:corso|camminato|nuotato|pedalato)|ho\s+fatto\s+[^.!?]*(?:allenamento|palestra|workout|corsa|camminata|cardio|lower|upper)|(?:registra|aggiungi|segna(?:lo)?)\w*\s+[^.!?]*(?:allenament\w*|sport|workout|corsa|camminata)|allenamento\s+(?:completato|fatto)|corsa\s+\d|camminata\s+\d)\b/i.test(text);
 }
 
 /** Usa il loop strumenti solo quando la richiesta riguarda dati o azioni locali. */
@@ -100,9 +107,6 @@ export function shouldUseLocalTools(text: string): boolean {
 
 /** Le registrazioni esplicite non devono dipendere dalla buona volontà del modello. */
 export function requiredWriteTool(text: string): string | undefined {
-  if (/\b(?:mi\s+sono\s+allenat\w*|ho\s+fatto\s+[^.!?]*(?:allenamento|palestra|workout|corsa|camminata|cardio|lower|upper)|registra(?:mi)?\s+(?:questo\s+)?allenamento)\b/i.test(text)) {
-    return 'registra_allenamento';
-  }
   if (/\b(?:peso|sono)\s*(?:oggi\s*)?(?:circa\s*)?\d+(?:[.,]\d+)?\s*kg\b/i.test(text)) {
     return 'registra_peso';
   }
@@ -118,6 +122,7 @@ export async function replyWithLocalTools(
   voiceModel?: string | null,
   images: { mediaType: string; data: string }[] = [],
   mealConfirmation?: MealConfirmation,
+  workoutConfirmation?: WorkoutConfirmation,
 ): Promise<ChatCost> {
   const token = savedToken();
   if (!token) throw new Error('Prima attiva VINZ.MON: manca il token.');
@@ -134,6 +139,13 @@ export async function replyWithLocalTools(
       mealConfirmation?.status === 'confirmed'
         ? `The user has just confirmed the proposed meal type: ${mealConfirmation.slot}. Call registra_pasto now and use exactly that meal type.`
         : '',
+      workoutConfirmation?.status === 'needs-confirmation'
+        ? 'Analyze the workout, but DO NOT call registra_allenamento and do not ask the final confirmation question. The app will ask it.'
+        : '',
+      workoutConfirmation?.status === 'confirmed'
+        ? 'The user has just confirmed the workout. Call registra_allenamento now.'
+        : '',
+      'The AI may read and update every ME journal field through its dedicated tools: diet, nutrition targets, meals, workouts, weight and period goal. Never directly invent or edit VINZ.MON game stats; they are deterministic.',
     ].join(' '),
   }];
   const history: Array<{ role: 'user' | 'assistant'; content: unknown }> = turns.map(
@@ -149,11 +161,27 @@ export async function replyWithLocalTools(
   /* Il backend accetta al massimo 12 strumenti per richiesta. Quelli salute
      sono in testa al catalogo; il limite evita che una frase come «ho
      mangiato una banana» venga rifiutata prima ancora che il modello la legga. */
-  const availableTools = TOOLS.slice(0, 12).filter(
-    (tool) => mealConfirmation?.status !== 'needs-confirmation' || tool.name !== 'registra_pasto',
-  );
+  const healthToolNames = new Set([
+    'leggi_i_miei_dati', 'leggi_me', 'registra_pasto', 'correggi_ultimo_pasto',
+    'registra_allenamento', 'correggi_ultimo_allenamento', 'registra_peso',
+    'correggi_ultimo_peso', 'imposta_dieta', 'imposta_obiettivi_nutrizionali', 'personalizza_me',
+  ]);
+  const isHealthRequest = /\b(me|salute|pasto|mangiat\w*|bevut\w*|colazione|spuntino|pranzo|merenda|cena|extra|calori\w*|protein\w*|carbo\w*|grass\w*|macro|diet\w*|allenat\w*|palestra|workout|corsa|camminata|peso|kg|obiettiv\w*)\b/i.test(user)
+    || Boolean(mealConfirmation || workoutConfirmation);
+  const toolPool = isHealthRequest
+    ? TOOLS.filter((tool) => healthToolNames.has(tool.name))
+    : TOOLS.filter((tool) => !healthToolNames.has(tool.name) || tool.name === 'leggi_i_miei_dati');
+  const availableTools = toolPool.slice(0, 12).filter((tool) => {
+    if (tool.name === 'registra_pasto') return mealConfirmation?.status === 'confirmed';
+    if (tool.name === 'registra_allenamento') return workoutConfirmation?.status === 'confirmed';
+    if (tool.name === 'correggi_ultimo_pasto' && mealConfirmation?.status === 'needs-confirmation') return false;
+    if (tool.name === 'correggi_ultimo_allenamento' && workoutConfirmation?.status === 'needs-confirmation') return false;
+    return true;
+  });
   const forcedWrite = mealConfirmation?.status === 'confirmed'
     ? 'registra_pasto'
+    : workoutConfirmation?.status === 'confirmed'
+      ? 'registra_allenamento'
     : requiredWriteTool(user);
 
   for (let round = 0; round < 4; round++) {
@@ -195,6 +223,8 @@ export async function replyWithLocalTools(
       if (!body.text?.trim()) throw new Error('La risposta è arrivata vuota.');
       const confirmation = mealConfirmation?.status === 'needs-confirmation'
         ? `\n\nConfermi che lo registro come **${mealConfirmation.slot === 'extra' ? 'extra / spuntino aggiuntivo' : mealConfirmation.slot}**?`
+        : workoutConfirmation?.status === 'needs-confirmation'
+          ? '\n\nConfermi che registro questo **allenamento** in ME?'
         : '';
       onChunk(`${body.text.trim()}${confirmation}`);
       return { costUsd: totalCostUsd, model: lastModel };

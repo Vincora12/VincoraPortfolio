@@ -7,9 +7,11 @@ import {
   replyWithLocalTools,
   savedToken,
   isMealLogIntent,
+  isWorkoutLogIntent,
   shouldUseLocalTools,
   type ChatMealSlot,
   type MealConfirmation,
+  type WorkoutConfirmation,
   type ChatCost,
 } from "@/brain/stream";
 import type { BrainMessage } from "@/brain/store/types";
@@ -118,6 +120,12 @@ function pendingMealSlot(messages: readonly ThreadMessage[]): ChatMealSlot | und
 
 const confirms = (text: string) => /^\s*(?:s[iì]|confermo|ok(?:ay)?|va bene|esatto|corretto)\b/i.test(text);
 
+function hasPendingWorkout(messages: readonly ThreadMessage[]): boolean {
+  const previous = messages.at(-2);
+  return previous?.role === 'assistant'
+    && /Confermi che registro questo \*\*allenamento\*\* in ME\?/i.test(textOf(previous));
+}
+
 function toBrainMessages(messages: readonly ThreadMessage[]): BrainMessage[] {
   return messages.flatMap((message) => {
     if (message.role !== "user" && message.role !== "assistant") return [];
@@ -136,10 +144,14 @@ async function* runWithLocalTools(
   runTool: (use: ToolUse) => ToolResult,
   modelName?: string,
   mealConfirmation?: MealConfirmation,
+  workoutConfirmation?: WorkoutConfirmation,
 ) {
   const last = messages.at(-1);
   const user = textOf(last);
-  const images = imagesForRun(messages, mealConfirmation?.status === 'confirmed');
+  const images = imagesForRun(
+    messages,
+    mealConfirmation?.status === 'confirmed' || workoutConfirmation?.status === 'confirmed',
+  );
   const history = toBrainMessages(messages.slice(0, -1));
   let answer = "";
   const chunks: string[] = [];
@@ -154,9 +166,13 @@ async function* runWithLocalTools(
     if (result.isError) return result;
     const label = ({
       registra_pasto: "Pasto aggiunto in ME",
+      correggi_ultimo_pasto: "Pasto corretto in ME",
       registra_allenamento: "Allenamento aggiunto in ME",
+      correggi_ultimo_allenamento: "Allenamento corretto in ME",
       registra_peso: "Peso aggiornato in ME",
+      correggi_ultimo_peso: "Peso corretto in ME",
       imposta_dieta: "Piano alimentare aggiornato in ME",
+      imposta_obiettivi_nutrizionali: "Obiettivi nutrizionali aggiornati in ME",
       personalizza_me: "Schermata ME aggiornata",
     } as Record<string, string>)[use.name];
     if (label && !updates.includes(label)) updates.push(label);
@@ -176,6 +192,7 @@ async function* runWithLocalTools(
     modelName,
     images,
     mealConfirmation,
+    workoutConfirmation,
   )
     .then((result) => { cost = result; })
     .catch((error: unknown) => { failure = error; })
@@ -360,18 +377,25 @@ export function createNetlifyChatModel(
       const last = args.messages.at(-1);
       const user = textOf(last);
       const pendingSlot = pendingMealSlot(args.messages);
+      const pendingWorkout = hasPendingWorkout(args.messages);
       const mealConfirmation: MealConfirmation | undefined = pendingSlot && confirms(user)
         ? { status: 'confirmed', slot: pendingSlot }
         : isMealLogIntent(user)
           ? { status: 'needs-confirmation', slot: proposedMealSlot(user) }
           : undefined;
-      if (runTool && (shouldUseLocalTools(user) || mealConfirmation?.status === 'confirmed')) {
+      const workoutConfirmation: WorkoutConfirmation | undefined = pendingWorkout && confirms(user)
+        ? { status: 'confirmed' }
+        : isWorkoutLogIntent(user)
+          ? { status: 'needs-confirmation' }
+          : undefined;
+      if (runTool && (shouldUseLocalTools(user) || mealConfirmation?.status === 'confirmed' || workoutConfirmation?.status === 'confirmed')) {
         yield* runWithLocalTools(
           args.messages,
           args.abortSignal,
           runTool,
           args.context.config?.modelName,
           mealConfirmation,
+          workoutConfirmation,
         );
         return;
       }

@@ -99,6 +99,17 @@ check(
   netlifyRuntime.includes("occupied ? 'extra' : slot"),
   'un momento già compilato viene proposto come extra',
 );
+check(
+  netlifyRuntime.includes('function hasPendingWorkout') &&
+    netlifyRuntime.includes("isWorkoutLogIntent(user)") &&
+    netlifyRuntime.includes("status: 'confirmed'"),
+  'anche l’allenamento passa dalla conferma prima della registrazione',
+);
+check(
+  netlifyRuntime.includes('Obiettivi nutrizionali aggiornati in ME') &&
+    netlifyRuntime.includes('Piano alimentare aggiornato in ME'),
+  'la chat mostra quando aggiorna dieta e obiettivi della schermata ME',
+);
 
 const preferences = m.assistantRequestPreferences(
   { modelName: 'claude-sonnet-5', reasoningEffort: 'high' },
