@@ -88,7 +88,8 @@ export type MealConfirmation = {
 };
 export type WorkoutConfirmation = { status: 'needs-confirmation' | 'confirmed' };
 
-const WEEKDAY = String.raw`(?:lunedi|martedi|mercoledi|giovedi|venerdi|sabato|domenica)`;
+const WEEKDAY = String.raw`(?:lune(?:di)?|martedi|mercoledi|giovedi|venerdi|sabato|domenica)`;
+const WORKOUT_ACTIVITY = String.raw`(?:allenament\w*|palestra|workout|hip\s*hop|danza|yoga|pilates|cors\w*|nuoto|calcio|tennis|padel|boxe|crossfit)`;
 
 /** Distingue un allenamento programmato da uno già svolto. */
 export function isWorkoutPlanIntent(text: string): boolean {
@@ -99,7 +100,11 @@ export function isWorkoutPlanIntent(text: string): boolean {
     String.raw`\b(?:inserisc\w*|aggiung\w*|mett\w*|programm\w*|pianific\w*|spost\w*|modific\w*)\b[^.!?]*\b(?:allenament\w*|palestra|workout)\b[^.!?]*\b${WEEKDAY}\b|\b${WEEKDAY}\b[^.!?]*\b(?:inserisc\w*|aggiung\w*|mett\w*|programm\w*|pianific\w*|spost\w*|modific\w*)\b[^.!?]*\b(?:allenament\w*|palestra|workout)\b`,
     'i',
   ).test(normalized);
-  return mentionsPlan || schedulesDay;
+  const schedulesNamedActivity = new RegExp(
+    String.raw`\b(?:inserisc\w*|aggiung\w*|mett\w*|programm\w*|pianific\w*|spost\w*|modific\w*)\b[^.!?]*\b${WORKOUT_ACTIVITY}\b[^.!?]*\b${WEEKDAY}\b|\b${WEEKDAY}\b[^.!?]*\b(?:inserisc\w*|aggiung\w*|mett\w*|programm\w*|pianific\w*|spost\w*|modific\w*)\b[^.!?]*\b${WORKOUT_ACTIVITY}\b`,
+    'i',
+  ).test(normalized);
+  return mentionsPlan || schedulesDay || schedulesNamedActivity;
 }
 
 export function isMealLogIntent(text: string): boolean {

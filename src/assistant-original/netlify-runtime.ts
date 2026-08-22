@@ -126,6 +126,18 @@ function hasPendingWorkout(messages: readonly ThreadMessage[]): boolean {
     && /Confermi che registro questo \*\*allenamento\*\* in ME\?/i.test(textOf(previous));
 }
 
+/** Recupera una modifica al piano proposta dall'AI e appena confermata. */
+function pendingWorkoutPlanProposal(messages: readonly ThreadMessage[]): string | undefined {
+  const previous = messages.at(-2);
+  if (previous?.role !== 'assistant') return undefined;
+  const proposal = textOf(previous);
+  const normalized = proposal.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const asksToAdd = /\bvuoi\s+(?:aggiungere|inserire|programmare|spostare|modificare)\b/i.test(normalized);
+  const hasDay = /\b(?:lune(?:di)?|martedi|mercoledi|giovedi|venerdi|sabato|domenica)\b/i.test(normalized);
+  const hasActivity = /\b(?:allenament\w*|palestra|workout|hip\s*hop|danza|yoga|pilates|cors\w*|nuoto|calcio|tennis|padel|boxe|crossfit)\b/i.test(normalized);
+  return asksToAdd && hasDay && hasActivity ? proposal : undefined;
+}
+
 function toBrainMessages(messages: readonly ThreadMessage[]): BrainMessage[] {
   return messages.flatMap((message) => {
     if (message.role !== "user" && message.role !== "assistant") return [];
@@ -145,9 +157,12 @@ async function* runWithLocalTools(
   modelName?: string,
   mealConfirmation?: MealConfirmation,
   workoutConfirmation?: WorkoutConfirmation,
+  workoutPlanProposal?: string,
 ) {
   const last = messages.at(-1);
-  const user = textOf(last);
+  const user = workoutPlanProposal
+    ? `Confermo questa modifica al piano di allenamento: ${workoutPlanProposal}`
+    : textOf(last);
   const images = imagesForRun(
     messages,
     mealConfirmation?.status === 'confirmed' || workoutConfirmation?.status === 'confirmed',
@@ -379,6 +394,7 @@ export function createNetlifyChatModel(
       const user = textOf(last);
       const pendingSlot = pendingMealSlot(args.messages);
       const pendingWorkout = hasPendingWorkout(args.messages);
+      const pendingPlan = pendingWorkoutPlanProposal(args.messages);
       const mealConfirmation: MealConfirmation | undefined = pendingSlot && confirms(user)
         ? { status: 'confirmed', slot: pendingSlot }
         : isMealLogIntent(user)
@@ -389,7 +405,8 @@ export function createNetlifyChatModel(
         : isWorkoutLogIntent(user)
           ? { status: 'needs-confirmation' }
           : undefined;
-      if (runTool && (shouldUseLocalTools(user) || mealConfirmation?.status === 'confirmed' || workoutConfirmation?.status === 'confirmed')) {
+      const confirmedPlan = pendingPlan && confirms(user) ? pendingPlan : undefined;
+      if (runTool && (shouldUseLocalTools(user) || mealConfirmation?.status === 'confirmed' || workoutConfirmation?.status === 'confirmed' || confirmedPlan)) {
         yield* runWithLocalTools(
           args.messages,
           args.abortSignal,
@@ -397,6 +414,7 @@ export function createNetlifyChatModel(
           args.context.config?.modelName,
           mealConfirmation,
           workoutConfirmation,
+          confirmedPlan,
         );
         return;
       }

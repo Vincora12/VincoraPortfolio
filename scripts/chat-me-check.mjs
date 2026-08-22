@@ -124,6 +124,7 @@ try {
   check(m.isWorkoutPlanIntent('Inserisci allenamento il lunedì'), 'un allenamento assegnato a un giorno viene riconosciuto come piano');
   check(!m.isWorkoutLogIntent('Inserisci allenamento il lunedì'), 'un allenamento futuro non viene scambiato per uno svolto');
   check(m.requiredWriteTool('Inserisci allenamento il lunedì') === 'imposta_piano_allenamento', 'la modifica del lunedì aggiorna il piano in ME');
+  check(m.requiredWriteTool('Aggiungi hiphop lune 16 17') === 'imposta_piano_allenamento', 'anche attività e giorno abbreviato aggiornano il piano');
   const run = (use) => m.runTool(use, ctx);
   let proposal = '';
   await m.replyWithLocalTools(
