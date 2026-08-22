@@ -25,6 +25,19 @@ function storageKey(monName: string, assetId: string): string {
   return `asset:${monName}:${assetId}`;
 }
 
+async function uploadRemote(monName: string, assetId: string, blob: Blob): Promise<void> {
+  const { savedToken } = await import('../brain/stream');
+  const token = savedToken();
+  if (!token) return;
+  try {
+    await fetch(`/api/assets?monName=${encodeURIComponent(monName)}&assetId=${encodeURIComponent(assetId)}`, {
+      method: 'PUT',
+      headers: { authorization: `Bearer ${token}`, 'content-type': blob.type || 'image/png' },
+      body: blob,
+    });
+  } catch { /* IndexedDB resta la copia offline. */ }
+}
+
 /* ============================================================================
    LA TECA (§21.3)
 
@@ -244,6 +257,7 @@ export async function importAssetFile(
   const key = storageKey(record.data.name, assetId);
 
   await set(key, file);
+  void uploadRemote(record.data.name, assetId, file);
 
   // Sostituisce l'eventuale URL precedente, così la UI aggiorna subito.
   const old = urlCache.get(key);
@@ -291,7 +305,36 @@ export async function removeAsset(monName: string, type: AssetType): Promise<voi
   if (url) URL.revokeObjectURL(url);
   urlCache.delete(key);
   await del(key);
+  const { savedToken } = await import('../brain/stream');
+  const token = savedToken();
+  if (token) void fetch(`/api/assets?monName=${encodeURIComponent(monName)}&assetId=${encodeURIComponent(assetTypeDef(type).assetId)}`, { method: 'DELETE', headers: { authorization: `Bearer ${token}` } });
   notify();
+}
+
+/** Porta le immagini locali sul server e ripristina quelle mancanti sul dispositivo. */
+export async function syncAssetsWithServer(token: string): Promise<void> {
+  const all = await keys();
+  for (const key of all) {
+    if (typeof key !== 'string' || !key.startsWith('asset:')) continue;
+    const match = key.match(/^asset:(.+):([^:]+)$/);
+    if (!match) continue;
+    const blob = await get<Blob>(key);
+    if (blob) await uploadRemote(match[1], match[2], blob);
+  }
+
+  try {
+    const listResponse = await fetch('/api/assets', { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' });
+    if (!listResponse.ok) return;
+    const { assets } = await listResponse.json() as { assets: { monName: string; assetId: string }[] };
+    for (const remote of assets) {
+      const key = storageKey(remote.monName, remote.assetId);
+      if (await get(key)) continue;
+      const response = await fetch(`/api/assets?monName=${encodeURIComponent(remote.monName)}&assetId=${encodeURIComponent(remote.assetId)}`, { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' });
+      if (!response.ok) continue;
+      await set(key, await response.blob());
+    }
+    for (const remote of assets) await preloadMonAssets(remote.monName);
+  } catch { /* Il ripristino riproverà al prossimo avvio. */ }
 }
 
 /**

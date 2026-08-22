@@ -18,11 +18,12 @@ import {
   pullIngested,
   pullLessons,
   maybeSpeakFirst,
+  scheduleRemoteSave,
 } from './state/store';
 import { applyPaletteDna } from './engine/colorDna';
 import { applySkin } from './engine/skin';
 import { applyLayout } from './engine/layout';
-import { preloadMonAssets } from './assets-pipeline/assetStore';
+import { preloadMonAssets, syncAssetsWithServer } from './assets-pipeline/assetStore';
 import { Icon } from './system/Icon';
 import { haptic } from './system/haptics';
 import { PROGRESSION } from './engine/progression';
@@ -138,9 +139,15 @@ export function App() {
   const setDev = useApp((s) => s.setDev);
   const resumeFormEvolution = useApp((s) => s.resumeFormEvolution);
   const evolutionJob = useApp((s) => s.evolutionJob);
+  const token = useApp((s) => s.token);
 
   useEffect(() => {
     if ('serviceWorker' in navigator) void navigator.serviceWorker.register('/sw.js');
+  }, []);
+
+  useEffect(() => {
+    window.addEventListener('vinzmon-health-journal', scheduleRemoteSave);
+    return () => window.removeEventListener('vinzmon-health-journal', scheduleRemoteSave);
   }, []);
 
   /* Se l'app era chiusa, il server ha continuato. Al rientro riprendiamo il
@@ -315,6 +322,8 @@ export function App() {
   useEffect(() => {
     void syncWithServer().then(async (outcome) => {
       if (outcome === 'scaricato') console.info('[sync] ripreso il salvataggio dal server');
+      const token = useApp.getState().token;
+      if (token) await syncAssetsWithServer(token);
       /* Dopo il salvataggio, non prima: se le due copie divergono si prende
          quella buona e POI ci si applica sopra quello che le Shortcut hanno
          lasciato. Al contrario, i dati della notte finirebbero su uno stato
@@ -338,7 +347,7 @@ export function App() {
          guardato cosa hanno lasciato le Shortcut stanotte. */
       maybeSpeakFirst();
     });
-  }, []);
+  }, [token]);
 
   /* ============================================================================
      🔷 «La modalità DEV in alto sempre presente anche se accedo senza url dev,

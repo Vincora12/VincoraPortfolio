@@ -15,15 +15,10 @@ import { createNetlifyChatModel } from "./netlify-runtime";
 import { VinzImageAttachmentAdapter } from "./image-attachment";
 import { ChatSurface } from "./chat-surface";
 import "./styles.css";
-
-const storage = {
-  getItem: async (key: string) => localStorage.getItem(key),
-  setItem: async (key: string, value: string) => localStorage.setItem(key, value),
-  removeItem: async (key: string) => localStorage.removeItem(key),
-};
+import { serverBackedStorage } from "@/system/serverStorage";
 
 const threadAdapter = createLocalStorageAdapter({
-  storage,
+  storage: serverBackedStorage,
   prefix: "assistant-ui-official-chatgpt:",
   titleGenerator: createSimpleTitleAdapter(),
 });

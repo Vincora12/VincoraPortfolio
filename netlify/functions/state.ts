@@ -40,7 +40,7 @@ interface Save {
   state: unknown;
 }
 
-const store = () => getStore('vinzmon-state');
+const store = () => getStore({ name: 'vinzmon-state', consistency: 'strong' });
 
 export default async function handler(request: Request): Promise<Response> {
   const auth = authorize(request);

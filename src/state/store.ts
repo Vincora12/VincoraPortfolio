@@ -3086,10 +3086,12 @@ function snapshotFor(state: AppState): unknown {
     customMemoryAt: _memoriaAt,
     ...rest
   } = state as AppState & Record<string, unknown>;
-  return rest;
+  let healthJournal: unknown = null;
+  try { healthJournal = JSON.parse(localStorage.getItem('vinzmon.health.journal.v1') ?? 'null'); } catch { /* dato locale corrotto: non sovrascriverlo sul server */ }
+  return { ...rest, __healthJournal: healthJournal };
 }
 
-function scheduleRemoteSave(): void {
+export function scheduleRemoteSave(): void {
   const s = useApp.getState();
   if (!s.token) return;
 
@@ -3271,7 +3273,7 @@ export interface ServerSave {
  */
 export function shouldDownload(local: LocalSave, server: ServerSave): boolean {
   if (local.resetAt && server.savedAt && server.savedAt <= local.resetAt) return false;
-  return server.day > local.day;
+  return server.day >= local.day;
 }
 
 /**
@@ -3293,8 +3295,14 @@ export async function syncWithServer(): Promise<'locale' | 'scaricato' | 'niente
   /* Il server ha più storia: quella locale era indietro (telefono nuovo,
      dati del browser cancellati, o semplicemente un altro dispositivo). Il
      token NON si sovrascrive: è di questo browser, non del salvataggio. */
+  const remote = data.state as Partial<AppState> & { __healthJournal?: unknown };
+  const { __healthJournal, ...appState } = remote;
+  if (__healthJournal) {
+    localStorage.setItem('vinzmon.health.journal.v1', JSON.stringify(__healthJournal));
+    window.dispatchEvent(new Event('vinzmon-health-journal'));
+  }
   useApp.setState({
-    ...(data.state as Partial<AppState>),
+    ...appState,
     token: local.token,
     /* Stessa ragione del token: chi dà la voce è una scelta di QUESTO
        dispositivo. Un salvataggio scaricato non deve cambiartela sotto — e
@@ -3305,7 +3313,9 @@ export async function syncWithServer(): Promise<'locale' | 'scaricato' | 'niente
     imageModel: local.imageModel,
     stepModels: local.stepModels,
   });
-  lastSavedSignature = JSON.stringify(snapshotFor(useApp.getState()));
+  /* I salvataggi creati prima del diario server non hanno ancora questo
+     campo: lasciando la firma vuota, il debounce li migra subito. */
+  lastSavedSignature = __healthJournal === undefined ? '' : JSON.stringify(snapshotFor(useApp.getState()));
   return 'scaricato';
 }
 

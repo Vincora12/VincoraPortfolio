@@ -113,6 +113,11 @@ export default async function evolutionBackground(request: Request): Promise<voi
       imageBytes.byteOffset + imageBytes.byteLength,
     ) as ArrayBuffer;
     await store().set(assetKey(id, item.assetId), imageBuffer);
+    await getStore({ name: 'vinzmon-assets', consistency: 'strong' }).set(
+      `asset:${encodeURIComponent(candidateName)}:${encodeURIComponent(item.assetId)}`,
+      imageBuffer,
+      { metadata: { contentType: 'image/png' } },
+    );
     await recordSpend('image', route.model, result.usage);
     job.assets.push({ type: item.type, assetId: item.assetId });
     job.done += 1;
