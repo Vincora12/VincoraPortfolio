@@ -163,6 +163,7 @@ try {
   check(journal.meals[1]?.slot === 'extra', 'un secondo pasto nello stesso momento diventa extra');
   check(journal.workouts.length === 1, 'l’allenamento detto in chat entra nel diario ME');
   check(journal.workoutPlan?.text.includes('Lunedì'), 'l’allenamento futuro entra nel piano settimanale');
+  check(toolNames[8]?.includes('imposta_piano_allenamento'), 'il piano richiesto è realmente incluso tra gli strumenti inviati al backend');
   check(journal.workouts[0]?.minutes === 45, 'ME legge durata e dettagli dell’allenamento');
   check(journal.meals[0]?.source === 'chat' && journal.workouts[0]?.source === 'chat', 'la provenienza resta CHAT');
   check(toolCounts.every((count) => count <= 12), 'ogni richiesta resta entro il limite di 12 strumenti');

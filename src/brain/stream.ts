@@ -192,7 +192,9 @@ export async function replyWithLocalTools(
     'registra_allenamento', 'correggi_ultimo_allenamento', 'registra_peso',
     'correggi_ultimo_peso', 'imposta_dieta', 'imposta_piano_allenamento', 'imposta_obiettivi_nutrizionali', 'personalizza_me',
   ]);
-  const isHealthRequest = /\b(me|salute|pasto|mangiat\w*|bevut\w*|colazione|spuntino|pranzo|merenda|cena|extra|calori\w*|protein\w*|carbo\w*|grass\w*|macro|diet\w*|allenat\w*|palestra|workout|corsa|camminata|peso|kg|obiettiv\w*)\b/i.test(user)
+  const explicitWrite = requiredWriteTool(user);
+  const isHealthRequest = Boolean(explicitWrite)
+    || /\b(me|salute|pasto|mangiat\w*|bevut\w*|colazione|spuntino|pranzo|merenda|cena|extra|calori\w*|protein\w*|carbo\w*|grass\w*|macro|diet\w*|allenament\w*|allenat\w*|palestra|workout|corsa|camminata|peso|kg|obiettiv\w*)\b/i.test(user)
     || Boolean(mealConfirmation || workoutConfirmation);
   const toolPool = isHealthRequest
     ? TOOLS.filter((tool) => healthToolNames.has(tool.name))
@@ -208,7 +210,7 @@ export async function replyWithLocalTools(
     ? 'registra_pasto'
     : workoutConfirmation?.status === 'confirmed'
       ? 'registra_allenamento'
-    : requiredWriteTool(user);
+    : explicitWrite;
 
   for (let round = 0; round < 4; round++) {
     const response = await fetch('/api/ai', {
