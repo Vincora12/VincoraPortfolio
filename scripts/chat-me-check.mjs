@@ -91,6 +91,7 @@ try {
   check(m.shouldUseLocalTools('Ho mangiato riso e pollo'), 'un pasto raccontato attiva gli strumenti locali');
   check(m.shouldUseLocalTools('Mi sono allenato per 45 minuti'), 'un allenamento raccontato attiva gli strumenti locali');
   check(m.requiredWriteTool('Ho mangiato una banana.') === 'registra_pasto', 'un pasto dichiarato impone la scrittura in ME');
+  check(m.requiredWriteTool('Mangio questo come cena') === 'registra_pasto', 'una foto dichiarata come pasto impone la scrittura in ME');
   check(m.requiredWriteTool('Ho fatto 45 minuti di lower body.') === 'registra_allenamento', 'un allenamento dichiarato impone la scrittura in ME');
   const run = (use) => m.runTool(use, ctx);
   await m.replyWithLocalTools([], 'Ho mangiato una banana.', new AbortController().signal, () => {}, run, 'test-model');

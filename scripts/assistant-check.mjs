@@ -12,7 +12,7 @@ const out = join(cwd, 'node_modules', '.vinz-assistant-check.mjs');
 writeFileSync(
   entry,
   `
-export { callProvider, extractAnthropicSources, streamAnthropic } from '${cwd}/netlify/functions/_shared/providers.ts';
+export { callProvider, extractAnthropicSources, extractOpenAIResponseSources, streamAnthropic } from '${cwd}/netlify/functions/_shared/providers.ts';
 export { assistantRequestPreferences } from '${cwd}/netlify/functions/ai.ts';
 export { resolveRoute } from '${cwd}/netlify/functions/_shared/routing.ts';
 `,
@@ -214,6 +214,75 @@ try {
   check(
     forced.toolUses?.[0]?.name === 'registra_pasto',
     'la chiamata obbligatoria torna al ciclo strumenti',
+  );
+
+  globalThis.fetch = async (_url, init) => {
+    openAiRequest = JSON.parse(String(init?.body ?? '{}'));
+    return new Response(JSON.stringify({
+      model: 'gpt-5.6-sol',
+      status: 'completed',
+      output_text: 'Ecco le notizie aggiornate.',
+      output: [
+        {
+          type: 'web_search_call', status: 'completed',
+          action: { sources: [{ type: 'url', url: 'https://www.marvel.com/articles' }] },
+        },
+        {
+          type: 'message', role: 'assistant',
+          content: [{
+            type: 'output_text', text: 'Ecco le notizie aggiornate.',
+            annotations: [{
+              type: 'url_citation', title: 'Marvel News',
+              url: 'https://www.marvel.com/articles',
+            }],
+          }],
+        },
+      ],
+      usage: { input_tokens: 20, output_tokens: 8 },
+    }), { status: 200, headers: { 'content-type': 'application/json' } });
+  };
+  const searched = await m.callProvider('openai', {
+    model: 'gpt-5.6-sol', system: [], turns: [], user: 'Cerca notizie Marvel',
+    maxTokens: 200, effort: 'none', webSearch: true,
+  });
+  check(
+    openAiRequest?.tools?.some((tool) => tool.type === 'web_search'),
+    'Sol riceve lo strumento di ricerca web OpenAI',
+  );
+  check(
+    searched.sources?.[0]?.url === 'https://www.marvel.com/articles' &&
+      searched.usage?.webSearches === 1,
+    'la ricerca OpenAI restituisce fonti reali e contabilizza la chiamata',
+  );
+
+  globalThis.fetch = async (_url, init) => {
+    openAiRequest = JSON.parse(String(init?.body ?? '{}'));
+    return new Response(JSON.stringify({
+      model: 'gpt-5.6-sol', status: 'completed',
+      output: [{
+        type: 'function_call', call_id: 'meal-photo-1', name: 'registra_pasto',
+        arguments: '{"pasto":"cena","descrizione":"Piatto dalla foto"}',
+      }],
+      usage: { input_tokens: 30, output_tokens: 5 },
+    }), { status: 200, headers: { 'content-type': 'application/json' } });
+  };
+  const seen = await m.callProvider('openai', {
+    model: 'gpt-5.6-sol', system: [], turns: [], user: 'Mangio questo come cena',
+    image: { mediaType: 'image/jpeg', data: 'AQID' },
+    maxTokens: 200, effort: 'none', webSearch: true,
+    tools: [{ name: 'registra_pasto', description: 'Registra', schema: { type: 'object' } }],
+    toolChoice: 'registra_pasto',
+  });
+  const lastInput = openAiRequest?.input?.at(-1)?.content ?? [];
+  check(
+    lastInput.some((part) =>
+      part.type === 'input_image' && part.image_url === 'data:image/jpeg;base64,AQID'),
+    'Sol riceve davvero la foto allegata come input visivo',
+  );
+  check(
+    openAiRequest?.tool_choice?.name === 'registra_pasto' &&
+      seen.toolUses?.[0]?.name === 'registra_pasto',
+    'dalla foto Sol può aggiornare ME con lo stesso ciclo strumenti',
   );
 } finally {
   globalThis.fetch = originalFetch;

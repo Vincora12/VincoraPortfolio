@@ -387,7 +387,7 @@ check(
    che hai appena scritto — da qualcun altro. */
 const aiSource = readFileSync(`${cwd}/netlify/functions/ai.ts`, 'utf8');
 check(
-  aiSource.includes("route.provider === 'anthropic'"),
+  aiSource.includes("route.provider === 'anthropic'") && aiSource.includes("route.provider === 'openai'"),
   'la ricerca non si accende su un fornitore diverso da quello della voce',
 );
 check(
@@ -399,6 +399,12 @@ const providersSource = readFileSync(`${cwd}/netlify/functions/_shared/providers
 check(
   providersSource.includes('web_search_20260209'),
   'la ricerca usa la versione che filtra i risultati prima del contesto',
+);
+check(
+  providersSource.includes("https://api.openai.com/v1/responses") &&
+    providersSource.includes("{ type: 'web_search' }") &&
+    providersSource.includes("type: 'input_image'"),
+  'OpenAI usa lo stesso modello per ricerca web e lettura delle foto',
 );
 check(
   providersSource.includes('text.length > 0 || toolUses.length > 0'),

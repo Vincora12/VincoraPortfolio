@@ -652,6 +652,162 @@ function openaiMessages(req: ProviderRequest): Record<string, unknown>[] {
   return out;
 }
 
+type OpenAIResponseItem = {
+  type?: string;
+  role?: string;
+  content?: Array<{
+    type?: string;
+    text?: string;
+    annotations?: Array<{ type?: string; title?: string; url?: string }>;
+  }>;
+  call_id?: string;
+  name?: string;
+  arguments?: string;
+  action?: { sources?: Array<{ type?: string; title?: string; url?: string }> };
+};
+
+function openaiResponseInput(req: ProviderRequest): Record<string, unknown>[] {
+  const input: Record<string, unknown>[] = [];
+  const addBlocks = (content: Block[], role: 'user' | 'assistant') => {
+    const text = content
+      .filter((block) => block.type === 'text')
+      .map((block) => String(block.text ?? ''))
+      .join('');
+    if (text) input.push({ role, content: text });
+    for (const block of content.filter((item) => item.type === 'tool_use')) {
+      input.push({
+        type: 'function_call',
+        call_id: String(block.id ?? ''),
+        name: String(block.name ?? ''),
+        arguments: JSON.stringify(block.input ?? {}),
+      });
+    }
+    for (const block of content.filter((item) => item.type === 'tool_result')) {
+      input.push({
+        type: 'function_call_output',
+        call_id: String(block.tool_use_id ?? ''),
+        output: String(block.content ?? ''),
+      });
+    }
+  };
+
+  for (const turn of req.turns) {
+    if (typeof turn.content === 'string') input.push({ role: turn.role, content: turn.content });
+    else addBlocks(turn.content as Block[], turn.role);
+  }
+  if (req.userBlocks?.length) {
+    addBlocks(req.userBlocks as Block[], 'user');
+  } else if (req.user || req.image) {
+    const content: Record<string, unknown>[] = [];
+    if (req.user) content.push({ type: 'input_text', text: req.user });
+    if (req.image) {
+      content.push({
+        type: 'input_image',
+        detail: 'auto',
+        image_url: `data:${req.image.mediaType};base64,${req.image.data}`,
+      });
+    }
+    input.push({ role: 'user', content });
+  }
+  return input;
+}
+
+export function extractOpenAIResponseSources(output: readonly OpenAIResponseItem[]): Source[] {
+  const sources: Source[] = [];
+  for (const item of output) {
+    for (const part of item.content ?? []) {
+      for (const annotation of part.annotations ?? []) {
+        if (annotation.type !== 'url_citation') continue;
+        const source = asSource(annotation);
+        if (source) sources.push(source);
+      }
+    }
+    if (item.type !== 'web_search_call') continue;
+    for (const found of item.action?.sources ?? []) {
+      const source = asSource(found);
+      if (source) sources.push(source);
+    }
+  }
+  return uniqueSources(sources);
+}
+
+async function openAiResponses(key: string, req: ProviderRequest): Promise<ProviderResult> {
+  try {
+    const tools: Record<string, unknown>[] = [
+      ...(req.tools ?? []).map((tool) => ({
+        type: 'function',
+        name: tool.name,
+        description: tool.description,
+        parameters: tool.schema,
+        strict: false,
+      })),
+      ...(req.webSearch ? [{ type: 'web_search' }] : []),
+    ];
+    const response = await fetch('https://api.openai.com/v1/responses', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` },
+      body: JSON.stringify({
+        model: req.model,
+        instructions: req.system.map((block) => block.text).join('\n\n'),
+        input: openaiResponseInput(req),
+        max_output_tokens: req.maxTokens,
+        reasoning: { effort: req.tools?.length ? 'none' : (req.effort ?? 'none') },
+        store: false,
+        ...(tools.length ? { tools } : {}),
+        ...(req.toolChoice
+          ? { tool_choice: { type: 'function', name: req.toolChoice } }
+          : {}),
+        ...(req.webSearch ? { include: ['web_search_call.action.sources'] } : {}),
+      }),
+    });
+    if (!response.ok) {
+      return fail(req.model, `openai ${response.status}: ${(await response.text()).slice(0, 500)}`);
+    }
+    const body = (await response.json()) as {
+      model?: string;
+      status?: string;
+      output_text?: string;
+      output?: OpenAIResponseItem[];
+      usage?: {
+        input_tokens?: number;
+        output_tokens?: number;
+        input_tokens_details?: { cached_tokens?: number };
+      };
+    };
+    const output = body.output ?? [];
+    const text = (body.output_text ?? output
+      .filter((item) => item.type === 'message')
+      .flatMap((item) => item.content ?? [])
+      .filter((part) => part.type === 'output_text')
+      .map((part) => part.text ?? '')
+      .join('')).trim();
+    const toolUses: ToolUse[] = output
+      .filter((item) => item.type === 'function_call')
+      .map((item) => ({
+        id: item.call_id ?? '',
+        name: item.name ?? '',
+        input: safeJson(item.arguments),
+      }));
+    const cached = body.usage?.input_tokens_details?.cached_tokens ?? 0;
+    return {
+      ok: text.length > 0 || toolUses.length > 0,
+      text,
+      toolUses,
+      sources: extractOpenAIResponseSources(output),
+      stopReason: toolUses.length ? 'tool_use' : body.status,
+      model: body.model ?? req.model,
+      usage: {
+        inputTokens: Math.max(0, (body.usage?.input_tokens ?? 0) - cached),
+        cacheReadTokens: cached,
+        outputTokens: body.usage?.output_tokens ?? 0,
+        webSearches: output.filter((item) => item.type === 'web_search_call').length,
+      },
+    };
+  } catch (error) {
+    return fail(req.model, String(error));
+  }
+}
+
 /* ============================================================================
    IL PROTOCOLLO DI OPENAI, USATO DA DUE FORNITORI
 
@@ -828,6 +984,7 @@ async function moonshot(req: ProviderRequest): Promise<ProviderResult> {
 async function openaiText(req: ProviderRequest): Promise<ProviderResult> {
   const key = process.env.OPENAI_API_KEY;
   if (!key) return fail(req.model, 'OPENAI_API_KEY mancante');
+  if (req.webSearch || req.image) return openAiResponses(key, req);
   return openAiProtocol('openai', 'https://api.openai.com/v1/chat/completions', key, req);
 }
 

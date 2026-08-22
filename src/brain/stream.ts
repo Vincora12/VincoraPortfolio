@@ -88,7 +88,7 @@ export function shouldUseLocalTools(text: string): boolean {
 
 /** Le registrazioni esplicite non devono dipendere dalla buona volontà del modello. */
 export function requiredWriteTool(text: string): string | undefined {
-  if (/\b(?:ho\s+(?:mangiato|bevuto)|a\s+(?:colazione|pranzo|cena)\s+ho|registra(?:mi)?\s+(?:questo\s+)?pasto)\b/i.test(text)) {
+  if (/\b(?:ho\s+(?:mangiato|bevuto)|(?:mangio|bevo)\s+(?:questo|questa|questi|queste)|a\s+(?:colazione|pranzo|cena)\s+ho|registra(?:mi)?\s+(?:questo\s+)?pasto)\b/i.test(text)) {
     return 'registra_pasto';
   }
   if (/\b(?:mi\s+sono\s+allenat\w*|ho\s+fatto\s+[^.!?]*(?:allenamento|palestra|workout|corsa|camminata|cardio|lower|upper)|registra(?:mi)?\s+(?:questo\s+)?allenamento)\b/i.test(text)) {

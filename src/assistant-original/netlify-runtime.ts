@@ -178,6 +178,7 @@ function createBaseNetlifyChatModel(): ChatModelAdapter {
     const reasoningEffort = context.config?.reasoningEffort;
     const useStream = modelName?.startsWith("claude-") ?? false;
     const last = messages.at(-1);
+    const image = imageOf(last);
     const response = await fetch("/api/ai", {
       method: "POST",
       signal: abortSignal,
@@ -200,6 +201,7 @@ function createBaseNetlifyChatModel(): ChatModelAdapter {
           content: textOf(message),
         })),
         user: textOf(last),
+        ...(image ? { image } : {}),
         maxTokens: 2000,
       }),
     });

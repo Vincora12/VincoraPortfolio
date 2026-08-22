@@ -323,7 +323,9 @@ export default async function handler(request: Request): Promise<Response> {
      che può contenere qualunque cosa tu abbia appena scritto — da qualcun
      altro, e la tabella delle capacità esiste apposta per non farlo di
      nascosto. */
-  const webSearch = Boolean(payload.webSearch) && route.provider === 'anthropic';
+  const webSearch =
+    Boolean(payload.webSearch) &&
+    (route.provider === 'anthropic' || route.provider === 'openai');
 
   if (payload.image) {
     // base64 gonfia di un terzo: si stima la dimensione vera prima di

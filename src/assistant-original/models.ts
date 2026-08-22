@@ -4,19 +4,19 @@ export const MODELS = [
   {
     id: "gpt-5.6-terra",
     name: "GPT-5.6 Terra",
-    description: "OpenAI · predefinito",
+    description: "OpenAI · foto e ricerca web",
     efforts: true,
   },
   {
     id: "gpt-5.6-luna",
     name: "GPT-5.6 Luna",
-    description: "OpenAI · disponibile",
+    description: "OpenAI · foto e ricerca web",
     efforts: true,
   },
   {
     id: "gpt-5.6-sol",
     name: "GPT-5.6 Sol",
-    description: "OpenAI · disponibile",
+    description: "OpenAI · foto e ricerca web",
     efforts: true,
   },
   {
