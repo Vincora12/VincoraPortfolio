@@ -1509,9 +1509,18 @@ export const useApp = create<AppState>()(
         const s = get();
         const job = s.evolutionJob;
         if (!job || job.status !== 'error') return;
-        const { [job.candidateName]: _failed, ...validMons } = s.mons;
-        set({ mons: validMons, evolutionJob: null, phase: 'live' });
-        get().openFormEvolution();
+        set({
+          evolutionJob: {
+            ...job,
+            status: 'running',
+            done: 0,
+            total: generationOrder().length,
+            label: 'PREPARAZIONE CHARACTER MASTER',
+            error: null,
+            serverJobId: null,
+          },
+        });
+        get().resumeFormEvolution();
       },
 
       /* --- Interazione --- */

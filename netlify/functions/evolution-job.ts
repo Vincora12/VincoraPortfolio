@@ -18,7 +18,13 @@ export default async function evolutionJob(request: Request): Promise<Response> 
     return new Response(data, { headers: { 'content-type': 'image/png', 'cache-control': 'private, no-store' } });
   }
 
-  const job = await store().get(`job:${id}`, { type: 'json' });
+  const job = await store().get(`job:${id}`, { type: 'json' }) as { status?: string; updatedAt?: string; error?: string; label?: string } | null;
+  if (job?.status === 'running' && job.updatedAt && Date.now() - new Date(job.updatedAt).getTime() > 5 * 60_000) {
+    job.status = 'error';
+    job.error = 'La generazione si è fermata sul server. Premi RIPROVA.';
+    job.label = 'GENERAZIONE INTERROTTA';
+    await store().setJSON(`job:${id}`, job);
+  }
   return job ? json(job) : json({ error: 'job non ancora disponibile' }, 404);
 }
 

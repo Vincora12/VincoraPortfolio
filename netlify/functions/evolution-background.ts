@@ -33,6 +33,26 @@ function bytes(base64: string): Uint8Array {
   return Uint8Array.from(atob(base64), (char) => char.charCodeAt(0));
 }
 
+function saferPrompt(prompt: string): string {
+  return [
+    'Create a fully clothed, family-friendly collectible character asset. No nudity, sexual content, suggestive presentation, violence, or graphic content. Preserve the supplied character design and pose without adding mature themes.',
+    prompt
+      .replace(/ALLURING/gi, 'POISED')
+      .replace(/Elegant magnetic presence, self-aware but not overtly sexual\./gi, 'Confident, composed, family-friendly presence.')
+      .replace(/^.*(?:sexual|seductive|erotic).*$/gim, ''),
+  ].join('\n\n');
+}
+
+async function generateWithRetry(routeModel: string, item: AssetItem, reference: string | null) {
+  let result = await generateImage(routeModel, item.prompt, item.size, reference);
+  if (!result.ok && /moderation|safety|sexual/i.test(result.error ?? '')) {
+    result = await generateImage(routeModel, saferPrompt(item.prompt), item.size, reference);
+  } else if (!result.ok && /timeout|timed out|fetch failed|network/i.test(result.error ?? '')) {
+    result = await generateImage(routeModel, item.prompt, item.size, reference);
+  }
+  return result;
+}
+
 async function save(job: Job): Promise<void> {
   job.updatedAt = new Date().toISOString();
   await store().setJSON(jobKey(job.id), job);
@@ -98,7 +118,7 @@ export default async function evolutionBackground(request: Request): Promise<voi
     job.label = item.type === 'character_master' ? 'CHARACTER MASTER CEL' : item.type === 'character_toy' ? 'CHARACTER MASTER TOY' : item.type === 'bio_doodle' ? 'BIO DOODLE' : 'STICKER / REACTION';
     await save(job);
 
-    const result = await generateImage(route.model, item.prompt, item.size, item.type === 'character_master' ? null : master);
+    const result = await generateWithRetry(route.model, item, item.type === 'character_master' ? null : master);
     if (!result.ok || !result.data) {
       job.status = 'error';
       job.error = result.error?.slice(0, 400) ?? 'Generazione immagine non riuscita';
