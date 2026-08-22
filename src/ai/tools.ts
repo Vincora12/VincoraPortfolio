@@ -206,7 +206,7 @@ export const TOOLS: ToolDef[] = [
   },
   {
     name: 'gestisci_me',
-    description: 'Controlla ME con blocchi sicuri: crea, aggiorna, elimina o riordina calendari, liste, note e metriche in OGGI, DIETA o SPORT. Prima di update/delete/move usa leggi_me per trovare l’id reale.',
+    description: 'Controlla ME con blocchi sicuri: crea, aggiorna, elimina o riordina calendari, liste, note e metriche in OGGI, DIETA o SPORT. Per i calendari usa un elemento per appuntamento nel formato "Lunedì 08:00-09:00 · Titolo · Dettagli": così sarà visibile e cliccabile nel calendario. Prima di update/delete/move usa leggi_me per trovare l’id reale.',
     schema: { type: 'object', properties: { azione: { type: 'string', enum: ['create', 'update', 'delete', 'move'] }, id: { type: 'string' }, sezione: { type: 'string', enum: ['today', 'diet', 'sport'] }, tipo: { type: 'string', enum: ['text', 'list', 'calendar', 'metric'] }, titolo: { type: 'string' }, contenuto: { type: 'string' }, elementi: { type: 'array', items: { type: 'string' } }, posizione: { type: 'integer' } }, required: ['azione'] },
   },
   {

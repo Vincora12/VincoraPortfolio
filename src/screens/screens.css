@@ -4492,3 +4492,51 @@
 .me-health__custom li { min-height: 42px; display: flex; align-items: center; padding: 9px 0; border-top: 1px solid #292c33; color: #f4f4f6; font: 500 13px/1.4 var(--font-ui); }
 .me-health__custom--calendar li { font-family: var(--font-mono); color: #d5d7dd; }
 .me-health__custom--metric p { color: #fff; font-family: var(--font-display); font-size: 28px; font-weight: 800; }
+
+/* Calendario condiviso da DIETA e SPORT: il piano AI diventa consultabile per giorno. */
+.me-health__calendar {
+  position: relative;
+  min-height: 430px;
+  padding: 12px 12px 16px;
+  border-bottom: 1px solid #292c33;
+  background: #000;
+  --sx-color-primary: var(--mh-accent);
+  --sx-color-on-primary: #000;
+  --sx-color-primary-container: color-mix(in srgb, var(--mh-accent) 22%, #000);
+  --sx-color-on-primary-container: #fff;
+  --sx-color-background: #000;
+  --sx-color-surface: #050506;
+  --sx-color-surface-dim: #050506;
+  --sx-color-surface-bright: #141518;
+  --sx-color-surface-container: #0c0d0f;
+  --sx-color-surface-container-low: #08090b;
+  --sx-color-surface-container-high: #17181c;
+  --sx-color-on-surface: #f5f5f6;
+  --sx-color-on-background: #f5f5f6;
+  --sx-color-outline: #555861;
+  --sx-color-outline-variant: #292c33;
+  --sx-rounding-extra-small: 0;
+  --sx-rounding-small: 0;
+  --sx-rounding-extra-large: 0;
+}
+.me-health__calendar .sx-react-calendar-wrapper { width: 100%; height: 402px; }
+.me-health__calendar .sx__calendar { border: 1px solid #555861; font-family: var(--font-ui); }
+.me-health__calendar .sx__calendar-header { padding: 8px; }
+.me-health__calendar .sx__calendar-header-content { gap: 4px; }
+.me-health__calendar button { min-width: 44px; min-height: 44px; }
+.me-health__calendar-detail {
+  position: absolute;
+  inset: auto 12px 16px;
+  z-index: 5;
+  display: grid;
+  gap: 7px;
+  width: calc(100% - 24px);
+  padding: 16px;
+  border: 1px solid var(--mh-accent) !important;
+  background: #090a0c !important;
+  color: #fff;
+  text-align: left;
+}
+.me-health__calendar-detail strong { font: 700 13px/1.35 var(--font-mono); text-transform: uppercase; }
+.me-health__calendar-detail span { color: #c5c7ce; font: 400 13px/1.45 var(--font-ui); }
+.me-health__calendar-detail small { color: var(--mh-accent); font: 700 9px/1 var(--font-mono); letter-spacing: .08em; }
