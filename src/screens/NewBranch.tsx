@@ -14,7 +14,8 @@
    cambia — l'ancora di continuità decisa in `progression.ts`.
    ========================================================================= */
 
-import { useApp, useActiveMon, usePendingPlan } from '../state/store';
+import { useState } from 'react';
+import { useApp, useActiveMon, usePendingPlan, type EvolutionKind } from '../state/store';
 import { AssetSlot } from '../system/AssetSlot';
 import { MonName, SpeciesName } from '../system/MonName';
 import { Button, HoldButton, ScreenHead, SystemLabel } from '../system/components';
@@ -27,8 +28,9 @@ export function NewBranchScreen() {
   const mon = useActiveMon();
   const pending = useApp((s) => s.pendingHeritage);
   const plan = usePendingPlan();
-  const confirmFormEvolution = useApp((s) => s.confirmFormEvolution);
+  const beginFormEvolution = useApp((s) => s.beginFormEvolution);
   const enterLive = useApp((s) => s.enterLive);
+  const [kind, setKind] = useState<EvolutionKind | null>(null);
 
   if (!mon) return null;
   const short = displayName(mon.data.name);
@@ -41,6 +43,18 @@ export function NewBranchScreen() {
       <ScreenHead title={t.branch.title} sub={t.branch.subtitle} />
 
       <div className="screen__body branch">
+        <section className="branch__choice" aria-labelledby="evolution-choice">
+          <p id="evolution-choice" className="t-meta">SCEGLI LA TRASFORMAZIONE</p>
+          <button type="button" aria-pressed={kind === 'evolution'} onClick={() => setKind('evolution')}>
+            <strong className="t-display">EVOLUZIONE</strong>
+            <span className="t-small">Resta riconoscibile. Il corpo cambia poco, l’identità rimane vicina.</span>
+          </button>
+          <button type="button" aria-pressed={kind === 'mega-evolution'} onClick={() => setKind('mega-evolution')}>
+            <strong className="t-display">MEGA EVOLUZIONE</strong>
+            <span className="t-small">Può cambiare completamente forma, corpo e presenza visiva.</span>
+          </button>
+        </section>
+
         {/* La forma di adesso. Non se ne va: si riconfigura. */}
         <div className="branch__leaving">
           <div className="branch__portrait">
@@ -111,9 +125,13 @@ export function NewBranchScreen() {
         {/* 🔷 v1.10 §13.8 — la conferma vera del cambio di forma si tiene
             premuta. L'offerta a monte già lo faceva; questa, che è quella che
             trasforma davvero, era un tocco secco. */}
-        <HoldButton onComplete={confirmFormEvolution} hint={t.shift.hold}>
-          {t.branch.confirm}
-        </HoldButton>
+        {kind ? (
+          <HoldButton onComplete={() => beginFormEvolution(kind)} hint={t.shift.hold}>
+            AVVIA {kind === 'mega-evolution' ? 'MEGA EVOLUZIONE' : 'EVOLUZIONE'}
+          </HoldButton>
+        ) : (
+          <Button variant="primary" block disabled>SELEZIONA UNA TRASFORMAZIONE</Button>
+        )}
         <Button variant="ghost" block onClick={enterLive}>
           {t.branch.back}
         </Button>

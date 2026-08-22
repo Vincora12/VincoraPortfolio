@@ -25,7 +25,7 @@
    ========================================================================= */
 
 import { useState } from 'react';
-import { useApp, useActiveMon, useIncubation } from '../state/store';
+import { useApp, useActiveMon, useGrowth, useIncubation } from '../state/store';
 import { IdleMon, Sticker } from '../system/LiveMon';
 import { EggVessel } from '../system/EggVessel';
 import { MonName, SpeciesName } from '../system/MonName';
@@ -43,6 +43,11 @@ export function SplashScreen({ onEnter }: { onEnter: () => void }) {
   const mon = useActiveMon();
   const inc = useIncubation();
   const health = useApp((s) => s.health);
+  const evolutionJob = useApp((s) => s.evolutionJob);
+  const revealFormEvolution = useApp((s) => s.revealFormEvolution);
+  const openFormEvolution = useApp((s) => s.openFormEvolution);
+  const retryFormEvolution = useApp((s) => s.retryFormEvolution);
+  const { formEvolutionReady } = useGrowth();
 
   /* Il tocco sull'uovo. `pokes` rimonta il componente, e rimontarlo fa
      ripartire l'animazione di salto dall'inizio: è il modo più semplice di
@@ -68,6 +73,20 @@ export function SplashScreen({ onEnter }: { onEnter: () => void }) {
 
   return (
     <div className="splash">
+      {!incubating && (evolutionJob || formEvolutionReady) && (
+        <button
+          type="button"
+          className={`splash__evolution ${evolutionJob ? `splash__evolution--${evolutionJob.status}` : ''}`}
+          disabled={evolutionJob?.status === 'running'}
+          onClick={() => evolutionJob?.status === 'ready' ? revealFormEvolution() : evolutionJob?.status === 'error' ? retryFormEvolution() : !evolutionJob ? openFormEvolution() : undefined}
+        >
+          <span className="t-meta">
+            {!evolutionJob ? 'EVOLUZIONE DISPONIBILE' : evolutionJob.status === 'running' ? 'NUOVO MON IN CREAZIONE' : evolutionJob.status === 'ready' ? 'NUOVO MON PRONTO' : 'GENERAZIONE INTERROTTA'}
+          </span>
+          <span className="t-micro">{evolutionJob?.label ?? 'TOCCA PER SCEGLIERE'}</span>
+          {evolutionJob?.status === 'running' ? <span>{evolutionJob.done}/{evolutionJob.total}</span> : <span aria-hidden="true">→</span>}
+        </button>
+      )}
       {/* ══════════════════════════════════════════════════════════════════════
           🔷 «Nome in alto. Sulla foto adesivi attaccati delle varie
              espressioni, come se fosse sticker, in basso. Poi abbiamo bio e

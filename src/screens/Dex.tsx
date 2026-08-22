@@ -99,6 +99,7 @@ export function DexScreen({ onGo }: { onGo: (o: Overlay) => void }) {
                   </span>
                   <span className="dexcard__day t-micro">
                     {active ? t.dex.now : `G${dayOf(name)}`}
+                    {nodes.find((node) => node.monName === name)?.label ? ` · ${nodes.find((node) => node.monName === name)!.label}` : ''}
                   </span>
                 </button>
               );

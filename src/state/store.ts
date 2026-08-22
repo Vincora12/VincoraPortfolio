@@ -31,6 +31,7 @@ import {
   knownSignals,
   nextEvent,
   planContinuity,
+  type ContinuityAxis,
   type ContinuityPlan,
   type DailySignalKey,
   type DailySync,
@@ -194,6 +195,18 @@ export type Phase =
   /** Rivelazione di una forma nuova dopo una Form Evolution. */
   | 'new-encounter';
 
+export type EvolutionKind = 'evolution' | 'mega-evolution';
+export interface EvolutionJob {
+  kind: EvolutionKind;
+  status: 'running' | 'ready' | 'error';
+  previousName: string;
+  candidateName: string;
+  done: number;
+  total: number;
+  label: string;
+  error: string | null;
+}
+
 /** 🔶 v1.4 — sette giorni SINCRONIZZATI, non sette giorni di calendario. */
 export const INCUBATION_DAYS = PROGRESSION.incubationSyncDays;
 
@@ -355,6 +368,8 @@ interface AppState {
   pendingHeritage: HeritageOrigin[];
   /** Cosa sopravvive alla prossima Form Evolution. Deciso prima di confermare. */
   pendingPlan: ContinuityPlan | null;
+  /** Trasformazione visiva in background: Chat e ME restano utilizzabili. */
+  evolutionJob: EvolutionJob | null;
 
   /** §29 — traccia dell'ultima generazione, visibile solo in DEV. */
   lastTrace: GenerationTrace | null;
@@ -489,6 +504,12 @@ interface AppState {
   openFormEvolution: () => void;
   /** Accetta la trasformazione. È sempre una scelta: si può rimandare. */
   confirmFormEvolution: () => void;
+  /** Avvia una trasformazione leggera o radicale senza bloccare l'app. */
+  beginFormEvolution: (kind: EvolutionKind) => void;
+  /** Apre la rivelazione quando tutte le immagini sono pronte. */
+  revealFormEvolution: () => void;
+  /** Riparte dalla scelta se la rete ha interrotto la generazione. */
+  retryFormEvolution: () => void;
 
   sendMessage: (text: string) => void;
   /**
@@ -733,6 +754,7 @@ const INITIAL = {
   lastUnpromptedDay: 0,
   pendingHeritage: [] as HeritageOrigin[],
   pendingPlan: null as ContinuityPlan | null,
+  evolutionJob: null as EvolutionJob | null,
   lastTrace: null as GenerationTrace | null,
   batch: [] as BatchCandidate[],
   /* §21.2 — le pagine che il .mon scrive. Vivono nello stato perché devono
@@ -1168,7 +1190,10 @@ export const useApp = create<AppState>()(
         requestIntroduction(set, get, record);
       },
 
-      enterLive: () => set({ phase: 'live' }),
+      enterLive: () => set((s) => ({
+        phase: 'live',
+        evolutionJob: s.evolutionJob?.status === 'ready' ? null : s.evolutionJob,
+      })),
       openShift: () => set({ phase: 'shift' }),
 
       /* --- CONTINUE / EVOLVE --- */
@@ -1353,6 +1378,124 @@ export const useApp = create<AppState>()(
            mai approvato, e per giunta nato prima del master, quindi senza il
            riferimento di consistenza che gli altri cinque hanno. */
         requestIntroduction(set, get, record);
+      },
+
+      beginFormEvolution: (kind) => {
+        const s = get();
+        const previous = activeRecord(s);
+        if (!previous || s.phase !== 'form-evolution' || s.evolutionJob?.status === 'running') return;
+
+        /* Evoluzione conserva quasi tutto e cambia l'affinità visiva.
+           Mega Evoluzione conserva soltanto il temperamento: è sempre la
+           stessa entità, ma il corpo può essere completamente diverso. */
+        const continuity: readonly ContinuityAxis[] = kind === 'evolution'
+          ? ['family', 'family_archetype', 'size', 'role', 'fashion', 'mood_primary']
+          : ['mood_primary'];
+        const nodeId = makeNodeId(s.nodes.length);
+        const { record, trace } = generateMon({
+          input: generatorInput(s),
+          mindlineNodeId: nodeId,
+          originNodeId: previous.data.mindline_node,
+          heritageOrigins: s.pendingHeritage,
+          lineageNames: Object.keys(s.mons),
+          previous,
+          continuity,
+          seed: randomSeed(),
+          devUnlockAll: s.dev.unlockAll,
+          hiddenEvent: hiddenEventFor({ day: s.day, formNumber: s.nodes.length + 1, activeDays: s.progression.sync.lifetime }),
+        });
+
+        set({
+          phase: 'live',
+          mons: { ...s.mons, [record.data.name]: record },
+          evolutionJob: {
+            kind,
+            status: 'running',
+            previousName: previous.data.name,
+            candidateName: record.data.name,
+            done: 0,
+            total: 1,
+            label: 'PREPARAZIONE CHARACTER MASTER',
+            error: null,
+          },
+          pendingHeritage: [],
+          pendingPlan: null,
+          lastTrace: trace,
+          dev: { ...s.dev, forceBranch: false },
+        });
+
+        void import('../assets-pipeline/generate').then(async ({ generateMissingAssets }) => {
+          const result = await generateMissingAssets(
+            get().token,
+            record,
+            (progress) => set((current) => ({
+              evolutionJob: current.evolutionJob?.candidateName === record.data.name
+                ? { ...current.evolutionJob, done: progress.done, total: progress.total, label: assetLabel(progress.type) }
+                : current.evolutionJob,
+            })),
+            undefined,
+            stepModel('image'),
+          );
+          markAssetsMade(set, get, record.data.name, result.made);
+          if (result.failure) {
+            set((current) => ({
+              evolutionJob: current.evolutionJob?.candidateName === record.data.name
+                ? { ...current.evolutionJob, status: 'error', error: result.detail ?? result.failure }
+                : current.evolutionJob,
+            }));
+            return;
+          }
+
+          const current = get();
+          const finished = current.mons[record.data.name] ?? record;
+          set({
+            mons: {
+              ...current.mons,
+              [previous.data.name]: { ...previous, retiredOnDay: s.day },
+              [record.data.name]: finished,
+            },
+            activeMonName: record.data.name,
+            formsDiscovered: current.formsDiscovered + 1,
+            nodes: [...current.nodes, createNode({
+              index: current.nodes.length,
+              kind: 'branch',
+              monName: record.data.name,
+              parentId: previous.data.mindline_node,
+              day: s.day,
+              chapter: nextChapter(current.nodes, 'branch'),
+              label: kind === 'mega-evolution' ? 'MEGA EVOLUZIONE' : 'EVOLUZIONE',
+            })],
+            mood: touchMood(current, record.data.mood_primary, []),
+            chat: [...current.chat, openingMessage(record, s.day, current.token !== null)].slice(-60),
+            progression: { ...current.progression, sync: { ...current.progression.sync, inForm: 0, sinceGrowth: 0 } },
+            evolutionJob: {
+              kind,
+              status: 'ready',
+              previousName: previous.data.name,
+              candidateName: record.data.name,
+              done: Math.max(1, result.made.length),
+              total: Math.max(1, result.made.length),
+              label: 'NUOVO MON PRONTO',
+              error: null,
+            },
+          });
+          void preloadMonAssets(record.data.name);
+          requestIntroduction(set, get, record);
+        });
+      },
+
+      revealFormEvolution: () => {
+        if (get().evolutionJob?.status !== 'ready') return;
+        set({ phase: 'new-encounter' });
+      },
+
+      retryFormEvolution: () => {
+        const s = get();
+        const job = s.evolutionJob;
+        if (!job || job.status !== 'error') return;
+        const { [job.candidateName]: _failed, ...validMons } = s.mons;
+        set({ mons: validMons, evolutionJob: null, phase: 'live' });
+        get().openFormEvolution();
       },
 
       /* --- Interazione --- */
@@ -2694,7 +2837,16 @@ export const useApp = create<AppState>()(
          tipo di bug che si scopre dopo tre giorni di prove sbagliate. */
       onRehydrateStorage: () => (state) => {
         if (state?.dev.rarityThresholds) setRarityThresholds(state.dev.rarityThresholds);
-        if (state) migrateStepModels(state);
+        if (state) {
+          migrateStepModels(state);
+          if (state.evolutionJob?.status === 'running') {
+            state.evolutionJob = {
+              ...state.evolutionJob,
+              status: 'error',
+              error: 'La generazione è stata interrotta dalla chiusura dell’app. Tocca per riprovare.',
+            };
+          }
+        }
       },
     },
   ),
