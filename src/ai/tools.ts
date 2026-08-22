@@ -110,6 +110,7 @@ export interface ToolContext {
   saveWorkoutPlan: (title: string, text: string) => void;
   configureTargets: (targets: Partial<{ kcal: number; protein: number; carbs: number; fat: number }>) => void;
   configureHealth: (focus: 'today' | 'diet' | 'sport' | 'progress', goal: string) => void;
+  manageMe: (input: { action: 'create' | 'update' | 'delete' | 'move'; id?: string; section?: 'today' | 'diet' | 'sport'; type?: 'text' | 'list' | 'calendar' | 'metric'; title?: string; content?: string; items?: string[]; position?: number }) => { ok: boolean; id?: string; error?: string };
 }
 
 /* ============================================================================
@@ -204,9 +205,9 @@ export const TOOLS: ToolDef[] = [
     } },
   },
   {
-    name: 'personalizza_me',
-    description: 'Adatta la schermata ME al periodo attuale: sceglie la sezione prioritaria e mostra un obiettivo breve concordato con l’utente. Non inventare obiettivi medici o numeri.',
-    schema: { type: 'object', properties: { priorita: { type: 'string', enum: ['today', 'diet', 'sport', 'progress'] }, obiettivo: { type: 'string' } }, required: ['priorita', 'obiettivo'] },
+    name: 'gestisci_me',
+    description: 'Controlla ME con blocchi sicuri: crea, aggiorna, elimina o riordina calendari, liste, note e metriche in OGGI, DIETA o SPORT. Prima di update/delete/move usa leggi_me per trovare l’id reale.',
+    schema: { type: 'object', properties: { azione: { type: 'string', enum: ['create', 'update', 'delete', 'move'] }, id: { type: 'string' }, sezione: { type: 'string', enum: ['today', 'diet', 'sport'] }, tipo: { type: 'string', enum: ['text', 'list', 'calendar', 'metric'] }, titolo: { type: 'string' }, contenuto: { type: 'string' }, elementi: { type: 'array', items: { type: 'string' } }, posizione: { type: 'integer' } }, required: ['azione'] },
   },
   {
     name: 'elenca_le_pagine',
@@ -525,11 +526,10 @@ export function runTool(use: ToolUse, ctx: ToolContext): ToolResult {
         ctx.configureTargets(targets);
         return ok('Obiettivi nutrizionali aggiornati in ME.');
       }
-      case 'personalizza_me': {
-        const focus = str(args.priorita) as 'today' | 'diet' | 'sport' | 'progress';
-        if (!['today', 'diet', 'sport', 'progress'].includes(focus)) return fail('Priorità ME non valida.');
-        ctx.configureHealth(focus, str(args.obiettivo));
-        return ok('Schermata ME adattata al periodo attuale.');
+      case 'gestisci_me': {
+        const result = ctx.manageMe({ action: str(args.azione) as 'create' | 'update' | 'delete' | 'move', id: str(args.id) || undefined, section: (str(args.sezione) || undefined) as 'today' | 'diet' | 'sport' | undefined, type: (str(args.tipo) || undefined) as 'text' | 'list' | 'calendar' | 'metric' | undefined, title: args.titolo === undefined ? undefined : str(args.titolo), content: args.contenuto === undefined ? undefined : str(args.contenuto), items: Array.isArray(args.elementi) ? args.elementi.map(str) : undefined, position: args.posizione === undefined ? undefined : Number(args.posizione) });
+        if (!result.ok) return fail(result.error ?? 'Modifica ME non riuscita.');
+        return ok(`Schermata ME aggiornata${result.id ? ` (blocco ${result.id})` : ''}.`);
       }
       case 'leggi_i_miei_dati': {
         const what = str(args.cosa);

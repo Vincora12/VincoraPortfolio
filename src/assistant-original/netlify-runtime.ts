@@ -189,7 +189,7 @@ async function* runWithLocalTools(
       imposta_dieta: "Piano alimentare aggiornato in ME",
       imposta_piano_allenamento: "Piano allenamento aggiornato in ME",
       imposta_obiettivi_nutrizionali: "Obiettivi nutrizionali aggiornati in ME",
-      personalizza_me: "Schermata ME aggiornata",
+      gestisci_me: "Schermata ME aggiornata",
     } as Record<string, string>)[use.name];
     if (label && !updates.includes(label)) updates.push(label);
     return result;

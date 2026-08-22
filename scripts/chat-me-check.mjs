@@ -12,7 +12,7 @@ const out = join(cwd, 'node_modules', '.vinz-chat-me-check.mjs');
 writeFileSync(entry, `
 export { replyWithLocalTools, shouldUseLocalTools, requiredWriteTool, isMealLogIntent, isWorkoutLogIntent, isWorkoutPlanIntent } from '${cwd}/src/brain/stream.ts';
 export { runTool } from '${cwd}/src/ai/tools.ts';
-export { addMeal, addWorkout, addWeight, configureHealthDisplay, configureHealthTargets, healthJournalReport, readHealthJournal, setDietPlan, setWorkoutPlan, updateLatestMeal, updateLatestWeight, updateLatestWorkout } from '${cwd}/src/engine/healthJournal.ts';
+export { addMeal, addWorkout, addWeight, configureHealthDisplay, configureHealthTargets, healthJournalReport, manageMeBlock, readHealthJournal, setDietPlan, setWorkoutPlan, undoMeBlocks, updateLatestMeal, updateLatestWeight, updateLatestWorkout } from '${cwd}/src/engine/healthJournal.ts';
 `);
 
 await build({
@@ -61,6 +61,7 @@ const ctx = {
   saveWorkoutPlan: (title, text) => m.setWorkoutPlan(title, text),
   configureTargets: (targets) => m.configureHealthTargets(targets),
   configureHealth: (focus, goal) => m.configureHealthDisplay(focus, goal),
+  manageMe: (input) => m.manageMeBlock(input),
 };
 
 const replies = [
@@ -96,12 +97,14 @@ const replies = [
 const originalFetch = globalThis.fetch;
 const toolCounts = [];
 const toolNames = [];
+const toolSizes = [];
 const toolChoices = [];
 const imageCounts = [];
 globalThis.fetch = async (_url, init) => {
   const request = JSON.parse(String(init?.body ?? '{}'));
   toolCounts.push(Array.isArray(request.tools) ? request.tools.length : 0);
   toolNames.push(Array.isArray(request.tools) ? request.tools.map((tool) => tool.name) : []);
+  toolSizes.push(JSON.stringify(request.tools ?? []).length);
   toolChoices.push(request.toolChoice ?? null);
   imageCounts.push(Array.isArray(request.images) ? request.images.length : 0);
   return new Response(JSON.stringify(replies.shift()), {
@@ -168,6 +171,7 @@ try {
   check(journal.workouts[0]?.minutes === 45, 'ME legge durata e dettagli dell’allenamento');
   check(journal.meals[0]?.source === 'chat' && journal.workouts[0]?.source === 'chat', 'la provenienza resta CHAT');
   check(toolCounts.every((count) => count <= 12), 'ogni richiesta resta entro il limite di 12 strumenti');
+  check(toolSizes.every((size) => size <= 8000), 'il catalogo ME resta entro il limite del backend');
   check(proposal.includes('Confermi che lo registro come **spuntino**?'), 'prima del salvataggio chiede conferma del momento intuito');
   check(toolChoices[0] === null && toolChoices[1] === 'registra_pasto', 'la scrittura del pasto diventa obbligatoria solo dopo il sì');
   check(workoutProposal.includes('Confermi che registro questo **allenamento** in ME?'), 'anche l’allenamento chiede conferma prima del salvataggio');
@@ -186,6 +190,9 @@ try {
   check(updated.meals[0]?.kcal === 110 && updated.workouts[0]?.minutes === 50, 'l’AI può correggere pasti e allenamenti già presenti');
   check(updated.weights[0]?.kg === 79.8, 'l’AI può registrare e correggere il peso');
   check(m.healthJournalReport('all').includes('Piano settimanale'), 'l’AI può rileggere i valori reali prima di modificarli');
+  const custom = run({ id: 'me-create', name: 'gestisci_me', input: { azione: 'create', sezione: 'sport', tipo: 'calendar', titolo: 'Settimana', elementi: ['Lunedì · Hip hop 16:00–17:00'] } });
+  check(!custom.isError && m.readHealthJournal().blocks[0]?.type === 'calendar', 'l’AI può creare un calendario dentro ME');
+  check(m.undoMeBlocks() && m.readHealthJournal().blocks.length === 0, 'la modifica autonoma della schermata può essere annullata');
 } finally {
   globalThis.fetch = originalFetch;
 }

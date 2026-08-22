@@ -92,6 +92,7 @@ import {
   configureHealthDisplay,
   configureHealthTargets,
   healthJournalReport,
+  manageMeBlock,
   setDietPlan,
   setWorkoutPlan,
   updateLatestMeal,
@@ -2363,6 +2364,7 @@ export const useApp = create<AppState>()(
           saveWorkoutPlan: (title, text) => { setWorkoutPlan(title, text); },
           configureTargets: (targets) => { configureHealthTargets(targets); },
           configureHealth: (focus, goal) => { configureHealthDisplay(focus, goal); },
+          manageMe: (input) => manageMeBlock(input),
         };
 
         return runTool(use, ctx);

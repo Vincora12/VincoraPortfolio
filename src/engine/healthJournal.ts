@@ -20,6 +20,15 @@ export type WorkoutLog = {
 };
 
 export type WeightLog = { id: string; at: string; kg: number; source: 'chat' | 'manual' };
+export type MeBlock = {
+  id: string;
+  section: 'today' | 'diet' | 'sport';
+  type: 'text' | 'list' | 'calendar' | 'metric';
+  title: string;
+  content: string;
+  items: string[];
+  updatedAt: string;
+};
 export type HealthJournal = {
   meals: MealLog[];
   workouts: WorkoutLog[];
@@ -28,6 +37,8 @@ export type HealthJournal = {
   workoutPlan: { title: string; text: string; updatedAt: string } | null;
   targets: { kcal: number; protein: number; carbs: number; fat: number };
   display: { focus: 'today' | 'diet' | 'sport' | 'progress'; goal: string };
+  blocks: MeBlock[];
+  blockHistory: MeBlock[][];
 };
 
 const KEY = 'vinzmon.health.journal.v1';
@@ -35,7 +46,7 @@ export const HEALTH_JOURNAL_EVENT = 'vinzmon-health-journal';
 const EMPTY: HealthJournal = {
   meals: [], workouts: [], weights: [], dietPlan: null, workoutPlan: null,
   targets: { kcal: 2200, protein: 150, carbs: 275, fat: 73 },
-  display: { focus: 'today', goal: '' },
+  display: { focus: 'today', goal: '' }, blocks: [], blockHistory: [],
 };
 
 export function readHealthJournal(): HealthJournal {
@@ -48,6 +59,8 @@ export function readHealthJournal(): HealthJournal {
       weights: Array.isArray(saved.weights) ? saved.weights : [],
       targets: { ...EMPTY.targets, ...(saved.targets ?? {}) },
       display: { ...EMPTY.display, ...(saved.display ?? {}) },
+      blocks: Array.isArray(saved.blocks) ? saved.blocks : [],
+      blockHistory: Array.isArray(saved.blockHistory) ? saved.blockHistory.slice(-10) : [],
     };
   } catch { return EMPTY; }
 }
@@ -99,6 +112,41 @@ export function configureHealthDisplay(focus: HealthJournal['display']['focus'],
 export function configureHealthTargets(targets: Partial<HealthJournal['targets']>) {
   const journal = readHealthJournal();
   return save({ ...journal, targets: { ...journal.targets, ...targets } });
+}
+
+export function manageMeBlock(input: {
+  action: 'create' | 'update' | 'delete' | 'move';
+  id?: string;
+  section?: MeBlock['section'];
+  type?: MeBlock['type'];
+  title?: string;
+  content?: string;
+  items?: string[];
+  position?: number;
+}): { ok: boolean; id?: string; error?: string } {
+  const journal = readHealthJournal();
+  const history = [...journal.blockHistory, journal.blocks].slice(-10);
+  const index = input.id ? journal.blocks.findIndex((block) => block.id === input.id) : -1;
+  let blocks = [...journal.blocks];
+  if (input.action === 'create') {
+    if (!input.title?.trim() || !input.section || !input.type) return { ok: false, error: 'Titolo, sezione o tipo mancanti.' };
+    const block: MeBlock = { id: id('me'), section: input.section, type: input.type, title: input.title.trim().slice(0, 80), content: (input.content ?? '').trim().slice(0, 4000), items: (input.items ?? []).map(String).slice(0, 60), updatedAt: new Date().toISOString() };
+    const at = Math.max(0, Math.min(blocks.length, input.position ?? blocks.length));
+    blocks.splice(at, 0, block); save({ ...journal, blocks, blockHistory: history }); return { ok: true, id: block.id };
+  }
+  if (index < 0) return { ok: false, error: 'Blocco ME non trovato.' };
+  if (input.action === 'delete') blocks.splice(index, 1);
+  if (input.action === 'update') blocks[index] = { ...blocks[index]!, ...(input.section ? { section: input.section } : {}), ...(input.type ? { type: input.type } : {}), ...(input.title !== undefined ? { title: input.title.trim().slice(0, 80) } : {}), ...(input.content !== undefined ? { content: input.content.trim().slice(0, 4000) } : {}), ...(input.items ? { items: input.items.map(String).slice(0, 60) } : {}), updatedAt: new Date().toISOString() };
+  if (input.action === 'move') { const [block] = blocks.splice(index, 1); blocks.splice(Math.max(0, Math.min(blocks.length, input.position ?? blocks.length)), 0, block!); }
+  save({ ...journal, blocks, blockHistory: history }); return { ok: true, id: input.id };
+}
+
+export function undoMeBlocks(): boolean {
+  const journal = readHealthJournal();
+  const previous = journal.blockHistory.at(-1);
+  if (!previous) return false;
+  save({ ...journal, blocks: previous, blockHistory: journal.blockHistory.slice(0, -1) });
+  return true;
 }
 
 export function updateLatestMeal(
@@ -157,6 +205,7 @@ export function healthJournalReport(section: 'today' | 'diet' | 'sport' | 'progr
     ...(section === 'diet' || section === 'all' ? { dietPlan: journal.dietPlan, targets: journal.targets } : {}),
     ...(section === 'sport' || section === 'all' ? { workoutPlan: journal.workoutPlan, workouts: journal.workouts.slice(-20) } : {}),
     ...(section === 'progress' || section === 'all' ? { weights: journal.weights.slice(-20), display: journal.display } : {}),
+    ...({ meBlocks: journal.blocks }),
   };
   return JSON.stringify(data);
 }

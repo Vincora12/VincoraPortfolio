@@ -3,7 +3,7 @@ import type { Overlay } from '../App';
 import { useApp } from '../state/store';
 import { Icon } from '../system/Icon';
 import { STAT_KEYS, isKnown, type HealthState } from '../engine/types';
-import { HEALTH_JOURNAL_EVENT, readHealthJournal, removeHealthEntry, type HealthJournal } from '../engine/healthJournal';
+import { HEALTH_JOURNAL_EVENT, readHealthJournal, removeHealthEntry, undoMeBlocks, type HealthJournal, type MeBlock } from '../engine/healthJournal';
 
 type View = 'today' | 'diet' | 'sport';
 const visibleView = (view: HealthJournal['display']['focus']): View => view === 'progress' ? 'today' : view;
@@ -30,12 +30,22 @@ export function MeOverviewScreen({ onGo: _onGo }: { onGo: (o: Overlay) => void }
   return <div className="screen me-health">
     <header className="me-health__header"><p>{new Intl.DateTimeFormat('it-IT', { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date())}</p><button type="button" aria-label="Aggiungi con AI" onClick={() => askAi('Voglio aggiornare la mia salute: ')}><Icon name="plus" /></button></header>
     <nav className="me-health__tabs">{([['today', 'OGGI'], ['diet', 'DIETA'], ['sport', 'SPORT']] as const).map(([id, label]) => <button type="button" key={id} aria-current={view === id ? 'page' : undefined} onClick={() => setView(id)}>{label}</button>)}</nav>
+    <div className="me-health__ai-control"><span>ME È ADATTABILE DALL’AI</span>{journal.blockHistory.length > 0 && <button type="button" onClick={() => undoMeBlocks()}>ANNULLA ULTIMA MODIFICA</button>}</div>
     <div className="me-health__scroll" ref={scrollRef}>
+      <MeBlocks blocks={journal.blocks.filter((block) => block.section === view)} askAi={askAi} />
       {view === 'today' && <TodayRecap journal={journal} meals={meals} workouts={workouts} total={total} health={health} askAi={askAi} />}
       {view === 'diet' && <><Section title="PIANO ALIMENTARE">{journal.dietPlan ? <article className="me-health__plan"><h2>{journal.dietPlan.title}</h2><p>{journal.dietPlan.text}</p><small>Aggiornato {new Date(journal.dietPlan.updatedAt).toLocaleDateString('it-IT')}</small></article> : <Empty text="Allega la dieta in chat: VINZ.MON la leggerà e la salverà qui." />}</Section><Section title="STORICO PASTI">{journal.meals.length ? [...journal.meals].reverse().map(x => <Row key={x.id} title={x.slot} text={x.description} meta={`${x.kcal} kcal`} when={new Date(x.at).toLocaleDateString('it-IT')} chat={x.source === 'chat'} remove={() => remove('meal', x.id)} />) : <Empty text="Lo storico si riempirà dalla chat o dal log manuale." />}</Section></>}
       {view === 'sport' && <><Section title="PIANO ALLENAMENTO" action={journal.workoutPlan ? 'MODIFICA CON AI' : 'SCRIVI CON AI'} click={() => askAi(journal.workoutPlan ? 'Modifica il mio piano di allenamento attuale: ' : 'Creami un nuovo piano di allenamento. Prima fammi le domande necessarie: ')}>{journal.workoutPlan ? <article className="me-health__plan"><h2>{journal.workoutPlan.title}</h2><p>{journal.workoutPlan.text}</p><small>Aggiornato {new Date(journal.workoutPlan.updatedAt).toLocaleDateString('it-IT')}</small></article> : <Empty text="Crea il tuo piano con la chat: giorni, esercizi, serie, recuperi e progressione resteranno qui." />}</Section><Section title="ALLENAMENTI SVOLTI" action="REGISTRA CON AI" click={() => askAi('Registra questo allenamento svolto: ')}>{journal.workouts.length ? [...journal.workouts].reverse().map(x => <Row key={x.id} title={x.title} text={x.details} meta={`${x.minutes} minuti`} when={new Date(x.at).toLocaleDateString('it-IT')} chat={x.source === 'chat'} remove={() => remove('workout', x.id)} />) : <Empty text="Racconta un allenamento in chat oppure allega una foto." />}</Section></>}
     </div>
   </div>;
+}
+
+function MeBlocks({ blocks, askAi }: { blocks: MeBlock[]; askAi: (prompt: string) => void }) {
+  return <>{blocks.map((block) => <section className={`me-health__custom me-health__custom--${block.type}`} key={block.id}>
+    <header><h2>{block.title}</h2><button type="button" onClick={() => askAi(`Modifica il blocco ME con id ${block.id}: `)}>MODIFICA CON AI</button></header>
+    {block.content && <p>{block.content}</p>}
+    {block.items.length > 0 && <ul>{block.items.map((item, index) => <li key={`${block.id}-${index}`}>{item}</li>)}</ul>}
+  </section>)}</>;
 }
 
 function TodayRecap({ journal, meals, workouts, total, health, askAi }: { journal: HealthJournal; meals: HealthJournal['meals']; workouts: HealthJournal['workouts']; total: HealthJournal['targets']; health: HealthState; askAi: (prompt: string) => void }) {

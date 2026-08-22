@@ -4479,3 +4479,16 @@
   padding: 8px 10px;
   background: var(--surface);
 }
+
+/* Blocchi ME composti dall'AI: stessi materiali della schermata, struttura libera. */
+.me-health__ai-control { min-height: 34px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 20px; border-bottom: 1px solid #292c33; color: #8e919a; font: 600 9px/1 var(--font-mono); letter-spacing: .08em; }
+.me-health__ai-control button { min-height: 34px; border: 0; background: transparent; color: var(--mh-accent); font: 700 9px/1 var(--font-mono); }
+.me-health__custom { padding: 18px 20px 20px; border-bottom: 1px solid #292c33; overflow-wrap: anywhere; }
+.me-health__custom > header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 14px; }
+.me-health__custom h2 { margin: 0; color: #fff; font: 700 13px/1.2 var(--font-mono); letter-spacing: .06em; text-transform: uppercase; }
+.me-health__custom header button { min-height: 44px; flex: 0 0 auto; border: 0; background: transparent; color: var(--mh-accent); font: 700 9px/1 var(--font-mono); }
+.me-health__custom p { margin: 0; color: #b9bbc3; font: 400 14px/1.55 var(--font-ui); white-space: pre-wrap; }
+.me-health__custom ul { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
+.me-health__custom li { min-height: 42px; display: flex; align-items: center; padding: 9px 0; border-top: 1px solid #292c33; color: #f4f4f6; font: 500 13px/1.4 var(--font-ui); }
+.me-health__custom--calendar li { font-family: var(--font-mono); color: #d5d7dd; }
+.me-health__custom--metric p { color: #fff; font-family: var(--font-display); font-size: 28px; font-weight: 800; }
