@@ -197,7 +197,7 @@ export type Phase =
 
 export type EvolutionKind = 'evolution' | 'mega-evolution';
 const ANGEL_ARCHETYPES_BY_STAGE: readonly (readonly string[])[] = [
-  ['PUTTO', 'MESSENGER'],
+  ['PUTTO', 'MESSENGER', 'GUARDIAN'],
   ['WARRIOR', 'VIRTUE'],
   ['POWER', 'DOMINION'],
   ['CHERUB', 'THRONE'],

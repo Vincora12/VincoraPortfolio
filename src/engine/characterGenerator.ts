@@ -896,6 +896,12 @@ const ANGEL_FACE_LOGIC = [
   'esattamente due occhi grandi; nessun occhio aggiuntivo sul corpo o sulle ali',
 ];
 
+const CHERUB_FACE_LOGIC = [
+  'più teste chiaramente separate, ognuna con esattamente due occhi',
+  'tre teste espressive sullo stesso corpo umanoide, ciascuna con esattamente due occhi',
+  'una testa principale e teste secondarie più piccole, tutte con esattamente due occhi',
+];
+
 const BODY_LANGUAGE = [
   'sta sempre leggermente rivolto altrove',
   'occupa più spazio di quanto serva',
@@ -939,7 +945,12 @@ function generateCharacterDna(
   return {
     silhouette_quirk: pick(rng, SILHOUETTE_QUIRKS),
     anatomical_gimmick: `una zona ${affinity} innestata su anatomia ${family.id} / ${archetype}`,
-    face_logic: pick(rng, family.id === 'ANGEL' ? ANGEL_FACE_LOGIC : FACE_LOGIC),
+    face_logic: pick(
+      rng,
+      family.id === 'ANGEL'
+        ? archetype === 'CHERUB' ? CHERUB_FACE_LOGIC : ANGEL_FACE_LOGIC
+        : FACE_LOGIC,
+    ),
     body_language: pick(rng, BODY_LANGUAGE),
     recurring_motif: pick(rng, [
       'un piccolo segno ripetuto tre volte',

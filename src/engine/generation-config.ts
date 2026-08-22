@@ -176,7 +176,7 @@ export const FAMILIES: FamilyDef[] = [
     coreAnatomy: 'Celestial / feathered / ritual anatomy',
     it: 'anatomia celeste, piumata e rituale',
     drivers: 'REC, CARE, warmth, introspection',
-    absoluteRule: 'Wings/rings/feathers are anatomy. The figure remains recognizably humanoid with exactly two eyes. Detached or floating parts are allowed; extra eyes and multiple faces are not. Never generic angel costume.',
+    absoluteRule: 'Wings/rings/feathers are anatomy. The figure remains recognizably humanoid. Every face has exactly two eyes. Multiple heads are forbidden except for the CHERUB archetype. Detached or floating parts are allowed. Never generic angel costume.',
     fit: { REC: 0.22, CARE: 0.18, warmth: 0.16, introspection: 0.14, discipline: 0.12, mystery: 0.1, social: 0.08 },
     supportsHair: true,
     supportsEyewear: true,
@@ -184,11 +184,12 @@ export const FAMILIES: FamilyDef[] = [
     archetypes: [
       { id: 'PUTTO', structure: 'Small youthful humanoid proportions, compact body and one pair of short anatomical wings.', mass: 'COMPACT', humanShift: 1 },
       { id: 'MESSENGER', structure: 'Lean mobile humanoid with one directional pair of wings and strong forward anatomy.', mass: 'COMPACT' },
+      { id: 'GUARDIAN', structure: 'Young male humanoid learning to fight: one modest pair of wings, light incomplete practice armour, slightly oversized training weapon and an inexperienced fighter silhouette. Skill level is visible through construction, never through a timid mood.', mass: 'COMPACT', humanShift: 1 },
       { id: 'WARRIOR', structure: 'Humanoid anatomy reinforced by structural celestial armour and one rigid pair of wings.', mass: 'BALANCED' },
       { id: 'VIRTUE', structure: 'Light humanoid construction with dynamically extended garments and one energetic pair of wings.', mass: 'BALANCED' },
       { id: 'POWER', structure: 'Robust defensive humanoid anatomy with shield-like feather masses and ritual armour.', mass: 'MASSIVE' },
       { id: 'DOMINION', structure: 'Regal vertical humanoid silhouette with a structural crown-halo and sceptre-like anatomical axis.', mass: 'BALANCED' },
-      { id: 'CHERUB', structure: 'Compact humanoid body with large enclosing wing planes; one face and exactly two eyes remain fully readable.', mass: 'MASSIVE' },
+      { id: 'CHERUB', structure: 'Compact recognizable humanoid body with large enclosing wing planes and multiple distinct heads. Each head has exactly two readable eyes. Keep the result lively, charming and slightly funny rather than grotesque.', mass: 'MASSIVE' },
       { id: 'THRONE', structure: 'Recognizable humanoid body organized inside integrated floating rings and ritual geometry; exactly two eyes and no extra faces.', mass: 'MASSIVE' },
       { id: 'SERAPH', structure: 'Recognizable humanoid body framed by exactly six wings arranged as three clear pairs, with one face and exactly two eyes.', mass: 'MASSIVE' },
     ],
@@ -720,7 +721,7 @@ export interface AffinityDef {
 }
 
 export const AFFINITIES: AffinityDef[] = [
-  { id: 'ANGEL', effect: 'Secondary wings, rings, feathers and luminous/ritual symmetry while preserving one face and exactly two eyes.', it: 'qualcosa di celeste gli è cresciuto addosso' },
+  { id: 'ANGEL', effect: 'Secondary wings, rings, feathers and luminous/ritual symmetry. Every face has exactly two eyes; additional heads appear only when the Family Archetype explicitly permits them.', it: 'qualcosa di celeste gli è cresciuto addosso' },
   { id: 'DEMON', effect: 'Horns, sharp protrusions, infernal appendages, oni-like structures.', it: 'il corpo gli si è fatto appuntito dove non serviva' },
   { id: 'MACHINE', effect: 'Panels, cables, apertures, hinges, mechanical replacement zones.', it: 'pezzi di lui sono stati sostituiti da meccanica' },
   { id: 'PLANT', effect: 'Roots, leaves, sprouts, flowers, thorns, botanical growth.', it: 'gli sta crescendo addosso del verde, e non lo toglie' },
