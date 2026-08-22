@@ -219,6 +219,11 @@ export function derivedPrompt(assetType: AssetType): string | null {
      prefissi o code automatiche che ne cambierebbero priorità e significato. */
   if (assetType === 'character_toy') return lavoro.join('\n');
 
+  /* Reaction e Doodle usano il generatore canonico completo. Il CEL viene
+     comunque allegato da `generate.ts` e il compilatore inserisce il blocco
+     CONSISTENCY REFERENCE: il design resta quello del master. */
+  if (assetType === 'reaction_pack' || assetType === 'bio_doodle') return null;
+
   return [BLOCCO, '', lavoro.join('\n'), '', `OUTPUT: ${assetTypeDef(assetType).size}.`, CODA].join(
     '\n',
   );
@@ -226,5 +231,5 @@ export function derivedPrompt(assetType: AssetType): string | null {
 
 /** Gli asset che hanno un template tecnico. Serve ai controlli e a DEV. */
 export function derivedCovers(): AssetType[] {
-  return (Object.keys(LAVORO) as AssetType[]).filter((t) => LAVORO[t] !== undefined);
+  return ['character_toy'];
 }

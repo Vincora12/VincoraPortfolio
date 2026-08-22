@@ -925,6 +925,8 @@ export const ASSET_FRAGMENTS: Record<string, PromptFragment> = {
     priority: AXIS_PRIORITY.asset,
     positive_prompt: [
       'ASSET TYPE: BIO DOODLE',
+      'CHARACTER DESIGN LOCK: the character design must not change. Only the drawing medium changes.',
+      'Keep silhouette, anatomy, proportions, face, eyewear, hair, clothing, palette and identity markers exactly as in the attached master.',
       'Include 2–5 tiny sketchbook annotations or symbols derived from real Character DNA / memories.',
     ].join('\n'),
     negative_prompt: 'Do not invent unrelated lore.',
