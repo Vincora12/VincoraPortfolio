@@ -136,6 +136,18 @@ export function App() {
   const voiceModel = useApp((s) => s.voiceModel);
   const setVoiceModel = useApp((s) => s.setVoiceModel);
   const setDev = useApp((s) => s.setDev);
+  const resumeFormEvolution = useApp((s) => s.resumeFormEvolution);
+  const evolutionJob = useApp((s) => s.evolutionJob);
+
+  useEffect(() => {
+    if ('serviceWorker' in navigator) void navigator.serviceWorker.register('/sw.js');
+  }, []);
+
+  /* Se l'app era chiusa, il server ha continuato. Al rientro riprendiamo il
+     job persistente e scarichiamo gli asset già completati. */
+  useEffect(() => {
+    resumeFormEvolution();
+  }, [resumeFormEvolution, evolutionJob?.serverJobId, evolutionJob?.status]);
 
   /* 🔷 «Appena entri c'è la chat aperta.» */
   const [tab, setTab] = useState<Tab>('chat');

@@ -53,7 +53,7 @@ import {
   modelForStep,
   type AiStepId,
 } from '../../netlify/functions/_shared/routing';
-import { assetTypeDef } from '../engine/assets';
+import { assetTypeDef, generationOrder } from '../engine/assets';
 import {
   RESET_SKIN,
   applySkin,
@@ -171,7 +171,7 @@ import type {
   Signal,
   StatKey,
 } from '../engine/types';
-import { STAT_KEYS, UNKNOWN, isKnown } from '../engine/types';
+import { STAT_KEYS, UNKNOWN, displayName, isKnown } from '../engine/types';
 import { dropKeptAssets, keepAssetsOf, preloadMonAssets } from '../assets-pipeline/assetStore';
 
 export type Phase =
@@ -205,6 +205,8 @@ export interface EvolutionJob {
   total: number;
   label: string;
   error: string | null;
+  /** Identificativo persistente del lavoro Netlify: sopravvive alla chiusura. */
+  serverJobId: string | null;
 }
 
 /** 🔶 v1.4 — sette giorni SINCRONIZZATI, non sette giorni di calendario. */
@@ -506,6 +508,8 @@ interface AppState {
   confirmFormEvolution: () => void;
   /** Avvia una trasformazione leggera o radicale senza bloccare l'app. */
   beginFormEvolution: (kind: EvolutionKind) => void;
+  /** Avvia o riprende il controllo del lavoro persistente sul server. */
+  resumeFormEvolution: () => void;
   /** Apre la rivelazione quando tutte le immagini sono pronte. */
   revealFormEvolution: () => void;
   /** Riparte dalla scelta se la rete ha interrotto la generazione. */
@@ -820,6 +824,21 @@ const INITIAL = {
      `null` finché non hai mai ricominciato. */
   resetAt: null as string | null,
 };
+
+/** Evita due poller sullo stesso lavoro quando React rimonta la schermata. */
+const runningEvolutionJobs = new Set<string>();
+
+async function notifyEvolutionReady(monName: string): Promise<void> {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  const registration = await navigator.serviceWorker?.getRegistration();
+  if (registration) {
+    await registration.showNotification('VINZ.MON pronto', {
+      body: `${displayName(monName)} ha completato la trasformazione.`,
+      icon: '/icon-180.png?v=2',
+      tag: `evolution-${monName}`,
+    });
+  }
+}
 
 /* --- Helper ---------------------------------------------------------------- */
 
@@ -1417,6 +1436,7 @@ export const useApp = create<AppState>()(
             total: 1,
             label: 'PREPARAZIONE CHARACTER MASTER',
             error: null,
+            serverJobId: null,
           },
           pendingHeritage: [],
           pendingPlan: null,
@@ -1424,63 +1444,59 @@ export const useApp = create<AppState>()(
           dev: { ...s.dev, forceBranch: false },
         });
 
-        void import('../assets-pipeline/generate').then(async ({ generateMissingAssets }) => {
-          const result = await generateMissingAssets(
-            get().token,
-            record,
-            (progress) => set((current) => ({
-              evolutionJob: current.evolutionJob?.candidateName === record.data.name
-                ? { ...current.evolutionJob, done: progress.done, total: progress.total, label: assetLabel(progress.type) }
-                : current.evolutionJob,
-            })),
-            undefined,
-            stepModel('image'),
-          );
-          markAssetsMade(set, get, record.data.name, result.made);
-          if (result.failure) {
-            set((current) => ({
-              evolutionJob: current.evolutionJob?.candidateName === record.data.name
-                ? { ...current.evolutionJob, status: 'error', error: result.detail ?? result.failure }
-                : current.evolutionJob,
-            }));
-            return;
-          }
+        if (s.token) void import('../system/pushNotifications').then(({ enableEvolutionNotifications }) => enableEvolutionNotifications(s.token as string));
+        void get().resumeFormEvolution();
+      },
 
-          const current = get();
-          const finished = current.mons[record.data.name] ?? record;
-          set({
-            mons: {
-              ...current.mons,
-              [previous.data.name]: { ...previous, retiredOnDay: s.day },
-              [record.data.name]: finished,
-            },
-            activeMonName: record.data.name,
-            formsDiscovered: current.formsDiscovered + 1,
-            nodes: [...current.nodes, createNode({
-              index: current.nodes.length,
-              kind: 'branch',
-              monName: record.data.name,
-              parentId: previous.data.mindline_node,
-              day: s.day,
-              chapter: nextChapter(current.nodes, 'branch'),
-              label: kind === 'mega-evolution' ? 'MEGA EVOLUZIONE' : 'EVOLUZIONE',
-            })],
-            mood: touchMood(current, record.data.mood_primary, []),
-            chat: [...current.chat, openingMessage(record, s.day, current.token !== null)].slice(-60),
-            progression: { ...current.progression, sync: { ...current.progression.sync, inForm: 0, sinceGrowth: 0 } },
-            evolutionJob: {
-              kind,
-              status: 'ready',
-              previousName: previous.data.name,
-              candidateName: record.data.name,
-              done: Math.max(1, result.made.length),
-              total: Math.max(1, result.made.length),
-              label: 'NUOVO MON PRONTO',
-              error: null,
-            },
-          });
-          void preloadMonAssets(record.data.name);
-          requestIntroduction(set, get, record);
+      resumeFormEvolution: () => {
+        const initial = get();
+        const job = initial.evolutionJob;
+        const record = job ? initial.mons[job.candidateName] : null;
+        if (!job || job.status !== 'running' || !record || !initial.token) return;
+        if (runningEvolutionJobs.has(job.candidateName)) return;
+        runningEvolutionJobs.add(job.candidateName);
+
+        void import('../assets-pipeline/remoteGeneration').then(async ({ queueRemoteGeneration, pollRemoteGeneration }) => {
+          let serverJobId = job.serverJobId;
+          try {
+            if (!serverJobId) {
+              serverJobId = crypto.randomUUID();
+              const id = serverJobId;
+              set((current) => ({ evolutionJob: current.evolutionJob?.candidateName === job.candidateName ? { ...current.evolutionJob, serverJobId: id, total: generationOrder().length } : current.evolutionJob }));
+              await queueRemoteGeneration(initial.token as string, id, record, stepModel('image'));
+            }
+
+            const result = await pollRemoteGeneration(initial.token as string, serverJobId, record, (progress) => {
+              set((current) => ({ evolutionJob: current.evolutionJob?.candidateName === job.candidateName ? { ...current.evolutionJob, done: progress.done, total: progress.total, label: progress.label, error: progress.error } : current.evolutionJob }));
+            });
+            markAssetsMade(set, get, record.data.name, result.made);
+            if (result.error) {
+              set((current) => ({ evolutionJob: current.evolutionJob?.candidateName === job.candidateName ? { ...current.evolutionJob, status: 'error', error: result.error } : current.evolutionJob }));
+              return;
+            }
+
+            const current = get();
+            const previous = current.mons[job.previousName];
+            const finished = current.mons[job.candidateName] ?? record;
+            if (!previous) throw new Error('Forma precedente non trovata');
+            set({
+              mons: { ...current.mons, [previous.data.name]: { ...previous, retiredOnDay: current.day }, [record.data.name]: finished },
+              activeMonName: record.data.name,
+              formsDiscovered: current.formsDiscovered + 1,
+              nodes: [...current.nodes, createNode({ index: current.nodes.length, kind: 'branch', monName: record.data.name, parentId: previous.data.mindline_node, day: current.day, chapter: nextChapter(current.nodes, 'branch'), label: job.kind === 'mega-evolution' ? 'MEGA EVOLUZIONE' : 'EVOLUZIONE' })],
+              mood: touchMood(current, record.data.mood_primary, []),
+              chat: [...current.chat, openingMessage(record, current.day, current.token !== null)].slice(-60),
+              progression: { ...current.progression, sync: { ...current.progression.sync, inForm: 0, sinceGrowth: 0 } },
+              evolutionJob: { ...job, serverJobId, status: 'ready', done: result.made.length, total: result.made.length, label: 'NUOVO MON PRONTO', error: null },
+            });
+            void preloadMonAssets(record.data.name);
+            requestIntroduction(set, get, record);
+            void notifyEvolutionReady(record.data.name);
+          } catch (error) {
+            set((current) => ({ evolutionJob: current.evolutionJob?.candidateName === job.candidateName ? { ...current.evolutionJob, status: 'error', error: String(error) } : current.evolutionJob }));
+          } finally {
+            runningEvolutionJobs.delete(job.candidateName);
+          }
         });
       },
 
@@ -2839,13 +2855,7 @@ export const useApp = create<AppState>()(
         if (state?.dev.rarityThresholds) setRarityThresholds(state.dev.rarityThresholds);
         if (state) {
           migrateStepModels(state);
-          if (state.evolutionJob?.status === 'running') {
-            state.evolutionJob = {
-              ...state.evolutionJob,
-              status: 'error',
-              error: 'La generazione è stata interrotta dalla chiusura dell’app. Tocca per riprovare.',
-            };
-          }
+          /* Un lavoro `running` vive sul server e viene ripreso da App. */
         }
       },
     },
