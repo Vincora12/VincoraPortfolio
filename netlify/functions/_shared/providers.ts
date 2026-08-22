@@ -162,6 +162,8 @@ export interface ProviderRequest {
    */
   userBlocks?: Record<string, unknown>[];
   image?: ImageInput;
+  /** Più foto nello stesso messaggio (per esempio piatto + menu). */
+  images?: ImageInput[];
   maxTokens: number;
   /** Ragiona prima di rispondere. Chi non sa farlo lo ignora. */
   thinking?: boolean;
@@ -215,10 +217,10 @@ async function anthropic(req: ProviderRequest): Promise<ProviderResult> {
   if (req.userBlocks?.length) {
     content.push(...req.userBlocks);
   } else {
-    if (req.image) {
+    for (const image of req.images?.length ? req.images : req.image ? [req.image] : []) {
       content.push({
         type: 'image',
-        source: { type: 'base64', media_type: req.image.mediaType, data: req.image.data },
+        source: { type: 'base64', media_type: image.mediaType, data: image.data },
       });
     }
     content.push({ type: 'text', text: req.user });
@@ -697,14 +699,14 @@ function openaiResponseInput(req: ProviderRequest): Record<string, unknown>[] {
   }
   if (req.userBlocks?.length) {
     addBlocks(req.userBlocks as Block[], 'user');
-  } else if (req.user || req.image) {
+  } else if (req.user || req.image || req.images?.length) {
     const content: Record<string, unknown>[] = [];
     if (req.user) content.push({ type: 'input_text', text: req.user });
-    if (req.image) {
+    for (const image of req.images?.length ? req.images : req.image ? [req.image] : []) {
       content.push({
         type: 'input_image',
         detail: 'auto',
-        image_url: `data:${req.image.mediaType};base64,${req.image.data}`,
+        image_url: `data:${image.mediaType};base64,${image.data}`,
       });
     }
     input.push({ role: 'user', content });
@@ -984,7 +986,7 @@ async function moonshot(req: ProviderRequest): Promise<ProviderResult> {
 async function openaiText(req: ProviderRequest): Promise<ProviderResult> {
   const key = process.env.OPENAI_API_KEY;
   if (!key) return fail(req.model, 'OPENAI_API_KEY mancante');
-  if (req.webSearch || req.image) return openAiResponses(key, req);
+  if (req.webSearch || req.image || req.images?.length) return openAiResponses(key, req);
   return openAiProtocol('openai', 'https://api.openai.com/v1/chat/completions', key, req);
 }
 

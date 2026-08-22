@@ -3,7 +3,6 @@ import { createRoot } from "react-dom/client";
 import {
   AssistantRuntimeProvider,
   CompositeAttachmentAdapter,
-  SimpleImageAttachmentAdapter,
   SimpleTextAttachmentAdapter,
   useLocalRuntime,
   useRemoteThreadListRuntime,
@@ -15,6 +14,7 @@ import {
 import { ChatSurface } from "./chat-surface";
 import { mockChatModel } from "./mock-runtime";
 import { netlifyChatModel } from "./netlify-runtime";
+import { VinzImageAttachmentAdapter } from "./image-attachment";
 import "@fontsource-variable/inter";
 import "./standalone.css";
 
@@ -31,7 +31,7 @@ const threadAdapter = createLocalStorageAdapter({
 });
 
 const attachments = new CompositeAttachmentAdapter([
-  new SimpleImageAttachmentAdapter(),
+  new VinzImageAttachmentAdapter(),
   new SimpleTextAttachmentAdapter(),
 ]);
 

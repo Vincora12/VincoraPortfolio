@@ -88,6 +88,8 @@ interface Payload {
   user?: string;
   userBlocks?: Record<string, unknown>[];
   image?: { mediaType: string; data: string };
+  /** Foto della chat; `image` resta compatibile con i vecchi client. */
+  images?: { mediaType: string; data: string }[];
   thinking?: boolean;
   maxTokens?: number;
   tools?: ToolDef[];
@@ -298,7 +300,12 @@ export default async function handler(request: Request): Promise<Response> {
       413,
     );
   }
-  if (user.trim().length === 0 && userBlocks.length === 0) {
+  if (
+    user.trim().length === 0 &&
+    userBlocks.length === 0 &&
+    !payload.image &&
+    !payload.images?.length
+  ) {
     return json({ error: 'messaggio vuoto' }, 400);
   }
   if (JSON.stringify(userBlocks).length > LIMITS.userChars) {
@@ -327,10 +334,12 @@ export default async function handler(request: Request): Promise<Response> {
     Boolean(payload.webSearch) &&
     (route.provider === 'anthropic' || route.provider === 'openai');
 
-  if (payload.image) {
+  const images = (payload.images?.length ? payload.images : payload.image ? [payload.image] : []).slice(0, 4);
+  if ((payload.images?.length ?? 0) > 4) return json({ error: 'troppe immagini' }, 413);
+  for (const image of images) {
     // base64 gonfia di un terzo: si stima la dimensione vera prima di
     // spedirla, altrimenti il tetto lo scopre il fornitore al posto nostro.
-    const bytes = Math.floor((payload.image.data?.length ?? 0) * 0.75);
+    const bytes = Math.floor((image.data?.length ?? 0) * 0.75);
     if (bytes > LIMITS.imageBytes) return json({ error: 'immagine troppo grande' }, 413);
   }
 
@@ -340,7 +349,7 @@ export default async function handler(request: Request): Promise<Response> {
     if (route.provider !== 'anthropic') {
       return json({ error: 'streaming non disponibile per questo modello' }, 400);
     }
-    if (tools.length || userBlocks.length || payload.image) {
+    if (tools.length || userBlocks.length || images.length) {
       return json({ error: 'lo streaming accetta testo e contesto' }, 400);
     }
 
@@ -412,6 +421,7 @@ export default async function handler(request: Request): Promise<Response> {
     user,
     userBlocks,
     image: payload.image,
+    images,
     thinking: Boolean(payload.thinking),
     ...(selectedEffort ? { effort: selectedEffort } : {}),
     tools,

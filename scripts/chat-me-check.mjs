@@ -77,10 +77,12 @@ const replies = [
 const originalFetch = globalThis.fetch;
 const toolCounts = [];
 const toolChoices = [];
+const imageCounts = [];
 globalThis.fetch = async (_url, init) => {
   const request = JSON.parse(String(init?.body ?? '{}'));
   toolCounts.push(Array.isArray(request.tools) ? request.tools.length : 0);
   toolChoices.push(request.toolChoice ?? null);
+  imageCounts.push(Array.isArray(request.images) ? request.images.length : 0);
   return new Response(JSON.stringify(replies.shift()), {
     status: 200,
     headers: { 'content-type': 'application/json' },
@@ -94,7 +96,10 @@ try {
   check(m.requiredWriteTool('Mangio questo come cena') === 'registra_pasto', 'una foto dichiarata come pasto impone la scrittura in ME');
   check(m.requiredWriteTool('Ho fatto 45 minuti di lower body.') === 'registra_allenamento', 'un allenamento dichiarato impone la scrittura in ME');
   const run = (use) => m.runTool(use, ctx);
-  await m.replyWithLocalTools([], 'Ho mangiato una banana.', new AbortController().signal, () => {}, run, 'test-model');
+  await m.replyWithLocalTools(
+    [], 'Ho mangiato una banana.', new AbortController().signal, () => {}, run, 'test-model',
+    [{ mediaType: 'image/jpeg', data: 'foto-1' }, { mediaType: 'image/jpeg', data: 'foto-2' }],
+  );
   await m.replyWithLocalTools([], 'Ho fatto 45 minuti di lower body.', new AbortController().signal, () => {}, run, 'test-model');
   const journal = m.readHealthJournal();
   check(journal.meals.length === 1, 'il pasto detto in chat entra nel diario ME');
@@ -104,6 +109,7 @@ try {
   check(journal.meals[0]?.source === 'chat' && journal.workouts[0]?.source === 'chat', 'la provenienza resta CHAT');
   check(toolCounts.every((count) => count <= 12), 'ogni richiesta resta entro il limite di 12 strumenti');
   check(toolChoices[0] === 'registra_pasto' && toolChoices[2] === 'registra_allenamento', 'il backend riceve lo strumento obbligatorio corretto');
+  check(imageCounts[0] === 2, 'le due foto del pasto arrivano insieme al ciclo che aggiorna ME');
 } finally {
   globalThis.fetch = originalFetch;
 }

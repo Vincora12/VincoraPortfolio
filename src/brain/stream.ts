@@ -107,7 +107,7 @@ export async function replyWithLocalTools(
   onChunk: (chunk: string) => void,
   run: (use: ToolUse) => ToolResult,
   voiceModel?: string | null,
-  image?: { mediaType: string; data: string },
+  images: { mediaType: string; data: string }[] = [],
 ): Promise<ChatCost> {
   const token = savedToken();
   if (!token) throw new Error('Prima attiva VINZ.MON: manca il token.');
@@ -146,7 +146,7 @@ export async function replyWithLocalTools(
         system,
         turns: history,
         user: currentUser,
-        ...(round === 0 && image ? { image } : {}),
+        ...(round === 0 && images.length ? { images } : {}),
         ...(userBlocks ? { userBlocks } : {}),
         tools: round < 3 ? availableTools : [],
         ...(round === 0 && forcedWrite ? { toolChoice: forcedWrite } : {}),
@@ -176,6 +176,7 @@ export async function replyWithLocalTools(
       return { costUsd: totalCostUsd, model: lastModel };
     }
 
+    if (round === 0 && currentUser) history.push({ role: 'user', content: currentUser });
     history.push(assistantTurn(body.text ?? '', uses) as { role: 'assistant'; content: unknown });
     userBlocks = resultBlocks(uses.map(run));
     currentUser = '';

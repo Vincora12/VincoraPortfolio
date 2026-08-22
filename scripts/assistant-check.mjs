@@ -79,7 +79,11 @@ check(
 check(integratedChat.includes('createNetlifyChatModel(runTool)'), 'il clone integrato riceve gli strumenti VINZ.MON');
 check(appSource.includes("./assistant-original/IntegratedChat"), 'la Chat principale usa il clone approvato');
 check(!appSource.includes("lazy(() => import('./brain/Brain')"), 'la vecchia interfaccia Chat non viene più caricata');
-check(netlifyRuntime.includes('const image = imageOf(last)'), 'una foto del pasto arriva anche al ciclo degli strumenti');
+check(
+  netlifyRuntime.includes('message.attachments?.flatMap') &&
+    netlifyRuntime.includes('const images = imagesForRun(messages)'),
+  'le foto degli allegati arrivano al modello e restano disponibili nei follow-up',
+);
 
 const preferences = m.assistantRequestPreferences(
   { modelName: 'claude-sonnet-5', reasoningEffort: 'high' },
@@ -268,16 +272,20 @@ try {
   };
   const seen = await m.callProvider('openai', {
     model: 'gpt-5.6-sol', system: [], turns: [], user: 'Mangio questo come cena',
-    image: { mediaType: 'image/jpeg', data: 'AQID' },
+    images: [
+      { mediaType: 'image/jpeg', data: 'AQID' },
+      { mediaType: 'image/png', data: 'BAUG' },
+    ],
     maxTokens: 200, effort: 'none', webSearch: true,
     tools: [{ name: 'registra_pasto', description: 'Registra', schema: { type: 'object' } }],
     toolChoice: 'registra_pasto',
   });
   const lastInput = openAiRequest?.input?.at(-1)?.content ?? [];
   check(
-    lastInput.some((part) =>
-      part.type === 'input_image' && part.image_url === 'data:image/jpeg;base64,AQID'),
-    'Sol riceve davvero la foto allegata come input visivo',
+    lastInput.filter((part) => part.type === 'input_image').length === 2 &&
+      lastInput.some((part) => part.image_url === 'data:image/jpeg;base64,AQID') &&
+      lastInput.some((part) => part.image_url === 'data:image/png;base64,BAUG'),
+    'Sol riceve davvero tutte le foto allegate come input visivo',
   );
   check(
     openAiRequest?.tool_choice?.name === 'registra_pasto' &&

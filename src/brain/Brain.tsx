@@ -7,7 +7,6 @@ import {
   ComposerPrimitive,
   CompositeAttachmentAdapter,
   MessagePrimitive,
-  SimpleImageAttachmentAdapter,
   SimpleTextAttachmentAdapter,
   ThreadPrimitive,
   useLocalRuntime,
@@ -27,6 +26,7 @@ import { replyWithLocalTools, savedToken, shouldUseLocalTools, streamReply, type
 import { loadSetup, type ModelChoice } from '../ai/backend';
 import type { BrainMessage } from './store/types';
 import type { ToolResult, ToolUse } from '../ai/tools';
+import { VinzImageAttachmentAdapter } from '../assistant-original/image-attachment';
 
 const storage = {
   getItem: async (key: string) => localStorage.getItem(key),
@@ -41,7 +41,7 @@ const threadAdapter = createLocalStorageAdapter({
 });
 
 const attachments = new CompositeAttachmentAdapter([
-  new SimpleImageAttachmentAdapter(),
+  new VinzImageAttachmentAdapter(),
   new SimpleTextAttachmentAdapter(),
 ]);
 

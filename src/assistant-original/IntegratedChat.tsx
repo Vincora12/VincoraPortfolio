@@ -2,7 +2,6 @@ import { useEffect, useMemo, type FC } from "react";
 import {
   AssistantRuntimeProvider,
   CompositeAttachmentAdapter,
-  SimpleImageAttachmentAdapter,
   SimpleTextAttachmentAdapter,
   useLocalRuntime,
   useRemoteThreadListRuntime,
@@ -13,6 +12,7 @@ import {
 } from "@assistant-ui/core/react";
 import type { ToolResult, ToolUse } from "@/ai/tools";
 import { createNetlifyChatModel } from "./netlify-runtime";
+import { VinzImageAttachmentAdapter } from "./image-attachment";
 import { ChatSurface } from "./chat-surface";
 import "./styles.css";
 
@@ -29,7 +29,7 @@ const threadAdapter = createLocalStorageAdapter({
 });
 
 const attachments = new CompositeAttachmentAdapter([
-  new SimpleImageAttachmentAdapter(),
+  new VinzImageAttachmentAdapter(),
   new SimpleTextAttachmentAdapter(),
 ]);
 

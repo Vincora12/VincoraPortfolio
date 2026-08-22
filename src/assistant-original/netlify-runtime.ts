@@ -42,14 +42,42 @@ function textOf(message: ThreadMessage | undefined): string {
     .trim();
 }
 
-function imageOf(message: ThreadMessage | undefined): { mediaType: string; data: string } | undefined {
-  if (!message) return undefined;
-  for (const part of message.content) {
+type ChatImage = { mediaType: string; data: string };
+
+/** assistant-ui tiene gli allegati separati dal testo del messaggio. */
+function imagesOf(message: ThreadMessage | undefined): ChatImage[] {
+  if (!message) return [];
+  const attachmentParts = message.attachments?.flatMap((attachment) => attachment.content ?? []) ?? [];
+  const parts = [...message.content, ...attachmentParts];
+  const found = new Map<string, ChatImage>();
+  for (const part of parts) {
     if (part.type !== "image" || typeof part.image !== "string") continue;
     const match = part.image.match(/^data:([^;]+);base64,(.+)$/s);
-    if (match?.[1] && match[2]) return { mediaType: match[1], data: match[2] };
+    if (!match?.[1] || !match[2]) continue;
+    found.set(part.image, { mediaType: match[1], data: match[2] });
   }
-  return undefined;
+  return [...found.values()].slice(0, 4);
+}
+
+/**
+ * La foto corrente vince. Nei follow-up che la citano, riusa l'ultimo gruppo
+ * di foto: così «non vedi la foto?» non perde il contesto visivo.
+ */
+function imagesForRun(messages: readonly ThreadMessage[]): ChatImage[] {
+  const last = messages.at(-1);
+  const current = imagesOf(last);
+  if (current.length) return current;
+  const user = textOf(last);
+  if (!/\b(foto|immagin\w*|allegat\w*|ved\w*|guard\w*|quest\w*|piatto|porzion\w*|calori\w*|ingredient\w*)\b/i.test(user)) {
+    return [];
+  }
+  for (let index = messages.length - 2; index >= Math.max(0, messages.length - 6); index--) {
+    const previous = messages[index];
+    if (previous?.role !== "user") continue;
+    const images = imagesOf(previous);
+    if (images.length) return images;
+  }
+  return [];
 }
 
 function toBrainMessages(messages: readonly ThreadMessage[]): BrainMessage[] {
@@ -72,7 +100,7 @@ async function* runWithLocalTools(
 ) {
   const last = messages.at(-1);
   const user = textOf(last);
-  const image = imageOf(last);
+  const images = imagesForRun(messages);
   const history = toBrainMessages(messages.slice(0, -1));
   let answer = "";
   const chunks: string[] = [];
@@ -107,7 +135,7 @@ async function* runWithLocalTools(
     },
     runAndDescribe,
     modelName,
-    image,
+    images,
   )
     .then((result) => { cost = result; })
     .catch((error: unknown) => { failure = error; })
@@ -178,7 +206,7 @@ function createBaseNetlifyChatModel(): ChatModelAdapter {
     const reasoningEffort = context.config?.reasoningEffort;
     const useStream = modelName?.startsWith("claude-") ?? false;
     const last = messages.at(-1);
-    const image = imageOf(last);
+    const images = imagesForRun(messages);
     const response = await fetch("/api/ai", {
       method: "POST",
       signal: abortSignal,
@@ -201,7 +229,7 @@ function createBaseNetlifyChatModel(): ChatModelAdapter {
           content: textOf(message),
         })),
         user: textOf(last),
-        ...(image ? { image } : {}),
+        ...(images.length ? { images } : {}),
         maxTokens: 2000,
       }),
     });

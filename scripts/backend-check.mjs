@@ -401,9 +401,10 @@ check(
   'la ricerca usa la versione che filtra i risultati prima del contesto',
 );
 check(
-  providersSource.includes("https://api.openai.com/v1/responses") &&
+    providersSource.includes("https://api.openai.com/v1/responses") &&
     providersSource.includes("{ type: 'web_search' }") &&
-    providersSource.includes("type: 'input_image'"),
+    providersSource.includes("type: 'input_image'") &&
+    providersSource.includes('req.images?.length'),
   'OpenAI usa lo stesso modello per ricerca web e lettura delle foto',
 );
 check(
