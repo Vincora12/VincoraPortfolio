@@ -15,8 +15,9 @@ export type RemoteEvolutionStatus = {
 
 const headers = (token: string) => ({ 'content-type': 'application/json', authorization: `Bearer ${token}` });
 
-export async function queueRemoteGeneration(token: string, jobId: string, record: MonRecord, imageModel?: string | null): Promise<void> {
-  const items = generationOrder().map((def) => ({
+export async function queueRemoteGeneration(token: string, jobId: string, record: MonRecord, imageModel?: string | null, onlyTypes?: AssetType[]): Promise<void> {
+  const wanted = onlyTypes ? new Set(onlyTypes) : null;
+  const items = generationOrder().filter((def) => !wanted || wanted.has(def.type)).map((def) => ({
     type: def.type,
     assetId: def.assetId,
     prompt: promptFor(record, def.type).text,
@@ -68,4 +69,18 @@ export async function pollRemoteGeneration(
     await new Promise((resolve) => setTimeout(resolve, 2500));
   }
   return { made: [], error: 'Il lavoro server non ha terminato entro venti minuti' };
+}
+
+/** Aggiorna soltanto la rappresentazione principale Toy. Il Character Master
+ * CEL già approvato resta la reference e nessun nodo/evoluzione viene creato. */
+export async function refreshToyAsset(
+  token: string,
+  record: MonRecord,
+  imageModel?: string | null,
+): Promise<void> {
+  const jobId = crypto.randomUUID();
+  await queueRemoteGeneration(token, jobId, record, imageModel, ['character_toy']);
+  const result = await pollRemoteGeneration(token, jobId, record, () => undefined);
+  if (result.error) throw new Error(result.error);
+  if (!result.made.includes('character_toy')) throw new Error('Toy non ricevuto dal server');
 }

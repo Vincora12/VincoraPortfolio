@@ -1047,6 +1047,7 @@ export async function generateImage(
    * immagini non si somigliavano, e non era il modello a sbagliare.
    */
   reference?: string | null,
+  background: 'transparent' | 'opaque' = 'transparent',
 ): Promise<ImageResult> {
   const key = process.env.OPENAI_API_KEY;
   if (!key) return { ok: false, data: '', usage: {}, error: 'OPENAI_API_KEY mancante' };
@@ -1096,7 +1097,7 @@ export async function generateImage(
   const send = reference ? sendWithReference : sendText;
 
   try {
-    let res = await send({ background: 'transparent' });
+    let res = await send({ background });
 
     if (!res.ok) {
       const detail = await res.text();

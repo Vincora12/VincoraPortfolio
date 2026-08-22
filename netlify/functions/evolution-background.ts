@@ -25,6 +25,7 @@ type Job = {
 };
 
 const ALLOWED_ASSETS = new Set(['master_01', 'toy_01', 'doodle_01', 'reactions_01']);
+const TOY_PIPELINE_VERSION = '2';
 const store = () => getStore('vinzmon-evolution');
 const permanentStore = () => getStore({ name: 'vinzmon-assets', consistency: 'strong' });
 const jobKey = (id: string) => `job:${id}`;
@@ -54,16 +55,28 @@ function saferPrompt(prompt: string): string {
   ].join('\n\n');
 }
 
+function effectivePrompt(item: AssetItem): string {
+  if (item.type !== 'character_toy') return item.prompt;
+  return [
+    'NON-NEGOTIABLE MEDIUM CHANGE: the output must be a studio photograph of a real, manufactured three-dimensional collectible toy. Preserve the CHARACTER DESIGN, but DO NOT preserve the CEL illustration medium.',
+    'The result must show obvious sculpted depth, physical thickness, molded volumes, painted PVC/vinyl surfaces, realistic material response and a grounding shadow. No inked outlines, no cel shading, no anime illustration rendering, no flat drawing, no concept-art background. Use a pure optical-white seamless studio background.',
+    'If the result could be mistaken for the attached 2D illustration, it has failed. Convert the same character into a visibly physical object.',
+    item.prompt,
+  ].join('\n\n');
+}
+
 async function generateWithRetry(routeModel: string, item: AssetItem, reference: string | null) {
-  let result = await generateImage(routeModel, item.prompt, item.size, reference);
+  const prompt = effectivePrompt(item);
+  const background = item.type === 'character_toy' ? 'opaque' : 'transparent';
+  let result = await generateImage(routeModel, prompt, item.size, reference, background);
   for (let retry = 1; !result.ok && retry <= 3; retry += 1) {
     /* Credenziali e tetto di spesa non cambiano ripetendo la stessa chiamata. */
     if (/401|API_KEY mancante|tetto mensile/i.test(result.error ?? '')) break;
-    const prompt = /moderation|safety|sexual/i.test(result.error ?? '')
-      ? saferPrompt(item.prompt)
-      : item.prompt;
+    const retryPrompt = /moderation|safety|sexual/i.test(result.error ?? '')
+      ? saferPrompt(prompt)
+      : prompt;
     await new Promise((resolve) => setTimeout(resolve, retry * 1000));
-    result = await generateImage(routeModel, prompt, item.size, reference);
+    result = await generateImage(routeModel, retryPrompt, item.size, reference, background);
   }
   return result;
 }
@@ -122,8 +135,18 @@ export default async function evolutionBackground(request: Request): Promise<voi
   /* Un retry riparte dal primo asset mancante. Gli asset già conclusi sono
      permanenti e non vanno né rigenerati né ripagati. */
   let master: string | null = null;
+  const savedMaster = await permanentStore().get(
+    permanentAssetKey(candidateName, 'master_01'),
+    { type: 'arrayBuffer' },
+  );
+  if (savedMaster) master = base64(savedMaster);
   for (const item of items) {
-    const existing = await permanentStore().get(permanentAssetKey(candidateName, item.assetId), { type: 'arrayBuffer' });
+    const key = permanentAssetKey(candidateName, item.assetId);
+    const metadata = await permanentStore().getMetadata(key);
+    /* I vecchi toy potevano essere semplici CEL salvati nello slot giusto.
+       Non li consideriamo conclusi: vengono rigenerati senza rifare il MON. */
+    if (item.type === 'character_toy' && metadata?.metadata?.toyPipelineVersion !== TOY_PIPELINE_VERSION) continue;
+    const existing = await permanentStore().get(key, { type: 'arrayBuffer' });
     if (!existing) continue;
     await store().set(assetKey(id, item.assetId), existing);
     job.assets.push({ type: item.type, assetId: item.assetId });
@@ -163,7 +186,10 @@ export default async function evolutionBackground(request: Request): Promise<voi
     await permanentStore().set(
       permanentAssetKey(candidateName, item.assetId),
       imageBuffer,
-      { metadata: { contentType: 'image/png' } },
+      { metadata: {
+        contentType: 'image/png',
+        ...(item.type === 'character_toy' ? { toyPipelineVersion: TOY_PIPELINE_VERSION } : {}),
+      } },
     );
     await recordSpend('image', route.model, result.usage);
     job.assets.push({ type: item.type, assetId: item.assetId });

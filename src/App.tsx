@@ -19,6 +19,7 @@ import {
   pullLessons,
   maybeSpeakFirst,
   scheduleRemoteSave,
+  stepModel,
 } from './state/store';
 import { applyPaletteDna } from './engine/colorDna';
 import { applySkin } from './engine/skin';
@@ -53,6 +54,7 @@ import type { ToolUse } from './ai/tools';
 const IntegratedChat = lazy(() => import('./assistant-original/IntegratedChat').then((module) => ({ default: module.IntegratedChat })));
 
 const runChatTool = (use: ToolUse) => useApp.getState().runMonTool(use);
+const toyRefreshes = new Set<string>();
 
 function LazyChat(props: ComponentProps<typeof IntegratedChat>) {
   return (
@@ -155,6 +157,25 @@ export function App() {
   useEffect(() => {
     resumeFormEvolution();
   }, [resumeFormEvolution, evolutionJob?.serverJobId, evolutionJob?.status]);
+
+  /* Pipeline Toy v2: le prime generazioni potevano conservare il rendering
+     CEL pur essendo archiviate nello slot Toy. Si corregge una volta sola,
+     usando il Master esistente e senza ricreare evoluzione, doodle o sticker. */
+  useEffect(() => {
+    if (!token || !activeMonName || evolutionJob?.status === 'running') return;
+    const record = useApp.getState().mons[activeMonName];
+    if (!record || record.data.asset_manifest_status.character_master !== 'resolved') return;
+    const migrationKey = `vinzmon:toy-pipeline-v2:${activeMonName}`;
+    if (localStorage.getItem(migrationKey) === 'ready' || toyRefreshes.has(activeMonName)) return;
+    toyRefreshes.add(activeMonName);
+    void import('./assets-pipeline/remoteGeneration')
+      .then(({ refreshToyAsset }) => refreshToyAsset(token, record, stepModel('image')))
+      .then(() => localStorage.setItem(migrationKey, 'ready'))
+      .catch((error) => {
+        toyRefreshes.delete(activeMonName);
+        console.warn('[toy] aggiornamento automatico non riuscito:', error);
+      });
+  }, [activeMonName, evolutionJob?.status, token]);
 
   /* 🔷 «Appena entri c'è la chat aperta.» */
   const [tab, setTab] = useState<Tab>('chat');
