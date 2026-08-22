@@ -173,6 +173,9 @@ const LAVORO: Partial<Record<AssetType, string[]>> = {
      posizione dall'app: non è una preferenza, è un contratto. */
   reaction_pack: [
     'PRODUCTION TASK: expression sheet of this character.',
+    'CHARACTER DESIGN LOCK: the character design must not change in any frame.',
+    'Do not alter or reinterpret silhouette, anatomy, proportions, face construction,',
+    'hair, eyewear, clothing, accessories, palette, markings or identity features.',
     `One sheet, ${EXPRESSION_SPEC.frames} frames, strict ${EXPRESSION_SPEC.columns} columns x ${EXPRESSION_SPEC.rows} rows grid,`,
     'read left-to-right, top row first. The frame order is FIXED and must not be rearranged:',
     ...EXPRESSION_SPEC.order.map((e, i) => `${String(i + 1).padStart(2, '0')} ${e}`),
@@ -187,6 +190,9 @@ const LAVORO: Partial<Record<AssetType, string[]>> = {
   bio_doodle: [
     'PRODUCTION TASK: sketchbook translation of this character.',
     'This is a change of MEDIUM, not a redesign.',
+    'CHARACTER DESIGN LOCK: the character design must not change.',
+    'Do not alter or reinterpret silhouette, anatomy, proportions, face construction,',
+    'hair, eyewear, clothing, accessories, palette, markings or identity features.',
     'Same character, drawn as a quick personal-notebook sketch: visible pencil or',
     'ballpoint line, loose construction lines left in, flat or absent colour,',
     'the feeling of something drawn in a margin rather than finished.',
