@@ -42,6 +42,14 @@ const cloneSource = readFileSync(
   'utf8',
 );
 const cloneStyles = readFileSync(join(cwd, 'src/assistant-original/styles.css'), 'utf8');
+const popoverSource = readFileSync(
+  join(cwd, 'src/assistant-original/components/ui/popover.tsx'),
+  'utf8',
+);
+const threadListSource = readFileSync(
+  join(cwd, 'src/assistant-original/components/assistant-ui/thread-list.tsx'),
+  'utf8',
+);
 const cloneMain = readFileSync(join(cwd, 'src/assistant-original/main.tsx'), 'utf8');
 const integratedChat = readFileSync(join(cwd, 'src/assistant-original/IntegratedChat.tsx'), 'utf8');
 const appSource = readFileSync(join(cwd, 'src/App.tsx'), 'utf8');
@@ -59,6 +67,23 @@ check(
   'la trascrizione viene inviata dal runtime, senza simulare un click',
 );
 check(cloneStyles.includes('.vinz-record__wave.is-loading'), 'avvio e trascrizione hanno un loader dedicato');
+check(
+  cloneStyles.includes('.vinz-clone-composer__send') &&
+    cloneStyles.includes('background: var(--char-accent'),
+  'il pulsante invio usa il colore principale del MON corrente',
+);
+check(
+  popoverSource.includes('data-slot="popover-positioner"') &&
+    popoverSource.includes('z-[10002]'),
+  'il selettore AI si apre sopra la navigazione e la sidebar',
+);
+check(
+    threadListSource.includes('side="bottom"') &&
+    threadListSource.includes('data-slot="aui_thread-list-item-more-content"') &&
+    threadListSource.includes('z-[10002]') &&
+    threadListSource.includes('<Popover open={open} onOpenChange={setOpen}>'),
+  'le impostazioni chat restano visibili dentro lo schermo mobile',
+);
 check(
   cloneStyles.includes('[data-slot="sheet-content"][data-side="left"]') &&
     cloneStyles.includes('height: 100dvh') &&

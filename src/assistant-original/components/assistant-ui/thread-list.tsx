@@ -2,11 +2,15 @@
 
 import { Button } from "@/assistant-original/components/ui/button";
 import { Input } from "@/assistant-original/components/ui/input";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/assistant-original/components/ui/popover";
 import { Skeleton } from "@/assistant-original/components/ui/skeleton";
 import { cn } from "@/assistant-original/lib/utils";
 import {
   AuiIf,
-  ThreadListItemMorePrimitive,
   ThreadListItemPrimitive,
   ThreadListPrimitive,
   useAui,
@@ -382,55 +386,70 @@ const ThreadListItemRename: FC<{
 };
 
 const ThreadListItemMore: FC<{ onRename: () => void }> = ({ onRename }) => {
+  const [open, setOpen] = useState(false);
+
   return (
-    <ThreadListItemMorePrimitive.Root sharedFocusGroup>
-      <ThreadListItemMorePrimitive.Trigger asChild>
-        <Button
-          variant="ghost"
-          size="icon"
-          data-slot="aui_thread-list-item-more"
-          className="data-[state=open]:bg-accent absolute end-1.5 top-1/2 size-6 -translate-y-1/2 p-0 opacity-0 group-hover:opacity-100 group-has-focus-visible:opacity-100 group-data-active:opacity-100 data-[state=open]:opacity-100"
-        >
-          <MoreHorizontalIcon className="size-3.5" />
-          <span className="sr-only">More options</span>
-        </Button>
-      </ThreadListItemMorePrimitive.Trigger>
-      <ThreadListItemMorePrimitive.Content
-        side="right"
-        align="start"
-        sideOffset={6}
-        data-slot="aui_thread-list-item-more-content"
-        className="bg-popover text-popover-foreground data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=open]:animate-in data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=closed]:animate-out data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 min-w-32 overflow-hidden rounded-xl border p-1.5"
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger
+        render={
+          <Button
+            type="button"
+            aria-label="More options"
+            variant="ghost"
+            size="icon"
+            data-slot="aui_thread-list-item-more"
+            className="data-[state=open]:bg-accent absolute end-1.5 top-1/2 z-10 size-8 -translate-y-1/2 p-0 opacity-0 group-hover:opacity-100 group-has-focus-visible:opacity-100 group-data-active:opacity-100 data-[state=open]:opacity-100"
+          />
+        }
       >
-        <ThreadListItemMorePrimitive.Item
+        <MoreHorizontalIcon className="size-3.5" />
+        <span className="sr-only">More options</span>
+      </PopoverTrigger>
+      <PopoverContent
+        side="bottom"
+        align="end"
+        sideOffset={4}
+        data-slot="aui_thread-list-item-more-content"
+        className="bg-popover text-popover-foreground data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=open]:animate-in data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=closed]:animate-out data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-[10002] w-40 gap-0.5 overflow-hidden rounded-xl border p-1 shadow-xl"
+      >
+        <Button
+          type="button"
+          variant="ghost"
           data-slot="aui_thread-list-item-more-item"
-          className="hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground flex cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm outline-none select-none"
-          onSelect={onRename}
+          className="h-9 w-full justify-start gap-2 rounded-lg px-2.5 text-sm font-normal"
+          onClick={() => {
+            setOpen(false);
+            onRename();
+          }}
         >
           <PencilIcon className="size-4" />
           Rename
-        </ThreadListItemMorePrimitive.Item>
+        </Button>
         <ThreadListItemPrimitive.Archive asChild>
-          <ThreadListItemMorePrimitive.Item
+          <Button
+            type="button"
+            variant="ghost"
             data-slot="aui_thread-list-item-more-item"
-            className="hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground flex cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm outline-none select-none"
+            className="h-9 w-full justify-start gap-2 rounded-lg px-2.5 text-sm font-normal"
+            onClick={() => setOpen(false)}
           >
             <ArchiveIcon className="size-4" />
             Archive
-          </ThreadListItemMorePrimitive.Item>
+          </Button>
         </ThreadListItemPrimitive.Archive>
         <ThreadListItemPrimitive.Delete asChild>
-          <ThreadListItemMorePrimitive.Item
+          <Button
+            type="button"
+            variant="ghost"
             data-slot="aui_thread-list-item-more-item"
-            className="text-destructive hover:bg-destructive/10 hover:text-destructive focus:bg-destructive/10 focus:text-destructive flex cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm outline-none select-none"
+            className="text-destructive hover:bg-destructive/10 hover:text-destructive h-9 w-full justify-start gap-2 rounded-lg px-2.5 text-sm font-normal"
+            onClick={() => setOpen(false)}
           >
             <TrashIcon className="size-4" />
             Delete
-          </ThreadListItemMorePrimitive.Item>
+          </Button>
         </ThreadListItemPrimitive.Delete>
-      </ThreadListItemMorePrimitive.Content>
-    </ThreadListItemMorePrimitive.Root>
+      </PopoverContent>
+    </Popover>
   );
 };
-
-

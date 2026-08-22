@@ -34,11 +34,12 @@ const PopoverContent = React.forwardRef<
   return (
     <PopoverPrimitive.Portal>
       <PopoverPrimitive.Positioner
+        data-slot="popover-positioner"
         align={align}
         alignOffset={alignOffset}
         side={side}
         sideOffset={sideOffset}
-        className="isolate z-50"
+        className="isolate z-[10002]"
       >
         <PopoverPrimitive.Popup
           ref={ref}
@@ -95,5 +96,4 @@ export {
   PopoverTitle,
   PopoverTrigger,
 };
-
 

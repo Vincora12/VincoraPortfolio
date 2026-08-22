@@ -242,8 +242,13 @@ body[data-scroll-locked] {
 }
 
 .vinz-record__send {
-  background: #ececec;
-  color: #0d0d0d;
+  background: var(--char-accent, #c68a29);
+  color: var(--char-on-primary, #0d0d0d);
+}
+
+.vinz-clone-composer__send {
+  background: var(--char-accent, #c68a29) !important;
+  color: var(--char-on-primary, #0d0d0d) !important;
 }
 
 .vinz-record__cancel:disabled,
@@ -338,6 +343,10 @@ body[data-scroll-locked] {
 
   [data-slot="sheet-content"][data-side="left"] > [data-slot="sheet-close"] {
     top: calc(env(safe-area-inset-top) + 0.75rem);
+  }
+
+  [data-slot="aui_thread-list-item-more"] {
+    opacity: 1;
   }
 }
 
