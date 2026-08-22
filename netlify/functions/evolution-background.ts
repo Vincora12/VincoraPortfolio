@@ -56,10 +56,14 @@ function saferPrompt(prompt: string): string {
 
 async function generateWithRetry(routeModel: string, item: AssetItem, reference: string | null) {
   let result = await generateImage(routeModel, item.prompt, item.size, reference);
-  if (!result.ok && /moderation|safety|sexual/i.test(result.error ?? '')) {
-    result = await generateImage(routeModel, saferPrompt(item.prompt), item.size, reference);
-  } else if (!result.ok && /timeout|timed out|fetch failed|network/i.test(result.error ?? '')) {
-    result = await generateImage(routeModel, item.prompt, item.size, reference);
+  for (let retry = 1; !result.ok && retry <= 3; retry += 1) {
+    /* Credenziali e tetto di spesa non cambiano ripetendo la stessa chiamata. */
+    if (/401|API_KEY mancante|tetto mensile/i.test(result.error ?? '')) break;
+    const prompt = /moderation|safety|sexual/i.test(result.error ?? '')
+      ? saferPrompt(item.prompt)
+      : item.prompt;
+    await new Promise((resolve) => setTimeout(resolve, retry * 1000));
+    result = await generateImage(routeModel, prompt, item.size, reference);
   }
   return result;
 }

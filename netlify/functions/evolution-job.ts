@@ -19,7 +19,7 @@ export default async function evolutionJob(request: Request): Promise<Response> 
   }
 
   const job = await store().get(`job:${id}`, { type: 'json' }) as { status?: string; updatedAt?: string; error?: string; label?: string } | null;
-  if (job?.status === 'running' && job.updatedAt && Date.now() - new Date(job.updatedAt).getTime() > 5 * 60_000) {
+  if (job?.status === 'running' && job.updatedAt && Date.now() - new Date(job.updatedAt).getTime() > 10 * 60_000) {
     job.status = 'error';
     job.error = 'La generazione si è fermata sul server. Premi RIPROVA.';
     job.label = 'GENERAZIONE INTERROTTA';

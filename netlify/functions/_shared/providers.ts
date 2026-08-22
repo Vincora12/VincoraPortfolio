@@ -1064,7 +1064,7 @@ export async function generateImage(
   const sendText = (extras: Record<string, unknown>) =>
     fetch('https://api.openai.com/v1/images/generations', {
       method: 'POST',
-      signal: AbortSignal.timeout(180_000),
+      signal: AbortSignal.timeout(120_000),
       headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` },
       body: JSON.stringify({ model, prompt, size, n: 1, ...extras }),
     });
@@ -1087,7 +1087,7 @@ export async function generateImage(
     form.append('image[]', new Blob([bytes], { type: 'image/png' }), 'master.png');
     return fetch('https://api.openai.com/v1/images/edits', {
       method: 'POST',
-      signal: AbortSignal.timeout(180_000),
+      signal: AbortSignal.timeout(120_000),
       headers: { authorization: `Bearer ${key}` },
       body: form,
     });
