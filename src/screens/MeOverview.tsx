@@ -42,13 +42,15 @@ function TodayRecap({ journal, meals, workouts, total, health, askAi }: { journa
   const latest = [...journal.meals, ...journal.workouts, ...journal.weights].map(x => new Date(x.at)).sort((a, b) => b.getTime() - a.getTime())[0];
   const workout = workouts.at(-1);
   const weight = journal.weights.at(-1)?.kg;
+  const fixedMeals = new Set(meals.filter(x => x.slot !== 'extra').map(x => x.slot)).size;
+  const extras = meals.filter(x => x.slot === 'extra').length;
   return <>
     <ProgressChart journal={journal} onClick={() => askAi('Analizza i miei progressi e dimmi come sto andando: ')} />
     <Nutrition total={total} targets={journal.targets} />
     <section className="me-health__today">
       <h2>OGGI</h2>
       <div>
-        <article><Icon name="tell" /><strong>{meals.length}<small> / 4</small></strong><span>PASTI</span></article>
+        <article><Icon name="tell" /><strong>{fixedMeals}<small> / 5</small></strong><span>{extras ? `PASTI · ${extras} EXTRA` : 'PASTI'}</span></article>
         <article><Icon name="workout" /><strong>{workout?.title ?? 'RIPOSO'}</strong><span>{workout ? `${workout.minutes} MIN` : 'NESSUN LOG'}</span></article>
         <article><Icon name="measure" /><strong>{weight ? weight.toFixed(1) : '—'}<small>{weight ? ' KG' : ''}</small></strong><span>ULTIMO PESO</span></article>
       </div>

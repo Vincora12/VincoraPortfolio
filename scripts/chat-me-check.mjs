@@ -10,7 +10,7 @@ const entry = join(dir, 'entry.ts');
 const out = join(cwd, 'node_modules', '.vinz-chat-me-check.mjs');
 
 writeFileSync(entry, `
-export { replyWithLocalTools, shouldUseLocalTools, requiredWriteTool } from '${cwd}/src/brain/stream.ts';
+export { replyWithLocalTools, shouldUseLocalTools, requiredWriteTool, isMealLogIntent } from '${cwd}/src/brain/stream.ts';
 export { runTool } from '${cwd}/src/ai/tools.ts';
 export { addMeal, addWorkout, readHealthJournal } from '${cwd}/src/engine/healthJournal.ts';
 `);
@@ -56,6 +56,7 @@ const ctx = {
 };
 
 const replies = [
+  { text: 'Una banana media contiene circa 105 kcal.', costUsd: 0.001, model: 'test-model' },
   {
     toolUses: [{ id: 'meal-1', name: 'registra_pasto', input: {
       pasto: 'spuntino', descrizione: 'Una banana', kcal: 105,
@@ -65,6 +66,15 @@ const replies = [
     model: 'test-model',
   },
   { text: 'Pasto registrato in ME.', costUsd: 0.001, model: 'test-model' },
+  {
+    toolUses: [{ id: 'meal-2', name: 'registra_pasto', input: {
+      pasto: 'spuntino', descrizione: 'Yogurt greco', kcal: 120,
+      proteine: 15, carboidrati: 7, grassi: 2,
+    } }],
+    costUsd: 0.001,
+    model: 'test-model',
+  },
+  { text: 'Pasto extra registrato in ME.', costUsd: 0.001, model: 'test-model' },
   {
     toolUses: [{ id: 'workout-1', name: 'registra_allenamento', input: {
       titolo: 'Lower body', dettagli: 'Squat e affondi', minuti: 45,
@@ -92,23 +102,41 @@ globalThis.fetch = async (_url, init) => {
 try {
   check(m.shouldUseLocalTools('Ho mangiato riso e pollo'), 'un pasto raccontato attiva gli strumenti locali');
   check(m.shouldUseLocalTools('Mi sono allenato per 45 minuti'), 'un allenamento raccontato attiva gli strumenti locali');
-  check(m.requiredWriteTool('Ho mangiato una banana.') === 'registra_pasto', 'un pasto dichiarato impone la scrittura in ME');
-  check(m.requiredWriteTool('Mangio questo come cena') === 'registra_pasto', 'una foto dichiarata come pasto impone la scrittura in ME');
+  check(m.isMealLogIntent('Ho mangiato una banana.'), 'un pasto dichiarato avvia la conferma del momento');
+  check(m.isMealLogIntent('Mangio questo come cena'), 'un pasto con foto avvia la conferma del momento');
+  check(!m.isMealLogIntent('Cosa ho mangiato a pranzo?'), 'una domanda sul diario non viene scambiata per un nuovo pasto');
+  check(!m.isMealLogIntent('Non ho mangiato nulla'), 'un pasto saltato non viene registrato per errore');
+  check(m.requiredWriteTool('Ho mangiato una banana.') === undefined, 'il pasto non viene salvato prima della conferma');
   check(m.requiredWriteTool('Ho fatto 45 minuti di lower body.') === 'registra_allenamento', 'un allenamento dichiarato impone la scrittura in ME');
   const run = (use) => m.runTool(use, ctx);
+  let proposal = '';
   await m.replyWithLocalTools(
-    [], 'Ho mangiato una banana.', new AbortController().signal, () => {}, run, 'test-model',
+    [], 'Ho mangiato una banana.', new AbortController().signal, (chunk) => { proposal += chunk; }, run, 'test-model',
     [{ mediaType: 'image/jpeg', data: 'foto-1' }, { mediaType: 'image/jpeg', data: 'foto-2' }],
+    { status: 'needs-confirmation', slot: 'spuntino' },
+  );
+  await m.replyWithLocalTools(
+    [], 'Sì', new AbortController().signal, () => {}, run, 'test-model',
+    [], { status: 'confirmed', slot: 'spuntino' },
+  );
+  await m.replyWithLocalTools(
+    [], 'Confermo', new AbortController().signal, () => {}, run, 'test-model',
+    [], { status: 'confirmed', slot: 'spuntino' },
   );
   await m.replyWithLocalTools([], 'Ho fatto 45 minuti di lower body.', new AbortController().signal, () => {}, run, 'test-model');
   const journal = m.readHealthJournal();
-  check(journal.meals.length === 1, 'il pasto detto in chat entra nel diario ME');
+  check(journal.meals.length === 2, 'i pasti confermati in chat entrano nel diario ME');
   check(journal.meals[0]?.description === 'Una banana', 'ME legge descrizione e nutrienti del pasto');
+  check(journal.meals[0]?.slot === 'spuntino', 'il primo spuntino riempie il momento fisso');
+  check(journal.meals[1]?.slot === 'extra', 'un secondo pasto nello stesso momento diventa extra');
   check(journal.workouts.length === 1, 'l’allenamento detto in chat entra nel diario ME');
   check(journal.workouts[0]?.minutes === 45, 'ME legge durata e dettagli dell’allenamento');
   check(journal.meals[0]?.source === 'chat' && journal.workouts[0]?.source === 'chat', 'la provenienza resta CHAT');
   check(toolCounts.every((count) => count <= 12), 'ogni richiesta resta entro il limite di 12 strumenti');
-  check(toolChoices[0] === 'registra_pasto' && toolChoices[2] === 'registra_allenamento', 'il backend riceve lo strumento obbligatorio corretto');
+  check(proposal.includes('Confermi che lo registro come **spuntino**?'), 'prima del salvataggio chiede conferma del momento intuito');
+  check(toolChoices[0] === null && toolChoices[1] === 'registra_pasto', 'la scrittura del pasto diventa obbligatoria solo dopo il sì');
+  check(toolChoices[5] === 'registra_allenamento', 'il backend riceve lo strumento obbligatorio per l’allenamento');
+  check(toolCounts[0] === 11, 'prima della conferma registra_pasto non viene esposto al modello');
   check(imageCounts[0] === 2, 'le due foto del pasto arrivano insieme al ciclo che aggiorna ME');
 } finally {
   globalThis.fetch = originalFetch;

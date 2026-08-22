@@ -6,11 +6,15 @@ import type {
 import {
   replyWithLocalTools,
   savedToken,
+  isMealLogIntent,
   shouldUseLocalTools,
+  type ChatMealSlot,
+  type MealConfirmation,
   type ChatCost,
 } from "@/brain/stream";
 import type { BrainMessage } from "@/brain/store/types";
 import type { ToolResult, ToolUse } from "@/ai/tools";
+import { readHealthJournal } from "@/engine/healthJournal";
 
 type Source = { title: string; url: string; domain?: string };
 type Usage = {
@@ -63,12 +67,12 @@ function imagesOf(message: ThreadMessage | undefined): ChatImage[] {
  * La foto corrente vince. Nei follow-up che la citano, riusa l'ultimo gruppo
  * di foto: così «non vedi la foto?» non perde il contesto visivo.
  */
-function imagesForRun(messages: readonly ThreadMessage[]): ChatImage[] {
+function imagesForRun(messages: readonly ThreadMessage[], forcePrevious = false): ChatImage[] {
   const last = messages.at(-1);
   const current = imagesOf(last);
   if (current.length) return current;
   const user = textOf(last);
-  if (!/\b(foto|immagin\w*|allegat\w*|ved\w*|guard\w*|quest\w*|piatto|porzion\w*|calori\w*|ingredient\w*)\b/i.test(user)) {
+  if (!forcePrevious && !/\b(foto|immagin\w*|allegat\w*|ved\w*|guard\w*|quest\w*|piatto|porzion\w*|calori\w*|ingredient\w*)\b/i.test(user)) {
     return [];
   }
   for (let index = messages.length - 2; index >= Math.max(0, messages.length - 6); index--) {
@@ -79,6 +83,40 @@ function imagesForRun(messages: readonly ThreadMessage[]): ChatImage[] {
   }
   return [];
 }
+
+const FIXED_MEALS: ChatMealSlot[] = ['colazione', 'spuntino', 'pranzo', 'merenda', 'cena'];
+const localDay = (date: Date) => `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+
+function proposedMealSlot(text: string, at = new Date()): ChatMealSlot {
+  const normalized = text.toLocaleLowerCase('it-IT');
+  let slot: ChatMealSlot;
+  if (/\b(extra|altro|altra|aggiuntiv\w*)\b/.test(normalized)) slot = 'extra';
+  else slot = FIXED_MEALS.find((name) => normalized.includes(name)) ?? (() => {
+    const hour = at.getHours() + at.getMinutes() / 60;
+    if (hour < 10.5) return 'colazione';
+    if (hour < 12) return 'spuntino';
+    if (hour < 15) return 'pranzo';
+    if (hour < 18) return 'merenda';
+    return 'cena';
+  })();
+  if (slot === 'extra') return slot;
+  const day = localDay(at);
+  const occupied = readHealthJournal().meals.some(
+    (meal) => meal.slot === slot && localDay(new Date(meal.at)) === day,
+  );
+  return occupied ? 'extra' : slot;
+}
+
+function pendingMealSlot(messages: readonly ThreadMessage[]): ChatMealSlot | undefined {
+  const previous = messages.at(-2);
+  if (previous?.role !== 'assistant') return undefined;
+  const match = textOf(previous).match(
+    /Confermi che lo registro come \*\*(colazione|spuntino|pranzo|merenda|cena|extra)(?:\s*\/[^*]+)?\*\*\?/i,
+  );
+  return match?.[1]?.toLocaleLowerCase('it-IT') as ChatMealSlot | undefined;
+}
+
+const confirms = (text: string) => /^\s*(?:s[iì]|confermo|ok(?:ay)?|va bene|esatto|corretto)\b/i.test(text);
 
 function toBrainMessages(messages: readonly ThreadMessage[]): BrainMessage[] {
   return messages.flatMap((message) => {
@@ -97,10 +135,11 @@ async function* runWithLocalTools(
   abortSignal: AbortSignal,
   runTool: (use: ToolUse) => ToolResult,
   modelName?: string,
+  mealConfirmation?: MealConfirmation,
 ) {
   const last = messages.at(-1);
   const user = textOf(last);
-  const images = imagesForRun(messages);
+  const images = imagesForRun(messages, mealConfirmation?.status === 'confirmed');
   const history = toBrainMessages(messages.slice(0, -1));
   let answer = "";
   const chunks: string[] = [];
@@ -136,6 +175,7 @@ async function* runWithLocalTools(
     runAndDescribe,
     modelName,
     images,
+    mealConfirmation,
   )
     .then((result) => { cost = result; })
     .catch((error: unknown) => { failure = error; })
@@ -319,12 +359,19 @@ export function createNetlifyChatModel(
     async *run(args) {
       const last = args.messages.at(-1);
       const user = textOf(last);
-      if (runTool && shouldUseLocalTools(user)) {
+      const pendingSlot = pendingMealSlot(args.messages);
+      const mealConfirmation: MealConfirmation | undefined = pendingSlot && confirms(user)
+        ? { status: 'confirmed', slot: pendingSlot }
+        : isMealLogIntent(user)
+          ? { status: 'needs-confirmation', slot: proposedMealSlot(user) }
+          : undefined;
+      if (runTool && (shouldUseLocalTools(user) || mealConfirmation?.status === 'confirmed')) {
         yield* runWithLocalTools(
           args.messages,
           args.abortSignal,
           runTool,
           args.context.config?.modelName,
+          mealConfirmation,
         );
         return;
       }

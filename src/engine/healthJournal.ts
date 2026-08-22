@@ -1,7 +1,7 @@
 export type MealLog = {
   id: string;
   at: string;
-  slot: 'colazione' | 'pranzo' | 'cena' | 'spuntino';
+  slot: 'colazione' | 'spuntino' | 'pranzo' | 'merenda' | 'cena' | 'extra';
   description: string;
   kcal: number;
   protein: number;
@@ -58,10 +58,16 @@ function save(next: HealthJournal): HealthJournal {
 }
 
 const id = (kind: string) => `${kind}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+const localDay = (date: Date) => `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
 
 export function addMeal(input: Omit<MealLog, 'id' | 'at' | 'source'>, source: MealLog['source'] = 'chat') {
   const journal = readHealthJournal();
-  return save({ ...journal, meals: [...journal.meals, { ...input, id: id('meal'), at: new Date().toISOString(), source }] });
+  const now = new Date();
+  const day = localDay(now);
+  const fixed = input.slot !== 'extra';
+  const alreadyFilled = fixed && journal.meals.some((meal) => meal.slot === input.slot && localDay(new Date(meal.at)) === day);
+  const normalized = alreadyFilled ? { ...input, slot: 'extra' as const } : input;
+  return save({ ...journal, meals: [...journal.meals, { ...normalized, id: id('meal'), at: now.toISOString(), source }] });
 }
 
 export function addWorkout(input: Omit<WorkoutLog, 'id' | 'at' | 'source'>, source: WorkoutLog['source'] = 'chat') {

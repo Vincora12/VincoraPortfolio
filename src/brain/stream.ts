@@ -79,7 +79,19 @@ export async function streamReply(
   return { costUsd: 0 };
 }
 
-const TOOL_INTENT = /\b(miei dati|mia salute|come sto|dormit\w*|allenat\w*|allenamento|palestra|workout|corsa|camminata|mangiat\w*|pasto|colazione|pranzo|cena|spuntino|calorie|proteine|peso|dieta|giornat\w*|protocollo|ricordami|promemoria|pagina|aspetto|schermata)\b/i;
+const TOOL_INTENT = /\b(miei dati|mia salute|come sto|dormit\w*|allenat\w*|allenamento|palestra|workout|corsa|camminata|mangiat\w*|bevut\w*|pasto|colazione|pranzo|cena|spuntino|merenda|extra|calorie|proteine|peso|dieta|giornat\w*|protocollo|ricordami|promemoria|pagina|aspetto|schermata)\b/i;
+
+export type ChatMealSlot = 'colazione' | 'spuntino' | 'pranzo' | 'merenda' | 'cena' | 'extra';
+export type MealConfirmation = {
+  status: 'needs-confirmation' | 'confirmed';
+  slot: ChatMealSlot;
+};
+
+export function isMealLogIntent(text: string): boolean {
+  if (/^\s*(?:cosa|che cosa|quanto|quanti|quante)\b.*\b(?:mangiat\w*|bevut\w*)/i.test(text)) return false;
+  if (/\bnon\s+ho\s+(?:mangiato|bevuto)\b/i.test(text)) return false;
+  return /\b(?:ho\s+(?:mangiato|bevuto)|(?:mangio|bevo)\b|pasto|colazione|pranzo|cena|spuntino|merenda|snack|registra(?:mi)?\s+(?:questo\s+)?pasto)\b/i.test(text);
+}
 
 /** Usa il loop strumenti solo quando la richiesta riguarda dati o azioni locali. */
 export function shouldUseLocalTools(text: string): boolean {
@@ -88,9 +100,6 @@ export function shouldUseLocalTools(text: string): boolean {
 
 /** Le registrazioni esplicite non devono dipendere dalla buona volontà del modello. */
 export function requiredWriteTool(text: string): string | undefined {
-  if (/\b(?:ho\s+(?:mangiato|bevuto)|(?:mangio|bevo)\s+(?:questo|questa|questi|queste)|a\s+(?:colazione|pranzo|cena)\s+ho|registra(?:mi)?\s+(?:questo\s+)?pasto)\b/i.test(text)) {
-    return 'registra_pasto';
-  }
   if (/\b(?:mi\s+sono\s+allenat\w*|ho\s+fatto\s+[^.!?]*(?:allenamento|palestra|workout|corsa|camminata|cardio|lower|upper)|registra(?:mi)?\s+(?:questo\s+)?allenamento)\b/i.test(text)) {
     return 'registra_allenamento';
   }
@@ -108,6 +117,7 @@ export async function replyWithLocalTools(
   run: (use: ToolUse) => ToolResult,
   voiceModel?: string | null,
   images: { mediaType: string; data: string }[] = [],
+  mealConfirmation?: MealConfirmation,
 ): Promise<ChatCost> {
   const token = savedToken();
   if (!token) throw new Error('Prima attiva VINZ.MON: manca il token.');
@@ -117,6 +127,13 @@ export async function replyWithLocalTools(
       'You are VINZ.MON, a neutral high-quality personal AI assistant.',
       'Answer in the user language. Use tools whenever the answer depends on personal data or the user asks for an action.',
       'Never claim an action succeeded unless its tool result confirms it. Be concise and natural.',
+      'The five fixed meal moments are: colazione, spuntino, pranzo, merenda, cena. Additional food is extra.',
+      mealConfirmation?.status === 'needs-confirmation'
+        ? `Analyze the food and estimate nutrition, but DO NOT call registra_pasto and do not ask the final confirmation question. The app will ask whether it is ${mealConfirmation.slot}.`
+        : '',
+      mealConfirmation?.status === 'confirmed'
+        ? `The user has just confirmed the proposed meal type: ${mealConfirmation.slot}. Call registra_pasto now and use exactly that meal type.`
+        : '',
     ].join(' '),
   }];
   const history: Array<{ role: 'user' | 'assistant'; content: unknown }> = turns.map(
@@ -132,8 +149,12 @@ export async function replyWithLocalTools(
   /* Il backend accetta al massimo 12 strumenti per richiesta. Quelli salute
      sono in testa al catalogo; il limite evita che una frase come «ho
      mangiato una banana» venga rifiutata prima ancora che il modello la legga. */
-  const availableTools = TOOLS.slice(0, 12);
-  const forcedWrite = requiredWriteTool(user);
+  const availableTools = TOOLS.slice(0, 12).filter(
+    (tool) => mealConfirmation?.status !== 'needs-confirmation' || tool.name !== 'registra_pasto',
+  );
+  const forcedWrite = mealConfirmation?.status === 'confirmed'
+    ? 'registra_pasto'
+    : requiredWriteTool(user);
 
   for (let round = 0; round < 4; round++) {
     const response = await fetch('/api/ai', {
@@ -172,13 +193,20 @@ export async function replyWithLocalTools(
     const uses = body.toolUses ?? [];
     if (uses.length === 0) {
       if (!body.text?.trim()) throw new Error('La risposta è arrivata vuota.');
-      onChunk(body.text);
+      const confirmation = mealConfirmation?.status === 'needs-confirmation'
+        ? `\n\nConfermi che lo registro come **${mealConfirmation.slot === 'extra' ? 'extra / spuntino aggiuntivo' : mealConfirmation.slot}**?`
+        : '';
+      onChunk(`${body.text.trim()}${confirmation}`);
       return { costUsd: totalCostUsd, model: lastModel };
     }
 
     if (round === 0 && currentUser) history.push({ role: 'user', content: currentUser });
     history.push(assistantTurn(body.text ?? '', uses) as { role: 'assistant'; content: unknown });
-    userBlocks = resultBlocks(uses.map(run));
+    userBlocks = resultBlocks(uses.map((use) => {
+      if (use.name !== 'registra_pasto' || mealConfirmation?.status !== 'confirmed') return run(use);
+      const input = typeof use.input === 'object' && use.input ? use.input as Record<string, unknown> : {};
+      return run({ ...use, input: { ...input, pasto: mealConfirmation.slot } });
+    }));
     currentUser = '';
   }
 

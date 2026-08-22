@@ -84,6 +84,21 @@ check(
     netlifyRuntime.includes('const images = imagesForRun(messages)'),
   'le foto degli allegati arrivano al modello e restano disponibili nei follow-up',
 );
+check(
+  netlifyRuntime.includes("const FIXED_MEALS: ChatMealSlot[] = ['colazione', 'spuntino', 'pranzo', 'merenda', 'cena']") &&
+    netlifyRuntime.includes('function proposedMealSlot'),
+  'la chat intuisce uno dei cinque momenti fissi usando testo e ora locale',
+);
+check(
+  netlifyRuntime.includes('function pendingMealSlot') &&
+    netlifyRuntime.includes("status: 'confirmed'") &&
+    netlifyRuntime.includes("status: 'needs-confirmation'"),
+  'il pasto passa dalla conferma prima di essere registrato',
+);
+check(
+  netlifyRuntime.includes("occupied ? 'extra' : slot"),
+  'un momento già compilato viene proposto come extra',
+);
 
 const preferences = m.assistantRequestPreferences(
   { modelName: 'claude-sonnet-5', reasoningEffort: 'high' },

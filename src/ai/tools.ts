@@ -99,7 +99,7 @@ export interface ToolContext {
   showPiece: (id: string, visible: boolean) => { ok: boolean; error?: string };
   /** Sposta un pezzo dentro la sua colonna. */
   movePiece: (id: string, at: number) => { ok: boolean; error?: string };
-  logMeal: (input: { slot: 'colazione' | 'pranzo' | 'cena' | 'spuntino'; description: string; kcal: number; protein: number; carbs: number; fat: number }) => void;
+  logMeal: (input: { slot: 'colazione' | 'spuntino' | 'pranzo' | 'merenda' | 'cena' | 'extra'; description: string; kcal: number; protein: number; carbs: number; fat: number }) => void;
   logWorkout: (input: { title: string; details: string; minutes: number }) => void;
   logWeight: (kg: number) => void;
   saveDiet: (title: string, text: string) => void;
@@ -138,9 +138,9 @@ export const TOOLS: ToolDef[] = [
   },
   {
     name: 'registra_pasto',
-    description: 'Registra nella sezione ME un pasto raccontato in chat o riconosciuto da una foto. Se quantità o valori nutrizionali sono incerti, chiedi conferma prima di usarlo.',
+    description: 'Registra in ME un pasto già confermato dall’utente. I cinque momenti fissi sono colazione, spuntino, pranzo, merenda e cena; usa extra per pasti ulteriori.',
     schema: { type: 'object', properties: {
-      pasto: { type: 'string', enum: ['colazione', 'pranzo', 'cena', 'spuntino'] },
+      pasto: { type: 'string', enum: ['colazione', 'spuntino', 'pranzo', 'merenda', 'cena', 'extra'] },
       descrizione: { type: 'string' }, kcal: { type: 'number' }, proteine: { type: 'number' }, carboidrati: { type: 'number' }, grassi: { type: 'number' },
     }, required: ['pasto', 'descrizione', 'kcal', 'proteine', 'carboidrati', 'grassi'] },
   },
@@ -393,8 +393,8 @@ export function runTool(use: ToolUse, ctx: ToolContext): ToolResult {
   try {
     switch (use.name) {
       case 'registra_pasto': {
-        const slot = str(args.pasto) as 'colazione' | 'pranzo' | 'cena' | 'spuntino';
-        if (!['colazione', 'pranzo', 'cena', 'spuntino'].includes(slot)) return fail('Il tipo di pasto non è valido.');
+        const slot = str(args.pasto) as 'colazione' | 'spuntino' | 'pranzo' | 'merenda' | 'cena' | 'extra';
+        if (!['colazione', 'spuntino', 'pranzo', 'merenda', 'cena', 'extra'].includes(slot)) return fail('Il tipo di pasto non è valido.');
         const numbers = [args.kcal, args.proteine, args.carboidrati, args.grassi].map(Number);
         if (numbers.some((value) => !Number.isFinite(value) || value < 0)) return fail('I valori nutrizionali non sono validi.');
         ctx.logMeal({ slot, description: str(args.descrizione), kcal: numbers[0]!, protein: numbers[1]!, carbs: numbers[2]!, fat: numbers[3]! });
