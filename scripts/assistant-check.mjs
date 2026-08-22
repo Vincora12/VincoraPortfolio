@@ -59,6 +59,12 @@ check(
   'la trascrizione viene inviata dal runtime, senza simulare un click',
 );
 check(cloneStyles.includes('.vinz-record__wave.is-loading'), 'avvio e trascrizione hanno un loader dedicato');
+check(
+  cloneStyles.includes('[data-slot="sheet-content"][data-side="left"]') &&
+    cloneStyles.includes('height: 100dvh') &&
+    cloneStyles.includes('top: calc(env(safe-area-inset-top) + 0.75rem)'),
+  'la sidebar mobile rispetta status bar, home indicator e altezza completa',
+);
 check(!cloneMain.includes('WebSpeechDictationAdapter'), 'la vecchia dettatura browser non è più collegata');
 check(cloneSource.includes('ChatCostTotal'), 'il totale della chat resta visibile in alto');
 check(cloneSource.includes('MessageCost'), 'ogni risposta mostra il proprio costo');

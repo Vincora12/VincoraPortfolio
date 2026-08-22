@@ -318,6 +318,27 @@ body[data-scroll-locked] {
     padding-top: env(safe-area-inset-top);
     padding-bottom: env(safe-area-inset-bottom);
   }
+
+  /* Il foglio mobile vive in un portal: non eredita lo spazio sicuro del
+     frame dell'app. Deve quindi proteggere da solo status bar e home indicator
+     e stare sopra anche alla navigazione persistente. */
+  [data-slot="sheet-overlay"] {
+    z-index: 9998;
+  }
+
+  [data-slot="sheet-content"][data-side="left"] {
+    top: 0;
+    bottom: 0;
+    height: 100dvh;
+    max-height: 100dvh;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    z-index: 9999;
+  }
+
+  [data-slot="sheet-content"][data-side="left"] > [data-slot="sheet-close"] {
+    top: calc(env(safe-area-inset-top) + 0.75rem);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
