@@ -175,6 +175,7 @@ async function* runWithLocalTools(
   let failure: unknown;
   let cost: ChatCost = { costUsd: 0 };
   const updates: string[] = [];
+  const meBefore = JSON.stringify(readHealthJournal());
 
   const runAndDescribe = (use: ToolUse): ToolResult => {
     const result = runTool(use);
@@ -228,6 +229,9 @@ async function* runWithLocalTools(
   }
   await request;
   if (failure) throw failure;
+  if (JSON.stringify(readHealthJournal()) !== meBefore && updates.length === 0) {
+    updates.push("Schermata ME aggiornata");
+  }
   yield {
     content: [{ type: "text" as const, text: answer }],
     metadata: {
