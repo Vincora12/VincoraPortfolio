@@ -264,6 +264,11 @@ export function compilePrompt(record: MonRecord, assetType: AssetType): Compiled
     blocks.push('');
   }
 
+  /* La complessità racconta la progressione. Una rarità alta può rendere
+     memorabile una Basic Form, ma non può farla nascere già "final boss". */
+  blocks.push(formComplexityBlock(data));
+  blocks.push('');
+
   blocks.push('FINAL RESOLVER:');
   blocks.push('Remove contradictions according to canonical priority.');
   blocks.push('Do not add unrequested taxonomy, costume, anatomy or props.');
@@ -288,6 +293,30 @@ export function compilePrompt(record: MonRecord, assetType: AssetType): Compiled
     })),
     resolved,
   };
+}
+
+function formComplexityBlock(data: CharacterData): string {
+  const stage = Math.max(0, data.evolution_state?.stage ?? 0);
+  if (stage === 0) {
+    return [
+      'FORM COMPLEXITY: BASIC FORM — SIMPLE, ICONIC, IMMEDIATELY MEMORABLE.',
+      'This rule overrides Rarity, Fashion and cultural detail whenever they would add visual clutter.',
+      'Use one dominant identity mass, 2–3 unmistakable silhouette landmarks and one signature anatomical system. Keep 75–85% of surfaces clean and broad.',
+      'Use no more than one accessory system. Merge clothing and anatomy into large readable shapes. Remove tertiary ornaments, repeated jewels, floating decorations, layered trims, extra straps, tiny symbols and redundant appendages.',
+      'Distinctive does not mean detailed. Make the character recognizable from a thumbnail and drawable from memory in roughly 8–12 shapes.',
+      'A new or completely changed Form always returns to this simplicity baseline.',
+    ].join('\n');
+  }
+
+  const cleanSurface = Math.max(45, 75 - stage * 8);
+  const additions = Math.min(stage, 4);
+  return [
+    `FORM COMPLEXITY: EVOLUTION STAGE ${stage} — CONTROLLED GROWTH FROM THE PREVIOUS FORM.`,
+    'Preserve the previous Form core silhouette, face, proportions and identity markers before adding complexity.',
+    `Add at most ${additions} clear structural development${additions === 1 ? '' : 's'} total: evolved anatomy, a stronger material system or one meaningful silhouette change. Every addition must communicate growth; decoration alone does not count.`,
+    `Keep at least ${cleanSurface}% of surfaces visually clean. Increase hierarchy and physical power before increasing ornament.`,
+    'Never replace large readable masses with many small details. The viewer must still recognize the Basic Form underneath the evolution.',
+  ].join('\n');
 }
 
 /* --- Rendering dei blocchi con dati reali ---------------------------------- */

@@ -1424,6 +1424,25 @@ export const useApp = create<AppState>()(
           hiddenEvent: hiddenEventFor({ day: s.day, formNumber: s.nodes.length + 1, activeDays: s.progression.sync.lifetime }),
         });
 
+        /* EVOLUZIONE approfondisce la stessa Forma; MEGA cambia corpo e apre
+           una nuova Forma, che riparte leggibile come una Basic. La ricchezza
+           visiva così diventa una conseguenza del percorso, non del caso. */
+        const previousStage = previous.data.evolution_state?.stage ?? 0;
+        record.data.evolution_state = kind === 'evolution'
+          ? {
+              label: ['BASIC FORM', 'POWER FORM', 'HYPER FORM', 'OVERDRIVE FORM', 'TERMINAL FORM'][Math.min(previousStage + 1, 4)]!,
+              stage: previousStage + 1,
+              previous_labels: [
+                ...(previous.data.evolution_state?.previous_labels ?? []),
+                previous.data.evolution_state?.label ?? 'BASIC FORM',
+              ],
+            }
+          : {
+              label: 'BASIC FORM',
+              stage: 0,
+              previous_labels: [],
+            };
+
         set({
           phase: 'live',
           mons: { ...s.mons, [record.data.name]: record },
