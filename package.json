@@ -3,7 +3,7 @@
   "private": true,
   "version": "1.2.0",
   "type": "module",
-  "description": "VINZ.MON — prototipo v1 secondo MASTER SPEC v1.2",
+  "description": "VINZ.MON \u2014 prototipo v1 secondo MASTER SPEC v1.2",
   "scripts": {
     "build": "tsc --noEmit && tsc --noEmit -p netlify/functions/tsconfig.json && vite build",
     "dev": "vite",
@@ -14,6 +14,7 @@
     "verify:backend": "node scripts/backend-check.mjs",
     "verify:batch": "node scripts/batch-check.mjs 3000",
     "verify:features": "node scripts/feature-check.mjs",
+    "verify:lab": "node scripts/lab-check.mjs",
     "verify:package": "node scripts/package-check.mjs",
     "icons": "node scripts/make-icon.mjs"
   },

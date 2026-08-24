@@ -1,0 +1,189 @@
+.designlab {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000;
+  display: flex;
+  flex-direction: column;
+  background: #ffffff;
+  color: #111111;
+  font-family: var(--font-ui);
+}
+
+.designlab__header {
+  flex: 0 0 auto;
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  border-bottom: 2px solid #111;
+}
+
+.designlab__header > div {
+  display: grid;
+  gap: 2px;
+}
+
+.designlab__header strong {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-style: italic;
+}
+
+.designlab__header span,
+.designlab__selection span,
+.designlab__sources span,
+.designlab__patch span {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  letter-spacing: 0.1em;
+}
+
+.designlab__header button,
+.designlab__screens button,
+.designlab__canvashead button,
+.designlab__propose {
+  min-height: 38px;
+  border: 1px solid #111;
+  border-radius: 0;
+  background: #fff;
+  color: #111;
+  font-family: var(--font-mono);
+  font-size: 9px;
+}
+
+.designlab__screens {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  padding: 6px;
+  border-bottom: 1px solid #ddd;
+}
+
+.designlab__screens button {
+  flex: 0 0 auto;
+  padding: 0 10px;
+}
+
+.designlab__screens button[aria-current='page'] {
+  background: #111;
+  color: #fff;
+}
+
+.designlab__workspace {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 380px);
+}
+
+.designlab__canvas {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: #d0d0d4;
+  border-right: 1px solid #111;
+}
+
+.designlab__canvashead {
+  flex: 0 0 auto;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 5px 8px;
+  background: #fff;
+  border-bottom: 1px solid #aaa;
+}
+
+.designlab__canvashead > div {
+  display: grid;
+}
+
+.designlab__canvashead span {
+  font-family: var(--font-mono);
+  font-size: 7px;
+}
+
+.designlab__preview {
+  flex: 1;
+  min-height: 0;
+  width: min(390px, 100%);
+  margin: 12px auto;
+  border: 2px solid #111;
+  background: #fff;
+}
+
+.designlab__chat {
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px;
+}
+
+.designlab__selection,
+.designlab__sources,
+.designlab__patch {
+  display: grid;
+  gap: 4px;
+  padding: 8px;
+  border: 1px solid #111;
+}
+
+.designlab__selection code,
+.designlab__sources code {
+  overflow-wrap: anywhere;
+  color: #666;
+  font-family: var(--font-mono);
+  font-size: 8px;
+}
+
+.designlab__conversation {
+  flex: 1;
+  min-height: 120px;
+  border-top: 2px solid #111;
+  padding-top: 10px;
+}
+
+.designlab__ai {
+  padding: 9px;
+  border: 1px solid #ddd;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.designlab__chat textarea {
+  width: 100%;
+  min-height: 84px;
+  padding: 9px;
+  border: 1px solid #111;
+  border-radius: 0;
+  resize: vertical;
+}
+
+.designlab__propose {
+  background: #111;
+  color: #fff;
+}
+
+@media (max-width: 800px) {
+  .designlab__workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .designlab__canvas {
+    min-height: 56vh;
+    border-right: 0;
+    border-bottom: 2px solid #111;
+  }
+
+  .designlab__preview {
+    max-height: 74vh;
+  }
+}

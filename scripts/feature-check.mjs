@@ -3449,6 +3449,96 @@ check(
 );
 
 /* ============================================================================
+   VINZ.LAB — la seconda porta
+   ========================================================================= */
+
+const ENTRY = 'src/lab/entrypoint.ts';
+const MAIN = 'src/main.tsx';
+const GUARDS = 'src/lab/design/installPreviewGuards.ts';
+const PREVIEW = 'src/lab/design/DesignPreviewRoute.tsx';
+
+check(
+  'VINZ.LAB',
+  'si entra da un indirizzo, non da un pulsante',
+  has(ENTRY, "#\\/lab") && lacksInCode(APP, '/lab'),
+  'un link nella UI normale renderebbe pubblico un laboratorio privato',
+);
+check(
+  'VINZ.LAB',
+  'e l\'indirizzo è ancorato: `#/p/labirinto` non apre il laboratorio',
+  has(ENTRY, "/^#\\/lab(?:\\/(creation|soul|design|system))?\\/?$/"),
+);
+check(
+  'VINZ.LAB',
+  'una schermata inventata nell\'indirizzo non monta niente',
+  has(ENTRY, 'DESIGN_SCREENS.includes(value as DesignScreenId)'),
+  'il catalogo è chiuso come in `skin.ts`: fuori dalla lista si torna all\'app',
+);
+check(
+  'VINZ.LAB',
+  'il laboratorio si installa con nome, icona e manifest suoi',
+  has('src/lab/applyLabDocumentMeta.ts', "'/lab-manifest.webmanifest'") &&
+    has('public/lab-manifest.webmanifest', '"start_url": "/#/lab"'),
+  'senza, sulla schermata Home ci sono due icone identiche che aprono due cose diverse',
+);
+check(
+  'VINZ.LAB',
+  'ma tornando all\'app i quattro campi tornano quelli di `index.html`',
+  has('src/lab/applyLabDocumentMeta.ts', "'#111111'"),
+  "#000000 sarebbe stato un cambio di produzione mascherato da ripristino",
+);
+check(
+  'VINZ.LAB',
+  'i guardiani si installano PRIMA che lo store venga importato',
+  has(MAIN, 'installPreviewGuards();') &&
+    (read(MAIN) ?? '').indexOf('installPreviewGuards();') <
+      (read(MAIN) ?? '').indexOf("await import('./lab/design/DesignPreviewRoute')"),
+  'con l\'import statico lo store scriverebbe prima che ci sia chi glielo impedisce',
+);
+check(
+  'VINZ.LAB',
+  'e una scrittura di rete dalla preview alza un errore, non passa in silenzio',
+  has(GUARDS, 'blocked preview network mutation'),
+  'una scrittura ignorata in silenzio è un bug che si scopre fra tre settimane',
+);
+check(
+  'VINZ.LAB',
+  'la preview NON monta `App`: monterebbe sync, ingestione e primo messaggio',
+  /* 🔒 L'AGO PUNTA ALLA DECISIONE, non alla forma: non «manca la stringa
+     `<App`», ma «la preview non monta il contenitore che fa partire i motori».
+     `lacksInCode` toglie i commenti, così spiegare perché non c'è non lo fa
+     fallire. */
+  lacksInCode(PREVIEW, '<App') &&
+    has(PREVIEW, 'CompanionHomeScreen') &&
+    has(MAIN, "await import('./lab/design/DesignPreviewRoute')"),
+);
+check(
+  'VINZ.LAB',
+  'ma la cornice è quella vera, importata e non ricopiata',
+  has(PREVIEW, 'MonTab') && has(PREVIEW, 'MeTab') && has(PREVIEW, 'TabBar') &&
+    has(APP, 'export function MonTab({'),
+  'DO NOT COPY THE UI: una copia è una copia vecchia il giorno dopo',
+);
+check(
+  'VINZ.LAB',
+  'e il campo nero si calcola dalla vista, non si dichiara una volta',
+  has(PREVIEW, "monView !== 'mon'"),
+  'un valore fisso sarebbe giusto al primo render e sbagliato al secondo',
+);
+check(
+  'VINZ.LAB',
+  'le porte sono quattro: SOUL aveva la stanza e non la porta',
+  count('src/lab/LabApp.tsx', /^ *\{ id: '(creation|soul|design|system)'/gm) === 4,
+  'una stanza senza porta è una stanza che nessuno apre',
+);
+check(
+  'VINZ.LAB',
+  'il pannello DEV non viene tolto prima che il laboratorio sappia farne le veci',
+  has(APP, "<DevPanel onClose={onClose} onGo={onGo} />"),
+  'DEV_PARITY_MATRIX: «do not remove legacy DEV until parity is verified»',
+);
+
+/* ============================================================================
    Sicurezza e tono — non negoziabili
    ========================================================================= */
 

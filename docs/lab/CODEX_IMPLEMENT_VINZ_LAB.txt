@@ -1,0 +1,101 @@
+IMPLEMENT VINZ.LAB INSIDE THE CURRENT VINZ.MON REPOSITORY.
+
+
+CURRENT SOUL TASK OVERRIDE:
+- Read `SOUL_V1_IMPLEMENTATION_BRIEF.md`.
+- Use `soul-lab/reference/soul-master-sketch.png` as the visual source of truth.
+- The active direction is the 2D vector Soul defined by the master sketch.
+- Implement React + SVG + CSS/Web Animations.
+- Preserve the visual idea: round body + one top wisp + two eyes + one mouth.
+- Build the manual Soul Lab controls from the brief.
+- SAVE SNAPSHOT must output JSON + plain-language handoff.
+- Do not decide Soul placement in product UI here; that belongs to DESIGN.LAB.
+
+CANONICAL SPEC:
+VINZ_LAB_FULL_INTEGRATION.md
+
+ALSO READ:
+- DESIGN_LAB_SPEC.md
+- TEST_MON_SPEC.md
+- CURRENT_CREATION_FLOW.md
+- CURRENT_UI_AUDIT.md
+- DEV_PARITY_MATRIX.md
+- REAL_COMPONENT_INTEGRATION.md
+- implementation/src/lab/design/*
+
+THE MASTER SPEC OVERRIDES EARLIER PROTOTYPE ASSUMPTIONS WHEN THEY CONFLICT.
+
+FINAL TARGET:
+- VINZ.LAB is part of VINZ.MON, same repo, same build, same deployment.
+- Direct private entry: /#/lab
+- No visible link from normal VINZ.MON UI.
+- User will add /#/lab to iPhone Home Screen.
+- Add a dedicated VINZ.LAB manifest with start_url /#/lab.
+- Route Lab in src/main.tsx BEFORE App mounts.
+- Keep normal VINZ.MON behavior unchanged.
+- Four sibling Labs only: CREATION / SOUL / DESIGN / SYSTEM.
+- Migrate old DEV capability into those three areas according to DEV_PARITY_MATRIX.md.
+- Do not remove legacy DEV until parity is verified.
+
+CRITICAL DESIGN RULE:
+DESIGN.LAB MUST MOUNT REAL VINZ.MON REACT COMPONENTS IN AN ISOLATED PREVIEW.
+DO NOT COPY THE UI.
+
+CRITICAL STATE RULE:
+LAB TESTS / PREVIEWS / SIMULATIONS MUST NOT MUTATE PRODUCTION STATE OR REMOTE DATA.
+
+CRITICAL EDIT RULE:
+AI proposes structured changes.
+User explicitly APPLY TO LAB.
+IMPLEMENT IN VINZ.MON remains a separate later action.
+
+IMPLEMENT IN MILESTONES AND KEEP THE APP BUILDABLE AFTER EACH MILESTONE.
+
+SOUL.LAB:
+- Read SOUL_LAB_SPEC.md.
+- Implement one procedural floating orb, two eyes, one mouth.
+- Inherit active .mon base color.
+- Map runtime Mood through a visual adapter.
+- Accept SoulCue metadata from the same runtime reply call where possible.
+- Use the Soul rendering architecture defined in `SOUL_LAB_SPEC.md`.
+- Keep Soul placement in product UI as a Design Lab responsibility.
+
+MILESTONE ORDER:
+1. entry routing + LabApp + dedicated manifest + iPhone metadata
+2. Lab shell / three sibling routes
+3. Soul runtime renderer + Soul Lab LIVE/FACE/COLOR/MOTION/HISTORY
+4. Design real-component iframe preview + inspector + write guards
+5. Design proposal preview/A-B/versioning
+6. Creation real flow + current config + canonical Test Mon + A/B + distribution checks
+7. scoped Creation AI edits / Apply to Lab
+8. System Setup/AI/Simulation/Memory/Usage using isolated scenario state
+9. DEV parity migration
+10. cleanup old DEV entry only after parity
+11. iPhone + regression hardening
+
+BEFORE EVERY SOURCE CHANGE:
+Read the current source file first.
+Do not rely on stale line numbers or static prototype HTML.
+
+BEFORE REPORTING DONE:
+- npm run typecheck
+- npm run typecheck:functions
+- npm run build
+- run relevant existing verify scripts
+- add focused Lab routing/isolation tests
+- browser smoke test /#/lab
+- browser smoke test normal /
+- verify Design preview does not persist production writes
+- verify no product POST/PUT/PATCH/DELETE occurs from preview
+- verify normal VINZ.MON does not expose a Lab link
+- test the /#/lab shortcut on a real iPhone Home Screen
+
+DO NOT DEPLOY UNLESS EXPLICITLY AUTHORIZED.
+
+
+SOUL EXPRESSION AI RULE:
+- Keep `soul-lab/reference/soul-master-sketch.png` in the project.
+- Any AI expression proposal must use that image as the primary visual reference.
+- The AI should make the first proposal itself, but strictly preserve the user's character-design DNA.
+- The proposal must be editable before save.
+- The user remains final art director.

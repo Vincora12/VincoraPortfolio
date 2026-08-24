@@ -550,7 +550,13 @@ function ViewSwitch<V extends string>({
    rimette (è tutta in un commit solo, in fondo alla storia).
    ========================================================================= */
 
-function MonTab({
+/* 🔒 ESPORTATA PER DESIGN.LAB, e non è un dettaglio di comodo: la regola del
+   pacchetto dice «MOUNT REAL COMPONENTS — DO NOT COPY THE UI». Il laboratorio
+   poteva rifare da sé lo switch a tre voci con dentro le tre schermate: sarebbe
+   stata una copia, e il giorno dopo una copia vecchia. Esportare la vera
+   costa una parola e toglie di mezzo l'unico modo in cui la preview poteva
+   mentire. Il comportamento in produzione non cambia di niente. */
+export function MonTab({
   view,
   onView,
   onGo,
@@ -593,7 +599,7 @@ function MonTab({
    ha prodotti.
    ========================================================================= */
 
-function MeTab({
+export function MeTab({
   view,
   onView,
   onGo,
@@ -656,7 +662,7 @@ function OverlayScreen({
 
 /* --- Navigazione persistente (§11) ----------------------------------------- */
 
-function TabBar({ tab, onChange }: { tab: Tab; onChange: (t: Tab) => void }) {
+export function TabBar({ tab, onChange }: { tab: Tab; onChange: (t: Tab) => void }) {
   /* 🔶 QUATTRO POSTI SONO DIVENTATI TRE RELAZIONI, e l'ordine è il messaggio:
      la conversazione è la PRIMA, non una cosa che si raggiunge da dentro un
      profilo. Il .mon sta al centro perché è il centro.
