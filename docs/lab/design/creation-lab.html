@@ -1,0 +1,953 @@
+<!doctype html><html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#fff"><title>CREATION.LAB</title><link rel="apple-touch-icon" href="../assets/apple-touch-icon.png"><style>
+:root{--ink:#111;--muted:#666;--line:#d9d9d9;--soft:#f7f7f7}*{box-sizing:border-box}html,body{margin:0;background:#fff;color:#111;font-family:Arial,Helvetica,sans-serif}body{padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}.app{max-width:480px;margin:auto;min-height:100vh}.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace}.top{position:sticky;top:0;background:#fff;border-bottom:1px solid var(--line);z-index:10}.topline{display:flex;gap:10px;align-items:center;padding:14px 16px 10px;font-size:11px}.bar{flex:1;height:4px;background:#eee}.bar i{display:block;width:70%;height:100%;background:#111}.badge{border:1px solid #111;padding:3px 6px}.nav{display:flex;justify-content:space-between;align-items:center;padding:8px 14px}.back{font-size:24px;color:#111;text-decoration:none}.tabs{display:flex;gap:4px}.tab{border:0;background:#fff;padding:9px 10px;font-size:11px;color:#777;border-bottom:2px solid transparent}.tab.active{color:#111;border-bottom-color:#111;font-weight:800}main{padding:20px 16px 44px}.page{display:none}.page.active{display:block}.kicker{font-size:11px;letter-spacing:.1em;margin-bottom:8px}h1{font-size:38px;line-height:.95;font-style:italic;font-weight:900;letter-spacing:-.05em;margin:0 0 10px}.lead{font-size:15px;line-height:1.45;color:#333;margin:0 0 18px}.notice{border:1px solid #111;padding:11px;font-size:11px;line-height:1.45;margin-bottom:18px}.snapshotbar{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;border-top:1px solid #111;border-bottom:1px solid #111;padding:12px 0;margin-bottom:20px}.snapshotbar strong{font-size:13px}.snapshotbar span{display:block;color:#777;font-size:10px;margin-top:3px}.snapshotbar button,.btn{border:1px solid #111;background:#fff;padding:9px 10px;font-size:10px;font-weight:700}.snapshotbar button,.btn.dark{background:#111;color:#fff}.phase{margin-top:24px}.phasehead{display:grid;grid-template-columns:36px 1fr;gap:10px;border-bottom:1px solid #111;padding-bottom:8px}.phasehead b{font-size:12px;letter-spacing:.08em}.phasehead small{display:block;color:#777;margin-top:3px}.step{border-bottom:1px solid var(--line)}.step summary{list-style:none;display:grid;grid-template-columns:40px 1fr auto;gap:10px;align-items:center;padding:13px 0;min-height:68px}.step summary::-webkit-details-marker{display:none}.num{font-size:11px;color:#777}.title{font-size:16px;font-weight:800}.sub{font-size:11px;color:#777;margin-top:3px;line-height:1.35}.state{border:1px solid var(--line);padding:4px 6px;font-size:9px}.state.hot{border-color:#111;font-weight:700}.state.lock{background:#111;color:#fff}.detail{padding:0 0 15px 50px;display:grid;gap:9px}.box{border:1px solid var(--line);padding:10px}.box.soft{background:var(--soft)}.label{font-size:9px;letter-spacing:.08em;color:#777;display:block;margin-bottom:6px}.rule{font-size:12px;line-height:1.45}
+.outputline{font-size:12px;line-height:1.45}
+.promptbox{background:#111;color:#fff;border-color:#111}
+.promptbox .label{color:#aaa}
+.promptcode{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:11px;line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere}
+.promptnone{font-size:11px;line-height:1.45;color:#777}
+.labpreview{border-top:1px solid #444;margin-top:9px;padding-top:9px}
+.labpreview b{display:block;font-size:9px;letter-spacing:.08em;color:#aaa;margin-bottom:5px}.mode{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}.mode button{min-height:40px;border:1px solid var(--line);background:#fff;font-size:10px;font-weight:700}.mode button.active{background:#111;color:#fff;border-color:#111}.mode button:disabled{color:#aaa;background:#fafafa}.edit textarea,.lockinput{width:100%;border:1px solid #bbb;padding:10px;font-size:14px}.edit textarea{min-height:86px;resize:vertical}.lockrow{display:none;margin-top:8px}.lockrow.show{display:block}.actions{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:8px}.history{display:flex;gap:6px;flex-wrap:wrap}.chip{border:1px solid var(--line);background:#fff;padding:6px 7px;font-size:10px}.hint{font-size:10px;color:#888;line-height:1.35;margin-top:7px}.test{border:1px solid #111;padding:13px;margin-top:24px}.test h3{font-size:14px;margin:0 0 7px}.test p{font-size:12px;line-height:1.4;color:#555}.fields{display:grid;grid-template-columns:1fr 1fr;gap:8px}.fields label{font-size:9px;color:#777}.fields input{width:100%;border:1px solid var(--line);padding:9px;margin-top:4px}.compare{display:none;margin-top:10px;border-top:1px solid var(--line);padding-top:10px}.compare.show{display:grid;grid-template-columns:1fr 1fr;gap:8px}.col{border:1px solid var(--line);padding:9px;font-size:10px;line-height:1.45;color:#555}.col strong{display:block;color:#111;margin-bottom:6px}.snap{border:1px solid var(--line);padding:13px;margin-bottom:10px}.snap.current{border-color:#111}.snap h3{font-size:17px;margin:0 0 4px}.snap small{font-size:10px;color:#777}.snap p{font-size:12px;color:#555}.snapactions{display:flex;gap:7px}.snapactions button{border:1px solid #111;background:#fff;padding:8px 10px;font-size:10px}.snapactions .restore{background:#111;color:#fff}.footer{border-top:1px solid var(--line);padding-top:14px;margin-top:26px;font-size:9px;color:#888}
+.trainmode{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:16px}
+.trainmode button{min-height:44px;border:1px solid var(--line);background:#fff;font-size:11px;font-weight:800}
+.trainmode button.active{background:#111;color:#fff;border-color:#111}
+.scopegrid{display:grid;gap:8px}
+.scopecard{border:1px solid var(--line);background:#fff;text-align:left;padding:12px;min-height:76px}
+.scopecard.active{border-color:#111;background:#111;color:#fff}
+.scopecard b{display:block;font-size:14px;margin-bottom:4px}
+.scopecard small{display:block;font-size:10px;line-height:1.4;color:#777}
+.scopecard.active small{color:#bbb}
+.scopepath{font-size:10px;letter-spacing:.05em;margin-top:7px}
+.trainconfig{border:1px solid #111;padding:13px;margin-top:16px}
+.trainconfig h3{font-size:14px;margin:0 0 10px}
+.configrow{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:9px}
+.configrow label,.customgrid label{font-size:9px;color:#777;letter-spacing:.06em}
+.configrow select,.configrow input,.customgrid select,.customgrid input{
+  width:100%;border:1px solid var(--line);background:#fff;padding:10px;margin-top:4px;font-size:13px
+}
+.custombox{display:none;border-top:1px solid var(--line);margin-top:12px;padding-top:12px}
+.custombox.show{display:block}
+.customgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.trainstart{width:100%;margin-top:10px;min-height:46px;border:1px solid #111;background:#111;color:#fff;font-size:11px;font-weight:800}
+.session{display:none;margin-top:18px}.session.show{display:block}
+.sessionhead{display:flex;justify-content:space-between;gap:12px;align-items:end;border-bottom:1px solid #111;padding-bottom:8px}
+.sessionhead b{font-size:13px}.sessionhead span{font-size:10px;color:#777}
+.duel{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+.duelcard{border:1px solid var(--line);min-height:190px;padding:10px;display:flex;flex-direction:column}
+.duelcard strong{font-size:11px;margin-bottom:6px}
+.duelvisual{flex:1;border:1px dashed #bbb;background:#fafafa;display:grid;place-items:center;text-align:center;padding:10px;font-size:10px;line-height:1.4;color:#777}
+.duelmeta{font-size:9px;line-height:1.45;margin-top:8px;color:#666}
+.votegrid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:8px}
+.votegrid button{min-height:40px;border:1px solid var(--line);background:#fff;font-size:10px;font-weight:700}
+.votegrid button.selected{border-color:#111;background:#111;color:#fff}
+.traincomment{width:100%;border:1px solid var(--line);padding:10px;margin-top:8px;font-size:13px}
+.traininglog{margin-top:18px}
+.trainingitem{border-bottom:1px solid var(--line);padding:10px 0;display:grid;grid-template-columns:1fr auto;gap:10px}
+.trainingitem b{font-size:12px}.trainingitem small{display:block;color:#777;font-size:9px;margin-top:3px}
+.strength{border:1px solid var(--line);padding:4px 6px;font-size:9px}
+.vwrap{display:inline-flex;border:1px solid var(--line)}
+.vwrap .chip{border:0}
+.delv{border:0;border-left:1px solid var(--line);background:#fff;padding:6px 7px;font-size:10px;color:#777}
+.delv:hover{color:#111}
+.snapactions .delete{border-color:var(--line);color:#777}
+
+.builderpath{border-top:1px solid #111;border-bottom:1px solid #111;padding:12px 0;margin-bottom:16px;position:relative}
+.breadcrumb{font-size:12px;line-height:1.5;padding-right:64px}
+.clearbuild{position:absolute;right:0;top:19px;border:1px solid var(--line);background:#fff;padding:7px 8px;font-size:9px}
+.axisblock{border-bottom:1px solid var(--line)}
+.axisblock.hidden{display:none}
+.axishead{width:100%;border:0;background:#fff;padding:14px 0;display:grid;grid-template-columns:1fr auto;gap:10px;text-align:left;align-items:center}
+.axishead b{display:block;font-size:14px}
+.axishead small{display:block;font-size:10px;color:#777;margin-top:4px;line-height:1.35}
+.axishead>span:last-child{font-size:10px;border:1px solid var(--line);padding:5px 7px}
+.axishead.active>span:last-child{border-color:#111}
+.axisoptions{display:none;grid-template-columns:1fr 1fr;gap:7px;padding:0 0 14px}
+.axisoptions.open{display:grid}
+.pick{border:1px solid var(--line);background:#fff;padding:10px;text-align:left;min-height:52px;font-size:11px;font-weight:800}
+.pick small{display:block;font-size:9px;color:#888;font-weight:400;margin-top:4px;line-height:1.3}
+.pick.selected{background:#111;color:#fff;border-color:#111}
+.pick.selected small{color:#bbb}
+.promptrecipe{border:1px solid #111;margin-top:18px}
+.recipehead{display:flex;justify-content:space-between;gap:12px;padding:12px;border-bottom:1px solid var(--line);align-items:start}
+.recipehead b{font-size:15px}
+.recipebody{padding:11px 12px;font-size:10px;line-height:1.55}
+.promptmini{border-top:1px solid var(--line);padding:11px 12px;background:#111;color:#fff}
+.promptmini .label{color:#aaa}
+.promptmini pre{white-space:pre-wrap;margin:0;font:10px/1.55 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace}
+
+.tabs{max-width:calc(100vw - 62px);overflow-x:auto;white-space:nowrap;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.refpanel{display:none;border:1px solid #111;margin-top:16px}
+.refpanel.show{display:block}
+.refhead{display:flex;justify-content:space-between;gap:10px;align-items:start;padding:12px;border-bottom:1px solid var(--line)}
+.refhead b{font-size:14px}.refhead small{display:block;color:#777;font-size:10px;margin-top:3px}
+.refupload{padding:12px;border-bottom:1px solid var(--line)}
+.refcontrols{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.refcontrols label{font-size:9px;color:#777;letter-spacing:.05em}
+.refcontrols select,.refcontrols input{width:100%;border:1px solid var(--line);background:#fff;padding:9px;margin-top:4px;font-size:12px}
+.filebtn{display:block;border:1px solid #111;background:#111;color:#fff;text-align:center;padding:10px;margin-top:9px;font-size:10px;font-weight:800}
+.filebtn input{display:none}
+.refgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:12px}
+.refcard{border:1px solid var(--line);padding:7px;position:relative}
+.refthumb{aspect-ratio:1/1;background:#f3f3f3;overflow:hidden;display:grid;place-items:center;font-size:9px;color:#888}
+.refthumb img{width:100%;height:100%;object-fit:cover}
+.refmeta{font-size:9px;line-height:1.35;margin-top:6px;color:#666}
+.refdelete{position:absolute;right:5px;top:5px;width:24px;height:24px;border:1px solid #111;background:#fff;font-size:13px}
+.tracebox{margin-top:8px;border-top:1px solid var(--line);padding-top:8px}
+.tracebox summary{font-size:9px;font-weight:800;letter-spacing:.07em;cursor:pointer}
+.tracelines{font-size:9px;line-height:1.55;color:#666;margin-top:7px}
+.imagecomment{width:100%;border:1px solid var(--line);padding:8px;margin-top:8px;font-size:11px}
+.learnsection{margin-top:24px}
+.learnhead{border-bottom:1px solid #111;padding-bottom:8px;margin-bottom:0}
+.learnhead b{font-size:12px;letter-spacing:.08em}.learnhead small{display:block;color:#777;font-size:10px;margin-top:3px}
+.lesson{border-bottom:1px solid var(--line);padding:13px 0}
+.lessontop{display:flex;justify-content:space-between;gap:10px;align-items:start}
+.lesson b{font-size:14px;line-height:1.3}.lesson p{font-size:11px;line-height:1.45;color:#555;margin:7px 0}
+.lessonmeta{font-size:9px;color:#888;line-height:1.4}
+.lessonactions{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px}
+.lessonactions button{border:1px solid var(--line);background:#fff;padding:7px 8px;font-size:9px;font-weight:700}
+.lessonactions button.active{background:#111;color:#fff;border-color:#111}
+.conf{border:1px solid var(--line);padding:4px 6px;font-size:9px;white-space:nowrap}
+.stateintro{border:1px solid #111;padding:12px;margin-bottom:18px;font-size:11px;line-height:1.5}
+.mapping{border-bottom:1px solid var(--line);padding:14px 0}
+.mappingtop{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:start}
+.mapping b{font-size:15px}.mapping small{display:block;color:#777;font-size:9px;margin-top:4px}
+.toggle{border:1px solid #111;background:#fff;padding:6px 8px;font-size:9px;font-weight:800}
+.toggle.on{background:#111;color:#fff}
+.mapping label{display:block;font-size:9px;color:#777;letter-spacing:.06em;margin-top:10px}
+.mapping input,.mapping textarea{width:100%;border:1px solid var(--line);padding:9px;margin-top:4px;font-size:12px}
+.mapping textarea{min-height:72px;resize:vertical}
+.mapping .lockedrule{background:#f7f7f7;color:#555}
+.mapactions{display:flex;gap:6px;margin-top:8px}
+.mapactions button{border:1px solid var(--line);background:#fff;padding:7px 8px;font-size:9px}
+.addmapping{width:100%;border:1px solid #111;background:#fff;padding:11px;margin-top:14px;font-size:10px;font-weight:800}
+
+.targetbar{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-bottom:15px}
+.targetbar button{border:1px solid var(--line);background:#fff;padding:8px 5px;font-size:8px;font-weight:800}
+.targetbar button.active{background:#111;color:#fff;border-color:#111}
+.inspectgrid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px}
+.inspectitem{border:1px solid var(--line);padding:7px;min-height:48px}
+.inspectitem b{display:block;font-size:8px;letter-spacing:.04em;margin-bottom:4px}
+.inspectitem span{font-size:9px;line-height:1.35;color:#555}
+.timelinehint{border-left:2px solid #111;padding-left:9px;font-size:10px;line-height:1.45;color:#666;margin:8px 0}
+
+
+.step.control summary{background:#fafafa}
+.step.derived{margin-left:18px;border-left:1px dashed #999}
+.step.derived summary{background:#fcfcfc}
+.step.downstream summary{background:#f7f7f7}
+.kindtag{display:inline-block;border:1px solid var(--line);padding:2px 4px;font-size:7px;letter-spacing:.06em;margin-left:6px;vertical-align:2px;color:#666}
+.execnote{font-size:9px;line-height:1.45;color:#777;margin:5px 0 0}
+
+
+.truthbox{border:1px solid #111;padding:13px;margin:4px 0 12px}
+.truthline{display:grid;grid-template-columns:auto 1fr;gap:9px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)}
+.truthline:last-of-type{border-bottom:0}
+.truthline b{font-size:11px;line-height:1.4}
+.trutharrow{text-align:center;font-size:14px;height:16px}
+.truthnote{border-top:1px dashed #999;margin-top:10px;padding-top:10px;font-size:10px;line-height:1.45;color:#555}
+.legend{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding:3px 0 11px}
+.legend::-webkit-scrollbar{display:none}
+.legend span{white-space:nowrap;border:1px solid var(--line);padding:6px 7px;font-size:8px;background:#fff}
+.who{display:inline-flex;align-items:center;border:1px solid var(--line);padding:4px 6px;font:8px ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;white-space:nowrap}
+.who.code{background:#fff}
+.who.ai{background:#111;color:#fff;border-color:#111}
+.who.image{background:#111;color:#fff;border-color:#111}
+.who.hybrid{background:#f0f0f0;border-color:#111}
+.stepmeta{display:flex;gap:5px;flex-wrap:wrap;margin-top:5px}
+.runbadge{display:inline-block;border:1px solid var(--line);padding:3px 5px;font-size:7px;letter-spacing:.05em;color:#666}
+.runbadge.auto{border-color:#111;color:#111}
+.runbadge.optional{border-style:dashed}
+.runbadge.runtime{border-style:dotted}
+.branchbox{border:1px dashed #111;padding:10px;margin-top:8px}
+.branchbox b{font-size:10px;display:block;margin-bottom:5px}
+.branchbox p{font-size:10px;line-height:1.45;color:#666;margin:0}
+.step.optional-step summary{background:#fcfcfc}
+.step.runtime-step summary{background:#fafafa}
+
+</style></head><body><div class="app"><header class="top"><div class="nav"><a class="back" href="../">←</a><div class="tabs"><button class="tab active" data-page="map">FLOW</button><button class="tab" data-page="train">BUILD</button><button class="tab" data-page="learned">LEARNED</button><button class="tab" data-page="state">STATE</button><button class="tab" data-page="versions">HISTORY</button></div></div></header><main><section class="page active" id="map"><div class="kicker mono">VINZ.LAB / MON CREATION</div><h1>CREATION.LAB</h1><p class="lead">Qui vedi cosa succede davvero quando nasce un .mon, distinguendo ciò che fa il codice da ciò che chiama davvero un’AI. Le funzioni AI opzionali restano nello stesso Lab, ma non vengono spacciate per passaggi automatici.</p><div class="notice mono"><strong>PRODUCTION = READ ONLY</strong><br>Nessun override qui modifica VINZ.MON reale. R0 resta sempre il baseline recuperabile.</div>
+
+<div class="truthbox">
+  <div class="kicker mono">🔥 COSA SUCCEDE DAVVERO QUANDO NASCE UN MON</div>
+  <div class="truthline"><span class="who code">⚙️ CODE</span><b>genera Character Data + Voice DNA + Bio base + Sigil + Reactions</b></div>
+  <div class="trutharrow">↓</div>
+  <div class="truthline"><span class="who code">⚙️ CODE</span><b>sceglie / compila il prompt disponibile per ogni asset</b></div>
+  <div class="trutharrow">↓</div>
+  <div class="truthline"><span class="who image">🎨 IMAGE AI</span><b>genera gli asset in background, se il token è disponibile</b></div>
+  <div class="truthnote">🧪 OGGI NON SONO AUTOMATICI NELL’HATCH: <strong>Creative Resolver AI</strong>, <strong>Written Bio AI</strong> e <strong>Prompt Rewrite AI</strong>. Restano qui perché fanno parte del sistema di creazione e puoi testarli/modificarli.</div>
+</div>
+
+<div class="legend mono">
+  <span>⚙️ CODE = funzione / regola</span>
+  <span>🧠 AI = modello testo/reasoning</span>
+  <span>🎨 IMAGE AI = modello immagini</span>
+  <span>🔀 HYBRID = code orchestra + AI decide</span>
+  <span>✅ AUTO = succede nell’hatch reale</span>
+  <span>🧪 OPTIONAL = esiste, ma hatch non lo chiama</span>
+  <span>💬 RUNTIME = succede quando il .mon vive/parla</span>
+</div>
+
+<div class="kicker mono" style="margin-top:22px">ACTUAL CREATION FLOW</div>
+<p class="lead" style="font-size:12px;margin-top:8px">L’ordine verticale segue il codice reale. Il numero a sinistra resta l’ID canonico e può non essere crescente. Ogni riga mostra anche <strong>chi la esegue</strong> e <strong>se parte davvero da sola durante l’hatch</strong>.</p>
+
+<div class="snapshotbar"><div><strong id="snapName">R0 · ORIGINAL</strong><span id="snapMeta" class="mono">0 override attivi</span></div><button id="saveSnap">SAVE SNAPSHOT</button></div><div id="steps"></div><div class="test"><h3>CONTROLLED TEST</h3><p>Stesso seed + stessi input. Cambia solo ciò che hai modificato nel Lab.</p><div class="fields"><label class="mono">SEED<input id="seed" value="184723"></label><label class="mono">INPUT SET<input id="inputSet" value="CURRENT USER"></label></div><button class="btn dark" id="runTest" style="width:100%;margin-top:8px">PREVIEW A/B</button><div class="compare" id="compare"><div class="col"><strong>BASELINE · R0</strong><div id="baseOut"></div></div><div class="col"><strong>LAB · CURRENT</strong><div id="labOut"></div></div></div></div><div class="footer mono">CREATION.LAB PREVIEW · LOCAL HISTORY ON THIS DEVICE</div></section>
+
+<section class="page" id="train">
+  <div class="kicker mono">RESOLVER TRAINING / MANUAL SCOPE</div>
+  <h1>BUILD + TRAIN</h1>
+  <p class="lead">
+    Costruisci il perimetro del test attraversando gli assi della creazione. Ogni scelta diventa un LOCK.
+    Quando premi TRAIN, tutto ciò che non hai scelto resta libero di variare.
+  </p>
+<div class="box">
+  <span class="label mono">🧪 CANONICAL TEST MON · IMPLEMENTATION FIXTURE</span>
+  <p class="hint">A e B devono partire dallo stesso .mon congelato. Cambia solo il target del test.</p>
+  <div class="inspectgrid">
+    <div class="inspectitem"><b class="mono">FAMILY / ARCHETYPE</b><span>ANGEL / PUTTO</span></div>
+    <div class="inspectitem"><b class="mono">AFFINITY / SIZE</b><span>ANGEL / TINY</span></div>
+    <div class="inspectitem"><b class="mono">ROLE / FASHION</b><span>SCOUT / STREET</span></div>
+    <div class="inspectitem"><b class="mono">MOOD / HUMAN</b><span>CALM / 4</span></div>
+    <div class="inspectitem"><b class="mono">APPEARANCE</b><span>CEL</span></div>
+    <div class="inspectitem"><b class="mono">DESIGN DNA / RARITY</b><span>KEN SUGIMORI / COMMON</span></div>
+  </div>
+  <p class="hint">Character DNA, Palette, Voice DNA, nome, Bio, Sigil e Reactions non si inventano: il motore li genera una volta e poi il fixture li congela.</p>
+</div>
+
+<div class="box soft">
+  <span class="label mono">TEST TARGET</span>
+  <div class="targetbar" id="trainTargets">
+    <button data-target="full">FULL MON</button>
+    <button data-target="visual" class="active">VISUAL</button>
+    <button data-target="bio">BIO</button>
+    <button data-target="voice">VOICE</button>
+  </div>
+  <p class="hint">Lo stesso banco di prova deve servire tutto il sistema di creazione. Il builder sotto resta il modo per bloccare il contesto; cambia solo cosa stai giudicando.</p>
+</div>
+
+
+  <div class="notice mono">
+    <strong>COME FUNZIONA</strong>
+    FAMILY → ANGEL → TRAIN = allena ANGEL in generale.<br>
+    FAMILY → ANGEL → ARCHETYPE → PUTTO → TRAIN = allena solo i Putti.<br>
+    Aggiungi DESIGN DNA → KEN SUGIMORI = restringi ancora il campo.
+  </div>
+
+  <div class="builderpath">
+    <span class="label mono">CURRENT SCOPE</span>
+    <div id="scopeBreadcrumb" class="breadcrumb mono">CREATION / ALL</div>
+    <button type="button" class="clearbuild" id="clearBuild">CLEAR</button>
+  </div>
+
+  <div class="axisblock">
+    <button type="button" class="axishead active" data-axis-toggle="family">
+      <span><b>01 · FAMILY</b><small>Che tipo di corpo stiamo allenando?</small></span><span id="familyChosen">ALL</span>
+    </button>
+    <div class="axisoptions open" id="familyOptions"></div>
+  </div>
+
+  <div class="axisblock hidden" id="archetypeBlock">
+    <button type="button" class="axishead" data-axis-toggle="archetype">
+      <span><b>02 · ARCHETYPE</b><small>Restringi dentro la Family scelta.</small></span><span id="archetypeChosen">ALL</span>
+    </button>
+    <div class="axisoptions" id="archetypeOptions"></div>
+  </div>
+
+  <div class="axisblock">
+    <button type="button" class="axishead" data-axis-toggle="design">
+      <span><b>03 · CHARACTER DESIGN DNA</b><small>Chi costruisce proporzioni, masse e faccia?</small></span><span id="designChosen">ALL</span>
+    </button>
+    <div class="axisoptions" id="designOptions">
+      <button type="button" class="pick selected" data-design="">ALL <small>lascia libero</small></button>
+      <button type="button" class="pick" data-design="KEN SUGIMORI">KEN SUGIMORI <small>lock designer</small></button>
+    </div>
+  </div>
+
+  <div class="axisblock">
+    <button type="button" class="axishead" data-axis-toggle="size">
+      <span><b>04 · SIZE</b><small>Opzionale. Lascia ALL per esplorare tutte le taglie.</small></span><span id="sizeChosen">ALL</span>
+    </button>
+    <div class="axisoptions" id="sizeOptions">
+      <button type="button" class="pick selected" data-size="">ALL <small>lascia libero</small></button>
+      <button type="button" class="pick" data-size="TINY">TINY</button>
+      <button type="button" class="pick" data-size="MEDIUM">MEDIUM</button>
+      <button type="button" class="pick" data-size="GIANT">GIANT</button>
+    </div>
+  </div>
+
+  <div class="axisblock">
+    <button type="button" class="axishead" data-axis-toggle="mix">
+      <span><b>05 · VARIATION</b><small>Cosa deve poter cambiare durante il training?</small></span><span id="mixChosen">AUTO</span>
+    </button>
+    <div class="axisoptions" id="mixOptions">
+      <button type="button" class="pick selected" data-mix="AUTO">AUTO <small>il Lab varia gli assi liberi</small></button>
+      <button type="button" class="pick" data-mix="AFFINITY">AFFINITY <small>varia soprattutto contaminazione anatomica</small></button>
+      <button type="button" class="pick" data-mix="ROLE">ROLE <small>varia funzione / postura</small></button>
+      <button type="button" class="pick" data-mix="FASHION">FASHION <small>varia styling</small></button>
+      <button type="button" class="pick" data-mix="COMBOS">COMBOS <small>prova abbinamenti tra assi liberi</small></button>
+    </div>
+  </div>
+
+
+  <div class="refpanel" id="referencePanel">
+    <div class="refhead">
+      <div><b>REFERENCE LAYER</b><small id="referenceTargetLabel">Seleziona Family o Design DNA</small></div>
+      <span class="state mono hot" id="referenceCount">0 REF</span>
+    </div>
+    <div class="refupload">
+      <div class="refcontrols">
+        <label class="mono">TARGET
+          <select id="referenceTarget"></select>
+        </label>
+        <label class="mono">ROLE
+          <select id="referenceRole">
+            <option value="construction">CONSTRUCTION</option>
+            <option value="face">FACE LANGUAGE</option>
+            <option value="silhouette">SILHOUETTE</option>
+            <option value="style">STYLE / RHYTHM</option>
+          </select>
+        </label>
+        <label class="mono">WEIGHT
+          <select id="referenceWeight">
+            <option value="light">LIGHT</option>
+            <option value="medium" selected>MEDIUM</option>
+            <option value="strong">STRONG</option>
+          </select>
+        </label>
+        <label class="mono">NOTE
+          <input id="referenceNote" placeholder="cosa devo imparare?">
+        </label>
+      </div>
+      <label class="filebtn mono">+ ADD REFERENCES<input id="referenceFiles" type="file" accept="image/*" multiple></label>
+      <div class="hint mono" style="margin-top:7px">MAX 5 PER TARGET · servono come riferimento, non come istruzione da copiare letteralmente.</div>
+    </div>
+    <div class="refgrid" id="referenceGrid"></div>
+  </div>
+
+  <div class="promptrecipe">
+    <div class="recipehead">
+      <div><span class="label mono">TRAINING RECIPE</span><b id="recipeTitle">RESOLVER / ALL</b></div>
+      <span class="state mono changed" id="recipeStrength">BROAD</span>
+    </div>
+    <div class="recipebody mono" id="recipeBody"></div>
+    <div class="promptmini">
+      <span class="label mono">MANUAL PROMPT SCOPE · PREVIEW</span>
+      <pre id="recipePrompt"></pre>
+    </div>
+  </div>
+
+  <div class="trainconfig">
+    <div class="configrow">
+      <label class="mono">DUELS
+        <select id="duelCount">
+          <option value="4">4</option>
+          <option value="8" selected>8</option>
+          <option value="12">12</option>
+        </select>
+      </label>
+      <label class="mono">SEED
+        <input id="trainSeed" value="184723" inputmode="numeric">
+      </label>
+    </div>
+    <button type="button" class="trainstart" id="startTraining">TRAIN THIS SCOPE</button>
+  </div>
+
+  <div class="session" id="trainSession">
+    <div class="sessionhead">
+      <div><b id="sessionTitle">DUEL 01</b><span class="mono" id="sessionScope"></span></div>
+      <span class="mono" id="sessionProgress">1 / 8</span>
+    </div>
+
+    <div class="duel">
+      <div class="duelcard">
+        <strong>A</strong>
+        <div class="duelvisual" id="duelA">VISUAL PREVIEW A</div>
+        <div class="duelmeta mono" id="duelAMeta"></div>
+        <details class="tracebox"><summary class="mono">WHY THIS? / TRACE</summary><div class="tracelines mono" id="traceA"></div></details>
+        <input class="imagecomment" id="commentA" placeholder="Commenta A…">
+      </div>
+      <div class="duelcard">
+        <strong>B</strong>
+        <div class="duelvisual" id="duelB">VISUAL PREVIEW B</div>
+        <div class="duelmeta mono" id="duelBMeta"></div>
+        <details class="tracebox"><summary class="mono">WHY THIS? / TRACE</summary><div class="tracelines mono" id="traceB"></div></details>
+        <input class="imagecomment" id="commentB" placeholder="Commenta B…">
+      </div>
+    </div>
+
+    <div class="votegrid">
+      <button type="button" data-vote="A">A</button>
+      <button type="button" data-vote="B">B</button>
+      <button type="button" data-vote="BOTH">BOTH</button>
+      <button type="button" data-vote="NEITHER">NO</button>
+    </div>
+    <input class="traincomment" id="trainComment" placeholder="Commento generale sul confronto…">
+    <button type="button" class="btn dark" id="nextDuel" style="width:100%;margin-top:8px">SAVE + NEXT</button>
+  </div>
+
+  <div class="traininglog">
+    <span class="label mono">RECENT TRAINING</span>
+    <div id="trainingLog"></div>
+  </div>
+
+  <div class="footer mono">STOP AT ANY LEVEL → EVERYTHING BELOW REMAINS FREE</div>
+</section>
+
+<section class="page" id="learned">
+  <div class="kicker mono">VISUAL TASTE / MEMORY</div>
+  <h1>LEARNED</h1>
+  <p class="lead">Qui vedi cosa il resolver sa perché glielo hai detto, cosa pensa di aver dedotto dai test e cosa sta davvero usando.</p>
+
+  <div class="learnsection">
+    <div class="learnhead"><b class="mono">MANUAL LESSONS</b><small>Regole già presenti nel DEV / canon, importate come baseline.</small></div>
+    <div id="manualLessons"></div>
+  </div>
+
+  <div class="learnsection">
+    <div class="learnhead"><b class="mono">INFERRED PREFERENCES</b><small>Pattern ricavati da A/B e commenti. Restano correggibili.</small></div>
+    <div id="inferredLessons"></div>
+  </div>
+
+  <div class="learnsection">
+    <div class="learnhead"><b class="mono">ACTIVE IN GENERATION</b><small>Solo ciò che è attivo può influenzare i test futuri.</small></div>
+    <div id="activeLessons"></div>
+  </div>
+</section>
+
+<section class="page" id="state">
+  <div class="kicker mono">PERSONAL STATE → APPEARANCE</div>
+  <h1>STATE</h1>
+  <p class="lead">Decidi quali tuoi valori personali cambiano l'aspetto della Form e in quale modo.</p>
+  <div class="stateintro mono"><strong>RULE</strong><br>PROGRESSION UNLOCKS GENERATION.<br>STATE CHANGES APPEARANCE.<br><br>Lo stato descrive, non premia o punisce.</div>
+  <div id="stateMappings"></div>
+  <button class="addmapping" id="addMapping">+ ADD MAPPING</button>
+</section>
+
+<section class="page" id="versions"><div class="kicker mono">RESOLVER HISTORY</div><h1>VERSIONI</h1><p class="lead">Snapshot globali del resolver. Puoi ripristinare, duplicare o cancellare qualsiasi esperimento. R0 non si cancella.</p><div id="snapList"></div></section></main></div><script>
+const KEY='vinzlab_resolver_v09';
+const EXAMPLES={
+'01':{out:'confidence 72 · bond 48 · active_days 118',flow:'→ feeds Family fit · Size · Mood confidence · Rarity',inspect:[['DATA CONFIDENCE','72%'],['BOND','48%'],['ACTIVE DAYS','118'],['UNKNOWN','kept unknown']]},
+'02':{out:'mindline_depth 3 · branch_count 2 · recentFamilies [ANGEL, MACHINE]',flow:'→ novelty penalties · continuity context · generation eligibility',inspect:[['DEPTH','3'],['BRANCHES','2'],['RECENT FAMILIES','ANGEL · MACHINE']]},
+'03':{out:'eligible rarity pool: COMMON · UNCOMMON · RARE',flow:'→ defines the rarity pool available later; does not choose rarity yet',inspect:[['UNLOCKED','COMMON · UNCOMMON · RARE'],['LOCKED','EPIC+']]},
+
+'04':{out:'FAMILY = ANGEL',prompt:'FAMILY — ANGEL\nPreserve ANGEL as the dominant anatomical grammar.\nBuild the creature from spiritual / wing / ring structures rather than costume.\nThe Family must be readable through construction, not pasted-on symbols.',inspect:[['TYPE','primary anatomy grammar'],['EXAMPLE','ANGEL']]},
+'05':{out:'ARCHETYPE = PUTTO',prompt:'ARCHETYPE — ANGEL / PUTTO\nRefine the ANGEL body toward the PUTTO construction.\nKeep the archetype subordinate to the Family anatomy.',inspect:[['FAMILY','ANGEL'],['ARCHETYPE','PUTTO']]},
+'5.5':{out:'HUMANOIDITY = 3/5',prompt:'HUMANOIDITY — 3/5\nKeep a readable humanoid organization without turning the creature into a human wearing creature features.',inspect:[['LEVEL','3 / 5'],['SOURCE','Family range + explicit Archetype shift']]},
+'06':{out:'AFFINITY = WATER',prompt:'AFFINITY — WATER\nLet WATER alter a small number of meaningful anatomical systems.\nPreserve the selected Family as the dominant body grammar.\nAvoid generic aquatic theming.',inspect:[['AFFINITY','WATER'],['RELATION TO FAMILY','contamination, not replacement']]},
+'07':{out:'SIZE = TINY',prompt:'SIZE — TINY\nUse TINY proportional grammar: concentrated masses, immediately readable landmarks and compact construction.\nDo not simply scale down a MEDIUM body.',inspect:[['SIZE','TINY'],['GRAMMAR','compact masses · fast read']]},
+
+'08':{out:'ROLE = SCOUT',prompt:'ROLE — SCOUT\nExpress the role through posture, readiness and functional use of existing anatomy.\nDo not add unrelated props just to explain the role.',inspect:[['ROLE','SCOUT'],['AFFECTS','posture · function · behavior']]},
+'09':{out:'FASHION = STREET · EYEWEAR = narrow shield · HAIR = bleached crop',prompt:'FASHION + VINZ MARKERS\nTranslate styling through the existing anatomy rather than dressing a generic human body.\nIntegrate eyewear and hair-equivalent only where anatomy supports them.',inspect:[['FASHION','STREET'],['EYEWEAR','narrow shield'],['HAIR','bleached crop']]},
+'10':{out:'MOOD = ALERT',prompt:'MOOD — ALERT\nExpress alertness through eye openness, tension and body language.\nDo not redesign anatomy to communicate mood.',inspect:[['PRIMARY','ALERT'],['SECONDARY','—'],['CONFIDENCE RULE','neutral if data is weak']]},
+'11':{out:'APPEARANCE = CEL',prompt:'APPEARANCE — CEL\nRender the resolved character with clean cel-shaded separation and controlled graphic surfaces.\nDo not use rendering style to change anatomy or proportions.',inspect:[['APPEARANCE','CEL'],['OWNS','rendering / surface'],['DOES NOT OWN','anatomy']]},
+'11.5':{out:'CHARACTER DESIGN DNA = KEN',prompt:'CHARACTER DESIGN DNA\nUse the selected design language to define proportion, mass distribution, face construction and simplification.\nIt is construction language, not surface rendering.',inspect:[['DESIGN DNA','KEN'],['OWNS','proportions · masses · face']]},
+'11.7':{out:'CULTURAL DNA = ref_A + ref_B + ref_C',prompt:'CULTURAL DNA\nTranslate the active references into design logic, rhythm and construction.\nNever quote a source literally or turn the character into cosplay.',inspect:[['ACTIVE REFERENCES','3'],['RULE','few · distant clusters · translated']]},
+
+'12':{out:'HERITAGE = 2 translated traits',prompt:'HERITAGE\nCarry forward selected inherited traits only after translating them into the current Family and Affinity anatomy.\nNever paste obsolete anatomy literally.',inspect:[['INHERITED','2 traits'],['TRANSLATION','current anatomy first']]},
+'13':{out:'CHARACTER DNA = silhouette quirk · anatomical gimmick · face logic · motif · traits · drives',prompt:'CHARACTER DNA\nOne dominant identity mass.\n2–3 unmistakable silhouette landmarks.\nOne signature anatomical system.\nKeep the character memorable before taxonomy becomes visible.',inspect:[['SILHOUETTE QUIRK','structure continues beyond body'],['FACE LOGIC','2 dominant primary eyes'],['TRAITS','ironico · protettivo · tecnico'],['DRIVES','capire come funziona · lasciare un segno']]},
+'13.5':{out:'PALETTE DNA = dominant · support · accent · material roles',prompt:'PALETTE DNA\nAssign color roles to anatomy and materials rather than distributing colors evenly.\nPalette follows identity and must preserve focal hierarchy.',inspect:[['EXECUTION','immediately after Character DNA in the same generator block'],['DOMINANT','cyan'],['SUPPORT','bone white'],['ACCENT','acid orange'],['RULE','role-based, not rainbow distribution']]},
+'14':{out:'VOICE DNA = CAMP ICON baseline + 12 mutated axes · deviations [temperament, humor]',flow:'→ saved inside Character Data; later translated by Voice Brief and used by the runtime conversational voice',inspect:[['PRESET','CAMP ICON'],['TEMPERAMENT','72'],['RELATIONSHIP','41'],['HUMOR','78'],['WRITING','34'],['LEXICON','66'],['LANGUAGE','58'],['DIGITAL ARTIFACTS','22'],['EMOTION','47'],['RITUALS','31'],['BOUNDARIES','95'],['EVOLUTION','62'],['BOND','55']]},
+'14.5':{out:'VOICE BRIEF = behavioral tendency lines',flow:'→ 💬 runtime/on-demand CODE translates saved Voice DNA before a conversational model needs it; no extra AI call for this translation',inspect:[['SOURCE','saved Voice DNA + preset'],['EXECUTOR','⚙️ CODE'],['AUTO IN HATCH','NO'],['USED WHEN','building runtime voice context'],['RULE','tendencies, not obligations']]},
+
+'15':{out:'RARITY SCORE = 61/100 → cap RARE',flow:'→ score caps which rarity tiers can be rolled',inspect:[['SCORE','61 / 100'],['CAP','RARE']]},
+'16':{out:'RARITY = UNCOMMON',prompt:'RARITY — UNCOMMON\nUse rarity to tune distinctiveness and controlled complexity.\nRarity must not override the current Form complexity baseline.',inspect:[['ROLLED','UNCOMMON'],['POOL','COMMON · UNCOMMON · RARE']]},
+'17':{out:'NAME = VORZEEK.mon',flow:'→ generated only after identity is resolved; name never drives the design',inspect:[['NAME','VORZEEK.mon'],['RULE','V…Z.mon · lineage unique']]},
+'18':{out:'CHARACTER_DATA.json = canonical identity record',flow:'→ canonical identity is complete here; the automatic hatch continues by building the MonRecord, not by calling the Creative Resolver',inspect:[['INCLUDES','identity · Character DNA · Voice DNA · rarity · name'],['GENERATION REASON','ANGEL per fit · WATER contamination · SCOUT · ALERT · 2 inherited traits'],['AI CALL','NONE'],['SEED','184723'],['CONFIG','3.1.0'],['GENERATED DAY','12']]},
+'19':{out:'CONTINUITY GUARD = anchored axes already applied · unchanged-form check runs here',prompt:'CONTINUITY\nAt each eligible generator axis, preserve declared values from the previous Form.\nAfter Mood, verify that the new configuration is not identical to the previous Form; if needed force one eligible free axis to change.',inspect:[['ANCHORS','applied during Family / Archetype / Affinity / Size / Role / Fashion / Mood'],['GUARD EXECUTION','after Mood'],['TRACE LINE','emitted later after Character Data'],['RULE','at least one eligible free axis changes']]},
+
+'20':{out:'BIO BASE = story · annotations · rememberedDetails · tags',flow:'→ generateBio(data, ctx) runs immediately while the MonRecord is built; no AI call is needed',inspect:[['ENGINE','generateBio(data, ctx)'],['STORY','deterministic facts + fixed structure'],['ANNOTATIONS','structured notes'],['REMEMBERED DETAILS','canonical details'],['AI CALL','NONE']]},
+'20.5':{out:'WRITTEN BIO = optional AI rewrite saved beside deterministic Bio',flow:'→ 🧪 manual/on-demand AI call through writeBio; the hatch does not wait for it and the deterministic Bio remains valid',inspect:[['SOURCE','Bio base + canonical facts'],['EXECUTOR','🧠 text AI'],['AUTO IN HATCH','NO'],['WRITE SEMANTICS','once per Form'],['FALLBACK','Bio base always remains']]},
+'21':{out:'SIGIL = deterministic seed from Family · Affinity · Rarity · motif · lineage rotation',flow:'→ canonical visual mark derived from the creature; not a random decorative add-on',inspect:[['INPUTS','Family · Affinity · Rarity · motif'],['LINEAGE','inherits rotation when applicable']]},
+'22':{out:'REACTIONS = textual fallback set coherent with Mood + Voice DNA',flow:'→ used until the visual Expression Sheet / reaction asset is available',inspect:[['BASE','sì · no · boh · ottimo · aspetta'],['MOOD LAYER','gesture / reaction variants']]},
+
+'23':{out:'CREATIVE RESOLUTION = 21 saved visual design decisions',prompt:'CREATIVE RESOLVER\nResolve how the canonical Character Data becomes one coherent visual character.\nSave the resolution on the MonRecord.',inspect:[['INPUT','Character Data + numeric grammar + lessons'],['EXECUTOR','🔀 code builds request · 🧠 AI decides'],['OUTPUT','CreativeResolution JSON'],['AUTO IN HATCH','NO, today it is invoked separately'],['ROUTING ID','characterMaster'],['PURPOSE','visual interpretation, not identity generation']]},
+'24':{out:'PROMPT SOURCE = promptFor(record, assetType)',prompt:'PROMPT SELECTION / COMPILATION\nChoose the best available source for this asset.\nIf a saved CreativeResolution applies, compile from it. Otherwise use saved rewritten prompt when present, then deterministic concatenation as the always-available fallback.',inspect:[['EXECUTOR','⚙️ CODE'],['AUTO IN HATCH','YES'],['RESOLUTION PATH','only when record.resolution exists'],['FALLBACK','deterministic compilePrompt'],['OUTPUT','asset-specific text']]},
+'24.5':{out:'WRITTEN PROMPT = optional AI rewrite for an asset',flow:'→ 🧪 manual/on-demand text AI rewrite; not required for hatch because deterministic prompt compilation always exists',inspect:[['EXECUTOR','🧠 text AI'],['AUTO IN HATCH','NO'],['SAVED AS','compiledPrompts[assetType]'],['FALLBACK','code-compiled prompt']]},
+'25':{out:'ASSETS = CHARACTER MASTER CEL · TOY · BIO DOODLE · EXPRESSION SHEET',prompt:'ASSET GENERATION\nUse the prompt selected by code. Generate the master first, then use its image as reference for dependent assets. Missing images must never block the product.',inspect:[['EXECUTOR','🎨 IMAGE AI'],['AUTO IN HATCH','YES, when token/backend is available'],['MASTER','CHARACTER MASTER CEL first'],['DEPENDENTS','TOY · BIO DOODLE · EXPRESSION SHEET'],['REFERENCE','master image attached downstream'],['FAILURE RULE','missing assets do not block VINZ.MON']]},
+'26':{out:'RUNTIME REPLY = Voice Brief + current Mood + selected Memory + Opinions + conversation',flow:'→ 💬 this is not part of creating the canonical MonRecord; a text AI uses the already-created identity when the .mon actually speaks',inspect:[['EXECUTOR','🧠 conversational AI'],['WHEN','runtime chat / introduction'],['IDENTITY SOURCE','Voice DNA / Voice Brief'],['CURRENT CONTEXT','Mood · Memory · Opinions · turns'],['FALLBACK','deterministic voice if backend is unavailable']]}
+
+};
+
+const phases={
+A:['INPUT','⚙️ CODE · automatic reads before generation'],
+B:['GENERATOR · CORE','⚙️ CODE · automatic seeded selection'],
+C:['GENERATOR · CONSTRUCTION','⚙️ CODE · automatic construction axes'],
+D:['GENERATOR · DNA + VOICE','⚙️ CODE · automatic canonical identity'],
+E:['GENERATOR · CLOSURE','⚙️ CODE · automatic rarity/name/freeze'],
+F:['MON RECORD','⚙️ CODE · automatic canonical derivatives'],
+G:['OPTIONAL AI TOOLS','🧪 available creation tools · not automatic in hatch today'],
+H:['AUTOMATIC VISUAL GENERATION','⚙️ CODE chooses prompts · 🎨 IMAGE AI renders'],
+I:['RUNTIME VOICE','💬 happens after birth when the .mon speaks']
+};
+
+const S=[
+['01','A','User State','confidence · bond · giorni attivi · segnali',1,'Build the normalized signal vector from current user data. Unknown data stays unknown.','', 'code','auto'],
+['02','A','Mindline State','depth · branch · novelty memory',1,'Read Mindline depth, branch count and novelty memory before generation.','', 'code','auto'],
+
+['04','B','Family','grammatica anatomica principale',1,'Resolve Family from fit, novelty, cultural modifier and controlled noise. Family defines primary anatomy.','', 'code','auto'],
+['05','B','Archetype','specializzazione interna alla Family',1,'Resolve an Archetype only inside the selected Family.','', 'code','auto'],
+['06','B','Affinity','contaminazione anatomica cross-family',0,'Affinity contaminates anatomy without replacing Family. Translate it into meaningful anatomical systems, not surface theming.','', 'code','auto'],
+['07','B','Size','TINY · MEDIUM · GIANT come grammatica',0,'Size changes proportional grammar rather than scaling the same body.','', 'code','auto'],
+['08','B','Role','funzione narrativa / comportamentale',0,'Role influences posture, function and behavior without overriding anatomy.','', 'code','auto'],
+['09','B','Fashion + VINZ Markers','styling · eyewear · hair-equivalent',0,'Translate Fashion through anatomy. Add VINZ markers only when anatomically plausible.','', 'code','auto'],
+['10','B','Mood','stato emotivo al momento della generazione',0,'Resolve Mood from recent latents. Below the confidence floor prefer neutral instead of inventing a strong state.','', 'code','auto'],
+['19','B','Continuity Guard','ancore + controllo anti-forma-identica',1,'Continuity anchors are applied while eligible axes resolve. After Mood, force one eligible free axis to change if everything remained identical.','control', 'code','auto'],
+
+['11','C','Appearance','linguaggio di resa',0,'Appearance controls rendering language and surface treatment, not anatomy.','', 'code','auto'],
+['5.5','C','Humanoidity','quanto resta leggibile come umano',0,'Choose humanoidity 1–5 inside the Family range, shifted only by an explicit Archetype modifier. This executes here, after Appearance.','', 'code','auto'],
+['11.5','C','Character Design DNA','costruzione · proporzioni · masse · faccia',0,'Choose character-design language independently from user signals.','', 'code','auto'],
+['11.7','C','Cultural DNA','pochi riferimenti attivi e distanti',0,'Select a small active set of cultural references and translate them rather than quote literally.','', 'code','auto'],
+
+['12','D','Heritage','tratti ereditati tradotti',0,'Translate inherited traits into the current Family and Affinity.','', 'code','auto'],
+['13','D','Character DNA','silhouette · gimmick · face · motif · traits · drives',1,'Generate the persistent identity grammar that makes this .mon memorable as an individual.','', 'code','auto'],
+['13.5','D','Palette DNA','subito dopo Character DNA nello stesso blocco',0,'Generate palette DNA immediately after Character DNA from Family, Affinity and Mood.','', 'code','auto'],
+['14','D','Voice DNA','preset + 12 assi mutati',0,'Choose a baseline Voice preset from Character DNA and Mood, then mutate all twelve axes. No language model is called here.','', 'code','auto'],
+
+['03','E','Rarity Eligibility','ID canonico 03 · fisicamente calcolato qui',0,'Build the unlocked rarity pool here, after Voice DNA, together with the rarity block.','control', 'code','auto'],
+['15','E','Rarity Score','0–100 → cap',0,'Compute rarity score from freshness, tensions, confidence, heritage, voice deviations and events.','', 'code','auto'],
+['16','E','Rarity Roll','estrazione nel pool sbloccato',0,'Roll final rarity inside the unlocked normalized pool. Score is a cap, not a guarantee.','', 'code','auto'],
+['17','E','Name','V…Z.mon · unico nel lineage',0,'Generate the name only after identity is resolved.','', 'code','auto'],
+['18','E','Character Data','freeze del record canonico',1,'Assemble and freeze canonical Character Data. The readable generation reason is a field of this record.','', 'code','auto'],
+
+['20','F','Bio Base','generateBio(data, ctx)',1,'Build the deterministic Bio from canonical data and generation-time signals while creating the MonRecord.','', 'code','auto'],
+['21','F','Sigil','generateSigil(data, previous)',0,'Derive the deterministic Sigil from the Mon identity and lineage context.','', 'code','auto'],
+['22','F','Reactions Base','generateReactions(rng, mood)',0,'Generate deterministic textual reaction fallbacks for the new MonRecord.','', 'code','auto'],
+
+['23','G','Creative Resolver','21 decisioni visive salvate',1,'A separate AI resolver can transform Character Data into a CreativeResolution. Today hatch() does not call this automatically.','optional-step', 'hybrid','optional'],
+['20.5','G','Written Bio','riscrittura AI opzionale',0,'A text model can rewrite the deterministic Bio once, without inventing facts. This happens only when explicitly requested.','optional-step derived', 'ai','optional'],
+['24.5','G','Prompt Rewrite','riscrittura AI opzionale per asset',0,'A text model can rewrite an asset prompt. Deterministic compilation remains the fallback, so hatch does not require this.','optional-step derived', 'ai','optional'],
+
+['24','H','Prompt Selection / Compiler','promptFor(record, assetType)',1,'Code selects the best available prompt source. A saved CreativeResolution is used only if it already exists; otherwise deterministic compilation still works.','downstream', 'code','auto'],
+['25','H','Asset Generation','CEL master → Toy · Doodle · Expressions',1,'Background image generation requests the canonical assets in order. The master is generated first and becomes reference for dependent images.','downstream', 'image','auto'],
+
+['14.5','I','Voice Brief','Voice DNA → tendenze leggibili',0,'At runtime, code deterministically translates Voice DNA into a behavioral brief. This does not call another AI.','runtime-step derived', 'code','runtime'],
+['26','I','Conversational Voice','Voice Brief + Mood + Memory + Opinions + turns',0,'When the .mon speaks, a conversational model uses the already-created identity and current runtime context. A deterministic fallback exists.','runtime-step', 'ai','runtime']
+];
+
+let state=load();
+if(!state.creation)state.creation={
+  creativeResolved:false,
+  bioWritten:false,
+  voicePreset:'CAMP ICON',
+  voiceAxes:{temperament:72,relationship:41,humor:78,writing:34,lexicon:66,language:58,digitalArtifacts:22,emotion:47,rituals:31,boundaries:95,evolution:62,bond:55},
+  voiceSample:'',
+  assets:{
+    'CHARACTER MASTER CEL':'waiting',
+    'CHARACTER MASTER TOY':'waiting',
+    'BIO DOODLE':'waiting',
+    'EXPRESSION SHEET':'waiting'
+  }
+};
+if(!state.training)state.training={mode:'generic',scope:'resolver',log:[]};
+if(!state.training.target)state.training.target='visual';
+
+if(!state.training)state.training={mode:'generic',scope:'resolver',log:[]};
+if(!state.references)state.references={};
+if(!state.learned)state.learned={decisions:{},inferred:[]};
+if(!Array.isArray(state.stateMappings)||state.stateMappings.length===0)state.stateMappings=[
+ {id:'energy',input:'ENERGY',outputs:'posture · idle motion amplitude · eye alertness',rule:'Lower energy reduces motion amplitude and posture lift. It must not automatically read as sadness.',active:true,locked:false},
+ {id:'stress',input:'STRESS',outputs:'body tension · compression · ring stability',rule:'Higher stress increases tension and compression. Do not translate stress into sadness by default.',active:true,locked:false},
+ {id:'recovery',input:'SLEEP / RECOVERY',outputs:'eye openness · movement rhythm · micro-sag',rule:'Low recovery softens eye openness and slows idle rhythm without making the character weak or ugly.',active:true,locked:false},
+ {id:'affection',input:'AFFECTION / MOOD',outputs:'facial attitude · aura warmth · gesture openness',rule:'Mood changes expression and gesture first. Identity anatomy stays stable.',active:true,locked:false},
+ {id:'body',input:'BODY / FORM',outputs:'body tension · stance · subtle mass reading',rule:'Body changes may influence physical reading gradually, without moral value or reward logic.',active:true,locked:false},
+ {id:'progression',input:'CONSISTENCY / PROGRESSION',outputs:'NO DIRECT APPEARANCE MAPPING',rule:'Progression unlocks generation. Consistency does not directly beautify, punish or reshape the current Form.',active:true,locked:true}
+];function load(){try{return JSON.parse(localStorage.getItem(KEY))||base()}catch(e){return base()}}function base(){return{current:'R0',overrides:{},snaps:[{id:'R0',name:'ORIGINAL',date:'BASELINE',overrides:{}}],training:{mode:'generic',scope:'resolver',log:[]},references:{},learned:{decisions:{},inferred:[]},stateMappings:[]}}function save(){try{localStorage.setItem(KEY,JSON.stringify(state))}catch(e){/* UI remains functional without persistence */}}function o(id){return state.overrides[id]||{mode:'on',lock:'',text:'',versions:[]}}function activeCount(obj=state.overrides){return Object.values(obj).filter(x=>x&&(x.mode!=='on'||(x.lock||'').trim()||(x.text||'').trim())).length}function status(step){const x=o(step[0]);if(x.mode==='lock')return['LOCK','lock'];if(x.mode==='bypass')return['BYPASS','hot'];if((x.text||'').trim())return['EDITED','hot'];return['BASE','']}function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]))}
+function promptPreview(id){
+ const ex=EXAMPLES[id]; if(!ex?.prompt)return '';
+ const x=o(id); let parts=[ex.prompt];
+ if(x.mode==='lock'&&(x.lock||'').trim())parts.push('\n[LAB LOCK]\nForce this step result to: '+x.lock.trim());
+ if((x.text||'').trim())parts.push('\n[LAB OVERRIDE]\n'+x.text.trim());
+ if(x.mode==='bypass')parts=['[LAB BYPASS]\nThis prompt fragment is omitted for the experiment.'];
+ if(x.mode==='on'&&!(x.text||'').trim())parts.push('\n[NO LAB CHANGES]');
+ return esc(parts.join('\n'));
+}
+function render(){const h=document.getElementById('steps');h.innerHTML='';let p='';S.forEach(step=>{if(step[1]!==p){p=step[1];const a=document.createElement('section');a.className='phase';a.innerHTML=`<div class="phasehead"><span class="num mono">${p}</span><div><b class="mono">${phases[p][0]}</b><small>${phases[p][1]}</small></div></div>`;h.appendChild(a)}const x=o(step[0]),st=status(step),d=document.createElement('details');d.className='step '+(step[6]||'')+(step[8]==='optional'?' optional-step':'')+(step[8]==='runtime'?' runtime-step':'');d.dataset.id=step[0];
+const kindLabel=(step[6]||'').includes('derived')?'DERIVED':(step[6]||'').includes('downstream')?'DOWNSTREAM':(step[6]||'').includes('control')?'CONTROL':'STEP';
+const agent=step[7]||'code',run=step[8]||'auto';
+const agentLabel=agent==='ai'?'🧠 AI':agent==='image'?'🎨 IMAGE AI':agent==='hybrid'?'🔀 CODE + AI':'⚙️ CODE';
+const runLabel=run==='optional'?'🧪 OPTIONAL':run==='runtime'?'💬 RUNTIME':'✅ AUTO';
+d.innerHTML=`<summary><span class="num mono">${step[0]}</span><span><span class="title">${step[2]}</span><span class="sub">${step[3]}</span><span class="stepmeta"><span class="who ${agent}">${agentLabel}</span><span class="runbadge ${run}">${runLabel}</span><span class="kindtag mono">${kindLabel}</span></span></span><span class="state mono ${st[1]}">${st[0]}</span></summary><div class="detail"><div class="box soft"><span class="label mono">BASELINE · R0</span><div class="rule">${esc(step[5])}</div><div class="execnote mono">${run==='optional'?'🧪 Funzione reale disponibile, ma NON viene chiamata automaticamente da hatch() oggi.':run==='runtime'?'💬 Succede dopo la nascita, quando il .mon vive o parla.':agent==='image'?'🎨 Chiamata automatica al modello immagini quando token/backend sono disponibili.':agent==='hybrid'?'🔀 Il codice prepara/valida la richiesta, ma la decisione creativa viene dal modello AI.':'⚙️ Questa decisione è prodotta dal codice senza chiamare un modello generativo.'}</div></div>
+<div class="box"><span class="label mono">ESEMPIO OUTPUT</span><div class="outputline mono">${esc(EXAMPLES[step[0]]?.out||'—')}</div>
+${EXAMPLES[step[0]]?.inspect?`<div class="inspectgrid">${EXAMPLES[step[0]].inspect.map(([a,b])=>`<div class="inspectitem"><b class="mono">${esc(a)}</b><span>${esc(b)}</span></div>`).join('')}</div>`:''}
+</div>
+${EXAMPLES[step[0]]?.prompt
+? `<div class="box promptbox"><span class="label mono">RULE / PROMPT FRAGMENT · ESEMPIO</span><div class="promptcode">${esc(EXAMPLES[step[0]].prompt)}</div><div class="labpreview" data-prompt-preview><b class="mono">LAB PREVIEW</b><div class="promptcode">${promptPreview(step[0])}</div></div></div>`
+: `<div class="box soft"><span class="label mono">DOWNSTREAM INFLUENCE</span><div class="promptnone mono">${esc(EXAMPLES[step[0]]?.flow||'Questo step produce dati canonici usati più avanti.')}</div></div>`}
+<div class="box"><span class="label mono">LAB MODE</span><div class="mode"><button data-mode="on" class="${x.mode==='on'?'active':''}">ON</button><button data-mode="lock" class="${x.mode==='lock'?'active':''}">LOCK</button><button data-mode="bypass" class="${x.mode==='bypass'?'active':''}" ${step[4]?'disabled':''}>BYPASS</button></div><div class="lockrow ${x.mode==='lock'?'show':''}"><span class="label mono" style="margin-top:8px">FORCED VALUE</span><input class="lockinput" value="${esc(x.lock)}" placeholder="es. WATER / TINY / ANGEL"></div>${step[4]?'<div class="hint mono">STRUCTURAL · non può essere rimosso completamente. Usa LOCK o EDIT.</div>':''}</div><div class="box edit"><span class="label mono">DIMMI COSA VUOI CAMBIARE</span><textarea class="edittext" placeholder="Es. cambia la regola di questo step, il modo in cui pesa, traduce o produce il suo output.">${esc(x.text)}</textarea><div class="actions"><button class="btn dark savev">SAVE AS VERSION</button><button class="btn reset">RESET TO R0</button></div></div><div class="box"><span class="label mono">STEP HISTORY</span><div class="history"><button class="chip" data-ver="R0">R0 · BASE</button>${(x.versions||[]).map(v=>`<span class="vwrap"><button class="chip" data-ver="${v.id}">${v.id}</button><button class="delv" data-delver="${v.id}" aria-label="Delete ${v.id}">×</button></span>`).join('')}</div></div></div>`;h.lastElementChild.appendChild(d)});bind();header()}
+function bind(){document.querySelectorAll('.step').forEach(el=>{const id=el.dataset.id,step=S.find(s=>s[0]===id);el.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>{const x=o(id);x.mode=b.dataset.mode;state.overrides[id]=x;save();render();setTimeout(()=>document.querySelector(`.step[data-id="${CSS.escape(id)}"]`)?.setAttribute('open',''),0)});const li=el.querySelector('.lockinput');if(li)li.oninput=e=>{const x=o(id);x.lock=e.target.value;state.overrides[id]=x;save();header();const pv=el.querySelector('[data-prompt-preview] .promptcode');if(pv)pv.innerHTML=promptPreview(id)};el.querySelector('.edittext').oninput=e=>{const x=o(id);x.text=e.target.value;state.overrides[id]=x;save();const st=status(step),n=el.querySelector('.state');n.textContent=st[0];n.className=`state mono ${st[1]}`;header();const pv=el.querySelector('[data-prompt-preview] .promptcode');if(pv)pv.innerHTML=promptPreview(id)};el.querySelector('.savev').onclick=()=>{const x=o(id),n=Math.max(0,...(x.versions||[]).map(v=>parseInt(String(v.id).replace(/\D/g,''),10)||0))+1;x.versions=[...(x.versions||[]),{id:'v'+n,mode:x.mode,lock:x.lock,text:x.text,date:new Date().toLocaleString()}];state.overrides[id]=x;save();render();setTimeout(()=>document.querySelector(`.step[data-id="${CSS.escape(id)}"]`)?.setAttribute('open',''),0)};el.querySelector('.reset').onclick=()=>{delete state.overrides[id];save();render()};el.querySelectorAll('[data-ver]').forEach(b=>b.onclick=()=>{if(b.dataset.ver==='R0')delete state.overrides[id];else{const x=o(id),v=(x.versions||[]).find(z=>z.id===b.dataset.ver);if(v)state.overrides[id]={...x,mode:v.mode,lock:v.lock,text:v.text}}save();render();setTimeout(()=>document.querySelector(`.step[data-id="${CSS.escape(id)}"]`)?.setAttribute('open',''),0)});el.querySelectorAll('[data-delver]').forEach(b=>b.onclick=e=>{e.stopPropagation();const x=o(id),vid=b.dataset.delver;if(!confirm('Cancellare '+vid+'? R0 resterà intatto.'))return;x.versions=(x.versions||[]).filter(v=>v.id!==vid);state.overrides[id]=x;save();render();setTimeout(()=>document.querySelector(`.step[data-id="${CSS.escape(id)}"]`)?.setAttribute('open',''),0)})})}
+function header(){const s=state.snaps.find(x=>x.id===state.current)||state.snaps[0];document.getElementById('snapName').textContent=`${s.id} · ${s.name}`;document.getElementById('snapMeta').textContent=`${activeCount()} override attivi`}function newSnap(){const n=Math.max(...state.snaps.map(s=>parseInt(s.id.replace(/\D/g,''))||0))+1,id='R'+n;state.snaps.push({id,name:'EXPERIMENT '+String(n).padStart(2,'0'),date:new Date().toLocaleString(),overrides:structuredClone(state.overrides),creation:structuredClone(state.creation)});state.current=id;save();header();renderSnaps()}function restore(id){const s=state.snaps.find(x=>x.id===id);if(!s)return;state.overrides=structuredClone(s.overrides||{});if(s.creation)state.creation=structuredClone(s.creation);state.current=id;save();render();renderSnaps();bindTrainTargets();document.documentElement.dataset.vinzlabBoot='ok';show('map')}function duplicate(id){const s=state.snaps.find(x=>x.id===id);if(!s)return;state.overrides=structuredClone(s.overrides||{});newSnap()}function renderSnaps(){const h=document.getElementById('snapList');h.innerHTML=state.snaps.slice().reverse().map(s=>`<div class="snap ${s.id===state.current?'current':''}"><h3>${s.id} · ${s.name}</h3><small class="mono">${s.date}</small><p>${activeCount(s.overrides||{})} override</p><div class="snapactions"><button class="restore" data-r="${s.id}">RESTORE</button><button data-d="${s.id}">DUPLICATE</button>${s.id!=='R0'?`<button class="delete" data-xs="${s.id}">DELETE</button>`:''}</div></div>`).join('');h.querySelectorAll('[data-r]').forEach(b=>b.onclick=()=>restore(b.dataset.r));h.querySelectorAll('[data-d]').forEach(b=>b.onclick=()=>duplicate(b.dataset.d));h.querySelectorAll('[data-xs]').forEach(b=>b.onclick=()=>{const id=b.dataset.xs;if(!confirm('Cancellare lo snapshot '+id+'?'))return;state.snaps=state.snaps.filter(s=>s.id!==id);if(state.current===id){state.current='R0';state.overrides={}}save();header();renderSnaps()})}function show(id){
+ document.querySelectorAll('.page').forEach(p=>p.classList.toggle('active',p.id===id));
+ document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.page===id));
+ if(id==='versions')renderSnaps();
+ if(id==='train'){renderBuilder();bindTrainTargets();}
+ if(id==='learned')renderLearned();
+ if(id==='state')renderState();
+ scrollTo({top:0,behavior:'smooth'});
+}
+
+const MANUAL_LESSONS=[
+{id:'manual_bio_facts',title:'BIO = FACTS FIRST',text:'The bio may be literary, but every factual claim must originate in canonical Character Data or real generation-time signals.',source:'ENGINE / GENERATE BIO',scope:{}},
+{id:'manual_voice_tendency',title:'VOICE = TENDENCIES, NOT OBLIGATIONS',text:'Voice DNA describes tendencies. A reply must not perform every high or low axis at once.',source:'ENGINE / VOICE BRIEF',scope:{}},
+{id:'manual_voice_preset',title:'VOICE PRESET IS ONLY A BASELINE',text:'The preset is a starting point; the 12 Voice axes mutate so two .mon with the same preset can still speak differently.',source:'ENGINE / VOICE DNA',scope:{}},
+
+ {id:'character_first',title:'CHARACTER FIRST',text:'Il personaggio deve leggersi prima della tassonomia. Family, Archetype e styling spiegano come è costruito, non sostituiscono il carattere.',source:'DEV / PROMPT COMPILER',scope:{}},
+ {id:'family_anatomy',title:'FAMILY = ANATOMY, NON COSTUME',text:'La Family deve vincere nei conflitti. Lo styling viene tradotto attraverso il corpo invece di creare un umano vestito da creatura.',source:'DEV / CONFLICT RESOLVER',scope:{family:'ANGEL'}},
+ {id:'ken_construction',title:'KEN CAMBIA LA COSTRUZIONE',text:'Character Design DNA modifica proporzioni, masse, faccia e postura. Non deve limitarsi a cambiare la resa o produrre sempre la stessa soluzione.',source:'DEV / DESIGN TEST',scope:{design:'KEN SUGIMORI'}},
+ {id:'humanoid_not_realism',title:'HUMANOIDITY ≠ REALISM',text:'Quanto una Form è umana e quanto è realistica sono due assi diversi. Un 4/5 può restare estremamente stilizzato.',source:'DEV / GENERATION CONFIG',scope:{}},
+ {id:'unknown_neutral',title:'DATI INCERTI = NON INVENTARE',text:'Dato mancante non significa negativo. Se la confidence è bassa, il resolver preferisce uno stato neutro invece di inventare un mood forte.',source:'DEV / ENGINE',scope:{}},
+ {id:'controlled_compare',title:'UNA VARIABILE ALLA VOLTA',text:'Quando vuoi giudicare un asse, tieni identici seed e assi di controllo. Altrimenti non sai cosa ha davvero causato la differenza.',source:'DEV / DESIGN TEST',scope:{}}
+];
+
+function refKey(target){return target||''}
+function availableReferenceTargets(){
+ const b=builder(),arr=[];
+ if(b.family)arr.push({key:'family:'+b.family,label:'FAMILY · '+b.family});
+ if(b.design)arr.push({key:'design:'+b.design,label:'DESIGN DNA · '+b.design});
+ return arr;
+}
+function currentRefs(){
+ const target=document.getElementById('referenceTarget')?.value||availableReferenceTargets()[0]?.key||'';
+ return state.references[refKey(target)]||[];
+}
+function renderReferences(){
+ const panel=document.getElementById('referencePanel');if(!panel)return;
+ const targets=availableReferenceTargets();
+ panel.classList.toggle('show',targets.length>0);
+ if(!targets.length)return;
+ const sel=document.getElementById('referenceTarget');
+ const before=sel.value;
+ sel.innerHTML=targets.map(t=>`<option value="${esc(t.key)}">${esc(t.label)}</option>`).join('');
+ if(targets.some(t=>t.key===before))sel.value=before;
+ const current=targets.find(t=>t.key===sel.value)||targets[0];
+ document.getElementById('referenceTargetLabel').textContent=current.label;
+ const refs=state.references[current.key]||[];
+ document.getElementById('referenceCount').textContent=refs.length+' REF';
+ const grid=document.getElementById('referenceGrid');
+ grid.innerHTML=refs.length?refs.map(r=>`<div class="refcard">
+   <button class="refdelete" data-refdel="${esc(r.id)}">×</button>
+   <div class="refthumb">${r.data?`<img src="${r.data}" alt="">`:'REF'}</div>
+   <div class="refmeta mono">${esc(r.role).toUpperCase()} · ${esc(r.weight).toUpperCase()}<br>${esc(r.note||r.name||'')}</div>
+ </div>`).join(''):'<div class="empty" style="grid-column:1/-1">Nessuna reference per questo target.</div>';
+ grid.querySelectorAll('[data-refdel]').forEach(b=>b.onclick=()=>{state.references[current.key]=(state.references[current.key]||[]).filter(x=>x.id!==b.dataset.refdel);save();renderReferences()});
+}
+async function compressImage(file){
+ return new Promise((resolve,reject)=>{
+   const img=new Image(),reader=new FileReader();
+   reader.onload=()=>{img.onload=()=>{
+     const max=360,scale=Math.min(1,max/Math.max(img.width,img.height)),w=Math.max(1,Math.round(img.width*scale)),h=Math.max(1,Math.round(img.height*scale));
+     const c=document.createElement('canvas');c.width=w;c.height=h;const ctx=c.getContext('2d');ctx.drawImage(img,0,0,w,h);
+     resolve(c.toDataURL('image/jpeg',.72));
+   };img.onerror=reject;img.src=reader.result};reader.onerror=reject;reader.readAsDataURL(file);
+ });
+}
+async function addReferenceFiles(files){
+ const target=document.getElementById('referenceTarget').value;if(!target)return;
+ const role=document.getElementById('referenceRole').value,weight=document.getElementById('referenceWeight').value,note=document.getElementById('referenceNote').value.trim();
+ const existing=state.references[target]||[],room=Math.max(0,5-existing.length);
+ const chosen=[...files].slice(0,room);
+ for(const f of chosen){
+   try{existing.push({id:'ref_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),name:f.name,role,weight,note,data:await compressImage(f)})}catch(e){}
+ }
+ state.references[target]=existing;save();document.getElementById('referenceNote').value='';renderReferences();
+}
+
+function inferPreferences(){
+ const log=state.training?.log||[];
+ const comments=[];
+ let totalVotes=0,a=0,b=0,both=0,no=0;
+ log.forEach(s=>(s.votes||[]).forEach(v=>{
+   totalVotes++;
+   if(v.vote==='A')a++; else if(v.vote==='B')b++; else if(v.vote==='BOTH')both++; else no++;
+   [v.commentA,v.commentB,v.comment].filter(Boolean).forEach(c=>comments.push(c));
+ }));
+ const inferred=[];
+ if(totalVotes>=3)inferred.push({id:'pref_decisive',title:'PREFERENZA VISIVA IN FORMAZIONE',text:`${totalVotes} duel registrati. Preferenze singole: ${a+b}; entrambi validi: ${both}; entrambi scartati: ${no}.`,confidence:totalVotes>=12?'STRONG':'DEVELOPING',source:'A/B TRAINING',scope:{}});
+ if(comments.length)inferred.push({id:'pref_comments',title:'COMMENTI COME SEGNALE FORTE',text:`${comments.length} commenti testuali disponibili. Il resolver dovrebbe dare loro più peso dei soli tap A/B.`,confidence:comments.length>=8?'STRONG':'DEVELOPING',source:'TRAIN COMMENTS',scope:{}});
+ const kenSessions=log.filter(x=>(x.scope||'').includes('KEN SUGIMORI')).length;
+ if(kenSessions)inferred.push({id:'pref_ken',title:'KEN È STATO TESTATO IN MODO MIRATO',text:`${kenSessions} session${kenSessions===1?'e':'i'} hanno isolato KEN SUGIMORI. I risultati possono alimentare preferenze locali sul Character Design DNA.`,confidence:kenSessions>=3?'DEVELOPING':'UNCERTAIN',source:'SCOPED TRAINING',scope:{design:'KEN SUGIMORI'}});
+ return inferred;
+}
+function decision(id){return state.learned.decisions[id]||'active'}
+function setDecision(id,val){state.learned.decisions[id]=val;save();renderLearned()}
+function lessonHtml(l,manual=false){
+ const d=decision(l.id),active=d==='active'||d==='correct';
+ return `<div class="lesson">
+   <div class="lessontop"><b>${esc(l.title)}</b><span class="conf mono">${esc(l.confidence||'LOCKED')}</span></div>
+   <p>${esc(l.text)}</p><div class="lessonmeta mono">${esc(l.source)} · ${manual?'MANUAL':'INFERRED'}</div>
+   <div class="lessonactions">
+     ${manual?`<button class="${active?'active':''}" data-lessonactive="${esc(l.id)}">${active?'ACTIVE':'INACTIVE'}</button>`:
+     `<button class="${d==='correct'?'active':''}" data-lessondecision="${esc(l.id)}" data-val="correct">CORRECT</button><button class="${d==='wrong'?'active':''}" data-lessondecision="${esc(l.id)}" data-val="wrong">WRONG</button>`}
+     <button data-lessontest="${esc(l.id)}">TEST THIS</button>
+   </div>
+ </div>`;
+}
+function renderLearned(){
+ const m=document.getElementById('manualLessons'),i=document.getElementById('inferredLessons'),a=document.getElementById('activeLessons');if(!m)return;
+ const inferred=inferPreferences();state.learned.inferred=inferred;save();
+ m.innerHTML=MANUAL_LESSONS.map(x=>lessonHtml(x,true)).join('');
+ i.innerHTML=inferred.length?inferred.map(x=>lessonHtml(x,false)).join(''):'<div class="empty">Servono alcuni training prima che il Lab possa dedurre pattern.</div>';
+ const activeManual=MANUAL_LESSONS.filter(x=>decision(x.id)!=='inactive'),activeInferred=inferred.filter(x=>['active','correct'].includes(decision(x.id)));
+ a.innerHTML=[...activeManual,...activeInferred].length?[...activeManual,...activeInferred].map(x=>`<div class="lesson"><div class="lessontop"><b>${esc(x.title)}</b><span class="conf mono">ACTIVE</span></div><div class="lessonmeta mono">${esc(x.source)}</div></div>`).join(''):'<div class="empty">Nessuna lezione attiva.</div>';
+ document.querySelectorAll('[data-lessondecision]').forEach(b=>b.onclick=()=>setDecision(b.dataset.lessondecision,b.dataset.val));
+ document.querySelectorAll('[data-lessonactive]').forEach(b=>b.onclick=()=>setDecision(b.dataset.lessonactive,decision(b.dataset.lessonactive)==='inactive'?'active':'inactive'));
+ document.querySelectorAll('[data-lessontest]').forEach(b=>b.onclick=()=>testLesson(b.dataset.lessontest));
+}
+function testLesson(id){
+ const l=[...MANUAL_LESSONS,...inferPreferences()].find(x=>x.id===id);if(!l)return;
+ if(l.scope?.family)builder().family=l.scope.family;
+ if(l.scope?.design)builder().design=l.scope.design;
+ save();renderBuilder();show('train');
+}
+
+function renderState(){
+ const host=document.getElementById('stateMappings');if(!host)return;
+ host.innerHTML=state.stateMappings.map((m,idx)=>`<div class="mapping" data-mapid="${esc(m.id)}">
+   <div class="mappingtop"><div><b>${esc(m.input)}</b><small class="mono">${esc(m.outputs)}</small></div><button class="toggle ${m.active?'on':''}" data-maptoggle="${esc(m.id)}">${m.active?'ON':'OFF'}</button></div>
+   <label class="mono">INPUT<input data-mapinput="${esc(m.id)}" value="${esc(m.input)}" ${m.locked?'readonly':''}></label>
+   <label class="mono">AFFECTS<input data-mapoutputs="${esc(m.id)}" value="${esc(m.outputs)}" ${m.locked?'readonly':''}></label>
+   <label class="mono">RULE<textarea class="${m.locked?'lockedrule':''}" data-maprule="${esc(m.id)}" ${m.locked?'readonly':''}>${esc(m.rule)}</textarea></label>
+   <div class="mapactions">${m.locked?'<span class="hint mono">CANON LOCK</span>':`<button data-mapdelete="${esc(m.id)}">DELETE</button>`}</div>
+ </div>`).join('');
+ host.querySelectorAll('[data-maptoggle]').forEach(b=>b.onclick=()=>{const m=state.stateMappings.find(x=>x.id===b.dataset.maptoggle);if(m){m.active=!m.active;save();renderState()}});
+ host.querySelectorAll('[data-mapinput]').forEach(el=>el.oninput=()=>{const m=state.stateMappings.find(x=>x.id===el.dataset.mapinput);if(m){m.input=el.value;save()}});
+ host.querySelectorAll('[data-mapoutputs]').forEach(el=>el.oninput=()=>{const m=state.stateMappings.find(x=>x.id===el.dataset.mapoutputs);if(m){m.outputs=el.value;save()}});
+ host.querySelectorAll('[data-maprule]').forEach(el=>el.oninput=()=>{const m=state.stateMappings.find(x=>x.id===el.dataset.maprule);if(m&&!m.locked){m.rule=el.value;save()}});
+ host.querySelectorAll('[data-mapdelete]').forEach(b=>b.onclick=()=>{state.stateMappings=state.stateMappings.filter(x=>x.id!==b.dataset.mapdelete);save();renderState()});
+}
+function addStateMapping(){
+ state.stateMappings.push({id:'custom_'+Date.now(),input:'NEW INPUT',outputs:'appearance target',rule:'Describe how this value should change appearance without reward or punishment logic.',active:true,locked:false});save();renderState();
+}
+
+
+
+
+const FAMILIES=[
+ 'ANGEL','BEAST','DRAGON','REPTILE','MACHINE','AQUA','PLANT','DEMON','UNDEAD',
+ 'PSYCHIC','MINERAL','ALIEN','FOOD','INSECT','AMPHIBIA','FAIRY','FUNGUS','MICROBE'
+];
+
+const ARCHETYPES={
+ ANGEL:['PUTTO','MESSENGER','GUARDIAN','WARRIOR','VIRTUE','POWER','DOMINION','CHERUB','THRONE','SERAPH'],
+ BEAST:['FELINE','CANINE','URSINE','PRIMATE','HORNED MAMMAL','CHIMERIC'],
+ DRAGON:['HUMANOID','SERPENTINE','WYRM','WYVERN','CRESTED','TINY DRAKE'],
+ REPTILE:['CERATOPSIAN','THEROPOD','SAURIAN','TURTLE','CROCODILIAN','SERPENT'],
+ MACHINE:['VEHICLE','TRASH','INDUSTRIAL','DEVICE','SWARM','SYNTHETIC HUMANOID'],
+ AQUA:['FISH','CEPHALOPOD','CRUSTACEAN','JELLY','AQUATIC MAMMAL','DEEPSEA'],
+ PLANT:['FLOWER','VINE','TREE','SUCCULENT','CARNIVOROUS','MOSS/LICHEN'],
+ DEMON:['HUMANOID','ONI','IMP','BAT','HORNED BEAST','VOID DEMON'],
+ UNDEAD:['GHOST','SKELETON','MUMMY','REVENANT','WRAITH','RELIC'],
+ PSYCHIC:['MANY-EYED','DETACHED','ORBITAL','FOLDED SPACE','SENSORIAL HUMANOID','TOTEM'],
+ MINERAL:['CRYSTAL','STONE','GEODE','METAL ORE','SAND','FOSSIL'],
+ ALIEN:['GREY','MULTI-LIMB','BIOMORPH','EXOSPACE','SYMMETRIC','PARASITIC'],
+ FOOD:['FRUIT','NOODLE','PASTRY','CANDY','SAVORY','FERMENTED'],
+ INSECT:['MANTIS','BEETLE','MOTH','WASP','SPIDER','LARVAL'],
+ AMPHIBIA:['TRI-EYED','AXOLOTL','FROG','SALAMANDER','TOAD','TADPOLE'],
+ FAIRY:['HUMANOID','PIXIE','MOTH-FAIRY','SPRITE','GLAMOUR','THORN FAIRY'],
+ FUNGUS:['CLUSTER','CAP','MYCELIUM','SPORE','BRACKET','MOLD'],
+ MICROBE:['COLONY','BACTERIA','PROTOZOA','VIRAL','BIOFILM','ORGANELLE']
+};
+
+if(!state.training)state.training={log:[]};
+if(!state.training.builder)state.training.builder={family:'',archetype:'',design:'',size:'',mix:'AUTO'};
+let trainSession=null;
+
+function builder(){return state.training.builder}
+
+function renderFamilyOptions(){
+ const host=document.getElementById('familyOptions'); if(!host)return;
+ const b=builder();
+ host.innerHTML=
+   `<button type="button" class="pick ${!b.family?'selected':''}" data-family="">ALL <small>tutto il catalogo</small></button>`+
+   FAMILIES.map(f=>`<button type="button" class="pick ${b.family===f?'selected':''}" data-family="${f}">${f}</button>`).join('');
+ host.querySelectorAll('[data-family]').forEach(btn=>btn.onclick=()=>{
+   b.family=btn.dataset.family;
+   b.archetype='';
+   save();renderBuilder();
+   if(b.family){
+     document.getElementById('archetypeBlock').classList.remove('hidden');
+     openAxis('archetype');
+   }
+ });
+}
+
+function renderArchetypes(){
+ const block=document.getElementById('archetypeBlock'),host=document.getElementById('archetypeOptions');
+ const b=builder();
+ if(!b.family){block.classList.add('hidden');host.innerHTML='';return}
+ block.classList.remove('hidden');
+ const vals=ARCHETYPES[b.family]||[];
+ host.innerHTML=
+   `<button type="button" class="pick ${!b.archetype?'selected':''}" data-arch="">ALL <small>tutti gli archetipi ${b.family}</small></button>`+
+   vals.map(a=>`<button type="button" class="pick ${b.archetype===a?'selected':''}" data-arch="${esc(a)}">${esc(a)}</button>`).join('');
+ host.querySelectorAll('[data-arch]').forEach(btn=>btn.onclick=()=>{
+   b.archetype=btn.dataset.arch;
+   save();renderBuilder();
+ });
+}
+
+function openAxis(axis){
+ document.querySelectorAll('.axisoptions').forEach(x=>x.classList.remove('open'));
+ document.querySelectorAll('.axishead').forEach(x=>x.classList.remove('active'));
+ document.getElementById(axis+'Options')?.classList.add('open');
+ document.querySelector(`[data-axis-toggle="${axis}"]`)?.classList.add('active');
+}
+
+function trainingLocks(){
+ const b=builder(),locks={};
+ if(b.family)locks['04']=b.family;
+ if(b.archetype)locks['05']=b.archetype;
+ if(b.design)locks['11.5']=b.design;
+ if(b.size)locks['07']=b.size;
+ return locks;
+}
+
+function scopeName(){
+ const b=builder(),parts=['CREATION'];
+ if(b.family)parts.push(b.family);
+ if(b.archetype)parts.push(b.archetype);
+ if(b.design)parts.push(b.design);
+ if(b.size)parts.push(b.size);
+ return parts.join(' / ');
+}
+
+function scopeStrength(){
+ const b=builder();
+ let n=[b.family,b.archetype,b.design,b.size].filter(Boolean).length;
+ return n===0?'BROAD':n===1?'FOCUSED':n===2?'STRONG':'SURGICAL';
+}
+
+function renderBuilder(){
+ renderFamilyOptions();renderArchetypes();
+ const b=builder();
+ document.getElementById('familyChosen').textContent=b.family||'ALL';
+ document.getElementById('archetypeChosen').textContent=b.archetype||'ALL';
+ document.getElementById('designChosen').textContent=b.design||'ALL';
+ document.getElementById('sizeChosen').textContent=b.size||'ALL';
+ document.getElementById('mixChosen').textContent=b.mix||'AUTO';
+
+ document.querySelectorAll('[data-design]').forEach(x=>x.classList.toggle('selected',x.dataset.design===b.design));
+ document.querySelectorAll('[data-size]').forEach(x=>x.classList.toggle('selected',x.dataset.size===b.size));
+ document.querySelectorAll('[data-mix]').forEach(x=>x.classList.toggle('selected',x.dataset.mix===b.mix));
+
+ const name=scopeName();
+ document.getElementById('scopeBreadcrumb').textContent=name;
+ document.getElementById('recipeTitle').textContent=name;
+ document.getElementById('recipeStrength').textContent=scopeStrength();
+
+ const locks=trainingLocks();
+ const free=[];
+ if(!b.family)free.push('Family');
+ if(!b.archetype)free.push('Archetype');
+ if(!b.design)free.push('Character Design DNA');
+ if(!b.size)free.push('Size');
+ free.push(b.mix==='AUTO'?'all remaining axes':b.mix==='COMBOS'?'Affinity + Role + Fashion combos':b.mix);
+
+ document.getElementById('recipeBody').innerHTML=
+   (Object.keys(locks).length
+    ? Object.entries(locks).map(([id,v])=>`LOCK ${esc(S.find(s=>s[0]===id)?.[2]||id)} = ${esc(v)}`).join('<br>')
+    : 'NO LOCKS · FULL RESOLVER')+
+   `<br>VARIATION = ${esc(b.mix||'AUTO')}<br>FREE = ${esc(free.join(' · '))}`;
+
+ const promptLines=['TRAINING SCOPE: '+name];
+ Object.entries(locks).forEach(([id,v])=>promptLines.push('LOCK '+(S.find(s=>s[0]===id)?.[2]||id)+': '+v));
+ promptLines.push('VARIATION TARGET: '+(b.mix||'AUTO'));
+ promptLines.push('Keep every unselected resolver axis free.');
+ promptLines.push('Generate controlled A/B pairs inside this scope.');
+ document.getElementById('recipePrompt').textContent=promptLines.join('\n');
+
+ renderTrainingLog();renderReferences();
+}
+
+function clearBuilder(){
+ state.training.builder={family:'',archetype:'',design:'',size:'',mix:'AUTO'};
+ save();renderBuilder();openAxis('family');
+}
+
+function specimen(side,index){
+ const b=builder(),seed=parseInt(document.getElementById('trainSeed').value,10)||184723;
+ const affinities=['WATER','FIRE','MACHINE','BEAST','LIGHT','VOID'];
+ const roles=['SCOUT','GUARDIAN','MESSENGER','WARRIOR','MIRACLE'];
+ const fashions=['STREET','FORMAL','SPORT','AVANT','UTILITY'];
+ const sizes=['TINY','MEDIUM','GIANT'];
+ const pick=(arr,o)=>arr[Math.abs(seed+index*13+o+(side==='B'?7:0))%arr.length];
+ const parts=[];
+ if(b.family)parts.push('Family = '+b.family); else parts.push('Family = '+pick(FAMILIES,1));
+ if(b.archetype)parts.push('Archetype = '+b.archetype);
+ else if(b.family)parts.push('Archetype = '+pick(ARCHETYPES[b.family]||['AUTO'],2));
+ if(b.design)parts.push('Design = '+b.design);
+ if(b.size)parts.push('Size = '+b.size); else parts.push('Size = '+pick(sizes,3));
+ if(b.mix==='AFFINITY'||b.mix==='AUTO'||b.mix==='COMBOS')parts.push('Affinity = '+pick(affinities,4));
+ if(b.mix==='ROLE'||b.mix==='AUTO'||b.mix==='COMBOS')parts.push('Role = '+pick(roles,5));
+ if(b.mix==='FASHION'||b.mix==='AUTO'||b.mix==='COMBOS')parts.push('Fashion = '+pick(fashions,6));
+ return parts;
+}
+
+function startTraining(){
+ const total=parseInt(document.getElementById('duelCount').value,10)||8;
+ trainSession={total,index:0,votes:[],scope:scopeName(),strength:scopeStrength(),recipe:structuredClone(builder())};
+ document.getElementById('trainSession').classList.add('show');renderDuel();
+}
+
+function renderDuel(){
+ if(!trainSession)return;
+ const i=trainSession.index;
+ document.getElementById('sessionTitle').textContent='DUEL '+String(i+1).padStart(2,'0');
+ document.getElementById('sessionScope').textContent=trainSession.scope+' · '+trainSession.strength;
+ document.getElementById('sessionProgress').textContent=(i+1)+' / '+trainSession.total;
+ const specA=specimen('A',i),specB=specimen('B',i);
+ document.getElementById('duelAMeta').innerHTML=specA.map(esc).join('<br>');
+ document.getElementById('duelBMeta').innerHTML=specB.map(esc).join('<br>');
+ const learnedActive=MANUAL_LESSONS.filter(x=>decision(x.id)!=='inactive').slice(0,2).map(x=>x.title);
+ document.getElementById('traceA').innerHTML=['SCOPE: '+trainSession.scope,'SEED: '+(parseInt(document.getElementById('trainSeed').value,10)||184723),'VARIANT: A',...specA,'LEARNED: '+(learnedActive.join(' + ')||'none')].map(esc).join('<br>');
+ document.getElementById('traceB').innerHTML=['SCOPE: '+trainSession.scope,'SEED: '+(parseInt(document.getElementById('trainSeed').value,10)||184723),'VARIANT: B',...specB,'LEARNED: '+(learnedActive.join(' + ')||'none')].map(esc).join('<br>');
+ document.querySelectorAll('[data-vote]').forEach(x=>x.classList.remove('selected'));
+ document.getElementById('trainComment').value='';document.getElementById('commentA').value='';document.getElementById('commentB').value='';trainSession.currentVote=null;
+}
+
+function saveTrainingVote(){
+ if(!trainSession.currentVote){alert('Scegli A, B, BOTH oppure NO.');return}
+ trainSession.votes.push({duel:trainSession.index+1,vote:trainSession.currentVote,commentA:document.getElementById('commentA').value.trim(),commentB:document.getElementById('commentB').value.trim(),comment:document.getElementById('trainComment').value.trim()});
+ trainSession.index++;
+ if(trainSession.index>=trainSession.total){
+   state.training.log=state.training.log||[];
+   state.training.log.unshift({date:new Date().toLocaleString(),scope:trainSession.scope,strength:trainSession.strength,count:trainSession.total,recipe:trainSession.recipe,votes:trainSession.votes});
+   state.training.log=state.training.log.slice(0,12);
+   save();trainSession=null;document.getElementById('trainSession').classList.remove('show');renderTrainingLog();return;
+ }
+ renderDuel();
+}
+
+function renderTrainingLog(){
+ const host=document.getElementById('trainingLog');if(!host)return;
+ const log=state.training.log||[];
+ if(!log.length){host.innerHTML='<div class="empty">Ancora nessuna sessione completata.</div>';return}
+ host.innerHTML=log.map(x=>`<div class="trainingitem"><div><b>${esc(x.scope)}</b><small class="mono">${esc(x.date)} · ${x.count} duels</small></div><span class="strength mono">${esc(x.strength)}</span></div>`).join('');
+}
+
+document.querySelectorAll('[data-axis-toggle]').forEach(b=>b.onclick=()=>openAxis(b.dataset.axisToggle));
+document.querySelectorAll('[data-design]').forEach(b=>b.onclick=()=>{builder().design=b.dataset.design;save();renderBuilder()});
+document.querySelectorAll('[data-size]').forEach(b=>b.onclick=()=>{builder().size=b.dataset.size;save();renderBuilder()});
+document.querySelectorAll('[data-mix]').forEach(b=>b.onclick=()=>{builder().mix=b.dataset.mix;save();renderBuilder()});
+if(document.getElementById('clearBuild'))document.getElementById('clearBuild').onclick=clearBuilder;
+if(document.getElementById('startTraining'))document.getElementById('startTraining').onclick=startTraining;
+document.querySelectorAll('[data-vote]').forEach(b=>b.onclick=()=>{trainSession.currentVote=b.dataset.vote;document.querySelectorAll('[data-vote]').forEach(x=>x.classList.toggle('selected',x===b))});
+if(document.getElementById('nextDuel'))document.getElementById('nextDuel').onclick=saveTrainingVote;
+renderBuilder();
+const referenceTargetEl=document.getElementById('referenceTarget');
+if(referenceTargetEl)referenceTargetEl.onchange=renderReferences;
+const referenceFilesEl=document.getElementById('referenceFiles');
+if(referenceFilesEl)referenceFilesEl.onchange=e=>{addReferenceFiles(e.target.files);e.target.value=''};
+const addMappingEl=document.getElementById('addMapping');
+if(addMappingEl)addMappingEl.onclick=addStateMapping;
+
+
+
+function bindTrainTargets(){
+ const h=document.getElementById('trainTargets');if(!h)return;
+ h.querySelectorAll('[data-target]').forEach(b=>{
+   b.classList.toggle('active',b.dataset.target===state.training.target);
+   b.onclick=()=>{state.training.target=b.dataset.target;save();bindTrainTargets()}
+ });
+}
+
+document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>show(t.dataset.page));document.getElementById('saveSnap').onclick=newSnap;document.getElementById('runTest').onclick=()=>{const seed=esc(document.getElementById('seed').value||'184723'),input=esc(document.getElementById('inputSet').value||'CURRENT USER'),a=S.filter(s=>{const x=o(s[0]);return x.mode!=='on'||(x.lock||'').trim()||(x.text||'').trim()});document.getElementById('baseOut').innerHTML=`Seed ${seed}<br>Input ${input}<br><br>R0 baseline<br>No Lab overrides`;document.getElementById('labOut').innerHTML=`Seed ${seed}<br>Input ${input}<br><br>${a.length} override attivi${a.length?'<br>'+a.map(s=>s[0]+' '+s[2]).join('<br>'):''}`;document.getElementById('compare').classList.add('show')};render();renderSnaps();
+
+</script></body></html>

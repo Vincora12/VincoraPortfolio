@@ -16,6 +16,17 @@
 import { AssistantRuntimeProvider, useLocalRuntime } from '@assistant-ui/react';
 import { ChatSurface } from '../../assistant-original/chat-surface';
 
+/* 🔴 SENZA QUESTA RIGA LA CHAT SI VEDEVA A PEZZI. Il foglio del clone lo
+   importa `IntegratedChat.tsx`, e la preview `IntegratedChat` NON lo monta
+   apposta (migrerebbe l'archivio delle conversazioni). Quindi la superficie
+   arrivava senza i suoi stili: dentro il telefono di DESIGN.LAB restavano dei
+   rettangoli grigi accatastati.
+
+   ⚠️ Ed è il difetto peggiore che DESIGN.LAB possa avere, perché non sembra
+   un guasto: sembra che la chat vera sia fatta male. Una preview che mente
+   sull'aspetto è peggio di una preview che non c'è. */
+import '../../assistant-original/styles.css';
+
 const previewModel = {
   async run() {
     return {

@@ -1,67 +1,63 @@
 /* ============================================================================
-   VINZ.LAB — IL GUSCIO
+   VINZ.LAB — L'ATRIO
 
-   🔷 «È una nuova parte del sito, LAB, dove dentro c'è DEV e tanto altro.»
+   🔷 «Tutte le pagine che avevo disegnato prima non dovevi disegnarle, dovevi
+      lasciarle così com'erano; dovevi integrare la parte che c'era dietro per
+      poi utilizzarle.»
 
-   Quattro stanze sorelle, e sono quattro perché il pacchetto ne dichiara
-   quattro: CREATION / SOUL / DESIGN / SYSTEM.
+   🔴 E la prima volta ho fatto esattamente il contrario. Avevo copiato nel
+   repo solo i `.md` del pacchetto e NON i cinque `index.html` disegnati:
+   `docs/lab/design/` non esisteva. Senza quei file davanti ho rifatto il
+   disegno da capo, con le linguette e i fogli del pannello DEV — cioè ho
+   buttato via il lavoro fatto e l'ho sostituito con qualcosa di più confuso.
 
-   🔴 IL PACCHETTO DI CODEX NE DISEGNAVA TRE. `LabApp.tsx` importava `SoulLab`,
-   lo montava sul ramo `active === 'soul'`, e poi nella home e nella barra la
-   porta 👁 SOUL non c'era: si poteva arrivare a SOUL solo scrivendo
-   `#/lab/soul` a mano. Non è un dettaglio estetico — una stanza senza porta è
-   una stanza che nessuno apre. Le porte qui sono quattro.
-
-   ⚠️ SOUL NON È IL FILE DEL PACCHETTO. `SoulLab.tsx` di Codex importava
-   `../../soul/SoulOrb` e `../../soul/SoulController`, due file che nel
-   pacchetto NON CI SONO: copiarlo avrebbe rotto la build al primo `tsc`.
-   Quindi la Soul è stata costruita da zero seguendo il brief e lo schizzo —
-   `docs/lab/reference/soul-master-sketch.png` — invece di seguire un file
-   che non c'era.
-
-   🔒 DA VINZ.MON NON PARTE NESSUN LINK QUI. Questo file non è importato da
-   `App.tsx` né da nessuna schermata: ci arriva solo `main.tsx`, e solo se
-   l'indirizzo è `/#/lab`.
+   🔒 ADESSO LA FONTE È `docs/lab/design/00-atrio.html`. Questo componente è
+   quel file, tradotto in React: stessi tag, stesse classi, stesso testo. Il
+   CSS non è riscritto — è copiato in `skin/atrio.css`. Se qualcosa qui non
+   torna, si guarda il disegno; non si inventa.
    ========================================================================= */
 
 import { lazy, Suspense, useEffect, useState } from 'react';
 import type { LabId } from './entrypoint';
-import './lab.css';
+import './skin/_base.css';
+import './skin/atrio.css';
 
-const DesignLab = lazy(() =>
-  import('./design/DesignLabShell').then((m) => ({ default: m.DesignLabShell })),
-);
-const CreationLab = lazy(() =>
-  import('./rooms/CreationLab').then((m) => ({ default: m.CreationLab })),
-);
-const SystemLab = lazy(() =>
-  import('./rooms/SystemLab').then((m) => ({ default: m.SystemLab })),
-);
-const SoulLab = lazy(() =>
-  import('./rooms/SoulLab').then((m) => ({ default: m.SoulLab })),
-);
+const CreationLab = lazy(() => import('./rooms/CreationLab').then((m) => ({ default: m.CreationLab })));
+const SoulLab = lazy(() => import('./rooms/SoulLab').then((m) => ({ default: m.SoulLab })));
+const DesignLab = lazy(() => import('./rooms/DesignLab').then((m) => ({ default: m.DesignLab })));
+const SystemLab = lazy(() => import('./rooms/SystemLab').then((m) => ({ default: m.SystemLab })));
 
-const DOORS: { id: LabId; label: string; blurb: string }[] = [
-  { id: 'creation', label: '🧬 CREATION.LAB', blurb: 'Come nasce un .mon: configurazione, prova, distribuzioni.' },
-  { id: 'soul', label: '👁 SOUL.LAB', blurb: 'La faccia viva: occhi, bocca, colore, movimento.' },
-  { id: 'design', label: '🖥 DESIGN.LAB', blurb: 'Le schermate vere, montate qui dentro e modificabili.' },
-  { id: 'system', label: '⚙️ SYSTEM.LAB', blurb: 'Chiavi, modelli, simulazioni, memoria, consumi.' },
+/* Le quattro porte, parola per parola dal disegno. */
+const PORTE: { id: LabId; nome: string; desc: string; tags: string[] }[] = [
+  {
+    id: 'creation',
+    nome: '🧬 CREATION.LAB',
+    desc: 'Character Data, resolver visivo, Bio, Voice DNA, sigillo, reazioni, prompt, asset, training e history.',
+    tags: ['CREATE THE MON', 'RESOLVER INSIDE', 'ONE FLOW'],
+  },
+  {
+    id: 'soul',
+    nome: '👻 SOUL.LAB',
+    desc: 'Anima 2D vettoriale: orb + wisp, faccia modulare, colore dal .mon, espressioni e movimento.',
+    tags: ['ORB', 'FACE', 'MOOD'],
+  },
+  {
+    id: 'design',
+    nome: '🖥 DESIGN.LAB',
+    desc: 'Preview reale della UI, selezione di schermate e componenti, Design AI contestuale, patch, A/B e history.',
+    tags: ['EDIT THE UI', 'REAL COMPONENTS', 'AI DESIGN CHAT'],
+  },
+  {
+    id: 'system',
+    nome: '⚙️ SYSTEM.LAB',
+    desc: 'Setup, API, AI routing, simulazione, memoria runtime, strumenti e usage.',
+    tags: ['RUN THE SYSTEM', 'NO CREATION DUPLICATES'],
+  },
 ];
-
-/* 🔶 QUI STAVA `PendingLab`, la stanza che diceva «dichiarata, non ancora
-   costruita». Non serve più a nessuno: le quattro porte portano tutte e
-   quattro da qualche parte. Se un giorno se ne aggiunge una quinta, si
-   riscrive — copiarla adesso vorrebbe dire tenere in casa una schermata che
-   non si apre mai, cioè codice che nessuno verifica. */
 
 export function LabApp({ initialLab }: { initialLab: LabId | null }) {
   const [active, setActive] = useState<LabId | null>(initialLab);
 
-  /* 🔶 IL PACCHETTO FACEVA `window.location.reload()` a ogni click di stanza.
-     Funziona, ed è il modo più caro: ricarica il bundle, ributta via lo store
-     riletto, e fa lampeggiare il bianco a ogni passaggio. Qui l'indirizzo si
-     scrive lo stesso — serve per il tasto indietro e per l'icona sulla Home —
-     ma è lo stato a decidere cosa si monta. */
   useEffect(() => {
     const sync = () => {
       const m = /^#\/lab(?:\/(creation|soul|design|system))?\/?$/.exec(window.location.hash);
@@ -71,55 +67,67 @@ export function LabApp({ initialLab }: { initialLab: LabId | null }) {
     return () => window.removeEventListener('hashchange', sync);
   }, []);
 
-  const go = (lab: LabId | null) => {
+  const vai = (lab: LabId | null) => {
     window.location.hash = lab ? `/lab/${lab}` : '/lab';
     setActive(lab);
+    window.scrollTo(0, 0);
   };
 
-  if (!active) {
+  if (active) {
+    const indietro = () => vai(null);
     return (
-      <main className="labapp labapp--home">
-        <header className="labapp__brand">
-          <b>VINZ.LAB</b>
-          <span>PRIVATO · STESSA APP, ALTRA PORTA</span>
-        </header>
-        <div className="labapp__doors">
-          {DOORS.map((door) => (
-            <button key={door.id} type="button" onClick={() => go(door.id)}>
-              <b>{door.label}</b>
-              <small>{door.blurb}</small>
-            </button>
-          ))}
-        </div>
-        <footer className="labapp__foot">
-          VINZ.MON RESTA SU «/» E NON SA CHE QUESTA PAGINA ESISTE.
-        </footer>
-      </main>
+      <Suspense fallback={<div className="app" />}>
+        {active === 'creation' && <CreationLab onBack={indietro} />}
+        {active === 'soul' && <SoulLab onBack={indietro} />}
+        {active === 'design' && <DesignLab onBack={indietro} />}
+        {active === 'system' && <SystemLab onBack={indietro} />}
+      </Suspense>
     );
   }
 
   return (
-    <main className="labapp">
-      <nav className="labapp__nav" aria-label="VINZ.LAB">
-        <button type="button" onClick={() => go(null)}>← LAB</button>
-        {DOORS.map((door) => (
-          <button
-            key={door.id}
-            type="button"
-            aria-current={active === door.id ? 'page' : undefined}
-            onClick={() => go(door.id)}
-          >
-            {door.label}
-          </button>
-        ))}
-      </nav>
+    <div className="app">
+      <main>
+        <div className="kicker mono">VINZ.MON / INTERNAL TOOLS</div>
+        <h1>VINZ.LAB</h1>
+        <p className="intro">
+          Quattro laboratori, quattro responsabilità: 🧬 <strong>come nasce il .mon</strong>,{' '}
+          👻 <strong>come vive visivamente l’anima</strong>, 🖥 <strong>come appare e si usa l’app</strong>,{' '}
+          ⚙️ <strong>come gira il sistema</strong>.
+        </p>
 
-      <Suspense fallback={<div className="labapp__loading">VINZ.LAB</div>}>
-        {active === 'design' && <DesignLab onClose={() => go(null)} />}
-        {active === 'creation' && <CreationLab />}
-        {active === 'system' && <SystemLab />}
-        {active === 'soul' && <SoulLab />}
-      </Suspense>
-    </main>
+        {PORTE.map((p) => (
+          <a
+            key={p.id}
+            className="lab"
+            href={`#/lab/${p.id}`}
+            onClick={(e) => {
+              e.preventDefault();
+              vai(p.id);
+            }}
+          >
+            <div className="top">
+              <div className="name">{p.nome}</div>
+              <div className="arrow">→</div>
+            </div>
+            <p className="desc">{p.desc}</p>
+            <div className="tags mono">
+              {p.tags.map((t) => (
+                <span className="tag" key={t}>{t}</span>
+              ))}
+            </div>
+          </a>
+        ))}
+
+        <div className="rule">
+          <b>Regola architetturale:</b> se cambia <em>chi è / come nasce</em> il .mon, va in
+          CREATION.LAB. Se cambia <em>layout, componenti, design token o UX</em>, va in DESIGN.LAB.
+          Se cambia <em>come l’app gira, simula, chiama API o conserva lo stato runtime</em>, va in
+          SYSTEM.LAB.
+        </div>
+
+        <div className="footer mono">SAME REPO · SAME APP · THREE CLEAR RESPONSIBILITIES</div>
+      </main>
+    </div>
   );
 }

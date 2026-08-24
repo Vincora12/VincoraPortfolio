@@ -1,0 +1,421 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#ffffff">
+<title>SYSTEM.LAB · VINZ.LAB</title>
+<style>
+:root{--ink:#111;--muted:#6c6c6c;--line:#d7d7d7;--soft:#f5f5f5}
+*{box-sizing:border-box}
+html,body{margin:0;background:#fff;color:var(--ink);font-family:Arial,Helvetica,sans-serif}
+body{padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+.app{max-width:560px;margin:0 auto;min-height:100vh}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace}
+.top{position:sticky;top:0;background:#fff;z-index:10;border-bottom:1px solid var(--line)}
+.nav{display:flex;align-items:center;gap:8px;padding:8px 12px}
+.back{width:34px;height:34px;display:grid;place-items:center;text-decoration:none;color:#111;border:1px solid var(--line);font-size:18px;flex:0 0 auto}
+.tabs{display:flex;overflow-x:auto;gap:0;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tab{border:0;background:#fff;min-height:36px;padding:0 13px;font-size:10px;letter-spacing:.05em;color:#777;white-space:nowrap}
+.tab.active{color:#111;font-weight:900;text-decoration:underline;text-underline-offset:5px;text-decoration-thickness:2px}
+main{padding:25px 18px 48px}
+.page{display:none}.page.active{display:block}
+.kicker{font-size:10px;letter-spacing:.12em;margin-bottom:11px}
+h1{font-size:44px;line-height:.89;margin:0 0 14px;font-weight:900;font-style:italic;letter-spacing:-.055em}
+.lead{font-size:14px;line-height:1.48;margin:0 0 22px;max-width:470px}
+.notice{border:1px solid #111;padding:11px;font-size:9px;line-height:1.5;margin:0 0 18px}
+.section{border-top:1px solid #111;padding:16px 0 20px}
+.section h2{font-size:12px;letter-spacing:.08em;margin:0 0 8px}
+.note{font-size:11px;line-height:1.46;color:var(--muted);margin:4px 0 12px}
+.rows{border-top:1px solid var(--line)}
+.row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:14px;align-items:start;border-bottom:1px solid var(--line);padding:11px 0}
+.row strong{font-size:11px}.row .value{font-size:10px;text-align:right;max-width:220px}
+.status{display:inline-block;border:1px solid currentColor;padding:3px 5px;font-size:8px;letter-spacing:.06em}
+.status.ok{background:#111;color:#fff;border-color:#111}
+.status.off{color:#888}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:9px}
+.btn{border:1px solid #111;background:#fff;min-height:42px;padding:9px 8px;font-size:9px;font-weight:900;letter-spacing:.02em}
+.btn.dark{background:#111;color:#fff}.btn.on{background:#111;color:#fff}.btn.danger{border-style:dashed}
+.btn:disabled{opacity:.4}
+.field{display:block;font-size:9px;color:#777;letter-spacing:.05em;margin-top:10px}
+.field input,.field textarea,.field select{width:100%;border:1px solid var(--line);background:#fff;padding:10px;font-size:11px;margin-top:4px}
+.field textarea{min-height:76px;resize:vertical}
+.secret{display:grid;grid-template-columns:1fr auto;gap:7px;margin-top:8px}
+.secret code{display:block;border:1px solid var(--line);padding:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:9px}
+.provider{border-bottom:1px solid var(--line);padding:12px 0}
+.provider-head{display:flex;justify-content:space-between;gap:10px;align-items:start}
+.provider-head strong{font-size:12px}
+.provider p{font-size:10px;line-height:1.45;color:var(--muted);margin:6px 0 0}
+.airow{border-bottom:1px solid var(--line);padding:14px 0}
+.aihead{display:flex;justify-content:space-between;gap:10px;align-items:start}
+.aihead strong{font-size:12px}.aihead small{font-size:8px;border:1px solid var(--line);padding:3px 5px}
+.aidesc{font-size:10px;line-height:1.45;color:var(--muted);margin:6px 0 9px}
+.choices{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none}.choices::-webkit-scrollbar{display:none}
+.choice{border:1px solid var(--line);background:#fff;padding:8px;font-size:9px;white-space:nowrap}
+.choice.on{background:#111;color:#fff;border-color:#111}
+.accordion{border-top:1px solid #111}
+.drawer{border-bottom:1px solid var(--line)}
+.drawer>button{width:100%;border:0;background:#fff;padding:14px 0;display:flex;justify-content:space-between;align-items:center;text-align:left}
+.drawer>button strong{font-size:12px;letter-spacing:.04em}.drawer>button span{font-size:16px}
+.drawer-body{display:none;padding:0 0 18px}.drawer.open .drawer-body{display:block}
+.range{padding:10px 0;border-bottom:1px solid var(--line)}
+.range-head{display:flex;justify-content:space-between;font-size:10px;margin-bottom:5px}
+.range input{width:100%}
+.picker{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:8px}
+.picker button{border:1px solid var(--line);background:#fff;padding:8px 5px;font-size:8px}
+.picker button.on{background:#111;color:#fff}
+.json{background:#111;color:#fff;padding:11px;font:9px/1.5 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere;margin-top:9px}
+.dist-row{display:grid;grid-template-columns:82px 1fr 38px;gap:7px;align-items:center;margin:7px 0;font-size:9px}
+.bar{height:8px;background:#eee}.bar i{display:block;height:100%;background:#111}
+.assetgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.assetslot{border:1px solid var(--line);padding:9px;min-height:120px}
+.assetslot strong{font-size:10px;display:block}.assetslot small{font-size:8px;color:#777;display:block;margin-top:4px}
+.placeholder{height:52px;background:var(--soft);display:grid;place-items:center;font-size:8px;color:#888;margin:8px 0}
+.memory{border:1px solid var(--line);padding:10px;margin-top:8px}
+.memory strong{font-size:10px}.memory p{font-size:10px;line-height:1.4;color:var(--muted);margin:5px 0 0}
+.callout{border:1px solid #111;padding:11px;margin:10px 0}
+.callout strong{font-size:11px;display:block}.callout p{font-size:10px;line-height:1.45;color:#555;margin:5px 0 0}
+.footer{border-top:1px solid var(--line);padding-top:14px;margin-top:28px;font-size:9px;color:#777}
+@media(min-width:520px){main{padding-left:22px;padding-right:22px}.grid{grid-template-columns:repeat(3,1fr)}}
+</style>
+</head>
+<body>
+<div class="app">
+<header class="top">
+  <div class="nav">
+    <a class="back" href="../" aria-label="VINZ.LAB">←</a>
+    <div class="tabs">
+      <button class="tab active" data-page="setup">SETUP</button>
+      <button class="tab" data-page="ai">AI</button>
+      <button class="tab" data-page="simulation">SIMULATION</button>
+      
+      <button class="tab" data-page="memory">MEMORY</button>
+      <button class="tab" data-page="usage">USAGE</button>
+    </div>
+  </div>
+</header>
+
+<main>
+<section class="page active" id="setup">
+  <div class="kicker mono">VINZ.LAB / SYSTEM</div>
+  <h1>SYSTEM.LAB</h1>
+  <p class="lead">Configura VINZ.MON e capisci subito cosa è acceso, cosa manca e cosa risponde davvero. La creazione del .mon vive in CREATION.LAB.</p>
+  <div class="notice mono"><strong>LAB PREVIEW</strong><br>Questi controlli simulano la UI finale. Nell’implementazione devono interrogare il backend reale con le funzioni già esistenti di setup e ping.</div>
+  <div id="setupContent"></div>
+</section>
+
+<section class="page" id="ai">
+  <div class="kicker mono">SYSTEM.LAB / ROUTING</div>
+  <h1>AI</h1>
+  <p class="lead">Qui scegli quale modello serve le chiamate AI reali. Il badge non significa che quello step faccia parte dell’hatch: CREATION.LAB mostra chiaramente quali chiamate sono automatiche, opzionali o runtime.</p>
+  <div id="aiContent"></div>
+</section>
+
+<section class="page" id="simulation">
+  <div class="kicker mono">SYSTEM.LAB / DEV SIMULATION</div>
+  <h1>SIMULATION</h1>
+  <p class="lead">Un solo banco di simulazione per tempo, segnali, SYNC e Mindline. Nessun secondo set di pulsanti per far passare i giorni.</p>
+  <div id="simulationContent"></div>
+</section>
+
+
+<section class="page" id="memory">
+  <div class="kicker mono">SYSTEM.LAB / INNER STATE</div>
+  <h1>MEMORY</h1>
+  <p class="lead">Quello che VINZ.MON ricorda, pensa e usa quando parla. Qui stanno anche gli strumenti tecnici che non devono mai diventare una schermata utente.</p>
+  <div id="memoryContent"></div>
+</section>
+
+<section class="page" id="usage">
+  <div class="kicker mono">SYSTEM.LAB / TELEMETRY</div>
+  <h1>USAGE</h1>
+  <p class="lead">Spesa, chiamate, tempi, errori e stato delle pipeline. Numeri tecnici, senza trasformarli in un cockpit.</p>
+  <div id="usageContent"></div>
+</section>
+
+<div class="footer mono">SYSTEM.LAB · SAME VINZ.MON ENGINE / SAME REPOSITORY</div>
+</main>
+</div>
+
+<script>
+const KEY='vinzlab_system_v15';
+const DEFAULTS={
+  token:'vm_'+randomSecret(28),
+  serverToken:true,
+  cap:30,
+  providers:{
+    OPENAI:{present:true,alive:true,what:'Voce · Character Master · prompt · immagini'},
+    ANTHROPIC:{present:true,alive:true,what:'Voce · riflessione · prompt alternativo'},
+    GOOGLE:{present:true,alive:true,what:'Visione rapida'},
+    MOONSHOT:{present:false,alive:false,what:'Voce alternativa'}
+  },
+  ai:{
+    characterMaster:'gpt-5.6-sol',
+    bio:'gpt-5.6-luna',
+    imagePrompt:'gpt-5.6-luna',
+    image:'gpt-image-2',
+    voice:'claude-opus-5',
+    teach:'gpt-5.6-luna',
+    reflection:'claude-haiku-4-5',
+    vision:'gemini-2.5-flash'
+  },
+  day:12,
+  phase:'LIVE',
+  bias:{drift:.10,log:.80,workout:.55},
+  signals:{FORM:68,ATK:55,SPD:61,DEF:52,REC:72,CARE:77,DISC:64},
+  unknown:{},
+  sync:{lifetime:12,inForm:5,sinceGrowth:5,bond:.58},
+  daily:{FOOD:'KNOWN',WORKOUT:'NOT_APPLICABLE',MOOD:'KNOWN',closed:false},
+  forceContinue:false,forceBranch:false,unlockAll:false,nodeCount:4,
+  forge:{at:-1,approved:0,batch:0},
+  bioWritten:false,
+  assets:{
+    'CHARACTER MASTER CEL':'waiting',
+    'CHARACTER MASTER TOY':'waiting',
+    'BIO DOODLE':'waiting',
+    'EXPRESSION SHEET':'waiting'
+  },
+  prompt:{asset:'CHARACTER MASTER CEL',rewritten:false,provenance:false},
+  catalog:{
+    family:{ANGEL:true,BEAST:true,DRAGON:true,REPTILE:true,MACHINE:true,AQUA:true,PLANT:true,DEMON:true},
+    design:{'KEN SUGIMORI':true},
+    appearance:{CEL:true,TOY:true},
+    fashion:{STREET:true,FORMAL:true,SPORT:true,AVANT:true}
+  },
+  memory:[
+    {kind:'EVENTO',day:11,text:'Una conversazione importante è stata registrata.'},
+    {kind:'CIBO',day:10,text:'Ha raccontato una cena leggera.'},
+    {kind:'ALLENAMENTO',day:9,text:'Allenamento registrato.'}
+  ],
+  mood:{tone:8,charge:61,footing:73,last:'giornata tranquilla'},
+  opinions:[{status:'ATTIVA',strength:2,text:'Preferisce quando gli si parla in modo diretto.'}],
+  buildMode:false,tool:'leggi_i_miei_dati',toolOut:'',
+  costs:{calls:7,input:18240,output:2911,estimate:.42},
+  runs:{
+    characterMaster:{ms:62100,ok:true},
+    bio:{ms:3100,ok:true},
+    imagePrompt:{ms:5200,ok:true},
+    image:{ms:18400,ok:true},
+    voice:{ms:2800,ok:true},
+    teach:{ms:1400,ok:true},
+    reflection:{ms:1700,ok:true},
+    vision:{ms:900,ok:true}
+  }
+};
+function randomSecret(n){const chars='ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';let s='';try{const a=new Uint32Array(n);crypto.getRandomValues(a);for(let i=0;i<n;i++)s+=chars[a[i]%chars.length]}catch(e){for(let i=0;i<n;i++)s+=chars[Math.floor(Math.random()*chars.length)]}return s}
+let state=load();
+function load(){try{const x=JSON.parse(localStorage.getItem(KEY)||'null');return x?deepMerge(structuredClone(DEFAULTS),x):structuredClone(DEFAULTS)}catch(e){return structuredClone(DEFAULTS)}}
+function deepMerge(a,b){for(const k in b){if(b[k]&&typeof b[k]==='object'&&!Array.isArray(b[k])&&a[k]&&typeof a[k]==='object')deepMerge(a[k],b[k]);else a[k]=b[k]}return a}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(state))}catch(e){}}
+function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+function rows(items){return `<div class="rows">${items.map(([a,b])=>`<div class="row"><strong>${esc(a)}</strong><div class="value mono">${b}</div></div>`).join('')}</div>`}
+function btn(label,action,cls=''){return `<button class="btn ${cls}" data-action="${action}">${label}</button>`}
+function status(text,on){return `<span class="status ${on?'ok':'off'} mono">${esc(text)}</span>`}
+function section(title,body,note=''){return `<div class="section"><h2 class="mono">${title}</h2>${note?`<p class="note">${note}</p>`:''}${body}</div>`}
+
+const AI_STEPS=[
+  {id:'characterMaster',label:'🧠 CREATIVE RESOLVER',desc:'Routing ID: characterMaster. L’AI produce la CreativeResolution visiva; oggi non parte automaticamente nell’hatch.',critical:true,bg:true,choices:['gpt-5.6-sol','gpt-5.6-terra','gpt-5.6-luna','claude-sonnet-5']},
+  {id:'bio',label:'🧠 WRITTEN BIO',desc:'Riscrittura AI opzionale della Bio deterministica già esistente.',choices:['gpt-5.6-luna','gpt-5.6-terra','gpt-5.6-sol','claude-sonnet-5']},
+  {id:'imagePrompt',label:'🧠 PROMPT REWRITE',desc:'Riscrittura AI opzionale. Il prompt deterministico resta sempre disponibile.',choices:['gpt-5.6-luna','gpt-5.6-terra','gpt-5.6-sol','claude-sonnet-5']},
+  {id:'image',label:'🎨 IMAGE ASSETS',desc:'Genera davvero CEL, Toy, Bio Doodle ed Expression Sheet nel flusso automatico quando il backend è disponibile.',critical:true,choices:['gpt-image-2','gpt-image-1']},
+  {id:'voice',label:'💬 RUNTIME VOICE',desc:'AI conversazionale usata quando il .mon parla. Non crea il Voice DNA.',critical:true,choices:['gpt-5.6-luna','gpt-5.6-terra','gpt-5.6-sol','claude-opus-5','claude-sonnet-5','kimi-k3']},
+  {id:'teach',label:'INSEGNA',desc:'Converte il feedback al resolver in una lezione.',choices:['gpt-5.6-luna','gpt-5.6-terra','gpt-5.6-sol','claude-sonnet-5']},
+  {id:'reflection',label:'RIFLESSIONE',desc:'Lettura settimanale e appunti. Legge storia personale.',choices:['claude-haiku-4-5']},
+  {id:'vision',label:'VISIONE',desc:'Guarda una foto e dichiara cosa c’è.',choices:['gemini-2.5-flash']}
+];
+
+function readiness(){
+ const p=state.providers;
+ return {
+  auth:!!state.token && state.serverToken,
+  voice:p.OPENAI.present||p.ANTHROPIC.present||p.MOONSHOT.present,
+  compile:p.OPENAI.present||p.ANTHROPIC.present,
+  draw:p.OPENAI.present,
+  vision:p.GOOGLE.present,
+  alive:Object.values(p).some(x=>x.present&&x.alive)
+ }
+}
+
+function renderSetup(){
+ const r=readiness();
+ document.getElementById('setupContent').innerHTML=
+  section('SYSTEM STATUS',rows([
+    ['BACKEND',status(r.alive?'RESPONDS':'NO RESPONSE',r.alive)],
+    ['AUTH TOKEN',status(r.auth?'MATCH':'NOT READY',r.auth)],
+    ['VOICE',status(r.voice?'READY':'MISSING',r.voice)],
+    ['PROMPT COMPILER',status(r.compile?'READY':'MISSING',r.compile)],
+    ['IMAGES',status(r.draw?'READY':'MISSING',r.draw)],
+    ['VISION',status(r.vision?'READY':'MISSING',r.vision)]
+  ]),'Configurato e funzionante sono due cose diverse. Il controllo finale deve fare setup + ping, come l’attuale ActivateScreen.')+
+  section('VINZMON TOKEN',`
+    <p class="note">Nel prodotto reale il segreto vive nel browser e deve coincidere con VINZMON_TOKEN su Netlify Production.</p>
+    <div class="secret"><code id="secretText">${esc(state.token)}</code><button class="btn" data-action="copy-token">COPY</button></div>
+    <div class="grid">${btn('GENERATE NEW','new-token')}${btn(state.serverToken?'SERVER MATCHES':'SERVER DOES NOT MATCH','server-match',state.serverToken?'on':'')}</div>
+  `)+
+  section('API KEYS',Object.entries(state.providers).map(([k,v])=>`
+    <div class="provider">
+      <div class="provider-head"><strong>${k}</strong>${status(v.present?(v.alive?'CONNECTED':'CONFIGURED'):'NOT SET',v.present&&v.alive)}</div>
+      <p>${esc(v.what)}</p>
+      <div class="grid">${btn(v.present?'REMOVE':'MARK PRESENT','provider-'+k)}${v.present?btn(v.alive?'PING OK':'RETRY PING','ping-'+k,v.alive?'on':''):''}</div>
+    </div>`).join(''),'Le chiavi vere restano nelle Environment Variables del server. System.lab deve mostrare presenza e test di risposta, non esporre il valore.')+
+  section('MONTHLY CAP',`
+    ${rows([['APP CAP',`$${state.cap.toFixed(0)} / month`]])}
+    <label class="field mono">CAP USD<input id="capInput" type="number" min="1" max="500" value="${state.cap}"></label>
+    <p class="note">Il cap dell’app protegge VINZ.MON. Non sostituisce il tetto impostato direttamente dal provider.</p>
+  `)+
+  section('CHECK',btn('RUN SYSTEM CHECK','run-check','dark'),'Nel prodotto reale chiama insieme /api/setup e /api/ping e mostra quale singolo anello della catena non funziona.');
+ bindActions(document.getElementById('setupContent'));
+ const cap=document.getElementById('capInput');if(cap)cap.onchange=()=>{state.cap=Number(cap.value)||30;save();renderSetup()}
+}
+
+function renderAI(){
+ const cards=AI_STEPS.map(s=>{
+   const active=state.ai[s.id];
+   const run=state.runs[s.id];
+   return `<div class="airow">
+     <div class="aihead"><strong>${s.label}</strong><div>${s.critical?'<small>QUALITY</small>':''}${s.bg?'<small>BACKGROUND</small>':''}</div></div>
+     <p class="aidesc">${esc(s.desc)}</p>
+     <div class="choices">${s.choices.map(c=>`<button class="choice ${c===active?'on':''}" data-model-step="${s.id}" data-model="${c}">${c}</button>`).join('')}</div>
+     <p class="note">${run?`last run ${(run.ms/1000).toFixed(1)}s · ${run.ok?'OK':'FAILED'}`:'no run yet'} · ${s.choices.length===1?'fixed route':'chosen per step'}</p>
+   </div>`;
+ }).join('');
+ document.getElementById('aiContent').innerHTML=
+   `<div class="grid">${btn('QUALITY DEFAULTS','preset-quality','dark')}${btn('ECONOMY · MASTER STAYS SOL','preset-cheap')}</div>`+
+   `<div style="margin-top:12px">${cards}</div>`;
+ const el=document.getElementById('aiContent');
+ el.querySelectorAll('[data-model-step]').forEach(b=>b.onclick=()=>{state.ai[b.dataset.modelStep]=b.dataset.model;save();renderAI()});
+ bindActions(el);
+}
+
+function drawer(id,title,body,open=false){return `<div class="drawer ${open?'open':''}" data-drawer="${id}"><button type="button" data-open-drawer="${id}"><strong>${title}</strong><span>${open?'−':'+'}</span></button><div class="drawer-body">${body}</div></div>`}
+function range(label,key,min,max,step,value){return `<div class="range"><div class="range-head"><strong>${label}</strong><span class="mono">${Number(value).toFixed(step<1?2:0)}</span></div><input data-range="${key}" type="range" min="${min}" max="${max}" step="${step}" value="${value}"></div>`}
+function daily(key,val){return `<div style="padding:9px 0"><strong class="mono" style="font-size:9px">${key==='FOOD'?'CIBO':key==='WORKOUT'?'ALLENAMENTO':'COME STO'}</strong><div class="picker">${['KNOWN','NOT_APPLICABLE','UNKNOWN'].map(x=>`<button class="${x===val?'on':''}" data-daily="${key}" data-status="${x}">${x==='NOT_APPLICABLE'?'N/A':x}</button>`).join('')}</div></div>`}
+function rarityBars(){
+ const r=state.rarity,ks=Object.keys(r),weights=[];
+ ks.forEach((k,i)=>{const hi=i+1<ks.length?r[ks[i+1]]:101;weights.push([k,Math.max(0,hi-r[k])])});
+ const sum=weights.reduce((a,x)=>a+x[1],0)||1;
+ return weights.map(([k,w])=>`<div class="dist-row"><span>${k}</span><span class="bar"><i style="width:${w/sum*100}%"></i></span><span>${Math.round(w/sum*100)}%</span></div>`).join('');
+}
+function renderSimulation(){
+ const s=state;
+ const completeDay=`<div class="section"><h2 class="mono">TIME CONTROL</h2>
+   <p class="note">Questo è l’unico punto di SYSTEM.LAB che fa avanzare la simulazione.</p>
+   ${rows([['CURRENT DAY',String(s.day)],['SYNC TOTAL',String(s.sync.lifetime)],['IN CURRENT FORM',String(s.sync.inForm)],['SINCE GROWTH',String(s.sync.sinceGrowth)],['BOND',Math.round(s.sync.bond*100)+'%']])}
+   <div class="grid">${btn('RUN 1 COMPLETE DAY','live-day','dark')}${btn('RUN 7 COMPLETE DAYS','live-week')}${btn('NEXT MINDLINE EVENT','next-shift')}</div>
+ </div>`;
+ const inputs=`<div class="section"><h2 class="mono">CURRENT DAY INPUTS</h2>
+   <p class="note">Modifica il giorno corrente prima di simularlo. UNKNOWN resta davvero sconosciuto.</p>
+   ${daily('FOOD',s.daily.FOOD)+daily('WORKOUT',s.daily.WORKOUT)+daily('MOOD',s.daily.MOOD)}
+   ${Object.keys(s.signals).map(k=>`<div class="range"><div class="range-head"><strong>${k}</strong><span class="mono">${s.unknown[k]?'UNKNOWN':Math.round(s.signals[k])}</span></div><input data-signal="${k}" type="range" min="0" max="100" value="${s.unknown[k]?0:s.signals[k]}" ${s.unknown[k]?'disabled':''}><button class="btn" data-unknown="${k}">${s.unknown[k]?'SET VALUE':'UNKNOWN'}</button></div>`).join('')}
+ </div>`;
+ const bias=`<div class="section"><h2 class="mono">SIMULATION BIAS</h2>
+   ${range('DRIFT','drift',-1,1,.05,s.bias.drift)}
+   ${range('LOG PROBABILITY','log',0,1,.05,s.bias.log)}
+   ${range('WORKOUT PROBABILITY','workout',0,1,.05,s.bias.workout)}
+ </div>`;
+ const overrides=`<div class="section"><h2 class="mono">TEST OVERRIDES</h2>
+   <p class="note">Questi non fanno passare giorni. Servono solo a forzare condizioni difficili da raggiungere.</p>
+   <div class="grid">${btn('+7 SYNC','sync+7')}${btn('−7 SYNC','sync-7')}${btn('+20% BOND','bond+20')}${btn('−20% BOND','bond-20')}${btn(`${s.forceContinue?'ON':'OFF'} · FORCE MICRO`,'forceContinue',s.forceContinue?'on':'')}${btn(`${s.forceBranch?'ON':'OFF'} · FORCE EVOLUTION`,'forceBranch',s.forceBranch?'on':'')}${btn(`${s.unlockAll?'ON':'OFF'} · UNLOCK RARITY`,'unlockAll',s.unlockAll?'on':'')}${btn('CLONE SCENARIO','node-clone')}</div>
+   ${rows([['MINDLINE NODES',String(s.nodeCount)],['ACTIVE NODE','NODE '+String(s.nodeCount).padStart(2,'0')]])}
+ </div>`;
+ document.getElementById('simulationContent').innerHTML=completeDay+inputs+bias+overrides;
+ bindDynamic(document.getElementById('simulationContent'),renderSimulation);
+}
+
+function renderMemory(){
+ const archive=rows([['MEMORIES',String(state.memory.length)],['RECENT TURNS','6'],['ACTIVE MON','VORZEEK.mon']])+`<div class="json">MEMORY BLOCK\n- selected relevant memories\n- canonical bio\n- current day context\n- recent conversation</div>`+state.memory.map(m=>`<div class="memory"><strong>${m.kind} · G${m.day}</strong><p>${esc(m.text)}</p></div>`).join('');
+ const mood=range('TONE','mood-tone',-100,100,1,state.mood.tone)+range('CHARGE','mood-charge',0,100,1,state.mood.charge)+range('FOOTING','mood-footing',0,100,1,state.mood.footing)+rows([['LAST DRIVER',esc(state.mood.last)],['TEMPERAMENT','STOIC']]);
+ const opinions=state.opinions.map(o=>`<div class="memory"><strong>${o.status} · STRENGTH ${o.strength}</strong><p>${esc(o.text)}</p></div>`).join('')+`<div class="callout"><strong>VOICE NOTEBOOK · v1</strong><p>No pending proposal. In production, monthly voice changes remain proposals until explicitly accepted.</p></div>`;
+ const tools=`<p class="note">${state.buildMode?'Build Mode ON: no character, memory or fallback.':'Character mode ON. Build Mode makes tool failures explicit.'}</p>${btn(state.buildMode?'BACK TO CHARACTER':'TURN ON BUILD MODE','build-mode',state.buildMode?'on':'')}<label class="field mono">TOOL<select id="toolSelect">${['leggi_i_miei_dati','elenca_le_pagine','leggi_una_pagina','scrivi_una_pagina','aggiorna_una_pagina','ricorda_di'].map(x=>`<option ${x===state.tool?'selected':''}>${x}</option>`).join('')}</select></label><label class="field mono">ARGS JSON<textarea id="toolArgs">{}</textarea></label>${btn('RUN','tool-run','dark')}${state.toolOut?`<div class="json">${esc(state.toolOut)}</div>`:''}`;
+ document.getElementById('memoryContent').innerHTML=`<div class="accordion">${drawer('archive','MEMORY ARCHIVE',archive,true)}${drawer('mood','MOOD',mood)}${drawer('opinions','OPINIONS + VOICE NOTEBOOK',opinions)}${drawer('tools','TOOLS + BUILD MODE',tools)}</div>`;
+ bindDynamic(document.getElementById('memoryContent'),renderMemory);
+}
+
+function renderUsage(){
+ const modelRows=AI_STEPS.map(s=>[s.label,`${state.ai[s.id]} · ${((state.runs[s.id]?.ms||0)/1000).toFixed(1)}s`]);
+ document.getElementById('usageContent').innerHTML=
+  section('THIS SESSION',rows([['CALLS',String(state.costs.calls)],['INPUT TOKENS',state.costs.input.toLocaleString('it-IT')],['OUTPUT TOKENS',state.costs.output.toLocaleString('it-IT')],['ESTIMATE',`$${state.costs.estimate.toFixed(2)}`]])+`<div class="grid">${btn('RESET COUNTER','cost-reset')}</div>`,'Session telemetry, not accounting. Prices must be checked against current provider lists.')+
+  section('LAST RUN BY STEP',rows(modelRows),'Actual implementation should read existing AI telemetry, including model, duration, background status and failures.')+
+  section('IMAGE PIPELINE',rows([['CANONICAL ASSETS','4'],['MASTER','CEL · 1024×1536'],['DEPENDENTS','TOY · DOODLE · EXPRESSION SHEET'],['IMAGE MODEL',state.ai.image]]),'Read-only accounting of the Creation pipeline. Asset controls themselves live in CREATION.LAB.')+
+  section('SYSTEM HEALTH',rows([['PROVIDER RESPONSE',status(readiness().alive?'OK':'FAIL',readiness().alive)],['AUTH',status(readiness().auth?'OK':'FAIL',readiness().auth)],['MONTHLY APP CAP',`$${state.cap}`],['LAST ERROR','—']]));
+ bindActions(document.getElementById('usageContent'));
+}
+
+function bindActions(root){
+ if(!root)return;
+ root.querySelectorAll('[data-action]').forEach(b=>b.onclick=()=>action(b.dataset.action));
+}
+function bindDynamic(root,rerender){
+ if(!root)return;
+ root.querySelectorAll('[data-open-drawer]').forEach(b=>b.onclick=()=>{const d=root.querySelector(`[data-drawer="${b.dataset.openDrawer}"]`);if(d){d.classList.toggle('open');b.querySelector('span').textContent=d.classList.contains('open')?'−':'+'}});
+ bindActions(root);
+ root.querySelectorAll('[data-range]').forEach(el=>el.oninput=()=>{const k=el.dataset.range,v=Number(el.value);if(['drift','log','workout'].includes(k))state.bias[k]=v;else if(k==='mood-tone')state.mood.tone=v;else if(k==='mood-charge')state.mood.charge=v;else if(k==='mood-footing')state.mood.footing=v;save();rerender()});
+ root.querySelectorAll('[data-signal]').forEach(el=>el.oninput=()=>{state.signals[el.dataset.signal]=Number(el.value);save();rerender()});
+ root.querySelectorAll('[data-unknown]').forEach(b=>b.onclick=()=>{const k=b.dataset.unknown;state.unknown[k]=!state.unknown[k];save();rerender()});
+ root.querySelectorAll('[data-daily]').forEach(b=>b.onclick=()=>{state.daily[b.dataset.daily]=b.dataset.status;state.daily.closed=false;save();rerender()});
+ root.querySelectorAll('[data-rarity]').forEach(el=>el.onchange=()=>{state.rarity[el.dataset.rarity]=Number(el.value);save()});
+ root.querySelectorAll('[data-asset]').forEach(b=>b.onclick=()=>{const k=b.dataset.asset;state.assets[k]=state.assets[k]==='resolved'?'waiting':'resolved';save();rerender()});
+ root.querySelectorAll('[data-cat-axis]').forEach(b=>b.onclick=()=>{const a=b.dataset.catAxis,k=b.dataset.catId;state.catalog[a][k]=!state.catalog[a][k];save();rerender()});
+ const pa=root.querySelector('#promptAsset');if(pa)pa.onchange=()=>{state.prompt.asset=pa.value;save();rerender()};
+ const ts=root.querySelector('#toolSelect');if(ts)ts.onchange=()=>{state.tool=ts.value;save()};
+ const af=root.querySelector('#assetFiles');if(af)af.onchange=e=>{const names=Object.keys(state.assets);[...e.target.files].slice(0,names.length).forEach((f,i)=>state.assets[names[i]]='resolved');save();rerender()};
+}
+
+function action(a){
+ if(a==='copy-token'){navigator.clipboard?.writeText(state.token).catch(()=>{})}
+ else if(a==='new-token'){state.token='vm_'+randomSecret(28);state.serverToken=false}
+ else if(a==='server-match'){state.serverToken=!state.serverToken}
+ else if(a.startsWith('provider-')){const k=a.slice(9);state.providers[k].present=!state.providers[k].present;if(!state.providers[k].present)state.providers[k].alive=false}
+ else if(a.startsWith('ping-')){const k=a.slice(5);if(state.providers[k].present)state.providers[k].alive=true}
+ else if(a==='run-check'){Object.values(state.providers).forEach(p=>{if(p.present)p.alive=true})}
+ else if(a==='preset-quality'){state.ai={characterMaster:'gpt-5.6-sol',bio:'gpt-5.6-terra',imagePrompt:'gpt-5.6-terra',image:'gpt-image-2',voice:'claude-opus-5',teach:'gpt-5.6-terra',reflection:'claude-haiku-4-5',vision:'gemini-2.5-flash'}}
+ else if(a==='preset-cheap'){state.ai={characterMaster:'gpt-5.6-sol',bio:'gpt-5.6-luna',imagePrompt:'gpt-5.6-luna',image:'gpt-image-1',voice:'gpt-5.6-luna',teach:'gpt-5.6-luna',reflection:'claude-haiku-4-5',vision:'gemini-2.5-flash'}}
+ else if(a==='live-day'){state.day++;state.sync.lifetime++;state.sync.inForm++;state.sync.sinceGrowth++;state.daily.closed=false}
+ else if(a==='live-week'){state.day+=7;state.sync.lifetime+=7;state.sync.inForm+=7;state.sync.sinceGrowth+=7;state.daily.closed=false}
+ else if(a==='raw-day')state.day++;
+ else if(a==='raw-week')state.day+=7;
+ else if(a==='raw-month')state.day+=30;
+ else if(a==='next-shift'){const n=Math.max(1,7-(state.sync.sinceGrowth%7));state.day+=n;state.sync.lifetime+=n;state.sync.inForm+=n;state.sync.sinceGrowth+=n}
+ else if(a==='sync+7'){state.sync.lifetime+=7;state.sync.inForm+=7;state.sync.sinceGrowth+=7}
+ else if(a==='sync-7'){state.sync.lifetime=Math.max(0,state.sync.lifetime-7);state.sync.inForm=Math.max(0,state.sync.inForm-7);state.sync.sinceGrowth=Math.max(0,state.sync.sinceGrowth-7)}
+ else if(a==='bond+20')state.sync.bond=Math.min(1,state.sync.bond+.2)
+ else if(a==='bond-20')state.sync.bond=Math.max(0,state.sync.bond-.2)
+ else if(a==='close-day'){if(!state.daily.closed&&['FOOD','WORKOUT','MOOD'].every(k=>state.daily[k]!=='UNKNOWN')){state.daily.closed=true;state.sync.lifetime++;state.sync.inForm++;state.sync.sinceGrowth++}}
+ else if(['forceContinue','forceBranch','unlockAll'].includes(a))state[a]=!state[a]
+ else if(a==='node-clone')state.nodeCount++;
+ else if(a==='rarity-reset'){state.rarity={COMMON:0,UNCOMMON:34,RARE:52,EPIC:66,LEGENDARY:77,SINGULAR:86,MYTHIC:94};state.raritySample=false}
+ else if(a==='rarity-apply')state.raritySample=false
+ else if(a==='rarity-sample')state.raritySample=true
+ else if(a==='forge-start'){state.forge.at=0;state.forge.approved=0}
+ else if(a==='forge-all'){state.forge.at=4;state.forge.approved=4;Object.keys(state.assets).forEach(k=>state.assets[k]='resolved');state.bioWritten=true}
+ else if(a==='forge-next'){if(state.forge.at<0)state.forge.at=0;else{state.forge.approved=Math.min(4,state.forge.approved+1);state.forge.at=Math.min(4,state.forge.at+1)}}
+ else if(a.startsWith('batch-'))state.forge.batch=a==='batch-clear'?0:Number(a.slice(6))
+ else if(a==='bio-toggle')state.bioWritten=!state.bioWritten
+ else if(a==='prompt-provenance')state.prompt.provenance=!state.prompt.provenance
+ else if(a==='prompt-rewrite')state.prompt.rewritten=!state.prompt.rewritten
+ else if(a==='build-mode')state.buildMode=!state.buildMode
+ else if(a==='tool-run'){const t=document.getElementById('toolSelect')?.value||state.tool;state.tool=t;state.toolOut=`${t}: test completed using current prototype state.`}
+ else if(a==='cost-reset')state.costs={calls:0,input:0,output:0,estimate:0}
+ save();renderCurrent();
+}
+
+function renderCurrent(){
+ const id=document.querySelector('.page.active')?.id||'setup';
+ if(id==='setup')renderSetup();
+ if(id==='ai')renderAI();
+ if(id==='simulation')renderSimulation();
+ if(id==='memory')renderMemory();
+ if(id==='usage')renderUsage();
+}
+function show(id){
+ document.querySelectorAll('.page').forEach(p=>p.classList.toggle('active',p.id===id));
+ document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.page===id));
+ renderCurrent();
+ window.scrollTo({top:0,behavior:'smooth'});
+}
+document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>show(t.dataset.page));
+renderSetup();
+</script>
+</body>
+</html>

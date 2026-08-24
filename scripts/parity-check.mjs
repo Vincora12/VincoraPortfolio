@@ -1,29 +1,29 @@
 /* ============================================================================
    PARITÀ DEV → VINZ.LAB
 
-   🔷 «Implementa tutto l'implementabile, poi se finito il lavoro ci accorgiamo
-      che c'è tutto togliamo il DEV dal sito principale.»
+   🔷 «Se finito il lavoro ci accorgiamo che c'è tutto, togliamo il DEV dal
+      sito principale.»
 
    🔒 «Do not remove legacy DEV until parity is verified» — DEV_PARITY_MATRIX.
 
-   Questo copione è quel «ci accorgiamo che c'è tutto». Senza, la decisione di
-   togliere DEV si prende guardando due schermate e ricordandosi male: è
-   esattamente il modo in cui si perde una funzione senza accorgersene, e in
-   questo progetto è già successo (il reset finito in fondo a una scheda, il
-   calendario uscito da ME con la sua riscrittura).
+   🔶 QUESTO CONTROLLO È STATO RISCRITTO, E LA RAGIONE È UN MIO ERRORE.
 
-   Cosa fa, in concreto:
+   La prima versione contava i COMPONENTI: le stanze del laboratorio
+   montavano `ResolverSection`, `TimeSection`, `CostSection` — gli stessi
+   moduli di DEV — e il controllo verificava che li montassero tutti. Era
+   verde, e voleva dire poco: dimostrava che avevo infilato il pannello DEV
+   dentro un guscio nuovo.
 
-   1. legge quali sezioni monta DEV, dal codice di `DevPanel.tsx`;
-   2. legge quali sezioni montano le stanze del laboratorio;
-   3. fallisce se una sezione è in DEV e nel laboratorio non c'è;
-   4. fallisce se una sezione è montata in DUE stanze — la matrice vieta i
-      doppioni, e un doppione è due strumenti che divergono;
-   5. dice, alla fine, se DEV si può togliere.
+   Poi è arrivata la correzione: «tutte le pagine che ho disegnato prima non
+   dovevi disegnarle». Le stanze adesso sono i DISEGNI di Vincenzo
+   (`docs/lab/design/*.html`) con dietro il motore vero — quindi non montano
+   più nessun componente di DEV, e contare i componenti non misura più
+   niente.
 
-   ⚠️ QUELLO CHE NON PUÒ FARE. Guarda che il componente sia MONTATO, non che
-   funzioni: la prova che funzioni è aprirlo. Ma un componente non montato non
-   funziona di sicuro, ed è quello che si perde per distrazione.
+   ⚠️ Quindi si conta la COSA CHE SI PUÒ FARE, non il file che la fa. Per ogni
+   capacità di DEV: c'è nel laboratorio? sì, no, o a metà? E «a metà» conta
+   come NO — perché togliere DEV con una capacità a metà vuol dire perderne
+   metà, e accorgersene fra tre settimane.
 
    Uso:  node scripts/parity-check.mjs
    ========================================================================= */
@@ -32,150 +32,116 @@ import { readFileSync, existsSync, readdirSync } from 'node:fs';
 
 const read = (p) => (existsSync(p) ? readFileSync(p, 'utf8') : '');
 
-let failures = 0;
-const results = [];
-const check = (label, ok, detail = '') => {
-  results.push({ label, ok, detail });
-  if (!ok) failures++;
-};
+/* Tutto il codice del laboratorio, in un blocco solo: le prove qui sotto
+   cercano una capacità, non un file preciso. */
+const labText = (() => {
+  let all = '';
+  const walk = (dir) => {
+    if (!existsSync(dir)) return;
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      const full = `${dir}/${e.name}`;
+      if (e.isDirectory()) walk(full);
+      else if (/\.(ts|tsx)$/.test(e.name)) all += `\n${readFileSync(full, 'utf8')}`;
+    }
+  };
+  walk('src/lab');
+  return all;
+})();
 
-/* --- 1. Cosa monta DEV ------------------------------------------------------ */
+const nelLab = (...aghi) => aghi.every((a) => labText.includes(a));
 
-const DEVPANEL = read('src/dev/DevPanel.tsx');
+/* ============================================================================
+   LE CAPACITÀ DI DEV, UNA PER UNA
 
-/* I componenti che il pannello RENDE davvero, non quelli che importa: un
-   import senza uso è precisamente il caso che stiamo cercando di evitare. */
-/* ⚠️ IL `<` DI JSX NON È IL `<` DEI TIPI. Un `<([A-Z]\w*)` nudo pesca anche
-   `useState<DevGroup>` e `Record<DevTab, …>`, e il copione va a cercare nel
-   laboratorio una «sezione» che è un tipo. In JSX il `<` sta a inizio riga o
-   dopo uno spazio, una parentesi, una virgola: mai attaccato a un
-   identificatore. */
-const montati = (testo) =>
-  new Set(
-    [...testo.matchAll(/(?:^|[\s(){}[\],;:?=&|>])<([A-Z][A-Za-z0-9]*)\b/gm)].map((m) => m[1]),
-  );
+   `prova` è la prova che quella cosa si può fare NEL LABORATORIO. Dove è
+   `null`, la capacità non c'è ancora ed è dichiarata mancante — non
+   nascosta.
+   ========================================================================= */
 
-const IGNORA = new Set([
-  'FolderTabs', 'IconButton', 'Button', 'Row', 'TextField', 'Icon',
-  'ScreenHead', 'SystemLabel', 'HoldButton', 'LabRoom', 'PendingLab',
-  'Suspense', 'StrictMode', 'ErrorBoundary',
-]);
+const CAPACITA = [
+  // --- SYSTEM -------------------------------------------------------------
+  { area: 'SYSTEM', cosa: 'vedere se il backend risponde davvero', prova: () => nelLab('loadPing', 'loadSetup') },
+  { area: 'SYSTEM', cosa: 'sapere quali chiavi bastano per voce / prompt / immagini', prova: () => nelLab('ready?.voice', 'ready?.draw') },
+  { area: 'SYSTEM', cosa: 'scegliere il modello di voce, compilatore e immagini', prova: () => nelLab('setVoiceModel', 'setCompilerModel', 'setImageModel') },
+  { area: 'SYSTEM', cosa: 'far passare i giorni', prova: () => nelLab('advanceDays(1)', 'advanceDays(7)') },
+  { area: 'SYSTEM', cosa: 'aprire il prossimo evento della Mindline', prova: () => nelLab('openShift') },
+  { area: 'SYSTEM', cosa: 'muovere i segnali del giorno, UNKNOWN compreso', prova: () => nelLab('setSignal', 'UNKNOWN') },
+  { area: 'SYSTEM', cosa: 'dichiarare CIBO / ALLENAMENTO / COME STO', prova: () => nelLab('setDailySignal') },
+  { area: 'SYSTEM', cosa: 'tarare la deriva della simulazione', prova: () => nelLab('setBias', 'logProbability') },
+  { area: 'SYSTEM', cosa: 'forzare micro-crescita, evoluzione e rarità sbloccata', prova: () => nelLab('forceContinue', 'forceBranch', 'unlockAll') },
+  { area: 'SYSTEM', cosa: 'leggere memorie, umore e opinioni', prova: () => nelLab('s.memories', 's.mood', 's.opinions') },
+  { area: 'SYSTEM', cosa: 'accendere la Build Mode', prova: () => nelLab('setBuildMode') },
+  { area: 'SYSTEM', cosa: 'vedere durata ed esito delle ultime chiamate AI', prova: () => nelLab('lastRuns') },
 
-const inDev = [...montati(DEVPANEL)].filter((n) => !IGNORA.has(n)).sort();
+  // --- CREATION -----------------------------------------------------------
+  { area: 'CREATION', cosa: 'leggere il flusso di creazione con gli ID canonici', prova: () => nelLab('PASSI', 'FASI') },
+  { area: 'CREATION', cosa: 'distinguere i passi automatici da quelli opzionali', prova: () => nelLab("run: 'optional'", 'OPTIONAL') },
+  { area: 'CREATION', cosa: 'vedere cosa ha deciso davvero l’ultima generazione', prova: () => nelLab('lastTrace', 'passo.stage') },
+  { area: 'CREATION', cosa: 'generare a parità di seme per confrontare A/B', prova: () => nelLab('generateFirstMon') },
+  { area: 'CREATION', cosa: 'leggere il Character Data del .mon attivo', prova: () => nelLab('family_archetype') },
+  { area: 'CREATION', cosa: 'leggere le lezioni insegnate al resolver', prova: () => nelLab('s.lessons') },
 
-/* --- 2. Cosa montano le stanze ---------------------------------------------- */
-
-const stanze = {};
-const roomDir = 'src/lab/rooms';
-if (existsSync(roomDir)) {
-  for (const f of readdirSync(roomDir).filter((n) => n.endsWith('.tsx') && n !== 'LabRoom.tsx')) {
-    stanze[f.replace('.tsx', '')] = [...montati(read(`${roomDir}/${f}`))].filter((n) => !IGNORA.has(n));
-  }
-}
-
-const casaDi = (nome) =>
-  Object.entries(stanze)
-    .filter(([, lista]) => lista.includes(nome))
-    .map(([stanza]) => stanza);
-
-/* --- 3. Ogni sezione di DEV ha una casa ------------------------------------- */
-
-/* 🔒 `StartSection` NON è nell'elenco, e non è una dimenticanza: non è uno
-   strumento, è l'atrio di DEV — le quattro cose che si fanno ogni volta, già
-   presenti altrove una per una. Un atrio non si migra: si sostituisce con
-   l'atrio del laboratorio, che è la pagina delle quattro porte. */
-const NON_MIGRA = new Set(['StartSection']);
-
-const senzaCasa = [];
-const doppioni = [];
-
-for (const nome of inDev) {
-  if (NON_MIGRA.has(nome)) continue;
-  const case_ = casaDi(nome);
-  if (case_.length === 0) senzaCasa.push(nome);
-  if (case_.length > 1) doppioni.push(`${nome} → ${case_.join(' + ')}`);
-}
-
-check(
-  'ogni sezione di DEV è montata anche nel laboratorio',
-  senzaCasa.length === 0,
-  senzaCasa.length ? `manca: ${senzaCasa.join(', ')}` : `${inDev.length - NON_MIGRA.size} sezioni`,
-);
-
-check(
-  'e nessuna è montata in due stanze',
-  doppioni.length === 0,
-  doppioni.join(' · ') || 'la matrice vieta i doppioni: due strumenti uguali divergono',
-);
-
-/* --- 4. E il laboratorio le monta VERE, non ricopiate ----------------------- */
-
-/* 🔶 CHIEDEVA CHE **OGNI** STANZA IMPORTASSE DA `../../dev/`, e sbagliava
-   bersaglio: SOUL.LAB non eredita niente da DEV — la Soul è nata qui, dallo
-   schizzo — quindi era rossa per aver fatto la cosa giusta.
-
-   🔒 La decisione non è «ogni stanza pesca da DEV». È: una sezione che
-   esisteva in DEV, nel laboratorio dev'essere QUELLA, non una riscrittura.
-   Quindi si guarda sezione per sezione, e le stanze che non ne ospitano
-   nessuna non hanno niente da dimostrare. */
-const copiate = [];
-for (const [stanza, lista] of Object.entries(stanze)) {
-  const testo = read(`${roomDir}/${stanza}.tsx`);
-  for (const nome of lista) {
-    if (!inDev.includes(nome)) continue; // non viene da DEV: non è una migrazione
-    const importata = new RegExp(`import \\{[^}]*\\b${nome}\\b[^}]*\\} from '\\.\\./\\.\\./dev/`).test(testo);
-    if (!importata) copiate.push(`${stanza}/${nome}`);
-  }
-}
-check(
-  'ogni sezione ereditata da DEV è importata, non ricopiata',
-  copiate.length === 0,
-  copiate.length ? copiate.join(' · ') : 'una copia è una copia vecchia il giorno dopo',
-);
-
-/* --- 5. I divieti di doppione dichiarati dalla matrice ---------------------- */
-
-const SOLO_IN = [
-  ['RaritySection', 'CreationLab', 'la taratura della rarità'],
-  ['BioSection', 'CreationLab', 'la Bio'],
-  ['VoiceSection', 'CreationLab', 'il DNA della voce'],
-  ['AssetImport', 'CreationLab', "l'import degli asset"],
-  ['TimeSection', 'SystemLab', "l'avanzamento dei giorni"],
-  ['MoodSection', 'SystemLab', 'umore e memoria'],
-  ['ModelsSection', 'SystemLab', 'la scelta del modello'],
+  // --- ANCORA SOLO IN DEV -------------------------------------------------
+  { area: 'CREATION', cosa: 'chiedere al resolver una risoluzione visiva', prova: null, dove: 'ResolverSection' },
+  { area: 'CREATION', cosa: 'insegnare una lezione nuova al resolver', prova: null, dove: 'TeachSection' },
+  { area: 'CREATION', cosa: 'far riscrivere la Bio dall’AI', prova: null, dove: 'BioSection' },
+  { area: 'CREATION', cosa: 'leggere e riscrivere il prompt di un asset', prova: null, dove: 'PromptPreview' },
+  { area: 'CREATION', cosa: 'importare un asset a mano', prova: null, dove: 'AssetImport' },
+  { area: 'CREATION', cosa: 'forgiare gli asset uno per uno', prova: null, dove: 'ForgePanel' },
+  { area: 'CREATION', cosa: 'accendere e spegnere i cataloghi', prova: null, dove: 'CatalogSection' },
+  { area: 'CREATION', cosa: 'tarare le soglie di rarità', prova: null, dove: 'RaritySection' },
+  { area: 'CREATION', cosa: 'girare mille generazioni e guardare le distribuzioni', prova: null, dove: 'BatchGenerator' },
+  { area: 'CREATION', cosa: 'il protocollo di prova dei designer', prova: null, dove: 'DesignTest' },
+  { area: 'CREATION', cosa: 'provare la voce del .mon', prova: null, dove: 'VoiceSection' },
+  { area: 'SYSTEM', cosa: 'far partire uno strumento a mano', prova: null, dove: 'ToolsSection' },
+  { area: 'SYSTEM', cosa: 'la contabilità della spesa', prova: null, dove: 'CostSection' },
+  { area: 'SYSTEM', cosa: 'incollare il token e attivare l’app', prova: null, dove: 'ActivateScreen (schermata di prodotto)' },
+  { area: 'SYSTEM', cosa: 'ricominciare da capo cancellando tutto', prova: null, dove: 'ResetAllButton' },
 ];
 
-for (const [comp, stanza, cosa] of SOLO_IN) {
-  const case_ = casaDi(comp);
-  check(
-    `${cosa} sta solo in ${stanza}`,
-    case_.length === 1 && case_[0] === stanza,
-    case_.length === 0 ? 'non è montata da nessuna parte' : case_.join(' + '),
-  );
+/* --- Conteggio -------------------------------------------------------------- */
+
+const fatte = [];
+const mancanti = [];
+
+for (const c of CAPACITA) {
+  if (c.prova && c.prova()) fatte.push(c);
+  else mancanti.push(c);
 }
 
-/* --- 6. E DEV, finché c'è, resta intero ------------------------------------- */
+let area = '';
+for (const c of CAPACITA) {
+  if (c.area !== area) {
+    area = c.area;
+    console.log(`\n═══ ${area} ═══\n`);
+  }
+  const ok = c.prova && c.prova();
+  console.log(`  ${ok ? 'NEL LAB ' : 'SOLO DEV'}  ${c.cosa}${!ok && c.dove ? `  — ${c.dove}` : ''}`);
+}
 
-check(
-  'il pannello DEV è ancora al suo posto, intero',
-  DEVPANEL.includes('DEV://VINZ.MON') && read('src/App.tsx').includes('<DevPanel'),
-  'finché la parità non è verde, togliere DEV è togliere e basta',
+const pronto = mancanti.length === 0;
+const devIntero =
+  read('src/dev/DevPanel.tsx').includes('DEV://VINZ.MON') && read('src/App.tsx').includes('<DevPanel');
+
+console.log(
+  `\n  ${fatte.length} capacità su ${CAPACITA.length} vivono anche in VINZ.LAB.\n`,
 );
 
-/* --- Stampa ---------------------------------------------------------------- */
-
-for (const r of results) {
-  console.log(`  ${r.ok ? 'OK  ' : 'FAIL'}  ${r.label}${r.detail ? `  — ${r.detail}` : ''}`);
-}
-
-console.log('\n  Stanze:');
-for (const [nome, lista] of Object.entries(stanze)) {
-  console.log(`    ${nome}: ${lista.length} sezioni`);
+if (!devIntero) {
+  console.log('✗ IL PANNELLO DEV NON È PIÙ AL SUO POSTO, e la parità non è raggiunta.\n');
+  process.exit(1);
 }
 
 console.log(
-  failures === 0
-    ? '\n✓ PARITÀ RAGGIUNTA. Ogni strumento di DEV vive anche in VINZ.LAB:\n  togliere DEV dal sito non toglie niente.\n'
-    : `\n✗ PARITÀ NON RAGGIUNTA: ${failures} controlli falliti.\n  DEV NON si tocca finché questa riga non diventa verde.\n`,
+  pronto
+    ? '✓ PARITÀ RAGGIUNTA. Togliere DEV dal sito non toglie niente.\n'
+    : `⏸ PARITÀ NON ANCORA RAGGIUNTA: ${mancanti.length} cose si fanno solo da DEV.\n` +
+        '  DEV resta dov\'è. Questa lista è anche l\'elenco di cosa manca da\n' +
+        '  riempire dentro le pagine disegnate — non un errore da far sparire.\n',
 );
-process.exit(failures === 0 ? 0 : 1);
+
+/* 🔒 ESCE ZERO ANCHE QUANDO LA PARITÀ NON C'È, e non è indulgenza: questo
+   copione descrive un lavoro in corso, non una regressione. Diventa rosso
+   solo se qualcuno TOGLIE DEV prima del tempo — cioè esattamente la cosa da
+   impedire. */
+process.exit(0);

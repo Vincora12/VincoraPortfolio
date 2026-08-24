@@ -1,0 +1,33 @@
+/* ============================================================================
+   IL PAVIMENTO DEL LABORATORIO
+
+   🔴 IL BUG CHE QUESTO FILE TOGLIE: nel laboratorio i pulsanti non attivi
+   erano riquadri VUOTI. Il testo c'era — `EXPRESSION`, `BODY`, `COLOR` — ma
+   era bianco su bianco.
+
+   Non lo scriveva nessuna regola. `<button>` NON eredita il colore: il
+   browser gli dà `ButtonText`, un colore di sistema. E `ButtonText` in tema
+   scuro È BIANCO. Le pagine di Vincenzo non se ne erano mai accorte perché
+   le ha guardate in tema chiaro; il giorno che le apri col telefono in scuro
+   metà dei comandi spariscono.
+
+   🔒 Il disegno è dichiaratamente CHIARO — `background:#fff`, `color:#111` —
+   quindi la cosa giusta non è indovinare un tema scuro: è dire al browser
+   che questa pagina è chiara, e far ereditare il colore ai comandi come a
+   tutto il resto. Due righe, e il disegno resta quello che è.
+
+   ⚠️ NON È IL FOGLIO DELL'APP. `tokens.css` e `base.css` qui dentro non
+   entrano: il laboratorio ha font, colori e misure suoi. Vedi `appStyles.ts`.
+   ========================================================================= */
+
+:root {
+  color-scheme: light;
+}
+
+button,
+input,
+select,
+textarea {
+  color: inherit;
+  font-family: inherit;
+}

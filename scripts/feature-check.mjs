@@ -3565,8 +3565,10 @@ check(
 );
 check(
   'VINZ.LAB',
-  'le porte sono quattro: SOUL aveva la stanza e non la porta',
-  count('src/lab/LabApp.tsx', /^ *\{ id: '(creation|soul|design|system)'/gm) === 4,
+  'le porte sono quattro, e sono quelle disegnate',
+  count('src/lab/LabApp.tsx', /nome: '/g) === 4 &&
+    has('src/lab/LabApp.tsx', '🧬 CREATION.LAB') &&
+    has('src/lab/LabApp.tsx', '👻 SOUL.LAB'),
   'una stanza senza porta è una stanza che nessuno apre',
 );
 check(
@@ -3582,10 +3584,36 @@ check(
 
 check(
   'VINZ.LAB',
-  'le stanze montano i componenti VERI di DEV, non delle copie',
-  has('src/lab/rooms/CreationLab.tsx', "from '../../dev/") &&
-    has('src/lab/rooms/SystemLab.tsx', "from '../../dev/"),
-  '«c\'è tutto» si può decidere solo se le due cose sono la stessa cosa',
+  'le stanze SONO le pagine disegnate, non un guscio inventato',
+  /* 🔶 QUESTO AGO DICEVA IL CONTRARIO. Chiedeva che le stanze importassero i
+     componenti di `src/dev/`: era giusto quando il laboratorio era il
+     pannello DEV dentro un guscio nuovo, ed è diventato sbagliato appena
+     Vincenzo ha detto che quel guscio non doveva esistere.
+
+     🔷 «Tutte le pagine che ho disegnato prima non dovevi disegnarle, dovevi
+        lasciarle così com'erano e integrare la parte che c'era dietro.»
+
+     La decisione adesso è: il CSS delle stanze è COPIATO dai suoi file, e i
+     suoi file stanno nel repo. Se un giorno qualcuno riscrive quel CSS a
+     mano, questo ago non se ne accorge — ma se sparisce la fonte, sì. */
+  existsSync('docs/lab/design/00-atrio.html') &&
+    existsSync('docs/lab/design/creation-lab.html') &&
+    existsSync('docs/lab/design/system-lab.html') &&
+    has('src/lab/skin/atrio.css', 'NON RISCRIVERE QUESTO FILE A MANO'),
+  'il disegno era già fatto: la fonte visiva sta nel repo, non nella mia testa',
+);
+check(
+  'VINZ.LAB',
+  'e il laboratorio non carica il foglio di stile dell\'app',
+  has('src/main.tsx', "if (entry.kind !== 'lab') await import('./appStyles')"),
+  'il disegno ha font e colori suoi: caricarci sopra i token del prodotto darebbe una terza cosa',
+);
+check(
+  'VINZ.LAB',
+  'i comandi non spariscono in tema scuro',
+  has('src/lab/skin/_base.css', 'color-scheme: light') &&
+    has('src/lab/skin/_base.css', 'color: inherit'),
+  '`<button>` non eredita il colore: prende `ButtonText`, che in scuro è bianco su bianco',
 );
 check(
   'VINZ.LAB',

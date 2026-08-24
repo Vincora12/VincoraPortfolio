@@ -1,0 +1,712 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#ffffff">
+<title>DESIGN.LAB</title>
+<link rel="apple-touch-icon" href="../assets/apple-touch-icon.png">
+<style>
+:root{
+  --lab-ink:#111;
+  --lab-line:#d7d7dc;
+  --lab-muted:#777;
+  --lab-soft:#f4f4f6;
+  --app-accent:#d4a532;
+  --app-black:#000;
+  --app-ink:#111318;
+  --app-paper:#fafbfc;
+  --app-line:#d9dce2;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:#fff;color:#111;font-family:Arial,Helvetica,sans-serif}
+body{padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+button,textarea{font:inherit}
+.app{max-width:500px;margin:auto;min-height:100vh}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace}
+.top{position:sticky;top:0;z-index:40;background:#fff;border-bottom:1px solid var(--lab-line)}
+.navrow{display:flex;align-items:center;gap:12px;padding:13px 14px 8px}
+.back{text-decoration:none;color:#111;font-size:24px;line-height:1}
+.labtitle{font-weight:900;font-style:italic;font-size:22px;letter-spacing:-.04em;flex:1}
+.status{font-size:8px;border:1px solid #111;padding:4px 6px}
+.tabs{display:flex;gap:2px;overflow-x:auto;padding:0 12px 8px;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tab{border:0;background:#fff;padding:8px 9px;font-size:10px;color:#777;border-bottom:2px solid transparent;white-space:nowrap}
+.tab.active{color:#111;font-weight:800;border-bottom-color:#111}
+main{padding:17px 14px 42px}
+.page{display:none}.page.active{display:block}
+.kicker{font-size:9px;letter-spacing:.1em;margin-bottom:7px}
+h1{font-size:38px;line-height:.92;font-style:italic;font-weight:900;letter-spacing:-.05em;margin:0 0 10px}
+.lead{font-size:13px;line-height:1.45;color:#444;margin:0 0 15px}
+.audit{border:1px solid #111;padding:11px;margin-bottom:13px;font-size:10px;line-height:1.45}
+.audit b{display:block;margin-bottom:5px}
+.auditgrid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px}
+.auditcell{border:1px solid var(--lab-line);padding:7px}
+.auditcell strong{display:block;font-size:9px}.auditcell span{font-size:9px;color:#666}
+.groupLabel{font-size:8px;color:#777;margin:12px 0 5px}
+.screenbar{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding-bottom:5px}
+.screenbar::-webkit-scrollbar{display:none}
+.screenbtn{border:1px solid var(--lab-line);background:#fff;padding:7px 8px;font-size:9px;font-weight:800;white-space:nowrap}
+.screenbtn.active{background:#111;color:#fff;border-color:#111}
+.previewhead{display:flex;justify-content:space-between;gap:10px;align-items:end;margin:10px 0 8px}
+.previewhead b{font-size:12px}.previewhead small{font-size:9px;color:#777;display:block}
+.phonewrap{display:flex;justify-content:center;background:#efeff2;border:1px solid var(--lab-line);padding:13px 7px}
+.phone{
+  position:relative;width:312px;height:640px;background:#fff;border:2px solid #111;overflow:hidden;
+  box-shadow:4px 4px 0 #111;
+}
+.previewScreen{position:absolute;inset:0;display:none;background:#fff}
+.previewScreen.active{display:flex;flex-direction:column}
+.phone.proposed .current-nav .appnavitem[aria-current="page"]{border-color:var(--app-accent);box-shadow:0 0 0 1px var(--app-accent) inset}
+.phone.proposed .current-nav{padding-inline:8px}
+.phone.proposed .me-card{box-shadow:3px 3px 0 #111;border-color:#111}
+.phone.proposed .mon-switch button[aria-selected="true"]{background:#111;color:#fff}
+.phone.proposed .chat-composer{outline:2px solid var(--app-accent)}
+.hotspot{position:relative;cursor:pointer}
+.hotspot.selected:after{content:"";position:absolute;inset:2px;border:2px dashed #ff4d00;pointer-events:none;z-index:50}
+
+/* shared app shell reconstructed from current source */
+.statusbar{
+  flex:0 0 auto;min-height:28px;display:flex;align-items:center;gap:8px;padding:4px 10px 3px;
+  border-bottom:1px solid #d4d4da;background:#fff;color:#111;font:7px ui-monospace,monospace;letter-spacing:.12em;text-transform:uppercase;
+}
+.statusbar.ink{background:#0b0b0c;color:#f4f4f6;border-color:#34343a}
+.statusbar .sync{height:4px;flex:1;background:#d4d4da;overflow:hidden}
+.statusbar.ink .sync{background:#34343a}
+.statusbar .sync i{display:block;width:44%;height:100%;background:var(--app-accent)}
+.statusbar .dev{border:0;background:transparent;color:inherit;font:inherit;padding:0}
+.current-nav{
+  position:absolute;left:0;right:0;bottom:0;z-index:25;height:56px;display:flex;align-items:flex-start;justify-content:center;gap:5px;
+  padding:6px 14px 4px;background:#000;
+}
+.appnavitem{
+  flex:0 0 48px;height:42px;border:1px solid #29292e;border-radius:22px;background:#0b0b0c;color:#f4f4f6;
+  opacity:.55;font:7px ui-monospace,monospace;letter-spacing:.1em;display:flex;align-items:center;justify-content:center;gap:8px;padding:0 11px;
+}
+.appnavitem[aria-current="page"]{flex-basis:146px;opacity:1;color:var(--app-accent);border-color:#3a3a40;background:#111113;font-weight:700}
+.appnavitem span{display:none;color:#f7f7f9}.appnavitem[aria-current="page"] span{display:block}
+.appnavicon{font-size:12px}
+
+/* CHAT: actual current app is assistant-ui clone on black */
+.chat-screen{background:#000;color:#ececec;padding-bottom:56px}
+.chat-topfade{position:absolute;z-index:2;left:0;right:0;top:0;height:100px;background:linear-gradient(#000 0,#000 68%,rgba(0,0,0,.85) 82%,transparent 100%)}
+.chat-toolbar{position:relative;z-index:5;display:flex;justify-content:space-between;align-items:center;padding:10px 12px}
+.chat-menu{width:34px;height:34px;border-radius:50%;border:0;background:#212121;color:#ececec;font-size:16px}
+.model-pill{border:0;border-radius:18px;background:#212121;color:#ececec;padding:8px 10px;font-size:9px}
+.chat-scroll{position:relative;z-index:1;flex:1;padding:58px 18px 88px;overflow:hidden;display:flex;flex-direction:column;gap:16px}
+.chat-line{font-size:11px;line-height:1.5;max-width:92%}
+.chat-line.user{align-self:flex-end;background:#2f2f2f;border-radius:17px;padding:9px 12px;max-width:78%}
+.chat-line.ai{align-self:flex-start;color:#ececec}
+.chat-meta{font-size:8px;color:#8e8e8e;margin-top:4px}
+.chat-composer{
+  position:absolute;z-index:8;left:12px;right:12px;bottom:68px;min-height:50px;border-radius:25px;background:#212121;color:#ececec;
+  display:flex;align-items:flex-end;gap:8px;padding:8px 9px 8px 11px;
+}
+.chat-plus,.chat-send{flex:0 0 32px;width:32px;height:32px;border-radius:50%;border:1px solid #3b3b3b;background:#2f2f2f;color:#ececec}
+.chat-send{background:var(--app-accent);color:#111;border:0}
+.chat-text{flex:1;font-size:10px;color:#aaa;padding:8px 0}
+
+/* MON shell */
+.mon-screen{background:#fff;padding-bottom:56px}
+.mon-switch{display:grid;grid-template-columns:repeat(3,1fr);border-bottom:2px solid #111;background:#fff}
+.mon-switch.ink{background:#0b0b0c;border-color:#f4f4f6}
+.mon-switch button{height:38px;border:0;border-right:1px solid #d4d4da;background:transparent;color:#555;font:7px ui-monospace,monospace;letter-spacing:.08em}
+.mon-switch.ink button{color:#a8a8b2;border-color:#34343a}
+.mon-switch button:last-child{border-right:0}
+.mon-switch button[aria-selected="true"]{color:#111;font-weight:700;background:#f4f4f6}
+.mon-switch.ink button[aria-selected="true"]{background:#f4f4f6;color:#111}
+.mon-scroll{flex:1;overflow:hidden;padding:12px 14px 70px}
+.mon-id{text-align:center;position:relative}
+.mon-name{font-size:29px;line-height:.95;font-weight:900;font-style:italic;letter-spacing:-.04em;text-transform:uppercase}
+.mon-form{font:7px ui-monospace,monospace;letter-spacing:.12em;color:#666;margin-top:4px}
+.mon-stage{height:330px;display:flex;align-items:center;justify-content:center;position:relative}
+.mon-art{font-size:156px;line-height:1;filter:grayscale(.08)}
+.sticker{position:absolute;width:64px;height:64px;border-radius:50%;background:#fff;border:2px solid #111;display:grid;place-items:center;font-size:28px;box-shadow:2px 2px 0 #111}
+.s1{left:2px;bottom:56px;transform:rotate(10deg)}.s2{right:0;bottom:78px;transform:rotate(-8deg)}.s3{right:52px;bottom:26px;transform:rotate(13deg)}
+.dossierHint{border-top:1px solid #ddd;padding-top:12px;font:7px ui-monospace,monospace;color:#777;letter-spacing:.1em}
+
+/* MINDLINE */
+.ink-screen{background:#0b0b0c;color:#f4f4f6;padding-bottom:56px}
+.screenhead{padding:10px 12px;border-bottom:2px solid #f4f4f6;background:#0b0b0c}
+.screenhead h2{margin:0;font-size:19px;font-weight:900;font-style:italic;letter-spacing:-.03em}
+.screenhead p{margin:3px 0 0;font:7px ui-monospace,monospace;color:#a8a8b2;letter-spacing:.1em}
+.maparea{flex:1;position:relative;overflow:hidden;background-image:linear-gradient(#27272a 1px,transparent 1px),linear-gradient(90deg,#27272a 1px,transparent 1px);background-size:16px 16px}
+.edge{position:absolute;background:#f4f4f6;height:2px;transform-origin:left center}
+.edge.e1{left:54px;top:145px;width:126px;transform:rotate(29deg)}.edge.e2{left:174px;top:207px;width:100px;transform:rotate(62deg);background:var(--app-accent)}
+.mapnode{position:absolute;width:26px;height:26px;border-radius:50%;border:2px solid #f4f4f6;background:#0b0b0c}
+.mapnode::after{content:attr(data-label);position:absolute;left:32px;top:2px;white-space:nowrap;font:7px ui-monospace,monospace;color:#f4f4f6}
+.n1{left:40px;top:130px}.n2{left:165px;top:190px}.n3{left:238px;top:285px;border-color:var(--app-accent);box-shadow:0 0 0 6px rgba(212,165,50,.15)}
+.map-hint{padding:8px 10px;border-top:1px solid #34343a;text-align:center;font:7px ui-monospace,monospace;color:#7d7d87}
+
+/* DEX */
+.dexarea{flex:1;overflow:hidden;padding:10px}
+.dexgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.dexcard{border:2px solid #f4f4f6;background:#111113;color:#f4f4f6;padding:6px;text-align:left}
+.dexart{aspect-ratio:1/1;background:#fff;color:#111;display:grid;place-items:center;font-size:58px}
+.dexname{font:8px ui-monospace,monospace;letter-spacing:.08em;margin-top:6px}
+.dexday{font:6px ui-monospace,monospace;color:#a8a8b2;margin-top:2px}
+
+/* ME current optical/Y2K skin */
+.me-screen{background:#fafbfc;color:#111318;padding-bottom:56px}
+.me-header{height:66px;display:flex;align-items:center;justify-content:space-between;padding:10px 16px 8px;border-bottom:1px solid var(--app-line);background:#fff}
+.me-date{font:7px ui-monospace,monospace;letter-spacing:.1em;text-transform:uppercase}
+.me-plus{width:42px;height:42px;border:0;border-radius:50%;background:#111318;color:#fff;font-size:20px}
+.me-tabs{display:grid;grid-template-columns:repeat(3,1fr);background:#fff;border-bottom:1px solid var(--app-line)}
+.me-tabs button{height:40px;border:0;background:transparent;color:#858993;font:7px ui-monospace,monospace;letter-spacing:.1em;position:relative}
+.me-tabs button[aria-current="page"]{color:#111318;font-weight:700}
+.me-tabs button[aria-current="page"]::after{content:"";position:absolute;left:8px;right:8px;bottom:-1px;height:3px;background:var(--app-accent)}
+.me-ai-strip{height:28px;display:flex;align-items:center;justify-content:space-between;padding:0 12px;border-bottom:1px solid var(--app-line);font:6px ui-monospace,monospace;color:#777}
+.me-scroll{flex:1;padding:8px 10px 70px;overflow:hidden}
+.me-card{border:1px solid var(--app-line);border-radius:7px;background:#fff;margin-bottom:8px;box-shadow:0 1px 3px rgba(20,28,42,.04)}
+.progress-card{padding:10px 12px}
+.progress-card header{display:flex;justify-content:space-between;font:7px ui-monospace,monospace}
+.progress-card header strong{color:var(--app-accent)}
+.chart{height:62px;position:relative;margin-top:4px}
+.chart:before{content:"";position:absolute;left:0;right:0;bottom:8px;height:1px;background:#9ea3ad}
+.chart svg{position:absolute;inset:0;width:100%;height:100%}
+.nutrition{overflow:hidden}
+.calories{min-height:100px;display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--app-line)}
+.calcopy small{display:block;font:7px ui-monospace,monospace;color:#777;margin-bottom:4px}
+.calcopy strong{font-size:24px;font-style:italic;font-weight:900}
+.calcopy span{font:7px ui-monospace,monospace;margin-left:4px}
+.ring{width:68px;height:68px;border-radius:50%;border:6px solid #e9edf3;border-top-color:var(--app-accent);display:grid;place-items:center;font-weight:900}
+.macros{display:grid;grid-template-columns:repeat(3,1fr);padding:10px 12px;gap:8px}
+.macro{border-left:1px solid var(--app-line);padding-left:8px}.macro:first-child{border-left:0;padding-left:0}
+.macro span{font:7px ui-monospace,monospace;color:var(--app-accent)}.macro strong{display:block;font-size:13px;margin-top:4px}
+.segs{display:flex;gap:2px;margin-top:7px}.segs i{height:6px;flex:1;border:1px solid #aeb4bf}.segs i.on{background:var(--app-accent);border-color:var(--app-accent)}
+.todayrow{padding:10px 12px}
+.todayrow h3{margin:0 0 8px;font:7px ui-monospace,monospace;letter-spacing:.1em}
+.todaygrid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.todaybox{border:1px solid var(--app-line);padding:8px 6px;min-height:58px}
+.todaybox strong{font-size:13px;display:block}.todaybox span{font:6px ui-monospace,monospace;color:#777}
+.plan-card{padding:12px}
+.plan-card h3{margin:0;font:7px ui-monospace,monospace;letter-spacing:.1em}
+.plan-card h2{margin:10px 0 6px;font-size:17px}
+.plan-card p{margin:0;font-size:10px;color:#656a73;line-height:1.45}
+.me-calendar{height:260px;border:1px solid var(--app-line);background:#fff;margin-bottom:8px;padding:8px}
+.calhead{display:flex;justify-content:space-between;font:7px ui-monospace,monospace;margin-bottom:8px}
+.calgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
+.cday{aspect-ratio:1;border:1px solid #e2e4e8;display:grid;place-items:center;font:6px ui-monospace,monospace}
+.cday.on{background:#111318;color:#fff}.cday.event{border-color:var(--app-accent);color:var(--app-accent)}
+
+/* INCUBATION exact structural idea */
+.inc-screen{background:#0b0b0c;color:#f4f4f6}
+.inc-bar{display:flex;align-items:center;gap:12px;padding:10px 12px;border-bottom:2px solid #f4f4f6}
+.egg{width:70px;height:70px;border:2px solid #f4f4f6;border-radius:52% 48% 48% 52% / 60% 60% 40% 40%;display:grid;place-items:center;font-size:28px}
+.inc-count small{display:block;font:7px ui-monospace,monospace;color:#a8a8b2}.inc-count strong{font-size:28px;font-style:italic}.inc-count span{font:7px ui-monospace,monospace;color:#7d7d87}
+.inc-chat{flex:1;padding:12px;display:flex;flex-direction:column;gap:10px;overflow:hidden}
+.inc-bubble{max-width:80%;padding:8px 9px;background:#141416;color:#f4f4f6;font-size:10px;line-height:1.4}
+.inc-bubble.user{align-self:flex-end;background:#f4f4f6;color:#111}
+.egg-sound{font:9px ui-monospace,monospace;color:var(--app-accent);letter-spacing:.18em}
+.inc-strip{padding:8px 12px;border-top:1px solid #34343a;font:7px ui-monospace,monospace;color:#a8a8b2}
+.inc-composer{display:flex;align-items:center;gap:7px;padding:8px 10px;border-top:2px solid #f4f4f6}
+.inc-field{flex:1;min-height:42px;border:1px solid #34343a;background:#141416;padding:11px;color:#8b8b93;font-size:9px}
+.inc-plus{width:38px;height:38px;border:2px solid #f4f4f6;border-radius:50%;background:#f4f4f6;color:#111}
+
+/* ENCOUNTER */
+.enc-screen{background:#0b0b0c;color:#f4f4f6}
+.enc-stage{position:absolute;inset:28px 0 0;display:flex;align-items:center;justify-content:center;padding-bottom:110px}
+.enc-art{font-size:170px;filter:grayscale(.05)}
+.enc-overlay{position:absolute;left:0;right:0;bottom:0;padding:82px 12px 16px;background:linear-gradient(transparent,#0b0b0c 45%);text-align:center}
+.enc-overlay .k{font:7px ui-monospace,monospace;letter-spacing:.1em}
+.enc-name{font-size:34px;font-weight:900;font-style:italic;letter-spacing:-.04em;margin:4px 0}
+.tags{display:flex;justify-content:center;gap:4px;flex-wrap:wrap}
+.tag{border:1px solid #f4f4f6;padding:4px 6px;font:6px ui-monospace,monospace}
+.tag.char{background:var(--app-accent);color:#111;border-color:var(--app-accent)}
+
+/* lab selection/chat */
+.selection{border:1px solid #111;margin-top:12px;padding:10px}
+.selectiontop{display:flex;justify-content:space-between;gap:10px}
+.selection b{font-size:12px}.selection small{font-size:8px;color:#777}
+.path{font-size:9px;color:#666;margin-top:5px;line-height:1.45}
+.scopechips{display:flex;gap:5px;flex-wrap:wrap;margin-top:8px}
+.scopechip{border:1px solid var(--lab-line);padding:4px 5px;font-size:8px}
+.ai{margin-top:16px;border-top:2px solid #111;padding-top:13px}
+.aihead{display:flex;gap:9px;align-items:center;margin-bottom:10px}
+.aibadge{width:34px;height:34px;border:2px solid #111;display:grid;place-items:center;font-size:17px}
+.aihead b{font-size:14px}.aihead small{display:block;color:#777;font-size:9px;margin-top:2px}
+.messages{display:grid;gap:8px}
+.msg{border:1px solid var(--lab-line);padding:9px;font-size:11px;line-height:1.45}
+.msg.me{margin-left:40px;background:#111;color:#fff;border-color:#111}
+.msg.aiMsg{margin-right:18px}
+.chatinput{display:grid;grid-template-columns:1fr auto;gap:6px;margin-top:9px}
+.chatinput textarea{min-height:70px;border:1px solid #111;padding:10px;font-size:13px;resize:none}
+.send{width:52px;border:1px solid #111;background:#111;color:#fff;font-size:18px}
+.quick{display:flex;gap:5px;overflow-x:auto;margin-top:7px;scrollbar-width:none}.quick::-webkit-scrollbar{display:none}
+.quick button{white-space:nowrap;border:1px solid var(--lab-line);background:#fff;padding:6px 7px;font-size:8px}
+.proposal{display:none;border:2px solid #111;margin-top:11px}.proposal.show{display:block}
+.proposalhead{padding:10px;border-bottom:1px solid #111;display:flex;justify-content:space-between;gap:10px}
+.proposalhead b{font-size:12px}.proposalhead span{font-size:8px}
+.diff{padding:10px;font-size:10px;line-height:1.55}.diff .minus{color:#777;text-decoration:line-through}.diff .plus{font-weight:800}
+.actions{display:grid;grid-template-columns:1fr 1fr 1fr;border-top:1px solid #111}
+.actions button{border:0;border-right:1px solid #111;background:#fff;padding:10px 5px;font-size:8px;font-weight:900}
+.actions button:last-child{border-right:0;background:#111;color:#fff}
+.ab{display:none;margin-top:12px;grid-template-columns:1fr 1fr;gap:7px}.ab.show{display:grid}
+.mini{border:1px solid #111;padding:7px}.mini b{font-size:9px}
+.miniframe{height:180px;border:1px solid var(--lab-line);margin-top:6px;background:#000;position:relative;overflow:hidden}
+.mininav{position:absolute;left:0;right:0;bottom:0;height:38px;background:#000;display:flex;justify-content:center;gap:3px;padding:4px 6px}
+.minipill{height:28px;width:34px;border:1px solid #333;border-radius:14px;background:#111;color:#fff;font-size:5px;display:grid;place-items:center}
+.minipill.active{width:88px;color:var(--app-accent)}
+.tokenlist,.componentlist,.historylist{border-top:1px solid #111}
+.row{border-bottom:1px solid var(--lab-line);padding:12px 0;display:grid;grid-template-columns:1fr auto;gap:9px}
+.row b{font-size:12px}.row small{display:block;color:#777;font-size:9px;line-height:1.4;margin-top:3px}
+.value{font:9px ui-monospace,monospace;border:1px solid var(--lab-line);padding:5px 6px;align-self:start}
+.historycard{border:1px solid var(--lab-line);padding:11px;margin-top:8px}
+.historycard b{font-size:12px}.historycard p{font-size:10px;color:#666;line-height:1.45;margin:6px 0}
+.historyactions{display:flex;gap:5px}.historyactions button{border:1px solid var(--lab-line);background:#fff;padding:6px 7px;font-size:8px}
+.footer{border-top:1px solid var(--lab-line);padding-top:13px;margin-top:24px;font-size:8px;color:#777;line-height:1.5}
+</style>
+</head>
+<body>
+<div class="app">
+<header class="top">
+  <div class="navrow">
+    <a class="back" href="../">←</a>
+    <div class="labtitle">🖥 DESIGN.LAB</div>
+    <span class="status mono">AUDITED UI</span>
+  </div>
+  <nav class="tabs">
+    <button class="tab active" data-page="ui">👁 UI</button>
+    <button class="tab" data-page="tokens">🎛 TOKENS</button>
+    <button class="tab" data-page="components">🧱 COMPONENTS</button>
+    <button class="tab" data-page="history">🕘 HISTORY</button>
+  </nav>
+</header>
+
+<main>
+<section class="page active" id="ui">
+  <div style="border:3px solid #111;padding:12px;margin-bottom:14px;background:#fff">
+    <div class="mono" style="font-size:9px;font-weight:800">🚧 v2.5 · INTEGRATED MODE</div>
+    <p style="font-size:12px;line-height:1.45;margin:7px 0 0"><strong>Il target finale non è questo mock.</strong> VINZ.LAB deve vivere dentro VINZ.MON su <code>/#/lab</code> e DESIGN.LAB deve montare i componenti React reali. Vedi <code>VINZ_LAB_FULL_INTEGRATION.md</code>.</p>
+  </div>
+  <div style="border:3px solid #111;padding:12px;margin-bottom:14px;background:#fff">
+    <div class="mono" style="font-size:9px;font-weight:800">🚧 v2.4 · REAL COMPONENT MODE</div>
+    <p style="font-size:12px;line-height:1.45;margin:7px 0 0"><strong>La schermata sotto non è più la specifica visiva da copiare.</strong> È solo un riferimento dell’interazione del Lab. L’implementazione vera deve montare i componenti React reali di VINZ.MON dentro iframe isolati. Vedi <code>REAL_COMPONENT_INTEGRATION.md</code> e <code>implementation/src/lab/design/</code>.</p>
+  </div>
+  <div class="kicker mono">CURRENT VINZ.MON UI · REPO AUDIT</div>
+  <h1>THE REAL<br>APP FIRST.</h1>
+  <p class="lead">Questa preview ora segue la struttura e il linguaggio visivo che esistono davvero nell’app attuale. Non la vecchia ipotesi del Lab.</p>
+
+  <div class="audit">
+    <b>✅ CORREZIONI FATTE DOPO L’AUDIT</b>
+    <div class="auditgrid">
+      <div class="auditcell"><strong>CHAT</strong><span>è il clone ChatGPT scuro, non una chat bianca VINZ.</span></div>
+      <div class="auditcell"><strong>NAV</strong><span>3 pill nere: CHAT / VINZ.MON / ME. L’attiva si allarga.</span></div>
+      <div class="auditcell"><strong>MON</strong><span>MON / MIND.MAP / MIND.DEX sono viste interne della stessa tab.</span></div>
+      <div class="auditcell"><strong>ME</strong><span>OGGI / DIETA / SPORT, con skin chiara ottica/Y2K.</span></div>
+      <div class="auditcell"><strong>MIND.*</strong><span>vive sul campo inchiostro nero, tecnico, griglia / archivio.</span></div>
+      <div class="auditcell"><strong>EVENTI</strong><span>Incubation ed Encounter sono fasi full-screen, senza bottom nav.</span></div>
+    </div>
+  </div>
+
+  <div class="groupLabel mono">LIVE</div>
+  <div class="screenbar">
+    <button class="screenbtn active" data-screen="chat">💬 CHAT</button>
+    <button class="screenbtn" data-screen="mon">👾 MON</button>
+    <button class="screenbtn" data-screen="map">🧬 MIND.MAP</button>
+    <button class="screenbtn" data-screen="dex">▦ MIND.DEX</button>
+    <button class="screenbtn" data-screen="me-today">🧍 ME · OGGI</button>
+    <button class="screenbtn" data-screen="me-diet">🥗 ME · DIETA</button>
+    <button class="screenbtn" data-screen="me-sport">🏃 ME · SPORT</button>
+  </div>
+  <div class="groupLabel mono">PHASES</div>
+  <div class="screenbar">
+    <button class="screenbtn" data-screen="incubation">🥚 INCUBATION</button>
+    <button class="screenbtn" data-screen="encounter">⚡ ENCOUNTER</button>
+  </div>
+
+  <div class="previewhead">
+    <div><b>👁 CURRENT UI PREVIEW</b><small class="mono" id="screenLabel">CHAT · LIVE</small></div>
+    <small class="mono">TARGET 390 × 844</small>
+  </div>
+
+  <div class="phonewrap">
+    <div class="phone" id="phone">
+
+      <!-- CHAT -->
+      <section class="previewScreen chat-screen active" data-preview="chat">
+        <div class="chat-topfade"></div>
+        <div class="chat-toolbar hotspot" data-node="ChatToolbar">
+          <button class="chat-menu">☰</button>
+          <button class="model-pill hotspot" data-node="ModelSelector">SOL · MEDIUM⌄</button>
+        </div>
+        <div class="chat-scroll hotspot" data-node="ChatThread">
+          <div class="chat-line ai">Come stai oggi? Se vuoi posso anche aggiornare ME mentre parliamo.</div>
+          <div class="chat-line user">Ho fatto brunch e poi camminato tantissimo.</div>
+          <div class="chat-line ai">Brunch segnato. Per la camminata mi basta sapere più o meno quanto.</div>
+          <div class="chat-meta mono">VINZ.MON · LIVE VOICE</div>
+        </div>
+        <div class="chat-composer hotspot" data-node="ChatComposer">
+          <button class="chat-plus">＋</button>
+          <div class="chat-text">Chiedi qualsiasi cosa</div>
+          <button class="chat-send">↑</button>
+        </div>
+        <nav class="current-nav hotspot" data-node="BottomNav">
+          <button class="appnavitem" aria-current="page"><b class="appnavicon">⌁</b><span>CHAT</span></button>
+          <button class="appnavitem"><b class="appnavicon">◉</b><span>VINZ.MON</span></button>
+          <button class="appnavitem"><b class="appnavicon">◇</b><span>ME</span></button>
+        </nav>
+      </section>
+
+      <!-- MON -->
+      <section class="previewScreen mon-screen" data-preview="mon">
+        <div class="statusbar hotspot" data-node="StatusBar"><span>DAY 18</span><span class="sync"><i></i></span><span>7/21</span><button class="dev">DEV</button></div>
+        <div class="mon-switch hotspot" data-node="MonViewSwitch">
+          <button aria-selected="true">VINZ.MON</button><button>MIND.MAP</button><button>MIND.DEX</button>
+        </div>
+        <div class="mon-scroll">
+          <div class="mon-id hotspot" data-node="MonIdentity">
+            <div class="mon-name">VORZEEK<span style="font-weight:300;font-style:normal;text-transform:lowercase">.mon</span></div>
+            <div class="mon-form">vinz.mon · BASIC FORM</div>
+          </div>
+          <div class="mon-stage hotspot" data-node="MonStage">
+            <div class="mon-art">👼</div>
+            <div class="sticker s1">😒</div><div class="sticker s2">😏</div><div class="sticker s3">😵</div>
+          </div>
+          <div class="dossierHint mono">SCROLL ↓ · BIO · DOODLE · BIRTH STATS · SIGIL</div>
+        </div>
+        <nav class="current-nav hotspot" data-node="BottomNav">
+          <button class="appnavitem"><b class="appnavicon">⌁</b><span>CHAT</span></button>
+          <button class="appnavitem" aria-current="page"><b class="appnavicon">◉</b><span>VINZ.MON</span></button>
+          <button class="appnavitem"><b class="appnavicon">◇</b><span>ME</span></button>
+        </nav>
+      </section>
+
+      <!-- MAP -->
+      <section class="previewScreen ink-screen" data-preview="map">
+        <div class="statusbar ink hotspot" data-node="StatusBar"><span>DAY 18</span><span class="sync"><i></i></span><span>7/21</span><button class="dev">DEV</button></div>
+        <div class="mon-switch ink hotspot" data-node="MonViewSwitch">
+          <button>VINZ.MON</button><button aria-selected="true">MIND.MAP</button><button>MIND.DEX</button>
+        </div>
+        <div class="screenhead hotspot" data-node="MindlineHeader"><h2>MINDLINE</h2><p>CHAPTER 2 · 3 NODES</p></div>
+        <div class="maparea hotspot" data-node="MindlineCanvas">
+          <div class="edge e1"></div><div class="edge e2"></div>
+          <div class="mapnode n1" data-label="VORZEEK.mon · G7"></div>
+          <div class="mapnode n2" data-label="VULZAETH.mon · G14"></div>
+          <div class="mapnode n3" data-label="VORMZIR.mon · G18"></div>
+        </div>
+        <div class="map-hint mono">TOCCA UN NODO PER APRIRE IL DETTAGLIO</div>
+        <nav class="current-nav hotspot" data-node="BottomNav">
+          <button class="appnavitem"><b class="appnavicon">⌁</b><span>CHAT</span></button>
+          <button class="appnavitem" aria-current="page"><b class="appnavicon">◉</b><span>VINZ.MON</span></button>
+          <button class="appnavitem"><b class="appnavicon">◇</b><span>ME</span></button>
+        </nav>
+      </section>
+
+      <!-- DEX -->
+      <section class="previewScreen ink-screen" data-preview="dex">
+        <div class="statusbar ink hotspot" data-node="StatusBar"><span>DAY 18</span><span class="sync"><i></i></span><span>7/21</span><button class="dev">DEV</button></div>
+        <div class="mon-switch ink hotspot" data-node="MonViewSwitch">
+          <button>VINZ.MON</button><button>MIND.MAP</button><button aria-selected="true">MIND.DEX</button>
+        </div>
+        <div class="screenhead hotspot" data-node="DexHeader"><h2>MIND.DEX</h2><p>3 FORME</p></div>
+        <div class="dexarea">
+          <div class="dexgrid">
+            <div class="dexcard hotspot" data-node="DexCard"><div class="dexart">👼</div><div class="dexname">VORZEEK</div><div class="dexday">G7 · BASIC FORM</div></div>
+            <div class="dexcard hotspot" data-node="DexCard"><div class="dexart">🜁</div><div class="dexname">VULZAETH</div><div class="dexday">G14 · POWER FORM</div></div>
+            <div class="dexcard hotspot" data-node="DexCard"><div class="dexart">◎</div><div class="dexname">VORMZIR</div><div class="dexday">ORA · BASIC FORM</div></div>
+          </div>
+        </div>
+        <nav class="current-nav hotspot" data-node="BottomNav">
+          <button class="appnavitem"><b class="appnavicon">⌁</b><span>CHAT</span></button>
+          <button class="appnavitem" aria-current="page"><b class="appnavicon">◉</b><span>VINZ.MON</span></button>
+          <button class="appnavitem"><b class="appnavicon">◇</b><span>ME</span></button>
+        </nav>
+      </section>
+
+      <!-- ME TODAY -->
+      <section class="previewScreen me-screen" data-preview="me-today">
+        <div class="me-header hotspot" data-node="MeHeader"><div class="me-date">DOMENICA 23 AGOSTO</div><button class="me-plus">＋</button></div>
+        <div class="me-tabs hotspot" data-node="MeTabs"><button aria-current="page">OGGI</button><button>DIETA</button><button>SPORT</button></div>
+        <div class="me-ai-strip hotspot" data-node="MeAiControl"><span>ME È ADATTABILE DALL’AI</span><b></b></div>
+        <div class="me-scroll">
+          <div class="me-card progress-card hotspot" data-node="ProgressChart">
+            <header><span>ANDAMENTO</span><strong>-1.4 KG</strong></header>
+            <div class="chart">
+              <svg viewBox="0 0 280 70"><polyline points="8,20 48,26 88,30 128,34 168,42 208,47 272,55" fill="none" stroke="#d4a532" stroke-width="3"/></svg>
+            </div>
+          </div>
+          <div class="me-card nutrition hotspot" data-node="Nutrition">
+            <div class="calories"><div class="calcopy"><small>ENERGIA</small><strong>1.420</strong><span>/ 2.100 KCAL</span></div><div class="ring">68%</div></div>
+            <div class="macros">
+              <div class="macro"><span>PRO</span><strong>82g</strong><div class="segs"><i class="on"></i><i class="on"></i><i class="on"></i><i></i></div></div>
+              <div class="macro"><span>CARB</span><strong>143g</strong><div class="segs"><i class="on"></i><i class="on"></i><i></i><i></i></div></div>
+              <div class="macro"><span>FAT</span><strong>48g</strong><div class="segs"><i class="on"></i><i class="on"></i><i></i><i></i></div></div>
+            </div>
+          </div>
+          <div class="me-card todayrow hotspot" data-node="TodayRecap"><h3>OGGI</h3><div class="todaygrid"><div class="todaybox"><strong>3 / 5</strong><span>PASTI</span></div><div class="todaybox"><strong>RIPOSO</strong><span>NESSUN LOG</span></div><div class="todaybox"><strong>80.0</strong><span>ULTIMO PESO</span></div></div></div>
+        </div>
+        <nav class="current-nav hotspot" data-node="BottomNav">
+          <button class="appnavitem"><b class="appnavicon">⌁</b><span>CHAT</span></button>
+          <button class="appnavitem"><b class="appnavicon">◉</b><span>VINZ.MON</span></button>
+          <button class="appnavitem" aria-current="page"><b class="appnavicon">◇</b><span>ME</span></button>
+        </nav>
+      </section>
+
+      <!-- ME DIET -->
+      <section class="previewScreen me-screen" data-preview="me-diet">
+        <div class="me-header hotspot" data-node="MeHeader"><div class="me-date">DOMENICA 23 AGOSTO</div><button class="me-plus">＋</button></div>
+        <div class="me-tabs hotspot" data-node="MeTabs"><button>OGGI</button><button aria-current="page">DIETA</button><button>SPORT</button></div>
+        <div class="me-ai-strip hotspot" data-node="MeAiControl"><span>ME È ADATTABILE DALL’AI</span><b></b></div>
+        <div class="me-scroll">
+          <div class="me-calendar hotspot" data-node="DietCalendar"><div class="calhead"><b>AGOSTO 2026</b><span>‹  ›</span></div><div class="calgrid" data-cal="diet"></div></div>
+          <div class="me-card plan-card hotspot" data-node="DietPlan"><h3>PIANO ALIMENTARE</h3><h2>PIANO ATTUALE</h2><p>Target giornalieri, indicazioni e struttura salvati dalla chat.</p></div>
+          <div class="me-card plan-card hotspot" data-node="MealHistory"><h3>STORICO PASTI</h3><p>Le registrazioni recenti entrano qui dalla chat o dal log manuale.</p></div>
+        </div>
+        <nav class="current-nav hotspot" data-node="BottomNav">
+          <button class="appnavitem"><b class="appnavicon">⌁</b><span>CHAT</span></button>
+          <button class="appnavitem"><b class="appnavicon">◉</b><span>VINZ.MON</span></button>
+          <button class="appnavitem" aria-current="page"><b class="appnavicon">◇</b><span>ME</span></button>
+        </nav>
+      </section>
+
+      <!-- ME SPORT -->
+      <section class="previewScreen me-screen" data-preview="me-sport">
+        <div class="me-header hotspot" data-node="MeHeader"><div class="me-date">DOMENICA 23 AGOSTO</div><button class="me-plus">＋</button></div>
+        <div class="me-tabs hotspot" data-node="MeTabs"><button>OGGI</button><button>DIETA</button><button aria-current="page">SPORT</button></div>
+        <div class="me-ai-strip hotspot" data-node="MeAiControl"><span>ME È ADATTABILE DALL’AI</span><b></b></div>
+        <div class="me-scroll">
+          <div class="me-calendar hotspot" data-node="SportCalendar"><div class="calhead"><b>AGOSTO 2026</b><span>‹  ›</span></div><div class="calgrid" data-cal="sport"></div></div>
+          <div class="me-card plan-card hotspot" data-node="WorkoutPlan"><h3>PIANO ALLENAMENTO</h3><h2>SETTIMANA 3</h2><p>Giorni, esercizi, serie e progressione salvati dalla chat.</p></div>
+          <div class="me-card plan-card hotspot" data-node="WorkoutHistory"><h3>ALLENAMENTI SVOLTI</h3><p>PT · 55 minuti<br>Arrampicata · 90 minuti</p></div>
+        </div>
+        <nav class="current-nav hotspot" data-node="BottomNav">
+          <button class="appnavitem"><b class="appnavicon">⌁</b><span>CHAT</span></button>
+          <button class="appnavitem"><b class="appnavicon">◉</b><span>VINZ.MON</span></button>
+          <button class="appnavitem" aria-current="page"><b class="appnavicon">◇</b><span>ME</span></button>
+        </nav>
+      </section>
+
+      <!-- INCUBATION -->
+      <section class="previewScreen inc-screen" data-preview="incubation">
+        <div class="statusbar ink hotspot" data-node="StatusBar"><span>DAY 5</span><span class="sync"><i style="width:71%"></i></span><span>5/7</span><button class="dev">DEV</button></div>
+        <div class="inc-bar hotspot" data-node="IncubationHeader"><div class="egg">🥚</div><div class="inc-count"><small>INCUBAZIONE</small><strong>5 / 7</strong><span>GIORNI</span></div></div>
+        <div class="inc-chat hotspot" data-node="IncubationChat"><div class="inc-bubble user">Ci sei?</div><div class="egg-sound">▁▃▅▂ · TIK…</div><div class="inc-bubble user">Va bene, non rompere ancora.</div><div class="egg-sound">▂▆▃▁ · MM.</div></div>
+        <div class="inc-strip hotspot" data-node="IncubationStrip">OGGI · 2 SEGNALI CONOSCIUTI</div>
+        <div class="inc-composer hotspot" data-node="IncubationComposer"><button class="inc-plus">＋</button><div class="inc-field">Parla con lui…</div></div>
+      </section>
+
+      <!-- ENCOUNTER -->
+      <section class="previewScreen enc-screen" data-preview="encounter">
+        <div class="statusbar ink hotspot" data-node="StatusBar"><span>DAY 7</span><span class="sync"><i style="width:100%"></i></span><span>7/7</span><button class="dev">DEV</button></div>
+        <div class="enc-stage hotspot" data-node="EncounterStage"><div class="enc-art">👼</div></div>
+        <div class="enc-overlay hotspot" data-node="EncounterOverlay">
+          <div class="k">FIRST ENCOUNTER</div><div class="enc-name">VORZEEK<span style="font-weight:300;font-style:normal">.mon</span></div>
+          <div class="k" style="color:#a8a8b2;margin-bottom:8px">vinz.mon · BASIC FORM</div>
+          <div class="tags"><span class="tag char">COMMON</span><span class="tag">ANGEL</span><span class="tag">ANGEL</span><span class="tag">CEL</span></div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <div class="selection">
+    <div class="selectiontop">
+      <div><b id="selectedName">BottomNav</b><div class="path mono" id="selectedPath">App.tsx → TabBar</div></div>
+      <small class="mono">SELECTED REAL UI</small>
+    </div>
+    <div class="scopechips" id="scopeChips"><span class="scopechip mono">GLOBAL</span><span class="scopechip mono">LIVE NAV</span><span class="scopechip mono">system.css</span></div>
+  </div>
+
+  <div class="ai">
+    <div class="aihead"><div class="aibadge">🤖</div><div><b>DESIGN AI</b><small>Lavora sul componente reale selezionato e sul suo scope.</small></div></div>
+    <div class="messages" id="messages"><div class="msg aiMsg">Hai selezionato <strong>BottomNav</strong>. Nel codice attuale è `TabBar` in `App.tsx`; lo styling vive in `system.css`. Posso spiegartelo o proporti una modifica senza toccare il prodotto reale.</div></div>
+    <div class="quick">
+      <button data-quick="Vorrei che fosse più squadrata e Y2K, ma senza perdere la logica attuale delle pill">Più Y2K</button>
+      <button data-quick="Fammi capire cosa controlla questo elemento e dove viene usato">Spiegami</button>
+      <button data-quick="Vorrei vedere una proposta A/B senza cambiare il prodotto">A/B</button>
+    </div>
+    <div class="chatinput"><textarea id="chatText" placeholder="Es. questa nav mi piace ma vorrei renderla più grafica e squadrata…"></textarea><button class="send" id="sendBtn">↑</button></div>
+
+    <div class="proposal" id="proposal">
+      <div class="proposalhead"><b>🤖 DESIGN PATCH</b><span class="mono">LAB ONLY</span></div>
+      <div class="diff" id="diff"><div class="minus">BottomNav · rounded pill treatment current</div><div class="plus">BottomNav · stronger structural outline, same 3-item behavior</div></div>
+      <div class="actions"><button id="abBtn">A/B</button><button id="previewBtn">👁 PREVIEW</button><button id="applyBtn">✓ APPLY TO LAB</button></div>
+    </div>
+    <div class="ab" id="ab">
+      <div class="mini"><b>A · CURRENT</b><div class="miniframe"><div class="mininav"><div class="minipill active">CHAT</div><div class="minipill">◉</div><div class="minipill">◇</div></div></div></div>
+      <div class="mini"><b>B · PROPOSAL</b><div class="miniframe"><div class="mininav"><div class="minipill active" style="border-color:#d4a532;box-shadow:0 0 0 1px #d4a532 inset">CHAT</div><div class="minipill">◉</div><div class="minipill">◇</div></div></div></div>
+    </div>
+  </div>
+
+  <div class="footer mono">SOURCE OF TRUTH: CURRENT REACT COMPONENTS + CURRENT CSS/TOKENS. THIS STATIC PREVIEW IS NOW AN AUDITED REPRESENTATION, BUT THE REAL IMPLEMENTATION MUST MOUNT THE ACTUAL COMPONENT TREE IN THE LAB.</div>
+</section>
+
+<section class="page" id="tokens">
+  <div class="kicker mono">CURRENT DESIGN TOKENS</div>
+  <h1>🎛 TOKENS</h1>
+  <p class="lead">Questi sono i valori globali letti dal design system attuale. DESIGN AI deve preferire un token quando la modifica è davvero globale.</p>
+  <div class="tokenlist">
+    <div class="row"><div><b>WHITE / PAPER / SURFACE</b><small>Campi base.</small></div><span class="value">#fff / #f4f4f6 / #e8e8ec</span></div>
+    <div class="row"><div><b>INK</b><small>Nero strutturale.</small></div><span class="value">#111111</span></div>
+    <div class="row"><div><b>BASE UNIT</b><small>Griglia 4px / 8pt.</small></div><span class="value">4px</span></div>
+    <div class="row"><div><b>BORDER</b><small>Standard / thick.</small></div><span class="value">2px / 3px</span></div>
+    <div class="row"><div><b>RADIUS</b><small>Globalmente quasi quadrato.</small></div><span class="value">0px / 2px</span></div>
+    <div class="row"><div><b>TABBAR</b><small>Eccezione scura a pill nel live shell.</small></div><span class="value">22px pill</span></div>
+    <div class="row"><div><b>ME SKIN</b><small>Override ottico/Y2K chiaro.</small></div><span class="value">7px cards</span></div>
+    <div class="row"><div><b>CHAT SKIN</b><small>Assistant clone scuro isolato dal reset VINZ.</small></div><span class="value">#000 / #212121</span></div>
+  </div>
+</section>
+
+<section class="page" id="components">
+  <div class="kicker mono">CURRENT REAL OWNERSHIP</div>
+  <h1>🧱 COMPONENTS</h1>
+  <p class="lead">Qui il Lab deve collegare ciò che tocchi al componente reale, non a un mock inventato.</p>
+  <div class="componentlist">
+    <div class="row"><div><b>TabBar</b><small>`App.tsx` · CHAT / VINZ.MON / ME</small></div><span class="value">GLOBAL LIVE</span></div>
+    <div class="row"><div><b>ChatSurface</b><small>`assistant-original/chat-surface.tsx` · assistant-ui clone</small></div><span class="value">CHAT</span></div>
+    <div class="row"><div><b>ViewSwitch</b><small>`App.tsx` · MON / MIND.MAP / MIND.DEX</small></div><span class="value">MON</span></div>
+    <div class="row"><div><b>SplashScreen</b><small>`screens/Splash.tsx` · current .mon + dossier</small></div><span class="value">MON</span></div>
+    <div class="row"><div><b>MindlineMapScreen</b><small>technical grid / topology</small></div><span class="value">MON</span></div>
+    <div class="row"><div><b>DexScreen</b><small>grid of prior forms</small></div><span class="value">MON</span></div>
+    <div class="row"><div><b>MeOverviewScreen</b><small>OGGI / DIETA / SPORT</small></div><span class="value">ME</span></div>
+    <div class="row"><div><b>IncubationScreen</b><small>egg bar + chat + strip + composer</small></div><span class="value">PHASE</span></div>
+    <div class="row"><div><b>EncounterScreen</b><small>three-beat reveal on ink field</small></div><span class="value">PHASE</span></div>
+  </div>
+</section>
+
+<section class="page" id="history">
+  <div class="kicker mono">DESIGN SNAPSHOTS</div>
+  <h1>🕘 HISTORY</h1>
+  <p class="lead">R0 è la UI reale attuale. Ogni “APPLY TO LAB” crea una versione ripristinabile senza cambiare VINZ.MON.</p>
+  <div class="historylist" id="historyList">
+    <div class="historycard"><b>R0 · CURRENT APP UI</b><p>Baseline verificata contro App.tsx, screens, assistant clone, system.css e tokens.css.</p><div class="historyactions"><button>VIEW</button></div></div>
+  </div>
+</section>
+</main>
+</div>
+
+<script>
+const tabs=[...document.querySelectorAll('.tab')];
+const pages=[...document.querySelectorAll('.page')];
+tabs.forEach(t=>t.addEventListener('click',()=>{
+  tabs.forEach(x=>x.classList.toggle('active',x===t));
+  pages.forEach(p=>p.classList.toggle('active',p.id===t.dataset.page));
+}));
+
+for(const grid of document.querySelectorAll('[data-cal]')){
+  for(let i=1;i<=35;i++){
+    const d=document.createElement('div');
+    const day=i<=31?i:'';
+    d.className='cday'+([3,5,9,12,14,18,20,23].includes(i)?' on':'')+([7,16,22].includes(i)?' event':'');
+    d.textContent=day;
+    grid.appendChild(d);
+  }
+}
+
+const screenButtons=[...document.querySelectorAll('.screenbtn')];
+const previews=[...document.querySelectorAll('.previewScreen')];
+const screenLabel=document.getElementById('screenLabel');
+const labels={
+  chat:'CHAT · LIVE',mon:'VINZ.MON · LIVE',map:'MIND.MAP · MON',dex:'MIND.DEX · MON',
+  'me-today':'ME · OGGI','me-diet':'ME · DIETA','me-sport':'ME · SPORT',
+  incubation:'INCUBATION · PHASE',encounter:'FIRST ENCOUNTER · PHASE'
+};
+screenButtons.forEach(b=>b.addEventListener('click',()=>{
+  screenButtons.forEach(x=>x.classList.toggle('active',x===b));
+  previews.forEach(p=>p.classList.toggle('active',p.dataset.preview===b.dataset.screen));
+  screenLabel.textContent=labels[b.dataset.screen]||b.dataset.screen.toUpperCase();
+  const target=previews.find(p=>p.dataset.preview===b.dataset.screen)?.querySelector('.hotspot');
+  if(target) selectNode(target);
+}));
+
+const selectedName=document.getElementById('selectedName');
+const selectedPath=document.getElementById('selectedPath');
+const scopeChips=document.getElementById('scopeChips');
+const messages=document.getElementById('messages');
+const proposal=document.getElementById('proposal');
+const diff=document.getElementById('diff');
+let selected='BottomNav';
+
+const nodeInfo={
+  BottomNav:['App.tsx → TabBar',['GLOBAL','LIVE NAV','system.css']],
+  ChatToolbar:['ChatSurface → ChatGPT',['CHAT','assistant-ui','LOCAL']],
+  ModelSelector:['ChatSurface → ModelSelector',['CHAT','AI MODEL UI','LOCAL']],
+  ChatThread:['ChatGPT → Thread',['CHAT','assistant-ui','CONTENT']],
+  ChatComposer:['ChatGPT → Composer',['CHAT','assistant-ui','INPUT']],
+  StatusBar:['App.tsx → StatusBar',['SYSTEM UI','GLOBAL','base.css']],
+  MonViewSwitch:['App.tsx → ViewSwitch',['MON','SHARED VIEW SWITCH','App.tsx']],
+  MonIdentity:['Splash.tsx → splash__id',['MON','IDENTITY','screens.css']],
+  MonStage:['Splash.tsx → splash__stage',['MON','ASSET','screens.css']],
+  MindlineHeader:['MindlineMapScreen → ScreenHead',['MON','MINDLINE','system component']],
+  MindlineCanvas:['MindlineMapScreen → mindline__canvas',['MON','MINDLINE','VISUALIZATION']],
+  DexHeader:['DexScreen → ScreenHead',['MON','DEX','system component']],
+  DexCard:['DexScreen → dexcard',['MON','DEX','REPEATED COMPONENT']],
+  MeHeader:['MeOverviewScreen → me-health__header',['ME','HEADER','screens.css']],
+  MeTabs:['MeOverviewScreen → me-health__tabs',['ME','LOCAL NAV','screens.css']],
+  MeAiControl:['MeOverviewScreen → me-health__ai-control',['ME','AI ADAPTIVE UI','screens.css']],
+  ProgressChart:['MeOverviewScreen → ProgressChart',['ME','DATA UI','screens.css']],
+  Nutrition:['MeOverviewScreen → Nutrition',['ME','DATA UI','screens.css']],
+  TodayRecap:['MeOverviewScreen → TodayRecap',['ME','DATA UI','screens.css']],
+  DietCalendar:['MeCalendar → me-health__calendar',['ME','DIET','CALENDAR']],
+  SportCalendar:['MeCalendar → me-health__calendar',['ME','SPORT','CALENDAR']],
+  DietPlan:['MeOverviewScreen → dietPlan',['ME','DIET','CONTENT']],
+  MealHistory:['MeOverviewScreen → meal history',['ME','DIET','CONTENT']],
+  WorkoutPlan:['MeOverviewScreen → workoutPlan',['ME','SPORT','CONTENT']],
+  WorkoutHistory:['MeOverviewScreen → workouts',['ME','SPORT','CONTENT']],
+  IncubationHeader:['IncubationScreen → incubation__bar',['PHASE','INCUBATION','screens.css']],
+  IncubationChat:['IncubationScreen → incubation__chat',['PHASE','INCUBATION','CHAT']],
+  IncubationStrip:['IncubationScreen → incubation__strip',['PHASE','INCUBATION','STATE']],
+  IncubationComposer:['IncubationScreen → composer--egg',['PHASE','INCUBATION','INPUT']],
+  EncounterStage:['EncounterScreen → encounter__stage',['PHASE','ENCOUNTER','ASSET']],
+  EncounterOverlay:['EncounterScreen → encounter__overlay',['PHASE','ENCOUNTER','IDENTITY']]
+};
+
+function selectNode(el){
+  document.querySelectorAll('.hotspot.selected').forEach(x=>x.classList.remove('selected'));
+  if(!el)return;
+  el.classList.add('selected');
+  selected=el.dataset.node||'UI element';
+  const info=nodeInfo[selected]||['current component',['LOCAL UI']];
+  selectedName.textContent=selected;
+  selectedPath.textContent=info[0];
+  scopeChips.innerHTML=info[1].map(x=>`<span class="scopechip mono">${x}</span>`).join('');
+  messages.innerHTML=`<div class="msg aiMsg">Hai selezionato <strong>${selected}</strong>. Sto lavorando sullo scope reale: <strong>${info[0]}</strong>. Posso spiegarti il componente, mostrarti dove è riusato o proporti una patch solo nel Lab.</div>`;
+  proposal.classList.remove('show');
+  document.getElementById('ab').classList.remove('show');
+  document.getElementById('phone').classList.remove('proposed');
+}
+document.querySelectorAll('.hotspot').forEach(el=>el.addEventListener('click',e=>{e.stopPropagation();selectNode(el)}));
+selectNode(document.querySelector('[data-node="BottomNav"]'));
+
+document.querySelectorAll('[data-quick]').forEach(b=>b.addEventListener('click',()=>document.getElementById('chatText').value=b.dataset.quick));
+
+function answer(text){
+  const mine=document.createElement('div');mine.className='msg me';mine.textContent=text;messages.appendChild(mine);
+  const ai=document.createElement('div');ai.className='msg aiMsg';
+  const low=text.toLowerCase();
+  if(low.includes('spieg')||low.includes('cosa controlla')){
+    ai.innerHTML=`<strong>${selected}</strong> vive in <strong>${selectedPath.textContent}</strong>. Prima di cambiare qualcosa distinguerei proprietà locali, componenti condivisi e token globali, così non tocchiamo altre schermate per sbaglio.`;
+    proposal.classList.remove('show');
+  }else{
+    ai.innerHTML=`Posso farlo senza cambiare il comportamento del prodotto. Ti propongo una patch sullo scope di <strong>${selected}</strong>, poi la confrontiamo contro R0 sulla stessa schermata e sugli stessi dati.`;
+    diff.innerHTML=`<div class="minus">${selected} · current treatment</div><div class="plus">${selected} · proposed treatment requested in chat</div><div class="plus">behavior / data logic · unchanged</div>`;
+    proposal.classList.add('show');
+  }
+  messages.appendChild(ai);
+}
+document.getElementById('sendBtn').addEventListener('click',()=>{
+  const t=document.getElementById('chatText');const v=t.value.trim();if(!v)return;answer(v);t.value='';
+});
+document.getElementById('chatText').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();document.getElementById('sendBtn').click()}});
+document.getElementById('previewBtn').addEventListener('click',()=>document.getElementById('phone').classList.toggle('proposed'));
+document.getElementById('abBtn').addEventListener('click',()=>document.getElementById('ab').classList.toggle('show'));
+
+const historyKey='vinzlab:design-history:v2';
+function loadHistory(){try{return JSON.parse(localStorage.getItem(historyKey)||'[]')}catch{return[]}}
+function renderHistory(){
+  const root=document.getElementById('historyList');
+  if(!root)return;
+  const items=loadHistory();
+  root.innerHTML='<div class="historycard"><b>R0 · CURRENT APP UI</b><p>Baseline verificata contro App.tsx, screens, assistant clone, system.css e tokens.css.</p><div class="historyactions"><button>VIEW</button></div></div>'+
+    items.map((x,i)=>`<div class="historycard"><b>V${i+1} · ${x.node}</b><p>${x.text}</p><div class="historyactions"><button>VIEW</button><button>RESTORE</button></div></div>`).join('');
+}
+renderHistory();
+document.getElementById('applyBtn').addEventListener('click',()=>{
+  const items=loadHistory();
+  items.push({node:selected,text:diff.innerText.replace(/\n/g,' · '),at:new Date().toISOString()});
+  localStorage.setItem(historyKey,JSON.stringify(items));renderHistory();
+  const ai=document.createElement('div');ai.className='msg aiMsg';ai.innerHTML='✓ Salvata come nuova versione <strong>DESIGN.LAB</strong>. VINZ.MON reale non è stato modificato.';messages.appendChild(ai);
+});
+</script>
+</body>
+</html>

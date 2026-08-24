@@ -1,0 +1,442 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>SOUL.LAB · Expression Studio</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;background:#fff;color:#111;font-family:Arial,sans-serif}
+body{padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+main{max-width:520px;margin:auto;min-height:100dvh}
+.head{display:flex;align-items:center;gap:12px;padding:12px 14px;border-bottom:2px solid #111}
+.head a{font-size:24px;color:#111;text-decoration:none}
+.head b{font-size:22px;font-style:italic}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.sub{margin-left:auto;font-size:8px;line-height:1.35;text-align:right}
+
+.tabs{display:flex;gap:4px;overflow:auto;padding:6px;border-bottom:1px solid #ddd}
+.tabs button{min-height:40px;border:1px solid #111;background:#fff;padding:0 10px;font:8px ui-monospace,monospace;white-space:nowrap}
+.tabs button.on{background:#111;color:#fff}
+
+.stage{
+  min-height:320px;
+  display:grid;
+  place-items:center;
+  background:
+    linear-gradient(#eee 1px,transparent 1px),
+    linear-gradient(90deg,#eee 1px,transparent 1px),
+    #fafafa;
+  background-size:16px 16px;
+  border-bottom:2px solid #111;
+  overflow:hidden;
+}
+.soul-wrap{
+  width:220px;height:220px;
+  display:grid;place-items:center;
+  transform-origin:50% 50%;
+}
+.soul-svg{width:100%;height:100%;overflow:visible}
+#bodyGroup{transform-origin:100px 100px}
+#faceGroup{transform-origin:100px 100px}
+.pulse{animation:soulPulse var(--pulse-dur,3s) ease-in-out infinite}
+.bounce{animation:soulBounce var(--bounce-dur,2s) ease-in-out infinite}
+@keyframes soulPulse{0%,100%{scale:1}50%{scale:var(--pulse-scale,1.02)}}
+@keyframes soulBounce{0%,100%{translate:0 0}50%{translate:0 calc(var(--bounce-amp,0px) * -1)}}
+
+.panel{padding:14px}
+.section{display:none}.section.on{display:block}
+.panel h1{font-size:30px;line-height:.92;margin:0 0 8px;font-style:italic}
+.panel p{font-size:11px;line-height:1.45;color:#555}
+.library{display:grid;grid-template-columns:repeat(2,1fr);gap:5px;margin:10px 0 14px}
+.library button{
+  min-height:46px;border:1px solid #111;background:#fff;border-radius:0;
+  font:9px ui-monospace,monospace;text-align:left;padding:0 10px
+}
+.library button.on{background:#111;color:#fff}
+.library small{display:block;font-size:7px;opacity:.65;margin-top:3px}
+details{border-top:1px solid #111}
+details:last-of-type{border-bottom:1px solid #111}
+summary{list-style:none;min-height:48px;display:flex;align-items:center;justify-content:space-between;font:9px ui-monospace,monospace;letter-spacing:.08em}
+summary::-webkit-details-marker{display:none}
+.row{display:grid;grid-template-columns:118px 1fr auto;gap:8px;align-items:center;min-height:48px;border-top:1px solid #eee}
+.row span{font:8px ui-monospace,monospace;letter-spacing:.07em}
+.row input[type=range]{width:100%}
+.row input[type=color]{width:48px;height:32px;border:1px solid #111;background:#fff;padding:0}
+.row select,.row input[type=text]{width:100%;height:34px;border:1px solid #111;background:#fff;border-radius:0;font:9px ui-monospace,monospace;padding:0 7px}
+.row code{font-size:8px}
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:12px}
+.actions button{min-height:44px;border:1px solid #111;background:#fff;border-radius:0;font:9px ui-monospace,monospace}
+.actions button.primary{background:#111;color:#fff}
+.status{margin-top:12px;border:1px solid #111;padding:9px;font:8px ui-monospace,monospace;line-height:1.4}
+.output{display:grid;gap:8px;margin-top:12px}
+.output textarea{width:100%;min-height:180px;border:1px solid #111;border-radius:0;padding:9px;font:10px/1.4 ui-monospace,monospace}
+.note{margin-top:14px;border:2px solid #111;padding:10px;font-size:11px;line-height:1.45}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:5px}
+.grid2 button{min-height:42px;border:1px solid #111;background:#fff;border-radius:0;font:8px ui-monospace,monospace}
+</style>
+</head>
+<body>
+<main>
+  <div class="head">
+    <a href="../">←</a>
+    <b>👻 SOUL.LAB</b>
+    <span class="mono sub">v3.2<br>EXPRESSION STUDIO</span>
+  </div>
+
+  <div class="tabs">
+    <button class="on" data-tab="live">LIVE</button>
+    <button data-tab="expression">EXPRESSION</button>
+    <button data-tab="body">BODY</button>
+    <button data-tab="color">COLOR</button>
+    <button data-tab="save">SAVE</button>
+  </div>
+
+  <div class="stage">
+    <div class="soul-wrap" id="soulWrap">
+      <svg class="soul-svg" viewBox="0 0 200 200" aria-label="Soul ball preview">
+        <g id="bodyGroup">
+          <ellipse id="body" cx="100" cy="100" rx="70" ry="70" fill="#8A00FF"/>
+          <g id="faceGroup" fill="none" stroke="#18F5B4" stroke-linecap="round" stroke-linejoin="round">
+            <path id="eyeL"/>
+            <path id="eyeR"/>
+            <path id="mouth"/>
+          </g>
+        </g>
+      </svg>
+    </div>
+  </div>
+
+  <section class="panel">
+    <div class="section on" data-section="live">
+      <h1>ONE BALL.<br>MANY STATES.</h1>
+      <p>Per adesso lavoriamo solo su pallina + faccia. La codina non esiste ancora nel renderer.</p>
+
+      <div class="library" id="library"></div>
+
+      <details open>
+        <summary><span>REPLY CUE TEST</span><b>▾</b></summary>
+        <div class="row"><span>INTENSITY</span><input id="intensity" type="range" min="0" max="1" step=".01"><code id="intensityVal"></code></div>
+        <div class="row"><span>ENERGY</span><input id="energy" type="range" min="0" max="1" step=".01"><code id="energyVal"></code></div>
+      </details>
+      <div class="status" id="status">R0 · NEUTRAL</div>
+    </div>
+
+    <div class="section" data-section="expression">
+      <h1>EDIT FACE.</h1>
+      <p>Ogni emozione salva la sua costruzione grafica. Non è una faccina preconfezionata.</p>
+
+      <details open>
+        <summary><span>EYES</span><b>▾</b></summary>
+        <div class="row"><span>LEFT OPEN</span><input id="leftEyeOpen" type="range" min=".05" max="1.4" step=".01"><code id="leftEyeOpenVal"></code></div>
+        <div class="row"><span>RIGHT OPEN</span><input id="rightEyeOpen" type="range" min=".05" max="1.4" step=".01"><code id="rightEyeOpenVal"></code></div>
+        <div class="row"><span>SPACING</span><input id="eyeSpacing" type="range" min=".55" max="1.45" step=".01"><code id="eyeSpacingVal"></code></div>
+        <div class="row"><span>WIDTH</span><input id="eyeWidth" type="range" min=".45" max="1.55" step=".01"><code id="eyeWidthVal"></code></div>
+        <div class="row"><span>HEIGHT</span><input id="eyeHeight" type="range" min=".45" max="1.55" step=".01"><code id="eyeHeightVal"></code></div>
+        <div class="row"><span>LEFT TILT</span><input id="leftEyeTilt" type="range" min="-30" max="30" step="1"><code id="leftEyeTiltVal"></code></div>
+        <div class="row"><span>RIGHT TILT</span><input id="rightEyeTilt" type="range" min="-30" max="30" step="1"><code id="rightEyeTiltVal"></code></div>
+      </details>
+
+      <details open>
+        <summary><span>MOUTH</span><b>▾</b></summary>
+        <div class="row"><span>TYPE</span><select id="mouthType"><option>flat</option><option>zigzag</option><option>up</option><option>down</option><option>open</option><option>fang</option><option>small</option></select><code id="mouthTypeVal"></code></div>
+        <div class="row"><span>WIDTH</span><input id="mouthWidth" type="range" min=".35" max="1.6" step=".01"><code id="mouthWidthVal"></code></div>
+        <div class="row"><span>Y</span><input id="mouthY" type="range" min="120" max="165" step="1"><code id="mouthYVal"></code></div>
+        <div class="row"><span>TILT</span><input id="mouthTilt" type="range" min="-25" max="25" step="1"><code id="mouthTiltVal"></code></div>
+      </details>
+
+      <details open>
+        <summary><span>FACE</span><b>▾</b></summary>
+        <div class="row"><span>FACE Y</span><input id="faceY" type="range" min="-18" max="18" step="1"><code id="faceYVal"></code></div>
+        <div class="row"><span>STROKE</span><input id="strokeWidth" type="range" min="3" max="14" step=".5"><code id="strokeWidthVal"></code></div>
+      </details>
+
+      <div class="actions">
+        <button class="primary" id="saveExpression">SAVE EXPRESSION</button>
+        <button id="duplicateNeutral">COPY NEUTRAL</button>
+        <button id="mirrorEyes">MIRROR EYES</button>
+        <button id="resetExpression">RESET CURRENT</button>
+      </div>
+    </div>
+
+    <div class="section" data-section="body">
+      <h1>EDIT BODY.</h1>
+      <p>Anche il corpo è parte dell'emozione. Ogni preset può deformarsi e muoversi in modo diverso.</p>
+
+      <details open>
+        <summary><span>SHAPE</span><b>▾</b></summary>
+        <div class="row"><span>SCALE X</span><input id="scaleX" type="range" min=".7" max="1.3" step=".01"><code id="scaleXVal"></code></div>
+        <div class="row"><span>SCALE Y</span><input id="scaleY" type="range" min=".7" max="1.3" step=".01"><code id="scaleYVal"></code></div>
+        <div class="row"><span>BODY Y</span><input id="bodyY" type="range" min="-18" max="22" step="1"><code id="bodyYVal"></code></div>
+        <div class="row"><span>TILT</span><input id="bodyTilt" type="range" min="-18" max="18" step="1"><code id="bodyTiltVal"></code></div>
+      </details>
+
+      <details open>
+        <summary><span>MOTION</span><b>▾</b></summary>
+        <div class="row"><span>BOUNCE AMP</span><input id="bounceAmplitude" type="range" min="0" max="18" step=".5"><code id="bounceAmplitudeVal"></code></div>
+        <div class="row"><span>BOUNCE DUR</span><input id="bounceDuration" type="range" min=".5" max="5" step=".1"><code id="bounceDurationVal"></code></div>
+        <div class="row"><span>PULSE</span><input id="pulseAmount" type="range" min="0" max=".09" step=".005"><code id="pulseAmountVal"></code></div>
+        <div class="row"><span>PULSE DUR</span><input id="pulseDuration" type="range" min="1" max="6" step=".1"><code id="pulseDurationVal"></code></div>
+      </details>
+
+      <div class="actions">
+        <button class="primary" id="saveBody">SAVE BODY STATE</button>
+        <button id="resetBody">RESET BODY</button>
+      </div>
+    </div>
+
+    <div class="section" data-section="color">
+      <h1>EDIT COLOR.</h1>
+      <details open>
+        <summary><span>BASE</span><b>▾</b></summary>
+        <div class="row"><span>BODY</span><input id="bodyColor" type="color"><code id="bodyColorVal"></code></div>
+        <div class="row"><span>FACE</span><input id="faceColor" type="color"><code id="faceColorVal"></code></div>
+        <div class="row"><span>SATURATION</span><input id="saturation" type="range" min=".5" max="1.5" step=".01"><code id="saturationVal"></code></div>
+        <div class="row"><span>BRIGHTNESS</span><input id="brightness" type="range" min=".55" max="1.45" step=".01"><code id="brightnessVal"></code></div>
+      </details>
+      <div class="actions">
+        <button class="primary" id="saveColor">SAVE COLOR STATE</button>
+        <button id="resetColor">RESET COLOR</button>
+      </div>
+    </div>
+
+    <div class="section" data-section="save">
+      <h1>SAVE SYSTEM.</h1>
+      <p>Esporta tutte le espressioni, i body-state e i colori in un solo file da ridarmi.</p>
+      <div class="actions">
+        <button class="primary" id="saveSnapshot">SAVE SNAPSHOT</button>
+        <button id="copyJson">COPY JSON</button>
+        <button id="downloadJson">DOWNLOAD JSON</button>
+        <button id="resetAll">RESET ALL</button>
+      </div>
+      <div class="output"><textarea id="jsonOut" readonly></textarea></div>
+      <div class="note">
+        <b>SCOPE v3.2</b><br>
+        Solo sfera, faccia, deformazione, colore e movimento emotivo. La codina verrà collegata dopo.
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+const EXPRESSION_NAMES = ['neutral','happy','annoyed','angry','sleepy','sad','excited','amused'];
+
+const neutralFace = {
+  leftEyeOpen:.95,rightEyeOpen:.95,eyeSpacing:1,eyeWidth:.72,eyeHeight:1,
+  leftEyeTilt:0,rightEyeTilt:0,mouthType:'flat',mouthWidth:.55,mouthY:145,mouthTilt:0,
+  faceY:0,strokeWidth:7
+};
+
+const defaults = {
+  neutral:{
+    face:{...neutralFace},
+    body:{scaleX:1,scaleY:1,bodyY:0,bodyTilt:0,bounceAmplitude:0,bounceDuration:2.4,pulseAmount:.008,pulseDuration:3.2},
+    color:{saturation:1,brightness:1}
+  },
+  happy:{
+    face:{...neutralFace,leftEyeOpen:.55,rightEyeOpen:.55,leftEyeTilt:-3,rightEyeTilt:3,mouthType:'up',mouthWidth:.75,mouthY:147},
+    body:{scaleX:1.03,scaleY:1.03,bodyY:-1,bodyTilt:0,bounceAmplitude:8,bounceDuration:1.4,pulseAmount:.025,pulseDuration:1.8},
+    color:{saturation:1.12,brightness:1.06}
+  },
+  annoyed:{
+    face:{...neutralFace,leftEyeOpen:.45,rightEyeOpen:.45,leftEyeTilt:-6,rightEyeTilt:6,mouthType:'small',mouthWidth:.45,mouthY:148},
+    body:{scaleX:1.02,scaleY:.96,bodyY:3,bodyTilt:-2,bounceAmplitude:0,bounceDuration:2.6,pulseAmount:.004,pulseDuration:4},
+    color:{saturation:1.04,brightness:.96}
+  },
+  angry:{
+    face:{...neutralFace,leftEyeOpen:.58,rightEyeOpen:.58,leftEyeTilt:16,rightEyeTilt:-16,mouthType:'fang',mouthWidth:.8,mouthY:149,strokeWidth:8},
+    body:{scaleX:1.08,scaleY:.93,bodyY:4,bodyTilt:0,bounceAmplitude:2,bounceDuration:.75,pulseAmount:.03,pulseDuration:.8},
+    color:{saturation:1.16,brightness:.9}
+  },
+  sleepy:{
+    face:{...neutralFace,leftEyeOpen:.25,rightEyeOpen:.25,mouthType:'zigzag',mouthWidth:.72,mouthY:151},
+    body:{scaleX:1.06,scaleY:.9,bodyY:8,bodyTilt:-3,bounceAmplitude:1,bounceDuration:4.8,pulseAmount:.006,pulseDuration:5},
+    color:{saturation:.78,brightness:.9}
+  },
+  sad:{
+    face:{...neutralFace,leftEyeOpen:.65,rightEyeOpen:.65,leftEyeTilt:-10,rightEyeTilt:10,mouthType:'down',mouthWidth:.6,mouthY:153,faceY:4},
+    body:{scaleX:1.05,scaleY:.9,bodyY:9,bodyTilt:0,bounceAmplitude:0,bounceDuration:4,pulseAmount:.003,pulseDuration:5.5},
+    color:{saturation:.82,brightness:.88}
+  },
+  excited:{
+    face:{...neutralFace,leftEyeOpen:1.15,rightEyeOpen:1.15,eyeWidth:.82,mouthType:'open',mouthWidth:.7,mouthY:146},
+    body:{scaleX:.96,scaleY:1.1,bodyY:-5,bodyTilt:0,bounceAmplitude:13,bounceDuration:.8,pulseAmount:.045,pulseDuration:1},
+    color:{saturation:1.22,brightness:1.12}
+  },
+  amused:{
+    face:{...neutralFace,leftEyeOpen:.35,rightEyeOpen:.8,leftEyeTilt:-4,rightEyeTilt:0,mouthType:'up',mouthWidth:.58,mouthY:149,mouthTilt:-5},
+    body:{scaleX:1.02,scaleY:.99,bodyY:0,bodyTilt:-5,bounceAmplitude:3,bounceDuration:2,pulseAmount:.012,pulseDuration:2.7},
+    color:{saturation:1.05,brightness:1.02}
+  }
+};
+
+let presets = JSON.parse(JSON.stringify(defaults));
+let current = 'neutral';
+let bodyColor = '#8A00FF';
+let faceColor = '#18F5B4';
+let intensity = 1;
+let energy = .5;
+
+const q=id=>document.getElementById(id);
+const body=q('body'), bodyGroup=q('bodyGroup'), faceGroup=q('faceGroup');
+const eyeL=q('eyeL'), eyeR=q('eyeR'), mouth=q('mouth'), wrap=q('soulWrap');
+const status=q('status');
+
+const faceKeys=['leftEyeOpen','rightEyeOpen','eyeSpacing','eyeWidth','eyeHeight','leftEyeTilt','rightEyeTilt','mouthType','mouthWidth','mouthY','mouthTilt','faceY','strokeWidth'];
+const bodyKeys=['scaleX','scaleY','bodyY','bodyTilt','bounceAmplitude','bounceDuration','pulseAmount','pulseDuration'];
+const colorKeys=['saturation','brightness'];
+
+function lerp(a,b,t){return a+(b-a)*t}
+function blended(){
+  const n=presets.neutral, p=presets[current], t=intensity;
+  const face={};
+  faceKeys.forEach(k=>face[k]=typeof p.face[k]==='number'?lerp(n.face[k],p.face[k],t):p.face[k]);
+  const b={};
+  bodyKeys.forEach(k=>b[k]=lerp(n.body[k],p.body[k],t));
+  const c={};
+  colorKeys.forEach(k=>c[k]=lerp(n.color[k],p.color[k],t));
+  return {face,body:b,color:c};
+}
+
+function eyePath(cx,cy,open,width,height,tilt){
+  const rx=15*width;
+  const ry=Math.max(1.2,14*height*open);
+  const angle=Math.tan(tilt*Math.PI/180)*ry*.55;
+  return `M ${cx-rx} ${cy-angle} Q ${cx} ${cy-ry} ${cx+rx} ${cy+angle}
+          M ${cx-rx} ${cy+angle} Q ${cx} ${cy+ry} ${cx+rx} ${cy-angle}`;
+}
+function mouthPath(type,cx,cy,width,tilt){
+  const w=28*width, dy=Math.tan(tilt*Math.PI/180)*w;
+  if(type==='zigzag')return `M ${cx-w} ${cy+dy} L ${cx-w*.55} ${cy-10} L ${cx} ${cy+2} L ${cx+w*.55} ${cy-10} L ${cx+w} ${cy-dy}`;
+  if(type==='up')return `M ${cx-w} ${cy+dy} Q ${cx} ${cy+16} ${cx+w} ${cy-dy}`;
+  if(type==='down')return `M ${cx-w} ${cy+dy} Q ${cx} ${cy-16} ${cx+w} ${cy-dy}`;
+  if(type==='open')return `M ${cx-w*.65} ${cy} Q ${cx} ${cy-18} ${cx+w*.65} ${cy} Q ${cx} ${cy+18} ${cx-w*.65} ${cy}`;
+  if(type==='fang')return `M ${cx-w} ${cy+dy} L ${cx-w*.55} ${cy-11} L ${cx-w*.2} ${cy+7} L ${cx+w*.15} ${cy-12} L ${cx+w*.48} ${cy+8} L ${cx+w} ${cy-dy}`;
+  if(type==='small')return `M ${cx-w*.5} ${cy} L ${cx+w*.5} ${cy}`;
+  return `M ${cx-w} ${cy+dy} L ${cx+w} ${cy-dy}`;
+}
+function render(){
+  const s=blended(), f=s.face, b=s.body, c=s.color;
+  const spacing=34*f.eyeSpacing;
+  eyeL.setAttribute('d',eyePath(100-spacing,88+f.faceY,f.leftEyeOpen,f.eyeWidth,f.eyeHeight,f.leftEyeTilt));
+  eyeR.setAttribute('d',eyePath(100+spacing,88+f.faceY,f.rightEyeOpen,f.eyeWidth,f.eyeHeight,f.rightEyeTilt));
+  mouth.setAttribute('d',mouthPath(f.mouthType,100,f.mouthY+f.faceY,f.mouthWidth,f.mouthTilt));
+  faceGroup.setAttribute('stroke',faceColor);
+  faceGroup.setAttribute('stroke-width',f.strokeWidth);
+  body.setAttribute('fill',bodyColor);
+
+  bodyGroup.style.transform=`translateY(${b.bodyY}px) rotate(${b.bodyTilt}deg) scale(${b.scaleX},${b.scaleY})`;
+  wrap.style.filter=`saturate(${c.saturation}) brightness(${c.brightness})`;
+  wrap.style.setProperty('--bounce-amp',`${b.bounceAmplitude*(.55+energy*.9)}px`);
+  wrap.style.setProperty('--bounce-dur',`${Math.max(.45,b.bounceDuration*(1.15-energy*.35))}s`);
+  wrap.style.setProperty('--pulse-scale',`${1+b.pulseAmount*(.65+energy*.8)}`);
+  wrap.style.setProperty('--pulse-dur',`${b.pulseDuration}s`);
+  wrap.classList.toggle('bounce',b.bounceAmplitude>0.1);
+  wrap.classList.toggle('pulse',b.pulseAmount>0.001);
+
+  q('intensityVal').textContent=intensity.toFixed(2);
+  q('energyVal').textContent=energy.toFixed(2);
+  status.textContent=`${current.toUpperCase()} · INT ${intensity.toFixed(2)} · ENERGY ${energy.toFixed(2)}`;
+  syncControls();
+}
+function syncControls(){
+  const p=presets[current];
+  faceKeys.forEach(k=>{
+    const el=q(k), val=q(k+'Val'); if(!el)return;
+    el.value=p.face[k];
+    if(val) val.textContent=typeof p.face[k]==='number'?Number(p.face[k]).toFixed(2):p.face[k];
+  });
+  bodyKeys.forEach(k=>{
+    const el=q(k), val=q(k+'Val'); if(!el)return;
+    el.value=p.body[k];
+    if(val) val.textContent=Number(p.body[k]).toFixed(2);
+  });
+  colorKeys.forEach(k=>{
+    const el=q(k), val=q(k+'Val'); if(!el)return;
+    el.value=p.color[k];
+    if(val) val.textContent=Number(p.color[k]).toFixed(2);
+  });
+  q('bodyColor').value=bodyColor;q('bodyColorVal').textContent=bodyColor;
+  q('faceColor').value=faceColor;q('faceColorVal').textContent=faceColor;
+}
+function buildLibrary(){
+  const lib=q('library');lib.innerHTML='';
+  EXPRESSION_NAMES.forEach(name=>{
+    const b=document.createElement('button');
+    b.className=name===current?'on':'';
+    b.innerHTML=`${name.toUpperCase()}<small>${name==='neutral'?'R0 BASE':'editable preset'}</small>`;
+    b.onclick=()=>{current=name;intensity=1;q('intensity').value=1;buildLibrary();render()};
+    lib.appendChild(b);
+  });
+}
+function bind(){
+  faceKeys.forEach(k=>{
+    const el=q(k); if(!el)return;
+    const h=()=>{presets[current].face[k]=el.tagName==='SELECT'?el.value:Number(el.value);render()};
+    el.addEventListener('input',h);el.addEventListener('change',h);
+  });
+  bodyKeys.forEach(k=>{
+    const el=q(k); if(!el)return;
+    const h=()=>{presets[current].body[k]=Number(el.value);render()};
+    el.addEventListener('input',h);el.addEventListener('change',h);
+  });
+  colorKeys.forEach(k=>{
+    const el=q(k); if(!el)return;
+    const h=()=>{presets[current].color[k]=Number(el.value);render()};
+    el.addEventListener('input',h);el.addEventListener('change',h);
+  });
+}
+function snapshot(){
+  const payload={
+    version:'SOUL_EXPRESSIONS_V1',
+    scope:'ball_face_body_color_motion',
+    bodyBase:{shape:'sphere',tailIncluded:false},
+    palette:{bodyTest:bodyColor,face:faceColor},
+    runtime:{replyCue:{expression:current,intensity,energy}},
+    expressions:presets
+  };
+  q('jsonOut').value=JSON.stringify(payload,null,2);
+  localStorage.setItem('vinzlab:soul:expressions:v1',q('jsonOut').value);
+  status.textContent='SNAPSHOT SAVED · READY TO HANDOFF';
+}
+function download(){
+  if(!q('jsonOut').value)snapshot();
+  const blob=new Blob([q('jsonOut').value],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;a.download='soul-expression-system-v1.json';a.click();URL.revokeObjectURL(url);
+}
+
+document.querySelectorAll('[data-tab]').forEach(btn=>{
+  btn.onclick=()=>{
+    document.querySelectorAll('[data-tab]').forEach(x=>x.classList.remove('on'));btn.classList.add('on');
+    document.querySelectorAll('[data-section]').forEach(x=>x.classList.toggle('on',x.dataset.section===btn.dataset.tab));
+  }
+});
+q('intensity').value=intensity;q('energy').value=energy;
+q('intensity').oninput=e=>{intensity=Number(e.target.value);render()};
+q('energy').oninput=e=>{energy=Number(e.target.value);render()};
+q('bodyColor').oninput=e=>{bodyColor=e.target.value;render()};
+q('faceColor').oninput=e=>{faceColor=e.target.value;render()};
+
+q('saveExpression').onclick=()=>{snapshot();status.textContent=`${current.toUpperCase()} FACE SAVED`};
+q('saveBody').onclick=()=>{snapshot();status.textContent=`${current.toUpperCase()} BODY SAVED`};
+q('saveColor').onclick=()=>{snapshot();status.textContent=`${current.toUpperCase()} COLOR SAVED`};
+q('duplicateNeutral').onclick=()=>{presets[current].face=JSON.parse(JSON.stringify(presets.neutral.face));render()};
+q('mirrorEyes').onclick=()=>{
+  const f=presets[current].face;
+  const a=f.leftEyeOpen;f.leftEyeOpen=f.rightEyeOpen;f.rightEyeOpen=a;
+  const t=f.leftEyeTilt;f.leftEyeTilt=-f.rightEyeTilt;f.rightEyeTilt=-t;
+  render();
+};
+q('resetExpression').onclick=()=>{presets[current].face=JSON.parse(JSON.stringify(defaults[current].face));render()};
+q('resetBody').onclick=()=>{presets[current].body=JSON.parse(JSON.stringify(defaults[current].body));render()};
+q('resetColor').onclick=()=>{presets[current].color=JSON.parse(JSON.stringify(defaults[current].color));render()};
+q('saveSnapshot').onclick=snapshot;
+q('copyJson').onclick=()=>{if(!q('jsonOut').value)snapshot();navigator.clipboard.writeText(q('jsonOut').value)};
+q('downloadJson').onclick=download;
+q('resetAll').onclick=()=>{presets=JSON.parse(JSON.stringify(defaults));current='neutral';intensity=1;energy=.5;bodyColor='#8A00FF';faceColor='#18F5B4';buildLibrary();render();snapshot()};
+
+bind();buildLibrary();render();snapshot();
+</script>
+</body>
+</html>

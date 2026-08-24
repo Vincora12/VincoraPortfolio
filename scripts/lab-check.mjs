@@ -178,8 +178,14 @@ try {
 
   /* --- 2. L'atrio ---------------------------------------------------------- */
   await open('/#/lab');
-  const doors = await page.locator('.labapp__doors button').count();
-  check('su «/#/lab» monta VINZ.LAB', (await page.locator('.labapp').count()) > 0);
+  /* 🔶 `.labapp` e `.labapp__doors` erano le classi del guscio che avevo
+     inventato io. L'atrio adesso è `docs/lab/design/00-atrio.html`: il titolo
+     è un `<h1>` e le porte sono `<a class="lab">`, come le ha disegnate lui. */
+  const doors = await page.locator('a.lab').count();
+  check(
+    'su «/#/lab» monta VINZ.LAB',
+    (await page.locator('main h1').first().textContent()) === 'VINZ.LAB',
+  );
   check('e le porte sono quattro', doors === 4, `trovate ${doors}`);
   check('col titolo suo', (await page.title()) === 'VINZ.LAB');
   check(
@@ -194,8 +200,8 @@ try {
 
   /* --- 3. DESIGN.LAB ------------------------------------------------------- */
   await open('/#/lab/design');
-  check('su «/#/lab/design» si apre DESIGN.LAB', (await page.locator('.designlab').count()) > 0);
-  const frame = page.locator('iframe.designlab__preview');
+  check('su «/#/lab/design» si apre DESIGN.LAB', (await page.locator('.labtitle').count()) > 0);
+  const frame = page.locator('.phone iframe');
   check('con dentro l\'iframe della schermata vera', (await frame.count()) === 1);
   const src = ((await frame.count()) === 1 ? await frame.getAttribute('src') : null) ?? '';
   check(
@@ -204,85 +210,68 @@ try {
     src,
   );
 
-  /* --- 3b. Le stanze degli strumenti --------------------------------------- */
+  /* --- 3b. Le stanze --------------------------------------------------------
+     🔶 CERCAVANO `.labroom` E `.ftab`, cioè il guscio che avevo inventato io:
+     linguette a cartella prese dal pannello DEV. Quel guscio non c'è più — le
+     stanze adesso sono i DISEGNI di Vincenzo, con le sue classi (`.app`,
+     `.top`, `.tabs .tab`, `.page`). Il controllo guarda quelle.
 
-  /* 🔒 `verify:parity` prova che le sezioni sono MONTATE nel codice. Questo
-     prova che si APRONO: un componente può essere montato benissimo e
-     esplodere al primo render perché gli manca un .mon, un contesto o una
-     chiave. È la differenza fra «l'ho collegato» e «l'ho aperto», ed è
-     esattamente la differenza su cui si decide se togliere DEV. */
-  for (const [stanza, atteseSchede] of [['creation', 3], ['system', 5]]) {
+     🔒 E la cosa che verifica resta la stessa, perché la decisione non era
+     mai «esiste `.labroom`»: era «ogni scheda si apre e mostra qualcosa».
+     Una scheda vuota è uno strumento che non c'è con l'aria di esserci, ed è
+     invisibile a un controllo sul codice. */
+  for (const [stanza, minimoSchede] of [['creation', 5], ['system', 5], ['design', 4]]) {
     guarda();
     await open(`/#/lab/${stanza}`);
-    const room = await page.evaluate(() => ({
-      montata: document.querySelector('.labroom') !== null,
-      gruppi: document.querySelectorAll('.labroom .ftab, .labroom [role="tab"]').length,
-      corpo: (document.querySelector('.dev__body')?.textContent ?? '').trim().length,
-    }));
-    check(`la stanza ${stanza.toUpperCase()} si apre`, room.montata);
-    check(
-      `e ha le sue aree`,
-      room.gruppi >= atteseSchede,
-      `${room.gruppi} linguette trovate, ne servono almeno ${atteseSchede}`,
-    );
-    check(
-      `e la prima scheda mostra qualcosa`,
-      room.corpo > 20,
-      'una scheda vuota è uno strumento che non c\'è, con l\'aria di esserci',
-    );
-    /* 🔒 Aprire una stanza è GUARDARE. Gli strumenti dentro scrivono eccome —
-       è il loro mestiere — ma solo quando li premi. Il solo entrare non deve
-       far partire niente. */
-    check(
-      `e aprirla non ha scritto niente da sola`,
-      writes.length === 0,
-      writes.join(' · '),
-    );
-  }
 
-  /* Ogni singola scheda di ogni stanza va aperta: è l'unico modo di scoprire
-     quella che esplode solo lei, o che si monta vuota. */
-  for (const stanza of ['creation', 'system']) {
-    guarda();
-    await open(`/#/lab/${stanza}`);
-    const gruppi = page.locator('.labroom__groups .ftab');
-    const quantiGruppi = await gruppi.count();
-    let aperte = 0;
-    let vuote = [];
+    const schede = page.locator('.top .tabs .tab');
+    const quante = await schede.count();
+    check(`la stanza ${stanza.toUpperCase()} si apre col disegno vero`, (await page.locator('.app .top').count()) === 1);
+    check(
+      `e ha le sue ${minimoSchede} schede`,
+      quante >= minimoSchede,
+      `${quante} trovate`,
+    );
 
-    for (let g = 0; g < quantiGruppi; g++) {
-      await gruppi.nth(g).click();
-      await sleep(250);
-      const schede = page.locator('.labroom__tabs .ftab');
-      const quante = await schede.count();
-      /* Un gruppo con una scheda sola non disegna la seconda fila: la sua
-         unica scheda è già aperta. */
-      for (let t = 0; t < Math.max(quante, 1); t++) {
-        let etichetta = await gruppi.nth(g).textContent();
-        if (quante > 0) {
-          etichetta = await schede.nth(t).textContent();
-          await schede.nth(t).click();
-          await sleep(260);
-        }
-        aperte++;
-        const pieno = await page.evaluate(
-          () => (document.querySelector('.dev__body')?.textContent ?? '').trim().length > 20,
-        );
-        if (!pieno) vuote.push(etichetta?.trim() ?? '?');
-      }
+    const vuote = [];
+    for (let i = 0; i < quante; i++) {
+      const etichetta = (await schede.nth(i).textContent())?.trim() ?? '?';
+      await schede.nth(i).click();
+      await sleep(320);
+      const pieno = await page.evaluate(
+        () => (document.querySelector('main .page')?.textContent ?? '').trim().length > 40,
+      );
+      if (!pieno) vuote.push(etichetta);
     }
-
     check(
-      `in ${stanza.toUpperCase()} ogni scheda mostra il suo strumento`,
+      `in ${stanza.toUpperCase()} ogni scheda mostra qualcosa`,
       vuote.length === 0,
-      vuote.length ? `vuote: ${vuote.join(', ')}` : `${aperte} schede aperte una per una`,
+      vuote.length ? `vuote: ${vuote.join(', ')}` : `${quante} schede aperte una per una`,
     );
     check(
-      `e sfogliarle tutte non ha scritto niente`,
+      `e sfogliare ${stanza.toUpperCase()} non ha scritto niente`,
       writes.length === 0,
       writes.join(' · '),
     );
   }
+
+  /* 🔒 IL PEZZO CHE DICE SE HO CAPITO LA CORREZIONE. Le stanze devono essere
+     il disegno di Vincenzo, non un guscio inventato: la prova è che le classi
+     a schermo siano le SUE. Se un giorno tornasse `.labroom`, vorrebbe dire
+     che qualcuno ha ridisegnato di nuovo quello che era già disegnato. */
+  await open('/#/lab/system');
+  const suo = await page.evaluate(() => ({
+    kicker: document.querySelector('.kicker.mono') !== null,
+    lead: document.querySelector('.lead') !== null,
+    section: document.querySelector('.section h2.mono') !== null,
+    inventato: document.querySelector('.labroom, .ftab') !== null,
+  }));
+  check('le stanze usano le classi del disegno', suo.kicker && suo.lead && suo.section);
+  check(
+    'e non è tornato il guscio inventato',
+    !suo.inventato,
+    'era il pannello DEV con un nome nuovo: il disegno c\'era già',
+  );
 
   /* --- 3c. SOUL --------------------------------------------------------------
      🔒 Le tre ancore dello schizzo devono dare tre facce DIVERSE. Sembra
@@ -296,14 +285,19 @@ try {
      Quindi il controllo confronta i PATH veri dell'SVG. */
   guarda();
   await open('/#/lab/soul');
-  check('la stanza SOUL si apre', (await page.locator('.soullab__stage svg').count()) === 1);
+  check('la stanza SOUL si apre', (await page.locator('.stage .soul__svg').count()) === 1);
+  check(
+    'con le cinque schede del disegno',
+    (await page.locator('.tabs button').count()) === 5,
+    'LIVE / EXPRESSION / BODY / COLOR / SAVE',
+  );
 
   const facce = {};
   for (const nome of ['sleepy', 'neutral', 'angry']) {
-    await page.locator(`.soullab__chip:text-is("${nome}")`).first().click();
+    await page.locator(`.library button:text-is("${nome}")`).first().click();
     await sleep(420);
     facce[nome] = await page.evaluate(() => {
-      const svg = document.querySelector('.soullab__stage svg');
+      const svg = document.querySelector('.stage .soul__svg');
       if (!svg) return '';
       const occhi = [...svg.querySelectorAll('clipPath rect')]
         .map((r) => `${r.getAttribute('transform')}${r.getAttribute('y')}`)
