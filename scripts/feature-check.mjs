@@ -3651,6 +3651,51 @@ check(
 );
 
 /* ============================================================================
+   MODIFICARE IL FLUSSO — «fai in modo che escano di più»
+   ========================================================================= */
+
+const AXIS = 'src/engine/axisTuning.ts';
+
+check(
+  'CREATION.LAB',
+  'gli occhiali si possono pesare, non solo accendere e spegnere',
+  has(AXIS, "'eyewear'") && has('src/engine/characterGenerator.ts', "tunedPick(rng, 'eyewear'"),
+  '🔷 «non togliere quelli da sole: fai uscire di più quelli da vista» — accendi/spegni non era la risposta giusta',
+);
+check(
+  'CREATION.LAB',
+  'e a pesi tutti uguali il motore genera IDENTICO a prima',
+  has(AXIS, 'if (!tuned(axis)) {') && has(AXIS, 'list[Math.floor(rng() * list.length)]'),
+  'accendere il meccanismo non deve cambiare le distribuzioni già verificate: se `verify:batch` diventa rosso senza che nessuno abbia toccato un peso, è questo file ad aver sbagliato',
+);
+check(
+  'CREATION.LAB',
+  'un peso non può azzerare la varietà di un asse',
+  has(AXIS, 'PESO_MAX = 5'),
+  'con un peso a 100 su una voce sola la creatura ha SEMPRE gli stessi occhiali: non è una preferenza, è un timbro',
+);
+check(
+  'CREATION.LAB',
+  'e portare tutto a zero non rompe la generazione',
+  has(AXIS, 'if (totale <= 0) return'),
+  '«non voglio nessun tipo di occhiali» è una richiesta impossibile: si dice nella UI, non ci si rompe dentro il motore',
+);
+check(
+  'CREATION.LAB',
+  'i comandi si agganciano al passo per NUMERO, non per nome',
+  has('src/lab/rooms/CreationLab.tsx', "const COMANDI: Record<string, AsseDelPasso[]> = {") &&
+    has('src/lab/rooms/CreationLab.tsx', "'09': ["),
+  'gli ID canonici non cambiano, i nomi sì: un aggancio sul nome si stacca in silenzio',
+);
+check(
+  'CREATION.LAB',
+  'e ogni passo modificabile si può PROVARE, contando cosa esce',
+  has('src/lab/rooms/StepTuning.tsx', 'PROVA · 200 CREATURE') &&
+    has('src/lab/rooms/StepTuning.tsx', 'const N = 200;'),
+  'sotto il centinaio le percentuali ballano da sole e si legge come effetto quello che è rumore',
+);
+
+/* ============================================================================
    IL DUELLO — come il .mon impara i tuoi gusti
    ========================================================================= */
 

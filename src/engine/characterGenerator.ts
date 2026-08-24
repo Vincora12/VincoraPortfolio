@@ -49,6 +49,7 @@ import {
 import { keepEnabled } from './catalogTuning';
 import { locked } from './generation-config';
 import { makeRng, pick, pickInt, pickMany, pickWeighted, type Rng } from './rng';
+import { tunedPick } from './axisTuning';
 import { buildSignalVector, evaluateFit, type GeneratorInput } from './signals';
 import { generatePaletteDna } from './colorDna';
 import { buildSigil } from './sigil';
@@ -783,7 +784,14 @@ function resolveMarkers(rng: Rng, family: FamilyDef, ctx: GenerationContext) {
   const eyewear = family.supportsEyewear
     ? (() => {
         const fresh = EYEWEAR_CATEGORIES.filter((c) => !recent.includes(c.id));
-        const cat = pick(rng, fresh.length > 0 ? fresh : EYEWEAR_CATEGORIES);
+        /* 🔷 «Poter dire: senti, fai in modo che escano di più quelli da vista.»
+           Le sedici categorie si estraevano con un `pick` uniforme e non
+           c'era nessun posto da cui toccarle. Adesso passano dai pesi.
+
+           🔒 A pesi tutti uguali `tunedPick` fa esattamente quello che faceva
+           `pick`, consumando lo stesso singolo `rng()`: finché non sposti un
+           peso, non cambia niente. */
+        const cat = tunedPick(rng, 'eyewear', fresh.length > 0 ? fresh : EYEWEAR_CATEGORIES, (c) => c.id);
         return {
           category: cat.id,
           description: `${cat.it}, costruite sul cranio di questa creatura invece che appoggiate sopra`,
@@ -794,7 +802,10 @@ function resolveMarkers(rng: Rng, family: FamilyDef, ctx: GenerationContext) {
   // §9 — capelli solo dove l'anatomia li supporta; altrove la decolorazione si
   // traduce in pelo, criniera, piume o fibre, e non si forza una parrucca.
   const hair = family.supportsHair
-    ? { state: pick(rng, HAIR_STATES).id, cut: pick(rng, HAIRCUTS).id }
+    ? {
+        state: tunedPick(rng, 'hairState', HAIR_STATES, (h) => h.id).id,
+        cut: tunedPick(rng, 'haircut', HAIRCUTS, (h) => h.id).id,
+      }
     : null;
 
   return { eyewear, hairState: hair?.state ?? null, haircut: hair?.cut ?? null };

@@ -35,6 +35,8 @@ import {
   type Duello,
   type Voto,
 } from './training';
+import { StepTuning, type AsseDelPasso } from './StepTuning';
+import { EYEWEAR_CATEGORIES, HAIRCUTS, HAIR_STATES } from '../../engine/generation-config';
 import '../skin/creation.css';
 
 const TABS = [
@@ -92,6 +94,61 @@ export function CreationLab({ onBack }: { onBack: () => void }) {
 /* ============================================================================
    FLOW
    ========================================================================= */
+
+/* ============================================================================
+   QUALI PASSI SI POSSONO TOCCARE, E CON COSA
+
+   🔷 «Devo poter modificare i vari valori dentro, e magari disabilitare certe
+      parti per vedere cosa succede.»
+
+   🔒 LA CHIAVE È IL NUMERO DEL PASSO, non il nome. Gli ID canonici del disegno
+   non sono in ordine e non cambiano; i nomi sì. Un aggancio sul nome si
+   sarebbe staccato alla prima parola riscritta, in silenzio, e il passo
+   sarebbe tornato senza comandi senza che nessuno se ne accorgesse.
+
+   ⚠️ E DOVE UN COMANDO NON C'È, NON SI FINGE. I passi che non compaiono qui
+   sotto non hanno manopole: non perché siano meno importanti, ma perché il
+   motore, oggi, non ha un punto da cui toccarli. Un cursore che non muove
+   niente è peggio di nessun cursore.
+   ========================================================================= */
+const COMANDI: Record<string, AsseDelPasso[]> = {
+  '04': [{ tipo: 'catalogo', asse: 'family', leggi: (d) => String(d.family ?? '') }],
+  '06': [{ tipo: 'catalogo', asse: 'affinity', leggi: (d) => String(d.affinity ?? '') }],
+  '08': [{ tipo: 'catalogo', asse: 'role', leggi: (d) => String(d.role ?? '') }],
+  /* 🔷 Il passo degli occhiali: quello dell'esempio. Lo stile si accende e si
+     spegne; le sedici categorie di ottica si PESANO, perché la richiesta non
+     era «togli quelli da sole», era «fai uscire di più quelli da vista». */
+  '09': [
+    { tipo: 'catalogo', asse: 'fashion', leggi: (d) => String(d.fashion ?? '') },
+    {
+      tipo: 'peso',
+      asse: 'eyewear',
+      voci: EYEWEAR_CATEGORIES,
+      /* I marcatori stanno DIRETTAMENTE su `CharacterData` — `eyewear`,
+         `hair_state`, `haircut` — non dentro un `vinz_markers`. Un lettore che
+         punta al posto sbagliato non fallisce: conta zero, e la prova sembra
+         dire «gli occhiali non escono mai». */
+      leggi: (d) => (d.eyewear as { category?: string } | null)?.category ?? null,
+    },
+  ],
+  '10': [{ tipo: 'catalogo', asse: 'mood', leggi: (d) => String(d.mood_primary ?? '') }],
+  '11': [{ tipo: 'catalogo', asse: 'appearance', leggi: (d) => String(d.appearance ?? '') }],
+  '11.5': [{ tipo: 'catalogo', asse: 'design', leggi: (d) => String(d.character_design_dna ?? '') }],
+  '13': [
+    {
+      tipo: 'peso',
+      asse: 'hairState',
+      voci: HAIR_STATES,
+      leggi: (d) => (d.hair_state as string | null) ?? null,
+    },
+    {
+      tipo: 'peso',
+      asse: 'haircut',
+      voci: HAIRCUTS,
+      leggi: (d) => (d.haircut as string | null) ?? null,
+    },
+  ],
+};
 
 const AGENTE: Record<string, string> = {
   code: '⚙️ CODE',
@@ -224,7 +281,10 @@ function Flow() {
                         <span className="kindtag mono">{kindLabel}</span>
                       </span>
                     </span>
-                    <span className={`state mono ${v ? 'changed' : ''}`}>{v ? 'RAN' : 'R0'}</span>
+                    <span className={`state mono ${v ? 'changed' : ''}`}>
+                      {COMANDI[p.id] ? '⚙︎ ' : ''}
+                      {v ? 'RAN' : 'R0'}
+                    </span>
                   </summary>
 
                   <div className="detail">
@@ -253,6 +313,13 @@ function Flow() {
                       <span className="label mono">ULTIMA GENERAZIONE</span>
                       <div className="outputline mono">{v ?? '— nessuna in questa sessione'}</div>
                     </div>
+
+                    {COMANDI[p.id] && (
+                      <div className="box">
+                        <span className="label mono">MODIFICA E PROVA</span>
+                        <StepTuning assi={COMANDI[p.id]!} />
+                      </div>
+                    )}
                   </div>
                 </details>
               );

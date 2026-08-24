@@ -343,6 +343,58 @@ try {
     writes.join(' · '),
   );
 
+  /* --- 3b-ter. MODIFICARE UN PASSO DEL FLUSSO -------------------------------
+     🔷 «Poter controllare com'è il valore degli occhiali, e dirti: fai in modo
+        che escano di più quelli da vista. E quindi poi lo provo.»
+
+     🔒 Questo controllo fa esattamente quel giro: apre il passo degli
+     occhiali, misura come escono adesso, spinge una categoria al massimo,
+     rimisura, e pretende di vederla salire. Non guarda che il cursore ESISTA
+     — guarda che SPOSTARLO CAMBI QUELLO CHE NASCE.
+
+     ⚠️ È l'unico modo di accorgersi se un giorno il peso smette di arrivare
+     al motore: il cursore continuerebbe a muoversi, il numero accanto
+     continuerebbe a dire ×5, e non succederebbe più niente. */
+  guarda();
+  await open('/#/lab/creation');
+  const passo = page.locator('details.step').filter({ hasText: 'Fashion + VINZ Markers' }).first();
+  await passo.locator('summary').click();
+  await sleep(400);
+
+  check(
+    'il passo degli occhiali ha i suoi comandi',
+    (await passo.locator('.tune').count()) === 2,
+    'lo stile si accende e si spegne, le sedici ottiche si pesano',
+  );
+
+  const ottica = passo.locator('.tune').nth(1);
+  const quota = async () => {
+    await ottica.locator('button', { hasText: 'PROVA' }).click();
+    await sleep(4200);
+    const righe = await ottica.locator('.tune__distrow').allTextContents();
+    const r = righe.find((x) => x.startsWith('OPTICAL EDITORIAL'));
+    return r ? Number((/([\d.]+)%/.exec(r) ?? [])[1] ?? 0) : 0;
+  };
+
+  const prima = await quota();
+  check('e la prova genera davvero e conta', prima > 0, `${prima}% prima di toccare niente`);
+
+  await ottica.locator('.tune__row').filter({ hasText: 'OPTICAL EDITORIAL' }).first()
+    .locator('input[type=range]').fill('5');
+  await sleep(300);
+  const dopo = await quota();
+
+  check(
+    'spingere un peso fa uscire davvero di più quella voce',
+    dopo > prima * 1.6,
+    `${prima}% → ${dopo}%`,
+  );
+  check(
+    'e i pesi non partono da soli',
+    writes.length === 0,
+    'tarare un asse non deve mandare niente in rete',
+  );
+
   /* --- 3c. SOUL --------------------------------------------------------------
      🔒 Le tre ancore dello schizzo devono dare tre facce DIVERSE. Sembra
      ovvio e non lo è: la faccia è generata da parametri, e un parametro
