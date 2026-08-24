@@ -3634,33 +3634,67 @@ check(
   'è così che si perde una funzione senza accorgersene: guardando due schermate e ricordandosi male',
 );
 
+
+/* ============================================================================
+   IL DUELLO — come il .mon impara i tuoi gusti
+   ========================================================================= */
+
+const TRAIN = 'src/lab/rooms/training.ts';
+const BUILD = 'src/lab/rooms/CreationLab.tsx';
+
 check(
   'VINZ.LAB',
-  'il banco A/B accende il riquadro del risultato',
-  has('src/lab/rooms/CreationLab.tsx', 'className="compare show"'),
-  '🔴 nel CSS del disegno `.compare` nasce display:none: senza `show` il test gira e non si vede',
+  'il duello genera due creature diverse, non la stessa due volte',
+  has(BUILD, 'const a = uno(n++);') && has(BUILD, 'const b = uno(n++);'),
+  '🔷 «mi genera random dei mon ed io scelgo quale mi piace, così lui inizia ad imparare»',
 );
 check(
   'VINZ.LAB',
-  'e confronta le impostazioni di serie con le tue, non due volte le stesse',
-  has('src/lab/rooms/CreationLab.tsx', 'resetCatalog();') &&
-    has('src/lab/rooms/CreationLab.tsx', 'BASELINE · DI SERIE'),
-  'un A/B che non può mai mostrare una differenza non è un test, è una decorazione',
+  'e il perimetro si blocca spegnendo il catalogo, non inventando un parametro',
+  has(BUILD, "setCatalogEnabled('family', id, false)") && has(BUILD, 'resetCatalog();'),
+  'non esiste un «generami un ANGEL»: la Family la sceglie il motore dal catalogo',
 );
 check(
   'VINZ.LAB',
-  'e rimette le impostazioni esattamente com\'erano',
-  has('src/lab/rooms/CreationLab.tsx', '} finally {') &&
-    has('src/lab/rooms/CreationLab.tsx', 'setCatalogEnabled(a, id, false)') &&
-    has('src/lab/rooms/CreationLab.tsx', 'setRarityThresholds(soglie)'),
-  'PRODUCTION = READ ONLY: una prova che lascia il motore azzerato ha cambiato la produzione',
+  'e il catalogo torna com\'era anche se la generazione fallisce',
+  has(BUILD, '} finally {') && has(BUILD, 'for (const [a, id] of spenti) setCatalogEnabled(a, id, false);'),
+  'una prova che lascia il motore mezzo spento ha cambiato la produzione',
 );
 check(
   'VINZ.LAB',
-  '«hai cambiato qualcosa» si misura sullo scostamento dai valori di serie',
-  has('src/lab/rooms/CreationLab.tsx', 'isOffByDefault') &&
-    lacksInCode('src/lab/rooms/CreationLab.tsx', 'isCatalogTuned()'),
-  '🔴 `isCatalogTuned` dice «c\'è qualcosa di spento», e qualcosa è spento sempre: diceva «hai impostazioni tue» a chi non aveva toccato niente',
+  'un valore conta solo quando ha battuto un valore DIVERSO',
+  has(TRAIN, 'if (!a || !b || a === b) continue;'),
+  'se ANGEL sta da tutte e due le parti, il fatto che «vinca» non dice niente: vinceva comunque',
+);
+check(
+  'VINZ.LAB',
+  'e sotto la soglia non si dichiara nessun gusto',
+  has(TRAIN, 'MINIMO_SCONTRI = 3') && has(TRAIN, 'p.scontri >= MINIMO_SCONTRI'),
+  'una regola imparata da un caso solo entra nel prompt del resolver e ci resta',
+);
+check(
+  'VINZ.LAB',
+  'BOTH e NO non contano per i gusti',
+  has(TRAIN, 'if (!d.vinta || !d.persa) continue;'),
+  'dicono che ti piacciono tutte e due o nessuna, non quale preferisci',
+);
+check(
+  'VINZ.LAB',
+  'i voti stanno in una memoria loro, separata dalla partita',
+  has(TRAIN, "'vinzlab.training.v1'") && lacksInCode(TRAIN, 'vinzmon.prototype'),
+  'un allenamento non deve poter toccare la creatura vera',
+);
+check(
+  'VINZ.LAB',
+  'e diventano una lezione VERA solo con un gesto esplicito',
+  has(BUILD, 'teachResolver(frase, [])') && has(BUILD, 'INSEGNA QUESTO AL RESOLVER'),
+  'l\'AI propone, tu applichi: è la regola del pacchetto',
+);
+check(
+  'VINZ.LAB',
+  'e la frase che gli insegni porta con sé quanti casi la reggono',
+  has(TRAIN, "l'ho scelto ${p.vinti} volte su ${p.scontri}"),
+  'una lezione senza il suo peso viene applicata come se fosse una legge',
 );
 
 /* ============================================================================

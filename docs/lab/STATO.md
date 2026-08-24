@@ -19,7 +19,7 @@ implementa.**
 
 | Stanza | Disegno | Cosa c'è dietro, davvero |
 |---|---|---|
-| 🧬 CREATION | `creation-lab.html` | Il flusso a 32 passi con gli ID canonici; quali partono da soli alla schiusa e quali no; cosa ha deciso l'ULTIMA generazione (`lastTrace`); A/B che chiama `generateFirstMon` a parità di seme; il Character Data del .mon attivo; le lezioni vere. |
+| 🧬 CREATION | `creation-lab.html` | Il flusso a 32 passi con gli ID canonici; quali partono da soli alla schiusa e quali no; cosa ha deciso l'ULTIMA generazione (`lastTrace`); **il duello che impara i tuoi gusti**; il Character Data del .mon attivo; le lezioni vere. |
 | 👻 SOUL | `soul-lab.html` | Il renderer SVG: corpo, codina, faccia procedurale, sei strati di movimento, colore dal `.mon` attivo, umore che modula e non sostituisce. Snapshot JSON + passaggio a parole. |
 | 🖥 DESIGN | `design-lab.html` | Dentro il telefono, l'iframe che monta le **schermate React vere** con i guardiani che bloccano ogni scrittura. Token letti dal foglio vivo, non ricopiati. |
 | ⚙️ SYSTEM | `system-lab.html` | `/api/setup` e `/api/ping` veri; scelta dei modelli; giorni, segnali, deriva e override della simulazione; memorie, umore, opinioni, Build Mode; telemetria delle chiamate. |
@@ -40,7 +40,7 @@ dire perdere quindici cose.
 ## Come si prova
 
     npm run verify:parity   # cosa vive nel lab e cosa solo in DEV
-    npm run verify:lab      # 47 prove con un browser vero
+    npm run verify:lab      # 49 prove con un browser vero
 
 `verify:lab` apre ogni stanza e **sfoglia ogni scheda una per una**, perché
 una scheda può essere montata benissimo e aprirsi vuota — e un controllo sul
@@ -63,17 +63,11 @@ del disegno, e che non torni il guscio inventato.
   con un filo in mezzo: il nastro si incrociava sull'ultimo tornante.
 - **`angry` era identico ad `annoyed`**: palpebra bassa più inclinazione si
   sommavano e chiudevano gli occhi.
-- **Il banco A/B sembrava morto.** Girava, generava e chiamava `setEsito` — ma
-  nel CSS del disegno `.compare` nasce `display:none` e si accende con
-  `.compare.show`: avevo portato il markup e non l'interruttore. Stesso
-  difetto dei pulsanti bianchi su bianco.
-- **E non aveva niente da confrontare:** generava due volte con lo stesso seme
-  e le stesse impostazioni, quindi le colonne erano identiche per costruzione.
-  Adesso a sinistra c'è la creatura con le impostazioni **di serie**, a destra
-  quella con le **tue**, e le impostazioni vengono rimesse com'erano.
-- **E il messaggio mentiva:** usava `isCatalogTuned()`, che dice «c'è qualcosa
-  di spento» — e qualcosa è spento sempre, perché alcune voci nascono spente.
-  Diceva «hai delle impostazioni tue» a chi non aveva toccato niente.
+- **Avevo costruito la cosa sbagliata al posto del duello.** Nella scheda
+  BUILD c'era già disegnato un banco di allenamento a coppie: due creature, tu
+  scegli, e lui impara. Io ci avevo messo un confronto a parità di seme —
+  invisibile per giunta, perché nel CSS `.compare` nasce `display:none` e si
+  accende con `.compare.show`, e avevo portato il markup senza l'interruttore.
 
 ## Non ancora fatto
 
@@ -99,3 +93,37 @@ la pagina disegnata in `soul-lab.html`.
 solo su pallina + faccia, la codina non esiste ancora nel renderer»; il brief
 v1 la chiama essenziale. Qui c'è, ma il cursore `WISP HEIGHT` a 0 la fa
 sparire — così la scelta resta di Vincenzo invece di essere murata da me.
+
+
+## Il duello: come impara i tuoi gusti
+
+🔷 «Un A/B test dovrebbe funzionare che mi genera random dei mon ed io scelgo
+quale mi piace, così lui inizia ad imparare.»
+
+Sta in CREATION → **BUILD**, ed era già disegnato in `creation-lab.html`.
+
+1. **Blocchi il perimetro**: FAMILY → ARCHETYPE → SIZE. Quello che non scegli
+   resta libero di variare.
+2. **TRAIN THIS SCOPE** genera N coppie di creature *diverse fra loro*, con il
+   generatore vero. `WHY THIS? / TRACE` mostra la traccia vera del motore.
+3. **Voti**: A / B / BOTH / NO, con un commento.
+4. Dopo abbastanza voti compare **COSA HO IMPARATO**, e con un gesto esplicito
+   diventa una **lezione vera** che il resolver legge — `teachResolver`, la
+   stessa strada di DEV → INSEGNA.
+
+Tre cose che questo banco fa e che è facile sbagliare:
+
+- **Un valore conta solo quando ha battuto un valore diverso.** Se ANGEL sta da
+  tutte e due le parti, il fatto che «vinca» non dice niente: vinceva comunque.
+- **Sotto i 3 scontri non si dichiara niente.** Una regola imparata da un caso
+  solo entra nel prompt del resolver e ci resta.
+- **BOTH e NO restano nel registro ma non contano.** Dicono che ti piacciono
+  tutte e due o nessuna, non quale preferisci.
+
+🔒 Il perimetro si blocca **spegnendo il catalogo** per il tempo della
+generazione — non esiste un «generami un ANGEL»: la Family la sceglie il
+motore dal catalogo. Il catalogo torna com'era in un `finally`, anche se la
+generazione fallisce.
+
+🔒 I voti stanno in `vinzlab.training.v1`, separata da `vinzmon.prototype.v4`:
+un allenamento non deve poter toccare la creatura vera.

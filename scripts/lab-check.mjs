@@ -273,52 +273,75 @@ try {
     'era il pannello DEV con un nome nuovo: il disegno c\'era già',
   );
 
-  /* --- 3b-bis. IL BANCO A/B DI CREATION -------------------------------------
-     🔴 QUESTO CONTROLLO NASCE DA UN GUASTO CHE NON SI VEDEVA COME UN GUASTO.
-     Il test A/B girava, generava, chiamava `setEsito` — e a schermo non
-     compariva niente, perché nel CSS di Vincenzo `.compare` nasce
-     `display:none` e si accende con `.compare.show`. Avevo portato il markup
-     e non l'interruttore.
+  /* --- 3b-bis. IL DUELLO DI CREATION ----------------------------------------
+     🔷 «Un A/B test dovrebbe funzionare che mi genera random dei mon ed io
+        scelgo quale mi piace, così lui inizia ad imparare.»
 
-     🔒 Quindi qui non si guarda se il nodo ESISTE: si guarda se si VEDE. Un
-     `querySelector` che trova un elemento alto zero pixel avrebbe detto che
-     andava tutto bene. */
+     🔴 Il controllo di prima guardava un confronto a parità di seme, che era
+     la cosa sbagliata che avevo costruito io. Adesso guarda quella giusta:
+     due creature DIVERSE, un voto, e un conto che cresce.
+
+     🔒 E la parte che conta davvero è l'ultima: dopo pochi voti il
+     laboratorio NON deve ancora dichiarare una preferenza. Una regola
+     imparata da un caso solo entra nel prompt del resolver e ci resta — la
+     soglia è la difesa, e una difesa che nessuno prova è una difesa che un
+     giorno sparisce. */
   guarda();
   await open('/#/lab/creation');
   await page.locator('.top .tabs .tab', { hasText: 'BUILD' }).click();
   await sleep(400);
-  await page.locator('.test button').first().click();
-  await sleep(2600);
+  await page.locator('.trainstart').click();
+  await sleep(3200);
 
-  const ab = await page.evaluate(() => {
-    const box = document.querySelector('.compare');
-    if (!box) return { c: 'assente' };
+  const duello = await page.evaluate(() => {
+    const s = document.querySelector('.session');
+    if (!s) return { c: 'nessuna sessione' };
+    const carte = [...s.querySelectorAll('.duelcard .duelmeta')].map((n) => n.textContent ?? '');
     return {
-      c: 'presente',
-      visibile: box.getBoundingClientRect().height > 20,
-      colonne: box.querySelectorAll('.col').length,
-      righe: box.querySelectorAll('.col .mono').length,
-      nota: document.querySelector('.test .hint')?.textContent?.trim() ?? '',
+      c: 'aperta',
+      carte: carte.length,
+      diverse: carte.length === 2 && carte[0] !== carte[1],
+      traccia: s.querySelectorAll('.tracebox .tracelines div').length,
+      voti: s.querySelectorAll('.votegrid button').length,
     };
   });
 
-  check('il banco A/B produce un risultato', ab.c === 'presente');
+  check('il duello genera due creature', duello.c === 'aperta' && duello.carte === 2);
   check(
-    'e il risultato SI VEDE',
-    ab.visibile === true,
-    'senza la classe `show` il CSS lo tiene a display:none e il test sembra rotto',
+    'e sono DIVERSE fra loro',
+    duello.diverse === true,
+    'due creature identiche non sono una scelta: è il difetto che aveva la versione di prima',
+  );
+  check('con la traccia vera del generatore', (duello.traccia ?? 0) > 0, 'WHY THIS? legge `trace.steps`');
+  check('e i quattro voti del disegno', duello.voti === 4, 'A / B / BOTH / NO');
+
+  /* Tre voti: pochi di proposito. */
+  for (let i = 0; i < 3; i++) {
+    const b = page.locator('.votegrid button').first();
+    if ((await b.count()) === 0) break;
+    await b.click();
+    await sleep(320);
+  }
+
+  const dopoPochi = await page.evaluate(() => ({
+    testo: document.querySelector('.traininglog')?.textContent ?? '',
+    chip: document.querySelectorAll('.traininglog .chip').length,
+  }));
+  check(
+    'i voti si contano',
+    /3 CONFRONTI/.test(dopoPochi.testo),
+    dopoPochi.testo.slice(0, 60),
   );
   check(
-    'con le due colonne piene',
-    ab.colonne === 2 && (ab.righe ?? 0) >= 16,
-    `${ab.colonne} colonne, ${ab.righe} righe`,
+    'ma con tre voti non dichiara ancora nessun gusto',
+    dopoPochi.chip === 0,
+    'una regola imparata da un caso solo entra nel prompt del resolver e ci resta',
   );
   check(
-    'e dice la verità su cosa sta confrontando',
-    /non hai cambiato niente|in grassetto|prova un altro seme/.test(ab.nota ?? ''),
-    'due colonne identiche senza una spiegazione si leggono come «non va»',
+    'e generare le creature del duello non ha scritto in rete',
+    writes.length === 0,
+    writes.join(' · '),
   );
-  check('e generare non ha scritto niente', writes.length === 0, writes.join(' · '));
 
   /* --- 3c. SOUL --------------------------------------------------------------
      🔒 Le tre ancore dello schizzo devono dare tre facce DIVERSE. Sembra

@@ -20,9 +20,21 @@
    riga che distingue un controllo collegato da uno che gli somiglia.
    ========================================================================= */
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useApp } from '../../state/store';
 import { FASI, PASSI, type FaseId } from './creationFlow';
+import {
+  dimenticaTutto,
+  ETICHETTA_ASSE,
+  fraseDaInsegnare,
+  leggiDuelli,
+  MINIMO_SCONTRI,
+  preferenze,
+  salvaDuello,
+  type AsseContato,
+  type Duello,
+  type Voto,
+} from './training';
 import '../skin/creation.css';
 
 const TABS = [
@@ -256,175 +268,366 @@ function Flow() {
    BUILD — il banco di prova, col generatore vero
    ========================================================================= */
 
+type Carta = {
+  righe: [string, string][];
+  assi: Partial<Record<AsseContato, string>>;
+  traccia: string[];
+};
+
+/* ============================================================================
+   BUILD + TRAIN — il duello
+
+   🔷 «Un A/B test dovrebbe funzionare che mi genera random dei mon ed io
+      scelgo quale mi piace, così lui inizia ad imparare.»
+
+   🔴 Ed era già disegnato: `docs/lab/design/creation-lab.html`, scheda BUILD.
+   Il perimetro con gli assi da bloccare, DUELS e SEED, le due carte con la
+   traccia «WHY THIS?», i quattro voti, i commenti, il registro. Io ci avevo
+   messo un confronto a parità di seme — due colonne identiche per
+   costruzione, che non imparano niente.
+
+   🔒 COME SI BLOCCA IL PERIMETRO, DAVVERO. Non c'è un parametro «generami un
+   ANGEL»: la Family la sceglie il motore dal catalogo. Quindi per allenare gli
+   ANGEL si spegne tutto il resto del catalogo per il tempo della generazione e
+   poi si rimette com'era — è lo stesso meccanismo di DEV → CATALOGHI, usato
+   dal di dentro. Il restauro sta in un `finally`: una prova che lascia il
+   motore mezzo spento avrebbe cambiato la produzione.
+   ========================================================================= */
+
 function Build() {
-  const [seed, setSeed] = useState('184723');
-  const [esito, setEsito] = useState<{ a: string[]; b: string[]; tarato: boolean } | null>(null);
+  const [famiglia, setFamiglia] = useState('');
+  const [archetipo, setArchetipo] = useState('');
+  const [taglia, setTaglia] = useState('');
+  const [quanti, setQuanti] = useState(8);
+  const [seme, setSeme] = useState('184723');
+
+  const [sessione, setSessione] = useState<{ a: Carta; b: Carta }[] | null>(null);
+  const [passo, setPasso] = useState(0);
+  const [commento, setCommento] = useState('');
+  const [duelli, setDuelli] = useState<Duello[]>(() => leggiDuelli());
   const [gira, setGira] = useState(false);
   const [guasto, setGuasto] = useState<string | null>(null);
+  const [insegnando, setInsegnando] = useState(false);
+  const [insegnato, setInsegnato] = useState<string | null>(null);
 
-  /* ==========================================================================
-     🔴 DUE BUG IN UNO, E IL PRIMO ERA INVISIBILE.
+  const teachResolver = useApp((s) => s.teachResolver);
 
-     1. NON SI VEDEVA NIENTE. Il codice girava, generava e chiamava `setEsito`
-        — l'ho verificato con dei log — ma a schermo non compariva niente.
-        Nel CSS di Vincenzo `.compare` nasce `display:none` e si accende con
-        `.compare.show`: nel suo disegno la classe la metteva il JS. Io avevo
-        copiato il markup e non la classe. Premevi, e sembrava rotto.
+  const scope = [famiglia || 'ALL', archetipo, taglia].filter(Boolean).join(' / ');
+  const prefs = useMemo(() => preferenze(duelli), [duelli]);
 
-        ⚠️ È lo stesso difetto dei pulsanti bianchi su bianco: tradurre un
-        disegno che si accende da solo e portarsi dietro i tag ma non gli
-        interruttori.
+  /* --- Le liste vere, dal catalogo ---------------------------------------- */
+  const [liste, setListe] = useState<{ famiglie: string[]; archetipi: string[] }>({ famiglie: [], archetipi: [] });
+  useEffect(() => {
+    void (async () => {
+      const { FAMILIES } = await import('../../engine/generation-config');
+      setListe({
+        famiglie: FAMILIES.map((f) => f.id),
+        archetipi: famiglia ? (FAMILIES.find((f) => f.id === famiglia)?.archetypes.map((a) => a.id) ?? []) : [],
+      });
+    })();
+  }, [famiglia]);
 
-     2. NON C'ERA NIENTE DA CONFRONTARE. Generavo due volte con lo STESSO seme
-        e le stesse impostazioni: le due colonne erano identiche per
-        costruzione. Un A/B che non può mai mostrare una differenza non è un
-        test, è una decorazione — e leggerlo come «non va» è la reazione
-        giusta.
+  /* --- La sessione --------------------------------------------------------- */
 
-     🔒 Adesso il confronto è vero: a SINISTRA la creatura che nascerebbe con
-     le impostazioni DI SERIE, a DESTRA quella che nasce con le TUE — stesso
-     seme, stessi input. Le righe diverse sono marcate.
-
-     Le manopole (cataloghi e soglie di rarità) oggi stanno ancora in DEV, non
-     qui: se non hai toccato niente le due colonne SONO uguali, e questo lo
-     dice invece di lasciartelo indovinare.
-     ====================================================================== */
-  const prova = async () => {
+  const allena = async () => {
     setGira(true);
     setGuasto(null);
+    setInsegnato(null);
 
-    const { AXES, CATALOG_AXES, isEnabled, isOffByDefault, resetCatalog, setCatalogEnabled } =
+    const { AXES, CATALOG_AXES, isEnabled, resetCatalog, setCatalogEnabled } =
       await import('../../engine/catalogTuning');
-    const { rarityThresholds, isRarityTuned, resetRarityThresholds, setRarityThresholds } =
-      await import('../../engine/rarityTuning');
 
-    /* La fotografia di com'è adesso, per rimettercelo esattamente com'era. */
     const spenti = CATALOG_AXES.flatMap((a) =>
       AXES[a].all.filter((id) => !isEnabled(a, id)).map((id) => [a, id] as const),
     );
-    const soglie = { ...rarityThresholds() };
-
-    /* 🔴 QUI IL MESSAGGIO MENTIVA. Usavo `isCatalogTuned()`, che risponde
-       «c'è qualcosa di spento» — e qualcosa è spento SEMPRE, perché alcune
-       voci del catalogo nascono spente di serie (`isOffByDefault`). Quindi su
-       un'app appena aperta diceva «hai delle impostazioni tue» a chi non
-       aveva toccato niente, e lo mandava a cercare una differenza che non
-       poteva esserci.
-
-       La domanda vera è un'altra: quello che è spento adesso è DIVERSO da
-       quello che è spento di serie? */
-    const catalogoDiverso = CATALOG_AXES.some((a) =>
-      AXES[a].all.some((id) => !isEnabled(a, id) !== isOffByDefault(a, id)),
-    );
-    const tarato = catalogoDiverso || isRarityTuned();
 
     try {
       const { generateFirstMon } = await import('../../engine/characterGenerator');
       const { generatorInput } = await import('../../state/store');
       const input = generatorInput(useApp.getState());
 
-      const uno = () =>
-        generateFirstMon({
+      /* Il perimetro: si spegne quello che non deve uscire. */
+      if (famiglia) {
+        for (const id of AXES.family.all) {
+          if (id !== famiglia) setCatalogEnabled('family', id, false);
+        }
+      }
+
+      const base = Number(seme) || 1;
+      const uno = (n: number): Carta => {
+        const r = generateFirstMon({
           input,
-          mindlineNodeId: 'lab-test',
+          mindlineNodeId: 'lab-train',
           originNodeId: null,
           lineageNames: [],
-          seed: Number(seed) || 1,
+          seed: base + n,
           devUnlockAll: false,
           hiddenEvent: false,
+          ...(archetipo ? { allowedArchetypes: [archetipo] } : {}),
         });
+        const d = r.record.data;
+        const assi = {
+          family: d.family,
+          family_archetype: d.family_archetype,
+          affinity: d.affinity,
+          size: d.size,
+          role: d.role,
+          fashion: d.fashion,
+          appearance: d.appearance,
+        };
+        return {
+          assi,
+          righe: [
+            ['NOME', d.name],
+            ['FAMILY', `${d.family} · ${d.family_archetype}`],
+            ['AFFINITY', d.affinity],
+            ['SIZE / ROLE', `${d.size} · ${d.role}`],
+            ['FASHION', d.fashion],
+            ['APPEARANCE', d.appearance],
+            ['RARITY', `${d.rarity} (${d.rarity_score})`],
+          ],
+          /* 🔒 «WHY THIS?» è la TRACCIA VERA del generatore, non una
+             spiegazione scritta a mano: se un giorno il motore decide
+             diversamente, qui si vede. */
+          traccia: r.trace.steps.slice(0, 14).map((x) => `${x.stage} → ${x.outcome}`),
+        };
+      };
 
-      const righe = (r: ReturnType<typeof uno>) => [
-        `NOME · ${r.record.data.name}`,
-        `FAMILY · ${r.record.data.family}`,
-        `ARCHETYPE · ${r.record.data.family_archetype}`,
-        `AFFINITY · ${r.record.data.affinity}`,
-        `SIZE · ${r.record.data.size}`,
-        `ROLE · ${r.record.data.role}`,
-        `APPEARANCE · ${r.record.data.appearance}`,
-        `RARITY · ${r.record.data.rarity} (${r.record.data.rarity_score})`,
-      ];
+      /* Semi diversi per A e B: è il punto — due creature diverse da
+         confrontare, non la stessa due volte. E la taglia, se l'hai bloccata,
+         si filtra scartando quelle che non tornano: il motore non ha un
+         parametro per imporla. */
+      const coppie: { a: Carta; b: Carta }[] = [];
+      let n = 0;
+      let tentativi = 0;
+      while (coppie.length < quanti && tentativi < quanti * 40) {
+        tentativi += 1;
+        const a = uno(n++);
+        const b = uno(n++);
+        if (taglia && (a.assi.size !== taglia || b.assi.size !== taglia)) continue;
+        if (a.assi.family === b.assi.family && a.assi.family_archetype === b.assi.family_archetype && a.assi.affinity === b.assi.affinity) continue;
+        coppie.push({ a, b });
+      }
 
-      /* Prima con le TUE impostazioni, così se qualcosa va storto dopo non
-         resta il motore azzerato. */
-      const lab = righe(uno());
-
-      resetCatalog();
-      resetRarityThresholds();
-      const base = righe(uno());
-
-      setEsito({ a: base, b: lab, tarato });
+      if (coppie.length === 0) {
+        setGuasto('Con questo perimetro non escono coppie diverse fra loro: allarga il campo.');
+      } else {
+        setSessione(coppie);
+        setPasso(0);
+        setCommento('');
+      }
     } catch (e) {
       setGuasto(String(e));
     } finally {
-      /* 🔒 SI RIMETTE TUTTO COM'ERA, SEMPRE. Prima si riaccende tutto
-         (`reset`), poi si rispengono le voci che erano spente: gli stati
-         intermedi hanno più voci accese di quello finale, quindi non possono
-         inciampare nel minimo che `setCatalogEnabled` protegge. */
       resetCatalog();
       for (const [a, id] of spenti) setCatalogEnabled(a, id, false);
-      setRarityThresholds(soglie);
       setGira(false);
     }
   };
 
+  const vota = (voto: Voto) => {
+    if (!sessione) return;
+    const { a, b } = sessione[passo]!;
+    const d: Duello = {
+      at: new Date().toISOString(),
+      scope,
+      voto,
+      vinta: voto === 'A' ? a.assi : voto === 'B' ? b.assi : null,
+      persa: voto === 'A' ? b.assi : voto === 'B' ? a.assi : null,
+      commento: commento.trim(),
+    };
+    setDuelli(salvaDuello(d));
+    setCommento('');
+    if (passo + 1 < sessione.length) setPasso(passo + 1);
+    else setSessione(null);
+  };
+
+  /* --- Da voti a lezione ---------------------------------------------------
+     🔒 L'AI PROPONE, TU APPLICHI. I voti restano voti finché non premi qui:
+     `teachResolver` è la stessa strada di DEV → INSEGNA, quindi la lezione
+     che ne esce è una lezione VERA, che il resolver legge davvero. */
+  const insegna = async () => {
+    const frase = fraseDaInsegnare(prefs, scope === 'ALL' ? '' : scope);
+    if (!frase) return;
+    setInsegnando(true);
+    setInsegnato(null);
+    try {
+      const out = await teachResolver(frase, []);
+      setInsegnato(
+        out.reply
+          ? 'Lezione salvata: la trovi in LEARNED.'
+          : `Non è riuscito: ${out.detail ?? out.failure ?? 'nessuna risposta'}`,
+      );
+    } finally {
+      setInsegnando(false);
+    }
+  };
+
+  const corrente = sessione?.[passo];
+
   return (
     <section className="page active">
-      <div className="kicker mono">CONTROLLED TEST</div>
+      <div className="kicker mono">RESOLVER TRAINING / MANUAL SCOPE</div>
       <h1>BUILD + TRAIN</h1>
       <p className="lead">
-        Stesso seme, stessi input. A sinistra la creatura che nascerebbe con le impostazioni di
-        serie, a destra quella che nasce con le tue. Chiama il generatore vero, non una finzione.
+        Costruisci il perimetro del test attraversando gli assi della creazione. Ogni scelta
+        diventa un LOCK. Quando premi TRAIN, tutto ciò che non hai scelto resta libero di variare.
       </p>
 
-      <div className="test">
-        <h3>CONTROLLED TEST</h3>
-        <div className="fields">
-          <label className="mono">
-            SEED
-            <input value={seed} onChange={(e) => setSeed(e.target.value)} />
-          </label>
-        </div>
+      <div className="builderpath">
+        <span className="label mono">CURRENT SCOPE</span>
+        <div className="breadcrumb mono">CREATION / {scope || 'ALL'}</div>
         <button
           type="button"
-          className="btn dark"
-          style={{ width: '100%', marginTop: 8 }}
-          onClick={() => void prova()}
-          disabled={gira}
+          className="clearbuild"
+          onClick={() => {
+            setFamiglia('');
+            setArchetipo('');
+            setTaglia('');
+          }}
         >
-          {gira ? 'GENERO…' : 'PREVIEW A/B'}
+          CLEAR
         </button>
+      </div>
 
-        {guasto && <p className="hint">Non è riuscito: {guasto}</p>}
+      <Asse titolo="01 · FAMILY" nota="Che tipo di corpo stiamo allenando?" scelto={famiglia || 'ALL'}>
+        <Pick on={!famiglia} onClick={() => { setFamiglia(''); setArchetipo(''); }} label="ALL" nota="lascia libero" />
+        {liste.famiglie.map((f) => (
+          <Pick key={f} on={famiglia === f} onClick={() => { setFamiglia(f); setArchetipo(''); }} label={f} />
+        ))}
+      </Asse>
 
-        {esito && (
-          <>
-            {/* 🔒 `show` È LA CLASSE CHE ACCENDE IL RIQUADRO. Senza, il CSS di
-                Vincenzo lo tiene a `display:none` e il test sembra rotto. */}
-            <div className="compare show">
-              <div className="col">
-                <strong>BASELINE · DI SERIE</strong>
-                {esito.a.map((r) => (
-                  <div key={r} className="mono">{r}</div>
-                ))}
-              </div>
-              <div className="col">
-                <strong>LAB · LE TUE IMPOSTAZIONI</strong>
-                {esito.b.map((r, i) => (
-                  <div key={r} className="mono" style={r !== esito.a[i] ? { color: '#111', fontWeight: 700 } : undefined}>
-                    {r !== esito.a[i] ? `→ ${r}` : r}
-                  </div>
-                ))}
-              </div>
+      {famiglia && (
+        <Asse titolo="02 · ARCHETYPE" nota="Restringi dentro la Family scelta." scelto={archetipo || 'ALL'}>
+          <Pick on={!archetipo} onClick={() => setArchetipo('')} label="ALL" nota="lascia libero" />
+          {liste.archetipi.map((a) => (
+            <Pick key={a} on={archetipo === a} onClick={() => setArchetipo(a)} label={a} />
+          ))}
+        </Asse>
+      )}
+
+      <Asse titolo="04 · SIZE" nota="Opzionale. Lascia ALL per esplorare tutte le taglie." scelto={taglia || 'ALL'}>
+        <Pick on={!taglia} onClick={() => setTaglia('')} label="ALL" nota="lascia libero" />
+        {['TINY', 'MEDIUM', 'GIANT'].map((t) => (
+          <Pick key={t} on={taglia === t} onClick={() => setTaglia(t)} label={t} />
+        ))}
+      </Asse>
+
+      <div className="trainconfig">
+        <div className="configrow">
+          <label className="mono">
+            DUELS
+            <select value={quanti} onChange={(e) => setQuanti(Number(e.target.value))}>
+              {[4, 8, 12].map((n) => <option key={n} value={n}>{n}</option>)}
+            </select>
+          </label>
+          <label className="mono">
+            SEED
+            <input value={seme} inputMode="numeric" onChange={(e) => setSeme(e.target.value)} />
+          </label>
+        </div>
+        <button type="button" className="trainstart" onClick={() => void allena()} disabled={gira}>
+          {gira ? 'GENERO…' : 'TRAIN THIS SCOPE'}
+        </button>
+      </div>
+
+      {guasto && <p className="hint">{guasto}</p>}
+
+      {corrente && (
+        <div className="session" style={{ display: 'block' }}>
+          <div className="sessionhead">
+            <div>
+              <b>DUEL {String(passo + 1).padStart(2, '0')}</b>
+              <span className="mono">{scope || 'ALL'}</span>
             </div>
+            <span className="mono">{passo + 1} / {sessione!.length}</span>
+          </div>
 
-            <p className="hint">
-              {esito.tarato
-                ? esito.a.join('|') === esito.b.join('|')
-                  ? 'Hai delle impostazioni tue, ma su questo seme non cambiano niente: prova un altro seme.'
-                  : 'Le righe in grassetto sono quelle che le tue impostazioni hanno cambiato.'
-                : 'Le due colonne sono identiche perché non hai cambiato niente: cataloghi e soglie di rarità sono ancora quelle di serie. Quelle manopole oggi stanno in DEV → CATALOGHI e DEV → RARITÀ, non ancora qui.'}
-            </p>
+          <div className="duel">
+            {(['A', 'B'] as const).map((lato) => {
+              const c = lato === 'A' ? corrente.a : corrente.b;
+              return (
+                <div className="duelcard" key={lato}>
+                  <strong>{lato}</strong>
+                  <div className="duelmeta mono">
+                    {c.righe.map(([k, v]) => (
+                      <div key={k}>
+                        {k} · {v}
+                      </div>
+                    ))}
+                  </div>
+                  <details className="tracebox">
+                    <summary className="mono">WHY THIS? / TRACE</summary>
+                    <div className="tracelines mono">
+                      {c.traccia.map((r) => <div key={r}>{r}</div>)}
+                    </div>
+                  </details>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="votegrid">
+            {(['A', 'B', 'BOTH', 'NEITHER'] as const).map((v) => (
+              <button type="button" key={v} onClick={() => vota(v)}>
+                {v === 'NEITHER' ? 'NO' : v}
+              </button>
+            ))}
+          </div>
+
+          <input
+            className="traincomment"
+            placeholder="Commento generale sul confronto…"
+            value={commento}
+            onChange={(e) => setCommento(e.target.value)}
+          />
+          <p className="hint">
+            BOTH e NO restano nel registro ma non contano per i gusti: dicono che ti piacciono
+            tutte e due o nessuna, non quale preferisci.
+          </p>
+        </div>
+      )}
+
+      {/* --- Cosa ha imparato ------------------------------------------------ */}
+      <div className="traininglog">
+        <span className="label mono">COSA HO IMPARATO · {duelli.length} CONFRONTI</span>
+        {prefs.length === 0 ? (
+          <p className="hint">
+            {duelli.length === 0
+              ? 'Nessun confronto ancora. Premi TRAIN THIS SCOPE e scegli quale ti piace.'
+              : `Ancora niente di solido: serve che lo stesso valore vinca almeno ${MINIMO_SCONTRI} scontri contro un valore diverso. Una regola imparata da un caso solo entra nel prompt del resolver e ci resta.`}
+          </p>
+        ) : (
+          <>
+            {prefs.map((p) => (
+              <div className="chip" key={`${p.asse}-${p.valore}`}>
+                {/* 🔒 L'ASSE VA DETTO. `DEMON · 4/5` da solo non dice se DEMON
+                    è una Family, un'affinità o un ruolo — e la stessa parola
+                    può stare su assi diversi. */}
+                {ETICHETTA_ASSE[p.asse]} · {p.valore} · {p.vinti}/{p.scontri}
+              </div>
+            ))}
+            <button
+              type="button"
+              className="btn dark"
+              style={{ width: '100%', marginTop: 10 }}
+              onClick={() => void insegna()}
+              disabled={insegnando}
+            >
+              {insegnando ? 'INSEGNO…' : 'INSEGNA QUESTO AL RESOLVER'}
+            </button>
+            {insegnato && <p className="hint">{insegnato}</p>}
+            <button
+              type="button"
+              className="chip"
+              style={{ marginTop: 8 }}
+              onClick={() => {
+                dimenticaTutto();
+                setDuelli([]);
+              }}
+            >
+              DIMENTICA I CONFRONTI
+            </button>
           </>
         )}
       </div>
@@ -432,10 +635,46 @@ function Build() {
       <div className="notice mono" style={{ marginTop: 14 }}>
         <strong>PRODUCTION = READ ONLY</strong>
         <br />
-        Le creature generate qui non entrano nella tua storia: nascono, si guardano e si buttano.
-        Le impostazioni vengono rimesse esattamente com’erano.
+        Le creature del duello non entrano nella tua storia, e i voti stanno in una memoria loro.
+        Diventano una lezione vera solo quando premi INSEGNA.
       </div>
     </section>
+  );
+}
+
+/* I due mattoni del builder, con le classi del disegno. */
+function Asse({
+  titolo,
+  nota,
+  scelto,
+  children,
+}: {
+  titolo: string;
+  nota: string;
+  scelto: string;
+  children: ReactNode;
+}) {
+  const [aperto, setAperto] = useState(true);
+  return (
+    <div className="axisblock">
+      <button type="button" className={`axishead ${aperto ? 'active' : ''}`} onClick={() => setAperto((v) => !v)}>
+        <span>
+          <b>{titolo}</b>
+          <small>{nota}</small>
+        </span>
+        <span>{scelto}</span>
+      </button>
+      <div className={`axisoptions ${aperto ? 'open' : ''}`}>{children}</div>
+    </div>
+  );
+}
+
+function Pick({ on, onClick, label, nota }: { on: boolean; onClick: () => void; label: string; nota?: string }) {
+  return (
+    <button type="button" className={`pick ${on ? 'selected' : ''}`} onClick={onClick}>
+      {label}
+      {nota && <small>{nota}</small>}
+    </button>
   );
 }
 
