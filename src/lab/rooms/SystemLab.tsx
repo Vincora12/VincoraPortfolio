@@ -25,7 +25,7 @@ import type { StatKey } from '../../engine/types';
 import { DAILY_SIGNALS, DAILY_SIGNAL_LABELS } from '../../engine/progression';
 import { loadPing, loadSetup } from '../../ai/backend';
 import { lastRuns } from '../../ai/telemetry';
-import { Btn, Grid, LabTop, PageHead, Range, Rows, Section, Status } from './parts';
+import { Btn, Grid, LabTop, Notice, PageHead, Range, Rows, Section, Status } from './parts';
 import '../skin/system.css';
 
 const TABS = [
@@ -285,6 +285,24 @@ function Simulation() {
         lead="Un solo banco di simulazione per tempo, segnali, SYNC e Mindline. Nessun secondo set di pulsanti per far passare i giorni."
       />
 
+      {/* 🔴 QUESTO CARTELLO MANCAVA, ED È LA COSA PIÙ IMPORTANTE DELLA PAGINA.
+
+          VINZ.LAB si installa con un'icona sua e sembra un'app a parte. Non lo
+          è: legge e SCRIVE la stessa memoria di VINZ.MON. Premere RUN 1
+          COMPLETE DAY qui dentro fa passare un giorno alla creatura VERA, e
+          quel giorno non torna indietro.
+
+          ⚠️ CREATION.LAB porta scritto «PRODUCTION = READ ONLY» ed è vero LÌ:
+          il duello genera creature che si buttano. Ma quella frase, letta
+          all'ingresso del laboratorio, si estende da sola a tutto il resto —
+          ed è falsa qui. Una promessa giusta in una stanza diventa una bugia
+          nella stanza accanto se nessuno dice dove finisce. */}
+      <Notice title="⚠️ QUESTA PAGINA CAMBIA LA CREATURA VERA">
+        Non è una simulazione a parte: è lo stesso stato di VINZ.MON. I giorni
+        che fai passare qui sono passati davvero, e con la chiave attiva
+        finiscono anche sul server.
+      </Notice>
+
       <Section title="TIME CONTROL" note="Questo è l’unico punto di SYSTEM.LAB che fa avanzare la simulazione.">
         <Rows
           rows={[
@@ -388,6 +406,11 @@ function Memory() {
         title="MEMORY"
         lead="Quello che VINZ.MON ricorda, pensa e usa quando parla. Qui stanno anche gli strumenti tecnici che non devono mai diventare una schermata utente."
       />
+
+      <Notice title="⚠️ ANCHE QUI SI SCRIVE">
+        La Build Mode qui sotto è quella vera: accesa, il .mon smette di essere
+        un personaggio anche nella chat normale, finché non la rispegni.
+      </Notice>
 
       <Section title="ARCHIVE">
         <Rows

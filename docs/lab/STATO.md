@@ -127,3 +127,39 @@ generazione fallisce.
 
 🔒 I voti stanno in `vinzlab.training.v1`, separata da `vinzmon.prototype.v4`:
 un allenamento non deve poter toccare la creatura vera.
+
+
+## Il LAB è collegato al .mon? Sì, davvero
+
+Non è un'app a parte e non è una sandbox: **legge e scrive la stessa memoria**
+di VINZ.MON (`vinzmon.prototype.v4`), quindi la stessa creatura.
+
+Verificato con un browser vero:
+
+| | giorno | build mode |
+|---|---|---|
+| app normale, prima | 1 | off |
+| il LAB legge | 1 | off |
+| `RUN 1 COMPLETE DAY` dentro il LAB | **2** | off |
+| `TURN ON BUILD MODE` dentro il LAB | 2 | **on** |
+| riapro l'app normale | **2** | **on** |
+
+Quali stanze scrivono, in concreto:
+
+| Stanza | Scrive? |
+|---|---|
+| ⚙️ SYSTEM · SIMULATION | **sì** — giorni, segnali, deriva, override. Irreversibile: un giorno passato non torna. |
+| ⚙️ SYSTEM · MEMORY | **sì** — la Build Mode è quella vera, vale anche nella chat normale. |
+| ⚙️ SYSTEM · AI | **sì** — la scelta del modello è quella che userà il .mon. |
+| 🧬 CREATION · BUILD | no per le creature (nascono e si buttano), **sì** se premi INSEGNA. |
+| 🧬 CREATION · FLOW / STATE / HISTORY | no, solo lettura. |
+| 🖥 DESIGN | no: i guardiani bloccano scritture e richieste. |
+| 👻 SOUL | no: legge il colore del .mon, esce un file. |
+
+🔴 E questo **mancava a schermo**. CREATION porta scritto «PRODUCTION = READ
+ONLY» ed è vero lì — ma quella frase, letta all'ingresso, si estende da sola
+al resto ed è falsa in SYSTEM. Adesso SIMULATION e MEMORY hanno il loro
+cartello.
+
+⚠️ **Con la chiave attiva le modifiche vanno anche sul server** e da lì su
+qualsiasi altro dispositivo: non restano nel browser dove le hai fatte.

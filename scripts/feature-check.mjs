@@ -3635,6 +3635,21 @@ check(
 );
 
 
+check(
+  'VINZ.LAB',
+  'le stanze che SCRIVONO lo dicono a schermo',
+  has('src/lab/rooms/SystemLab.tsx', 'QUESTA PAGINA CAMBIA LA CREATURA VERA') &&
+    has('src/lab/rooms/SystemLab.tsx', 'ANCHE QUI SI SCRIVE'),
+  '🔴 il laboratorio si installa con un\'icona sua e sembra un\'app a parte: non lo è, e far passare un giorno qui lo fa passare davvero',
+);
+check(
+  'VINZ.LAB',
+  'e «PRODUCTION = READ ONLY» resta solo dove è vero',
+  has('src/lab/rooms/CreationLab.tsx', 'PRODUCTION = READ ONLY') &&
+    lacksInCode('src/lab/rooms/SystemLab.tsx', 'PRODUCTION = READ ONLY'),
+  'una promessa giusta in una stanza diventa una bugia in quella accanto se nessuno dice dove finisce',
+);
+
 /* ============================================================================
    IL DUELLO — come il .mon impara i tuoi gusti
    ========================================================================= */
