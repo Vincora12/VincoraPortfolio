@@ -1487,7 +1487,36 @@ export const useApp = create<AppState>()(
         const initial = get();
         const job = initial.evolutionJob;
         const record = job ? initial.mons[job.candidateName] : null;
-        if (!job || job.status !== 'running' || !record || !initial.token) return;
+        if (!job || job.status !== 'running' || !record) return;
+
+        /* 🔴 UN LAVORO CHE NON PUÒ PARTIRE NON DEVE RESTARE «IN CORSO».
+
+           Qui c'era `|| !initial.token` dentro la stessa `return`: senza
+           token si usciva zitti e il lavoro restava `running` PER SEMPRE. Non
+           è un caso di laboratorio — è quello che vede chiunque non abbia
+           ancora fatto ATTIVA VINZ.MON, o a cui la chiave smette di valere.
+
+           E «running» non è uno stato inerte: blocca. `beginFormEvolution`
+           comincia con `if (… || s.evolutionJob?.status === 'running') return`,
+           quindi da quel momento CAMBIA FORMA non fa più niente, e non fa
+           niente in silenzio — tieni premuto e non succede nulla, per sempre.
+           (Nascondeva anche la creatura dal MIND.DEX: vedi `Dex.tsx`.)
+
+           Un lavoro che non può partire ha un esito, e l'esito si dichiara. */
+        if (!initial.token) {
+          set((current) => ({
+            evolutionJob:
+              current.evolutionJob?.candidateName === job.candidateName
+                ? {
+                    ...current.evolutionJob,
+                    status: 'error',
+                    error: 'Serve la chiave: apri ATTIVA VINZ.MON e incolla il token.',
+                  }
+                : current.evolutionJob,
+          }));
+          return;
+        }
+
         if (runningEvolutionJobs.has(job.candidateName)) return;
         runningEvolutionJobs.add(job.candidateName);
 

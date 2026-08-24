@@ -375,33 +375,43 @@ try {
   if (await page.evaluate(() => document.querySelector('.proto-frame') === null)) {
     throw new Error(`l'app e caduta alla nascita: ${errors.slice(-3).join(' | ')}`);
   }
-  await shot('05-first-encounter-nome');
+  await shot('05-schiusa-appena-fatta');
   await sleep(1600); // il sipario si alza da sé
-  await shot('05-first-encounter');
+  await shot('05-schiusa-assestata');
 
-  /* 🔷 §22.5 — il voto. Sta qui e non dietro all'immagine: quello che giudichi
-     è la creatura, e quella c'è anche senza chiave. Si preme davvero, perché
-     il difetto tipico di una fila di pulsanti-stella è che li disegni e non li
-     colleghi. */
-  await click('.facegate__star:nth-child(4)', 'voto 4 su 5');
-  await shot('05-first-encounter-voto');
+  /* 🔶 IL PRIMO INCONTRO NON È PIÙ SUBITO DOPO LA SCHIUSA — e nemmeno il
+     voto sulle sei immagini. Non sono regressioni trovate qui: sono due
+     decisioni prese a monte, e questo blocco le registra invece di fingere.
 
-  const votate = await page.$$eval('.facegate__star--on', (n) => n.length);
-  if (votate !== 4) {
-    errors.push(`il voto non si e registrato: ${votate} quadrati accesi invece di 4`);
+     `hatch()` adesso mette `phase: 'live'` DIRETTAMENTE. Gli asset si
+     preparano in sottofondo e la creatura si rivela finita, quando il banner
+     «NUOVO MON PRONTO» diventa `ready` e lo si tocca: allora
+     `revealFormEvolution` porta a `first-encounter`. Senza chiave il lavoro
+     in sottofondo non finisce mai, quindi in questa camminata quel banner non
+     arriva — ed è giusto così, non è un guasto.
+
+     Di conseguenza `FaceGate` — le stelle di §22.5 e la sequenza «1 di 6» —
+     resta esportato in `src/screens/Encounter.tsx` ma NESSUNO LO MONTA: in
+     prodotto, oggi, il voto non c'è.
+
+     ⚠️ Le due schermate di fase che la camminata non attraversa più vengono
+     comunque fotografate: in fondo, attraverso la preview di DESIGN.LAB, che
+     monta i componenti veri senza il flusso attorno. È esattamente il caso
+     per cui quella preview esiste. */
+  const dopoSchiusa = await page.evaluate(() => ({
+    chat: document.querySelector('.live-chat') !== null,
+    barra: document.querySelectorAll('.tabbar__item').length,
+    banner: document.body.innerText.includes('NUOVO MON PRONTO'),
+    voto: document.querySelector('.facegate__star') !== null,
+  }));
+  if (!dopoSchiusa.chat) throw new Error('dopo la schiusa non si atterra nella chat');
+  if (dopoSchiusa.barra !== 3) {
+    errors.push(`la barra ha ${dopoSchiusa.barra} voci invece di tre dopo la schiusa`);
   }
-
-  /* 🔷 §22.4 — le sei immagini si approvano una per una, e la sequenza dice a
-     che punto sta. Qui gira senza chiave, quindi nessuna immagine arriva: e'
-     precisamente il caso in cui §26 vieta di bloccare il flusso. */
-  const passo = await page
-    .locator('.facegate__note')
-    .first()
-    .textContent()
-    .catch(() => null);
-  if (!passo || !/1 di \d/.test(passo)) {
-    errors.push(`la nascita non dice a che punto sta la sequenza: "${passo ?? 'niente'}"`);
+  if (dopoSchiusa.voto) {
+    errors.push('il voto è tornato in schermata: questo blocco va riscritto, non ignorato');
   }
+  await shot('05-dopo-la-schiusa');
 
   /* 06 — LA HOME È IL PERSONAGGIO (v1.10 §13.7).
      Non è una schermata di benvenuto da superare: è la tab MON, con la barra
@@ -414,28 +424,46 @@ try {
   /* 🔶 E ADESSO SI NASCE DENTRO LA CHAT. La barra ha tre voci — CHAT, MON, ME
      — e la prima è quella aperta: «appena entri c'è la chat aperta». Quindi
      alla creatura ci si va, non ci si torna. */
-  await click(byText('ENTRA'), 'entra senza immagini');
+  /* 🔶 Cliccava «ENTRA», il pulsante in fondo alla rivelazione. Adesso nella
+     rivelazione non ci si passa: si è già dentro, e alla creatura ci si va
+     dalla barra. */
   await click(TAB.mon, 'tab MON');
   await shot('06-home-personaggio');
-  await click('.splash__enter', 'vai in chat');
+  /* 🔶 Cliccava `.splash__enter`, il pulsante PARLAGLI in mezzo alla creatura.
+     Adesso quel pulsante esce dopo la nascita — «la chat ha già la propria
+     voce nel nav fisso e qui lo spazio appartiene alla creatura e agli
+     sticker» — quindi alla chat ci si va dalla barra, come farebbe uno. */
+  await click(TAB.chat, 'vai in chat');
   await shot('06-companion-home');
 
-  /* 🔷 §23.6 — «il logo del mostro deve apparire anche nell'icona dell'app».
-     Non basta che il codice ci sia: la rasterizzazione passa da una canvas e
-     può fallire in silenzio, restituendo un PNG trasparente o niente. Qui si
-     guarda l'attributo VERO dopo la nascita. */
+  /* 🔶 §23.6 È STATA RIBALTATA, ed è scritto nel codice che la ribalta.
+
+     La regola era: «il logo del mostro deve apparire anche nell'icona
+     dell'app», e questo blocco controllava che `apple-touch-icon` fosse
+     diventato un `data:image/png` disegnato dal sigillo. Adesso `App.tsx`
+     dice il contrario, con la ragione accanto: «l'icona installata sulla Home
+     è il marchio VINZ.MON statico fornito dall'utente: non deve cambiare
+     quando evolve la creatura». `applySigilAppIcon` esiste ancora ma non
+     viene più chiamata.
+
+     🔒 Quindi il controllo si gira, invece di sparire: il sigillo resta nella
+     SCHEDA del browser — quello sì, cambia con la creatura — e l'icona
+     installata deve restare il file fisso. Se un giorno tornasse a essere un
+     `data:`, questo lo dice. */
   await sleep(600);
   const icona = await page.evaluate(() => ({
     apple: document.querySelector('link[rel="apple-touch-icon"]')?.getAttribute('href') ?? '',
     manifest: document.querySelector('link[rel="manifest"]')?.getAttribute('href') ?? '',
+    scheda: document.querySelector('link[rel="icon"][type="image/svg+xml"]')?.getAttribute('href') ?? '',
   }));
-  if (!icona.apple.startsWith('data:image/png;base64,')) {
-    errors.push(`apple-touch-icon è ancora «${icona.apple.slice(0, 40)}»: sulla home resta il globo`);
-  } else if (icona.apple.length < 500) {
-    errors.push('apple-touch-icon è un PNG vuoto: la canvas non ha disegnato niente');
+  if (icona.apple.startsWith('data:')) {
+    errors.push('l’icona della Home è tornata a essere disegnata dal sigillo: la decisione dice il contrario');
   }
-  if (!icona.manifest.startsWith('blob:')) {
-    errors.push('il manifest non è stato aggiornato: su Android l’icona resta quella statica');
+  if (!icona.apple.startsWith('/icon-180.png')) {
+    errors.push(`l’icona della Home è «${icona.apple.slice(0, 40)}» invece del marchio fisso`);
+  }
+  if (!icona.scheda.startsWith('data:image/svg+xml')) {
+    errors.push('nella scheda del browser il sigillo non c’è: quello sì che deve seguire la creatura');
   }
 
   /* 🔷 §10.6 — la riga «come sta oggi», l'unica superficie di prodotto
@@ -443,26 +471,44 @@ try {
      l'appiglio 18 punti sotto la sua base. Se un giorno sparisse da questo
      punto, vorrebbe dire che nessuno la vedra mai piu da nessuna parte —
      e' successo gia una volta, ed e' il motivo per cui l'abbiamo costruita. */
-  /* V1 — la vecchia chat in personaggio è stata sostituita dall'assistente
-     neutrale. La prova non simula una chiave: verifica il turno locale,
-     l'errore leggibile e la possibilità di riprovare senza perdere il testo. */
-  await page.getByRole('textbox', { name: 'Messaggio' }).fill('Spiegami in breve che cosa sai fare');
-  await page.getByRole('button', { name: 'INVIA' }).click();
-  await page.locator('.aui-error').waitFor({ state: 'visible' });
-  const chatV1 = await page.evaluate(() => ({
-    user: document.querySelector('.aui-message--user')?.textContent ?? '',
-    error: document.querySelector('.aui-error')?.textContent ?? '',
-    retry: [...document.querySelectorAll('.aui-action')].some((node) => node.textContent?.includes('RIPROVA')),
-    threads: !!document.querySelector('.brain__history'),
-    attachment: !!document.querySelector('.aui-composer__attach'),
-  }));
-  if (!chatV1.user.includes('Spiegami')) throw new Error('Chat V1: il messaggio utente non resta a schermo');
-  if (!chatV1.error.includes('token')) throw new Error('Chat V1: il guasto non spiega che manca il token');
-  if (!chatV1.retry || !chatV1.threads || !chatV1.attachment) {
-    throw new Error(`Chat V1 incompleta: ${JSON.stringify(chatV1)}`);
+  /* 🔶 QUESTO BLOCCO DESCRIVEVA UNA CHAT CHE NON È MONTATA. Cercava
+     `.aui-error`, `.aui-message--user`, `.brain__history`: sono le classi di
+     `src/brain/Brain.tsx`, il laboratorio Brain — non della chat che l'app
+     apre davvero, che è il clone assistant-ui in `src/assistant-original/`.
+     Non poteva passare, e infatti la camminata non ci arrivava nemmeno: si
+     fermava prima, sulle stelle del voto.
+
+     🔒 Riscritto contro quello che c'è, e per bersagli che un utente vede:
+     il segnaposto del campo, il proprio messaggio che resta a schermo, e il
+     fatto che senza token il guasto sia LEGGIBILE invece di essere silenzio.
+     Niente classi interne di libreria: cambiano con la libreria. */
+  const campo = page.getByPlaceholder('Ask anything').first();
+  await campo.fill('Spiegami in breve che cosa sai fare');
+  await campo.press('Enter');
+  await sleep(2500);
+
+  const chatV1 = await page.evaluate(() => {
+    const testo = document.querySelector('.live-chat')?.textContent ?? '';
+    return {
+      mioMessaggio: testo.includes('Spiegami in breve'),
+      /* Senza token la risposta non può arrivare: quello che DEVE arrivare è
+         una spiegazione. Silenzio no — è il difetto che questa app ha già
+         avuto due volte, ed è il motivo per cui questa riga esiste. */
+      diceQualcosa: testo.replace('Spiegami in breve che cosa sai fare', '').trim().length > 0,
+      /* ⚠️ NON il pulsante INVIA: nel clone quello compare solo mentre c'è
+         del testo, e questo controllo gira DOPO aver inviato. Cercarlo qui
+         voleva dire cercare una cosa che è giusto non ci sia. Quello che deve
+         esserci sempre è il campo dove si scrive. */
+      composer: document.querySelector('[placeholder="Ask anything"]') !== null,
+    };
+  });
+  if (!chatV1.mioMessaggio) throw new Error('Chat: il messaggio scritto non resta a schermo');
+  if (!chatV1.composer) errors.push('Chat: dopo l’invio il campo per scrivere non c’è più');
+  if (!chatV1.diceQualcosa) {
+    errors.push('Chat: senza token non dice niente — un guasto muto è il difetto che continua a tornare');
   }
   await shot('06-chat-v1');
-  console.log('  Chat V1  turno locale, errore, retry, cronologia e allegati verificati');
+  console.log(`  Chat  messaggio a schermo${chatV1.diceQualcosa ? ' e guasto spiegato' : ' MA GUASTO MUTO'}`);
 
   /* Il blocco sotto conserva le vecchie prove come memoria di regressione,
      ma non gira più: descriveva umore e risposta del personaggio, cioè
@@ -724,28 +770,29 @@ try {
   await click(TAB.me, 'tab ME');
   await shot('09-me-overview');
 
-  /* GIORNI — calendario a date vere, oggi in grande (v1.9 §14.1) */
-  await click(TAB.me, 'tab ME');
-  await click(VISTA.giorni, 'vista GIORNI');
-  await shot('09b-calendario');
-  // §14 vuole il dettaglio del giorno con i tre segnali e la provenienza.
-  await click('.cal__cell--today', 'dettaglio di oggi');
-  await shot('09c-calendario-giorno');
+  /* 🔶 «GIORNI» NON È PIÙ UNA VISTA DI ME, e con lei sono uscite dal flusso
+     due schermate intere.
 
-  // 🔷 v1.11 §5.4 — il riepilogo sta in fondo al dettaglio: senza scorrere,
-  // lo screenshot non lo vede e non serve a niente.
-  await page.locator('.daysum').scrollIntoViewIfNeeded();
-  await sleep(200);
-  await shot('09d-riepilogo-giornata');
+     ME adesso ha tre schede sue — OGGI / DIETA / SPORT — e i calendari stanno
+     DENTRO dieta e sport (`MeCalendar`), uno per argomento. Di conseguenza
+     `src/screens/SyncCalendar.tsx` (`CalendarScreen`) e
+     `src/screens/DailyScan.tsx` (`DailyScanScreen`) esistono ancora ma non
+     sono montati da nessuna parte: sono orfani.
 
-  /* 08 — DAILY SCAN si apre da «oggi», che è dove si va a raccontare. */
-  await click('.cal__today', 'apri la giornata');
-  await shot('08-daily-scan');
-  await click(byText('Cazzaro'), 'mood cazzaro');
-  await shot('08-daily-scan-selezionato');
-  await click(byText('REGISTRA'), 'registra mood');
-  await click(TAB.me, 'torna in ME');
-  await click(VISTA.giorni, 'torna a GIORNI');
+     ⚠️ NON È UN DETTAGLIO DEL COPIONE. Il calendario a date vere e la
+     registrazione della giornata erano superfici di prodotto: adesso non ci
+     si arriva. Qui viene registrato, non aggiustato — rimetterle è una
+     decisione, non una riparazione. */
+  await click(byText('DIETA'), 'scheda DIETA di ME');
+  await shot('09b-me-dieta');
+  await click(byText('SPORT'), 'scheda SPORT di ME');
+  await shot('09c-me-sport');
+  const calendariME = await page.locator('.me-health__scroll .sx__calendar, .me-health__scroll [class*="cal"]').count();
+  if (calendariME === 0) {
+    errors.push('in ME non c’è nessun calendario: dieta e sport dovevano portarselo dentro');
+  }
+  await click(byText('OGGI'), 'torna a OGGI');
+  await shot('09d-me-oggi');
 
   /* 17 — MINDLINE: senza selezione si vede solo la topologia */
   await click(TAB.mon, 'tab MON');
@@ -1006,8 +1053,28 @@ try {
 
   /* La pagina appena scritta deve esserci per davvero: si apre, si legge, e
      si controlla che il markdown sia diventato struttura invece che testo. */
-  await click(TAB.me, 'tab ME');
-  await click('.pagerow', 'apri la pagina');
+  /* 🔶 L'ELENCO DELLE PAGINE NON C'È PIÙ. Stava in ME (`.pagerow`), e la
+     riscrittura di ME in OGGI / DIETA / SPORT l'ha portato via insieme al
+     resto. `PageReader` funziona ancora e `#/p/<nome>` è ancora l'indirizzo
+     di una pagina — ma nessuna schermata elenca le pagine, quindi a una
+     pagina scritta dal .mon oggi ci si arriva solo sapendone il nome.
+
+     🔒 Quindi qui si entra dall'indirizzo. Serve a due cose: prova che il
+     lettore regge — markdown che diventa struttura, niente HTML crudo — e
+     tiene in piedi il controllo che nessuno se ne accorgerebbe altrimenti.
+     Il fatto che l'elenco manchi è scritto qui sopra, non nascosto. */
+  const nomePagina = await page.evaluate(() => {
+    const raw = localStorage.getItem('vinzmon.prototype.v4');
+    if (!raw) return null;
+    try {
+      const pagine = JSON.parse(raw)?.state?.pages;
+      return Array.isArray(pagine) && pagine[0] ? pagine[0].slug : null;
+    } catch {
+      return null;
+    }
+  });
+  if (!nomePagina) throw new Error('nessuna pagina è stata scritta dallo strumento');
+  await page.evaluate((slug) => { window.location.hash = `#/p/${slug}`; }, nomePagina);
   await page.waitForSelector('.md__table', { timeout: 5000 });
   await shot('21-pagina');
 
@@ -1053,13 +1120,33 @@ try {
   await hold('GUARDA COSA CAMBIA');
   await shot('13-form-evolution');
 
-  /* 14 — NEW ENCOUNTER */
-  await hold('CAMBIA FORMA');
+  /* 🔶 IL CAMBIO DI FORMA ADESSO SI SCEGLIE PRIMA DI CONFERMARLO. Il copione
+     teneva premuto «CAMBIA FORMA»; adesso quel pulsante non esiste finché non
+     hai detto QUALE trasformazione — EVOLUZIONE o MEGA EVOLUZIONE — e solo
+     allora diventa «AVVIA EVOLUZIONE». Prima di sceglierla c'è un pulsante
+     spento che lo dice: «SELEZIONA UNA TRASFORMAZIONE». */
+  const spento = await page.evaluate(
+    () => [...document.querySelectorAll('button')].some((b) => b.textContent?.includes('SELEZIONA UNA TRASFORMAZIONE') && b.disabled),
+  );
+  if (!spento) errors.push('il cambio di forma non chiede più di scegliere la trasformazione');
+  await click(byText('EVOLUZIONE'), 'scegli EVOLUZIONE');
+  await shot('13-form-evolution-scelta');
+
+  /* 14 — NEW ENCOUNTER
+     🔶 E anche qui la rivelazione è passata in sottofondo: `beginFormEvolution`
+     avvia un lavoro e torna alla vita normale col banner. Senza chiave quel
+     lavoro non finisce, quindi la schermata di NUOVO INCONTRO non si
+     attraversa — come alla nascita. Si verifica che il lavoro sia PARTITO e
+     che l'app resti usabile mentre gira: era la promessa del cambio. */
+  await hold('AVVIA EVOLUZIONE');
   await sleep(2600);
-  await shot('14-new-encounter');
-  /* Stessa ragione della nascita: senza chiave non c'e' nessuna immagine da
-     approvare, e la decisione da verificare e' che si entri comunque. */
-  await click(byText('ENTRA'), 'entra senza immagini');
+  await shot('14-evoluzione-in-corso');
+  const inCorso = await page.evaluate(() => ({
+    usabile: document.querySelector('.tabbar') !== null || document.querySelector('.live-chat') !== null,
+    bloccato: document.querySelector('.screen--ink.branch') !== null,
+  }));
+  if (inCorso.bloccato) errors.push("l'evoluzione lascia l'utente fermo sulla schermata del cambio");
+  if (!inCorso.usabile) errors.push("durante l'evoluzione l'app non è utilizzabile: era la ragione per farla in sottofondo");
   await enterIfSplash();
 
   /* 18 — HERITAGE DNA */
@@ -1095,7 +1182,11 @@ try {
   await click(VISTA.dex, 'vista MIND.DEX');
   /* La scheda giusta e quella marcata «ora»: lo scaffale e in ordine di
      comparsa, e dopo un branch la prima non e piu quella attiva. */
-  await click('.dexcard:has(.dexcard__day:text-is(\"ora\"))', 'la forma attiva');
+  /* 🔶 Era `:text-is("ora")`, cioè il testo ESATTO. Adesso accanto alla parola
+     c'è anche l'etichetta del nodo — «ora · ROOT» — e l'uguaglianza non regge
+     più. La decisione non è mai stata «la cella dice esattamente ora»: è «la
+     scheda marcata come quella di adesso». */
+  await click('.dexcard:has(.dexcard__day:has-text(\"ora\"))', 'la forma attiva');
   await click(byText('CONSERVA COME RICORDO'), 'conserva');
   await page.waitForSelector('.teca', { timeout: 5000 });
   await shot('19-teca');

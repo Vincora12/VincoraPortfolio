@@ -57,9 +57,27 @@ export function DexScreen({ onGo }: { onGo: (o: Overlay) => void }) {
   const dayOf = (name: string) =>
     nodes.find((n) => n.monName === name)?.day ?? Number.MAX_SAFE_INTEGER;
 
-  const hiddenCandidate = evolutionJob?.status === 'running' || evolutionJob?.status === 'ready'
-    ? evolutionJob.candidateName
-    : null;
+  /* 🔴 IL CANDIDATO SI NASCONDE, MA LA SCHIUSA NON È UN CANDIDATO.
+
+     Questa riga serve all'EVOLUZIONE: la forma nuova si prepara in sottofondo
+     e non deve comparire sullo scaffale prima che tu l'abbia rivelata. Giusto.
+
+     Ma `hatch` usa lo STESSO meccanismo, e alla schiusa il «candidato» è la
+     creatura che stai già usando — l'unica che hai. Finché quel lavoro non
+     finisce, il MIND.DEX la filtra via e dice «ancora niente»: lo scaffale è
+     vuoto mentre il .mon è a schermo nella tab accanto.
+
+     E non è solo il caso senza chiave. Se la preparazione delle immagini si
+     inceppa, il lavoro resta `running` per sempre e la creatura sparisce
+     dallo scaffale in modo definitivo, senza che niente lo spieghi.
+
+     Quindi si nasconde solo quello che è davvero da rivelare. */
+  const hiddenCandidate =
+    evolutionJob &&
+    evolutionJob.kind !== 'hatch' &&
+    (evolutionJob.status === 'running' || evolutionJob.status === 'ready')
+      ? evolutionJob.candidateName
+      : null;
   const shelf = Object.values(mons)
     .filter((mon) => mon.data.name !== hiddenCandidate)
     .sort((a, b) => dayOf(a.data.name) - dayOf(b.data.name));

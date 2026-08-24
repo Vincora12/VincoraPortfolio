@@ -19,7 +19,7 @@
    Uso:  node scripts/feature-check.mjs
    ========================================================================= */
 
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, readdirSync } from 'node:fs';
 
 const read = (p) => (existsSync(p) ? readFileSync(p, 'utf8') : null);
 
@@ -48,6 +48,38 @@ const stripComments = (t) =>
   (t ?? '').replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
 const lacksInCode = (file, needle) => !stripComments(read(file)).includes(needle);
 const count = (file, re) => ((read(file) ?? '').match(re) ?? []).length;
+
+/* ============================================================================
+   🔶 GLI STRUMENTI NON SONO PIÙ IN UN FILE SOLO — e non è la prima volta che
+   un ago si rompe così.
+
+   Sei aghi puntavano a `src/dev/DevPanel.tsx` perché quel giorno la panchina
+   delle vibrazioni, la conferma del reset e la telemetria stavano lì dentro.
+   Adesso stanno in `src/dev/sections.tsx`, e domani — quando DEV verrà tolto
+   dal sito — staranno in `src/lab/`.
+
+   🔒 Ma la DECISIONE non è mai stata «questa cosa sta in quel file». È «esiste
+   una superficie da cui si può fare questa cosa». Quindi l'ago guarda tutte
+   le superfici di servizio insieme: DEV finché c'è, il laboratorio da adesso.
+   Così il trasloco non lo rompe, e cancellarla per davvero sì — che è
+   esattamente quello che un ago deve saper distinguere.
+   ========================================================================= */
+const SURFACE_DIRS = ['src/dev', 'src/lab'];
+const surfaceText = (() => {
+  let all = '';
+  const walk = (dir) => {
+    if (!existsSync(dir)) return;
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const full = `${dir}/${entry.name}`;
+      if (entry.isDirectory()) walk(full);
+      else if (/\.(ts|tsx|css)$/.test(entry.name)) all += `\n${readFileSync(full, 'utf8')}`;
+    }
+  };
+  SURFACE_DIRS.forEach(walk);
+  return all;
+})();
+/** Vero se una qualsiasi superficie di servizio (DEV o LAB) contiene l'ago. */
+const hasInSurface = (needle) => surfaceText.includes(needle);
 
 const ROUTING_FILE = 'netlify/functions/_shared/routing.ts';
 const IMPORT_UI = 'src/dev/AssetImport.tsx';
@@ -556,7 +588,7 @@ check(
 check(
   'VIVA §13.9',
   'la vibrazione si può provare da DEV',
-  has('src/dev/DevPanel.tsx', 'HapticBench'),
+  hasInSurface('HapticBench'),
   'su iPhone è una scorciatoia che va verificata sul telefono, non nel codice',
 );
 check(
@@ -1062,7 +1094,7 @@ check(
 check(
   'INTERFACCIA',
   'la telemetria di generazione sta in DEV',
-  has('src/dev/DevPanel.tsx', 'GenerationTelemetry'),
+  hasInSurface('GenerationTelemetry'),
 );
 check(
   'INTERFACCIA',
@@ -1360,23 +1392,23 @@ check(
 check(
   'DEV §26',
   'il reset totale chiede conferma prima di cancellare',
-  has('src/dev/DevPanel.tsx', 'function ResetAllButton'),
+  hasInSurface('function ResetAllButton'),
   'a due tocchi da ogni schermata, senza conferma sarebbe una trappola',
 );
 check(
   'DEV §26',
   'la conferma dice cosa stai per perdere, con i numeri veri',
-  has('src/dev/DevPanel.tsx', 'Stai per cancellare'),
+  hasInSurface('Stai per cancellare'),
 );
 check(
   'DEV §26',
   'e dice se la teca ti salva qualcosa',
-  has('src/dev/DevPanel.tsx', 'nella teca restano'),
+  hasInSurface('nella teca restano'),
 );
 check(
   'DEV §26',
   'la conferma non e un dialogo del browser',
-  lacks('src/dev/DevPanel.tsx', 'window.confirm'),
+  !hasInSurface('window.confirm'),
   'su iPhone compare in un punto imprevedibile e si chiude per sbaglio',
 );
 
@@ -3200,8 +3232,8 @@ check(
 check(
   '§29 DEV',
   'ricominciare da capo si trova in INIZIO, non sepolto in una scheda',
-  has('src/dev/DevPanel.tsx', '<ResetAllButton onReset={resetAll} keptCount={keptCount} />') &&
-    has('src/dev/DevPanel.tsx', 'className="dev__danger"'),
+  hasInSurface('<ResetAllButton onReset={resetAll} keptCount={keptCount} />') &&
+    hasInSurface('className="dev__danger"'),
   'stava in fondo a MINDLINE, e raggruppando le schede era sparito',
 );
 check(
