@@ -53,6 +53,10 @@ export function CompanionHomeScreen({ onGo, onBack }: { onGo: (o: Overlay) => vo
   const { event, progress, microGrowthReady, formEvolutionReady } = useGrowth();
   const sendMessage = useApp((s) => s.sendMessage);
   const openShift = useApp((s) => s.openShift);
+  const openFormEvolution = useApp((s) => s.openFormEvolution);
+  const evolutionJob = useApp((s) => s.evolutionJob);
+  const revealFormEvolution = useApp((s) => s.revealFormEvolution);
+  const retryFormEvolution = useApp((s) => s.retryFormEvolution);
 
   const [draft, setDraft] = useState('');
   const listRef = useRef<HTMLDivElement>(null);
@@ -166,14 +170,36 @@ export function CompanionHomeScreen({ onGo, onBack }: { onGo: (o: Overlay) => vo
 
            Adesso è la linea stessa a diventare l'annuncio: sta dov'era, non
            sposta niente, e quando è piena cresce e si può toccare. --- */}
-      {somethingReady ? (
+      {evolutionJob ? (
+        <button
+          type="button"
+          className={`home__evolution-job home__evolution-job--${evolutionJob.status}`}
+          disabled={evolutionJob.status === 'running'}
+          onClick={evolutionJob.status === 'ready' ? revealFormEvolution : evolutionJob.status === 'error' ? retryFormEvolution : undefined}
+        >
+          <span className="home__evolution-orbit" aria-hidden="true" />
+          <span className="home__evolution-copy">
+            <strong className="t-meta">
+              {evolutionJob.status === 'running'
+                ? evolutionJob.kind === 'hatch' ? 'PRIMO MON IN CREAZIONE' : 'NUOVO MON IN CREAZIONE'
+                : evolutionJob.status === 'ready'
+                  ? evolutionJob.kind === 'hatch' ? 'PRIMO MON PRONTO' : 'NUOVO MON PRONTO'
+                  : 'GENERAZIONE INTERROTTA'}
+            </strong>
+            <span className="t-micro">{evolutionJob.status === 'error' ? evolutionJob.error : evolutionJob.label}</span>
+          </span>
+          {evolutionJob.status === 'running' ? <span className="t-micro">{evolutionJob.done}/{evolutionJob.total}</span> : <span aria-hidden="true">→</span>}
+          {evolutionJob.status === 'running' && <span className="home__evolution-progress" style={{ transform: `scaleX(${evolutionJob.total ? evolutionJob.done / evolutionJob.total : 0})` }} />}
+        </button>
+      ) : somethingReady ? (
         <button
           type="button"
           className="home__sync home__sync--ready"
           data-pezzo="riga-sync"
           onClick={() => {
             haptic('impact');
-            openShift();
+            if (formEvolutionReady) openFormEvolution();
+            else openShift();
           }}
         >
           <span className="home__syncpulse" aria-hidden="true" />
@@ -192,7 +218,7 @@ export function CompanionHomeScreen({ onGo, onBack }: { onGo: (o: Overlay) => vo
           aria-valuenow={event.have}
           aria-valuemax={event.need}
         >
-          <span className="home__syncfill" style={{ width: `${progress * 100}%` }} />
+          <span className="home__syncfill" style={{ transform: `scaleX(${progress})` }} />
         </span>
       )}
 

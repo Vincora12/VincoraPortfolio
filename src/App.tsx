@@ -10,7 +10,7 @@
    §26 — i controlli DEV non compaiono mai senza dev mode attiva.
    ========================================================================= */
 
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState, type ComponentProps } from 'react';
 import {
   useApp,
   type Phase,
@@ -18,15 +18,17 @@ import {
   pullIngested,
   pullLessons,
   maybeSpeakFirst,
+  scheduleRemoteSave,
+  stepModel,
 } from './state/store';
 import { applyPaletteDna } from './engine/colorDna';
 import { applySkin } from './engine/skin';
 import { applyLayout } from './engine/layout';
-import { preloadMonAssets } from './assets-pipeline/assetStore';
+import { preloadMonAssets, syncAssetsWithServer } from './assets-pipeline/assetStore';
 import { Icon } from './system/Icon';
 import { haptic } from './system/haptics';
 import { PROGRESSION } from './engine/progression';
-import { applySigilAppIcon, applySigilFavicon } from './system/favicon';
+import { applySigilFavicon } from './system/favicon';
 import { t } from './i18n/it';
 
 import { SplashScreen } from './screens/Splash';
@@ -34,7 +36,6 @@ import { PersonalityScanScreen } from './screens/PersonalityScan';
 import { ProtocolSetupScreen } from './screens/ProtocolSetup';
 import { IncubationScreen } from './screens/Incubation';
 import { EncounterScreen } from './screens/Encounter';
-import { CompanionHomeScreen } from './screens/CompanionHome';
 import { UniversalInputScreen } from './screens/UniversalInput';
 import { MeOverviewScreen } from './screens/MeOverview';
 import { MindlineShiftScreen } from './screens/MindlineShift';
@@ -43,13 +44,25 @@ import { NewBranchScreen } from './screens/NewBranch';
 import { SpecimenProfileScreen } from './screens/SpecimenProfile';
 import { DexScreen } from './screens/Dex';
 import { MindlineMapScreen } from './screens/MindlineMap';
-import { CalendarScreen } from './screens/SyncCalendar';
 import { ActivateScreen } from './screens/Activate';
 import { HeritageDnaScreen } from './screens/HeritageDna';
 import { HistoryScreen } from './screens/History';
 import { DailyScanScreen } from './screens/DailyScan';
 import { DevPanel } from './dev/DevPanel';
 import { PageReader } from './screens/PageReader';
+import type { ToolUse } from './ai/tools';
+const IntegratedChat = lazy(() => import('./assistant-original/IntegratedChat').then((module) => ({ default: module.IntegratedChat })));
+
+const runChatTool = (use: ToolUse) => useApp.getState().runMonTool(use);
+const toyRefreshes = new Set<string>();
+
+function LazyChat(props: ComponentProps<typeof IntegratedChat>) {
+  return (
+    <Suspense fallback={<div className="brain-loader" aria-label="Apertura chat"><strong>VINZ.MON</strong><span /></div>}>
+      <IntegratedChat {...props} />
+    </Suspense>
+  );
+}
 
 /* ============================================================================
    🔷 «Il nav sotto deve avere prima la chat — appena entri c'è la chat aperta
@@ -123,7 +136,46 @@ export function App() {
     s.activeMonName ? (s.mons[s.activeMonName]?.sigil ?? null) : null,
   );
   const devEnabled = useApp((s) => s.dev.enabled);
+  const voiceModel = useApp((s) => s.voiceModel);
+  const setVoiceModel = useApp((s) => s.setVoiceModel);
   const setDev = useApp((s) => s.setDev);
+  const resumeFormEvolution = useApp((s) => s.resumeFormEvolution);
+  const evolutionJob = useApp((s) => s.evolutionJob);
+  const token = useApp((s) => s.token);
+
+  useEffect(() => {
+    if ('serviceWorker' in navigator) void navigator.serviceWorker.register('/sw.js');
+  }, []);
+
+  useEffect(() => {
+    window.addEventListener('vinzmon-health-journal', scheduleRemoteSave);
+    return () => window.removeEventListener('vinzmon-health-journal', scheduleRemoteSave);
+  }, []);
+
+  /* Se l'app era chiusa, il server ha continuato. Al rientro riprendiamo il
+     job persistente e scarichiamo gli asset già completati. */
+  useEffect(() => {
+    resumeFormEvolution();
+  }, [resumeFormEvolution, evolutionJob?.serverJobId, evolutionJob?.status]);
+
+  /* Pipeline Toy v2: le prime generazioni potevano conservare il rendering
+     CEL pur essendo archiviate nello slot Toy. Si corregge una volta sola,
+     usando il Master esistente e senza ricreare evoluzione, doodle o sticker. */
+  useEffect(() => {
+    if (!token || !activeMonName || evolutionJob?.status === 'running') return;
+    const record = useApp.getState().mons[activeMonName];
+    if (!record || record.data.asset_manifest_status.character_master !== 'resolved') return;
+    const migrationKey = `vinzmon:toy-pipeline-v2:${activeMonName}`;
+    if (localStorage.getItem(migrationKey) === 'ready' || toyRefreshes.has(activeMonName)) return;
+    toyRefreshes.add(activeMonName);
+    void import('./assets-pipeline/remoteGeneration')
+      .then(({ refreshToyAsset }) => refreshToyAsset(token, record, stepModel('image')))
+      .then(() => localStorage.setItem(migrationKey, 'ready'))
+      .catch((error) => {
+        toyRefreshes.delete(activeMonName);
+        console.warn('[toy] aggiornamento automatico non riuscito:', error);
+      });
+  }, [activeMonName, evolutionJob?.status, token]);
 
   /* 🔷 «Appena entri c'è la chat aperta.» */
   const [tab, setTab] = useState<Tab>('chat');
@@ -144,6 +196,14 @@ export function App() {
      che si rientra nella tab. */
   const [monView, setMonView] = useState<MonView>('mon');
   const [meView, setMeView] = useState<MeView>('me');
+  /* V1: la Chat è sempre raggiungibile, anche prima di configurare il Game. */
+  const [assistantOpen, setAssistantOpen] = useState(false);
+
+  useEffect(() => {
+    const openChat = () => { setAssistantOpen(false); setOverlay(null); setTab('chat'); };
+    window.addEventListener('vinzmon-open-chat', openChat);
+    return () => window.removeEventListener('vinzmon-open-chat', openChat);
+  }, []);
 
   /* ⚠️ L'INCUBAZIONE HA UNA PORTA SUA, e non può usare le tab.
 
@@ -206,6 +266,7 @@ export function App() {
        riapre dove l'avevi lasciata sembra non aver risposto al tocco. */
     if (next === 'mon') setMonView('mon');
     if (next === 'me') setMeView('me');
+    setOverlay(null);
     setTab(next);
   };
 
@@ -259,19 +320,11 @@ export function App() {
     window.history.replaceState(null, '', window.location.pathname);
   }, []);
 
-  /* 🔷 v1.15 §23.6 — il sigillo è l'icona della scheda E quella che il
-     telefono userà se aggiungi l'app alla home.
-
-     ⚠️ La seconda mancava, e mancava proprio la metà che si vede di più:
-     `apple-touch-icon` puntava al globo statico, quindi chi si metteva l'app
-     sul telefono si portava a casa l'icona generica.
-
-     🔒 Resta il muro di iOS: l'icona viene letta UNA volta, quando aggiungi
-     la scorciatoia. Questo fa sì che in quel momento sia il sigillo di
-     ADESSO; per aggiornarla dopo un'evoluzione si toglie e si rimette. */
+  /* Il sigillo corrente resta nella scheda del browser. L’icona installata
+     sulla Home è invece il marchio VINZ.MON statico fornito dall’utente: non
+     deve cambiare quando evolve la creatura. */
   useEffect(() => {
     applySigilFavicon(sigil);
-    void applySigilAppIcon(sigil);
   }, [sigil]);
 
   // Gli asset importati vivono in IndexedDB: vanno ricaricati a ogni avvio.
@@ -290,6 +343,8 @@ export function App() {
   useEffect(() => {
     void syncWithServer().then(async (outcome) => {
       if (outcome === 'scaricato') console.info('[sync] ripreso il salvataggio dal server');
+      const token = useApp.getState().token;
+      if (token) await syncAssetsWithServer(token);
       /* Dopo il salvataggio, non prima: se le due copie divergono si prende
          quella buona e POI ci si applica sopra quello che le Shortcut hanno
          lasciato. Al contrario, i dati della notte finirebbero su uno stato
@@ -313,7 +368,7 @@ export function App() {
          guardato cosa hanno lasciato le Shortcut stanotte. */
       maybeSpeakFirst();
     });
-  }, []);
+  }, [token]);
 
   /* ============================================================================
      🔷 «La modalità DEV in alto sempre presente anche se accedo senza url dev,
@@ -373,7 +428,7 @@ export function App() {
 
   // Con la tab bar in fondo, il margine di sistema lo prende lei: il composer
   // non deve aggiungere il suo, o resterebbe uno spazio vuoto doppio.
-  const hasTabBar = phase === 'live' && !overlay;
+  const hasTabBar = phase === 'live' && overlay !== 'dev' && overlay !== 'activate';
 
   return (
     <div className="proto-stage">
@@ -381,11 +436,15 @@ export function App() {
         className={`proto-frame ${hasTabBar ? 'has-tabbar' : ''}`}
         data-field={inkField ? 'ink' : undefined}
       >
-        <StatusBar
-          showDev={devEnabled && overlay !== 'dev'}
-          onOpenDev={() => setOverlay('dev')}
-          onActivate={() => setOverlay('activate')}
-        />
+        {!assistantOpen && (phase !== 'live' || tab === 'mon') && (
+          <StatusBar
+            showDev={devEnabled && overlay !== 'dev'}
+            onOpenDev={() => setOverlay('dev')}
+            onActivate={() => setOverlay('activate')}
+            assistantOpen={assistantOpen}
+            onToggleAssistant={() => setAssistantOpen((open) => !open)}
+          />
+        )}
 
         {/* ⚠️ L'ordine conta: l'ingresso stava PRIMA dell'overlay, quindi con
             la splash aperta il pannello DEV si apriva sotto e non si vedeva.
@@ -393,6 +452,26 @@ export function App() {
             saluto. */}
         {overlay ? (
           <OverlayScreen overlay={overlay} onClose={() => setOverlay(null)} onGo={setOverlay} />
+        ) : assistantOpen ? (
+          <LazyChat runTool={runChatTool} voiceModel={voiceModel} onModelChange={setVoiceModel} />
+        ) : phase === 'live' ? (
+          <>
+            <div className={`live-chat ${tab === 'chat' ? '' : 'live-chat--hidden'}`}>
+              <LazyChat runTool={runChatTool} voiceModel={voiceModel} onModelChange={setVoiceModel} />
+            </div>
+            {tab !== 'chat' && (
+              <PhaseScreen
+                phase={phase}
+                tab={tab}
+                monView={monView}
+                meView={meView}
+                onMonView={setMonView}
+                onMeView={setMeView}
+                onGo={setOverlay}
+                onEnterChat={() => goTab('chat')}
+              />
+            )}
+          </>
         ) : onCreature ? (
           <SplashScreen onEnter={() => setOnEgg(false)} />
         ) : (
@@ -405,7 +484,6 @@ export function App() {
             onMeView={setMeView}
             onGo={setOverlay}
             onEnterChat={() => goTab('chat')}
-            onBackToMon={() => goTab('mon')}
           />
         )}
 
@@ -428,7 +506,6 @@ function PhaseScreen({
   onMeView,
   onGo,
   onEnterChat,
-  onBackToMon,
 }: {
   phase: Phase;
   tab: Tab;
@@ -438,8 +515,6 @@ function PhaseScreen({
   onMeView: (v: MeView) => void;
   onGo: (o: Overlay) => void;
   onEnterChat: () => void;
-  /** Torna dove la creatura sta in grande (§13.7). */
-  onBackToMon: () => void;
 }) {
   switch (phase) {
     case 'scan':
@@ -461,7 +536,7 @@ function PhaseScreen({
     case 'live':
       switch (tab) {
         case 'chat':
-          return <CompanionHomeScreen onGo={onGo} onBack={onBackToMon} />;
+          return <LazyChat runTool={runChatTool} />;
         case 'mon':
           return <MonTab view={monView} onView={onMonView} onGo={onGo} onEnterChat={onEnterChat} />;
         case 'me':
@@ -599,9 +674,12 @@ export function MonTab({
    ha prodotti.
    ========================================================================= */
 
+/* 🔒 ESPORTATA PER DESIGN.LAB, come `MonTab`. Il corpo è quello nuovo: ME non
+   ha più le sue due schede — i calendari sono scesi dentro dieta e sport — e
+   `view`/`onView` restano nella firma perché chi la chiama non deve cambiare. */
 export function MeTab({
-  view,
-  onView,
+  view: _view,
+  onView: _onView,
   onGo,
 }: {
   view: MeView;
@@ -609,20 +687,7 @@ export function MeTab({
   onGo: (o: Overlay) => void;
 }) {
   return (
-    <div className="archive">
-      <ViewSwitch
-        label="Viste di ME"
-        view={view}
-        onView={onView}
-        items={[
-          { id: 'me', label: t.nav.me },
-          { id: 'calendar', label: t.nav.calendar },
-        ]}
-      />
-
-      {view === 'me' && <MeOverviewScreen onGo={onGo} />}
-      {view === 'calendar' && <CalendarScreen onGo={onGo} />}
-    </div>
+    <div className="archive"><MeOverviewScreen onGo={onGo} /></div>
   );
 }
 
@@ -673,10 +738,10 @@ export function TabBar({ tab, onChange }: { tab: Tab; onChange: (t: Tab) => void
 
      🔒 Tre bersagli invece di quattro vuol dire tre bersagli più larghi, su
      uno schermo dove il dito è il puntatore. */
-  const items: { id: Tab; label: string; icon: 'tell' | 'mon' | 'me' }[] = [
-    { id: 'chat', label: t.nav.chat, icon: 'tell' },
-    { id: 'mon', label: t.nav.mon, icon: 'mon' },
-    { id: 'me', label: t.nav.me, icon: 'me' },
+  const items: { id: Tab; label: string; activeLabel: string; icon: 'tell' | 'mon' | 'me' }[] = [
+    { id: 'chat', label: t.nav.chat, activeLabel: 'CHAT', icon: 'tell' },
+    { id: 'mon', label: t.nav.mon, activeLabel: 'VINZ.MON', icon: 'mon' },
+    { id: 'me', label: t.nav.me, activeLabel: 'ME', icon: 'me' },
   ];
 
   return (
@@ -686,14 +751,15 @@ export function TabBar({ tab, onChange }: { tab: Tab; onChange: (t: Tab) => void
           key={item.id}
           type="button"
           className="tabbar__item"
+          aria-label={item.label}
           aria-current={tab === item.id ? 'page' : undefined}
           onClick={() => {
             haptic('tick');
             onChange(item.id);
           }}
         >
-          <Icon name={item.icon} size={20} strokeWidth={2} />
-          {item.label}
+          <Icon name={item.icon} size={15} strokeWidth={2} />
+          <span className="tabbar__label">{item.activeLabel}</span>
         </button>
       ))}
     </nav>
@@ -725,10 +791,14 @@ function StatusBar({
   showDev,
   onOpenDev,
   onActivate,
+  assistantOpen,
+  onToggleAssistant,
 }: {
   showDev: boolean;
   onOpenDev: () => void;
   onActivate: () => void;
+  assistantOpen: boolean;
+  onToggleAssistant: () => void;
 }) {
   const day = useApp((s) => s.day);
   const sync = useApp((s) => s.progression.sync.lifetime);
@@ -771,6 +841,11 @@ function StatusBar({
             impianto — avrebbe voluto dire nasconderlo proprio a chi apre
             l'app per la prima volta. */}
         <ActivateChip onClick={onActivate} />
+        {phase !== 'live' && (
+          <button type="button" className="devtrigger" onClick={onToggleAssistant}>
+            {assistantOpen ? 'GAME' : 'CHAT'}
+          </button>
+        )}
         {/* Il trigger DEV sta qui e non fluttuante sopra la schermata:
             in overlay senza tab bar copriva il contenuto. */}
         {showDev && (

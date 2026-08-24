@@ -31,18 +31,21 @@ specifica, non il codice. Il codice sta in `src/lab/`.
    `SoulLab` su `#/lab/soul` ma non disegnava la porta: a SOUL si arrivava solo
    scrivendo l'indirizzo a mano.
 
-2. **La CHAT è `src/screens/CompanionHome.tsx`.** Il registro del pacchetto
-   puntava a `src/assistant-original/*` e a `@assistant-ui/react`: in questo
-   repo non esistono e non sono mai esistiti.
+2. **La CHAT monta `ChatSurface`, non `IntegratedChat`.** La superficie è
+   quella vera; il runtime sotto vive in memoria. `IntegratedChat` migra le
+   conversazioni salvate e parla col thread adapter sul server: aprire
+   DESIGN.LAB avrebbe migrato l'archivio delle chat.
 
-3. **`brain.css` non viene importato.** L'esempio di `main.tsx` lo importava.
-   Il Brain è stato progettato (vedi il blueprint) e mai costruito.
+3. **`brain.css` viene importato**, perché `src/brain/` adesso esiste.
 
 4. **Cambiare stanza non ricarica la pagina.** Il pacchetto faceva
    `window.location.reload()` a ogni click.
 
 5. **Il campo nero si calcola, non si dichiara.** Dentro MON dipende dalla
    vista, e la vista in preview si può cambiare col dito.
+
+5b. **ME non ha più le sue due schede.** I calendari sono scesi dentro dieta e
+   sport. `MeTab` tiene `view`/`onView` nella firma ma non li usa.
 
 6. **La cornice della preview è importata da `App.tsx`, non ricopiata.**
    `MonTab`, `MeTab` e `TabBar` sono ora esportate. Regola del pacchetto:
@@ -52,6 +55,27 @@ specifica, non il codice. Il codice sta in `src/lab/`.
 
     npm run verify:lab
 
-21 prove: le cinque che il pacchetto chiede a parole, più quella che il
+23 prove: le cinque che il pacchetto chiede a parole, più quella che il
 pacchetto non sa provare — che guardare una schermata nel laboratorio **non
 scriva** niente in produzione.
+
+
+## Trovato durante la fusione (non è roba del laboratorio)
+
+Il branch si era mosso di ~100 commit mentre il laboratorio veniva costruito.
+Fusi senza forzare niente; unico conflitto vero, `MeTab`, risolto tenendo il
+corpo nuovo. Ma due cose restano rotte, e non sono state toccate perché non
+sono mie da decidere:
+
+1. **`npm install` fallisce.** `@schedule-x/calendar@4.6.1` vuole
+   `temporal-polyfill@0.3.0`, `package.json` chiede `^1.0.4`. Anche `npm ci`
+   fallisce. Qui ci si è installati con `--legacy-peer-deps`; se Netlify
+   installa senza quel flag, **il deploy non parte**.
+
+2. **15 decisioni non sono più nel codice** (`npm run verify:features`).
+   Fallivano già prima della fusione — verificate una per una contro
+   `origin`. Alcune sono decisioni cambiate di proposito (il calendario non è
+   più una schermata a sé) e vogliono l'ago ripuntato; altre sembrano
+   regressioni vere (il sigillo tornato globo, il palco che mostra
+   un'immagine mentre ne approvi un'altra, la preferenza dal browser che
+   torna a essere un comando). Vanno guardate una per una.

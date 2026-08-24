@@ -24,6 +24,7 @@ import { resolveRoute, type Capability } from './_shared/routing';
 import {
   callProvider,
   generateImage,
+  streamAnthropic,
   type SystemBlock,
   type ToolDef,
   type Turn,
@@ -87,9 +88,13 @@ interface Payload {
   user?: string;
   userBlocks?: Record<string, unknown>[];
   image?: { mediaType: string; data: string };
+  /** Foto della chat; `image` resta compatibile con i vecchi client. */
+  images?: { mediaType: string; data: string }[];
   thinking?: boolean;
   maxTokens?: number;
   tools?: ToolDef[];
+  /** Nome di uno degli strumenti forniti da imporre in questo giro. */
+  toolChoice?: string;
   webSearch?: boolean;
   /** Solo per `image`. */
   prompt?: string;
@@ -107,6 +112,11 @@ interface Payload {
    * peggiore in cui questo file possa rompersi.
    */
   voiceModel?: string;
+  /** Configurazione standard inviata dal runtime assistant-ui. */
+  config?: {
+    modelName?: string;
+    reasoningEffort?: string;
+  };
   /**
    * 🔷 «Voglio far funzionare l'app con Sol.»
    *
@@ -118,6 +128,28 @@ interface Payload {
   jobId?: string;
   /** Quanto deve ragionare, quando parte in background. */
   effort?: 'none' | 'low' | 'medium' | 'high';
+  /** Risposta progressiva per la chat. */
+  stream?: boolean;
+}
+
+type Effort = NonNullable<Payload['effort']>;
+
+/** Traduce la configurazione assistant-ui mantenendo i campi legacy compatibili. */
+export function assistantRequestPreferences(
+  config: Payload['config'],
+  legacyModel?: string,
+  legacyEffort?: Effort,
+): { modelName?: string; effort?: Effort } {
+  const requestedEffort = config?.reasoningEffort;
+  const effort: Effort | undefined =
+    requestedEffort === 'low' || requestedEffort === 'medium' || requestedEffort === 'high'
+      ? requestedEffort
+      : legacyEffort;
+  const modelName = config?.modelName ?? legacyModel;
+  return {
+    ...(modelName ? { modelName } : {}),
+    ...(effort ? { effort } : {}),
+  };
 }
 
 const KNOWN: Capability[] = ['character-voice', 'vision-quick', 'text-cheap', 'image', 'prompt-compile'];
@@ -165,7 +197,9 @@ export default async function handler(request: Request): Promise<Response> {
      vero, ed è un cambio di premessa voluto: da quando la voce la scegli tu,
      tenerti all'oscuro di chi sta rispondendo sarebbe nascondere una cosa che
      hai deciso. Infatti la risposta lo dice, in fondo. */
-  const route = resolveRoute(capability, payload.voiceModel);
+  const preferences = assistantRequestPreferences(payload.config, payload.voiceModel, payload.effort);
+  const route = resolveRoute(capability, preferences.modelName);
+  const selectedEffort = preferences.effort;
 
   /* ════════════════════════════════════════════════════════════════════════
      IL RITIRO DI UN LAVORO PARTITO PRIMA
@@ -266,7 +300,12 @@ export default async function handler(request: Request): Promise<Response> {
       413,
     );
   }
-  if (user.trim().length === 0 && userBlocks.length === 0) {
+  if (
+    user.trim().length === 0 &&
+    userBlocks.length === 0 &&
+    !payload.image &&
+    !payload.images?.length
+  ) {
     return json({ error: 'messaggio vuoto' }, 400);
   }
   if (JSON.stringify(userBlocks).length > LIMITS.userChars) {
@@ -278,19 +317,67 @@ export default async function handler(request: Request): Promise<Response> {
   if (JSON.stringify(tools).length > LIMITS.toolChars) {
     return json({ error: 'strumenti troppo lunghi' }, 413);
   }
+  const toolChoice =
+    typeof payload.toolChoice === 'string' && tools.some((tool) => tool.name === payload.toolChoice)
+      ? payload.toolChoice
+      : undefined;
+  if (payload.toolChoice && !toolChoice) {
+    return json({ error: 'strumento richiesto non disponibile' }, 400);
+  }
 
   /* 🔒 La ricerca sul web si accende SOLO dove la conversazione è già di
      quel fornitore. Accenderla altrove vorrebbe dire mandare la domanda —
      che può contenere qualunque cosa tu abbia appena scritto — da qualcun
      altro, e la tabella delle capacità esiste apposta per non farlo di
      nascosto. */
-  const webSearch = Boolean(payload.webSearch) && route.provider === 'anthropic';
+  const webSearch =
+    Boolean(payload.webSearch) &&
+    (route.provider === 'anthropic' || route.provider === 'openai');
 
-  if (payload.image) {
+  const images = (payload.images?.length ? payload.images : payload.image ? [payload.image] : []).slice(0, 4);
+  if ((payload.images?.length ?? 0) > 4) return json({ error: 'troppe immagini' }, 413);
+  for (const image of images) {
     // base64 gonfia di un terzo: si stima la dimensione vera prima di
     // spedirla, altrimenti il tetto lo scopre il fornitore al posto nostro.
-    const bytes = Math.floor((payload.image.data?.length ?? 0) * 0.75);
+    const bytes = Math.floor((image.data?.length ?? 0) * 0.75);
     if (bytes > LIMITS.imageBytes) return json({ error: 'immagine troppo grande' }, 413);
+  }
+
+  /* Streaming della chat V1. Il contesto neutrale è ammesso, mentre strumenti,
+     risultati di strumenti e immagini seguiranno il loop orchestrato. */
+  if (payload.stream) {
+    if (route.provider !== 'anthropic') {
+      return json({ error: 'streaming non disponibile per questo modello' }, 400);
+    }
+    if (tools.length || userBlocks.length || images.length) {
+      return json({ error: 'lo streaming accetta testo e contesto' }, 400);
+    }
+
+    const streamed = await streamAnthropic(
+      {
+        model: route.model,
+        system,
+        turns,
+        user,
+        webSearch,
+        ...(selectedEffort ? { effort: selectedEffort } : {}),
+        maxTokens: Math.min(payload.maxTokens ?? 2000, LIMITS.maxTokens),
+      },
+      request.signal,
+    );
+    if (!streamed.ok) return json({ error: 'stream non disponibile', reason: streamed.error }, 502);
+
+    void streamed.completed.then(async ({ model, usage }) => {
+      if (usage.inputTokens || usage.outputTokens) await recordSpend(capability, model, usage);
+    }).catch((error) => console.warn('[ai] spesa dello stream non registrata:', error));
+
+    return new Response(streamed.body, {
+      headers: {
+        'content-type': 'text/event-stream; charset=utf-8',
+        'cache-control': 'no-store',
+        'x-content-type-options': 'nosniff',
+      },
+    });
   }
 
   /* ════════════════════════════════════════════════════════════════════════
@@ -317,7 +404,7 @@ export default async function handler(request: Request): Promise<Response> {
          sulla strada sincrona `medium` significava morire a dieci secondi, e
          per questo scegliere Sol costava il doppio senza dare niente. Qui non
          c'è nessun orologio, quindi il predefinito è `medium` e non `none`. */
-      effort: payload.effort ?? 'medium',
+      effort: selectedEffort ?? 'medium',
     });
 
     if (!out.ok) {
@@ -334,9 +421,11 @@ export default async function handler(request: Request): Promise<Response> {
     user,
     userBlocks,
     image: payload.image,
+    images,
     thinking: Boolean(payload.thinking),
-    ...(payload.effort ? { effort: payload.effort } : {}),
+    ...(selectedEffort ? { effort: selectedEffort } : {}),
     tools,
+    ...(toolChoice ? { toolChoice } : {}),
     webSearch,
     /* Un prompt compilato è lungo per definizione — il riferimento che
        funziona sta sui 12k caratteri — quindi questa capacità ha un tetto
@@ -350,8 +439,9 @@ export default async function handler(request: Request): Promise<Response> {
   /* Si registra anche quando la risposta è vuota o rifiutata: il fornitore ha
      comunque letto l'ingresso e lo fa pagare. Un contatore che segna solo i
      successi è un contatore che sottostima proprio nei giorni storti. */
+  let costUsd = 0;
   if (result.usage.inputTokens || result.usage.outputTokens || result.usage.webSearches) {
-    await recordSpend(capability, result.model, result.usage);
+    costUsd = await recordSpend(capability, result.model, result.usage);
   }
 
   if (!result.ok) {
@@ -370,6 +460,7 @@ export default async function handler(request: Request): Promise<Response> {
     /* Il server non esegue niente: dice quali strumenti il modello vuole e
        lascia fare al browser, che è l'unico posto dove i dati esistono. */
     toolUses: result.toolUses,
+    sources: result.sources,
     stopReason: result.stopReason,
     model: result.model,
     /* Chi ha risposto davvero, e se la ricerca sul web era accesa. Serve
@@ -378,6 +469,7 @@ export default async function handler(request: Request): Promise<Response> {
     provider: route.provider,
     webSearchOn: webSearch,
     usage: result.usage,
+    costUsd,
     warning: cap.warning,
     remainingUsd: cap.remainingUsd,
   });

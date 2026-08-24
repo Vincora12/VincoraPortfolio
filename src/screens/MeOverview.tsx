@@ -1,215 +1,99 @@
-/* ============================================================================
-   09 — ME OVERVIEW (§12)
-
-   "FORM / ATK / SPD / DEF / REC / CARE, Condition e scorciatoie di dominio."
-
-   §11 — questo è il livello di verità analitica. La presenza della creatura è
-   secondaria: qui non compare.
-
-   🔶 v1.9 §4.1 — la schermata dichiara in testa la distinzione che prima
-   lasciava indovinare. Vedere CONDITION, DISC, CONFIDENZA e SYNC nella stessa
-   pagina faceva sembrare che fossero quattro punteggi dello stesso gioco,
-   quando §4 dice l'opposto: «Health truth and game progression stay separate».
-
-   Quindi: qui c'è **come stai**, e non fa crescere niente. SYNC — quanto
-   VINZ.MON ti ha potuto leggere — è l'unica cosa che fa crescere, e sta in
-   fondo, separata e detta a parole.
-
-   Via due numeri che nessuno sapeva leggere:
-   • **DISC** misurava la costanza, ed era l'ultimo residuo del modello a
-     valute: un punteggio su quanto sei bravo a presentarti. Adesso quella cosa
-     la dice il calendario, mostrando i giorni invece di riassumerli in un voto.
-   • **CONFIDENZA DEL DATO** è un concetto del motore — quanto il generatore si
-     fida della finestra recente — non un fatto sulla persona. È rimasto in DEV,
-     dove serve.
-   ========================================================================= */
-
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { Overlay } from '../App';
-import { useApp, useProtocol } from '../state/store';
-import { ScreenHead, SegmentedBar, SystemLabel, Window } from '../system/components';
-import { sortPages } from '../engine/pages';
-import { STAT_LABELS, formatDelta, formatSignal, trend } from '../engine/health';
-import { describeDiet, describeTraining } from '../engine/protocol';
-import { STAT_KEYS, isKnown } from '../engine/types';
-import { t } from '../i18n/it';
+import { useApp } from '../state/store';
+import { Icon } from '../system/Icon';
+import { STAT_KEYS, isKnown, type HealthState } from '../engine/types';
+import { HEALTH_JOURNAL_EVENT, readHealthJournal, removeHealthEntry, undoMeBlocks, type HealthJournal, type MeBlock } from '../engine/healthJournal';
+import { MeCalendar } from './MeCalendar';
 
-export function MeOverviewScreen({ onGo }: { onGo: (o: Overlay) => void }) {
+type View = 'today' | 'diet' | 'sport';
+const visibleView = (view: HealthJournal['display']['focus']): View => view === 'progress' ? 'today' : view;
+const localDay = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+const today = () => localDay(new Date());
+const isToday = (at: string) => localDay(new Date(at)) === today();
+const time = (at: string) => new Intl.DateTimeFormat('it-IT', { hour: '2-digit', minute: '2-digit' }).format(new Date(at));
+
+export function MeOverviewScreen({ onGo: _onGo }: { onGo: (o: Overlay) => void }) {
   const health = useApp((s) => s.health);
-  const progression = useApp((s) => s.progression);
-  const { protocol } = useProtocol();
-  const reopenProtocol = useApp((s) => s.reopenProtocol);
-
-  const anyUnknown = STAT_KEYS.some((k) => !isKnown(health.stats[k].value));
-
-  return (
-    <div className="screen">
-      <ScreenHead title={t.me.title} sub={t.me.subtitle} />
-
-      <div className="screen__body me">
-        {/* 🔶 La riga che toglie l'ambiguità prima di mostrare qualunque
-             numero: quello che segue non è un punteggio. */}
-        <p className="t-small me__preamble">{t.me.preamble}</p>
-
-        <Pages onGo={onGo} />
-
-        {/* --- CONDITION: stato del giorno, con il nome di sistema accanto alla
-             domanda a cui risponde. «CONDITION» da solo non si capisce. --- */}
-        <Window title={`CONDITION · ${t.me.conditionTitle}`}>
-          <div className="me__condition">
-            <span className="me__big t-display">{formatSignal(health.condition)}</span>
-            <div className="me__conditionbar">
-              <SegmentedBar
-                value={isKnown(health.condition) ? health.condition / 100 : 'unknown'}
-                segments={20}
-                readout={isKnown(health.condition) ? `${Math.round(health.condition)}/100` : undefined}
-                tone={
-                  !isKnown(health.condition)
-                    ? 'character'
-                    : health.condition > 65
-                      ? 'positive'
-                      : health.condition > 40
-                        ? 'warning'
-                        : 'alert'
-                }
-              />
-              {/* Una spiegazione si legge come una frase: il maiuscoletto
-                  monospaziato è per le etichette, non per i periodi. */}
-              <p className="t-small me__note">{t.me.conditionNote}</p>
-            </div>
-          </div>
-        </Window>
-
-        {/* --- Le sei metriche di §3 --- */}
-        <div className="me__stats">
-          {STAT_KEYS.map((key) => {
-            const entry = health.stats[key];
-            const t7 = trend(health, key, 7);
-            return (
-              <section key={key} className="statcard">
-                <header className="statcard__head">
-                  <span className="statcard__key t-display">{key}</span>
-                  <span className="statcard__value t-display">{formatSignal(entry.value)}</span>
-                </header>
-
-                <SegmentedBar
-                  value={isKnown(entry.value) ? entry.value / 100 : 'unknown'}
-                  segments={16}
-                />
-
-                {/* Una riga sola invece di tre: cosa misura, come si muove,
-                    quanto è affidabile. Le etichette lunghe stavano ripetute
-                    sei volte e non aggiungevano niente dopo la prima lettura. */}
-                <div className="statcard__meta t-micro">
-                  <span className="statcard__label">{STAT_LABELS[key]}</span>
-                  <span title={t.me.trend7}>7G {formatDelta(t7)}</span>
-                  <span title={t.me.confidence}>{Math.round(entry.confidence * 100)}%</span>
-                </div>
-              </section>
-            );
-          })}
-        </div>
-
-        {/* --- L'unica cosa che fa crescere. Separata, e detta a parole. --- */}
-        <Window title={`SYNC · ${t.me.syncTitle}`}>
-          <div className="me__game">
-            <div className="me__gameitem">
-              <span className="t-meta">{t.me.syncTotal}</span>
-              <span className="t-display">{progression.sync.lifetime}</span>
-            </div>
-            <div className="me__gameitem">
-              <span className="t-meta">{t.me.syncInForm}</span>
-              <span className="t-display">{progression.sync.inForm}</span>
-            </div>
-            <div className="me__gameitem">
-              <span className="t-meta">{t.home.bond}</span>
-              <span className="t-display">{Math.round(progression.bond * 100)}%</span>
-            </div>
-          </div>
-          <p className="t-small me__note">{t.me.syncNote}</p>
-        </Window>
-
-        {/* 🔶 v1.10 §5.3 — il protocollo vive qui perché è l'unica cosa in
-             questa schermata che l'utente ha DICHIARATO invece che essere
-             stata misurata su di lui. Ed è modificabile: una dieta cambia, e
-             un metro che non si può aggiornare diventa una bugia in un mese. */}
-        <Window title={t.protocol.edit}>
-          <button type="button" className="me__protocol" onClick={reopenProtocol}>
-            <span className="me__protocolbody">
-              {describeDiet(protocol.diet) || describeTraining(protocol.training) ? (
-                <>
-                  {describeDiet(protocol.diet) && (
-                    <span className="t-small">{describeDiet(protocol.diet)}</span>
-                  )}
-                  {describeTraining(protocol.training) && (
-                    <span className="t-small me__protocoltraining">
-                      {describeTraining(protocol.training)}
-                    </span>
-                  )}
-                </>
-              ) : (
-                <span className="t-small me__protocolempty">{t.protocol.none}</span>
-              )}
-            </span>
-            <span className="me__protocolgo" aria-hidden="true">→</span>
-          </button>
-        </Window>
-
-        {anyUnknown && (
-          <p className="me__unknown t-small">
-            <SystemLabel tone="warning">UNKNOWN</SystemLabel> {t.me.unknownNote}
-          </p>
-        )}
-      </div>
+  const [journal, setJournal] = useState(readHealthJournal);
+  const [view, setView] = useState<View>(() => visibleView(readHealthJournal().display.focus));
+  const configuredFocus = useRef(journal.display.focus);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  useEffect(() => { const update = () => { const next = readHealthJournal(); setJournal(next); if (next.display.focus !== configuredFocus.current) { configuredFocus.current = next.display.focus; setView(visibleView(next.display.focus)); } }; window.addEventListener(HEALTH_JOURNAL_EVENT, update); return () => window.removeEventListener(HEALTH_JOURNAL_EVENT, update); }, []);
+  useEffect(() => { scrollRef.current?.scrollTo({ top: 0 }); }, [view]);
+  const meals = journal.meals.filter((x) => isToday(x.at));
+  const workouts = journal.workouts.filter((x) => isToday(x.at));
+  const total = meals.reduce((s, x) => ({ kcal: s.kcal + x.kcal, protein: s.protein + x.protein, carbs: s.carbs + x.carbs, fat: s.fat + x.fat }), { kcal: 0, protein: 0, carbs: 0, fat: 0 });
+  const askAi = (prompt: string) => window.dispatchEvent(new CustomEvent('vinzmon-open-chat', { detail: { prompt } }));
+  const remove = (kind: 'meal' | 'workout' | 'weight', id: string) => {
+    if (window.confirm('Eliminare questa registrazione?')) removeHealthEntry(kind, id);
+  };
+  return <div className="screen me-health">
+    <header className="me-health__header"><p>{new Intl.DateTimeFormat('it-IT', { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date())}</p><button type="button" aria-label="Aggiungi con AI" onClick={() => askAi('Voglio aggiornare la mia salute: ')}><Icon name="plus" /></button></header>
+    <nav className="me-health__tabs">{([['today', 'OGGI'], ['diet', 'DIETA'], ['sport', 'SPORT']] as const).map(([id, label]) => <button type="button" key={id} aria-current={view === id ? 'page' : undefined} onClick={() => setView(id)}>{label}</button>)}</nav>
+    <div className="me-health__ai-control"><span>ME È ADATTABILE DALL’AI</span>{journal.blockHistory.length > 0 && <button type="button" onClick={() => undoMeBlocks()}>ANNULLA ULTIMA MODIFICA</button>}</div>
+    <div className="me-health__scroll" ref={scrollRef}>
+      <MeBlocks blocks={journal.blocks.filter((block) => block.section === view)} askAi={askAi} />
+      {view === 'today' && <TodayRecap journal={journal} meals={meals} workouts={workouts} total={total} health={health} askAi={askAi} />}
+      {view === 'diet' && <><MeCalendar journal={journal} mode="diet" /><Section title="PIANO ALIMENTARE">{journal.dietPlan ? <article className="me-health__plan"><h2>{journal.dietPlan.title}</h2><p>{journal.dietPlan.text}</p><small>Aggiornato {new Date(journal.dietPlan.updatedAt).toLocaleDateString('it-IT')}</small></article> : <Empty text="Allega la dieta in chat: VINZ.MON la leggerà e la salverà qui." />}</Section><Section title="STORICO PASTI">{journal.meals.length ? [...journal.meals].reverse().map(x => <Row key={x.id} title={x.slot} text={x.description} meta={`${x.kcal} kcal`} when={new Date(x.at).toLocaleDateString('it-IT')} chat={x.source === 'chat'} remove={() => remove('meal', x.id)} />) : <Empty text="Lo storico si riempirà dalla chat o dal log manuale." />}</Section></>}
+      {view === 'sport' && <><MeCalendar journal={journal} mode="sport" /><Section title="PIANO ALLENAMENTO" action={journal.workoutPlan ? 'MODIFICA CON AI' : 'SCRIVI CON AI'} click={() => askAi(journal.workoutPlan ? 'Modifica il mio piano di allenamento attuale: ' : 'Creami un nuovo piano di allenamento. Prima fammi le domande necessarie: ')}>{journal.workoutPlan ? <article className="me-health__plan"><h2>{journal.workoutPlan.title}</h2><p>{journal.workoutPlan.text}</p><small>Aggiornato {new Date(journal.workoutPlan.updatedAt).toLocaleDateString('it-IT')}</small></article> : <Empty text="Crea il tuo piano con la chat: giorni, esercizi, serie, recuperi e progressione resteranno qui." />}</Section><Section title="ALLENAMENTI SVOLTI" action="REGISTRA CON AI" click={() => askAi('Registra questo allenamento svolto: ')}>{journal.workouts.length ? [...journal.workouts].reverse().map(x => <Row key={x.id} title={x.title} text={x.details} meta={`${x.minutes} minuti`} when={new Date(x.at).toLocaleDateString('it-IT')} chat={x.source === 'chat'} remove={() => remove('workout', x.id)} />) : <Empty text="Racconta un allenamento in chat oppure allega una foto." />}</Section></>}
     </div>
-  );
+  </div>;
 }
 
-/* ============================================================================
-   LE PAGINE (§21.2)
+function MeBlocks({ blocks, askAi }: { blocks: MeBlock[]; askAi: (prompt: string) => void }) {
+  return <>{blocks.map((block) => <section className={`me-health__custom me-health__custom--${block.type}`} key={block.id}>
+    <header><h2>{block.title}</h2><button type="button" onClick={() => askAi(`Modifica il blocco ME con id ${block.id}: `)}>MODIFICA CON AI</button></header>
+    {block.content && <p>{block.content}</p>}
+    {block.items.length > 0 && <ul>{block.items.map((item, index) => <li key={`${block.id}-${index}`}>{item}</li>)}</ul>}
+  </section>)}</>;
+}
 
-   🔷 «Se gli chiedo qualcosa lui può tornarmi indietro una pagina.»
-
-   Stanno in ME e non in una tab loro per due motivi. Il primo è che una quinta
-   tab su un telefono è una tab che nessuno preme. Il secondo è più vero: ME è
-   già «le tue cose», e una pagina della dieta è una tua cosa — non un'altra
-   sezione dell'app.
-
-   ⚠️ Il blocco NON compare finché non c'è niente dentro. Un riquadro vuoto che
-   dice «qui appariranno le pagine» è una promessa che l'app fa al posto del
-   .mon, e finché lui non ne ha scritta una è una promessa che non può
-   mantenere.
-   ========================================================================= */
-
-function Pages({ onGo }: { onGo: (o: Overlay) => void }) {
-  const pages = useApp((s) => s.pages);
-  const day = useApp((s) => s.day);
-
-  if (pages.length === 0) return null;
-
-  return (
-    <Window title={`PAGINE · ${pages.length}`}>
-      <div className="rowlist">
-        {sortPages(pages).map((p) => {
-          const age = day - p.updatedDay;
-          return (
-            <button
-              key={p.slug}
-              type="button"
-              className="pagerow"
-              onClick={() => onGo(`page:${p.slug}`)}
-            >
-              <span className="pagerow__title">{p.title}</span>
-              <span className="t-micro pagerow__meta">
-                {p.pinned && <SystemLabel tone="character">IN CIMA</SystemLabel>}
-                <span>
-                  {age === 0 ? 'oggi' : age === 1 ? 'ieri' : `${age} giorni fa`}
-                </span>
-                <span aria-hidden="true">→</span>
-              </span>
-            </button>
-          );
-        })}
+function TodayRecap({ journal, meals, workouts, total, health, askAi }: { journal: HealthJournal; meals: HealthJournal['meals']; workouts: HealthJournal['workouts']; total: HealthJournal['targets']; health: HealthState; askAi: (prompt: string) => void }) {
+  const latest = [...journal.meals, ...journal.workouts, ...journal.weights].map(x => new Date(x.at)).sort((a, b) => b.getTime() - a.getTime())[0];
+  const workout = workouts.at(-1);
+  const weight = journal.weights.at(-1)?.kg;
+  const fixedMeals = new Set(meals.filter(x => x.slot !== 'extra').map(x => x.slot)).size;
+  const extras = meals.filter(x => x.slot === 'extra').length;
+  return <>
+    <ProgressChart journal={journal} onClick={() => askAi('Analizza i miei progressi e dimmi come sto andando: ')} />
+    <Nutrition total={total} targets={journal.targets} />
+    <section className="me-health__today">
+      <h2>OGGI</h2>
+      <div>
+        <article><Icon name="tell" /><strong>{fixedMeals}<small> / 5</small></strong><span>{extras ? `PASTI · ${extras} EXTRA` : 'PASTI'}</span></article>
+        <article><Icon name="workout" /><strong>{workout?.title ?? 'RIPOSO'}</strong><span>{workout ? `${workout.minutes} MIN` : 'NESSUN LOG'}</span></article>
+        <article><Icon name="measure" /><strong>{weight ? weight.toFixed(1) : '—'}<small>{weight ? ' KG' : ''}</small></strong><span>ULTIMO PESO</span></article>
       </div>
-    </Window>
-  );
+    </section>
+    <Game health={health} />
+    <section className="me-health__sync"><span>AGGIORNATO DALLA CHAT · {latest ? time(latest.toISOString()) : '—'}</span><strong>SINCRONIZZATO <Icon name="save" /></strong></section>
+    <div className="me-health__actions">
+      <button type="button" onClick={() => askAi('Aggiorna il mio riepilogo salute: ')}><Icon name="sparkle" />AGGIUNGI CON AI</button>
+      <button type="button" onClick={() => askAi('')}><Icon name="tell" />APRI CHAT</button>
+    </div>
+  </>;
 }
+
+function ProgressChart({ journal, onClick }: { journal: HealthJournal; onClick: () => void }) {
+  const values = journal.weights.slice(-8).map(x => x.kg);
+  const target = Number(journal.display.goal?.match(/\d+(?:[.,]\d+)?(?=\s*kg)/i)?.[0]?.replace(',', '.')) || undefined;
+  const series = values.length > 1 ? values : values.length === 1 && target ? [values[0], target] : values;
+  const min = series.length ? Math.min(...series) : 0;
+  const max = series.length ? Math.max(...series) : 1;
+  const range = Math.max(1, max - min);
+  const points = series.map((value, index) => `${series.length === 1 ? 140 : 8 + index * (264 / (series.length - 1))},${62 - ((value - min) / range) * 46}`).join(' ');
+  const change = values.length > 1 ? values.at(-1)! - values[0] : undefined;
+  return <button type="button" className="me-health__progress" onClick={onClick}>
+    <header><span>ANDAMENTO</span><strong>{change === undefined ? 'IN ATTESA DI DATI' : `${change > 0 ? '+' : ''}${change.toFixed(1)} KG`}</strong></header>
+    {series.length ? <svg viewBox="0 0 280 70" role="img" aria-label="Grafico dell’andamento del peso"><path d="M8 62H272" /><polyline points={points} />{series.map((value, index) => <circle key={`${value}-${index}`} cx={series.length === 1 ? 140 : 8 + index * (264 / (series.length - 1))} cy={62 - ((value - min) / range) * 46} r="3" />)}</svg> : <p>Registra il peso in chat per vedere qui i tuoi progressi.</p>}
+    <footer><span>{values.at(-1) ? `${values.at(-1)!.toFixed(1)} KG ORA` : 'NESSUN PESO'}</span><span>{target ? `${target.toFixed(1)} KG TARGET` : 'TARGET DA DEFINIRE'}</span></footer>
+  </button>;
+}
+
+function Nutrition({ total, targets }: { total: HealthJournal['targets']; targets: HealthJournal['targets'] }) { const pct = Math.min(100, Math.round(total.kcal / targets.kcal * 100)); return <section className="me-health__nutrition"><div className="me-health__calories"><div><small>ENERGIA</small><strong>{total.kcal.toLocaleString('it-IT')}</strong><span>/ {targets.kcal.toLocaleString('it-IT')} KCAL</span><Segments value={pct} count={14} /></div></div><div className="me-health__macros">{(['protein', 'carbs', 'fat'] as const).map(k => { const value = Math.min(100, total[k] / targets[k] * 100); return <div key={k}><span>{k === 'protein' ? 'PRO' : k === 'carbs' ? 'CARB' : 'FAT'}</span><strong>{total[k]}<small>g</small></strong><Segments value={value} count={8} /></div>; })}</div></section>; }
+function Section({ title, action, click, children }: { title: string; action?: string; click?: () => void; children: ReactNode }) { return <section className="me-health__section"><header><h2>{title}</h2>{action && <button type="button" onClick={click}><Icon name="plus" />{action}</button>}</header>{children}</section>; }
+function Row({ title, text, meta, when, chat, remove }: { title: string; text: string; meta: string; when: string; chat?: boolean; remove: () => void }) { return <article className="me-health__row"><div><strong>{title}</strong><p>{text}</p><small>{meta}{chat ? ' · DALLA CHAT' : ''}</small></div><time>{when}</time><button type="button" aria-label={`Elimina ${title}`} onClick={remove}><Icon name="close" /></button></article>; }
+function Empty({ text }: { text: string }) { return <p className="me-health__empty">{text}</p>; }
+function Game({ health }: { health: HealthState }) { const labels: Record<string, string> = { ATK: 'FORZA', SPD: 'VELOCITÀ', DEF: 'RESISTENZA', DISC: 'DISCIPLINA' }; const values = [...STAT_KEYS.filter(k => ['ATK', 'SPD', 'DEF'].includes(k)).map(k => [k, health.stats[k].value] as const), ['DISC', health.disc] as const]; return <section className="me-health__game"><h2>STAT VINZ.MON</h2><div>{values.map(([k, v]) => <article key={k}><span>{labels[k]}</span><Segments value={isKnown(v) ? v : 0} count={8} /><strong>{isKnown(v) ? Math.round(v) : '—'}</strong></article>)}</div></section>; }
+function Segments({ value, count }: { value: number; count: number }) { const filled = Math.round(value / 100 * count); return <i className="me-health__segments" aria-label={`${Math.round(value)}%`}>{Array.from({ length: count }, (_, i) => <b key={i} className={i < filled ? 'is-filled' : ''} />)}</i>; }

@@ -99,6 +99,18 @@ export interface ToolContext {
   showPiece: (id: string, visible: boolean) => { ok: boolean; error?: string };
   /** Sposta un pezzo dentro la sua colonna. */
   movePiece: (id: string, at: number) => { ok: boolean; error?: string };
+  readMe: (section: 'today' | 'diet' | 'sport' | 'progress' | 'all') => string;
+  logMeal: (input: { slot: 'colazione' | 'spuntino' | 'pranzo' | 'merenda' | 'cena' | 'extra'; description: string; kcal: number; protein: number; carbs: number; fat: number }) => void;
+  updateMeal: (slot: 'colazione' | 'spuntino' | 'pranzo' | 'merenda' | 'cena' | 'extra', patch: Partial<{ slot: 'colazione' | 'spuntino' | 'pranzo' | 'merenda' | 'cena' | 'extra'; description: string; kcal: number; protein: number; carbs: number; fat: number }>) => boolean;
+  logWorkout: (input: { title: string; details: string; minutes: number }) => void;
+  updateWorkout: (patch: Partial<{ title: string; details: string; minutes: number }>) => boolean;
+  logWeight: (kg: number) => void;
+  updateWeight: (kg: number) => boolean;
+  saveDiet: (title: string, text: string) => void;
+  saveWorkoutPlan: (title: string, text: string) => void;
+  configureTargets: (targets: Partial<{ kcal: number; protein: number; carbs: number; fat: number }>) => void;
+  configureHealth: (focus: 'today' | 'diet' | 'sport' | 'progress', goal: string) => void;
+  manageMe: (input: { action: 'create' | 'update' | 'delete' | 'move'; id?: string; section?: 'today' | 'diet' | 'sport'; type?: 'text' | 'list' | 'calendar' | 'metric'; title?: string; content?: string; items?: string[]; position?: number }) => { ok: boolean; id?: string; error?: string };
 }
 
 /* ============================================================================
@@ -130,6 +142,72 @@ export const TOOLS: ToolDef[] = [
       },
       required: ['cosa'],
     },
+  },
+  {
+    name: 'leggi_me',
+    description: 'Legge i dati reali mostrati nella schermata ME: pasti, allenamenti svolti, piano di allenamento, peso, dieta, obiettivi nutrizionali e obiettivo del periodo. Usalo prima di correggere o modificare dati esistenti.',
+    schema: { type: 'object', properties: {
+      sezione: { type: 'string', enum: ['today', 'diet', 'sport', 'progress', 'all'] },
+    }, required: ['sezione'] },
+  },
+  {
+    name: 'registra_pasto',
+    description: 'Registra in ME un pasto già confermato dall’utente. I cinque momenti fissi sono colazione, spuntino, pranzo, merenda e cena; usa extra per pasti ulteriori.',
+    schema: { type: 'object', properties: {
+      pasto: { type: 'string', enum: ['colazione', 'spuntino', 'pranzo', 'merenda', 'cena', 'extra'] },
+      descrizione: { type: 'string' }, kcal: { type: 'number' }, proteine: { type: 'number' }, carboidrati: { type: 'number' }, grassi: { type: 'number' },
+    }, required: ['pasto', 'descrizione', 'kcal', 'proteine', 'carboidrati', 'grassi'] },
+  },
+  {
+    name: 'correggi_ultimo_pasto',
+    description: 'Corregge l’ultima registrazione del momento indicato in ME. Leggi prima ME e cambia soltanto i campi richiesti dall’utente.',
+    schema: { type: 'object', properties: {
+      pasto: { type: 'string', enum: ['colazione', 'spuntino', 'pranzo', 'merenda', 'cena', 'extra'] },
+      nuovo_pasto: { type: 'string', enum: ['colazione', 'spuntino', 'pranzo', 'merenda', 'cena', 'extra'] },
+      descrizione: { type: 'string' }, kcal: { type: 'number' }, proteine: { type: 'number' }, carboidrati: { type: 'number' }, grassi: { type: 'number' },
+    }, required: ['pasto'] },
+  },
+  {
+    name: 'registra_allenamento',
+    description: 'Registra nella sezione ME un allenamento già confermato dall’utente.',
+    schema: { type: 'object', properties: { titolo: { type: 'string' }, dettagli: { type: 'string' }, minuti: { type: 'number' } }, required: ['titolo', 'dettagli', 'minuti'] },
+  },
+  {
+    name: 'correggi_ultimo_allenamento',
+    description: 'Corregge l’ultimo allenamento registrato in ME. Leggi prima ME e cambia soltanto i campi richiesti.',
+    schema: { type: 'object', properties: { titolo: { type: 'string' }, dettagli: { type: 'string' }, minuti: { type: 'number' } } },
+  },
+  {
+    name: 'registra_peso',
+    description: 'Registra nella sezione ME una nuova misurazione del peso.',
+    schema: { type: 'object', properties: { kg: { type: 'number' } }, required: ['kg'] },
+  },
+  {
+    name: 'correggi_ultimo_peso',
+    description: 'Corregge l’ultima misurazione del peso già presente in ME.',
+    schema: { type: 'object', properties: { kg: { type: 'number' } }, required: ['kg'] },
+  },
+  {
+    name: 'imposta_dieta',
+    description: 'Salva nella sezione DIETA un piano alimentare fornito dall’utente, anche estratto da un file allegato. Conserva indicazioni, pasti e quantità senza inventare dati mancanti.',
+    schema: { type: 'object', properties: { titolo: { type: 'string' }, testo: { type: 'string' } }, required: ['titolo', 'testo'] },
+  },
+  {
+    name: 'imposta_piano_allenamento',
+    description: 'Crea o sostituisce il piano di allenamento mostrato in ME → SPORT. Organizza giorni, esercizi, serie, ripetizioni, recuperi e note usando soltanto le informazioni concordate con l’utente.',
+    schema: { type: 'object', properties: { titolo: { type: 'string' }, testo: { type: 'string' } }, required: ['titolo', 'testo'] },
+  },
+  {
+    name: 'imposta_obiettivi_nutrizionali',
+    description: 'Modifica i target mostrati in ME per calorie e macronutrienti. Cambia solo i valori esplicitamente richiesti; non inventare quelli mancanti.',
+    schema: { type: 'object', properties: {
+      kcal: { type: 'number' }, proteine: { type: 'number' }, carboidrati: { type: 'number' }, grassi: { type: 'number' },
+    } },
+  },
+  {
+    name: 'gestisci_me',
+    description: 'Controlla ME con blocchi sicuri: crea, aggiorna, elimina o riordina calendari, liste, note e metriche in OGGI, DIETA o SPORT. Per i calendari usa un elemento per appuntamento nel formato "Lunedì 08:00-09:00 · Titolo · Dettagli": così sarà visibile e cliccabile nel calendario. Prima di update/delete/move usa leggi_me per trovare l’id reale.',
+    schema: { type: 'object', properties: { azione: { type: 'string', enum: ['create', 'update', 'delete', 'move'] }, id: { type: 'string' }, sezione: { type: 'string', enum: ['today', 'diet', 'sport'] }, tipo: { type: 'string', enum: ['text', 'list', 'calendar', 'metric'] }, titolo: { type: 'string' }, contenuto: { type: 'string' }, elementi: { type: 'array', items: { type: 'string' } }, posizione: { type: 'integer' } }, required: ['azione'] },
   },
   {
     name: 'elenca_le_pagine',
@@ -359,6 +437,100 @@ export function runTool(use: ToolUse, ctx: ToolContext): ToolResult {
 
   try {
     switch (use.name) {
+      case 'leggi_me': {
+        const section = str(args.sezione) as 'today' | 'diet' | 'sport' | 'progress' | 'all';
+        if (!['today', 'diet', 'sport', 'progress', 'all'].includes(section)) return fail('Sezione ME non valida.');
+        return ok(ctx.readMe(section));
+      }
+      case 'registra_pasto': {
+        const slot = str(args.pasto) as 'colazione' | 'spuntino' | 'pranzo' | 'merenda' | 'cena' | 'extra';
+        if (!['colazione', 'spuntino', 'pranzo', 'merenda', 'cena', 'extra'].includes(slot)) return fail('Il tipo di pasto non è valido.');
+        const numbers = [args.kcal, args.proteine, args.carboidrati, args.grassi].map(Number);
+        if (numbers.some((value) => !Number.isFinite(value) || value < 0)) return fail('I valori nutrizionali non sono validi.');
+        ctx.logMeal({ slot, description: str(args.descrizione), kcal: numbers[0]!, protein: numbers[1]!, carbs: numbers[2]!, fat: numbers[3]! });
+        return ok('Pasto registrato in ME.');
+      }
+      case 'correggi_ultimo_pasto': {
+        const slots = ['colazione', 'spuntino', 'pranzo', 'merenda', 'cena', 'extra'] as const;
+        const slot = str(args.pasto) as typeof slots[number];
+        if (!slots.includes(slot)) return fail('Il tipo di pasto da correggere non è valido.');
+        const patch: Partial<{ slot: typeof slots[number]; description: string; kcal: number; protein: number; carbs: number; fat: number }> = {};
+        const nextSlot = str(args.nuovo_pasto) as typeof slots[number];
+        if (nextSlot) {
+          if (!slots.includes(nextSlot)) return fail('Il nuovo tipo di pasto non è valido.');
+          patch.slot = nextSlot;
+        }
+        if (typeof args.descrizione === 'string' && args.descrizione.trim()) patch.description = args.descrizione.trim();
+        for (const [source, target] of [['kcal', 'kcal'], ['proteine', 'protein'], ['carboidrati', 'carbs'], ['grassi', 'fat']] as const) {
+          if (args[source] === undefined) continue;
+          const value = Number(args[source]);
+          if (!Number.isFinite(value) || value < 0) return fail('Uno dei valori nutrizionali non è valido.');
+          patch[target] = value;
+        }
+        if (!Object.keys(patch).length) return fail('Non hai indicato cosa correggere.');
+        if (!ctx.updateMeal(slot, patch)) return fail(`Non trovo un pasto “${slot}” da correggere.`);
+        return ok('Pasto corretto in ME.');
+      }
+      case 'registra_allenamento': {
+        const minutes = Number(args.minuti);
+        if (!Number.isFinite(minutes) || minutes < 0) return fail('La durata non è valida.');
+        ctx.logWorkout({ title: str(args.titolo), details: str(args.dettagli), minutes });
+        return ok('Allenamento registrato in ME.');
+      }
+      case 'correggi_ultimo_allenamento': {
+        const patch: Partial<{ title: string; details: string; minutes: number }> = {};
+        if (typeof args.titolo === 'string' && args.titolo.trim()) patch.title = args.titolo.trim();
+        if (typeof args.dettagli === 'string' && args.dettagli.trim()) patch.details = args.dettagli.trim();
+        if (args.minuti !== undefined) {
+          const minutes = Number(args.minuti);
+          if (!Number.isFinite(minutes) || minutes < 0) return fail('La durata non è valida.');
+          patch.minutes = minutes;
+        }
+        if (!Object.keys(patch).length) return fail('Non hai indicato cosa correggere.');
+        if (!ctx.updateWorkout(patch)) return fail('Non trovo un allenamento da correggere.');
+        return ok('Allenamento corretto in ME.');
+      }
+      case 'registra_peso': {
+        const kg = Number(args.kg);
+        if (!Number.isFinite(kg) || kg < 20 || kg > 400) return fail('Il peso non sembra valido.');
+        ctx.logWeight(kg);
+        return ok('Peso aggiornato in ME.');
+      }
+      case 'correggi_ultimo_peso': {
+        const kg = Number(args.kg);
+        if (!Number.isFinite(kg) || kg < 20 || kg > 400) return fail('Il peso non sembra valido.');
+        if (!ctx.updateWeight(kg)) return fail('Non trovo un peso da correggere.');
+        return ok('Ultimo peso corretto in ME.');
+      }
+      case 'imposta_dieta': {
+        const title = str(args.titolo); const text = str(args.testo);
+        if (!title || !text) return fail('Titolo o contenuto della dieta mancanti.');
+        ctx.saveDiet(title, text);
+        return ok('Dieta salvata nella sezione ME → DIETA.');
+      }
+      case 'imposta_piano_allenamento': {
+        const title = str(args.titolo); const text = str(args.testo);
+        if (!title || !text) return fail('Titolo o contenuto del piano di allenamento mancanti.');
+        ctx.saveWorkoutPlan(title, text);
+        return ok('Piano di allenamento salvato nella sezione ME → SPORT.');
+      }
+      case 'imposta_obiettivi_nutrizionali': {
+        const targets: Partial<{ kcal: number; protein: number; carbs: number; fat: number }> = {};
+        for (const [source, target] of [['kcal', 'kcal'], ['proteine', 'protein'], ['carboidrati', 'carbs'], ['grassi', 'fat']] as const) {
+          if (args[source] === undefined) continue;
+          const value = Number(args[source]);
+          if (!Number.isFinite(value) || value <= 0) return fail('Uno degli obiettivi nutrizionali non è valido.');
+          targets[target] = value;
+        }
+        if (!Object.keys(targets).length) return fail('Non hai indicato alcun obiettivo nutrizionale.');
+        ctx.configureTargets(targets);
+        return ok('Obiettivi nutrizionali aggiornati in ME.');
+      }
+      case 'gestisci_me': {
+        const result = ctx.manageMe({ action: str(args.azione) as 'create' | 'update' | 'delete' | 'move', id: str(args.id) || undefined, section: (str(args.sezione) || undefined) as 'today' | 'diet' | 'sport' | undefined, type: (str(args.tipo) || undefined) as 'text' | 'list' | 'calendar' | 'metric' | undefined, title: args.titolo === undefined ? undefined : str(args.titolo), content: args.contenuto === undefined ? undefined : str(args.contenuto), items: Array.isArray(args.elementi) ? args.elementi.map(str) : undefined, position: args.posizione === undefined ? undefined : Number(args.posizione) });
+        if (!result.ok) return fail(result.error ?? 'Modifica ME non riuscita.');
+        return ok(`Schermata ME aggiornata${result.id ? ` (blocco ${result.id})` : ''}.`);
+      }
       case 'leggi_i_miei_dati': {
         const what = str(args.cosa);
         const back = clampDays(args.giorni, 7);

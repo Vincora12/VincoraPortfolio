@@ -49,7 +49,6 @@ FAMILY — ${data.family}
 ARCHETYPE — ${data.archetype}
 AFFINITY — ${data.affinity}
 SIZE — ${data.size}
-HUMANOIDITY — ${data.humanoidity} / 5
 ROLE — ${data.role}
 FASHION — ${data.fashion}
 MOOD — ${data.mood.join(" / ")}
@@ -87,15 +86,11 @@ DOMINANT MASS — ${pct(numeric.dominantMassPercent)} of silhouette when relevan
 EYEWEAR OCCUPANCY — ${pct(numeric.eyewearFaceOccupancyPercent)} of visible face when relevant
 HAIR MASSES — ${numeric.hairMassCount ? `${numeric.hairMassCount[0]}–${numeric.hairMassCount[1]}` : "mapped to body plan"}
 
-HUMANOIDITY:
-Humanoidity controls BODY PLAN, not realism.
-At ${data.humanoidity}/5, preserve the intended human-read level and map numeric rules onto that body plan.
-Never solve non-human anatomy by pasting creature parts onto a normal human.
-
 FAMILY / ARCHETYPE CONSTRUCTION:
 ${resolved.familySystems.map(x => `- ${x}`).join("\n")}
 BODY PLAN:
 ${resolved.archetypeBodyPlan}
+Family and Archetype are the only source of body-plan truth. Do not make the body more animalistic unless Family, Archetype or BEAST Affinity explicitly requires it.
 
 AFFINITY — ONLY THESE ZONES:
 ${resolved.affinityZones.map(x => `- ${x}`).join("\n")}

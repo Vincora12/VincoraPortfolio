@@ -121,22 +121,13 @@ const check = (ok, label, detail = '') => {
 console.log(`\n═══ PACCHETTO ASSET REQUEST — ${record.data.name} ═══\n`);
 console.log('CONTENUTO (§22.2)');
 
-/* 🔷 v1.15 §23.5 — gli asset da generare sono SEI, non piu sette: il sigillo
-   e uscito dalla pipeline ed e tornato a essere un disegno del sito. Un segno
-   che deve reggere a 24px, derivare dai dati in modo verificabile ed esistere
-   dal primo giorno e' una cosa che il codice fa meglio di un modello di
-   immagini — che a «estremamente semplice» risponde aggiungendo dettaglio.
-
-   Con character data, manifest, prompt compilato, id dei frammenti e readme
-   fanno 11 file. */
+/* Pipeline V1 definitiva: CEL tecnico, Toy principale, Doodle e Sticker. */
 const EXPECTED = [
   '00_CHARACTER_DATA.json',
   '01_CHARACTER_MASTER_PROMPT.txt',
-  '02_PROFILE_PORTRAIT_PROMPT.txt',
+  '02_CHARACTER_TOY_PROMPT.txt',
   '03_BIO_DOODLE_PROMPT.txt',
   '04_REACTION_PACK_PROMPT.txt',
-  '05_IDLE_ANIMATION_PROMPT.txt',
-  '06_ENCOUNTER_HERO_PROMPT.txt',
   'compiled_prompt.txt',
   'fragment_ids.json',
   'ASSET_MANIFEST.json',
@@ -179,8 +170,7 @@ check(
    è il fatto che gli stessi frammenti di identità entrino in tutti quanti. */
 
 const ASSET_TYPES = [
-  'character_master', 'profile_portrait', 'bio_doodle',
-  'reaction_pack', 'idle_animation', 'encounter_hero',
+  'character_master', 'character_toy', 'bio_doodle', 'reaction_pack',
 ];
 
 const compiled = ASSET_TYPES.map((t) => ({ type: t, ...m.compilePrompt(record, t) }));
@@ -242,40 +232,17 @@ check(
   'fragment_ids.json registra compiler, config e seed (§48)',
 );
 
-/* --- §23.3: il ciclo di riposo ---------------------------------------------
-   🔷 v1.11 — qui c'erano dodici controlli sullo SPRITE DI ROTAZIONE: griglia
-   8 × 1, otto angoli espliciti, nessuna deriva di camera, ancoraggio
-   bottom-center. Erano giusti, e l'asset non esiste più.
-
-   Otto viste coerenti dello stesso personaggio sono la cosa più cara e più
-   fragile che si possa chiedere a un modello di immagini, in cambio di un
-   gesto che si prova una volta. Al suo posto c'è l'IDLE, che fa il lavoro che
-   contava — la creatura è viva — con quattro frame invece di otto.
-   -------------------------------------------------------------------------- */
-
-console.log('\nCICLO DI RIPOSO (§23.3)');
-
-const idle = files.find((f) => f.name === '05_IDLE_ANIMATION_PROMPT.txt').content;
-
-const REQUIRED_IN_IDLE = [
-  ['consistenza assoluta', 'ABSOLUTE CONSISTENCY'],
-  ['sfondo trasparente', 'Transparent background'],
-  ['inquadratura identica in ogni frame', 'Identical framing'],
-  ['divisibile in 4 frame uguali', 'split into 4 equal sprite frames'],
-  ['ping-pong dichiarato', 'ping-pong'],
-];
-
-for (const [label, needle] of REQUIRED_IN_IDLE) {
-  check(idle.includes(needle), label);
-}
-
 /* --- §24.4: forma del manifest --------------------------------------------- */
 
 console.log('\nMANIFEST (§24.4)');
 
-const idleEntry = manifest.assets.find((a) => a.asset_id === 'idle_01');
-check(idleEntry?.frames === 4, 'idle: frames = 4', String(idleEntry?.frames));
-check(idleEntry?.columns === 4 && idleEntry?.rows === 1, 'idle: griglia 4 × 1');
+const toyEntry = manifest.assets.find((a) => a.asset_id === 'toy_01');
+check(toyEntry?.background === 'opaque', 'toy: sfondo bianco ottico opaco');
+check(toyEntry?.aspect_ratio === '3:4', 'toy: formato verticale 3:4');
+check(
+  !manifest.assets.some((a) => ['portrait_01', 'idle_01', 'hero_01'].includes(a.asset_id)),
+  'nessun asset storico nella pipeline automatica',
+);
 check(
   !manifest.assets.some((a) => a.asset_id === 'rotation_01'),
   'nessuna rotazione nel manifest (§23.3)',
@@ -334,7 +301,7 @@ check(
    com'e' andata la prima volta che li ho aggiunti.
    ========================================================================= */
 
-const testo = compiled.find((c) => c.type === 'profile_portrait').text;
+const testo = compiled.find((c) => c.type === 'character_toy').text;
 const must = [
   ['§3  il personaggio prima della tassonomia', 'memorable CHARACTER'],
   ['§3  tre o quattro landmark di sagoma', 'silhouette landmarks'],
@@ -349,8 +316,6 @@ const must = [
   ['§8  e la postura', 'POSTURE / GESTURE:'],
   ['§4  i moltiplicatori di proporzione, per designer', 'PROPORTIONS —'],
   ['§4  e i conteggi', 'COUNTS —'],
-  ['§5  quanto resta umano', 'HUMANOIDITY:'],
-  ['§5  e non si confonde col realismo', 'HUMANOIDITY is not realism'],
   ['§9  le percentuali di colore, non «campi grandi»', 'DISTRIBUTION —'],
   ['     la prova di sagoma', 'SILHOUETTE TEST'],
   ['     e quella di memoria', 'MEMORY TEST'],
@@ -363,6 +328,11 @@ const must = [
 for (const [label, needle] of must) {
   check(testo.includes(needle), label, needle);
 }
+check(
+  !testo.includes('HUMANOIDITY:'),
+  'il vecchio asse Humanoidity non entra più nel prompt',
+  'Family + Archetype decidono il corpo',
+);
 
 /* 🔒 IL SERBATOIO NON DEVE TORNARE NEL PROMPT. Era l'errore segnalato: quindici
    mondi possibili passati a ogni immagine invece dei due-quattro scelti. Un
@@ -427,7 +397,7 @@ delete vecchio.data.character_design_dna;
 let esplose = null;
 let testoVecchio = '';
 try {
-  testoVecchio = m.compilePrompt(vecchio, 'profile_portrait').text;
+  testoVecchio = m.compilePrompt(vecchio, 'character_toy').text;
 } catch (e) {
   esplose = String(e);
 }
@@ -513,15 +483,12 @@ check(
   'e la prova gira sul corpo intero, non su un ritratto',
 );
 
-/* 🔒 IL CONFLITTO CHE PRODUCEVA AMMASSI. Le masse del designer sono descritte
-   con nomi umani; a HUMANOIDITY 1/5 quei nomi non esistono. Un prompt che dice
-   «fondamentalmente non umano» e «due braccia, due gambe» senza dire chi vince
-   fa fare al modello tutte e due le cose insieme — che e' letteralmente un
-   corpo deforme. */
+/* Family e Archetype sono l'unica sorgente del piano corporeo. I conteggi del
+   designer si traducono su quel corpo invece di competere con un secondo asse. */
 check(
-  testo.includes('The body plan always wins over the naming'),
-  'quando umanoidita e masse si contraddicono, il prompt dice chi vince',
-  'senza, il modello le esegue entrambe',
+  testo.includes('FAMILY and ARCHETYPE') && testo.includes('body plan'),
+  'Family e Archetype vincono sui nomi umani delle masse',
+  'senza, il modello somma corpi incompatibili',
 );
 
 /* 🔷 «I prompt del gioco creano sempre personaggi deformi.» La misura che sta
@@ -675,8 +642,8 @@ const vendorHashes = vendorFiles.map((f) =>
     .slice(0, 8),
 );
 check(
-  vendorHashes.join(' ') === 'eab16c82 8ab118ab ea6cf273 84219697',
-  'i quattro file del pacchetto sono ancora quelli',
+  vendorHashes.join(' ') === 'eab16c82 4ab52be9 10c87c26 a28f0bc3',
+  'la variante VINZ del pacchetto è quella approvata',
   vendorHashes.join(' '),
 );
 
@@ -697,14 +664,13 @@ check(
   'l’APPEARANCE viene per ultima: e resa, non costruzione',
 );
 
-/* 🔒 Umanoidita bassa: le proporzioni umane si TOLGONO, non si azzerano.
-   Un moltiplicatore neutro direbbe «braccia normali» a chi braccia non ne ha,
-   ed e' cosi' che nasce un corpo deforme. */
+/* Humanoidity non può più alterare neppure la grammatica numerica. */
 const nonUmano = m.numericGrammarFor({ ...rInput, humanoidity: 1 });
+const moltoUmano = m.numericGrammarFor({ ...rInput, humanoidity: 5 });
 check(
-  nonUmano.headScale === undefined && nonUmano.armLength === undefined,
-  'a umanoidita 1 le proporzioni umane spariscono, non vanno a 1.0',
-  `restano: ${Object.keys(nonUmano).join(', ')}`,
+  JSON.stringify(nonUmano) === JSON.stringify(moltoUmano),
+  'Humanoidity non modifica più la grammatica numerica',
+  'Family + Archetype restano la sola sorgente del corpo',
 );
 check(
   nonUmano.silhouetteLandmarkCount !== undefined,
@@ -800,12 +766,10 @@ check(
   `${record.data.size} → «${m.SIZE_GRAMMAR[record.data.size].rule.slice(0, 46)}…»`,
 );
 
-/* Humanoidity con il suo `avoid`: è la riga che impedisce l'umano verniciato. */
-const suoHum = m.HUMANOIDITY.find((h) => h.level === record.data.humanoidity);
 check(
-  suoHum !== undefined && brief.includes(suoHum.avoid),
-  'HUMANOIDITY arriva con il suo AVOID, non solo col numero',
-  `${record.data.humanoidity}/5`,
+  !brief.includes('HUMANOIDITY'),
+  'Humanoidity non arriva più al Resolver',
+  'Family + Archetype decidono il corpo',
 );
 
 /* Decolorazione e taglio: il taglio non arrivava proprio al resolver. */
@@ -990,9 +954,9 @@ if (m.TEST_PHASE.enabled) {
     `${varia((r) => r.data.family_archetype)} archetipi diversi su 30 forme`,
   );
   check(
-    varia((r) => r.data.humanoidity) >= 2 && varia((r) => r.data.fashion) >= 5,
-    'e umanoidità e stile pure',
-    `${varia((r) => r.data.humanoidity)} livelli · ${varia((r) => r.data.fashion)} stili`,
+    varia((r) => r.data.fashion) >= 5,
+    'e lo stile pure',
+    `${varia((r) => r.data.fashion)} stili`,
   );
   /* ⚠️ SOGLIA CONTRO IL SERBATOIO, E NON CONTRO UNA SEQUENZA PARTICOLARE.
 
@@ -1189,14 +1153,14 @@ console.log('\nMASTER → DERIVATI\n');
 
   check(
     derivati.every((d) => d.p.source === 'derivato'),
-    'i cinque derivati prendono il template tecnico',
+    'i tre derivati prendono il template tecnico',
     derivati.map((d) => `${d.t}=${d.p.source}`).join(' '),
   );
 
   const piuLungo = Math.max(...derivati.map((d) => d.p.text.length));
   check(
-    piuLungo * 3 < master.text.length,
-    'e sono almeno tre volte più corti del master',
+    piuLungo < master.text.length,
+    'e restano più corti del master',
     `master ${master.text.length} · derivato più lungo ${piuLungo}`,
   );
 
@@ -1218,6 +1182,9 @@ console.log('\nMASTER → DERIVATI\n');
 
   const sporchi = [];
   for (const { t, p } of derivati) {
+    /* Il Toy usa il prompt completo approvato dall'utente: non lo riscriviamo
+       per soddisfare euristiche lessicali del vecchio template. */
+    if (t === 'character_toy') continue;
     const su = p.text.toUpperCase();
     for (const v of VIETATE) if (su.includes(String(v).toUpperCase())) sporchi.push(`${t}: ${v}`);
   }
@@ -1229,7 +1196,9 @@ console.log('\nMASTER → DERIVATI\n');
 
   /* Ma dicono tutti la cosa che conta: il riferimento è il personaggio. */
   check(
-    derivati.every((d) => /CHARACTER MASTER/.test(d.p.text) && /PRESERVE/.test(d.p.text)),
+    derivati.every(
+      (d) => /(CHARACTER MASTER|MASTER VISUAL REFERENCE)/.test(d.p.text) && /PRESERVE/.test(d.p.text),
+    ),
     'mentre dicono tutti di conservare il master allegato',
   );
 

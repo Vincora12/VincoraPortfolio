@@ -154,6 +154,7 @@ export interface HeritageTrait {
 
 export type AssetType =
   | 'character_master'
+  | 'character_toy'
   | 'profile_portrait'
   | 'bio_doodle'
   | 'reaction_pack'
@@ -162,7 +163,7 @@ export type AssetType =
   | 'encounter_hero';
 
 export type AssetState = 'waiting' | 'resolved';
-export type AssetStatusMap = Record<AssetType, AssetState>;
+export type AssetStatusMap = Partial<Record<AssetType, AssetState>>;
 
 /* --- EVOLUZIONE ------------------------------------------------------------- */
 

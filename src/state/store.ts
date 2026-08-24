@@ -31,6 +31,7 @@ import {
   knownSignals,
   nextEvent,
   planContinuity,
+  type ContinuityAxis,
   type ContinuityPlan,
   type DailySignalKey,
   type DailySync,
@@ -52,7 +53,7 @@ import {
   modelForStep,
   type AiStepId,
 } from '../../netlify/functions/_shared/routing';
-import { assetTypeDef } from '../engine/assets';
+import { assetTypeDef, generationOrder } from '../engine/assets';
 import {
   RESET_SKIN,
   applySkin,
@@ -85,6 +86,20 @@ import {
   type Reminder,
 } from './pagesSlice';
 import { runTool, TOOLS, type ToolContext, type ToolResult, type ToolUse } from '../ai/tools';
+import {
+  addMeal,
+  addWeight,
+  addWorkout,
+  configureHealthDisplay,
+  configureHealthTargets,
+  healthJournalReport,
+  manageMeBlock,
+  setDietPlan,
+  setWorkoutPlan,
+  updateLatestMeal,
+  updateLatestWeight,
+  updateLatestWorkout,
+} from '../engine/healthJournal';
 import { selectHeritageOrigins, type HeritageOrigin } from '../engine/heritage';
 import { createNode, makeNodeId, nextChapter } from '../engine/mindline';
 import { makeMemory, rollDailyEvent } from '../engine/simulation';
@@ -156,7 +171,7 @@ import type {
   Signal,
   StatKey,
 } from '../engine/types';
-import { STAT_KEYS, UNKNOWN, isKnown } from '../engine/types';
+import { STAT_KEYS, UNKNOWN, displayName, isKnown } from '../engine/types';
 import { dropKeptAssets, keepAssetsOf, preloadMonAssets } from '../assets-pipeline/assetStore';
 
 export type Phase =
@@ -179,6 +194,32 @@ export type Phase =
   | 'form-evolution'
   /** Rivelazione di una forma nuova dopo una Form Evolution. */
   | 'new-encounter';
+
+export type EvolutionKind = 'evolution' | 'mega-evolution';
+const ANGEL_ARCHETYPES_BY_STAGE: readonly (readonly string[])[] = [
+  ['PUTTO', 'MESSENGER', 'GUARDIAN'],
+  ['WARRIOR', 'VIRTUE'],
+  ['POWER', 'DOMINION'],
+  ['CHERUB', 'THRONE'],
+  ['SERAPH'],
+];
+
+function angelArchetypesForStage(stage: number): readonly string[] {
+  return ANGEL_ARCHETYPES_BY_STAGE[Math.min(Math.max(0, stage), ANGEL_ARCHETYPES_BY_STAGE.length - 1)]!;
+}
+
+export interface EvolutionJob {
+  kind: EvolutionKind | 'hatch';
+  status: 'running' | 'ready' | 'error';
+  previousName: string | null;
+  candidateName: string;
+  done: number;
+  total: number;
+  label: string;
+  error: string | null;
+  /** Identificativo persistente del lavoro Netlify: sopravvive alla chiusura. */
+  serverJobId: string | null;
+}
 
 /** 🔶 v1.4 — sette giorni SINCRONIZZATI, non sette giorni di calendario. */
 export const INCUBATION_DAYS = PROGRESSION.incubationSyncDays;
@@ -341,6 +382,8 @@ interface AppState {
   pendingHeritage: HeritageOrigin[];
   /** Cosa sopravvive alla prossima Form Evolution. Deciso prima di confermare. */
   pendingPlan: ContinuityPlan | null;
+  /** Trasformazione visiva in background: Chat e ME restano utilizzabili. */
+  evolutionJob: EvolutionJob | null;
 
   /** §29 — traccia dell'ultima generazione, visibile solo in DEV. */
   lastTrace: GenerationTrace | null;
@@ -475,6 +518,14 @@ interface AppState {
   openFormEvolution: () => void;
   /** Accetta la trasformazione. È sempre una scelta: si può rimandare. */
   confirmFormEvolution: () => void;
+  /** Avvia una trasformazione leggera o radicale senza bloccare l'app. */
+  beginFormEvolution: (kind: EvolutionKind) => void;
+  /** Avvia o riprende il controllo del lavoro persistente sul server. */
+  resumeFormEvolution: () => void;
+  /** Apre la rivelazione quando tutte le immagini sono pronte. */
+  revealFormEvolution: () => void;
+  /** Riparte dalla scelta se la rete ha interrotto la generazione. */
+  retryFormEvolution: () => void;
 
   sendMessage: (text: string) => void;
   /**
@@ -719,6 +770,7 @@ const INITIAL = {
   lastUnpromptedDay: 0,
   pendingHeritage: [] as HeritageOrigin[],
   pendingPlan: null as ContinuityPlan | null,
+  evolutionJob: null as EvolutionJob | null,
   lastTrace: null as GenerationTrace | null,
   batch: [] as BatchCandidate[],
   /* §21.2 — le pagine che il .mon scrive. Vivono nello stato perché devono
@@ -784,6 +836,21 @@ const INITIAL = {
      `null` finché non hai mai ricominciato. */
   resetAt: null as string | null,
 };
+
+/** Evita due poller sullo stesso lavoro quando React rimonta la schermata. */
+const runningEvolutionJobs = new Set<string>();
+
+async function notifyEvolutionReady(monName: string): Promise<void> {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  const registration = await navigator.serviceWorker?.getRegistration();
+  if (registration) {
+    await registration.showNotification('VINZ.MON pronto', {
+      body: `${displayName(monName)} ha completato la trasformazione.`,
+      icon: '/icon-180.png?v=2',
+      tag: `evolution-${monName}`,
+    });
+  }
+}
 
 /* --- Helper ---------------------------------------------------------------- */
 
@@ -1106,10 +1173,13 @@ export const useApp = create<AppState>()(
             formNumber: 1,
             activeDays: s.progression.sync.lifetime,
           }),
+          allowedArchetypes: angelArchetypesForStage(0),
         });
 
         set({
-          phase: 'first-encounter',
+          /* Come una trasformazione: l'app resta utilizzabile mentre il
+             server prepara CEL, Toy, doodle e reaction. */
+          phase: 'live',
           mons: { [record.data.name]: record },
           activeMonName: record.data.name,
           nodes: [
@@ -1125,6 +1195,17 @@ export const useApp = create<AppState>()(
           ],
           lastTrace: trace,
           chat: [openingMessage(record, s.day, s.token !== null)],
+          evolutionJob: {
+            kind: 'hatch',
+            status: 'running',
+            previousName: null,
+            candidateName: record.data.name,
+            done: 0,
+            total: generationOrder().length,
+            label: 'PREPARAZIONE CHARACTER MASTER',
+            error: null,
+            serverJobId: null,
+          },
           // §10.6 — nasce sul punto di riposo del suo temperamento, e la
           // nascita stessa e il primo evento: tono e carica su, appiglio
           // GIU. Uno appena arrivato non e sicuro di stare qui.
@@ -1137,24 +1218,15 @@ export const useApp = create<AppState>()(
         });
 
         void preloadMonAssets(record.data.name);
-        /* 🔒 §22.4 — le facce partono da sole e NON si aspettano: la creatura è
-           già nata e già visibile, il sigillo fa da faccia finché il ritratto
-           non arriva. Non si tocca per il micro-growth: quella resta la stessa
-           creatura, e le sue immagini pure. */
-        /* 🔶 Qui partiva il ritratto da solo. Adesso non parte niente, e non è
-           una regressione: le immagini le chiede la schermata di incontro, una
-           per una, e le fa passare dal COMPILATORE — cosa che questa chiamata
-           non faceva. Generava dal prompt concatenato, cioè proprio quello che
-           produce le creature deformi.
-
-           🔒 Una porta sola. Se restasse anche questa, il ritratto esisterebbe
-           già quando la sequenza arriva al suo turno: sarebbe l'unico dei sei
-           mai approvato, e per giunta nato prima del master, quindi senza il
-           riferimento di consistenza che gli altri cinque hanno. */
+        if (s.token) void import('../system/pushNotifications').then(({ enableEvolutionNotifications }) => enableEvolutionNotifications(s.token as string));
+        void get().resumeFormEvolution();
         requestIntroduction(set, get, record);
       },
 
-      enterLive: () => set({ phase: 'live' }),
+      enterLive: () => set((s) => ({
+        phase: 'live',
+        evolutionJob: s.evolutionJob?.status === 'ready' ? null : s.evolutionJob,
+      })),
       openShift: () => set({ phase: 'shift' }),
 
       /* --- CONTINUE / EVOLVE --- */
@@ -1339,6 +1411,175 @@ export const useApp = create<AppState>()(
            mai approvato, e per giunta nato prima del master, quindi senza il
            riferimento di consistenza che gli altri cinque hanno. */
         requestIntroduction(set, get, record);
+      },
+
+      beginFormEvolution: (kind) => {
+        const s = get();
+        const previous = activeRecord(s);
+        if (!previous || s.phase !== 'form-evolution' || s.evolutionJob?.status === 'running') return;
+
+        /* Evoluzione conserva quasi tutto e cambia l'affinità visiva.
+           Mega Evoluzione conserva soltanto il temperamento: è sempre la
+           stessa entità, ma il corpo può essere completamente diverso. */
+        const continuity: readonly ContinuityAxis[] = kind === 'evolution'
+          ? ['family', 'size', 'role', 'fashion', 'mood_primary']
+          : ['mood_primary'];
+        const previousStage = previous.data.evolution_state?.stage ?? 0;
+        const nextStage = kind === 'evolution' ? previousStage + 1 : 0;
+        const nodeId = makeNodeId(s.nodes.length);
+        const { record, trace } = generateMon({
+          input: generatorInput(s),
+          mindlineNodeId: nodeId,
+          originNodeId: previous.data.mindline_node,
+          heritageOrigins: s.pendingHeritage,
+          lineageNames: Object.keys(s.mons),
+          previous,
+          continuity,
+          seed: randomSeed(),
+          devUnlockAll: s.dev.unlockAll,
+          hiddenEvent: hiddenEventFor({ day: s.day, formNumber: s.nodes.length + 1, activeDays: s.progression.sync.lifetime }),
+          allowedArchetypes: angelArchetypesForStage(nextStage),
+        });
+
+        /* EVOLUZIONE approfondisce la stessa Forma; MEGA cambia corpo e apre
+           una nuova Forma, che riparte leggibile come una Basic. La ricchezza
+           visiva così diventa una conseguenza del percorso, non del caso. */
+        record.data.evolution_state = kind === 'evolution'
+          ? {
+              label: ['BASIC FORM', 'POWER FORM', 'HYPER FORM', 'OVERDRIVE FORM', 'TERMINAL FORM'][Math.min(previousStage + 1, 4)]!,
+              stage: previousStage + 1,
+              previous_labels: [
+                ...(previous.data.evolution_state?.previous_labels ?? []),
+                previous.data.evolution_state?.label ?? 'BASIC FORM',
+              ],
+            }
+          : {
+              label: 'BASIC FORM',
+              stage: 0,
+              previous_labels: [],
+            };
+
+        set({
+          phase: 'live',
+          mons: { ...s.mons, [record.data.name]: record },
+          evolutionJob: {
+            kind,
+            status: 'running',
+            previousName: previous.data.name,
+            candidateName: record.data.name,
+            done: 0,
+            total: 1,
+            label: 'PREPARAZIONE CHARACTER MASTER',
+            error: null,
+            serverJobId: null,
+          },
+          pendingHeritage: [],
+          pendingPlan: null,
+          lastTrace: trace,
+          dev: { ...s.dev, forceBranch: false },
+        });
+
+        if (s.token) void import('../system/pushNotifications').then(({ enableEvolutionNotifications }) => enableEvolutionNotifications(s.token as string));
+        void get().resumeFormEvolution();
+      },
+
+      resumeFormEvolution: () => {
+        const initial = get();
+        const job = initial.evolutionJob;
+        const record = job ? initial.mons[job.candidateName] : null;
+        if (!job || job.status !== 'running' || !record || !initial.token) return;
+        if (runningEvolutionJobs.has(job.candidateName)) return;
+        runningEvolutionJobs.add(job.candidateName);
+
+        void import('../assets-pipeline/remoteGeneration').then(async ({ queueRemoteGeneration, pollRemoteGeneration }) => {
+          let serverJobId = job.serverJobId;
+          try {
+            if (!serverJobId) {
+              serverJobId = crypto.randomUUID();
+              const id = serverJobId;
+              set((current) => ({ evolutionJob: current.evolutionJob?.candidateName === job.candidateName ? { ...current.evolutionJob, serverJobId: id, total: generationOrder().length } : current.evolutionJob }));
+              await queueRemoteGeneration(initial.token as string, id, record, stepModel('image'));
+            }
+
+            const result = await pollRemoteGeneration(initial.token as string, serverJobId, record, (progress) => {
+              set((current) => ({ evolutionJob: current.evolutionJob?.candidateName === job.candidateName ? { ...current.evolutionJob, done: progress.done, total: progress.total, label: progress.label, error: progress.error } : current.evolutionJob }));
+            });
+            markAssetsMade(set, get, record.data.name, result.made);
+            if (result.error) {
+              set((current) => ({ evolutionJob: current.evolutionJob?.candidateName === job.candidateName ? { ...current.evolutionJob, status: 'error', error: result.error } : current.evolutionJob }));
+              return;
+            }
+
+            const current = get();
+            const finished = current.mons[job.candidateName] ?? record;
+            if (job.kind === 'hatch') {
+              set({
+                mons: { ...current.mons, [record.data.name]: finished },
+                activeMonName: record.data.name,
+                evolutionJob: { ...job, serverJobId, status: 'ready', done: result.made.length, total: result.made.length, label: 'PRIMO MON PRONTO', error: null },
+              });
+              void preloadMonAssets(record.data.name);
+              void notifyEvolutionReady(record.data.name);
+              return;
+            }
+
+            /* La nuova Forma è pronta ma NON è ancora quella attiva. Nome,
+               immagine, statistiche e voce cambiano solo quando l'utente
+               tocca il banner e apre la rivelazione. */
+            set({
+              mons: { ...current.mons, [record.data.name]: finished },
+              evolutionJob: { ...job, serverJobId, status: 'ready', done: result.made.length, total: result.made.length, label: 'NUOVO MON PRONTO', error: null },
+            });
+            void preloadMonAssets(record.data.name);
+            void notifyEvolutionReady(record.data.name);
+          } catch (error) {
+            set((current) => ({ evolutionJob: current.evolutionJob?.candidateName === job.candidateName ? { ...current.evolutionJob, status: 'error', error: String(error) } : current.evolutionJob }));
+          } finally {
+            runningEvolutionJobs.delete(job.candidateName);
+          }
+        });
+      },
+
+      revealFormEvolution: () => {
+        const current = get();
+        const job = current.evolutionJob;
+        if (job?.status !== 'ready') return;
+        if (job.kind === 'hatch') {
+          set({ phase: 'first-encounter' });
+          return;
+        }
+        const previous = job.previousName ? current.mons[job.previousName] : null;
+        const record = current.mons[job.candidateName];
+        if (!previous || !record) return;
+        set({
+          phase: 'new-encounter',
+          mons: { ...current.mons, [previous.data.name]: { ...previous, retiredOnDay: current.day } },
+          activeMonName: record.data.name,
+          formsDiscovered: current.formsDiscovered + 1,
+          nodes: [...current.nodes, createNode({ index: current.nodes.length, kind: 'branch', monName: record.data.name, parentId: previous.data.mindline_node, day: current.day, chapter: nextChapter(current.nodes, 'branch'), label: job.kind === 'mega-evolution' ? 'MEGA EVOLUZIONE' : 'EVOLUZIONE' })],
+          mood: touchMood(current, record.data.mood_primary, []),
+          chat: [...current.chat, openingMessage(record, current.day, current.token !== null)].slice(-60),
+          progression: { ...current.progression, sync: { ...current.progression.sync, inForm: 0, sinceGrowth: 0 } },
+        });
+        requestIntroduction(set, get, record);
+      },
+
+      retryFormEvolution: () => {
+        const s = get();
+        const job = s.evolutionJob;
+        if (!job || job.status !== 'error') return;
+        set({
+          evolutionJob: {
+            ...job,
+            status: 'running',
+            done: 0,
+            total: generationOrder().length,
+            label: 'PREPARAZIONE CHARACTER MASTER',
+            error: null,
+            serverJobId: null,
+          },
+        });
+        get().resumeFormEvolution();
       },
 
       /* --- Interazione --- */
@@ -2339,6 +2580,18 @@ export const useApp = create<AppState>()(
             }
             return { ok: e.ok, error: e.error };
           },
+          readMe: (section) => healthJournalReport(section),
+          logMeal: (input) => { addMeal(input, 'chat'); },
+          updateMeal: (slot, patch) => updateLatestMeal(slot, patch),
+          logWorkout: (input) => { addWorkout(input, 'chat'); },
+          updateWorkout: (patch) => updateLatestWorkout(patch),
+          logWeight: (kg) => { addWeight(kg, 'chat'); },
+          updateWeight: (kg) => updateLatestWeight(kg),
+          saveDiet: (title, text) => { setDietPlan(title, text); },
+          saveWorkoutPlan: (title, text) => { setWorkoutPlan(title, text); },
+          configureTargets: (targets) => { configureHealthTargets(targets); },
+          configureHealth: (focus, goal) => { configureHealthDisplay(focus, goal); },
+          manageMe: (input) => manageMeBlock(input),
         };
 
         return runTool(use, ctx);
@@ -2668,7 +2921,10 @@ export const useApp = create<AppState>()(
          tipo di bug che si scopre dopo tre giorni di prove sbagliate. */
       onRehydrateStorage: () => (state) => {
         if (state?.dev.rarityThresholds) setRarityThresholds(state.dev.rarityThresholds);
-        if (state) migrateStepModels(state);
+        if (state) {
+          migrateStepModels(state);
+          /* Un lavoro `running` vive sul server e viene ripreso da App. */
+        }
       },
     },
   ),
@@ -2898,10 +3154,12 @@ function snapshotFor(state: AppState): unknown {
     customMemoryAt: _memoriaAt,
     ...rest
   } = state as AppState & Record<string, unknown>;
-  return rest;
+  let healthJournal: unknown = null;
+  try { healthJournal = JSON.parse(localStorage.getItem('vinzmon.health.journal.v1') ?? 'null'); } catch { /* dato locale corrotto: non sovrascriverlo sul server */ }
+  return { ...rest, __healthJournal: healthJournal };
 }
 
-function scheduleRemoteSave(): void {
+export function scheduleRemoteSave(): void {
   const s = useApp.getState();
   if (!s.token) return;
 
@@ -3083,7 +3341,7 @@ export interface ServerSave {
  */
 export function shouldDownload(local: LocalSave, server: ServerSave): boolean {
   if (local.resetAt && server.savedAt && server.savedAt <= local.resetAt) return false;
-  return server.day > local.day;
+  return server.day >= local.day;
 }
 
 /**
@@ -3105,8 +3363,14 @@ export async function syncWithServer(): Promise<'locale' | 'scaricato' | 'niente
   /* Il server ha più storia: quella locale era indietro (telefono nuovo,
      dati del browser cancellati, o semplicemente un altro dispositivo). Il
      token NON si sovrascrive: è di questo browser, non del salvataggio. */
+  const remote = data.state as Partial<AppState> & { __healthJournal?: unknown };
+  const { __healthJournal, ...appState } = remote;
+  if (__healthJournal) {
+    localStorage.setItem('vinzmon.health.journal.v1', JSON.stringify(__healthJournal));
+    window.dispatchEvent(new Event('vinzmon-health-journal'));
+  }
   useApp.setState({
-    ...(data.state as Partial<AppState>),
+    ...appState,
     token: local.token,
     /* Stessa ragione del token: chi dà la voce è una scelta di QUESTO
        dispositivo. Un salvataggio scaricato non deve cambiartela sotto — e
@@ -3117,7 +3381,9 @@ export async function syncWithServer(): Promise<'locale' | 'scaricato' | 'niente
     imageModel: local.imageModel,
     stepModels: local.stepModels,
   });
-  lastSavedSignature = JSON.stringify(snapshotFor(useApp.getState()));
+  /* I salvataggi creati prima del diario server non hanno ancora questo
+     campo: lasciando la firma vuota, il debounce li migra subito. */
+  lastSavedSignature = __healthJournal === undefined ? '' : JSON.stringify(snapshotFor(useApp.getState()));
   return 'scaricato';
 }
 

@@ -1,0 +1,409 @@
+@layer theme, base, components, utilities;
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+@import "tw-animate-css";
+
+@source "./**/*.{ts,tsx}";
+
+@custom-variant dark (&:is(.dark *));
+@custom-variant data-open (&:where([data-state="open"], [data-open]:not([data-open="false"])));
+@custom-variant data-closed (&:where([data-state="closed"], [data-closed]:not([data-closed="false"])));
+
+/* Tailwind senza il reset globale: il clone riceve il suo reset, mentre MON,
+   ME e la navbar mantengono intatti i propri token. */
+@layer base {
+  .assistant-clone *,
+  .assistant-clone *::before,
+  .assistant-clone *::after,
+  [data-slot="popover-content"],
+  [data-slot="popover-content"] *,
+  [data-slot="sheet-content"],
+  [data-slot="sheet-content"] * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    border: 0 solid;
+  }
+
+  .assistant-clone button,
+  .assistant-clone input,
+  .assistant-clone textarea,
+  .assistant-clone select,
+  [data-slot="popover-content"] button,
+  [data-slot="popover-content"] input,
+  [data-slot="sheet-content"] button,
+  [data-slot="sheet-content"] input {
+    color: inherit;
+    background: transparent;
+    font: inherit;
+    letter-spacing: inherit;
+  }
+
+  .assistant-clone button,
+  .assistant-clone select {
+    text-transform: none;
+    appearance: button;
+  }
+
+  .assistant-clone textarea {
+    resize: none;
+  }
+}
+
+@theme inline {
+  --font-sans: "Inter Variable", Inter, ui-sans-serif, system-ui, sans-serif;
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  @keyframes collapsible-down {
+    from { height: 0; }
+    to { height: var(--collapsible-panel-height, auto); }
+  }
+  @keyframes collapsible-up {
+    from { height: var(--collapsible-panel-height, auto); }
+    to { height: 0; }
+  }
+}
+
+.assistant-clone,
+[data-slot="popover-content"],
+[data-slot="sheet-content"],
+[data-slot="tooltip-content"] {
+  color-scheme: dark;
+  --radius: 0.625rem;
+  --background: #000000;
+  --foreground: #ececec;
+  --card: #212121;
+  --card-foreground: #ececec;
+  --popover: #212121;
+  --popover-foreground: #ececec;
+  --primary: #ececec;
+  --primary-foreground: #0d0d0d;
+  --secondary: #2f2f2f;
+  --secondary-foreground: #ececec;
+  --muted: #2f2f2f;
+  --muted-foreground: #b4b4b4;
+  --accent: #2f2f2f;
+  --accent-foreground: #ececec;
+  --destructive: #ff6767;
+  --border: rgb(255 255 255 / 10%);
+  --input: rgb(255 255 255 / 15%);
+  --ring: #8e8e8e;
+}
+
+.assistant-clone,
+.assistant-clone *,
+.assistant-clone *::before,
+.assistant-clone *::after,
+[data-slot="popover-content"],
+[data-slot="popover-content"] *,
+[data-slot="sheet-content"],
+[data-slot="sheet-content"] *,
+[data-slot="tooltip-content"],
+[data-slot="tooltip-content"] * {
+  box-sizing: border-box;
+  border-color: var(--border);
+}
+
+/* I menu vivono in un portal fuori da `.assistant-clone`: qui ricevono una
+   superficie opaca e un livello assoluto, così iOS non li compone dietro a
+   messaggi, composer o drawer. */
+[data-slot="popover-positioner"] {
+  z-index: 2147483000 !important;
+}
+
+[data-slot="popover-content"] {
+  z-index: 2147483000 !important;
+  border: 1px solid rgb(255 255 255 / 14%) !important;
+  background: #212121 !important;
+  color: #ececec !important;
+  box-shadow: 0 14px 40px rgb(0 0 0 / 62%) !important;
+  opacity: 1 !important;
+}
+
+[data-slot="model-selector-content"],
+[data-slot="model-selector-content"] [data-slot="command"],
+[data-slot="model-selector-content"] [data-slot="command-list"] {
+  background: #212121 !important;
+  color: #ececec !important;
+  opacity: 1 !important;
+}
+
+[data-slot="model-selector-content"] [data-slot="command-item"] {
+  color: #ececec !important;
+}
+
+[data-slot="model-selector-content"] [data-slot="command-item"] [class*="muted"] {
+  color: #b4b4b4 !important;
+}
+
+[data-slot="aui_thread-list-item-more-content"] {
+  background: #212121 !important;
+  color: #ececec !important;
+}
+
+[data-slot="aui_thread-list-item-more-item"] {
+  border: 0 !important;
+  background: transparent !important;
+  color: #ececec !important;
+}
+
+[data-slot="aui_thread-list-item-more-item"]:hover,
+[data-slot="aui_thread-list-item-more-item"]:focus-visible {
+  background: #2f2f2f !important;
+}
+
+[data-slot="aui_thread-list-item-more-item"]:last-child {
+  color: #ff8585 !important;
+}
+
+.assistant-clone button,
+.assistant-clone input,
+.assistant-clone textarea,
+.assistant-clone select,
+[data-slot="popover-content"] button,
+[data-slot="popover-content"] input,
+[data-slot="sheet-content"] button,
+[data-slot="sheet-content"] input {
+  font: inherit;
+}
+
+.assistant-clone button,
+[data-slot="popover-content"] button,
+[data-slot="sheet-content"] button {
+  cursor: pointer;
+}
+
+body[data-scroll-locked] {
+  margin-right: 0 !important;
+  padding-right: 0 !important;
+}
+
+.vinz-chat-top-fade {
+  height: calc(env(safe-area-inset-top, 0px) + 6.75rem);
+  background: linear-gradient(
+    to bottom,
+    #000 0,
+    #000 68%,
+    rgb(0 0 0 / 92%) 76%,
+    rgb(0 0 0 / 38%) 90%,
+    transparent 100%
+  );
+}
+
+.assistant-clone {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  isolation: isolate;
+}
+
+/* Il focus globale di VINZ.MON è rettangolare e appartiene alle schermate
+   tecniche. Nel composer il clone usa già il proprio ring arrotondato. */
+.assistant-clone :focus-visible {
+  outline: none;
+  outline-offset: 0;
+}
+
+.vinz-chat-model,
+.vinz-chat-menu {
+  top: calc(env(safe-area-inset-top, 0px) + 0.5rem);
+}
+
+.vinz-chat-cost {
+  top: calc(env(safe-area-inset-top, 0px) + 0.75rem);
+}
+
+.vinz-chat-thread-viewport {
+  padding-top: calc(env(safe-area-inset-top, 0px) + 6.25rem);
+}
+
+.aui-md p {
+  margin-block: 0 0.75rem;
+}
+
+.aui-md p:last-child {
+  margin-bottom: 0;
+}
+
+.vinz-assistant-meta [data-slot="tool-fallback-root"] {
+  flex-basis: 100%;
+}
+
+.vinz-assistant-meta [data-slot="tool-fallback-trigger"] {
+  gap: 0.375rem;
+  padding-block: 0.125rem;
+  font-size: 0.6875rem;
+  opacity: 0.72;
+}
+
+.vinz-assistant-meta [data-slot="tool-fallback-trigger-icon"],
+.vinz-assistant-meta [data-slot="tool-fallback-trigger-chevron"] {
+  width: 0.75rem;
+  height: 0.75rem;
+}
+
+.vinz-assistant-meta [data-slot="source"] {
+  padding: 0.125rem 0.375rem;
+  font-size: 0.6875rem;
+  opacity: 0.72;
+}
+
+.vinz-record__cancel,
+.vinz-record__send {
+  display: grid;
+  flex: 0 0 auto;
+  width: 2.25rem;
+  height: 2.25rem;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+}
+
+.vinz-record__cancel {
+  background: transparent;
+  color: #ececec;
+}
+
+.vinz-record__cancel span {
+  width: 0.625rem;
+  height: 0.625rem;
+  border-radius: 2px;
+  background: currentColor;
+}
+
+.vinz-record__send {
+  background: var(--char-accent, #c68a29);
+  color: var(--char-on-primary, #0d0d0d);
+}
+
+.vinz-clone-composer__send {
+  background: var(--char-accent, #c68a29) !important;
+  color: var(--char-on-primary, #0d0d0d) !important;
+}
+
+.vinz-record__cancel:disabled,
+.vinz-record__send:disabled {
+  opacity: 0.3;
+}
+
+.vinz-record__wave {
+  flex: 1;
+  min-width: 0;
+  height: 2.125rem;
+  overflow: hidden;
+}
+
+.vinz-record__wave.is-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  color: #b4b4b4;
+  font-size: 0.625rem;
+  font-weight: 650;
+  letter-spacing: 0.07em;
+}
+
+.vinz-record__wave.is-loading > * {
+  display: none;
+}
+
+.vinz-record__wave.is-loading::before {
+  content: attr(data-status);
+  white-space: nowrap;
+}
+
+.vinz-record__wave.is-loading::after {
+  content: "";
+  width: 0.75rem;
+  height: 0.75rem;
+  border: 2px solid #444;
+  border-top-color: #ececec;
+  border-radius: 50%;
+  animation: vinz-record-spin 700ms linear infinite;
+}
+
+.vinz-record__time {
+  flex: 0 0 auto;
+  min-width: 2.25rem;
+  color: #ececec;
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+}
+
+@keyframes vinz-record-spin {
+  to { transform: rotate(360deg); }
+}
+
+.shimmer {
+  color: transparent;
+  background: linear-gradient(90deg, transparent, var(--foreground), transparent);
+  background-size: 200% 100%;
+  background-clip: text;
+  animation: assistant-shimmer 1.2s linear infinite;
+}
+
+@keyframes assistant-shimmer {
+  to { background-position: -200% 0; }
+}
+
+@media (max-width: 767px) {
+  body {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  /* Il foglio mobile vive in un portal: non eredita lo spazio sicuro del
+     frame dell'app. Deve quindi proteggere da solo status bar e home indicator
+     e stare sopra anche alla navigazione persistente. */
+  [data-slot="sheet-overlay"] {
+    z-index: 9998;
+  }
+
+  [data-slot="sheet-content"][data-side="left"] {
+    top: 0;
+    bottom: 0;
+    height: 100dvh;
+    max-height: 100dvh;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    z-index: 9999;
+  }
+
+  [data-slot="sheet-content"][data-side="left"] > [data-slot="sheet-close"] {
+    top: calc(env(safe-area-inset-top) + 0.75rem);
+  }
+
+  [data-slot="aui_thread-list-item-more"] {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vinz-record__wave.is-loading::after {
+    animation: none;
+  }
+}

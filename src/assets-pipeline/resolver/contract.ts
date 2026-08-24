@@ -111,7 +111,7 @@ then emit the JSON once.
 
   1. Can the character be described without naming Family, Affinity or Role?
   2. Is there ONE social contradiction driving the design?
-  3. Is Humanoidity structurally visible in the body plan, not just the skin?
+  3. Does the body plan come only from Family and Archetype?
   4. Is any Affinity resolved as a literal object instead of behavior?
   5. Does any single element hold three or more of the functions in rule B?
   6. Does every major mass pass the inevitability test in rule C?

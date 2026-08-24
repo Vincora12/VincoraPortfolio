@@ -15,6 +15,7 @@ import './system/system.css';
 import './system/assets.css';
 import './screens/screens.css';
 import './dev/dev.css';
+import './brain/brain.css';
 
 import { readEntrypoint } from './lab/entrypoint';
 import { applyDocumentMeta } from './lab/applyLabDocumentMeta';

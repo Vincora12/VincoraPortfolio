@@ -3509,8 +3509,14 @@ check(
      `lacksInCode` toglie i commenti, così spiegare perché non c'è non lo fa
      fallire. */
   lacksInCode(PREVIEW, '<App') &&
-    has(PREVIEW, 'CompanionHomeScreen') &&
     has(MAIN, "await import('./lab/design/DesignPreviewRoute')"),
+);
+check(
+  'VINZ.LAB',
+  'e nemmeno `IntegratedChat`: monta la superficie, non il motore',
+  lacksInCode('src/lab/design/DesignChatPreview.tsx', 'IntegratedChat') &&
+    has('src/lab/design/DesignChatPreview.tsx', 'useLocalRuntime'),
+  '`IntegratedChat` migra le conversazioni salvate e parla col server: aprire DESIGN.LAB migrerebbe l\'archivio',
 );
 check(
   'VINZ.LAB',

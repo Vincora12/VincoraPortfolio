@@ -17,11 +17,11 @@
    diverse, e mescolarli produrrebbe un componente che non sa cosa sta facendo.
    ========================================================================= */
 
+import { useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
 import { AssetSlot, useAssetUrl } from './AssetSlot';
 import {
   EXPRESSION_SPEC,
   EXPRESSIONS,
-  IDLE_SPEC,
   type Expression,
 } from '../engine/assets';
 
@@ -47,32 +47,11 @@ export function IdleMon({
   alt: string;
   still?: boolean;
 }) {
-  const strip = useAssetUrl(monName, 'idle_animation');
-
-  // Con lo sprite: animazione a passi, un frame per passo. `steps()` è
-  // l'unico modo di far scattare un background senza interpolare fra i frame.
-  if (strip && !still) {
-    return (
-      <span
-        className="idlemon idlemon--sprite"
-        role="img"
-        aria-label={alt}
-        style={{
-          backgroundImage: `url(${strip})`,
-          backgroundSize: `${IDLE_SPEC.frames * 100}% 100%`,
-          animationDuration: `${(IDLE_SPEC.frames * 2) / IDLE_SPEC.fps}s`,
-          ['--idle-frames' as string]: IDLE_SPEC.frames,
-          ['--idle-step' as string]: `${100 / (IDLE_SPEC.frames - 1)}%`,
-        }}
-      />
-    );
-  }
-
-  // Senza sprite: il master respira. Nessun disegno inventato, solo il
-  // movimento che l'asset porterebbe.
+  // Il Toy è l'immagine principale. L'eventuale respiro è solo UI e non
+  // richiede più la generazione di un asset animato separato.
   return (
     <span className={still ? 'idlemon' : 'idlemon idlemon--breathing'}>
-      <AssetSlot monName={monName} type="character_master" alt={alt} className="idlemon__art" />
+      <AssetSlot monName={monName} type="character_toy" fallbackTypes={['character_master']} alt={alt} className="idlemon__art" />
     </span>
   );
 }
@@ -126,17 +105,102 @@ export function Sticker({
   const e = EXPRESSIONS[n]!;
   const col = n % EXPRESSION_SPEC.columns;
   const row = Math.floor(n / EXPRESSION_SPEC.columns);
+  const storageKey = `vinzmon.sticker-position.${monName}.${n}`;
+  const [position, setPosition] = useState<{ x: number; y: number }>(() => {
+    try {
+      const saved = localStorage.getItem(storageKey);
+      if (!saved) return { x: 0, y: 0 };
+      const parsed = JSON.parse(saved) as { x?: unknown; y?: unknown };
+      return typeof parsed.x === 'number' && typeof parsed.y === 'number'
+        ? { x: parsed.x, y: parsed.y }
+        : { x: 0, y: 0 };
+    } catch {
+      return { x: 0, y: 0 };
+    }
+  });
+  const [dragging, setDragging] = useState(false);
+  const drag = useRef<{ id: number; clientX: number; clientY: number; x: number; y: number } | null>(null);
+
+  const savePosition = (next: { x: number; y: number }) => {
+    setPosition(next);
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(next));
+    } catch {
+      // Safari può negare lo storage privato: il trascinamento resta comunque attivo.
+    }
+  };
+
+  const startDrag = (event: ReactPointerEvent<HTMLSpanElement>) => {
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    drag.current = {
+      id: event.pointerId,
+      clientX: event.clientX,
+      clientY: event.clientY,
+      x: position.x,
+      y: position.y,
+    };
+    setDragging(true);
+  };
+
+  const moveDrag = (event: ReactPointerEvent<HTMLSpanElement>) => {
+    const start = drag.current;
+    if (!start || start.id !== event.pointerId) return;
+    event.preventDefault();
+    setPosition({
+      x: start.x + event.clientX - start.clientX,
+      y: start.y + event.clientY - start.clientY,
+    });
+  };
+
+  const finishDrag = (event: ReactPointerEvent<HTMLSpanElement>) => {
+    const start = drag.current;
+    if (!start || start.id !== event.pointerId) return;
+    const finalPosition = {
+      x: start.x + event.clientX - start.clientX,
+      y: start.y + event.clientY - start.clientY,
+    };
+    event.currentTarget.releasePointerCapture(event.pointerId);
+    drag.current = null;
+    setDragging(false);
+    savePosition(finalPosition);
+  };
+
+  const style = {
+    '--drag-x': `${position.x}px`,
+    '--drag-y': `${position.y}px`,
+  } as CSSProperties;
 
   return (
     <span
-      className={`sticker ${className} ${sheet ? '' : 'sticker--empty'}`}
+      className={`sticker ${className} ${dragging ? 'sticker--dragging' : ''} ${sheet ? '' : 'sticker--empty'}`}
       title={sheet ? e.toLowerCase() : `${e.toLowerCase()} — non ancora disponibile`}
+      style={style}
+      role="button"
+      tabIndex={0}
+      aria-label={`${alt}, ${e.toLowerCase()}. Sticker trascinabile.`}
+      onPointerDown={startDrag}
+      onPointerMove={moveDrag}
+      onPointerUp={finishDrag}
+      onPointerCancel={finishDrag}
+      onContextMenu={(event) => event.preventDefault()}
+      onKeyDown={(event) => {
+        const amount = event.shiftKey ? 24 : 8;
+        const delta = event.key === 'ArrowLeft' ? [-amount, 0]
+          : event.key === 'ArrowRight' ? [amount, 0]
+            : event.key === 'ArrowUp' ? [0, -amount]
+              : event.key === 'ArrowDown' ? [0, amount]
+                : event.key === 'Home' ? [-position.x, -position.y]
+                  : null;
+        if (!delta) return;
+        event.preventDefault();
+        savePosition({ x: position.x + delta[0]!, y: position.y + delta[1]! });
+      }}
     >
       {sheet ? (
         <span
           className="sticker__art"
-          role="img"
-          aria-label={`${alt}, ${e.toLowerCase()}`}
+          aria-hidden="true"
           style={{
             backgroundImage: `url(${sheet})`,
             backgroundSize: `${EXPRESSION_SPEC.columns * 100}% ${EXPRESSION_SPEC.rows * 100}%`,
@@ -207,7 +271,7 @@ export function MonFace({
     >
       <AssetSlot
         monName={monName}
-        type="profile_portrait"
+        type="character_toy"
         fallbackTypes={['character_master']}
         alt={alt}
         fit="cover"

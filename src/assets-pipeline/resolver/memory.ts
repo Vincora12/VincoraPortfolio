@@ -86,7 +86,7 @@ Hair should normally be designed as a small number of strong silhouette masses, 
 Eyewear is one of the strongest VINZ.MON identity anchors and should vary aggressively across Forms.
 Do not default to round glasses.
 Approved eyewear logics include: shield, wraparound/bug-eye, rimless/high-frame, ultra-narrow/sculptural, oversized editorial, asymmetric/mono, transparent/crystal, tinted, mirrored and integrated optics.
-At low Humanoidity, eyewear should become anatomy or skull-integrated optical structures rather than a human accessory.
+When Family or Archetype has no conventional face, eyewear should become anatomy or skull-integrated optical structures rather than a human accessory.
 Eyewear should often occupy a meaningful percentage of the face and contribute to silhouette.
 A successful eyewear solution should make the character more specific, not merely more fashionable.
 4. Chromatic taste memory
@@ -97,12 +97,11 @@ Acid Hero should identify a major signature zone, frequently eyewear or signatur
 Avoid tasteful monochrome fantasy palettes, bone/black/silver default palettes, and over-desaturation.
 The successful Shark benchmark used deep cobalt + toxic yellow + hot magenta + electric cyan; this is a useful relationship model, not a mandatory palette.
 5. Human-read and proportion preferences
-For humanoid Forms, prefer youthful characterful proportions over adult runway-model proportions.
+For humanoid Family/Archetype combinations, prefer youthful characterful proportions over adult runway-model proportions.
 Slightly larger head, compact torso, expressive hands and enlarged feet often improve appeal.
 High detail density must not automatically make the character older, more elegant or more severe.
-Humanoidity is BODY PLAN, not realism. At 3/5 or below, the non-human component must structurally replace major human relationships, not merely alter skin/material.
-At Humanoidity 3/5 or lower, at least TWO major body-plan relationships should become non-human: pelvis/torso architecture, limb attachment, locomotion, head/torso relation, hands/feet, shoulder geometry, etc.
-For GIANT high-humanoidity Forms, a BARA-adjacent mass logic is approved as a size-specific option: larger torso/shoulders/arms/hands/feet and strong physical presence, while avoiding tiny-head bodybuilder anatomy.
+Family and Archetype are the only source of body-plan truth. Do not introduce animal anatomy unless Family, Archetype or BEAST Affinity explicitly requires it.
+For GIANT humanoid Forms, a BARA-adjacent mass logic is approved as a size-specific option: larger torso/shoulders/arms/hands/feet and strong physical presence, while avoiding tiny-head bodybuilder anatomy.
 6. Approved Character Design DNA memory
 DNA | STATUS | MEMORY
 KEN SUGIMORI | APPROVED / baseline favorite | Iconic clarity, compact coherent species-character construction, moderate simplification, every feature justified. Strong baseline for immediate readability.
@@ -141,7 +140,6 @@ Appearance comes last and must not redesign morphology.
 FAILURE | WHAT IT LOOKS LIKE / CORRECTION
 CREEPY BIOMORPH DRIFT | Too many organ/sac/multiple-eye/ritual-symmetry instructions before character appeal. Fix: simplify biology, enlarge social facial cues, prioritize posture and personality.
 TAXONOMY CHECKLIST | Every field receives a separate body part or prop. Fix: merge, compress or make weaker fields behavior-only.
-HUMANOIDITY IGNORED | Low Humanoidity produces a normal human with creature skin/parts. Fix: replace actual body-plan relationships.
 FASHION MANNEQUIN | Alluring + Y2K + Nomura/fashion becomes an editorial figure. Fix: alluring first affects gaze, timing, confidence and awkwardness; preserve youthful proportions and mundane behavior.
 COOL FEATURE INSTEAD OF CHARACTER FEATURE | A feature looks elegant but creates no behavior. Fix: give the feature an involuntary social/emotional consequence.
 CONCEPT DUPLICATION | Eye/halo/knot/etc repeated across multiple zones. Fix: one primary manifestation + at most one subtle echo.
@@ -151,7 +149,6 @@ ADULT DRIFT | Humanoid characters become elegant mature adults. Fix: slightly la
 LORE-FIRST DESIGN | A viewer needs explanation to understand why the character is interesting. Fix: rewrite Core Personality and Memory Sentence before adding anything else.
 10. Resolver rules learned from testing
 CHARACTER CARICATURE RULE — Before anatomy, identify ONE mundane socially recognizable contradiction. Every major decision should reinforce it.
-HUMANOIDITY BODY-PLAN RULE — At 3/5 or lower, explicitly name at least TWO human body-plan relationships that are replaced. Material change alone does not count.
 BEHAVIORAL SPECIFICITY RULE — The ridiculous/over-specific feature must influence behavior, emotion or social interaction. If it only looks cool, it fails.
 ONE CONCEPT / ONE PRIMARY MANIFESTATION — A visual idea gets one major zone and at most one subtle echo elsewhere.
 DETAIL DENSITY = CONCEPT SURVIVAL — Low density removes visual concepts. High density increases construction depth inside selected concepts; it does not increase conceptual breadth.
@@ -196,13 +193,13 @@ Loose diagonal posture and irregular facial geometry created a genuinely differe
 12.4 Rejected / weaker generated forms - lessons
 Alien/Biomorph prompts became creepy when organ logic, multiple eyes, ritual symmetry and strange mouths arrived before character appeal.
 Some Dragon/Plant/Archivist attempts became clever concept design but cold because Role and Cultural DNA each demanded separate anatomy.
-Some low-Humanoidity prompts still resolved as fashionable humans. Structural body-plan replacement must be mandatory.
+Some non-human Families still resolved as fashionable humans. Family and Archetype body-plan rules must remain mandatory.
 Some alluring/fashion prompts became adult editorial mannequins. Alluring should first change gaze, timing, confidence and awkwardness.
 13. Character Critic checklist
 Before the Resolver output is accepted, a critic pass should answer these questions. If any answer fails, rewrite the resolved design rather than merely commenting.
 Can the personality be described without mentioning Family, Affinity, Role or Cultural DNA?
 Is there one clear character caricature / social contradiction?
-Is Humanoidity structurally visible in the body plan?
+Does the body plan follow Family and Archetype without borrowing unrelated animal anatomy?
 Does the over-specific feature create behavior?
 Are any visual concepts duplicated across too many zones?
 Does Detail Density control concept survival appropriately?

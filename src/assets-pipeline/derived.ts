@@ -49,7 +49,7 @@
    ========================================================================= */
 
 import type { AssetType } from '../engine/types';
-import { EXPRESSION_SPEC, IDLE_SPEC, assetTypeDef } from '../engine/assets';
+import { EXPRESSION_SPEC, assetTypeDef } from '../engine/assets';
 
 /**
  * La testata comune: identità bloccata, e cosa non si tocca.
@@ -59,7 +59,7 @@ import { EXPRESSION_SPEC, IDLE_SPEC, assetTypeDef } from '../engine/assets';
  * «cambia l'inquadratura» viene letto come permesso di rifare il resto.
  */
 const BLOCCO = [
-  'The attached image is the CHARACTER MASTER of this character.',
+  'The attached image is the CHARACTER MASTER CEL of this character.',
   'It is the exact and only source of visual truth. This is the SAME character.',
   '',
   'PRESERVE EXACTLY, without reinterpretation:',
@@ -74,22 +74,108 @@ const BLOCCO = [
 /** La coda comune: cosa non deve comparire nel file. */
 const CODA = 'No text, no labels, no watermark, no frame borders, no signature.';
 
-/* --- I cinque lavori di produzione ----------------------------------------- */
+/* --- I tre lavori di produzione -------------------------------------------- */
 
 const LAVORO: Partial<Record<AssetType, string[]>> = {
-  /* §22.2 02 — un ritratto leggibile, buono per un'interfaccia. */
-  profile_portrait: [
-    'PRODUCTION TASK: profile portrait of this character.',
-    'Change ONLY framing and camera: head and upper chest, centred, facing the',
-    'viewer, eyes clearly readable at small size.',
-    'Even lighting. Transparent background. The face must stay legible when the',
-    'image is displayed at 64 pixels.',
+  character_toy: [
+    'Use the attached image as the MASTER VISUAL REFERENCE.',
+    '',
+    'Transform the subject into a high-quality physical collectible toy / designer figure, while preserving the original character design as faithfully as possible.',
+    '',
+    'PRESERVE EXACTLY',
+    '',
+    'Keep all defining visual characteristics from the reference image:',
+    '',
+    '* overall silhouette',
+    '* body proportions',
+    '* head-to-body ratio',
+    '* anatomy',
+    '* pose and gesture',
+    '* facial expression',
+    '* face construction',
+    '* eyes and eyewear',
+    '* hairstyle, hair volume and hair color',
+    '* horns, ears, tails, wings, appendages or unusual anatomy',
+    '* clothing design',
+    '* clothing volumes',
+    '* footwear',
+    '* accessories',
+    '* palette',
+    '* graphic markings',
+    '* distinctive identity features',
+    '* asymmetries',
+    '* unusual or exaggerated proportions',
+    '',
+    'Do not redesign, reinterpret, simplify, beautify, normalize or replace any element unless necessary to translate it into a physical toy.',
+    '',
+    'TOY TRANSLATION',
+    '',
+    'Translate the existing design into a believable premium collectible figure.',
+    '',
+    'The subject should feel physically manufactured rather than simply rendered in 3D.',
+    '',
+    'Use:',
+    '',
+    '* solid sculpted volumes',
+    '* clean manufactured surfaces',
+    '* premium vinyl / PVC / ABS toy-material logic',
+    '* subtle material variation between skin, fabric, plastic, rubber, metal or translucent elements when relevant',
+    '* carefully molded hair and clothing',
+    '* simplified but faithful physical construction',
+    '* precise painted details',
+    '* subtle seams only where believable for a manufactured collectible',
+    '* rounded physical edges where required by production',
+    '* convincing thickness for thin illustrated elements',
+    '* stable believable toy construction',
+    '',
+    'Preserve the original design language even when converting flat illustrated shapes into three-dimensional forms.',
+    '',
+    'Do not make it look like a realistic human, CGI movie character, action-game render or generic 3D cartoon.',
+    '',
+    'It must read immediately as the exact same character transformed into a collectible toy.',
+    '',
+    'RENDER',
+    '',
+    'Create a polished studio product photograph of the finished collectible figure.',
+    '',
+    '* full character visible',
+    '* centered composition',
+    '* clean professional product photography',
+    '* soft diffused studio lighting',
+    '* subtle grounding shadow',
+    '* realistic physical scale',
+    '* crisp sculptural detail',
+    '* premium collectible presentation',
+    '* no packaging',
+    '* no props unless they belong to the original character',
+    '* no text',
+    '* no logo',
+    '* no pedestal unless structurally necessary',
+    '',
+    'BACKGROUND',
+    '',
+    'Use a completely clean optical white background:',
+    '',
+    'pure neutral white, bright and seamless, with no cream, beige, warm gray, visible horizon, environment or decorative elements.',
+    '',
+    'The final image should look like a professionally photographed designer toy on a pure white studio cyclorama.',
+    '',
+    'Priority order:',
+    '',
+    '1. preserve the original character',
+    '2. preserve silhouette and proportions',
+    '3. preserve pose and identity details',
+    '4. translate the design into believable toy construction',
+    '5. achieve premium studio-product realism',
   ],
 
   /* §22.2 04 — la griglia delle espressioni. L'ordine è indicizzato per
      posizione dall'app: non è una preferenza, è un contratto. */
   reaction_pack: [
     'PRODUCTION TASK: expression sheet of this character.',
+    'CHARACTER DESIGN LOCK: the character design must not change in any frame.',
+    'Do not alter or reinterpret silhouette, anatomy, proportions, face construction,',
+    'hair, eyewear, clothing, accessories, palette, markings or identity features.',
     `One sheet, ${EXPRESSION_SPEC.frames} frames, strict ${EXPRESSION_SPEC.columns} columns x ${EXPRESSION_SPEC.rows} rows grid,`,
     'read left-to-right, top row first. The frame order is FIXED and must not be rearranged:',
     ...EXPRESSION_SPEC.order.map((e, i) => `${String(i + 1).padStart(2, '0')} ${e}`),
@@ -100,34 +186,13 @@ const LAVORO: Partial<Record<AssetType, string[]>> = {
     `${EXPRESSION_SPEC.frames} equal frames of identical dimensions.`,
   ],
 
-  /* §23.3 — un ciclo di respiro, non una posa. */
-  idle_animation: [
-    'PRODUCTION TASK: idle animation strip of this character.',
-    `One sheet, ${IDLE_SPEC.frames} frames, single row, read left to right: a seamless`,
-    'breathing loop of the same character standing at rest.',
-    `The loop is played ${IDLE_SPEC.playback}, so frame 01 and frame ${String(IDLE_SPEC.frames).padStart(2, '0')} are the two`,
-    'extremes of the motion, NOT a repeat of each other.',
-    '',
-    'Motion budget is deliberately small: chest and mass rise and fall, plus a',
-    'slight weight shift. Feet stay planted. The character never travels across',
-    'the canvas. Identical framing, scale and horizontal position in every frame.',
-    `${IDLE_SPEC.anchor} anchor. Transparent background.`,
-  ],
-
-  /* §22.2 06 — messa in scena. Qui la posa PUÒ cambiare, il personaggio no. */
-  encounter_hero: [
-    'PRODUCTION TASK: hero reveal image of this character.',
-    'This is a staging task, not a design task.',
-    'You MAY change pose, framing, camera angle, staging and energy.',
-    'You may NOT change anatomy, identity, face construction, outfit, palette,',
-    'hair, eyewear or core proportions.',
-    'Full figure, vertical composition, dramatic but readable.',
-  ],
-
   /* §42 / GB §12 — il doodle è un cambio di MEZZO, non di creatura. */
   bio_doodle: [
     'PRODUCTION TASK: sketchbook translation of this character.',
     'This is a change of MEDIUM, not a redesign.',
+    'CHARACTER DESIGN LOCK: the character design must not change.',
+    'Do not alter or reinterpret silhouette, anatomy, proportions, face construction,',
+    'hair, eyewear, clothing, accessories, palette, markings or identity features.',
     'Same character, drawn as a quick personal-notebook sketch: visible pencil or',
     'ballpoint line, loose construction lines left in, flat or absent colour,',
     'the feeling of something drawn in a margin rather than finished.',
@@ -150,6 +215,15 @@ export function derivedPrompt(assetType: AssetType): string | null {
   const lavoro = LAVORO[assetType];
   if (!lavoro) return null;
 
+  /* Il prompt Toy è stato approvato come testo completo: non aggiungiamo
+     prefissi o code automatiche che ne cambierebbero priorità e significato. */
+  if (assetType === 'character_toy') return lavoro.join('\n');
+
+  /* Reaction e Doodle usano il generatore canonico completo. Il CEL viene
+     comunque allegato da `generate.ts` e il compilatore inserisce il blocco
+     CONSISTENCY REFERENCE: il design resta quello del master. */
+  if (assetType === 'reaction_pack' || assetType === 'bio_doodle') return null;
+
   return [BLOCCO, '', lavoro.join('\n'), '', `OUTPUT: ${assetTypeDef(assetType).size}.`, CODA].join(
     '\n',
   );
@@ -157,5 +231,5 @@ export function derivedPrompt(assetType: AssetType): string | null {
 
 /** Gli asset che hanno un template tecnico. Serve ai controlli e a DEV. */
 export function derivedCovers(): AssetType[] {
-  return (Object.keys(LAVORO) as AssetType[]).filter((t) => LAVORO[t] !== undefined);
+  return ['character_toy'];
 }

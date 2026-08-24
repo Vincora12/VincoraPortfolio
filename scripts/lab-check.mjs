@@ -244,6 +244,19 @@ try {
     'una scrittura di prova è passata: `installPreviewGuards` non ha preso',
   );
 
+  /* --- La CHAT: superficie vera, motore finto ------------------------------ */
+  await open('/?design-preview=chat');
+  check(
+    'la CHAT in preview è la superficie vera di assistant-ui',
+    (await page.locator('.assistant-clone').count()) === 1,
+    'se qui non c\'è, DESIGN.LAB sta mostrando una chat che non è quella dell\'app',
+  );
+  check(
+    'e non ha migrato niente: nessuna richiesta di scrittura',
+    writes.length === 0,
+    writes.join(' · '),
+  );
+
   /* --- Un indirizzo inventato non apre niente ------------------------------ */
   await open('/?design-preview=non-esiste');
   check(

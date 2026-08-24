@@ -47,9 +47,9 @@ export interface AssetTypeDef {
 }
 
 /**
- * Gli OTTO tipi canonici, nell'ordine dei file di §22.2.
- * UI NODE PORTRAIT non è uno slot separato: §23 dice esplicitamente di
- * derivarlo dal Profile Portrait e di non creare asset ridondanti.
+ * Pipeline V1: CEL tecnico → TOY principale; dal CEL nascono anche Doodle e
+ * Sticker. Gli slot storici restano leggibili per i vecchi salvataggi, ma non
+ * fanno più parte della generazione automatica.
  */
 export const ASSET_TYPES: readonly AssetTypeDef[] = [
   {
@@ -59,24 +59,24 @@ export const ASSET_TYPES: readonly AssetTypeDef[] = [
     assetId: 'master_01',
     size: '1024x1536',
     promptFile: '01_CHARACTER_MASTER_PROMPT.txt',
-    label: 'CHARACTER MASTER',
-    purpose: 'Fonte di verità visiva. Riferimento di consistenza per ogni altro asset.',
-    usage: ['companion-home', 'consistency-reference'],
+    label: 'CHARACTER MASTER CEL',
+    purpose: 'Fonte tecnica nascosta: riferimento visivo per Toy, Doodle e Sticker.',
+    usage: ['consistency-reference'],
   },
   {
-    type: 'profile_portrait',
+    type: 'character_toy',
     stage: 1,
     dependsOn: ['character_master'],
-    assetId: 'portrait_01',
-    size: '1024x1024',
-    promptFile: '02_PROFILE_PORTRAIT_PROMPT.txt',
-    label: 'PROFILE PORTRAIT',
-    purpose: 'Ritratto generato apposta per profilo, memorie, notifiche e nodi. Mai un ritaglio.',
-    usage: ['specimen-profile', 'memories', 'mindline-node', 'notifications'],
+    assetId: 'toy_01',
+    size: '1024x1536',
+    promptFile: '02_CHARACTER_TOY_PROMPT.txt',
+    label: 'CHARACTER MASTER TOY',
+    purpose: 'Immagine principale ufficiale del MON, derivata fedelmente dal CEL.',
+    usage: ['companion-home', 'dex', 'profile', 'mindline-node', 'encounter'],
   },
   {
     type: 'bio_doodle',
-    stage: 2,
+    stage: 1,
     dependsOn: ['character_master'],
     assetId: 'doodle_01',
     size: '1024x1024',
@@ -97,31 +97,13 @@ export const ASSET_TYPES: readonly AssetTypeDef[] = [
       'Le sei espressioni canoniche, griglia 3×2. È quello che cambia in testa alla chat a ogni risposta.',
     usage: ['chat', 'companion-home', 'memories'],
   },
-  {
-    /* 🔶 v1.9 §23.1 — nuovo. Serve alla splash e alla testa della chat: senza
-       un ciclo di riposo il .mon è un'illustrazione ferma, e la differenza fra
-       «c'è» e «è disegnato» è tutta lì. */
-    type: 'idle_animation',
-    stage: 1,
-    dependsOn: ['character_master'],
-    assetId: 'idle_01',
-    size: '1536x1024',
-    promptFile: '05_IDLE_ANIMATION_PROMPT.txt',
-    label: 'IDLE ANIMATION',
-    purpose: 'Ciclo di respiro a 6 frame. Schermata d’ingresso e presenza viva in chat.',
-    usage: ['splash', 'chat-header', 'companion-home'],
-  },
-  {
-    type: 'encounter_hero',
-    stage: 1,
-    dependsOn: ['character_master'],
-    assetId: 'hero_01',
-    size: '1024x1536',
-    promptFile: '06_ENCOUNTER_HERO_PROMPT.txt',
-    label: 'ENCOUNTER HERO',
-    purpose: 'Asset di rivelazione per FIRST ENCOUNTER / NEW ENCOUNTER.',
-    usage: ['first-encounter', 'new-encounter'],
-  },
+];
+
+/** Solo compatibilità con creature già salvate: mai inclusi nella nuova pipeline. */
+const LEGACY_ASSET_TYPES: readonly AssetTypeDef[] = [
+  { type: 'profile_portrait', stage: 1, dependsOn: ['character_master'], assetId: 'portrait_01', size: '1024x1024', promptFile: 'LEGACY_PROFILE_PORTRAIT.txt', label: 'PROFILE PORTRAIT (LEGACY)', purpose: 'Asset storico.', usage: [] },
+  { type: 'idle_animation', stage: 1, dependsOn: ['character_master'], assetId: 'idle_01', size: '1536x1024', promptFile: 'LEGACY_IDLE_ANIMATION.txt', label: 'IDLE ANIMATION (LEGACY)', purpose: 'Asset storico.', usage: [] },
+  { type: 'encounter_hero', stage: 1, dependsOn: ['character_master'], assetId: 'hero_01', size: '1024x1536', promptFile: 'LEGACY_ENCOUNTER_HERO.txt', label: 'ENCOUNTER HERO (LEGACY)', purpose: 'Asset storico.', usage: [] },
 ];
 
 /* ============================================================================
@@ -149,7 +131,7 @@ export const ASSET_TYPES: readonly AssetTypeDef[] = [
    ========================================================================= */
 
 export function assetTypeDef(type: AssetType): AssetTypeDef {
-  const d = ASSET_TYPES.find((a) => a.type === type);
+  const d = [...ASSET_TYPES, ...LEGACY_ASSET_TYPES].find((a) => a.type === type);
   if (!d) throw new Error(`Tipo di asset sconosciuto: ${type}`);
   return d;
 }
@@ -168,7 +150,7 @@ export function emptyAssetStatus(): AssetStatusMap {
 
 /** Etichetta del segnaposto mostrata nella UI (§21.2). */
 export function placeholderLabel(type: AssetType): string {
-  const index = ASSET_TYPES.findIndex((a) => a.type === type) + 1;
+  const index = Math.max(0, ASSET_TYPES.findIndex((a) => a.type === type)) + 1;
   return `ASSET_${String(index).padStart(2, '0')} // WAITING FOR IMAGE`;
 }
 

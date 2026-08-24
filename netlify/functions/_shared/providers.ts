@@ -19,7 +19,7 @@
    ========================================================================= */
 
 import type { Provider } from './routing';
-import type { Usage } from './spend';
+import { costOf, type Usage } from './spend';
 
 /* --- La forma comune -------------------------------------------------------- */
 
@@ -56,6 +56,81 @@ export interface ToolUse {
   input: unknown;
 }
 
+/** Una fonte realmente restituita dal fornitore, mai ricavata dal testo. */
+export interface Source {
+  title: string;
+  url: string;
+  domain?: string;
+}
+
+type AnthropicCitation = {
+  type?: string;
+  title?: string | null;
+  url?: string;
+  source?: string;
+};
+
+type AnthropicSearchResult = {
+  type?: string;
+  title?: string;
+  url?: string;
+};
+
+type AnthropicContentBlock = {
+  type: string;
+  text?: string;
+  id?: string;
+  name?: string;
+  input?: unknown;
+  citations?: AnthropicCitation[];
+  content?: AnthropicSearchResult[] | { type?: string; error_code?: string };
+};
+
+function domainOf(url: string): string | undefined {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '');
+  } catch {
+    return undefined;
+  }
+}
+
+function asSource(value: { title?: string | null; url?: string; source?: string }): Source | null {
+  const url = value.url ?? value.source;
+  if (!url || !/^https?:\/\//i.test(url)) return null;
+  const domain = domainOf(url);
+  return {
+    title: value.title?.trim() || domain || url,
+    url,
+    ...(domain ? { domain } : {}),
+  };
+}
+
+function uniqueSources(sources: readonly Source[]): Source[] {
+  return [...new Map(sources.map((source) => [source.url, source])).values()];
+}
+
+/** Estrae soltanto risultati/citazioni strutturati dell'API Anthropic. */
+export function extractAnthropicSources(blocks: readonly AnthropicContentBlock[]): Source[] {
+  const sources: Source[] = [];
+  for (const block of blocks) {
+    if (block.type === 'web_search_tool_result' && Array.isArray(block.content)) {
+      for (const result of block.content) {
+        if (result.type !== 'web_search_result') continue;
+        const source = asSource(result);
+        if (source) sources.push(source);
+      }
+    }
+    for (const citation of block.citations ?? []) {
+      if (citation.type !== 'web_search_result_location' && citation.type !== 'search_result_location') {
+        continue;
+      }
+      const source = asSource(citation);
+      if (source) sources.push(source);
+    }
+  }
+  return uniqueSources(sources);
+}
+
 /**
  * Il contenuto di un turno. Una stringa nel caso normale; una lista di blocchi
  * quando ci sono dentro chiamate di strumenti e i loro risultati — che è
@@ -87,6 +162,8 @@ export interface ProviderRequest {
    */
   userBlocks?: Record<string, unknown>[];
   image?: ImageInput;
+  /** Più foto nello stesso messaggio (per esempio piatto + menu). */
+  images?: ImageInput[];
   maxTokens: number;
   /** Ragiona prima di rispondere. Chi non sa farlo lo ignora. */
   thinking?: boolean;
@@ -100,6 +177,8 @@ export interface ProviderRequest {
   effort?: 'none' | 'low' | 'medium' | 'high';
   /** Strumenti che il modello può chiamare. Li esegue il browser. */
   tools?: ToolDef[];
+  /** Impone uno strumento quando l'intento di scrittura è inequivocabile. */
+  toolChoice?: string;
   /** Accendi la ricerca sul web, che gira dal fornitore. */
   webSearch?: boolean;
 }
@@ -112,6 +191,8 @@ export interface ProviderResult {
   model: string;
   /** Strumenti che il modello vuole far eseguire prima di continuare. */
   toolUses: ToolUse[];
+  /** Fonti strutturate restituite dal fornitore e realmente consultate. */
+  sources: Source[];
   /** Perché si è fermato. `tool_use` significa «aspetto i risultati». */
   stopReason?: string;
   /** Solo per i log del server. */
@@ -119,7 +200,7 @@ export interface ProviderResult {
 }
 
 function fail(model: string, error: string): ProviderResult {
-  return { ok: false, text: '', usage: {}, model, toolUses: [], error };
+  return { ok: false, text: '', usage: {}, model, toolUses: [], sources: [], error };
 }
 
 /* --- Anthropic --------------------------------------------------------------
@@ -136,10 +217,10 @@ async function anthropic(req: ProviderRequest): Promise<ProviderResult> {
   if (req.userBlocks?.length) {
     content.push(...req.userBlocks);
   } else {
-    if (req.image) {
+    for (const image of req.images?.length ? req.images : req.image ? [req.image] : []) {
       content.push({
         type: 'image',
-        source: { type: 'base64', media_type: req.image.mediaType, data: req.image.data },
+        source: { type: 'base64', media_type: image.mediaType, data: image.data },
       });
     }
     content.push({ type: 'text', text: req.user });
@@ -187,6 +268,9 @@ async function anthropic(req: ProviderRequest): Promise<ProviderResult> {
               ],
             }
           : {}),
+        ...(req.toolChoice
+          ? { tool_choice: { type: 'tool', name: req.toolChoice } }
+          : {}),
         system: req.system.map((b) => ({
           type: 'text',
           text: b.text,
@@ -201,7 +285,7 @@ async function anthropic(req: ProviderRequest): Promise<ProviderResult> {
     const body = (await res.json()) as {
       model?: string;
       stop_reason?: string;
-      content?: { type: string; text?: string; id?: string; name?: string; input?: unknown }[];
+      content?: AnthropicContentBlock[];
       usage?: Record<string, number> & {
         server_tool_use?: { web_search_requests?: number };
       };
@@ -229,6 +313,7 @@ async function anthropic(req: ProviderRequest): Promise<ProviderResult> {
       ok: text.length > 0 || toolUses.length > 0,
       text,
       toolUses,
+      sources: extractAnthropicSources(blocks),
       stopReason: body.stop_reason,
       model: body.model ?? req.model,
       usage: {
@@ -242,6 +327,179 @@ async function anthropic(req: ProviderRequest): Promise<ProviderResult> {
   } catch (err) {
     return fail(req.model, String(err));
   }
+}
+
+export type StreamResult =
+  | { ok: false; error: string }
+  | {
+      ok: true;
+      body: ReadableStream<Uint8Array>;
+      completed: Promise<{ model: string; usage: Usage }>;
+    };
+
+export type AiStreamEvent =
+  | { type: 'search_started' }
+  | { type: 'source_found'; source: Source }
+  | { type: 'answer_started' }
+  | { type: 'answer_delta'; delta: string }
+  | { type: 'answer_completed'; model: string; usage: Usage; costUsd: number; sources: Source[] }
+  | { type: 'error'; message: string };
+
+/** Stream testuale della Chat V1, con contesto neutrale e ricerca web. */
+export async function streamAnthropic(
+  req: ProviderRequest,
+  signal?: AbortSignal,
+): Promise<StreamResult> {
+  const key = process.env.ANTHROPIC_API_KEY;
+  if (!key) return { ok: false, error: 'ANTHROPIC_API_KEY mancante' };
+
+  let response: Response;
+  try {
+    response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      signal,
+      headers: {
+        'content-type': 'application/json',
+        'x-api-key': key,
+        'anthropic-version': '2023-06-01',
+        'anthropic-beta': 'server-side-fallback-2026-07-01',
+      },
+      body: JSON.stringify({
+        model: req.model,
+        max_tokens: req.maxTokens,
+        stream: true,
+        fallbacks: 'default',
+        output_config: { effort: req.effort ?? 'low' },
+        thinking: { type: 'disabled' },
+        ...(req.webSearch
+          ? { tools: [{ type: 'web_search_20260209', name: 'web_search' }] }
+          : {}),
+        system: req.system.map((block) => ({
+          type: 'text',
+          text: block.text,
+          ...(block.cache ? { cache_control: { type: 'ephemeral' } } : {}),
+        })),
+        messages: [...req.turns, { role: 'user', content: req.user }],
+      }),
+    });
+  } catch (error) {
+    return { ok: false, error: String(error) };
+  }
+
+  if (!response.ok || !response.body) {
+    return { ok: false, error: `anthropic ${response.status}: ${await response.text()}` };
+  }
+
+  let finish!: (value: { model: string; usage: Usage }) => void;
+  const completed = new Promise<{ model: string; usage: Usage }>((resolve) => { finish = resolve; });
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  const encoder = new TextEncoder();
+  let buffer = '';
+  let model = req.model;
+  const usage: Usage = {};
+  const foundSources: Source[] = [];
+  const foundUrls = new Set<string>();
+  let answerStarted = false;
+
+  const encode = (event: AiStreamEvent) =>
+    encoder.encode(`data: ${JSON.stringify(event)}\n\n`);
+
+  const pushSource = (controller: ReadableStreamDefaultController<Uint8Array>, value: unknown) => {
+    if (!value || typeof value !== 'object') return;
+    const source = asSource(value as AnthropicSearchResult);
+    if (!source || foundUrls.has(source.url)) return;
+    foundUrls.add(source.url);
+    foundSources.push(source);
+    controller.enqueue(encode({ type: 'source_found', source }));
+  };
+
+  const body = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      try {
+        while (true) {
+          const { value, done } = await reader.read();
+          buffer += decoder.decode(value, { stream: !done });
+          const events = buffer.split('\n\n');
+          buffer = events.pop() ?? '';
+
+          for (const event of events) {
+            const data = event.split('\n').find((line) => line.startsWith('data: '))?.slice(6);
+            if (!data) continue;
+            const parsed = JSON.parse(data) as {
+              type?: string;
+              message?: { model?: string; usage?: Record<string, number> };
+              content_block?: AnthropicContentBlock;
+              delta?: { type?: string; text?: string; citation?: AnthropicCitation };
+              usage?: Record<string, number> & {
+                server_tool_use?: { web_search_requests?: number };
+              };
+            };
+            if (parsed.message?.model) model = parsed.message.model;
+            if (parsed.message?.usage) {
+              usage.inputTokens = parsed.message.usage.input_tokens ?? 0;
+              usage.cacheReadTokens = parsed.message.usage.cache_read_input_tokens ?? 0;
+              usage.cacheWriteTokens = parsed.message.usage.cache_creation_input_tokens ?? 0;
+            }
+            if (parsed.usage) {
+              usage.outputTokens = parsed.usage.output_tokens ?? usage.outputTokens ?? 0;
+              usage.webSearches =
+                parsed.usage.server_tool_use?.web_search_requests ?? usage.webSearches ?? 0;
+            }
+            if (parsed.type === 'content_block_start') {
+              const block = parsed.content_block;
+              if (block?.type === 'server_tool_use' && block.name === 'web_search') {
+                controller.enqueue(encode({ type: 'search_started' }));
+              }
+              if (block?.type === 'web_search_tool_result' && Array.isArray(block.content)) {
+                for (const result of block.content) {
+                  if (result.type === 'web_search_result') pushSource(controller, result);
+                }
+              }
+            }
+
+            if (parsed.type === 'content_block_delta' && parsed.delta?.type === 'citations_delta') {
+              const citation = parsed.delta.citation;
+              if (
+                citation?.type === 'web_search_result_location' ||
+                citation?.type === 'search_result_location'
+              ) {
+                pushSource(controller, citation);
+              }
+            }
+
+            if (parsed.type === 'content_block_delta' && parsed.delta?.type === 'text_delta' && parsed.delta.text) {
+              if (!answerStarted) {
+                answerStarted = true;
+                controller.enqueue(encode({ type: 'answer_started' }));
+              }
+              controller.enqueue(encode({ type: 'answer_delta', delta: parsed.delta.text }));
+            }
+          }
+          if (done) break;
+        }
+        controller.enqueue(encode({
+          type: 'answer_completed',
+          model,
+          usage,
+          costUsd: costOf(model, usage),
+          sources: foundSources,
+        }));
+        finish({ model, usage });
+        controller.close();
+      } catch (error) {
+        finish({ model, usage });
+        controller.enqueue(encode({ type: 'error', message: String(error) }));
+        controller.close();
+      }
+    },
+    cancel() {
+      void reader.cancel();
+      finish({ model, usage });
+    },
+  });
+
+  return { ok: true, body, completed };
 }
 
 /* --- Google -----------------------------------------------------------------
@@ -297,6 +555,7 @@ async function google(req: ProviderRequest): Promise<ProviderResult> {
       ok: text.length > 0,
       text,
       toolUses: [],
+      sources: [],
       model: req.model,
       usage: {
         inputTokens: body.usageMetadata?.promptTokenCount ?? 0,
@@ -395,6 +654,162 @@ function openaiMessages(req: ProviderRequest): Record<string, unknown>[] {
   return out;
 }
 
+type OpenAIResponseItem = {
+  type?: string;
+  role?: string;
+  content?: Array<{
+    type?: string;
+    text?: string;
+    annotations?: Array<{ type?: string; title?: string; url?: string }>;
+  }>;
+  call_id?: string;
+  name?: string;
+  arguments?: string;
+  action?: { sources?: Array<{ type?: string; title?: string; url?: string }> };
+};
+
+function openaiResponseInput(req: ProviderRequest): Record<string, unknown>[] {
+  const input: Record<string, unknown>[] = [];
+  const addBlocks = (content: Block[], role: 'user' | 'assistant') => {
+    const text = content
+      .filter((block) => block.type === 'text')
+      .map((block) => String(block.text ?? ''))
+      .join('');
+    if (text) input.push({ role, content: text });
+    for (const block of content.filter((item) => item.type === 'tool_use')) {
+      input.push({
+        type: 'function_call',
+        call_id: String(block.id ?? ''),
+        name: String(block.name ?? ''),
+        arguments: JSON.stringify(block.input ?? {}),
+      });
+    }
+    for (const block of content.filter((item) => item.type === 'tool_result')) {
+      input.push({
+        type: 'function_call_output',
+        call_id: String(block.tool_use_id ?? ''),
+        output: String(block.content ?? ''),
+      });
+    }
+  };
+
+  for (const turn of req.turns) {
+    if (typeof turn.content === 'string') input.push({ role: turn.role, content: turn.content });
+    else addBlocks(turn.content as Block[], turn.role);
+  }
+  if (req.userBlocks?.length) {
+    addBlocks(req.userBlocks as Block[], 'user');
+  } else if (req.user || req.image || req.images?.length) {
+    const content: Record<string, unknown>[] = [];
+    if (req.user) content.push({ type: 'input_text', text: req.user });
+    for (const image of req.images?.length ? req.images : req.image ? [req.image] : []) {
+      content.push({
+        type: 'input_image',
+        detail: 'auto',
+        image_url: `data:${image.mediaType};base64,${image.data}`,
+      });
+    }
+    input.push({ role: 'user', content });
+  }
+  return input;
+}
+
+export function extractOpenAIResponseSources(output: readonly OpenAIResponseItem[]): Source[] {
+  const sources: Source[] = [];
+  for (const item of output) {
+    for (const part of item.content ?? []) {
+      for (const annotation of part.annotations ?? []) {
+        if (annotation.type !== 'url_citation') continue;
+        const source = asSource(annotation);
+        if (source) sources.push(source);
+      }
+    }
+    if (item.type !== 'web_search_call') continue;
+    for (const found of item.action?.sources ?? []) {
+      const source = asSource(found);
+      if (source) sources.push(source);
+    }
+  }
+  return uniqueSources(sources);
+}
+
+async function openAiResponses(key: string, req: ProviderRequest): Promise<ProviderResult> {
+  try {
+    const tools: Record<string, unknown>[] = [
+      ...(req.tools ?? []).map((tool) => ({
+        type: 'function',
+        name: tool.name,
+        description: tool.description,
+        parameters: tool.schema,
+        strict: false,
+      })),
+      ...(req.webSearch ? [{ type: 'web_search' }] : []),
+    ];
+    const response = await fetch('https://api.openai.com/v1/responses', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` },
+      body: JSON.stringify({
+        model: req.model,
+        instructions: req.system.map((block) => block.text).join('\n\n'),
+        input: openaiResponseInput(req),
+        max_output_tokens: req.maxTokens,
+        reasoning: { effort: req.tools?.length ? 'none' : (req.effort ?? 'none') },
+        store: false,
+        ...(tools.length ? { tools } : {}),
+        ...(req.toolChoice
+          ? { tool_choice: { type: 'function', name: req.toolChoice } }
+          : {}),
+        ...(req.webSearch ? { include: ['web_search_call.action.sources'] } : {}),
+      }),
+    });
+    if (!response.ok) {
+      return fail(req.model, `openai ${response.status}: ${(await response.text()).slice(0, 500)}`);
+    }
+    const body = (await response.json()) as {
+      model?: string;
+      status?: string;
+      output_text?: string;
+      output?: OpenAIResponseItem[];
+      usage?: {
+        input_tokens?: number;
+        output_tokens?: number;
+        input_tokens_details?: { cached_tokens?: number };
+      };
+    };
+    const output = body.output ?? [];
+    const text = (body.output_text ?? output
+      .filter((item) => item.type === 'message')
+      .flatMap((item) => item.content ?? [])
+      .filter((part) => part.type === 'output_text')
+      .map((part) => part.text ?? '')
+      .join('')).trim();
+    const toolUses: ToolUse[] = output
+      .filter((item) => item.type === 'function_call')
+      .map((item) => ({
+        id: item.call_id ?? '',
+        name: item.name ?? '',
+        input: safeJson(item.arguments),
+      }));
+    const cached = body.usage?.input_tokens_details?.cached_tokens ?? 0;
+    return {
+      ok: text.length > 0 || toolUses.length > 0,
+      text,
+      toolUses,
+      sources: extractOpenAIResponseSources(output),
+      stopReason: toolUses.length ? 'tool_use' : body.status,
+      model: body.model ?? req.model,
+      usage: {
+        inputTokens: Math.max(0, (body.usage?.input_tokens ?? 0) - cached),
+        cacheReadTokens: cached,
+        outputTokens: body.usage?.output_tokens ?? 0,
+        webSearches: output.filter((item) => item.type === 'web_search_call').length,
+      },
+    };
+  } catch (error) {
+    return fail(req.model, String(error));
+  }
+}
+
 /* ============================================================================
    IL PROTOCOLLO DI OPENAI, USATO DA DUE FORNITORI
 
@@ -465,6 +880,14 @@ async function openAiProtocol(
             type: 'function',
             function: { name: t.name, description: t.description, parameters: t.schema },
           })),
+          ...(req.toolChoice
+            ? {
+                tool_choice: {
+                  type: 'function',
+                  function: { name: req.toolChoice },
+                },
+              }
+            : {}),
         }
       : {}),
   });
@@ -533,6 +956,7 @@ async function openAiProtocol(
       ok: text.length > 0 || toolUses.length > 0,
       text,
       toolUses,
+      sources: [],
       stopReason: out.choices?.[0]?.finish_reason,
       model: out.model ?? req.model,
       usage: {
@@ -562,6 +986,7 @@ async function moonshot(req: ProviderRequest): Promise<ProviderResult> {
 async function openaiText(req: ProviderRequest): Promise<ProviderResult> {
   const key = process.env.OPENAI_API_KEY;
   if (!key) return fail(req.model, 'OPENAI_API_KEY mancante');
+  if (req.webSearch || req.image || req.images?.length) return openAiResponses(key, req);
   return openAiProtocol('openai', 'https://api.openai.com/v1/chat/completions', key, req);
 }
 
@@ -622,6 +1047,7 @@ export async function generateImage(
    * immagini non si somigliavano, e non era il modello a sbagliare.
    */
   reference?: string | null,
+  background: 'transparent' | 'opaque' = 'transparent',
 ): Promise<ImageResult> {
   const key = process.env.OPENAI_API_KEY;
   if (!key) return { ok: false, data: '', usage: {}, error: 'OPENAI_API_KEY mancante' };
@@ -639,6 +1065,7 @@ export async function generateImage(
   const sendText = (extras: Record<string, unknown>) =>
     fetch('https://api.openai.com/v1/images/generations', {
       method: 'POST',
+      signal: AbortSignal.timeout(120_000),
       headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` },
       body: JSON.stringify({ model, prompt, size, n: 1, ...extras }),
     });
@@ -661,6 +1088,7 @@ export async function generateImage(
     form.append('image[]', new Blob([bytes], { type: 'image/png' }), 'master.png');
     return fetch('https://api.openai.com/v1/images/edits', {
       method: 'POST',
+      signal: AbortSignal.timeout(120_000),
       headers: { authorization: `Bearer ${key}` },
       body: form,
     });
@@ -669,7 +1097,7 @@ export async function generateImage(
   const send = reference ? sendWithReference : sendText;
 
   try {
-    let res = await send({ background: 'transparent' });
+    let res = await send({ background });
 
     if (!res.ok) {
       const detail = await res.text();

@@ -9,11 +9,11 @@
    quello che il pannello mostra accanto alla preview, così quando si chiede
    una modifica si sa già dove finirà.
 
-   ⚠️ IL PACCHETTO DI CODEX PUNTAVA A `src/assistant-original/*` per la CHAT.
-   Quella cartella non esiste in questo repo e non è mai esistita: la chat è
-   `src/screens/CompanionHome.tsx`. Un registro che elenca file inesistenti
-   non è una svista di percorso — dice al modello di leggere il vuoto e
-   inventare il resto. I percorsi qui sotto sono verificati uno per uno.
+   ⚠️ I PERCORSI SONO VERIFICATI UNO PER UNO, e vanno riverificati a ogni
+   fusione. Questo registro è già stato sbagliato una volta: era scritto
+   contro una versione del repo in cui `src/assistant-original/` non esisteva
+   ancora. Un registro che elenca file inesistenti non è una svista di
+   percorso — dice al modello di leggere il vuoto e inventare il resto.
    ========================================================================= */
 
 import type { DesignScreenId } from './types';
@@ -32,9 +32,13 @@ export const DESIGN_SCREENS: DesignScreenDefinition[] = [
     id: 'chat',
     label: 'CHAT',
     group: 'LIVE',
-    source: ['src/screens/CompanionHome.tsx', 'src/screens/screens.css'],
+    source: [
+      'src/assistant-original/chat-surface.tsx',
+      'src/assistant-original/components/examples/chatgpt.tsx',
+      'src/assistant-original/styles.css',
+    ],
     notes:
-      'La conversazione vera, con la TabBar vera. Il runtime resta quello di produzione ma in sola lettura: nessun messaggio inviato, nessuna scrittura.',
+      'La superficie vera (`ChatSurface`) con la TabBar vera, ma su un runtime che vive in memoria. Non `IntegratedChat`: quello migra le conversazioni e parla col server.',
   },
   {
     id: 'mon',
@@ -61,14 +65,9 @@ export const DESIGN_SCREENS: DesignScreenDefinition[] = [
     id: 'me',
     label: 'ME',
     group: 'LIVE',
-    source: [
-      'src/App.tsx',
-      'src/screens/MeOverview.tsx',
-      'src/screens/SyncCalendar.tsx',
-      'src/screens/screens.css',
-    ],
+    source: ['src/App.tsx', 'src/screens/MeOverview.tsx', 'src/screens/screens.css'],
     notes:
-      'Il vero MeTab: le sue schede ME / GIORNI restano vere e si toccano davvero, ma solo in INTERACT.',
+      'Il vero MeTab. 🔶 Le sue due schede ME / GIORNI non ci sono più: i calendari sono scesi dentro dieta e sport.',
   },
   {
     id: 'incubation',

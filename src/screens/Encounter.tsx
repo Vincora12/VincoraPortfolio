@@ -9,7 +9,7 @@
    e la schermata resta comunque percorribile (§26).
    ========================================================================= */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useApp, useActiveMon } from '../state/store';
 import { AssetSlot, Sigil, useAssetUrl } from '../system/AssetSlot';
 import { MonName, SpeciesName } from '../system/MonName';
@@ -49,7 +49,9 @@ import { t } from '../i18n/it';
    Quelle saltate si fanno dopo, dalla forgia.
    ========================================================================= */
 
-function FaceGate({
+/** Strumento DEV storico per rigenerare un singolo asset; non fa più parte
+ * del percorso d'incontro visibile all'utente. */
+export function FaceGate({
   monName,
   onDone,
   onStep,
@@ -63,6 +65,7 @@ function FaceGate({
   const forgeOrder = useApp((s) => s.forgeOrder);
   const rate = useApp((s) => s.rateMon);
   const rating = useApp((s) => s.mons[monName]?.rating ?? null);
+  const assetStatus = useApp((s) => s.mons[monName]?.data.asset_manifest_status);
 
   const [order, setOrder] = useState<AssetType[]>([]);
   const [at, setAt] = useState(0);
@@ -70,11 +73,20 @@ function FaceGate({
   const [problem, setProblem] = useState<string | null>(null);
 
   const current = order[at] ?? null;
-  const shot = useAssetUrl(monName, current ?? 'profile_portrait');
+  const shot = useAssetUrl(monName, current ?? 'character_toy');
+  const cel = useAssetUrl(monName, 'character_master');
+  const booted = useRef(false);
 
   useEffect(() => {
-    void forgeOrder().then(setOrder);
-  }, [forgeOrder]);
+    if (booted.current) return;
+    booted.current = true;
+    void forgeOrder().then(async (fullOrder) => {
+      /* Il CEL è un passaggio tecnico e non viene mai mostrato. Lo prepariamo
+         prima del Toy, poi l'utente approva soltanto gli asset utilizzati. */
+      if (!cel) await forgeOne(monName, 'character_master');
+      setOrder(fullOrder.filter((type) => type !== 'character_master'));
+    });
+  }, [cel, forgeOne, forgeOrder, monName]);
 
   useEffect(() => {
     onStep(current);
@@ -123,7 +135,10 @@ function FaceGate({
     }
     const i = at + 1;
     setAt(i);
-    void make(order[i]!);
+    const next = order[i]!;
+    /* Nel flusso hatch/evoluzione gli asset sono già stati preparati dal
+       server: sfogliarli non deve generarli e pagarli una seconda volta. */
+    if (assetStatus?.[next] !== 'resolved') void make(next);
   };
 
   return (
@@ -226,13 +241,11 @@ export function EncounterScreen({ variant }: { variant: 'first' | 'new' }) {
      primo tocco: un momento che non si può saltare diventa un ostacolo alla
      seconda volta che lo vedi. */
   const [beat, setBeat] = useState(0);
-  /* Quale immagine si sta approvando: il palco dietro deve mostrare QUELLA,
-     o approveresti alla cieca una cosa che non è quella a schermo. */
-  const [showing, setShowing] = useState<AssetType | null>(null);
   useEffect(() => {
     const ids = [
-      window.setTimeout(() => setBeat(1), 700),
-      window.setTimeout(() => setBeat(2), 1900),
+      window.setTimeout(() => setBeat(1), 450),
+      window.setTimeout(() => setBeat(2), 1450),
+      window.setTimeout(() => setBeat(3), 2250),
     ];
     return () => ids.forEach(window.clearTimeout);
   }, []);
@@ -246,7 +259,7 @@ export function EncounterScreen({ variant }: { variant: 'first' | 'new' }) {
   return (
     <div
       className={`screen screen--ink encounter encounter--beat${beat}`}
-      onClick={() => setBeat(2)}
+      onClick={() => setBeat(3)}
     >
       {/* La battuta 0–1: campo nero e il nome che arriva battendo. */}
       {beat < 2 && (
@@ -265,14 +278,10 @@ export function EncounterScreen({ variant }: { variant: 'first' | 'new' }) {
       )}
 
       <div className="encounter__stage">
-        {/* 🔶 Era fisso sull'hero con due ripieghi. Adesso il palco segue la
-            sequenza di approvazione: mostra l'immagine su cui stai per dire
-            sì o no. Un palco che mostra una cosa mentre ne approvi un'altra
-            è peggio di un palco vuoto. */}
         <AssetSlot
           monName={d.name}
-          type={showing ?? 'character_master'}
-          fallbackTypes={['character_master', 'profile_portrait', 'encounter_hero']}
+          type="character_toy"
+          fallbackTypes={['character_master']}
           alt={`${short}, arte di rivelazione`}
           className="encounter__art"
         />
@@ -311,7 +320,9 @@ export function EncounterScreen({ variant }: { variant: 'first' | 'new' }) {
           <Sigil seed={mon.sigil} size={40} />
         </div>
 
-        <FaceGate monName={d.name} onDone={enterLive} onStep={setShowing} />
+        <Button variant="primary" block onClick={enterLive}>
+          {t.encounter.enter}
+        </Button>
       </div>
     </div>
   );

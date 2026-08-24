@@ -25,7 +25,7 @@
    ========================================================================= */
 
 import { useState } from 'react';
-import { useApp, useActiveMon, useIncubation } from '../state/store';
+import { useApp, useActiveMon, useGrowth, useIncubation } from '../state/store';
 import { IdleMon, Sticker } from '../system/LiveMon';
 import { EggVessel } from '../system/EggVessel';
 import { MonName, SpeciesName } from '../system/MonName';
@@ -43,6 +43,11 @@ export function SplashScreen({ onEnter }: { onEnter: () => void }) {
   const mon = useActiveMon();
   const inc = useIncubation();
   const health = useApp((s) => s.health);
+  const evolutionJob = useApp((s) => s.evolutionJob);
+  const revealFormEvolution = useApp((s) => s.revealFormEvolution);
+  const openFormEvolution = useApp((s) => s.openFormEvolution);
+  const retryFormEvolution = useApp((s) => s.retryFormEvolution);
+  const { formEvolutionReady } = useGrowth();
 
   /* Il tocco sull'uovo. `pokes` rimonta il componente, e rimontarlo fa
      ripartire l'animazione di salto dall'inizio: è il modo più semplice di
@@ -68,6 +73,26 @@ export function SplashScreen({ onEnter }: { onEnter: () => void }) {
 
   return (
     <div className="splash">
+      {!incubating && (evolutionJob || formEvolutionReady) && (
+        <button
+          type="button"
+          className={`splash__evolution ${evolutionJob ? `splash__evolution--${evolutionJob.status}` : ''}`}
+          disabled={evolutionJob?.status === 'running'}
+          onClick={() => evolutionJob?.status === 'ready' ? revealFormEvolution() : evolutionJob?.status === 'error' ? retryFormEvolution() : !evolutionJob ? openFormEvolution() : undefined}
+        >
+          <span className="t-meta">
+            {!evolutionJob
+              ? 'EVOLUZIONE DISPONIBILE'
+              : evolutionJob.status === 'running'
+                ? evolutionJob.kind === 'hatch' ? 'PRIMO MON IN CREAZIONE' : 'NUOVO MON IN CREAZIONE'
+                : evolutionJob.status === 'ready'
+                  ? evolutionJob.kind === 'hatch' ? 'PRIMO MON PRONTO' : 'NUOVO MON PRONTO'
+                  : 'GENERAZIONE INTERROTTA'}
+          </span>
+          <span className="t-micro">{evolutionJob?.label ?? 'TOCCA PER SCEGLIERE'}</span>
+          {evolutionJob?.status === 'running' ? <span>{evolutionJob.done}/{evolutionJob.total}</span> : <span aria-hidden="true">→</span>}
+        </button>
+      )}
       {/* ══════════════════════════════════════════════════════════════════════
           🔷 «Nome in alto. Sulla foto adesivi attaccati delle varie
              espressioni, come se fosse sticker, in basso. Poi abbiamo bio e
@@ -162,28 +187,23 @@ export function SplashScreen({ onEnter }: { onEnter: () => void }) {
                   un adesivo attaccato e una didascalia. */}
               <Sticker monName={mon!.data.name} alt={displayName(mon!.data.name)} n={1} className="stick--photoL" />
               <Sticker monName={mon!.data.name} alt={displayName(mon!.data.name)} n={2} className="stick--photoR" />
+              <Sticker monName={mon!.data.name} alt={displayName(mon!.data.name)} n={3} className="stick--photoC" />
             </div>
           </>
         )}
       </div>
 
-      {/* 🔷 v1.15 §13.12 — L'INGRESSO È UN PULSANTE, NON UNA SUPERFICIE.
-
-          Un pulsante con scritto cosa fa è più chiaro di una superficie che si
-          tocca e basta, e non litiga con lo scroll. */}
-      {/* ⚠️ L'INVOLUCRO ESISTE PER L'ADESIVO, e non poteva essere il pulsante.
-          Un adesivo dentro il pulsante sarebbe parte del bersaglio: appoggiare
-          il dito lì sopra aprirebbe la chat. Fuori, e con il tocco disattivato
-          (vedi `.sticker`), il pulsante resta grande quanto sembra. */}
-      <div className="splash__door" data-pezzo="parlagli">
-        <button type="button" className="splash__enter" onClick={enter}>
-          <span className="t-display">{incubating ? t.splash.chat : t.splash.talk}</span>
-          <span aria-hidden="true">→</span>
-        </button>
-        {!incubating && mon && (
-          <Sticker monName={mon.data.name} alt={displayName(mon.data.name)} n={3} className="stick--door" />
-        )}
-      </div>
+      {/* Durante l'incubazione questa resta l'unica porta disponibile. Dopo la
+          nascita PARLAGLI esce: la Chat ha già la propria voce nel nav fisso e
+          qui lo spazio appartiene interamente alla creatura e agli sticker. */}
+      {incubating && (
+        <div className="splash__door">
+          <button type="button" className="splash__enter" onClick={enter}>
+            <span className="t-display">{t.splash.chat}</span>
+            <span aria-hidden="true">→</span>
+          </button>
+        </div>
+      )}
 
       {/* ======================================================================
           QUELLO CHE STA SOTTO.

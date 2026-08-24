@@ -88,22 +88,6 @@ export const DESIGN_DNA_RULES: Record<CharacterDesignDNA, {
 export function numericGrammarFor(data: CharacterData): NumericGrammar {
   const base = structuredClone(DESIGN_DNA_RULES[data.characterDesignDNA].numeric);
 
-  if (data.humanoidity <= 2) {
-    delete base.headScale;
-    delete base.torsoLength;
-    delete base.shoulderWidth;
-    delete base.armLength;
-    delete base.handScale;
-    delete base.legLength;
-    delete base.footScale;
-  }
-
-  if (data.size === "GIANT" && data.humanoidity >= 3) {
-    base.shoulderWidth = Math.max(base.shoulderWidth ?? 1.0, 1.2);
-    base.handScale = Math.max(base.handScale ?? 1.0, 1.3);
-    base.footScale = Math.max(base.footScale ?? 1.0, 1.4);
-  }
-
   if ((data.size === "TINY" || data.size === "SMALL") && base.headScale) {
     base.headScale = Math.max(base.headScale, 1.15);
   }

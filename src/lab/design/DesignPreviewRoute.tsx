@@ -32,7 +32,7 @@ import {
   type Overlay,
   type Tab,
 } from '../../App';
-import { CompanionHomeScreen } from '../../screens/CompanionHome';
+import { DesignChatPreview } from './DesignChatPreview';
 import { IncubationScreen } from '../../screens/Incubation';
 import { EncounterScreen } from '../../screens/Encounter';
 
@@ -64,7 +64,7 @@ export function DesignPreviewRoute({ screen }: { screen: DesignScreenId }) {
 
   switch (screen) {
     case 'chat':
-      content = <CompanionHomeScreen onGo={noGo} onBack={noop} />;
+      content = <DesignChatPreview />;
       tab = 'chat';
       break;
     case 'mon':
