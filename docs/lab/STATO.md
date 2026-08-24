@@ -40,7 +40,7 @@ dire perdere quindici cose.
 ## Come si prova
 
     npm run verify:parity   # cosa vive nel lab e cosa solo in DEV
-    npm run verify:lab      # 42 prove con un browser vero
+    npm run verify:lab      # 47 prove con un browser vero
 
 `verify:lab` apre ogni stanza e **sfoglia ogni scheda una per una**, perché
 una scheda può essere montata benissimo e aprirsi vuota — e un controllo sul
@@ -63,6 +63,17 @@ del disegno, e che non torni il guscio inventato.
   con un filo in mezzo: il nastro si incrociava sull'ultimo tornante.
 - **`angry` era identico ad `annoyed`**: palpebra bassa più inclinazione si
   sommavano e chiudevano gli occhi.
+- **Il banco A/B sembrava morto.** Girava, generava e chiamava `setEsito` — ma
+  nel CSS del disegno `.compare` nasce `display:none` e si accende con
+  `.compare.show`: avevo portato il markup e non l'interruttore. Stesso
+  difetto dei pulsanti bianchi su bianco.
+- **E non aveva niente da confrontare:** generava due volte con lo stesso seme
+  e le stesse impostazioni, quindi le colonne erano identiche per costruzione.
+  Adesso a sinistra c'è la creatura con le impostazioni **di serie**, a destra
+  quella con le **tue**, e le impostazioni vengono rimesse com'erano.
+- **E il messaggio mentiva:** usava `isCatalogTuned()`, che dice «c'è qualcosa
+  di spento» — e qualcosa è spento sempre, perché alcune voci nascono spente.
+  Diceva «hai delle impostazioni tue» a chi non aveva toccato niente.
 
 ## Non ancora fatto
 

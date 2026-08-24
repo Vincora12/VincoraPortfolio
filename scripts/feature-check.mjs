@@ -3634,6 +3634,35 @@ check(
   'è così che si perde una funzione senza accorgersene: guardando due schermate e ricordandosi male',
 );
 
+check(
+  'VINZ.LAB',
+  'il banco A/B accende il riquadro del risultato',
+  has('src/lab/rooms/CreationLab.tsx', 'className="compare show"'),
+  '🔴 nel CSS del disegno `.compare` nasce display:none: senza `show` il test gira e non si vede',
+);
+check(
+  'VINZ.LAB',
+  'e confronta le impostazioni di serie con le tue, non due volte le stesse',
+  has('src/lab/rooms/CreationLab.tsx', 'resetCatalog();') &&
+    has('src/lab/rooms/CreationLab.tsx', 'BASELINE · DI SERIE'),
+  'un A/B che non può mai mostrare una differenza non è un test, è una decorazione',
+);
+check(
+  'VINZ.LAB',
+  'e rimette le impostazioni esattamente com\'erano',
+  has('src/lab/rooms/CreationLab.tsx', '} finally {') &&
+    has('src/lab/rooms/CreationLab.tsx', 'setCatalogEnabled(a, id, false)') &&
+    has('src/lab/rooms/CreationLab.tsx', 'setRarityThresholds(soglie)'),
+  'PRODUCTION = READ ONLY: una prova che lascia il motore azzerato ha cambiato la produzione',
+);
+check(
+  'VINZ.LAB',
+  '«hai cambiato qualcosa» si misura sullo scostamento dai valori di serie',
+  has('src/lab/rooms/CreationLab.tsx', 'isOffByDefault') &&
+    lacksInCode('src/lab/rooms/CreationLab.tsx', 'isCatalogTuned()'),
+  '🔴 `isCatalogTuned` dice «c\'è qualcosa di spento», e qualcosa è spento sempre: diceva «hai impostazioni tue» a chi non aveva toccato niente',
+);
+
 /* ============================================================================
    SOUL — la faccia viva
    ========================================================================= */

@@ -258,22 +258,67 @@ function Flow() {
 
 function Build() {
   const [seed, setSeed] = useState('184723');
-  const [esito, setEsito] = useState<{ a: string[]; b: string[] } | null>(null);
+  const [esito, setEsito] = useState<{ a: string[]; b: string[]; tarato: boolean } | null>(null);
   const [gira, setGira] = useState(false);
+  const [guasto, setGuasto] = useState<string | null>(null);
 
-  /* 🔒 NON SIMULA. Chiama `generateMon` due volte con lo STESSO seme: la
-     colonna sinistra è il baseline, la destra è quello che esce adesso. Se
-     le due colonne differiscono a parità di seme, qualcosa nel motore non è
-     più deterministico — ed è precisamente la cosa che un banco di prova
-     deve saper dire. */
+  /* ==========================================================================
+     🔴 DUE BUG IN UNO, E IL PRIMO ERA INVISIBILE.
+
+     1. NON SI VEDEVA NIENTE. Il codice girava, generava e chiamava `setEsito`
+        — l'ho verificato con dei log — ma a schermo non compariva niente.
+        Nel CSS di Vincenzo `.compare` nasce `display:none` e si accende con
+        `.compare.show`: nel suo disegno la classe la metteva il JS. Io avevo
+        copiato il markup e non la classe. Premevi, e sembrava rotto.
+
+        ⚠️ È lo stesso difetto dei pulsanti bianchi su bianco: tradurre un
+        disegno che si accende da solo e portarsi dietro i tag ma non gli
+        interruttori.
+
+     2. NON C'ERA NIENTE DA CONFRONTARE. Generavo due volte con lo STESSO seme
+        e le stesse impostazioni: le due colonne erano identiche per
+        costruzione. Un A/B che non può mai mostrare una differenza non è un
+        test, è una decorazione — e leggerlo come «non va» è la reazione
+        giusta.
+
+     🔒 Adesso il confronto è vero: a SINISTRA la creatura che nascerebbe con
+     le impostazioni DI SERIE, a DESTRA quella che nasce con le TUE — stesso
+     seme, stessi input. Le righe diverse sono marcate.
+
+     Le manopole (cataloghi e soglie di rarità) oggi stanno ancora in DEV, non
+     qui: se non hai toccato niente le due colonne SONO uguali, e questo lo
+     dice invece di lasciartelo indovinare.
+     ====================================================================== */
   const prova = async () => {
     setGira(true);
+    setGuasto(null);
+
+    const { AXES, CATALOG_AXES, isEnabled, isOffByDefault, resetCatalog, setCatalogEnabled } =
+      await import('../../engine/catalogTuning');
+    const { rarityThresholds, isRarityTuned, resetRarityThresholds, setRarityThresholds } =
+      await import('../../engine/rarityTuning');
+
+    /* La fotografia di com'è adesso, per rimettercelo esattamente com'era. */
+    const spenti = CATALOG_AXES.flatMap((a) =>
+      AXES[a].all.filter((id) => !isEnabled(a, id)).map((id) => [a, id] as const),
+    );
+    const soglie = { ...rarityThresholds() };
+
+    /* 🔴 QUI IL MESSAGGIO MENTIVA. Usavo `isCatalogTuned()`, che risponde
+       «c'è qualcosa di spento» — e qualcosa è spento SEMPRE, perché alcune
+       voci del catalogo nascono spente di serie (`isOffByDefault`). Quindi su
+       un'app appena aperta diceva «hai delle impostazioni tue» a chi non
+       aveva toccato niente, e lo mandava a cercare una differenza che non
+       poteva esserci.
+
+       La domanda vera è un'altra: quello che è spento adesso è DIVERSO da
+       quello che è spento di serie? */
+    const catalogoDiverso = CATALOG_AXES.some((a) =>
+      AXES[a].all.some((id) => !isEnabled(a, id) !== isOffByDefault(a, id)),
+    );
+    const tarato = catalogoDiverso || isRarityTuned();
+
     try {
-      /* 🔒 `generateFirstMon` e non `generateMon`: questo banco prova LA
-         NASCITA, che è quello che il flusso qui accanto descrive. La forma
-         completa vuole eredità e forma precedente — cose che a una prova
-         isolata non servono e che, passate a caso, farebbero somigliare la
-         prova a una evoluzione. */
       const { generateFirstMon } = await import('../../engine/characterGenerator');
       const { generatorInput } = await import('../../state/store');
       const input = generatorInput(useApp.getState());
@@ -294,12 +339,31 @@ function Build() {
         `FAMILY · ${r.record.data.family}`,
         `ARCHETYPE · ${r.record.data.family_archetype}`,
         `AFFINITY · ${r.record.data.affinity}`,
-        `RARITY · ${r.record.data.rarity}`,
+        `SIZE · ${r.record.data.size}`,
+        `ROLE · ${r.record.data.role}`,
         `APPEARANCE · ${r.record.data.appearance}`,
+        `RARITY · ${r.record.data.rarity} (${r.record.data.rarity_score})`,
       ];
 
-      setEsito({ a: righe(uno()), b: righe(uno()) });
+      /* Prima con le TUE impostazioni, così se qualcosa va storto dopo non
+         resta il motore azzerato. */
+      const lab = righe(uno());
+
+      resetCatalog();
+      resetRarityThresholds();
+      const base = righe(uno());
+
+      setEsito({ a: base, b: lab, tarato });
+    } catch (e) {
+      setGuasto(String(e));
     } finally {
+      /* 🔒 SI RIMETTE TUTTO COM'ERA, SEMPRE. Prima si riaccende tutto
+         (`reset`), poi si rispengono le voci che erano spente: gli stati
+         intermedi hanno più voci accese di quello finale, quindi non possono
+         inciampare nel minimo che `setCatalogEnabled` protegge. */
+      resetCatalog();
+      for (const [a, id] of spenti) setCatalogEnabled(a, id, false);
+      setRarityThresholds(soglie);
       setGira(false);
     }
   };
@@ -309,8 +373,8 @@ function Build() {
       <div className="kicker mono">CONTROLLED TEST</div>
       <h1>BUILD + TRAIN</h1>
       <p className="lead">
-        Stesso seed, stessi input: cambia solo ciò che hai modificato nel Lab. Chiama il generatore
-        vero, non una finzione.
+        Stesso seme, stessi input. A sinistra la creatura che nascerebbe con le impostazioni di
+        serie, a destra quella che nasce con le tue. Chiama il generatore vero, non una finzione.
       </p>
 
       <div className="test">
@@ -321,25 +385,47 @@ function Build() {
             <input value={seed} onChange={(e) => setSeed(e.target.value)} />
           </label>
         </div>
-        <button type="button" className="btn dark" style={{ width: '100%', marginTop: 8 }} onClick={() => void prova()} disabled={gira}>
+        <button
+          type="button"
+          className="btn dark"
+          style={{ width: '100%', marginTop: 8 }}
+          onClick={() => void prova()}
+          disabled={gira}
+        >
           {gira ? 'GENERO…' : 'PREVIEW A/B'}
         </button>
 
+        {guasto && <p className="hint">Non è riuscito: {guasto}</p>}
+
         {esito && (
-          <div className="compare">
-            <div className="col">
-              <strong>BASELINE · R0</strong>
-              <div>{esito.a.map((r) => <div key={r} className="mono">{r}</div>)}</div>
-            </div>
-            <div className="col">
-              <strong>LAB · CURRENT</strong>
-              <div>
+          <>
+            {/* 🔒 `show` È LA CLASSE CHE ACCENDE IL RIQUADRO. Senza, il CSS di
+                Vincenzo lo tiene a `display:none` e il test sembra rotto. */}
+            <div className="compare show">
+              <div className="col">
+                <strong>BASELINE · DI SERIE</strong>
+                {esito.a.map((r) => (
+                  <div key={r} className="mono">{r}</div>
+                ))}
+              </div>
+              <div className="col">
+                <strong>LAB · LE TUE IMPOSTAZIONI</strong>
                 {esito.b.map((r, i) => (
-                  <div key={r} className={`mono ${r !== esito.a[i] ? 'diff' : ''}`}>{r}</div>
+                  <div key={r} className="mono" style={r !== esito.a[i] ? { color: '#111', fontWeight: 700 } : undefined}>
+                    {r !== esito.a[i] ? `→ ${r}` : r}
+                  </div>
                 ))}
               </div>
             </div>
-          </div>
+
+            <p className="hint">
+              {esito.tarato
+                ? esito.a.join('|') === esito.b.join('|')
+                  ? 'Hai delle impostazioni tue, ma su questo seme non cambiano niente: prova un altro seme.'
+                  : 'Le righe in grassetto sono quelle che le tue impostazioni hanno cambiato.'
+                : 'Le due colonne sono identiche perché non hai cambiato niente: cataloghi e soglie di rarità sono ancora quelle di serie. Quelle manopole oggi stanno in DEV → CATALOGHI e DEV → RARITÀ, non ancora qui.'}
+            </p>
+          </>
         )}
       </div>
 
@@ -347,6 +433,7 @@ function Build() {
         <strong>PRODUCTION = READ ONLY</strong>
         <br />
         Le creature generate qui non entrano nella tua storia: nascono, si guardano e si buttano.
+        Le impostazioni vengono rimesse esattamente com’erano.
       </div>
     </section>
   );

@@ -273,6 +273,53 @@ try {
     'era il pannello DEV con un nome nuovo: il disegno c\'era già',
   );
 
+  /* --- 3b-bis. IL BANCO A/B DI CREATION -------------------------------------
+     🔴 QUESTO CONTROLLO NASCE DA UN GUASTO CHE NON SI VEDEVA COME UN GUASTO.
+     Il test A/B girava, generava, chiamava `setEsito` — e a schermo non
+     compariva niente, perché nel CSS di Vincenzo `.compare` nasce
+     `display:none` e si accende con `.compare.show`. Avevo portato il markup
+     e non l'interruttore.
+
+     🔒 Quindi qui non si guarda se il nodo ESISTE: si guarda se si VEDE. Un
+     `querySelector` che trova un elemento alto zero pixel avrebbe detto che
+     andava tutto bene. */
+  guarda();
+  await open('/#/lab/creation');
+  await page.locator('.top .tabs .tab', { hasText: 'BUILD' }).click();
+  await sleep(400);
+  await page.locator('.test button').first().click();
+  await sleep(2600);
+
+  const ab = await page.evaluate(() => {
+    const box = document.querySelector('.compare');
+    if (!box) return { c: 'assente' };
+    return {
+      c: 'presente',
+      visibile: box.getBoundingClientRect().height > 20,
+      colonne: box.querySelectorAll('.col').length,
+      righe: box.querySelectorAll('.col .mono').length,
+      nota: document.querySelector('.test .hint')?.textContent?.trim() ?? '',
+    };
+  });
+
+  check('il banco A/B produce un risultato', ab.c === 'presente');
+  check(
+    'e il risultato SI VEDE',
+    ab.visibile === true,
+    'senza la classe `show` il CSS lo tiene a display:none e il test sembra rotto',
+  );
+  check(
+    'con le due colonne piene',
+    ab.colonne === 2 && (ab.righe ?? 0) >= 16,
+    `${ab.colonne} colonne, ${ab.righe} righe`,
+  );
+  check(
+    'e dice la verità su cosa sta confrontando',
+    /non hai cambiato niente|in grassetto|prova un altro seme/.test(ab.nota ?? ''),
+    'due colonne identiche senza una spiegazione si leggono come «non va»',
+  );
+  check('e generare non ha scritto niente', writes.length === 0, writes.join(' · '));
+
   /* --- 3c. SOUL --------------------------------------------------------------
      🔒 Le tre ancore dello schizzo devono dare tre facce DIVERSE. Sembra
      ovvio e non lo è: la faccia è generata da parametri, e un parametro
