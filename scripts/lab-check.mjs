@@ -92,17 +92,45 @@ function check(label, ok, detail = '') {
   if (!ok) failures++;
 }
 
-/* Ogni scrittura tentata verso la rete finisce qui. */
-const writes = [];
+/* ⚠️ LE SCRITTURE VANNO ATTRIBUITE, non solo contate.
+
+   La prima versione teneva un elenco unico dall'inizio alla fine, e poi
+   chiedeva «è vuoto?» dopo la preview. Ma in mezzo c'era stata anche l'app
+   NORMALE, che scrive di suo — `/api/lessons` parte a ogni avvio. Il
+   controllo diventava rosso accusando la preview di una cosa fatta da
+   qualcun altro: un controllo che punta il dito sbagliato è peggio di uno
+   che non c'è, perché si va a cercare il guasto dove non è.
+
+   Quindi la lista si AZZERA prima di ogni tratto, e ogni domanda riguarda
+   solo il tratto appena percorso. */
+let writes = [];
+const guarda = () => { writes = []; };
 await context.route('**/*', (route) => {
   const req = route.request();
-  if (!['GET', 'HEAD'].includes(req.method())) writes.push(`${req.method()} ${req.url()}`);
+  if (!['GET', 'HEAD'].includes(req.method())) {
+    writes.push(`${req.method()} ${req.url()}  [da ${page.url()}]`);
+  }
   return route.continue();
 });
 
 const errors = [];
 page.on('console', (m) => {
-  if (m.type() === 'error') errors.push(m.text());
+  if (m.type() !== 'error') return;
+  const l = m.location();
+  const dove = l?.url ? ` (${l.url}:${l.lineNumber})` : '';
+
+  /* ⚠️ LA STESSA ECCEZIONE STRETTA DI `verify-screens`, e per la stessa
+     ragione: `vite` pubblica solo file statici, quindi `/api/*` non esiste in
+     locale. L'app parte convinta di essere configurata — il segreto se lo
+     genera da sé — e prova a chiamare; il 404 che ne esce è la condizione
+     documentata in testa a `ai/backend.ts`, non un guasto.
+
+     🔒 Vale SOLO senza `VERIFY_BASE`: contro il sito vero le funzioni ci sono
+     e un 404 su `/api` sarebbe un guasto in piena regola. */
+  const apiInLocale = !REMOTE && /\/api\//.test(`${m.text()}${dove}`);
+  if (apiInLocale && /404|Failed to load resource/i.test(m.text())) return;
+
+  errors.push(`${m.text()}${dove}`);
 });
 page.on('pageerror', (e) => errors.push(String(e)));
 
@@ -176,6 +204,86 @@ try {
     src,
   );
 
+  /* --- 3b. Le stanze degli strumenti --------------------------------------- */
+
+  /* 🔒 `verify:parity` prova che le sezioni sono MONTATE nel codice. Questo
+     prova che si APRONO: un componente può essere montato benissimo e
+     esplodere al primo render perché gli manca un .mon, un contesto o una
+     chiave. È la differenza fra «l'ho collegato» e «l'ho aperto», ed è
+     esattamente la differenza su cui si decide se togliere DEV. */
+  for (const [stanza, atteseSchede] of [['creation', 3], ['system', 5]]) {
+    guarda();
+    await open(`/#/lab/${stanza}`);
+    const room = await page.evaluate(() => ({
+      montata: document.querySelector('.labroom') !== null,
+      gruppi: document.querySelectorAll('.labroom .ftab, .labroom [role="tab"]').length,
+      corpo: (document.querySelector('.dev__body')?.textContent ?? '').trim().length,
+    }));
+    check(`la stanza ${stanza.toUpperCase()} si apre`, room.montata);
+    check(
+      `e ha le sue aree`,
+      room.gruppi >= atteseSchede,
+      `${room.gruppi} linguette trovate, ne servono almeno ${atteseSchede}`,
+    );
+    check(
+      `e la prima scheda mostra qualcosa`,
+      room.corpo > 20,
+      'una scheda vuota è uno strumento che non c\'è, con l\'aria di esserci',
+    );
+    /* 🔒 Aprire una stanza è GUARDARE. Gli strumenti dentro scrivono eccome —
+       è il loro mestiere — ma solo quando li premi. Il solo entrare non deve
+       far partire niente. */
+    check(
+      `e aprirla non ha scritto niente da sola`,
+      writes.length === 0,
+      writes.join(' · '),
+    );
+  }
+
+  /* Ogni singola scheda di ogni stanza va aperta: è l'unico modo di scoprire
+     quella che esplode solo lei, o che si monta vuota. */
+  for (const stanza of ['creation', 'system']) {
+    guarda();
+    await open(`/#/lab/${stanza}`);
+    const gruppi = page.locator('.labroom__groups .ftab');
+    const quantiGruppi = await gruppi.count();
+    let aperte = 0;
+    let vuote = [];
+
+    for (let g = 0; g < quantiGruppi; g++) {
+      await gruppi.nth(g).click();
+      await sleep(250);
+      const schede = page.locator('.labroom__tabs .ftab');
+      const quante = await schede.count();
+      /* Un gruppo con una scheda sola non disegna la seconda fila: la sua
+         unica scheda è già aperta. */
+      for (let t = 0; t < Math.max(quante, 1); t++) {
+        let etichetta = await gruppi.nth(g).textContent();
+        if (quante > 0) {
+          etichetta = await schede.nth(t).textContent();
+          await schede.nth(t).click();
+          await sleep(260);
+        }
+        aperte++;
+        const pieno = await page.evaluate(
+          () => (document.querySelector('.dev__body')?.textContent ?? '').trim().length > 20,
+        );
+        if (!pieno) vuote.push(etichetta?.trim() ?? '?');
+      }
+    }
+
+    check(
+      `in ${stanza.toUpperCase()} ogni scheda mostra il suo strumento`,
+      vuote.length === 0,
+      vuote.length ? `vuote: ${vuote.join(', ')}` : `${aperte} schede aperte una per una`,
+    );
+    check(
+      `e sfogliarle tutte non ha scritto niente`,
+      writes.length === 0,
+      writes.join(' · '),
+    );
+  }
+
   /* --- 4. La preview ------------------------------------------------------- */
 
   /* ⚠️ CONFRONTARE UNO `localStorage` VUOTO CON UNO `localStorage` VUOTO non
@@ -203,6 +311,7 @@ try {
     'senza seme il confronto dopo non proverebbe niente',
   );
 
+  guarda();
   await open('/?design-preview=mind-map');
   check(
     'la preview monta la cornice VERA',
@@ -245,6 +354,7 @@ try {
   );
 
   /* --- La CHAT: superficie vera, motore finto ------------------------------ */
+  guarda();
   await open('/?design-preview=chat');
   check(
     'la CHAT in preview è la superficie vera di assistant-ui',

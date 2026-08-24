@@ -3577,6 +3577,36 @@ check(
 );
 
 /* ============================================================================
+   VINZ.LAB — le stanze degli strumenti
+   ========================================================================= */
+
+check(
+  'VINZ.LAB',
+  'le stanze montano i componenti VERI di DEV, non delle copie',
+  has('src/lab/rooms/CreationLab.tsx', "from '../../dev/") &&
+    has('src/lab/rooms/SystemLab.tsx', "from '../../dev/"),
+  '«c\'è tutto» si può decidere solo se le due cose sono la stessa cosa',
+);
+check(
+  'VINZ.LAB',
+  'e le sette sezioni che stavano dentro DevPanel adesso si possono montare da fuori',
+  has('src/dev/sections.tsx', 'export function TimeSection') &&
+    has('src/dev/DevPanel.tsx', "} from './sections';"),
+);
+check(
+  'VINZ.LAB',
+  'il pannello DEV resta intero finché la parità non è verde',
+  has(APP, '<DevPanel') && has('src/dev/DevPanel.tsx', 'DEV://VINZ.MON'),
+  'DEV_PARITY_MATRIX: «do not remove legacy DEV until parity is verified»',
+);
+check(
+  'VINZ.LAB',
+  'e la parità è una prova che gira, non un\'impressione',
+  has('package.json', '"verify:parity"') && has('scripts/parity-check.mjs', 'PARITÀ RAGGIUNTA'),
+  'è così che si perde una funzione senza accorgersene: guardando due schermate e ricordandosi male',
+);
+
+/* ============================================================================
    Sicurezza e tono — non negoziabili
    ========================================================================= */
 

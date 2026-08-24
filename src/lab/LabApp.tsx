@@ -12,7 +12,8 @@
    `#/lab/soul` a mano. Non è un dettaglio estetico — una stanza senza porta è
    una stanza che nessuno apre. Le porte qui sono quattro.
 
-   ⚠️ SOUL È DICHIARATA, NON COSTRUITA, e la ragione è nel pacchetto stesso:
+   ⚠️ SOUL È L'UNICA ANCORA DICHIARATA E NON COSTRUITA, e la ragione è nel
+   pacchetto stesso:
    `SoulLab.tsx` importa `../../soul/SoulOrb` e `../../soul/SoulController`,
    due file che nel pacchetto NON CI SONO (ci sono solo `types.ts` e
    `expressionPresets.ts`). Copiarlo avrebbe rotto la build al primo `tsc`.
@@ -30,6 +31,12 @@ import './lab.css';
 
 const DesignLab = lazy(() =>
   import('./design/DesignLabShell').then((m) => ({ default: m.DesignLabShell })),
+);
+const CreationLab = lazy(() =>
+  import('./rooms/CreationLab').then((m) => ({ default: m.CreationLab })),
+);
+const SystemLab = lazy(() =>
+  import('./rooms/SystemLab').then((m) => ({ default: m.SystemLab })),
 );
 
 const DOORS: { id: LabId; label: string; blurb: string }[] = [
@@ -119,7 +126,10 @@ export function LabApp({ initialLab }: { initialLab: LabId | null }) {
       </nav>
 
       <Suspense fallback={<div className="labapp__loading">VINZ.LAB</div>}>
-        {active === 'design' ? <DesignLab onClose={() => go(null)} /> : <PendingLab id={active} />}
+        {active === 'design' && <DesignLab onClose={() => go(null)} />}
+        {active === 'creation' && <CreationLab />}
+        {active === 'system' && <SystemLab />}
+        {active === 'soul' && <PendingLab id="soul" />}
       </Suspense>
     </main>
   );

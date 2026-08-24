@@ -17,6 +17,7 @@
     "verify:batch": "node scripts/batch-check.mjs 3000",
     "verify:features": "node scripts/feature-check.mjs",
     "verify:lab": "node scripts/lab-check.mjs",
+    "verify:parity": "node scripts/parity-check.mjs",
     "verify:package": "node scripts/package-check.mjs",
     "icons": "node scripts/make-icon.mjs"
   },
