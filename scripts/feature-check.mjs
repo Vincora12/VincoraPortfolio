@@ -3758,6 +3758,49 @@ check(
 );
 
 /* ============================================================================
+   LE IMMAGINI DEL DUELLO
+   ========================================================================= */
+
+const DUELIMG = 'src/lab/rooms/duelImages.ts';
+
+check(
+  'CREATION.LAB',
+  'il duello può disegnare le creature, non solo elencarle',
+  has(DUELIMG, 'askImage') && has('src/lab/rooms/CreationLab.tsx', 'CON IMMAGINI'),
+  '🔷 «si devono generare delle immagini» — un mostro lo scegli con l\'occhio, non leggendo le etichette',
+);
+check(
+  'CREATION.LAB',
+  'e dice quante ne stai per pagare PRIMA di partire',
+  has('src/lab/rooms/CreationLab.tsx', '{quanti * 2} da disegnare e da pagare'),
+  'un interruttore che non dice quanto costa è un interruttore che si accende per sbaglio',
+);
+check(
+  'CREATION.LAB',
+  'le immagini si chiedono UNA ALLA VOLTA',
+  lacksInCode(DUELIMG, 'Promise.all') && has(DUELIMG, 'for (const x of piatte)'),
+  'sedici richieste insieme sbattono tutte insieme contro il tetto di spesa: in fila, il primo rifiuto ferma il resto',
+);
+check(
+  'CREATION.LAB',
+  'e quello che è già stato pagato non si ripaga',
+  has(DUELIMG, 'if (fatte.has(idImmagine(x.seed))) continue;'),
+  'chiudere l\'app non deve voler dire ricominciare a pagare da capo',
+);
+check(
+  'CREATION.LAB',
+  'la notifica passa dal service worker, non da `new Notification`',
+  has(DUELIMG, 'reg.showNotification') && lacksInCode(DUELIMG, 'new Notification('),
+  'su iPhone, in un\'app della schermata Home, `new Notification` non esiste',
+);
+check(
+  'CREATION.LAB',
+  'e il permesso si chiede PRIMA di avviare il lavoro',
+  has('src/lab/rooms/CreationLab.tsx', 'await chiediPermesso();'),
+  'chiederlo alla fine vuol dire scoprire di non poter avvisare proprio quando c\'è qualcosa da dire',
+);
+
+/* ============================================================================
    SOUL — la faccia viva
    ========================================================================= */
 

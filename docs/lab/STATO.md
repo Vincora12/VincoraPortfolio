@@ -40,7 +40,7 @@ dire perdere quindici cose.
 ## Come si prova
 
     npm run verify:parity   # cosa vive nel lab e cosa solo in DEV
-    npm run verify:lab      # 49 prove con un browser vero
+    npm run verify:lab      # 57 prove con un browser vero
 
 `verify:lab` apre ogni stanza e **sfoglia ogni scheda una per una**, perché
 una scheda può essere montata benissimo e aprirsi vuota — e un controllo sul
@@ -163,3 +163,49 @@ cartello.
 
 ⚠️ **Con la chiave attiva le modifiche vanno anche sul server** e da lì su
 qualsiasi altro dispositivo: non restano nel browser dove le hai fatte.
+
+
+## Le immagini del duello
+
+🔷 «Si devono generare delle immagini: la clicco, l'avvio, e poi lui mi manda
+la notifica quando è pronto e faccio l'A/B test.»
+
+In BUILD c'è l'interruttore **CON IMMAGINI**, e dice quante ne stai per pagare
+prima di partire (due per duello). Le carte si riempiono man mano.
+
+⚠️ **Un limite vero, da sapere.** Le immagini non si possono generare sul
+server e lasciare lì: la strada in background di `/api/ai` esiste solo per il
+TESTO — `startBackground` manda istruzioni e riceve parole. Le immagini passano
+da `/v1/images/generations`, che è sincrono. Quindi:
+
+- il lavoro gira **nella pagina**;
+- se resti con l'app aperta, arriva la notifica e basta;
+- se chiudi l'app il disegno **si ferma dove è arrivato**;
+- ma **non si perde**: ogni immagine finita è già in IndexedDB, e riaprendo il
+  laboratorio riprende da lì invece di ripagare.
+
+🔒 Una alla volta, di proposito: sedici richieste insieme sbattono tutte
+insieme contro il tetto di spesa e si perdono tutte e sedici. In fila, il primo
+rifiuto ferma il resto.
+
+🔒 La notifica passa da `registration.showNotification` e non da
+`new Notification`: su iPhone, in un'app della schermata Home, quest'ultima non
+esiste.
+
+## Modificare il flusso
+
+Ogni passo che si può toccare porta i suoi comandi dentro il `<details>`:
+
+- **cataloghi** (Family, affinità, ruolo, stile, umore, resa, designer) →
+  acceso / spento;
+- **pesi** (ottica, stato dei capelli, taglio) → da 0 a 5.
+
+E ognuno ha **PROVA · 200 CREATURE**, che genera davvero e conta cosa è uscito.
+
+🔷 L'esempio di Vincenzo, verificato: `OPTICAL EDITORIAL` esce al 7,5% quando
+tutto è a caso; spinto a ×5 sale al 22,5%.
+
+🔒 A pesi tutti uguali il motore genera **identico a prima**, bit per bit:
+`pick` fa `floor(rng()*n)` e `pickWeighted` con pesi a 1 consuma lo stesso
+singolo `rng()`. Se `verify:batch` diventa rosso senza che nessuno abbia
+toccato un peso, è `axisTuning.ts` ad aver sbagliato.

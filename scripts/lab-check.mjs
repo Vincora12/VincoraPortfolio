@@ -395,6 +395,85 @@ try {
     'tarare un asse non deve mandare niente in rete',
   );
 
+  /* --- 3b-quater. LE IMMAGINI DEL DUELLO ------------------------------------
+     🔷 «Si devono generare delle immagini: la clicco, l'avvio, e poi lui mi
+        manda la notifica quando è pronto e faccio l'A/B test.»
+
+     🔒 Qui il fornitore è finto — una PNG da un pixel — perché quello che si
+     verifica NON è che il modello disegni bene: è che il giro regga. Parte,
+     salva, riempie le carte, e quello che è già stato pagato non si ripaga.
+
+     ⚠️ E si verifica anche il CARTELLO DEL COSTO. Due immagini per duello: un
+     interruttore che non dice quante ne stai per pagare è un interruttore che
+     si accende per sbaglio. */
+  await context.route('**/api/ai', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        image:
+          'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+      }),
+    }),
+  );
+
+  guarda();
+  await open('/#/lab/creation');
+  await page.evaluate(() => {
+    /* `post()` si rifiuta di chiamare senza token, e il rifiuto arriva prima
+       della rotta finta: senza questo il giro non partirebbe mai. */
+    const raw = localStorage.getItem('vinzmon.prototype.v4');
+    const o = raw ? JSON.parse(raw) : { state: {}, version: 3 };
+    o.state = { ...(o.state ?? {}), token: 'vm_test_token_1234567890abcd' };
+    localStorage.setItem('vinzmon.prototype.v4', JSON.stringify(o));
+  });
+  await open('/#/lab/creation');
+  await page.locator('.top .tabs .tab', { hasText: 'BUILD' }).click();
+  await sleep(400);
+  await page.selectOption('.configrow select', '4');
+
+  const etichetta = (await page.locator('.trainconfig label.mono').last().textContent()) ?? '';
+  check(
+    "l'interruttore delle immagini dice quante ne paghi",
+    /8 da disegnare e da pagare/.test(etichetta),
+    etichetta.trim(),
+  );
+
+  await page.locator('.trainconfig input[type=checkbox]').check();
+  await page.locator('.trainstart').click();
+  await sleep(6500);
+
+  const conFoto = await page.evaluate(() => ({
+    immagini: document.querySelectorAll('.duelcard .duelvisual img').length,
+    src: (document.querySelector('.duelcard .duelvisual img')?.getAttribute('src') ?? '').slice(0, 22),
+  }));
+  check('le carte del duello si riempiono di immagini', conFoto.immagini === 2, `${conFoto.immagini} su 2`);
+  check(
+    'e sono immagini vere, non segnaposto',
+    conFoto.src.startsWith('data:image/png;base64'),
+    conFoto.src,
+  );
+
+  const salvate = await page.evaluate(async () => {
+    const req = indexedDB.open('keyval-store');
+    return new Promise((res) => {
+      req.onsuccess = () => {
+        const db = req.result;
+        const tx = db.transaction('keyval', 'readonly').objectStore('keyval').getAllKeys();
+        tx.onsuccess = () => res(tx.result.filter((k) => String(k).startsWith('vinzlab/duel/')).length);
+        tx.onerror = () => res(-1);
+      };
+      req.onerror = () => res(-1);
+    });
+  });
+  check(
+    'e restano salvate, così chiudere non vuol dire ripagare',
+    salvate >= 8,
+    `${salvate} voci in IndexedDB (8 immagini + il lavoro)`,
+  );
+
+  await context.unroute('**/api/ai');
+
   /* --- 3c. SOUL --------------------------------------------------------------
      🔒 Le tre ancore dello schizzo devono dare tre facce DIVERSE. Sembra
      ovvio e non lo è: la faccia è generata da parametri, e un parametro

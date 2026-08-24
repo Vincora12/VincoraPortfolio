@@ -36,6 +36,15 @@ import {
   type Voto,
 } from './training';
 import { StepTuning, type AsseDelPasso } from './StepTuning';
+import {
+  ascoltaJob,
+  avviaJob,
+  buttaTutto,
+  chiediPermesso,
+  immagineDi,
+  notifica,
+  type StatoJob,
+} from './duelImages';
 import { EYEWEAR_CATEGORIES, HAIRCUTS, HAIR_STATES } from '../../engine/generation-config';
 import '../skin/creation.css';
 
@@ -336,6 +345,10 @@ function Flow() {
    ========================================================================= */
 
 type Carta = {
+  seed: number;
+  /* Il record serve solo a compilare il prompt dell'immagine: la creatura
+     resta di passaggio, non entra nella storia. */
+  record: import('../../engine/types').MonRecord;
   righe: [string, string][];
   assi: Partial<Record<AsseContato, string>>;
   traccia: string[];
@@ -376,6 +389,32 @@ function Build() {
   const [guasto, setGuasto] = useState<string | null>(null);
   const [insegnando, setInsegnando] = useState(false);
   const [insegnato, setInsegnato] = useState<string | null>(null);
+
+  /* 🔷 «Si devono generare delle immagini: la clicco, l'avvio, e poi lui mi
+     manda la notifica quando è pronto e faccio l'A/B test.» */
+  const [conImmagini, setConImmagini] = useState(false);
+  const [job, setJob] = useState<StatoJob | null>(null);
+  const [foto, setFoto] = useState<Record<number, string>>({});
+  const token = useApp((s) => s.token);
+  const imageModel = useApp((s) => s.imageModel);
+
+  useEffect(() => ascoltaJob(setJob), []);
+
+  /* Le immagini già disegnate si rileggono a ogni duello: se hai chiuso e
+     riaperto, quelle pagate ieri sono ancora lì. */
+  useEffect(() => {
+    if (!sessione) return;
+    void (async () => {
+      const prese: Record<number, string> = {};
+      for (const c of sessione) {
+        for (const carta of [c.a, c.b]) {
+          const url = await immagineDi(carta.seed);
+          if (url) prese[carta.seed] = url;
+        }
+      }
+      setFoto(prese);
+    })();
+  }, [sessione, job?.fatte]);
 
   const teachResolver = useApp((s) => s.teachResolver);
 
@@ -443,6 +482,8 @@ function Build() {
           appearance: d.appearance,
         };
         return {
+          seed: base + n - 1,
+          record: r.record,
           assi,
           righe: [
             ['NOME', d.name],
@@ -482,6 +523,22 @@ function Build() {
         setSessione(coppie);
         setPasso(0);
         setCommento('');
+
+        if (conImmagini) {
+          /* Il permesso si chiede PRIMA di partire: chiederlo alla fine
+             vorrebbe dire scoprire di non poter avvisare proprio quando c'è
+             qualcosa da dire. */
+          await chiediPermesso();
+          void avviaJob({
+            coppie: coppie.map((c) => [
+              { seed: c.a.seed, record: c.a.record },
+              { seed: c.b.seed, record: c.b.record },
+            ]),
+            token,
+            imageModel,
+            onNotifica: (t, b) => void notifica(t, b),
+          });
+        }
       }
     } catch (e) {
       setGuasto(String(e));
@@ -593,10 +650,44 @@ function Build() {
             <input value={seme} inputMode="numeric" onChange={(e) => setSeme(e.target.value)} />
           </label>
         </div>
+        {/* 🔒 IL NUMERO SI DICE PRIMA, NON DOPO. Due immagini per duello:
+            otto duelli sono sedici immagini pagate. Un interruttore che non
+            dice quanto costa è un interruttore che si accende per sbaglio. */}
+        <label className="mono" style={{ display: 'flex', gap: 8, alignItems: 'center', margin: '10px 0' }}>
+          <input
+            type="checkbox"
+            checked={conImmagini}
+            onChange={(e) => setConImmagini(e.target.checked)}
+          />
+          CON IMMAGINI · {quanti * 2} da disegnare e da pagare
+        </label>
+
         <button type="button" className="trainstart" onClick={() => void allena()} disabled={gira}>
           {gira ? 'GENERO…' : 'TRAIN THIS SCOPE'}
         </button>
+
+        {conImmagini && !token && (
+          <p className="hint">
+            Senza chiave non si disegna niente: il duello parte lo stesso, ma con le sole etichette.
+          </p>
+        )}
       </div>
+
+      {job && !job.finito && !job.errore && (
+        <div className="notice mono">
+          <strong>STO DISEGNANDO · {job.fatte}/{job.totale}</strong>
+          <br />
+          Puoi votare intanto: le carte si riempiono man mano. Se chiudi l’app il disegno si ferma,
+          ma quello che è già fatto resta e riprende da lì.
+        </div>
+      )}
+      {job?.errore && (
+        <div className="notice mono">
+          <strong>DISEGNO FERMO</strong>
+          <br />
+          {job.errore}
+        </div>
+      )}
 
       {guasto && <p className="hint">{guasto}</p>}
 
@@ -616,6 +707,18 @@ function Build() {
               return (
                 <div className="duelcard" key={lato}>
                   <strong>{lato}</strong>
+                  {/* 🔷 «Un mostro lo scegli con l'occhio»: se la foto c'è si
+                      guarda quella, altrimenti si dice perché non c'è invece
+                      di lasciare un riquadro muto. */}
+                  <div className="duelvisual">
+                    {foto[c.seed] ? (
+                      <img src={foto[c.seed]} alt={`creatura ${lato}`} style={{ width: '100%', display: 'block' }} />
+                    ) : conImmagini ? (
+                      'in disegno…'
+                    ) : (
+                      'SOLO DATI'
+                    )}
+                  </div>
                   <div className="duelmeta mono">
                     {c.righe.map(([k, v]) => (
                       <div key={k}>
@@ -690,7 +793,9 @@ function Build() {
               style={{ marginTop: 8 }}
               onClick={() => {
                 dimenticaTutto();
+                void buttaTutto();
                 setDuelli([]);
+                setFoto({});
               }}
             >
               DIMENTICA I CONFRONTI
