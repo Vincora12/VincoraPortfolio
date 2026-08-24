@@ -3607,6 +3607,91 @@ check(
 );
 
 /* ============================================================================
+   SOUL — la faccia viva
+   ========================================================================= */
+
+const SOUL_EXPR = 'src/soul/soulExpressions.ts';
+const SOUL_GEO = 'src/soul/soulGeometry.ts';
+
+check(
+  'SOUL',
+  'lo schizzo di riferimento sta nel progetto, non solo nel pacchetto',
+  existsSync('docs/lab/reference/soul-master-sketch.png'),
+  'SOUL_EXPRESSION_AI_BRIEF: ogni proposta deve partire da quell\'immagine',
+);
+check(
+  'SOUL',
+  'una espressione e un insieme di numeri, non un disegno per espressione',
+  has(SOUL_EXPR, 'Record<SoulExpression, SoulFaceState>') && count(SOUL_EXPR, /^  [a-z]+: f\(/gm) === 12,
+  'dodici disegni vorrebbero dire dodici file da rifare a ogni ritocco della forma',
+);
+check(
+  'SOUL',
+  'le tre ancore dello schizzo sono dichiarate come tali',
+  has(SOUL_EXPR, 'ANCORA — centro dello schizzo') &&
+    has(SOUL_EXPR, 'ANCORA — sinistra dello schizzo') &&
+    has(SOUL_EXPR, 'ANCORA — destra dello schizzo'),
+);
+check(
+  'SOUL',
+  'e scocciato e arrabbiato si distinguono per l\'INCLINAZIONE, non per un occhio diverso',
+  has(SOUL_EXPR, 'leftEyeTilt: 26') && has(SOUL_EXPR, "sleepy: f({ leftEyeOpen: 0.34"),
+  'tre forme diverse sarebbero tre occhi diversi: la faccia smetterebbe di essere la stessa creatura',
+);
+check(
+  'SOUL',
+  'il corpo non e un cerchio perfetto',
+  lacksInCode(SOUL_GEO, '<circle') && has(SOUL_GEO, 'roundness'),
+  'un cerchio esatto e un\'icona di interfaccia, non una creatura disegnata a mano',
+);
+check(
+  'SOUL',
+  'la fiamma ha gli spigoli vivi',
+  has(SOUL_GEO, 'export function wispPath') && lacksInCode(SOUL_GEO, 'wispCurve'),
+  'con le curve diventa fumo, e lo schizzo dice fulmine',
+);
+check(
+  'SOUL',
+  'l\'umore modula il colore, non lo sostituisce',
+  has('src/soul/SoulMoodAdapter.ts', 'hueMood') &&
+    lacksInCode('src/soul/SoulMoodAdapter.ts', "'blue'") &&
+    has('src/soul/soulExpressions.ts', 'hueMood: 8'),
+  'triste=blu sostituirebbe l\'identita del .mon: sarebbe un\'altra creatura ogni sera',
+);
+check(
+  'SOUL',
+  'e il colore del corpo viene dal .mon attivo',
+  has('src/soul/SoulController.ts', 'monPrimary ?? tuning.color.bodyTest') &&
+    has('src/lab/rooms/SoulLab.tsx', 'palette_dna?.primary'),
+);
+check(
+  'SOUL',
+  'i sei strati di movimento hanno durate diverse fra loro',
+  count('src/soul/soul.css', /animation: soul-/g) >= 5 &&
+    has('src/soul/soul.css', 'animation-delay: -1.1s'),
+  'in fase, sei animazioni diventano una GIF che rimbalza',
+);
+check(
+  'SOUL',
+  'e chi ha chiesto meno movimento non ne riceve',
+  has('src/soul/soul.css', 'prefers-reduced-motion'),
+);
+check(
+  'SOUL',
+  'SOUL.LAB produce i due file di passaggio',
+  has('src/lab/rooms/SoulLab.tsx', 'soul-v1-tuning.json') &&
+    has('src/lab/rooms/SoulLab.tsx', 'soul-v1-handoff.txt'),
+  'il JSON serve a chi implementa, il testo a chi deve capire cosa hai approvato',
+);
+check(
+  'SOUL',
+  'e non scrive niente da nessuna parte',
+  lacksInCode('src/lab/rooms/SoulLab.tsx', 'setState(') &&
+    lacksInCode('src/lab/rooms/SoulLab.tsx', 'saveRemote'),
+  'la taratura vive nella schermata: da qui esce un file, non una modifica',
+);
+
+/* ============================================================================
    Sicurezza e tono — non negoziabili
    ========================================================================= */
 

@@ -284,6 +284,52 @@ try {
     );
   }
 
+  /* --- 3c. SOUL --------------------------------------------------------------
+     🔒 Le tre ancore dello schizzo devono dare tre facce DIVERSE. Sembra
+     ovvio e non lo è: la faccia è generata da parametri, e un parametro
+     sbagliato — una palpebra che scende troppo — le fa collassare l'una
+     sull'altra senza che niente si rompa. È già successo: `angry` aveva la
+     palpebra a metà E l'inclinazione, e i due si sommavano fino a chiudere
+     l'occhio; a schermo l'arrabbiato era identico all'assonnato. Nessun
+     errore, nessuna eccezione, solo due facce uguali.
+
+     Quindi il controllo confronta i PATH veri dell'SVG. */
+  guarda();
+  await open('/#/lab/soul');
+  check('la stanza SOUL si apre', (await page.locator('.soullab__stage svg').count()) === 1);
+
+  const facce = {};
+  for (const nome of ['sleepy', 'neutral', 'angry']) {
+    await page.locator(`.soullab__chip:text-is("${nome}")`).first().click();
+    await sleep(420);
+    facce[nome] = await page.evaluate(() => {
+      const svg = document.querySelector('.soullab__stage svg');
+      if (!svg) return '';
+      const occhi = [...svg.querySelectorAll('clipPath rect')]
+        .map((r) => `${r.getAttribute('transform')}${r.getAttribute('y')}`)
+        .join('|');
+      const bocca = svg.querySelector('.soul__mouth path')?.getAttribute('d') ?? '';
+      return `${occhi}::${bocca}`;
+    });
+  }
+
+  const distinte = new Set(Object.values(facce)).size;
+  check(
+    'le tre ancore dello schizzo sono tre facce diverse',
+    distinte === 3,
+    distinte === 3 ? 'assonnato != neutro != arrabbiato' : `solo ${distinte} facce distinte su 3`,
+  );
+
+  const fiamma = await page.evaluate(
+    () => document.querySelector('.soul__wisp path')?.getAttribute('d') ?? '',
+  );
+  check(
+    'la fiamma e un poligono a spigoli vivi, non una curva',
+    fiamma.startsWith('M ') && fiamma.includes(' L ') && !fiamma.includes('C') && !fiamma.includes('Q'),
+    'lo schizzo dice fulmine: con le curve diventa fumo',
+  );
+  check('e SOUL non scrive niente', writes.length === 0, writes.join(' - '));
+
   /* --- 4. La preview ------------------------------------------------------- */
 
   /* ⚠️ CONFRONTARE UNO `localStorage` VUOTO CON UNO `localStorage` VUOTO non

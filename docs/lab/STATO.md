@@ -12,18 +12,34 @@ specifica, non il codice. Il codice sta in `src/lab/`.
 |---|---|---|
 | 1 | ingresso `/#/lab` + LabApp + manifest dedicato + metadati iPhone | ✅ |
 | 2 | guscio del laboratorio + quattro stanze sorelle | ✅ |
+| 3 | SOUL runtime + SOUL.LAB (LIVE / SHAPE / FACE / MOTION / COLOR / HISTORY) | ✅ |
 | 4 | DESIGN.LAB: preview a componenti veri + ispettore + guardiani | ✅ |
+| 6 | CREATION.LAB: flusso vero, cataloghi, rarità, distribuzioni | ✅ |
+| 8 | SYSTEM.LAB: setup, AI, simulazione, memoria, consumi | ✅ |
+| 9 | migrazione della parità DEV → LAB, con controllo automatico | ✅ |
 
 ## Non ancora
 
 | # | Milestone | Perché no |
 |---|---|---|
-| 3 | SOUL runtime + SOUL.LAB | Il pacchetto contiene `SoulLab.tsx`, che importa `soul/SoulOrb` e `soul/SoulController`: **quei due file nel pacchetto non ci sono**. Copiarlo romperebbe la build. La porta 👁 SOUL esiste e la stanza dice cosa manca. |
-| 5 | proposte AI / A-B / versioni | Il pannello ha già il posto (`CREA PROPOSTA`) e il commento che dice cosa deve mandare al backend. Non è collegato. |
-| 6–7 | CREATION.LAB e le modifiche AI mirate | Stanza dichiarata, vuota. |
-| 8 | SYSTEM.LAB | Stanza dichiarata, vuota. |
-| 9–10 | migrazione di DEV e rimozione del vecchio | 🔒 `DEV_PARITY_MATRIX.md`: «do not remove legacy DEV until parity is verified». Il pannello DEV di VINZ.MON è **intero e intatto**. |
+| 5 | proposte AI di design / A-B / versioni | Il pannello ha il posto (`CREA PROPOSTA`) e il commento che dice cosa deve mandare al backend. Non è collegato a nessun modello. |
+| 7 | modifiche AI mirate dentro CREATION | Stessa ragione: serve il giro backend che restituisce una modifica STRUTTURATA, mai testo da eseguire. |
+| 10 | togliere il vecchio DEV | **La parità è verde** (`npm run verify:parity`), quindi adesso si può — ma è una decisione, non un passo tecnico, e va presa guardando il laboratorio sul telefono. |
 | 11 | irrobustimento iPhone | Da fare sul telefono vero: qui non c'è un iPhone. |
+
+## Come si prova
+
+    npm run verify:parity   # ogni strumento di DEV vive anche nel laboratorio
+    npm run verify:lab      # 39 prove con un browser vero
+
+`verify:parity` legge dal codice cosa monta `DevPanel` e cosa montano le
+stanze, e fallisce se una sezione è rimasta indietro o è finita in due posti.
+È la riga che autorizza il milestone 10: finché è rossa, togliere DEV è
+togliere e basta.
+
+`verify:lab` apre le stanze in un browser e le sfoglia scheda per scheda —
+13 in CREATION, 10 in SYSTEM — perché una scheda montata può benissimo
+aprirsi vuota, e un controllo sul codice non se ne accorge.
 
 ## Scostamenti dal pacchetto, e perché
 
@@ -79,3 +95,28 @@ sono mie da decidere:
    regressioni vere (il sigillo tornato globo, il palco che mostra
    un'immagine mentre ne approvi un'altra, la preferenza dal browser che
    torna a essere un comando). Vanno guardate una per una.
+
+
+## SOUL, e perché non è il file del pacchetto
+
+`implementation/src/lab/soul/SoulLab.tsx` importava `../../soul/SoulOrb` e
+`../../soul/SoulController`: due file che nel pacchetto **non ci sono**.
+Copiarlo avrebbe rotto la build al primo `tsc`.
+
+Quindi la Soul è stata costruita da zero seguendo `SOUL_V1_IMPLEMENTATION_BRIEF.md`
+e, soprattutto, `reference/soul-master-sketch.png` — che il brief stesso
+dichiara «primary visual source of truth». Corpo tondo imperfetto, una fiamma
+a zig-zag, due occhi e una bocca. React + SVG + CSS, nessuna libreria.
+
+Le tre facce dello schizzo sono le tre ancore, e la cosa che le tiene insieme
+è che sono **lo stesso occhio**: cambia dove arriva la palpebra e di quanto è
+inclinata. Assonnato e arrabbiato hanno la palpebra alla stessa altezza —
+uno dritta, l'altro obliqua. Se fossero tre forme disegnate a parte sarebbero
+tre creature diverse che si somigliano.
+
+Due difetti trovati guardando i render, non leggendo il codice:
+la fiamma era alta il doppio della testa e si leggeva come un fulmine di
+passaggio; e `angry` sommava palpebra bassa e inclinazione, chiudendo gli
+occhi fino a renderlo identico ad `annoyed` — nessun errore, nessuna
+eccezione, solo due facce uguali. Adesso `verify:lab` confronta i path veri
+dell'SVG delle tre ancore e fallisce se ne restano meno di tre distinte.

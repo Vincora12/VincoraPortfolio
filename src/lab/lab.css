@@ -130,3 +130,67 @@
   display: grid;
   gap: 8px;
 }
+
+/* --- SOUL.LAB --------------------------------------------------------------
+   🔒 Il palco sta IN CIMA e resta grande: si tara guardando, e un editor che
+   ti fa scorrere per vedere quello che stai cambiando non è un editor.
+   -------------------------------------------------------------------------- */
+
+.soullab {
+  display: grid;
+  gap: 14px;
+}
+
+.soullab__stage {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 18px 12px 12px;
+  border: 1px solid #111;
+  background:
+    repeating-conic-gradient(#f4f4f4 0% 25%, #fff 0% 50%) 0 0 / 16px 16px;
+}
+
+.soullab__field input[type='range'] {
+  width: 100%;
+}
+
+.soullab__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.soullab__chip {
+  min-height: 30px;
+  border: 1px solid #111;
+  background: #fff;
+  padding: 0 8px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  text-transform: uppercase;
+}
+
+.soullab__chip--on {
+  background: #111;
+  color: #fff;
+}
+
+.soullab__versions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.soullab__handoff {
+  border: 1px solid #111;
+  padding: 12px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-x: auto;
+}

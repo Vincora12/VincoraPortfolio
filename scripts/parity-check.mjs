@@ -110,13 +110,27 @@ check(
 
 /* --- 4. E il laboratorio le monta VERE, non ricopiate ----------------------- */
 
-const importaDaDev = Object.entries(stanze).every(([nome]) =>
-  /from '\.\.\/\.\.\/dev\//.test(read(`${roomDir}/${nome}.tsx`)),
-);
+/* 🔶 CHIEDEVA CHE **OGNI** STANZA IMPORTASSE DA `../../dev/`, e sbagliava
+   bersaglio: SOUL.LAB non eredita niente da DEV — la Soul è nata qui, dallo
+   schizzo — quindi era rossa per aver fatto la cosa giusta.
+
+   🔒 La decisione non è «ogni stanza pesca da DEV». È: una sezione che
+   esisteva in DEV, nel laboratorio dev'essere QUELLA, non una riscrittura.
+   Quindi si guarda sezione per sezione, e le stanze che non ne ospitano
+   nessuna non hanno niente da dimostrare. */
+const copiate = [];
+for (const [stanza, lista] of Object.entries(stanze)) {
+  const testo = read(`${roomDir}/${stanza}.tsx`);
+  for (const nome of lista) {
+    if (!inDev.includes(nome)) continue; // non viene da DEV: non è una migrazione
+    const importata = new RegExp(`import \\{[^}]*\\b${nome}\\b[^}]*\\} from '\\.\\./\\.\\./dev/`).test(testo);
+    if (!importata) copiate.push(`${stanza}/${nome}`);
+  }
+}
 check(
-  'le stanze importano i componenti veri di DEV, non delle copie',
-  importaDaDev,
-  'una copia è una copia vecchia il giorno dopo',
+  'ogni sezione ereditata da DEV è importata, non ricopiata',
+  copiate.length === 0,
+  copiate.length ? copiate.join(' · ') : 'una copia è una copia vecchia il giorno dopo',
 );
 
 /* --- 5. I divieti di doppione dichiarati dalla matrice ---------------------- */

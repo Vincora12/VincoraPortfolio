@@ -12,13 +12,12 @@
    `#/lab/soul` a mano. Non è un dettaglio estetico — una stanza senza porta è
    una stanza che nessuno apre. Le porte qui sono quattro.
 
-   ⚠️ SOUL È L'UNICA ANCORA DICHIARATA E NON COSTRUITA, e la ragione è nel
-   pacchetto stesso:
-   `SoulLab.tsx` importa `../../soul/SoulOrb` e `../../soul/SoulController`,
-   due file che nel pacchetto NON CI SONO (ci sono solo `types.ts` e
-   `expressionPresets.ts`). Copiarlo avrebbe rotto la build al primo `tsc`.
-   Quindi la porta esiste, la stanza dice cosa manca, e il milestone 3 resta
-   aperto — che è la regola: «keep the app buildable after each milestone».
+   ⚠️ SOUL NON È IL FILE DEL PACCHETTO. `SoulLab.tsx` di Codex importava
+   `../../soul/SoulOrb` e `../../soul/SoulController`, due file che nel
+   pacchetto NON CI SONO: copiarlo avrebbe rotto la build al primo `tsc`.
+   Quindi la Soul è stata costruita da zero seguendo il brief e lo schizzo —
+   `docs/lab/reference/soul-master-sketch.png` — invece di seguire un file
+   che non c'era.
 
    🔒 DA VINZ.MON NON PARTE NESSUN LINK QUI. Questo file non è importato da
    `App.tsx` né da nessuna schermata: ci arriva solo `main.tsx`, e solo se
@@ -38,6 +37,9 @@ const CreationLab = lazy(() =>
 const SystemLab = lazy(() =>
   import('./rooms/SystemLab').then((m) => ({ default: m.SystemLab })),
 );
+const SoulLab = lazy(() =>
+  import('./rooms/SoulLab').then((m) => ({ default: m.SoulLab })),
+);
 
 const DOORS: { id: LabId; label: string; blurb: string }[] = [
   { id: 'creation', label: '🧬 CREATION.LAB', blurb: 'Come nasce un .mon: configurazione, prova, distribuzioni.' },
@@ -46,24 +48,11 @@ const DOORS: { id: LabId; label: string; blurb: string }[] = [
   { id: 'system', label: '⚙️ SYSTEM.LAB', blurb: 'Chiavi, modelli, simulazioni, memoria, consumi.' },
 ];
 
-/** Una stanza dichiarata e non ancora costruita. Dice cosa manca e dove sta scritto. */
-function PendingLab({ id }: { id: LabId }) {
-  const door = DOORS.find((d) => d.id === id)!;
-  return (
-    <section className="labapp__pending">
-      <strong>{door.label}</strong>
-      <p>{door.blurb}</p>
-      <p className="labapp__todo">
-        STANZA DICHIARATA, NON ANCORA COSTRUITA.
-        <br />
-        SPECIFICA: VINZ_LAB_FULL_INTEGRATION.md
-        <br />
-        NEL FRATTEMPO IL PANNELLO DEV DI VINZ.MON RESTA INTERO E AL SUO POSTO —
-        NIENTE VIENE TOLTO PRIMA CHE QUI DENTRO CI SIA IL SUO EQUIVALENTE.
-      </p>
-    </section>
-  );
-}
+/* 🔶 QUI STAVA `PendingLab`, la stanza che diceva «dichiarata, non ancora
+   costruita». Non serve più a nessuno: le quattro porte portano tutte e
+   quattro da qualche parte. Se un giorno se ne aggiunge una quinta, si
+   riscrive — copiarla adesso vorrebbe dire tenere in casa una schermata che
+   non si apre mai, cioè codice che nessuno verifica. */
 
 export function LabApp({ initialLab }: { initialLab: LabId | null }) {
   const [active, setActive] = useState<LabId | null>(initialLab);
@@ -129,7 +118,7 @@ export function LabApp({ initialLab }: { initialLab: LabId | null }) {
         {active === 'design' && <DesignLab onClose={() => go(null)} />}
         {active === 'creation' && <CreationLab />}
         {active === 'system' && <SystemLab />}
-        {active === 'soul' && <PendingLab id="soul" />}
+        {active === 'soul' && <SoulLab />}
       </Suspense>
     </main>
   );

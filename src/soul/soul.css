@@ -1,0 +1,83 @@
+/* ============================================================================
+   IL MOVIMENTO DELLA SOUL
+
+   🔒 SEI ANIMAZIONI, SEI DURATE DIVERSE, e i numeri NON sono multipli fra
+   loro: 4.2s di galleggiamento contro 2.9s di respiro contro 5.6s di fiamma.
+   Se fossero uno il doppio dell'altro tornerebbero in fase ogni pochi
+   secondi, e in quel momento la creatura sembrerebbe una GIF. Sfasati, il
+   ciclo completo non si ripete mai davvero.
+   ========================================================================= */
+
+.soul {
+  display: block;
+  line-height: 0;
+}
+
+.soul__svg {
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+/* FLOAT — sale e scende, lentissimo. */
+.soul__float {
+  animation: soul-float var(--soul-float-t, 4.2s) ease-in-out infinite;
+}
+@keyframes soul-float {
+  0%, 100% { transform: translateY(calc(var(--soul-float, 4px) * -0.5)); }
+  50% { transform: translateY(calc(var(--soul-float, 4px) * 0.5)); }
+}
+
+/* BREATH — un respiro di scala, appena percettibile. */
+.soul__breath {
+  animation: soul-breath var(--soul-breath-t, 2.9s) ease-in-out infinite;
+}
+@keyframes soul-breath {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(var(--soul-breath, 1.015)); }
+}
+
+/* WISP — la fiamma insegue con un ritardo suo. Il `-1.1s` non è un dettaglio:
+   è quello che le fa arrivare tardi rispetto al corpo, cioè quello che la fa
+   sembrare attaccata invece che disegnata sopra. */
+.soul__wisp {
+  animation: soul-sway var(--soul-sway-t, 5.6s) ease-in-out infinite;
+  animation-delay: -1.1s;
+}
+@keyframes soul-sway {
+  0%, 100% { transform: rotate(calc(var(--soul-sway, 5deg) * -1)); }
+  50% { transform: rotate(var(--soul-sway, 5deg)); }
+}
+
+/* TALK — la bocca pulsa mentre esce del testo. Corta e veloce: è un segnale
+   di «sto dicendo», non un'animazione da guardare. */
+.soul__mouth--talks {
+  animation: soul-talk 0.42s ease-in-out infinite;
+}
+@keyframes soul-talk {
+  0%, 100% { transform: scaleY(1); }
+  50% { transform: scaleY(var(--soul-talk, 1.06)); }
+}
+
+/* REACTION — uno schiacciamento solo, quando arriva un segnale nuovo. */
+.soul--reacts .soul__breath {
+  animation: soul-squash 0.42s ease-out;
+}
+@keyframes soul-squash {
+  0% { transform: scale(1); }
+  35% { transform: scale(var(--soul-squash, 1.08), calc(2 - var(--soul-squash, 1.08))); }
+  70% { transform: scale(calc(2 - var(--soul-squash, 1.08)), var(--soul-squash, 1.08)); }
+  100% { transform: scale(1); }
+}
+
+/* 🔒 Chi ha chiesto meno movimento non ne riceve nessuno. Una faccia che
+   respira è una decorazione: non vale una nausea. */
+@media (prefers-reduced-motion: reduce) {
+  .soul__float,
+  .soul__breath,
+  .soul__wisp,
+  .soul__mouth--talks,
+  .soul--reacts .soul__breath {
+    animation: none;
+  }
+}
