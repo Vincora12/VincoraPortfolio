@@ -31,6 +31,8 @@
    estrae. §29 impone di incrementare la versione quando cambiano tassonomie o
    pesi, e i .mon già generati restano immutabili con la versione con cui sono
    nati. */
+import { effectiveTestPhase } from './testPhaseTuning';
+
 export const GENERATION_CONFIG_VERSION = '3.1.0';
 
 /* ============================================================================
@@ -690,10 +692,19 @@ export function lockedIn<K extends keyof Omit<TestPhase, 'enabled'>>(
   return phase.enabled ? phase[axis] : null;
 }
 
+/**
+ * 🔷 «Devo vedere una sezione dove questa cosa è selezionata, e devo poterla
+ *    disabilitare e abilitare altre cose.»
+ *
+ * ⚠️ NON LEGGE PIÙ LA COSTANTE DIRETTAMENTE. `TEST_PHASE` resta il
+ * predefinito — senza override il comportamento è identico a prima — ma
+ * quello che vale davvero passa da `effectiveTestPhase`, così CREATION.LAB
+ * può spegnere la fase o cambiarne i tre valori.
+ */
 export function locked<K extends keyof Omit<TestPhase, 'enabled'>>(
   axis: K,
 ): TestPhase[K] | null {
-  return lockedIn(TEST_PHASE, axis);
+  return lockedIn(effectiveTestPhase(TEST_PHASE), axis);
 }
 
 export const SELECTABLE_FAMILIES = FAMILIES;

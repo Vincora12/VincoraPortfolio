@@ -474,6 +474,62 @@ try {
 
   await context.unroute('**/api/ai');
 
+  /* --- 3b-quinquies. LA FASE DI PROVA ---------------------------------------
+     🔷 «In questo momento la generazione fa solo ANGEL. Devo vedere una
+        sezione dove questa cosa è selezionata, e devo poterla disabilitare.»
+
+     🔴 Era vero e non lo diceva niente: misurate 400 generazioni, 100% ANGEL.
+     La causa non era il vincolo degli archetipi in `store.ts` — quello lascia
+     libera la Family — ma `TEST_PHASE` in `generation-config.ts`, tre assi
+     fermi scritti nel codice.
+
+     🔒 Questo controllo verifica le due metà della richiesta: che si VEDA, e
+     che si possa SPEGNERE per davvero. La seconda si misura generando: se un
+     giorno l'interruttore smettesse di arrivare al motore, continuerebbe a
+     dire SPENTA e nascerebbero angeli lo stesso. */
+  guarda();
+  await open('/#/lab/creation');
+
+  const testa = (await page.locator('main .notice.mono').first().textContent()) ?? '';
+  check(
+    'il flusso dice subito che nasce sempre la stessa specie',
+    /NASCE SEMPRE ANGEL/.test(testa),
+    testa.slice(0, 70).replace(/\s+/g, ' '),
+  );
+
+  const passoFamily = page.locator('details.step').filter({ hasText: 'Family' }).first();
+  await passoFamily.locator('summary').click();
+  await sleep(350);
+  check(
+    'e il passo FAMILY porta il comando della fase',
+    (await passoFamily.locator('.tune__toggle').count()) > 0,
+    'la domanda «perché esce sempre un angelo?» nasce guardando la Family',
+  );
+
+  /* Quante famiglie diverse escono adesso. */
+  const famiglie = async () => {
+    await passoFamily.locator('button', { hasText: 'PROVA' }).click();
+    await sleep(4200);
+    return passoFamily.locator('.tune__distrow').count();
+  };
+
+  const conFase = await famiglie();
+  check('con la fase attiva ne nasce UNA sola', conFase === 1, `${conFase} famiglie`);
+
+  await passoFamily.locator('.tune__toggle').first().click();
+  await sleep(300);
+  const senzaFase = await famiglie();
+  check(
+    'spegnendola nascono davvero le altre',
+    senzaFase > 8,
+    `${conFase} → ${senzaFase} famiglie`,
+  );
+
+  await passoFamily.locator('button', { hasText: 'RIMETTI COME NEL CODICE' }).click();
+  await sleep(300);
+  const tornata = (await passoFamily.locator('.tune__toggle').first().textContent()) ?? '';
+  check('e si rimette com\'era nel codice', /ATTIVA/.test(tornata), tornata.trim());
+
   /* --- 3c. SOUL --------------------------------------------------------------
      🔒 Le tre ancore dello schizzo devono dare tre facce DIVERSE. Sembra
      ovvio e non lo è: la faccia è generata da parametri, e un parametro

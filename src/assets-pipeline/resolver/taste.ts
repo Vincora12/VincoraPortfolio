@@ -48,6 +48,7 @@ import {
   SIZE_GRAMMAR,
   TEST_PHASE,
 } from '../../engine/generation-config';
+import { effectiveTestPhase } from '../../engine/testPhaseTuning';
 import { CATALOG_AXES, AXES, enabled, isCatalogTuned } from '../../engine/catalogTuning';
 import type { MonRecord } from '../../engine/types';
 import type { CreativeResolution } from './vendor/types';
@@ -197,10 +198,17 @@ repeatedly into a visor, a continuous face mask or a single skull plate.`);
      comincia a rifarlo. È il rischio specifico di questa fase, ed è il
      contrario di quello che serve — i tre assi sono fermi PROPRIO per poter
      giudicare quanto varia tutto il resto. */
-  if (TEST_PHASE.enabled) {
+  /* 🔒 LA STESSA FASE CHE LEGGE IL GENERATORE, non la costante. Se qui
+     restasse `TEST_PHASE` e il generatore leggesse l'override, il prompt del
+     resolver continuerebbe a dire «FAMILY = ANGEL» mentre nasce un DRAGON:
+     la creatura arriverebbe con addosso le istruzioni per un angelo. È il
+     tipo di scollamento che non dà errori — dà risultati sbagliati con l'aria
+     di essere giusti. */
+  const FASE = effectiveTestPhase(TEST_PHASE);
+  if (FASE.enabled) {
     parti.push(`TEST PHASE — three axes are deliberately locked.
 
-  FAMILY = ${TEST_PHASE.family}   SIZE = ${TEST_PHASE.size}   DESIGNER = ${TEST_PHASE.characterDesigner}
+  FAMILY = ${FASE.family}   SIZE = ${FASE.size}   DESIGNER = ${FASE.characterDesigner}
 
 They are held still so that everything else can be judged. This is NOT a
 recurring character: it is the same three constraints handed to a fresh
@@ -211,9 +219,9 @@ constructed, simplified and read. It must never harden into:
 
   - one recurring body shape        - one fixed face
   - one recurring silhouette        - one fixed palette
-  - one fixed ${TEST_PHASE.family} anatomy${' '.repeat(Math.max(0, 8 - TEST_PHASE.family.length))}      - one fixed halo or wing construction
+  - one fixed ${FASE.family} anatomy${' '.repeat(Math.max(0, 8 - FASE.family.length))}      - one fixed halo or wing construction
 
-⚠️ And a locked SIZE is not a locked proportion. ${TEST_PHASE.size} is a
+⚠️ And a locked SIZE is not a locked proportion. ${FASE.size} is a
 compression strategy: which mass dominates, and what gets shortened, must be
 decided again for every Form from what that Form already is.
 

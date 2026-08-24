@@ -40,7 +40,7 @@ dire perdere quindici cose.
 ## Come si prova
 
     npm run verify:parity   # cosa vive nel lab e cosa solo in DEV
-    npm run verify:lab      # 57 prove con un browser vero
+    npm run verify:lab      # 62 prove con un browser vero
 
 `verify:lab` apre ogni stanza e **sfoglia ogni scheda una per una**, perché
 una scheda può essere montata benissimo e aprirsi vuota — e un controllo sul
@@ -209,3 +209,51 @@ tutto è a caso; spinto a ×5 sale al 22,5%.
 `pick` fa `floor(rng()*n)` e `pickWeighted` con pesi a 1 consuma lo stesso
 singolo `rng()`. Se `verify:batch` diventa rosso senza che nessuno abbia
 toccato un peso, è `axisTuning.ts` ad aver sbagliato.
+
+
+## «Nasce sempre ANGEL»
+
+🔷 «In questo momento la generazione fa solo ANGEL. Devo vedere una sezione
+dove questa cosa è selezionata — nel flow — e devo poterla disabilitare.»
+
+Era vero. **Misurato: 400 generazioni, 100% ANGEL.** E non lo diceva niente.
+
+⚠️ La causa NON era quella che sembrava. In `store.ts` c'è
+`allowedArchetypes: angelArchetypesForStage(0)` — una scala di archetipi
+d'angelo — ma quello **non blocca la Family**: se esce DRAGON,
+`archetypePool` ripiega su tutti gli archetipi del drago. Togliendolo, restava
+comunque 100% ANGEL.
+
+La causa vera era `TEST_PHASE` in `generation-config.ts`:
+
+    enabled: true, family: 'ANGEL', size: 'TINY', characterDesigner: 'KEN SUGIMORI'
+
+Tre assi fermi, scritti nel codice, senza nessun comando.
+
+**La fase non è un difetto.** È un'ancora chiesta apposta: se ogni creatura
+cambia anche specie, taglia e disegnatore, non si capisce mai se due forme
+sono diverse per merito del generatore o perché sono due cose diverse. Quello
+che era sbagliato è che fosse **invisibile e immobile**.
+
+Adesso:
+
+- il flusso lo dice **in cima**, prima di ogni altro cartello;
+- il comando sta **dentro** i passi 04 FAMILY, 07 SIZE e 11.5 CHARACTER DESIGN
+  DNA — la domanda «perché esce sempre un angelo?» nasce guardando la Family,
+  e la risposta deve stare lì;
+- si spegne, si cambia valore, e si rimette com'era nel codice.
+
+Misurato dopo:
+
+| | famiglie |
+|---|---|
+| fase attiva (predefinito) | ANGEL 100% |
+| fase spenta | 17 famiglie, la più alta al 7,8% |
+| fase ferma su DRAGON | DRAGON 100% |
+| rimessa com'era | ANGEL 100% |
+
+🔒 **Il generatore e il prompt del resolver leggono la stessa fase.** Se
+`taste.ts` avesse continuato a leggere la costante, il prompt avrebbe detto
+«FAMILY = ANGEL» mentre nasceva un DRAGON: la creatura sarebbe arrivata con
+addosso le istruzioni per un angelo. Nessun errore, risultato sbagliato con
+l'aria di essere giusto.

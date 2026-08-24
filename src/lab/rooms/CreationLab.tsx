@@ -23,6 +23,8 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useApp } from '../../state/store';
 import { FASI, PASSI, type FaseId } from './creationFlow';
+import { TEST_PHASE } from '../../engine/generation-config';
+import { effectiveTestPhase } from '../../engine/testPhaseTuning';
 import {
   dimenticaTutto,
   ETICHETTA_ASSE,
@@ -36,6 +38,7 @@ import {
   type Voto,
 } from './training';
 import { StepTuning, type AsseDelPasso } from './StepTuning';
+import { TestPhasePanel } from './TestPhasePanel';
 import {
   ascoltaJob,
   avviaJob,
@@ -159,6 +162,16 @@ const COMANDI: Record<string, AsseDelPasso[]> = {
   ],
 };
 
+/* 🔷 «Devo vedere una sezione dove questa cosa è selezionata.»
+   I tre passi che la fase di prova tiene fermi. Sta DENTRO il passo e non in
+   una schermata a parte: la domanda «perché esce sempre un angelo?» nasce
+   guardando la Family, e la risposta deve stare lì. */
+const FASE_SU: Record<string, 'family' | 'size' | 'characterDesigner'> = {
+  '04': 'family',
+  '07': 'size',
+  '11.5': 'characterDesigner',
+};
+
 const AGENTE: Record<string, string> = {
   code: '⚙️ CODE',
   ai: '🧠 AI',
@@ -203,6 +216,13 @@ function Flow() {
         ciò che chiama davvero un’AI. Le funzioni AI opzionali restano nello stesso Lab, ma non
         vengono spacciate per passaggi automatici.
       </p>
+      {/* 🔒 QUESTO VA PRIMA DEL «READ ONLY», e non è una preferenza di
+          impaginazione. Aprendo il flusso la domanda che uno si fa è «perché
+          nasce sempre la stessa specie?»; il cartello che dice «guardare non
+          genera niente» è utile ma non risponde a quella. Sotto una risposta
+          a un'altra domanda, la risposta giusta non si legge. */}
+      <FaseInTesta />
+
       <div className="notice mono">
         <strong>PRODUCTION = READ ONLY</strong>
         <br />
@@ -291,7 +311,7 @@ function Flow() {
                       </span>
                     </span>
                     <span className={`state mono ${v ? 'changed' : ''}`}>
-                      {COMANDI[p.id] ? '⚙︎ ' : ''}
+                      {COMANDI[p.id] || FASE_SU[p.id] ? '⚙︎ ' : ''}
                       {v ? 'RAN' : 'R0'}
                     </span>
                   </summary>
@@ -323,10 +343,11 @@ function Flow() {
                       <div className="outputline mono">{v ?? '— nessuna in questa sessione'}</div>
                     </div>
 
-                    {COMANDI[p.id] && (
+                    {(COMANDI[p.id] || FASE_SU[p.id]) && (
                       <div className="box">
                         <span className="label mono">MODIFICA E PROVA</span>
-                        <StepTuning assi={COMANDI[p.id]!} />
+                        {FASE_SU[p.id] && <TestPhasePanel asse={FASE_SU[p.id]!} />}
+                        {COMANDI[p.id] && <StepTuning assi={COMANDI[p.id]!} />}
                       </div>
                     )}
                   </div>
@@ -353,6 +374,34 @@ type Carta = {
   assi: Partial<Record<AsseContato, string>>;
   traccia: string[];
 };
+
+/* 🔷 «In questo momento la generazione fa solo ANGEL.»
+
+   🔴 Era vero, e non lo diceva niente: 400 generazioni misurate, 100% ANGEL.
+   Questo riquadro è la risposta alla domanda prima che uno debba farsela —
+   sta in cima al flusso, e dice dove andare a toccarlo. */
+function FaseInTesta() {
+  const fase = effectiveTestPhase(TEST_PHASE);
+  if (!fase.enabled) {
+    return (
+      <div className="notice mono">
+        <strong>FASE DI PROVA SPENTA</strong>
+        <br />
+        Family, taglia e disegnatore vengono sorteggiati liberamente. Si riaccende dal passo 04.
+      </div>
+    );
+  }
+  return (
+    <div className="notice mono">
+      <strong>⚠️ NASCE SEMPRE {fase.family}, ED È VOLUTO</strong>
+      <br />
+      La fase di prova tiene fermi tre assi — FAMILY {fase.family}, SIZE {fase.size}, DESIGNER{' '}
+      {fase.characterDesigner} — per poter giudicare il disegno senza che cambi anche la specie.
+      Si spegne e si cambia dai passi <b>04 FAMILY</b>, <b>07 SIZE</b> e <b>11.5 CHARACTER DESIGN
+      DNA</b>, qui sotto.
+    </div>
+  );
+}
 
 /* ============================================================================
    BUILD + TRAIN — il duello

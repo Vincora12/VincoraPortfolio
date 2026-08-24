@@ -2375,7 +2375,11 @@ check(
 check(
   'TEST PHASE',
   'il resolver sa che è una fase, non un personaggio da rifare',
-  has('src/assets-pipeline/resolver/taste.ts', 'TEST_PHASE.enabled') &&
+  /* 🔶 Cercava `TEST_PHASE.enabled`. Adesso quel blocco legge la fase EFFETTIVA
+     — quella che l'utente può spegnere da CREATION.LAB — quindi la riga è
+     `FASE.enabled`. La decisione non è cambiata: al resolver va detto che è
+     una FASE, e va detto anche quando la fase l'hai cambiata tu. */
+  has('src/assets-pipeline/resolver/taste.ts', 'FASE.enabled') &&
     has('src/assets-pipeline/resolver/taste.ts', 'one fixed halo or wing construction'),
   'un modello che vede tre assi fermi e nient’altro tratta i tre valori come UN personaggio e comincia a rifarlo',
 );
@@ -3755,6 +3759,47 @@ check(
   'e la frase che gli insegni porta con sé quanti casi la reggono',
   has(TRAIN, "l'ho scelto ${p.vinti} volte su ${p.scontri}"),
   'una lezione senza il suo peso viene applicata come se fosse una legge',
+);
+
+/* ============================================================================
+   LA FASE DI PROVA — «nasce sempre ANGEL»
+   ========================================================================= */
+
+const FASE = 'src/engine/testPhaseTuning.ts';
+
+check(
+  'CREATION.LAB',
+  'la fase di prova si può spegnere, non è più murata nel codice',
+  has(FASE, 'export function setTestPhase') &&
+    has('src/engine/generation-config.ts', 'lockedIn(effectiveTestPhase(TEST_PHASE), axis)'),
+  '🔴 misurate 400 generazioni: 100% ANGEL, e nessuna schermata lo diceva',
+);
+check(
+  'CREATION.LAB',
+  'e senza override il comportamento resta identico a prima',
+  has(FASE, 'return { ...base, ...override };') && has('src/engine/generation-config.ts', 'enabled: true'),
+  '`TEST_PHASE` resta il predefinito: questo aggiunge un interruttore, non una decisione diversa',
+);
+check(
+  'CREATION.LAB',
+  'il generatore e il prompt del resolver leggono LA STESSA fase',
+  has('src/assets-pipeline/resolver/taste.ts', 'const FASE = effectiveTestPhase(TEST_PHASE);') &&
+    lacksInCode('src/assets-pipeline/resolver/taste.ts', 'TEST_PHASE.family'),
+  'altrimenti nasce un DRAGON con addosso le istruzioni per un angelo: nessun errore, risultato sbagliato',
+);
+check(
+  'CREATION.LAB',
+  'e il flusso lo dice in cima, prima di ogni altro cartello',
+  has('src/lab/rooms/CreationLab.tsx', 'NASCE SEMPRE {fase.family}, ED È VOLUTO') &&
+    has('src/lab/rooms/CreationLab.tsx', 'QUESTO VA PRIMA DEL «READ ONLY»'),
+  'sotto la risposta a un\'altra domanda, la risposta giusta non si legge',
+);
+check(
+  'CREATION.LAB',
+  'il comando sta DENTRO i tre passi che la fase blocca',
+  has('src/lab/rooms/CreationLab.tsx', "const FASE_SU: Record<string, 'family' | 'size' | 'characterDesigner'>") &&
+    has('src/lab/rooms/CreationLab.tsx', "'04': 'family'"),
+  'la domanda «perché esce sempre un angelo?» nasce guardando la Family: la risposta deve stare lì',
 );
 
 /* ============================================================================
