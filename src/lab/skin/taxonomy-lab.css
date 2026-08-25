@@ -1,0 +1,225 @@
+/* ============================================================================
+   🧬 PROPONI — stile a parte, come l'assistente
+
+   Nessun disegno da cui copiare: non era nel pacchetto di ChatGPT. Classi
+   prefissate `taxlab-`, per non litigare con `.row`/`.btn`/`.tag` di nessuno
+   dei fogli delle stanze.
+   ========================================================================= */
+
+.taxlab .taxlab-box {
+  border: 1px solid #111;
+  padding: 10px;
+  margin-bottom: 14px;
+}
+
+.taxlab-row {
+  margin-bottom: 12px;
+}
+
+.taxlab-row > label,
+.taxlab-label {
+  display: block;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  color: #777;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+}
+
+.taxlab-choices {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.taxlab-chip {
+  border: 1px solid #111;
+  background: #fff;
+  padding: 7px 9px;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.taxlab-chip.on {
+  background: #111;
+  color: #fff;
+}
+
+.taxlab-row select,
+.taxlab-form select {
+  width: 100%;
+  border: 1px solid #d7d7dc;
+  padding: 8px;
+  font-size: 12px;
+  font-family: inherit;
+}
+
+.taxlab-input {
+  width: 100%;
+  min-height: 60px;
+  border: 1px solid #d7d7dc;
+  padding: 9px;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.4;
+  resize: vertical;
+  margin: 8px 0;
+  box-sizing: border-box;
+}
+
+.taxlab-btn {
+  border: 1px solid #111;
+  background: #fff;
+  color: #111;
+  padding: 9px 12px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.taxlab-btn.dark {
+  background: #111;
+  color: #fff;
+}
+
+.taxlab-btn.ghost {
+  border-style: dashed;
+}
+
+.taxlab-btn:disabled {
+  opacity: 0.4;
+}
+
+.taxlab-error {
+  border: 1px solid #111;
+  padding: 9px;
+  font-size: 12px;
+  margin-bottom: 14px;
+}
+
+.taxlab-form {
+  border: 1px solid #111;
+  padding: 12px;
+  margin-bottom: 14px;
+}
+
+.taxlab-proposal__head {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: #777;
+  margin-bottom: 8px;
+}
+
+.taxlab-block {
+  display: block;
+  margin-bottom: 12px;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: #555;
+}
+
+.taxlab-block textarea,
+.taxlab-block input[type='text'],
+.taxlab-block input:not([type]) {
+  display: block;
+  width: 100%;
+  border: 1px solid #d7d7dc;
+  padding: 8px;
+  font-size: 13px;
+  font-family: inherit;
+  margin-top: 5px;
+  box-sizing: border-box;
+}
+
+.taxlab-grid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.taxlab-grid2 label {
+  font-size: 10px;
+  color: #555;
+  letter-spacing: 0.02em;
+}
+
+.taxlab-grid2 input {
+  display: block;
+  width: 100%;
+  border: 1px solid #d7d7dc;
+  padding: 8px;
+  font-size: 13px;
+  margin-top: 5px;
+  box-sizing: border-box;
+}
+
+.taxlab-checkbox {
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px !important;
+}
+
+.taxlab-fitrow,
+.taxlab-archrow {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 6px;
+  align-items: center;
+}
+
+.taxlab-fitrow {
+  grid-template-columns: 1fr 70px auto;
+}
+
+.taxlab-archrow {
+  grid-template-columns: 1fr 2fr 110px auto;
+}
+
+.taxlab-fitrow input,
+.taxlab-archrow input {
+  border: 1px solid #d7d7dc;
+  padding: 7px;
+  font-size: 12px;
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.taxlab-actions {
+  display: flex;
+  gap: 8px;
+  margin: 10px 0 20px;
+}
+
+.taxlab-queue {
+  border-top: 1px solid #111;
+  padding-top: 10px;
+}
+
+.taxlab-queuerow {
+  border: 1px solid #eee;
+  padding: 10px;
+  margin-bottom: 8px;
+}
+
+.taxlab-queuerow.approvata {
+  border-color: #111;
+}
+
+.taxlab-queuerow__top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.taxlab-tag {
+  border: 1px solid #111;
+  background: #111;
+  color: #fff;
+  font-size: 8px;
+  font-weight: 800;
+  padding: 2px 5px;
+}

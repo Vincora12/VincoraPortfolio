@@ -3569,6 +3569,21 @@ check(
 );
 check(
   'VINZ.LAB',
+  'proporre una Family nuova non tocca mai il catalogo vero',
+  has('src/engine/taxonomyProposals.ts', "import type { ArchetypeMass, SignalKey } from './generation-config'") &&
+    lacksInCode('src/engine/taxonomyProposals.ts', 'FAMILIES.push') &&
+    lacksInCode('src/engine/taxonomyProposals.ts', 'FAMILIES['),
+  '🔷 «come faccio ad aggiungere altre idee di famiglia»: le proposte vivono in una coda a parte, mai in `generation-config.ts` — quello resta il catalogo che `verify:batch` verifica',
+);
+check(
+  'VINZ.LAB',
+  'e la bozza che scrive l\'AI usa solo segnali e masse che esistono già',
+  has('src/ai/taxonomyDraftAI.ts', 'SIGNAL_KEYS as readonly string[]).includes(k)') &&
+    has('src/ai/taxonomyDraftAI.ts', 'ARCHETYPE_MASSES as readonly string[]).includes'),
+  'un segnale inventato nel `fit` sarebbe una voce che pesa la rarità senza che nessuno l\'abbia calibrata',
+);
+check(
+  'VINZ.LAB',
   'e l\'icona del lab è il disegno vero di Vincenzo, guide di costruzione comprese',
   existsSync('docs/lab/reference/lab-icon-construction.png') &&
     existsSync('docs/lab/reference/lab-icon-master.png') &&
@@ -3991,9 +4006,16 @@ check(
 check(
   'CREATION.LAB',
   'il tasto in fondo al flusso passa i valori, non spera nello stato',
-  has('src/lab/rooms/CreationLab.tsx', 'void genera({ quante: 12, immagini: true })') &&
+  has('src/lab/rooms/CreationLab.tsx', "void genera({ quante: 12, immagini: true, famiglia: '', archetipo: '', taglia: '' })") &&
     has('src/lab/rooms/CreationLab.tsx', 'const quanteOra = forza?.quante ?? quante;'),
   '🔴 partiva con i valori vecchi: numero sbagliato e nessuna immagine, con l’aria di funzionare',
+);
+check(
+  'CREATION.LAB',
+  'e non resta incollato a una Family scelta a mano in una sessione BUILD precedente',
+  has('src/lab/rooms/CreationLab.tsx', 'const famigliaOra = forza?.famiglia ?? famiglia;') &&
+    has('src/lab/rooms/CreationLab.tsx', 'if (famigliaOra) {'),
+  '🔴 «genero le immagini in una pagina dove ho selezionato ALL con le family, ma avevo cliccato nel flow dove non c’erano tutte»: `genera()` chiudeva sulla Family di PRIMA del reset, perché il pulsante chiamava `setFamiglia(\'\')` e poi `genera()` nello stesso istante, prima che React aggiornasse lo stato — lo schermo diceva ALL, il motore generava ancora quella vecchia',
 );
 check(
   'CREATION.LAB',

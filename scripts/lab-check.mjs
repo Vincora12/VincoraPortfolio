@@ -725,6 +725,47 @@ try {
     '🔴 partiva con i valori vecchi: numero sbagliato e nessuna immagine, con l\'aria di funzionare',
   );
 
+  /* --- 3b-septies. LA FAMILY SCELTA A MANO IN BUILD NON RESTA APPICCICATA
+     ALLA GENERAZIONE DAL FLOW -----------------------------------------------
+     🔴 «Sto generando le immagini ma le sta generando in una pagina in cui
+     avevo selezionato ALL con le family, ma in realtà avevo cliccato nel
+     flow dove non c'erano tutte.» — Il pulsante di FLOW faceva
+     `setFamiglia('')` e chiamava `genera()` nello stesso istante: `genera()`
+     chiudeva sulla `famiglia` di PRIMA del reset, perché React non aveva
+     ancora applicato lo stato. Il catalogo restava quello vero (solo ANGEL,
+     dopo RIMETTI A POSTO), ma se in BUILD era rimasta una Family scelta a
+     mano, quella vecchia scelta vinceva sul catalogo — mentre lo schermo,
+     un render dopo, mostrava «ALL» come se nulla fosse successo. */
+  await open('/#/lab/creation');
+  await page.locator('.top .tabs .tab', { hasText: 'BUILD' }).click();
+  await sleep(300);
+  const asseFamily = page.locator('.axisblock').filter({ hasText: '01 · FAMILY' }).first();
+  await asseFamily.locator('.pick', { hasText: 'DRAGON' }).click();
+  await sleep(200);
+  const scopeConDragon = (await page.locator('.breadcrumb').first().textContent()) ?? '';
+  check(
+    'scegliere una Family a mano in BUILD si vede nello scope',
+    scopeConDragon.includes('DRAGON'),
+    scopeConDragon,
+  );
+
+  await page.locator('.top .tabs .tab', { hasText: 'FLOW' }).click();
+  await sleep(300);
+  const fondo2 = page.locator('.test', { hasText: 'PROVA IL FLUSSO' }).first();
+  await fondo2.scrollIntoViewIfNeeded();
+  await fondo2.locator('button').click();
+  await sleep(7000);
+
+  const dopoStale = await page.evaluate(() => ({
+    testa: document.querySelector('.deck__head')?.textContent?.replace(/\s+/g, ' ') ?? '',
+    riga2: document.querySelectorAll('.deck__meta div')[1]?.textContent ?? '',
+  }));
+  check(
+    'e il flusso non resta incollato a una Family scelta a mano prima in BUILD',
+    dopoStale.testa.includes('ALL') && !dopoStale.riga2.startsWith('DRAGON'),
+    `🔴 prima restava DRAGON anche con lo schermo che diceva ALL — letto: ${dopoStale.testa} · ${dopoStale.riga2}`,
+  );
+
   await context.unroute('**/api/ai');
 
   /* --- 3c. SOUL --------------------------------------------------------------
@@ -932,6 +973,81 @@ try {
     pesoDopoAnnulla === null || pesoDopoAnnulla === 1,
     `letto: ${pesoDopoAnnulla}`,
   );
+
+  /* --- 3f. 🧬 PROPONI: aggiungere o modificare una Family --------------------
+     🔷 «Come faccio ad aggiungere altre idee di famiglia e come faccio a
+        modificare l'idea tipo del microbi. Questa cosa per ogni valore
+        ovviamente.» — scelto: «uno spazio nel lab per proporle».
+
+     🔒 La prova che conta: una proposta approvata NON deve toccare il
+     generatore vero. `FAMILIES` resta quella verificata da `verify:batch` —
+     qui si controlla solo che la coda esista, sopravviva al ricaricamento, e
+     che il generatore non l'abbia vista. */
+  await context.route('**/api/ai', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5',
+        text: JSON.stringify({
+          id: 'MOLD_SPORE',
+          coreAnatomy: 'Bioluminescent fungal cluster with a glowing spore-sac crown',
+          it: 'organismo fungino bioluminescente',
+          drivers: 'CARE, weirdness',
+          absoluteRule: 'Glow comes from spore sacs only, fungus-first anatomy.',
+          fit: { CARE: 0.2, weirdness: 0.18 },
+          archetypes: [{ id: 'LANTERN CAP', structure: 'Glowing dome on a slender stalk.', mass: 'BALANCED' }],
+          supportsHair: false,
+          supportsEyewear: true,
+          humanoidity: [2, 3],
+        }),
+      }),
+    }),
+  );
+
+  guarda();
+  await open('/lab/creation');
+  await page.locator('.top .tabs .tab', { hasText: 'PROPONI' }).click();
+  await sleep(300);
+  await page.locator('.taxlab-input').fill('una Family fatta di funghi bioluminescenti');
+  await page.locator('.taxlab-btn.dark', { hasText: 'CHIEDI' }).click();
+  await sleep(600);
+
+  const bozza = await page.evaluate(() => ({
+    id: document.querySelector('.taxlab-grid2 input')?.value ?? '',
+    archetipi: document.querySelectorAll('.taxlab-archrow').length,
+    pesi: document.querySelectorAll('.taxlab-fitrow').length,
+  }));
+  check(
+    'l\'AI scrive la scheda tecnica completa, editabile',
+    bozza.id === 'MOLD_SPORE' && bozza.archetipi === 1 && bozza.pesi === 2,
+    JSON.stringify(bozza),
+  );
+
+  await page.locator('.taxlab-btn.dark', { hasText: 'APPROVA E METTI' }).click();
+  await sleep(300);
+  check(
+    'APPROVA la mette in coda, non nel generatore',
+    (await page.locator('.taxlab-queuerow').count()) === 1,
+  );
+
+  await open('/lab/creation');
+  await page.locator('.top .tabs .tab', { hasText: 'PROPONI' }).click();
+  await sleep(300);
+  check(
+    'e la coda sopravvive al ricaricamento',
+    (await page.locator('.taxlab-queuerow').count()) === 1,
+  );
+
+  await page.locator('.top .tabs .tab', { hasText: 'FLOW' }).click();
+  await sleep(300);
+  const nelFlusso = await page.evaluate(() => document.body.innerText.includes('MOLD_SPORE'));
+  check(
+    'e il FLOW — dove vivono i cataloghi VERI — non la mostra',
+    nelFlusso === false,
+    'una proposta approvata non deve poter cambiare cosa nasce davvero',
+  );
+  check('e sfogliare PROPONI non ha scritto niente sul server', writes.length === 0, writes.join(' · '));
 
   await context.unroute('**/api/ai');
 

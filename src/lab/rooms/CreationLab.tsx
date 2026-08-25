@@ -49,6 +49,7 @@ import {
 } from './duelImages';
 import { EYEWEAR_CATEGORIES, HAIRCUTS, HAIR_STATES } from '../../engine/generation-config';
 import { LabAssistantPanel } from '../assistant/LabAssistantPanel';
+import { TaxonomyLab } from './TaxonomyLab';
 import '../skin/creation.css';
 
 const TABS = [
@@ -58,6 +59,7 @@ const TABS = [
   { id: 'state', label: 'STATE' },
   { id: 'versions', label: 'HISTORY' },
   { id: 'assistant', label: '🤖 ASSISTENTE' },
+  { id: 'taxonomy', label: '🧬 PROPONI' },
 ];
 
 export function CreationLab({ onBack }: { onBack: () => void }) {
@@ -111,6 +113,7 @@ export function CreationLab({ onBack }: { onBack: () => void }) {
         {tab === 'state' && <State />}
         {tab === 'versions' && <History />}
         {tab === 'assistant' && <LabAssistantPanel />}
+        {tab === 'taxonomy' && <TaxonomyLab />}
         <div className="footer mono">CREATION.LAB · SAME VINZ.MON ENGINE / SAME REPOSITORY</div>
       </main>
     </div>
@@ -505,9 +508,21 @@ function Build({ avvio = 0 }: { avvio?: number }) {
      🔷 «Facciamo tipo Tinder: vediamo vari risultati e ci accorgiamo se
         qualcosa è una merda.»
      ====================================================================== */
-  const genera = async (forza?: { quante?: number; immagini?: boolean }) => {
+  /* 🔴 «Sto generando le immagini ma le sta generando in una pagina in cui
+     avevo selezionato ALL con le family, ma in realtà avevo cliccato nel flow
+     dove non c'erano tutte.» — Il pulsante di FLOW faceva `setFamiglia('')`
+     e poi chiamava `genera()` nello stesso istante: `genera()` chiude su
+     `famiglia` di QUESTO render, che React non ha ancora aggiornato — quindi
+     generava ancora con l'eventuale Family scelta a mano in una sessione
+     BUILD precedente, mentre lo schermo (aggiornato al render successivo)
+     mostrava «ALL». Ora chi chiama passa il valore esplicito, non spera che
+     lo stato sia già cambiato. */
+  const genera = async (forza?: { quante?: number; immagini?: boolean; famiglia?: string; archetipo?: string; taglia?: string }) => {
     const quanteOra = forza?.quante ?? quante;
     const immaginiOra = forza?.immagini ?? conImmagini;
+    const famigliaOra = forza?.famiglia ?? famiglia;
+    const archetipoOra = forza?.archetipo ?? archetipo;
+    const tagliaOra = forza?.taglia ?? taglia;
 
     setGira(true);
     setGuasto(null);
@@ -524,8 +539,8 @@ function Build({ avvio = 0 }: { avvio?: number }) {
       const { generatorInput } = await import('../../state/store');
       const input = generatorInput(useApp.getState());
 
-      if (famiglia) {
-        for (const id of AXES.family.all) if (id !== famiglia) setCatalogEnabled('family', id, false);
+      if (famigliaOra) {
+        for (const id of AXES.family.all) if (id !== famigliaOra) setCatalogEnabled('family', id, false);
       }
 
       const base = Number(seme) || 1;
@@ -544,10 +559,10 @@ function Build({ avvio = 0 }: { avvio?: number }) {
           seed,
           devUnlockAll: false,
           hiddenEvent: false,
-          ...(archetipo ? { allowedArchetypes: [archetipo] } : {}),
+          ...(archetipoOra ? { allowedArchetypes: [archetipoOra] } : {}),
         });
         const d = r.record.data;
-        if (taglia && d.size !== taglia) continue;
+        if (tagliaOra && d.size !== tagliaOra) continue;
 
         fuori.push({
           seed,
@@ -602,7 +617,7 @@ function Build({ avvio = 0 }: { avvio?: number }) {
     setTaglia('');
     setQuante(12);
     setConImmagini(true);
-    void genera({ quante: 12, immagini: true });
+    void genera({ quante: 12, immagini: true, famiglia: '', archetipo: '', taglia: '' });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [avvio]);
 
