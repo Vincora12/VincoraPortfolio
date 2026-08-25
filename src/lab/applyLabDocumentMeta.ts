@@ -28,13 +28,15 @@
 
    🔷 «Già che ci sei, l'icona di VINZ.LAB» — con allegato uno schema
    tecnico: la faccia con le guide di costruzione, cerchi tratteggiati,
-   diagonali. `lab-icon-180.png`/`lab-icon-512.png` adesso sono QUEL
-   disegno — tratto doppio, non pieno — non più una copia invertita
-   dell'icona di VINZ.MON. La fonte sta in
-   `docs/lab/reference/lab-icon-construction.png`, il master ripulito in
-   `docs/lab/reference/lab-icon-master.png`, e `scripts/make-lab-icon.mjs`
-   li ridimensiona alle due taglie che servono qui. Vedi quel file per il
-   perché il master è ripulito a mano una volta sola, e non ogni volta.
+   diagonali. 🔷 «Quelle linee erano volute, per dare l'idea di lab —
+   dovevi renderle più visibili.» `lab-icon-180.png`/`lab-icon-512.png`
+   adesso sono quel disegno con le guide amplificate, non tolte — non più
+   una copia invertita dell'icona di VINZ.MON. La fonte sta in
+   `docs/lab/reference/lab-icon-construction.png`, il master con le guide
+   già amplificate in `docs/lab/reference/lab-icon-master.png`, e
+   `scripts/make-lab-icon.mjs` li ridimensiona alle due taglie che servono
+   qui. Vedi quel file per il perché il master è preparato a mano una volta
+   sola, e non ogni volta.
    ========================================================================= */
 
 export function applyDocumentMeta(mode: 'app' | 'lab') {

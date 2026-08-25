@@ -6,29 +6,38 @@
       diagonali, crocini di centro — lo stesso disegno che sta in
       `docs/lab/reference/lab-icon-construction.png`.
 
+   🔴 PRIMA VERSIONE SBAGLIATA: avevo TOLTO le guide di costruzione,
+      pensando fossero solo un aiuto al disegno. 🔷 «Quelle linee di
+      costruzione erano volute per dare l'idea di lab — dovevi anzi
+      renderle più visibili.» Erano lo stile, non uno scarto.
+
+   🔒 IL MASTER TIENE LE GUIDE, AMPLIFICATE. Nello schema originale sono
+      quasi invisibili — un grigio a 3–15 livelli da bianco puro, pensato
+      per leggersi su un foglio grande, non su un'icona piccola.
+      `docs/lab/reference/lab-icon-master.png` (2048×2048) è lo stesso
+      schema con OGNI tratto non bianco spinto più scuro (la differenza dal
+      bianco moltiplicata, non un valore fisso aggiunto — così il segno
+      pieno resta nero pieno e le guide sottili diventano grigio scuro
+      leggibile, non nero): il disegno tecnico si vede, invece di sparire
+      al primo ridimensionamento.
+
    🔶 SUPERA `scripts/invert-lab-icon.mjs` (rimosso). Prima l'icona del lab
       era una scorciatoia: gli stessi colori dell'icona di VINZ.MON,
-      invertiti. Adesso è un disegno suo, distinto — tratto doppio, non
-      pieno — e non deriva più dall'icona dell'app.
+      invertiti. Adesso è il disegno suo, con lo stile suo — non deriva più
+      dall'icona dell'app.
 
-   🔒 IL MASTER È GIÀ RIPULITO. `docs/lab/reference/lab-icon-master.png`
-      (2048×2048) è lo schema tecnico con le guide di costruzione tolte:
-      restano solo i tratti veri del segno — le due U degli occhi, la W
-      della bocca, i due pallini. La pulizia (identificare i componenti
-      connessi e scartare quelli piccoli — le guide tratteggiate, i
-      crocini) è stata fatta una volta, a mano, perché lo schema di
-      partenza è un disegno fisso di Vincenzo, non qualcosa che si
-      rigenera da una formula ogni volta (come `sigilGeometry` per
-      l'icona di VINZ.MON): è la stessa distinzione che regge
-      `docs/lab/reference/soul-master-sketch.png`, che SOUL legge come
-      riferimento e non ricalcola.
+   🔒 IL MASTER È GIÀ PREPARATO A MANO. Come `docs/lab/reference/soul-
+      master-sketch.png`, che SOUL legge come riferimento e non ricalcola:
+      lo schema di partenza è un disegno fisso di Vincenzo, non qualcosa
+      che si rigenera da una formula ogni volta (come `sigilGeometry` per
+      l'icona di VINZ.MON).
 
    Questo script fa solo l'ultimo passo, quello davvero meccanico e
    riproducibile: ridimensiona il master alle due taglie che servono.
 
-   ⚠️ SE IL DISEGNO CAMBIA, il master va rifatto a mano (ripulire il nuovo
-   schema dalle guide) e salvato di nuovo qui sopra — questo script non sa
-   distinguere da solo un tratto di costruzione da un tratto del segno.
+   ⚠️ SE IL DISEGNO CAMBIA, il master va rifatto a mano (stessa
+   amplificazione delle guide) e salvato di nuovo qui sopra — questo
+   script ridimensiona soltanto, non sa cosa amplificare da solo.
 
    Uso:  node scripts/make-lab-icon.mjs
    ========================================================================= */

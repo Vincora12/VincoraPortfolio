@@ -3540,7 +3540,7 @@ check(
 );
 check(
   'VINZ.LAB',
-  'e l\'icona del lab è il disegno vero di Vincenzo, con le guide di costruzione tolte',
+  'e l\'icona del lab è il disegno vero di Vincenzo, guide di costruzione comprese',
   existsSync('docs/lab/reference/lab-icon-construction.png') &&
     existsSync('docs/lab/reference/lab-icon-master.png') &&
     has('scripts/make-lab-icon.mjs', "readFileSync('docs/lab/reference/lab-icon-master.png')") &&
