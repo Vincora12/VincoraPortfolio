@@ -25,7 +25,9 @@ import type { StatKey } from '../../engine/types';
 import { DAILY_SIGNALS, DAILY_SIGNAL_LABELS } from '../../engine/progression';
 import { loadPing, loadSetup } from '../../ai/backend';
 import { lastRuns } from '../../ai/telemetry';
+import { MODEL_CHOICES } from '../../engine/aiRouting';
 import { Btn, Grid, LabTop, Notice, PageHead, Range, Rows, Section, Status } from './parts';
+import { LabAssistantPanel } from '../assistant/LabAssistantPanel';
 import '../skin/system.css';
 
 const TABS = [
@@ -34,6 +36,7 @@ const TABS = [
   { id: 'simulation', label: 'SIMULATION' },
   { id: 'memory', label: 'MEMORY' },
   { id: 'usage', label: 'USAGE' },
+  { id: 'assistant', label: '🤖 ASSISTENTE' },
 ];
 
 /* Gli otto passi AI, con le stesse etichette e le stesse descrizioni del
@@ -69,6 +72,7 @@ export function SystemLab({ onBack }: { onBack: () => void }) {
         {tab === 'simulation' && <Simulation />}
         {tab === 'memory' && <Memory />}
         {tab === 'usage' && <Usage />}
+        {tab === 'assistant' && <LabAssistantPanel />}
         <div className="footer mono">SYSTEM.LAB · SAME VINZ.MON ENGINE / SAME REPOSITORY</div>
       </main>
     </div>
@@ -191,11 +195,7 @@ function Ai() {
     if (route === 'image') setImageModel(model);
   };
 
-  const SCELTE: Record<string, string[]> = {
-    voice: ['claude-opus-5', 'claude-sonnet-5', 'gpt-5.6-luna', 'gpt-5.6-terra', 'kimi-k3'],
-    compiler: ['gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna', 'claude-sonnet-5'],
-    image: ['gpt-image-2', 'gpt-image-1'],
-  };
+  const SCELTE: Record<string, string[]> = MODEL_CHOICES;
 
   return (
     <section className="page active">

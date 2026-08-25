@@ -782,6 +782,101 @@ try {
     `letto: ${tornato || '(vuoto)'}`,
   );
 
+  /* --- 3e. L'ASSISTENTE: chiedere a parole, mai applicare da solo -----------
+     🔷 «C'è dentro il lab un'AI che può fare tutte queste modifiche per me?
+        Vorrei un'AI che possa modificare il programma, tenendo sempre
+        salvato la versione di prima.»
+
+     Tre cose da provare, e sono le tre che contano: (1) una proposta con un
+     id INVENTATO viene scartata, non applicata silenziosamente — il
+     registro è il confine, non la fiducia nel prompt; (2) APPLICA scrive
+     davvero il valore vero (letto da `localStorage`, non dallo schermo); (3)
+     è LO STESSO motore da CREATION e da SYSTEM — una proposta approvata da
+     una stanza si vede in cronologia anche nell'altra, perché è stato
+     scritto "un'AI", non tre che non si parlano. */
+  await context.route('**/api/ai', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5',
+        text: JSON.stringify({
+          changes: [
+            { id: 'weight:eyewear:OPTICAL EDITORIAL', value: '4', reason: 'più occhiali da vista' },
+            { id: 'weight:eyewear:UN OCCHIALE INVENTATO', value: '5', reason: 'non dovrebbe passare' },
+          ],
+          unsupported: null,
+        }),
+      }),
+    }),
+  );
+
+  guarda();
+  await open('/#/lab/creation');
+  await page.evaluate(() => {
+    const raw = localStorage.getItem('vinzmon.prototype.v4');
+    const o = raw ? JSON.parse(raw) : { state: {}, version: 3 };
+    o.state = { ...(o.state ?? {}), token: 'vm_test_token_1234567890abcd' };
+    localStorage.setItem('vinzmon.prototype.v4', JSON.stringify(o));
+    /* Una prova precedente in questo stesso giro ha già toccato i pesi
+       dell'eyewear: si riparte da uno stato noto, non da quello che un
+       altro test ha lasciato. */
+    localStorage.removeItem('vinzmon.axisWeights.v1');
+  });
+  await open('/#/lab/creation');
+  await page.locator('.top .tabs .tab', { hasText: 'ASSISTENTE' }).click();
+  await sleep(300);
+  await page.locator('.labai-input').fill('fai uscire di più gli occhiali da vista');
+  await page.locator('.labai-btn.dark', { hasText: 'CHIEDI' }).click();
+  await sleep(600);
+
+  const anteprima = await page.evaluate(() => ({
+    righe: document.querySelectorAll('.labai-row').length,
+    diff: document.querySelector('.labai-diff')?.textContent?.trim() ?? '',
+    scartate: document.querySelector('.labai-discarded')?.textContent ?? '',
+  }));
+  check(
+    'un id che non esiste nel registro viene scartato, non applicato',
+    anteprima.righe === 1 && /UN OCCHIALE INVENTATO/.test(anteprima.scartate),
+    anteprima.scartate,
+  );
+  check('e la proposta buona mostra il valore da → a', /1.*→.*4/.test(anteprima.diff), anteprima.diff);
+
+  await page.locator('.labai-btn.dark', { hasText: 'APPLICA' }).click();
+  await sleep(300);
+
+  const pesoScritto = await page.evaluate(() => {
+    const raw = localStorage.getItem('vinzmon.axisWeights.v1');
+    const v = raw ? JSON.parse(raw) : {};
+    return v?.eyewear?.['OPTICAL EDITORIAL'] ?? null;
+  });
+  check('APPLICA scrive il valore vero, non solo a schermo', pesoScritto === 4, `letto: ${pesoScritto}`);
+
+  await open('/#/lab/system');
+  await page.locator('.top .tabs .tab', { hasText: 'ASSISTENTE' }).click();
+  await sleep(300);
+  const vistaDaAltraStanza = await page.locator('.labai-histrow').first().textContent();
+  check(
+    'la stessa proposta approvata si vede anche da SYSTEM: un motore solo, non tre',
+    (vistaDaAltraStanza ?? '').includes('occhiali da vista'),
+    vistaDaAltraStanza ?? '',
+  );
+
+  await page.locator('.labai-histrow .labai-btn.ghost', { hasText: 'ANNULLA' }).first().click();
+  await sleep(300);
+  const pesoDopoAnnulla = await page.evaluate(() => {
+    const raw = localStorage.getItem('vinzmon.axisWeights.v1');
+    const v = raw ? JSON.parse(raw) : {};
+    return v?.eyewear?.['OPTICAL EDITORIAL'] ?? null;
+  });
+  check(
+    'ANNULLA rimette il valore fotografato prima, la versione di prima resta salvata',
+    pesoDopoAnnulla === null || pesoDopoAnnulla === 1,
+    `letto: ${pesoDopoAnnulla}`,
+  );
+
+  await context.unroute('**/api/ai');
+
   /* --- 4. La preview ------------------------------------------------------- */
 
   /* ⚠️ CONFRONTARE UNO `localStorage` VUOTO CON UNO `localStorage` VUOTO non

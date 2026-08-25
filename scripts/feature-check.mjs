@@ -3653,6 +3653,37 @@ check(
 );
 check(
   'VINZ.LAB',
+  'l\'assistente non scrive mai codice: propone solo campi che il lab già espone',
+  has('src/engine/labAssistant.ts', 'campiCatalogo') &&
+    has('src/engine/labAssistant.ts', 'campiPesi') &&
+    has('src/engine/labAssistant.ts', 'campiToken') &&
+    has('src/engine/labAssistant.ts', 'campiModello') &&
+    !has('src/engine/labAssistant.ts', 'writeFile'),
+  '🔷 «un\'AI che possa modificare il programma»: qui vuol dire cataloghi, pesi, token, modelli — mai un file del repo',
+);
+check(
+  'VINZ.LAB',
+  'e un id sconosciuto viene scartato, non applicato',
+  has('src/engine/labAssistant.ts', 'non è un campo che conosco') &&
+    has('src/engine/labAssistant.ts', 'const campo = reg.get(p.id)'),
+  'il registro è il confine di sicurezza: un id che l\'AI si inventa non tocca niente',
+);
+check(
+  'VINZ.LAB',
+  'e ogni modifica applicata resta annullabile, con il valore fotografato prima',
+  has('src/engine/labAssistant.ts', 'const da = campo.valoreAttuale()') && has('src/engine/labAssistant.ts', 'export function annulla'),
+  '🔷 «tenendo sempre salvato la versione di prima»',
+);
+check(
+  'VINZ.LAB',
+  'ed è LO STESSO assistente da CREATION, SYSTEM e DESIGN, non tre che non si parlano',
+  has('src/lab/rooms/CreationLab.tsx', 'LabAssistantPanel') &&
+    has('src/lab/rooms/SystemLab.tsx', 'LabAssistantPanel') &&
+    has('src/lab/rooms/DesignLab.tsx', 'LabAssistantPanel'),
+  'un componente solo, montato in tre stanze: la cronologia è quella che vedono tutte',
+);
+check(
+  'VINZ.LAB',
   'i comandi non spariscono in tema scuro',
   has('src/lab/skin/_base.css', 'color-scheme: light') &&
     has('src/lab/skin/_base.css', 'color: inherit'),

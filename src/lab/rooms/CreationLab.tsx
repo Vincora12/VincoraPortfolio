@@ -48,6 +48,7 @@ import {
   type StatoJob,
 } from './duelImages';
 import { EYEWEAR_CATEGORIES, HAIRCUTS, HAIR_STATES } from '../../engine/generation-config';
+import { LabAssistantPanel } from '../assistant/LabAssistantPanel';
 import '../skin/creation.css';
 
 const TABS = [
@@ -56,6 +57,7 @@ const TABS = [
   { id: 'learned', label: 'LEARNED' },
   { id: 'state', label: 'STATE' },
   { id: 'versions', label: 'HISTORY' },
+  { id: 'assistant', label: '🤖 ASSISTENTE' },
 ];
 
 export function CreationLab({ onBack }: { onBack: () => void }) {
@@ -108,6 +110,7 @@ export function CreationLab({ onBack }: { onBack: () => void }) {
         {tab === 'learned' && <Learned />}
         {tab === 'state' && <State />}
         {tab === 'versions' && <History />}
+        {tab === 'assistant' && <LabAssistantPanel />}
         <div className="footer mono">CREATION.LAB · SAME VINZ.MON ENGINE / SAME REPOSITORY</div>
       </main>
     </div>

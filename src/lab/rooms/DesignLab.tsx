@@ -41,6 +41,7 @@ import {
   TOKEN_GROUPS,
   tokenOverrides,
 } from '../../engine/designTokens';
+import { LabAssistantPanel } from '../assistant/LabAssistantPanel';
 import '../skin/design.css';
 import '../skin/design-preview.css';
 import '../skin/design-tokens-editor.css';
@@ -50,6 +51,7 @@ const TABS = [
   { id: 'tokens', label: '🎛 TOKENS' },
   { id: 'components', label: '🧱 COMPONENTS' },
   { id: 'history', label: '🕘 HISTORY' },
+  { id: 'assistant', label: '🤖 ASSISTENTE' },
 ];
 
 /* I bottoni delle schermate, con le etichette del disegno. `screen` dice
@@ -210,8 +212,11 @@ export function DesignLab({ onBack }: { onBack: () => void }) {
             <div className="kicker mono">DESIGN PATCH HISTORY</div>
             <h1>🕘 HISTORY</h1>
             <p className="lead">
-              Le proposte del Design AI non sono ancora collegate: quando lo saranno, ogni patch
-              approvata compare qui con il suo R0 recuperabile.
+              Le proposte del Design AI su LAYOUT, COMPONENTI e STRUTTURA — quelle che cambiano il
+              markup, non un token — non sono ancora collegate: servirebbe scrivere codice e
+              pubblicarlo, e questo lab non lo fa da solo (§«DESIGN AI safety/scope»: nessuna
+              scrittura silenziosa, nessun deploy da una chat). Le proposte sui design TOKEN invece
+              sono collegate: sono nella scheda 🤖 ASSISTENTE, con la loro cronologia.
             </p>
             <div className="componentlist">
               <div className="row">
@@ -224,6 +229,7 @@ export function DesignLab({ onBack }: { onBack: () => void }) {
             </div>
           </section>
         )}
+        {tab === 'assistant' && <LabAssistantPanel />}
       </main>
     </div>
   );
