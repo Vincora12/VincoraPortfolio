@@ -189,53 +189,69 @@ try {
   check('e le porte sono quattro', doors === 4, `trovate ${doors}`);
   check('col titolo suo', (await page.title()) === 'VINZ.LAB');
   check(
-    'e il manifest suo',
-    (await page.locator('link[rel="manifest"]').getAttribute('href')) === '/lab-manifest.webmanifest',
-  );
-  /* 🔷 «Nel file originale di ChatGPT c'è una icona per la webapp solo
-     legata al lab.» Il manifest da solo non basta: iOS legge
-     `apple-touch-icon` quando premi «Aggiungi a schermata Home», PRIMA di
-     guardare il manifest — un manifest diverso con lo stesso
-     `apple-touch-icon` produce due scorciatoie identiche lo stesso. */
-  check(
-    'e anche apple-touch-icon punta a un\'icona diversa da quella dell\'app',
-    (await page.locator('link[rel="apple-touch-icon"]').getAttribute('href')) === '/lab-icon-180.png?v=2',
-  );
-  check(
     'su «/#/lab» VINZ.MON non è montata',
     (await page.locator('.proto-frame').count()) === 0,
     'due app montate insieme vorrebbe dire due store vivi',
   );
 
-  /* --- 2b. L'INDIRIZZO VERO, non solo il frammento -------------------------
-     🔷 «Non si apre la webapp, mi porta sempre a vinz.mon» — e la prova che
-        ha dato Vincenzo era chirurgica: da Safari, navigando, `#/lab`
-        funzionava sempre; dall'icona aggiunta alla schermata Home, no.
+  /* --- 2b. L'INSTALLAZIONE: COSA LEGGE SAFARI, NON COSA VEDE IL DOM --------
+     🔷 «Non si apre la webapp, mi porta sempre a vinz.mon.» E dopo il primo
+        tentativo di correzione: 🔷 «Niente, stesso errore.»
 
-     Un frammento non viaggia mai al server e non c'è garanzia che iOS lo
-     conservi quando fa ripartire un'icona già installata. Questo blocco
-     prova l'indirizzo VERO, `/lab`, che non dipende da quella garanzia:
-     serve `index.html` anche lì (la riscrittura in `netlify.toml`) e
-     `readEntrypoint()` lo riconosce dal percorso, non dal frammento. */
-  guarda();
-  await open('/lab');
+     🔴 IL CONTROLLO CHE C'ERA QUI PRIMA PASSAVA MENTRE LA COSA ERA ROTTA, ed
+     è il motivo per cui il primo tentativo è stato pubblicato con l'aria di
+     funzionare. Leggeva `link[rel=manifest]` con `page.locator(...)`, cioè
+     dal DOM VIVO — dopo che `applyLabDocumentMeta.ts` l'aveva già corretto.
+     Verde, e intanto Safari continuava a installare l'icona sbagliata.
+
+     🔒 SAFARI LEGGE IL DOCUMENTO, NON IL DOM DOPO. `<script type="module">`
+     è differito: quando il browser legge i tag `<head>`, il JavaScript non è
+     ancora partito. Quindi questi controlli scaricano l'HTML GREZZO e
+     guardano lì dentro — la stessa cosa che vede iOS quando premi «Aggiungi
+     a schermata Home». È l'unica versione di questa domanda che significhi
+     qualcosa.
+
+     ⚠️ `/lab/` CON LA BARRA. È lo `start_url` del manifest, ed è quello che
+     ogni server statico serve senza bisogno di regole. */
+  const grezzo = await (await fetch(`${BASE}/lab/`)).text();
   check(
-    'e anche «/lab» — l\'indirizzo vero, non il frammento — monta VINZ.LAB',
-    (await page.locator('main h1').first().textContent()) === 'VINZ.LAB',
-    'un frammento non è affidabile per un\'icona già installata: serviva un percorso vero',
+    'il documento del lab dichiara il SUO manifest già nell\'HTML',
+    grezzo.includes('<link rel="manifest" href="/lab-manifest.webmanifest"'),
+    '🔴 prima lo riscriveva JS, e Safari aveva già letto quello di VINZ.MON',
   );
   check(
-    'con lo start_url del manifest che punta lì, non a un frammento',
-    (await page.evaluate(async () => {
-      const href = document.querySelector('link[rel="manifest"]')?.getAttribute('href') ?? '';
-      const res = await fetch(href);
-      return (await res.json()).start_url;
-    })) === '/lab',
+    'e la SUA icona, che è il tag che iOS legge per primo',
+    grezzo.includes('rel="apple-touch-icon" href="/lab-icon-180.png'),
+  );
+  check(
+    'e il SUO nome, quello che iOS propone quando installi',
+    grezzo.includes('name="apple-mobile-web-app-title" content="VINZ.LAB"') &&
+      grezzo.includes('<title>VINZ.LAB</title>'),
+  );
+  const appGrezzo = await (await fetch(`${BASE}/`)).text();
+  check(
+    'mentre il documento dell\'app resta VINZ.MON, non contagiato',
+    appGrezzo.includes('<title>VINZ.MON</title>') &&
+      appGrezzo.includes('<link rel="manifest" href="/manifest.webmanifest"'),
+    'due porte diverse devono restare due documenti diversi',
+  );
+  const manifest = await (await fetch(`${BASE}/lab-manifest.webmanifest`)).json();
+  check(
+    'e lo start_url del manifest riporta lì, non alla pagina principale',
+    manifest.start_url === '/lab/',
+    `letto: ${manifest.start_url}`,
+  );
+
+  guarda();
+  await open('/lab/');
+  check(
+    'aprendo «/lab/» monta VINZ.LAB',
+    (await page.locator('main h1').first().textContent()) === 'VINZ.LAB',
   );
   await open('/lab/creation');
   check('e «/lab/creation» apre direttamente la stanza', (await page.locator('.top .tabs .tab').count()) > 0);
   check(
-    'e sfogliare «/lab» non ha scritto niente',
+    'e sfogliare «/lab/» non ha scritto niente',
     writes.length === 0,
     writes.join(' · '),
   );

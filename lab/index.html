@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+
+    <!-- ========================================================================
+         LA PORTA DEL LABORATORIO, SCRITTA NELL'HTML E NON RISCRITTA DA JS
+
+         🔷 «Non si apre la webapp, mi porta sempre a vinz.mon» — e dopo il
+            primo tentativo: «Niente, stesso errore.»
+
+         🔴 LA CAUSA VERA, che il tentativo prima aveva mancato. `index.html`
+         dichiara il manifest di VINZ.MON, e `applyLabDocumentMeta.ts` lo
+         riscriveva a `/lab-manifest.webmanifest` quando l'indirizzo era del
+         lab. Ma `<script type="module">` è DIFFERITO: gira dopo che il
+         documento è stato letto. Safari, mentre legge la pagina, ha già preso
+         `/manifest.webmanifest` — e `start_url` lì dentro è `/`. Quando premi
+         «Aggiungi a schermata Home» iOS salva QUELLO: un'icona che riapre
+         VINZ.MON, comunque il DOM sia cambiato dopo.
+
+         🔴 E IL CONTROLLO CHE AVEVO SCRITTO GUARDAVA LA COSA SBAGLIATA:
+         leggeva `link[rel=manifest]` dal DOM DOPO il boot, cioè dopo che il
+         mio stesso JS l'aveva corretto. Passava, e intanto il difetto era
+         intatto. Adesso `lab-check.mjs` legge l'HTML GREZZO, come Safari.
+
+         🔒 Quindi qui i tag sono SCRITTI, non applicati: quando Safari legge
+         questa pagina trova già VINZ.LAB, senza che debba girare una riga di
+         JavaScript. `applyLabDocumentMeta.ts` resta come rete di sicurezza per
+         chi entra dal vecchio `#/lab`, ma non è più lui a reggere
+         l'installazione.
+
+         🔒 È LO STESSO PATTERN DI `brain/index.html`, già in casa: un ingresso
+         separato dichiarato in `vite.config.ts`, non una rotta dell'app.
+         ==================================================================== -->
+
+    <meta name="theme-color" content="#ffffff" />
+    <link rel="icon" type="image/png" sizes="512x512" href="/lab-icon-512.png?v=2" />
+    <link rel="apple-touch-icon" href="/lab-icon-180.png?v=2" />
+    <link rel="manifest" href="/lab-manifest.webmanifest" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="VINZ.LAB" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>VINZ.LAB</title>
+    <style>
+      /* Il campo del laboratorio è bianco, non nero come quello dell'app:
+         un lampo scuro all'avvio direbbe «sta aprendo VINZ.MON». */
+      .boot { position: fixed; inset: 0; display: grid; place-items: center; background: #fff; color: #111; font: 900 italic 22px Arial, Helvetica, sans-serif; letter-spacing: -.04em; }
+    </style>
+  </head>
+  <body>
+    <div id="root"><div class="boot">VINZ.LAB</div></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

@@ -29,12 +29,19 @@
    dove far ripartire un'icona già installata — cosa che invece fa con lo
    `start_url` del manifest, che punta a un frammento.
 
-   🔒 `/lab` NON RIAPRE IL DIBATTITO SUL ROUTER. Resta UNA pagina sola,
-   `index.html`, servita anche per questo indirizzo — `netlify.toml` ha una
-   riga di riscrittura in più, non un router lato client con history e
-   `pushState`. Il frammento (`#/lab/creation` eccetera) resta la strada per
-   muoversi FRA le stanze una volta dentro: qui serve solo a farti entrare in
-   modo che un sistema operativo possa fidarsene.
+   🔴 E NON BASTAVA L'INDIRIZZO: SERVIVA UN DOCUMENTO. Il primo tentativo
+   dava al lab l'indirizzo `/lab` ma gli serviva ancora `index.html`, quello
+   dell'app, contando su `applyLabDocumentMeta.ts` per correggere i tag dopo.
+   🔷 «Niente, stesso errore.» Aveva ragione: `<script type="module">` è
+   DIFFERITO, quindi quando Safari legge `<head>` il JavaScript non è ancora
+   partito — vede il manifest di VINZ.MON, e installa quello. Adesso `/lab/`
+   ha `lab/index.html`, un documento suo, coi tag già scritti dentro.
+
+   🔒 NON RIAPRE IL DIBATTITO SUL ROUTER. Due documenti d'ingresso, come già
+   `brain/index.html`; nessuna history, nessun `pushState`. Il frammento
+   (`#/lab/creation`) resta la strada per muoversi FRA le stanze una volta
+   dentro: il percorso serve solo a farti entrare in modo che un sistema
+   operativo possa fidarsene.
    ========================================================================= */
 
 import type { DesignScreenId } from './design/types';

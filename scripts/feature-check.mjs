@@ -3532,10 +3532,16 @@ check(
 check(
   'VINZ.LAB',
   'il laboratorio si installa con nome, icona e manifest suoi',
-  has('src/lab/applyLabDocumentMeta.ts', "'/lab-manifest.webmanifest'") &&
-    has('public/lab-manifest.webmanifest', '"start_url": "/lab"') &&
-    has('src/lab/applyLabDocumentMeta.ts', 'apple-touch-icon') &&
-    has('src/lab/applyLabDocumentMeta.ts', '/lab-icon-180.png'),
+  /* 🔶 CERCAVA QUESTE COSE IN `applyLabDocumentMeta.ts`, come se fosse lui a
+     reggere l'installazione. Non lo è più: i tag stanno scritti nel documento
+     del lab, e quel file è solo la rete di sicurezza per chi entra dal vecchio
+     `#/lab`. L'ago guarda la decisione — «il lab si installa come sé stesso» —
+     nel posto dove adesso vive davvero. */
+  has('lab/index.html', 'href="/lab-manifest.webmanifest"') &&
+    has('lab/index.html', 'href="/lab-icon-180.png') &&
+    has('lab/index.html', 'content="VINZ.LAB"') &&
+    has('public/lab-manifest.webmanifest', '"start_url": "/lab/"') &&
+    has('src/lab/applyLabDocumentMeta.ts', 'apple-touch-icon'),
   '🔷 «nel file originale di ChatGPT c\'è una icona per la webapp solo legata al lab»: il manifest da solo non bastava, `apple-touch-icon` è il tag che iOS legge prima',
 );
 check(
@@ -3543,9 +3549,23 @@ check(
   'e si entra anche da un indirizzo vero, non solo dal frammento',
   has(ENTRY, "^\\/lab(?:\\/(creation|soul|design|system))?\\/?$") &&
     has(ENTRY, 'window.location.pathname') &&
-    has('netlify.toml', 'from = "/lab"') &&
-    has('netlify.toml', 'to = "/index.html"'),
+    has('netlify.toml', 'from = "/lab"'),
   '🔷 «non si apre la webapp, mi porta sempre a vinz.mon» — un frammento (`#/lab`) non è affidabile per un\'icona già installata: iOS segue lo `start_url` del manifest, e quello deve poter essere un indirizzo vero',
+);
+check(
+  'VINZ.LAB',
+  'e il lab ha un DOCUMENTO suo, non i tag dell\'app riscritti da JS',
+  existsSync('lab/index.html') &&
+    has('lab/index.html', '<link rel="manifest" href="/lab-manifest.webmanifest" />') &&
+    has('lab/index.html', '<title>VINZ.LAB</title>') &&
+    has('vite.config.ts', "lab: fileURLToPath(new URL('./lab/index.html'"),
+  '🔴 «niente, stesso errore»: `<script type="module">` è differito, quindi Safari legge i tag PRIMA che il JS li corregga — e installa l\'icona con lo start_url di VINZ.MON',
+);
+check(
+  'VINZ.LAB',
+  'e le riscritture portano al documento del lab, non a quello dell\'app',
+  has('netlify.toml', 'to = "/lab/index.html"') && lacksInCode('netlify.toml', 'to = "/index.html"'),
+  'mandarle a `/index.html` rimetterebbe in piedi esattamente il difetto appena corretto',
 );
 check(
   'VINZ.LAB',

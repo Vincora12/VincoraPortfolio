@@ -42,15 +42,52 @@ const BUILD = {
   branch: process.env.BRANCH ?? process.env.HEAD ?? '',
 };
 
+/* ============================================================================
+   LE STANZE DEL LABORATORIO, ANCHE IN SVILUPPO
+
+   In produzione `netlify.toml` manda `/lab` e `/lab/<stanza>` al documento
+   `lab/index.html`. Il server di sviluppo quel file non lo legge: `/lab/`
+   funziona (è una cartella con dentro un `index.html`), `/lab/creation` no —
+   cade nel ripiego e serve il documento dell'APP.
+
+   🔴 E QUESTO NON È UN DETTAGLIO DA LASCIARE STARE, perché i controlli girano
+   qui. Un controllo verde in un ambiente che non somiglia alla produzione è
+   esattamente l'errore che ha lasciato passare il difetto dell'icona: passava
+   guardando la cosa sbagliata. Meglio far somigliare l'ambiente.
+
+   🔒 NON È UN ROUTER. Non c'è history, non c'è stato, non c'è navigazione:
+   una richiesta al server per un indirizzo del laboratorio riceve il
+   documento del laboratorio, che è la stessa identica cosa che fa Netlify.
+   ========================================================================= */
+const labEntryInDev = {
+  name: 'vinz-lab-entry-in-dev',
+  configureServer(server: { middlewares: { use: (fn: (req: { url?: string }, res: unknown, next: () => void) => void) => void } }) {
+    server.middlewares.use((req, _res, next) => {
+      if (req.url && /^\/lab(?:\/(creation|soul|design|system))?\/?(?:\?|$)/.test(req.url)) {
+        req.url = '/lab/index.html';
+      }
+      next();
+    });
+  },
+};
+
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), labEntryInDev],
   build: {
     /* 🔷 Il laboratorio del cervello è una pagina separata, non una rotta
        dell'app. I due ingressi producono due bundle distinti: /brain non può
-       importare per sbaglio memoria, personalità o Character Data. */
+       importare per sbaglio memoria, personalità o Character Data.
+
+       🔴 E `lab` è entrato in questa lista per un motivo diverso, che vale la
+       pena tenere distinto: non per separare il codice — monta lo stesso
+       `main.tsx` — ma per avere un DOCUMENTO suo. Vedi `lab/index.html`: i
+       tag che iOS legge quando installi la webapp devono essere già scritti
+       lì dentro, perché quando Safari li legge il JavaScript non è ancora
+       partito. Riscriverli dopo era il difetto. */
     rolldownOptions: {
       input: {
         app: fileURLToPath(new URL('./index.html', import.meta.url)),
+        lab: fileURLToPath(new URL('./lab/index.html', import.meta.url)),
         brain: fileURLToPath(new URL('./brain/index.html', import.meta.url)),
         assistantExample: fileURLToPath(new URL('./assistant-example/index.html', import.meta.url)),
       },

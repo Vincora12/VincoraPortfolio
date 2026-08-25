@@ -2,7 +2,7 @@
   "name": "VINZ.LAB",
   "short_name": "VINZ.LAB",
   "description": "Il laboratorio privato di VINZ.MON.",
-  "start_url": "/lab",
+  "start_url": "/lab/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",

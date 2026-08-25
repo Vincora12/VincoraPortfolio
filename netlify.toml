@@ -7,25 +7,35 @@
 # router lato client. Le schermate commutano su stato (`phase` / `tab` in
 # `state/store.ts`), non su URL, e `?dev=1` è un parametro di query su `/`.
 #
-# 🔴 UNA riscrittura c'è, aggiunta dopo: `/lab`. 🔷 «Non si apre la webapp,
-# mi porta sempre a vinz.mon» — su un file statico Netlify non serve
-# `index.html` per un indirizzo che non esiste su disco, quindi `/lab`
-# senza questa riga sarebbe un 404. Vedi `src/lab/entrypoint.ts` per il
-# perché serviva un indirizzo vero e non bastava più `#/lab`: un frammento
-# non è affidabile per un'icona già installata sulla schermata Home.
+# 🔴 UNA riscrittura c'è, aggiunta dopo: le stanze del laboratorio.
+#
+# 🔷 «Non si apre la webapp, mi porta sempre a vinz.mon.» `/lab` è un
+# DOCUMENTO suo — `lab/index.html`, dichiarato in `vite.config.ts`, che
+# Netlify serve da sé perché esiste su disco come `dist/lab/index.html`.
+# Serve invece una riga per le stanze (`/lab/creation` e compagne): quelle
+# su disco non esistono, e senza questa sarebbero un 404.
+#
+# ⚠️ PUNTA A `/lab/index.html`, NON A `/index.html`. Mandarle al documento
+# dell'app le riporterebbe esattamente al difetto che stiamo correggendo:
+# i tag che iOS legge sarebbero di nuovo quelli di VINZ.MON.
 
 [build]
   command = "npm run build"
   publish = "dist"
 
+# ⚠️ DUE REGOLE, E LA PRIMA NON È RIDONDANTE. `/lab/` con la barra finale è
+# una cartella, e ogni server statico ci serve `index.html` da sé; `/lab`
+# senza barra dipende invece da come quel server tratta i «pretty URL» — su
+# `vite preview` cade nel fallback e serve il documento dell'APP, cioè
+# esattamente il difetto. Dichiararle entrambe toglie di mezzo la domanda.
 [[redirects]]
   from = "/lab"
-  to = "/index.html"
+  to = "/lab/index.html"
   status = 200
 
 [[redirects]]
   from = "/lab/*"
-  to = "/index.html"
+  to = "/lab/index.html"
   status = 200
 
 # 🔷 v1.13 §19 — le funzioni tengono le chiavi, il tetto di spesa e il
