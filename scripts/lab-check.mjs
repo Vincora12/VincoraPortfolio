@@ -1051,6 +1051,72 @@ try {
 
   await context.unroute('**/api/ai');
 
+  /* --- 3g. SYSTEM.LAB — IL SEGRETO SI INCOLLA ANCHE QUI ---------------------
+     🔴 «Il lab non sembra collegato, non vedo i token che avevo già messo nel
+     dev.» — iOS tratta VINZ.LAB, installato come icona SUA (per il fix di
+     `lab/index.html`), come un'app A PARTE da VINZ.MON: non condivide il
+     browser storage con l'app principale, nemmeno essendo la stessa origine.
+     Il segreto messo via ATTIVA VINZ.MON nell'app vera non arriva quindi da
+     solo nel lab installato separatamente. Prima non c'era modo di rimediare
+     DA DENTRO il lab: SETUP diceva solo «si imposta da ATTIVA VINZ.MON, sta
+     lì e non qui». Ora SETUP ha lo stesso «HO GIÀ UN SEGRETO ALTROVE» di
+     quella schermata. */
+  await page.evaluate(() => {
+    const raw = localStorage.getItem('vinzmon.prototype.v4');
+    const o = raw ? JSON.parse(raw) : { state: {}, version: 3 };
+    o.state = { ...(o.state ?? {}), token: null };
+    localStorage.setItem('vinzmon.prototype.v4', JSON.stringify(o));
+  });
+
+  let ultimoAuth = null;
+  await context.route('**/api/setup', (route) => {
+    ultimoAuth = route.request().headers()['authorization'] ?? null;
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        serverToken: ultimoAuth === 'Bearer vm_incollato_dal_test_123456',
+        ready: { voice: true, compile: true, draw: true },
+      }),
+    });
+  });
+  await context.route('**/api/ping', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true }) }),
+  );
+
+  await open('/lab/system');
+  await sleep(500);
+  const primaDelSegreto = (await page.locator('.secret code').textContent()) ?? '';
+  check(
+    'senza il token — come un lab installato a parte su iOS — SETUP lo dice chiaro',
+    primaDelSegreto.includes('NESSUN TOKEN'),
+    primaDelSegreto,
+  );
+
+  await page.locator('.btn', { hasText: 'INCOLLA IL SEGRETO' }).click();
+  await sleep(200);
+  await page.locator('.field input').fill('vm_incollato_dal_test_123456');
+  await page.locator('.btn.dark', { hasText: 'USA QUESTO' }).click();
+  await sleep(600);
+
+  check(
+    'incollarlo qui manda DAVVERO quel segreto al server, non uno vecchio rimasto in chiusura',
+    ultimoAuth === 'Bearer vm_incollato_dal_test_123456',
+    String(ultimoAuth),
+  );
+  const testoDopoIncolla = await page.evaluate(() => document.body.innerText);
+  check(
+    'e il pannello si aggiorna da solo, senza dover premere RUN SYSTEM CHECK a mano',
+    /AUTH TOKEN[\s\S]{0,20}MATCH/.test(testoDopoIncolla),
+    testoDopoIncolla.slice(
+      testoDopoIncolla.indexOf('AUTH TOKEN'),
+      testoDopoIncolla.indexOf('AUTH TOKEN') + 30,
+    ),
+  );
+
+  await context.unroute('**/api/setup');
+  await context.unroute('**/api/ping');
+
   /* --- 4. La preview ------------------------------------------------------- */
 
   /* ⚠️ CONFRONTARE UNO `localStorage` VUOTO CON UNO `localStorage` VUOTO non

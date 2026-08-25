@@ -85,9 +85,12 @@ export function SystemLab({ onBack }: { onBack: () => void }) {
 
 function Setup() {
   const token = useApp((s) => s.token);
+  const setToken = useApp((s) => s.setToken);
   const [setup, setSetup] = useState<Awaited<ReturnType<typeof loadSetup>> | null>(null);
   const [ping, setPing] = useState<Awaited<ReturnType<typeof loadPing>> | null>(null);
   const [checking, setChecking] = useState(false);
+  const [showPaste, setShowPaste] = useState(false);
+  const [draft, setDraft] = useState('');
 
   /* 🔒 «Configurato e funzionante sono due cose diverse», dice il disegno, e
      per questo si chiamano ENTRAMBE: `/api/setup` sa cosa è configurato,
@@ -148,9 +151,51 @@ function Setup() {
           <code>{token ? `${token.slice(0, 6)}…${token.slice(-4)}` : 'NESSUN TOKEN'}</code>
         </div>
         <p className="note">
-          Si imposta da ATTIVA VINZ.MON, che è la schermata di prodotto: sta lì e non qui perché la
-          fa chi installa l’app, non chi la sviluppa.
+          Si genera da ATTIVA VINZ.MON, la schermata di prodotto — ma VINZ.LAB, installato come
+          icona sua, è per iOS un'app A PARTE: non condivide il browser storage con VINZ.MON, quindi
+          il segreto non arriva qui da solo. Incollalo una volta, preso da ATTIVA VINZ.MON o da
+          DEV → SETUP nell'app vera.
         </p>
+        <Grid>
+          <Btn onClick={() => setShowPaste((v) => !v)}>
+            {showPaste ? 'CHIUDI' : token ? 'CAMBIA IL SEGRETO' : 'INCOLLA IL SEGRETO'}
+          </Btn>
+        </Grid>
+        {showPaste && (
+          <>
+            <label className="field">
+              IL SEGRETO GIÀ SU NETLIFY
+              <input
+                type="text"
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                placeholder="VINZMON_TOKEN"
+                autoComplete="off"
+                autoCapitalize="off"
+                spellCheck={false}
+              />
+            </label>
+            <Grid>
+              <Btn
+                variant="dark"
+                disabled={draft.trim().length < 24 || checking}
+                onClick={() => {
+                  /* 🔴 Non richiama `check()` qui: chiuderebbe sul `token`
+                     di QUESTO render, letto PRIMA di `setToken`. Il
+                     `useEffect` qui sotto dipende da `token` e riparte da
+                     solo al render successivo, quando lo stato è già
+                     aggiornato — la stessa correzione già fatta al tasto
+                     in fondo al flusso di CREATION.LAB. */
+                  setToken(draft.trim());
+                  setDraft('');
+                  setShowPaste(false);
+                }}
+              >
+                USA QUESTO
+              </Btn>
+            </Grid>
+          </>
+        )}
       </Section>
 
       <Section

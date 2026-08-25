@@ -3755,6 +3755,13 @@ check(
 );
 check(
   'VINZ.LAB',
+  'e SYSTEM.LAB può ricevere il segreto anche se VINZ.LAB, installato a parte, non lo eredita da VINZ.MON',
+  has('src/lab/rooms/SystemLab.tsx', "showPaste ? 'CHIUDI' : token ? 'CAMBIA IL SEGRETO' : 'INCOLLA IL SEGRETO'") &&
+    has('src/lab/rooms/SystemLab.tsx', 'setToken(draft.trim())'),
+  '🔴 «il lab non sembra collegato, non vedo i token che avevo già messo nel dev» — su iOS un\'app installata come icona SUA non condivide il browser storage con VINZ.MON, nemmeno stessa origine: prima SETUP diceva solo «si imposta da ATTIVA VINZ.MON, sta lì e non qui» e non c\'era modo di rimediare da dentro il lab',
+);
+check(
+  'VINZ.LAB',
   'i comandi non spariscono in tema scuro',
   has('src/lab/skin/_base.css', 'color-scheme: light') &&
     has('src/lab/skin/_base.css', 'color: inherit'),
