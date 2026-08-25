@@ -3533,8 +3533,17 @@ check(
   'VINZ.LAB',
   'il laboratorio si installa con nome, icona e manifest suoi',
   has('src/lab/applyLabDocumentMeta.ts', "'/lab-manifest.webmanifest'") &&
-    has('public/lab-manifest.webmanifest', '"start_url": "/#/lab"'),
-  'senza, sulla schermata Home ci sono due icone identiche che aprono due cose diverse',
+    has('public/lab-manifest.webmanifest', '"start_url": "/#/lab"') &&
+    has('src/lab/applyLabDocumentMeta.ts', 'apple-touch-icon') &&
+    has('src/lab/applyLabDocumentMeta.ts', "'/lab-icon-180.png'"),
+  '🔷 «nel file originale di ChatGPT c\'è una icona per la webapp solo legata al lab»: il manifest da solo non bastava, `apple-touch-icon` è il tag che iOS legge prima',
+);
+check(
+  'VINZ.LAB',
+  'e l\'icona del lab è lo stesso segno di VINZ.MON, non un\'icona diversa inventata',
+  has('scripts/invert-lab-icon.mjs', "inverti('public/icon-180.png', 'public/lab-icon-180.png')") &&
+    has('public/lab-manifest.webmanifest', '"/lab-icon-180.png"'),
+  'colori invertiti sul PNG vero, non un disegno nuovo sopra il vecchio sigillo che `make-icon.mjs` non genera più davvero',
 );
 check(
   'VINZ.LAB',

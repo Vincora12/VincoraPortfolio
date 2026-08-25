@@ -189,8 +189,17 @@ try {
   check('e le porte sono quattro', doors === 4, `trovate ${doors}`);
   check('col titolo suo', (await page.title()) === 'VINZ.LAB');
   check(
-    'e il manifest suo, così l\'icona sulla Home è un\'altra',
+    'e il manifest suo',
     (await page.locator('link[rel="manifest"]').getAttribute('href')) === '/lab-manifest.webmanifest',
+  );
+  /* 🔷 «Nel file originale di ChatGPT c'è una icona per la webapp solo
+     legata al lab.» Il manifest da solo non basta: iOS legge
+     `apple-touch-icon` quando premi «Aggiungi a schermata Home», PRIMA di
+     guardare il manifest — un manifest diverso con lo stesso
+     `apple-touch-icon` produce due scorciatoie identiche lo stesso. */
+  check(
+    'e anche apple-touch-icon punta a un\'icona diversa da quella dell\'app',
+    (await page.locator('link[rel="apple-touch-icon"]').getAttribute('href')) === '/lab-icon-180.png',
   );
   check(
     'su «/#/lab» VINZ.MON non è montata',
