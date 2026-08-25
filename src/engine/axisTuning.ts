@@ -27,6 +27,7 @@
    ========================================================================= */
 
 import { pickWeighted, type Rng } from './rng';
+import { serverBackedStorage } from '../system/serverStorage';
 
 /** Gli assi che si possono pesare, oltre a quelli già in `catalogTuning`. */
 export const WEIGHTED_AXES = ['eyewear', 'hairState', 'haircut'] as const;
@@ -60,10 +61,28 @@ function leggi(): Pesi {
 let pesi: Pesi = typeof localStorage === 'undefined' ? {} : leggi();
 
 function salva(): void {
+  const testo = JSON.stringify(pesi);
   try {
-    localStorage.setItem(CHIAVE, JSON.stringify(pesi));
+    localStorage.setItem(CHIAVE, testo);
   } catch {
     /* Se il browser non scrive, i pesi valgono per questa sessione. */
+  }
+  void serverBackedStorage.setItem(CHIAVE, testo);
+}
+
+/* 🔴 «Ma se io modifico un valore dal lab, si modifica anche in VINZ.MON?»
+   Stessa correzione di `designTokens.ts` e `catalogTuning.ts`: VINZ.LAB,
+   installato come icona sua, non condivide più il `localStorage` di
+   VINZ.MON. `salva()` ora spinge anche verso `/api/user-data`; questa la
+   riporta indietro appena c'è un token. */
+export async function pullWeightsFromServer(): Promise<void> {
+  const remoto = await serverBackedStorage.getItem(CHIAVE);
+  if (remoto == null) return;
+  try {
+    const v: unknown = JSON.parse(remoto);
+    if (v && typeof v === 'object') pesi = v as Pesi;
+  } catch {
+    /* valore illeggibile arrivato dal server: si tiene quello che c'era */
   }
 }
 

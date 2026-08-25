@@ -39,6 +39,7 @@ import {
   MOODS,
   ROLES,
 } from './generation-config';
+import { serverBackedStorage } from '../system/serverStorage';
 
 /** Gli assi su cui si può accendere e spegnere. */
 export const CATALOG_AXES = ['family', 'affinity', 'role', 'fashion', 'mood', 'appearance', 'design', 'size'] as const;
@@ -187,14 +188,57 @@ function carica(): Disabled {
 
 let off: Disabled = carica();
 
-function salva(): void {
+function serializza(): string {
+  return JSON.stringify(Object.fromEntries(CATALOG_AXES.map((a) => [a, [...off[a]]])));
+}
+
+/* 🔴 «e sfogliare CREATION non ha scritto niente» è diventato falso appena
+   `salva()` ha iniziato a spingere sul server: aprire la stanza monta il .mon
+   di prova (`testMon.ts`), che blocca e sblocca il perimetro voce per voce
+   per generare una creatura sempre uguale — la STESSA tecnica di `genera()`
+   in BUILD — e poi lo rimette esattamente com'era. Non è un tocco
+   dell'utente: è un blocco che si apre e si richiude da solo nello stesso
+   istante, e alla fine la chiave sul server sarebbe identica a prima. Farla
+   viaggiare comunque è solo rumore — decine di scritture per un valore che
+   non cambia. Questa bandiera lascia scrivere `localStorage` (serve dentro
+   la stessa sessione) e taglia solo la rete, per la durata del blocco. */
+let pushSospesa = false;
+
+export function senzaSpingereSulServer<T>(fn: () => T): T {
+  const prima = pushSospesa;
+  pushSospesa = true;
   try {
-    localStorage.setItem(
-      CHIAVE,
-      JSON.stringify(Object.fromEntries(CATALOG_AXES.map((a) => [a, [...off[a]]]))),
-    );
+    return fn();
+  } finally {
+    pushSospesa = prima;
+  }
+}
+
+function salva(): void {
+  const testo = serializza();
+  try {
+    localStorage.setItem(CHIAVE, testo);
   } catch {
     /* Senza scrittura vale per questa sessione. */
+  }
+  if (!pushSospesa) void serverBackedStorage.setItem(CHIAVE, testo);
+}
+
+/* 🔴 «Ma se io modifico un valore dal lab, si modifica anche in VINZ.MON?»
+   Stessa correzione di `designTokens.ts`: VINZ.LAB, installato come icona
+   sua, non condivide più il `localStorage` di VINZ.MON. `salva()` ora spinge
+   anche verso `/api/user-data`; questa la riporta indietro appena c'è un
+   token — chiamata dal guscio di ciascuna app. */
+export async function pullCatalogFromServer(): Promise<void> {
+  const remoto = await serverBackedStorage.getItem(CHIAVE);
+  if (remoto == null) return;
+  try {
+    const salvato = JSON.parse(remoto) as Record<string, string[]>;
+    off = Object.fromEntries(
+      CATALOG_AXES.map((a) => [a, new Set<string>(salvato[a] ?? DEFAULT_OFF[a] ?? [])]),
+    ) as Disabled;
+  } catch {
+    /* valore illeggibile arrivato dal server: si tiene quello che c'era */
   }
 }
 

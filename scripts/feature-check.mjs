@@ -3769,6 +3769,16 @@ check(
 );
 check(
   'VINZ.LAB',
+  'e modificare un token, un catalogo o un peso nel lab si vede anche in VINZ.MON, non solo nel codice',
+  has('src/engine/designTokens.ts', 'void serverBackedStorage.setItem(CHIAVE, JSON.stringify(overrides));') &&
+    has('src/engine/catalogTuning.ts', 'void serverBackedStorage.setItem(CHIAVE, testo);') &&
+    has('src/engine/axisTuning.ts', 'void serverBackedStorage.setItem(CHIAVE, testo);') &&
+    has('src/App.tsx', 'pullTokenOverridesFromServer') &&
+    has('src/lab/LabApp.tsx', 'pullCatalogFromServer'),
+  '🔴 «eh no, allora sono manopole che devo modificare col codice — tutto questo è inutile»: TOKENS, CATALOGHI e i pesi vivevano in tre chiavi mai toccate dal giro server costruito per il .mon; ora `salva()` in ciascuno dei tre file spinge anche verso `/api/user-data`, e ogni app la riscarica appena ha un token',
+);
+check(
+  'VINZ.LAB',
   'i comandi non spariscono in tema scuro',
   has('src/lab/skin/_base.css', 'color-scheme: light') &&
     has('src/lab/skin/_base.css', 'color: inherit'),

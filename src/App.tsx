@@ -345,6 +345,24 @@ export function App() {
       if (outcome === 'scaricato') console.info('[sync] ripreso il salvataggio dal server');
       const token = useApp.getState().token;
       if (token) await syncAssetsWithServer(token);
+
+      /* 🔴 «Se modifico un valore dal lab, va sul server e si modifica anche
+         in VINZ.MON?» — TOKENS, CATALOGHI e i pesi degli assi vivono in tre
+         chiavi a parte da questo stato di gioco, e VINZ.LAB — installato
+         come icona sua — non condivide più il `localStorage` di VINZ.MON.
+         Le tre chiavi ora si scambiano anche dal server (stesso token): qui
+         si scarica quello che il lab ha eventualmente cambiato, e si
+         riapplica ai CSS — a differenza del lab, qui i nomi sono quelli
+         veri (`--ink`, `--muted`...) e vanno DAVVERO applicati. */
+      const [{ pullTokenOverridesFromServer, applyTokenOverrides }, { pullCatalogFromServer }, { pullWeightsFromServer }] =
+        await Promise.all([
+          import('./engine/designTokens'),
+          import('./engine/catalogTuning'),
+          import('./engine/axisTuning'),
+        ]);
+      await Promise.all([pullTokenOverridesFromServer(), pullCatalogFromServer(), pullWeightsFromServer()]);
+      applyTokenOverrides();
+
       /* Dopo il salvataggio, non prima: se le due copie divergono si prende
          quella buona e POI ci si applica sopra quello che le Shortcut hanno
          lasciato. Al contrario, i dati della notte finirebbero su uno stato

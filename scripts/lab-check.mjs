@@ -303,6 +303,88 @@ try {
   await context.unroute('**/api/state');
   await context.unroute('**/api/assets*');
 
+  /* --- 2d. LE TARATURE DEL LAB ATTRAVERSANO LO STESSO CONFINE DEL .MON ------
+     🔴 «Eh no, [le tarature] sono manopole che devo modificare col codice
+     anche allenarlo — allora tutto questo è inutile.» Aveva ragione: TOKENS,
+     CATALOGHI e i pesi degli assi vivevano in tre chiavi di `localStorage` a
+     parte dallo stato di gioco, mai toccate dal giro server appena costruito
+     per il .mon — cambiarle nel lab restava lì, installazione per
+     installazione, esattamente il problema del token ma su altre tre chiavi.
+     Ora `salva()`, in ciascuno dei tre file, spinge anche verso
+     `/api/user-data` (lo stesso store generico della chat), e ogni app la
+     riscarica appena ha un token. */
+  const datiUtente = new Map();
+  await context.route('**/api/user-data*', (route) => {
+    const url = new URL(route.request().url());
+    const chiave = url.searchParams.get('key');
+    if (route.request().method() === 'PUT') {
+      datiUtente.set(chiave, route.request().postData() ?? '');
+      return route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' });
+    }
+    const valore = datiUtente.has(chiave) ? datiUtente.get(chiave) : null;
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ value: valore }) });
+  });
+
+  guarda();
+  await open('/lab/creation');
+  await page.evaluate(async () => {
+    const dt = await import('/src/engine/designTokens.ts');
+    dt.setTokenOverride('--signal-positive', '#ff00ff');
+    const ct = await import('/src/engine/catalogTuning.ts');
+    ct.setCatalogEnabled('family', 'DRAGON', true);
+  });
+  await sleep(400);
+
+  const pushato = {
+    tokens: datiUtente.get('vinzmon.designTokens.v1') ?? null,
+    dragonEscluso: (() => {
+      try {
+        return JSON.parse(datiUtente.get('vinzmon.catalog.v1') ?? '{}').family?.includes('DRAGON') ?? null;
+      } catch {
+        return null;
+      }
+    })(),
+  };
+  check(
+    'cambiare un token o un catalogo nel lab lo spinge sul server, non solo in questo browser',
+    pushato.tokens === '{"--signal-positive":"#ff00ff"}' && pushato.dragonEscluso === false,
+    JSON.stringify(pushato),
+  );
+
+  /* Simula un'installazione NUOVA con lo stesso token: nessuno scarto
+     locale, solo quello che sta sul server — come sarebbe VINZ.MON dopo
+     aver ricevuto lo stesso segreto. */
+  await page.evaluate(() => {
+    localStorage.removeItem('vinzmon.designTokens.v1');
+    localStorage.removeItem('vinzmon.catalog.v1');
+  });
+  await open('/lab/creation');
+  await sleep(800);
+
+  const dopoIlRicaricamento = await page.evaluate(async () => {
+    const dt = await import('/src/engine/designTokens.ts');
+    const ct = await import('/src/engine/catalogTuning.ts');
+    return {
+      ink: dt.tokenOverrides()['--signal-positive'] ?? null,
+      dragonAcceso: ct.isEnabled('family', 'DRAGON'),
+    };
+  });
+  check(
+    'e una installazione «nuova» con lo stesso token lo ritrova, non solo il .mon',
+    dopoIlRicaricamento.ink === '#ff00ff' && dopoIlRicaricamento.dragonAcceso === true,
+    JSON.stringify(dopoIlRicaricamento),
+  );
+
+  /* Rimetto a posto: i test di TOKENS e CATALOGHI più avanti si aspettano il
+     foglio pulito, non quello lasciato qui. */
+  await page.evaluate(async () => {
+    const dt = await import('/src/engine/designTokens.ts');
+    dt.resetAllTokenOverrides();
+    const ct = await import('/src/engine/catalogTuning.ts');
+    ct.resetCatalog();
+  });
+  await context.unroute('**/api/user-data*');
+
   /* --- 3. DESIGN.LAB ------------------------------------------------------- */
   await open('/#/lab/design');
   check('su «/#/lab/design» si apre DESIGN.LAB', (await page.locator('.screenbar').count()) > 0);

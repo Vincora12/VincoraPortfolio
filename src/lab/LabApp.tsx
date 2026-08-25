@@ -77,6 +77,26 @@ export function LabApp({ initialLab }: { initialLab: LabId | null }) {
       await syncWithServer();
       const { syncAssetsWithServer } = await import('../assets-pipeline/assetStore');
       await syncAssetsWithServer(token);
+      /* 🔴 «Se modifico un valore dal lab, va sul server e si modifica anche
+         in VINZ.MON?» — Solo il .mon vero passa da `syncWithServer`. Le
+         tarature del lab (TOKENS, CATALOGHI, i pesi degli assi) vivono in
+         tre chiavi a parte, e anche loro devono attraversare lo stesso
+         confine: scaricarle qui è la metà del giro, l'altra metà è che
+         ciascuna scrive verso lo stesso posto quando la cambi (vedi
+         `salva()` in ognuno dei tre file).
+
+         🔒 SOLO SCARICARE, MAI APPLICARE QUI. `applyTokenOverrides()` scrive
+         le variabili CSS dell'APP (`--ink`, `--muted`...) su `<html>` — e il
+         laboratorio ha le SUE, con GLI STESSI NOMI, nel proprio foglio di
+         stile (`creation.css` e affini). Chiamarla qui vincerebbe per
+         specificità sull'inline style e romperebbe i colori del lab. La
+         cache in `localStorage` basta: la legge chi ne ha davvero bisogno —
+         l'app vera e l'iframe di preview di DESIGN.LAB. */
+      await Promise.all([
+        import('../engine/designTokens').then((m) => m.pullTokenOverridesFromServer()),
+        import('../engine/catalogTuning').then((m) => m.pullCatalogFromServer()),
+        import('../engine/axisTuning').then((m) => m.pullWeightsFromServer()),
+      ]);
     })();
   }, [token]);
 

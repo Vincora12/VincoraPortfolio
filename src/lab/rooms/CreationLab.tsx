@@ -528,7 +528,7 @@ function Build({ avvio = 0 }: { avvio?: number }) {
     setGuasto(null);
     setInsegnato(null);
 
-    const { AXES, CATALOG_AXES, isEnabled, resetCatalog, setCatalogEnabled } =
+    const { AXES, CATALOG_AXES, isEnabled, resetCatalog, setCatalogEnabled, senzaSpingereSulServer } =
       await import('../../engine/catalogTuning');
     const spenti = CATALOG_AXES.flatMap((a) =>
       AXES[a].all.filter((id) => !isEnabled(a, id)).map((id) => [a, id] as const),
@@ -540,7 +540,9 @@ function Build({ avvio = 0 }: { avvio?: number }) {
       const input = generatorInput(useApp.getState());
 
       if (famigliaOra) {
-        for (const id of AXES.family.all) if (id !== famigliaOra) setCatalogEnabled('family', id, false);
+        senzaSpingereSulServer(() => {
+          for (const id of AXES.family.all) if (id !== famigliaOra) setCatalogEnabled('family', id, false);
+        });
       }
 
       const base = Number(seme) || 1;
@@ -604,8 +606,10 @@ function Build({ avvio = 0 }: { avvio?: number }) {
     } catch (e) {
       setGuasto(String(e));
     } finally {
-      resetCatalog();
-      for (const [a, id] of spenti) setCatalogEnabled(a, id, false);
+      senzaSpingereSulServer(() => {
+        resetCatalog();
+        for (const [a, id] of spenti) setCatalogEnabled(a, id, false);
+      });
       setGira(false);
     }
   };

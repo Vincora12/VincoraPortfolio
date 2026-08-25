@@ -25,7 +25,19 @@
    sia per l'app vera sia per l'iframe di preview del lab: è per questo che
    un cambiamento fatto in TOKENS si vede anche fuori dal lab, e sopravvive
    a chiudere e riaprire.
+
+   🔴 «Ma se io modifico un valore dal lab, si modifica anche in VINZ.MON?»
+   Doveva essere sempre vero — ed era vero finché VINZ.LAB viveva sotto lo
+   stesso `localStorage` di VINZ.MON. Da quando ha un'icona sua (per il fix
+   dell'installazione), iOS lo tratta da app a parte, con memoria a parte: lo
+   scarto scritto nel lab non arrivava più a VINZ.MON. `salva()` ora spinge
+   anche verso `/api/user-data` (stesso token, stesso store generico della
+   chat), e `pullTokenOverridesFromServer()` lo riporta indietro appena c'è
+   un token — chiamata dal guscio di ciascuna app, non da qui: questo file
+   non sa se sta girando nel lab o in VINZ.MON.
    ========================================================================= */
+
+import { serverBackedStorage } from '../system/serverStorage';
 
 export type TokenKind = 'color' | 'length' | 'text';
 
@@ -156,7 +168,24 @@ function salva() {
   } catch {
     /* storage pieno o negato: l'override resta solo in memoria per questa sessione */
   }
+  void serverBackedStorage.setItem(CHIAVE, JSON.stringify(overrides));
   ascoltatori.forEach((f) => f());
+}
+
+/** Scarica lo scarto salvato altrove (stesso token, un'altra installazione) e
+ * lo sostituisce qui. Non richiama `salva()`: rispedirlo al server appena
+ * arrivato da lì sarebbe uno scambio inutile. */
+export async function pullTokenOverridesFromServer(): Promise<void> {
+  const remoto = await serverBackedStorage.getItem(CHIAVE);
+  if (remoto == null) return;
+  try {
+    const parsed: unknown = JSON.parse(remoto);
+    if (!parsed || typeof parsed !== 'object') return;
+    overrides = parsed as Record<string, string>;
+    ascoltatori.forEach((f) => f());
+  } catch {
+    /* valore illeggibile arrivato dal server: si tiene quello che c'era */
+  }
 }
 
 export function tokenOverrides(): Record<string, string> {

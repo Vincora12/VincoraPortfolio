@@ -57,7 +57,7 @@ let congelato: MonRecord | null = null;
 export async function testMon(): Promise<MonRecord> {
   if (congelato) return congelato;
 
-  const { AXES, CATALOG_AXES, isEnabled, resetCatalog, setCatalogEnabled } =
+  const { AXES, CATALOG_AXES, isEnabled, resetCatalog, setCatalogEnabled, senzaSpingereSulServer } =
     await import('../../engine/catalogTuning');
   const { generateFirstMon } = await import('../../engine/characterGenerator');
   const { generatorInput } = await import('../../state/store');
@@ -92,13 +92,15 @@ export async function testMon(): Promise<MonRecord> {
       for (const id of AXES[asse].all) if (id !== v) setCatalogEnabled(asse, id, false);
       setCatalogEnabled(asse, v, true);
     };
-    tieni('family', TEST_MON_BASE.family);
-    tieni('affinity', TEST_MON_BASE.affinity);
-    tieni('role', TEST_MON_BASE.role);
-    tieni('fashion', TEST_MON_BASE.fashion);
-    tieni('appearance', TEST_MON_BASE.appearance);
-    tieni('design', TEST_MON_BASE.design);
-    tieni('size', TEST_MON_BASE.size);
+    senzaSpingereSulServer(() => {
+      tieni('family', TEST_MON_BASE.family);
+      tieni('affinity', TEST_MON_BASE.affinity);
+      tieni('role', TEST_MON_BASE.role);
+      tieni('fashion', TEST_MON_BASE.fashion);
+      tieni('appearance', TEST_MON_BASE.appearance);
+      tieni('design', TEST_MON_BASE.design);
+      tieni('size', TEST_MON_BASE.size);
+    });
 
     const r = generateFirstMon({
       input: generatorInput(useApp.getState()),
@@ -114,8 +116,10 @@ export async function testMon(): Promise<MonRecord> {
     congelato = r.record;
     return congelato;
   } finally {
-    resetCatalog();
-    for (const [a, id] of spenti) setCatalogEnabled(a, id, false);
+    senzaSpingereSulServer(() => {
+      resetCatalog();
+      for (const [a, id] of spenti) setCatalogEnabled(a, id, false);
+    });
   }
 }
 
