@@ -40,7 +40,7 @@ dire perdere quindici cose.
 ## Come si prova
 
     npm run verify:parity   # cosa vive nel lab e cosa solo in DEV
-    npm run verify:lab      # 62 prove con un browser vero
+    npm run verify:lab      # 69 prove con un browser vero
 
 `verify:lab` apre ogni stanza e **sfoglia ogni scheda una per una**, perché
 una scheda può essere montata benissimo e aprirsi vuota — e un controllo sul
@@ -251,3 +251,63 @@ perché e dove cambiarlo.
 Verificato: una accesa → 100% ANGEL; accendo DRAGON e BEAST → 33/34/32%;
 spengo ANGEL → solo DRAGON e BEAST. E la scelta sopravvive al ricaricamento.
 
+
+
+## I due tasti A/B
+
+🔷 «Due tasti. Uno alla fine del flow, che segue tutto il flow che abbiamo
+impostato e mi genera dodici immagini da cui faccio A/B, e lui usa quei test
+per imparare cosa mi piace. L'altro dopo aver modificato i singoli valori: usa
+il mio mon di prova e modifica solo quella parte.»
+
+### 1 · In fondo al FLOW — «GENERA A/B TEST · 12 IMMAGINI»
+
+Segue il flusso **com'è impostato adesso** (le liste accese), genera sei coppie
+con le immagini, tu scegli, e alla fine compare **COSA STO PER INSEGNARGLI**:
+la lezione scritta, che leggi e approvi con `APPROVA E INSERISCI`. Solo allora
+entra nel prompt del resolver.
+
+🔒 Sta in fondo e non in cima: costa dodici immagini, ed è il gesto che si fa
+*dopo* aver guardato e toccato il flusso.
+
+### 2 · Dentro un passo — «GENERA A/B TEST · 2 IMMAGINI»
+
+Usa il **.mon di prova** (`docs/lab/TEST_MON_SPEC.md`): una creatura
+deliberatamente noiosa e congelata — ANGEL · PUTTO · ANGEL · TINY · SCOUT ·
+STREET · CALM · CEL · KEN SUGIMORI · COMMON — generata una volta sola dal
+motore vero con il seme `VINZLAB_TEST_MON_V1`.
+
+A e B sono **la stessa creatura**: cambia solo il campo che stai provando.
+
+    A = gli occhiali che ha adesso
+    B = quelli che vuoi tu
+    tutto il resto = identico
+
+🔒 I campi generati (DNA, palette, voce, nome, sigillo) **non sono scritti a
+mano**: la specifica lo vieta. Li produce il motore e poi si congelano.
+
+🔒 E se un valore canonico sparisse dal catalogo, la costruzione **si rompe a
+voce alta** invece di sostituirne un altro: un A/B su una creatura diversa
+senza saperlo è peggio di nessun A/B.
+
+### PROVA e A/B rispondono a domande diverse
+
+| | domanda | costo |
+|---|---|---|
+| **PROVA · 200 CREATURE** | il peso che ho spostato cambia le *frequenze*? | niente |
+| **GENERA A/B TEST** | e quando esce, *viene bene*? | 2 immagini |
+
+Un A/B visivo non prova mai una probabilità, e duecento righe di testo non
+dicono se il risultato è bello. Servono tutte e due — lo dice la specifica, e
+adesso ci sono tutte e due.
+
+### Due difetti trovati provandoli
+
+- 🔴 **Il tasto in fondo al flusso partiva coi valori vecchi.** Faceva
+  `setQuanti(6); setConImmagini(true); allena()` di seguito, e `allena` leggeva
+  ancora lo stato precedente: otto duelli invece di sei, e senza immagini, con
+  l'aria di funzionare. Adesso i valori si passano come argomenti.
+- 🔴 **A e B potevano capitare uguali.** Se il valore che le tue modifiche
+  favoriscono è anche quello che il .mon di prova ha già addosso, il confronto
+  è la stessa immagine due volte, pagata due volte. Adesso il pulsante si
+  spegne e lo dice.

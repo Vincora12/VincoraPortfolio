@@ -60,6 +60,11 @@ const TABS = [
 
 export function CreationLab({ onBack }: { onBack: () => void }) {
   const [tab, setTab] = useState('map');
+  /* 🔷 «Un tasto alla fine del flow: genera A/B test, dove lui segue tutto il
+     flow che abbiamo impostato e mi genera dodici immagini.»
+     Il duello vive in BUILD; questo lo apre già pronto invece di far
+     ricostruire il perimetro a mano. */
+  const [avvioDalFlusso, setAvvioDalFlusso] = useState(0);
 
   return (
     <div className="app">
@@ -91,8 +96,15 @@ export function CreationLab({ onBack }: { onBack: () => void }) {
       </header>
 
       <main>
-        {tab === 'map' && <Flow />}
-        {tab === 'train' && <Build />}
+        {tab === 'map' && (
+          <Flow
+            onAvviaAB={() => {
+              setTab('train');
+              setAvvioDalFlusso((n) => n + 1);
+            }}
+          />
+        )}
+        {tab === 'train' && <Build avvio={avvioDalFlusso} />}
         {tab === 'learned' && <Learned />}
         {tab === 'state' && <State />}
         {tab === 'versions' && <History />}
@@ -175,8 +187,9 @@ const CORSA: Record<string, string> = {
   runtime: '💬 RUNTIME',
 };
 
-function Flow() {
+function Flow({ onAvviaAB }: { onAvviaAB: () => void }) {
   const trace = useApp((s) => s.lastTrace);
+  const famiglieAccese = keepEnabled('family', FAMILIES, (f) => f.id).map((f) => f.id);
 
   /* 🔒 QUALE PASSO È DAVVERO SUCCESSO. Il disegno mostrava trentadue righe
      tutte uguali; qui quelle che l'ultima generazione ha davvero eseguito
@@ -346,6 +359,26 @@ function Flow() {
           </section>
         ))}
       </div>
+
+      {/* 🔷 «Alla fine del flow: genera A/B test, dove lui segue tutto il flow
+          che abbiamo impostato e mi genera dodici immagini da cui faccio A/B,
+          e poi cerca di capire, genera delle lezioni, io le leggo, le approvo
+          e vengono inserite.»
+
+          🔒 STA IN FONDO, e non è impaginazione: è il gesto che si fa DOPO
+          aver guardato e toccato il flusso. Un pulsante che costa dodici
+          immagini messo in cima si preme prima di aver deciso cosa provare. */}
+      <div className="test" style={{ marginTop: 24 }}>
+        <h3>GENERA A/B TEST</h3>
+        <p>
+          Segue il flusso <b>com’è impostato adesso</b> — {famiglieAccese.join(' · ')} — e disegna
+          dodici immagini: sei coppie da guardare e scegliere. Alla fine, da quello che hai scelto,
+          esce una lezione che leggi e approvi tu.
+        </p>
+        <button type="button" className="btn dark" style={{ width: '100%', marginTop: 8 }} onClick={onAvviaAB}>
+          GENERA A/B TEST · 12 IMMAGINI
+        </button>
+      </div>
     </section>
   );
 }
@@ -409,7 +442,7 @@ function CosaEAcceso() {
    motore mezzo spento avrebbe cambiato la produzione.
    ========================================================================= */
 
-function Build() {
+function Build({ avvio = 0 }: { avvio?: number }) {
   const [famiglia, setFamiglia] = useState('');
   const [archetipo, setArchetipo] = useState('');
   const [taglia, setTaglia] = useState('');
@@ -434,6 +467,20 @@ function Build() {
   const imageModel = useApp((s) => s.imageModel);
 
   useEffect(() => ascoltaJob(setJob), []);
+
+  /* 🔷 Arrivando dal tasto in fondo al FLOW il duello parte già armato: sei
+     coppie, con le immagini. Il perimetro resta quello del catalogo — «segue
+     tutto il flow che abbiamo impostato» — quindi qui non si blocca niente. */
+  useEffect(() => {
+    if (avvio === 0) return;
+    setFamiglia('');
+    setArchetipo('');
+    setTaglia('');
+    setQuanti(6);
+    setConImmagini(true);
+    void allena({ quanti: 6, immagini: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [avvio]);
 
   /* Le immagini già disegnate si rileggono a ogni duello: se hai chiuso e
      riaperto, quelle pagate ieri sono ancora lì. */
@@ -470,7 +517,17 @@ function Build() {
 
   /* --- La sessione --------------------------------------------------------- */
 
-  const allena = async () => {
+  /* 🔴 STALE CLOSURE, e si vedeva solo provandola. Il tasto in fondo al FLOW
+     faceva `setQuanti(6); setConImmagini(true); allena()` tutto di seguito:
+     `allena` leggeva ancora i valori VECCHI, perché in React lo stato appena
+     impostato non è visibile nella stessa passata. Risultato: partivano otto
+     duelli invece di sei, e senza immagini — con l'aria di funzionare.
+
+     🔒 Quindi i valori che l'avvio automatico deve imporre si passano come
+     argomenti, invece di sperare che lo stato sia già arrivato. */
+  const allena = async (forza?: { quanti?: number; immagini?: boolean }) => {
+    const quantiOra = forza?.quanti ?? quanti;
+    const immaginiOra = forza?.immagini ?? conImmagini;
     setGira(true);
     setGuasto(null);
     setInsegnato(null);
@@ -543,7 +600,7 @@ function Build() {
       const coppie: { a: Carta; b: Carta }[] = [];
       let n = 0;
       let tentativi = 0;
-      while (coppie.length < quanti && tentativi < quanti * 40) {
+      while (coppie.length < quantiOra && tentativi < quantiOra * 40) {
         tentativi += 1;
         const a = uno(n++);
         const b = uno(n++);
@@ -559,7 +616,7 @@ function Build() {
         setPasso(0);
         setCommento('');
 
-        if (conImmagini) {
+        if (immaginiOra) {
           /* Il permesso si chiede PRIMA di partire: chiederlo alla fine
              vorrebbe dire scoprire di non poter avvisare proprio quando c'è
              qualcosa da dire. */
@@ -812,6 +869,18 @@ function Build() {
                 {ETICHETTA_ASSE[p.asse]} · {p.valore} · {p.vinti}/{p.scontri}
               </div>
             ))}
+            {/* 🔷 «Lui genera delle lezioni, io le leggo, le approvo, e vengono
+                inserite.» Quindi la frase si LEGGE prima di partire. Un
+                pulsante che manda qualcosa che non hai letto ti fa scoprire
+                cosa hai insegnato solo dopo, in LEARNED — cioè quando è già
+                dentro il prompt del resolver. */}
+            <div className="box soft" style={{ marginTop: 10 }}>
+              <span className="label mono">COSA STO PER INSEGNARGLI</span>
+              <pre className="promptcode" style={{ whiteSpace: 'pre-wrap' }}>
+                {fraseDaInsegnare(prefs, scope === 'ALL' ? '' : scope)}
+              </pre>
+            </div>
+
             <button
               type="button"
               className="btn dark"
@@ -819,7 +888,7 @@ function Build() {
               onClick={() => void insegna()}
               disabled={insegnando}
             >
-              {insegnando ? 'INSEGNO…' : 'INSEGNA QUESTO AL RESOLVER'}
+              {insegnando ? 'INSEGNO…' : 'APPROVA E INSERISCI'}
             </button>
             {insegnato && <p className="hint">{insegnato}</p>}
             <button

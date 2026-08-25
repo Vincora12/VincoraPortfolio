@@ -42,6 +42,8 @@ import {
   setCatalogEnabled,
   type CatalogAxis,
 } from '../../engine/catalogTuning';
+import { StepAB } from './StepAB';
+import type { BersaglioAB } from './testMon';
 import '../skin/flow-tuning.css';
 
 /** Da dove leggere il valore uscito, per contare la distribuzione. */
@@ -50,6 +52,22 @@ type Lettore = (d: Record<string, unknown>) => string | null;
 export type AsseDelPasso =
   | { tipo: 'catalogo'; asse: CatalogAxis; leggi: Lettore }
   | { tipo: 'peso'; asse: WeightedAxis; voci: readonly { id: string; it: string }[]; leggi: Lettore };
+
+/**
+ * Il valore che le tue modifiche favoriscono di più.
+ *
+ * 🔒 Serve a proporre B da solo: se hai appena spinto OPTICAL EDITORIAL a ×5,
+ * il confronto che vuoi è contro quello — non contro il primo della lista.
+ * Se non hai spinto niente, non si propone niente e scegli tu.
+ */
+function piuSpinto(a: Extract<AsseDelPasso, { tipo: 'peso' }>): string | null {
+  let top: { id: string; w: number } | null = null;
+  for (const v of a.voci) {
+    const w = weightOf(a.asse, v.id);
+    if (w > 1 && (!top || w > top.w)) top = { id: v.id, w };
+  }
+  return top?.id ?? null;
+}
 
 export function StepTuning({ assi }: { assi: AsseDelPasso[] }) {
   const [, ridisegna] = useState(0);
@@ -182,6 +200,20 @@ export function StepTuning({ assi }: { assi: AsseDelPasso[] }) {
               RIMETTI A POSTO
             </button>
           </div>
+
+          {/* 🔷 «Genera A/B test dopo aver modificato i singoli valori.»
+              Solo sugli assi a peso: sono quelli che il .mon di prova possiede
+              come UN campo suo, che si può scambiare tenendo fermo il resto.
+              Su un catalogo (Family, ruolo…) cambiare il valore vorrebbe dire
+              cambiare la creatura, non un suo dettaglio — e allora non è più
+              un A/B controllato. */}
+          {a.tipo === 'peso' && (
+            <StepAB
+              bersaglio={a.asse as BersaglioAB}
+              voci={a.voci}
+              proposto={piuSpinto(a)}
+            />
+          )}
 
           {prova && prova.asse === a.asse && (
             <div className="tune__dist">

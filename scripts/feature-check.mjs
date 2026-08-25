@@ -3770,7 +3770,11 @@ check(
 check(
   'VINZ.LAB',
   'e diventano una lezione VERA solo con un gesto esplicito',
-  has(BUILD, 'teachResolver(frase, [])') && has(BUILD, 'INSEGNA QUESTO AL RESOLVER'),
+  /* 🔶 Il pulsante non dice più «INSEGNA QUESTO AL RESOLVER» ma «APPROVA E
+     INSERISCI», e sopra c'è la frase da leggere. La decisione è la stessa,
+     rafforzata: non solo un gesto esplicito, ma un gesto fatto DOPO aver
+     letto cosa stai per insegnargli. */
+  has(BUILD, 'teachResolver(frase, [])') && has(BUILD, 'APPROVA E INSERISCI'),
   'l\'AI propone, tu applichi: è la regola del pacchetto',
 );
 check(
@@ -3862,6 +3866,61 @@ check(
   'e il permesso si chiede PRIMA di avviare il lavoro',
   has('src/lab/rooms/CreationLab.tsx', 'await chiediPermesso();'),
   'chiederlo alla fine vuol dire scoprire di non poter avvisare proprio quando c\'è qualcosa da dire',
+);
+
+/* ============================================================================
+   I DUE TASTI A/B — e il .mon di prova
+   ========================================================================= */
+
+const TESTMON = 'src/lab/rooms/testMon.ts';
+
+check(
+  'CREATION.LAB',
+  'il .mon di prova esiste, ed è quello della specifica',
+  has(TESTMON, "seedFromString('VINZLAB_TEST_MON_V1')") &&
+    has(TESTMON, "family: 'ANGEL'") &&
+    has(TESTMON, "archetype: 'PUTTO'"),
+  'TEST_MON_SPEC.md: una creatura deliberatamente noiosa, per cambiare UN valore e tenere fermo il resto',
+);
+check(
+  'CREATION.LAB',
+  'e i suoi campi generati NON sono scritti a mano',
+  has(TESTMON, 'generateFirstMon') && lacksInCode(TESTMON, 'character_dna:'),
+  'la specifica lo vieta: DNA, palette, voce e nome li produce il motore, poi si congelano',
+);
+check(
+  'CREATION.LAB',
+  'e se un valore canonico sparisce, si rompe a voce alta',
+  has(TESTMON, 'non esistono più nel catalogo'),
+  'sostituirne un altro in silenzio vuol dire fare A/B su una creatura diversa senza saperlo',
+);
+check(
+  'CREATION.LAB',
+  "l'A/B di un valore cambia SOLO quel campo",
+  has(TESTMON, 'export function variante') &&
+    has(TESTMON, 'Only the target being tested may change'),
+  'se A e B vengono diversi, la differenza dev’essere attribuibile alla regola che stai provando',
+);
+check(
+  'CREATION.LAB',
+  'e non si può lanciare un A/B con A e B uguali',
+  has('src/lab/rooms/StepAB.tsx', 'const uguali =') &&
+    has('src/lab/rooms/StepAB.tsx', 'disabled={gira || !token || uguali}'),
+  '🔴 sarebbe la stessa immagine due volte, pagata due volte, con l’aria di un test riuscito',
+);
+check(
+  'CREATION.LAB',
+  'il tasto in fondo al flusso passa i valori, non spera nello stato',
+  has('src/lab/rooms/CreationLab.tsx', "void allena({ quanti: 6, immagini: true })") &&
+    has('src/lab/rooms/CreationLab.tsx', 'STALE CLOSURE'),
+  '🔴 partiva con i valori vecchi: otto duelli invece di sei e senza immagini, con l’aria di funzionare',
+);
+check(
+  'CREATION.LAB',
+  'e la lezione si LEGGE prima di approvarla',
+  has('src/lab/rooms/CreationLab.tsx', 'COSA STO PER INSEGNARGLI') &&
+    has('src/lab/rooms/CreationLab.tsx', 'APPROVA E INSERISCI'),
+  '🔷 «lui genera delle lezioni, io le leggo, le approvo, e vengono inserite»',
 );
 
 /* ============================================================================

@@ -363,8 +363,8 @@ try {
 
   check(
     'il passo degli occhiali ha i suoi comandi',
-    (await passo.locator('.tune').count()) === 2,
-    'lo stile si accende e si spegne, le sedici ottiche si pesano',
+    (await passo.locator('.tune').count()) === 3,
+    'lo stile si accende e si spegne, le sedici ottiche si pesano, e c’è l’A/B',
   );
 
   const ottica = passo.locator('.tune').nth(1);
@@ -545,6 +545,107 @@ try {
   /* Rimetto com'era per non lasciare il laboratorio configurato a caso. */
   await passoDopo.locator('button', { hasText: 'RIMETTI A POSTO' }).click();
   await sleep(300);
+
+  /* --- 3b-sexies. I DUE TASTI A/B ------------------------------------------
+     🔷 «Due tasti: uno alla fine del flow che segue tutto quello che abbiamo
+        impostato e mi genera dodici immagini; l'altro dentro il singolo
+        valore, che usa il mio mon di prova e modifica solo quella parte.»
+
+     🔒 Il secondo è quello delicato: se A e B vengono diversi, la differenza
+     dev'essere ATTRIBUIBILE alla cosa che stai provando. Quindi si verifica
+     che le due carte portino la STESSA creatura e due valori DIVERSI del
+     bersaglio — non due creature qualsiasi. */
+  /* Serve un fornitore finto e un token: `post()` si rifiuta di chiamare
+     senza, e il pulsante resta spento. */
+  await context.route('**/api/ai', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        image:
+          'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+      }),
+    }),
+  );
+  await open('/#/lab/creation');
+  await page.evaluate(() => {
+    const raw = localStorage.getItem('vinzmon.prototype.v4');
+    const o = raw ? JSON.parse(raw) : { state: {}, version: 3 };
+    o.state = { ...(o.state ?? {}), token: 'vm_test_token_1234567890abcd' };
+    localStorage.setItem('vinzmon.prototype.v4', JSON.stringify(o));
+  });
+
+  guarda();
+  await open('/#/lab/creation');
+  const passoOtt = page.locator('details.step').filter({ hasText: 'Fashion + VINZ Markers' }).first();
+  await passoOtt.locator('summary').click();
+  await sleep(700);
+
+  const testoProva = (await passoOtt.locator('.tune .hint').first().textContent()) ?? '';
+  check(
+    'il passo porta il .mon di prova, congelato',
+    /Il \.mon di prova è .*ANGEL · PUTTO · TINY/.test(testoProva),
+    testoProva.slice(0, 70),
+  );
+
+  /* 🔒 B SI SCEGLIE ESPLICITAMENTE, e non è pigrizia del copione: il blocco
+     precedente ha spinto OPTICAL EDITORIAL, che è anche quello che il .mon di
+     prova ha già addosso — quindi il proposto coincide con l'attuale e il
+     pulsante è (giustamente) spento. Sceglierne uno diverso rende questo
+     controllo indipendente da cosa è successo prima. */
+  const attualeAB = (await passoOtt.locator('.tune__row code').first().textContent()) ?? '';
+  const alternativa = attualeAB.trim() === 'SHIELD' ? 'MASK' : 'SHIELD';
+  await passoOtt.locator('.tune select[aria-label="valore da provare"]').selectOption(alternativa);
+  await sleep(250);
+
+  await passoOtt.locator('button', { hasText: 'GENERA A/B TEST' }).click();
+  await sleep(4200);
+  const etichette = await passoOtt.locator('.compare.show .col strong').allTextContents();
+  check(
+    'e l\'A/B disegna due immagini',
+    (await passoOtt.locator('.compare.show img').count()) === 2,
+    etichette.join(' vs '),
+  );
+  /* ⚠️ CONFRONTA I VALORI, NON LE ETICHETTE. «A · SHIELD» e «B · SHIELD» sono
+     stringhe diverse e lo stesso identico test: la prima versione di questo
+     controllo passava proprio mentre A e B erano uguali. */
+  const valoriAB = etichette.map((x) => x.replace(/^[AB] · /, ''));
+  check(
+    'con due valori DIVERSI dello stesso campo',
+    valoriAB.length === 2 && valoriAB[0] !== valoriAB[1],
+    valoriAB.join(' vs '),
+  );
+
+  /* Il tasto in fondo al flusso. */
+  await open('/#/lab/creation');
+  const fondo = page.locator('.test', { hasText: 'GENERA A/B TEST' }).first();
+  await fondo.scrollIntoViewIfNeeded();
+  check(
+    'in fondo al flusso c\'è il tasto che segue tutto',
+    /dodici immagini/.test((await fondo.textContent()) ?? ''),
+    'sta in fondo: si preme dopo aver guardato il flusso, non prima',
+  );
+  await fondo.locator('button').click();
+  await sleep(7000);
+
+  const dalFlusso = await page.evaluate(() => ({
+    aperto: document.querySelector('.session') !== null,
+    testa: document.querySelector('.sessionhead')?.textContent?.replace(/\s+/g, ' ') ?? '',
+    immagini: document.querySelectorAll('.duelcard .duelvisual img').length,
+  }));
+  check('e porta al duello già armato', dalFlusso.aperto === true, dalFlusso.testa);
+  check(
+    'con sei coppie, cioè dodici immagini',
+    dalFlusso.testa.trim().endsWith('1 / 6'),
+    dalFlusso.testa,
+  );
+  check(
+    'e le immagini partono davvero',
+    dalFlusso.immagini === 2,
+    '🔴 partiva con i valori vecchi: otto duelli e nessuna immagine, con l\'aria di funzionare',
+  );
+
+  await context.unroute('**/api/ai');
 
   /* --- 3c. SOUL --------------------------------------------------------------
      🔒 Le tre ancore dello schizzo devono dare tre facce DIVERSE. Sembra
