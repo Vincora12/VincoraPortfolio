@@ -881,32 +881,24 @@ try {
     `letto: ${tornato || '(vuoto)'}`,
   );
 
-  /* --- 3e. L'ASSISTENTE: chiedere a parole, mai applicare da solo -----------
-     🔷 «C'è dentro il lab un'AI che può fare tutte queste modifiche per me?
-        Vorrei un'AI che possa modificare il programma, tenendo sempre
-        salvato la versione di prima.»
+  /* --- 3e. L'ASSISTENTE: la STESSA chat di casa, con gli stessi strumenti --
+     🔷 «Le pagine assistente devono essere interamente come quella della
+        chat, con tutte le funzionalità, ma in bianco.» Scelto esplicitamente:
+        «chat vera con gli strumenti», non solo l'aspetto — sostituisce il
+        vecchio giro chiedi→proposta→APPLICA/ANNULLA, che restava scoped al
+        lab e non scriveva mai da sola.
 
-     Tre cose da provare, e sono le tre che contano: (1) una proposta con un
-     id INVENTATO viene scartata, non applicata silenziosamente — il
-     registro è il confine, non la fiducia nel prompt; (2) APPLICA scrive
-     davvero il valore vero (letto da `localStorage`, non dallo schermo); (3)
-     è LO STESSO motore da CREATION e da SYSTEM — una proposta approvata da
-     una stanza si vede in cronologia anche nell'altra, perché è stato
-     scritto "un'AI", non tre che non si parlano. */
+     Non si riprova qui la correttezza di `netlify-runtime.ts` (routing verso
+     gli strumenti locali, streaming, ricerca web): è lo stesso codice della
+     chat di casa, non qualcosa scritto per il lab. Si prova che è MONTATA
+     davvero — stessa superficie, stesso tema bianco (non il nero forzato sul
+     telefono), un giro vero di richiesta/risposta — nelle tre stanze che la
+     ospitano. */
   await context.route('**/api/ai', (route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5',
-        text: JSON.stringify({
-          changes: [
-            { id: 'weight:eyewear:OPTICAL EDITORIAL', value: '4', reason: 'più occhiali da vista' },
-            { id: 'weight:eyewear:UN OCCHIALE INVENTATO', value: '5', reason: 'non dovrebbe passare' },
-          ],
-          unsupported: null,
-        }),
-      }),
+      body: JSON.stringify({ text: 'Risposta di prova dall\'assistente.', costUsd: 0.001, model: 'gpt-5.6-terra' }),
     }),
   );
 
@@ -917,62 +909,46 @@ try {
     const o = raw ? JSON.parse(raw) : { state: {}, version: 3 };
     o.state = { ...(o.state ?? {}), token: 'vm_test_token_1234567890abcd' };
     localStorage.setItem('vinzmon.prototype.v4', JSON.stringify(o));
-    /* Una prova precedente in questo stesso giro ha già toccato i pesi
-       dell'eyewear: si riparte da uno stato noto, non da quello che un
-       altro test ha lasciato. */
-    localStorage.removeItem('vinzmon.axisWeights.v1');
   });
   await open('/#/lab/creation');
   await page.locator('.top .tabs .tab', { hasText: 'ASSISTENTE' }).click();
-  await sleep(300);
-  await page.locator('.labai-box .aui-composer__input').fill('fai uscire di più gli occhiali da vista');
-  await page.locator('.labai-box .aui-composer__send').click();
   await sleep(600);
 
-  const anteprima = await page.evaluate(() => ({
-    righe: document.querySelectorAll('.labai-row').length,
-    diff: document.querySelector('.labai-diff')?.textContent?.trim() ?? '',
-    scartate: document.querySelector('.labai-discarded')?.textContent ?? '',
+  const montata = await page.evaluate(() => ({
+    htmlHaDark: document.documentElement.classList.contains('dark'),
+    cloneBg: (() => {
+      const el = document.querySelector('.assistant-clone');
+      return el ? getComputedStyle(el).backgroundColor : null;
+    })(),
+    hasComposer: document.querySelectorAll('.assistant-clone textarea').length > 0,
+    hasMic: document.querySelectorAll('.assistant-clone button svg').length > 0,
   }));
   check(
-    'un id che non esiste nel registro viene scartato, non applicato',
-    anteprima.righe === 1 && /UN OCCHIALE INVENTATO/.test(anteprima.scartate),
-    anteprima.scartate,
+    'è la stessa superficie della chat — stesso composer, stessa dettatura',
+    montata.hasComposer && montata.hasMic,
+    JSON.stringify(montata),
   );
-  check('e la proposta buona mostra il valore da → a', /1.*→.*4/.test(anteprima.diff), anteprima.diff);
-
-  await page.locator('.labai-btn.dark', { hasText: 'APPLICA' }).click();
-  await sleep(300);
-
-  const pesoScritto = await page.evaluate(() => {
-    const raw = localStorage.getItem('vinzmon.axisWeights.v1');
-    const v = raw ? JSON.parse(raw) : {};
-    return v?.eyewear?.['OPTICAL EDITORIAL'] ?? null;
-  });
-  check('APPLICA scrive il valore vero, non solo a schermo', pesoScritto === 4, `letto: ${pesoScritto}`);
-
-  await open('/#/lab/system');
-  await page.locator('.top .tabs .tab', { hasText: 'ASSISTENTE' }).click();
-  await sleep(300);
-  const vistaDaAltraStanza = await page.locator('.labai-histrow').first().textContent();
   check(
-    'la stessa proposta approvata si vede anche da SYSTEM: un motore solo, non tre',
-    (vistaDaAltraStanza ?? '').includes('occhiali da vista'),
-    vistaDaAltraStanza ?? '',
+    'ma in bianco: niente `.dark` forzato sul documento del lab',
+    montata.htmlHaDark === false && montata.cloneBg === 'rgb(255, 255, 255)',
+    JSON.stringify(montata),
   );
 
-  await page.locator('.labai-histrow .labai-btn.ghost', { hasText: 'ANNULLA' }).first().click();
-  await sleep(300);
-  const pesoDopoAnnulla = await page.evaluate(() => {
-    const raw = localStorage.getItem('vinzmon.axisWeights.v1');
-    const v = raw ? JSON.parse(raw) : {};
-    return v?.eyewear?.['OPTICAL EDITORIAL'] ?? null;
-  });
-  check(
-    'ANNULLA rimette il valore fotografato prima, la versione di prima resta salvata',
-    pesoDopoAnnulla === null || pesoDopoAnnulla === 1,
-    `letto: ${pesoDopoAnnulla}`,
-  );
+  await page.locator('.assistant-clone textarea').fill('ciao, che tempo fa oggi');
+  await page.keyboard.press('Enter');
+  await sleep(1200);
+  const rispostaVista = await page.evaluate(() => document.body.innerText.includes('Risposta di prova'));
+  check('e un giro vero di richiesta/risposta funziona da dentro il lab', rispostaVista);
+
+  for (const [rotta, stanza] of [['/#/lab/system', 'SYSTEM'], ['/#/lab/design', 'DESIGN']]) {
+    await open(rotta);
+    await page.locator('.top .tabs .tab', { hasText: 'ASSISTENTE' }).click();
+    await sleep(600);
+    const anche = await page.evaluate(() => document.querySelectorAll('.assistant-clone textarea').length > 0);
+    check(`ed è la STESSA superficie anche da ${stanza}, non una copia`, anche);
+  }
+
+  await context.unroute('**/api/ai');
 
   /* --- 3f. 🧬 PROPONI: aggiungere o modificare una Family --------------------
      🔷 «Come faccio ad aggiungere altre idee di famiglia e come faccio a

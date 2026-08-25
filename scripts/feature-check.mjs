@@ -3708,42 +3708,41 @@ check(
 );
 check(
   'VINZ.LAB',
-  'l\'assistente non scrive mai codice: propone solo campi che il lab già espone',
-  has('src/engine/labAssistant.ts', 'campiCatalogo') &&
-    has('src/engine/labAssistant.ts', 'campiPesi') &&
-    has('src/engine/labAssistant.ts', 'campiToken') &&
-    has('src/engine/labAssistant.ts', 'campiModello') &&
-    !has('src/engine/labAssistant.ts', 'writeFile'),
-  '🔷 «un\'AI che possa modificare il programma»: qui vuol dire cataloghi, pesi, token, modelli — mai un file del repo',
-);
-check(
-  'VINZ.LAB',
-  'e un id sconosciuto viene scartato, non applicato',
-  has('src/engine/labAssistant.ts', 'non è un campo che conosco') &&
-    has('src/engine/labAssistant.ts', 'const campo = reg.get(p.id)'),
-  'il registro è il confine di sicurezza: un id che l\'AI si inventa non tocca niente',
-);
-check(
-  'VINZ.LAB',
-  'e ogni modifica applicata resta annullabile, con il valore fotografato prima',
-  has('src/engine/labAssistant.ts', 'const da = campo.valoreAttuale()') && has('src/engine/labAssistant.ts', 'export function annulla'),
-  '🔷 «tenendo sempre salvato la versione di prima»',
-);
-check(
-  'VINZ.LAB',
   'ed è LO STESSO assistente da CREATION, SYSTEM e DESIGN, non tre che non si parlano',
   has('src/lab/rooms/CreationLab.tsx', 'LabAssistantPanel') &&
     has('src/lab/rooms/SystemLab.tsx', 'LabAssistantPanel') &&
     has('src/lab/rooms/DesignLab.tsx', 'LabAssistantPanel'),
-  'un componente solo, montato in tre stanze: la cronologia è quella che vedono tutte',
+  'un componente solo, montato in tre stanze: la stessa cronologia, sincronizzata dal token',
+);
+/* 🔴 «Le pagine assistente devono essere interamente come quella della chat,
+   con tutte le funzionalità, ma in bianco.» Scelto esplicitamente: «chat vera
+   con gli strumenti», non solo l'aspetto — e questo SOSTITUISCE il vecchio
+   giro chiedi→proposta→APPLICA/ANNULLA (scoped a cataloghi/pesi/token, mai
+   una scrittura da sola) che questi aghi verificavano prima. Non è stato
+   dimenticato: è la decisione esplicita di Vincenzo a rimpiazzarlo — vedi
+   `LabAssistantPanel.tsx` per il perché per esteso. */
+check(
+  'VINZ.LAB',
+  'e l\'assistente del lab è la STESSA chat di casa, con gli stessi strumenti',
+  has('src/lab/assistant/LabAssistantPanel.tsx', "import { IntegratedChat } from '../../assistant-original/IntegratedChat';") &&
+    has('src/lab/assistant/LabAssistantPanel.tsx', 'runTool={runChatTool}') &&
+    has('src/lab/assistant/LabAssistantPanel.tsx', 'useApp.getState().runMonTool(use)'),
+  '🔷 «chat vera con gli strumenti»: stessa `IntegratedChat`, stesso `runMonTool` della chat di casa — legge i dati, scrive pagine, promemoria, ricerca web',
 );
 check(
   'VINZ.LAB',
-  'e ogni assistente del lab detta come la chat principale, non con una textarea muta',
-  has('src/lab/assistant/LabAssistantPanel.tsx', "import { DictationComposer } from '../../brain/DictationComposer';") &&
-    has('src/lab/rooms/TaxonomyLab.tsx', "import { DictationComposer } from '../../brain/DictationComposer';") &&
+  'e resta bianco: niente `.dark` forzato sul documento del lab',
+  has('src/lab/assistant/LabAssistantPanel.tsx', 'embedded') &&
+    has('src/assistant-original/IntegratedChat.tsx', 'if (!embedded) document.documentElement.classList.add("dark")') &&
+    has('src/assistant-original/chat-surface.tsx', 'bg-white text-[#0d0d0d]'),
+  '🔷 «... ma in bianco, in questo modo la chat è utilizzabile» — `embedded` monta la STESSA superficie, non una copia: il clone ha già il suo tema chiaro nativo (`bg-white dark:bg-black`), qui basta non forzare `.dark`',
+);
+check(
+  'VINZ.LAB',
+  'e PROPONI detta con un composer suo, senza bisogno della chat intera per una richiesta sola',
+  has('src/lab/rooms/TaxonomyLab.tsx', "import { DictationComposer } from '../../brain/DictationComposer';") &&
     has('src/brain/DictationComposer.tsx', "import './brain.css';"),
-  '🔷 «tutti gli assistenti usa l’ui della chat, compreso dettatura, che abbiamo per la chat principale» — stesso componente, stessa `brain.css`: non una copia che può disallinearsi',
+  'PROPONI resta una richiesta sola — descrivi, l\'AI scrive la scheda — non una conversazione: la dettatura basta, non serve il thread o gli strumenti della chat intera',
 );
 check(
   'VINZ.LAB',

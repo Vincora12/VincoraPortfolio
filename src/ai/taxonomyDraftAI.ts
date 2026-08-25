@@ -2,7 +2,7 @@
    REDIGERE LA BOZZA — «te lo dico a parole, l'AI la trasforma nella scheda
    tecnica completa»
 
-   Stesso schema di `labAssistantAI.ts` e `notebook.ts`: un modello propone in
+   Stesso schema di `notebook.ts`: un modello propone in
    JSON, il codice valida, e SOLO Vincenzo — non l'AI, non il codice — decide
    se la bozza gli piace. Non applica mai niente da sola: produce un oggetto
    che la stanza mostra, editabile, prima di finire in coda.

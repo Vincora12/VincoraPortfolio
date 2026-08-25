@@ -1,10 +1,9 @@
 /* ============================================================================
    LE ROTTE AI — chi può servire ogni passo
 
-   Prima stava scritta dentro `SystemLab.tsx`, dove serviva. Adesso serve
-   anche a `labAssistant.ts`, che non è un componente React: un motore non
-   deve importare da una schermata per sapere quali modelli esistono. Un
-   file solo, letto da entrambi.
+   Prima stava scritta dentro `SystemLab.tsx`. Un motore non deve importare
+   da una schermata per sapere quali modelli esistono, quindi è un file a
+   parte anche ora che `SystemLab.tsx` resta l'unico a leggerlo.
    ========================================================================= */
 
 export type ModelRoute = 'voice' | 'compiler' | 'image';

@@ -1,189 +1,52 @@
 /* ============================================================================
    🤖 L'ASSISTENTE — la stessa chat, raggiungibile da CREATION, SYSTEM e DESIGN
 
-   🔷 «C'è dentro il lab un'AI che può fare tutte queste modifiche per me?
-      Vorrei un'AI che possa modificare il programma, ovviamente tenendo
-      sempre salvato la versione di prima.»
-   🔷 Scelto: DESIGN + CREATION + SYSTEM insieme.
+   🔷 «Le pagine assistente devono essere interamente come quella della chat,
+   con tutte le funzionalità, ma in bianco — in questo modo la chat è
+   utilizzabile.» Scelto esplicitamente: «chat vera con gli strumenti», non
+   solo l'aspetto.
 
-   Non è tre assistenti diversi: è UN componente, montato come scheda dentro
-   ognuno dei tre lab (`engine/labAssistant.ts` tiene il registro e la
-   cronologia in un posto solo, non tre). Da qualunque lab lo apri, vedi le
-   stesse proposte e la stessa cronologia — perché la richiesta di Vincenzo
-   era "un'AI", non "tre AI che non si parlano".
+   Non è tre assistenti diversi: è la STESSA `IntegratedChat` di VINZ.MON —
+   stessi strumenti (`runMonTool`: legge i tuoi dati, scrive pagine, imposta
+   promemoria, cerca sul web), stessa dettatura, stesso selettore di modello.
+   Da qualunque lab la apri vedi la STESSA cronologia: i thread sono
+   sincronizzati dal server sullo stesso token (`serverBackedStorage`), quello
+   che si incolla da SYSTEM.LAB → SETUP se il lab, installato come icona sua,
+   non lo eredita da VINZ.MON.
 
-   Il giro è sempre lo stesso, ed è quello già promesso dal pacchetto per
-   DESIGN AI, esteso ai tre lab: CHIEDI → proposta leggibile, MAI applicata
-   da sola → APPLICA la conferma → ogni riga della cronologia ha il suo
-   ANNULLA, che rimette il valore fotografato PRIMA.
+   🔴 SOSTITUISCE IL MECCANISMO PRECEDENTE — chiedi a parole → proposta →
+   APPLICA/ANNULLA, scoped a cataloghi/pesi/token, mai una scrittura da sola.
+   Qui l'assistente agisce direttamente, con gli stessi strumenti della chat
+   di casa: non è la rete di sicurezza di prima con un vestito nuovo, è la
+   scelta esplicita di tenerla per l'app vera (PROPONI, in CREATION.LAB) e
+   toglierla qui, dove serve un aiuto generale.
+
+   🔒 IL TEMA È «EMBEDDED»: bianco nativo del clone, non il nero forzato sul
+   telefono — vedi `chat-surface.tsx`. Non un secondo foglio di stile: la
+   STESSA classe che il componente già porta per il suo tema chiaro.
    ========================================================================= */
 
-import { useEffect, useState } from 'react';
+import { IntegratedChat } from '../../assistant-original/IntegratedChat';
 import { useApp } from '../../state/store';
-import { chiediModifiche } from '../../ai/labAssistantAI';
-import { DictationComposer } from '../../brain/DictationComposer';
-import {
-  anteprimaLista,
-  applicaLista,
-  annulla,
-  cronologia,
-  subscribeCronologia,
-  type CambioVerificato,
-  type VoceCronologia,
-} from '../../engine/labAssistant';
+import type { ToolResult, ToolUse } from '../../ai/tools';
 import '../skin/lab-assistant.css';
 
+const runChatTool = (use: ToolUse): ToolResult => useApp.getState().runMonTool(use);
+
 export function LabAssistantPanel() {
-  const token = useApp((s) => s.token);
-  const [richiesta, setRichiesta] = useState('');
-  const [chiedendo, setChiedendo] = useState(false);
-  const [verificati, setVerificati] = useState<CambioVerificato[]>([]);
-  const [nonSupportato, setNonSupportato] = useState<string | null>(null);
-  const [erroreChiamata, setErroreChiamata] = useState<string | null>(null);
-  const [richiestaCorrente, setRichiestaCorrente] = useState('');
-  const [storia, setStoria] = useState<VoceCronologia[]>(() => cronologia());
-  const [confermaApplicati, setConfermaApplicati] = useState<{ applicati: number; errori: string[] } | null>(null);
-
-  useEffect(() => subscribeCronologia(() => setStoria([...cronologia()])), []);
-
-  const chiedi = async () => {
-    const testo = richiesta.trim();
-    if (!testo || chiedendo) return;
-    setChiedendo(true);
-    setErroreChiamata(null);
-    setConfermaApplicati(null);
-    const risposta = await chiediModifiche(token, testo);
-    setChiedendo(false);
-    if (risposta.failure) {
-      setErroreChiamata(risposta.detail ? `${risposta.failure}: ${risposta.detail}` : risposta.failure);
-      setVerificati([]);
-      setNonSupportato(null);
-      return;
-    }
-    setRichiestaCorrente(testo);
-    setVerificati(anteprimaLista(risposta.cambi));
-    setNonSupportato(risposta.nonSupportato);
-  };
-
-  const applica = () => {
-    const valide = verificati.filter((v) => v.ok).map((v) => v.proposta);
-    if (valide.length === 0) return;
-    const { applicati, errori } = applicaLista(richiestaCorrente, valide);
-    setConfermaApplicati({ applicati: applicati.length, errori });
-    setVerificati([]);
-    setNonSupportato(null);
-    setRichiesta('');
-  };
-
-  const scarta = () => {
-    setVerificati([]);
-    setNonSupportato(null);
-  };
-
-  const ok = verificati.filter((v) => v.ok);
-  const scartate = verificati.filter((v) => !v.ok);
+  const voiceModel = useApp((s) => s.voiceModel);
+  const setVoiceModel = useApp((s) => s.setVoiceModel);
 
   return (
     <section className="page active labai">
-      <div className="kicker mono">DESIGN + CREATION + SYSTEM · UNA CHIESTA A PAROLE</div>
+      <div className="kicker mono">DESIGN + CREATION + SYSTEM · LA STESSA CHAT DI CASA</div>
       <h1>🤖 ASSISTENTE</h1>
       <p className="lead">
-        Descrivi cosa vuoi cambiare, in italiano. L’assistente propone SOLO campi che il lab già
-        espone — cataloghi, pesi, design token, modelli AI — non scrive mai codice e non tocca mai
-        niente da solo: leggi la proposta, e sei tu a premere APPLICA. Ogni modifica applicata
-        resta in cronologia con il suo ANNULLA, che rimette esattamente il valore di prima.
+        È la stessa chat di VINZ.MON, con gli stessi strumenti: legge i tuoi dati, scrive pagine,
+        imposta promemoria, cerca sul web. La cronologia è la stessa ovunque la apri.
       </p>
-
-      <div className="labai-box">
-        <DictationComposer
-          value={richiesta}
-          onChange={setRichiesta}
-          onSend={() => void chiedi()}
-          token={token}
-          placeholder="es. «fai uscire di più gli occhiali da vista» oppure «i bordi sono troppo sottili ovunque»"
-          disabled={chiedendo}
-          sending={chiedendo}
-          sendingLabel="STO PENSANDO…"
-        />
-      </div>
-
-      {erroreChiamata && <p className="labai-error">Non è arrivata una risposta utilizzabile: {erroreChiamata}</p>}
-
-      {confermaApplicati && (
-        <div className="labai-confirm">
-          {confermaApplicati.applicati} modific{confermaApplicati.applicati === 1 ? 'a' : 'he'} applicat
-          {confermaApplicati.applicati === 1 ? 'a' : 'e'}.
-          {confermaApplicati.errori.length > 0 && (
-            <> Scartate: {confermaApplicati.errori.join(' · ')}</>
-          )}
-        </div>
-      )}
-
-      {(ok.length > 0 || scartate.length > 0 || nonSupportato) && (
-        <div className="labai-proposal">
-          <div className="labai-proposal__head mono">COSA STO PER CAMBIARE</div>
-          {ok.map((v) => (
-            <div className="labai-row" key={v.proposta.id}>
-              <div>
-                <b>{v.campo!.label}</b>
-                <small>{v.proposta.motivo}</small>
-              </div>
-              <span className="labai-diff">
-                {v.da} → <strong>{v.proposta.valore}</strong>
-              </span>
-            </div>
-          ))}
-          {scartate.length > 0 && (
-            <div className="labai-discarded">
-              scartate: {scartate.map((v) => v.motivoScarto).join(' · ')}
-            </div>
-          )}
-          {nonSupportato && <div className="labai-unsupported">Non copre tutto: {nonSupportato}</div>}
-          {ok.length > 0 && (
-            <div className="labai-actions">
-              <button type="button" className="labai-btn dark" onClick={applica}>
-                APPLICA {ok.length} MODIFIC{ok.length === 1 ? 'A' : 'HE'}
-              </button>
-              <button type="button" className="labai-btn" onClick={scarta}>
-                SCARTA
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-
-      <div className="labai-history">
-        <div className="labai-proposal__head mono">CRONOLOGIA</div>
-        {storia.length === 0 && <p className="note">Nessuna modifica ancora chiesta all’assistente.</p>}
-        {[...storia].reverse().map((v) => (
-          <div className={`labai-histrow ${v.annullata ? 'off' : ''}`} key={v.id}>
-            <div className="labai-histrow__top">
-              <b>«{v.richiesta}»</b>
-              <span className="mono">{new Date(v.quando).toLocaleString('it-IT')}</span>
-            </div>
-            <ul>
-              {v.cambi.map((c) => (
-                <li key={c.id}>
-                  {c.label}: {c.da} → {c.a}
-                </li>
-              ))}
-            </ul>
-            {v.annullata ? (
-              <span className="labai-tag">ANNULLATA</span>
-            ) : (
-              <button
-                type="button"
-                className="labai-btn ghost"
-                onClick={() => {
-                  annulla(v.id);
-                  setStoria([...cronologia()]);
-                }}
-              >
-                ANNULLA
-              </button>
-            )}
-          </div>
-        ))}
+      <div className="labai-chatbox">
+        <IntegratedChat runTool={runChatTool} voiceModel={voiceModel} onModelChange={setVoiceModel} embedded />
       </div>
     </section>
   );
