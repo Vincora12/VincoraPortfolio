@@ -30,8 +30,10 @@ const PREFISSO = 'vinzlab/duel/';
 const CHIAVE_JOB = 'vinzlab/duel/job';
 
 export type StatoJob = {
-  /** Le coppie da disegnare, come `id` stabili. */
-  coppie: { a: string; b: string }[];
+  /* 🔶 ERA UNA LISTA DI COPPIE, e leggeva `c[1]` per la seconda carta. Il
+     mazzo non ha coppie: è una fila di creature, una alla volta. Passandogli
+     liste da un elemento solo `c[1]` era `undefined` e il disegno moriva al
+     primo giro — con l'aria di un problema di rete. */
   fatte: number;
   totale: number;
   errore: string | null;
@@ -89,12 +91,12 @@ export async function buttaTutto(): Promise<void> {
    di fermarsi alla prima. In fila, il primo rifiuto ferma il resto.
    ========================================================================= */
 export async function avviaJob({
-  coppie,
+  carte,
   token,
   imageModel,
   onNotifica,
 }: {
-  coppie: { seed: number; record: MonRecord }[][];
+  carte: { seed: number; record: MonRecord }[];
   token: string | null;
   imageModel: string | null;
   onNotifica: (titolo: string, corpo: string) => void;
@@ -102,11 +104,10 @@ export async function avviaJob({
   if (inCorso) return;
   inCorso = true;
 
-  const piatte = coppie.flat();
+  const piatte = carte;
   const fatte = await giaFatte();
 
   const stato: StatoJob = {
-    coppie: coppie.map((c) => ({ a: idImmagine(c[0]!.seed), b: idImmagine(c[1]!.seed) })),
     fatte: piatte.filter((x) => fatte.has(idImmagine(x.seed))).length,
     totale: piatte.length,
     errore: null,

@@ -119,3 +119,97 @@
 .tune__distrow--zero .tune__distbar i {
   background: #ddd;
 }
+
+/* ============================================================================
+   IL MAZZO — una carta alla volta
+
+   🔷 «Facciamo tipo Tinder: vediamo vari risultati e ci accorgiamo se qualcosa
+      è una merda.»
+
+   🔒 L'IMMAGINE PRENDE QUASI TUTTO. Il duello a due colonne dava a ogni
+   creatura mezza larghezza: si guardavano due francobolli e si sceglieva il
+   meno peggio. Una alla volta vuol dire poterla vedere davvero — che è
+   l'unico modo di accorgersi che una fa schifo.
+   ========================================================================= */
+
+.deck {
+  border: 1px solid #111;
+  padding: 12px;
+  margin-top: 14px;
+}
+
+.deck__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-family: ui-monospace, monospace;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  margin-bottom: 10px;
+}
+
+.deck__art {
+  aspect-ratio: 1;
+  border: 1px solid #ddd;
+  background:
+    repeating-conic-gradient(#f4f4f4 0% 25%, #fff 0% 50%) 0 0 / 16px 16px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+.deck__art img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.deck__art span {
+  font-family: ui-monospace, monospace;
+  font-size: 9px;
+  color: #999;
+}
+
+.deck__meta {
+  font-family: ui-monospace, monospace;
+  font-size: 10px;
+  line-height: 1.6;
+  padding: 10px 2px;
+  border-bottom: 1px solid #eee;
+}
+
+/* I due gesti. Grandi, perché si premono con il pollice cento volte di fila. */
+.deck__vote {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.deck__vote button {
+  min-height: 62px;
+  border: 2px solid #111;
+  background: #fff;
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+.deck__vote button.si {
+  background: #111;
+  color: #fff;
+}
+
+.deck__bar {
+  height: 4px;
+  background: #eee;
+  margin-top: 10px;
+}
+
+.deck__bar i {
+  display: block;
+  height: 100%;
+  background: #111;
+}

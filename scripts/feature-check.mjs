@@ -3719,69 +3719,55 @@ check(
 );
 
 /* ============================================================================
-   IL DUELLO — come il .mon impara i tuoi gusti
+   IL MAZZO — come il .mon impara i tuoi gusti
    ========================================================================= */
 
 const TRAIN = 'src/lab/rooms/training.ts';
 const BUILD = 'src/lab/rooms/CreationLab.tsx';
 
 check(
-  'VINZ.LAB',
-  'il duello genera due creature diverse, non la stessa due volte',
-  has(BUILD, 'const a = uno(n++);') && has(BUILD, 'const b = uno(n++);'),
-  '🔷 «mi genera random dei mon ed io scelgo quale mi piace, così lui inizia ad imparare»',
+  'CREATION.LAB',
+  'si guarda una creatura alla volta, sì o no',
+  has(BUILD, "giudica('NO')") && has(BUILD, "giudica('SI')") && has(BUILD, 'className="deck"'),
+  '🔷 «facciamo tipo Tinder: vediamo vari risultati e ci accorgiamo se qualcosa è una merda»',
 );
 check(
-  'VINZ.LAB',
-  'e il perimetro si blocca spegnendo il catalogo, non inventando un parametro',
-  has(BUILD, "setCatalogEnabled('family', id, false)") && has(BUILD, 'resetCatalog();'),
-  'non esiste un «generami un ANGEL»: la Family la sceglie il motore dal catalogo',
+  'CREATION.LAB',
+  'e il duello a coppie è stato tolto, non affiancato',
+  lacksInCode(BUILD, 'duelcard') && lacksInCode(TRAIN, "'BOTH'"),
+  '🔶 il duello ti costringe a scegliere anche quando fanno schifo tutte e due: aveva due voti che non contavano niente',
 );
 check(
-  'VINZ.LAB',
-  'e il catalogo torna com\'era anche se la generazione fallisce',
-  has(BUILD, '} finally {') && has(BUILD, 'for (const [a, id] of spenti) setCatalogEnabled(a, id, false);'),
-  'una prova che lascia il motore mezzo spento ha cambiato la produzione',
+  'CREATION.LAB',
+  'una voce si giudica sullo SCARTO dalla tua media, non sulla percentuale nuda',
+  has(TRAIN, 'scarto: x.si / x.viste - media') && has(TRAIN, 'LA TUA MEDIA È IL METRO'),
+  '🔒 se dici sì all\'80% di tutto, una voce all\'80% non ti piace: è nella media',
 );
 check(
-  'VINZ.LAB',
-  'un valore conta solo quando ha battuto un valore DIVERSO',
-  has(TRAIN, 'if (!a || !b || a === b) continue;'),
-  'se ANGEL sta da tutte e due le parti, il fatto che «vinca» non dice niente: vinceva comunque',
+  'CREATION.LAB',
+  'e sotto le cinque apparizioni non si dichiara niente',
+  has(TRAIN, 'MINIMO_VISTE = 5') && has(TRAIN, 'p.viste >= MINIMO_VISTE'),
+  'una regola imparata da due casi entra nel prompt del resolver e ci resta',
 );
 check(
-  'VINZ.LAB',
-  'e sotto la soglia non si dichiara nessun gusto',
-  has(TRAIN, 'MINIMO_SCONTRI = 3') && has(TRAIN, 'p.scontri >= MINIMO_SCONTRI'),
-  'una regola imparata da un caso solo entra nel prompt del resolver e ci resta',
+  'CREATION.LAB',
+  'anche quello che NON piace diventa una lezione',
+  has(TRAIN, 'bocciate:') && has(BUILD, '💩 {ETICHETTA_ASSE[p.asse]}'),
+  'una lezione fatta solo di gusti positivi lascia il resolver libero di rifare quello che hai scartato dieci volte',
 );
 check(
-  'VINZ.LAB',
-  'BOTH e NO non contano per i gusti',
-  has(TRAIN, 'if (!d.vinta || !d.persa) continue;'),
-  'dicono che ti piacciono tutte e due o nessuna, non quale preferisci',
-);
-check(
-  'VINZ.LAB',
-  'i voti stanno in una memoria loro, separata dalla partita',
-  has(TRAIN, "'vinzlab.training.v1'") && lacksInCode(TRAIN, 'vinzmon.prototype'),
+  'CREATION.LAB',
+  'i giudizi stanno in una memoria loro, separata dalla partita',
+  has(TRAIN, "'vinzlab.training.v2'") && lacksInCode(TRAIN, 'vinzmon.prototype'),
   'un allenamento non deve poter toccare la creatura vera',
 );
 check(
-  'VINZ.LAB',
-  'e diventano una lezione VERA solo con un gesto esplicito',
-  /* 🔶 Il pulsante non dice più «INSEGNA QUESTO AL RESOLVER» ma «APPROVA E
-     INSERISCI», e sopra c'è la frase da leggere. La decisione è la stessa,
-     rafforzata: non solo un gesto esplicito, ma un gesto fatto DOPO aver
-     letto cosa stai per insegnargli. */
-  has(BUILD, 'teachResolver(frase, [])') && has(BUILD, 'APPROVA E INSERISCI'),
-  'l\'AI propone, tu applichi: è la regola del pacchetto',
-);
-check(
-  'VINZ.LAB',
-  'e la frase che gli insegni porta con sé quanti casi la reggono',
-  has(TRAIN, "l'ho scelto ${p.vinti} volte su ${p.scontri}"),
-  'una lezione senza il suo peso viene applicata come se fosse una legge',
+  'CREATION.LAB',
+  'e diventano una lezione VERA solo dopo averla letta',
+  has(BUILD, 'teachResolver(frase, [])') &&
+    has(BUILD, 'COSA STO PER INSEGNARGLI') &&
+    has(BUILD, 'APPROVA E INSERISCI'),
+  '🔷 «lui genera delle lezioni, io le leggo, le approvo, e vengono inserite»',
 );
 
 /* ============================================================================
@@ -3840,7 +3826,10 @@ check(
 check(
   'CREATION.LAB',
   'e dice quante ne stai per pagare PRIMA di partire',
-  has('src/lab/rooms/CreationLab.tsx', '{quanti * 2} da disegnare e da pagare'),
+  /* 🔶 Era `{quanti * 2}` quando le carte andavano a coppie. Il mazzo ne
+     disegna una per creatura: il numero è quello, e la decisione — dirlo
+     PRIMA — non cambia. */
+  has('src/lab/rooms/CreationLab.tsx', '{quante} da disegnare e da pagare'),
   'un interruttore che non dice quanto costa è un interruttore che si accende per sbaglio',
 );
 check(
@@ -3911,9 +3900,9 @@ check(
 check(
   'CREATION.LAB',
   'il tasto in fondo al flusso passa i valori, non spera nello stato',
-  has('src/lab/rooms/CreationLab.tsx', "void allena({ quanti: 6, immagini: true })") &&
-    has('src/lab/rooms/CreationLab.tsx', 'STALE CLOSURE'),
-  '🔴 partiva con i valori vecchi: otto duelli invece di sei e senza immagini, con l’aria di funzionare',
+  has('src/lab/rooms/CreationLab.tsx', 'void genera({ quante: 12, immagini: true })') &&
+    has('src/lab/rooms/CreationLab.tsx', 'const quanteOra = forza?.quante ?? quante;'),
+  '🔴 partiva con i valori vecchi: numero sbagliato e nessuna immagine, con l’aria di funzionare',
 );
 check(
   'CREATION.LAB',

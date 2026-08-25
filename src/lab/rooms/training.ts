@@ -1,42 +1,43 @@
 /* ============================================================================
-   IL BANCO DI ALLENAMENTO — memoria e conteggi
+   IL MAZZO — una creatura alla volta, sì o no
 
-   🔷 «Un A/B test dovrebbe funzionare che mi genera random dei mon ed io
-      scelgo quale mi piace, così lui inizia ad imparare.»
+   🔷 «A/B test non ha senso sugli occhiali, ma facciamo tipo Tinder: così è
+      più "vediamo vari risultati" e ci accorgiamo se qualcosa è una merda.»
 
-   🔴 E QUESTO ERA GIÀ DISEGNATO. Sta in `docs/lab/design/creation-lab.html`,
-   scheda BUILD: il perimetro con gli assi da bloccare, DUELS e SEED, le due
-   carte A e B con la traccia «WHY THIS?», i quattro voti A / B / BOTH / NO, i
-   commenti e il registro. Al suo posto avevo messo un confronto a parità di
-   seme, che non è la stessa cosa e non impara niente.
+   🔶 PRIMA ERA UN DUELLO A COPPIE, e il duello ha un difetto che si vede solo
+   usandolo: ti costringe a scegliere anche quando **fanno schifo tutte e
+   due**. «BOTH» e «NO» esistevano proprio per quello, e non contavano niente —
+   cioè metà delle volte il gesto non diceva niente al sistema.
 
-   🔒 I VOTI NON SONO PRODUZIONE. Vivono in una chiave loro
-   (`vinzlab.training.v1`), separata da `vinzmon.prototype.v4`: un
-   allenamento non deve poter toccare la creatura vera. Diventano una lezione
-   solo quando lo chiedi tu, con un gesto esplicito — è la regola del
-   pacchetto: l'AI propone, tu applichi.
+   Una carta alla volta invece dice sempre qualcosa: mi piace / non mi piace è
+   un giudizio su QUELLA, non una preferenza fra due mali.
+
+   ⚠️ E CAMBIA IL MODO DI CONTARE, che è la parte delicata. Nel duello si
+   contavano gli scontri: A ha battuto B. Qui si conta quanto spesso una voce
+   compare fra le promosse — e va confrontata con QUANTO PROMUOVI IN GENERALE.
+
+   🔒 È la trappola numero uno di questo tipo di dato: se dici sì all'80% di
+   tutto, una voce all'80% non ti piace — è semplicemente nella media. Solo
+   quello che sta CHIARAMENTE sopra la tua media dice qualcosa.
    ========================================================================= */
 
-export type Voto = 'A' | 'B' | 'BOTH' | 'NEITHER';
+export type Giudizio = 'SI' | 'NO';
 
 /** Gli assi su cui ha senso contare una preferenza. */
-export const ASSI_CONTATI = ['family', 'family_archetype', 'affinity', 'size', 'role', 'fashion', 'appearance'] as const;
+export const ASSI_CONTATI = ['family', 'family_archetype', 'affinity', 'size', 'role', 'fashion', 'appearance', 'eyewear'] as const;
 export type AsseContato = (typeof ASSI_CONTATI)[number];
 
-export type Duello = {
+export type Carta = {
   at: string;
   scope: string;
-  voto: Voto;
-  /** I valori degli assi della carta che ha VINTO. `null` se nessuna. */
-  vinta: Partial<Record<AsseContato, string>> | null;
-  /** Quelli della carta che ha perso, se una ha perso davvero. */
-  persa: Partial<Record<AsseContato, string>> | null;
+  giudizio: Giudizio;
+  valori: Partial<Record<AsseContato, string>>;
   commento: string;
 };
 
-const CHIAVE = 'vinzlab.training.v1';
+const CHIAVE = 'vinzlab.training.v2';
 
-export function leggiDuelli(): Duello[] {
+export function leggiCarte(): Carta[] {
   try {
     const raw = localStorage.getItem(CHIAVE);
     const v = raw ? JSON.parse(raw) : [];
@@ -46,15 +47,14 @@ export function leggiDuelli(): Duello[] {
   }
 }
 
-export function salvaDuello(d: Duello): Duello[] {
-  const tutti = [...leggiDuelli(), d].slice(-200);
+export function salvaCarta(c: Carta): Carta[] {
+  const tutte = [...leggiCarte(), c].slice(-400);
   try {
-    localStorage.setItem(CHIAVE, JSON.stringify(tutti));
+    localStorage.setItem(CHIAVE, JSON.stringify(tutte));
   } catch {
-    /* Se il browser non vuole scrivere, l'allenamento resta in memoria per
-       questa sessione: è un registro, non un salvataggio di gioco. */
+    /* Se il browser non scrive, il mazzo vale per questa sessione. */
   }
-  return tutti;
+  return tutte;
 }
 
 export function dimenticaTutto(): void {
@@ -66,55 +66,64 @@ export function dimenticaTutto(): void {
 }
 
 /* ============================================================================
-   COSA DICONO I VOTI
-
-   ⚠️ NON SI CONTA CHI VINCE, SI CONTA CHI VINCE **CONTRO QUALCOSA**. Se in
-   ogni duello ANGEL compare da tutte e due le parti, il fatto che ANGEL
-   «vinca» sempre non dice niente: vinceva comunque. Quello che conta è
-   quando due valori DIVERSI si sono scontrati e uno ha perso.
-
-   🔒 E serve una soglia. Con tre voti si può dire qualsiasi cosa: sotto
-   `MINIMO_SCONTRI` una preferenza non viene proposta, perché una regola
-   imparata da un caso solo è più dannosa di nessuna regola — entra nel
-   prompt del resolver e ci resta.
+   COSA DICONO I SÌ E I NO
    ========================================================================= */
 
-export const MINIMO_SCONTRI = 3;
+/**
+ * Quante volte una voce deve essere comparsa prima di dire qualcosa su di lei.
+ *
+ * 🔒 Sotto le cinque apparizioni non si dichiara niente. Una regola imparata
+ * da due casi entra nel prompt del resolver e ci resta — e il prompt del
+ * resolver non ha modo di sapere che era una regola debole.
+ */
+export const MINIMO_VISTE = 5;
+
+/** Quanto deve staccarsi dalla tua media per contare. */
+export const STACCO = 0.2;
 
 export type Preferenza = {
   asse: AsseContato;
   valore: string;
-  vinti: number;
-  scontri: number;
+  si: number;
+  viste: number;
+  /** Positivo = ti piace più della media, negativo = meno. */
+  scarto: number;
 };
 
-export function preferenze(duelli: Duello[]): Preferenza[] {
-  const conta = new Map<string, { vinti: number; scontri: number }>();
+export function preferenze(carte: Carta[]): { piaciute: Preferenza[]; bocciate: Preferenza[]; media: number } {
+  const conta = new Map<string, { si: number; viste: number }>();
+  let siTotali = 0;
 
-  for (const d of duelli) {
-    if (!d.vinta || !d.persa) continue; // BOTH e NO non dicono chi preferisci
+  for (const c of carte) {
+    if (c.giudizio === 'SI') siTotali += 1;
     for (const asse of ASSI_CONTATI) {
-      const a = d.vinta[asse];
-      const b = d.persa[asse];
-      if (!a || !b || a === b) continue; // stesso valore da due parti: non è uno scontro
-
-      for (const [valore, ha_vinto] of [[a, true], [b, false]] as const) {
-        const k = `${asse}::${valore}`;
-        const c = conta.get(k) ?? { vinti: 0, scontri: 0 };
-        c.scontri += 1;
-        if (ha_vinto) c.vinti += 1;
-        conta.set(k, c);
-      }
+      const v = c.valori[asse];
+      if (!v) continue;
+      const k = `${asse}::${v}`;
+      const x = conta.get(k) ?? { si: 0, viste: 0 };
+      x.viste += 1;
+      if (c.giudizio === 'SI') x.si += 1;
+      conta.set(k, x);
     }
   }
 
-  return [...conta.entries()]
-    .map(([k, c]) => {
+  /* 🔒 LA TUA MEDIA È IL METRO. Senza, la prima «preferenza» che esce è
+     sempre quella che compare più spesso — cioè un fatto sul generatore, non
+     un fatto su di te. */
+  const media = carte.length > 0 ? siTotali / carte.length : 0;
+
+  const tutte: Preferenza[] = [...conta.entries()]
+    .map(([k, x]) => {
       const [asse, valore] = k.split('::') as [AsseContato, string];
-      return { asse, valore, ...c };
+      return { asse, valore, si: x.si, viste: x.viste, scarto: x.si / x.viste - media };
     })
-    .filter((p) => p.scontri >= MINIMO_SCONTRI && p.vinti / p.scontri >= 0.7)
-    .sort((x, y) => y.vinti / y.scontri - x.vinti / x.scontri || y.scontri - x.scontri);
+    .filter((p) => p.viste >= MINIMO_VISTE);
+
+  return {
+    piaciute: tutte.filter((p) => p.scarto >= STACCO).sort((a, b) => b.scarto - a.scarto),
+    bocciate: tutte.filter((p) => p.scarto <= -STACCO).sort((a, b) => a.scarto - b.scarto),
+    media,
+  };
 }
 
 export const ETICHETTA_ASSE: Record<AsseContato, string> = {
@@ -125,6 +134,7 @@ export const ETICHETTA_ASSE: Record<AsseContato, string> = {
   role: 'RUOLO',
   fashion: 'STILE',
   appearance: 'RESA',
+  eyewear: 'OTTICA',
 };
 
 const NOME_ASSE: Record<AsseContato, string> = {
@@ -135,26 +145,36 @@ const NOME_ASSE: Record<AsseContato, string> = {
   role: 'il ruolo',
   fashion: 'lo stile',
   appearance: 'la resa',
+  eyewear: "l'ottica",
 };
 
 /**
- * La frase che si manda al resolver, in italiano e in prima persona.
+ * La frase da far leggere prima di insegnarla.
  *
- * 🔒 DICE ANCHE SU QUANTI CASI, e non è cortesia: una lezione che arriva
- * senza il suo peso viene applicata come se fosse una legge. «Su 9 confronti
- * ne ho scelti 8» è una cosa; «su 3 ne ho scelti 3» è un'altra, e chi legge
- * deve poterle distinguere.
+ * 🔒 DICE ANCHE QUANTE VOLTE, e dice anche cosa NON piace. Una lezione fatta
+ * solo di gusti positivi lascia il resolver libero di rifare proprio la cosa
+ * che hai scartato dieci volte: «non mi piace» è un'informazione, non un
+ * silenzio.
  */
-export function fraseDaInsegnare(prefs: Preferenza[], scope: string): string {
-  if (prefs.length === 0) return '';
-  const righe = prefs
-    .slice(0, 6)
-    .map((p) => `- quando ${NOME_ASSE[p.asse]} è ${p.valore}: l'ho scelto ${p.vinti} volte su ${p.scontri}`);
+export function fraseDaInsegnare(
+  p: { piaciute: Preferenza[]; bocciate: Preferenza[]; media: number },
+  scope: string,
+  totale: number,
+): string {
+  if (p.piaciute.length === 0 && p.bocciate.length === 0) return '';
+
+  const riga = (x: Preferenza) =>
+    `- quando ${NOME_ASSE[x.asse]} è ${x.valore}: ${x.si} sì su ${x.viste}`;
 
   return [
-    `Ho fatto una sessione di confronti a coppie${scope ? ` dentro ${scope}` : ''} e questi sono i miei gusti:`,
-    ...righe,
+    `Ho guardato ${totale} creature${scope ? ` dentro ${scope}` : ''} e ho detto sì a circa ${Math.round(p.media * 100)}% di tutto.`,
     '',
-    'Tienine conto quando decidi come rendere una creatura, senza trasformarlo in una regola rigida: sono tendenze mie, non obblighi.',
+    ...(p.piaciute.length > 0
+      ? ['Queste mi piacciono più della mia media:', ...p.piaciute.slice(0, 6).map(riga), '']
+      : []),
+    ...(p.bocciate.length > 0
+      ? ['Queste mi convincono meno della mia media:', ...p.bocciate.slice(0, 6).map(riga), '']
+      : []),
+    'Sono tendenze mie, non obblighi: tienine conto senza trasformarle in una regola rigida.',
   ].join('\n');
 }

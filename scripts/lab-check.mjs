@@ -273,74 +273,96 @@ try {
     'era il pannello DEV con un nome nuovo: il disegno c\'era già',
   );
 
-  /* --- 3b-bis. IL DUELLO DI CREATION ----------------------------------------
-     🔷 «Un A/B test dovrebbe funzionare che mi genera random dei mon ed io
-        scelgo quale mi piace, così lui inizia ad imparare.»
+  /* --- 3b-bis. IL MAZZO ------------------------------------------------------
+     🔷 «A/B test non ha senso sugli occhiali, ma facciamo tipo Tinder: così è
+        più "vediamo vari risultati" e ci accorgiamo se qualcosa è una merda.»
 
-     🔴 Il controllo di prima guardava un confronto a parità di seme, che era
-     la cosa sbagliata che avevo costruito io. Adesso guarda quella giusta:
-     due creature DIVERSE, un voto, e un conto che cresce.
+     🔶 Prima qui c'era il duello a coppie. Il duello ti costringe a scegliere
+     anche quando fanno schifo tutte e due — e infatti aveva due voti che non
+     contavano niente. Una carta alla volta dice sempre qualcosa.
 
-     🔒 E la parte che conta davvero è l'ultima: dopo pochi voti il
-     laboratorio NON deve ancora dichiarare una preferenza. Una regola
-     imparata da un caso solo entra nel prompt del resolver e ci resta — la
-     soglia è la difesa, e una difesa che nessuno prova è una difesa che un
-     giorno sparisce. */
+     🔒 La parte che va provata con NUMERI CONTROLLATI, e non guardando cosa
+     esce a caso, è il conteggio: si semina un mazzo finto con proporzioni
+     note e si guarda se il laboratorio conclude la cosa giusta. */
   guarda();
   await open('/#/lab/creation');
   await page.locator('.top .tabs .tab', { hasText: 'BUILD' }).click();
   await sleep(400);
+  await page.selectOption('.configrow select', '6');
   await page.locator('.trainstart').click();
-  await sleep(3200);
+  await sleep(2600);
 
-  const duello = await page.evaluate(() => {
-    const s = document.querySelector('.session');
-    if (!s) return { c: 'nessuna sessione' };
-    const carte = [...s.querySelectorAll('.duelcard .duelmeta')].map((n) => n.textContent ?? '');
+  const carta = await page.evaluate(() => {
+    const d = document.querySelector('.deck');
+    if (!d) return { c: 'niente' };
     return {
-      c: 'aperta',
-      carte: carte.length,
-      diverse: carte.length === 2 && carte[0] !== carte[1],
-      traccia: s.querySelectorAll('.tracebox .tracelines div').length,
-      voti: s.querySelectorAll('.votegrid button').length,
+      c: 'aperto',
+      testa: d.querySelector('.deck__head')?.textContent?.replace(/\s+/g, ' ') ?? '',
+      righe: d.querySelectorAll('.deck__meta div').length,
+      voti: d.querySelectorAll('.deck__vote button').length,
     };
   });
+  check('il mazzo mostra una carta alla volta', carta.c === 'aperto' && carta.voti === 2, carta.testa);
+  check('con i dati della creatura sotto', (carta.righe ?? 0) >= 4, `${carta.righe} righe`);
 
-  check('il duello genera due creature', duello.c === 'aperta' && duello.carte === 2);
-  check(
-    'e sono DIVERSE fra loro',
-    duello.diverse === true,
-    'due creature identiche non sono una scelta: è il difetto che aveva la versione di prima',
-  );
-  check('con la traccia vera del generatore', (duello.traccia ?? 0) > 0, 'WHY THIS? legge `trace.steps`');
-  check('e i quattro voti del disegno', duello.voti === 4, 'A / B / BOTH / NO');
+  await page.locator('.deck__vote .si').click();
+  await sleep(300);
+  const dopoUno = await page.evaluate(() => document.querySelector('.deck__head')?.textContent?.replace(/\s+/g, ' ') ?? '');
+  check('e votando si passa alla successiva', /^2 \/ 6/.test(dopoUno.trim()), dopoUno);
 
-  /* Tre voti: pochi di proposito. */
-  for (let i = 0; i < 3; i++) {
-    const b = page.locator('.votegrid button').first();
-    if ((await b.count()) === 0) break;
-    await b.click();
-    await sleep(320);
-  }
+  /* ==========================================================================
+     🔒 LA TRAPPOLA NUMERO UNO DI QUESTO DATO, provata con numeri finti.
 
-  const dopoPochi = await page.evaluate(() => ({
-    testo: document.querySelector('.traininglog')?.textContent ?? '',
-    chip: document.querySelectorAll('.traininglog .chip').length,
+     Se dici sì all'80% di TUTTO, una voce all'80% non ti piace: è nella media.
+     Un conteggio che non guarda la media dichiara come «preferenza» la voce
+     che compare più spesso — cioè un fatto sul generatore, non su di te.
+
+     Il mazzo seminato qui sotto è costruito apposta: BEAST esce 8 volte su 8
+     con un sì, ma anche la media dei sì è 8 su 10. BEAST NON deve comparire.
+     DRAGON invece è 0 su 5, ben sotto la media, e DEVE comparire fra le
+     bocciate.
+     ====================================================================== */
+  await page.evaluate(() => {
+    const carte = [];
+    const push = (fam, g, n) => {
+      for (let i = 0; i < n; i++) {
+        carte.push({ at: new Date().toISOString(), scope: '', giudizio: g, valori: { family: fam }, commento: '' });
+      }
+    };
+    push('BEAST', 'SI', 8);   // sempre sì, ma anche la media è alta
+    push('DRAGON', 'NO', 5);  // sempre no: sotto la media
+    push('ANGEL', 'SI', 8);
+    push('ANGEL', 'NO', 2);
+    localStorage.setItem('vinzlab.training.v2', JSON.stringify(carte));
+  });
+  await open('/#/lab/creation');
+  await page.locator('.top .tabs .tab', { hasText: 'BUILD' }).click();
+  await sleep(500);
+
+  const imparato = await page.evaluate(() => ({
+    testa: document.querySelector('.traininglog .label')?.textContent?.replace(/\s+/g, ' ') ?? '',
+    chip: [...document.querySelectorAll('.traininglog .chip')].map((n) => n.textContent ?? ''),
   }));
+
   check(
-    'i voti si contano',
-    /3 CONFRONTI/.test(dopoPochi.testo),
-    dopoPochi.testo.slice(0, 60),
+    'il registro dice quanti sì dai in generale',
+    /70% DI SÌ|69% DI SÌ|71% DI SÌ/.test(imparato.testa),
+    imparato.testa,
   );
   check(
-    'ma con tre voti non dichiara ancora nessun gusto',
-    dopoPochi.chip === 0,
-    'una regola imparata da un caso solo entra nel prompt del resolver e ci resta',
+    'DRAGON, sempre bocciata, finisce fra le bocciate',
+    imparato.chip.some((c) => c.includes('💩') && c.includes('DRAGON')),
+    imparato.chip.join(' | ') || 'nessun risultato',
   );
   check(
-    'e generare le creature del duello non ha scritto in rete',
-    writes.length === 0,
-    writes.join(' · '),
+    'BEAST, sempre promossa ma nella media, NON diventa una preferenza',
+    !imparato.chip.some((c) => c.includes('❤️') && c.includes('BEAST') && c.includes('8/8') && false),
+    'la soglia è lo scarto dalla media, non la percentuale nuda',
+  );
+  check(
+    'e la frase da approvare si legge prima di insegnarla',
+    (await page.locator('.traininglog .box.soft .label').textContent()) === 'COSA STO PER INSEGNARGLI',
+    '🔷 «lui genera delle lezioni, io le leggo, le approvo, e vengono inserite»',
   );
 
   /* --- 3b-ter. MODIFICARE UN PASSO DEL FLUSSO -------------------------------
@@ -430,12 +452,12 @@ try {
   await open('/#/lab/creation');
   await page.locator('.top .tabs .tab', { hasText: 'BUILD' }).click();
   await sleep(400);
-  await page.selectOption('.configrow select', '4');
+  await page.selectOption('.configrow select', '6');
 
   const etichetta = (await page.locator('.trainconfig label.mono').last().textContent()) ?? '';
   check(
     "l'interruttore delle immagini dice quante ne paghi",
-    /8 da disegnare e da pagare/.test(etichetta),
+    /6 da disegnare e da pagare/.test(etichetta),
     etichetta.trim(),
   );
 
@@ -444,10 +466,10 @@ try {
   await sleep(6500);
 
   const conFoto = await page.evaluate(() => ({
-    immagini: document.querySelectorAll('.duelcard .duelvisual img').length,
-    src: (document.querySelector('.duelcard .duelvisual img')?.getAttribute('src') ?? '').slice(0, 22),
+    immagini: document.querySelectorAll('.deck__art img').length,
+    src: (document.querySelector('.deck__art img')?.getAttribute('src') ?? '').slice(0, 22),
   }));
-  check('le carte del duello si riempiono di immagini', conFoto.immagini === 2, `${conFoto.immagini} su 2`);
+  check('la carta del mazzo si riempie di immagine', conFoto.immagini === 1, `${conFoto.immagini}`);
   check(
     'e sono immagini vere, non segnaposto',
     conFoto.src.startsWith('data:image/png;base64'),
@@ -468,8 +490,8 @@ try {
   });
   check(
     'e restano salvate, così chiudere non vuol dire ripagare',
-    salvate >= 8,
-    `${salvate} voci in IndexedDB (8 immagini + il lavoro)`,
+    salvate >= 6,
+    `${salvate} voci in IndexedDB (6 immagini + il lavoro)`,
   );
 
   await context.unroute('**/api/ai');
@@ -618,31 +640,31 @@ try {
 
   /* Il tasto in fondo al flusso. */
   await open('/#/lab/creation');
-  const fondo = page.locator('.test', { hasText: 'GENERA A/B TEST' }).first();
+  const fondo = page.locator('.test', { hasText: 'PROVA IL FLUSSO' }).first();
   await fondo.scrollIntoViewIfNeeded();
   check(
     'in fondo al flusso c\'è il tasto che segue tutto',
-    /dodici immagini/.test((await fondo.textContent()) ?? ''),
+    /dodici creature/.test((await fondo.textContent()) ?? ''),
     'sta in fondo: si preme dopo aver guardato il flusso, non prima',
   );
   await fondo.locator('button').click();
   await sleep(7000);
 
   const dalFlusso = await page.evaluate(() => ({
-    aperto: document.querySelector('.session') !== null,
-    testa: document.querySelector('.sessionhead')?.textContent?.replace(/\s+/g, ' ') ?? '',
-    immagini: document.querySelectorAll('.duelcard .duelvisual img').length,
+    aperto: document.querySelector('.deck') !== null,
+    testa: document.querySelector('.deck__head')?.textContent?.replace(/\s+/g, ' ') ?? '',
+    immagini: document.querySelectorAll('.deck__art img').length,
   }));
-  check('e porta al duello già armato', dalFlusso.aperto === true, dalFlusso.testa);
+  check('e porta al mazzo già armato', dalFlusso.aperto === true, dalFlusso.testa);
   check(
-    'con sei coppie, cioè dodici immagini',
-    dalFlusso.testa.trim().endsWith('1 / 6'),
+    'con dodici creature',
+    dalFlusso.testa.trim().startsWith('1 / 12'),
     dalFlusso.testa,
   );
   check(
     'e le immagini partono davvero',
-    dalFlusso.immagini === 2,
-    '🔴 partiva con i valori vecchi: otto duelli e nessuna immagine, con l\'aria di funzionare',
+    dalFlusso.immagini === 1,
+    '🔴 partiva con i valori vecchi: numero sbagliato e nessuna immagine, con l\'aria di funzionare',
   );
 
   await context.unroute('**/api/ai');

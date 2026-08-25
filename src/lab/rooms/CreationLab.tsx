@@ -29,13 +29,13 @@ import {
   dimenticaTutto,
   ETICHETTA_ASSE,
   fraseDaInsegnare,
-  leggiDuelli,
-  MINIMO_SCONTRI,
+  leggiCarte,
+  MINIMO_VISTE,
   preferenze,
-  salvaDuello,
+  salvaCarta,
   type AsseContato,
-  type Duello,
-  type Voto,
+  type Carta as CartaSalvata,
+  type Giudizio,
 } from './training';
 import { StepTuning, type AsseDelPasso } from './StepTuning';
 import {
@@ -369,14 +369,14 @@ function Flow({ onAvviaAB }: { onAvviaAB: () => void }) {
           aver guardato e toccato il flusso. Un pulsante che costa dodici
           immagini messo in cima si preme prima di aver deciso cosa provare. */}
       <div className="test" style={{ marginTop: 24 }}>
-        <h3>GENERA A/B TEST</h3>
+        <h3>PROVA IL FLUSSO</h3>
         <p>
           Segue il flusso <b>com’è impostato adesso</b> — {famiglieAccese.join(' · ')} — e disegna
-          dodici immagini: sei coppie da guardare e scegliere. Alla fine, da quello che hai scelto,
-          esce una lezione che leggi e approvi tu.
+          dodici creature. Le guardi una alla volta e dici sì o no. Alla fine, da quello che hai
+          scelto, esce una lezione che leggi e approvi tu.
         </p>
         <button type="button" className="btn dark" style={{ width: '100%', marginTop: 8 }} onClick={onAvviaAB}>
-          GENERA A/B TEST · 12 IMMAGINI
+          GUARDA 12 CREATURE · UNA ALLA VOLTA
         </button>
       </div>
     </section>
@@ -387,14 +387,14 @@ function Flow({ onAvviaAB }: { onAvviaAB: () => void }) {
    BUILD — il banco di prova, col generatore vero
    ========================================================================= */
 
+/** Una creatura del mazzo, di passaggio. */
 type Carta = {
   seed: number;
   /* Il record serve solo a compilare il prompt dell'immagine: la creatura
      resta di passaggio, non entra nella storia. */
   record: import('../../engine/types').MonRecord;
-  righe: [string, string][];
-  assi: Partial<Record<AsseContato, string>>;
-  traccia: string[];
+  righe: string[];
+  valori: Partial<Record<AsseContato, string>>;
 };
 
 /* 🔷 «Devo poter sbloccare o bloccare delle famiglie, e adesso metti bloccate
@@ -446,95 +446,72 @@ function Build({ avvio = 0 }: { avvio?: number }) {
   const [famiglia, setFamiglia] = useState('');
   const [archetipo, setArchetipo] = useState('');
   const [taglia, setTaglia] = useState('');
-  const [quanti, setQuanti] = useState(8);
+  const [quante, setQuante] = useState(12);
   const [seme, setSeme] = useState('184723');
 
-  const [sessione, setSessione] = useState<{ a: Carta; b: Carta }[] | null>(null);
+  const [mazzo, setMazzo] = useState<Carta[] | null>(null);
   const [passo, setPasso] = useState(0);
-  const [commento, setCommento] = useState('');
-  const [duelli, setDuelli] = useState<Duello[]>(() => leggiDuelli());
+  const [carte, setCarte] = useState<CartaSalvata[]>(() => leggiCarte());
   const [gira, setGira] = useState(false);
   const [guasto, setGuasto] = useState<string | null>(null);
   const [insegnando, setInsegnando] = useState(false);
   const [insegnato, setInsegnato] = useState<string | null>(null);
 
-  /* 🔷 «Si devono generare delle immagini: la clicco, l'avvio, e poi lui mi
-     manda la notifica quando è pronto e faccio l'A/B test.» */
   const [conImmagini, setConImmagini] = useState(false);
   const [job, setJob] = useState<StatoJob | null>(null);
   const [foto, setFoto] = useState<Record<number, string>>({});
   const token = useApp((s) => s.token);
   const imageModel = useApp((s) => s.imageModel);
-
-  useEffect(() => ascoltaJob(setJob), []);
-
-  /* 🔷 Arrivando dal tasto in fondo al FLOW il duello parte già armato: sei
-     coppie, con le immagini. Il perimetro resta quello del catalogo — «segue
-     tutto il flow che abbiamo impostato» — quindi qui non si blocca niente. */
-  useEffect(() => {
-    if (avvio === 0) return;
-    setFamiglia('');
-    setArchetipo('');
-    setTaglia('');
-    setQuanti(6);
-    setConImmagini(true);
-    void allena({ quanti: 6, immagini: true });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [avvio]);
-
-  /* Le immagini già disegnate si rileggono a ogni duello: se hai chiuso e
-     riaperto, quelle pagate ieri sono ancora lì. */
-  useEffect(() => {
-    if (!sessione) return;
-    void (async () => {
-      const prese: Record<number, string> = {};
-      for (const c of sessione) {
-        for (const carta of [c.a, c.b]) {
-          const url = await immagineDi(carta.seed);
-          if (url) prese[carta.seed] = url;
-        }
-      }
-      setFoto(prese);
-    })();
-  }, [sessione, job?.fatte]);
-
   const teachResolver = useApp((s) => s.teachResolver);
 
   const scope = [famiglia || 'ALL', archetipo, taglia].filter(Boolean).join(' / ');
-  const prefs = useMemo(() => preferenze(duelli), [duelli]);
+  const prefs = useMemo(() => preferenze(carte), [carte]);
 
-  /* --- Le liste vere, dal catalogo ---------------------------------------- */
+  useEffect(() => ascoltaJob(setJob), []);
+
+  useEffect(() => {
+    if (!mazzo) return;
+    void (async () => {
+      const prese: Record<number, string> = {};
+      for (const c of mazzo) {
+        const url = await immagineDi(c.seed);
+        if (url) prese[c.seed] = url;
+      }
+      setFoto(prese);
+    })();
+  }, [mazzo, job?.fatte]);
+
   const [liste, setListe] = useState<{ famiglie: string[]; archetipi: string[] }>({ famiglie: [], archetipi: [] });
   useEffect(() => {
     void (async () => {
-      const { FAMILIES } = await import('../../engine/generation-config');
+      const { FAMILIES: F } = await import('../../engine/generation-config');
       setListe({
-        famiglie: FAMILIES.map((f) => f.id),
-        archetipi: famiglia ? (FAMILIES.find((f) => f.id === famiglia)?.archetypes.map((a) => a.id) ?? []) : [],
+        famiglie: F.map((f) => f.id),
+        archetipi: famiglia ? (F.find((f) => f.id === famiglia)?.archetypes.map((a) => a.id) ?? []) : [],
       });
     })();
   }, [famiglia]);
 
-  /* --- La sessione --------------------------------------------------------- */
+  /* ==========================================================================
+     IL MAZZO
 
-  /* 🔴 STALE CLOSURE, e si vedeva solo provandola. Il tasto in fondo al FLOW
-     faceva `setQuanti(6); setConImmagini(true); allena()` tutto di seguito:
-     `allena` leggeva ancora i valori VECCHI, perché in React lo stato appena
-     impostato non è visibile nella stessa passata. Risultato: partivano otto
-     duelli invece di sei, e senza immagini — con l'aria di funzionare.
+     🔶 ERA UN DUELLO A COPPIE. Il duello ti costringe a scegliere anche quando
+     fanno schifo tutte e due — e infatti aveva due voti (BOTH, NO) che non
+     contavano niente, cioè metà dei gesti buttati.
 
-     🔒 Quindi i valori che l'avvio automatico deve imporre si passano come
-     argomenti, invece di sperare che lo stato sia già arrivato. */
-  const allena = async (forza?: { quanti?: number; immagini?: boolean }) => {
-    const quantiOra = forza?.quanti ?? quanti;
+     🔷 «Facciamo tipo Tinder: vediamo vari risultati e ci accorgiamo se
+        qualcosa è una merda.»
+     ====================================================================== */
+  const genera = async (forza?: { quante?: number; immagini?: boolean }) => {
+    const quanteOra = forza?.quante ?? quante;
     const immaginiOra = forza?.immagini ?? conImmagini;
+
     setGira(true);
     setGuasto(null);
     setInsegnato(null);
 
     const { AXES, CATALOG_AXES, isEnabled, resetCatalog, setCatalogEnabled } =
       await import('../../engine/catalogTuning');
-
     const spenti = CATALOG_AXES.flatMap((a) =>
       AXES[a].all.filter((id) => !isEnabled(a, id)).map((id) => [a, id] as const),
     );
@@ -544,88 +521,62 @@ function Build({ avvio = 0 }: { avvio?: number }) {
       const { generatorInput } = await import('../../state/store');
       const input = generatorInput(useApp.getState());
 
-      /* Il perimetro: si spegne quello che non deve uscire. */
       if (famiglia) {
-        for (const id of AXES.family.all) {
-          if (id !== famiglia) setCatalogEnabled('family', id, false);
-        }
+        for (const id of AXES.family.all) if (id !== famiglia) setCatalogEnabled('family', id, false);
       }
 
       const base = Number(seme) || 1;
-      const uno = (n: number): Carta => {
+      const fuori: Carta[] = [];
+      let n = 0;
+      let tentativi = 0;
+
+      while (fuori.length < quanteOra && tentativi < quanteOra * 40) {
+        tentativi += 1;
+        const seed = base + n++;
         const r = generateFirstMon({
           input,
-          mindlineNodeId: 'lab-train',
+          mindlineNodeId: 'lab-mazzo',
           originNodeId: null,
           lineageNames: [],
-          seed: base + n,
+          seed,
           devUnlockAll: false,
           hiddenEvent: false,
           ...(archetipo ? { allowedArchetypes: [archetipo] } : {}),
         });
         const d = r.record.data;
-        const assi = {
-          family: d.family,
-          family_archetype: d.family_archetype,
-          affinity: d.affinity,
-          size: d.size,
-          role: d.role,
-          fashion: d.fashion,
-          appearance: d.appearance,
-        };
-        return {
-          seed: base + n - 1,
-          record: r.record,
-          assi,
-          righe: [
-            ['NOME', d.name],
-            ['FAMILY', `${d.family} · ${d.family_archetype}`],
-            ['AFFINITY', d.affinity],
-            ['SIZE / ROLE', `${d.size} · ${d.role}`],
-            ['FASHION', d.fashion],
-            ['APPEARANCE', d.appearance],
-            ['RARITY', `${d.rarity} (${d.rarity_score})`],
-          ],
-          /* 🔒 «WHY THIS?» è la TRACCIA VERA del generatore, non una
-             spiegazione scritta a mano: se un giorno il motore decide
-             diversamente, qui si vede. */
-          traccia: r.trace.steps.slice(0, 14).map((x) => `${x.stage} → ${x.outcome}`),
-        };
-      };
+        if (taglia && d.size !== taglia) continue;
 
-      /* Semi diversi per A e B: è il punto — due creature diverse da
-         confrontare, non la stessa due volte. E la taglia, se l'hai bloccata,
-         si filtra scartando quelle che non tornano: il motore non ha un
-         parametro per imporla. */
-      const coppie: { a: Carta; b: Carta }[] = [];
-      let n = 0;
-      let tentativi = 0;
-      while (coppie.length < quantiOra && tentativi < quantiOra * 40) {
-        tentativi += 1;
-        const a = uno(n++);
-        const b = uno(n++);
-        if (taglia && (a.assi.size !== taglia || b.assi.size !== taglia)) continue;
-        if (a.assi.family === b.assi.family && a.assi.family_archetype === b.assi.family_archetype && a.assi.affinity === b.assi.affinity) continue;
-        coppie.push({ a, b });
+        fuori.push({
+          seed,
+          record: r.record,
+          valori: {
+            family: d.family,
+            family_archetype: d.family_archetype,
+            affinity: d.affinity,
+            size: d.size,
+            role: d.role,
+            fashion: d.fashion,
+            appearance: d.appearance,
+            ...(d.eyewear ? { eyewear: d.eyewear.category } : {}),
+          },
+          righe: [
+            `${d.name}`,
+            `${d.family} · ${d.family_archetype} · ${d.affinity}`,
+            `${d.size} · ${d.role} · ${d.fashion}`,
+            `${d.appearance} · ${d.rarity}${d.eyewear ? ` · ${d.eyewear.category}` : ''}`,
+          ],
+        });
       }
 
-      if (coppie.length === 0) {
-        setGuasto('Con questo perimetro non escono coppie diverse fra loro: allarga il campo.');
+      if (fuori.length === 0) {
+        setGuasto('Con questo perimetro non esce niente: allarga il campo.');
       } else {
-        setSessione(coppie);
+        setMazzo(fuori);
         setPasso(0);
-        setCommento('');
-
         if (immaginiOra) {
-          /* Il permesso si chiede PRIMA di partire: chiederlo alla fine
-             vorrebbe dire scoprire di non poter avvisare proprio quando c'è
-             qualcosa da dire. */
           await chiediPermesso();
           void avviaJob({
-            coppie: coppie.map((c) => [
-              { seed: c.a.seed, record: c.a.record },
-              { seed: c.b.seed, record: c.b.record },
-            ]),
+            carte: fuori.map((c) => ({ seed: c.seed, record: c.record })),
             token,
             imageModel,
             onNotifica: (t, b) => void notifica(t, b),
@@ -641,67 +592,63 @@ function Build({ avvio = 0 }: { avvio?: number }) {
     }
   };
 
-  const vota = (voto: Voto) => {
-    if (!sessione) return;
-    const { a, b } = sessione[passo]!;
-    const d: Duello = {
-      at: new Date().toISOString(),
-      scope,
-      voto,
-      vinta: voto === 'A' ? a.assi : voto === 'B' ? b.assi : null,
-      persa: voto === 'A' ? b.assi : voto === 'B' ? a.assi : null,
-      commento: commento.trim(),
-    };
-    setDuelli(salvaDuello(d));
-    setCommento('');
-    if (passo + 1 < sessione.length) setPasso(passo + 1);
-    else setSessione(null);
+  useEffect(() => {
+    if (avvio === 0) return;
+    setFamiglia('');
+    setArchetipo('');
+    setTaglia('');
+    setQuante(12);
+    setConImmagini(true);
+    void genera({ quante: 12, immagini: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [avvio]);
+
+  const giudica = (g: Giudizio) => {
+    if (!mazzo) return;
+    const c = mazzo[passo]!;
+    setCarte(
+      salvaCarta({
+        at: new Date().toISOString(),
+        scope,
+        giudizio: g,
+        valori: c.valori,
+        commento: '',
+      }),
+    );
+    if (passo + 1 < mazzo.length) setPasso(passo + 1);
+    else setMazzo(null);
   };
 
-  /* --- Da voti a lezione ---------------------------------------------------
-     🔒 L'AI PROPONE, TU APPLICHI. I voti restano voti finché non premi qui:
-     `teachResolver` è la stessa strada di DEV → INSEGNA, quindi la lezione
-     che ne esce è una lezione VERA, che il resolver legge davvero. */
   const insegna = async () => {
-    const frase = fraseDaInsegnare(prefs, scope === 'ALL' ? '' : scope);
+    const frase = fraseDaInsegnare(prefs, scope === 'ALL' ? '' : scope, carte.length);
     if (!frase) return;
     setInsegnando(true);
     setInsegnato(null);
     try {
       const out = await teachResolver(frase, []);
       setInsegnato(
-        out.reply
-          ? 'Lezione salvata: la trovi in LEARNED.'
-          : `Non è riuscito: ${out.detail ?? out.failure ?? 'nessuna risposta'}`,
+        out.reply ? 'Lezione salvata: la trovi in LEARNED.' : `Non è riuscito: ${out.detail ?? out.failure ?? 'nessuna risposta'}`,
       );
     } finally {
       setInsegnando(false);
     }
   };
 
-  const corrente = sessione?.[passo];
+  const corrente = mazzo?.[passo];
 
   return (
     <section className="page active">
       <div className="kicker mono">RESOLVER TRAINING / MANUAL SCOPE</div>
       <h1>BUILD + TRAIN</h1>
       <p className="lead">
-        Costruisci il perimetro del test attraversando gli assi della creazione. Ogni scelta
-        diventa un LOCK. Quando premi TRAIN, tutto ciò che non hai scelto resta libero di variare.
+        Costruisci il perimetro, genera un mazzo, e guardale una alla volta: sì o no. Quello che
+        non scegli resta libero di variare.
       </p>
 
       <div className="builderpath">
         <span className="label mono">CURRENT SCOPE</span>
         <div className="breadcrumb mono">CREATION / {scope || 'ALL'}</div>
-        <button
-          type="button"
-          className="clearbuild"
-          onClick={() => {
-            setFamiglia('');
-            setArchetipo('');
-            setTaglia('');
-          }}
-        >
+        <button type="button" className="clearbuild" onClick={() => { setFamiglia(''); setArchetipo(''); setTaglia(''); }}>
           CLEAR
         </button>
       </div>
@@ -732,9 +679,9 @@ function Build({ avvio = 0 }: { avvio?: number }) {
       <div className="trainconfig">
         <div className="configrow">
           <label className="mono">
-            DUELS
-            <select value={quanti} onChange={(e) => setQuanti(Number(e.target.value))}>
-              {[4, 8, 12].map((n) => <option key={n} value={n}>{n}</option>)}
+            QUANTE
+            <select value={quante} onChange={(e) => setQuante(Number(e.target.value))}>
+              {[6, 12, 24].map((n) => <option key={n} value={n}>{n}</option>)}
             </select>
           </label>
           <label className="mono">
@@ -742,35 +689,29 @@ function Build({ avvio = 0 }: { avvio?: number }) {
             <input value={seme} inputMode="numeric" onChange={(e) => setSeme(e.target.value)} />
           </label>
         </div>
-        {/* 🔒 IL NUMERO SI DICE PRIMA, NON DOPO. Due immagini per duello:
-            otto duelli sono sedici immagini pagate. Un interruttore che non
-            dice quanto costa è un interruttore che si accende per sbaglio. */}
+
         <label className="mono" style={{ display: 'flex', gap: 8, alignItems: 'center', margin: '10px 0' }}>
-          <input
-            type="checkbox"
-            checked={conImmagini}
-            onChange={(e) => setConImmagini(e.target.checked)}
-          />
-          CON IMMAGINI · {quanti * 2} da disegnare e da pagare
+          <input type="checkbox" checked={conImmagini} onChange={(e) => setConImmagini(e.target.checked)} />
+          CON IMMAGINI · {quante} da disegnare e da pagare
         </label>
 
-        <button type="button" className="trainstart" onClick={() => void allena()} disabled={gira}>
-          {gira ? 'GENERO…' : 'TRAIN THIS SCOPE'}
+        <button type="button" className="trainstart" onClick={() => void genera()} disabled={gira}>
+          {gira ? 'GENERO…' : 'GENERA IL MAZZO'}
         </button>
 
         {conImmagini && !token && (
-          <p className="hint">
-            Senza chiave non si disegna niente: il duello parte lo stesso, ma con le sole etichette.
-          </p>
+          <p className="hint">Senza chiave non si disegna: il mazzo parte lo stesso, con le sole etichette.</p>
         )}
       </div>
+
+      {guasto && <p className="hint">{guasto}</p>}
 
       {job && !job.finito && !job.errore && (
         <div className="notice mono">
           <strong>STO DISEGNANDO · {job.fatte}/{job.totale}</strong>
           <br />
-          Puoi votare intanto: le carte si riempiono man mano. Se chiudi l’app il disegno si ferma,
-          ma quello che è già fatto resta e riprende da lì.
+          Puoi già giudicare: le carte si riempiono man mano. Se chiudi l’app il disegno si ferma,
+          ma quello che è già fatto resta.
         </div>
       )}
       {job?.errore && (
@@ -781,103 +722,67 @@ function Build({ avvio = 0 }: { avvio?: number }) {
         </div>
       )}
 
-      {guasto && <p className="hint">{guasto}</p>}
-
       {corrente && (
-        <div className="session" style={{ display: 'block' }}>
-          <div className="sessionhead">
-            <div>
-              <b>DUEL {String(passo + 1).padStart(2, '0')}</b>
-              <span className="mono">{scope || 'ALL'}</span>
-            </div>
-            <span className="mono">{passo + 1} / {sessione!.length}</span>
+        <div className="deck">
+          <div className="deck__head">
+            <span>{passo + 1} / {mazzo!.length}</span>
+            <span>{scope || 'ALL'}</span>
           </div>
 
-          <div className="duel">
-            {(['A', 'B'] as const).map((lato) => {
-              const c = lato === 'A' ? corrente.a : corrente.b;
-              return (
-                <div className="duelcard" key={lato}>
-                  <strong>{lato}</strong>
-                  {/* 🔷 «Un mostro lo scegli con l'occhio»: se la foto c'è si
-                      guarda quella, altrimenti si dice perché non c'è invece
-                      di lasciare un riquadro muto. */}
-                  <div className="duelvisual">
-                    {foto[c.seed] ? (
-                      <img src={foto[c.seed]} alt={`creatura ${lato}`} style={{ width: '100%', display: 'block' }} />
-                    ) : conImmagini ? (
-                      'in disegno…'
-                    ) : (
-                      'SOLO DATI'
-                    )}
-                  </div>
-                  <div className="duelmeta mono">
-                    {c.righe.map(([k, v]) => (
-                      <div key={k}>
-                        {k} · {v}
-                      </div>
-                    ))}
-                  </div>
-                  <details className="tracebox">
-                    <summary className="mono">WHY THIS? / TRACE</summary>
-                    <div className="tracelines mono">
-                      {c.traccia.map((r) => <div key={r}>{r}</div>)}
-                    </div>
-                  </details>
-                </div>
-              );
-            })}
+          <div className="deck__art">
+            {foto[corrente.seed] ? (
+              <img src={foto[corrente.seed]} alt={corrente.righe[0]} />
+            ) : (
+              <span>{conImmagini ? 'in disegno…' : 'SOLO DATI'}</span>
+            )}
           </div>
 
-          <div className="votegrid">
-            {(['A', 'B', 'BOTH', 'NEITHER'] as const).map((v) => (
-              <button type="button" key={v} onClick={() => vota(v)}>
-                {v === 'NEITHER' ? 'NO' : v}
-              </button>
+          <div className="deck__meta">
+            {corrente.righe.map((r) => (
+              <div key={r}>{r}</div>
             ))}
           </div>
 
-          <input
-            className="traincomment"
-            placeholder="Commento generale sul confronto…"
-            value={commento}
-            onChange={(e) => setCommento(e.target.value)}
-          />
-          <p className="hint">
-            BOTH e NO restano nel registro ma non contano per i gusti: dicono che ti piacciono
-            tutte e due o nessuna, non quale preferisci.
-          </p>
+          <div className="deck__vote">
+            <button type="button" onClick={() => giudica('NO')}>💩 NO</button>
+            <button type="button" className="si" onClick={() => giudica('SI')}>❤️ SÌ</button>
+          </div>
+
+          <div className="deck__bar">
+            <i style={{ width: `${((passo + 1) / mazzo!.length) * 100}%` }} />
+          </div>
         </div>
       )}
 
-      {/* --- Cosa ha imparato ------------------------------------------------ */}
+      {/* --- Cosa ha imparato --------------------------------------------- */}
       <div className="traininglog">
-        <span className="label mono">COSA HO IMPARATO · {duelli.length} CONFRONTI</span>
-        {prefs.length === 0 ? (
+        <span className="label mono">
+          COSA HO IMPARATO · {carte.length} CARTE · {Math.round(prefs.media * 100)}% DI SÌ
+        </span>
+
+        {prefs.piaciute.length === 0 && prefs.bocciate.length === 0 ? (
           <p className="hint">
-            {duelli.length === 0
-              ? 'Nessun confronto ancora. Premi TRAIN THIS SCOPE e scegli quale ti piace.'
-              : `Ancora niente di solido: serve che lo stesso valore vinca almeno ${MINIMO_SCONTRI} scontri contro un valore diverso. Una regola imparata da un caso solo entra nel prompt del resolver e ci resta.`}
+            {carte.length === 0
+              ? 'Nessuna carta ancora. Genera un mazzo e comincia a dire sì o no.'
+              : `Ancora niente di solido: una voce deve essere comparsa almeno ${MINIMO_VISTE} volte e staccarsi dalla tua media. Se dici sì all’80% di tutto, una voce all’80% non ti piace: è nella media.`}
           </p>
         ) : (
           <>
-            {prefs.map((p) => (
-              <div className="chip" key={`${p.asse}-${p.valore}`}>
-                {/* 🔒 L'ASSE VA DETTO. `DEMON · 4/5` da solo non dice se DEMON
-                    è una Family, un'affinità o un ruolo — e la stessa parola
-                    può stare su assi diversi. */}
-                {ETICHETTA_ASSE[p.asse]} · {p.valore} · {p.vinti}/{p.scontri}
+            {prefs.piaciute.map((p) => (
+              <div className="chip" key={`p-${p.asse}-${p.valore}`}>
+                ❤️ {ETICHETTA_ASSE[p.asse]} · {p.valore} · {p.si}/{p.viste}
               </div>
             ))}
-            {/* 🔷 «Lui genera delle lezioni, io le leggo, le approvo, e vengono
-                inserite.» Quindi la frase si LEGGE prima di partire. Un
-                pulsante che manda qualcosa che non hai letto ti fa scoprire
-                cosa hai insegnato solo dopo, in LEARNED — cioè quando è già
-                dentro il prompt del resolver. */}
+            {prefs.bocciate.map((p) => (
+              <div className="chip" key={`b-${p.asse}-${p.valore}`}>
+                💩 {ETICHETTA_ASSE[p.asse]} · {p.valore} · {p.si}/{p.viste}
+              </div>
+            ))}
+
             <div className="box soft" style={{ marginTop: 10 }}>
               <span className="label mono">COSA STO PER INSEGNARGLI</span>
               <pre className="promptcode" style={{ whiteSpace: 'pre-wrap' }}>
-                {fraseDaInsegnare(prefs, scope === 'ALL' ? '' : scope)}
+                {fraseDaInsegnare(prefs, scope === 'ALL' ? '' : scope, carte.length)}
               </pre>
             </div>
 
@@ -891,6 +796,7 @@ function Build({ avvio = 0 }: { avvio?: number }) {
               {insegnando ? 'INSEGNO…' : 'APPROVA E INSERISCI'}
             </button>
             {insegnato && <p className="hint">{insegnato}</p>}
+
             <button
               type="button"
               className="chip"
@@ -898,11 +804,11 @@ function Build({ avvio = 0 }: { avvio?: number }) {
               onClick={() => {
                 dimenticaTutto();
                 void buttaTutto();
-                setDuelli([]);
+                setCarte([]);
                 setFoto({});
               }}
             >
-              DIMENTICA I CONFRONTI
+              DIMENTICA TUTTO
             </button>
           </>
         )}
@@ -911,8 +817,8 @@ function Build({ avvio = 0 }: { avvio?: number }) {
       <div className="notice mono" style={{ marginTop: 14 }}>
         <strong>PRODUCTION = READ ONLY</strong>
         <br />
-        Le creature del duello non entrano nella tua storia, e i voti stanno in una memoria loro.
-        Diventano una lezione vera solo quando premi INSEGNA.
+        Le creature del mazzo non entrano nella tua storia, e i giudizi stanno in una memoria loro.
+        Diventano una lezione vera solo quando premi APPROVA.
       </div>
     </section>
   );
