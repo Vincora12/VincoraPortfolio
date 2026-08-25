@@ -3761,6 +3761,14 @@ check(
 );
 check(
   'VINZ.LAB',
+  'e il token collega anche i DATI, non solo la chat — LabApp scarica il .mon vero appena può',
+  has('src/lab/LabApp.tsx', "import { useApp, syncWithServer } from '../state/store';") &&
+    has('src/lab/LabApp.tsx', 'if (!token) return;') &&
+    has('src/lab/LabApp.tsx', 'await syncWithServer();'),
+  '🔴 «ma se gli do il token sono coegate?» — il segreto da solo sincronizza le chat (`serverBackedStorage`) ma non il .mon: quello lo scarica `syncWithServer()`, che prima girava solo dentro `App.tsx` e il lab non montava mai `App`',
+);
+check(
+  'VINZ.LAB',
   'i comandi non spariscono in tema scuro',
   has('src/lab/skin/_base.css', 'color-scheme: light') &&
     has('src/lab/skin/_base.css', 'color: inherit'),

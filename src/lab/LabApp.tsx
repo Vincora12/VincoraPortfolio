@@ -19,6 +19,7 @@
 
 import { lazy, Suspense, useEffect, useState } from 'react';
 import type { LabId } from './entrypoint';
+import { useApp, syncWithServer } from '../state/store';
 import './skin/_base.css';
 import './skin/atrio.css';
 
@@ -57,6 +58,27 @@ const PORTE: { id: LabId; nome: string; desc: string; tags: string[] }[] = [
 
 export function LabApp({ initialLab }: { initialLab: LabId | null }) {
   const [active, setActive] = useState<LabId | null>(initialLab);
+  const token = useApp((s) => s.token);
+
+  /* 🔴 «Ma se gli do il token sono coegate?» — Il segreto collega le
+     chiamate e la cronologia della chat (sincronizzata dal server), ma non
+     da solo i DATI: il .mon vero, le sue immagini, il diario salute restano
+     quello che `App.tsx` scarica al boot — e il lab non montava mai `App`.
+
+     Stessa sincronizzazione, stesso motivo del disegno originale: appena il
+     lab ha un token (incollato ora, o già salvato da prima), scarica la
+     storia più lunga fra quella locale e quella del server — esattamente
+     come fa l'app vera al primo render. Senza questo, la preview di
+     DESIGN.LAB e gli strumenti dell'ASSISTENTE vedrebbero un .mon vuoto pur
+     avendo il token giusto. */
+  useEffect(() => {
+    if (!token) return;
+    void (async () => {
+      await syncWithServer();
+      const { syncAssetsWithServer } = await import('../assets-pipeline/assetStore');
+      await syncAssetsWithServer(token);
+    })();
+  }, [token]);
 
   useEffect(() => {
     const sync = () => {

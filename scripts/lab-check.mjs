@@ -256,6 +256,53 @@ try {
     writes.join(' · '),
   );
 
+  /* --- 2c. IL SEGRETO SCARICA DAVVERO I DATI, NON SOLO LA CHAT --------------
+     🔴 «Ma se gli do il token sono coegate?» — Il segreto da solo collega le
+     chiamate e la cronologia della chat (sincronizzata dal server), ma NON i
+     dati: il .mon vero, le sue immagini, il diario salute restavano quello
+     che `App.tsx` scaricava al boot — e il lab non montava mai `App`. Senza
+     questo, la preview di DESIGN.LAB e gli strumenti dell'ASSISTENTE
+     vedrebbero un .mon vuoto pur avendo il token giusto. Stessa
+     sincronizzazione, montata invece in `LabApp.tsx` — una volta sola, per
+     ogni stanza, non una copia per lab. */
+  let statoAuth = null;
+  await context.route('**/api/state', (route) => {
+    statoAuth = route.request().headers()['authorization'] ?? null;
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ day: 42, savedAt: new Date().toISOString(), state: { day: 42, resetAt: null } }),
+    });
+  });
+  await context.route('**/api/assets*', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }),
+  );
+
+  guarda();
+  await open('/lab/');
+  await page.evaluate(() => {
+    const raw = localStorage.getItem('vinzmon.prototype.v4');
+    const o = raw ? JSON.parse(raw) : { state: {}, version: 3 };
+    o.state = { ...(o.state ?? {}), token: 'vm_test_token_1234567890abcd', day: 1 };
+    localStorage.setItem('vinzmon.prototype.v4', JSON.stringify(o));
+  });
+  await open('/lab/');
+  await sleep(1000);
+
+  const giornoDopo = await page.evaluate(() => {
+    const raw = localStorage.getItem('vinzmon.prototype.v4');
+    const o = raw ? JSON.parse(raw) : null;
+    return o?.state?.day ?? null;
+  });
+  check(
+    'appena il lab ha un token, scarica la storia più lunga dal server — non solo la chat',
+    statoAuth === 'Bearer vm_test_token_1234567890abcd' && giornoDopo === 42,
+    `auth: ${statoAuth} · day: ${giornoDopo}`,
+  );
+
+  await context.unroute('**/api/state');
+  await context.unroute('**/api/assets*');
+
   /* --- 3. DESIGN.LAB ------------------------------------------------------- */
   await open('/#/lab/design');
   check('su «/#/lab/design» si apre DESIGN.LAB', (await page.locator('.screenbar').count()) > 0);
