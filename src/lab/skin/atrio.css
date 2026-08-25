@@ -12,7 +12,15 @@
    font, colori e misure suoi — Arial, non Archivo; `#111` su bianco, non i
    token del prodotto. Caricarci sopra `tokens.css` e `base.css` vorrebbe dire
    vedere una terza cosa che non è né l'app né il disegno.
-   ========================================================================= */
+
+   🔴 UNA RIGA CORRETTA, NON RISCRITTA: `.top` era un selettore GLOBALE
+   (`.lab .top` scritto senza il prefisso), pensato per la sola riga
+   nome+freccia dentro una card `.lab` dell'atrio. Ma questo file si carica
+   in OGNI stanza (`LabApp.tsx`), quindi quel `.top` globale collideva col
+   `header.top` di ogni lab — in DESIGN.LAB, che ha due figli diretti sotto
+   `.top`, il `display:flex;justify-content:space-between` ereditato li
+   metteva fianco a fianco invece che impilati, schiacciando le schede fuori
+   schermo. Nessun valore è cambiato: solo lo scope del selettore. */
 
 :root{--ink:#111;--muted:#6b6b6b;--line:#d9d9d9}
 *{box-sizing:border-box}html,body{margin:0;background:#fff;color:#111;font-family:Arial,Helvetica,sans-serif}
@@ -22,6 +30,6 @@ main{padding:32px 18px 48px}.kicker{font-size:10px;letter-spacing:.12em;margin-b
 h1{font-size:50px;line-height:.88;margin:0 0 18px;font-weight:900;font-style:italic;letter-spacing:-.06em}
 .intro{font-size:16px;line-height:1.48;margin:0 0 32px}
 .lab{display:block;text-decoration:none;color:inherit;border-top:1px solid #111;padding:21px 2px 23px}
-.lab:last-of-type{border-bottom:1px solid #111}.top{display:flex;justify-content:space-between;gap:15px}.name{font-size:31px;line-height:.95;font-weight:900;font-style:italic;letter-spacing:-.045em}.arrow{font-size:28px}
+.lab:last-of-type{border-bottom:1px solid #111}.lab .top{display:flex;justify-content:space-between;gap:15px}.name{font-size:31px;line-height:.95;font-weight:900;font-style:italic;letter-spacing:-.045em}.arrow{font-size:28px}
 .desc{font-size:13px;line-height:1.45;color:var(--muted);margin:10px 0}.tags{display:flex;gap:6px;flex-wrap:wrap}.tag{border:1px solid var(--line);padding:5px 7px;font-size:9px}
 .rule{margin-top:30px;border:1px solid var(--line);padding:13px;font-size:11px;line-height:1.5;color:#666}.rule b{color:#111}.footer{border-top:1px solid var(--line);padding-top:14px;margin-top:30px;font-size:9px;color:#777}

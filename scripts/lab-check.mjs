@@ -258,7 +258,7 @@ try {
 
   /* --- 3. DESIGN.LAB ------------------------------------------------------- */
   await open('/#/lab/design');
-  check('su «/#/lab/design» si apre DESIGN.LAB', (await page.locator('.labtitle').count()) > 0);
+  check('su «/#/lab/design» si apre DESIGN.LAB', (await page.locator('.screenbar').count()) > 0);
   const frame = page.locator('.phone iframe');
   check('con dentro l\'iframe della schermata vera', (await frame.count()) === 1);
   const src = ((await frame.count()) === 1 ? await frame.getAttribute('src') : null) ?? '';

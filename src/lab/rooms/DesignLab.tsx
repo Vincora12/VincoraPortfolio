@@ -26,6 +26,16 @@
       gruppi, non 5 righe) e ogni riga si può cambiare: APPLICA scrive lo
       scarto in `engine/designTokens.ts`, che lo tiene fuori dal lab — vale
       per l'app vera, non solo per questa schermata.
+
+   🔷 «Le tab in alto nascoste dal titolo della pagina, il titolo non serve.»
+   Il disegno metteva «🖥 DESIGN.LAB» + badge «REAL COMPONENTS» su una riga e
+   le cinque schede su un'altra — e un `.top` globale di `atrio.css` (la sola
+   riga nome+freccia delle card dell'atrio, mai scopata a `.lab .top`) le
+   spingeva fianco a fianco invece che impilate: col titolo largo 127px, alla
+   quinta scheda aggiunta (🤖 ASSISTENTE) restava spazio solo per «UI» e mezza
+   «TOKENS». Tolto il titolo — è ridondante, ci si arriva già dall'atrio — e
+   le schede stanno ora nella stessa riga del ← , con `flex:1;min-width:0`
+   così scorrono invece di sparire.
    ========================================================================= */
 
 import { useEffect, useRef, useState } from 'react';
@@ -93,21 +103,19 @@ export function DesignLab({ onBack }: { onBack: () => void }) {
           >
             ←
           </a>
-          <div className="labtitle">🖥 DESIGN.LAB</div>
-          <span className="status mono">REAL COMPONENTS</span>
+          <nav className="tabs">
+            {TABS.map((t) => (
+              <button
+                type="button"
+                key={t.id}
+                className={`tab ${t.id === tab ? 'active' : ''}`}
+                onClick={() => setTab(t.id)}
+              >
+                {t.label}
+              </button>
+            ))}
+          </nav>
         </div>
-        <nav className="tabs">
-          {TABS.map((t) => (
-            <button
-              type="button"
-              key={t.id}
-              className={`tab ${t.id === tab ? 'active' : ''}`}
-              onClick={() => setTab(t.id)}
-            >
-              {t.label}
-            </button>
-          ))}
-        </nav>
       </header>
 
       <main>

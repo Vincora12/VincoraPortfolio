@@ -32,13 +32,11 @@ button,textarea{font:inherit}
 .app{max-width:500px;margin:auto;min-height:100vh}
 .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace}
 .top{position:sticky;top:0;z-index:40;background:#fff;border-bottom:1px solid var(--lab-line)}
-.navrow{display:flex;align-items:center;gap:12px;padding:13px 14px 8px}
-.back{text-decoration:none;color:#111;font-size:24px;line-height:1}
-.labtitle{font-weight:900;font-style:italic;font-size:22px;letter-spacing:-.04em;flex:1}
-.status{font-size:8px;border:1px solid #111;padding:4px 6px}
-.tabs{display:flex;gap:2px;overflow-x:auto;padding:0 12px 8px;scrollbar-width:none}
+.navrow{display:flex;align-items:center;gap:8px;padding:10px 8px}
+.back{flex:0 0 auto;text-decoration:none;color:#111;font-size:24px;line-height:1}
+.tabs{flex:1;min-width:0;display:flex;gap:2px;overflow-x:auto;scrollbar-width:none}
 .tabs::-webkit-scrollbar{display:none}
-.tab{border:0;background:#fff;padding:8px 9px;font-size:10px;color:#777;border-bottom:2px solid transparent;white-space:nowrap}
+.tab{flex:0 0 auto;border:0;background:#fff;padding:8px 9px;font-size:10px;color:#777;border-bottom:2px solid transparent;white-space:nowrap}
 .tab.active{color:#111;font-weight:800;border-bottom-color:#111}
 main{padding:17px 14px 42px}
 .page{display:none}.page.active{display:block}

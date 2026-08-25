@@ -3747,6 +3747,14 @@ check(
 );
 check(
   'VINZ.LAB',
+  'e in DESIGN.LAB le schede non spariscono dietro un titolo che non serve',
+  lacksInCode('src/lab/rooms/DesignLab.tsx', 'labtitle') &&
+    has('src/lab/skin/design.css', '.tabs{flex:1;min-width:0;') &&
+    has('src/lab/skin/atrio.css', '.lab .top{display:flex'),
+  '🔷 «le tab in alto nascoste dal titolo della pagina, il titolo non serve» — un `.top` globale di atrio.css (mai scopato a `.lab .top`) metteva il titolo e le cinque schede fianco a fianco: con la quinta scheda aggiunta restava spazio solo per «UI» e mezza «TOKENS»',
+);
+check(
+  'VINZ.LAB',
   'i comandi non spariscono in tema scuro',
   has('src/lab/skin/_base.css', 'color-scheme: light') &&
     has('src/lab/skin/_base.css', 'color: inherit'),
