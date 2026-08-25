@@ -41,7 +41,7 @@ import {
 } from './generation-config';
 
 /** Gli assi su cui si può accendere e spegnere. */
-export const CATALOG_AXES = ['family', 'affinity', 'role', 'fashion', 'mood', 'appearance', 'design'] as const;
+export const CATALOG_AXES = ['family', 'affinity', 'role', 'fashion', 'mood', 'appearance', 'design', 'size'] as const;
 export type CatalogAxis = (typeof CATALOG_AXES)[number];
 
 export interface AxisInfo {
@@ -65,7 +65,16 @@ export const AXES: Record<CatalogAxis, AxisInfo> = {
   family: {
     label: 'FAMILY',
     all: FAMILIES.map((f) => f.id),
-    min: 2,
+    /* 🔶 ERA 2, con la ragione «con una sola, ogni creatura nasce della stessa
+       specie e il generatore diventa un timbro». La ragione era buona e la
+       difesa non serviva a niente: `TEST_PHASE` teneva ferma la Family su
+       ANGEL passando SOPRA il catalogo, quindi il timbro c'era comunque —
+       solo, non si vedeva e non si poteva togliere.
+
+       🔷 «Io devo poter sbloccare o bloccare delle famiglie.» Una sola accesa
+       è uno stato legittimo, e adesso è uno stato VISIBILE: si legge nella
+       lista e si cambia con un tocco. */
+    min: 1,
     it: 'la specie: che corpo ha',
   },
   affinity: {
@@ -82,6 +91,16 @@ export const AXES: Record<CatalogAxis, AxisInfo> = {
     all: APPEARANCES,
     min: 1,
     it: 'COME è reso: superficie, non costruzione',
+  },
+  /* 🔷 «Devo poter sbloccare o bloccare.» La taglia era l'unico dei tre assi
+     fermi senza una lista: stava solo dentro `TEST_PHASE`, cioè in un posto
+     che non si vedeva. Adesso è una lista come le altre — un meccanismo solo
+     per tutto, invece di due che si somigliano. */
+  size: {
+    label: 'TAGLIA',
+    all: ['TINY', 'MEDIUM', 'GIANT'],
+    min: 1,
+    it: 'quanto è grande: cambia la grammatica delle proporzioni',
   },
   design: {
     label: 'CHARACTER DESIGN DNA',
@@ -121,7 +140,63 @@ const fromDefaults = (): Disabled =>
     CATALOG_AXES.map((a) => [a, new Set<string>(DEFAULT_OFF[a] ?? [])]),
   ) as Disabled;
 
-let off: Disabled = fromDefaults();
+/* ============================================================================
+   🔴 IL CATALOGO NON SI SALVAVA.
+
+   `off` viveva in memoria e basta: spegnevi una Family, ricaricavi, e tornava
+   accesa. Nessun errore, nessun avviso — solo il lavoro buttato. Adesso si
+   scrive.
+
+   🔒 E IL PRIMO AVVIO PARTE DALLO STATO VERO DI ADESSO, non da «tutto acceso»:
+   oggi nasce solo ANGEL, in TINY, disegnato da Ken. Prima quella scelta stava
+   dentro `TEST_PHASE` e passava sopra il catalogo senza dirlo; adesso è
+   scritta qui come tre voci accese e tutte le altre spente, cioè come una
+   cosa che si legge e si cambia.
+
+   ⚠️ È UN SEME, NON UN VALORE DI DEFAULT. `resetCatalog()` continua a
+   riportare ai default del MOTORE — tutto acceso tranne le cinque voci che
+   non piacevano — perché è quello che «rimetti a posto» deve voler dire, ed è
+   quello che i controlli sulle distribuzioni verificano.
+   ========================================================================= */
+
+const CHIAVE = 'vinzmon.catalog.v1';
+
+/** Lo stato di partenza: quello che il gioco fa DAVVERO oggi. */
+const SEME: Partial<Record<CatalogAxis, readonly string[]>> = {
+  family: FAMILIES.map((f) => f.id).filter((id) => id !== 'ANGEL'),
+  size: ['MEDIUM', 'GIANT'],
+  design: DESIGN_DNA.map((d) => d.id).filter((id) => id !== 'KEN SUGIMORI'),
+};
+
+function carica(): Disabled {
+  try {
+    const raw = typeof localStorage === 'undefined' ? null : localStorage.getItem(CHIAVE);
+    if (raw) {
+      const salvato = JSON.parse(raw) as Record<string, string[]>;
+      return Object.fromEntries(
+        CATALOG_AXES.map((a) => [a, new Set<string>(salvato[a] ?? DEFAULT_OFF[a] ?? [])]),
+      ) as Disabled;
+    }
+  } catch {
+    /* Un salvataggio illeggibile non deve impedire di giocare. */
+  }
+  return Object.fromEntries(
+    CATALOG_AXES.map((a) => [a, new Set<string>(SEME[a] ?? DEFAULT_OFF[a] ?? [])]),
+  ) as Disabled;
+}
+
+let off: Disabled = carica();
+
+function salva(): void {
+  try {
+    localStorage.setItem(
+      CHIAVE,
+      JSON.stringify(Object.fromEntries(CATALOG_AXES.map((a) => [a, [...off[a]]]))),
+    );
+  } catch {
+    /* Senza scrittura vale per questa sessione. */
+  }
+}
 
 /** Le voci accese di un asse. Il motore pesca SEMPRE da qui. */
 export function enabled(axis: CatalogAxis): string[] {
@@ -159,6 +234,7 @@ export function setCatalogEnabled(axis: CatalogAxis, id: string, on: boolean): s
   }
 
   off[axis] = next;
+  salva();
   return [];
 }
 
@@ -170,6 +246,7 @@ export function setCatalogEnabled(axis: CatalogAxis, id: string, on: boolean): s
 export function resetCatalog(axis?: CatalogAxis): void {
   if (axis) off[axis] = new Set(DEFAULT_OFF[axis] ?? []);
   else off = fromDefaults();
+  salva();
 }
 
 /** Vero se questa voce nasce spenta. Serve a dirlo nella schermata. */

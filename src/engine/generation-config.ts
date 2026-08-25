@@ -31,8 +31,6 @@
    estrae. §29 impone di incrementare la versione quando cambiano tassonomie o
    pesi, e i .mon già generati restano immutabili con la versione con cui sono
    nati. */
-import { effectiveTestPhase } from './testPhaseTuning';
-
 export const GENERATION_CONFIG_VERSION = '3.1.0';
 
 /* ============================================================================
@@ -693,18 +691,22 @@ export function lockedIn<K extends keyof Omit<TestPhase, 'enabled'>>(
 }
 
 /**
- * 🔷 «Devo vedere una sezione dove questa cosa è selezionata, e devo poterla
- *    disabilitare e abilitare altre cose.»
+ * 🔶 NON LA USA PIÙ NESSUNO NEL GENERATORE, ed è la semplificazione che
+ * Vincenzo ha chiesto: «cerca la strada più semplice, non complicarla».
  *
- * ⚠️ NON LEGGE PIÙ LA COSTANTE DIRETTAMENTE. `TEST_PHASE` resta il
- * predefinito — senza override il comportamento è identico a prima — ma
- * quello che vale davvero passa da `effectiveTestPhase`, così CREATION.LAB
- * può spegnere la fase o cambiarne i tre valori.
+ * I tre assi che `TEST_PHASE` teneva fermi — Family, taglia, designer —
+ * adesso passano tutti e tre dal CATALOGO, cioè dalle stesse liste con
+ * acceso/spento che già valevano per affinità, ruolo e stile. Un meccanismo
+ * solo, visibile, e che si cambia con un tocco.
+ *
+ * ⚠️ `TEST_PHASE` resta qui perché `taste.ts` la usa ancora per DIRE al
+ * resolver che sta lavorando dentro un campo ristretto, e perché
+ * `verify:batch` la esercita. Ma non decide più niente sul sorteggio.
  */
 export function locked<K extends keyof Omit<TestPhase, 'enabled'>>(
   axis: K,
 ): TestPhase[K] | null {
-  return lockedIn(effectiveTestPhase(TEST_PHASE), axis);
+  return lockedIn(TEST_PHASE, axis);
 }
 
 export const SELECTABLE_FAMILIES = FAMILIES;

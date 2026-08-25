@@ -94,15 +94,25 @@ const m = await import(`file://${out}`);
    dichiara a voce alta, e in fondo la si riaccende per verificare il blocco.
    ========================================================================= */
 
-const FASE_ERA_ACCESA = m.TEST_PHASE.enabled;
-if (FASE_ERA_ACCESA) {
-  m.TEST_PHASE.enabled = false;
-  console.log(
-    `\n⚠️  TEST PHASE 01 è ACCESA (${m.TEST_PHASE.family} · ${m.TEST_PHASE.size} · ${m.TEST_PHASE.characterDesigner}).`,
-  );
-  console.log('   Sospesa per questa suite: qui si misura l’equità del motore, non la fase.');
-  console.log('   Il blocco viene verificato in fondo, e da `verify:package`.\n');
-}
+/* 🔶 NON È PIÙ `TEST_PHASE` A TENERE FERMI I TRE ASSI, è il CATALOGO.
+
+   🔷 «Io devo poter sbloccare o bloccare delle famiglie. Cerca la strada più
+      semplice quando fai qualcosa.»
+
+   Prima c'erano due meccanismi che facevano la stessa cosa con due parole
+   diverse: le liste con acceso/spento, e una «fase di prova» che passava loro
+   sopra senza dirlo. Adesso è uno solo: all'avvio il catalogo nasce con una
+   Family accesa, una taglia e un designer — cioè con lo stato vero di oggi,
+   scritto dove si legge e si cambia.
+
+   🔒 QUI QUELLO STATO SI AZZERA, e per la stessa ragione di prima: questa
+   suite misura l'EQUITÀ DEL MOTORE, non la configurazione con cui si sta
+   giocando. Con una Family sola accesa, «tutte e 18 escono almeno una volta»
+   sarebbe rosso per una scelta legittima invece che per una regressione. */
+m.resetCatalog();
+console.log('\n⚠️  Catalogo azzerato ai predefiniti del motore per questa suite.');
+console.log('   Qui si misura l’equità del sorteggio, non com’è configurato il gioco.');
+console.log('   Il blocco a catalogo ristretto viene verificato in fondo.\n');
 const C = m.CONFIG;
 
 let failures = 0;
@@ -2740,8 +2750,25 @@ check(
 
 /* --- E ADESSO IL BLOCCO, RIACCESO ------------------------------------------- */
 
-if (FASE_ERA_ACCESA) {
-  m.TEST_PHASE.enabled = true;
+/* 🔶 ERA «CON LA FASE RIACCESA I TRE ASSI TORNANO FERMI». La fase non esiste
+   più come meccanismo a parte: quello che tiene fermi i tre assi è il
+   catalogo, cioè le stesse liste con acceso/spento di tutto il resto.
+
+   🔒 LA DECISIONE DA VERIFICARE È IDENTICA, e vale la pena dirla per esteso:
+   se di un asse resta accesa UNA voce sola, ogni creatura deve avere quella —
+   e tutto il resto deve continuare a variare. È la promessa che rende utile
+   restringere il campo: fermi tre assi per guardare il disegno, non per
+   ottenere dodici copie. */
+{
+  m.setCatalogEnabled('size', 'MEDIUM', false);
+  m.setCatalogEnabled('size', 'GIANT', false);
+  for (const d of m.CATALOG_AXES_INFO.design.all) {
+    if (d !== 'KEN SUGIMORI') m.setCatalogEnabled('design', d, false);
+  }
+  for (const f of m.CATALOG_AXES_INFO.family.all) {
+    if (f !== 'ANGEL') m.setCatalogEnabled('family', f, false);
+  }
+
   const bloccate = [];
   for (let i = 1; i <= 12; i++) {
     bloccate.push(
@@ -2757,12 +2784,12 @@ if (FASE_ERA_ACCESA) {
   check(
     bloccate.every(
       (r) =>
-        r.data.family === m.TEST_PHASE.family &&
-        r.data.size === m.TEST_PHASE.size &&
-        r.data.character_design_dna === m.TEST_PHASE.characterDesigner,
+        r.data.family === 'ANGEL' &&
+        r.data.size === 'TINY' &&
+        r.data.character_design_dna === 'KEN SUGIMORI',
     ),
-    'con la fase riaccesa i tre assi tornano fermi',
-    `${m.TEST_PHASE.family} · ${m.TEST_PHASE.size} · ${m.TEST_PHASE.characterDesigner}`,
+    'con una voce sola accesa per asse, i tre assi restano fermi',
+    'ANGEL · TINY · KEN SUGIMORI',
   );
   check(
     new Set(bloccate.map((r) => r.data.family_archetype)).size >= 2 &&
@@ -2770,6 +2797,7 @@ if (FASE_ERA_ACCESA) {
     'e dentro il blocco la variazione resta',
     `${new Set(bloccate.map((r) => r.data.family_archetype)).size} archetipi · ${new Set(bloccate.map((r) => r.data.fashion)).size} stili su 12`,
   );
+  m.resetCatalog();
 }
 
 console.log(

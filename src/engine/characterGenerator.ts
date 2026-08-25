@@ -47,7 +47,6 @@ import {
   type Size,
 } from './generation-config';
 import { keepEnabled } from './catalogTuning';
-import { locked } from './generation-config';
 import { makeRng, pick, pickInt, pickMany, pickWeighted, type Rng } from './rng';
 import { tunedPick } from './axisTuning';
 import { buildSignalVector, evaluateFit, type GeneratorInput } from './signals';
@@ -157,13 +156,12 @@ export function generateMon(ctx: GenerationContext): GenerationResult {
   /* 🔒 TEST PHASE 01 — l'ancora della fase di prova viene PRIMA di quella di
      continuità: è più forte perché è temporanea e dichiarata, mentre la
      continuità è una proprietà della partita. */
-  const fuoriFase = ctx.ignoreTestPhase === true;
-  const lockedFamily = fuoriFase ? null : locked('family');
-  const family = lockedFamily
-    ? familyDef(lockedFamily)
-    : anchored('family')
-      ? familyDef(prev!.family)
-      : drawnFamily;
+  const soleFamiglieAccese = keepEnabled('family', SELECTABLE_FAMILIES, (f) => f.id).map((f) => f.id);
+  /* 🔶 ERA `locked('family')`, cioè `TEST_PHASE`, che passava SOPRA il
+     catalogo: la lista delle Family diceva una cosa e ne nasceva un'altra.
+     Adesso la Family la decide il catalogo e basta — `resolveFamily` pesca
+     già solo fra quelle accese, quindi qui non serve più niente. */
+  const family = anchored('family') ? familyDef(prev!.family) : drawnFamily;
   steps.push({
     step: 4,
     stage: 'FAMILY',
@@ -172,8 +170,8 @@ export function generateMon(ctx: GenerationContext): GenerationResult {
     /* ⚠️ La traccia dice che è FERMA, non che è stata estratta. Una traccia
        che mostra dei candidati e non dice che il risultato era già deciso
        racconta un sorteggio che non è avvenuto. */
-    note: lockedFamily
-      ? 'ferma dalla TEST PHASE 01 · gli altri candidati restano a catalogo'
+    note: soleFamiglieAccese.length === 1
+      ? `una sola Family accesa nel catalogo (${soleFamiglieAccese[0]}) · gli altri candidati restano a catalogo, spenti`
       : anchored('family')
         ? 'tenuta ferma dall’ancora di continuità'
         : `softmax su tutte e ${SELECTABLE_FAMILIES.length} (temperatura ${ENGINE_WEIGHTS.family.temperature}); qui i primi ${ENGINE_WEIGHTS.family.topN}`,
@@ -198,8 +196,16 @@ export function generateMon(ctx: GenerationContext): GenerationResult {
 
   /* 07 — SIZE (§21) */
   const { size: drawnSize, score: sizeScore } = resolveSize(rng, signals, family, archetype);
-  const lockedSize = fuoriFase ? null : locked('size');
-  let size = lockedSize ?? (anchored('size') ? prev!.size : drawnSize);
+  /* 🔶 LA TAGLIA NON È PIÙ FERMATA DA `TEST_PHASE`: passa dal catalogo, come
+     la Family e il designer. Un meccanismo solo per tutti e tre.
+
+     ⚠️ Il punteggio si continua a calcolare anche quando la lista ne lascia
+     accesa una sola: è l'unico modo di vedere, riaccendendo le altre, che
+     taglia sarebbe uscita. */
+  const accese = keepEnabled('size', ['TINY', 'MEDIUM', 'GIANT'] as const, (x) => x);
+  const dallaLista = accese.includes(drawnSize) ? drawnSize : (accese[0] as typeof drawnSize);
+  const lockedSize = accese.length === 1 ? (accese[0] as typeof drawnSize) : null;
+  let size = anchored('size') ? prev!.size : dallaLista;
   steps.push({
     step: 7,
     stage: 'SIZE',
@@ -207,7 +213,7 @@ export function generateMon(ctx: GenerationContext): GenerationResult {
     /* Il punteggio si continua a calcolare e a mostrare anche da fermi: è
        l'unico modo di vedere, quando la fase finisce, che taglia sarebbe
        uscita. */
-    ...(lockedSize ? { note: 'ferma dalla TEST PHASE 01 · il punteggio resta quello vero' } : {}),
+    ...(lockedSize ? { note: 'una sola taglia accesa nel catalogo · il punteggio resta quello vero' } : {}),
   });
 
   /* 08 — ROLE (§20) */
@@ -339,7 +345,9 @@ export function generateMon(ctx: GenerationContext): GenerationResult {
   /* 🔒 TEST PHASE 01 — il disegnatore resta KEN, e gli altri sei restano nel
      catalogo: `DESIGN_DNA` non viene toccato, il sorteggio riparte da solo
      quando la fase si spegne. */
-  const lockedDesigner = fuoriFase ? null : locked('characterDesigner');
+  /* 🔶 Come la Family: il designer viene dal catalogo (`keepEnabled('design')`),
+     non da `TEST_PHASE`. */
+  const soliDesignerAccesi = keepEnabled('design', DESIGN_DNA, (d) => d.id);
   /* ⚠️ L'ESTRAZIONE SI FA COMUNQUE, anche da fermi, e poi si sovrascrive.
 
      Saltarla sembrerebbe più pulito e invece sposterebbe la sequenza casuale
@@ -348,15 +356,15 @@ export function generateMon(ctx: GenerationContext): GenerationResult {
      la spegni non potresti più confrontare niente con quello che avevi
      visto. */
   const drawnDesigner = pick(rng, keepEnabled('design', DESIGN_DNA, (d) => d.id)).id;
-  const designDna = lockedDesigner ?? drawnDesigner;
+  const designDna = drawnDesigner;
   const culturalDna = resolveCulturalDna(rng, ctx);
   steps.push({
     step: 11.5,
     stage: 'CHARACTER DESIGN DNA',
     outcome: `${designDna} · densità ${designDnaDef(designDna).density}/5`,
-    note: lockedDesigner
-      ? 'fermo dalla TEST PHASE 01 · definisce la lingua, non una soluzione ricorrente'
-      : 'costruzione, non resa: l’Appearance sopra decide la superficie',
+    note: soliDesignerAccesi.length === 1
+      ? `un solo designer acceso nel catalogo (${soliDesignerAccesi[0]!.id})`
+      : 'estratto fra i designer accesi nel catalogo',
   });
 
   steps.push({

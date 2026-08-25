@@ -474,61 +474,77 @@ try {
 
   await context.unroute('**/api/ai');
 
-  /* --- 3b-quinquies. LA FASE DI PROVA ---------------------------------------
-     🔷 «In questo momento la generazione fa solo ANGEL. Devo vedere una
-        sezione dove questa cosa è selezionata, e devo poterla disabilitare.»
+  /* --- 3b-quinquies. BLOCCARE E SBLOCCARE LE FAMIGLIE -----------------------
+     🔷 «Io devo poter sbloccare o bloccare delle famiglie, e adesso metti
+        bloccate quelle che sono bloccate. Cerca la strada più semplice.»
 
-     🔴 Era vero e non lo diceva niente: misurate 400 generazioni, 100% ANGEL.
-     La causa non era il vincolo degli archetipi in `store.ts` — quello lascia
-     libera la Family — ma `TEST_PHASE` in `generation-config.ts`, tre assi
-     fermi scritti nel codice.
+     🔴 Misurato prima: 400 generazioni, 100% ANGEL, e nessuna schermata lo
+     diceva. La prima volta ho risposto aggiungendo un SECONDO meccanismo —
+     una «fase di prova» da accendere e spegnere — accanto alle liste che
+     esistevano già. Due modi di dire la stessa cosa. Adesso è uno solo: la
+     lista con acceso/spento, e le Family bloccate sono semplicemente spente.
 
-     🔒 Questo controllo verifica le due metà della richiesta: che si VEDA, e
-     che si possa SPEGNERE per davvero. La seconda si misura generando: se un
-     giorno l'interruttore smettesse di arrivare al motore, continuerebbe a
-     dire SPENTA e nascerebbero angeli lo stesso. */
+     🔒 Il controllo guarda le tre cose che contano: che si VEDA cosa è acceso,
+     che accendere una Family la faccia nascere davvero, e che la scelta
+     SOPRAVVIVA a un ricaricamento — perché il catalogo, prima, non si salvava
+     affatto. */
   guarda();
   await open('/#/lab/creation');
 
-  const testa = (await page.locator('main .notice.mono').first().textContent()) ?? '';
+  const testaFam = (await page.locator('main .notice.mono').first().textContent()) ?? '';
   check(
-    'il flusso dice subito che nasce sempre la stessa specie',
-    /NASCE SEMPRE ANGEL/.test(testa),
-    testa.slice(0, 70).replace(/\s+/g, ' '),
+    'il flusso dice in cima cosa nasce adesso',
+    /ADESSO NASCE: ANGEL/.test(testaFam),
+    testaFam.slice(0, 60).replace(/\s+/g, ' '),
   );
 
-  const passoFamily = page.locator('details.step').filter({ hasText: 'Family' }).first();
-  await passoFamily.locator('summary').click();
+  const passoFam = page.locator('details.step').filter({ hasText: 'Family' }).first();
+  await passoFam.locator('summary').click();
   await sleep(350);
+
+  const spente = await passoFam.locator('.tune__row--off').count();
   check(
-    'e il passo FAMILY porta il comando della fase',
-    (await passoFamily.locator('.tune__toggle').count()) > 0,
-    'la domanda «perché esce sempre un angelo?» nasce guardando la Family',
+    'e le Family bloccate si vedono SPENTE nella lista',
+    spente > 10,
+    `${spente} spente`,
   );
 
-  /* Quante famiglie diverse escono adesso. */
   const famiglie = async () => {
-    await passoFamily.locator('button', { hasText: 'PROVA' }).click();
+    await passoFam.locator('button', { hasText: 'PROVA' }).click();
     await sleep(4200);
-    return passoFamily.locator('.tune__distrow').count();
+    return passoFam.locator('.tune__distrow').count();
   };
+  const famPrima = await famiglie();
+  check('con una sola accesa ne nasce una sola', famPrima === 1, `${famPrima}`);
 
-  const conFase = await famiglie();
-  check('con la fase attiva ne nasce UNA sola', conFase === 1, `${conFase} famiglie`);
-
-  await passoFamily.locator('.tune__toggle').first().click();
+  /* Accendo DRAGON: deve nascere davvero. */
+  await passoFam.locator('.tune__row').filter({ hasText: 'DRAGON' }).first()
+    .locator('.tune__toggle').click();
   await sleep(300);
-  const senzaFase = await famiglie();
+  const famDopo = await famiglie();
   check(
-    'spegnendola nascono davvero le altre',
-    senzaFase > 8,
-    `${conFase} → ${senzaFase} famiglie`,
+    'accenderne un\'altra la fa nascere davvero',
+    famDopo === 2,
+    `${famPrima} → ${famDopo} famiglie`,
   );
 
-  await passoFamily.locator('button', { hasText: 'RIMETTI COME NEL CODICE' }).click();
+  /* 🔴 E deve restare accesa dopo un ricaricamento: il catalogo non si
+     salvava, e prima di questa riga il lavoro si perdeva in silenzio. */
+  await open('/#/lab/creation');
+  const passoDopo = page.locator('details.step').filter({ hasText: 'Family' }).first();
+  await passoDopo.locator('summary').click();
+  await sleep(350);
+  const dragonAcceso = await passoDopo.locator('.tune__row').filter({ hasText: 'DRAGON' }).first()
+    .locator('.tune__toggle').textContent();
+  check(
+    'e la scelta sopravvive al ricaricamento',
+    (dragonAcceso ?? '').includes('ACCESO'),
+    'il catalogo non si salvava: spegnevi, ricaricavi, e tornava tutto com\'era',
+  );
+
+  /* Rimetto com'era per non lasciare il laboratorio configurato a caso. */
+  await passoDopo.locator('button', { hasText: 'RIMETTI A POSTO' }).click();
   await sleep(300);
-  const tornata = (await passoFamily.locator('.tune__toggle').first().textContent()) ?? '';
-  check('e si rimette com\'era nel codice', /ATTIVA/.test(tornata), tornata.trim());
 
   /* --- 3c. SOUL --------------------------------------------------------------
      🔒 Le tre ancore dello schizzo devono dare tre facce DIVERSE. Sembra

@@ -213,47 +213,41 @@ toccato un peso, è `axisTuning.ts` ad aver sbagliato.
 
 ## «Nasce sempre ANGEL»
 
-🔷 «In questo momento la generazione fa solo ANGEL. Devo vedere una sezione
-dove questa cosa è selezionata — nel flow — e devo poterla disabilitare.»
+🔷 «Io devo poter sbloccare o bloccare delle famiglie, e adesso metti bloccate
+quelle che sono bloccate. Cerca la strada più semplice.»
 
-Era vero. **Misurato: 400 generazioni, 100% ANGEL.** E non lo diceva niente.
+Era vero: **misurato, 400 generazioni, 100% ANGEL**, e nessuna schermata lo
+diceva.
 
-⚠️ La causa NON era quella che sembrava. In `store.ts` c'è
-`allowedArchetypes: angelArchetypesForStage(0)` — una scala di archetipi
-d'angelo — ma quello **non blocca la Family**: se esce DRAGON,
-`archetypePool` ripiega su tutti gli archetipi del drago. Togliendolo, restava
-comunque 100% ANGEL.
+🔴 **La prima risposta era complicata.** Avevo aggiunto un secondo meccanismo —
+una «fase di prova» da accendere e spegnere — accanto alle liste con
+acceso/spento che esistevano già. Due modi di dire la stessa cosa, con due
+parole diverse, per un utente solo.
 
-La causa vera era `TEST_PHASE` in `generation-config.ts`:
+Adesso il meccanismo è **uno**: la lista. Le Family bloccate sono semplicemente
+**spente**, e si accendono con un tocco — come si faceva già per affinità,
+ruolo e stile.
 
-    enabled: true, family: 'ANGEL', size: 'TINY', characterDesigner: 'KEN SUGIMORI'
+Cosa è cambiato sotto:
 
-Tre assi fermi, scritti nel codice, senza nessun comando.
+- **Family, taglia e designer passano tutti e tre dal catalogo.** Prima
+  `TEST_PHASE` li teneva fermi passando *sopra* le liste: la lista diceva una
+  cosa e ne nasceva un'altra.
+- **La taglia è diventata una lista** come le altre: era l'unico dei tre senza.
+- 🔴 **Il catalogo adesso si salva.** Prima viveva in memoria: spegnevi una
+  Family, ricaricavi, e tornava accesa senza dire niente.
+- **Il minimo di due Family scende a uno.** La regola era «con una sola ogni
+  creatura nasce della stessa specie e il generatore diventa un timbro» — vera,
+  ma la difesa non difendeva niente: `TEST_PHASE` il timbro lo faceva comunque,
+  solo che non si vedeva.
+- **Il primo avvio parte dallo stato vero** — ANGEL, TINY, KEN — scritto come
+  lista. Ma `RIMETTI A POSTO` torna ai predefiniti del *motore*: è quello che
+  «a posto» deve voler dire, ed è quello che i controlli sulle distribuzioni
+  misurano.
 
-**La fase non è un difetto.** È un'ancora chiesta apposta: se ogni creatura
-cambia anche specie, taglia e disegnatore, non si capisce mai se due forme
-sono diverse per merito del generatore o perché sono due cose diverse. Quello
-che era sbagliato è che fosse **invisibile e immobile**.
+In cima al FLOW adesso c'è scritto: **ADESSO NASCE: ANGEL · TINY**, con il
+perché e dove cambiarlo.
 
-Adesso:
+Verificato: una accesa → 100% ANGEL; accendo DRAGON e BEAST → 33/34/32%;
+spengo ANGEL → solo DRAGON e BEAST. E la scelta sopravvive al ricaricamento.
 
-- il flusso lo dice **in cima**, prima di ogni altro cartello;
-- il comando sta **dentro** i passi 04 FAMILY, 07 SIZE e 11.5 CHARACTER DESIGN
-  DNA — la domanda «perché esce sempre un angelo?» nasce guardando la Family,
-  e la risposta deve stare lì;
-- si spegne, si cambia valore, e si rimette com'era nel codice.
-
-Misurato dopo:
-
-| | famiglie |
-|---|---|
-| fase attiva (predefinito) | ANGEL 100% |
-| fase spenta | 17 famiglie, la più alta al 7,8% |
-| fase ferma su DRAGON | DRAGON 100% |
-| rimessa com'era | ANGEL 100% |
-
-🔒 **Il generatore e il prompt del resolver leggono la stessa fase.** Se
-`taste.ts` avesse continuato a leggere la costante, il prompt avrebbe detto
-«FAMILY = ANGEL» mentre nasceva un DRAGON: la creatura sarebbe arrivata con
-addosso le istruzioni per un angelo. Nessun errore, risultato sbagliato con
-l'aria di essere giusto.

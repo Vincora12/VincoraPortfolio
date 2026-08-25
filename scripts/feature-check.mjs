@@ -2350,9 +2350,16 @@ check(
 check(
   'TEST PHASE',
   'tre assi fermi, dichiarati in un posto solo',
-  has('src/engine/generation-config.ts', 'export const TEST_PHASE: TestPhase') &&
-    count('src/engine/characterGenerator.ts', /locked\('/g) === 3,
-  'family, size e disegnatore: fermarli altrove vorrebbe dire tre interruttori da ricordare di spegnere',
+  /* 🔶 ERANO FERMATI DA `TEST_PHASE`, con tre chiamate a `locked()` dentro il
+     generatore. Adesso i tre assi passano dal CATALOGO come tutti gli altri:
+     il «posto solo» c'è ancora, ed è più vero di prima — è la stessa lista
+     con acceso/spento che governa affinità, ruolo e stile.
+
+     🔷 «Cerca la strada più semplice quando fai qualcosa, non complicarla.» */
+  has('src/engine/catalogTuning.ts', 'const SEME:') &&
+    has('src/engine/catalogTuning.ts', "'design', 'size'") &&
+    lacksInCode('src/engine/characterGenerator.ts', "locked('"),
+  'family, size e disegnatore: un meccanismo solo, non due che si somigliano',
 );
 check(
   'TEST PHASE',
@@ -2369,7 +2376,11 @@ check(
 check(
   'TEST PHASE',
   'e la traccia dice che è ferma, non che è stata estratta',
-  has('src/engine/characterGenerator.ts', 'ferma dalla TEST PHASE 01'),
+  /* 🔶 La traccia diceva «ferma dalla TEST PHASE 01». Adesso dice qual è la
+     ragione vera — una voce sola accesa nel catalogo — ma la decisione è la
+     stessa: non far passare per sorteggio un risultato già deciso. */
+  has('src/engine/characterGenerator.ts', 'una sola Family accesa nel catalogo') &&
+    has('src/engine/characterGenerator.ts', 'una sola taglia accesa nel catalogo'),
   'una traccia che mostra dei candidati senza dire che il risultato era già deciso racconta un sorteggio che non è avvenuto',
 );
 check(
@@ -3292,7 +3303,7 @@ check(
      catalogo, non una funzione dei segnali — e si fa comunque, anche da
      fermi, per non spostare la sequenza casuale. */
   has(GEN, "const drawnDesigner = pick(rng, keepEnabled('design'") &&
-    has(GEN, 'const designDna = lockedDesigner ?? drawnDesigner;'),
+    has(GEN, 'const designDna = drawnDesigner;'),
   '«i .mon tristi si disegnano alla McCracken» sarebbe una regola che nessuno ha deciso',
 );
 
@@ -3315,9 +3326,17 @@ check(
 );
 check(
   'CATALOGHI §20.3',
-  'le Family devono restarne almeno due',
-  has('src/engine/catalogTuning.ts', 'min: 2'),
-  'con una sola, ogni creatura nasce della stessa specie',
+  'una Family sola accesa è uno stato legittimo, e VISIBILE',
+  /* 🔶 IL MINIMO ERA DUE, con la ragione «con una sola, ogni creatura nasce
+     della stessa specie e il generatore diventa un timbro». La ragione era
+     giusta e la difesa non difendeva niente: `TEST_PHASE` teneva ferma la
+     Family passando SOPRA il catalogo, quindi il timbro c'era comunque — solo
+     che non si vedeva e non si poteva togliere.
+
+     🔷 «Io devo poter sbloccare o bloccare delle famiglie.» */
+  has('src/engine/catalogTuning.ts', 'min: 1') &&
+    has('src/engine/catalogTuning.ts', 'è uno stato VISIBILE'),
+  'una difesa aggirata da un altro meccanismo non è una difesa: è una cosa che nasconde il timbro',
 );
 check(
   'CATALOGHI §20.3',
@@ -3762,44 +3781,44 @@ check(
 );
 
 /* ============================================================================
-   LA FASE DI PROVA — «nasce sempre ANGEL»
+   COSA NASCE — le liste con acceso / spento
    ========================================================================= */
 
-const FASE = 'src/engine/testPhaseTuning.ts';
-
 check(
   'CREATION.LAB',
-  'la fase di prova si può spegnere, non è più murata nel codice',
-  has(FASE, 'export function setTestPhase') &&
-    has('src/engine/generation-config.ts', 'lockedIn(effectiveTestPhase(TEST_PHASE), axis)'),
-  '🔴 misurate 400 generazioni: 100% ANGEL, e nessuna schermata lo diceva',
+  'Family, taglia e designer passano tutti e tre dal catalogo',
+  has('src/engine/catalogTuning.ts', "label: 'TAGLIA'") &&
+    has('src/engine/catalogTuning.ts', "'design', 'size'") &&
+    lacksInCode('src/engine/characterGenerator.ts', "locked('family')"),
+  '🔷 «cerca la strada più semplice»: erano due meccanismi che facevano la stessa cosa, e uno passava sopra all\'altro senza dirlo',
 );
 check(
   'CREATION.LAB',
-  'e senza override il comportamento resta identico a prima',
-  has(FASE, 'return { ...base, ...override };') && has('src/engine/generation-config.ts', 'enabled: true'),
-  '`TEST_PHASE` resta il predefinito: questo aggiunge un interruttore, non una decisione diversa',
+  'e il catalogo si SALVA',
+  has('src/engine/catalogTuning.ts', "'vinzmon.catalog.v1'") &&
+    has('src/engine/catalogTuning.ts', 'function salva()'),
+  '🔴 prima viveva in memoria: spegnevi una Family, ricaricavi, e tornava accesa senza dire niente',
 );
 check(
   'CREATION.LAB',
-  'il generatore e il prompt del resolver leggono LA STESSA fase',
-  has('src/assets-pipeline/resolver/taste.ts', 'const FASE = effectiveTestPhase(TEST_PHASE);') &&
-    lacksInCode('src/assets-pipeline/resolver/taste.ts', 'TEST_PHASE.family'),
-  'altrimenti nasce un DRAGON con addosso le istruzioni per un angelo: nessun errore, risultato sbagliato',
+  'il primo avvio parte dallo stato vero: una Family accesa',
+  has('src/engine/catalogTuning.ts', 'const SEME:') &&
+    has('src/engine/catalogTuning.ts', "id !== 'ANGEL'"),
+  'oggi nasce solo ANGEL: scritto come lista, si legge e si cambia',
 );
 check(
   'CREATION.LAB',
-  'e il flusso lo dice in cima, prima di ogni altro cartello',
-  has('src/lab/rooms/CreationLab.tsx', 'NASCE SEMPRE {fase.family}, ED È VOLUTO') &&
-    has('src/lab/rooms/CreationLab.tsx', 'QUESTO VA PRIMA DEL «READ ONLY»'),
-  'sotto la risposta a un\'altra domanda, la risposta giusta non si legge',
+  'ma «rimetti a posto» torna ai predefiniti del MOTORE, non al seme',
+  has('src/engine/catalogTuning.ts', 'export function resetCatalog') &&
+    has('src/engine/catalogTuning.ts', 'È UN SEME, NON UN VALORE DI DEFAULT'),
+  'i controlli sulle distribuzioni misurano l\'equità del motore, non com\'è configurato il gioco',
 );
 check(
   'CREATION.LAB',
-  'il comando sta DENTRO i tre passi che la fase blocca',
-  has('src/lab/rooms/CreationLab.tsx', "const FASE_SU: Record<string, 'family' | 'size' | 'characterDesigner'>") &&
-    has('src/lab/rooms/CreationLab.tsx', "'04': 'family'"),
-  'la domanda «perché esce sempre un angelo?» nasce guardando la Family: la risposta deve stare lì',
+  'e il flusso dice in cima cosa è acceso adesso',
+  has('src/lab/rooms/CreationLab.tsx', 'ADESSO NASCE:') &&
+    has('src/lab/rooms/CreationLab.tsx', 'function CosaEAcceso'),
+  '«perché nasce sempre la stessa specie?» è la prima domanda: la risposta va per prima',
 );
 
 /* ============================================================================

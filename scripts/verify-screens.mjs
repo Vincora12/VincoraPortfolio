@@ -941,18 +941,36 @@ try {
      la più inutile. */
   await devTab('CREATURA', 'CATALOGHI');
   await shot('dev-cataloghi');
-  const primaAccese = await page.$$eval('.cat__row[aria-pressed="true"]', (n) => n.length);
-  await click('.cat__row', 'spegni la prima Family');
-  const dopoAccese = await page.$$eval('.cat__row[aria-pressed="true"]', (n) => n.length);
-  if (dopoAccese !== primaAccese - 1) {
-    errors.push(`spento una voce, ne restano accese ${dopoAccese} invece di ${primaAccese - 1}`);
+  /* 🔶 SPEGNEVA LA PRIMA RIGA, chiunque fosse. Adesso il gioco parte con UNA
+     Family accesa — è lo stato vero, ed è scritto nel catalogo invece che
+     nascosto in una fase — quindi «la prima» è spesso l'unica, e spegnerla è
+     giustamente rifiutata dal minimo. Il copione registrava quel rifiuto come
+     un guasto.
+
+     🔒 La decisione da provare non è mai stata «si può spegnere la prima»: è
+     «gli interruttori spengono e accendono per davvero». Quindi si accende una
+     spenta e poi la si rispegne — due direzioni, e nessun minimo di mezzo. */
+  const accese = () => page.$$eval('.cat__row[aria-pressed="true"]', (n) => n.length);
+  const primaAccese = await accese();
+  await click('.cat__row[aria-pressed="false"]', 'accendi una Family spenta');
+  const dopoAcceso = await accese();
+  if (dopoAcceso !== primaAccese + 1) {
+    errors.push(`acceso una voce, ne risultano accese ${dopoAcceso} invece di ${primaAccese + 1}`);
+  }
+  await click('.cat__row[aria-pressed="true"]', 'e rispegnila');
+  const dopoAccese = await accese();
+  if (dopoAccese !== primaAccese) {
+    errors.push(`rispento la voce, ne restano accese ${dopoAccese} invece di ${primaAccese}`);
   }
   await shot('dev-cataloghi-spento');
 
   /* 🔒 I designer ritirati si vedono ma non si riaccendono: il master v1.1
      dichiara Kaneko NOT ACTIVE, e un nome cancellato da un elenco rientra al
      primo che rilegge un documento vecchio. */
-  await click('.cat__chip:last-child', 'apri CHARACTER DESIGN DNA');
+  /* 🔶 Cliccava `:last-child`. Con l'asse TAGLIA aggiunto in fondo, l'ultima
+     linguetta non è più quella dei designer: un selettore che conta posizioni
+     smette di dire dove sta andando al primo asse nuovo. */
+  await click(byText('CHARACTER DESIGN DNA'), 'apri CHARACTER DESIGN DNA');
   const ritirati = await page.$$eval('.cat__row--retired', (n) => n.map((e) => e.textContent ?? ''));
   if (!ritirati.some((r) => /KANEKO/i.test(r))) {
     errors.push('i designer ritirati non sono dichiarati: Kaneko può rientrare di nascosto');

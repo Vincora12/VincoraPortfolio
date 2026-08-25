@@ -48,7 +48,6 @@ import {
   SIZE_GRAMMAR,
   TEST_PHASE,
 } from '../../engine/generation-config';
-import { effectiveTestPhase } from '../../engine/testPhaseTuning';
 import { CATALOG_AXES, AXES, enabled, isCatalogTuned } from '../../engine/catalogTuning';
 import type { MonRecord } from '../../engine/types';
 import type { CreativeResolution } from './vendor/types';
@@ -198,13 +197,23 @@ repeatedly into a visor, a continuous face mask or a single skull plate.`);
      comincia a rifarlo. È il rischio specifico di questa fase, ed è il
      contrario di quello che serve — i tre assi sono fermi PROPRIO per poter
      giudicare quanto varia tutto il resto. */
-  /* 🔒 LA STESSA FASE CHE LEGGE IL GENERATORE, non la costante. Se qui
-     restasse `TEST_PHASE` e il generatore leggesse l'override, il prompt del
-     resolver continuerebbe a dire «FAMILY = ANGEL» mentre nasce un DRAGON:
-     la creatura arriverebbe con addosso le istruzioni per un angelo. È il
-     tipo di scollamento che non dà errori — dà risultati sbagliati con l'aria
-     di essere giusti. */
-  const FASE = effectiveTestPhase(TEST_PHASE);
+  /* 🔒 IL CAMPO RISTRETTO SI LEGGE DAL CATALOGO, non da una costante.
+     Il generatore pesca fra le voci ACCESE: se il prompt del resolver
+     continuasse a dire «FAMILY = ANGEL» mentre il catalogo ne ha accese
+     dodici, la creatura nascerebbe DRAGON con addosso le istruzioni per un
+     angelo. Nessun errore, risultato sbagliato con l'aria di essere giusto.
+
+     Quindi il blocco compare SOLO quando il campo è davvero ristretto a una
+     voce sola per asse — che è la condizione che rende utile dirlo. */
+  const famAccese = enabled('family');
+  const sizeAccese = enabled('size');
+  const designAccesi = enabled('design');
+  const FASE = {
+    enabled: famAccese.length === 1 && sizeAccese.length === 1 && designAccesi.length === 1,
+    family: famAccese[0] ?? TEST_PHASE.family,
+    size: (sizeAccese[0] ?? TEST_PHASE.size) as typeof TEST_PHASE.size,
+    characterDesigner: designAccesi[0] ?? TEST_PHASE.characterDesigner,
+  };
   if (FASE.enabled) {
     parti.push(`TEST PHASE — three axes are deliberately locked.
 
