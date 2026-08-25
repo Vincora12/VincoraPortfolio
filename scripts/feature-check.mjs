@@ -3533,10 +3533,19 @@ check(
   'VINZ.LAB',
   'il laboratorio si installa con nome, icona e manifest suoi',
   has('src/lab/applyLabDocumentMeta.ts', "'/lab-manifest.webmanifest'") &&
-    has('public/lab-manifest.webmanifest', '"start_url": "/#/lab"') &&
+    has('public/lab-manifest.webmanifest', '"start_url": "/lab"') &&
     has('src/lab/applyLabDocumentMeta.ts', 'apple-touch-icon') &&
     has('src/lab/applyLabDocumentMeta.ts', '/lab-icon-180.png'),
   '🔷 «nel file originale di ChatGPT c\'è una icona per la webapp solo legata al lab»: il manifest da solo non bastava, `apple-touch-icon` è il tag che iOS legge prima',
+);
+check(
+  'VINZ.LAB',
+  'e si entra anche da un indirizzo vero, non solo dal frammento',
+  has(ENTRY, "^\\/lab(?:\\/(creation|soul|design|system))?\\/?$") &&
+    has(ENTRY, 'window.location.pathname') &&
+    has('netlify.toml', 'from = "/lab"') &&
+    has('netlify.toml', 'to = "/index.html"'),
+  '🔷 «non si apre la webapp, mi porta sempre a vinz.mon» — un frammento (`#/lab`) non è affidabile per un\'icona già installata: iOS segue lo `start_url` del manifest, e quello deve poter essere un indirizzo vero',
 );
 check(
   'VINZ.LAB',

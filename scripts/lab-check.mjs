@@ -207,6 +207,39 @@ try {
     'due app montate insieme vorrebbe dire due store vivi',
   );
 
+  /* --- 2b. L'INDIRIZZO VERO, non solo il frammento -------------------------
+     🔷 «Non si apre la webapp, mi porta sempre a vinz.mon» — e la prova che
+        ha dato Vincenzo era chirurgica: da Safari, navigando, `#/lab`
+        funzionava sempre; dall'icona aggiunta alla schermata Home, no.
+
+     Un frammento non viaggia mai al server e non c'è garanzia che iOS lo
+     conservi quando fa ripartire un'icona già installata. Questo blocco
+     prova l'indirizzo VERO, `/lab`, che non dipende da quella garanzia:
+     serve `index.html` anche lì (la riscrittura in `netlify.toml`) e
+     `readEntrypoint()` lo riconosce dal percorso, non dal frammento. */
+  guarda();
+  await open('/lab');
+  check(
+    'e anche «/lab» — l\'indirizzo vero, non il frammento — monta VINZ.LAB',
+    (await page.locator('main h1').first().textContent()) === 'VINZ.LAB',
+    'un frammento non è affidabile per un\'icona già installata: serviva un percorso vero',
+  );
+  check(
+    'con lo start_url del manifest che punta lì, non a un frammento',
+    (await page.evaluate(async () => {
+      const href = document.querySelector('link[rel="manifest"]')?.getAttribute('href') ?? '';
+      const res = await fetch(href);
+      return (await res.json()).start_url;
+    })) === '/lab',
+  );
+  await open('/lab/creation');
+  check('e «/lab/creation» apre direttamente la stanza', (await page.locator('.top .tabs .tab').count()) > 0);
+  check(
+    'e sfogliare «/lab» non ha scritto niente',
+    writes.length === 0,
+    writes.join(' · '),
+  );
+
   /* --- 3. DESIGN.LAB ------------------------------------------------------- */
   await open('/#/lab/design');
   check('su «/#/lab/design» si apre DESIGN.LAB', (await page.locator('.labtitle').count()) > 0);
