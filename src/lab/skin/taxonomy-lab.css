@@ -54,19 +54,6 @@
   font-family: inherit;
 }
 
-.taxlab-input {
-  width: 100%;
-  min-height: 60px;
-  border: 1px solid #d7d7dc;
-  padding: 9px;
-  font: inherit;
-  font-size: 13px;
-  line-height: 1.4;
-  resize: vertical;
-  margin: 8px 0;
-  box-sizing: border-box;
-}
-
 .taxlab-btn {
   border: 1px solid #111;
   background: #fff;

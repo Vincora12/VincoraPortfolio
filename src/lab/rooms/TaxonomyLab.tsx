@@ -23,6 +23,7 @@
 import { useEffect, useState } from 'react';
 import { useApp } from '../../state/store';
 import { chiediBozza } from '../../ai/taxonomyDraftAI';
+import { DictationComposer } from '../../brain/DictationComposer';
 import {
   FAMILIES,
   AFFINITIES,
@@ -155,20 +156,20 @@ export function TaxonomyLab() {
           </select>
         </div>
 
-        <textarea
-          className="taxlab-input"
+        <DictationComposer
+          value={richiesta}
+          onChange={setRichiesta}
+          onSend={() => void chiedi()}
+          token={token}
           placeholder={
             basataSu
               ? `es. «${basataSu} dovrebbe avere anche un archetipo che...»`
               : 'es. «una Family fatta di funghi bioluminescenti, che si illuminano quando...»'
           }
-          value={richiesta}
-          onChange={(e) => setRichiesta(e.target.value)}
-          rows={3}
+          disabled={chiedendo}
+          sending={chiedendo}
+          sendingLabel="STO SCRIVENDO…"
         />
-        <button type="button" className="taxlab-btn dark" disabled={chiedendo || !richiesta.trim()} onClick={() => void chiedi()}>
-          {chiedendo ? 'STO SCRIVENDO…' : 'CHIEDI ALL\'AI'}
-        </button>
       </div>
 
       {errore && <p className="taxlab-error">Non è arrivata una bozza utilizzabile: {errore}</p>}

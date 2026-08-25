@@ -14,19 +14,6 @@
   margin-bottom: 14px;
 }
 
-.labai-input {
-  width: 100%;
-  min-height: 64px;
-  border: 1px solid #d7d7dc;
-  padding: 9px;
-  font: inherit;
-  font-size: 13px;
-  line-height: 1.4;
-  resize: vertical;
-  margin-bottom: 8px;
-  box-sizing: border-box;
-}
-
 .labai-btn {
   border: 1px solid #111;
   background: #fff;

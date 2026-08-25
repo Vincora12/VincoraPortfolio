@@ -925,8 +925,8 @@ try {
   await open('/#/lab/creation');
   await page.locator('.top .tabs .tab', { hasText: 'ASSISTENTE' }).click();
   await sleep(300);
-  await page.locator('.labai-input').fill('fai uscire di più gli occhiali da vista');
-  await page.locator('.labai-btn.dark', { hasText: 'CHIEDI' }).click();
+  await page.locator('.labai-box .aui-composer__input').fill('fai uscire di più gli occhiali da vista');
+  await page.locator('.labai-box .aui-composer__send').click();
   await sleep(600);
 
   const anteprima = await page.evaluate(() => ({
@@ -1009,8 +1009,8 @@ try {
   await open('/lab/creation');
   await page.locator('.top .tabs .tab', { hasText: 'PROPONI' }).click();
   await sleep(300);
-  await page.locator('.taxlab-input').fill('una Family fatta di funghi bioluminescenti');
-  await page.locator('.taxlab-btn.dark', { hasText: 'CHIEDI' }).click();
+  await page.locator('.taxlab-box .aui-composer__input').fill('una Family fatta di funghi bioluminescenti');
+  await page.locator('.taxlab-box .aui-composer__send').click();
   await sleep(600);
 
   const bozza = await page.evaluate(() => ({

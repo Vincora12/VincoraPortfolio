@@ -3739,6 +3739,14 @@ check(
 );
 check(
   'VINZ.LAB',
+  'e ogni assistente del lab detta come la chat principale, non con una textarea muta',
+  has('src/lab/assistant/LabAssistantPanel.tsx', "import { DictationComposer } from '../../brain/DictationComposer';") &&
+    has('src/lab/rooms/TaxonomyLab.tsx', "import { DictationComposer } from '../../brain/DictationComposer';") &&
+    has('src/brain/DictationComposer.tsx', "import './brain.css';"),
+  '🔷 «tutti gli assistenti usa l’ui della chat, compreso dettatura, che abbiamo per la chat principale» — stesso componente, stessa `brain.css`: non una copia che può disallinearsi',
+);
+check(
+  'VINZ.LAB',
   'i comandi non spariscono in tema scuro',
   has('src/lab/skin/_base.css', 'color-scheme: light') &&
     has('src/lab/skin/_base.css', 'color: inherit'),

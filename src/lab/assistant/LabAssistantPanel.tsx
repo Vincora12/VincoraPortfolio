@@ -21,6 +21,7 @@
 import { useEffect, useState } from 'react';
 import { useApp } from '../../state/store';
 import { chiediModifiche } from '../../ai/labAssistantAI';
+import { DictationComposer } from '../../brain/DictationComposer';
 import {
   anteprimaLista,
   applicaLista,
@@ -94,16 +95,16 @@ export function LabAssistantPanel() {
       </p>
 
       <div className="labai-box">
-        <textarea
-          className="labai-input"
-          placeholder="es. «fai uscire di più gli occhiali da vista» oppure «i bordi sono troppo sottili ovunque»"
+        <DictationComposer
           value={richiesta}
-          onChange={(e) => setRichiesta(e.target.value)}
-          rows={3}
+          onChange={setRichiesta}
+          onSend={() => void chiedi()}
+          token={token}
+          placeholder="es. «fai uscire di più gli occhiali da vista» oppure «i bordi sono troppo sottili ovunque»"
+          disabled={chiedendo}
+          sending={chiedendo}
+          sendingLabel="STO PENSANDO…"
         />
-        <button type="button" className="labai-btn dark" disabled={chiedendo || richiesta.trim().length === 0} onClick={() => void chiedi()}>
-          {chiedendo ? 'STO PENSANDO…' : 'CHIEDI'}
-        </button>
       </div>
 
       {erroreChiamata && <p className="labai-error">Non è arrivata una risposta utilizzabile: {erroreChiamata}</p>}
