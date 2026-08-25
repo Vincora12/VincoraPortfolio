@@ -199,7 +199,7 @@ try {
      `apple-touch-icon` produce due scorciatoie identiche lo stesso. */
   check(
     'e anche apple-touch-icon punta a un\'icona diversa da quella dell\'app',
-    (await page.locator('link[rel="apple-touch-icon"]').getAttribute('href')) === '/lab-icon-180.png',
+    (await page.locator('link[rel="apple-touch-icon"]').getAttribute('href')) === '/lab-icon-180.png?v=2',
   );
   check(
     'su «/#/lab» VINZ.MON non è montata',

@@ -26,13 +26,15 @@
       del manifest. Le due scorciatoie erano identiche, anche se aprivano
       cose diverse.
 
-   🔒 `lab-icon-180.png`/`lab-icon-512.png` sono lo STESSO segno di
-   `icon-180.png`/`icon-512.png`, con i colori invertiti — non un disegno
-   nuovo: `scripts/invert-lab-icon.mjs` inverte il PNG vero, quello che è
-   davvero in produzione oggi (una faccia, non il vecchio sigillo a stella
-   che `make-icon.mjs` genera ancora: quello script è rimasto indietro
-   rispetto all'icona che Vincenzo ha messo a mano, e non l'ho toccato — non
-   era quello che mi è stato chiesto).
+   🔷 «Già che ci sei, l'icona di VINZ.LAB» — con allegato uno schema
+   tecnico: la faccia con le guide di costruzione, cerchi tratteggiati,
+   diagonali. `lab-icon-180.png`/`lab-icon-512.png` adesso sono QUEL
+   disegno — tratto doppio, non pieno — non più una copia invertita
+   dell'icona di VINZ.MON. La fonte sta in
+   `docs/lab/reference/lab-icon-construction.png`, il master ripulito in
+   `docs/lab/reference/lab-icon-master.png`, e `scripts/make-lab-icon.mjs`
+   li ridimensiona alle due taglie che servono qui. Vedi quel file per il
+   perché il master è ripulito a mano una volta sola, e non ogni volta.
    ========================================================================= */
 
 export function applyDocumentMeta(mode: 'app' | 'lab') {
@@ -46,11 +48,11 @@ export function applyDocumentMeta(mode: 'app' | 'lab') {
 
   document
     .querySelector('link[rel="apple-touch-icon"]')
-    ?.setAttribute('href', lab ? '/lab-icon-180.png' : '/icon-180.png?v=2');
+    ?.setAttribute('href', lab ? '/lab-icon-180.png?v=2' : '/icon-180.png?v=2');
 
   document
     .querySelector('link[rel="icon"]')
-    ?.setAttribute('href', lab ? '/lab-icon-512.png' : '/icon-512.png?v=2');
+    ?.setAttribute('href', lab ? '/lab-icon-512.png?v=2' : '/icon-512.png?v=2');
 
   document
     .querySelector('meta[name="apple-mobile-web-app-title"]')

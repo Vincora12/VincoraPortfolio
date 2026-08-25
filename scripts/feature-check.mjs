@@ -3535,15 +3535,17 @@ check(
   has('src/lab/applyLabDocumentMeta.ts', "'/lab-manifest.webmanifest'") &&
     has('public/lab-manifest.webmanifest', '"start_url": "/#/lab"') &&
     has('src/lab/applyLabDocumentMeta.ts', 'apple-touch-icon') &&
-    has('src/lab/applyLabDocumentMeta.ts', "'/lab-icon-180.png'"),
+    has('src/lab/applyLabDocumentMeta.ts', '/lab-icon-180.png'),
   '🔷 «nel file originale di ChatGPT c\'è una icona per la webapp solo legata al lab»: il manifest da solo non bastava, `apple-touch-icon` è il tag che iOS legge prima',
 );
 check(
   'VINZ.LAB',
-  'e l\'icona del lab è lo stesso segno di VINZ.MON, non un\'icona diversa inventata',
-  has('scripts/invert-lab-icon.mjs', "inverti('public/icon-180.png', 'public/lab-icon-180.png')") &&
-    has('public/lab-manifest.webmanifest', '"/lab-icon-180.png"'),
-  'colori invertiti sul PNG vero, non un disegno nuovo sopra il vecchio sigillo che `make-icon.mjs` non genera più davvero',
+  'e l\'icona del lab è il disegno vero di Vincenzo, con le guide di costruzione tolte',
+  existsSync('docs/lab/reference/lab-icon-construction.png') &&
+    existsSync('docs/lab/reference/lab-icon-master.png') &&
+    has('scripts/make-lab-icon.mjs', "readFileSync('docs/lab/reference/lab-icon-master.png')") &&
+    has('public/lab-manifest.webmanifest', '/lab-icon-180.png'),
+  '🔷 «già che ci sei, l\'icona di VINZ.LAB» — non più i colori dell\'icona di VINZ.MON invertiti, ma il suo schema tecnico ripulito',
 );
 check(
   'VINZ.LAB',

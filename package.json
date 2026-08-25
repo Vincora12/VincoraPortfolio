@@ -20,7 +20,7 @@
     "verify:parity": "node scripts/parity-check.mjs",
     "verify:package": "node scripts/package-check.mjs",
     "icons": "node scripts/make-icon.mjs",
-    "icons:lab": "node scripts/invert-lab-icon.mjs"
+    "icons:lab": "node scripts/make-lab-icon.mjs"
   },
   "dependencies": {
     "@assistant-ui/react": "^0.15.16",
