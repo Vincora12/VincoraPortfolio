@@ -1,0 +1,120 @@
+/* ============================================================================
+   L'EDITOR DEI TOKEN
+
+   🔷 «Vedere il design system del progetto per intero e poter modificare un
+      valore che vale per tutti.»
+
+   Sta in un file a parte per lo stesso motivo di `design-preview.css`:
+   `design.css` è copiato dal disegno di Vincenzo e va tenuto ri-copiabile.
+   Il disegno mostrava solo la lista letta, cinque righe; l'editor con
+   input, APPLICA e RIPRISTINA è tutta roba nuova, e non deve sparire il
+   giorno che `design.css` si risovrascrive dal file.
+   ========================================================================= */
+
+.tokengroup {
+  margin-top: 26px;
+}
+
+.tokengroup h2 {
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  margin: 0 0 4px;
+  text-transform: uppercase;
+}
+
+.tokengroup > .note {
+  color: #777;
+  font-size: 11px;
+  line-height: 1.4;
+  margin: 0 0 10px;
+}
+
+.tokenlist {
+  border-top: 1px solid #111;
+}
+
+.tokenrow {
+  border-bottom: 1px solid var(--lab-line, #d7d7dc);
+  padding: 11px 0;
+}
+
+.tokenrow__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 7px;
+}
+
+.tokenrow__head b {
+  font-size: 11px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.tokentag {
+  border: 1px solid #111;
+  background: #111;
+  color: #fff;
+  font-size: 8px;
+  font-weight: 800;
+  padding: 2px 5px;
+  letter-spacing: 0.04em;
+}
+
+.tokenedit {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.tokenedit input[type='color'] {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid #111;
+  background: #fff;
+  flex: none;
+}
+
+.tokenedit input[type='text'] {
+  flex: 1;
+  min-width: 140px;
+  border: 1px solid var(--lab-line, #d7d7dc);
+  padding: 7px 8px;
+  font-size: 11px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.tokenbtn {
+  border: 1px solid #111;
+  background: #fff;
+  padding: 7px 9px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.tokenbtn:disabled {
+  opacity: 0.35;
+}
+
+.tokenbtn.ghost {
+  border-style: dashed;
+}
+
+.tokenresetall {
+  display: block;
+  border: 1px solid #111;
+  background: #111;
+  color: #fff;
+  padding: 9px 11px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  margin-bottom: 16px;
+}
+
+.tokenadaptive .row {
+  border-bottom: 1px solid var(--lab-line, #d7d7dc);
+}

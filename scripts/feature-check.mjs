@@ -3628,8 +3628,28 @@ check(
 check(
   'VINZ.LAB',
   'e il laboratorio non carica il foglio di stile dell\'app',
-  has('src/main.tsx', "if (entry.kind !== 'lab') await import('./appStyles')"),
+  has('src/main.tsx', "if (entry.kind !== 'lab') {") && has('src/main.tsx', "await import('./appStyles');"),
   'il disegno ha font e colori suoi: caricarci sopra i token del prodotto darebbe una terza cosa',
+);
+check(
+  'VINZ.LAB',
+  'TOKENS mostra il design system intero, non le 5 righe scelte a mano',
+  has('src/engine/designTokens.ts', "id: 'griglia'") &&
+    has('src/engine/designTokens.ts', "id: 'tipografia'") &&
+    has('src/engine/designTokens.ts', "id: 'motion'"),
+  '🔷 «Vedere il design system del progetto per intero»: sette gruppi, non un sottoinsieme',
+);
+check(
+  'VINZ.LAB',
+  'e un token modificato lì vale anche fuori dal lab, e sopravvive al riavvio',
+  has('src/main.tsx', 'applyTokenOverrides') && has('src/engine/designTokens.ts', 'vinzmon.designTokens.v1'),
+  '🔷 «poter modificare un valore che vale per tutti»: si applica al boot, prima dell\'app e della preview',
+);
+check(
+  'VINZ.LAB',
+  'e il Color DNA della creatura non si tocca da lì',
+  has('src/engine/designTokens.ts', 'ADAPTIVE_VARS') && !has('src/engine/designTokens.ts', "'--char-primary', defaultValue"),
+  '--char-primary e affini li scrive colorDna.ts a ogni cambio di .mon: un override qui litigherebbe con quel meccanismo',
 );
 check(
   'VINZ.LAB',

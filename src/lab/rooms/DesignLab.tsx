@@ -20,14 +20,30 @@
    dal foglio di stile vivo dell'app. Un elenco di token copiato invecchia al
    primo `tokens.css` toccato — e un pannello che ti dice il colore sbagliato
    è peggio di un pannello che non te lo dice.
+
+   🔷 «Vedere il design system del progetto per intero e poter modificare un
+      valore che vale per tutti.» Adesso TOKENS mostra il foglio intero (7
+      gruppi, non 5 righe) e ogni riga si può cambiare: APPLICA scrive lo
+      scarto in `engine/designTokens.ts`, che lo tiene fuori dal lab — vale
+      per l'app vera, non solo per questa schermata.
    ========================================================================= */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { DESIGN_SCREENS } from '../design/screenRegistry';
 import { DesignLabPreviewFrame } from '../design/DesignLabPreviewFrame';
 import type { DesignScreenId, DesignSelection } from '../design/types';
+import {
+  ADAPTIVE_VARS,
+  resetAllTokenOverrides,
+  resetTokenOverride,
+  setTokenOverride,
+  subscribeTokenOverrides,
+  TOKEN_GROUPS,
+  tokenOverrides,
+} from '../../engine/designTokens';
 import '../skin/design.css';
 import '../skin/design-preview.css';
+import '../skin/design-tokens-editor.css';
 
 const TABS = [
   { id: 'ui', label: '👁 UI' },
@@ -214,69 +230,176 @@ export function DesignLab({ onBack }: { onBack: () => void }) {
 }
 
 /* ============================================================================
-   TOKENS — letti dal foglio vivo, non ricopiati
+   TOKENS — il design system intero, letto dal foglio vivo e modificabile
+
+   La lettura resta come prima: un iframe nascosto che monta una schermata
+   vera e legge `getComputedStyle`, perché il lab non carica il foglio
+   dell'app (ha un disegno suo) e una lista ricopiata a mano invecchia al
+   primo `tokens.css` toccato.
+
+   ⚠️ APPLICA scrive l'override e lo applica SUBITO all'iframe di lettura
+   (`frameRef`), così questa tabella cambia senza aspettare un reload. Non
+   serve inseguire anche l'iframe visibile della scheda 👁 UI: quello si
+   smonta quando si cambia scheda e rimonta da zero quando si torna — e al
+   rimontaggio passa da `main.tsx`, che rilegge gli override da
+   `localStorage`. Un giro più semplice che tenere sincronizzati due iframe
+   a mano.
    ========================================================================= */
 
-const TOKEN_ROWS: { nome: string; nota: string; vars: string[] }[] = [
-  { nome: 'WHITE / PAPER / SURFACE', nota: 'Campi base.', vars: ['--white', '--paper', '--surface'] },
-  { nome: 'INK', nota: 'Nero strutturale.', vars: ['--ink'] },
-  { nome: 'BASE UNIT', nota: 'Griglia 4px / 8pt.', vars: ['--u1', '--u2'] },
-  { nome: 'BORDER', nota: 'Standard / thick.', vars: ['--border', '--border-thick'] },
-  { nome: 'RADIUS', nota: 'Globalmente quasi quadrato.', vars: ['--radius', '--radius-sm'] },
-];
+function leggiValori(frame: HTMLIFrameElement | null): Record<string, string> | null {
+  const doc = frame?.contentDocument;
+  if (!frame || !doc || !frame.contentWindow) return null;
+  const stile = frame.contentWindow.getComputedStyle(doc.documentElement);
+  const out: Record<string, string> = {};
+  for (const gruppo of TOKEN_GROUPS) for (const v of gruppo.vars) out[v.name] = stile.getPropertyValue(v.name).trim();
+  for (const nome of ADAPTIVE_VARS) out[nome] = stile.getPropertyValue(nome).trim();
+  return out;
+}
 
 function Tokens() {
   const [valori, setValori] = useState<Record<string, string>>({});
+  const [bozza, setBozza] = useState<Record<string, string>>({});
+  const [overrides, setOverrides] = useState(() => ({ ...tokenOverrides() }));
+  const frameRef = useRef<HTMLIFrameElement | null>(null);
 
-  /* ⚠️ I token vivono nel foglio dell'APP, e il laboratorio quel foglio non lo
-     carica (ha un disegno suo). Quindi si leggono da dove sono davvero: dentro
-     l'iframe della preview, che l'app ce l'ha. Leggerli da qui darebbe una
-     lista di stringhe vuote — e una lista vuota si scambia per «non ci sono
-     token», che è un'altra cosa da «non li sto guardando». */
+  useEffect(() => subscribeTokenOverrides(() => setOverrides({ ...tokenOverrides() })), []);
+
   useEffect(() => {
     const frame = document.createElement('iframe');
     frame.src = '/?design-preview=mon';
     frame.style.cssText = 'position:absolute;width:1px;height:1px;opacity:0;pointer-events:none';
     document.body.appendChild(frame);
+    frameRef.current = frame;
 
-    const leggi = () => {
-      const doc = frame.contentDocument;
-      if (!doc) return;
-      const stile = frame.contentWindow!.getComputedStyle(doc.documentElement);
-      const out: Record<string, string> = {};
-      for (const riga of TOKEN_ROWS) {
-        for (const v of riga.vars) out[v] = stile.getPropertyValue(v).trim();
-      }
-      setValori(out);
+    frame.addEventListener('load', () =>
+      window.setTimeout(() => {
+        const letti = leggiValori(frame);
+        if (letti) setValori(letti);
+      }, 200),
+    );
+    return () => {
+      frame.remove();
+      frameRef.current = null;
     };
-
-    frame.addEventListener('load', () => window.setTimeout(leggi, 200));
-    return () => frame.remove();
   }, []);
 
+  const applica = (nome: string, valore: string) => {
+    setTokenOverride(nome, valore);
+    if (frameRef.current) frameRef.current.contentDocument?.documentElement.style.setProperty(nome, valore);
+    const letti = leggiValori(frameRef.current);
+    if (letti) setValori(letti);
+    setBozza((b) => {
+      const { [nome]: _tolto, ...resto } = b;
+      return resto;
+    });
+  };
+
+  const ripristina = (nome: string) => {
+    resetTokenOverride(nome);
+    if (frameRef.current) frameRef.current.contentDocument?.documentElement.style.removeProperty(nome);
+    const letti = leggiValori(frameRef.current);
+    if (letti) setValori(letti);
+  };
+
+  const ripristinaTutto = () => {
+    resetAllTokenOverrides();
+    if (frameRef.current) {
+      for (const gruppo of TOKEN_GROUPS)
+        for (const v of gruppo.vars) frameRef.current.contentDocument?.documentElement.style.removeProperty(v.name);
+    }
+    const letti = leggiValori(frameRef.current);
+    if (letti) setValori(letti);
+    setBozza({});
+  };
+
   const letti = Object.values(valori).some((v) => v.length > 0);
+  const nModificati = Object.keys(overrides).length;
 
   return (
     <section className="page active">
       <div className="kicker mono">CURRENT DESIGN TOKENS · LETTI DAL VIVO</div>
       <h1>🎛 TOKENS</h1>
       <p className="lead">
-        Questi valori non sono scritti qui: sono letti dal foglio di stile vero dell’app, adesso.
-        Se cambi <code>tokens.css</code>, questa tabella cambia da sola.
+        Il design system intero, letto adesso dal foglio vero dell’app. Cambia un valore e premi
+        APPLICA: si vede subito qui sopra, e resta per ogni schermata di VINZ.MON — anche fuori dal
+        lab, anche dopo aver chiuso e riaperto.
       </p>
-      <div className="tokenlist">
-        {TOKEN_ROWS.map((riga) => (
-          <div className="row" key={riga.nome}>
-            <div>
-              <b>{riga.nome}</b>
-              <small>{riga.nota}</small>
-            </div>
-            <span className="value">
-              {riga.vars.map((v) => valori[v] || '—').join(' / ')}
-            </span>
+      {nModificati > 0 && (
+        <button type="button" className="tokenresetall" onClick={ripristinaTutto}>
+          RIPRISTINA TUTTO · {nModificati} modificat{nModificati === 1 ? 'o' : 'i'}
+        </button>
+      )}
+
+      {TOKEN_GROUPS.map((gruppo) => (
+        <div className="tokengroup" key={gruppo.id}>
+          <h2>{gruppo.label}</h2>
+          <p className="note">{gruppo.note}</p>
+          <div className="tokenlist">
+            {gruppo.vars.map((v) => {
+              const attuale = valori[v.name] || v.defaultValue;
+              const modificato = v.name in overrides;
+              const draft = bozza[v.name] ?? attuale;
+              const uguale = draft.trim() === attuale.trim();
+              return (
+                <div className="tokenrow" data-token={v.name} key={v.name}>
+                  <div className="tokenrow__head">
+                    <b>{v.name}</b>
+                    {modificato && <span className="tokentag">MODIFICATO</span>}
+                  </div>
+                  <div className="tokenedit">
+                    {v.kind === 'color' && (
+                      <input
+                        type="color"
+                        value={/^#[0-9a-f]{6}$/i.test(draft.trim()) ? draft.trim() : '#000000'}
+                        onChange={(e) => setBozza((b) => ({ ...b, [v.name]: e.target.value }))}
+                        aria-label={`colore ${v.name}`}
+                      />
+                    )}
+                    <input
+                      type="text"
+                      value={draft}
+                      onChange={(e) => setBozza((b) => ({ ...b, [v.name]: e.target.value }))}
+                    />
+                    <button
+                      type="button"
+                      className="tokenbtn"
+                      disabled={uguale || draft.trim().length === 0}
+                      onClick={() => applica(v.name, draft)}
+                    >
+                      APPLICA
+                    </button>
+                    {modificato && (
+                      <button type="button" className="tokenbtn ghost" onClick={() => ripristina(v.name)}>
+                        RIPRISTINA
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
-        ))}
+        </div>
+      ))}
+
+      <div className="tokengroup tokenadaptive">
+        <h2>COLOR DNA</h2>
+        <p className="note">
+          {ADAPTIVE_VARS.join(' · ')} non si modificano da qui: cambiano da soli a ogni .mon attivo,
+          scritti da <code>colorDna.ts</code>. Sono nel design system, ma non sono &quot;un valore
+          uguale per tutti&quot; — sono la sola parte che l’app decide creatura per creatura.
+        </p>
+        <div className="tokenlist">
+          {ADAPTIVE_VARS.map((nome) => (
+            <div className="row" key={nome}>
+              <div>
+                <b>{nome}</b>
+              </div>
+              <span className="value">{valori[nome] || '—'}</span>
+            </div>
+          ))}
+        </div>
       </div>
+
       {!letti && <p className="lead">Lettura dei token in corso…</p>}
     </section>
   );

@@ -720,6 +720,68 @@ try {
   );
   check('e SOUL non scrive niente', writes.length === 0, writes.join(' - '));
 
+  /* --- 3d. TOKENS: un valore che vale per tutti ------------------------------
+     🔷 «Vedere il design system del progetto per intero e poter modificare un
+        valore che vale per tutti.»
+
+     La prova vera non è che il pannello si apra: è che un valore cambiato lì
+     dentro si veda FUORI dal lab, sulla pagina normale, e che RIPRISTINA lo
+     riporti com'era. Si usa `--signal-positive`: un colore semantico, non
+     `--ink` o `--white` che è ovunque e renderebbe il prima/dopo confuso da
+     leggere sullo screenshot in caso di fallimento. */
+  guarda();
+  await open('/#/lab/design');
+  await page.locator('.tabs .tab', { hasText: 'TOKENS' }).click();
+  await sleep(400);
+
+  const rigaSignal = page.locator('.tokenrow[data-token="--signal-positive"]');
+  check('la scheda TOKENS mostra il design system intero, non 5 righe', (await page.locator('.tokenrow').count()) >= 40);
+  check('e c\'è la riga di --signal-positive', (await rigaSignal.count()) === 1);
+
+  const input = rigaSignal.locator('input[type="text"]');
+  await input.fill('#ff00ff');
+  await rigaSignal.locator('.tokenbtn', { hasText: 'APPLICA' }).click();
+  await sleep(200);
+
+  const scarto = await page.evaluate(() => localStorage.getItem('vinzmon.designTokens.v1') ?? '');
+  check(
+    'APPLICA scrive lo scarto, non l\'intero foglio',
+    scarto.includes('--signal-positive') && scarto.includes('#ff00ff') && !scarto.includes('--white'),
+    scarto,
+  );
+  check('e si vede subito nel pannello stesso', (await rigaSignal.locator('.tokentag').count()) === 1);
+
+  guarda();
+  await open('/');
+  const fuoriDalLab = await page.evaluate(() =>
+    getComputedStyle(document.documentElement).getPropertyValue('--signal-positive').trim(),
+  );
+  check(
+    'e vale anche FUORI dal lab, sulla pagina normale',
+    fuoriDalLab === '#ff00ff',
+    `letto: ${fuoriDalLab || '(vuoto)'}`,
+  );
+
+  guarda();
+  await open('/#/lab/design');
+  await page.locator('.tabs .tab', { hasText: 'TOKENS' }).click();
+  await sleep(400);
+  await page.locator('.tokenresetall').click();
+  await sleep(200);
+  const scartoDopo = await page.evaluate(() => localStorage.getItem('vinzmon.designTokens.v1') ?? '');
+  check('RIPRISTINA TUTTO svuota lo scarto', scartoDopo === '{}' || scartoDopo === '', scartoDopo);
+
+  guarda();
+  await open('/');
+  const tornato = await page.evaluate(() =>
+    getComputedStyle(document.documentElement).getPropertyValue('--signal-positive').trim(),
+  );
+  check(
+    'e il valore torna quello del foglio vero',
+    tornato.toLowerCase() === '#30ff8b',
+    `letto: ${tornato || '(vuoto)'}`,
+  );
+
   /* --- 4. La preview ------------------------------------------------------- */
 
   /* ⚠️ CONFRONTARE UNO `localStorage` VUOTO CON UNO `localStorage` VUOTO non

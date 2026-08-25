@@ -37,8 +37,15 @@ async function boot() {
   let content: ReactNode;
 
   /* 🔒 Il foglio di stile dell'app si carica solo dove serve: il laboratorio
-     ha il suo, disegnato a parte. Vedi `appStyles.ts`. */
-  if (entry.kind !== 'lab') await import('./appStyles');
+     ha il suo, disegnato a parte. Vedi `appStyles.ts`. Subito dopo si
+     rimettono sopra gli scarti dei design token (SYSTEM.LAB → 🎛 TOKENS):
+     senza, un valore cambiato lì sparirebbe al primo riavvio, e "vale per
+     tutti" diventerebbe "vale finché non ricarichi". */
+  if (entry.kind !== 'lab') {
+    await import('./appStyles');
+    const { applyTokenOverrides } = await import('./engine/designTokens');
+    applyTokenOverrides();
+  }
 
   if (entry.kind === 'design-preview') {
     const { installPreviewGuards } = await import('./lab/design/installPreviewGuards');
