@@ -31,6 +31,7 @@ import { t } from '../i18n/it';
 
 export function BioPanel({
   mon,
+  assetMonName,
   /**
    * Un adesivo da appiccicare sull'angolo del disegno.
    *
@@ -42,6 +43,8 @@ export function BioPanel({
   sticker,
 }: {
   mon: MonRecord;
+  /** Namespace alternativo per una copia completa conservata nella teca. */
+  assetMonName?: string;
   sticker?: ReactNode;
 }) {
   const d = mon.data;
@@ -75,7 +78,8 @@ export function BioPanel({
       <figure className="bionote__drawing">
         {sticker}
         <AssetSlot
-          monName={d.name}
+          monName={assetMonName ?? d.name}
+          fallbackMonNames={assetMonName ? [d.name] : undefined}
           type="bio_doodle"
           alt={`${short}, disegno del file personale`}
           compactPlaceholder

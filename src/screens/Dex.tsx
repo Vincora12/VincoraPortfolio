@@ -29,7 +29,7 @@
    che è esattamente il contrario di quello che il progetto dice da mesi.
    ========================================================================= */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { Overlay } from '../App';
 import { useApp } from '../state/store';
 import { AssetSlot } from '../system/AssetSlot';
@@ -38,6 +38,9 @@ import { Button, ScreenHead, SystemLabel } from '../system/components';
 import { displayName } from '../engine/types';
 import { t } from '../i18n/it';
 import { SplashScreen } from './Splash';
+import { BioPanel } from './BioPanel';
+import { ASSET_TYPES } from '../engine/assets';
+import { keepAssetsOf } from '../assets-pipeline/assetStore';
 
 export function DexScreen({ onGo: _onGo, onOpenMon }: { onGo: (o: Overlay) => void; onOpenMon: () => void }) {
   const mons = useApp((s) => s.mons);
@@ -55,6 +58,7 @@ export function DexScreen({ onGo: _onGo, onOpenMon }: { onGo: (o: Overlay) => vo
   const [keeping, setKeeping] = useState(false);
   const [pickedKeptId, setPickedKeptId] = useState<string | null>(null);
   const [previewingKept, setPreviewingKept] = useState(false);
+  const [keptTab, setKeptTab] = useState<'bio' | 'identity' | 'assets'>('bio');
   const [startingKept, setStartingKept] = useState(false);
 
   /* In ordine di comparsa, non alfabetico: è una storia, e una storia si
@@ -91,6 +95,14 @@ export function DexScreen({ onGo: _onGo, onOpenMon }: { onGo: (o: Overlay) => vo
   const selectedNode = picked ? nodes.find((n) => n.monName === picked) : null;
   const selectedKept = pickedKeptId ? kept.find((item) => item.id === pickedKeptId) ?? null : null;
 
+  // Ripara anche le vecchie teche create quando venivano copiate soltanto le
+  // immagini presenti sul dispositivo: se gli originali sono sul backend,
+  // l'apertura della scheda li recupera e li archivia nel namespace kept/.
+  useEffect(() => {
+    if (!previewingKept || !selectedKept) return;
+    void keepAssetsOf(selectedKept.record.data.name);
+  }, [previewingKept, selectedKept]);
+
   if (previewingKept && selectedKept) {
     const d = selectedKept.record.data;
     return (
@@ -121,6 +133,58 @@ export function DexScreen({ onGo: _onGo, onOpenMon }: { onGo: (o: Overlay) => vo
             <span>{d.affinity}</span>
             <span>{d.evolution_state?.label ?? 'BASIC FORM'}</span>
           </div>
+          <div className="tecapreview__tabs" role="tablist" aria-label="Scheda del MON conservato">
+            {(['bio', 'identity', 'assets'] as const).map((tab) => (
+              <button
+                key={tab}
+                type="button"
+                role="tab"
+                aria-selected={keptTab === tab}
+                onClick={() => setKeptTab(tab)}
+              >
+                {tab === 'bio' ? 'BIO' : tab === 'identity' ? 'IDENTITÀ' : 'ASSET'}
+              </button>
+            ))}
+          </div>
+          {keptTab === 'bio' && (
+            <BioPanel mon={selectedKept.record} assetMonName={selectedKept.assetName} />
+          )}
+          {keptTab === 'identity' && (
+            <div className="tecapreview__identity">
+              {[
+                ['FAMILY', `${d.family} · ${d.family_archetype}`],
+                ['AFFINITY', d.affinity],
+                ['SIZE', d.size],
+                ['ROLE', d.role],
+                ['FASHION', d.fashion],
+                ['TEMPERAMENTO', d.mood_primary],
+                ['RARITÀ', d.rarity],
+                ['STATO', d.evolution_state?.label ?? 'BASIC FORM'],
+                ['NATO IL GIORNO', String(selectedKept.record.bornOnDay)],
+              ].map(([label, value]) => (
+                <div key={label} className="tecapreview__row">
+                  <span>{label}</span><strong>{value}</strong>
+                </div>
+              ))}
+            </div>
+          )}
+          {keptTab === 'assets' && (
+            <div className="tecapreview__assets">
+              {ASSET_TYPES.map((asset) => (
+                <figure key={asset.type}>
+                  <AssetSlot
+                    monName={selectedKept.assetName}
+                    fallbackMonNames={[d.name]}
+                    type={asset.type}
+                    alt={`${displayName(d.name)} · ${asset.label}`}
+                    fit="contain"
+                    compactPlaceholder
+                  />
+                  <figcaption className="t-micro">{asset.label}</figcaption>
+                </figure>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     );

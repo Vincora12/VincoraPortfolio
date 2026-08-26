@@ -4858,6 +4858,47 @@
   border: 1px solid #0b0b0b;
 }
 
+.tecapreview__tabs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  width: 100%;
+  border-block: 1px solid var(--line);
+}
+
+.tecapreview__tabs button {
+  min-height: 48px;
+  border: 0;
+  border-right: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  font: 600 11px/1 var(--font-mono);
+  letter-spacing: .12em;
+}
+
+.tecapreview__tabs button:last-child { border-right: 0; }
+.tecapreview__tabs button[aria-selected='true'] { color: var(--ink); }
+
+.tecapreview__identity { width: 100%; }
+.tecapreview__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--line);
+  font: 11px/1.35 var(--font-mono);
+}
+.tecapreview__row strong { text-align: right; }
+
+.tecapreview__assets {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  width: 100%;
+}
+.tecapreview__assets figure { margin: 0; min-width: 0; }
+.tecapreview__assets .assetslot-wrap { aspect-ratio: 1; background: #fff; }
+.tecapreview__assets figcaption { padding-top: 6px; color: var(--muted); }
+
 /* 🔶 QUI C'ERANO ~170 RIGHE DI CSS DELLA STANZA — post, avatar, thread,
    commenti. Sono uscite con la schermata: un foglio di stile che veste
    elementi che nessuno disegna più è peso che si porta dietro per sempre,

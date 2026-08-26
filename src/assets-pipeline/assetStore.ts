@@ -73,6 +73,35 @@ export function keptAssetName(monName: string): string {
  */
 export async function keepAssetsOf(monName: string): Promise<string> {
   const target = keptAssetName(monName);
+  const { savedToken } = await import('../brain/stream');
+  const token = savedToken();
+
+  // Un asset può essere già sul backend ma non più nell'IndexedDB di questo
+  // telefono. Prima di archiviare ricostruiamo localmente TUTTI gli slot del
+  // MON, altrimenti la teca finirebbe per fotografare soltanto la cache del
+  // dispositivo corrente.
+  if (token) {
+    try {
+      const response = await fetch('/api/assets', {
+        headers: { authorization: `Bearer ${token}` },
+        cache: 'no-store',
+      });
+      if (response.ok) {
+        const { assets } = await response.json() as { assets: { monName: string; assetId: string }[] };
+        const remoteAssets = assets.filter((item) => item.monName === monName);
+        for (const remote of remoteAssets) {
+          const localKey = storageKey(monName, remote.assetId);
+          if (await get(localKey)) continue;
+          const assetResponse = await fetch(
+            `/api/assets?monName=${encodeURIComponent(monName)}&assetId=${encodeURIComponent(remote.assetId)}`,
+            { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' },
+          );
+          if (assetResponse.ok) await set(localKey, await assetResponse.blob());
+        }
+      }
+    } catch { /* Se offline, conserva comunque tutti gli asset locali. */ }
+  }
+
   const all = await keys();
   const prefix = `asset:${monName}:`;
 
