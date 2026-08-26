@@ -80,7 +80,11 @@ export async function keepAssetsOf(monName: string): Promise<string> {
     if (typeof k !== 'string' || !k.startsWith(prefix)) continue;
     const blob = await get<Blob>(k);
     if (!blob) continue;
-    await set(`asset:${target}:${k.slice(prefix.length)}`, blob);
+    const assetId = k.slice(prefix.length);
+    await set(`asset:${target}:${assetId}`, blob);
+    // La teca deve sopravvivere anche al cambio dispositivo/reinstallazione:
+    // la copia archiviata non puo' restare soltanto nell'IndexedDB locale.
+    await uploadRemote(target, assetId, blob);
   }
 
   await preloadMonAssets(target);

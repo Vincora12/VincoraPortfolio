@@ -123,6 +123,8 @@ export function AssetPlaceholder({ type, note, compact }: PlaceholderProps) {
 
 interface AssetSlotProps {
   monName: string;
+  /** Nomi alternativi da provare se la copia principale non esiste. */
+  fallbackMonNames?: string[];
   type: AssetType;
   /** Tipi alternativi da provare prima di mostrare il segnaposto (§24.5). */
   fallbackTypes?: AssetType[];
@@ -135,6 +137,7 @@ interface AssetSlotProps {
 
 export function AssetSlot({
   monName,
+  fallbackMonNames = [],
   type,
   fallbackTypes = [],
   alt,
@@ -143,7 +146,10 @@ export function AssetSlot({
   compactPlaceholder,
 }: AssetSlotProps) {
   const chain = [type, ...fallbackTypes];
-  const { url, resolvedType } = useAssetUrlChain(monName, chain);
+  const primary = useAssetUrlChain(monName, chain);
+  const fallbackName = fallbackMonNames[0] ?? monName;
+  const fallback = useAssetUrlChain(fallbackName, chain);
+  const { url, resolvedType } = primary.url ? primary : fallback;
 
   if (!url) {
     return (

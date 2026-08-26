@@ -187,6 +187,7 @@ export function DexScreen({ onGo: _onGo, onOpenMon }: { onGo: (o: Overlay) => vo
                   <span className="dexcard__art">
                     <AssetSlot
                       monName={k.assetName}
+                      fallbackMonNames={[k.record.data.name]}
                       type="character_toy"
                       fallbackTypes={['character_master']}
                       alt={displayName(k.record.data.name)}

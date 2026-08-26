@@ -64,7 +64,10 @@ export function classifyMindlineTransition(
     score += 8;
     reasons.push('MEGA');
   } else if (node.kind === 'branch') {
-    score += 4;
+    // Una nuova forma non e' automaticamente un nuovo ramo VISIVO. Se la
+    // natura resta la stessa, prosegue il percorso; il ramo nasce quando
+    // cambiano davvero corpo, famiglia, stadio o un'altra asse importante.
+    score += 1;
     reasons.push('EVOLUZIONE');
   }
   if (from.family !== to.family) {
@@ -211,7 +214,7 @@ export function layoutMindline(
       // Anche un'evoluzione nominalmente lineare apre un percorso nuovo se
       // cambia la natura della creatura (es. ANGEL → MACHINE). La mappa deve
       // raccontare la trasformazione reale, non soltanto il tipo del nodo.
-      const isContinuation = kid.kind !== 'branch' && !changesNature(node, kid) && !continuedHere;
+      const isContinuation = !changesNature(node, kid) && !continuedHere;
       if (isContinuation) continuedHere = true;
 
       walk(kid, isContinuation ? column : ++nextColumn, depth + 1);
