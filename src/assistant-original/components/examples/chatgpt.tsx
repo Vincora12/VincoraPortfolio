@@ -547,6 +547,9 @@ const AssistantMessage: FC = () => {
             if (part.type === "text") {
               return part.text.length > 0 ? <MarkdownText /> : null;
             }
+            if (part.type === "image") {
+              return <img src={part.image} alt={part.filename ?? "Immagine generata"} className="mt-2 h-auto w-full max-w-lg rounded-2xl object-contain" />;
+            }
             return null;
           }}
         </MessagePrimitive.Parts>

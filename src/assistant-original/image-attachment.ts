@@ -72,3 +72,36 @@ export class VinzImageAttachmentAdapter implements AttachmentAdapter {
 
   async remove() {}
 }
+
+/** PDF nativo: resta binario e viene letto dal modello, senza OCR fragile nel browser. */
+export class VinzPdfAttachmentAdapter implements AttachmentAdapter {
+  accept = "application/pdf";
+
+  async add({ file }: { file: File }): Promise<PendingAttachment> {
+    if (file.size > 10 * 1024 * 1024) throw new Error("PDF troppo grande: massimo 10 MB");
+    return {
+      id: crypto.randomUUID?.() ?? `${Date.now()}-${Math.random()}`,
+      type: "document",
+      name: file.name,
+      contentType: "application/pdf",
+      file,
+      status: { type: "requires-action", reason: "composer-send" },
+    };
+  }
+
+  async send(attachment: PendingAttachment): Promise<CompleteAttachment> {
+    const url = await dataUrlOf(attachment.file);
+    return {
+      ...attachment,
+      status: { type: "complete" },
+      content: [{
+        type: "file",
+        filename: attachment.name,
+        mimeType: "application/pdf",
+        data: url.slice(url.indexOf(",") + 1),
+      }],
+    };
+  }
+
+  async remove() {}
+}

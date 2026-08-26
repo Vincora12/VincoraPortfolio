@@ -90,6 +90,8 @@ interface Payload {
   image?: { mediaType: string; data: string };
   /** Foto della chat; `image` resta compatibile con i vecchi client. */
   images?: { mediaType: string; data: string }[];
+  /** PDF allegati alla chat, base64 senza prefisso data URL. */
+  files?: { mediaType: string; data: string; filename: string }[];
   thinking?: boolean;
   maxTokens?: number;
   tools?: ToolDef[];
@@ -250,7 +252,7 @@ export default async function handler(request: Request): Promise<Response> {
       return json({ error: 'immagine di riferimento troppo grande' }, 413);
     }
     const result = await generateImage(route.model, prompt, size, reference);
-    if (result.ok) await recordSpend(capability, route.model, result.usage);
+    const imageCostUsd = result.ok ? await recordSpend(capability, route.model, result.usage) : 0;
 
     if (!result.ok) {
       console.warn('[ai] immagine non generata:', result.error);
@@ -270,7 +272,7 @@ export default async function handler(request: Request): Promise<Response> {
         502,
       );
     }
-    return json({ image: result.data, warning: cap.warning });
+    return json({ image: result.data, model: route.model, costUsd: imageCostUsd, warning: cap.warning });
   }
 
   /* --- Testo --- */
@@ -305,6 +307,7 @@ export default async function handler(request: Request): Promise<Response> {
     userBlocks.length === 0 &&
     !payload.image &&
     !payload.images?.length
+    && !payload.files?.length
   ) {
     return json({ error: 'messaggio vuoto' }, 400);
   }
@@ -341,6 +344,12 @@ export default async function handler(request: Request): Promise<Response> {
     // spedirla, altrimenti il tetto lo scopre il fornitore al posto nostro.
     const bytes = Math.floor((image.data?.length ?? 0) * 0.75);
     if (bytes > LIMITS.imageBytes) return json({ error: 'immagine troppo grande' }, 413);
+  }
+  const files = (payload.files ?? []).slice(0, 2);
+  if ((payload.files?.length ?? 0) > 2) return json({ error: 'troppi documenti' }, 413);
+  for (const file of files) {
+    if (file.mediaType !== 'application/pdf') return json({ error: 'formato documento non supportato' }, 415);
+    if (Math.floor((file.data?.length ?? 0) * 0.75) > 10 * 1024 * 1024) return json({ error: 'documento troppo grande' }, 413);
   }
 
   /* Streaming della chat V1. Il contesto neutrale è ammesso, mentre strumenti,
@@ -422,6 +431,7 @@ export default async function handler(request: Request): Promise<Response> {
     userBlocks,
     image: payload.image,
     images,
+    files,
     thinking: Boolean(payload.thinking),
     ...(selectedEffort ? { effort: selectedEffort } : {}),
     tools,

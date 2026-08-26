@@ -149,6 +149,12 @@ export interface ImageInput {
   data: string;
 }
 
+export interface FileInput {
+  mediaType: string;
+  data: string;
+  filename: string;
+}
+
 export interface ProviderRequest {
   model: string;
   system: SystemBlock[];
@@ -164,6 +170,7 @@ export interface ProviderRequest {
   image?: ImageInput;
   /** Più foto nello stesso messaggio (per esempio piatto + menu). */
   images?: ImageInput[];
+  files?: FileInput[];
   maxTokens: number;
   /** Ragiona prima di rispondere. Chi non sa farlo lo ignora. */
   thinking?: boolean;
@@ -222,6 +229,9 @@ async function anthropic(req: ProviderRequest): Promise<ProviderResult> {
         type: 'image',
         source: { type: 'base64', media_type: image.mediaType, data: image.data },
       });
+    }
+    for (const file of req.files ?? []) {
+      content.push({ type: 'document', source: { type: 'base64', media_type: file.mediaType, data: file.data }, title: file.filename });
     }
     content.push({ type: 'text', text: req.user });
   }
@@ -514,8 +524,11 @@ async function google(req: ProviderRequest): Promise<ProviderResult> {
   if (!key) return fail(req.model, 'GOOGLE_API_KEY mancante');
 
   const parts: unknown[] = [];
-  if (req.image) {
-    parts.push({ inline_data: { mime_type: req.image.mediaType, data: req.image.data } });
+  for (const image of req.images?.length ? req.images : req.image ? [req.image] : []) {
+    parts.push({ inline_data: { mime_type: image.mediaType, data: image.data } });
+  }
+  for (const file of req.files ?? []) {
+    parts.push({ inline_data: { mime_type: file.mediaType, data: file.data } });
   }
   parts.push({ text: req.user });
 
@@ -699,7 +712,7 @@ function openaiResponseInput(req: ProviderRequest): Record<string, unknown>[] {
   }
   if (req.userBlocks?.length) {
     addBlocks(req.userBlocks as Block[], 'user');
-  } else if (req.user || req.image || req.images?.length) {
+  } else if (req.user || req.image || req.images?.length || req.files?.length) {
     const content: Record<string, unknown>[] = [];
     if (req.user) content.push({ type: 'input_text', text: req.user });
     for (const image of req.images?.length ? req.images : req.image ? [req.image] : []) {
@@ -708,6 +721,9 @@ function openaiResponseInput(req: ProviderRequest): Record<string, unknown>[] {
         detail: 'auto',
         image_url: `data:${image.mediaType};base64,${image.data}`,
       });
+    }
+    for (const file of req.files ?? []) {
+      content.push({ type: 'input_file', filename: file.filename, file_data: `data:${file.mediaType};base64,${file.data}` });
     }
     input.push({ role: 'user', content });
   }
@@ -986,7 +1002,7 @@ async function moonshot(req: ProviderRequest): Promise<ProviderResult> {
 async function openaiText(req: ProviderRequest): Promise<ProviderResult> {
   const key = process.env.OPENAI_API_KEY;
   if (!key) return fail(req.model, 'OPENAI_API_KEY mancante');
-  if (req.webSearch || req.image || req.images?.length) return openAiResponses(key, req);
+  if (req.webSearch || req.image || req.images?.length || req.files?.length) return openAiResponses(key, req);
   return openAiProtocol('openai', 'https://api.openai.com/v1/chat/completions', key, req);
 }
 
@@ -1082,10 +1098,15 @@ export async function generateImage(
     form.append('n', '1');
     for (const [k, v] of Object.entries(extras)) form.append(k, String(v));
     const bytes = Uint8Array.from(atob(reference as string), (c) => c.charCodeAt(0));
+    const isJpeg = bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
     /* 🔒 `image[]` e non `image`: è la forma che accetta più riferimenti, ed è
        quella giusta anche con uno solo — il giorno che alleghiamo anche il
        ritratto non cambia niente qui. */
-    form.append('image[]', new Blob([bytes], { type: 'image/png' }), 'master.png');
+    form.append(
+      'image[]',
+      new Blob([bytes], { type: isJpeg ? 'image/jpeg' : 'image/png' }),
+      isJpeg ? 'reference.jpg' : 'reference.png',
+    );
     return fetch('https://api.openai.com/v1/images/edits', {
       method: 'POST',
       signal: AbortSignal.timeout(120_000),

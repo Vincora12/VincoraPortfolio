@@ -2,6 +2,7 @@ import type { BrainMessage } from './store/types';
 import { TOOLS, assistantTurn, resultBlocks, type ToolResult, type ToolUse } from '../ai/tools';
 
 export type ChatCost = { costUsd: number; model?: string };
+export type ChatFileInput = { mediaType: string; data: string; filename: string };
 
 /** Legge soltanto il token tecnico già salvato dall'app principale. */
 export function savedToken(): string | null {
@@ -79,7 +80,7 @@ export async function streamReply(
   return { costUsd: 0 };
 }
 
-const TOOL_INTENT = /\b(miei dati|mia salute|come sto|\bme\b|dormit\w*|allenat\w*|allenamento|palestra|workout|programma|piano|scheda|calendario|agenda|lista|riepilogo|sezione|blocco|corsa|camminata|mangiat\w*|bevut\w*|pasto|colazione|pranzo|cena|spuntino|merenda|extra|calori\w*|kcal|protein\w*|carbo\w*|grass\w*|macro|peso|dieta|obiettiv\w*|target|corregg\w*|modific\w*|giornat\w*|protocollo|ricordami|promemoria|pagina|aspetto|schermata)\b/i;
+const TOOL_INTENT = /\b(miei dati|mia salute|come sto|\bme\b|dormit\w*|allenat\w*|allenamento|palestra|workout|programma|piano|scheda|calendario|agenda|lista|riepilogo|sezione|blocco|corsa|camminata|mangiat\w*|bevut\w*|pasto|colazione|pranzo|cena|spuntino|merenda|extra|calori\w*|kcal|protein\w*|carbo\w*|grass\w*|macro|peso|dieta|barcode|codice a barre|etichetta|obiettiv\w*|target|corregg\w*|modific\w*|giornat\w*|protocollo|ricordami|promemoria|pagina|aspetto|schermata)\b/i;
 
 export type ChatMealSlot = 'colazione' | 'spuntino' | 'pranzo' | 'merenda' | 'cena' | 'extra';
 export type MealConfirmation = {
@@ -149,6 +150,7 @@ export async function replyWithLocalTools(
   images: { mediaType: string; data: string }[] = [],
   mealConfirmation?: MealConfirmation,
   workoutConfirmation?: WorkoutConfirmation,
+  files: ChatFileInput[] = [],
 ): Promise<ChatCost> {
   const token = savedToken();
   if (!token) throw new Error('Prima attiva VINZ.MON: manca il token.');
@@ -164,6 +166,9 @@ export async function replyWithLocalTools(
       'The five fixed meal moments are: colazione, spuntino, pranzo, merenda, cena. Additional food is extra.',
       images.length
         ? 'The user attached one or more real images. Inspect them directly: never say that you cannot see them. If they show food, identify visible foods, preparation, sauces and a plausible portion; estimate kcal, protein, carbohydrates and fat, clearly marking estimates and asking only for details that materially change the result. Do not invent hidden ingredients. Use all attached images together when one shows the dish and another shows a menu, label or portion reference.'
+        : '',
+      files.length
+        ? 'Read every attached PDF directly. If it is a diet or training plan, summarize it faithfully before proposing any change; distinguish values explicitly written in the document from your own estimates. Never claim that a PDF was unreadable unless the provider actually returns an error.'
         : '',
       mealConfirmation?.status === 'needs-confirmation'
         ? `Analyze the food and estimate nutrition, but DO NOT call registra_pasto and do not ask the final confirmation question. The app will ask whether it is ${mealConfirmation.slot}.`
@@ -233,6 +238,7 @@ export async function replyWithLocalTools(
         turns: history,
         user: currentUser,
         ...(round === 0 && images.length ? { images } : {}),
+        ...(round === 0 && files.length ? { files } : {}),
         ...(userBlocks ? { userBlocks } : {}),
         tools: round < 3 ? availableTools : [],
         ...(round === 0 && forcedWrite ? { toolChoice: forcedWrite } : {}),

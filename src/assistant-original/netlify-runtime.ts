@@ -51,6 +51,7 @@ function textOf(message: ThreadMessage | undefined): string {
 }
 
 type ChatImage = { mediaType: string; data: string };
+type ChatFile = { mediaType: string; data: string; filename: string };
 type MonReaction = { monName: string; index: number; label: string };
 
 const REACTION_LABELS = ["NEUTRAL", "WARM", "AMUSED", "ALERT", "LOW", "INTENSE"] as const;
@@ -99,6 +100,14 @@ function imagesOf(message: ThreadMessage | undefined): ChatImage[] {
     found.set(part.image, { mediaType: match[1], data: match[2] });
   }
   return [...found.values()].slice(0, 4);
+}
+
+function filesOf(message: ThreadMessage | undefined): ChatFile[] {
+  if (!message) return [];
+  const parts = [...message.content, ...(message.attachments?.flatMap((item) => item.content ?? []) ?? [])];
+  return parts.flatMap((part) => part.type === "file" && part.mimeType === "application/pdf"
+    ? [{ mediaType: part.mimeType, data: part.data, filename: part.filename ?? "documento.pdf" }]
+    : []).slice(0, 2);
 }
 
 /**
@@ -157,6 +166,30 @@ function pendingMealSlot(messages: readonly ThreadMessage[]): ChatMealSlot | und
 /** Accetta anche le conferme operative naturali usate dopo una proposta. */
 const confirms = (text: string) => /^\s*(?:s[iì]|confermo|ok(?:ay)?|va bene|esatto|corretto|vai(?:\s+(?:pure|inserisci|registra|procedi))?|inserisci|registra|procedi|fallo)\b/i.test(text);
 
+function isImageCreationIntent(text: string): boolean {
+  return /\b(?:genera|crea|disegna|fammi|realizza|produci|modifica|trasforma|ritocca)\b[^.!?]{0,100}\b(?:foto|immagine|ritratto|illustrazione|render|versione)\b|\b(?:fammi vedere|mostrami)\b[^.!?]{0,100}\b(?:come (?:starei|sarei)|in versione)\b/i.test(text);
+}
+
+async function* runImageCreation(messages: readonly ThreadMessage[], abortSignal: AbortSignal) {
+  const token = savedToken();
+  if (!token) throw new Error("Prima attiva VINZ.MON: manca il token.");
+  const prompt = textOf(messages.at(-1));
+  const reference = imagesForRun(messages, true)[0]?.data;
+  yield { content: [{ type: "text" as const, text: reference ? "Sto modificando l’immagine…" : "Sto creando l’immagine…" }] };
+  const response = await fetch("/api/ai", {
+    method: "POST",
+    signal: abortSignal,
+    headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+    body: JSON.stringify({ capability: "image", prompt, size: "1024x1024", ...(reference ? { reference } : {}) }),
+  });
+  const body = await response.json().catch(() => null) as { image?: string; reason?: string; error?: string; costUsd?: number; model?: string } | null;
+  if (!response.ok || !body?.image) throw new Error(body?.reason ?? body?.error ?? "Immagine non generata");
+  yield {
+    content: [{ type: "image" as const, image: `data:image/png;base64,${body.image}`, filename: "vinz-mon-image.png" }],
+    metadata: { custom: { costUsd: body.costUsd ?? 0, model: body.model } },
+  };
+}
+
 function hasPendingWorkout(messages: readonly ThreadMessage[]): boolean {
   const previous = messages.at(-2);
   return previous?.role === 'assistant'
@@ -187,6 +220,20 @@ function toBrainMessages(messages: readonly ThreadMessage[]): BrainMessage[] {
   });
 }
 
+async function foodBarcodeContext(text: string, token: string, signal: AbortSignal): Promise<string> {
+  const barcode = text.match(/(?:^|\D)(\d{8,14})(?:\D|$)/)?.[1];
+  if (!barcode) return '';
+  const response = await fetch(`/api/food?barcode=${barcode}`, {
+    signal,
+    headers: { authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) return '';
+  const body = await response.json() as { found?: boolean; source?: string; product?: unknown };
+  return body.found
+    ? `\n\n[DATI BARCODE VERIFICATI — ${body.source}]\n${JSON.stringify(body.product)}`
+    : `\n\n[BARCODE ${barcode}: prodotto non trovato nel database]`;
+}
+
 async function* runWithLocalTools(
   messages: readonly ThreadMessage[],
   abortSignal: AbortSignal,
@@ -197,13 +244,16 @@ async function* runWithLocalTools(
   workoutPlanProposal?: string,
 ) {
   const last = messages.at(-1);
-  const user = workoutPlanProposal
+  let user = workoutPlanProposal
     ? `Confermo questa modifica al piano di allenamento: ${workoutPlanProposal}`
     : textOf(last);
+  const token = savedToken();
+  if (token) user += await foodBarcodeContext(user, token, abortSignal);
   const images = imagesForRun(
     messages,
     mealConfirmation?.status === 'confirmed' || workoutConfirmation?.status === 'confirmed',
   );
+  const files = filesOf(last);
   const history = toBrainMessages(messages.slice(0, -1));
   let answer = "";
   const chunks: string[] = [];
@@ -247,6 +297,7 @@ async function* runWithLocalTools(
     images,
     mealConfirmation,
     workoutConfirmation,
+    files,
   )
     .then((result) => { cost = result; })
     .catch((error: unknown) => { failure = error; })
@@ -353,6 +404,7 @@ function createBaseNetlifyChatModel(): ChatModelAdapter {
     const useStream = modelName?.startsWith("claude-") ?? false;
     const last = messages.at(-1);
     const images = imagesForRun(messages);
+    const files = filesOf(last);
     const app = useApp.getState();
     const activeMon = app.activeMonName ? app.mons[app.activeMonName] : null;
     const systemPrompt = activeMon
@@ -381,6 +433,7 @@ function createBaseNetlifyChatModel(): ChatModelAdapter {
         })),
         user: textOf(last),
         ...(images.length ? { images } : {}),
+        ...(files.length ? { files } : {}),
         maxTokens: 2000,
       }),
     });
@@ -493,6 +546,10 @@ export function createNetlifyChatModel(
           ? { status: 'needs-confirmation' }
           : undefined;
       const confirmedPlan = pendingPlan && confirms(user) ? pendingPlan : undefined;
+      if (isImageCreationIntent(user)) {
+        yield* runImageCreation(args.messages, args.abortSignal);
+        return;
+      }
       if (runTool && (shouldUseLocalTools(user) || mealConfirmation?.status === 'confirmed' || workoutConfirmation?.status === 'confirmed' || confirmedPlan)) {
         yield* runWithLocalTools(
           args.messages,

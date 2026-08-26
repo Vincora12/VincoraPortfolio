@@ -12,7 +12,7 @@ import {
 } from "@assistant-ui/core/react";
 import type { ToolResult, ToolUse } from "@/ai/tools";
 import { createNetlifyChatModel } from "./netlify-runtime";
-import { VinzImageAttachmentAdapter } from "./image-attachment";
+import { VinzImageAttachmentAdapter, VinzPdfAttachmentAdapter } from "./image-attachment";
 import { ChatSurface } from "./chat-surface";
 import "./styles.css";
 import { migrateStoragePrefix, serverBackedStorage } from "@/system/serverStorage";
@@ -27,6 +27,7 @@ const threadAdapter = createLocalStorageAdapter({
 
 const attachments = new CompositeAttachmentAdapter([
   new VinzImageAttachmentAdapter(),
+  new VinzPdfAttachmentAdapter(),
   new SimpleTextAttachmentAdapter(),
 ]);
 
