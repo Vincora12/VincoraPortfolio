@@ -16,6 +16,7 @@
 
 import { COMPILER_VERSION } from '../assets-pipeline/fragments';
 import { GENERATION_CONFIG_VERSION } from '../engine/generation-config';
+import { taxonomyDescriptionVersion, type TaxonomyDescriptionVersion } from '../engine/taxonomy-versions';
 
 declare const __BUILD__: { commit: string; at: string; branch: string };
 
@@ -25,6 +26,7 @@ export interface BuildInfo {
   branch: string;
   compiler: string;
   config: string;
+  taxonomy: TaxonomyDescriptionVersion;
 }
 
 export function buildInfo(): BuildInfo {
@@ -40,6 +42,7 @@ export function buildInfo(): BuildInfo {
     ...injected,
     compiler: COMPILER_VERSION,
     config: GENERATION_CONFIG_VERSION,
+    taxonomy: taxonomyDescriptionVersion(),
   };
 }
 
@@ -47,4 +50,10 @@ export function buildInfo(): BuildInfo {
 export function buildLabel(): string {
   const b = buildInfo();
   return b.at ? `${b.commit} · ${b.at}` : b.commit;
+}
+
+/** Identico nel footer del LAB e in DEV: se coincide, i due bundle sono sincronizzati. */
+export function labSyncCode(): string {
+  const b = buildInfo();
+  return `${b.commit.toUpperCase()}-${b.taxonomy.toUpperCase()}`;
 }

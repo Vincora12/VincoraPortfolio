@@ -55,6 +55,7 @@ import {
   setTaxonomyDescriptionVersion,
   type TaxonomyDescriptionVersion,
 } from '../../engine/taxonomy-versions';
+import { labSyncCode } from '../../system/build';
 import '../skin/creation.css';
 
 const TABS = [
@@ -142,7 +143,10 @@ export function CreationLab({ onBack }: { onBack: () => void }) {
         {tab === 'versions' && <History />}
         {tab === 'assistant' && <LabAssistantPanel />}
         {tab === 'taxonomy' && <TaxonomyLab />}
-        <div className="footer mono">CREATION.LAB · SAME VINZ.MON ENGINE / SAME REPOSITORY</div>
+        <div className="footer mono">
+          <strong>SYNC {labSyncCode()}</strong>
+          <span> · STESSO MOTORE DI VINZ.MON</span>
+        </div>
       </main>
     </div>
   );

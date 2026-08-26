@@ -35,7 +35,7 @@ import type { StatKey } from '../engine/types';
 import { BatchGenerator } from './BatchGenerator';
 import { AssetImport } from './AssetImport';
 import { ForgePanel } from './ForgePanel';
-import { buildInfo } from '../system/build';
+import { buildInfo, labSyncCode } from '../system/build';
 
 /* ============================================================================
    TEMPO — "Advance time: +1 DAY, +7 DAYS, END WEEK, NEXT MINDLINE SHIFT"
@@ -105,6 +105,8 @@ export function StartSection({
       <p className="t-meta dev__label">VERSIONE</p>
       <div className="rowlist">
         <Row label="BUILD" value={build.commit} />
+        <Row label="SYNC LAB" value={labSyncCode()} />
+        <Row label="TASSONOMIA" value={build.taxonomy.toUpperCase()} />
         <Row label="COSTRUITA IL" value={build.at ? `${build.at} UTC` : '—'} />
         {build.branch && <Row label="RAMO" value={build.branch} />}
         <Row label="MOTORE DEI PROMPT" value={`compiler ${build.compiler} · config ${build.config}`} />
@@ -916,4 +918,3 @@ function DevSlider({
     </div>
   );
 }
-
