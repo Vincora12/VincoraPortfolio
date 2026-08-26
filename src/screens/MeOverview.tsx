@@ -3,7 +3,7 @@ import type { Overlay } from '../App';
 import { useApp } from '../state/store';
 import { Icon } from '../system/Icon';
 import { STAT_KEYS, isKnown, type HealthState } from '../engine/types';
-import { HEALTH_JOURNAL_EVENT, readHealthJournal, removeHealthEntry, undoMeBlocks, type HealthJournal, type MeBlock } from '../engine/healthJournal';
+import { HEALTH_JOURNAL_EVENT, addWorkout, readHealthJournal, removeHealthEntry, undoMeBlocks, type HealthJournal, type MeBlock } from '../engine/healthJournal';
 import { MeCalendar } from './MeCalendar';
 
 type View = 'today' | 'diet' | 'sport';
@@ -17,6 +17,7 @@ export function MeOverviewScreen({ onGo: _onGo }: { onGo: (o: Overlay) => void }
   const health = useApp((s) => s.health);
   const [journal, setJournal] = useState(readHealthJournal);
   const [view, setView] = useState<View>(() => visibleView(readHealthJournal().display.focus));
+  const [timerOpen, setTimerOpen] = useState(false);
   const configuredFocus = useRef(journal.display.focus);
   const scrollRef = useRef<HTMLDivElement>(null);
   useEffect(() => { const update = () => { const next = readHealthJournal(); setJournal(next); if (next.display.focus !== configuredFocus.current) { configuredFocus.current = next.display.focus; setView(visibleView(next.display.focus)); } }; window.addEventListener(HEALTH_JOURNAL_EVENT, update); return () => window.removeEventListener(HEALTH_JOURNAL_EVENT, update); }, []);
@@ -36,9 +37,65 @@ export function MeOverviewScreen({ onGo: _onGo }: { onGo: (o: Overlay) => void }
       <MeBlocks blocks={journal.blocks.filter((block) => block.section === view)} askAi={askAi} />
       {view === 'today' && <TodayRecap journal={journal} meals={meals} workouts={workouts} total={total} health={health} askAi={askAi} />}
       {view === 'diet' && <><MeCalendar journal={journal} mode="diet" /><Section title="PIANO ALIMENTARE">{journal.dietPlan ? <article className="me-health__plan"><h2>{journal.dietPlan.title}</h2><p>{journal.dietPlan.text}</p><small>Aggiornato {new Date(journal.dietPlan.updatedAt).toLocaleDateString('it-IT')}</small></article> : <Empty text="Allega la dieta in chat: VINZ.MON la leggerà e la salverà qui." />}</Section><Section title="STORICO PASTI">{journal.meals.length ? [...journal.meals].reverse().map(x => <Row key={x.id} title={x.slot} text={x.description} meta={`${x.kcal} kcal`} when={new Date(x.at).toLocaleDateString('it-IT')} chat={x.source === 'chat'} remove={() => remove('meal', x.id)} />) : <Empty text="Lo storico si riempirà dalla chat o dal log manuale." />}</Section></>}
-      {view === 'sport' && <><MeCalendar journal={journal} mode="sport" /><Section title="PIANO ALLENAMENTO" action={journal.workoutPlan ? 'MODIFICA CON AI' : 'SCRIVI CON AI'} click={() => askAi(journal.workoutPlan ? 'Modifica il mio piano di allenamento attuale: ' : 'Creami un nuovo piano di allenamento. Prima fammi le domande necessarie: ')}>{journal.workoutPlan ? <article className="me-health__plan"><h2>{journal.workoutPlan.title}</h2><p>{journal.workoutPlan.text}</p><small>Aggiornato {new Date(journal.workoutPlan.updatedAt).toLocaleDateString('it-IT')}</small></article> : <Empty text="Crea il tuo piano con la chat: giorni, esercizi, serie, recuperi e progressione resteranno qui." />}</Section><Section title="ALLENAMENTI SVOLTI" action="REGISTRA CON AI" click={() => askAi('Registra questo allenamento svolto: ')}>{journal.workouts.length ? [...journal.workouts].reverse().map(x => <Row key={x.id} title={x.title} text={x.details} meta={`${x.minutes} minuti`} when={new Date(x.at).toLocaleDateString('it-IT')} chat={x.source === 'chat'} remove={() => remove('workout', x.id)} />) : <Empty text="Racconta un allenamento in chat oppure allega una foto." />}</Section></>}
+      {view === 'sport' && <><button type="button" className="me-health__start-timer" onClick={() => setTimerOpen(true)}><Icon name="workout" /><span><strong>ALLENAMENTO GUIDATO</strong><small>Timer esercizio, recupero e serie</small></span><b>AVVIA</b></button><MeCalendar journal={journal} mode="sport" /><Section title="PIANO ALLENAMENTO" action={journal.workoutPlan ? 'MODIFICA CON AI' : 'SCRIVI CON AI'} click={() => askAi(journal.workoutPlan ? 'Modifica il mio piano di allenamento attuale: ' : 'Creami un nuovo piano di allenamento. Prima fammi le domande necessarie: ')}>{journal.workoutPlan ? <article className="me-health__plan"><h2>{journal.workoutPlan.title}</h2><p>{journal.workoutPlan.text}</p><small>Aggiornato {new Date(journal.workoutPlan.updatedAt).toLocaleDateString('it-IT')}</small></article> : <Empty text="Crea il tuo piano con la chat: giorni, esercizi, serie, recuperi e progressione resteranno qui." />}</Section><Section title="ALLENAMENTI SVOLTI" action="REGISTRA CON AI" click={() => askAi('Registra questo allenamento svolto: ')}>{journal.workouts.length ? [...journal.workouts].reverse().map(x => <Row key={x.id} title={x.title} text={x.details} meta={`${x.minutes} minuti`} when={new Date(x.at).toLocaleDateString('it-IT')} chat={x.source === 'chat'} remove={() => remove('workout', x.id)} />) : <Empty text="Racconta un allenamento in chat oppure allega una foto." />}</Section></>}
     </div>
+    {timerOpen && <WorkoutTimer onClose={() => setTimerOpen(false)} />}
   </div>;
+}
+
+type TimerPreset = { label: string; work: number; rest: number; rounds: number };
+const TIMER_PRESETS: TimerPreset[] = [
+  { label: 'RAPIDO', work: 30, rest: 15, rounds: 8 },
+  { label: 'STANDARD', work: 45, rest: 15, rounds: 10 },
+  { label: 'FORZA', work: 60, rest: 30, rounds: 8 },
+];
+
+function WorkoutTimer({ onClose }: { onClose: () => void }) {
+  const [preset, setPreset] = useState(TIMER_PRESETS[1]!);
+  const [running, setRunning] = useState(false);
+  const [phase, setPhase] = useState<'work' | 'rest'>('work');
+  const [round, setRound] = useState(1);
+  const [left, setLeft] = useState(preset.work);
+  const [done, setDone] = useState(false);
+  const startedAt = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!running || done) return;
+    const tick = window.setInterval(() => setLeft((value) => {
+      if (value > 1) return value - 1;
+      navigator.vibrate?.([80, 50, 80]);
+      if (phase === 'work') { setPhase('rest'); return preset.rest; }
+      if (round >= preset.rounds) { setRunning(false); setDone(true); return 0; }
+      setRound((value) => value + 1); setPhase('work'); return preset.work;
+    }), 1000);
+    return () => window.clearInterval(tick);
+  }, [done, phase, preset, round, running]);
+
+  const select = (next: TimerPreset) => { setPreset(next); setPhase('work'); setRound(1); setLeft(next.work); setRunning(false); setDone(false); startedAt.current = null; };
+  const toggle = () => { if (!startedAt.current) startedAt.current = Date.now(); setRunning((value) => !value); };
+  const finish = () => {
+    const elapsed = startedAt.current ? Math.max(1, Math.round((Date.now() - startedAt.current) / 60000)) : Math.max(1, Math.round((preset.work * preset.rounds + preset.rest * Math.max(0, preset.rounds - 1)) / 60));
+    addWorkout({ title: 'Allenamento a casa', details: `${preset.label} · ${round}/${preset.rounds} serie · ${preset.work}s lavoro / ${preset.rest}s recupero`, minutes: elapsed }, 'manual');
+    navigator.vibrate?.([120, 80, 120, 80, 240]);
+    onClose();
+  };
+  const total = phase === 'work' ? preset.work : preset.rest;
+  const progress = total ? Math.max(0, Math.min(100, ((total - left) / total) * 100)) : 100;
+
+  return <section className="workout-timer" role="dialog" aria-modal="true" aria-label="Timer allenamento">
+    <header><button type="button" onClick={onClose} aria-label="Chiudi timer"><Icon name="close" /></button><span>SERIE {round} / {preset.rounds}</span><button type="button" onClick={() => { setRunning(false); setPhase('work'); setRound(1); setLeft(preset.work); }} disabled={!startedAt.current}>RESET</button></header>
+    <div className="workout-timer__presets" aria-label="Scegli circuito">{TIMER_PRESETS.map((item) => <button type="button" key={item.label} aria-pressed={preset.label === item.label} onClick={() => select(item)} disabled={running}>{item.label}</button>)}</div>
+    <main>
+      <p>{done ? 'COMPLETATO' : phase === 'work' ? 'LAVORA' : 'RECUPERA'}</p>
+      <strong>{String(Math.floor(left / 60)).padStart(2, '0')}:{String(left % 60).padStart(2, '0')}</strong>
+      <div className="workout-timer__track" aria-label={`${Math.round(progress)}%`}><i style={{ transform: `scaleX(${progress / 100})` }} /></div>
+      <span>{preset.work}s lavoro · {preset.rest}s recupero</span>
+    </main>
+    <footer>
+      {!done && <button type="button" className="workout-timer__primary" onClick={toggle}>{running ? 'PAUSA' : startedAt.current ? 'RIPRENDI' : 'INIZIA'}</button>}
+      {(done || startedAt.current) && <button type="button" className="workout-timer__finish" onClick={finish}>{done ? 'SALVA ALLENAMENTO' : 'TERMINA E SALVA'}</button>}
+    </footer>
+  </section>;
 }
 
 function MeBlocks({ blocks, askAi }: { blocks: MeBlock[]; askAi: (prompt: string) => void }) {

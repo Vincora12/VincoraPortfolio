@@ -4277,6 +4277,39 @@
 .me-health__empty { color: #aeb1ba; }
 .proto-frame:has(.me-health) { background: #000; }
 
+.me-health__start-timer { width: 100%; min-height: 72px; margin: 0 0 8px; padding: 12px 14px; display: grid; grid-template-columns: 40px minmax(0,1fr) auto; align-items: center; gap: 12px; border: 1px solid var(--mh-accent); border-radius: 0; background: transparent; color: #fff; text-align: left; }
+.me-health__start-timer > svg { width: 27px; height: 27px; color: var(--mh-accent); }
+.me-health__start-timer span { min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.me-health__start-timer strong { font: 700 11px/1 var(--font-mono); letter-spacing: .07em; }
+.me-health__start-timer small { color: #b9bbc3; font-size: 11px; }
+.me-health__start-timer b { color: var(--mh-accent); font: 700 10px/1 var(--font-mono); letter-spacing: .08em; }
+
+.workout-timer { position: absolute; z-index: 120; inset: 0; display: grid; grid-template-rows: auto auto 1fr auto; min-height: 0; padding: max(16px, env(safe-area-inset-top)) 20px max(24px, env(safe-area-inset-bottom)); background: #050506; color: #f7f7f9; font-family: var(--font-ui); }
+.workout-timer > header { min-height: 48px; display: grid; grid-template-columns: 52px 1fr 52px; align-items: center; }
+.workout-timer > header span { color: #b9bbc3; font: 600 10px/1 var(--font-mono); letter-spacing: .12em; text-align: center; }
+.workout-timer > header button { min-width: 44px; min-height: 44px; border: 0; background: transparent; color: #f7f7f9; font: 600 9px/1 var(--font-mono); }
+.workout-timer > header button:first-child { justify-self: start; }
+.workout-timer > header button:last-child { justify-self: end; color: var(--mh-accent); }
+.workout-timer > header button:disabled { color: #5f6168; }
+.workout-timer__presets { display: grid; grid-template-columns: repeat(3,1fr); border: 1px solid #34363d; }
+.workout-timer__presets button { min-height: 44px; border: 0; border-left: 1px solid #34363d; background: transparent; color: #8f929a; font: 600 9px/1 var(--font-mono); letter-spacing: .08em; }
+.workout-timer__presets button:first-child { border-left: 0; }
+.workout-timer__presets button[aria-pressed='true'] { background: var(--mh-accent); color: var(--char-on-primary, #fff); }
+.workout-timer main { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 0; }
+.workout-timer main p { margin: 0 0 20px; color: var(--mh-accent); font: 700 13px/1 var(--font-mono); letter-spacing: .18em; }
+.workout-timer main > strong { font-family: var(--font-display); font-size: clamp(72px, 24vw, 118px); font-style: italic; font-weight: 900; font-variant-numeric: tabular-nums; line-height: .85; letter-spacing: -.04em; }
+.workout-timer main > span { margin-top: 18px; color: #9da0a8; font: 500 10px/1 var(--font-mono); letter-spacing: .06em; }
+.workout-timer__track { width: min(78vw, 420px); height: 8px; margin-top: 30px; border: 1px solid #60636b; }
+.workout-timer__track i { display: block; width: 100%; height: 100%; background: var(--mh-accent); transform-origin: left center; transition: transform .2s linear; }
+.workout-timer footer { display: grid; gap: 10px; }
+.workout-timer footer button { min-height: 58px; border: 1px solid var(--mh-accent); border-radius: 0; font: 700 11px/1 var(--font-mono); letter-spacing: .1em; }
+.workout-timer__primary { background: var(--mh-accent); color: var(--char-on-primary, #fff); }
+.workout-timer__finish { background: transparent; color: var(--mh-accent); }
+.workout-timer button:active { transform: scale(.98); }
+.workout-timer button:focus-visible, .me-health__start-timer:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+
+@media (prefers-reduced-motion: reduce) { .workout-timer__track i, .workout-timer button { transition: none; } }
+
 @media (max-height: 760px) {
   .me-health__goal { min-height: 96px; }
   .me-health__calories { min-height: 88px; }
