@@ -30,7 +30,7 @@ import { IdleMon, Sticker } from '../system/LiveMon';
 import { EggVessel } from '../system/EggVessel';
 import { MonName, SpeciesName } from '../system/MonName';
 import { Sigil } from '../system/AssetSlot';
-import { HoldButton, Row } from '../system/components';
+import { Button, HoldButton, Row, Wait } from '../system/components';
 import { BioPanel } from './BioPanel';
 import { birthStatsFor } from '../engine/birthStats';
 import { STAT_LABELS, formatSignal } from '../engine/health';
@@ -61,6 +61,9 @@ export function SplashScreen({ onEnter, previewMonName }: { onEnter: () => void;
   const [pokes, setPokes] = useState(0);
 
   const incubating = !previewMonName && phase === 'incubation';
+  const firstHatchJob = !previewMonName && !incubating && evolutionJob?.kind === 'hatch'
+    ? evolutionJob
+    : null;
   if (!incubating && !mon) return null;
 
   const enter = () => {
@@ -72,6 +75,46 @@ export function SplashScreen({ onEnter, previewMonName }: { onEnter: () => void;
     haptic('tick');
     setPokes((n) => n + 1);
   };
+
+  /* Il primo MON non viene mai mostrato a pezzi. Il record deve esistere per
+     consentire al backend di costruirne gli asset, ma nome, scheda e slot
+     vuoti restano dietro questa soglia fino alla conclusione del lavoro. */
+  if (firstHatchJob) {
+    return (
+      <div className="splash hatchwait" aria-live="polite">
+        <div className="hatchwait__center">
+          {firstHatchJob.status === 'running' ? (
+            <>
+              <Wait />
+              <strong className="t-display">IL TUO PRIMO MON STA NASCENDO</strong>
+              <span className="t-meta">{firstHatchJob.label}</span>
+              <span className="t-micro">{firstHatchJob.done}/{firstHatchJob.total}</span>
+              <span
+                className="hatchwait__progress"
+                aria-hidden="true"
+                style={{ transform: `scaleX(${firstHatchJob.total ? firstHatchJob.done / firstHatchJob.total : 0})` }}
+              />
+            </>
+          ) : firstHatchJob.status === 'ready' ? (
+            <>
+              <strong className="t-display">IL TUO PRIMO MON È PRONTO</strong>
+              <Button block variant="character" onClick={revealFormEvolution}>
+                SCOPRILO
+              </Button>
+            </>
+          ) : (
+            <>
+              <strong className="t-display">LA CREAZIONE SI È FERMATA</strong>
+              <span className="t-small">{firstHatchJob.error}</span>
+              <Button block variant="character" onClick={retryFormEvolution}>
+                RIPROVA
+              </Button>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="splash">

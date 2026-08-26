@@ -1584,7 +1584,12 @@ export const useApp = create<AppState>()(
         const job = current.evolutionJob;
         if (job?.status !== 'ready') return;
         if (job.kind === 'hatch') {
-          set({ phase: 'first-encounter' });
+          // Il primo MON non passa da una seconda schermata d'incontro: il
+          // caricamento lo ha tenuto completamente nascosto e questo tocco è
+          // già la sua rivelazione. Tolto il job, la pagina MON appare intera
+          // (nome, Toy, sticker e dossier) soltanto quando tutti gli asset
+          // sono pronti.
+          set({ phase: 'live', evolutionJob: null });
           return;
         }
         const previous = job.previousName ? current.mons[job.previousName] : null;

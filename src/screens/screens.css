@@ -1109,6 +1109,47 @@
   border-bottom: var(--border) solid var(--ink);
 }
 
+/* Il primo hatch è una soglia, non una scheda incompleta. Nessun nome o asset
+   placeholder trapela finché il pacchetto non è davvero pronto. */
+.hatchwait {
+  min-height: 100%;
+  display: grid;
+  place-items: center;
+  padding: clamp(32px, 9vh, 88px) var(--u4);
+}
+
+.hatchwait__center {
+  width: min(100%, 360px);
+  display: grid;
+  justify-items: center;
+  gap: var(--u4);
+  text-align: center;
+}
+
+.hatchwait__center > .wait {
+  color: var(--char-primary);
+  transform: scale(1.35);
+}
+
+.hatchwait__center > .t-display {
+  max-width: 12ch;
+  text-wrap: balance;
+}
+
+.hatchwait__center > .t-meta,
+.hatchwait__center > .t-micro,
+.hatchwait__center > .t-small {
+  color: var(--muted-strong);
+}
+
+.hatchwait__progress {
+  width: 100%;
+  height: 3px;
+  background: var(--char-primary);
+  transform-origin: left center;
+  transition: transform 280ms var(--ease-system);
+}
+
 .branch__leaving {
   display: flex;
   align-items: center;

@@ -199,6 +199,16 @@ export function App() {
   /* V1: la Chat è sempre raggiungibile, anche prima di configurare il Game. */
   const [assistantOpen, setAssistantOpen] = useState(false);
 
+  /* Subito dopo HATCH si entra nella sola superficie che può essere vera in
+     quel momento: la soglia di nascita. Non lasciamo che la tab iniziale CHAT
+     faccia sembrare che il comando non abbia funzionato. Dopo questo primo
+     ingresso la navigazione resta libera mentre il lavoro continua. */
+  useEffect(() => {
+    if (phase !== 'live' || evolutionJob?.kind !== 'hatch') return;
+    setTab('mon');
+    setMonView('mon');
+  }, [phase, evolutionJob?.kind]);
+
   useEffect(() => {
     const openChat = () => { setAssistantOpen(false); setOverlay(null); setTab('chat'); };
     window.addEventListener('vinzmon-open-chat', openChat);
