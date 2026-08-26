@@ -77,9 +77,6 @@ export const ChatGPT: FC = () => {
             <ThreadPrimitive.ViewportFooter className="sticky bottom-0 mx-auto flex w-full max-w-3xl flex-col gap-2 overflow-visible rounded-t-3xl bg-white pb-2 dark:bg-black">
               <ThreadScrollToBottom />
               <Composer placeholder="Ask anything" />
-              <p className="text-center text-xs text-[#5d5d5d] dark:text-[#afafaf]">
-                ChatGPT can make mistakes. Check important info.
-              </p>
             </ThreadPrimitive.ViewportFooter>
           </ThreadPrimitive.Viewport>
         </AuiIf>
@@ -489,10 +486,18 @@ const AssistantMessage: FC = () => {
       <div className="text-[#0d0d0d] dark:text-[#ececec]">
         <MessagePrimitive.Parts>
           {({ part }) => {
-            if (part.type === "text") return <MarkdownText />;
+            /* 🔴 Una parte di testo ancora VUOTA disegnava comunque il
+               pallino che `@assistant-ui/react-markdown` mostra durante lo
+               streaming — e adesso che sotto c'è «Sto ragionando…» erano due
+               attese sovrapposte, una muta e una che parla. Finché non è
+               arrivato niente da scrivere, qui non si disegna niente. */
+            if (part.type === "text") {
+              return part.text.length > 0 ? <MarkdownText /> : null;
+            }
             return null;
           }}
         </MessagePrimitive.Parts>
+        <StatoDelPensiero />
         <MessagePrimitive.Error>
           <AssistantError />
         </MessagePrimitive.Error>
@@ -586,6 +591,89 @@ const AssistantMessage: FC = () => {
   );
 };
 
+/* ============================================================================
+   COSA STA FACENDO, MENTRE LO FA
+
+   🔷 «Quando sta caricando il messaggio vorrei vedere dei testi di feedback
+      per sapere cosa sta facendo l'AI. Tipo "sto cercando soluzioni al tuo
+      problema" o genericamente "sto ragionando".»
+
+   🔒 QUANDO SAPPIAMO DAVVERO COSA FA, LO DICIAMO; ALTRIMENTI NON LO INVENTIAMO.
+   Il runtime emette parti `tool-call` vere — la ricerca sul web, gli strumenti
+   che leggono il .mon — e quelle hanno un nome. Se ce n'è una in corso, la
+   riga dice QUELLA cosa. Se non c'è, restano le frasi generiche, che sono
+   vere qualunque cosa stia succedendo: sta pensando.
+
+   ⚠️ Scrivere «sto cercando soluzioni al tuo problema» mentre il modello non
+   sta cercando niente sarebbe un'animazione che racconta una storia: la volta
+   che la ricerca non parte davvero, quella riga direbbe una bugia con l'aria
+   di essere una diagnosi.
+
+   La riga sparisce da sola appena arriva la prima parola: da lì in poi il
+   testo che compare È il feedback. */
+const PENSIERI = [
+  'Sto ragionando…',
+  'Sto mettendo insieme la risposta…',
+  'Ci sto ancora pensando…',
+];
+
+/** Dal nome tecnico dello strumento alla frase che leggi. */
+function frasePerStrumento(toolName: string): string {
+  const n = toolName.toLowerCase();
+  if (n.includes('ricerca web')) return 'Sto cercando sul web…';
+  if (n.includes('pagina') || n.includes('page')) return 'Sto scrivendo la pagina…';
+  if (n.includes('promemoria') || n.includes('remind')) return 'Sto sistemando il promemoria…';
+  if (n.includes('dati') || n.includes('mon')) return 'Sto leggendo i tuoi dati…';
+  return 'Sto usando uno strumento…';
+}
+
+const StatoDelPensiero: FC = () => {
+  const { inCorso, testoGiaArrivato, strumento } = useAuiState(
+    useShallow((s) => {
+      const parts = s.message.content ?? [];
+      const running = s.message.status?.type === 'running';
+      const conTesto = parts.some(
+        (p) => p.type === 'text' && p.text.trim().length > 0,
+      );
+      /* Uno strumento è «in corso» finché non ha un risultato. */
+      const attivo = parts.find(
+        (p) => p.type === 'tool-call' && p.result === undefined,
+      );
+      return {
+        inCorso: running,
+        testoGiaArrivato: conTesto,
+        strumento: attivo && attivo.type === 'tool-call' ? attivo.toolName : null,
+      };
+    }),
+  );
+
+  const [giro, setGiro] = useState(0);
+
+  /* Il ciclo delle frasi generiche parte solo quando servono davvero: montare
+     un timer che gira anche a chat ferma sarebbe lavoro per niente. */
+  useEffect(() => {
+    if (!inCorso || testoGiaArrivato || strumento) return;
+    const t = setInterval(() => setGiro((n) => n + 1), 2600);
+    return () => clearInterval(t);
+  }, [inCorso, testoGiaArrivato, strumento]);
+
+  if (!inCorso || testoGiaArrivato) return null;
+
+  const frase = strumento
+    ? frasePerStrumento(strumento)
+    : PENSIERI[giro % PENSIERI.length]!;
+
+  return (
+    <div
+      className="vinz-pensiero flex items-center gap-2 text-[#5d5d5d] dark:text-[#b4b4b4]"
+      aria-live="polite"
+    >
+      <span className="vinz-pensiero__punto" aria-hidden="true" />
+      <span className="vinz-pensiero__testo text-sm">{frase}</span>
+    </div>
+  );
+};
+
 function formatCost(value: number): string {
   if (value === 0) return "$0.0000";
   if (value < 0.0001) return "<$0.0001";
@@ -595,6 +683,11 @@ function formatCost(value: number): string {
 
 const MessageCost: FC = () => {
   const value = useAuiState((s) => s.message.metadata.custom.costUsd);
+  /* Durante l'attesa il costo non esiste ancora e mostrava «Costo risposta —»
+     accanto a «Sto ragionando…»: due righe, una sola informativa. Il prezzo
+     compare quando c'è un prezzo. */
+  const inCorso = useAuiState((s) => s.message.status?.type === "running");
+  if (inCorso && typeof value !== "number") return null;
   const cost = typeof value === "number" ? formatCost(value) : "—";
   return (
     <small className="mt-0.5 text-[11px] leading-4 text-[#737373] tabular-nums dark:text-[#8e8e8e]">

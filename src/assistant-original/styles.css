@@ -309,6 +309,45 @@ body[data-scroll-locked] {
    sprofonda nel fondo e il tasto sembra spento. Qui si usa lo stesso accento
    misurato sul nero, e il testo sopra torna scuro perché adesso è il tasto a
    essere chiaro. */
+/* --- «Sto ragionando…» ----------------------------------------------------
+   Il puntino pulsa col colore del .mon: è la stessa creatura che sta
+   pensando, non un caricatore di sistema. Il testo entra in dissolvenza a
+   ogni cambio di frase, così si legge che è cambiato senza doverlo
+   rileggere. */
+.vinz-pensiero__punto {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--char-accent, currentColor);
+  animation: vinz-pensiero-punto 1.4s ease-in-out infinite;
+}
+
+.dark .vinz-pensiero__punto {
+  background: var(--char-accent-on-dark, currentColor);
+}
+
+.vinz-pensiero__testo {
+  animation: vinz-pensiero-testo 0.4s ease-out;
+}
+
+@keyframes vinz-pensiero-punto {
+  0%, 100% { opacity: 0.25; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes vinz-pensiero-testo {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Chi ha chiesto meno movimento non ne riceve: resta la frase, ferma. */
+@media (prefers-reduced-motion: reduce) {
+  .vinz-pensiero__punto,
+  .vinz-pensiero__testo {
+    animation: none;
+  }
+}
+
 .dark .vinz-clone-composer__send,
 .dark .vinz-record__send {
   background: var(--char-accent-on-dark, #ffffff) !important;
