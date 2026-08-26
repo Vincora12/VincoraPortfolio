@@ -147,7 +147,7 @@
   position: relative;
   display: grid;
   grid-template-rows: minmax(0, 1fr) auto;
-  background: var(--ink);
+  background: var(--white);
   overflow: hidden;
 }
 
@@ -215,8 +215,8 @@
   gap: var(--u2);
   padding: var(--u3) var(--u4) max(var(--u4), env(safe-area-inset-bottom));
   border-top: 3px solid var(--char-primary);
-  background: var(--ink);
-  color: var(--white);
+  background: var(--white);
+  color: var(--ink);
   opacity: 0;
   pointer-events: none;
 }
@@ -242,8 +242,8 @@
 }
 
 .encounter__tags .systemlabel {
-  border-color: color-mix(in srgb, var(--white) 38%, transparent);
-  color: var(--white);
+  border-color: color-mix(in srgb, var(--ink) 38%, transparent);
+  color: var(--ink);
 }
 
 .encounter__heritage {

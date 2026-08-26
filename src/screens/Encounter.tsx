@@ -327,7 +327,7 @@ export function EncounterScreen({ variant }: { variant: 'first' | 'new' }) {
           </p>
         )}
 
-        <Button variant="primary" block onClick={enterLive}>
+        <Button variant="character" block onClick={enterLive}>
           {t.encounter.enter}
         </Button>
       </div>
