@@ -42,6 +42,8 @@ import { Sources } from "@/assistant-original/components/assistant-ui/sources";
 import { CloneThreadShell } from "./clone-thread-shell";
 import { useApp } from "@/state/store";
 import { voiceCard } from "@/engine/voiceCard";
+import { useAssetUrl } from "@/system/AssetSlot";
+import { EXPRESSION_SPEC, EXPRESSIONS } from "@/engine/assets";
 
 export const ChatGPT: FC = () => {
   return (
@@ -518,6 +520,8 @@ const AssistantMessage: FC = () => {
         </MessagePrimitive.Error>
       </div>
 
+      <MonReactionMessage />
+
       <div className="flex items-center pt-1">
         <ActionBarPrimitive.Root hideWhenRunning className="flex items-center">
           <ActionBarPrimitive.Copy asChild>
@@ -604,6 +608,34 @@ const AssistantMessage: FC = () => {
         </MessagePrimitive.Parts>
       </div>
     </MessagePrimitive.Root>
+  );
+};
+
+/** Uno sticker inviato dal MON come reazione autonoma, separato dal testo. */
+const MonReactionMessage: FC = () => {
+  const raw = useAuiState((s) => s.message.metadata.custom.monReaction);
+  const reaction = raw && typeof raw === "object"
+    && "monName" in raw && typeof raw.monName === "string"
+    && "index" in raw && typeof raw.index === "number"
+      ? raw as { monName: string; index: number; label?: string }
+      : null;
+  const sheet = useAssetUrl(reaction?.monName ?? "", "reaction_pack");
+  if (!reaction || !sheet || reaction.index < 0 || reaction.index >= EXPRESSIONS.length) return null;
+
+  const col = reaction.index % EXPRESSION_SPEC.columns;
+  const row = Math.floor(reaction.index / EXPRESSION_SPEC.columns);
+  const expression = EXPRESSIONS[reaction.index]!;
+  return (
+    <div className="vinz-chat-reaction" role="img" aria-label={`${reaction.monName}, ${expression.toLowerCase()}`}>
+      <span
+        aria-hidden="true"
+        style={{
+          backgroundImage: `url(${sheet})`,
+          backgroundSize: `${EXPRESSION_SPEC.columns * 100}% ${EXPRESSION_SPEC.rows * 100}%`,
+          backgroundPosition: `${(col * 100) / (EXPRESSION_SPEC.columns - 1)}% ${(row * 100) / (EXPRESSION_SPEC.rows - 1)}%`,
+        }}
+      />
+    </div>
   );
 };
 

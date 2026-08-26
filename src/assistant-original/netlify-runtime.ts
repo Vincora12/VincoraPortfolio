@@ -51,6 +51,40 @@ function textOf(message: ThreadMessage | undefined): string {
 }
 
 type ChatImage = { mediaType: string; data: string };
+type MonReaction = { monName: string; index: number; label: string };
+
+const REACTION_LABELS = ["NEUTRAL", "WARM", "AMUSED", "ALERT", "LOW", "INTENSE"] as const;
+
+function textHash(text: string): number {
+  let result = 5381;
+  for (const char of text) result = ((result << 5) + result) ^ char.charCodeAt(0);
+  return result >>> 0;
+}
+
+/**
+ * Lo sticker è una reazione, non una decorazione automatica. Compare solo
+ * quando il testo contiene un'emozione leggibile e la personalità è abbastanza
+ * espressiva; la scelta resta deterministica per non cambiare ricaricando.
+ */
+function reactionForAnswer(text: string): MonReaction | null {
+  const app = useApp.getState();
+  const record = app.activeMonName ? app.mons[app.activeMonName] : null;
+  if (!record || record.data.asset_manifest_status.reaction_pack !== "resolved") return null;
+
+  const lower = text.toLocaleLowerCase("it");
+  let index = -1;
+  if (/mi dispiace|trist|stanc|pesante|male|delus|solitudine|mancanza/.test(lower)) index = 4;
+  else if (/ahah|haha|lol|divert|ridere|assurdo|buff|scherz/.test(lower)) index = 2;
+  else if (/attenzione|occhio|aspetta|sorpres|davvero\?|cosa\?!|ma che/.test(lower)) index = 3;
+  else if (/importante|basta|assolutamente|non farlo|devi|deciso|arrabbi|serio/.test(lower)) index = 5;
+  else if (/grazie|bello|bravo|perfetto|felice|content|mi piace|ti voglio|insieme|bene così/.test(lower)) index = 1;
+  if (index < 0) return null;
+
+  const expressiveness = record.data.voice_dna.emotion ?? 50;
+  const chance = expressiveness > 70 ? 3 : expressiveness < 35 ? 1 : 2;
+  if (textHash(`${record.data.name}|${text}`) % 5 >= chance) return null;
+  return { monName: record.data.name, index, label: REACTION_LABELS[index]! };
+}
 
 /** assistant-ui tiene gli allegati separati dal testo del messaggio. */
 function imagesOf(message: ThreadMessage | undefined): ChatImage[] {
@@ -241,6 +275,7 @@ async function* runWithLocalTools(
         costUsd: cost.costUsd,
         model: cost.model ?? modelName,
         updates,
+        monReaction: reactionForAnswer(answer),
       },
     },
   };
@@ -371,7 +406,11 @@ function createBaseNetlifyChatModel(): ChatModelAdapter {
       yield {
         content: withText(parts, body.text),
         metadata: {
-          custom: { costUsd: body.costUsd ?? 0, model: body.model ?? modelName },
+          custom: {
+            costUsd: body.costUsd ?? 0,
+            model: body.model ?? modelName,
+            monReaction: reactionForAnswer(body.text),
+          },
         },
       };
       return;
@@ -423,7 +462,9 @@ function createBaseNetlifyChatModel(): ChatModelAdapter {
     completeParts.push(...[...sources.values()].map(sourcePart));
     yield {
       content: withText(completeParts, answer),
-      metadata: { custom: { costUsd, model: answeredBy } },
+      metadata: {
+        custom: { costUsd, model: answeredBy, monReaction: reactionForAnswer(answer) },
+      },
     };
   },
   };

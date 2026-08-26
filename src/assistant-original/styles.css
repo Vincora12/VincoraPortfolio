@@ -596,6 +596,39 @@ body[data-scroll-locked] {
   animation: assistant-shimmer 1.2s ease-in-out infinite;
 }
 
+/* Reazione autonoma del MON: una seconda battuta visiva, non un allegato e
+   non una decorazione incollata al testo. Il bordo segue l'alpha del vero
+   sticker invece di ritagliarlo dentro una card o un cerchio. */
+.vinz-chat-reaction {
+  width: 8.5rem;
+  height: 7rem;
+  margin-top: 0.75rem;
+  transform: rotate(-2deg);
+  transform-origin: 35% 80%;
+  user-select: none;
+  -webkit-user-select: none;
+  pointer-events: none;
+  animation: vinz-reaction-arrive 360ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.vinz-chat-reaction > span {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background-repeat: no-repeat;
+  filter:
+    drop-shadow(2px 0 0 #fff) drop-shadow(-2px 0 0 #fff)
+    drop-shadow(0 2px 0 #fff) drop-shadow(0 -2px 0 #fff)
+    drop-shadow(1.4px 1.4px 0 #fff) drop-shadow(-1.4px 1.4px 0 #fff)
+    drop-shadow(1.4px -1.4px 0 #fff) drop-shadow(-1.4px -1.4px 0 #fff)
+    drop-shadow(2px 5px 4px rgb(0 0 0 / 35%));
+}
+
+@keyframes vinz-reaction-arrive {
+  from { opacity: 0; transform: translateY(10px) rotate(-7deg) scale(0.82); filter: blur(2px); }
+  to { opacity: 1; transform: translateY(0) rotate(-2deg) scale(1); filter: blur(0); }
+}
+
 @keyframes assistant-shimmer {
   0%, 100% { opacity: 0.42; }
   50% { opacity: 1; }
@@ -634,6 +667,7 @@ body[data-scroll-locked] {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .vinz-chat-reaction { animation: none; }
   .vinz-record__wave.is-loading::after {
     animation: none;
   }
