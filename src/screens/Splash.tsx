@@ -138,15 +138,17 @@ export function SplashScreen({ onEnter, previewMonName }: { onEnter: () => void;
           disabled={evolutionJob?.status === 'running'}
           onClick={() => evolutionJob?.status === 'error' ? retryFormEvolution() : !evolutionJob ? openFormEvolution() : undefined}
         >
-          <span className="t-meta">
-            {!evolutionJob
-              ? 'EVOLUZIONE DISPONIBILE'
-              : evolutionJob.status === 'running'
-                ? evolutionJob.kind === 'hatch' ? 'PRIMO MON IN CREAZIONE' : 'NUOVO MON IN CREAZIONE'
-                : 'GENERAZIONE INTERROTTA'}
+          <span className="splash__evolution-copy">
+            <strong className="t-meta">
+              {!evolutionJob
+                ? 'EVOLUZIONE DISPONIBILE'
+                : evolutionJob.status === 'running'
+                  ? evolutionJob.kind === 'hatch' ? 'PRIMO MON IN CREAZIONE' : 'NUOVO MON IN CREAZIONE'
+                  : 'GENERAZIONE INTERROTTA'}
+            </strong>
+            <span className="t-micro">{evolutionJob?.label ?? 'TOCCA PER SCEGLIERE'}</span>
           </span>
-          <span className="t-micro">{evolutionJob?.label ?? 'TOCCA PER SCEGLIERE'}</span>
-          {evolutionJob?.status === 'running' ? <span className="t-micro">IN CORSO</span> : <span aria-hidden="true">→</span>}
+          {evolutionJob?.status !== 'running' && <span className="splash__evolution-arrow" aria-hidden="true">→</span>}
           {evolutionJob?.status === 'running' && (
             <>
               <span className="generation-progress" aria-hidden="true" style={{ width: `${evolutionJob.total ? (evolutionJob.done / evolutionJob.total) * 100 : 0}%` }} />
