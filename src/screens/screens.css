@@ -145,31 +145,78 @@
 
 .encounter {
   position: relative;
-  background: var(--white);
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  background: var(--ink);
+  overflow: hidden;
 }
 
 .encounter__stage {
-  position: absolute;
-  inset: 0;
+  position: relative;
+  grid-row: 1;
+  min-height: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: var(--u4);
+  padding: var(--u3) var(--u4) 0;
+  background: var(--white);
+  overflow: hidden;
   opacity: 0;
 }
 
 .encounter__art {
+  width: 100%;
   height: 100%;
+}
+
+.encounter__art .assetslot-wrap,
+.encounter__art .assetslot__img {
+  width: 100%;
+  height: 100%;
+}
+
+.encounter__stage--transform .encounter__art {
+  position: absolute;
+  inset: var(--u3) var(--u4) 0;
+  width: auto;
+}
+
+.encounter__art--before {
+  z-index: 1;
+  animation: encounter-before 2.4s var(--ease-system) both;
+}
+
+.encounter__art--after {
+  z-index: 2;
+}
+
+.encounter__stage--transform .encounter__art--after {
+  clip-path: inset(100% 0 0);
+  animation: encounter-transform 2.4s var(--ease-system) both;
+}
+
+.encounter__changebeam {
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+  background: var(--char-primary);
+  mix-blend-mode: multiply;
+  opacity: 0;
+  pointer-events: none;
+  animation: encounter-beam 2.4s var(--ease-system) both;
 }
 
 .encounter__overlay {
   position: relative;
-  margin-top: auto;
+  z-index: 5;
+  grid-row: 2;
   display: flex;
   flex-direction: column;
-  gap: var(--u3);
-  padding: var(--u6) var(--u4) var(--u4);
-  background: linear-gradient(to top, var(--white) 62%, transparent);
+  gap: var(--u2);
+  padding: var(--u3) var(--u4) max(var(--u4), env(safe-area-inset-bottom));
+  border-top: 3px solid var(--char-primary);
+  background: var(--ink);
+  color: var(--white);
   opacity: 0;
   pointer-events: none;
 }
@@ -180,7 +227,7 @@
 
 .encounter__name {
   font-size: var(--type-display-xl);
-  margin: var(--u) 0;
+  margin: 0;
 }
 
 .encounter__form {
@@ -194,15 +241,33 @@
   justify-content: center;
 }
 
+.encounter__tags .systemlabel {
+  border-color: color-mix(in srgb, var(--white) 38%, transparent);
+  color: var(--white);
+}
+
 .encounter__heritage {
+  margin: 0;
   text-align: center;
   color: var(--muted-strong);
 }
 
-.encounter__sigil {
-  display: flex;
-  justify-content: center;
-  color: var(--ink);
+@keyframes encounter-before {
+  0%, 32% { opacity: 1; filter: brightness(1); transform: scale(1); }
+  56% { opacity: 0.82; filter: brightness(1.5) saturate(0.2); transform: scale(1.035); }
+  78%, 100% { opacity: 0; filter: brightness(2); transform: scale(1.08); }
+}
+
+@keyframes encounter-transform {
+  0%, 38% { clip-path: inset(100% 0 0); filter: brightness(1.8) saturate(0.3); transform: scale(0.97); }
+  72% { clip-path: inset(0); filter: brightness(1.15) saturate(0.8); }
+  100% { clip-path: inset(0); filter: none; transform: scale(1); }
+}
+
+@keyframes encounter-beam {
+  0%, 32%, 100% { opacity: 0; transform: translateY(-100%); }
+  48% { opacity: 0.2; }
+  72% { opacity: 0.1; transform: translateY(100%); }
 }
 
 /* ============================================================================
@@ -382,6 +447,15 @@
 .home__evolution-job--ready .home__evolution-orbit { border: 6px double var(--char-primary); animation: none; }
 .home__evolution-job--error .home__evolution-orbit { border-color: var(--danger); animation: none; }
 .home__evolution-progress { position: absolute; inset: auto 0 0; height: 3px; background: var(--char-primary); transform-origin: left; transition: transform var(--dur-base) var(--ease-system); }
+.home__evolution-hold {
+  flex: 0 0 auto;
+  padding: var(--u2) var(--u3);
+  border-bottom: var(--border) solid var(--ink);
+  background: var(--paper);
+}
+.home__evolution-hold .hold__btn { min-height: 52px; }
+.home__evolution-readycopy { display: grid; gap: 2px; text-align: left; }
+.home__evolution-readycopy .t-micro { opacity: 0.78; }
 @keyframes evolution-spin { to { transform: rotate(1turn); } }
 
 @keyframes sync-sweep {
@@ -963,6 +1037,67 @@
 .branch__choice button span { color: var(--muted-strong); }
 .branch__choice button[aria-pressed='true'] { border: var(--border-thick) solid var(--char-accent); background: var(--paper); }
 
+.branch--simple {
+  gap: var(--u3);
+  padding-bottom: var(--u4);
+}
+
+.branch__hero {
+  min-height: 250px;
+  max-height: 38vh;
+  background: var(--white);
+  overflow: hidden;
+}
+
+.branch__hero .assetslot-wrap,
+.branch__hero img {
+  width: 100%;
+  height: 100%;
+}
+
+.branch__identity {
+  text-align: center;
+}
+
+.branch__direct {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--u2);
+}
+
+.branch__direct-choice {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: var(--u3);
+  padding: var(--u3);
+  border: 1px solid var(--hairline-strong);
+}
+
+.branch__direct-choice strong {
+  display: block;
+  font-size: clamp(17px, 5vw, var(--type-display-m));
+}
+
+.branch__direct-choice p {
+  margin: var(--u) 0 0;
+  color: var(--muted-strong);
+}
+
+.branch__direct-choice--mega {
+  border-color: var(--char-primary);
+}
+
+.branch__direct-choice .hold__hint {
+  min-height: 1em;
+}
+
+@media (max-width: 380px) {
+  .branch__direct { grid-template-columns: 1fr; }
+  .branch__hero { min-height: 210px; max-height: 32vh; }
+}
+
 .splash__evolution {
   position: sticky;
   z-index: 5;
@@ -982,6 +1117,14 @@
 .splash__evolution > :nth-child(2) { color: var(--muted-strong); }
 .splash__evolution > :last-child { grid-column: 2; grid-row: 1 / span 2; color: var(--char-primary); }
 .splash__evolution--running { border-color: var(--char-primary); }
+.splash__evolution-hold {
+  position: sticky;
+  z-index: 5;
+  top: 0;
+  padding: var(--u2) var(--u3);
+  background: var(--white);
+  border-bottom: var(--border) solid var(--ink);
+}
 
 .branch__leaving {
   display: flex;
@@ -2994,7 +3137,8 @@
   align-items: center;
   justify-content: center;
   gap: var(--u2);
-  background: var(--white);
+  background: var(--ink);
+  color: var(--white);
   animation: curtain-lift 520ms var(--ease-system) 1400ms forwards;
 }
 
@@ -3009,6 +3153,8 @@
   padding: 0 var(--u4);
   animation: reveal-snap 420ms var(--ease-system) 120ms backwards;
 }
+
+.encounter__curtain .monname__ext { color: var(--white); }
 
 @keyframes curtain-lift {
   to {
@@ -3048,6 +3194,12 @@
   .encounter--beat3 .encounter__overlay {
     animation: none;
   }
+  .encounter__art--before { display: none; }
+  .encounter__stage--transform .encounter__art--after {
+    clip-path: none;
+    animation: none;
+  }
+  .encounter__changebeam { display: none; }
 }
 
 /* ============================================================================

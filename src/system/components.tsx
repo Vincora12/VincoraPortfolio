@@ -118,6 +118,7 @@ interface HoldButtonProps {
   hint?: string;
   disabled?: boolean;
   variant?: 'primary' | 'secondary';
+  className?: string;
 }
 
 export function HoldButton({
@@ -126,6 +127,7 @@ export function HoldButton({
   hint,
   disabled,
   variant = 'primary',
+  className = '',
 }: HoldButtonProps) {
   const [progress, setProgress] = useState(0);
   const [done, setDone] = useState(false);
@@ -171,7 +173,7 @@ export function HoldButton({
   };
 
   return (
-    <div className="hold">
+    <div className={`hold ${className}`}>
       <button
         type="button"
         className={`btn btn--${variant} btn--block hold__btn ${done ? 'hold__btn--done' : ''}`}

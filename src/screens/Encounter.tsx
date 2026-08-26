@@ -11,7 +11,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useApp, useActiveMon } from '../state/store';
-import { AssetSlot, Sigil, useAssetUrl } from '../system/AssetSlot';
+import { AssetSlot, useAssetUrl } from '../system/AssetSlot';
 import { MonName, SpeciesName } from '../system/MonName';
 import { Button, SystemLabel } from '../system/components';
 import { displayName } from '../engine/types';
@@ -231,6 +231,8 @@ export function FaceGate({
 export function EncounterScreen({ variant }: { variant: 'first' | 'new' }) {
   const mon = useActiveMon();
   const enterLive = useApp((s) => s.enterLive);
+  const nodes = useApp((s) => s.nodes);
+  const mons = useApp((s) => s.mons);
 
   /* 🔶 v1.9 §13.2 — la rivelazione ha tre battute, non una.
 
@@ -255,6 +257,8 @@ export function EncounterScreen({ variant }: { variant: 'first' | 'new' }) {
   const d = mon.data;
   const short = displayName(d.name);
   const form = d.evolution_state?.label ?? 'BASIC FORM';
+  const previousNode = d.origin_node ? nodes.find((node) => node.id === d.origin_node) : null;
+  const previous = previousNode ? mons[previousNode.monName] : null;
 
   return (
     <div
@@ -277,21 +281,28 @@ export function EncounterScreen({ variant }: { variant: 'first' | 'new' }) {
         </div>
       )}
 
-      <div className="encounter__stage">
+      <div className={`encounter__stage ${previous && variant === 'new' ? 'encounter__stage--transform' : ''}`}>
+        {previous && variant === 'new' && (
+          <AssetSlot
+            monName={previous.data.name}
+            type="character_toy"
+            fallbackTypes={['character_master']}
+            alt={`${displayName(previous.data.name)}, forma precedente`}
+            className="encounter__art encounter__art--before"
+          />
+        )}
         <AssetSlot
           monName={d.name}
           type="character_toy"
           fallbackTypes={['character_master']}
-          alt={`${short}, arte di rivelazione`}
-          className="encounter__art"
+          alt={`${short}, nuova forma`}
+          className="encounter__art encounter__art--after"
         />
+        {previous && variant === 'new' && <span className="encounter__changebeam" aria-hidden="true" />}
       </div>
 
       <div className="encounter__overlay">
         <header className="encounter__head">
-          <p className="t-meta">
-            {variant === 'first' ? t.encounter.firstTitle : t.encounter.newTitle}
-          </p>
           <h1 className="t-display encounter__name">
             <MonName name={d.name} fit />
           </h1>
@@ -301,7 +312,7 @@ export function EncounterScreen({ variant }: { variant: 'first' | 'new' }) {
         </header>
 
         <div className="encounter__tags">
-          <SystemLabel tone="character">{d.rarity}</SystemLabel>
+          <SystemLabel tone="character">RANGO {d.rarity}</SystemLabel>
           <SystemLabel>{d.affinity}</SystemLabel>
           <SystemLabel>{d.family}</SystemLabel>
           <SystemLabel>{d.appearance}</SystemLabel>
@@ -315,10 +326,6 @@ export function EncounterScreen({ variant }: { variant: 'first' | 'new' }) {
             {displayName(d.heritage_traits[0]!.from_mon)}.
           </p>
         )}
-
-        <div className="encounter__sigil" aria-hidden="true">
-          <Sigil seed={mon.sigil} size={40} />
-        </div>
 
         <Button variant="primary" block onClick={enterLive}>
           {t.encounter.enter}

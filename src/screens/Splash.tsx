@@ -30,7 +30,7 @@ import { IdleMon, Sticker } from '../system/LiveMon';
 import { EggVessel } from '../system/EggVessel';
 import { MonName, SpeciesName } from '../system/MonName';
 import { Sigil } from '../system/AssetSlot';
-import { Row } from '../system/components';
+import { HoldButton, Row } from '../system/components';
 import { BioPanel } from './BioPanel';
 import { birthStatsFor } from '../engine/birthStats';
 import { STAT_LABELS, formatSignal } from '../engine/health';
@@ -75,26 +75,28 @@ export function SplashScreen({ onEnter, previewMonName }: { onEnter: () => void;
 
   return (
     <div className="splash">
-      {!previewMonName && !incubating && (evolutionJob || formEvolutionReady) && (
+      {!previewMonName && !incubating && evolutionJob?.status === 'ready' ? (
+        <HoldButton className="splash__evolution-hold" onComplete={revealFormEvolution} hint="TIENI PREMUTO PER RIVELARE">
+          {evolutionJob.kind === 'hatch' ? 'PRIMO MON PRONTO' : 'NUOVO MON PRONTO'}
+        </HoldButton>
+      ) : !previewMonName && !incubating && (evolutionJob || formEvolutionReady) ? (
         <button
           type="button"
           className={`splash__evolution ${evolutionJob ? `splash__evolution--${evolutionJob.status}` : ''}`}
           disabled={evolutionJob?.status === 'running'}
-          onClick={() => evolutionJob?.status === 'ready' ? revealFormEvolution() : evolutionJob?.status === 'error' ? retryFormEvolution() : !evolutionJob ? openFormEvolution() : undefined}
+          onClick={() => evolutionJob?.status === 'error' ? retryFormEvolution() : !evolutionJob ? openFormEvolution() : undefined}
         >
           <span className="t-meta">
             {!evolutionJob
               ? 'EVOLUZIONE DISPONIBILE'
               : evolutionJob.status === 'running'
                 ? evolutionJob.kind === 'hatch' ? 'PRIMO MON IN CREAZIONE' : 'NUOVO MON IN CREAZIONE'
-                : evolutionJob.status === 'ready'
-                  ? evolutionJob.kind === 'hatch' ? 'PRIMO MON PRONTO' : 'NUOVO MON PRONTO'
-                  : 'GENERAZIONE INTERROTTA'}
+                : 'GENERAZIONE INTERROTTA'}
           </span>
           <span className="t-micro">{evolutionJob?.label ?? 'TOCCA PER SCEGLIERE'}</span>
           {evolutionJob?.status === 'running' ? <span>{evolutionJob.done}/{evolutionJob.total}</span> : <span aria-hidden="true">→</span>}
         </button>
-      )}
+      ) : null}
       {/* ══════════════════════════════════════════════════════════════════════
           🔷 «Nome in alto. Sulla foto adesivi attaccati delle varie
              espressioni, come se fosse sticker, in basso. Poi abbiamo bio e

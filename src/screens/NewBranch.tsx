@@ -1,140 +1,50 @@
-/* ============================================================================
-   13 — CAMBIO DI FORMA (Form Evolution)
-
-   🔒 Vincolo esplicito: "show Heritage traits that will carry forward WITHOUT
-   PREVIEWING FULL NEW IDENTITY." Il prototipo lo rispetta per costruzione: a
-   questo punto del flusso la forma nuova NON È ANCORA STATA GENERATA. Esistono
-   solo gli assi ancorati e i tratti in partenza. La generazione avviene su
-   `confirmFormEvolution`, quindi non c'è nessuna identità da mostrare per
-   sbaglio.
-
-   🔶 Riscritta: non è più un addio. La schermata diceva «SALUTA» e trattava la
-   creatura uscente come qualcuno che se ne va. VINZ.MON è una entità sola e la
-   forma è una sua configurazione, quindi qui si legge cosa RESTA prima di cosa
-   cambia — l'ancora di continuità decisa in `progression.ts`.
-   ========================================================================= */
-
-import { useState } from 'react';
-import { useApp, useActiveMon, usePendingPlan, type EvolutionKind } from '../state/store';
+/* 13 — CAMBIO DI FORMA: la scelta e l'azione coincidono. */
+import { useApp, useActiveMon } from '../state/store';
 import { AssetSlot } from '../system/AssetSlot';
 import { MonName, SpeciesName } from '../system/MonName';
-import { Button, HoldButton, ScreenHead, SystemLabel } from '../system/components';
-import { heritageCategoryLabel } from '../engine/heritage';
-import { AXIS_LABELS, PATTERN_LABELS, type ContinuityAxis } from '../engine/progression';
+import { Button, HoldButton, ScreenHead } from '../system/components';
 import { displayName } from '../engine/types';
 import { t } from '../i18n/it';
 
 export function NewBranchScreen() {
   const mon = useActiveMon();
-  const pending = useApp((s) => s.pendingHeritage);
-  const plan = usePendingPlan();
   const beginFormEvolution = useApp((s) => s.beginFormEvolution);
   const enterLive = useApp((s) => s.enterLive);
-  const [kind, setKind] = useState<EvolutionKind | null>(null);
 
   if (!mon) return null;
   const short = displayName(mon.data.name);
 
-  /** Il valore corrente di un asse ancorato, letto dal .mon di adesso. */
-  const axisValue = (axis: ContinuityAxis): string => String(mon.data[axis]);
-
   return (
-    <div className="screen screen--ink">
-      <ScreenHead title={t.branch.title} sub={t.branch.subtitle} />
+    <div className="screen screen--ink branch-screen">
+      <ScreenHead title={t.branch.title} sub="SCEGLI QUANTO CAMBIARE" />
+      <div className="screen__body branch branch--simple">
+        <div className="branch__hero">
+          <AssetSlot monName={mon.data.name} type="character_toy" fallbackTypes={['character_master']} alt={short} compactPlaceholder />
+        </div>
+        <div className="branch__identity">
+          <p className="t-display branch__name"><MonName name={mon.data.name} fit /></p>
+          <p className="t-micro branch__form"><SpeciesName /> · {mon.data.evolution_state?.label ?? 'BASIC FORM'}</p>
+        </div>
 
-      <div className="screen__body branch">
-        <section className="branch__choice" aria-labelledby="evolution-choice">
-          <p id="evolution-choice" className="t-meta">SCEGLI LA TRASFORMAZIONE</p>
-          <button type="button" aria-pressed={kind === 'evolution'} onClick={() => setKind('evolution')}>
-            <strong className="t-display">EVOLUZIONE</strong>
-            <span className="t-small">Resta riconoscibile. Il corpo cambia poco, l’identità rimane vicina.</span>
-          </button>
-          <button type="button" aria-pressed={kind === 'mega-evolution'} onClick={() => setKind('mega-evolution')}>
-            <strong className="t-display">MEGA EVOLUZIONE</strong>
-            <span className="t-small">Può cambiare completamente forma, corpo e presenza visiva.</span>
-          </button>
+        <section className="branch__direct" aria-label="Scegli la trasformazione">
+          <div className="branch__direct-choice">
+            <div>
+              <strong className="t-display">EVOLUZIONE</strong>
+              <p className="t-small">Resta riconoscibile. La forma cresce senza perdere il suo centro.</p>
+            </div>
+            <HoldButton onComplete={() => beginFormEvolution('evolution')} hint="TIENI PREMUTO">EVOLVI</HoldButton>
+          </div>
+          <div className="branch__direct-choice branch__direct-choice--mega">
+            <div>
+              <strong className="t-display">MEGA EVOLUZIONE</strong>
+              <p className="t-small">Può cambiare corpo, famiglia e presenza visiva.</p>
+            </div>
+            <HoldButton onComplete={() => beginFormEvolution('mega-evolution')} hint="TIENI PREMUTO">MEGAEVOLVI</HoldButton>
+          </div>
         </section>
-
-        {/* La forma di adesso. Non se ne va: si riconfigura. */}
-        <div className="branch__leaving">
-          <div className="branch__portrait">
-            <AssetSlot
-              monName={mon.data.name}
-              type="character_toy"
-              fallbackTypes={['character_master']}
-              alt={short}
-              compactPlaceholder
-            />
-          </div>
-          <div>
-            <p className="t-micro">{t.branch.current}</p>
-            <p className="t-display branch__name">
-              <MonName name={mon.data.name} fit />
-            </p>
-            <p className="t-micro branch__form">
-              <SpeciesName /> · {mon.data.evolution_state?.label ?? 'BASIC FORM'}
-            </p>
-          </div>
-        </div>
-
-        {/* --- Cosa resta: l'ancora di continuità --- */}
-        {plan && (
-          <section className="branch__anchor">
-            <SystemLabel tone="character">{t.branch.anchorTitle}</SystemLabel>
-            <p className="t-display branch__anchorline">{plan.it}</p>
-            <p className="t-small branch__anchordesc">
-              {PATTERN_LABELS[plan.pattern].description}
-            </p>
-            <ul className="branch__keeps">
-              {plan.keeps.map((axis: ContinuityAxis) => (
-                <li key={axis} className="branch__keep">
-                  <span className="t-micro">{AXIS_LABELS[axis]}</span>
-                  <span className="t-small branch__keepvalue">{axisValue(axis)}</span>
-                </li>
-              ))}
-            </ul>
-            <p className="t-micro branch__anchornote">{t.branch.anchorNote}</p>
-          </section>
-        )}
-
-        {/* --- Cosa passa tradotto: i tratti in partenza --- */}
-        <p className="branch__lead t-small">{t.branch.lead}</p>
-
-        <ul className="branch__traits">
-          {pending.map((h) => (
-            <li key={h.id} className="traitcard">
-              <SystemLabel tone="character">{heritageCategoryLabel(h.category)}</SystemLabel>
-              <p className="traitcard__origin t-small">{h.origin}</p>
-              <p className="traitcard__arrow t-micro">
-                → si tradurrà nell'anatomia della forma nuova
-              </p>
-            </li>
-          ))}
-        </ul>
-
-        {/* Il vuoto è dichiarato: non c'è niente da anticipare. */}
-        <div className="branch__unknown">
-          <p className="t-display branch__qmark" aria-hidden="true">
-            ?
-          </p>
-          <p className="t-small">{t.branch.unknownAhead}</p>
-        </div>
       </div>
-
-      <footer className="screen__foot screen__foot--stack">
-        {/* 🔷 v1.10 §13.8 — la conferma vera del cambio di forma si tiene
-            premuta. L'offerta a monte già lo faceva; questa, che è quella che
-            trasforma davvero, era un tocco secco. */}
-        {kind ? (
-          <HoldButton onComplete={() => beginFormEvolution(kind)} hint={t.shift.hold}>
-            AVVIA {kind === 'mega-evolution' ? 'MEGA EVOLUZIONE' : 'EVOLUZIONE'}
-          </HoldButton>
-        ) : (
-          <Button variant="primary" block disabled>SELEZIONA UNA TRASFORMAZIONE</Button>
-        )}
-        <Button variant="ghost" block onClick={enterLive}>
-          {t.branch.back}
-        </Button>
+      <footer className="screen__foot">
+        <Button variant="ghost" block onClick={enterLive}>{t.branch.back}</Button>
       </footer>
     </div>
   );

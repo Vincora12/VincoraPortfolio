@@ -1143,17 +1143,13 @@ try {
   await hold('GUARDA COSA CAMBIA');
   await shot('13-form-evolution');
 
-  /* 🔶 IL CAMBIO DI FORMA ADESSO SI SCEGLIE PRIMA DI CONFERMARLO. Il copione
-     teneva premuto «CAMBIA FORMA»; adesso quel pulsante non esiste finché non
-     hai detto QUALE trasformazione — EVOLUZIONE o MEGA EVOLUZIONE — e solo
-     allora diventa «AVVIA EVOLUZIONE». Prima di sceglierla c'è un pulsante
-     spento che lo dice: «SELEZIONA UNA TRASFORMAZIONE». */
-  const spento = await page.evaluate(
-    () => [...document.querySelectorAll('button')].some((b) => b.textContent?.includes('SELEZIONA UNA TRASFORMAZIONE') && b.disabled),
-  );
-  if (!spento) errors.push('il cambio di forma non chiede più di scegliere la trasformazione');
-  await click(byText('EVOLUZIONE'), 'scegli EVOLUZIONE');
-  await shot('13-form-evolution-scelta');
+  /* La scelta e la conferma ora coincidono: ciascuna trasformazione ha il
+     proprio gesto a pressione lunga, senza selezione e secondo pulsante. */
+  const scelteDirette = await page.evaluate(() => ({
+    evolvi: [...document.querySelectorAll('button')].some((b) => b.textContent?.trim() === 'EVOLVI'),
+    mega: [...document.querySelectorAll('button')].some((b) => b.textContent?.trim() === 'MEGAEVOLVI'),
+  }));
+  if (!scelteDirette.evolvi || !scelteDirette.mega) errors.push(`scelte evoluzione non dirette: ${JSON.stringify(scelteDirette)}`);
 
   /* 14 — NEW ENCOUNTER
      🔶 E anche qui la rivelazione è passata in sottofondo: `beginFormEvolution`
@@ -1161,7 +1157,7 @@ try {
      lavoro non finisce, quindi la schermata di NUOVO INCONTRO non si
      attraversa — come alla nascita. Si verifica che il lavoro sia PARTITO e
      che l'app resti usabile mentre gira: era la promessa del cambio. */
-  await hold('AVVIA EVOLUZIONE');
+  await hold('EVOLVI');
   await sleep(2600);
   await shot('14-evoluzione-in-corso');
   const inCorso = await page.evaluate(() => ({

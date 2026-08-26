@@ -23,7 +23,7 @@ import { useApp, useActiveMon, useGrowth, useToday } from '../state/store';
 import { MonName, SpeciesName } from '../system/MonName';
 import { MonFace } from '../system/LiveMon';
 import { expressionFor } from '../engine/assets';
-import { IconButton, TextField } from '../system/components';
+import { HoldButton, IconButton, TextField } from '../system/components';
 import { Icon } from '../system/Icon';
 import { displayName } from '../engine/types';
 import { haptic } from '../system/haptics';
@@ -170,21 +170,26 @@ export function CompanionHomeScreen({ onGo, onBack }: { onGo: (o: Overlay) => vo
 
            Adesso è la linea stessa a diventare l'annuncio: sta dov'era, non
            sposta niente, e quando è piena cresce e si può toccare. --- */}
-      {evolutionJob ? (
+      {evolutionJob?.status === 'ready' ? (
+        <HoldButton className="home__evolution-hold" onComplete={revealFormEvolution} hint="TIENI PREMUTO PER RIVELARE">
+          <span className="home__evolution-readycopy">
+            <strong className="t-meta">{evolutionJob.kind === 'hatch' ? 'PRIMO MON PRONTO' : 'NUOVO MON PRONTO'}</strong>
+            <span className="t-micro">RIVELA LA NUOVA FORMA</span>
+          </span>
+        </HoldButton>
+      ) : evolutionJob ? (
         <button
           type="button"
           className={`home__evolution-job home__evolution-job--${evolutionJob.status}`}
           disabled={evolutionJob.status === 'running'}
-          onClick={evolutionJob.status === 'ready' ? revealFormEvolution : evolutionJob.status === 'error' ? retryFormEvolution : undefined}
+          onClick={evolutionJob.status === 'error' ? retryFormEvolution : undefined}
         >
           <span className="home__evolution-orbit" aria-hidden="true" />
           <span className="home__evolution-copy">
             <strong className="t-meta">
               {evolutionJob.status === 'running'
                 ? evolutionJob.kind === 'hatch' ? 'PRIMO MON IN CREAZIONE' : 'NUOVO MON IN CREAZIONE'
-                : evolutionJob.status === 'ready'
-                  ? evolutionJob.kind === 'hatch' ? 'PRIMO MON PRONTO' : 'NUOVO MON PRONTO'
-                  : 'GENERAZIONE INTERROTTA'}
+                : 'GENERAZIONE INTERROTTA'}
             </strong>
             <span className="t-micro">{evolutionJob.status === 'error' ? evolutionJob.error : evolutionJob.label}</span>
           </span>
