@@ -230,6 +230,13 @@ body[data-scroll-locked] {
   top: calc(env(safe-area-inset-top, 0px) + 0.5rem);
 }
 
+.vinz-chat-menu button,
+.vinz-thread-drawer > [data-slot="sheet-close"] {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
 .vinz-chat-cost {
   top: calc(env(safe-area-inset-top, 0px) + 0.75rem);
 }
@@ -376,8 +383,8 @@ body[data-scroll-locked] {
 }
 
 .vinz-thread-drawer__title {
-  min-height: 6.25rem;
-  padding-top: max(env(safe-area-inset-top), 1rem);
+  min-height: 4.5rem;
+  padding-top: .25rem;
   color: #f2f2f2 !important;
 }
 

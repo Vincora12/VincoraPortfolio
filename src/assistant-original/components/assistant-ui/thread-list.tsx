@@ -48,6 +48,10 @@ import {
 import { serverBackedStorage } from "@/system/serverStorage";
 
 const THREAD_ICONS_KEY = "assistant-ui-official-chatgpt:thread-icons";
+const THREAD_COLORS_KEY = "assistant-ui-official-chatgpt:thread-colors";
+
+const THREAD_COLORS = ["#42d8f4", "#ff4e68", "#ffb627", "#49d17d", "#9d7cff", "#f08bd6", "#f2f2f2"] as const;
+type ThreadColor = (typeof THREAD_COLORS)[number];
 
 const THREAD_ICONS = {
   chat: MessageCircleIcon,
@@ -75,6 +79,14 @@ function readLocalThreadIcons(): ThreadIconMap {
 
 function useThreadIcon(threadId: string) {
   const [name, setName] = useState<ThreadIconName>(() => readLocalThreadIcons()[threadId] ?? "chat");
+  const readColors = () => {
+    try {
+      return JSON.parse(localStorage.getItem(THREAD_COLORS_KEY) ?? "{}") as Record<string, ThreadColor>;
+    } catch {
+      return {};
+    }
+  };
+  const [color, setColor] = useState<ThreadColor | null>(() => readColors()[threadId] ?? null);
 
   useEffect(() => {
     void serverBackedStorage.getItem(THREAD_ICONS_KEY).then((raw) => {
@@ -86,13 +98,29 @@ function useThreadIcon(threadId: string) {
     });
   }, [threadId]);
 
+  useEffect(() => {
+    void serverBackedStorage.getItem(THREAD_COLORS_KEY).then((raw) => {
+      if (!raw) return;
+      try {
+        const remote = JSON.parse(raw) as Record<string, ThreadColor>;
+        if (remote[threadId]) setColor(remote[threadId]);
+      } catch { /* La scelta locale resta valida. */ }
+    });
+  }, [threadId]);
+
   const choose = (next: ThreadIconName) => {
     setName(next);
     const map = { ...readLocalThreadIcons(), [threadId]: next };
     void serverBackedStorage.setItem(THREAD_ICONS_KEY, JSON.stringify(map));
   };
 
-  return { name, choose, Icon: THREAD_ICONS[name] };
+  const chooseColor = (next: ThreadColor) => {
+    setColor(next);
+    const map = { ...readColors(), [threadId]: next };
+    void serverBackedStorage.setItem(THREAD_COLORS_KEY, JSON.stringify(map));
+  };
+
+  return { name, choose, color, chooseColor, Icon: THREAD_ICONS[name] };
 }
 
 export const ThreadList: FC = () => {
@@ -364,6 +392,7 @@ export const ThreadListItem: FC = () => {
           <threadIcon.Icon
             aria-hidden
             className="aui-thread-icon me-2 size-4 shrink-0"
+            style={threadIcon.color ? { color: threadIcon.color } : undefined}
           />
           {isRunning && (
             <Loader2Icon
@@ -383,7 +412,9 @@ export const ThreadListItem: FC = () => {
       )}
       <ThreadListItemMore
         icon={threadIcon.name}
+        color={threadIcon.color}
         onIconChange={threadIcon.choose}
+        onColorChange={threadIcon.chooseColor}
         onRename={() => setIsRenaming(true)}
       />
     </ThreadListItemPrimitive.Root>
@@ -456,9 +487,11 @@ const ThreadListItemRename: FC<{
 
 const ThreadListItemMore: FC<{
   icon: ThreadIconName;
+  color: ThreadColor | null;
   onIconChange: (icon: ThreadIconName) => void;
+  onColorChange: (color: ThreadColor) => void;
   onRename: () => void;
-}> = ({ icon, onIconChange, onRename }) => {
+}> = ({ icon, color, onIconChange, onColorChange, onRename }) => {
   const [open, setOpen] = useState(false);
 
   return (
@@ -501,6 +534,20 @@ const ThreadListItemMore: FC<{
             >
               <Icon className="size-4.5" />
             </button>
+          ))}
+        </div>
+        <div className="px-2.5 pt-1 pb-1 text-xs font-medium text-[#a9a9a9]">Colore</div>
+        <div className="flex gap-1.5 px-2 pb-2">
+          {THREAD_COLORS.map((value) => (
+            <button
+              key={value}
+              type="button"
+              aria-label={`Scegli colore ${value}`}
+              aria-pressed={color === value}
+              className="size-6 rounded-full border-2 border-transparent transition-transform active:scale-90 aria-pressed:border-white"
+              style={{ backgroundColor: value }}
+              onClick={() => onColorChange(value)}
+            />
           ))}
         </div>
         <Button
