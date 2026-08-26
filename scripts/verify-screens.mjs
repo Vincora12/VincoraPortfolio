@@ -86,13 +86,18 @@ async function launchChromium() {
     return await chromium.launch({ args: LAUNCH_ARGS, proxy: LAUNCH_PROXY });
   } catch {
     const root = process.env.PLAYWRIGHT_BROWSERS_PATH ?? '/opt/pw-browsers';
-    const candidates = readdirSync(root)
+    const bundled = existsSync(root) ? readdirSync(root) : [];
+    const candidates = bundled
       .filter((d) => d.startsWith('chromium'))
       .flatMap((d) => [
         join(root, d, 'chrome-linux', 'chrome'),
         join(root, d, 'chrome-linux', 'headless_shell'),
         join(root, d, 'chrome-mac-arm64', 'Google Chrome for Testing.app', 'Contents', 'MacOS', 'Google Chrome for Testing'),
         join(root, d, 'chrome-mac', 'Google Chrome for Testing.app', 'Contents', 'MacOS', 'Google Chrome for Testing'),
+      ])
+      .concat([
+        '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+        '/Applications/Chromium.app/Contents/MacOS/Chromium',
       ])
       .filter((p) => existsSync(p));
 

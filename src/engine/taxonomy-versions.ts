@@ -87,7 +87,7 @@ const FAMILY_V2: Record<string, { core: string; rule: string }> = {
   },
   BEAST: {
     core: 'A mammalian animal-first organism whose skull, spine, locomotion, paws or hooves, fur distribution and tail visibly derive from its selected species grammar.',
-    rule: 'The selected mammal must control the body plan and silhouette. Never make a human with animal ears, a furry fashion mannequin, or a generic clawed mascot. Do not borrow reptile scales, dragon horns or random hybrid anatomy unless CHIMERIC explicitly permits two named mammalian grammars.',
+    rule: 'The selected mammal must control the body plan and silhouette. Do not borrow reptile scales, dragon horns or random hybrid anatomy unless CHIMERIC explicitly permits two named mammalian grammars.',
   },
   DRAGON: {
     core: 'A true draconic organism built from a coherent combination of scaled skull, axial spine, claws, tail, crest, horns and membranes according to its selected draconic body plan.',

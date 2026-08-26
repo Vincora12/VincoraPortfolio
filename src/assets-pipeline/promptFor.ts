@@ -76,7 +76,7 @@ function withHumanoidBodyMode(record: MonRecord, text: string, assetType: AssetT
         'HUMANOID BODY MODE: YES — BINDING',
         'Use an immediately readable human body plan: one dominant head, readable human face, torso, two primary arms, two primary legs, hands, feet and upright posture.',
         'Family, Archetype and Affinity may transform selected anatomy, materials or appendages, but must not replace the human body plan. Extra anatomy is allowed only when the selected Archetype explicitly requires it.',
-        'EYEWEAR: render real wearable eyeglasses with two physical lenses, a visible bridge and visible temples/arms positioned over the two main eyes. No visor, mask, integrated eye shell or floating optic.',
+        'EYEWEAR: render real wearable premium eyewear with two physical lenses, a visible bridge, functional hinges and visible temples/arms positioned over the two main eyes. The overall stance should feel fast, streamlined and slightly curved around the face rather than flat or conventionally generic. Respect the selected SUN LENSES or OPTICAL LENSES treatment exactly. Materials, bevels, lens thickness, fit and hardware must feel intentionally designed and manufactured, never cheap or generic. Brand references elsewhere in the prompt define design caliber only: do not copy an identifiable commercial model and show no logo, wordmark or trademark. No visor, mask, integrated eye shell or floating optic.',
       ].join('\n')
     : [
         'HUMANOID BODY MODE: NO — BINDING',

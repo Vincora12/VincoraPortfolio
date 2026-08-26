@@ -1338,13 +1338,91 @@
   flex-direction: column;
 }
 
+.mindline__viewport {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
 /* Senza nodo selezionato la topologia si prende tutta l'altezza: è la mappa,
    non l'antipasto di una lista. */
 .mindline__canvas {
-  flex: 1;
-  min-height: 0;
+  width: 100%;
+  height: 100%;
   overflow: auto;
-  padding: var(--u4);
+  overscroll-behavior: contain;
+  scrollbar-color: var(--char-accent) transparent;
+  scrollbar-width: thin;
+  touch-action: pan-x pan-y;
+}
+
+.mindline__canvas::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+.mindline__canvas::-webkit-scrollbar-thumb {
+  background: var(--char-accent);
+}
+
+.mindline__controls {
+  position: absolute;
+  z-index: 3;
+  top: var(--u3);
+  right: var(--u3);
+  display: grid;
+  grid-template-columns: 44px minmax(48px, auto) 44px;
+  align-items: center;
+  overflow: hidden;
+  border: 1px solid var(--hairline-strong);
+  background: var(--field);
+  color: var(--ink);
+}
+
+.mindline__controls button,
+.mindline__controls output {
+  display: grid;
+  place-items: center;
+  min-width: 44px;
+  min-height: 44px;
+  border: 0;
+  border-right: 1px solid var(--hairline);
+  background: transparent;
+  color: inherit;
+  font-family: var(--font-mono);
+  font-size: var(--type-small);
+  font-variant-numeric: tabular-nums;
+}
+
+.mindline__controls button {
+  cursor: pointer;
+  font-size: 22px;
+}
+
+.mindline__controls button:active:not(:disabled) {
+  background: var(--char-accent);
+  color: var(--field);
+}
+
+.mindline__controls button:focus-visible {
+  outline: 2px solid var(--char-accent);
+  outline-offset: -3px;
+}
+
+.mindline__controls button:disabled {
+  color: var(--muted);
+  cursor: default;
+}
+
+.mindline__controls .mindline__center {
+  grid-column: 1 / -1;
+  min-height: 44px;
+  border-top: 1px solid var(--hairline);
+  border-right: 0;
+  color: var(--char-accent);
+  font-size: var(--type-micro);
+  letter-spacing: 0.12em;
 }
 
 .mindline__node {
@@ -1451,6 +1529,21 @@
   font-family: var(--font-mono);
   font-size: 8px;
   letter-spacing: 0.1em;
+}
+
+.mindline__branchlabel,
+.mindline__currentlabel {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+}
+
+.mindline__branchlabel {
+  paint-order: stroke;
+  stroke: var(--field);
+  stroke-width: 5px;
+  stroke-linejoin: round;
 }
 
 .noderow {

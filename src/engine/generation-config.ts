@@ -912,22 +912,22 @@ export function fashionDef(id: string): FashionDef {
    ========================================================================= */
 
 export const EYEWEAR_CATEGORIES = [
-  { id: 'SHIELD', it: 'a scudo' },
-  { id: 'WRAPAROUND', it: 'avvolgenti' },
-  { id: 'VISOR', it: 'a visiera' },
-  { id: 'ULTRA-NARROW', it: 'ultra strette' },
-  { id: 'HIGH-FRAME', it: 'a montatura alta' },
-  { id: 'OVERSIZED', it: 'oversize' },
-  { id: 'MASK', it: 'a maschera' },
-  { id: 'RIMLESS', it: 'senza montatura' },
-  { id: 'SCULPTURAL', it: 'scultoree' },
-  { id: 'SPORT PERFORMANCE', it: 'sportive da performance' },
-  { id: 'OPTICAL EDITORIAL', it: 'ottiche da editoriale' },
-  { id: 'TRANSPARENT/CRYSTAL', it: 'trasparenti o di cristallo' },
-  { id: 'MIRRORED', it: 'a specchio' },
-  { id: 'TINTED', it: 'colorate' },
-  { id: 'ASYMMETRIC/MONO', it: 'asimmetriche o mono-lente' },
-  { id: 'INTEGRATED OPTICS', it: 'ottiche integrate nel corpo' },
+  { id: 'SHIELD', it: 'a scudo', designReference: 'Oakley archival performance design: engineered curvature, credible lens geometry and premium technical construction' },
+  { id: 'WRAPAROUND', it: 'avvolgenti', designReference: 'Oakley performance eyewear and Gentle Monster Circuit: aerodynamic wrap, engineered fit and deliberate proportions' },
+  { id: 'VISOR', it: 'a visiera', designReference: 'high-end futuristic performance eyewear: optically credible curvature, precise mounting and no toy-like plastic shortcuts' },
+  { id: 'ULTRA-NARROW', it: 'ultra strette', designReference: 'Gentle Monster editorial eyewear: controlled narrow silhouette, refined hardware and intentional lens shape' },
+  { id: 'HIGH-FRAME', it: 'a montatura alta', designReference: 'Jacques Marie Mage-level acetate construction: substantial sculpted rims, precise bevels, hinges and premium finish' },
+  { id: 'OVERSIZED', it: 'oversize', designReference: 'Gentle Monster and Kuboraum design caliber: bold architectural silhouette, balanced fit and premium material thickness' },
+  { id: 'MASK', it: 'a maschera', designReference: 'Kuboraum sculptural mask language: authored volume, facial fit and high-end material logic' },
+  { id: 'RIMLESS', it: 'senza montatura', designReference: 'Gentle Monster rimless editorial design: fast slightly curved lens silhouette, clean lens drilling, refined bridge and minimal engineered hardware' },
+  { id: 'SCULPTURAL', it: 'scultoree', designReference: 'Kuboraum and Gentle Monster design caliber: expressive but wearable architecture with purposeful construction' },
+  { id: 'SPORT PERFORMANCE', it: 'sportive da performance', designReference: 'Oakley-level performance construction: anatomical fit, engineered lens geometry, ventilation and credible technical materials' },
+  { id: 'OPTICAL EDITORIAL', it: 'ottiche da editoriale', designReference: 'Gentle Monster and Jacques Marie Mage design caliber: fashion-forward silhouette with convincing optical construction' },
+  { id: 'TRANSPARENT/CRYSTAL', it: 'con montatura trasparente o di cristallo', designReference: 'premium Japanese acetate eyewear quality: polished crystal frame depth, visible bevels, embedded hardware and no cheap clear plastic' },
+  { id: 'MIRRORED', it: 'a specchio', designReference: 'Oakley-level optical coating and performance construction: controlled mirror finish, credible lenses and engineered fit' },
+  { id: 'TINTED', it: 'colorate', designReference: 'Gentle Monster editorial color treatment: deliberate tint, premium lenses, refined rims and balanced color interaction' },
+  { id: 'ASYMMETRIC/MONO', it: 'asimmetriche o mono-lente', designReference: 'experimental Kuboraum-level authorship: intentional asymmetry with believable hinges, supports and wearable balance' },
+  { id: 'INTEGRATED OPTICS', it: 'ottiche integrate nel corpo', designReference: 'premium speculative industrial design: precise optical housing, credible interfaces and no generic sci-fi visor' },
 ] as const;
 
 export const HAIRCUTS = [

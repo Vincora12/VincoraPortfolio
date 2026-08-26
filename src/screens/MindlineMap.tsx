@@ -11,23 +11,30 @@
    monospaziate. Nessun terreno, nessuna prospettiva, nessuna decorazione.
    ========================================================================= */
 
-import { useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type WheelEvent } from 'react';
 import type { Overlay } from '../App';
 import { useApp } from '../state/store';
 import { AssetSlot, useAssetUrl } from '../system/AssetSlot';
 import { MonName, MonNameTspan } from '../system/MonName';
 import { Button, Row, ScreenHead, SystemLabel } from '../system/components';
-import { layoutMindline, nodeKindLabel } from '../engine/mindline';
+import { classifyMindlineTransition, layoutMindline, nodeKindLabel } from '../engine/mindline';
 import { displayName } from '../engine/types';
 import { haptic } from '../system/haptics';
 import { t } from '../i18n/it';
 import { EXPRESSION_SPEC } from '../engine/assets';
 
-const COL_W = 122;
-const ROW_H = 126;
-const PAD = 52;
+const COL_W = 156;
+const ROW_H = 150;
+// Il primo nodo deve poter stare davvero al centro anche quando l'albero è
+// ancora corto. Un semplice scroll non può creare spazio prima di x=0/y=0.
+const PAD_X = 270;
+const PAD_Y = 260;
 /** Spazio riservato all'etichetta a destra dell'ultimo nodo. */
-const LABEL_W = 150;
+const LABEL_W = 184;
+const TAIL_H = 240;
+const MIN_ZOOM = 0.55;
+const MAX_ZOOM = 1.65;
+const ZOOM_STEP = 0.15;
 
 function MapSticker({ monName, index }: { monName: string; index: number }) {
   const sheet = useAssetUrl(monName, 'reaction_pack');
@@ -73,27 +80,75 @@ export function MindlineMapScreen({ onGo }: { onGo: (o: Overlay) => void }) {
   // Il pannello di dettaglio esiste solo quando si è scelto un nodo: senza
   // selezione la topologia si guarda intera, che è il punto della schermata.
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [zoom, setZoom] = useState(0.85);
+  const canvasRef = useRef<HTMLDivElement>(null);
+  const centeredOnce = useRef(false);
 
-  const natureOf = (monName: string) => {
-    const data = mons[monName]?.data;
-    return data ? `${data.family}|${data.family_archetype}` : '';
-  };
-  const layout = layoutMindline(nodes, (from, to) => natureOf(from.monName) !== natureOf(to.monName));
+  const transitions = useMemo(() => {
+    const result = new Map<string, ReturnType<typeof classifyMindlineTransition>>();
+    for (const node of nodes) {
+      if (!node.parentId) continue;
+      const parent = nodes.find((item) => item.id === node.parentId);
+      result.set(
+        node.id,
+        classifyMindlineTransition(
+          parent ? mons[parent.monName]?.data : undefined,
+          mons[node.monName]?.data,
+          node,
+        ),
+      );
+    }
+    return result;
+  }, [mons, nodes]);
+
+  const layout = useMemo(
+    () => layoutMindline(nodes, (_from, to) => transitions.get(to.id)?.branches ?? false),
+    [nodes, transitions],
+  );
   const activeNodeId = activeMonName ? mons[activeMonName]?.data.mindline_node : null;
   const chapter = Math.max(1, ...nodes.map((n) => n.chapter));
   const selected = nodes.find((n) => n.id === selectedId) ?? null;
 
   // Le etichette stanno a destra dei nodi: senza questo margine la colonna
   // più a destra le vedrebbe tagliate dal bordo del canvas.
-  const width = PAD * 2 + Math.max(1, layout.columns - 1) * COL_W + LABEL_W;
-  const height = PAD * 2 + Math.max(1, layout.depth - 1) * ROW_H;
+  const width = PAD_X * 2 + Math.max(1, layout.columns - 1) * COL_W + LABEL_W;
+  const height = PAD_Y * 2 + Math.max(1, layout.depth - 1) * ROW_H + TAIL_H;
 
   const pos = (column: number, depth: number) => ({
-    x: PAD + column * COL_W,
-    y: PAD + depth * ROW_H,
+    x: PAD_X + column * COL_W,
+    y: PAD_Y + depth * ROW_H,
   });
 
   const byId = new Map(layout.nodes.map((n) => [n.node.id, n]));
+
+  const centerCurrent = useCallback((behavior: ScrollBehavior = 'smooth') => {
+    const canvas = canvasRef.current;
+    const current = activeNodeId ? byId.get(activeNodeId) : null;
+    if (!canvas || !current) return;
+    const point = pos(current.column, current.depth);
+    canvas.scrollTo({
+      left: Math.max(0, point.x * zoom - canvas.clientWidth / 2),
+      top: Math.max(0, point.y * zoom - canvas.clientHeight / 2),
+      behavior,
+    });
+  }, [activeNodeId, byId, zoom]);
+
+  useEffect(() => {
+    if (centeredOnce.current || !activeNodeId) return;
+    centeredOnce.current = true;
+    const frame = requestAnimationFrame(() => centerCurrent('auto'));
+    return () => cancelAnimationFrame(frame);
+  }, [activeNodeId, centerCurrent]);
+
+  const changeZoom = (next: number) => {
+    setZoom(Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, Number(next.toFixed(2)))));
+  };
+
+  const handleWheel = (event: WheelEvent<HTMLDivElement>) => {
+    if (!event.ctrlKey && !event.metaKey) return;
+    event.preventDefault();
+    changeZoom(zoom + (event.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP));
+  };
 
   return (
     <div className="screen screen--ink mindline">
@@ -103,10 +158,18 @@ export function MindlineMapScreen({ onGo }: { onGo: (o: Overlay) => void }) {
       />
 
       <div className="screen__body mindline__body">
-        <div className="mindline__canvas">
+        <div className="mindline__viewport">
+          <div className="mindline__controls" aria-label="Controlli della mappa">
+            <button type="button" onClick={() => changeZoom(zoom - ZOOM_STEP)} disabled={zoom <= MIN_ZOOM} aria-label="Riduci mappa">−</button>
+            <output aria-live="polite">{Math.round(zoom * 100)}%</output>
+            <button type="button" onClick={() => changeZoom(zoom + ZOOM_STEP)} disabled={zoom >= MAX_ZOOM} aria-label="Ingrandisci mappa">+</button>
+            <button type="button" className="mindline__center" onClick={() => centerCurrent()}>ATTUALE</button>
+          </div>
+
+        <div className="mindline__canvas" ref={canvasRef} onWheel={handleWheel}>
           <svg
-            width={width}
-            height={height}
+            width={width * zoom}
+            height={height * zoom}
             viewBox={`0 0 ${width} ${height}`}
             role="img"
             aria-label={`Topologia della Mindline, ${nodes.length} nodi`}
@@ -128,6 +191,7 @@ export function MindlineMapScreen({ onGo }: { onGo: (o: Overlay) => void }) {
               const a = pos(from.column, from.depth);
               const b = pos(to.column, to.depth);
               const isBranch = from.column !== to.column;
+              const transition = transitions.get(to.node.id);
 
               // Deviazione disegnata come in un diagramma della metro: si
               // scende in verticale, si stacca a 45°, si riprende in verticale.
@@ -146,15 +210,26 @@ export function MindlineMapScreen({ onGo }: { onGo: (o: Overlay) => void }) {
                 : `M${a.x} ${a.y} L${b.x} ${b.y}`;
 
               return (
-                <path
-                  key={`${e.from}-${e.to}`}
-                  d={d}
-                  fill="none"
-                  stroke={isBranch ? 'var(--char-accent)' : 'var(--ink)'}
-                  strokeWidth={2}
-                  strokeLinejoin="miter"
-                  strokeDasharray={isBranch ? '6 4' : undefined}
-                />
+                <g key={`${e.from}-${e.to}`}>
+                  <path
+                    d={d}
+                    fill="none"
+                    stroke={isBranch ? 'var(--char-accent)' : 'var(--ink)'}
+                    strokeWidth={isBranch ? 3 : 2}
+                    strokeLinejoin="miter"
+                    strokeDasharray={isBranch ? '7 5' : undefined}
+                  />
+                  {isBranch && transition && transition.reasons.length > 0 && (
+                    <text
+                      x={(a.x + b.x) / 2 + 8}
+                      y={(a.y + b.y) / 2 - 7}
+                      className="mindline__branchlabel"
+                      fill="var(--char-accent)"
+                    >
+                      {transition.reasons.slice(0, 2).join(' + ')}
+                    </text>
+                  )}
+                </g>
               );
             })}
 
@@ -168,6 +243,11 @@ export function MindlineMapScreen({ onGo }: { onGo: (o: Overlay) => void }) {
               const fromFamily = parent ? mons[parent.monName]?.data.family : null;
               const toFamily = mons[node.monName]?.data.family;
               const changedFamily = Boolean(fromFamily && toFamily && fromFamily !== toFamily);
+              const data = mons[node.monName]?.data;
+              const transition = transitions.get(node.id);
+              const nodeMeta = transition?.branches && transition.reasons.length > 0
+                ? transition.reasons.slice(0, 2).join(' · ')
+                : `${data?.evolution_state?.label ?? nodeKindLabel(node.kind)} · ${data?.family_archetype ?? toFamily ?? `G${node.day}`}`;
 
               return (
                 <g
@@ -192,7 +272,7 @@ export function MindlineMapScreen({ onGo }: { onGo: (o: Overlay) => void }) {
                   {/* Bersaglio di tocco più ampio dello sticker. */}
                   <circle cx={x} cy={y} r={34} fill="transparent" />
                   {active && (
-                    <circle cx={x} cy={y} r={34} fill="none" stroke="var(--char-accent)" strokeWidth={2} />
+                    <circle cx={x} cy={y} r={38} fill="none" stroke="var(--char-accent)" strokeWidth={3} />
                   )}
                   <foreignObject x={x - 29} y={y - 29} width={58} height={58} pointerEvents="none">
                     <MapSticker monName={node.monName} index={nodeIndex} />
@@ -203,12 +283,14 @@ export function MindlineMapScreen({ onGo }: { onGo: (o: Overlay) => void }) {
                     <MonNameTspan name={node.monName} size={11} />
                   </text>
                   <text x={x - 30} y={y + 57} className="mindline__sublabel" fill="var(--muted-strong)">
-                    {changedFamily ? `${fromFamily} → ${toFamily}` : `${toFamily ?? nodeKindLabel(node.kind)} · G${node.day}`}
+                    {changedFamily ? `${fromFamily} → ${toFamily}` : nodeMeta}
                   </text>
+                  {active && <text x={x - 30} y={y - 40} className="mindline__currentlabel" fill="var(--char-accent)">MON ATTUALE</text>}
                 </g>
               );
             })}
           </svg>
+        </div>
         </div>
 
         {selected === null ? (

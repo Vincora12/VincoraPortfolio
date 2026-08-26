@@ -799,10 +799,14 @@ function resolveMarkers(rng: Rng, family: FamilyDef, ctx: GenerationContext, hum
 
   const eyewear = family.supportsEyewear
     ? (() => {
-        const physicalGlasses = EYEWEAR_CATEGORIES.filter((c) =>
-          ['HIGH-FRAME', 'OVERSIZED', 'RIMLESS', 'OPTICAL EDITORIAL', 'TRANSPARENT/CRYSTAL', 'TINTED', 'MIRRORED'].includes(c.id),
+        // MIRRORED e TINTED descrivono il trattamento della lente, non la
+        // silhouette. Il 50/50 sole/vista viene quindi deciso separatamente
+        // subito sotto, evitando prompt contraddittori.
+        const shapeCategories = EYEWEAR_CATEGORIES.filter((c) => !['TINTED', 'MIRRORED'].includes(c.id));
+        const physicalGlasses = shapeCategories.filter((c) =>
+          ['HIGH-FRAME', 'OVERSIZED', 'RIMLESS', 'OPTICAL EDITORIAL', 'TRANSPARENT/CRYSTAL'].includes(c.id),
         );
-        const available = humanoidBody ? physicalGlasses : EYEWEAR_CATEGORIES;
+        const available = humanoidBody ? physicalGlasses : shapeCategories;
         const fresh = available.filter((c) => !recent.includes(c.id));
         /* 🔷 «Poter dire: senti, fai in modo che escano di più quelli da vista.»
            Le sedici categorie si estraevano con un `pick` uniforme e non
@@ -812,11 +816,15 @@ function resolveMarkers(rng: Rng, family: FamilyDef, ctx: GenerationContext, hum
            `pick`, consumando lo stesso singolo `rng()`: finché non sposti un
            peso, non cambia niente. */
         const cat = tunedPick(rng, 'eyewear', fresh.length > 0 ? fresh : available, (c) => c.id);
+        const lensTreatment = rng() < 0.5
+          ? 'SUN LENSES: colored or mirrored sunglass lenses with a deliberate fashion tint; the eyes may remain partly visible where appropriate'
+          : 'OPTICAL LENSES: transparent clear prescription-style lenses with convincing optical reflections; no dark tint';
+        const preferredShape = 'VINZ PREFERENCE: make the eyewear feel fast, streamlined and slightly curved around the face, while preserving the selected category and a believable wearable fit';
         return {
           category: cat.id,
           description: humanoidBody
-            ? `${cat.it}: veri occhiali fisici indossati sul volto, con due lenti, ponte e aste visibili; non visiera, maschera o occhi integrati`
-            : `${cat.it}, costruite sul cranio di questa creatura invece che appoggiate sopra`,
+            ? `${cat.it}: veri occhiali fisici indossati sul volto, con due lenti, ponte e aste visibili; non visiera, maschera o occhi integrati. ${preferredShape}. ${lensTreatment}. Design benchmark: ${cat.designReference}. Use only the design caliber and construction logic; do not copy an identifiable existing product and show no brand name or logo`
+            : `${cat.it}, costruite sul cranio di questa creatura invece che appoggiate sopra. ${preferredShape}. ${lensTreatment}. Design benchmark: ${cat.designReference}. Use only the design caliber and construction logic; do not copy an identifiable existing product and show no brand name or logo`,
         };
       })()
     : null;

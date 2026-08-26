@@ -13,7 +13,105 @@
    schermata; qui non c'è nessuna decisione estetica se non la topologia.
    ========================================================================= */
 
-import type { MindlineNode, NodeKind } from './types';
+import type { CharacterData, MindlineNode, NodeKind } from './types';
+
+export type MindlineBranchReason =
+  | 'MEGA'
+  | 'EVOLUZIONE'
+  | 'FAMIGLIA'
+  | 'ARCHETIPO'
+  | 'CORPO'
+  | 'MACCHINA'
+  | 'AFFINITÀ'
+  | 'STADIO'
+  | 'TAGLIA'
+  | 'RUOLO'
+  | 'STILE';
+
+export interface MindlineTransition {
+  branches: boolean;
+  score: number;
+  reasons: MindlineBranchReason[];
+}
+
+function bodyDomain(data: CharacterData): string {
+  const anatomy = `${data.family} ${data.family_archetype} ${data.affinity}`.toUpperCase();
+  if (/MACHINE|MECHA|ROBOT|ANDROID|CYBORG|TECHNO|DIGITAL/.test(anatomy)) return 'MACCHINA';
+  if (/UNDEAD|GHOST|SPECT|DEMON/.test(anatomy)) return 'OCCULTO';
+  if (/ANGEL|CELEST|SERAPH|CHERUB/.test(anatomy)) return 'CELESTE';
+  if (/PLANT|FUNG|FLORA/.test(anatomy)) return 'VEGETALE';
+  if (/FISH|AMPHIB|REPT|BEAST|ANIMAL|INSECT|ARACHN/.test(anatomy)) return 'BESTIALE';
+  return 'ORGANICO';
+}
+
+/**
+ * Decide retroattivamente quando una trasformazione merita un nuovo ramo.
+ * Usa soltanto dati già presenti in ogni MonRecord: non richiede migrazioni e
+ * quindi ricostruisce anche la topologia delle forme nate prima di questa UI.
+ */
+export function classifyMindlineTransition(
+  from: CharacterData | undefined,
+  to: CharacterData | undefined,
+  node: MindlineNode,
+): MindlineTransition {
+  if (!from || !to) return { branches: node.kind === 'branch', score: 0, reasons: [] };
+
+  const reasons: MindlineBranchReason[] = [];
+  let score = 0;
+  const label = `${node.label} ${to.evolution_state?.label ?? ''}`.toUpperCase();
+
+  if (label.includes('MEGA')) {
+    score += 8;
+    reasons.push('MEGA');
+  } else if (node.kind === 'branch') {
+    score += 4;
+    reasons.push('EVOLUZIONE');
+  }
+  if (from.family !== to.family) {
+    score += 5;
+    reasons.push('FAMIGLIA');
+  }
+  if (from.family_archetype !== to.family_archetype) {
+    score += 3;
+    reasons.push('ARCHETIPO');
+  }
+  const fromDomain = bodyDomain(from);
+  const toDomain = bodyDomain(to);
+  if (fromDomain !== toDomain) {
+    score += 4;
+    reasons.push(toDomain === 'MACCHINA' || fromDomain === 'MACCHINA' ? 'MACCHINA' : 'CORPO');
+  }
+  if ((from.humanoidity >= 5) !== (to.humanoidity >= 5)) {
+    score += 3;
+    reasons.push('CORPO');
+  }
+  if ((from.evolution_state?.stage ?? 0) !== (to.evolution_state?.stage ?? 0)) {
+    score += 3;
+    reasons.push('STADIO');
+  }
+  if (from.affinity !== to.affinity) {
+    score += 2;
+    reasons.push('AFFINITÀ');
+  }
+  if (from.size !== to.size) {
+    score += 2;
+    reasons.push('TAGLIA');
+  }
+  if (from.role !== to.role) {
+    score += 1;
+    reasons.push('RUOLO');
+  }
+  if (from.fashion !== to.fashion) {
+    score += 1;
+    reasons.push('STILE');
+  }
+
+  return {
+    branches: score >= 4,
+    score,
+    reasons: [...new Set(reasons)],
+  };
+}
 
 export function makeNodeId(index: number): string {
   return `node_${String(index).padStart(3, '0')}`;
