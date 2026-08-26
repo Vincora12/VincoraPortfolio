@@ -194,8 +194,10 @@ export function MindlineMapScreen({ onGo }: { onGo: (o: Overlay) => void }) {
 
               const a = pos(from.column, from.depth);
               const b = pos(to.column, to.depth);
-              const isBranch = from.column !== to.column;
               const transition = transitions.get(to.node.id);
+              const changesColumn = from.column !== to.column;
+              const changesNature = transition?.branches ?? false;
+              const isBranch = changesColumn || changesNature;
 
               // Deviazione disegnata come in un diagramma della metro: si
               // scende in verticale, si stacca a 45°, si riprende in verticale.
@@ -203,7 +205,7 @@ export function MindlineMapScreen({ onGo }: { onGo: (o: Overlay) => void }) {
               const chamfer = Math.min(Math.abs(dx), (b.y - a.y) / 3);
               const dir = Math.sign(dx);
 
-              const d = isBranch
+              const d = changesColumn
                 ? [
                     `M${a.x} ${a.y}`,
                     `L${a.x} ${b.y - chamfer * 2}`,
@@ -211,6 +213,14 @@ export function MindlineMapScreen({ onGo }: { onGo: (o: Overlay) => void }) {
                     `L${b.x - dir * chamfer} ${b.y - chamfer}`,
                     `L${b.x} ${b.y}`,
                   ].join(' ')
+                : changesNature
+                  ? [
+                      `M${a.x} ${a.y}`,
+                      `L${a.x} ${a.y + 34}`,
+                      `L${a.x + 34} ${a.y + 68}`,
+                      `L${a.x + 34} ${b.y - 34}`,
+                      `L${b.x} ${b.y}`,
+                    ].join(' ')
                 : `M${a.x} ${a.y} L${b.x} ${b.y}`;
 
               return (
@@ -225,7 +235,7 @@ export function MindlineMapScreen({ onGo }: { onGo: (o: Overlay) => void }) {
                   />
                   {transition?.branches && transition.reasons.length > 0 && (
                     <text
-                      x={(a.x + b.x) / 2 + 10}
+                      x={changesColumn ? (a.x + b.x) / 2 + 10 : a.x + 46}
                       y={(a.y + b.y) / 2 - 7}
                       className="mindline__branchlabel"
                       fill="var(--char-accent)"

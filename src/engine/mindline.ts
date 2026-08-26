@@ -190,7 +190,7 @@ export interface MindlineLayout {
 
 export function layoutMindline(
   nodes: readonly MindlineNode[],
-  changesNature: (from: MindlineNode, to: MindlineNode) => boolean = () => false,
+  _changesNature: (from: MindlineNode, to: MindlineNode) => boolean = () => false,
 ): MindlineLayout {
   const out: LayoutNode[] = [];
   const edges: { from: string; to: string }[] = [];
@@ -205,12 +205,12 @@ export function layoutMindline(
     kids.forEach((kid, index) => {
       edges.push({ from: node.id, to: kid.id });
 
-      // Un figlio normale continua il percorso. Un cambio di natura apre una
-      // nuova colonna anche quando è l'unico figlio: è proprio la deviazione
-      // che la Mindline deve raccontare (es. ALIEN → UNDEAD). I figli
-      // alternativi restano sempre rami distinti.
-      const branches = index > 0 || changesNature(node, kid);
-      walk(kid, branches ? ++nextColumn : column, depth + 1);
+      // La colonna rappresenta un percorso alternativo reale, non ogni
+      // trasformazione avvenuta lungo la stessa vita. I cambi di natura sono
+      // disegnati dalla schermata come deviazioni che escono dal tronco e vi
+      // rientrano; così restano evidenti senza creare una scala diagonale.
+      // Soltanto un secondo figlio apre una nuova colonna permanente.
+      walk(kid, index === 0 ? column : ++nextColumn, depth + 1);
     });
   }
 
