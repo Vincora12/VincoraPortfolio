@@ -1356,9 +1356,37 @@
   outline-offset: 2px;
 }
 
-.mindline__node--picked circle:nth-of-type(2) {
+.mindline__node--picked circle:last-of-type {
   stroke: var(--char-accent);
   stroke-width: 4;
+}
+
+.mindline__sticker {
+  display: block;
+  width: 58px;
+  height: 58px;
+}
+
+.mindline__stickerart {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background-repeat: no-repeat;
+  filter:
+    drop-shadow(2px 0 0 #fff) drop-shadow(-2px 0 0 #fff)
+    drop-shadow(0 2px 0 #fff) drop-shadow(0 -2px 0 #fff)
+    drop-shadow(2px 3px 2px rgba(0, 0, 0, 0.28));
+}
+
+.mindline__sticker--fallback {
+  overflow: hidden;
+  background: #fff;
+}
+
+.mindline__sticker--fallback img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 .mindline__hint {
