@@ -4366,6 +4366,11 @@
 .sync-check__signals span[data-on='true'] { background: var(--tc-accent); opacity: 1; box-shadow: 0 0 0 4px color-mix(in srgb, var(--tc-accent) 14%, transparent); }
 .sync-check__signals .sync-check__workouts span { border-color: var(--sync-workout); }
 .sync-check__signals .sync-check__workouts span[data-on='true'] { background: var(--sync-workout); box-shadow: 0 0 0 4px color-mix(in srgb, var(--sync-workout) 14%, transparent); }
+.sync-check__details-toggle { width: 100%; min-height: 48px; display: flex; align-items: center; justify-content: center; gap: 10px; border: 0; background: transparent; color: #b8bac1; font: 700 9px/1 var(--font-mono); letter-spacing: .12em; }
+.sync-check__details-toggle span { color: var(--tc-accent); font-size: 15px; }
+.sync-check__details { padding-top: 4px; animation: sync-details-in 220ms ease-out both; }
+.sync-check__details .sync-check__workout-row > span { border-color: var(--sync-workout); background: var(--sync-workout); box-shadow: 0 0 0 4px color-mix(in srgb, var(--sync-workout) 14%, transparent); }
+@keyframes sync-details-in { from { opacity: 0; transform: translateY(-8px); } }
 .sync-wish { position: fixed; z-index: 80; inset: 0; display: grid; align-items: end; }
 .sync-wish__backdrop { position: absolute; inset: 0; border: 0; background: rgba(0,0,0,.76); backdrop-filter: blur(8px); }
 .sync-wish form { position: relative; z-index: 1; padding: 28px 24px max(24px, env(safe-area-inset-bottom)); border-top: 1px solid var(--tc-accent); background: #0b0b0d; }

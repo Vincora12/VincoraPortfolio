@@ -16,6 +16,7 @@ export function TodayChecklistScreen() {
   const [wishText, setWishText] = useState('');
   const [wishKind, setWishKind] = useState<EvolutionWish['kind']>('evolution');
   const [wishWarning, setWishWarning] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const openFormEvolution = useApp((state) => state.openFormEvolution);
 
   useEffect(() => {
@@ -59,6 +60,19 @@ export function TodayChecklistScreen() {
       <div aria-label={`${MEALS.filter(({ slot }) => slots.has(slot)).length} pasti su 5 registrati`}>{MEALS.map(({ slot, label }) => <span key={slot} data-on={slots.has(slot)} title={label} />)}</div>
       <div className="sync-check__workouts" aria-label={`${todayWorkouts.length} allenamenti registrati`}>{Array.from({ length: Math.max(1, todayWorkouts.length) }, (_, index) => <span key={index} data-on={index < todayWorkouts.length} />)}</div>
     </section>
+
+    <button type="button" className="sync-check__details-toggle" aria-expanded={detailsOpen} aria-controls="sync-today-details" onClick={() => setDetailsOpen((open) => !open)}>
+      {detailsOpen ? 'CHIUDI' : 'VEDI OGGI'} <span aria-hidden="true">{detailsOpen ? '↑' : '↓'}</span>
+    </button>
+
+    {detailsOpen && <section id="sync-today-details" className="today-check__tasks sync-check__details" aria-label="Resoconto completo di oggi">
+      {MEALS.map(({ slot, label }) => {
+        const entry = todayMeals.find((item) => item.slot === slot);
+        return <article key={slot} data-done={Boolean(entry)}><span aria-hidden="true" /><div><strong>{label}</strong><small>{entry?.description ?? 'DA REGISTRARE'}</small></div>{entry && <Icon name="save" />}</article>;
+      })}
+      {todayMeals.filter((meal) => meal.slot === 'extra').map((meal, index) => <article key={meal.id} data-done="true"><span aria-hidden="true" /><div><strong>EXTRA {index + 1}</strong><small>{meal.description}</small></div><Icon name="save" /></article>)}
+      {todayWorkouts.length === 0 ? <article data-done="false"><span aria-hidden="true" /><div><strong>ALLENAMENTO</strong><small>DA REGISTRARE</small></div></article> : todayWorkouts.map((workout, index) => <article key={workout.id} data-done="true" className="sync-check__workout-row"><span aria-hidden="true" /><div><strong>ALLENAMENTO {todayWorkouts.length > 1 ? index + 1 : ''}</strong><small>{workout.title}</small></div><Icon name="save" /></article>)}
+    </section>}
 
     {wishOpen && <div className="sync-wish" role="dialog" aria-modal="true" aria-labelledby="sync-wish-title">
       <button type="button" className="sync-wish__backdrop" onClick={() => setWishOpen(false)} aria-label="Chiudi desiderio" />
