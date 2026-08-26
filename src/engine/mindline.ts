@@ -190,7 +190,7 @@ export interface MindlineLayout {
 
 export function layoutMindline(
   nodes: readonly MindlineNode[],
-  _changesNature: (from: MindlineNode, to: MindlineNode) => boolean = () => false,
+  changesNature: (from: MindlineNode, to: MindlineNode) => boolean = () => false,
 ): MindlineLayout {
   const out: LayoutNode[] = [];
   const edges: { from: string; to: string }[] = [];
@@ -205,13 +205,12 @@ export function layoutMindline(
     kids.forEach((kid, index) => {
       edges.push({ from: node.id, to: kid.id });
 
-      // La geometria segue il grafo reale: il primo figlio continua il ramo,
-      // soltanto i figli alternativi aprono nuove colonne. Prima ogni cambio
-      // semantico (famiglia, corpo, stadio…) spostava ancora a destra anche
-      // lungo una catena singola: dopo molte forme la mappa diventava una
-      // diagonale enorme e sembrava rotta. I cambi di natura restano visibili
-      // nelle etichette delle connessioni, senza distruggere il layout.
-      walk(kid, index === 0 ? column : ++nextColumn, depth + 1);
+      // Un figlio normale continua il percorso. Un cambio di natura apre una
+      // nuova colonna anche quando è l'unico figlio: è proprio la deviazione
+      // che la Mindline deve raccontare (es. ALIEN → UNDEAD). I figli
+      // alternativi restano sempre rami distinti.
+      const branches = index > 0 || changesNature(node, kid);
+      walk(kid, branches ? ++nextColumn : column, depth + 1);
     });
   }
 
