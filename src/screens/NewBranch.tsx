@@ -28,17 +28,9 @@ export function NewBranchScreen() {
 
         <section className="branch__direct" aria-label="Scegli la trasformazione">
           <div className="branch__direct-choice">
-            <div>
-              <strong className="t-display">EVOLUZIONE</strong>
-              <p className="t-small">Resta riconoscibile. La forma cresce senza perdere il suo centro.</p>
-            </div>
             <HoldButton onComplete={() => beginFormEvolution('evolution')} hint="TIENI PREMUTO">EVOLVI</HoldButton>
           </div>
           <div className="branch__direct-choice branch__direct-choice--mega">
-            <div>
-              <strong className="t-display">MEGA EVOLUZIONE</strong>
-              <p className="t-small">Può cambiare corpo, famiglia e presenza visiva.</p>
-            </div>
             <HoldButton onComplete={() => beginFormEvolution('mega-evolution')} hint="TIENI PREMUTO">MEGAEVOLVI</HoldButton>
           </div>
         </section>
