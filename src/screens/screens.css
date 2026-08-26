@@ -1675,23 +1675,10 @@
 }
 
 .mindline__sticker {
-  display: block;
-  width: 58px;
-  height: 58px;
-}
-
-.mindline__stickeranchor {
-  display: block;
-  width: 58px;
-  height: 58px;
-  transform: translate(-50%, -50%);
+  pointer-events: none;
 }
 
 .mindline__stickerart {
-  display: block;
-  width: 100%;
-  height: 100%;
-  background-repeat: no-repeat;
   filter:
     drop-shadow(2px 0 0 #fff) drop-shadow(-2px 0 0 #fff)
     drop-shadow(0 2px 0 #fff) drop-shadow(0 -2px 0 #fff)
@@ -1699,14 +1686,7 @@
 }
 
 .mindline__sticker--fallback {
-  overflow: hidden;
   background: #fff;
-}
-
-.mindline__sticker--fallback img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
 }
 
 .mindline__hint {

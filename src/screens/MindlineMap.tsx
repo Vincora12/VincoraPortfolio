@@ -36,38 +36,44 @@ const MIN_ZOOM = 0.55;
 const MAX_ZOOM = 1.65;
 const ZOOM_STEP = 0.15;
 
-function MapSticker({ monName, index }: { monName: string; index: number }) {
+function MapSticker({ monName, index, x, y }: { monName: string; index: number; x: number; y: number }) {
   const sheet = useAssetUrl(monName, 'reaction_pack');
+  const toy = useAssetUrl(monName, 'character_toy');
+  const master = useAssetUrl(monName, 'character_master');
   const n = index % EXPRESSION_SPEC.frames;
   const col = n % EXPRESSION_SPEC.columns;
   const row = Math.floor(n / EXPRESSION_SPEC.columns);
+  const fallback = toy ?? master;
 
   if (!sheet) {
     return (
-      <span className="mindline__sticker mindline__sticker--fallback">
-        <AssetSlot
-          monName={monName}
-          type="character_toy"
-          fallbackTypes={['character_master']}
-          alt={displayName(monName)}
-          fit="contain"
-          compactPlaceholder
-        />
-      </span>
+      <svg x={x - 29} y={y - 29} width={58} height={58} viewBox="0 0 1 1" className="mindline__sticker mindline__sticker--fallback" aria-hidden="true">
+        {fallback && <image href={fallback} width="1" height="1" preserveAspectRatio="xMidYMid meet" />}
+      </svg>
     );
   }
 
   return (
-    <span className="mindline__sticker" aria-hidden="true">
-      <span
+    <svg
+      x={x - 29}
+      y={y - 29}
+      width={58}
+      height={58}
+      viewBox="0 0 1 1"
+      overflow="hidden"
+      className="mindline__sticker"
+      aria-hidden="true"
+    >
+      <image
+        href={sheet}
+        x={-col}
+        y={-row}
+        width={EXPRESSION_SPEC.columns}
+        height={EXPRESSION_SPEC.rows}
+        preserveAspectRatio="none"
         className="mindline__stickerart"
-        style={{
-          backgroundImage: `url(${sheet})`,
-          backgroundSize: `${EXPRESSION_SPEC.columns * 100}% ${EXPRESSION_SPEC.rows * 100}%`,
-          backgroundPosition: `${(col * 100) / (EXPRESSION_SPEC.columns - 1)}% ${(row * 100) / (EXPRESSION_SPEC.rows - 1)}%`,
-        }}
       />
-    </span>
+    </svg>
   );
 }
 
@@ -274,11 +280,7 @@ export function MindlineMapScreen({ onGo }: { onGo: (o: Overlay) => void }) {
                   {active && (
                     <circle cx={x} cy={y} r={38} fill="none" stroke="var(--char-accent)" strokeWidth={3} />
                   )}
-                  <foreignObject x={x} y={y} width={1} height={1} overflow="visible" pointerEvents="none">
-                    <span className="mindline__stickeranchor">
-                      <MapSticker monName={node.monName} index={nodeIndex} />
-                    </span>
-                  </foreignObject>
+                  <MapSticker monName={node.monName} index={nodeIndex} x={x} y={y} />
                   {/* La Mindline è un albero di file: qui il nome porta la sua
                       estensione. In SVG servono due tspan, non il componente. */}
                   <text x={x - 30} y={y + 45} fill="var(--ink)">
