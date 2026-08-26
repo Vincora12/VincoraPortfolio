@@ -19,6 +19,7 @@ import { baselineFor, moodPhrase } from '../engine/mood';
 import { MAX_ACTIVE } from '../engine/opinions';
 import { MAX_NOTES, voiceVersion } from '../engine/notebook';
 import { Button } from '../system/components';
+import { MOODS } from '../engine/generation-config';
 
 /** Barra da −100 a +100 (o 0–100), con il punto di riposo segnato sopra. */
 function MoodBar({
@@ -63,10 +64,37 @@ export function MoodSection() {
   const decideVoiceNote = useApp((s) => s.decideVoiceNote);
   const pending = notes.filter((n) => n.status === 'proposta');
   const accepted = notes.filter((n) => n.status === 'accettata');
+  const forcedMood = useApp((s) => s.dev.forcedMood ?? null);
+  const setDev = useApp((s) => s.setDev);
+
+  const moodOverride = (
+    <div className="dev__mood-override">
+      <label className="t-meta" htmlFor="dev-forced-mood">
+        TEMPERAMENTO DEI PROSSIMI MON
+      </label>
+      <select
+        id="dev-forced-mood"
+        className="dev__select"
+        value={forcedMood ?? ''}
+        onChange={(event) => setDev({ forcedMood: event.target.value || null })}
+      >
+        <option value="">AUTO — usa i segnali</option>
+        {MOODS.map((item) => (
+          <option key={item.id} value={item.id}>{item.id}</option>
+        ))}
+      </select>
+      <p className="t-micro dev__note">
+        {forcedMood
+          ? `${forcedMood} è forzato. Vale solo per i nuovi MON e non modifica quello attivo.`
+          : 'AUTO sceglie dai segnali accumulati. Lo stato giornaliero “stabile” non imposta BRIGHT.'}
+      </p>
+    </div>
+  );
 
   if (!mood || !mon) {
     return (
       <div className="dev__section">
+        {moodOverride}
         <p className="t-small dev__note">
           Nessun umore: non è ancora nato nessuno. L’uovo non ha stati d’animo,
           ha suoni.
@@ -83,6 +111,7 @@ export function MoodSection() {
 
   return (
     <div className="dev__section">
+      {moodOverride}
       <p className="t-micro dev__note">
         Il trattino è dove questo temperamento si riposa; il punto è dov’è
         adesso. Se coincidono, non è successo niente di recente — non è un bug.

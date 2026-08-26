@@ -235,6 +235,8 @@ export interface DevFlags {
   unlockAll: boolean;
   /** §20.1 — soglie di rarità tarate a mano. `null` = quelle del config. */
   rarityThresholds: RarityThresholds | null;
+  /** Solo DEV: forza il temperamento di nascita dei prossimi MON. */
+  forcedMood: string | null;
 }
 
 /* ============================================================================
@@ -802,6 +804,7 @@ const INITIAL = {
        Vive nello stato per sopravvivere a un ricaricamento: si tara in più
        sedute, non in una. */
     rarityThresholds: null as RarityThresholds | null,
+    forcedMood: null as string | null,
   },
   bias: DEFAULT_BIAS,
   token: null as string | null,
@@ -1170,6 +1173,7 @@ export const useApp = create<AppState>()(
           lineageNames: [],
           seed: randomSeed(),
           devUnlockAll: s.dev.unlockAll,
+          devForcedMood: s.dev.forcedMood,
           hiddenEvent: hiddenEventFor({
             day: s.day,
             formNumber: 1,
@@ -1344,6 +1348,7 @@ export const useApp = create<AppState>()(
           continuity: s.pendingPlan?.keeps,
           seed: randomSeed(),
           devUnlockAll: s.dev.unlockAll,
+          devForcedMood: s.dev.forcedMood,
           hiddenEvent: hiddenEventFor({
             day: s.day,
             formNumber: s.nodes.length + 1,
@@ -1439,6 +1444,7 @@ export const useApp = create<AppState>()(
           continuity,
           seed: randomSeed(),
           devUnlockAll: s.dev.unlockAll,
+          devForcedMood: s.dev.forcedMood,
           hiddenEvent: hiddenEventFor({ day: s.day, formNumber: s.nodes.length + 1, activeDays: s.progression.sync.lifetime }),
           allowedArchetypes: angelArchetypesForStage(nextStage),
         });
@@ -2487,6 +2493,7 @@ export const useApp = create<AppState>()(
             previous,
             seed,
             devUnlockAll: s.dev.unlockAll,
+            devForcedMood: s.dev.forcedMood,
           });
 
           lineage.push(record.data.name);
@@ -2676,6 +2683,7 @@ export const useApp = create<AppState>()(
                 previous,
                 seed,
                 devUnlockAll: s.dev.unlockAll,
+                devForcedMood: s.dev.forcedMood,
                 hiddenEvent: false,
               })
             : generateFirstMon({
@@ -2685,6 +2693,7 @@ export const useApp = create<AppState>()(
                 lineageNames: [],
                 seed,
                 devUnlockAll: s.dev.unlockAll,
+                devForcedMood: s.dev.forcedMood,
                 hiddenEvent: false,
               });
 
@@ -2712,6 +2721,7 @@ export const useApp = create<AppState>()(
           lineageNames: lineage,
           seed: randomSeed(),
           devUnlockAll: s.dev.unlockAll,
+          devForcedMood: s.dev.forcedMood,
         };
 
         const { record, trace } = isRoot
@@ -2767,6 +2777,7 @@ export const useApp = create<AppState>()(
           previous: rec,
           seed: randomSeed(),
           devUnlockAll: s.dev.unlockAll,
+          devForcedMood: s.dev.forcedMood,
         });
 
         set({

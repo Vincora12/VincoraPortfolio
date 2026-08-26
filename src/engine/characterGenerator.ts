@@ -88,6 +88,8 @@ export interface GenerationContext {
   seed: number;
   /** §25 DEV://UNLOCK_ALL. */
   devUnlockAll?: boolean;
+  /** Solo DEV: temperamento imposto per diagnosticare la generazione. */
+  devForcedMood?: string | null;
   /**
    * ⚠️ QUESTA CHIAMATA STA FUORI DALLA TEST PHASE, e lo dichiara.
    *
@@ -239,12 +241,17 @@ export function generateMon(ctx: GenerationContext): GenerationResult {
   let moodPrimary = anchored('mood_primary') && isEnabled('mood', prev!.mood_primary)
     ? prev!.mood_primary
     : drawnMood;
+  if (ctx.devForcedMood && MOODS.some((m) => m.id === ctx.devForcedMood)) {
+    moodPrimary = ctx.devForcedMood;
+  }
   steps.push({
     step: 10,
     stage: 'MOOD',
     outcome: moodSecondary ? `${moodPrimary} + ${moodSecondary}` : moodPrimary,
     note:
-      ctx.input.dataConfidence < MOOD_CONFIDENCE_FLOOR
+      ctx.devForcedMood
+        ? 'forzato dal pannello DEV per questa generazione'
+        : ctx.input.dataConfidence < MOOD_CONFIDENCE_FLOOR
         ? `confidence sotto ${MOOD_CONFIDENCE_FLOOR}: mood neutro invece di inventarne uno forte`
         : undefined,
   });

@@ -317,6 +317,25 @@
   user-select: text;
 }
 
+.dev__mood-override {
+  display: grid;
+  gap: var(--u);
+  margin-bottom: var(--u3);
+  padding: var(--u2);
+  border: var(--border) solid var(--ink);
+}
+
+.dev__select {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 var(--u2);
+  border: var(--border) solid var(--ink);
+  border-radius: 0;
+  background: var(--white);
+  font-family: var(--font-mono);
+  font-size: var(--type-meta);
+}
+
 /* --- DEV → VOCE ------------------------------------------------------------ */
 
 /* La battuta di prova va letta come una battuta, non come un log: stesso peso
