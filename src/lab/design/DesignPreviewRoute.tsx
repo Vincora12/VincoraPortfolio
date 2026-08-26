@@ -87,14 +87,18 @@ export function DesignPreviewRoute({ screen }: { screen: DesignScreenId }) {
       break;
   }
 
+  // Come in App.tsx: nella tab CHAT il nav sparisce, la conversazione prende
+  // tutto lo spazio. La preview mente sulla cornice se qui resta diversa.
+  const hasTabBar = tab !== null && tab !== 'chat';
+
   return (
     <div className="proto-stage designlab-preview-root">
       <div
-        className={`proto-frame ${tab ? 'has-tabbar' : ''}`}
+        className={`proto-frame ${hasTabBar ? 'has-tabbar' : ''}`}
         data-field={inkField ? 'ink' : undefined}
       >
         {content}
-        {tab && <TabBar tab={tab} onChange={noop} />}
+        {hasTabBar && tab && <TabBar tab={tab} onChange={noop} />}
         <DesignInspectorBridge screen={screen} />
       </div>
     </div>

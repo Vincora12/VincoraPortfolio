@@ -125,7 +125,17 @@ select {
 
   .proto-stage {
     position: fixed;
-    inset: 0;
+    top: 0;
+    left: 0;
+    right: 0;
+    /* La tastiera software di iOS non muove un `position: fixed` ancorato a
+       `inset: 0`: resta pinnato all'altezza di PRIMA che si aprisse, e quello
+       che sta in fondo al flusso (il composer della chat) finisce sotto la
+       tastiera invece che sopra. `--vvh`, aggiornata da App.tsx sull'evento
+       reale di `visualViewport`, tiene il frame alto quanto lo schermo che si
+       vede davvero; `100dvh` resta il valore di partenza finché quello script
+       non è ancora girato una volta. */
+    height: var(--vvh, 100dvh);
     min-height: 0;
     padding: 0;
     align-items: stretch;

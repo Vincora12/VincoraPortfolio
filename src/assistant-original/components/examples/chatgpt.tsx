@@ -22,7 +22,6 @@ import RecordPlugin from "wavesurfer.js/dist/plugins/record.esm.js";
 import { savedToken } from "@/brain/stream";
 import {
   ArrowUpIcon,
-  AudioLines,
   CheckIcon,
   ChevronDownIcon,
   ChevronLeftIcon,
@@ -34,9 +33,6 @@ import {
   PencilIcon,
   PlusIcon,
   RefreshCwIcon,
-  Share,
-  ThumbsDown,
-  ThumbsUp,
   Volume2,
   XIcon,
 } from "lucide-react";
@@ -357,6 +353,10 @@ const ComposerPrimaryAction: FC<{ onDictate: () => void }> = ({
           !s.thread.isRunning && s.composer.isEmpty
         }
       >
+        {/* 🔷 «Il pulsante per parlare live all'inizio togliamolo, lasciamo
+            solo l'icona del microfono funzionante.» I due bottoni chiamavano
+            entrambi `onDictate`: non erano due funzioni, erano la stessa
+            mostrata due volte con un'icona diversa. */}
         <TooltipIconButton
           type="button"
           tooltip="Dictate"
@@ -366,17 +366,6 @@ const ComposerPrimaryAction: FC<{ onDictate: () => void }> = ({
           className="flex size-9 items-center justify-center rounded-full text-[#5d5d5d] transition-colors hover:bg-black/[0.07] hover:text-[#5d5d5d] dark:text-[#cdcdcd] dark:hover:bg-white/15 dark:hover:text-[#cdcdcd]"
         >
           <Mic className="size-5" />
-        </TooltipIconButton>
-
-        <TooltipIconButton
-          type="button"
-          tooltip="Dictate"
-          side="top"
-          aria-label="Dictate"
-          onClick={onDictate}
-          className="flex size-9 items-center justify-center rounded-full bg-[#0d0d0d] text-white hover:bg-[#0d0d0d] dark:bg-white dark:text-black dark:hover:bg-white"
-        >
-          <AudioLines className="size-5" />
         </TooltipIconButton>
       </AuiIf>
     </div>
@@ -498,24 +487,12 @@ const AssistantMessage: FC = () => {
               </AuiIf>
             </TooltipIconButton>
           </ActionBarPrimitive.Copy>
-          <ActionBarPrimitive.FeedbackPositive asChild>
-            <TooltipIconButton
-              tooltip="Good response"
-              side="top"
-              className={assistantActionClassName}
-            >
-              <ThumbsUp className="size-5" />
-            </TooltipIconButton>
-          </ActionBarPrimitive.FeedbackPositive>
-          <ActionBarPrimitive.FeedbackNegative asChild>
-            <TooltipIconButton
-              tooltip="Bad response"
-              side="top"
-              className={assistantActionClassName}
-            >
-              <ThumbsDown className="size-5" />
-            </TooltipIconButton>
-          </ActionBarPrimitive.FeedbackNegative>
+          {/* 🔷 «Ci sono delle icone che non funzionano ma non servono
+              nemmeno, come mi piace e non mi piace.» Mi piace/Non mi piace
+              (`FeedbackPositive`/`FeedbackNegative`) non avevano nessun posto
+              dove andare a finire — nessun adapter che li raccoglie — e
+              «Share» non aveva nemmeno un gestore: era un bottone finto.
+              Tolti entrambi invece di far finta che rispondessero. */}
           <ActionBarPrimitive.Speak asChild>
             <TooltipIconButton
               tooltip="Read aloud"
@@ -525,13 +502,6 @@ const AssistantMessage: FC = () => {
               <Volume2 className="size-5" />
             </TooltipIconButton>
           </ActionBarPrimitive.Speak>
-          <TooltipIconButton
-            tooltip="Share"
-            side="top"
-            className={assistantActionClassName}
-          >
-            <Share className="size-5" />
-          </TooltipIconButton>
           <ActionBarPrimitive.Reload asChild>
             <TooltipIconButton
               tooltip="Regenerate"
