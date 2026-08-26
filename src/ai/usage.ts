@@ -51,6 +51,7 @@ export const PRICES: Record<string, { input: number; output: number }> = {
   'claude-sonnet-5': { input: 3, output: 15 },
   'claude-haiku-4-5': { input: 1, output: 5 },
   'kimi-k3': { input: 3, output: 15 },
+  'kimi-k2.6': { input: 0.95, output: 4 },
   default: { input: 5, output: 25 },
 };
 

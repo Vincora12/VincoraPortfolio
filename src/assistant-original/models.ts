@@ -37,6 +37,12 @@ export const MODELS = [
     description: "Moonshot · disponibile",
     efforts: true,
   },
+  {
+    id: "kimi-k2.6",
+    name: "Kimi K2.6",
+    description: "Moonshot · un gradino sotto K3, costa meno",
+    efforts: true,
+  },
 ] as const satisfies readonly ModelOption[];
 
 export const DEFAULT_MODEL_ID = MODELS[0].id;

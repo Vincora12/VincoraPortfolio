@@ -272,6 +272,20 @@ export const VOICE_CHOICES: VoiceChoice[] = [
     webSearch: false,
     data: 'Moonshot AI, azienda cinese. Le condizioni sull’uso dei dati vanno lette prima di mandarci le tue conversazioni: non do per scontato che siano come quelle di Anthropic, e non ho modo di verificarlo dall’interno dell’app.',
   },
+  /* 🔷 «Fammi scegliere anche tra gli altri Kimi, non solo il 3.» K2.6 è il
+     gradino sotto: stessa azienda, stessa finestra da un milione di token,
+     circa un terzo del prezzo di K3. Non è «peggiore» a priori — è più
+     piccolo, e su un personaggio che parla italiano la differenza si sente
+     solo ascoltando, come per tutte le voci di questa lista. */
+  {
+    provider: 'moonshot',
+    model: 'kimi-k2.6',
+    label: 'Kimi K2.6',
+    price: { input: 0.95, output: 4 },
+    it: 'Un gradino sotto K3, circa un terzo del prezzo. Stessa azienda, stessa finestra da un milione di token: costa meno da provare per primo.',
+    webSearch: false,
+    data: 'Moonshot AI, azienda cinese. Le condizioni sull’uso dei dati vanno lette prima di mandarci le tue conversazioni: non do per scontato che siano come quelle di Anthropic, e non ho modo di verificarlo dall’interno dell’app.',
+  },
   {
     provider: 'anthropic',
     model: 'claude-sonnet-5',
