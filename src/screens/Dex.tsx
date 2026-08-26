@@ -48,10 +48,13 @@ export function DexScreen({ onGo: _onGo, onOpenMon }: { onGo: (o: Overlay) => vo
   const kept = useApp((s) => s.kept);
   const keepMon = useApp((s) => s.keepMon);
   const forgetKept = useApp((s) => s.forgetKept);
+  const startFromKept = useApp((s) => s.startFromKept);
 
   const [picked, setPicked] = useState<string | null>(null);
   const [previewing, setPreviewing] = useState(false);
   const [keeping, setKeeping] = useState(false);
+  const [pickedKeptId, setPickedKeptId] = useState<string | null>(null);
+  const [startingKept, setStartingKept] = useState(false);
 
   /* In ordine di comparsa, non alfabetico: è una storia, e una storia si
      legge dall'inizio. Il nodo dice quando quella forma è nata; le forme
@@ -183,35 +186,66 @@ export function DexScreen({ onGo: _onGo, onOpenMon }: { onGo: (o: Overlay) => vo
 
             <div className="dex__grid">
               {kept.map((k) => (
-                <div key={k.id} className="dexcard dexcard--kept">
-                  <span className="dexcard__art">
-                    <AssetSlot
-                      monName={k.assetName}
-                      fallbackMonNames={[k.record.data.name]}
-                      type="character_toy"
-                      fallbackTypes={['character_master']}
-                      alt={displayName(k.record.data.name)}
-                      fit="contain"
-                      compactPlaceholder
-                    />
-                  </span>
-                  <span className="dexcard__name t-meta">
-                    <MonName name={k.record.data.name} hideExtension />
-                  </span>
-                  <span className="dexcard__day t-micro">
-                    {k.record.data.rarity}
-                    {k.fromAcceleratedRun ? ` · ${t.dex.keptTrial}` : ''}
-                  </span>
+                <div
+                  key={k.id}
+                  className={`dexcard dexcard--kept ${pickedKeptId === k.id ? 'dexcard--picked' : ''}`}
+                >
+                  <button
+                    type="button"
+                    className="teca__pick"
+                    aria-label={`Azioni per ${displayName(k.record.data.name)}`}
+                    onClick={() => setPickedKeptId(pickedKeptId === k.id ? null : k.id)}
+                  >
+                    <span className="dexcard__art">
+                      <AssetSlot
+                        monName={k.assetName}
+                        fallbackMonNames={[k.record.data.name]}
+                        type="character_toy"
+                        fallbackTypes={['character_master']}
+                        alt={displayName(k.record.data.name)}
+                        fit="contain"
+                        compactPlaceholder
+                      />
+                    </span>
+                    <span className="dexcard__name t-meta">
+                      <MonName name={k.record.data.name} hideExtension />
+                    </span>
+                    <span className="dexcard__day t-micro">
+                      {k.record.data.rarity}
+                      {k.fromAcceleratedRun ? ` · ${t.dex.keptTrial}` : ''}
+                    </span>
+                  </button>
                   <button
                     type="button"
                     className="teca__forget t-micro"
-                    onClick={() => forgetKept(k.id)}
+                    onClick={() => {
+                      forgetKept(k.id);
+                      if (pickedKeptId === k.id) setPickedKeptId(null);
+                    }}
                   >
                     {t.dex.forget}
                   </button>
                 </div>
               ))}
             </div>
+
+            {pickedKeptId && kept.some((item) => item.id === pickedKeptId) && (
+              <div className="teca__actions">
+                <p className="t-small">Questo ricordo diventerà il MON attivo e aprirà un nuovo percorso nella MIND.MAP.</p>
+                <Button
+                  block
+                  disabled={startingKept}
+                  onClick={() => {
+                    setStartingKept(true);
+                    void startFromKept(pickedKeptId).then((started) => {
+                      if (started) onOpenMon();
+                    }).finally(() => setStartingKept(false));
+                  }}
+                >
+                  {startingKept ? 'RIPRISTINO IN CORSO…' : 'USA COME NUOVO PUNTO DI PARTENZA'}
+                </Button>
+              </div>
+            )}
           </section>
         )}
 

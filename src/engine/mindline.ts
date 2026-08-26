@@ -221,7 +221,13 @@ export function layoutMindline(
     });
   }
 
-  roots.forEach((root) => walk(root, nextColumn, 0));
+  roots.forEach((root, index) => {
+    // Un MON ripreso dalla teca inaugura una nuova radice. Le radici devono
+    // avere colonne distinte, altrimenti due storie si disegnano una sopra
+    // l'altra e la mappa sembra rotta.
+    if (index > 0) nextColumn += 1;
+    walk(root, nextColumn, 0);
+  });
 
   return {
     nodes: out,

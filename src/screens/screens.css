@@ -4546,10 +4546,39 @@
   color: var(--muted);
 }
 
-/* Un ricordo non si apre al tocco come una forma dello scaffale: non c'è
-   niente da riaprire, è finito. Quindi la scheda non è un pulsante. */
 .dexcard--kept {
-  cursor: default;
+  cursor: pointer;
+}
+
+.teca__pick {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.teca__pick:focus-visible {
+  outline: 2px solid var(--char-primary);
+  outline-offset: 2px;
+}
+
+.teca__actions {
+  display: grid;
+  gap: var(--u3);
+  padding-top: var(--u3);
+  border-top: 1px solid var(--hairline);
+}
+
+.teca__actions p {
+  margin: 0;
+  color: var(--muted);
 }
 
 .teca__forget {

@@ -91,6 +91,23 @@ export async function keepAssetsOf(monName: string): Promise<string> {
   return target;
 }
 
+/** Riporta le immagini di un ricordo nello spazio del MON tornato attivo. */
+export async function restoreKeptAssets(keptName: string, monName: string): Promise<void> {
+  const all = await keys();
+  const prefix = `asset:${keptName}:`;
+
+  for (const k of all) {
+    if (typeof k !== 'string' || !k.startsWith(prefix)) continue;
+    const blob = await get<Blob>(k);
+    if (!blob) continue;
+    const assetId = k.slice(prefix.length);
+    await set(storageKey(monName, assetId), blob);
+    await uploadRemote(monName, assetId, blob);
+  }
+
+  await preloadMonAssets(monName);
+}
+
 /** Toglie dalla teca le immagini di un .mon conservato. */
 export async function dropKeptAssets(keptName: string): Promise<void> {
   const all = await keys();

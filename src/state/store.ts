@@ -172,7 +172,7 @@ import type {
   StatKey,
 } from '../engine/types';
 import { STAT_KEYS, UNKNOWN, displayName, isKnown } from '../engine/types';
-import { dropKeptAssets, keepAssetsOf, preloadMonAssets } from '../assets-pipeline/assetStore';
+import { dropKeptAssets, keepAssetsOf, preloadMonAssets, restoreKeptAssets } from '../assets-pipeline/assetStore';
 
 export type Phase =
   /** 🔶 §12 — il Signal Scan semina la personalità PRIMA che il tempo cominci. */
@@ -667,6 +667,8 @@ interface AppState {
   keepMon: (monName: string, note?: string) => Promise<string | null>;
   /** Toglie un ricordo dalla teca, immagini comprese. */
   forgetKept: (id: string) => void;
+  /** Riprende un ricordo come radice di un nuovo percorso. */
+  startFromKept: (id: string) => Promise<boolean>;
 
   /* --- §22.4 LE IMMAGINI --- */
   /** A che punto è la generazione in corso, o `null`. Solo per la UI. */
@@ -2898,6 +2900,47 @@ export const useApp = create<AppState>()(
         if (!entry) return;
         void dropKeptAssets(entry.assetName);
         set({ kept: get().kept.filter((k) => k.id !== id) });
+      },
+
+      startFromKept: async (id) => {
+        const s = get();
+        const entry = s.kept.find((item) => item.id === id);
+        if (!entry) return false;
+
+        const name = entry.record.data.name;
+        const existingNode = s.nodes.find((node) => node.monName === name);
+        if (existingNode && s.mons[name]) {
+          get().restoreNode(existingNode.id);
+          return true;
+        }
+
+        const nodeId = makeNodeId(s.nodes.length);
+        const record = structuredClone(entry.record);
+        record.data.mindline_node = nodeId;
+        record.data.origin_node = null;
+        record.retiredOnDay = null;
+
+        set({
+          activeMonName: name,
+          phase: 'live',
+          mons: { ...s.mons, [name]: record },
+          nodes: [
+            ...s.nodes,
+            createNode({
+              index: s.nodes.length,
+              kind: 'origin',
+              monName: name,
+              parentId: null,
+              day: s.day,
+              chapter: nextChapter(s.nodes, 'branch'),
+              label: 'RIPRESO DALLA TECA',
+            }),
+          ],
+          chat: [openingMessage(record, s.day, s.token !== null)],
+        });
+
+        await restoreKeptAssets(entry.assetName, name);
+        return true;
       },
 
       resetAll: () =>
