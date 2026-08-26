@@ -4358,9 +4358,16 @@
 .sync-check__dial { position: relative; width: min(72vw, 270px); aspect-ratio: 1; display: grid; place-items: center; }
 .sync-check__ticks { position: absolute; inset: 0; }
 .sync-check__ticks i { position: absolute; inset: 0; transform: rotate(calc(var(--dial-index) * (360deg / 30))); }
-.sync-check__ticks i::before { content: ''; position: absolute; top: 4%; left: calc(50% - 1.5px); width: 3px; height: 8%; border-radius: 2px; background: #33343a; opacity: .45; }
-.sync-check__ticks i.is-done::before { background: var(--tc-accent); opacity: 1; box-shadow: 0 0 5px color-mix(in srgb, var(--tc-accent) 65%, transparent); }
-.sync-check__dial::after { content: ''; position: absolute; inset: 27px; border: 1px solid #33343a; border-radius: 50%; }
+/* 🔷 «Un'estetica un po' più Y2K: tratteggio più largo e netto, angoli non
+   arrotondati ma netti — e via la linea/il cerchio grigio che c'era.» Niente
+   `border-radius`, niente bagliore sfumato: un blocco pieno, non un puntino.
+   Ancora da fare = grigio; già fatto = il colore di turno del .mon. */
+.sync-check__ticks i::before { content: ''; position: absolute; top: 3%; left: calc(50% - 2.5px); width: 5px; height: 10%; background: #3a3b42; opacity: .5; }
+/* 🔒 NON `--tc-accent`: quella variabile la dichiara solo `.today-check`, la
+   pagina SYNC vera. Dentro DEV il quadrante non ha quell'antenato — è lo
+   stesso bug del pulsante di stop di prima, la stessa correzione: la
+   variabile che il .mon scrive davvero su `:root`, con un ripiego suo. */
+.sync-check__ticks i.is-done::before { background: var(--char-accent-on-dark, var(--tc-accent, #f4a928)); opacity: 1; }
 .sync-check__dial strong { position: relative; z-index: 1; color: #fff; font: italic 900 96px/.8 var(--font-display); font-variant-numeric: tabular-nums; }
 .sync-checkpoint { position: absolute; z-index: 3; width: 44px; height: 44px; display: grid; place-items: center; padding: 0; border: 1px solid #50525a; border-radius: 50%; background: #050506; color: #777a83; font: 700 11px/1 var(--font-mono); }
 .sync-checkpoint:disabled { opacity: 1; }

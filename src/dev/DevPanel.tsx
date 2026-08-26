@@ -177,8 +177,15 @@ export function DevPanel({ onClose, onGo }: { onClose: () => void; onGo?: (o: 'a
   const current = GROUPS.find((g) => g.id === group);
   const inGroup = group !== 'start' && GROUP_OF[tab] === group;
 
+  /* 🔷 «Il dev in alto è ancora su sfondo bianco, deve essere tutto su nero.»
+     `.dev` sfondava su `var(--white)`, che senza un campo d'inchiostro
+     invertito resta il bianco vero di `:root`. Le altre schermate a campo
+     nero (Incubation, Encounter, MindlineMap…) non ridefiniscono i colori a
+     mano: montano `data-field="ink"`, che inverte l'intero set di token
+     (bianco↔inchiostro, hairline, muted) in un colpo solo — stesso
+     meccanismo, non uno nuovo. */
   return (
-    <div className="screen dev">
+    <div className="screen dev" data-field="ink">
       <header className="dev__head">
         <div>
           <h1 className="t-display dev__title">DEV://VINZ.MON</h1>
