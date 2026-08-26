@@ -442,7 +442,10 @@ export function App() {
     /* 🔶 Era `tab === 'mindline'`, che non esiste più. La DECISIONE non è
        cambiata: le tre viste d'archivio si guardano su campo nero, la
        creatura no. Sono scese dentro MON, quindi la condizione le segue. */
-    (phase === 'live' && tab === 'mon' && monView !== 'mon' && !overlay);
+    /* La MIND.MAP resta una superficie scura di percorso. Il MIND.DEX invece
+       è uno scaffale ottico bianco: non deve ereditare il campo nero solo
+       perché vive accanto alla mappa. */
+    (phase === 'live' && tab === 'mon' && monView === 'map' && !overlay);
 
   // Con la tab bar in fondo, il margine di sistema lo prende lei: il composer
   // non deve aggiungere il suo, o resterebbe uno spazio vuoto doppio.

@@ -141,7 +141,7 @@ export function DexScreen({ onGo: _onGo, onOpenMon }: { onGo: (o: Overlay) => vo
                   className={`dexcard ${picked === name ? 'dexcard--picked' : ''}`}
                   aria-label={`Apri la pagina di ${displayName(name)}`}
                   onClick={() => {
-                    setPicked(name);
+                    setPicked(picked === name ? null : name);
                     setPreviewing(false);
                   }}
                 >

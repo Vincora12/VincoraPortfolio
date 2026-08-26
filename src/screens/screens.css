@@ -3445,7 +3445,8 @@
 }
 
 .dexcard--picked {
-  box-shadow: none;
+  background: #f1f1f1;
+  box-shadow: inset 0 0 0 2px var(--char-primary);
 }
 
 .dexcard__art {
@@ -3480,13 +3481,17 @@
 }
 
 .dex__actions {
-  position: sticky;
-  bottom: calc(var(--nav-h) + env(safe-area-inset-bottom));
-  z-index: 4;
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 8;
   padding: var(--u3);
-  border-top: var(--border) solid var(--line);
+  border-top: var(--border-thick) solid #0b0b0b;
   background: rgba(255, 255, 255, 0.97);
   backdrop-filter: blur(12px);
+  box-shadow: 0 -12px 32px rgba(0, 0, 0, 0.14);
+  animation: panel-rise var(--dur-base) var(--ease-system);
 }
 
 .dex__actionlist {
