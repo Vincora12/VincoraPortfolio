@@ -596,6 +596,12 @@ interface AppState {
   /** §8.1 — fa riscrivere la bio. Torna il motivo del rifiuto, o `null`. */
   writeBio: (monName: string) => Promise<string | null>;
   /**
+   * VINZMON_NARRATIVE_ROLE_IMPLEMENTATION_BRIEF §10 — fa scrivere la riga del
+   * narratore. Se l'AI non risponde o viene scartata, scrive comunque il
+   * fallback deterministico: il narratore parla sempre, non solo con la chiave.
+   */
+  writeNarrator: (monName: string) => Promise<string | null>;
+  /**
    * 🔷 v1 COMPILER — accetta una risoluzione incollata a mano.
    *
    * ⚠️ Esiste perché il resolver come chiamata automatica oggi non può girare:
@@ -1600,6 +1606,10 @@ export const useApp = create<AppState>()(
            chiamata fallisce, perché `writeBio` non tocca `writtenBio` in
            quel caso. */
         void get().writeBio(job.candidateName);
+        /* §10 del brief — stessa strada parallela della bio: pronta prima che
+           la rivelazione arrivi, con il fallback deterministico se l'AI non
+           regge, mai assente. */
+        void get().writeNarrator(job.candidateName);
 
         void import('../assets-pipeline/remoteGeneration').then(async ({ queueRemoteGeneration, pollRemoteGeneration }) => {
           let serverJobId = job.serverJobId;
@@ -2161,6 +2171,34 @@ export const useApp = create<AppState>()(
           return { mons: { ...cur.mons, [monName]: { ...now, writtenBio: bio } } };
         });
         return null;
+      },
+
+      /* VINZMON_NARRATIVE_ROLE_IMPLEMENTATION_BRIEF §10 — la voce con cui
+         VINZ.MON racconta l'arrivo di una forma. A differenza della bio, se
+         l'AI non regge i controlli si scrive comunque il fallback
+         deterministico: il narratore deve parlare «tutte le volte che nasce
+         un mon», non solo quando la chiave funziona. */
+      writeNarrator: async (monName) => {
+        const s = get();
+        const rec = s.mons[monName];
+        if (!rec) return 'nessuna creatura con questo nome';
+        if (rec.narratorLine) return null;
+
+        const { writeNarratorWithAi, narratorFallbackLine } = await import('../ai/narratorPrompt');
+        const { line, failure, rejected } = await runStep(
+          'narrator',
+          (model) => writeNarratorWithAi(s.token, rec, model),
+          (out) => ({ ok: out.line !== null, why: out.rejected ?? out.failure ?? undefined }),
+        );
+
+        const finalLine = line ?? narratorFallbackLine(rec);
+
+        set((cur) => {
+          const now = cur.mons[monName];
+          if (!now) return {};
+          return { mons: { ...cur.mons, [monName]: { ...now, narratorLine: finalLine } } };
+        });
+        return line ? null : (rejected ?? (failure ? `chiamata fallita (${failure}), usato il fallback` : 'usato il fallback'));
       },
 
       /* ============================================================================

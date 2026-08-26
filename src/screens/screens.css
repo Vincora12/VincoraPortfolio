@@ -252,6 +252,46 @@
   color: var(--muted-strong);
 }
 
+/* VINZMON_NARRATIVE_ROLE_IMPLEMENTATION_BRIEF §10 — VINZ.MON come sistema
+   che indicizza l'arrivo, non il .mon che parla di sé (quello è la bio,
+   bianca come il resto dell'overlay). Un pannello scuro dentro l'overlay
+   chiaro fa la differenza a colpo d'occhio, prima ancora di leggere. */
+.encounter__narrator {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: var(--u2);
+  background: var(--ink);
+  border-left: 3px solid var(--char-primary);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.5;
+  color: color-mix(in srgb, var(--white) 88%, var(--char-primary));
+  text-align: left;
+  animation: encounter-narrator-in 0.6s var(--ease-system) both;
+}
+
+.encounter__narrator-line {
+  display: block;
+}
+
+.encounter__narrator-line--system {
+  color: var(--char-primary);
+  letter-spacing: 0.02em;
+}
+
+/* Le righe da "sistema" (etichette `> ...`) restano nel colore d'accento;
+   le righe di immagine viva prendono il bianco quasi pieno del blocco. */
+.encounter__narrator-line:empty {
+  height: 4px;
+}
+
+@keyframes encounter-narrator-in {
+  0% { opacity: 0; transform: translateY(4px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
 @keyframes encounter-before {
   0%, 32% { opacity: 1; filter: brightness(1); transform: scale(1); }
   56% { opacity: 0.82; filter: brightness(1.5) saturate(0.2); transform: scale(1.035); }

@@ -30,6 +30,9 @@ import {
   MOODS,
   MASS_OFFSET,
   MOOD_CONFIDENCE_FLOOR,
+  NARRATIVE_ARCHETYPES,
+  NARRATIVE_ARCHETYPE_FIT,
+  NARRATIVE_ROLE_MAP,
   NEUTRAL_MOODS,
   ROLES,
   SELECTABLE_FAMILIES,
@@ -39,11 +42,15 @@ import {
   SIZE_NOISE_RANGE,
   SIZE_SCORE_WEIGHTS,
   SIZE_THRESHOLDS,
+  STORY_FUNCTIONS,
+  STORY_FUNCTION_FIT,
   AFFINITIES,
   familyDef,
   type Appearance,
   type FamilyDef,
+  type NarrativeArchetypeId,
   type Size,
+  type StoryFunctionId,
 } from './generation-config';
 import { isEnabled, keepEnabled } from './catalogTuning';
 import { chance, makeRng, pick, pickInt, pickMany, pickWeighted, type Rng } from './rng';
@@ -64,6 +71,7 @@ import type {
   CharacterDna,
   GenerationTrace,
   MonRecord,
+  NarrativeDna,
   SigilSeed,
   TraceCandidate,
   TraceStep,
@@ -196,6 +204,24 @@ export function generateMon(ctx: GenerationContext): GenerationResult {
     note: affinity === family.id ? 'coincide con la Family: intensificazione, non ridondanza' : undefined,
   });
 
+  /* 7.5 — STRATO NARRATIVO (VINZMON_NARRATIVE_ROLE_IMPLEMENTATION_BRIEF §2–§3)
+
+     Prima del Role, con solo quello che esiste già (Family/Archetipo/
+     Affinità): chi tende a essere narrativamente e cosa lo spinge/contraddice
+     — quest'ultimi due un solo sorteggio che `generateCharacterDna`, più
+     avanti, riuserà come `drives[0]`/`contradictions[0]` invece di
+     ritirarli. */
+  const narrativeArchetype = resolveNarrativeArchetype(rng, signals);
+  const narrativeFunction = resolveStoryFunction(rng, signals);
+  const narrativeDrive = pick(rng, DRIVES);
+  const narrativeContradiction = pick(rng, CONTRADICTIONS);
+  steps.push({
+    step: 7.5,
+    stage: 'NARRATIVE DNA',
+    outcome: `${narrativeArchetype} · ${narrativeFunction}`,
+    note: 'spina narrativa: orienta il Role, non lo sostituisce',
+  });
+
   /* 07 — SIZE (§21) */
   const { size: drawnSize, score: sizeScore } = resolveSize(rng, signals, family, archetype);
   /* 🔶 LA TAGLIA NON È PIÙ FERMATA DA `TEST_PHASE`: passa dal catalogo, come
@@ -219,7 +245,7 @@ export function generateMon(ctx: GenerationContext): GenerationResult {
   });
 
   /* 08 — ROLE (§20) */
-  const drawnRole = resolveRole(rng);
+  const drawnRole = resolveRole(rng, narrativeArchetype);
   let role = anchored('role') ? prev!.role : drawnRole;
   steps.push({ step: 8, stage: 'ROLE', outcome: role });
 
@@ -385,7 +411,7 @@ export function generateMon(ctx: GenerationContext): GenerationResult {
   });
 
   /* 13 — CHARACTER DNA (§40) */
-  const characterDna = generateCharacterDna(rng, family, archetype, affinity);
+  const characterDna = generateCharacterDna(rng, family, archetype, affinity, narrativeDrive, narrativeContradiction);
   const paletteDna = generatePaletteDna(rng, family.id, affinity, moodPrimary);
   steps.push({ step: 13, stage: 'CHARACTER DNA', outcome: characterDna.silhouette_quirk });
 
@@ -487,6 +513,12 @@ export function generateMon(ctx: GenerationContext): GenerationResult {
     seed: ctx.seed,
     generation_config_version: GENERATION_CONFIG_VERSION,
     generated_at_day: ctx.input.day,
+    narrativeDNA: {
+      archetype: narrativeArchetype,
+      function: narrativeFunction,
+      drive: narrativeDrive,
+      contradiction: `${narrativeContradiction.a} / ${narrativeContradiction.b}`,
+    } satisfies NarrativeDna,
   };
 
   steps.push({ step: 18, stage: 'CHARACTER DATA', outcome: 'esportabile, nessuna immagine richiesta' });
@@ -719,15 +751,70 @@ function resolveSize(
 }
 
 /* ============================================================================
+   VINZMON_NARRATIVE_ROLE_IMPLEMENTATION_BRIEF §2 — STRATO NARRATIVO
+
+   🔒 GENERATO PRIMA DI ROLE, CON SOLO QUELLO CHE ESISTE GIÀ A QUESTO PUNTO
+   DELLA PIPELINE (Family/Archetipo/Affinità — §24 non ha ancora risolto Mood
+   né Cultural DNA quando Role si estrae, al passo 8). Non si sposta l'ordine
+   autorevole del file per farci stare l'intera Character DNA: si estrae qui
+   SOLO il drive e la contraddizione che serviranno da spina, e più avanti
+   `generateCharacterDna` li riusa come `drives[0]`/`contradictions[0]`
+   invece di ritirarli — un solo sorteggio, letto da due posti. */
+function resolveNarrativeArchetype(
+  rng: Rng,
+  signals: ReturnType<typeof buildSignalVector>,
+): NarrativeArchetypeId {
+  const scored = NARRATIVE_ARCHETYPES.map((id) => ({
+    id,
+    // 70% chi tende a essere (il fit sui segnali), 30% sorte — stesso
+    // principio di `resolveAffinity`: mai un risultato puramente meccanico.
+    total: evaluateFit(NARRATIVE_ARCHETYPE_FIT[id], signals) * 0.7 + rng() * 100 * 0.3,
+  }));
+  scored.sort((a, b) => b.total - a.total);
+  return scored[0]!.id;
+}
+
+/* «Function may change over time even when the MON remains the same
+   character» (brief §3) — oggi si estrae una volta alla nascita, come Role;
+   CONTINUE/EVOLVE non la ritocca (vedi `evolveMon`, che spreads `...prev`
+   invece di rigenerare Family/Role/Character DNA). Resta una funzione a
+   parte, esportabile, apposta per poterla far rigirare in futuro senza
+   toccare il resto della pipeline. */
+function resolveStoryFunction(
+  rng: Rng,
+  signals: ReturnType<typeof buildSignalVector>,
+): StoryFunctionId {
+  const scored = STORY_FUNCTIONS.map((id) => ({
+    id,
+    total: evaluateFit(STORY_FUNCTION_FIT[id], signals) * 0.7 + rng() * 100 * 0.3,
+  }));
+  scored.sort((a, b) => b.total - a.total);
+  return scored[0]!.id;
+}
+
+/* ============================================================================
    §20 — ROLE E FASHION
    ========================================================================= */
 
-function resolveRole(rng: Rng): string {
+function resolveRole(rng: Rng, narrativeArchetype: NarrativeArchetypeId): string {
   const w = ENGINE_WEIGHTS.role;
-  const scored = keepEnabled('role', ROLES, (r) => r.id).map((r) => ({
-    id: r.id,
-    total: rng() * 100 * w.personality + rng() * 100 * w.cultural + rng() * 100 * w.mood + rng() * 100 * w.randomness,
-  }));
+  /* 🔷 «Mapping must be many-to-many, not one-to-one.» Il termine
+     "personality" — già 0.5 del peso totale, vedi `ENGINE_WEIGHTS.role` —
+     smette di essere un numero a caso e legge quanto QUESTO Role è adatto
+     a QUESTO Narrative Archetype (§4). Normalizzato sul peso più alto della
+     riga: il candidato migliore dell'archetipo arriva a punteggio pieno, un
+     Role assente dalla riga resta a zero su questo termine — ma "cultural",
+     "mood" e "randomness" restano un altro 50% del totale, quindi nessun
+     Role è mai davvero escluso. */
+  const map = NARRATIVE_ROLE_MAP[narrativeArchetype] ?? {};
+  const maxWeight = Math.max(0, ...Object.values(map).map((v) => v ?? 0));
+  const scored = keepEnabled('role', ROLES, (r) => r.id).map((r) => {
+    const narrativeFit = maxWeight > 0 ? ((map[r.id] ?? 0) / maxWeight) * 100 : 0;
+    return {
+      id: r.id,
+      total: narrativeFit * w.personality + rng() * 100 * w.cultural + rng() * 100 * w.mood + rng() * 100 * w.randomness,
+    };
+  });
   scored.sort((a, b) => b.total - a.total);
   return scored[0]!.id;
 }
@@ -1005,12 +1092,25 @@ const CONTRADICTIONS = [
   { a: 'controllo', b: 'impulso' },
 ];
 
+/* 🔷 «narrativeDNA riusa quelli già generati» — `narrativeDrive` e
+   `narrativeContradiction` sono estratti PRIMA (§7.5, prima del Role), non
+   un secondo sorteggio indipendente: qui diventano semplicemente
+   `drives[0]`/`contradictions[0]`, e il resto dell'array si pesca dal
+   pool SENZA di loro, per non ripeterli due volte nella stessa lista. */
 function generateCharacterDna(
   rng: Rng,
   family: FamilyDef,
   archetype: string,
   affinity: string,
+  narrativeDrive: string,
+  narrativeContradiction: { a: string; b: string },
 ): CharacterDna {
+  const extraContradictions = pickMany(
+    rng,
+    CONTRADICTIONS.filter((c) => c !== narrativeContradiction),
+    Math.max(0, pickInt(rng, 1, 3) - 1),
+  );
+  const extraDrives = pickMany(rng, DRIVES.filter((d) => d !== narrativeDrive), 1);
   return {
     silhouette_quirk: pick(rng, SILHOUETTE_QUIRKS),
     anatomical_gimmick: `una zona ${affinity} innestata su anatomia ${family.id} / ${archetype}`,
@@ -1021,9 +1121,9 @@ function generateCharacterDna(
         : FACE_LOGIC,
     ),
     body_language: pick(rng, BODY_LANGUAGE),
-    contradictions: pickMany(rng, CONTRADICTIONS, pickInt(rng, 1, 3)),
+    contradictions: [narrativeContradiction, ...extraContradictions],
     traits: pickMany(rng, TRAITS, 3),
-    drives: pickMany(rng, DRIVES, 2),
+    drives: [narrativeDrive, ...extraDrives],
   };
 }
 

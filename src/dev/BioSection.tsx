@@ -19,9 +19,12 @@ export function BioSection() {
   const mon = useActiveMon();
   const token = useApp((s) => s.token);
   const writeBio = useApp((s) => s.writeBio);
+  const writeNarrator = useApp((s) => s.writeNarrator);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const [showRaw, setShowRaw] = useState(false);
+  const [narratorBusy, setNarratorBusy] = useState(false);
+  const [narratorProblem, setNarratorProblem] = useState<string | null>(null);
 
   if (!mon) return <NoMon what="la bio" />;
 
@@ -82,6 +85,43 @@ export function BioSection() {
       )}
 
       <pre className="dev__json dev__prompt">{asText(shown)}</pre>
+
+      {/* VINZMON_NARRATIVE_ROLE_IMPLEMENTATION_BRIEF §10 — la voce con cui
+          VINZ.MON, da narratore, racconta l'arrivo di questa forma. Diversa
+          dalla bio sopra: qui parla il sistema, non il .mon. */}
+      <p className="t-meta dev__label" style={{ marginTop: 16 }}>NARRATORE (§10 brief narrativo)</p>
+      <p className="t-micro dev__note">
+        {mon.narratorLine
+          ? 'scritta alla nascita di questa forma (AI o fallback deterministico)'
+          : 'non ancora scritta — sulle creature nate prima di questo strato'}
+      </p>
+
+      <div className="dev__grid">
+        {mon.narratorLine && <CopyButton text={mon.narratorLine} label="COPIA" />}
+        {!mon.narratorLine && (
+          <Button
+            small
+            loading={narratorBusy}
+            onClick={() => {
+              setNarratorBusy(true);
+              setNarratorProblem(null);
+              void writeNarrator(mon.data.name)
+                .then((why) => setNarratorProblem(why))
+                .finally(() => setNarratorBusy(false));
+            }}
+          >
+            {narratorBusy ? 'SCRIVE…' : 'FALLA SCRIVERE'}
+          </Button>
+        )}
+      </div>
+
+      {narratorProblem && (
+        <p className="t-small">
+          <SystemLabel tone="alert">FALLBACK USATO</SystemLabel> {narratorProblem}
+        </p>
+      )}
+
+      {mon.narratorLine && <pre className="dev__json dev__prompt">{mon.narratorLine}</pre>}
     </div>
   );
 }

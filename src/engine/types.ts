@@ -286,6 +286,34 @@ export interface CharacterData {
 
   /** Presente quando il .mon ha fatto CONTINUE/EVOLVE. */
   evolution_state?: EvolutionState;
+
+  /**
+   * 🔷 VINZMON_NARRATIVE_ROLE_IMPLEMENTATION_BRIEF — la spina narrativa che
+   * orienta Role, tenuta deliberatamente piccola (§3 del brief: «Do not add
+   * a large RPG-stat sheet»).
+   *
+   * 🔒 FACOLTATIVO E MAI RISCRITTO. Nasce con la creatura e resta quello:
+   * i .mon già generati non lo hanno (`?`, non un valore inventato per
+   * loro), e CONTINUE/EVOLVE non lo tocca — è la spina, non l'umore del
+   * giorno. `drive`/`contradiction` non sono un secondo sorteggio: SONO
+   * `character_dna.drives[0]`/`contradictions[0]`, lo stesso valore letto
+   * da un secondo posto — un solo sistema, non due che rischiano di dire
+   * cose diverse sulla stessa creatura.
+   */
+  narrativeDNA?: NarrativeDna;
+}
+
+/**
+ * Chi è narrativamente (`archetype`), che parte sta giocando nella storia
+ * ADESSO (`function` — può cambiare, la creatura no), cosa lo spinge e cosa
+ * lo contraddice — questi ultimi due presi da `character_dna`, non
+ * duplicati.
+ */
+export interface NarrativeDna {
+  archetype: string;
+  function: string;
+  drive: string;
+  contradiction: string;
 }
 
 /* --- SIGILLO ----------------------------------------------------------------
@@ -409,6 +437,21 @@ export interface MonRecord {
    * bio: è un generatore di frasi che ti gira intorno.
    */
   writtenBio?: BioFile;
+  /**
+   * 🔷 VINZMON_NARRATIVE_ROLE_IMPLEMENTATION_BRIEF §10 — la riga con cui
+   * VINZ.MON, da narratore/sistema, racconta l'arrivo di QUESTA forma.
+   *
+   * ⚠️ NON è la bio: la bio è il .mon che scrive di sé stesso in prima
+   * persona; questa è VINZ.MON che osserva e indicizza dall'esterno, con la
+   * voce terminale del brief («A corridor has appeared where yesterday
+   * there was only a wall. / I can tell you when it appeared. / I cannot
+   * tell you what it means.»).
+   *
+   * 🔒 SI SCRIVE UNA VOLTA SOLA, alla nascita di quella forma. Stessa
+   * disciplina di `writtenBio`: assente finché la scrittura non è andata a
+   * buon fine, e mai riscritta dopo.
+   */
+  narratorLine?: string;
   /**
    * 🔷 v1 COMPILER — le decisioni di design prese dal resolver.
    *

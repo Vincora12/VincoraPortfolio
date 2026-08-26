@@ -206,6 +206,60 @@ check(
 );
 
 /* ============================================================================
+   VINZMON_NARRATIVE_ROLE_IMPLEMENTATION_BRIEF §11 — «Add tests for Role
+   catalogue validity and Narrative → Role mapping.»
+   ========================================================================= */
+
+const roleIds = new Set(C.ROLES.map((r) => r.id));
+
+const unnormalizedNarrative = C.NARRATIVE_ARCHETYPES.filter(
+  (id) => Math.abs(Object.values(C.NARRATIVE_ARCHETYPE_FIT[id]).reduce((a, b) => a + b, 0) - 1) > 0.001,
+);
+check(
+  unnormalizedNarrative.length === 0,
+  'i fit del Narrative Archetype sono normalizzati a 1',
+  unnormalizedNarrative.join(', '),
+);
+
+const unnormalizedFunction = C.STORY_FUNCTIONS.filter(
+  (id) => Math.abs(Object.values(C.STORY_FUNCTION_FIT[id]).reduce((a, b) => a + b, 0) - 1) > 0.001,
+);
+check(
+  unnormalizedFunction.length === 0,
+  'i fit della Story Function sono normalizzati a 1',
+  unnormalizedFunction.join(', '),
+);
+
+// Ogni riga di NARRATIVE_ROLE_MAP deve puntare a Role che esistono davvero:
+// un id sbagliato non lancerebbe mai un errore da solo, resterebbe muto
+// (`map[r.id] ?? 0` in resolveRole lo leggerebbe sempre come zero).
+const unknownMappedRoles = [];
+for (const archetype of C.NARRATIVE_ARCHETYPES) {
+  const row = C.NARRATIVE_ROLE_MAP[archetype] ?? {};
+  for (const roleId of Object.keys(row)) {
+    if (!roleIds.has(roleId)) unknownMappedRoles.push(`${archetype}→${roleId}`);
+  }
+}
+check(
+  unknownMappedRoles.length === 0,
+  'ogni Role nominato da NARRATIVE_ROLE_MAP esiste nel catalogo',
+  unknownMappedRoles.join(', '),
+);
+
+// Ogni Narrative Archetype ha davvero una riga di mappatura — altrimenti
+// §4 del brief («many-to-many, not one-to-one») per quell'archetipo
+// diventerebbe silenziosamente «solo rumore», senza che nessun controllo
+// lo dica.
+const archetypesWithoutMap = C.NARRATIVE_ARCHETYPES.filter(
+  (id) => Object.keys(C.NARRATIVE_ROLE_MAP[id] ?? {}).length === 0,
+);
+check(
+  archetypesWithoutMap.length === 0,
+  'ogni Narrative Archetype ha almeno un Role mappato',
+  archetypesWithoutMap.join(', '),
+);
+
+/* ============================================================================
    BATCH
    ========================================================================= */
 

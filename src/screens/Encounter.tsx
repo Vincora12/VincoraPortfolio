@@ -327,6 +327,23 @@ export function EncounterScreen({ variant }: { variant: 'first' | 'new' }) {
           </p>
         )}
 
+        {/* VINZMON_NARRATIVE_ROLE_IMPLEMENTATION_BRIEF §10 — VINZ.MON, da
+            sistema/narratore, racconta l'arrivo. Solo alla battuta finale:
+            prima ancora si sta rivelando l'immagine, e un blocco di testo lì
+            sotto competerebbe con l'animazione invece di chiuderla. */}
+        {beat >= 3 && mon.narratorLine && (
+          <p className="t-small encounter__narrator" aria-live="polite">
+            {mon.narratorLine.split('\n').map((line, i) => (
+              <span
+                key={i}
+                className={`encounter__narrator-line${line.trimStart().startsWith('>') ? ' encounter__narrator-line--system' : ''}`}
+              >
+                {line}
+              </span>
+            ))}
+          </p>
+        )}
+
         <Button variant="character" block onClick={enterLive}>
           {t.encounter.enter}
         </Button>

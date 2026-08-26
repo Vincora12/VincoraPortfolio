@@ -592,6 +592,7 @@ export type AiStepId =
   | 'characterMaster'
   | 'teach'
   | 'bio'
+  | 'narrator'
   | 'imagePrompt'
   | 'voice'
   | 'reflection'
@@ -669,6 +670,21 @@ export const AI_STEPS: Record<AiStepId, AiStep> = {
     maxTokens: 2000,
     qualityCritical: false,
   },
+  /* 🔷 VINZMON_NARRATIVE_ROLE_IMPLEMENTATION_BRIEF §10 — la voce con cui
+     VINZ.MON racconta l'arrivo di una forma, quando fa da narratore/sistema.
+     Stesso profilo di BIO: testo corto, si scrive una volta sola, non è
+     critico per la qualità come il Character Master. */
+  narrator: {
+    id: 'narrator',
+    label: 'NARRATORE',
+    it: 'Il testo con cui VINZ.MON racconta l’arrivo della forma, voce terminale/sistema. Testo corto, una volta sola.',
+    capability: 'prompt-compile',
+    fallback: 'gpt-5.6-luna',
+    background: false,
+    effort: 'low',
+    maxTokens: 900,
+    qualityCritical: false,
+  },
   imagePrompt: {
     id: 'imagePrompt',
     label: 'PROMPT IMMAGINI',
@@ -730,6 +746,7 @@ export const AI_STEPS: Record<AiStepId, AiStep> = {
 export const AI_STEP_ORDER: AiStepId[] = [
   'characterMaster',
   'bio',
+  'narrator',
   'imagePrompt',
   'image',
   'voice',

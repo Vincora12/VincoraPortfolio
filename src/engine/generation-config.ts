@@ -21,7 +21,15 @@
    e non ne contengono al loro interno.
    ========================================================================= */
 
-/* 2.3.0 — riequilibrio delle estrazioni. Gli archetipi non dipendono più dalla
+/* 3.2.0 — VINZMON_NARRATIVE_ROLE_IMPLEMENTATION_BRIEF: strato narrativo prima
+   del Role. `resolveRole` non pesca più il termine "personality" a caso —
+   legge il fit del Narrative Archetype sulla mappa §4 — e il catalogo ROLE
+   passa da 24 a 59 voci. Cambia la sequenza di estrazioni della pipeline
+   (drive/contraddizione narrativi si tirano prima, il Character DNA più
+   tardi li riusa invece di ritirarli) e il peso reale del termine "role", non
+   solo il catalogo: §29 impone la versione nuova per entrambi i motivi.
+
+   2.3.0 — riequilibrio delle estrazioni. Gli archetipi non dipendono più dalla
    posizione nel catalogo, la taglia legge una massa dichiarata, la Family si
    estrae con un softmax a temperatura invece che sul punteggio grezzo, e i due
    livelli di rarità in cima si guadagnano col punteggio invece di essere tirati
@@ -31,7 +39,7 @@
    estrae. §29 impone di incrementare la versione quando cambiano tassonomie o
    pesi, e i .mon già generati restano immutabili con la versione con cui sono
    nati. */
-export const GENERATION_CONFIG_VERSION = '3.1.0';
+export const GENERATION_CONFIG_VERSION = '3.2.0';
 
 /* ============================================================================
    §2 — SEGNALI IN INGRESSO
@@ -826,7 +834,9 @@ export const SIZE_NOISE_RANGE = 16;
 export const SIZE_THRESHOLDS = { tinyBelow: 38, giantAtOrAbove: 64 } as const;
 
 /* ============================================================================
-   §7 — CATALOGO DEI ROLE (24)
+   §7 — CATALOGO DEI ROLE
+   (24 originali + 35 di VINZMON_NARRATIVE_ROLE_IMPLEMENTATION_BRIEF, §7 del
+   brief — il numero non si ripete qui per non tornare stantio al prossimo giro)
    ========================================================================= */
 
 export interface RoleDef {
@@ -860,6 +870,58 @@ export const ROLES: RoleDef[] = [
   { id: 'ARCHIVIST', translation: 'Storage, labels, memory-bearing anatomy/behavior.', it: 'immagazzinamento, etichette, memoria portata addosso' },
   { id: 'IDOL', translation: 'Performance, gaze-awareness, stylized confidence.', it: 'performance, consapevolezza dello sguardo' },
   { id: 'HERMIT', translation: 'Self-contained posture, reduced social display, internal-focus behavior.', it: 'postura raccolta, poca esposizione sociale' },
+
+  /* ============================================================================
+     VINZMON_NARRATIVE_ROLE_IMPLEMENTATION_BRIEF §7 — NUOVI ROLE
+
+     🔒 SOLO QUELLI CHE AGGIUNGONO UNA GRAMMATICA VISIVA DAVVERO DIVERSA (§8 del
+     brief: «prefer the existing Role» quando uno già la copre). Il brief ne
+     proponeva 39; quattro sono usciti prima di arrivare qui:
+     - ALCHEMIST, ARCHIVIST, WANDERER: esistono già sopra, parola per parola.
+       Ridichiararli avrebbe fatto scoppiare `FRAGMENT_LIBRARY` al primo avvio
+       (id duplicato, vedi `fragments.ts`).
+     - COOK: stessa grammatica di CHEF già in catalogo («transformation/mixing/
+       serving anatomy»/«un utensile leggibile» sono la stessa cosa detta due
+       volte).
+     ========================================================================= */
+  { id: 'HEALER', translation: 'Attentive/supportive posture; repair/care tools or anatomy; delicate intervention cues.', it: 'postura attenta e di supporto, strumenti di cura' },
+  { id: 'ARTISAN', translation: 'Construction-oriented hands/limbs; modular craft details; compact integrated tools.', it: 'mani da costruzione, dettagli artigianali modulari' },
+  { id: 'SCHOLAR', translation: 'Focused observation; collection/measurement cues; restrained reading or analysis elements.', it: 'osservazione concentrata, elementi di misura e lettura' },
+  { id: 'DIPLOMAT', translation: 'Open balanced posture; exchange-oriented gesture; relational symmetry.', it: 'postura aperta ed equilibrata, gesto di scambio' },
+  { id: 'NOMAD', translation: 'Portable/adaptable equipment; movement-ready silhouette; no ethnic-costume shorthand.', it: 'equipaggiamento portatile, sagoma pronta a muoversi' },
+  { id: 'KEEPER', translation: 'Custody/preservation logic; containers, keys, protected objects or careful holding behavior.', it: 'logica di custodia, contenitori e chiavi' },
+  { id: 'ENGINEER', translation: 'Assembly/problem-solving logic; structural tools, joints, measured construction cues.', it: 'logica di montaggio, giunti e strumenti strutturali' },
+  { id: 'BOTANIST', translation: 'Observation and cultivation of organic growth; restrained plant/propagation equipment.', it: 'osservazione e coltivazione della crescita organica' },
+  { id: 'COURIER', translation: 'Delivery/connection logic; lightweight carrying system; route-ready movement.', it: 'logica di consegna, sistema di trasporto leggero' },
+  { id: 'HOST', translation: 'Welcoming/social orientation; open gesture; presentation and shared-space cues.', it: 'orientamento accogliente, gesto aperto' },
+  { id: 'MERCHANT', translation: 'Exchange/valuation/collection logic; compact wares, tokens or carrying systems.', it: 'logica di scambio e valutazione, merce compatta' },
+  { id: 'GARDENER', translation: 'Cultivation/maintenance cues; patient growth-oriented tools and organic handling.', it: 'cura paziente della crescita, strumenti organici' },
+  { id: 'SMITH', translation: 'Heat/pressure/forging logic; robust tools or material-working anatomy.', it: 'logica di calore e forgiatura, anatomia robusta' },
+  { id: 'VIGILANTE', translation: 'Urban anonymity; restrained eye-mask/face covering; alert contained readiness.', it: 'anonimato urbano, mascherina contenuta, allerta trattenuta' },
+  { id: 'SIDEKICK', translation: 'Light complementary equipment; agile supportive silhouette; secondary-hero energy.', it: 'equipaggiamento leggero, sagoma agile di supporto' },
+  { id: 'SENTINEL', translation: 'Observation/surveillance logic; elevated awareness; visor/scanning cue when compatible.', it: 'logica di sorveglianza, consapevolezza elevata' },
+  { id: 'OUTLAW', translation: 'Independent irregular equipment; non-institutional silhouette; adapted personal gear.', it: 'equipaggiamento irregolare, sagoma non istituzionale' },
+  { id: 'CHAMPION', translation: 'Emblematic representative presence; confident readable stance; restrained insignia.', it: 'presenza rappresentativa, postura sicura e leggibile' },
+  /* 🔒 «PROTÉGÉ» nel brief — ASCII qui come in tutto il resto del catalogo:
+     gli accenti non sopravvivono a `slug()` in fragments.ts (nessuna
+     normalizzazione NFD lì), e ogni altro id del catalogo è già ASCII puro. */
+  { id: 'PROTEGE', translation: 'In-progress equipment; apprentice cues; visible potential without incompetence.', it: 'equipaggiamento in corso, segni da apprendista' },
+  { id: 'AVENGER', translation: 'Forward tension; conflict-worn details; determined action-oriented presence.', it: 'tensione in avanti, dettagli segnati dal conflitto' },
+  { id: 'MASKED', translation: 'Hidden identity; restrained mask/eye covering as primary visual cue.', it: 'identità nascosta, maschera come segno principale' },
+  { id: 'ENFORCER', translation: 'Heavy operational presence; space-control stance; robust functional equipment.', it: 'presenza operativa pesante, controllo dello spazio' },
+  { id: 'RENEGADE', translation: 'Former-system cues visibly altered, removed or repurposed; controlled asymmetry.', it: 'segni di un sistema lasciato, alterati o riadattati' },
+  { id: 'WARDEN', translation: 'Boundary/access-control logic; keys, seals, gates or containment cues.', it: 'logica di confine e accesso, chiavi e sigilli' },
+  { id: 'BEACON', translation: 'Highly visible guiding presence; luminous/iconic focal cue; readable from distance.', it: 'presenza guida molto visibile, segno luminoso' },
+  { id: 'PHANTOM', translation: 'Evasive/intermittent presence; reduced or fragmented silhouette cues; stealth mobility.', it: 'presenza evasiva e intermittente, sagoma frammentata' },
+  { id: 'LEGACY', translation: 'Inherited symbols/equipment/traces from something previous; continuity made visible.', it: 'simboli ereditati, continuità resa visibile' },
+  { id: 'ROOKIE', translation: 'Early-career incompleteness; simple gear; readable learning-stage cues.', it: 'incompletezza da esordiente, equipaggiamento semplice' },
+  { id: 'ICON', translation: 'Public/emblematic image-awareness; poster-readable silhouette; controlled signature cue.', it: 'consapevolezza dell’immagine pubblica, sagoma da manifesto' },
+  { id: 'BRAWLER', translation: 'Close-range rough physicality; compact fighting stance; practical impact-oriented cues.', it: 'fisicità ravvicinata e grezza, postura da lotta' },
+  { id: 'TACTICIAN', translation: 'Field-control/coordination logic; observational stance; compact strategic equipment.', it: 'logica di controllo del campo, postura osservativa' },
+  { id: 'RESCUER', translation: 'Dynamic protection/intervention; extraction/support equipment; movement toward danger.', it: 'protezione dinamica, movimento verso il pericolo' },
+  { id: 'SWASHBUCKLER', translation: 'Elegant risk-taking mobility; fluid combat gesture; restrained theatrical gear.', it: 'mobilità elegante e rischiosa, gesto fluido' },
+  { id: 'MERCENARY', translation: 'Practical modular equipment; neutral professional combat-readiness; low moral iconography.', it: 'equipaggiamento modulare, prontezza professionale' },
+  { id: 'PARAGON', translation: 'Idealized heroic readability; symmetry, composure and restrained emblematic cues.', it: 'leggibilità eroica idealizzata, simmetria e compostezza' },
 ];
 
 export function roleDef(id: string): RoleDef {
@@ -867,6 +929,94 @@ export function roleDef(id: string): RoleDef {
   if (!r) throw new Error(`Role sconosciuto: ${id}`);
   return r;
 }
+
+/* ============================================================================
+   VINZMON_NARRATIVE_ROLE_IMPLEMENTATION_BRIEF §2–§4 — STRATO NARRATIVO
+
+   🔷 «Do not replace Role with Narrative Archetype. They solve different
+   problems. Narrative Archetype = WHO the MON is in story terms · Story
+   Function = WHAT role it currently plays · Role = HOW part of that
+   identity becomes visually readable.»
+
+   🔒 QUESTO FILE RESTA SOLO CATALOGO E PESI, COME TUTTO IL RESTO SOPRA.
+   Chi sceglie (`resolveNarrativeArchetype`/`resolveStoryFunction`/
+   `resolveRole`) sta in `characterGenerator.ts`; qui ci sono solo le
+   tabelle che quelle funzioni leggono — stesso confine di responsabilità
+   di `FamilyDef.fit` sopra.
+   ========================================================================= */
+
+export const NARRATIVE_ARCHETYPES = [
+  'INNOCENT', 'EVERYMAN', 'HERO', 'CAREGIVER', 'EXPLORER', 'REBEL',
+  'LOVER', 'CREATOR', 'JESTER', 'SAGE', 'MAGICIAN', 'RULER',
+] as const;
+export type NarrativeArchetypeId = (typeof NARRATIVE_ARCHETYPES)[number];
+
+export const STORY_FUNCTIONS = [
+  'HERO', 'MENTOR', 'THRESHOLD_GUARDIAN', 'HERALD', 'SHAPESHIFTER', 'SHADOW', 'TRICKSTER', 'ALLY',
+] as const;
+export type StoryFunctionId = (typeof STORY_FUNCTIONS)[number];
+
+/* Chi tende a essere narrativamente — pesata sugli stessi 16 assi di
+   personalità (§2) che pesano Family. Ogni riga somma a 1, stesso vincolo
+   che `verify:batch` già controlla per `FamilyDef.fit`. */
+export const NARRATIVE_ARCHETYPE_FIT: Record<NarrativeArchetypeId, FitFormula> = {
+  INNOCENT: { warmth: 0.3, patience: 0.25, curiosity: 0.25, playfulness: 0.2 },
+  EVERYMAN: { adaptability: 0.3, patience: 0.25, social: 0.25, discipline: 0.2 },
+  HERO: { confidence: 0.35, discipline: 0.25, control: 0.2, intensity: 0.2 },
+  CAREGIVER: { warmth: 0.35, affection: 0.3, patience: 0.2, social: 0.15 },
+  EXPLORER: { curiosity: 0.35, novelty: 0.3, adaptability: 0.2, energy: 0.15 },
+  REBEL: { impulsivity: 0.3, theatricality: 0.25, weirdness: 0.25, novelty: 0.2 },
+  LOVER: { affection: 0.35, vanity: 0.25, arousal: 0.2, theatricality: 0.2 },
+  CREATOR: { curiosity: 0.3, precision: 0.25, novelty: 0.25, discipline: 0.2 },
+  JESTER: { playfulness: 0.35, theatricality: 0.25, impulsivity: 0.2, weirdness: 0.2 },
+  SAGE: { introspection: 0.3, patience: 0.25, precision: 0.25, mystery: 0.2 },
+  MAGICIAN: { mystery: 0.3, weirdness: 0.25, control: 0.25, theatricality: 0.2 },
+  RULER: { control: 0.35, confidence: 0.3, discipline: 0.2, vanity: 0.15 },
+};
+
+/* Che parte gioca ADESSO nella storia — può cambiare senza che la creatura
+   cambi (§3 del brief); per questo pesa più i latenti d'umore/relazione che
+   il temperamento fisso. */
+export const STORY_FUNCTION_FIT: Record<StoryFunctionId, FitFormula> = {
+  HERO: { confidence: 0.3, intensity: 0.25, discipline: 0.25, control: 0.2 },
+  MENTOR: { patience: 0.3, precision: 0.25, discipline: 0.25, calm: 0.2 },
+  THRESHOLD_GUARDIAN: { control: 0.3, vigilance: 0.3, stoicism: 0.2, discipline: 0.2 },
+  HERALD: { social: 0.3, theatricality: 0.25, energy: 0.25, novelty: 0.2 },
+  SHAPESHIFTER: { adaptability: 0.35, mystery: 0.25, weirdness: 0.2, novelty: 0.2 },
+  SHADOW: { mystery: 0.3, distance: 0.25, intensity: 0.25, irritability: 0.2 },
+  TRICKSTER: { playfulness: 0.3, impulsivity: 0.25, theatricality: 0.25, weirdness: 0.2 },
+  ALLY: { affection: 0.3, social: 0.25, warmth: 0.25, patience: 0.2 },
+};
+
+/* ============================================================================
+   §4 — NARRATIVE → VISUAL ROLE MAPPER (dati)
+
+   🔷 «Mapping must be many-to-many, not one-to-one. REBEL must not always
+   become PIRATE; HERO must not always become SUPERHERO.»
+
+   🔒 I PESI NON DEVONO SOMMARE A 1: `resolveRole` li normalizza sul più alto
+   della riga (il candidato migliore per quell'archetipo arriva a punteggio
+   pieno, gli altri proporzionalmente sotto). Un Role assente da una riga non
+   è escluso — resta raggiungibile dal resto della formula di `ENGINE_WEIGHTS
+   .role` (cultural/mood/randomness), qui volutamente lasciato rumore finché
+   quei due segnali non hanno un vero punto da cui leggersi (vedi commento
+   su `resolveRole`). È la stessa ragione per cui REBEL→VIGILANTE/OUTLAW/
+   PIRATE/HACKER/TRICKSTER/RENEGADE, l'esempio del brief, è la prima riga qui
+   sotto: la mappatura non stringe mai a un solo esito. */
+export const NARRATIVE_ROLE_MAP: Record<NarrativeArchetypeId, Partial<Record<string, number>>> = {
+  REBEL: { VIGILANTE: 0.25, OUTLAW: 0.2, PIRATE: 0.15, HACKER: 0.15, TRICKSTER: 0.15, RENEGADE: 0.1 },
+  INNOCENT: { HEALER: 0.25, HOST: 0.2, GARDENER: 0.2, BOTANIST: 0.15, ROOKIE: 0.2 },
+  EVERYMAN: { SCOUT: 0.2, WANDERER: 0.2, COURIER: 0.2, HOST: 0.2, MERCHANT: 0.2 },
+  HERO: { SUPERHERO: 0.25, CHAMPION: 0.2, KNIGHT: 0.2, PARAGON: 0.2, AVENGER: 0.15 },
+  CAREGIVER: { HEALER: 0.3, GUARDIAN: 0.25, GARDENER: 0.2, HOST: 0.15, KEEPER: 0.1 },
+  EXPLORER: { SCOUT: 0.25, WANDERER: 0.2, ASTRONAUT: 0.2, NOMAD: 0.2, RACER: 0.15 },
+  LOVER: { BARD: 0.25, DANCER: 0.25, IDOL: 0.2, SWASHBUCKLER: 0.15, ICON: 0.15 },
+  CREATOR: { ARTISAN: 0.25, ENGINEER: 0.2, SMITH: 0.2, ALCHEMIST: 0.2, SCHOLAR: 0.15 },
+  JESTER: { JESTER: 0.3, TRICKSTER: 0.25, DANCER: 0.2, SIDEKICK: 0.15, BRAWLER: 0.1 },
+  SAGE: { ORACLE: 0.25, SCHOLAR: 0.25, HERMIT: 0.2, ARCHIVIST: 0.2, WIZARD: 0.1 },
+  MAGICIAN: { WIZARD: 0.3, ALCHEMIST: 0.25, ORACLE: 0.2, PHANTOM: 0.15, MASKED: 0.1 },
+  RULER: { KING: 0.3, WARDEN: 0.2, DIPLOMAT: 0.2, ENFORCER: 0.15, TACTICIAN: 0.15 },
+};
 
 /* ============================================================================
    §8 — CATALOGO FASHION (18)

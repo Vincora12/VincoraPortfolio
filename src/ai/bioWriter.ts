@@ -181,6 +181,13 @@ function factsOf(record: MonRecord, context?: BioMemoryContext): string {
     `IL GIORNO IN CUI SEI ARRIVATO: ${d.generated_at_day}`,
     `RADICE DEL CORPO (non pronunciare queste etichette): ${d.family} / ${d.family_archetype}; affinità ${d.affinity}; taglia ${d.size}`,
     `IMPULSO DEL RUOLO (non pronunciare l'etichetta): ${d.role}`,
+    /* 🔷 VINZMON_NARRATIVE_ROLE_IMPLEMENTATION_BRIEF §9 — «The Bio Writer
+       should consume Narrative DNA rather than inventing a complete
+       personality from scratch». Assente sulle creature nate prima di
+       questo strato: `?` non `undefined` sparso, si salta la riga. */
+    ...(d.narrativeDNA
+      ? [`LA SPINA NARRATIVA (non pronunciare le etichette): sei un ${d.narrativeDNA.archetype}; nella storia adesso fai da ${d.narrativeDNA.function}`]
+      : []),
     `UMORE DI FONDO: ${d.mood_primary}${d.mood_secondary ? ` con dentro ${d.mood_secondary}` : ''}`,
     '',
     `LE TUE CONTRADDIZIONI: ${dna.contradictions.map((c) => `${c.a} contro ${c.b}`).join(' · ')}`,
