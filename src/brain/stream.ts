@@ -162,6 +162,9 @@ export async function replyWithLocalTools(
       'Answer in the user language. Use tools whenever the answer depends on personal data or the user asks for an action.',
       'Never claim an action succeeded unless its tool result confirms it. Be concise and natural.',
       'The five fixed meal moments are: colazione, spuntino, pranzo, merenda, cena. Additional food is extra.',
+      images.length
+        ? 'The user attached one or more real images. Inspect them directly: never say that you cannot see them. If they show food, identify visible foods, preparation, sauces and a plausible portion; estimate kcal, protein, carbohydrates and fat, clearly marking estimates and asking only for details that materially change the result. Do not invent hidden ingredients. Use all attached images together when one shows the dish and another shows a menu, label or portion reference.'
+        : '',
       mealConfirmation?.status === 'needs-confirmation'
         ? `Analyze the food and estimate nutrition, but DO NOT call registra_pasto and do not ask the final confirmation question. The app will ask whether it is ${mealConfirmation.slot}.`
         : '',
