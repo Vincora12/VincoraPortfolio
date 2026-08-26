@@ -104,6 +104,7 @@ import {
 import {
   claimSyncReward,
   clearEvolutionWish,
+  completeDayStreak,
   isCompleteHealthDay,
   readEvolutionWish,
   syncRewardProgress,
@@ -1369,7 +1370,8 @@ export const useApp = create<AppState>()(
         const rec = activeRecord(s);
         if (!rec) return;
 
-        const anyRewardReady = syncRewardProgress('evolution').ready || syncRewardProgress('mega-evolution').ready || syncRewardProgress('wish').ready;
+        const streak = gameDayStreak(s);
+        const anyRewardReady = syncRewardProgress('evolution', streak).ready || syncRewardProgress('mega-evolution', streak).ready || syncRewardProgress('wish', streak).ready;
         if (!s.dev.forceBranch && !anyRewardReady) return;
 
         // L'ancora si estrae qui, non alla conferma: la schermata deve poter
@@ -1478,10 +1480,11 @@ export const useApp = create<AppState>()(
         const previous = activeRecord(s);
         if (!previous || s.phase !== 'form-evolution' || s.evolutionJob?.status === 'running') return;
 
+        const streak = gameDayStreak(s);
         const wish = readEvolutionWish();
-        const usingWish = wish?.kind === kind && syncRewardProgress('wish').ready;
-        if (!s.dev.forceBranch && !usingWish && !syncRewardProgress(kind).ready) return;
-        if (!s.dev.forceBranch) claimSyncReward(usingWish ? 'wish' : kind);
+        const usingWish = wish?.kind === kind && syncRewardProgress('wish', streak).ready;
+        if (!s.dev.forceBranch && !usingWish && !syncRewardProgress(kind, streak).ready) return;
+        if (!s.dev.forceBranch) claimSyncReward(usingWish ? 'wish' : kind, streak);
 
         /* Evoluzione conserva quasi tutto e cambia l'affinità visiva.
            Mega Evoluzione conserva soltanto il temperamento: è sempre la
@@ -3574,6 +3577,17 @@ function markAccelerated(set: (p: Partial<AppState>) => void, get: () => AppStat
    ⚠️ E SOLO SE MANCA. Un giorno già completo (magari raccontato per davvero
    in chat) non riceve pasti finti sopra: `isCompleteHealthDay` lo verifica
    prima di scrivere qualsiasi cosa. */
+/* 🔴 «La barra si muove ma non triggera le evoluzioni.» `syncRewardProgress`
+   senza un secondo argomento cade su `completeDayStreak()`, che guarda
+   `new Date()` — la data vera, non quella del giorno di gioco. La ruota in
+   `TodayChecklistScreen` diceva «pronto» guardando la data giusta; QUI, dove
+   la trasformazione parte davvero, si guardava quella sbagliata: due
+   risposte diverse alla stessa domanda, e vinceva quella sbagliata perché è
+   quella che decide se aprire la schermata. */
+function gameDayStreak(s: AppState): number {
+  return completeDayStreak(undefined, dateForDay(s.day, s.startedAt));
+}
+
 function fillDevHealthDay(day: number, startedAt: string): void {
   const date = dateForDay(day, startedAt);
   const journal = readHealthJournal();
@@ -4203,15 +4217,28 @@ export function useGrowth() {
   const phase = useApp((s) => s.phase);
   const forceGrowth = useApp((s) => s.dev.forceContinue);
   const forceForm = useApp((s) => s.dev.forceBranch);
+  const day = useApp((s) => s.day);
+  const startedAt = useApp((s) => s.startedAt);
 
   const hatched = phase !== 'incubation';
   const event = nextEvent(sync, hatched);
+  /* 🔴 «La barra si muove ma non triggera le evoluzioni.» Qui sotto si
+     chiamava `syncRewardProgress('evolution')` SENZA streak: cadeva sul
+     default di `completeDayStreak()`, che guarda `new Date()` — la data
+     vera del telefono, non quella del giorno di gioco che il DEV avanza.
+     Per un giorno simulato la ruota diceva «pronto», e questo controllo
+     diceva sempre «non ancora»: due fonti diverse per la stessa domanda. */
+  const streak = completeDayStreak(undefined, dateForDay(day, startedAt));
 
   return {
     sync,
     event,
-    microGrowthReady: forceGrowth || syncRewardProgress('evolution').ready,
-    formEvolutionReady: forceForm || syncRewardProgress('evolution').ready || syncRewardProgress('mega-evolution').ready || syncRewardProgress('wish').ready,
+    microGrowthReady: forceGrowth || syncRewardProgress('evolution', streak).ready,
+    formEvolutionReady:
+      forceForm
+      || syncRewardProgress('evolution', streak).ready
+      || syncRewardProgress('mega-evolution', streak).ready
+      || syncRewardProgress('wish', streak).ready,
     progress: Math.min(1, event.have / event.need),
   };
 }
