@@ -49,6 +49,11 @@ import {
   type Proposta,
 } from '../../engine/taxonomyProposals';
 import '../skin/taxonomy-lab.css';
+import {
+  alienDescriptionVersion,
+  setAlienDescriptionVersion,
+  type TaxonomyDescriptionVersion,
+} from '../../engine/taxonomy-versions';
 
 const ESISTENTI: Record<TaxonomyAxis, { id: string; it: string }[]> = {
   family: FAMILIES,
@@ -65,6 +70,7 @@ export function TaxonomyLab() {
   const [richiesta, setRichiesta] = useState('');
   const [chiedendo, setChiedendo] = useState(false);
   const [errore, setErrore] = useState<string | null>(null);
+  const [alienVersion, setAlienVersion] = useState<TaxonomyDescriptionVersion>(() => alienDescriptionVersion());
 
   const [family, setFamily] = useState<FamilyDraft | null>(null);
   const [semplice, setSemplice] = useState<SimpleDraft | null>(null);
@@ -125,6 +131,31 @@ export function TaxonomyLab() {
         premi APPROVA. Non entra nel gioco da sola: resta in coda finché non chiedi a Claude di
         portarla dentro — è la stessa regola di DESIGN AI, estesa qui.
       </p>
+
+      <div className="taxlab-box">
+        <div className="taxlab-row">
+          <label>PROVA DESCRIZIONI ALIEN</label>
+          <div className="taxlab-choices">
+            {(['v1', 'v2'] as const).map((version) => (
+              <button
+                type="button"
+                key={version}
+                className={`taxlab-chip ${alienVersion === version ? 'on' : ''}`}
+                onClick={() => {
+                  setAlienDescriptionVersion(version);
+                  setAlienVersion(version);
+                  window.location.reload();
+                }}
+              >
+                {version === 'v1' ? 'V1 · ORIGINALE' : 'V2 · AUDIT'}
+              </button>
+            ))}
+          </div>
+          <p className="note">
+            Cambia soltanto le descrizioni di ALIEN e delle sue sei sottofamiglie. V1 resta il valore predefinito.
+          </p>
+        </div>
+      </div>
 
       <div className="taxlab-box">
         <div className="taxlab-row">
