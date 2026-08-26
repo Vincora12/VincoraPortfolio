@@ -1591,6 +1591,16 @@ export const useApp = create<AppState>()(
         if (runningEvolutionJobs.has(job.candidateName)) return;
         runningEvolutionJobs.add(job.candidateName);
 
+        /* 🔷 «Rimane sempre il template fisso, non mi piace lo stile.» La
+           bio vera la scrive `writeBio` — esisteva già, ma prima la
+           chiamava solo DEV. Qui è il punto dove nasce OGNI creatura per
+           davvero (hatch e ogni forma successiva): partirla in parallelo
+           alle immagini, senza aspettarla, vuol dire che è già pronta
+           quando la rivelazione arriva — o resta quella di sempre se la
+           chiamata fallisce, perché `writeBio` non tocca `writtenBio` in
+           quel caso. */
+        void get().writeBio(job.candidateName);
+
         void import('../assets-pipeline/remoteGeneration').then(async ({ queueRemoteGeneration, pollRemoteGeneration }) => {
           let serverJobId = job.serverJobId;
           try {

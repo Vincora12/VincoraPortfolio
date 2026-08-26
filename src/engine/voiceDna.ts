@@ -55,28 +55,34 @@ export function generateVoiceDna(
   return { preset, voice };
 }
 
+/* 🔷 «Vorrei sapere quante personalità ci sono e come si generano.»
+
+   🔒 ESPORTATA E NON PIÙ LOCALE, PER LO STESSO MOTIVO DI `MOOD_AFFINITY` IN
+   `characterGenerator.ts`: VINZ.LAB deve poter leggere QUALE lista di preset
+   ogni umore può davvero scegliere, non una tabella riscritta a mano che
+   rischia di disallinearsi. */
+export const VOICE_PRESET_BY_MOOD: Record<string, string[]> = {
+  CUTE: ['SOFT PROTECTOR', 'SWEET MENACE'],
+  GOOFY: ['ABSURD LITTLE FREAK', 'CHAOTIC GEN-Z'],
+  BRIGHT: ['SPORT HYPE', 'CHAOTIC GEN-Z'],
+  AGGRESSIVE: ['COCKY RIVAL', 'SPORT HYPE'],
+  CHAOTIC: ['CHAOTIC GEN-Z', 'ABSURD LITTLE FREAK'],
+  SAD: ['GOTH POET', 'SILENT STOIC'],
+  MYSTERIOUS: ['MYSTERY SIGNAL', 'OLD-SOUL ORACLE'],
+  WATCHFUL: ['DEADPAN FILE', 'NERD TERMINAL'],
+  SEDUCTIVE: ['STREET FLIRT', 'CAMP ICON'],
+  FLIRTY: ['STREET FLIRT', 'CAMP ICON'],
+  FERAL: ['SWEET MENACE', 'COCKY RIVAL'],
+  AFFECTIONATE: ['SOFT PROTECTOR', 'CAMP ICON'],
+  ALLURING: ['CAMP ICON', 'ART SNOB'],
+  STOIC: ['SILENT STOIC', 'DEADPAN FILE'],
+  CALM: ['OLD-SOUL ORACLE', 'SILENT STOIC'],
+  CREEPY: ['MYSTERY SIGNAL', 'CORPORATE DEMON'],
+};
+
 /** Il preset non è casuale: il carattere e l'umore lo orientano. */
 function pickPreset(rng: Rng, dna: CharacterDna, moodPrimary: string): string {
-  const byMood: Record<string, string[]> = {
-    CUTE: ['SOFT PROTECTOR', 'SWEET MENACE'],
-    GOOFY: ['ABSURD LITTLE FREAK', 'CHAOTIC GEN-Z'],
-    BRIGHT: ['SPORT HYPE', 'CHAOTIC GEN-Z'],
-    AGGRESSIVE: ['COCKY RIVAL', 'SPORT HYPE'],
-    CHAOTIC: ['CHAOTIC GEN-Z', 'ABSURD LITTLE FREAK'],
-    SAD: ['GOTH POET', 'SILENT STOIC'],
-    MYSTERIOUS: ['MYSTERY SIGNAL', 'OLD-SOUL ORACLE'],
-    WATCHFUL: ['DEADPAN FILE', 'NERD TERMINAL'],
-    SEDUCTIVE: ['STREET FLIRT', 'CAMP ICON'],
-    FLIRTY: ['STREET FLIRT', 'CAMP ICON'],
-    FERAL: ['SWEET MENACE', 'COCKY RIVAL'],
-    AFFECTIONATE: ['SOFT PROTECTOR', 'CAMP ICON'],
-    ALLURING: ['CAMP ICON', 'ART SNOB'],
-    STOIC: ['SILENT STOIC', 'DEADPAN FILE'],
-    CALM: ['OLD-SOUL ORACLE', 'SILENT STOIC'],
-    CREEPY: ['MYSTERY SIGNAL', 'CORPORATE DEMON'],
-  };
-
-  const candidates = byMood[moodPrimary] ?? VOICE_PRESETS.map((p) => p.id);
+  const candidates = VOICE_PRESET_BY_MOOD[moodPrimary] ?? VOICE_PRESETS.map((p) => p.id);
 
   // I tratti possono scavalcare l'umore: un .mon teatrale parla teatrale
   // anche quando è triste.

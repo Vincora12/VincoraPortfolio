@@ -23,8 +23,12 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useApp } from '../../state/store';
 import { FASI, PASSI, type FaseId } from './creationFlow';
-import { FAMILIES } from '../../engine/generation-config';
+import { FAMILIES, MOODS, VOICE_PRESETS } from '../../engine/generation-config';
 import { keepEnabled } from '../../engine/catalogTuning';
+import { PERSONALITY_KEYS, type PersonalityKey } from '../../engine/signals';
+import { SCAN_QUESTIONS, seedSpread } from '../../engine/personalityScan';
+import { MOOD_AFFINITY } from '../../engine/characterGenerator';
+import { VOICE_PRESET_BY_MOOD } from '../../engine/voiceDna';
 import {
   dimenticaTutto,
   ETICHETTA_ASSE,
@@ -62,6 +66,7 @@ import '../skin/creation.css';
 const TABS = [
   { id: 'map', label: 'FLOW' },
   { id: 'taxonomy', label: 'TASSONOMIA' },
+  { id: 'persona', label: 'PERSONALITÀ' },
   { id: 'train', label: 'BUILD' },
   { id: 'learned', label: 'LEARNED' },
   { id: 'state', label: 'STATE' },
@@ -122,6 +127,7 @@ export function CreationLab({ onBack }: { onBack: () => void }) {
         {tab === 'versions' && <History />}
         {tab === 'assistant' && <LabAssistantPanel />}
         {tab === 'taxonomy' && <TaxonomyLab />}
+        {tab === 'persona' && <Persona />}
         <div className="footer mono">
           <strong>SYNC {labSyncCode()}</strong>
           <span> · STESSO MOTORE DI VINZ.MON</span>
@@ -395,6 +401,246 @@ function Flow({ onAvviaAB }: { onAvviaAB: () => void }) {
         <button type="button" className="btn dark" style={{ width: '100%', marginTop: 8 }} onClick={onAvviaAB}>
           GUARDA 12 CREATURE · UNA ALLA VOLTA
         </button>
+      </div>
+    </section>
+  );
+}
+
+/* ============================================================================
+   PERSONALITÀ
+
+   🔷 «Vorrei sapere meglio quante personalità ci sono e che caratteristiche
+      hanno e come si generano.»
+
+   🔒 STESSE TABELLE DEL MOTORE, NON UN RIASSUNTO SCRITTO A MANO. `MOOD_AFFINITY`
+   (characterGenerator.ts) e `VOICE_PRESET_BY_MOOD` (voiceDna.ts) sono state
+   esportate apposta perché questa pagina potesse leggerle — non copiarle. Se
+   domani un peso cambia nel motore, cambia anche qui, da solo.
+   ========================================================================= */
+
+const ASSE_GLOSSA: Record<PersonalityKey, string> = {
+  curiosity: 'esplora, fa domande',
+  confidence: 'si sente saldo',
+  playfulness: 'gioca, scherza',
+  social: 'cerca compagnia',
+  discipline: 'segue una routine',
+  vanity: 'cura l’immagine di sé',
+  mystery: 'si tiene nascosto',
+  theatricality: 'enfatizza, mette in scena',
+  impulsivity: 'agisce senza pensarci',
+  novelty: 'cerca cose nuove',
+  patience: 'aspetta senza agitarsi',
+  control: 'vuole tenere in mano la situazione',
+  precision: 'bada al dettaglio',
+  stoicism: 'assorbe senza reagire',
+  adaptability: 'si piega alle circostanze',
+  weirdness: 'si allontana dal prevedibile',
+};
+
+function AxisBar({ label, sub, value, max = 100 }: { label: string; sub?: string; value: number; max?: number }) {
+  return (
+    <div className="axisrow">
+      <b>
+        {label}
+        {sub && <small>{sub}</small>}
+      </b>
+      <div className="build-progress__track" aria-hidden="true">
+        <i style={{ width: `${Math.min(100, (value / max) * 100)}%` }} />
+      </div>
+      <span className="axisvalue mono">{Math.round(value)}</span>
+    </div>
+  );
+}
+
+function Persona() {
+  const personality = useApp((s) => s.personality);
+  const scanAnswers = useApp((s) => s.scanAnswers);
+  const spread = seedSpread(personality);
+
+  /* Quante delle 48 risposte del test (12 domande × 4) toccano ciascun asse:
+     è la lettura diretta di «perché lo stesso .mon esce sempre dagli stessi
+     due-tre umori» — un asse toccato spesso si sposta parecchio quando le
+     risposte vanno nella stessa direzione, uno toccato raramente resta quasi
+     sempre vicino al neutro. */
+  const tocchi = useMemo(() => {
+    const count = PERSONALITY_KEYS.reduce((acc, k) => {
+      acc[k] = 0;
+      return acc;
+    }, {} as Record<PersonalityKey, number>);
+    for (const q of SCAN_QUESTIONS) {
+      for (const a of q.answers) {
+        for (const k of Object.keys(a.nudge)) count[k as PersonalityKey] += 1;
+      }
+    }
+    return count;
+  }, []);
+  const maxTocchi = Math.max(...Object.values(tocchi));
+  const assiOrdinatiPerTocco = [...PERSONALITY_KEYS].sort((a, b) => tocchi[b] - tocchi[a]);
+
+  return (
+    <section className="page active">
+      <div className="kicker mono">VINZ.LAB / MON CREATION</div>
+      <h1>PERSONALITÀ</h1>
+      <p className="lead">
+        «Perché la personalità sembra sempre la stessa?» — la catena vera, passo per passo: il test
+        che fai una volta, il seme che ne esce, come sceglie l’umore, come l’umore sceglie il modo
+        di parlare. Ogni numero qui sotto è letto dalle stesse tabelle che usa il motore — non un
+        riassunto scritto per la pagina.
+      </p>
+
+      <div className="notice mono">
+        <strong>PRODUCTION = READ ONLY</strong>
+        <br />
+        Guardare questa pagina non cambia niente: né il tuo seme, né il .mon attivo.
+      </div>
+
+      <div className="truthbox">
+        <div className="kicker mono">🔥 LA CATENA, PASSO PER PASSO</div>
+        <div className="truthline">
+          <span className="who code">1</span>
+          <b>IL TEST — 12 domande, una volta sola per partita (§2, §12)</b>
+        </div>
+        <div className="trutharrow">↓</div>
+        <div className="truthline">
+          <span className="who code">2</span>
+          <b>IL SEME — 16 assi 0–100, fissi finché non rifai il test</b>
+        </div>
+        <div className="trutharrow">↓</div>
+        <div className="truthline">
+          <span className="who code">3</span>
+          <b>LA SPECIE — 18 Family; ognuna pesa certi assi più di altri</b>
+        </div>
+        <div className="trutharrow">↓</div>
+        <div className="truthline">
+          <span className="who code">4</span>
+          <b>L’UMORE — 16 temperamenti; ognuno spinto da 2 assi + un po’ di sorte</b>
+        </div>
+        <div className="trutharrow">↓</div>
+        <div className="truthline">
+          <span className="who ai">5</span>
+          <b>LA VOCE — 16 modi di parlare, scelti dall’umore (e a volte scavalcati da un tratto)</b>
+        </div>
+      </div>
+
+      {/* 1 — IL SEME ATTUALE */}
+      <h2 className="persona-h2">1 — IL TUO SEME, ADESSO</h2>
+      <p className="lead" style={{ marginBottom: 10 }}>
+        {spread > 0.02
+          ? `Scostamento dal neutro: ${Math.round(spread * 100)}%. Più si avvicina a 0%, più ogni .mon che generi userà lo stesso seme piatto — e quindi tenderà agli stessi umori.`
+          : 'Il test non è ancora stato fatto (o è rimasto quasi tutto neutro): il seme è piatto su tutti gli assi, e ogni .mon nasce dalla stessa base.'}
+      </p>
+      {PERSONALITY_KEYS.map((k) => (
+        <AxisBar key={k} label={k.toUpperCase()} sub={ASSE_GLOSSA[k]} value={personality[k]} />
+      ))}
+
+      {/* 2 — LE 12 DOMANDE */}
+      <h2 className="persona-h2">2 — LE 12 DOMANDE, E QUANTO PESANO SU OGNI ASSE</h2>
+      <p className="lead" style={{ marginBottom: 10 }}>
+        Ogni domanda spinge 2–3 assi fra i 16. Ecco quante delle 48 risposte totali toccano
+        ciascun asse — un asse toccato spesso ha molte più occasioni di spostarsi lontano dal
+        neutro di uno toccato raramente:
+      </p>
+      {assiOrdinatiPerTocco.map((k) => (
+        <AxisBar
+          key={k}
+          label={k.toUpperCase()}
+          value={tocchi[k]}
+          max={maxTocchi}
+          sub={`${tocchi[k]} risposte su 48`}
+        />
+      ))}
+
+      <details style={{ marginTop: 16 }}>
+        <summary className="mono" style={{ cursor: 'pointer', padding: '10px 0', fontSize: 11 }}>
+          VEDI LE 12 DOMANDE E LE RISPOSTE, UNA A UNA
+        </summary>
+        {SCAN_QUESTIONS.map((q) => (
+          <div key={q.index} className="snap">
+            <h3>
+              {q.index}. {q.question}
+            </h3>
+            {q.answers.map((a) => (
+              <p key={a.id}>
+                <b>{a.label}</b>
+                {' → '}
+                {Object.entries(a.nudge)
+                  .map(([axis, delta]) => `${axis} ${(delta as number) > 0 ? '+' : ''}${delta}`)
+                  .join(' · ')}
+                {scanAnswers[q.index] === a.id && (
+                  <strong style={{ marginLeft: 6 }}>← la tua risposta</strong>
+                )}
+              </p>
+            ))}
+          </div>
+        ))}
+      </details>
+
+      {/* 3 — I 16 UMORI */}
+      <h2 className="persona-h2">3 — I 16 UMORI, E CHI LI SPINGE</h2>
+      <p className="lead" style={{ marginBottom: 10 }}>
+        Ogni umore è due assi pesati, più un po’ di sorte (±15 punti). L’umore col punteggio più
+        alto vince — quindi se i tuoi due assi dominanti alimentano sempre lo stesso paio di
+        umori, quel paio vince quasi sempre, sorte o no.
+      </p>
+      <div className="presetgrid">
+        {MOODS.map((m) => (
+          <div key={m.id} className="snap">
+            <h3>{m.id}</h3>
+            <small>{m.it}</small>
+            <p>
+              {(MOOD_AFFINITY[m.id] ?? []).map((t, i) => (
+                <span key={t.axis}>
+                  {i > 0 && ' · '}
+                  {t.invert ? `100 − ${t.axis}` : t.axis} × {t.weight}
+                </span>
+              ))}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      {/* 4 — I 16 PRESET VOCALI */}
+      <h2 className="persona-h2">4 — I 16 MODI DI PARLARE</h2>
+      <p className="lead" style={{ marginBottom: 10 }}>
+        Il preset vocale di partenza lo sceglie l’umore primario, fra due candidati — poi 12 assi
+        di voce vengono mutati sopra, ±35 punti a caso, così due .mon con lo stesso preset non
+        parlano identici (§14). Due tratti casuali possono scavalcare l’umore: un .mon <b>teatrale</b>{' '}
+        ha il 50% di diventare CAMP ICON comunque, un <b>tecnico</b> il 50% di diventare NERD
+        TERMINAL — è così che «camp» esce più spesso di quanto sembri dai soli 16 umori: ha due
+        strade per arrivarci, l’umore E il tratto.
+      </p>
+      <div className="presetgrid">
+        {VOICE_PRESETS.map((p) => {
+          const daUmori = MOODS.filter((m) => (VOICE_PRESET_BY_MOOD[m.id] ?? []).includes(p.id)).map((m) => m.id);
+          return (
+            <div key={p.id} className="snap">
+              <h3>{p.id}</h3>
+              <small>{p.it}</small>
+              <p>{daUmori.length > 0 ? `da: ${daUmori.join(', ')}` : 'nessun umore lo propone di default'}</p>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* 5 — LE FAMILY */}
+      <h2 className="persona-h2">5 — LE 18 SPECIE (FAMILY)</h2>
+      <p className="lead" style={{ marginBottom: 10 }}>
+        La Family decide il corpo, non la voce — ma ci arriva anche lei pesando gli assi del seme
+        (più le statistiche di salute). Ogni Family ha una manciata di Archetipi: la variante
+        strutturale dentro la stessa specie.
+      </p>
+      <div className="presetgrid">
+        {FAMILIES.map((f) => (
+          <div key={f.id} className="snap">
+            <h3>{f.id}</h3>
+            <small>{f.it}</small>
+            <p>
+              guidata da: {f.drivers}
+              <br />
+              {f.archetypes.length} archetipi: {f.archetypes.map((a) => a.id).join(', ')}
+            </p>
+          </div>
+        ))}
       </div>
     </section>
   );

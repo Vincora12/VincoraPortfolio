@@ -847,6 +847,42 @@ function resolveMarkers(rng: Rng, family: FamilyDef, ctx: GenerationContext, hum
    §22 — MOOD
    ========================================================================= */
 
+type MoodAffinityTerm = { axis: keyof ReturnType<typeof buildSignalVector>; weight: number; invert?: boolean };
+
+/* 🔷 «Vorrei sapere quante personalità ci sono e come si generano.»
+
+   🔒 TABELLA, NON CALCOLO NASCOSTO. Prima questi pesi vivevano solo dentro
+   `resolveMood`, come numeri già valutati sui segnali di QUESTA generazione —
+   leggibili scorrendo il codice, non guardabili come dato. Esportarla com'è,
+   dichiarativa, vuol dire che VINZ.LAB può leggere gli STESSI pesi che
+   decidono l'umore — non una copia scritta a mano che un giorno smette di
+   corrispondere. `invert` segna i due soli termini che leggono l'inverso di
+   un asse (`100 - x`), invece di andarci dritti. */
+export const MOOD_AFFINITY: Record<string, MoodAffinityTerm[]> = {
+  CUTE: [{ axis: 'warmth', weight: 0.6 }, { axis: 'affection', weight: 0.4 }],
+  GOOFY: [{ axis: 'playfulness', weight: 0.7 }, { axis: 'absurdity', weight: 0.3 }],
+  BRIGHT: [{ axis: 'energy', weight: 0.6 }, { axis: 'confidence', weight: 0.4 }],
+  AGGRESSIVE: [{ axis: 'irritability', weight: 0.6 }, { axis: 'intensity', weight: 0.4 }],
+  CHAOTIC: [{ axis: 'playfulness', weight: 0.5 }, { axis: 'impulsivity', weight: 0.5 }],
+  SAD: [{ axis: 'melancholy', weight: 0.7 }, { axis: 'energy', weight: 0.3, invert: true }],
+  MYSTERIOUS: [{ axis: 'mystery', weight: 0.6 }, { axis: 'distance', weight: 0.4 }],
+  WATCHFUL: [{ axis: 'vigilance', weight: 0.7 }, { axis: 'stress', weight: 0.3 }],
+  SEDUCTIVE: [{ axis: 'arousal', weight: 0.5 }, { axis: 'confidence', weight: 0.5 }],
+  FLIRTY: [{ axis: 'arousal', weight: 0.5 }, { axis: 'playfulness', weight: 0.5 }],
+  FERAL: [{ axis: 'arousal', weight: 0.4 }, { axis: 'energy', weight: 0.6 }],
+  AFFECTIONATE: [{ axis: 'affection', weight: 0.7 }, { axis: 'warmth', weight: 0.3 }],
+  ALLURING: [{ axis: 'vanity', weight: 0.5 }, { axis: 'confidence', weight: 0.5 }],
+  STOIC: [{ axis: 'stoicism', weight: 0.6 }, { axis: 'calm', weight: 0.4 }],
+  CALM: [{ axis: 'calm', weight: 0.7 }, { axis: 'stress', weight: 0.3, invert: true }],
+  CREEPY: [{ axis: 'weirdness', weight: 0.6 }, { axis: 'distance', weight: 0.4 }],
+};
+
+function moodAffinityScore(mood: string, signals: ReturnType<typeof buildSignalVector>): number {
+  const terms = MOOD_AFFINITY[mood];
+  if (!terms) return 50;
+  return terms.reduce((sum, t) => sum + (t.invert ? 100 - signals[t.axis] : signals[t.axis]) * t.weight, 0);
+}
+
 function resolveMood(
   rng: Rng,
   ctx: GenerationContext,
@@ -868,28 +904,9 @@ function resolveMood(
   }
 
   // I latenti orientano il mood; §11 vieta che un singolo giorno lo assegni.
-  const affinityByMood: Record<string, number> = {
-    CUTE: signals.warmth * 0.6 + signals.affection * 0.4,
-    GOOFY: signals.playfulness * 0.7 + signals.absurdity * 0.3,
-    BRIGHT: signals.energy * 0.6 + signals.confidence * 0.4,
-    AGGRESSIVE: signals.irritability * 0.6 + signals.intensity * 0.4,
-    CHAOTIC: signals.playfulness * 0.5 + signals.impulsivity * 0.5,
-    SAD: signals.melancholy * 0.7 + (100 - signals.energy) * 0.3,
-    MYSTERIOUS: signals.mystery * 0.6 + signals.distance * 0.4,
-    WATCHFUL: signals.vigilance * 0.7 + signals.stress * 0.3,
-    SEDUCTIVE: signals.arousal * 0.5 + signals.confidence * 0.5,
-    FLIRTY: signals.arousal * 0.5 + signals.playfulness * 0.5,
-    FERAL: signals.arousal * 0.4 + signals.energy * 0.6,
-    AFFECTIONATE: signals.affection * 0.7 + signals.warmth * 0.3,
-    ALLURING: signals.vanity * 0.5 + signals.confidence * 0.5,
-    STOIC: signals.stoicism * 0.6 + signals.calm * 0.4,
-    CALM: signals.calm * 0.7 + (100 - signals.stress) * 0.3,
-    CREEPY: signals.weirdness * 0.6 + signals.distance * 0.4,
-  };
-
   const ranked = keepEnabled('mood', MOODS, (m) => m.id).map((m) => ({
     id: m.id,
-    score: (affinityByMood[m.id] ?? 50) + (rng() * 2 - 1) * 15,
+    score: moodAffinityScore(m.id, signals) + (rng() * 2 - 1) * 15,
   })).sort((a, b) => b.score - a.score);
 
   /* ⚠️ UN TEMPERAMENTO SOLO. 🔷 «Perché i temperamenti sono 2? Deve essere 1.»
