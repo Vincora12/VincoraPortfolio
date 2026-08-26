@@ -38,7 +38,7 @@ import { AI_STEPS } from '../../netlify/functions/_shared/routing';
 import type { BackendFailure } from './backend';
 import type { BioFile, Memory, MonRecord } from '../engine/types';
 import { displayName } from '../engine/types';
-import { voiceBrief } from '../engine/voiceBrief';
+import { voiceCard, voiceCardBlock } from '../engine/voiceCard';
 
 /* --- Le regole, in cache --------------------------------------------------- */
 
@@ -170,7 +170,7 @@ export interface BioMemoryContext {
 function factsOf(record: MonRecord, context?: BioMemoryContext): string {
   const d = record.data;
   const dna = d.character_dna;
-  const { lines, length } = voiceBrief(d.voice_dna, d.voice_preset);
+  const { length } = voiceCard(record);
   return [
     'IL SERBATOIO. Prendi quello che serve al pensiero che scegli, lascia il resto.',
     '',
@@ -204,7 +204,7 @@ function factsOf(record: MonRecord, context?: BioMemoryContext): string {
        fatti verrebbe letto come un altro fatto da raccontare — «sono uno che
        parla poco» — che è esattamente il collage che stiamo togliendo. */
     'COME PARLI — è il tuo modo, non un argomento di cui parlare:',
-    ...lines.map((l) => `- ${l}`),
+    voiceCardBlock(record),
     length === 'short'
       ? 'Sei uno che dice poco: la tua bio può essere più corta della media, e va bene.'
       : length === 'long'

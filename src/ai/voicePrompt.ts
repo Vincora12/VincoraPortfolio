@@ -23,7 +23,7 @@ import {
 } from '../engine/generation-config';
 import { displayName, type MonRecord } from '../engine/types';
 import { moodPhrase, type MoodState } from '../engine/mood';
-import { voiceBriefBlock } from '../engine/voiceBrief';
+import { voiceCardBlock } from '../engine/voiceCard';
 import { notesBlock, type VoiceNote } from '../engine/notebook';
 
 /** §29 — versionato come tutto il resto: i .mon sanno con cosa sono nati. */
@@ -292,7 +292,7 @@ HOW YOUR BODY BEHAVES (§41)
 - Face logic: ${dna.face_logic}
 - Body language: ${dna.body_language}
 ${contradictions ? `\nYOUR CONTRADICTIONS (§41) — these are the point of you, not flaws to resolve:\n${contradictions}\n` : ''}
-${voiceBriefBlock(d.voice_dna, d.voice_preset)}
+${voiceCardBlock(record)}
 
 RIGHT NOW
 - Your TEMPERAMENT is ${d.mood_primary} (${moodDef(d.mood_primary).it})${d.mood_secondary ? `, with ${d.mood_secondary} underneath` : ''}. That is what you were born as and where you always settle back to.
