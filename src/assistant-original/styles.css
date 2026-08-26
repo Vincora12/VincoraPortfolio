@@ -354,6 +354,101 @@ body[data-scroll-locked] {
   color: var(--char-on-accent-dark, #0d0d0d) !important;
 }
 
+/* Durante lo stream il quadrato di stop appartiene alla stessa azione del
+   pulsante invio: stesso colore del MON, senza il flash bianco di default. */
+.vinz-clone-composer__cancel {
+  background: var(--char-accent, #0d0d0d) !important;
+  color: var(--char-on-accent, #ffffff) !important;
+}
+
+.dark .vinz-clone-composer__cancel {
+  background: var(--char-accent-on-dark, #ececec) !important;
+  color: var(--char-on-accent-dark, #0d0d0d) !important;
+}
+
+/* Drawer mobile: una vera libreria di conversazioni, non un form tecnico. */
+.vinz-thread-drawer {
+  width: min(88vw, 390px) !important;
+  border: 0 !important;
+  background: #090909 !important;
+  color: #f2f2f2 !important;
+  box-shadow: 22px 0 55px rgb(0 0 0 / 58%);
+}
+
+.vinz-thread-drawer__title {
+  min-height: 6.25rem;
+  padding-top: max(env(safe-area-inset-top), 1rem);
+  color: #f2f2f2 !important;
+}
+
+.vinz-thread-drawer__body [data-slot="aui_thread-list-search"] {
+  padding: 0 0 1.15rem;
+}
+
+.vinz-thread-drawer__body [data-slot="aui_thread-list-search"] input {
+  height: 2.85rem;
+  border: 0;
+  border-radius: 14px;
+  background: #202020;
+  color: #f2f2f2;
+  font-size: 1rem;
+}
+
+.vinz-thread-drawer__body [data-slot="aui_thread-list-search-icon"] {
+  left: .9rem;
+  width: 1.15rem;
+  height: 1.15rem;
+  color: #b7b7b7;
+}
+
+.vinz-thread-drawer__section {
+  padding: .4rem .75rem .65rem;
+  color: #f2f2f2;
+  font-size: 1rem;
+  font-weight: 650;
+}
+
+.vinz-thread-drawer [data-slot="aui_thread-list-group-label"] {
+  padding: 1rem .75rem .35rem;
+  color: #858585;
+  font-size: .72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+
+.vinz-thread-drawer [data-slot="aui_thread-list-item"] {
+  min-height: 3rem;
+  height: auto;
+  border-radius: 13px;
+}
+
+.vinz-thread-drawer [data-slot="aui_thread-list-item"]:hover,
+.vinz-thread-drawer [data-slot="aui_thread-list-item"][data-active] {
+  background: #202020;
+}
+
+.vinz-thread-drawer [data-slot="aui_thread-list-item-trigger"] {
+  min-height: 3rem;
+  padding-inline: .75rem;
+  font-size: 1rem;
+}
+
+.vinz-thread-drawer .aui-thread-icon {
+  color: var(--char-accent-on-dark, #b7b7b7);
+}
+
+.vinz-thread-drawer__footer {
+  padding-top: .75rem;
+  padding-bottom: calc(max(env(safe-area-inset-bottom), .9rem) + .25rem);
+  background: linear-gradient(to top, #090909 72%, rgb(9 9 9 / 0%));
+}
+
+.vinz-thread-drawer__new {
+  background: var(--char-accent-on-dark, #f2f2f2) !important;
+  color: var(--char-on-accent-dark, #090909) !important;
+}
+
 /* Il campo resta nero: il colore appartiene alla conversazione. Il balloon
    dell'utente è il piano più grande su cui compare, seguito dai controlli e
    dai feedback; il testo viene scelto per contrasto dalla palette corrente. */

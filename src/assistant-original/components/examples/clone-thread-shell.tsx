@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  ThreadList,
   ThreadListItems,
   ThreadListNew,
   ThreadListRoot,
@@ -193,15 +192,24 @@ export const CloneThreadShell: FC<CloneThreadShellProps> = ({
             />
           </div>
         )}
-        <SheetContent side="left" className="flex flex-col p-0">
-          <SheetTitle className="flex h-12 shrink-0 items-center px-4 text-sm font-medium">
-            {sheetTitle ?? "Chats"}
+        <SheetContent side="left" className="vinz-thread-drawer flex flex-col gap-0 p-0">
+          <SheetTitle className="vinz-thread-drawer__title flex shrink-0 items-center px-5 text-2xl font-semibold">
+            {sheetTitle ?? "VINZ.MON"}
           </SheetTitle>
           <div
-            className="relative flex-1 overflow-y-auto p-3"
+            className="vinz-thread-drawer__body relative flex min-h-0 flex-1 flex-col overflow-hidden px-4"
             onClick={closeMobileSidebarAfterNavigation}
           >
-            <ThreadList />
+            {hasThreads && (
+              <ThreadListSearch value={search} onValueChange={setSearch} />
+            )}
+            <div className="vinz-thread-drawer__section">Recenti</div>
+            <ThreadListRoot className="min-h-0 flex-1 overflow-y-auto pb-4">
+              <ThreadListItems searchQuery={hasThreads ? search : ""} />
+            </ThreadListRoot>
+          </div>
+          <div className="vinz-thread-drawer__footer shrink-0 px-4">
+            <ThreadListNew className="vinz-thread-drawer__new h-12 w-full justify-center rounded-full text-base font-semibold" />
           </div>
         </SheetContent>
       </Sheet>

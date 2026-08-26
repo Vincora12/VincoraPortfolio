@@ -20,6 +20,7 @@ import {
   ArchiveIcon,
   Loader2Icon,
   MoreHorizontalIcon,
+  MessageCircleIcon,
   PencilIcon,
   PlusIcon,
   SearchIcon,
@@ -70,7 +71,7 @@ export const ThreadListSearch = forwardRef<
         value={value}
         onChange={(event) => onValueChange(event.target.value)}
         aria-label="Search threads"
-        placeholder="Search threads"
+        placeholder="Cerca nelle chat"
         className={cn("h-8 ps-8 text-sm", className)}
         {...props}
       />
@@ -117,9 +118,9 @@ const dateGroupLabel = (
   date: Date | undefined,
   startOfToday: number,
 ): string => {
-  if (!date || date.getTime() >= startOfToday) return "Today";
-  if (date.getTime() >= startOfToday - DAY_IN_MS) return "Yesterday";
-  return "Earlier";
+  if (!date || date.getTime() >= startOfToday) return "Oggi";
+  if (date.getTime() >= startOfToday - DAY_IN_MS) return "Ieri";
+  return "Precedenti";
 };
 
 type ThreadListGroup = { label: string; indices: number[] };
@@ -178,7 +179,7 @@ const ThreadListItemGroups: FC<{ searchQuery?: string }> = ({
         data-slot="aui_thread-list-empty"
         className="text-muted-foreground px-2.5 py-4 text-sm"
       >
-        No threads found
+        Nessuna chat trovata
       </div>
     );
   }
@@ -238,7 +239,7 @@ export const ThreadListNew = forwardRef<
               data-slot="aui_thread-list-new-label"
               className={cn("whitespace-nowrap", labelClassName)}
             >
-              New Thread
+              Nuova chat
             </span>
           </>
         )}
@@ -300,6 +301,10 @@ export const ThreadListItem: FC = () => {
           data-slot="aui_thread-list-item-trigger"
           className="focus-visible:ring-ring/50 flex h-full min-w-0 flex-1 items-center rounded-md px-2.5 text-start text-sm outline-none group-hover:pe-9 group-has-focus-visible:pe-9 group-has-data-[state=open]:pe-9 group-data-active:pe-9 focus-visible:ring-1"
         >
+          <MessageCircleIcon
+            aria-hidden
+            className="aui-thread-icon me-2 size-4 shrink-0"
+          />
           {isRunning && (
             <Loader2Icon
               aria-hidden
