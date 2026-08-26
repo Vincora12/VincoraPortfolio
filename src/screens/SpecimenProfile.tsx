@@ -241,7 +241,6 @@ export function SpecimenProfileScreen({
                 <Row label="ESPEDIENTE" value={d.character_dna.anatomical_gimmick} />
                 <Row label="VOLTO" value={d.character_dna.face_logic} />
                 <Row label="POSTURA" value={d.character_dna.body_language} />
-                <Row label="MOTIVO RICORRENTE" value={d.character_dna.recurring_motif} />
                 <Row
                   label="CONTRADDIZIONI"
                   value={d.character_dna.contradictions.map((c) => `${c.a} / ${c.b}`).join(' · ')}

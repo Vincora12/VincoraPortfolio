@@ -230,6 +230,13 @@ body[data-scroll-locked] {
   top: calc(env(safe-area-inset-top, 0px) + 0.5rem);
 }
 
+.vinz-chat-menu button,
+.vinz-thread-drawer > [data-slot="sheet-close"] {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
 .vinz-chat-cost {
   top: calc(env(safe-area-inset-top, 0px) + 0.75rem);
 }
@@ -354,6 +361,181 @@ body[data-scroll-locked] {
   color: var(--char-on-accent-dark, #0d0d0d) !important;
 }
 
+/* Durante lo stream il quadrato di stop appartiene alla stessa azione del
+   pulsante invio: stesso colore del MON, senza il flash bianco di default.
+   🔒 `--char-on-accent` non esiste da nessuna parte — nessun file la scrive
+   — quindi qui sarebbe sempre stato il fallback, mai il .mon: usa
+   `--char-on-primary`, lo stesso token già verificato sul tasto invia. */
+.vinz-clone-composer__cancel {
+  background: var(--char-accent, #0d0d0d) !important;
+  color: var(--char-on-primary, #ffffff) !important;
+}
+
+.dark .vinz-clone-composer__cancel {
+  background: var(--char-accent-on-dark, #ececec) !important;
+  color: var(--char-on-accent-dark, #0d0d0d) !important;
+}
+
+/* Drawer mobile: una vera libreria di conversazioni, non un form tecnico. */
+.vinz-thread-drawer {
+  width: min(88vw, 390px) !important;
+  border: 0 !important;
+  background: #090909 !important;
+  color: #f2f2f2 !important;
+  box-shadow: 22px 0 55px rgb(0 0 0 / 58%);
+}
+
+.vinz-thread-drawer__title {
+  min-height: 4.5rem;
+  padding-top: .25rem;
+  color: #f2f2f2 !important;
+}
+
+.vinz-thread-drawer__body [data-slot="aui_thread-list-search"] {
+  padding: 0;
+  margin-bottom: 1.15rem;
+}
+
+.vinz-thread-drawer__body [data-slot="aui_thread-list-search"] input {
+  height: 2.85rem;
+  border: 0;
+  border-radius: 14px;
+  background: #202020;
+  color: #f2f2f2;
+  font-size: 1rem;
+  padding-left: 2.8rem;
+}
+
+.vinz-thread-drawer__body [data-slot="aui_thread-list-search-icon"] {
+  left: .9rem;
+  width: 1.15rem;
+  height: 1.15rem;
+  color: #b7b7b7;
+}
+
+.vinz-thread-drawer__section {
+  padding: .4rem .75rem .65rem;
+  color: #f2f2f2;
+  font-size: 1rem;
+  font-weight: 650;
+}
+
+.vinz-thread-drawer [data-slot="aui_thread-list-group-label"] {
+  padding: 1rem .75rem .35rem;
+  color: #858585;
+  font-size: .72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+
+.vinz-thread-drawer [data-slot="aui_thread-list-item"] {
+  min-height: 3rem;
+  height: auto;
+  padding-right: 2.7rem;
+  border-radius: 13px;
+}
+
+.vinz-thread-drawer [data-slot="aui_thread-list-item"]:hover,
+.vinz-thread-drawer [data-slot="aui_thread-list-item"][data-active] {
+  background: #202020;
+}
+
+.vinz-thread-drawer [data-slot="aui_thread-list-item-trigger"] {
+  min-height: 3rem;
+  padding-inline: .75rem .25rem;
+  font-size: 1rem;
+}
+
+.vinz-thread-drawer [data-slot="aui_thread-list-item-title"] {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vinz-thread-drawer .aui-thread-icon {
+  color: var(--char-accent-on-dark, #b7b7b7);
+}
+
+.vinz-thread-drawer__footer {
+  padding-top: .75rem;
+  padding-bottom: calc(max(env(safe-area-inset-bottom), .9rem) + .25rem);
+  background: linear-gradient(to top, #090909 72%, rgb(9 9 9 / 0%));
+}
+
+.vinz-thread-drawer__new {
+  background: var(--char-accent-on-dark, #f2f2f2) !important;
+  color: var(--char-on-accent-dark, #090909) !important;
+}
+
+/* Il campo resta nero: il colore appartiene alla conversazione. Il balloon
+   dell'utente è il piano più grande su cui compare, seguito dai controlli e
+   dai feedback; il testo viene scelto per contrasto dalla palette corrente. */
+.vinz-user-message {
+  background: var(--char-accent, #0d0d0d);
+  color: var(--char-on-accent, #ffffff);
+  transition: background-color 220ms ease, color 220ms ease;
+}
+
+.dark .vinz-user-message {
+  background: var(--char-accent-on-dark, #ececec);
+  color: var(--char-on-accent-dark, #0d0d0d);
+}
+
+/* assistant-ui possiede già un indicatore ancorato all'ULTIMA parola. Lo
+   trasformiamo nel cursore VINZ invece di aggiungerne un secondo in fondo al
+   contenitore: così è lui a seguire davvero il testo, anche in liste e code. */
+.vinz-assistant-copy .aui-md[data-status="running"] {
+  --aui-content: "▍";
+}
+
+.vinz-assistant-copy .aui-md[data-status="running"]:empty::after,
+.vinz-assistant-copy .aui-md[data-status="running"] > :not(ol, ul, pre):last-child::after,
+.vinz-assistant-copy .aui-md[data-status="running"] > pre:last-child code::after,
+.vinz-assistant-copy .aui-md[data-status="running"] li:last-child::after {
+  color: var(--char-accent, currentColor);
+  margin-inline: .16rem 0;
+  animation: vinz-writing-caret 720ms steps(1, end) infinite;
+}
+
+.dark .vinz-assistant-copy .aui-md[data-status="running"]:empty::after,
+.dark .vinz-assistant-copy .aui-md[data-status="running"] > :not(ol, ul, pre):last-child::after,
+.dark .vinz-assistant-copy .aui-md[data-status="running"] > pre:last-child code::after,
+.dark .vinz-assistant-copy .aui-md[data-status="running"] li:last-child::after {
+  color: var(--char-accent-on-dark, currentColor);
+}
+
+@keyframes vinz-writing-caret {
+  0%, 48% { opacity: 1; }
+  49%, 100% { opacity: 0.18; }
+}
+
+/* Una conferma indica una modifica reale: entra come una spunta appena
+   registrata, mentre fonti e strumenti si aprono senza competere col testo. */
+.vinz-message-updates > * {
+  animation: vinz-update-confirm 260ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.vinz-assistant-meta > * {
+  animation: vinz-meta-reveal 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.dark .vinz-message-updates svg {
+  color: var(--char-accent-on-dark, #ffffff);
+}
+
+@keyframes vinz-update-confirm {
+  from { opacity: 0; clip-path: inset(0 100% 0 0); }
+  to { opacity: 1; clip-path: inset(0); }
+}
+
+@keyframes vinz-meta-reveal {
+  from { opacity: 0; filter: blur(3px); }
+  to { opacity: 1; filter: blur(0); }
+}
+
 .vinz-record__cancel:disabled,
 .vinz-record__send:disabled {
   opacity: 0.3;
@@ -410,15 +592,13 @@ body[data-scroll-locked] {
 }
 
 .shimmer {
-  color: transparent;
-  background: linear-gradient(90deg, transparent, var(--foreground), transparent);
-  background-size: 200% 100%;
-  background-clip: text;
-  animation: assistant-shimmer 1.2s linear infinite;
+  color: var(--foreground);
+  animation: assistant-shimmer 1.2s ease-in-out infinite;
 }
 
 @keyframes assistant-shimmer {
-  to { background-position: -200% 0; }
+  0%, 100% { opacity: 0.42; }
+  50% { opacity: 1; }
 }
 
 @media (max-width: 767px) {
@@ -455,6 +635,19 @@ body[data-scroll-locked] {
 
 @media (prefers-reduced-motion: reduce) {
   .vinz-record__wave.is-loading::after {
+    animation: none;
+  }
+
+  .vinz-assistant-copy .aui-md[data-status="running"]:empty::after,
+  .vinz-assistant-copy .aui-md[data-status="running"] > :not(ol, ul, pre):last-child::after,
+  .vinz-assistant-copy .aui-md[data-status="running"] > pre:last-child code::after,
+  .vinz-assistant-copy .aui-md[data-status="running"] li:last-child::after {
+    animation: none;
+    opacity: 1;
+  }
+
+  .vinz-message-updates > *,
+  .vinz-assistant-meta > * {
     animation: none;
   }
 }

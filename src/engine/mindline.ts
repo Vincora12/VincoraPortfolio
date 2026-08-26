@@ -87,7 +87,10 @@ export interface MindlineLayout {
   depth: number;
 }
 
-export function layoutMindline(nodes: readonly MindlineNode[]): MindlineLayout {
+export function layoutMindline(
+  nodes: readonly MindlineNode[],
+  changesNature: (from: MindlineNode, to: MindlineNode) => boolean = () => false,
+): MindlineLayout {
   const out: LayoutNode[] = [];
   const edges: { from: string; to: string }[] = [];
 
@@ -107,7 +110,10 @@ export function layoutMindline(nodes: readonly MindlineNode[]): MindlineLayout {
       // micro-growth prosegue la colonna, un cambio di forma ne apre una
       // nuova. È la grammatica da grafo Git richiesta da §7.4 — altrimenti un
       // cambio di forma verrebbe disegnato in linea retta come una crescita.
-      const isContinuation = kid.kind !== 'branch' && !continuedHere;
+      // Anche un'evoluzione nominalmente lineare apre un percorso nuovo se
+      // cambia la natura della creatura (es. ANGEL → MACHINE). La mappa deve
+      // raccontare la trasformazione reale, non soltanto il tipo del nodo.
+      const isContinuation = kid.kind !== 'branch' && !changesNature(node, kid) && !continuedHere;
       if (isContinuation) continuedHere = true;
 
       walk(kid, isContinuation ? column : ++nextColumn, depth + 1);

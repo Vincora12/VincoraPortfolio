@@ -272,6 +272,37 @@ function withText(
   return text ? [...parts, { type: "text", text }] : [...parts];
 }
 
+/** Anche i provider che restituiscono la risposta tutta insieme la mostrano
+ * come scrittura, non come un blocco che compare di colpo. Il testo resta già
+ * completo lato dati: questa funzione controlla soltanto la sua presentazione. */
+async function* writtenSnapshots(
+  text: string,
+  abortSignal: AbortSignal,
+): AsyncGenerator<string> {
+  const reducedMotion = typeof window !== "undefined"
+    && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (reducedMotion) {
+    yield text;
+    return;
+  }
+
+  const words = text.match(/\S+\s*/g) ?? [text];
+  let shown = "";
+  for (let index = 0; index < words.length; index += 1) {
+    if (abortSignal.aborted) return;
+    const word = words[index];
+    shown += word;
+    yield shown;
+    // Un ritmo percepibile anche su iPhone: la parola cresce con la propria
+    // lunghezza e la punteggiatura introduce vere micro-pause. Prima venivano
+    // mostrate tre parole ogni 24 ms, quindi l'effetto sembrava istantaneo.
+    const basePause = Math.min(210, Math.max(72, word.trim().length * 22));
+    const pause = basePause
+      + (/[.!?][\s\n]*$/.test(word) ? 220 : /[,;:][\s\n]*$/.test(word) ? 110 : 0);
+    await new Promise<void>((resolve) => setTimeout(resolve, pause));
+  }
+}
+
 /** Runtime reale predefinito. Il mock locale resta disponibile con `?runtime=mock`. */
 function createBaseNetlifyChatModel(): ChatModelAdapter {
   return {
@@ -327,6 +358,9 @@ function createBaseNetlifyChatModel(): ChatModelAdapter {
       };
       const parts = (body.sources ?? []).map(sourcePart);
       if (!body.text) throw new Error("La risposta è arrivata vuota.");
+      for await (const shown of writtenSnapshots(body.text, abortSignal)) {
+        yield { content: withText(parts, shown) };
+      }
       yield {
         content: withText(parts, body.text),
         metadata: {

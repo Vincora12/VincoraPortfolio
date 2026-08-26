@@ -18,12 +18,22 @@ import {
 } from "@assistant-ui/react";
 import {
   ArchiveIcon,
+  BookOpenIcon,
+  BriefcaseBusinessIcon,
+  DumbbellIcon,
+  FlameIcon,
+  FolderIcon,
+  HeartIcon,
+  LightbulbIcon,
   Loader2Icon,
   MoreHorizontalIcon,
+  MessageCircleIcon,
+  PlaneIcon,
   PencilIcon,
   PlusIcon,
   SearchIcon,
   TrashIcon,
+  UtensilsIcon,
 } from "lucide-react";
 import {
   forwardRef,
@@ -35,6 +45,83 @@ import {
   type ComponentPropsWithoutRef,
   type FC,
 } from "react";
+import { serverBackedStorage } from "@/system/serverStorage";
+
+const THREAD_ICONS_KEY = "assistant-ui-official-chatgpt:thread-icons";
+const THREAD_COLORS_KEY = "assistant-ui-official-chatgpt:thread-colors";
+
+const THREAD_COLORS = ["#42d8f4", "#ff4e68", "#ffb627", "#49d17d", "#9d7cff", "#f08bd6", "#f2f2f2"] as const;
+type ThreadColor = (typeof THREAD_COLORS)[number];
+
+const THREAD_ICONS = {
+  chat: MessageCircleIcon,
+  flame: FlameIcon,
+  food: UtensilsIcon,
+  sport: DumbbellIcon,
+  travel: PlaneIcon,
+  work: BriefcaseBusinessIcon,
+  heart: HeartIcon,
+  idea: LightbulbIcon,
+  study: BookOpenIcon,
+  folder: FolderIcon,
+} as const;
+
+type ThreadIconName = keyof typeof THREAD_ICONS;
+type ThreadIconMap = Record<string, ThreadIconName>;
+
+function readLocalThreadIcons(): ThreadIconMap {
+  try {
+    return JSON.parse(localStorage.getItem(THREAD_ICONS_KEY) ?? "{}") as ThreadIconMap;
+  } catch {
+    return {};
+  }
+}
+
+function useThreadIcon(threadId: string) {
+  const [name, setName] = useState<ThreadIconName>(() => readLocalThreadIcons()[threadId] ?? "chat");
+  const readColors = () => {
+    try {
+      return JSON.parse(localStorage.getItem(THREAD_COLORS_KEY) ?? "{}") as Record<string, ThreadColor>;
+    } catch {
+      return {};
+    }
+  };
+  const [color, setColor] = useState<ThreadColor | null>(() => readColors()[threadId] ?? null);
+
+  useEffect(() => {
+    void serverBackedStorage.getItem(THREAD_ICONS_KEY).then((raw) => {
+      if (!raw) return;
+      try {
+        const remote = JSON.parse(raw) as ThreadIconMap;
+        if (remote[threadId]) setName(remote[threadId]);
+      } catch { /* La scelta locale resta valida. */ }
+    });
+  }, [threadId]);
+
+  useEffect(() => {
+    void serverBackedStorage.getItem(THREAD_COLORS_KEY).then((raw) => {
+      if (!raw) return;
+      try {
+        const remote = JSON.parse(raw) as Record<string, ThreadColor>;
+        if (remote[threadId]) setColor(remote[threadId]);
+      } catch { /* La scelta locale resta valida. */ }
+    });
+  }, [threadId]);
+
+  const choose = (next: ThreadIconName) => {
+    setName(next);
+    const map = { ...readLocalThreadIcons(), [threadId]: next };
+    void serverBackedStorage.setItem(THREAD_ICONS_KEY, JSON.stringify(map));
+  };
+
+  const chooseColor = (next: ThreadColor) => {
+    setColor(next);
+    const map = { ...readColors(), [threadId]: next };
+    void serverBackedStorage.setItem(THREAD_COLORS_KEY, JSON.stringify(map));
+  };
+
+  return { name, choose, color, chooseColor, Icon: THREAD_ICONS[name] };
+}
 
 export const ThreadList: FC = () => {
   const [search, setSearch] = useState("");
@@ -70,7 +157,7 @@ export const ThreadListSearch = forwardRef<
         value={value}
         onChange={(event) => onValueChange(event.target.value)}
         aria-label="Search threads"
-        placeholder="Search threads"
+        placeholder="Cerca nelle chat"
         className={cn("h-8 ps-8 text-sm", className)}
         {...props}
       />
@@ -117,9 +204,9 @@ const dateGroupLabel = (
   date: Date | undefined,
   startOfToday: number,
 ): string => {
-  if (!date || date.getTime() >= startOfToday) return "Today";
-  if (date.getTime() >= startOfToday - DAY_IN_MS) return "Yesterday";
-  return "Earlier";
+  if (!date || date.getTime() >= startOfToday) return "Oggi";
+  if (date.getTime() >= startOfToday - DAY_IN_MS) return "Ieri";
+  return "Precedenti";
 };
 
 type ThreadListGroup = { label: string; indices: number[] };
@@ -178,7 +265,7 @@ const ThreadListItemGroups: FC<{ searchQuery?: string }> = ({
         data-slot="aui_thread-list-empty"
         className="text-muted-foreground px-2.5 py-4 text-sm"
       >
-        No threads found
+        Nessuna chat trovata
       </div>
     );
   }
@@ -238,7 +325,7 @@ export const ThreadListNew = forwardRef<
               data-slot="aui_thread-list-new-label"
               className={cn("whitespace-nowrap", labelClassName)}
             >
-              New Thread
+              Nuova chat
             </span>
           </>
         )}
@@ -272,6 +359,8 @@ const ThreadListSkeleton: FC = () => {
 
 export const ThreadListItem: FC = () => {
   const isRunning = useAuiState((s) => s.threadListItem.isRunning);
+  const threadId = useAuiState((s) => s.threadListItem.id);
+  const threadIcon = useThreadIcon(threadId);
   const [isRenaming, setIsRenaming] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const restoreFocusRef = useRef(false);
@@ -300,6 +389,11 @@ export const ThreadListItem: FC = () => {
           data-slot="aui_thread-list-item-trigger"
           className="focus-visible:ring-ring/50 flex h-full min-w-0 flex-1 items-center rounded-md px-2.5 text-start text-sm outline-none group-hover:pe-9 group-has-focus-visible:pe-9 group-has-data-[state=open]:pe-9 group-data-active:pe-9 focus-visible:ring-1"
         >
+          <threadIcon.Icon
+            aria-hidden
+            className="aui-thread-icon me-2 size-4 shrink-0"
+            style={threadIcon.color ? { color: threadIcon.color } : undefined}
+          />
           {isRunning && (
             <Loader2Icon
               aria-hidden
@@ -316,7 +410,13 @@ export const ThreadListItem: FC = () => {
           {isRunning && <span className="sr-only">Running</span>}
         </ThreadListItemPrimitive.Trigger>
       )}
-      <ThreadListItemMore onRename={() => setIsRenaming(true)} />
+      <ThreadListItemMore
+        icon={threadIcon.name}
+        color={threadIcon.color}
+        onIconChange={threadIcon.choose}
+        onColorChange={threadIcon.chooseColor}
+        onRename={() => setIsRenaming(true)}
+      />
     </ThreadListItemPrimitive.Root>
   );
 };
@@ -385,7 +485,13 @@ const ThreadListItemRename: FC<{
   );
 };
 
-const ThreadListItemMore: FC<{ onRename: () => void }> = ({ onRename }) => {
+const ThreadListItemMore: FC<{
+  icon: ThreadIconName;
+  color: ThreadColor | null;
+  onIconChange: (icon: ThreadIconName) => void;
+  onColorChange: (color: ThreadColor) => void;
+  onRename: () => void;
+}> = ({ icon, color, onIconChange, onColorChange, onRename }) => {
   const [open, setOpen] = useState(false);
 
   return (
@@ -410,8 +516,40 @@ const ThreadListItemMore: FC<{ onRename: () => void }> = ({ onRename }) => {
         align="end"
         sideOffset={4}
         data-slot="aui_thread-list-item-more-content"
-        className="bg-popover text-popover-foreground data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=open]:animate-in data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=closed]:animate-out data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-[10002] w-40 gap-0.5 overflow-hidden rounded-xl border p-1 shadow-xl"
+        className="bg-popover text-popover-foreground data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=open]:animate-in data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=closed]:animate-out data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-[10002] w-52 gap-0.5 overflow-hidden rounded-xl border p-1 shadow-xl"
       >
+        <div className="px-2.5 pt-2 pb-1 text-xs font-medium text-[#a9a9a9]">Icona</div>
+        <div className="grid grid-cols-5 gap-1 px-1.5 pb-2">
+          {(Object.entries(THREAD_ICONS) as [ThreadIconName, typeof MessageCircleIcon][]).map(([name, Icon]) => (
+            <button
+              key={name}
+              type="button"
+              aria-label={`Scegli icona ${name}`}
+              aria-pressed={icon === name}
+              className="flex size-9 items-center justify-center rounded-lg text-[#b9b9b9] transition-colors hover:bg-[#343434] aria-pressed:bg-[#343434] aria-pressed:text-[var(--char-accent-on-dark)]"
+              onClick={() => {
+                onIconChange(name);
+                setOpen(false);
+              }}
+            >
+              <Icon className="size-4.5" />
+            </button>
+          ))}
+        </div>
+        <div className="px-2.5 pt-1 pb-1 text-xs font-medium text-[#a9a9a9]">Colore</div>
+        <div className="flex gap-1.5 px-2 pb-2">
+          {THREAD_COLORS.map((value) => (
+            <button
+              key={value}
+              type="button"
+              aria-label={`Scegli colore ${value}`}
+              aria-pressed={color === value}
+              className="size-6 rounded-full border-2 border-transparent transition-transform active:scale-90 aria-pressed:border-white"
+              style={{ backgroundColor: value }}
+              onClick={() => onColorChange(value)}
+            />
+          ))}
+        </div>
         <Button
           type="button"
           variant="ghost"
@@ -423,7 +561,7 @@ const ThreadListItemMore: FC<{ onRename: () => void }> = ({ onRename }) => {
           }}
         >
           <PencilIcon className="size-4" />
-          Rename
+          Rinomina
         </Button>
         <ThreadListItemPrimitive.Archive asChild>
           <Button
@@ -434,7 +572,7 @@ const ThreadListItemMore: FC<{ onRename: () => void }> = ({ onRename }) => {
             onClick={() => setOpen(false)}
           >
             <ArchiveIcon className="size-4" />
-            Archive
+            Archivia
           </Button>
         </ThreadListItemPrimitive.Archive>
         <ThreadListItemPrimitive.Delete asChild>
@@ -446,7 +584,7 @@ const ThreadListItemMore: FC<{ onRename: () => void }> = ({ onRename }) => {
             onClick={() => setOpen(false)}
           >
             <TrashIcon className="size-4" />
-            Delete
+            Elimina
           </Button>
         </ThreadListItemPrimitive.Delete>
       </PopoverContent>

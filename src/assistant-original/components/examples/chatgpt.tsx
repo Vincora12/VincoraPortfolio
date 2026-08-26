@@ -359,7 +359,7 @@ const ComposerPrimaryAction: FC<{ onDictate: () => void }> = ({
   return (
     <div className="flex items-center gap-1">
       <AuiIf condition={(s) => s.thread.isRunning}>
-        <ComposerPrimitive.Cancel className="vinz-clone-composer__send flex size-9 items-center justify-center rounded-full bg-[#0d0d0d] text-white dark:bg-white dark:text-black">
+        <ComposerPrimitive.Cancel className="vinz-clone-composer__cancel flex size-9 items-center justify-center rounded-full">
           <div className="size-2.5 rounded-[2px] bg-current" />
         </ComposerPrimitive.Cancel>
       </AuiIf>
@@ -418,7 +418,7 @@ const UserMessage: FC = () => {
         />
       </div>
 
-      <div className="max-w-[70%] rounded-[22px] bg-[#0d0d0d] px-4 py-2.5 leading-6 text-white dark:bg-[#ececec] dark:text-[#0d0d0d]">
+      <div className="vinz-user-message max-w-[70%] rounded-[22px] px-4 py-2.5 leading-6">
         <MessagePrimitive.Parts />
       </div>
 
@@ -481,9 +481,22 @@ const assistantActionClassName =
   "flex size-9 items-center justify-center rounded-none border-0 bg-transparent p-2 text-[#5d5d5d] transition-[color,opacity,transform] hover:bg-transparent hover:text-[#0d0d0d] active:scale-90 active:opacity-55 data-[copied]:text-[#0d0d0d] data-[submitted]:text-[#0d0d0d] dark:text-[#b4b4b4] dark:hover:bg-transparent dark:hover:text-[#ececec] dark:data-[copied]:text-[#ececec] dark:data-[submitted]:text-[#ececec]";
 
 const AssistantMessage: FC = () => {
+  const { staScrivendo, haTesto } = useAuiState(
+    useShallow((s) => ({
+      staScrivendo: s.message.status?.type === "running",
+      haTesto: (s.message.content ?? []).some(
+        (part) => part.type === "text" && part.text.trim().length > 0,
+      ),
+    })),
+  );
   return (
-    <MessagePrimitive.Root className="relative mx-auto flex w-full max-w-3xl flex-col px-2 sm:px-0">
-      <div className="text-[#0d0d0d] dark:text-[#ececec]">
+    <MessagePrimitive.Root className="vinz-assistant-message relative mx-auto flex w-full max-w-3xl flex-col px-2 sm:px-0">
+      <div
+        className={cn(
+          "vinz-assistant-copy text-[#0d0d0d] dark:text-[#ececec]",
+          staScrivendo && haTesto && "is-writing",
+        )}
+      >
         <MessagePrimitive.Parts>
           {({ part }) => {
             /* 🔴 Una parte di testo ancora VUOTA disegnava comunque il
@@ -703,7 +716,7 @@ const MessageUpdates: FC = () => {
     : [];
   if (updates.length === 0) return null;
   return (
-    <div className="mt-1 flex flex-col gap-1" aria-live="polite">
+    <div className="vinz-message-updates mt-1 flex flex-col gap-1" aria-live="polite">
       {updates.map((update) => (
         <small
           key={update}

@@ -34,21 +34,23 @@ import type { Overlay } from '../App';
 import { useApp } from '../state/store';
 import { AssetSlot } from '../system/AssetSlot';
 import { MonName } from '../system/MonName';
-import { Button, Row, ScreenHead, SystemLabel } from '../system/components';
+import { Button, ScreenHead, SystemLabel } from '../system/components';
 import { displayName } from '../engine/types';
 import { t } from '../i18n/it';
+import { SplashScreen } from './Splash';
 
-export function DexScreen({ onGo }: { onGo: (o: Overlay) => void }) {
+export function DexScreen({ onGo: _onGo, onOpenMon }: { onGo: (o: Overlay) => void; onOpenMon: () => void }) {
   const mons = useApp((s) => s.mons);
   const nodes = useApp((s) => s.nodes);
   const activeMonName = useApp((s) => s.activeMonName);
   const evolutionJob = useApp((s) => s.evolutionJob);
   const restoreNode = useApp((s) => s.restoreNode);
   const kept = useApp((s) => s.kept);
-  const keepActiveMon = useApp((s) => s.keepActiveMon);
+  const keepMon = useApp((s) => s.keepMon);
   const forgetKept = useApp((s) => s.forgetKept);
 
   const [picked, setPicked] = useState<string | null>(null);
+  const [previewing, setPreviewing] = useState(false);
   const [keeping, setKeeping] = useState(false);
 
   /* In ordine di comparsa, non alfabetico: è una storia, e una storia si
@@ -82,8 +84,40 @@ export function DexScreen({ onGo }: { onGo: (o: Overlay) => void }) {
     .filter((mon) => mon.data.name !== hiddenCandidate)
     .sort((a, b) => dayOf(a.data.name) - dayOf(b.data.name));
   const selected = picked ? mons[picked] : null;
-  const keptOfActive = kept.some((k) => k.record.data.name === activeMonName);
   const selectedNode = picked ? nodes.find((n) => n.monName === picked) : null;
+
+  if (previewing && selected && selectedNode) {
+    const isActive = selected.data.name === activeMonName;
+    return (
+      <div className="screen screen--ink dex dexpreview">
+        <div className="dexpreview__bar">
+          <button type="button" className="dexpreview__back" onClick={() => setPreviewing(false)}>
+            <span aria-hidden="true">←</span>
+            <span>INDIETRO</span>
+          </button>
+          <span className="t-micro">FORMA DEL GIORNO {selectedNode.day}</span>
+        </div>
+        <div className="dexpreview__page">
+          <SplashScreen onEnter={() => undefined} previewMonName={selected.data.name} />
+        </div>
+        {!isActive && (
+          <div className="dexpreview__restore">
+            <Button
+              block
+              onClick={() => {
+                restoreNode(selectedNode.id);
+                setPicked(null);
+                onOpenMon();
+              }}
+            >
+              RITORNA A QUESTO VINZ.MON
+            </Button>
+            <p className="t-micro">La Mind.Map ripartirà da questa forma.</p>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="screen screen--ink dex">
@@ -105,8 +139,11 @@ export function DexScreen({ onGo }: { onGo: (o: Overlay) => void }) {
                   key={name}
                   type="button"
                   className={`dexcard ${picked === name ? 'dexcard--picked' : ''}`}
-                  aria-pressed={picked === name}
-                  onClick={() => setPicked(picked === name ? null : name)}
+                  aria-label={`Apri la pagina di ${displayName(name)}`}
+                  onClick={() => {
+                    setPicked(picked === name ? null : name);
+                    setPreviewing(false);
+                  }}
                 >
                   <span className="dexcard__art">
                     <AssetSlot
@@ -114,7 +151,7 @@ export function DexScreen({ onGo }: { onGo: (o: Overlay) => void }) {
                       type="character_toy"
                       fallbackTypes={['character_master']}
                       alt={displayName(name)}
-                      fit="cover"
+                      fit="contain"
                       compactPlaceholder
                     />
                   </span>
@@ -153,7 +190,7 @@ export function DexScreen({ onGo }: { onGo: (o: Overlay) => void }) {
                       type="character_toy"
                       fallbackTypes={['character_master']}
                       alt={displayName(k.record.data.name)}
-                      fit="cover"
+                      fit="contain"
                       compactPlaceholder
                     />
                   </span>
@@ -178,69 +215,44 @@ export function DexScreen({ onGo }: { onGo: (o: Overlay) => void }) {
         )}
 
         {selected && (
-          <section className="dex__detail">
+          <section className="dex__detail dex__actions">
             <div className="dex__detailhead">
               <span className="t-display">
-                <MonName name={selected.data.name} />
+                <MonName name={selected.data.name} fit />
               </span>
               {selected.data.name === activeMonName && (
                 <SystemLabel tone="character">{t.dex.active}</SystemLabel>
               )}
             </div>
 
-            <div className="rowlist">
-              <Row label="FAMILY" value={`${selected.data.family} // ${selected.data.family_archetype}`} />
-              <Row label="AFFINITY" value={selected.data.affinity} />
-              <Row label="RARITÀ" value={selected.data.rarity} />
-              <Row label="TEMPERAMENTO" value={selected.data.mood_primary} />
-              <Row label="VOCE" value={selected.data.voice_preset} />
-              {selectedNode && <Row label="NATO IL GIORNO" value={String(selectedNode.day)} />}
+            <div className="dex__actionlist">
+              <Button
+                variant="secondary"
+                block
+                disabled={keeping || kept.some((k) => k.record.data.name === selected.data.name)}
+                onClick={() => {
+                  setKeeping(true);
+                  void keepMon(selected.data.name).finally(() => setKeeping(false));
+                }}
+              >
+                {kept.some((k) => k.record.data.name === selected.data.name) ? 'SALVATO NELLA TECA' : 'SALVA NELLA TECA'}
+              </Button>
+              <Button variant="secondary" block onClick={() => setPreviewing(true)}>
+                APRI SCHEDA
+              </Button>
+              <Button
+                block
+                disabled={selected.data.name === activeMonName || !selectedNode}
+                onClick={() => {
+                  if (!selectedNode) return;
+                  restoreNode(selectedNode.id);
+                  setPicked(null);
+                  onOpenMon();
+                }}
+              >
+                {selected.data.name === activeMonName ? 'MON ATTIVO' : 'RITORNA A QUESTO MON'}
+              </Button>
             </div>
-
-            <p className="dex__why t-small">{selected.data.generation_reason_summary}</p>
-
-            {selected.data.name === activeMonName ? (
-              <>
-                <div className="rowlist">
-                  <Row label="SPECIMEN" value="apri →" onClick={() => onGo('specimen')} />
-                  <Row label="HERITAGE DNA" value="apri →" onClick={() => onGo('heritage')} />
-                </div>
-
-                {/* 🔷 §21.3 — il pulsante sta QUI e non nella schermata di
-                    reset, che è dove servirebbe. È voluto: se lo incontri solo
-                    mentre stai per cancellare tutto, lo premi di fretta e per
-                    paura. Qui lo premi perché ti sei affezionato, che è la
-                    ragione giusta. */}
-                {keptOfActive ? (
-                  <SystemLabel>{t.dex.kept}</SystemLabel>
-                ) : (
-                  <Button
-                    variant="secondary"
-                    block
-                    disabled={keeping}
-                    onClick={() => {
-                      setKeeping(true);
-                      void keepActiveMon().finally(() => setKeeping(false));
-                    }}
-                  >
-                    {t.dex.keep}
-                  </Button>
-                )}
-              </>
-            ) : (
-              selectedNode && (
-                <Button
-                  variant="secondary"
-                  block
-                  onClick={() => {
-                    restoreNode(selectedNode.id);
-                    setPicked(null);
-                  }}
-                >
-                  {t.dex.restore}
-                </Button>
-              )
-            )}
           </section>
         )}
       </div>

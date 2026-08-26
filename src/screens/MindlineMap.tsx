@@ -14,19 +14,55 @@
 import { useState } from 'react';
 import type { Overlay } from '../App';
 import { useApp } from '../state/store';
-import { AssetSlot } from '../system/AssetSlot';
+import { AssetSlot, useAssetUrl } from '../system/AssetSlot';
 import { MonName, MonNameTspan } from '../system/MonName';
 import { Button, Row, ScreenHead, SystemLabel } from '../system/components';
 import { layoutMindline, nodeKindLabel } from '../engine/mindline';
 import { displayName } from '../engine/types';
 import { haptic } from '../system/haptics';
 import { t } from '../i18n/it';
+import { EXPRESSION_SPEC } from '../engine/assets';
 
-const COL_W = 84;
-const ROW_H = 92;
-const PAD = 40;
+const COL_W = 122;
+const ROW_H = 126;
+const PAD = 52;
 /** Spazio riservato all'etichetta a destra dell'ultimo nodo. */
 const LABEL_W = 150;
+
+function MapSticker({ monName, index }: { monName: string; index: number }) {
+  const sheet = useAssetUrl(monName, 'reaction_pack');
+  const n = index % EXPRESSION_SPEC.frames;
+  const col = n % EXPRESSION_SPEC.columns;
+  const row = Math.floor(n / EXPRESSION_SPEC.columns);
+
+  if (!sheet) {
+    return (
+      <span className="mindline__sticker mindline__sticker--fallback">
+        <AssetSlot
+          monName={monName}
+          type="character_toy"
+          fallbackTypes={['character_master']}
+          alt={displayName(monName)}
+          fit="contain"
+          compactPlaceholder
+        />
+      </span>
+    );
+  }
+
+  return (
+    <span className="mindline__sticker" aria-hidden="true">
+      <span
+        className="mindline__stickerart"
+        style={{
+          backgroundImage: `url(${sheet})`,
+          backgroundSize: `${EXPRESSION_SPEC.columns * 100}% ${EXPRESSION_SPEC.rows * 100}%`,
+          backgroundPosition: `${(col * 100) / (EXPRESSION_SPEC.columns - 1)}% ${(row * 100) / (EXPRESSION_SPEC.rows - 1)}%`,
+        }}
+      />
+    </span>
+  );
+}
 
 export function MindlineMapScreen({ onGo }: { onGo: (o: Overlay) => void }) {
   const nodes = useApp((s) => s.nodes);
@@ -38,7 +74,11 @@ export function MindlineMapScreen({ onGo }: { onGo: (o: Overlay) => void }) {
   // selezione la topologia si guarda intera, che è il punto della schermata.
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const layout = layoutMindline(nodes);
+  const natureOf = (monName: string) => {
+    const data = mons[monName]?.data;
+    return data ? `${data.family}|${data.family_archetype}` : '';
+  };
+  const layout = layoutMindline(nodes, (from, to) => natureOf(from.monName) !== natureOf(to.monName));
   const activeNodeId = activeMonName ? mons[activeMonName]?.data.mindline_node : null;
   const chapter = Math.max(1, ...nodes.map((n) => n.chapter));
   const selected = nodes.find((n) => n.id === selectedId) ?? null;
@@ -118,12 +158,16 @@ export function MindlineMapScreen({ onGo }: { onGo: (o: Overlay) => void }) {
               );
             })}
 
-            {/* Nodi: marcatori geometrici, non illustrazioni. */}
-            {layout.nodes.map(({ node, column, depth }) => {
+            {/* Ogni nodo usa una delle vere reaction del MON: la mappa resta
+                tecnica nei collegamenti, ma le tappe ora hanno una faccia. */}
+            {layout.nodes.map(({ node, column, depth }, nodeIndex) => {
               const { x, y } = pos(column, depth);
               const active = node.id === activeNodeId;
               const picked = node.id === selectedId;
-              const r = active ? 13 : 9;
+              const parent = node.parentId ? nodes.find((item) => item.id === node.parentId) : null;
+              const fromFamily = parent ? mons[parent.monName]?.data.family : null;
+              const toFamily = mons[node.monName]?.data.family;
+              const changedFamily = Boolean(fromFamily && toFamily && fromFamily !== toFamily);
 
               return (
                 <g
@@ -145,33 +189,21 @@ export function MindlineMapScreen({ onGo }: { onGo: (o: Overlay) => void }) {
                     }
                   }}
                 >
-                  {/* Bersaglio di tocco: il marcatore è piccolo, il dito no. */}
-                  <circle cx={x} cy={y} r={26} fill="transparent" />
+                  {/* Bersaglio di tocco più ampio dello sticker. */}
+                  <circle cx={x} cy={y} r={34} fill="transparent" />
                   {active && (
-                    <circle cx={x} cy={y} r={r + 7} fill="none" stroke="var(--char-accent)" strokeWidth={1.5} />
+                    <circle cx={x} cy={y} r={34} fill="none" stroke="var(--char-accent)" strokeWidth={2} />
                   )}
-                  <circle
-                    cx={x}
-                    cy={y}
-                    r={r}
-                    fill={active ? 'var(--char-primary)' : 'var(--white)'}
-                    stroke="var(--ink)"
-                    strokeWidth={2.5}
-                  />
-                  {node.kind === 'branch' && (
-                    <path
-                      d={`M${x - 4} ${y} L${x + 4} ${y} M${x} ${y - 4} L${x} ${y + 4}`}
-                      stroke={active ? 'var(--char-on-primary)' : 'var(--ink)'}
-                      strokeWidth={2}
-                    />
-                  )}
+                  <foreignObject x={x - 29} y={y - 29} width={58} height={58} pointerEvents="none">
+                    <MapSticker monName={node.monName} index={nodeIndex} />
+                  </foreignObject>
                   {/* La Mindline è un albero di file: qui il nome porta la sua
                       estensione. In SVG servono due tspan, non il componente. */}
-                  <text x={x + r + 8} y={y + 4} fill="var(--ink)">
+                  <text x={x - 30} y={y + 45} fill="var(--ink)">
                     <MonNameTspan name={node.monName} size={11} />
                   </text>
-                  <text x={x + r + 8} y={y + 16} className="mindline__sublabel" fill="var(--muted-strong)">
-                    {nodeKindLabel(node.kind)} · G{node.day}
+                  <text x={x - 30} y={y + 57} className="mindline__sublabel" fill="var(--muted-strong)">
+                    {changedFamily ? `${fromFamily} → ${toFamily}` : `${toFamily ?? nodeKindLabel(node.kind)} · G${node.day}`}
                   </text>
                 </g>
               );

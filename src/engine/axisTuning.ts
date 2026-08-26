@@ -46,7 +46,10 @@ export const PESO_DEFAULT = 1;
 
 type Pesi = Partial<Record<WeightedAxis, Record<string, number>>>;
 
-const CHIAVE = 'vinzmon.axisWeights.v1';
+/* v2 riparte intenzionalmente da pesi uguali. Nella prima versione poteva
+   essere rimasto salvato un peso alto su SHIELD: il motore corretto sarebbe
+   risultato ancora sbilanciato per colpa di una preferenza storica invisibile. */
+const CHIAVE = 'vinzmon.axisWeights.v2';
 
 function leggi(): Pesi {
   try {

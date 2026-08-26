@@ -121,14 +121,13 @@ export interface EyewearSolution {
 /**
  * §27 character_dna — §40 impone che si materializzi in elementi precisi:
  * un tic di sagoma, un espediente anatomico, la palette, la logica del volto,
- * un motivo ricorrente e 1–3 contraddizioni comportamentali.
+ * e 1–3 contraddizioni comportamentali.
  */
 export interface CharacterDna {
   silhouette_quirk: string;
   anatomical_gimmick: string;
   face_logic: string;
   body_language: string;
-  recurring_motif: string;
   /** §40 — 1–3 contraddizioni, tradotte visivamente quando possibile. */
   contradictions: { a: string; b: string }[];
   traits: string[];
