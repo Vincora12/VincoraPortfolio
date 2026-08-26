@@ -44,36 +44,34 @@ function MapSticker({ monName, index, x, y }: { monName: string; index: number; 
   const col = n % EXPRESSION_SPEC.columns;
   const row = Math.floor(n / EXPRESSION_SPEC.columns);
   const fallback = toy ?? master;
+  const clipId = `mindline-sticker-${index}`;
 
   if (!sheet) {
     return (
-      <svg x={x - 29} y={y - 29} width={58} height={58} viewBox="0 0 1 1" className="mindline__sticker mindline__sticker--fallback" aria-hidden="true">
-        {fallback && <image href={fallback} width="1" height="1" preserveAspectRatio="xMidYMid meet" />}
-      </svg>
+      <g className="mindline__sticker mindline__sticker--fallback" aria-hidden="true">
+        <rect x={x - 29} y={y - 29} width={58} height={58} fill="#fff" />
+        {fallback && <image href={fallback} x={x - 29} y={y - 29} width={58} height={58} preserveAspectRatio="xMidYMid meet" />}
+      </g>
     );
   }
 
   return (
-    <svg
-      x={x - 29}
-      y={y - 29}
-      width={58}
-      height={58}
-      viewBox="0 0 1 1"
-      overflow="hidden"
-      className="mindline__sticker"
-      aria-hidden="true"
-    >
+    <g className="mindline__sticker" aria-hidden="true" clipPath={`url(#${clipId})`}>
+      <defs>
+        <clipPath id={clipId}>
+          <rect x={x - 29} y={y - 29} width={58} height={58} />
+        </clipPath>
+      </defs>
       <image
         href={sheet}
-        x={-col}
-        y={-row}
-        width={EXPRESSION_SPEC.columns}
-        height={EXPRESSION_SPEC.rows}
+        x={x - 29 - col * 58}
+        y={y - 29 - row * 58}
+        width={EXPRESSION_SPEC.columns * 58}
+        height={EXPRESSION_SPEC.rows * 58}
         preserveAspectRatio="none"
         className="mindline__stickerart"
       />
-    </svg>
+    </g>
   );
 }
 

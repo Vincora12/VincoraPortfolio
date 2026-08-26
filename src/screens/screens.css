@@ -1685,10 +1685,6 @@
     drop-shadow(2px 3px 2px rgba(0, 0, 0, 0.28));
 }
 
-.mindline__sticker--fallback {
-  background: #fff;
-}
-
 .mindline__hint {
   flex: 0 0 auto;
   padding: var(--u3) var(--u4);
