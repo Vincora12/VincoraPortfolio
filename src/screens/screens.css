@@ -1607,7 +1607,7 @@
   top: var(--u3);
   right: var(--u3);
   display: grid;
-  grid-template-columns: 44px minmax(48px, auto) 44px;
+  grid-template-columns: minmax(58px, auto);
   align-items: center;
   overflow: hidden;
   border: 1px solid var(--hairline-strong);
@@ -1635,6 +1635,10 @@
   font-size: 22px;
 }
 
+.mindline__controls output {
+  border-right: 0;
+}
+
 .mindline__controls button:active:not(:disabled) {
   background: var(--char-accent);
   color: var(--field);
@@ -1651,7 +1655,6 @@
 }
 
 .mindline__controls .mindline__center {
-  grid-column: 1 / -1;
   min-height: 44px;
   border-top: 1px solid var(--hairline);
   border-right: 0;

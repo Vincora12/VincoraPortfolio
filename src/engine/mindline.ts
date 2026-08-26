@@ -30,6 +30,8 @@ export type MindlineBranchReason =
 
 export interface MindlineTransition {
   branches: boolean;
+  /** 0 stessa corsia, 1 corsia vicina, 2 nuova corsia esterna. */
+  laneShift: 0 | 1 | 2;
   score: number;
   reasons: MindlineBranchReason[];
 }
@@ -54,7 +56,7 @@ export function classifyMindlineTransition(
   to: CharacterData | undefined,
   node: MindlineNode,
 ): MindlineTransition {
-  if (!from || !to) return { branches: node.kind === 'branch', score: 0, reasons: [] };
+  if (!from || !to) return { branches: node.kind === 'branch', laneShift: 0, score: 0, reasons: [] };
 
   const reasons: MindlineBranchReason[] = [];
   let score = 0;
@@ -109,8 +111,14 @@ export function classifyMindlineTransition(
     reasons.push('STILE');
   }
 
+  const familyChanged = from.family !== to.family;
+  const bodyChanged = fromDomain !== toDomain || (from.humanoidity >= 5) !== (to.humanoidity >= 5);
+  const archetypeChanged = from.family_archetype !== to.family_archetype;
+  const laneShift: 0 | 1 | 2 = familyChanged ? 2 : archetypeChanged || bodyChanged ? 1 : 0;
+
   return {
     branches: score >= 4,
+    laneShift,
     score,
     reasons: [...new Set(reasons)],
   };
@@ -190,13 +198,20 @@ export interface MindlineLayout {
 
 export function layoutMindline(
   nodes: readonly MindlineNode[],
-  _changesNature: (from: MindlineNode, to: MindlineNode) => boolean = () => false,
+  laneShiftFor: (from: MindlineNode, to: MindlineNode) => 0 | 1 | 2 = () => 0,
 ): MindlineLayout {
   const out: LayoutNode[] = [];
   const edges: { from: string; to: string }[] = [];
 
   const roots = nodes.filter((n) => n.parentId === null);
-  let nextColumn = 0;
+  let minColumn = 0;
+  let maxColumn = 0;
+  let nextSide: -1 | 1 = 1;
+
+  const takeOuterLane = (side: -1 | 1) => {
+    if (side < 0) return --minColumn;
+    return ++maxColumn;
+  };
 
   function walk(node: MindlineNode, column: number, depth: number) {
     out.push({ node, column, depth });
@@ -205,12 +220,20 @@ export function layoutMindline(
     kids.forEach((kid, index) => {
       edges.push({ from: node.id, to: kid.id });
 
-      // La colonna rappresenta un percorso alternativo reale, non ogni
-      // trasformazione avvenuta lungo la stessa vita. I cambi di natura sono
-      // disegnati dalla schermata come deviazioni che escono dal tronco e vi
-      // rientrano; così restano evidenti senza creare una scala diagonale.
-      // Soltanto un secondo figlio apre una nuova colonna permanente.
-      walk(kid, index === 0 ? column : ++nextColumn, depth + 1);
+      const shift = laneShiftFor(node, kid);
+      let kidColumn = column;
+
+      if (index > 0 || shift > 0) {
+        // Famiglia nuova e alternative prendono una corsia esterna. Un cambio
+        // di archetipo prova prima la corsia adiacente. Il lato alterna: la
+        // mappa cresce bilanciata invece di trasformarsi in una diagonale.
+        kidColumn = shift === 1 && index === 0 ? column + nextSide : takeOuterLane(nextSide);
+        minColumn = Math.min(minColumn, kidColumn);
+        maxColumn = Math.max(maxColumn, kidColumn);
+        nextSide = nextSide === 1 ? -1 : 1;
+      }
+
+      walk(kid, kidColumn, depth + 1);
     });
   }
 
@@ -218,14 +241,19 @@ export function layoutMindline(
     // Un MON ripreso dalla teca inaugura una nuova radice. Le radici devono
     // avere colonne distinte, altrimenti due storie si disegnano una sopra
     // l'altra e la mappa sembra rotta.
-    if (index > 0) nextColumn += 1;
-    walk(root, nextColumn, 0);
+    const rootColumn = index === 0 ? 0 : takeOuterLane(nextSide);
+    if (index > 0) nextSide = nextSide === 1 ? -1 : 1;
+    walk(root, rootColumn, 0);
   });
 
+  // Le coordinate pubbliche restano non-negative anche se il bilanciamento
+  // interno usa corsie a sinistra dello zero.
+  const normalized = out.map((item) => ({ ...item, column: item.column - minColumn }));
+
   return {
-    nodes: out,
+    nodes: normalized,
     edges,
-    columns: Math.max(1, nextColumn + 1),
+    columns: Math.max(1, maxColumn - minColumn + 1),
     depth: Math.max(1, ...out.map((n) => n.depth + 1)),
   };
 }

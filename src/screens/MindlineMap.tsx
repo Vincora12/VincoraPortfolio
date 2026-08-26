@@ -11,7 +11,7 @@
    monospaziate. Nessun terreno, nessuna prospettiva, nessuna decorazione.
    ========================================================================= */
 
-import { useCallback, useEffect, useMemo, useRef, useState, type WheelEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type TouchEvent, type WheelEvent } from 'react';
 import type { Overlay } from '../App';
 import { useApp } from '../state/store';
 import { AssetSlot, useAssetUrl } from '../system/AssetSlot';
@@ -87,6 +87,7 @@ export function MindlineMapScreen({ onGo }: { onGo: (o: Overlay) => void }) {
   const [zoom, setZoom] = useState(0.85);
   const canvasRef = useRef<HTMLDivElement>(null);
   const centeredOnce = useRef(false);
+  const pinchRef = useRef<{ distance: number; zoom: number } | null>(null);
 
   const transitions = useMemo(() => {
     const result = new Map<string, ReturnType<typeof classifyMindlineTransition>>();
@@ -106,7 +107,7 @@ export function MindlineMapScreen({ onGo }: { onGo: (o: Overlay) => void }) {
   }, [mons, nodes]);
 
   const layout = useMemo(
-    () => layoutMindline(nodes, (_from, to) => transitions.get(to.id)?.branches ?? false),
+    () => layoutMindline(nodes, (_from, to) => transitions.get(to.id)?.laneShift ?? 0),
     [nodes, transitions],
   );
   const activeNodeId = activeMonName ? mons[activeMonName]?.data.mindline_node : null;
@@ -154,6 +155,30 @@ export function MindlineMapScreen({ onGo }: { onGo: (o: Overlay) => void }) {
     changeZoom(zoom + (event.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP));
   };
 
+  const touchDistance = (event: TouchEvent<HTMLDivElement>) => {
+    const a = event.touches[0];
+    const b = event.touches[1];
+    if (!a || !b) return 0;
+    return Math.hypot(b.clientX - a.clientX, b.clientY - a.clientY);
+  };
+
+  const handleTouchStart = (event: TouchEvent<HTMLDivElement>) => {
+    if (event.touches.length !== 2) return;
+    pinchRef.current = { distance: touchDistance(event), zoom };
+  };
+
+  const handleTouchMove = (event: TouchEvent<HTMLDivElement>) => {
+    if (event.touches.length !== 2 || !pinchRef.current) return;
+    event.preventDefault();
+    const distance = touchDistance(event);
+    if (distance <= 0 || pinchRef.current.distance <= 0) return;
+    changeZoom(pinchRef.current.zoom * (distance / pinchRef.current.distance));
+  };
+
+  const handleTouchEnd = (event: TouchEvent<HTMLDivElement>) => {
+    if (event.touches.length < 2) pinchRef.current = null;
+  };
+
   return (
     <div className="screen screen--ink mindline">
       <ScreenHead
@@ -164,13 +189,19 @@ export function MindlineMapScreen({ onGo }: { onGo: (o: Overlay) => void }) {
       <div className="screen__body mindline__body">
         <div className="mindline__viewport">
           <div className="mindline__controls" aria-label="Controlli della mappa">
-            <button type="button" onClick={() => changeZoom(zoom - ZOOM_STEP)} disabled={zoom <= MIN_ZOOM} aria-label="Riduci mappa">−</button>
             <output aria-live="polite">{Math.round(zoom * 100)}%</output>
-            <button type="button" onClick={() => changeZoom(zoom + ZOOM_STEP)} disabled={zoom >= MAX_ZOOM} aria-label="Ingrandisci mappa">+</button>
             <button type="button" className="mindline__center" onClick={() => centerCurrent()}>ATTUALE</button>
           </div>
 
-        <div className="mindline__canvas" ref={canvasRef} onWheel={handleWheel}>
+        <div
+          className="mindline__canvas"
+          ref={canvasRef}
+          onWheel={handleWheel}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          onTouchCancel={handleTouchEnd}
+        >
           <svg
             width={width * zoom}
             height={height * zoom}
@@ -197,6 +228,7 @@ export function MindlineMapScreen({ onGo }: { onGo: (o: Overlay) => void }) {
               const transition = transitions.get(to.node.id);
               const changesColumn = from.column !== to.column;
               const changesNature = transition?.branches ?? false;
+              const isMega = transition?.reasons.includes('MEGA') ?? false;
               const isBranch = changesColumn || changesNature;
 
               // Deviazione disegnata come in un diagramma della metro: si
@@ -213,14 +245,6 @@ export function MindlineMapScreen({ onGo }: { onGo: (o: Overlay) => void }) {
                     `L${b.x - dir * chamfer} ${b.y - chamfer}`,
                     `L${b.x} ${b.y}`,
                   ].join(' ')
-                : changesNature
-                  ? [
-                      `M${a.x} ${a.y}`,
-                      `L${a.x} ${a.y + 34}`,
-                      `L${a.x + 34} ${a.y + 68}`,
-                      `L${a.x + 34} ${b.y - 34}`,
-                      `L${b.x} ${b.y}`,
-                    ].join(' ')
                 : `M${a.x} ${a.y} L${b.x} ${b.y}`;
 
               return (
@@ -229,13 +253,13 @@ export function MindlineMapScreen({ onGo }: { onGo: (o: Overlay) => void }) {
                     d={d}
                     fill="none"
                     stroke={isBranch ? 'var(--char-accent)' : 'var(--ink)'}
-                    strokeWidth={isBranch ? 3 : 2}
+                    strokeWidth={changesColumn ? 3 : 2}
                     strokeLinejoin="miter"
-                    strokeDasharray={isBranch ? '7 5' : undefined}
+                    strokeDasharray={isMega ? '7 5' : undefined}
                   />
                   {transition?.branches && transition.reasons.length > 0 && (
                     <text
-                      x={changesColumn ? (a.x + b.x) / 2 + 10 : a.x + 46}
+                      x={changesColumn ? (a.x + b.x) / 2 + 10 : a.x + 12}
                       y={(a.y + b.y) / 2 - 7}
                       className="mindline__branchlabel"
                       fill="var(--char-accent)"
