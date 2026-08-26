@@ -4331,7 +4331,7 @@
 .today-check__streak b { font: 700 11px/1 var(--font-mono); letter-spacing: .08em; }
 .today-check__streak span { color: #aeb1ba; font-size: 12px; line-height: 1.25; }
 .today-check__tasks { padding-top: 28px; }
-.today-check__tasks h1 { margin: 0 0 14px; font: italic 900 30px/1 var(--font-display); letter-spacing: -.025em; }
+.today-check__tasks h1, .today-check__tasks h2 { margin: 0 0 14px; font: italic 900 30px/1 var(--font-display); letter-spacing: -.025em; }
 .today-check__tasks article { min-height: 62px; display: grid; grid-template-columns: 18px minmax(0,1fr) 24px; align-items: center; gap: 14px; border-top: 1px solid #29292e; color: #767983; }
 .today-check__tasks article:last-child { border-bottom: 1px solid #29292e; }
 .today-check__tasks article > span { width: 14px; height: 14px; border: 1px solid #686b74; border-radius: 50%; }
@@ -4344,6 +4344,45 @@
 .today-check__tasks article svg { width: 18px; height: 18px; color: var(--tc-accent); justify-self: end; }
 @keyframes today-sticker-in { from { opacity: 0; transform: translateY(16px) rotate(-5deg) scale(.86); filter: blur(3px); } to { opacity: 1; transform: translateY(0) rotate(-2deg) scale(1); } }
 @media (prefers-reduced-motion: reduce) { .today-check__sticker { animation: none; } }
+
+/* SYNC — la costanza diventa una risorsa leggibile, non un altro punteggio. */
+.sync-check { padding-top: 12px; }
+.sync-check__hero { position: relative; min-height: 252px; display: grid; grid-template-columns: 1fr 1fr; align-items: end; gap: 12px; padding: 8px 0 24px; border-bottom: 1px solid #303036; }
+.sync-check__hero .today-check__sticker { position: absolute; top: 5px; right: -6px; width: 48%; opacity: .92; }
+.sync-check__hero > svg { position: absolute; top: 38px; right: 40px; width: 82px; height: 82px; color: var(--tc-accent); }
+.sync-check__hero > div:last-child { min-width: 0; align-self: end; text-align: right; }
+.sync-check__hero h1 { margin: 0; font: italic 900 34px/1 var(--font-display); }
+.sync-check__hero p { margin: 7px 0 0; color: #aeb1ba; font: 700 9px/1 var(--font-mono); letter-spacing: .1em; }
+.sync-check__dial { --sync-fill: 0deg; position: relative; z-index: 1; width: 158px; aspect-ratio: 1; display: grid; place-items: center; align-self: center; justify-self: center; }
+.sync-check__dial i { position: absolute; inset: 0; border-radius: 50%; background: repeating-conic-gradient(from -90deg, var(--tc-accent) 0 4deg, transparent 4deg 12deg); mask: radial-gradient(circle, transparent 0 62%, #000 63% 100%); clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%); opacity: .25; }
+.sync-check__dial::before { content: ''; position: absolute; inset: 0; border-radius: 50%; background: conic-gradient(from -90deg, var(--tc-accent) 0 var(--sync-fill), transparent var(--sync-fill) 360deg); mask: radial-gradient(circle, transparent 0 62%, #000 63% 100%); }
+.sync-check__dial::after { content: ''; position: absolute; inset: 18px; border: 1px solid #33343a; border-radius: 50%; }
+.sync-check__dial strong { position: relative; z-index: 1; margin-top: -7px; color: #fff; font: italic 900 74px/.8 var(--font-display); font-variant-numeric: tabular-nums; }
+.sync-check__dial > span { position: absolute; z-index: 1; top: calc(50% + 28px); color: var(--tc-accent); font: 700 9px/1 var(--font-mono); letter-spacing: .15em; }
+.sync-check__rewards { padding: 18px 0 4px; display: grid; gap: 8px; }
+.sync-reward { width: 100%; min-height: 62px; display: grid; grid-template-columns: 112px 1fr; align-items: center; gap: 15px; padding: 11px 14px; border: 1px solid #303036; background: transparent; color: #696c75; text-align: left; }
+.sync-reward:disabled { opacity: 1; }
+.sync-reward[data-ready='true'] { border-color: var(--tc-accent); color: #fff; }
+.sync-reward > span { display: flex; flex-direction: column; gap: 6px; }
+.sync-reward strong { font: italic 900 17px/1 var(--font-display); }
+.sync-reward small { font: 600 8px/1 var(--font-mono); letter-spacing: .1em; }
+.sync-reward[data-ready='true'] small { color: var(--tc-accent); }
+.sync-reward i { display: flex; align-items: center; justify-content: flex-end; gap: 3px; overflow: hidden; }
+.sync-reward b { flex: 1 1 auto; max-width: 8px; height: 18px; border: 1px solid #3e4047; transform: skew(-8deg); }
+.sync-reward b[data-on='true'] { border-color: var(--tc-accent); background: var(--tc-accent); }
+.sync-wish { position: fixed; z-index: 80; inset: 0; display: grid; align-items: end; }
+.sync-wish__backdrop { position: absolute; inset: 0; border: 0; background: rgba(0,0,0,.76); backdrop-filter: blur(8px); }
+.sync-wish form { position: relative; z-index: 1; padding: 28px 24px max(24px, env(safe-area-inset-bottom)); border-top: 1px solid var(--tc-accent); background: #0b0b0d; }
+.sync-wish form > span { color: var(--tc-accent); font: 700 9px/1 var(--font-mono); letter-spacing: .12em; }
+.sync-wish h2 { max-width: 270px; margin: 8px 0 24px; font: italic 900 32px/.9 var(--font-display); }
+.sync-wish__close { position: absolute; top: 18px; right: 18px; width: 44px; height: 44px; border: 0; background: transparent; color: #fff; }
+.sync-wish__kind { display: grid; grid-template-columns: 1fr 1fr; margin-bottom: 12px; }
+.sync-wish__kind button { min-height: 48px; border: 1px solid #3a3b42; background: transparent; color: #777a83; font: 700 9px/1 var(--font-mono); letter-spacing: .08em; }
+.sync-wish__kind button[aria-pressed='true'] { border-color: var(--tc-accent); color: #fff; }
+.sync-wish textarea { width: 100%; min-height: 120px; padding: 16px; resize: none; border: 1px solid #3a3b42; border-radius: 0; background: #000; color: #fff; font: 16px/1.4 var(--font-sans); }
+.sync-wish p { margin: 12px 0 0; color: #ff9d77; font: 700 9px/1.35 var(--font-mono); letter-spacing: .06em; }
+.sync-wish__submit { width: 100%; min-height: 54px; margin-top: 14px; border: 1px solid var(--tc-accent); background: var(--tc-accent); color: #000; font: italic 900 16px/1 var(--font-display); }
+.sync-wish__submit:disabled { border-color: #34353b; background: #1a1a1d; color: #686b74; }
 
 /* Cornice ottagonale dello HUD: fondo-linea + pannello interno a 1px. */
 .me-health__goal,

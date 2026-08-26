@@ -209,6 +209,13 @@ export function compilePrompt(record: MonRecord, assetType: AssetType): Compiled
   blocks.push(`RARITY: ${data.rarity}`);
   blocks.push('');
 
+  if (data.user_wish) {
+    blocks.push('USER WISH — resolve this through the canonical character design:');
+    blocks.push(data.user_wish);
+    blocks.push('Honor the intent without breaking Family anatomy, continuity, identity or asset consistency.');
+    blocks.push('');
+  }
+
   for (const f of ordered) {
     let text = f.positive_prompt;
 

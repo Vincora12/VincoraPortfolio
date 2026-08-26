@@ -19,7 +19,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { Overlay } from '../App';
-import { useApp, useActiveMon, useGrowth, useToday } from '../state/store';
+import { useApp, useActiveMon, useToday } from '../state/store';
 import { MonName, SpeciesName } from '../system/MonName';
 import { MonFace } from '../system/LiveMon';
 import { expressionFor } from '../engine/assets';
@@ -51,10 +51,7 @@ export function CompanionHomeScreen({ onGo, onBack }: { onGo: (o: Overlay) => vo
     if ((missing.FOOD?.status ?? 'UNKNOWN') === 'UNKNOWN') return t.home.missingFood;
     return t.home.missingWorkout;
   })();
-  const { event, progress, microGrowthReady, formEvolutionReady } = useGrowth();
   const sendMessage = useApp((s) => s.sendMessage);
-  const openShift = useApp((s) => s.openShift);
-  const openFormEvolution = useApp((s) => s.openFormEvolution);
   const evolutionJob = useApp((s) => s.evolutionJob);
   const revealFormEvolution = useApp((s) => s.revealFormEvolution);
   const retryFormEvolution = useApp((s) => s.retryFormEvolution);
@@ -84,7 +81,6 @@ export function CompanionHomeScreen({ onGo, onBack }: { onGo: (o: Overlay) => vo
   // 🔶 Una barra sola. Il vecchio modello ne aveva tre — XP, DISC, EVOLUTION
   // SYNC — e la spec lo vieta testualmente: «Do not show three competing
   // progress bars on Home».
-  const somethingReady = microGrowthReady || formEvolutionReady;
 
   const submit = () => {
     if (draft.trim().length === 0) return;
@@ -194,36 +190,7 @@ export function CompanionHomeScreen({ onGo, onBack }: { onGo: (o: Overlay) => vo
             ? <GenerationDial done={evolutionJob.done} total={evolutionJob.total} />
             : <span aria-hidden="true">→</span>}
         </button>
-      ) : somethingReady ? (
-        <button
-          type="button"
-          className="home__sync home__sync--ready"
-          data-pezzo="riga-sync"
-          onClick={() => {
-            haptic('impact');
-            if (formEvolutionReady) openFormEvolution();
-            else openShift();
-          }}
-        >
-          <span className="home__syncpulse" aria-hidden="true" />
-          <Icon name="branch" size={14} strokeWidth={2} />
-          <span className="home__syncready t-meta">
-            {formEvolutionReady ? t.home.readyForm : t.home.readyGrowth}
-          </span>
-          <span className="home__identitygo" aria-hidden="true">→</span>
-        </button>
-      ) : (
-        <span
-          className="home__sync"
-          data-pezzo="riga-sync"
-          role="progressbar"
-          aria-label={`${t.home.sync} — ${event.have} di ${event.need}`}
-          aria-valuenow={event.have}
-          aria-valuemax={event.need}
-        >
-          <span className="home__syncfill" style={{ transform: `scaleX(${progress})` }} />
-        </span>
-      )}
+      ) : null}
 
       {/* 🔷 v1.14 §13.9 — CHIUDERE LA GIORNATA DA QUI.
 

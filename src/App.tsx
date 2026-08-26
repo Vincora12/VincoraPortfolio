@@ -782,7 +782,7 @@ export function TabBar({ tab, onChange }: { tab: Tab; onChange: (t: Tab) => void
     { id: 'chat', label: t.nav.chat, activeLabel: 'CHAT', icon: 'tell' },
     { id: 'mon', label: t.nav.mon, activeLabel: 'VINZ.MON', icon: 'mon' },
     { id: 'me', label: t.nav.me, activeLabel: 'ME', icon: 'me' },
-    { id: 'today', label: 'Controlla la giornata', activeLabel: 'OGGI', icon: 'clock' },
+    { id: 'today', label: 'Apri SYNC', activeLabel: 'SYNC', icon: 'clock' },
   ];
 
   return (
@@ -861,20 +861,16 @@ function StatusBar({
         {t.common.day} {day}
       </span>
 
-      <span
+      {phase !== 'live' && <span
         className="proto-statusbar__sync"
         role="progressbar"
         aria-label={`${t.common.sync} — ${have} di ${target}`}
         aria-valuenow={have}
         aria-valuemax={target}
-      >
-        <span className="proto-statusbar__syncfill" style={{ width: `${progress * 100}%` }} />
-      </span>
+      ><span className="proto-statusbar__syncfill" style={{ width: `${progress * 100}%` }} /></span>}
 
       <span className="proto-statusbar__right">
-        <span className="proto-statusbar__count">
-          {have}/{target}
-        </span>
+        {phase !== 'live' && <span className="proto-statusbar__count">{have}/{target}</span>}
         {/* 🔷 §19.5 — ATTIVA sta qui e sparisce quando è fatto. È l'unico
             pulsante dell'app che si toglie di mezzo da solo: finché la voce è
             spenta è la cosa più importante dello schermo, dopo non è più

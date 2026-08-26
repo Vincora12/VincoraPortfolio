@@ -25,7 +25,7 @@
    ========================================================================= */
 
 import { useState } from 'react';
-import { useApp, useActiveMon, useGrowth, useIncubation } from '../state/store';
+import { useApp, useActiveMon, useIncubation } from '../state/store';
 import { IdleMon, Sticker } from '../system/LiveMon';
 import { EggVessel } from '../system/EggVessel';
 import { MonName, SpeciesName } from '../system/MonName';
@@ -48,9 +48,7 @@ export function SplashScreen({ onEnter, previewMonName }: { onEnter: () => void;
   const health = useApp((s) => s.health);
   const evolutionJob = useApp((s) => s.evolutionJob);
   const revealFormEvolution = useApp((s) => s.revealFormEvolution);
-  const openFormEvolution = useApp((s) => s.openFormEvolution);
   const retryFormEvolution = useApp((s) => s.retryFormEvolution);
-  const { formEvolutionReady } = useGrowth();
 
   /* Il tocco sull'uovo. `pokes` rimonta il componente, e rimontarlo fa
      ripartire l'animazione di salto dall'inizio: è il modo più semplice di
@@ -119,22 +117,20 @@ export function SplashScreen({ onEnter, previewMonName }: { onEnter: () => void;
         <HoldButton className="splash__evolution-hold" onComplete={revealFormEvolution}>
           {evolutionJob.kind === 'hatch' ? 'PRIMO MON PRONTO' : 'NUOVO MON PRONTO'}
         </HoldButton>
-      ) : !previewMonName && !incubating && (evolutionJob || formEvolutionReady) ? (
+      ) : !previewMonName && !incubating && evolutionJob ? (
         <button
           type="button"
           className={`splash__evolution ${evolutionJob ? `splash__evolution--${evolutionJob.status}` : ''}`}
           disabled={evolutionJob?.status === 'running'}
-          onClick={() => evolutionJob?.status === 'error' ? retryFormEvolution() : !evolutionJob ? openFormEvolution() : undefined}
+          onClick={() => evolutionJob.status === 'error' ? retryFormEvolution() : undefined}
         >
           <span className="splash__evolution-copy">
             <strong className="t-meta">
-              {!evolutionJob
-                ? 'EVOLUZIONE DISPONIBILE'
-                : evolutionJob.status === 'running'
+              {evolutionJob.status === 'running'
                   ? evolutionJob.kind === 'hatch' ? 'PRIMO MON IN CREAZIONE' : 'NUOVO MON IN CREAZIONE'
                   : 'GENERAZIONE INTERROTTA'}
             </strong>
-            <span className="t-micro">{evolutionJob?.label ?? 'TOCCA PER SCEGLIERE'}</span>
+            <span className="t-micro">{evolutionJob.label}</span>
           </span>
           {evolutionJob?.status === 'running'
             ? <GenerationDial done={evolutionJob.done} total={evolutionJob.total} />

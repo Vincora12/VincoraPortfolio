@@ -100,6 +100,12 @@ import {
   updateLatestWeight,
   updateLatestWorkout,
 } from '../engine/healthJournal';
+import {
+  claimSyncReward,
+  clearEvolutionWish,
+  readEvolutionWish,
+  syncRewardProgress,
+} from '../engine/syncRewards';
 import { selectHeritageOrigins, type HeritageOrigin } from '../engine/heritage';
 import { createNode, makeNodeId, nextChapter } from '../engine/mindline';
 import { makeMemory, rollDailyEvent } from '../engine/simulation';
@@ -1320,7 +1326,8 @@ export const useApp = create<AppState>()(
         const rec = activeRecord(s);
         if (!rec) return;
 
-        if (!s.dev.forceBranch && s.progression.sync.inForm < PROGRESSION.formEvolutionAt) return;
+        const anyRewardReady = syncRewardProgress('evolution').ready || syncRewardProgress('mega-evolution').ready || syncRewardProgress('wish').ready;
+        if (!s.dev.forceBranch && !anyRewardReady) return;
 
         // L'ancora si estrae qui, non alla conferma: la schermata deve poter
         // dire cosa resta *prima* che l'utente decida, altrimenti la scelta è
@@ -1428,6 +1435,11 @@ export const useApp = create<AppState>()(
         const previous = activeRecord(s);
         if (!previous || s.phase !== 'form-evolution' || s.evolutionJob?.status === 'running') return;
 
+        const wish = readEvolutionWish();
+        const usingWish = wish?.kind === kind && syncRewardProgress('wish').ready;
+        if (!s.dev.forceBranch && !usingWish && !syncRewardProgress(kind).ready) return;
+        if (!s.dev.forceBranch) claimSyncReward(usingWish ? 'wish' : kind);
+
         /* Evoluzione conserva quasi tutto e cambia l'affinità visiva.
            Mega Evoluzione conserva soltanto il temperamento: è sempre la
            stessa entità, ma il corpo può essere completamente diverso. */
@@ -1451,6 +1463,8 @@ export const useApp = create<AppState>()(
           hiddenEvent: hiddenEventFor({ day: s.day, formNumber: s.nodes.length + 1, activeDays: s.progression.sync.lifetime }),
           allowedArchetypes: angelArchetypesForStage(nextStage),
         });
+        if (usingWish && wish) record.data.user_wish = wish.text;
+        clearEvolutionWish();
 
         /* EVOLUZIONE approfondisce la stessa Forma; MEGA cambia corpo e apre
            una nuova Forma, che riparte leggibile come una Basic. La ricchezza
@@ -4119,8 +4133,8 @@ export function useGrowth() {
   return {
     sync,
     event,
-    microGrowthReady: forceGrowth || sync.sinceGrowth >= PROGRESSION.microGrowthEvery,
-    formEvolutionReady: forceForm || sync.inForm >= PROGRESSION.formEvolutionAt,
+    microGrowthReady: forceGrowth || syncRewardProgress('evolution').ready,
+    formEvolutionReady: forceForm || syncRewardProgress('evolution').ready || syncRewardProgress('mega-evolution').ready || syncRewardProgress('wish').ready,
     progress: Math.min(1, event.have / event.need),
   };
 }

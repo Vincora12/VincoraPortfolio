@@ -201,6 +201,8 @@ export interface EvolutionState {
    ========================================================================= */
 
 export interface CharacterData {
+  /** Richiesta personale espressa nello sblocco SYNC mensile. */
+  user_wish?: string;
   /** §24 step 17 — inizia per V, contiene Z, finisce in `.mon`, unico in lineage. */
   name: string;
 
