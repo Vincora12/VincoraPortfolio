@@ -50,6 +50,11 @@ import {
 import { EYEWEAR_CATEGORIES, HAIRCUTS, HAIR_STATES } from '../../engine/generation-config';
 import { LabAssistantPanel } from '../assistant/LabAssistantPanel';
 import { TaxonomyLab } from './TaxonomyLab';
+import {
+  taxonomyDescriptionVersion,
+  setTaxonomyDescriptionVersion,
+  type TaxonomyDescriptionVersion,
+} from '../../engine/taxonomy-versions';
 import '../skin/creation.css';
 
 const TABS = [
@@ -64,6 +69,7 @@ const TABS = [
 
 export function CreationLab({ onBack }: { onBack: () => void }) {
   const [tab, setTab] = useState('map');
+  const [catalogVersion, setCatalogVersion] = useState<TaxonomyDescriptionVersion>(() => taxonomyDescriptionVersion());
   /* 🔷 «Un tasto alla fine del flow: genera A/B test, dove lui segue tutto il
      flow che abbiamo impostato e mi genera dodici immagini.»
      Il duello vive in BUILD; questo lo apre già pronto invece di far
@@ -96,6 +102,28 @@ export function CreationLab({ onBack }: { onBack: () => void }) {
               </button>
             ))}
           </div>
+        </div>
+        <div className="engine-version" aria-label="Versione delle descrizioni usata dal motore">
+          <span className="mono">MOTORE</span>
+          <div>
+            {(['v1', 'v2'] as const).map((version) => (
+              <button
+                type="button"
+                key={version}
+                className={catalogVersion === version ? 'active' : ''}
+                aria-pressed={catalogVersion === version}
+                onClick={() => {
+                  if (catalogVersion === version) return;
+                  setTaxonomyDescriptionVersion(version);
+                  setCatalogVersion(version);
+                  window.location.reload();
+                }}
+              >
+                {version.toUpperCase()}
+              </button>
+            ))}
+          </div>
+          <small>{catalogVersion === 'v2' ? 'AUDIT ATTIVO' : 'ORIGINALE'}</small>
         </div>
       </header>
 

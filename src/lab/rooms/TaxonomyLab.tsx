@@ -52,9 +52,6 @@ import {
 import '../skin/taxonomy-lab.css';
 import {
   applyTaxonomyV2,
-  taxonomyDescriptionVersion,
-  setTaxonomyDescriptionVersion,
-  type TaxonomyDescriptionVersion,
 } from '../../engine/taxonomy-versions';
 
 const ESISTENTI: Record<TaxonomyAxis, { id: string; it: string }[]> = {
@@ -72,7 +69,6 @@ export function TaxonomyLab() {
   const [richiesta, setRichiesta] = useState('');
   const [chiedendo, setChiedendo] = useState(false);
   const [errore, setErrore] = useState<string | null>(null);
-  const [catalogVersion, setCatalogVersion] = useState<TaxonomyDescriptionVersion>(() => taxonomyDescriptionVersion());
   const [familyVista, setFamilyVista] = useState('ANGEL');
 
   const [family, setFamily] = useState<FamilyDraft | null>(null);
@@ -134,31 +130,6 @@ export function TaxonomyLab() {
         premi APPROVA. Non entra nel gioco da sola: resta in coda finché non chiedi a Claude di
         portarla dentro — è la stessa regola di DESIGN AI, estesa qui.
       </p>
-
-      <div className="taxlab-box">
-        <div className="taxlab-row">
-          <label>VERSIONE DESCRIZIONI DEL CATALOGO</label>
-          <div className="taxlab-choices">
-            {(['v1', 'v2'] as const).map((version) => (
-              <button
-                type="button"
-                key={version}
-                className={`taxlab-chip ${catalogVersion === version ? 'on' : ''}`}
-                onClick={() => {
-                  setTaxonomyDescriptionVersion(version);
-                  setCatalogVersion(version);
-                  window.location.reload();
-                }}
-              >
-                {version === 'v1' ? 'V1 · ORIGINALE' : 'V2 · AUDIT'}
-              </button>
-            ))}
-          </div>
-          <p className="note">
-            V2 applica l’audit a tutte le 18 Family e 112 sottofamiglie. V1 originale resta il valore predefinito.
-          </p>
-        </div>
-      </div>
 
       <CatalogoV2 familyVista={familyVista} setFamilyVista={setFamilyVista} />
 
