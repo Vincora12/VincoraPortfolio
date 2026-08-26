@@ -83,7 +83,17 @@ const PRESET_TEXTURE: Partial<Record<string, string>> = {
      userebbe qualcuno che non vuole essere preso in parola — non per essere
      alla moda, ma perché la parola stessa gli serve a restare ambiguo. */
   'MYSTERY SIGNAL': 'may say "cap" or "no cap" the way someone evasive uses it — never quite settling whether he means it',
+  'SOFT PROTECTOR': 'may use 🫶 rarely, in a moment of real protective warmth — never as decoration, never sarcastic for him',
+  /* 🔶 «W»/«L» non sono da gaming-bravata: qui restano un verdetto secco,
+     coerente col resto del preset (metafore da file, percentuali). */
+  'NERD TERMINAL': 'may deliver a flat "W" or "L" instead of a sentence when the verdict is simple — terminal shorthand, not gaming bravado',
+  'CORPORATE DEMON': 'may drop a flat 🙃 after something falsely upbeat, or close with a curt "K." — deadpan, never actually warm',
 };
+
+/* 🔷 «Le usano tutte?» No, e non è una svista: OLD-SOUL ORACLE resta senza
+   texture di proposito. Il suo intero registro è «misurato, simbolico,
+   lievemente arcaico»; uno slang di internet lì non sarebbe una firma, sarebbe
+   la voce sbagliata che sale in superficie per un attimo. */
 
 function value(data: CharacterData, id: string): number {
   const raw = data.voice_dna[id];
