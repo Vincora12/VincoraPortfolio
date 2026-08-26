@@ -30,13 +30,14 @@ import { IdleMon, Sticker } from '../system/LiveMon';
 import { EggVessel } from '../system/EggVessel';
 import { MonName, SpeciesName } from '../system/MonName';
 import { Sigil } from '../system/AssetSlot';
-import { Button, HoldButton, Row, Wait } from '../system/components';
+import { Button, HoldButton, Row } from '../system/components';
 import { BioPanel } from './BioPanel';
 import { birthStatsFor } from '../engine/birthStats';
 import { STAT_LABELS, formatSignal } from '../engine/health';
 import { displayName, type MonRecord } from '../engine/types';
 import { haptic } from '../system/haptics';
 import { t } from '../i18n/it';
+import { GenerationDial } from '../system/GenerationDial';
 
 export function SplashScreen({ onEnter, previewMonName }: { onEnter: () => void; previewMonName?: string }) {
   const phase = useApp((s) => s.phase);
@@ -85,22 +86,9 @@ export function SplashScreen({ onEnter, previewMonName }: { onEnter: () => void;
         <div className="hatchwait__center">
           {firstHatchJob.status === 'running' ? (
             <>
-              <Wait />
+              <GenerationDial done={firstHatchJob.done} total={firstHatchJob.total} />
               <strong className="t-display">IL TUO PRIMO MON STA NASCENDO</strong>
               <div className="hatchwait__track" aria-label={`In corso: ${firstHatchJob.label}`}>
-                <span
-                  className="generation-progress"
-                  aria-hidden="true"
-                  style={{ width: `${firstHatchJob.total ? (firstHatchJob.done / firstHatchJob.total) * 100 : 0}%` }}
-                />
-                <span
-                  className="generation-pulse"
-                  aria-hidden="true"
-                  style={{
-                    left: `${firstHatchJob.total ? (firstHatchJob.done / firstHatchJob.total) * 100 : 0}%`,
-                    width: `${firstHatchJob.total ? 100 / firstHatchJob.total : 25}%`,
-                  }}
-                />
                 <span className="t-meta">{firstHatchJob.label}</span>
               </div>
             </>
@@ -148,13 +136,9 @@ export function SplashScreen({ onEnter, previewMonName }: { onEnter: () => void;
             </strong>
             <span className="t-micro">{evolutionJob?.label ?? 'TOCCA PER SCEGLIERE'}</span>
           </span>
-          {evolutionJob?.status !== 'running' && <span className="splash__evolution-arrow" aria-hidden="true">→</span>}
-          {evolutionJob?.status === 'running' && (
-            <>
-              <span className="generation-progress" aria-hidden="true" style={{ width: `${evolutionJob.total ? (evolutionJob.done / evolutionJob.total) * 100 : 0}%` }} />
-              <span className="generation-pulse" aria-hidden="true" style={{ left: `${evolutionJob.total ? (evolutionJob.done / evolutionJob.total) * 100 : 0}%`, width: `${evolutionJob.total ? 100 / evolutionJob.total : 25}%` }} />
-            </>
-          )}
+          {evolutionJob?.status === 'running'
+            ? <GenerationDial done={evolutionJob.done} total={evolutionJob.total} />
+            : <span className="splash__evolution-arrow" aria-hidden="true">→</span>}
         </button>
       ) : null}
       {/* ══════════════════════════════════════════════════════════════════════

@@ -18,6 +18,21 @@ export function NewBranchScreen() {
     <div className="screen screen--ink branch-screen">
       <ScreenHead title={t.branch.title} sub="SCEGLI QUANTO CAMBIARE" />
       <div className="screen__body branch branch--simple">
+        <section className="branch__direct" aria-label="Scegli la trasformazione">
+          <HoldButton className="branch__direct-choice" onComplete={() => beginFormEvolution('evolution')} hint="TIENI PREMUTO">
+            <span className="branch__choicecopy">
+              <strong className="t-display">EVOLUZIONE</strong>
+              <span className="t-small">Cresce restando riconoscibile.</span>
+            </span>
+          </HoldButton>
+          <HoldButton className="branch__direct-choice branch__direct-choice--mega" onComplete={() => beginFormEvolution('mega-evolution')} hint="TIENI PREMUTO">
+            <span className="branch__choicecopy">
+              <strong className="t-display">MEGA EVOLUZIONE</strong>
+              <span className="t-small">Può cambiare corpo e famiglia.</span>
+            </span>
+          </HoldButton>
+        </section>
+
         <div className="branch__hero">
           <AssetSlot monName={mon.data.name} type="character_toy" fallbackTypes={['character_master']} alt={short} compactPlaceholder />
         </div>
@@ -25,15 +40,6 @@ export function NewBranchScreen() {
           <p className="t-display branch__name"><MonName name={mon.data.name} fit /></p>
           <p className="t-micro branch__form"><SpeciesName /> · {mon.data.evolution_state?.label ?? 'BASIC FORM'}</p>
         </div>
-
-        <section className="branch__direct" aria-label="Scegli la trasformazione">
-          <div className="branch__direct-choice">
-            <HoldButton onComplete={() => beginFormEvolution('evolution')} hint="TIENI PREMUTO">EVOLVI</HoldButton>
-          </div>
-          <div className="branch__direct-choice branch__direct-choice--mega">
-            <HoldButton onComplete={() => beginFormEvolution('mega-evolution')} hint="TIENI PREMUTO">MEGAEVOLVI</HoldButton>
-          </div>
-        </section>
       </div>
       <footer className="screen__foot">
         <Button variant="ghost" block onClick={enterLive}>{t.branch.back}</Button>

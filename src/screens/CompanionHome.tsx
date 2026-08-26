@@ -29,6 +29,7 @@ import { displayName } from '../engine/types';
 import { haptic } from '../system/haptics';
 import { moodSurface } from '../engine/mood';
 import { t } from '../i18n/it';
+import { GenerationDial } from '../system/GenerationDial';
 
 export function CompanionHomeScreen({ onGo, onBack }: { onGo: (o: Overlay) => void; onBack: () => void }) {
   const mon = useActiveMon();
@@ -184,7 +185,6 @@ export function CompanionHomeScreen({ onGo, onBack }: { onGo: (o: Overlay) => vo
           disabled={evolutionJob.status === 'running'}
           onClick={evolutionJob.status === 'error' ? retryFormEvolution : undefined}
         >
-          <span className="home__evolution-orbit" aria-hidden="true" />
           <span className="home__evolution-copy">
             <strong className="t-meta">
               {evolutionJob.status === 'running'
@@ -193,13 +193,9 @@ export function CompanionHomeScreen({ onGo, onBack }: { onGo: (o: Overlay) => vo
             </strong>
             <span className="t-micro">{evolutionJob.status === 'error' ? evolutionJob.error : evolutionJob.label}</span>
           </span>
-          {evolutionJob.status === 'running' ? <span className="t-micro">IN CORSO</span> : <span aria-hidden="true">→</span>}
-          {evolutionJob.status === 'running' && (
-            <>
-              <span className="generation-progress" aria-hidden="true" style={{ width: `${evolutionJob.total ? (evolutionJob.done / evolutionJob.total) * 100 : 0}%` }} />
-              <span className="generation-pulse" aria-hidden="true" style={{ left: `${evolutionJob.total ? (evolutionJob.done / evolutionJob.total) * 100 : 0}%`, width: `${evolutionJob.total ? 100 / evolutionJob.total : 25}%` }} />
-            </>
-          )}
+          {evolutionJob.status === 'running'
+            ? <GenerationDial done={evolutionJob.done} total={evolutionJob.total} />
+            : <span aria-hidden="true">→</span>}
         </button>
       ) : somethingReady ? (
         <button
