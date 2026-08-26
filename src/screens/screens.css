@@ -1117,10 +1117,12 @@
 
 /* Il primo hatch è una soglia, non una scheda incompleta. Nessun nome o asset
    placeholder trapela finché il pacchetto non è davvero pronto. */
-.hatchwait {
-  min-height: 100%;
+.splash.hatchwait {
+  flex: 1;
+  min-height: 0;
   display: grid;
   place-items: center;
+  align-content: center;
   padding: clamp(32px, 9vh, 88px) var(--u4);
 }
 
