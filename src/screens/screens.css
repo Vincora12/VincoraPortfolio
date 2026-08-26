@@ -271,11 +271,13 @@
   justify-content: center;
   gap: var(--u3);
   padding: var(--u4);
-  /* 🔴 Stesso scambio ink/white del sipario qui sopra, stessa correzione:
-     dentro `[data-field='ink']` il campo (`--white`) è nero, la struttura/
-     testo (`--ink`) è chiara. Verificato empiricamente prima di correggere:
-     senza questa riga la finestra usciva grigio chiaro invece che nera. */
-  background: var(--white);
+  /* 🔷 «L'encounter sempre su sfondo bianco perché la foto del mon è su
+     sfondo bianco.» — `first-encounter`/`new-encounter` non sono più fra le
+     `INK_PHASES` (App.tsx), quindi qui `--ink`/`--white` NON sono scambiati:
+     tornano al significato diretto, `--ink` scuro. Questa finestra resta un
+     blackout deliberato SOPRA il campo chiaro, non il campo stesso — come il
+     sipario qui sotto. */
+  background: var(--ink);
   opacity: 0;
   pointer-events: none;
   transition: opacity 550ms var(--ease-system);
@@ -301,7 +303,7 @@
   font-family: var(--font-mono);
   font-size: 13px;
   line-height: 1.65;
-  color: color-mix(in srgb, var(--ink) 88%, var(--char-primary));
+  color: color-mix(in srgb, var(--white) 88%, var(--char-primary));
   text-align: left;
 }
 
@@ -3281,18 +3283,15 @@
   align-items: center;
   justify-content: center;
   gap: var(--u2);
-  /* 🔴 BUG PREESISTENTE, TROVATO E CORRETTO QUI. Erano scambiati: dentro
-     `[data-field='ink']` (screens.css §"campo inchiostro") `--white` e
-     `--ink` invertono il colore che portano — `--white` resta il RUOLO
-     "campo", `--ink` resta il RUOLO "struttura/testo", ma i loro esadecimali
-     si scambiano perché il campo qui è nero. Con `background: var(--ink)`
-     il sipario usciva chiaro con testo scuro invece che nero con nome
-     bianco — il contrario di quello che ogni commento intorno descrive
-     ("campo nero", "sipario"). Verificato empiricamente via getComputedStyle
-     prima di correggere: `.encounter` (il campo dietro) usa già
-     `background: var(--white)` ed è correttamente nero. */
-  background: var(--white);
-  color: var(--ink);
+  /* 🔷 «L'encounter sempre su sfondo bianco perché la foto del mon è su
+     sfondo bianco.» — `first-encounter`/`new-encounter` non sono più fra le
+     `INK_PHASES` (App.tsx): il campo dietro è tornato bianco vero (come la
+     home, per lo stesso motivo — il Character Master è disegnato per un
+     fondo chiaro). Il sipario resta un blackout deliberato SOPRA quel campo,
+     non il campo: `--ink`/`--white` qui hanno il significato diretto
+     (nessuno scambio in corso), quindi `--ink` è di nuovo lo scuro vero. */
+  background: var(--ink);
+  color: var(--white);
   animation: curtain-lift 520ms var(--ease-system) 1400ms forwards;
 }
 
@@ -3308,9 +3307,8 @@
   animation: reveal-snap 420ms var(--ease-system) 120ms backwards;
 }
 
-/* Stesso bug scambiato del blocco sopra, stessa correzione: il campo qui è
-   nero (`--white`), il testo dev'essere il chiaro (`--ink`). */
-.encounter__curtain .monname__ext { color: var(--ink); }
+/* Stessa logica diretta del sipario qui sopra: testo chiaro su blackout. */
+.encounter__curtain .monname__ext { color: var(--white); }
 
 @keyframes curtain-lift {
   to {

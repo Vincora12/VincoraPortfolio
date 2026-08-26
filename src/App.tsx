@@ -125,7 +125,16 @@ export function pageSlugOf(overlay: Overlay): string | null {
 // 🔶 v1.10 — il PROTOCOLLO non è qui di proposito. §10.5 riserva l'inversione
 // agli eventi, e dichiarare la propria dieta non è un evento: è la superficie
 // più pratica del prodotto, e va su campo bianco come la registrazione.
-const INK_PHASES: Phase[] = ['scan', 'incubation', 'first-encounter', 'new-encounter'];
+//
+// 🔷 «L'encounter sempre su sfondo bianco perché la foto del mon è su sfondo
+// bianco.» — `first-encounter`/`new-encounter` sono uscite da qui per lo
+// STESSO motivo per cui la home non è più a campo nero (vedi il commento su
+// `inkField` più sotto): il Character Master/Toy è disegnato per stare su
+// fondo chiaro e trasparente, e su nero se ne vedono i bordi. Il sipario e
+// la finestra del narratore restano neri lo stesso — sono livelli sopra il
+// campo, non il campo — ma il campo su cui la foto si appoggia adesso è
+// sempre bianco, qui come ovunque nel prodotto.
+const INK_PHASES: Phase[] = ['scan', 'incubation'];
 
 export function App() {
   const phase = useApp((s) => s.phase);
