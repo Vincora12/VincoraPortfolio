@@ -474,7 +474,7 @@ export function App() {
         className={`proto-frame ${hasTabBar ? 'has-tabbar' : ''}`}
         data-field={inkField ? 'ink' : undefined}
       >
-        {!assistantOpen && (phase !== 'live' || tab === 'mon') && (
+        {!assistantOpen && (phase !== 'live' || tab === 'mon' || tab === 'today') && (
           <StatusBar
             showDev={devEnabled && overlay !== 'dev'}
             onOpenDev={() => setOverlay('dev')}

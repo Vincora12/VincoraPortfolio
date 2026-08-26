@@ -4346,7 +4346,7 @@
 @media (prefers-reduced-motion: reduce) { .today-check__sticker { animation: none; } }
 
 /* SYNC — la costanza diventa una risorsa leggibile, non un altro punteggio. */
-.sync-check { --sync-workout: var(--char-secondary, #48d9ec); display: grid; align-content: center; padding-top: 12px; }
+.sync-check { --sync-workout: var(--char-secondary, #48d9ec); flex: 1 1 auto; min-height: 0; display: grid; align-content: center; padding-top: 12px; }
 .sync-check__hero { min-height: 330px; display: grid; place-items: center; }
 .sync-check__dial { --sync-fill: 0deg; position: relative; width: min(72vw, 270px); aspect-ratio: 1; display: grid; place-items: center; }
 .sync-check__dial i { position: absolute; inset: 0; border-radius: 50%; background: repeating-conic-gradient(from -90deg, var(--tc-accent) 0 4deg, transparent 4deg 12deg); mask: radial-gradient(circle, transparent 0 62%, #000 63% 100%); clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%); opacity: .25; }
