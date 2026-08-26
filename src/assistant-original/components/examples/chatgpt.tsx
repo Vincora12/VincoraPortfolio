@@ -42,6 +42,8 @@ import { Sources } from "@/assistant-original/components/assistant-ui/sources";
 import { CloneThreadShell } from "./clone-thread-shell";
 import { useApp } from "@/state/store";
 import { voiceCard } from "@/engine/voiceCard";
+import { fallbackGreeting } from "@/engine/voiceDna";
+import { makeRng, seedFromString } from "@/engine/rng";
 import { useAssetUrl } from "@/system/AssetSlot";
 import { EXPRESSION_SPEC, EXPRESSIONS } from "@/engine/assets";
 
@@ -95,13 +97,37 @@ export const ChatGPT: FC = () => {
    diversi per lo stesso comando. Adesso il saluto galleggia nello spazio
    sopra e il campo sta in fondo, dove sta sempre. */
 const EmptyState: FC = () => {
+  const aui = useAui();
+  const didGreet = useRef(false);
+  const record = useApp((state) =>
+    state.activeMonName ? state.mons[state.activeMonName] ?? null : null,
+  );
+
+  useEffect(() => {
+    if (didGreet.current) return;
+    didGreet.current = true;
+
+    const greeting = record
+      ? fallbackGreeting(
+          makeRng(seedFromString(`${record.data.name}:chat:${Date.now()}`)),
+          record.data.mood_primary,
+          record.data.voice_dna,
+        )
+      : "Ciao. Da dove iniziamo?";
+
+    aui.thread.append({
+      role: "assistant",
+      content: [{ type: "text", text: greeting }],
+      metadata: record
+        ? { custom: { monGreeting: true, monName: record.data.name } }
+        : { custom: { monGreeting: true } },
+      startRun: false,
+    });
+  }, [aui, record]);
+
   return (
     <div className="flex grow flex-col px-4">
-      <div className="flex grow items-center justify-center">
-        <h1 className="text-center text-2xl leading-7 font-normal text-[#0d0d0d] dark:text-[#ececec]">
-          Where should we begin?
-        </h1>
-      </div>
+      <div className="grow" aria-hidden="true" />
       <div className="mx-auto flex w-full max-w-3xl flex-col items-stretch pb-2">
         <Composer placeholder="Ask anything" />
       </div>
