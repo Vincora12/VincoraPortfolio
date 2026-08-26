@@ -1665,6 +1665,13 @@
   height: 58px;
 }
 
+.mindline__stickeranchor {
+  display: block;
+  width: 58px;
+  height: 58px;
+  transform: translate(-50%, -50%);
+}
+
 .mindline__stickerart {
   display: block;
   width: 100%;

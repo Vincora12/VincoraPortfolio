@@ -274,8 +274,10 @@ export function MindlineMapScreen({ onGo }: { onGo: (o: Overlay) => void }) {
                   {active && (
                     <circle cx={x} cy={y} r={38} fill="none" stroke="var(--char-accent)" strokeWidth={3} />
                   )}
-                  <foreignObject x={x - 29} y={y - 29} width={58} height={58} pointerEvents="none">
-                    <MapSticker monName={node.monName} index={nodeIndex} />
+                  <foreignObject x={x} y={y} width={1} height={1} overflow="visible" pointerEvents="none">
+                    <span className="mindline__stickeranchor">
+                      <MapSticker monName={node.monName} index={nodeIndex} />
+                    </span>
                   </foreignObject>
                   {/* La Mindline è un albero di file: qui il nome porta la sua
                       estensione. In SVG servono due tspan, non il componente. */}
