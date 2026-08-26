@@ -219,9 +219,9 @@ export function MindlineMapScreen({ onGo }: { onGo: (o: Overlay) => void }) {
                     strokeLinejoin="miter"
                     strokeDasharray={isBranch ? '7 5' : undefined}
                   />
-                  {isBranch && transition && transition.reasons.length > 0 && (
+                  {transition?.branches && transition.reasons.length > 0 && (
                     <text
-                      x={(a.x + b.x) / 2 + 8}
+                      x={(a.x + b.x) / 2 + 10}
                       y={(a.y + b.y) / 2 - 7}
                       className="mindline__branchlabel"
                       fill="var(--char-accent)"

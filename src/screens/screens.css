@@ -3580,6 +3580,7 @@
 }
 
 .dex__body {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: var(--u3);
@@ -3709,10 +3710,10 @@
 }
 
 .dex__actions {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  left: 0;
+  position: fixed;
+  right: max(0px, calc((100vw - 590px) / 2));
+  bottom: calc(54px + env(safe-area-inset-bottom));
+  left: max(0px, calc((100vw - 590px) / 2));
   z-index: 8;
   padding: var(--u3);
   border-top: var(--border-thick) solid #0b0b0b;
@@ -3720,6 +3721,13 @@
   backdrop-filter: blur(12px);
   box-shadow: 0 -12px 32px rgba(0, 0, 0, 0.14);
   animation: panel-rise var(--dur-base) var(--ease-system);
+}
+
+@media (min-width: 591px) {
+  .dex__actions {
+    width: 590px;
+    margin-inline: auto;
+  }
 }
 
 .dex__actionlist {

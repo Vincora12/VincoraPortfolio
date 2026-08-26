@@ -190,7 +190,7 @@ export interface MindlineLayout {
 
 export function layoutMindline(
   nodes: readonly MindlineNode[],
-  changesNature: (from: MindlineNode, to: MindlineNode) => boolean = () => false,
+  _changesNature: (from: MindlineNode, to: MindlineNode) => boolean = () => false,
 ): MindlineLayout {
   const out: LayoutNode[] = [];
   const edges: { from: string; to: string }[] = [];
@@ -202,22 +202,16 @@ export function layoutMindline(
     out.push({ node, column, depth });
 
     const kids = nodes.filter((n) => n.parentId === node.id);
-    let continuedHere = false;
-
-    kids.forEach((kid) => {
+    kids.forEach((kid, index) => {
       edges.push({ from: node.id, to: kid.id });
 
-      // Il tipo del nodo decide la colonna, non l'ordine di nascita: un
-      // micro-growth prosegue la colonna, un cambio di forma ne apre una
-      // nuova. È la grammatica da grafo Git richiesta da §7.4 — altrimenti un
-      // cambio di forma verrebbe disegnato in linea retta come una crescita.
-      // Anche un'evoluzione nominalmente lineare apre un percorso nuovo se
-      // cambia la natura della creatura (es. ANGEL → MACHINE). La mappa deve
-      // raccontare la trasformazione reale, non soltanto il tipo del nodo.
-      const isContinuation = !changesNature(node, kid) && !continuedHere;
-      if (isContinuation) continuedHere = true;
-
-      walk(kid, isContinuation ? column : ++nextColumn, depth + 1);
+      // La geometria segue il grafo reale: il primo figlio continua il ramo,
+      // soltanto i figli alternativi aprono nuove colonne. Prima ogni cambio
+      // semantico (famiglia, corpo, stadio…) spostava ancora a destra anche
+      // lungo una catena singola: dopo molte forme la mappa diventava una
+      // diagonale enorme e sembrava rotta. I cambi di natura restano visibili
+      // nelle etichette delle connessioni, senza distruggere il layout.
+      walk(kid, index === 0 ? column : ++nextColumn, depth + 1);
     });
   }
 
