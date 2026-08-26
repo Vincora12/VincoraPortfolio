@@ -2535,6 +2535,30 @@ check(
   'e «riporta ai predefiniti» non le riaccende',
 );
 
+/* 🔴 Il LAB deve comandare davvero anche nei due percorsi speciali del mood:
+   poca confidenza e continuità. Prima entrambi potevano far riapparire BRIGHT
+   dopo che il designer lo aveva spento. */
+const TEMPERAMENTI_PROVA = new Set(['SEDUCTIVE', 'FLIRTY', 'ALLURING']);
+for (const id of m.CATALOG_AXES_INFO.mood.all) {
+  m.setCatalogEnabled('mood', id, TEMPERAMENTI_PROVA.has(id));
+}
+const moodLab = [];
+for (let i = 0; i < 200; i++) {
+  moodLab.push(m.generateFirstMon({
+    input: { ...input, dataConfidence: 0 },
+    mindlineNodeId: `mood_lab_${i}`,
+    originNodeId: null,
+    lineageNames: [],
+    seed: i + 9000,
+  }).record.data.mood_primary);
+}
+check(
+  moodLab.every((mood) => TEMPERAMENTI_PROVA.has(mood)),
+  'il temperamento rispetta gli interruttori del LAB anche con poca confidenza',
+  `usciti: ${[...new Set(moodLab)].join(', ')}`,
+);
+m.resetCatalog('mood');
+
 console.log('\n═══ §5 — HUMANOIDITY ═══\n');
 
 /* 🔷 «I prompt creano sempre personaggi deformi» — questa mancava del tutto, ed

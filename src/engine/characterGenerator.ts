@@ -46,7 +46,7 @@ import {
   type FamilyDef,
   type Size,
 } from './generation-config';
-import { keepEnabled } from './catalogTuning';
+import { isEnabled, keepEnabled } from './catalogTuning';
 import { makeRng, pick, pickInt, pickMany, pickWeighted, type Rng } from './rng';
 import { tunedPick } from './axisTuning';
 import { buildSignalVector, evaluateFit, type GeneratorInput } from './signals';
@@ -233,7 +233,12 @@ export function generateMon(ctx: GenerationContext): GenerationResult {
 
   /* 10 — MOOD (§22) */
   const { primary: drawnMood, secondary: moodSecondary } = resolveMood(rng, ctx, signals);
-  let moodPrimary = anchored('mood_primary') ? prev!.mood_primary : drawnMood;
+  // Il LAB è il perimetro esplicito delle nuove generazioni. La continuità
+  // può conservare un temperamento soltanto finché quella voce è ancora
+  // accesa: altrimenti un vecchio BRIGHT passava sopra la scelta del designer.
+  let moodPrimary = anchored('mood_primary') && isEnabled('mood', prev!.mood_primary)
+    ? prev!.mood_primary
+    : drawnMood;
   steps.push({
     step: 10,
     stage: 'MOOD',
@@ -276,7 +281,7 @@ export function generateMon(ctx: GenerationContext): GenerationResult {
       let forced: string | null = null;
 
       if (free('mood_primary')) {
-        const v = other(MOODS.map((m) => m.id), moodPrimary);
+        const v = other(keepEnabled('mood', MOODS, (m) => m.id).map((m) => m.id), moodPrimary);
         if (v) ((moodPrimary = v), (forced = 'MOOD'));
       }
       if (!forced && free('fashion')) {
@@ -838,7 +843,16 @@ function resolveMood(
   // §22 — sotto la soglia di confidenza non si fabbrica uno stato emotivo
   // forte: si usa un mood neutro a bassa intensità.
   if (ctx.input.dataConfidence < MOOD_CONFIDENCE_FLOOR) {
-    return { primary: pick(rng, NEUTRAL_MOODS), secondary: null };
+    // Prima questo ramo pescava direttamente da NEUTRAL_MOODS e quindi
+    // ignorava completamente gli interruttori del LAB. Se esistono neutri
+    // accesi li preferiamo; se il designer li ha spenti tutti, la sua scelta
+    // esplicita vince e si pesca soltanto fra i temperamenti rimasti accesi.
+    const enabledMoods = keepEnabled('mood', MOODS, (m) => m.id).map((m) => m.id);
+    const enabledNeutral = NEUTRAL_MOODS.filter((m) => enabledMoods.includes(m));
+    return {
+      primary: pick(rng, enabledNeutral.length > 0 ? enabledNeutral : enabledMoods),
+      secondary: null,
+    };
   }
 
   // I latenti orientano il mood; §11 vieta che un singolo giorno lo assegni.
