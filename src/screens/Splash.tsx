@@ -87,13 +87,22 @@ export function SplashScreen({ onEnter, previewMonName }: { onEnter: () => void;
             <>
               <Wait />
               <strong className="t-display">IL TUO PRIMO MON STA NASCENDO</strong>
-              <span className="t-meta">{firstHatchJob.label}</span>
-              <span className="t-micro">{firstHatchJob.done}/{firstHatchJob.total}</span>
-              <span
-                className="hatchwait__progress"
-                aria-hidden="true"
-                style={{ transform: `scaleX(${firstHatchJob.total ? firstHatchJob.done / firstHatchJob.total : 0})` }}
-              />
+              <div className="hatchwait__track" aria-label={`In corso: ${firstHatchJob.label}`}>
+                <span
+                  className="generation-progress"
+                  aria-hidden="true"
+                  style={{ width: `${firstHatchJob.total ? (firstHatchJob.done / firstHatchJob.total) * 100 : 0}%` }}
+                />
+                <span
+                  className="generation-pulse"
+                  aria-hidden="true"
+                  style={{
+                    left: `${firstHatchJob.total ? (firstHatchJob.done / firstHatchJob.total) * 100 : 0}%`,
+                    width: `${firstHatchJob.total ? 100 / firstHatchJob.total : 25}%`,
+                  }}
+                />
+                <span className="t-meta">{firstHatchJob.label}</span>
+              </div>
             </>
           ) : firstHatchJob.status === 'ready' ? (
             <>
@@ -137,7 +146,13 @@ export function SplashScreen({ onEnter, previewMonName }: { onEnter: () => void;
                 : 'GENERAZIONE INTERROTTA'}
           </span>
           <span className="t-micro">{evolutionJob?.label ?? 'TOCCA PER SCEGLIERE'}</span>
-          {evolutionJob?.status === 'running' ? <span>{evolutionJob.done}/{evolutionJob.total}</span> : <span aria-hidden="true">→</span>}
+          {evolutionJob?.status === 'running' ? <span className="t-micro">IN CORSO</span> : <span aria-hidden="true">→</span>}
+          {evolutionJob?.status === 'running' && (
+            <>
+              <span className="generation-progress" aria-hidden="true" style={{ width: `${evolutionJob.total ? (evolutionJob.done / evolutionJob.total) * 100 : 0}%` }} />
+              <span className="generation-pulse" aria-hidden="true" style={{ left: `${evolutionJob.total ? (evolutionJob.done / evolutionJob.total) * 100 : 0}%`, width: `${evolutionJob.total ? 100 / evolutionJob.total : 25}%` }} />
+            </>
+          )}
         </button>
       ) : null}
       {/* ══════════════════════════════════════════════════════════════════════

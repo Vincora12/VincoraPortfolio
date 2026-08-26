@@ -193,8 +193,13 @@ export function CompanionHomeScreen({ onGo, onBack }: { onGo: (o: Overlay) => vo
             </strong>
             <span className="t-micro">{evolutionJob.status === 'error' ? evolutionJob.error : evolutionJob.label}</span>
           </span>
-          {evolutionJob.status === 'running' ? <span className="t-micro">{evolutionJob.done}/{evolutionJob.total}</span> : <span aria-hidden="true">→</span>}
-          {evolutionJob.status === 'running' && <span className="home__evolution-progress" style={{ transform: `scaleX(${evolutionJob.total ? evolutionJob.done / evolutionJob.total : 0})` }} />}
+          {evolutionJob.status === 'running' ? <span className="t-micro">IN CORSO</span> : <span aria-hidden="true">→</span>}
+          {evolutionJob.status === 'running' && (
+            <>
+              <span className="generation-progress" aria-hidden="true" style={{ width: `${evolutionJob.total ? (evolutionJob.done / evolutionJob.total) * 100 : 0}%` }} />
+              <span className="generation-pulse" aria-hidden="true" style={{ left: `${evolutionJob.total ? (evolutionJob.done / evolutionJob.total) * 100 : 0}%`, width: `${evolutionJob.total ? 100 / evolutionJob.total : 25}%` }} />
+            </>
+          )}
         </button>
       ) : somethingReady ? (
         <button
