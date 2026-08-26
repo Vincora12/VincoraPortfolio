@@ -446,13 +446,16 @@
 .home__evolution-progress { position: absolute; inset: auto 0 0; height: 3px; background: var(--char-primary); transform-origin: left; transition: transform var(--dur-base) var(--ease-system); }
 .home__evolution-hold {
   flex: 0 0 auto;
-  padding: var(--u2) var(--u3);
-  border-bottom: var(--border) solid var(--ink);
   background: var(--paper);
 }
-.home__evolution-hold .hold__btn { min-height: 52px; }
-.home__evolution-readycopy { display: grid; gap: 2px; text-align: left; }
-.home__evolution-readycopy .t-micro { opacity: 0.78; }
+.home__evolution-hold .hold__btn {
+  min-height: 54px;
+  border: 0;
+  border-bottom: var(--border) solid var(--ink);
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: none;
+}
 @keyframes evolution-spin { to { transform: rotate(1turn); } }
 
 @keyframes sync-sweep {
@@ -1093,9 +1096,14 @@
   position: sticky;
   z-index: 5;
   top: 0;
-  padding: var(--u2) var(--u3);
   background: var(--white);
-  border-bottom: var(--border) solid var(--ink);
+}
+.splash__evolution-hold .hold__btn {
+  min-height: 54px;
+  border: var(--border) solid var(--ink);
+  background: var(--white);
+  color: var(--ink);
+  box-shadow: none;
 }
 
 /* Il primo hatch è una soglia, non una scheda incompleta. Nessun nome o asset

@@ -172,11 +172,8 @@ export function CompanionHomeScreen({ onGo, onBack }: { onGo: (o: Overlay) => vo
            Adesso è la linea stessa a diventare l'annuncio: sta dov'era, non
            sposta niente, e quando è piena cresce e si può toccare. --- */}
       {evolutionJob?.status === 'ready' ? (
-        <HoldButton className="home__evolution-hold" onComplete={revealFormEvolution} hint="TIENI PREMUTO PER RIVELARE">
-          <span className="home__evolution-readycopy">
-            <strong className="t-meta">{evolutionJob.kind === 'hatch' ? 'PRIMO MON PRONTO' : 'NUOVO MON PRONTO'}</strong>
-            <span className="t-micro">RIVELA LA NUOVA FORMA</span>
-          </span>
+        <HoldButton className="home__evolution-hold" onComplete={revealFormEvolution}>
+          <strong className="t-meta">{evolutionJob.kind === 'hatch' ? 'PRIMO MON PRONTO' : 'NUOVO MON PRONTO'}</strong>
         </HoldButton>
       ) : evolutionJob ? (
         <button

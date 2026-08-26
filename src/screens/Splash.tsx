@@ -116,7 +116,7 @@ export function SplashScreen({ onEnter, previewMonName }: { onEnter: () => void;
   return (
     <div className="splash">
       {!previewMonName && !incubating && evolutionJob?.status === 'ready' ? (
-        <HoldButton className="splash__evolution-hold" onComplete={revealFormEvolution} hint="TIENI PREMUTO PER RIVELARE">
+        <HoldButton className="splash__evolution-hold" onComplete={revealFormEvolution}>
           {evolutionJob.kind === 'hatch' ? 'PRIMO MON PRONTO' : 'NUOVO MON PRONTO'}
         </HoldButton>
       ) : !previewMonName && !incubating && (evolutionJob || formEvolutionReady) ? (
