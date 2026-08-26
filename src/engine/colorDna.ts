@@ -269,6 +269,8 @@ export function applyPaletteDna(
   if (!dna) {
     root.style.removeProperty('--char-primary');
     root.style.removeProperty('--char-accent');
+    root.style.removeProperty('--char-accent-on-dark');
+    root.style.removeProperty('--char-on-accent-dark');
     root.style.removeProperty('--char-on-primary');
     root.style.removeProperty('--char-primary-soft');
     return;
@@ -278,6 +280,19 @@ export function applyPaletteDna(
   root.style.setProperty('--char-accent', ensureContrastOnWhite(dna.accent));
   root.style.setProperty('--char-on-primary', dna.on_primary);
   root.style.setProperty('--char-primary-soft', `${dna.primary}1f`);
+
+  /* L'accento schiarito per il fondo scuro, e SOPRA di esso l'inchiostro che
+     si legge meglio — scelto misurando, non a occhio: un accento schiarito
+     quel tanto che basta può restare abbastanza scuro da volere testo bianco,
+     e fissarne uno solo sbaglia per metà delle creature. */
+  const accentoSulNero = ensureContrastOnBlack(dna.accent);
+  root.style.setProperty('--char-accent-on-dark', accentoSulNero);
+  root.style.setProperty(
+    '--char-on-accent-dark',
+    contrastRatio(accentoSulNero, '#0d0d0d') >= contrastRatio(accentoSulNero, '#ffffff')
+      ? '#0d0d0d'
+      : '#ffffff',
+  );
 }
 
 /** Scurisce finché il contrasto sul bianco raggiunge 3:1. */
@@ -288,6 +303,28 @@ export function ensureContrastOnWhite(hex: string, target = 3): string {
     r = Math.max(0, Math.round(r * 0.9));
     g = Math.max(0, Math.round(g * 0.9));
     b = Math.max(0, Math.round(b * 0.9));
+    out = `#${[r, g, b].map((v) => v.toString(16).padStart(2, '0')).join('')}`;
+  }
+  return out;
+}
+
+/* 🔴 «Il tasto invia non prende il colore del .mon.»
+   E il colore c'era: era `--char-accent`, cioè l'accento passato da
+   `ensureContrastOnWhite`, che lo SCURISCE finché stacca dal bianco. Su una
+   schermata bianca è giusto; la chat però è nera, e lì quello stesso accento
+   scurito diventa quasi invisibile — un tasto che sembra spento.
+
+   🔒 Non si risolve togliendo la correzione: servirebbe a un fondo e
+   romperebbe l'altro. Serve la stessa cura misurata SULL'ALTRO fondo, ed è
+   questa. Chi disegna su nero usa `--char-accent-on-dark`. */
+/** Schiarisce finché il contrasto sul nero raggiunge 3:1. */
+export function ensureContrastOnBlack(hex: string, target = 3): string {
+  let [r, g, b] = hexToRgb(hex);
+  let out = hex;
+  for (let i = 0; i < 24 && contrastRatio(out, '#000000') < target; i++) {
+    r = Math.min(255, Math.round(r + (255 - r) * 0.12) + 4);
+    g = Math.min(255, Math.round(g + (255 - g) * 0.12) + 4);
+    b = Math.min(255, Math.round(b + (255 - b) * 0.12) + 4);
     out = `#${[r, g, b].map((v) => v.toString(16).padStart(2, '0')).join('')}`;
   }
   return out;

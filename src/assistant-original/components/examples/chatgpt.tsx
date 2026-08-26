@@ -52,15 +52,29 @@ export const ChatGPT: FC = () => {
 
         <AuiIf condition={(s) => !s.thread.isEmpty}>
           <ThreadPrimitive.Viewport className="vinz-chat-thread-viewport flex grow flex-col gap-8 overflow-y-scroll pt-16">
-            <ThreadPrimitive.Messages>
-              {({ message }) => {
-                if (message.composer.isEditing) return <EditComposer />;
-                if (message.role === "user") return <UserMessage />;
-                return <AssistantMessage />;
-              }}
-            </ThreadPrimitive.Messages>
+            {/* 🔷 «Il messaggio che mando non deve arrivare alla parte più alta
+                della chat ma alla parte più bassa, e poi salire quando arriva
+                quello dell'AI.»
 
-            <ThreadPrimitive.ViewportFooter className="sticky bottom-0 mx-auto mt-auto flex w-full max-w-3xl flex-col gap-2 overflow-visible rounded-t-3xl bg-white pb-2 dark:bg-black">
+                🔴 Non era lo scorrimento: era il layout. In una colonna flex i
+                messaggi partivano dall'alto e tutto lo spazio vuoto restava
+                SOTTO, fra l'ultimo messaggio e il composer — così il primo
+                messaggio sembrava sparato in cima. `mt-auto` qui mette lo
+                spazio vuoto SOPRA: i messaggi si appoggiano al composer e
+                salgono man mano che la conversazione cresce, come in una
+                chat normale. Quando il contenuto supera l'altezza, `mt-auto`
+                non ha più spazio da distribuire e si torna a scorrere. */}
+            <div className="mt-auto flex flex-col gap-8">
+              <ThreadPrimitive.Messages>
+                {({ message }) => {
+                  if (message.composer.isEditing) return <EditComposer />;
+                  if (message.role === "user") return <UserMessage />;
+                  return <AssistantMessage />;
+                }}
+              </ThreadPrimitive.Messages>
+            </div>
+
+            <ThreadPrimitive.ViewportFooter className="sticky bottom-0 mx-auto flex w-full max-w-3xl flex-col gap-2 overflow-visible rounded-t-3xl bg-white pb-2 dark:bg-black">
               <ThreadScrollToBottom />
               <Composer placeholder="Ask anything" />
               <p className="text-center text-xs text-[#5d5d5d] dark:text-[#afafaf]">

@@ -303,6 +303,18 @@ body[data-scroll-locked] {
   color: var(--char-on-primary, #0d0d0d) !important;
 }
 
+/* 🔴 «Il tasto invia non prende il colore del .mon.» Il colore c'era, ma era
+   `--char-accent`: l'accento SCURITO per staccare dal bianco (vedi
+   `ensureContrastOnWhite`). Su questa chat, che è nera, quello stesso valore
+   sprofonda nel fondo e il tasto sembra spento. Qui si usa lo stesso accento
+   misurato sul nero, e il testo sopra torna scuro perché adesso è il tasto a
+   essere chiaro. */
+.dark .vinz-clone-composer__send,
+.dark .vinz-record__send {
+  background: var(--char-accent-on-dark, #ffffff) !important;
+  color: var(--char-on-accent-dark, #0d0d0d) !important;
+}
+
 .vinz-record__cancel:disabled,
 .vinz-record__send:disabled {
   opacity: 0.3;

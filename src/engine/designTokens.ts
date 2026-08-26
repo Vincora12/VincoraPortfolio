@@ -145,7 +145,14 @@ export const TOKEN_GROUPS: TokenGroup[] = [
   },
 ];
 
-export const ADAPTIVE_VARS = ['--char-primary', '--char-accent', '--char-on-primary', '--char-primary-soft'];
+export const ADAPTIVE_VARS = [
+  '--char-primary',
+  '--char-accent',
+  '--char-accent-on-dark',
+  '--char-on-accent-dark',
+  '--char-on-primary',
+  '--char-primary-soft',
+];
 
 const CHIAVE = 'vinzmon.designTokens.v1';
 

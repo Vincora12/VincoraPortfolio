@@ -30,6 +30,11 @@
      I default qui sotto sono neutri: senza .mon attivo la UI resta B/N. */
   --char-primary: #111111;
   --char-accent: #111111;
+  /* Lo stesso accento misurato sul NERO invece che sul bianco: lo usa chi
+     disegna su fondo scuro (la chat). Senza .mon attivo resta neutro, come
+     gli altri — qui il neutro sul nero è il bianco. */
+  --char-accent-on-dark: #ffffff;
+  --char-on-accent-dark: #0d0d0d;
   --char-on-primary: #ffffff;
   --char-primary-soft: rgba(17, 17, 17, 0.08);
 
