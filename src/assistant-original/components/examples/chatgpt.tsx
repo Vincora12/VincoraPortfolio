@@ -52,6 +52,7 @@ export const ChatGPT: FC = () => {
     <CloneThreadShell>
       <ChatCostTotal />
       <WorkoutCelebration />
+      <ReactionMessageDispatcher />
       <ThreadPrimitive.Root className="flex h-full flex-col items-stretch bg-white px-4 text-[#0d0d0d] dark:bg-black dark:text-[#ececec]">
         <AuiIf condition={(s) => s.thread.isEmpty}>
           <EmptyState />
@@ -512,14 +513,22 @@ const assistantActionClassName =
   "flex size-9 items-center justify-center rounded-none border-0 bg-transparent p-2 text-[#5d5d5d] transition-[color,opacity,transform] hover:bg-transparent hover:text-[#0d0d0d] active:scale-90 active:opacity-55 data-[copied]:text-[#0d0d0d] data-[submitted]:text-[#0d0d0d] dark:text-[#b4b4b4] dark:hover:bg-transparent dark:hover:text-[#ececec] dark:data-[copied]:text-[#ececec] dark:data-[submitted]:text-[#ececec]";
 
 const AssistantMessage: FC = () => {
-  const { staScrivendo, haTesto } = useAuiState(
+  const { staScrivendo, haTesto, soloSticker } = useAuiState(
     useShallow((s) => ({
       staScrivendo: s.message.status?.type === "running",
       haTesto: (s.message.content ?? []).some(
         (part) => part.type === "text" && part.text.trim().length > 0,
       ),
+      soloSticker: s.message.metadata.custom.monReactionOnly === true,
     })),
   );
+  if (soloSticker) {
+    return (
+      <MessagePrimitive.Root className="vinz-sticker-message mx-auto flex w-full max-w-3xl flex-col px-2 sm:px-0">
+        <MonReactionMessage />
+      </MessagePrimitive.Root>
+    );
+  }
   return (
     <MessagePrimitive.Root className="vinz-assistant-message relative mx-auto flex w-full max-w-3xl flex-col px-2 sm:px-0">
       <div
@@ -546,8 +555,6 @@ const AssistantMessage: FC = () => {
           <AssistantError />
         </MessagePrimitive.Error>
       </div>
-
-      <MonReactionMessage />
 
       <WorkoutConfirmationButton />
 
@@ -638,6 +645,56 @@ const AssistantMessage: FC = () => {
       </div>
     </MessagePrimitive.Root>
   );
+};
+
+/**
+ * Il modello sceglie la reaction insieme alla risposta, ma assistant-ui produce
+ * un solo messaggio per run. Qui la reaction viene staccata e salvata come un
+ * secondo messaggio assistant: nella cronologia resta davvero autonoma.
+ */
+const ReactionMessageDispatcher: FC = () => {
+  const aui = useAui();
+  const initialized = useRef(false);
+  const previousSignal = useRef("");
+  const { loading, signal, reaction } = useAuiState(
+    useShallow((state) => {
+      const message = state.thread.messages.at(-1);
+      const raw = message?.metadata.custom.monReaction;
+      const valid = raw && typeof raw === "object"
+        && "monName" in raw && typeof raw.monName === "string"
+        && "index" in raw && typeof raw.index === "number";
+      const reactionOnly = message?.metadata.custom.monReactionOnly === true;
+      return {
+        loading: state.thread.isLoading,
+        signal: valid && !reactionOnly && message ? message.id : "",
+        reaction: valid && !reactionOnly ? raw : null,
+      };
+    }),
+  );
+
+  useEffect(() => {
+    if (loading) return;
+    if (!initialized.current) {
+      initialized.current = true;
+      previousSignal.current = signal;
+      return;
+    }
+    if (!signal || signal === previousSignal.current || !reaction) return;
+    previousSignal.current = signal;
+    aui.thread.append({
+      role: "assistant",
+      content: [{ type: "text", text: "" }],
+      metadata: {
+        custom: {
+          monReaction: reaction,
+          monReactionOnly: true,
+        },
+      },
+      startRun: false,
+    });
+  }, [aui, loading, reaction, signal]);
+
+  return null;
 };
 
 /** La proposta resta conversazionale, ma la conferma è un'azione inequivocabile. */
@@ -742,6 +799,7 @@ const WorkoutCelebration: FC = () => {
 
 /** Uno sticker inviato dal MON come reazione autonoma, separato dal testo. */
 const MonReactionMessage: FC = () => {
+  const reactionOnly = useAuiState((s) => s.message.metadata.custom.monReactionOnly === true);
   const raw = useAuiState((s) => s.message.metadata.custom.monReaction);
   const reaction = raw && typeof raw === "object"
     && "monName" in raw && typeof raw.monName === "string"
@@ -749,7 +807,7 @@ const MonReactionMessage: FC = () => {
       ? raw as { monName: string; index: number; label?: string }
       : null;
   const sheet = useAssetUrl(reaction?.monName ?? "", "reaction_pack");
-  if (!reaction || !sheet || reaction.index < 0 || reaction.index >= EXPRESSIONS.length) return null;
+  if (!reactionOnly || !reaction || !sheet || reaction.index < 0 || reaction.index >= EXPRESSIONS.length) return null;
 
   const col = reaction.index % EXPRESSION_SPEC.columns;
   const row = Math.floor(reaction.index / EXPRESSION_SPEC.columns);

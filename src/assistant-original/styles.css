@@ -745,6 +745,10 @@ body[data-scroll-locked] {
   animation: vinz-reaction-arrive 360ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
+.vinz-sticker-message .vinz-chat-reaction {
+  margin-top: 0;
+}
+
 .vinz-chat-reaction > span {
   display: block;
   width: 100%;
