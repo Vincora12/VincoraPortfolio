@@ -74,13 +74,20 @@ export const ChatGPT: FC = () => {
   );
 };
 
+/* 🔷 «La barra della chat non metterla mai al centro, sempre in basso.»
+   🔴 A conversazione vuota stava in mezzo allo schermo (`justify-center` +
+   `pb-[16vh]`) e poi, al primo messaggio, saltava giù in fondo: due posti
+   diversi per lo stesso comando. Adesso il saluto galleggia nello spazio
+   sopra e il campo sta in fondo, dove sta sempre. */
 const EmptyState: FC = () => {
   return (
-    <div className="flex grow flex-col items-center justify-center px-4 pb-[16vh]">
-      <div className="mx-auto flex w-full max-w-3xl flex-col items-stretch gap-6">
+    <div className="flex grow flex-col px-4">
+      <div className="flex grow items-center justify-center">
         <h1 className="text-center text-2xl leading-7 font-normal text-[#0d0d0d] dark:text-[#ececec]">
           Where should we begin?
         </h1>
+      </div>
+      <div className="mx-auto flex w-full max-w-3xl flex-col items-stretch pb-2">
         <Composer placeholder="Ask anything" />
       </div>
     </div>
@@ -307,12 +314,18 @@ const Composer: FC<{ placeholder: string }> = ({ placeholder }) => {
           </TooltipIconButton>
         </ComposerPrimitive.AddAttachment>
 
+        {/* `vinz-composer-input` non serve a vestirlo: è l'aggancio che
+            permette a `base.css` di far sparire la barra di navigazione
+            mentre questo campo ha il focus. */}
+        {/* 🔴 NIENTE `autoFocus`. Su iPhone il focus dato dal codice NON apre
+            la tastiera (serve un gesto), ma fa scattare lo stesso `:focus`:
+            il nav spariva appena aprivi la chat, senza nessuna tastiera a
+            prenderne il posto. Il campo si tocca, e allora sì. */}
         <ComposerPrimitive.Input
           ref={inputRef}
-          autoFocus
           placeholder={placeholder}
           rows={1}
-          className="max-h-52 min-h-9 flex-1 resize-none bg-transparent py-1.5 pr-2 pl-1 text-base text-[#0d0d0d] outline-none placeholder:text-[#8e8e8e] dark:text-[#ececec] dark:placeholder:text-[#8e8e8e]"
+          className="vinz-composer-input max-h-52 min-h-9 flex-1 resize-none bg-transparent py-1.5 pr-2 pl-1 text-base text-[#0d0d0d] outline-none placeholder:text-[#8e8e8e] dark:text-[#ececec] dark:placeholder:text-[#8e8e8e]"
         />
 
         <div className="flex shrink-0 items-center gap-1">

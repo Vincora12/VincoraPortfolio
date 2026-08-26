@@ -147,29 +147,6 @@ export function App() {
     if ('serviceWorker' in navigator) void navigator.serviceWorker.register('/sw.js');
   }, []);
 
-  /* 🔷 «La barra per chattare deve stare sempre sopra alla tastiera quando
-     scrivo.» Su iOS Safari un elemento `position: fixed` resta ancorato alla
-     finestra di PRIMA che la tastiera si aprisse: la tastiera copre la parte
-     bassa invece di spingerla su. `window.visualViewport` è l'unica fonte
-     che sa quanto schermo resta VISIBILE per davvero; `--vvh` la porta in
-     CSS, e `.proto-stage` (§ base.css, sotto 860px) usa quella invece di
-     `100dvh` per la propria altezza — così il composer, che sta in fondo al
-     flusso normale, resta sopra la tastiera invece di finirci sotto. */
-  useEffect(() => {
-    const vv = window.visualViewport;
-    if (!vv) return;
-    const setVar = () => {
-      document.documentElement.style.setProperty('--vvh', `${vv.height}px`);
-    };
-    setVar();
-    vv.addEventListener('resize', setVar);
-    vv.addEventListener('scroll', setVar);
-    return () => {
-      vv.removeEventListener('resize', setVar);
-      vv.removeEventListener('scroll', setVar);
-    };
-  }, []);
-
   useEffect(() => {
     window.addEventListener('vinzmon-health-journal', scheduleRemoteSave);
     return () => window.removeEventListener('vinzmon-health-journal', scheduleRemoteSave);
@@ -470,11 +447,12 @@ export function App() {
   // Con la tab bar in fondo, il margine di sistema lo prende lei: il composer
   // non deve aggiungere il suo, o resterebbe uno spazio vuoto doppio.
   //
-  // 🔷 «Quando chatto vorrei scomparisse il nav.» Nella tab CHAT la barra in
-  // fondo era doppia — quella di sistema e il composer, uno sopra l'altro —
-  // e toglieva altezza vera alla conversazione. La barra torna appena si
-  // cambia tab: non è nascosta per sempre, è la chat che la sostituisce.
-  const hasTabBar = phase === 'live' && overlay !== 'dev' && overlay !== 'activate' && tab !== 'chat';
+  // 🔷 «Il nav deve esserci ma sparire quando chatto.» Non è una condizione di
+  // React: dipende dal FOCUS del campo di scrittura, che cambia decine di
+  // volte senza che nessuno stato si muova. Sta in CSS — `base.css`, la regola
+  // `:has(...:focus)` — così la barra c'è mentre leggi la conversazione e se
+  // ne va quando sale la tastiera, senza un render in mezzo.
+  const hasTabBar = phase === 'live' && overlay !== 'dev' && overlay !== 'activate';
 
   return (
     <div className="proto-stage">

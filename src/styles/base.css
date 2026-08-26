@@ -123,19 +123,20 @@ select {
     background: #000000;
   }
 
+  /* 🔴 QUI AVEVO MESSO `height: var(--vvh)`, GUIDATA DA `visualViewport`, e
+     ha rotto la schermata: con la tastiera aperta il frame si accorciava ma
+     restava incollato a `top: 0` del viewport di LAYOUT, che iOS intanto
+     aveva scrollato — risultato, la barra della chat sparata in cima sopra
+     l'orologio e il resto nero.
+
+     La strada giusta non è misurare l'altezza da JavaScript: è chiedere al
+     browser di RIDIMENSIONARE la pagina quando sale la tastiera, e lo si fa
+     con `interactive-widget=resizes-content` nel `<meta name="viewport">`
+     (vedi `index.html`). Così `100dvh` diventa già l'altezza sopra la
+     tastiera e qui non serve nessuna correzione. */
   .proto-stage {
     position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    /* La tastiera software di iOS non muove un `position: fixed` ancorato a
-       `inset: 0`: resta pinnato all'altezza di PRIMA che si aprisse, e quello
-       che sta in fondo al flusso (il composer della chat) finisce sotto la
-       tastiera invece che sopra. `--vvh`, aggiornata da App.tsx sull'evento
-       reale di `visualViewport`, tiene il frame alto quanto lo schermo che si
-       vede davvero; `100dvh` resta il valore di partenza finché quello script
-       non è ancora girato una volta. */
-    height: var(--vvh, 100dvh);
+    inset: 0;
     min-height: 0;
     padding: 0;
     align-items: stretch;
@@ -148,8 +149,14 @@ select {
     box-shadow: none;
   }
 
-  /* Durante la scrittura la tastiera è già una seconda superficie: la
-     navigazione principale torna appena il campo perde il focus. */
+  /* 🔷 «Il nav deve esserci ma sparire quando chatto.»
+     🔴 E NON SPARIVA, perché questa regola cercava `.aui-composer__input` —
+     una classe che sta solo in `brain/Brain.tsx`, la chat vecchia che non è
+     più montata da nessuna parte. La chat vera (`assistant-original`) non
+     l'ha mai avuta: il selettore non ha mai agganciato niente. Adesso il
+     campo vero porta `vinz-composer-input`, e la barra se ne va davvero
+     mentre scrivi — tornando appena il campo perde il focus. */
+  .proto-frame:has(.vinz-composer-input:focus) .tabbar,
   .proto-frame:has(.aui-composer__input:focus) .tabbar {
     display: none;
   }

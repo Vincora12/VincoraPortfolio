@@ -2,7 +2,13 @@
 <html lang="it">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <!-- 🔷 «La barra della chat quando scrivo deve stare sopra alla tastiera.»
+         `interactive-widget=resizes-content` dice al browser di RIDIMENSIONARE
+         la pagina quando sale la tastiera, invece di lasciarla della stessa
+         altezza e coprirne il fondo. Così `100dvh` è già l'altezza sopra la
+         tastiera, e quello che sta in fondo al flusso ci resta sopra da solo.
+         Dove non è supportato non cambia niente rispetto a prima. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content" />
     <meta name="color-scheme" content="dark" />
     <meta name="supported-color-schemes" content="dark" />
     <meta name="theme-color" content="#000000" />
