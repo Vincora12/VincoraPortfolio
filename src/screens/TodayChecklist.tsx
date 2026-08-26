@@ -1,6 +1,7 @@
 import { useEffect, useState, type CSSProperties } from 'react';
 import { readHealthJournal, HEALTH_JOURNAL_EVENT, type MealLog } from '../engine/healthJournal';
 import { completeDayStreak, saveEvolutionWish, syncRewardProgress, wishNeedsMega, type EvolutionWish } from '../engine/syncRewards';
+import { dateForDay } from '../engine/progression';
 import { useApp } from '../state/store';
 import { Icon } from '../system/Icon';
 
@@ -18,6 +19,15 @@ export function TodayChecklistScreen() {
   const [wishWarning, setWishWarning] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const openFormEvolution = useApp((state) => state.openFormEvolution);
+  /* 🔷 «Mi dice zero giorni quando in realtà ne sto andando avanti nella
+     parte web.» «Oggi», qui, non è la data del telefono: è la data del
+     giorno di GIOCO — la stessa che il DEV fa avanzare. Per chi usa l'app
+     normalmente le due cose coincidono da sole; guardare `new Date()`
+     invece del giorno di gioco è la ragione per cui questa pagina restava
+     ferma a zero mentre il gioco andava avanti altrove. */
+  const day = useApp((state) => state.day);
+  const startedAt = useApp((state) => state.startedAt);
+  const gameToday = dateForDay(day, startedAt);
 
   useEffect(() => {
     const update = () => setJournal(readHealthJournal());
@@ -25,11 +35,11 @@ export function TodayChecklistScreen() {
     return () => window.removeEventListener(HEALTH_JOURNAL_EVENT, update);
   }, []);
 
-  const today = dayKey(new Date());
+  const today = dayKey(gameToday);
   const todayMeals = journal.meals.filter((item) => dayKey(new Date(item.at)) === today);
   const slots = new Set(todayMeals.map((item) => item.slot));
   const todayWorkouts = journal.workouts.filter((item) => dayKey(new Date(item.at)) === today);
-  const streak = completeDayStreak(journal);
+  const streak = completeDayStreak(journal, gameToday);
   const evolution = syncRewardProgress('evolution', streak);
   const mega = syncRewardProgress('mega-evolution', streak);
   const month = syncRewardProgress('wish', streak);

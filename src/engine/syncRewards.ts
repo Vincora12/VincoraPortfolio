@@ -18,8 +18,20 @@ export function isCompleteHealthDay(journal: HealthJournal, date: Date): boolean
   return MEAL_SLOTS.every((slot) => slots.has(slot)) && trained;
 }
 
-export function completeDayStreak(journal = readHealthJournal()): number {
-  let cursor = new Date();
+/* 🔷 «Quando il DEV porta avanti i giorni, la ruota dovrebbe muoversi
+   davvero, non restare a zero.»
+
+   🔒 `referenceDate` NON HA PIÙ `new Date()` COME UNICO PUNTO DI PARTENZA. Il
+   diario ha date vere, ma «oggi» qui deve voler dire «oggi nel gioco» —
+   `dateForDay(s.day, s.startedAt)` — non «oggi sul telefono». Per un utente
+   normale le due cose coincidono sempre, perché il giorno di gioco segue da
+   solo il calendario vero (§ `catchUpToRealDay`). Per il DEV, che fa
+   avanzare il giorno di gioco senza aspettare, sono la stessa cosa SOLO se
+   gliela si passa esplicitamente — altrimenti lo streak guarderebbe sempre
+   la data vera di adesso, cioè sempre lo stesso giorno, e non salirebbe
+   mai sopra 1 per quanti giorni tu simuli. */
+export function completeDayStreak(journal = readHealthJournal(), referenceDate = new Date()): number {
+  let cursor = referenceDate;
   if (!isCompleteHealthDay(journal, cursor)) cursor = previousDay(cursor);
   let streak = 0;
   while (streak < 3650 && isCompleteHealthDay(journal, cursor)) {

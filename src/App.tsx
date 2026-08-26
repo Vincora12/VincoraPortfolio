@@ -143,10 +143,19 @@ export function App() {
   const resumeFormEvolution = useApp((s) => s.resumeFormEvolution);
   const evolutionJob = useApp((s) => s.evolutionJob);
   const token = useApp((s) => s.token);
+  const catchUpToRealDay = useApp((s) => s.catchUpToRealDay);
 
   useEffect(() => {
     if ('serviceWorker' in navigator) void navigator.serviceWorker.register('/sw.js');
   }, []);
+
+  /* 🔷 «Se non porto avanti io i giorni dal DEV, deve andare avanti da solo
+     perché è passata una vera giornata.» Una volta per apertura: se erano
+     passati giorni veri mentre l'app era chiusa, il numero recupera —
+     nessun SYNC in più, solo la data giusta. */
+  useEffect(() => {
+    catchUpToRealDay();
+  }, [catchUpToRealDay]);
 
   useEffect(() => {
     window.addEventListener('vinzmon-health-journal', scheduleRemoteSave);

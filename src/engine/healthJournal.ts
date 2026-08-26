@@ -1,3 +1,8 @@
+/* 🔒 `'dev'` NON È `'manual'`. `manual` dice che sei stato tu a scriverlo;
+   `dev` dice che è stato il pannello DEV a dichiararlo al posto tuo, per
+   simulare un giorno vissuto — la stessa onestà con cui `advanceOneDay`
+   lascia UNKNOWN l'umore invece di indovinarlo. Confonderli vorrebbe dire
+   che un giorno finto sembra un giorno che hai raccontato davvero tu. */
 export type MealLog = {
   id: string;
   at: string;
@@ -7,7 +12,7 @@ export type MealLog = {
   protein: number;
   carbs: number;
   fat: number;
-  source: 'chat' | 'manual';
+  source: 'chat' | 'manual' | 'dev';
 };
 
 export type WorkoutLog = {
@@ -16,7 +21,7 @@ export type WorkoutLog = {
   title: string;
   details: string;
   minutes: number;
-  source: 'chat' | 'manual';
+  source: 'chat' | 'manual' | 'dev';
 };
 
 export type WeightLog = { id: string; at: string; kg: number; source: 'chat' | 'manual' };
@@ -74,19 +79,31 @@ function save(next: HealthJournal): HealthJournal {
 const id = (kind: string) => `${kind}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 const localDay = (date: Date) => `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
 
-export function addMeal(input: Omit<MealLog, 'id' | 'at' | 'source'>, source: MealLog['source'] = 'chat') {
+/* 🔷 `at` esplicito serve a UN chiamante solo: il DEV, che dichiara un pasto
+   per il giorno di gioco che sta simulando — non per «adesso». Senza questo
+   parametro ogni chiamata finirebbe sempre su `new Date()`, cioè su OGGI per
+   il calendario vero, e più giorni simulati nello stesso momento reale
+   collasserebbero tutti sulla stessa data invece di costruire uno streak. */
+export function addMeal(
+  input: Omit<MealLog, 'id' | 'at' | 'source'>,
+  source: MealLog['source'] = 'chat',
+  at: Date = new Date(),
+) {
   const journal = readHealthJournal();
-  const now = new Date();
-  const day = localDay(now);
+  const day = localDay(at);
   const fixed = input.slot !== 'extra';
   const alreadyFilled = fixed && journal.meals.some((meal) => meal.slot === input.slot && localDay(new Date(meal.at)) === day);
   const normalized = alreadyFilled ? { ...input, slot: 'extra' as const } : input;
-  return save({ ...journal, meals: [...journal.meals, { ...normalized, id: id('meal'), at: now.toISOString(), source }] });
+  return save({ ...journal, meals: [...journal.meals, { ...normalized, id: id('meal'), at: at.toISOString(), source }] });
 }
 
-export function addWorkout(input: Omit<WorkoutLog, 'id' | 'at' | 'source'>, source: WorkoutLog['source'] = 'chat') {
+export function addWorkout(
+  input: Omit<WorkoutLog, 'id' | 'at' | 'source'>,
+  source: WorkoutLog['source'] = 'chat',
+  at: Date = new Date(),
+) {
   const journal = readHealthJournal();
-  return save({ ...journal, workouts: [...journal.workouts, { ...input, id: id('workout'), at: new Date().toISOString(), source }] });
+  return save({ ...journal, workouts: [...journal.workouts, { ...input, id: id('workout'), at: at.toISOString(), source }] });
 }
 
 export function addWeight(kg: number, source: WeightLog['source'] = 'chat') {

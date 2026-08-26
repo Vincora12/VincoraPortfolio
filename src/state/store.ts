@@ -94,6 +94,7 @@ import {
   configureHealthTargets,
   healthJournalReport,
   manageMeBlock,
+  readHealthJournal,
   setDietPlan,
   setWorkoutPlan,
   updateLatestMeal,
@@ -103,6 +104,7 @@ import {
 import {
   claimSyncReward,
   clearEvolutionWish,
+  isCompleteHealthDay,
   readEvolutionWish,
   syncRewardProgress,
 } from '../engine/syncRewards';
@@ -517,6 +519,19 @@ interface AppState {
    * «sette giorni vissuti e raccontati» richiede di dire entrambe le cose.
    */
   simulateSyncedDays: (n: number) => void;
+  /**
+   * 🔷 «Se non lo faccio io dal DEV, il giorno deve andare avanti da solo
+   * perché è passata una vera giornata.» `dateForDay(s.day, s.startedAt)`
+   * esiste apposta per dire a che data corrisponde il giorno di gioco — ma
+   * prima nessuno lo confrontava mai con `new Date()`. Chi non apriva l'app
+   * per tre giorni la ritrovava ancora al giorno di prima.
+   *
+   * 🔒 NON DÀ SYNC. Recupera solo il NUMERO — la stessa cosa che farebbe
+   * `advanceOneDay` se tu avessi aperto l'app quei giorni e non avessi fatto
+   * niente. Il tempo da solo non ha mai dato SYNC, e questo non fa eccezione:
+   * lo dà ancora e solo `syncDay()`.
+   */
+  catchUpToRealDay: () => void;
   endWeek: () => void;
   hatch: () => void;
   enterLive: () => void;
@@ -1155,6 +1170,11 @@ export const useApp = create<AppState>()(
               get().setDailySignal(key, 'KNOWN', 'simulazione');
             }
           }
+          /* 🔷 «Quando metto +1 sul DEV, lui dovrebbe dirmi che ho fatto i
+             pasti e mi sono allenato.» Quei due segnali qui sopra bastavano
+             per i vecchi indicatori — la pagina SYNC nuova legge invece il
+             DIARIO (pasti/allenamento veri), che restava vuoto. */
+          fillDevHealthDay(get().day, get().startedAt);
           get().syncDay();
           advanceOneDay(set, get);
         }
@@ -1164,6 +1184,29 @@ export const useApp = create<AppState>()(
         markAccelerated(set, get);
         const remaining = 7 - ((get().day - 1) % 7);
         for (let i = 0; i < remaining; i++) advanceOneDay(set, get);
+      },
+
+      /* 🔷 «Se non porto avanti io i giorni dal DEV, deve andare avanti da
+         solo perché è passata una vera giornata.»
+
+         🔒 E DELIBERATAMENTE NON CHIAMA `markAccelerated`. Quel flag dice
+         «questi giorni sono stati saltati dal DEV, non vissuti» — e qui è
+         vero il contrario: il tempo È passato per davvero, l'app era solo
+         chiusa. Marcarlo come accelerato mentirebbe nella direzione opposta.
+
+         🔒 Il tetto a 400 non è un limite di gioco: `startedAt` viene da
+         `new Date().toISOString()` e non cambia mai da sola — un orologio
+         del telefono spostato per errore non deve far girare questo ciclo
+         all'infinito. */
+      catchUpToRealDay: () => {
+        const s = get();
+        if (s.phase !== 'incubation' && s.phase !== 'live') return;
+        const elapsed = Math.floor((Date.now() - new Date(s.startedAt).getTime()) / 86_400_000) + 1;
+        const missing = Math.min(400, elapsed - s.day);
+        for (let i = 0; i < missing; i++) {
+          if (get().phase !== 'incubation' && get().phase !== 'live') break;
+          advanceOneDay(set, get);
+        }
       },
 
       /* --- Il primo .mon si estrae come tutti gli altri: due partite non
@@ -3516,6 +3559,40 @@ export async function syncWithServer(): Promise<'locale' | 'scaricato' | 'niente
 /** Segna che questa partita ha saltato del tempo dal pannello DEV. */
 function markAccelerated(set: (p: Partial<AppState>) => void, get: () => AppState): void {
   if (!get().usedDevTime) set({ usedDevTime: true });
+}
+
+/* 🔷 «Quando metto più uno sul DEV lui mi aggiorna dicendo che ho fatto dei
+   pasti, che mi sono allenato.»
+
+   🔒 LA DATA È QUELLA DEL GIORNO DI GIOCO, NON DI ADESSO. `syncRewardProgress`
+   (§ syncRewards.ts) misura uno streak guardando il DIARIO giorno per
+   giorno — e se ogni pasto simulato finisse su `new Date()`, dieci giorni
+   simulati in due secondi finirebbero tutti sulla STESSA data vera, uno
+   sopra l'altro, e lo streak non supererebbe mai 1. `dateForDay` dà a
+   ciascun giorno simulato la propria data, come farebbe vivendolo davvero.
+
+   ⚠️ E SOLO SE MANCA. Un giorno già completo (magari raccontato per davvero
+   in chat) non riceve pasti finti sopra: `isCompleteHealthDay` lo verifica
+   prima di scrivere qualsiasi cosa. */
+function fillDevHealthDay(day: number, startedAt: string): void {
+  const date = dateForDay(day, startedAt);
+  const journal = readHealthJournal();
+  if (isCompleteHealthDay(journal, date)) return;
+
+  const key = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+  const onThatDate = (at: string) => {
+    const d = new Date(at);
+    return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}` === key;
+  };
+  const filledSlots = new Set(journal.meals.filter((m) => onThatDate(m.at)).map((m) => m.slot));
+
+  for (const slot of ['colazione', 'spuntino', 'pranzo', 'merenda', 'cena'] as const) {
+    if (filledSlots.has(slot)) continue;
+    addMeal({ slot, description: 'Pasto simulato dal pannello DEV', kcal: 0, protein: 0, carbs: 0, fat: 0 }, 'dev', date);
+  }
+  if (!journal.workouts.some((w) => onThatDate(w.at))) {
+    addWorkout({ title: 'Allenamento simulato', details: 'Dichiarato dal pannello DEV', minutes: 30 }, 'dev', date);
+  }
 }
 
 /* --- Avanzamento di un giorno ---------------------------------------------- */
