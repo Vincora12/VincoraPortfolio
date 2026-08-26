@@ -44,7 +44,10 @@ import {
   buttaTutto,
   chiediPermesso,
   immagineDi,
+  mazzoSalvato,
   notifica,
+  riprendiJob,
+  salvaMazzo,
   type StatoJob,
 } from './duelImages';
 import { EYEWEAR_CATEGORIES, HAIRCUTS, HAIR_STATES } from '../../engine/generation-config';
@@ -505,7 +508,15 @@ function Build({ avvio = 0 }: { avvio?: number }) {
   const scope = [famiglia || 'ALL', archetipo, taglia].filter(Boolean).join(' / ');
   const prefs = useMemo(() => preferenze(carte), [carte]);
 
-  useEffect(() => ascoltaJob(setJob), []);
+  useEffect(() => {
+    const smetti = ascoltaJob(setJob);
+    void (async () => {
+      const salvato = await mazzoSalvato<Carta[]>();
+      if (salvato?.length) setMazzo(salvato);
+      await riprendiJob(token, (titolo, corpo) => void notifica(titolo, corpo));
+    })();
+    return smetti;
+  }, [token]);
 
   useEffect(() => {
     if (!mazzo) return;
@@ -624,6 +635,7 @@ function Build({ avvio = 0 }: { avvio?: number }) {
         setGuasto('Con questo perimetro non esce niente: allarga il campo.');
       } else {
         setMazzo(fuori);
+        await salvaMazzo(fuori);
         setPasso(0);
         if (immaginiOra) {
           await chiediPermesso();
@@ -670,7 +682,10 @@ function Build({ avvio = 0 }: { avvio?: number }) {
       }),
     );
     if (passo + 1 < mazzo.length) setPasso(passo + 1);
-    else setMazzo(null);
+    else {
+      setMazzo(null);
+      void salvaMazzo(null);
+    }
   };
 
   const insegna = async () => {
@@ -761,11 +776,20 @@ function Build({ avvio = 0 }: { avvio?: number }) {
       {guasto && <p className="hint">{guasto}</p>}
 
       {job && !job.finito && !job.errore && (
-        <div className="notice mono">
-          <strong>STO DISEGNANDO · {job.fatte}/{job.totale}</strong>
+        <div className="notice mono build-progress" aria-live="polite">
+          <strong>{job.label} · {job.fatte}/{job.totale}</strong>
+          <div className="build-progress__track" aria-hidden="true">
+            <i style={{ width: `${job.totale > 0 ? (job.fatte / job.totale) * 100 : 0}%` }} />
+          </div>
+          <span>{Math.max(0, job.totale - job.fatte)} creature mancanti</span>
           <br />
-          Puoi già giudicare: le carte si riempiono man mano. Se chiudi l’app il disegno si ferma,
-          ma quello che è già fatto resta.
+          Puoi chiudere il LAB: il server continua. Quando torni, il contatore riparte da qui.
+        </div>
+      )}
+      {job?.finito && (
+        <div className="notice mono build-progress build-progress--ready">
+          <strong>MAZZO PRONTO · {job.fatte}/{job.totale}</strong>
+          <div className="build-progress__track" aria-hidden="true"><i style={{ width: '100%' }} /></div>
         </div>
       )}
       {job?.errore && (

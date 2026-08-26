@@ -8,16 +8,9 @@
    mostrava solo le etichette — Family, affinità, taglia — e su quelle si
    giudica un foglio di calcolo, non una creatura.
 
-   ⚠️ E QUI C'È UN LIMITE VERO, DA DIRE SUBITO. Le immagini NON si possono
-   generare sul server e lasciare lì: la strada in background di `/api/ai`
-   esiste solo per il TESTO (`startBackground` manda istruzioni e riceve
-   parole). Le immagini passano da `/v1/images/generations`, che è sincrono.
-
-   Quindi il lavoro gira QUI, nella pagina. Conseguenze, in chiaro:
-   • se resti sul telefono con l'app aperta, arriva la notifica e basta;
-   • se chiudi l'app, il lavoro si ferma dove è arrivato;
-   • ma NON si perde: ogni immagine finita è già salvata, e riaprendo il
-     laboratorio il lavoro RIPRENDE da lì invece di ricominciare da capo.
+   🔶 Ora il lavoro gira nella funzione background del server. La pagina
+   prepara i prompt, avvia il job e ne legge lo stato; può essere chiusa senza
+   interrompere le immagini. Al ritorno riprende il monitor dal job salvato.
 
    🔒 E COSTA. Due immagini per duello: otto duelli sono sedici immagini
    pagate. Il numero si dice prima di partire, non dopo.
@@ -28,22 +21,26 @@ import type { MonRecord } from '../../engine/types';
 
 const PREFISSO = 'vinzlab/duel/';
 const CHIAVE_JOB = 'vinzlab/duel/job';
+const CHIAVE_MAZZO = 'vinzlab/duel/deck';
 
 export type StatoJob = {
   /* 🔶 ERA UNA LISTA DI COPPIE, e leggeva `c[1]` per la seconda carta. Il
      mazzo non ha coppie: è una fila di creature, una alla volta. Passandogli
      liste da un elemento solo `c[1]` era `undefined` e il disegno moriva al
      primo giro — con l'aria di un problema di rete. */
+  id: string;
   fatte: number;
   totale: number;
   errore: string | null;
   finito: boolean;
+  label: string;
 };
 
 type Listener = (s: StatoJob) => void;
 let ascoltatori: Listener[] = [];
 let corrente: StatoJob | null = null;
 let inCorso = false;
+let timer: number | null = null;
 
 export function ascoltaJob(fn: Listener): () => void {
   ascoltatori.push(fn);
@@ -73,23 +70,124 @@ export async function giaFatte(): Promise<Set<string>> {
 }
 
 export async function jobSalvato(): Promise<StatoJob | null> {
-  return (await get<StatoJob>(CHIAVE_JOB)) ?? null;
+  const value = (await get<StatoJob>(CHIAVE_JOB)) ?? null;
+  return value?.id && typeof value.label === 'string' ? value : null;
+}
+
+export async function salvaMazzo<T>(mazzo: T): Promise<void> {
+  await set(CHIAVE_MAZZO, mazzo);
+}
+
+export async function mazzoSalvato<T>(): Promise<T | null> {
+  return (await get<T>(CHIAVE_MAZZO)) ?? null;
 }
 
 export async function buttaTutto(): Promise<void> {
   for (const k of await giaFatte()) await del(k);
   await del(CHIAVE_JOB);
+  await del(CHIAVE_MAZZO);
   corrente = null;
+  if (timer !== null) window.clearTimeout(timer);
+  timer = null;
 }
 
 /* ============================================================================
    IL LAVORO
 
-   🔒 UNA ALLA VOLTA, DI PROPOSITO. Sedici richieste di immagine in parallelo
-   sono sedici modi di sbattere contro il tetto di spesa nello stesso secondo,
-   e il tetto risponde a tutte insieme: si perderebbero tutte e sedici invece
-   di fermarsi alla prima. In fila, il primo rifiuto ferma il resto.
+   Il server genera una creatura alla volta, salva ogni risultato e aggiorna
+   il contatore dopo ogni immagine conclusa.
    ========================================================================= */
+type RemoteJob = {
+  status: 'running' | 'ready' | 'error';
+  done: number;
+  total: number;
+  label: string;
+  error: string | null;
+  assets: number[];
+};
+
+function base64(buffer: ArrayBuffer): string {
+  const input = new Uint8Array(buffer);
+  let output = '';
+  for (let offset = 0; offset < input.length; offset += 0x8000) {
+    output += String.fromCharCode(...input.subarray(offset, offset + 0x8000));
+  }
+  return btoa(output);
+}
+
+async function scaricaPronte(id: string, seeds: number[], token: string): Promise<void> {
+  const fatte = await giaFatte();
+  for (const seed of seeds) {
+    if (fatte.has(idImmagine(seed))) continue;
+    const response = await fetch(`/api/lab-duel-job?jobId=${encodeURIComponent(id)}&seed=${seed}`, {
+      headers: { authorization: `Bearer ${token}` },
+      cache: 'no-store',
+    });
+    if (!response.ok) continue;
+    const data = base64(await response.arrayBuffer());
+    await set(idImmagine(seed), `data:image/png;base64,${data}`);
+  }
+}
+
+async function monitora(
+  id: string,
+  token: string,
+  onNotifica: (titolo: string, corpo: string) => void,
+  tentativo = 0,
+): Promise<void> {
+  try {
+    const response = await fetch(`/api/lab-duel-job?jobId=${encodeURIComponent(id)}`, {
+      headers: { authorization: `Bearer ${token}` },
+      cache: 'no-store',
+    });
+    if (!response.ok) {
+      if (tentativo < 10) timer = window.setTimeout(() => void monitora(id, token, onNotifica, tentativo + 1), 2000);
+      return;
+    }
+    const remoto = await response.json() as RemoteJob;
+    await scaricaPronte(id, remoto.assets ?? [], token);
+    const stato: StatoJob = {
+      id,
+      fatte: remoto.done ?? 0,
+      totale: remoto.total ?? 0,
+      errore: remoto.status === 'error' ? remoto.error ?? 'generazione interrotta' : null,
+      finito: remoto.status === 'ready',
+      label: remoto.label ?? 'GENERAZIONE IN CORSO',
+    };
+    annuncia(stato);
+    await set(CHIAVE_JOB, stato);
+    if (stato.finito) {
+      inCorso = false;
+      onNotifica('VINZ.LAB: il mazzo è pronto', `${stato.totale} creature disegnate. Puoi scegliere.`);
+      return;
+    }
+    if (stato.errore) {
+      inCorso = false;
+      onNotifica('VINZ.LAB: disegno fermo', stato.errore);
+      return;
+    }
+    timer = window.setTimeout(() => void monitora(id, token, onNotifica), 3000);
+  } catch {
+    timer = window.setTimeout(() => void monitora(id, token, onNotifica), 5000);
+  }
+}
+
+export async function riprendiJob(
+  token: string | null,
+  onNotifica: (titolo: string, corpo: string) => void,
+): Promise<StatoJob | null> {
+  const salvato = await jobSalvato();
+  if (!salvato) return null;
+  annuncia(salvato);
+  if (token && !salvato.finito && !salvato.errore) {
+    inCorso = true;
+    void monitora(salvato.id, token, onNotifica);
+  } else if (token && salvato.finito) {
+    void monitora(salvato.id, token, onNotifica);
+  }
+  return salvato;
+}
+
 export async function avviaJob({
   carte,
   token,
@@ -103,51 +201,54 @@ export async function avviaJob({
 }): Promise<void> {
   if (inCorso) return;
   inCorso = true;
+  if (!token) {
+    const stato: StatoJob = { id: '', fatte: 0, totale: carte.length, errore: 'Token VINZ.MON mancante', finito: false, label: 'NON AVVIATO' };
+    annuncia(stato);
+    inCorso = false;
+    return;
+  }
 
-  const piatte = carte;
-  const fatte = await giaFatte();
+  /* Un mazzo nuovo non deve mostrare immagini del precedente quando riusa lo
+     stesso seed. Il mazzo appena salvato resta; si svuotano solo risultati e
+     monitor del lavoro vecchio. */
+  for (const key of await giaFatte()) await del(key);
+  await del(CHIAVE_JOB);
+  if (timer !== null) window.clearTimeout(timer);
+  timer = null;
+
+  const id = `duel-${crypto.randomUUID().replace(/-/g, '')}`;
 
   const stato: StatoJob = {
-    fatte: piatte.filter((x) => fatte.has(idImmagine(x.seed))).length,
-    totale: piatte.length,
+    id,
+    fatte: 0,
+    totale: carte.length,
     errore: null,
     finito: false,
+    label: `PREPARAZIONE 0/${carte.length}`,
   };
   annuncia(stato);
   await set(CHIAVE_JOB, stato);
 
   try {
-    const { askImage } = await import('../../ai/backend');
     const { promptFor } = await import('../../assets-pipeline/promptFor');
     const { assetTypeDef } = await import('../../engine/assets');
-
-    for (const x of piatte) {
-      /* 🔒 Già fatta = già pagata. Non si ridisegna. */
-      if (fatte.has(idImmagine(x.seed))) continue;
-
-      const prompt = promptFor(x.record, 'character_master').text;
-      const size = assetTypeDef('character_master').size;
-      const out = await askImage(token, prompt, imageModel, size);
-
-      if (out.failure || !out.data?.image) {
-        stato.errore = out.detail ?? out.failure ?? 'nessuna immagine';
-        annuncia({ ...stato });
-        await set(CHIAVE_JOB, stato);
-        onNotifica('VINZ.LAB: disegno fermo', stato.errore);
-        return;
-      }
-
-      await set(idImmagine(x.seed), `data:image/png;base64,${out.data.image}`);
-      stato.fatte += 1;
-      annuncia({ ...stato });
-      await set(CHIAVE_JOB, stato);
-    }
-
-    stato.finito = true;
+    const size = assetTypeDef('character_master').size;
+    const response = await fetch('/api/lab-duel-background', {
+      method: 'POST',
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({
+        jobId: id,
+        imageModel,
+        items: carte.map((x) => ({ seed: x.seed, prompt: promptFor(x.record, 'character_master').text, size })),
+      }),
+    });
+    if (!response.ok) throw new Error(`Il server non ha avviato il lavoro (${response.status})`);
+    void monitora(id, token, onNotifica);
+  } catch (error) {
+    stato.errore = error instanceof Error ? error.message : String(error);
+    stato.label = 'NON AVVIATO';
     annuncia({ ...stato });
     await set(CHIAVE_JOB, stato);
-    onNotifica('VINZ.LAB: il duello è pronto', `${stato.totale} immagini disegnate. Puoi scegliere.`);
-  } finally {
     inCorso = false;
   }
 }
@@ -155,10 +256,8 @@ export async function avviaJob({
 /* ============================================================================
    LA NOTIFICA
 
-   ⚠️ NON È PUSH, ED È UNA DIFFERENZA CHE SI SENTE. Il push vero arriva anche
-   ad app chiusa, ma parte dal SERVER — e il server, qui, non sta disegnando
-   niente: il lavoro gira nella pagina. Quindi la notifica la mostra la pagina
-   stessa, attraverso il service worker già registrato (`public/sw.js`).
+   La pagina mostra la notifica quando è aperta e vede il job diventare pronto.
+   La generazione, invece, prosegue sul server anche quando la pagina è chiusa.
 
    🔒 Passa dal service worker e non da `new Notification(...)` perché su
    iPhone, in un'app aggiunta alla schermata Home, `new Notification` non
