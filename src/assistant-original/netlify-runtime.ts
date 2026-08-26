@@ -272,6 +272,32 @@ function withText(
   return text ? [...parts, { type: "text", text }] : [...parts];
 }
 
+/** Anche i provider che restituiscono la risposta tutta insieme la mostrano
+ * come scrittura, non come un blocco che compare di colpo. Il testo resta già
+ * completo lato dati: questa funzione controlla soltanto la sua presentazione. */
+async function* writtenSnapshots(
+  text: string,
+  abortSignal: AbortSignal,
+): AsyncGenerator<string> {
+  const reducedMotion = typeof window !== "undefined"
+    && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (reducedMotion) {
+    yield text;
+    return;
+  }
+
+  const words = text.match(/\S+\s*/g) ?? [text];
+  let shown = "";
+  for (let index = 0; index < words.length; index += 3) {
+    if (abortSignal.aborted) return;
+    const group = words.slice(index, index + 3).join("");
+    shown += group;
+    yield shown;
+    const pause = /[.!?][\s\n]*$/.test(group) ? 64 : /[,;:][\s\n]*$/.test(group) ? 42 : 24;
+    await new Promise<void>((resolve) => setTimeout(resolve, pause));
+  }
+}
+
 /** Runtime reale predefinito. Il mock locale resta disponibile con `?runtime=mock`. */
 function createBaseNetlifyChatModel(): ChatModelAdapter {
   return {
@@ -327,6 +353,9 @@ function createBaseNetlifyChatModel(): ChatModelAdapter {
       };
       const parts = (body.sources ?? []).map(sourcePart);
       if (!body.text) throw new Error("La risposta è arrivata vuota.");
+      for await (const shown of writtenSnapshots(body.text, abortSignal)) {
+        yield { content: withText(parts, shown) };
+      }
       yield {
         content: withText(parts, body.text),
         metadata: {
