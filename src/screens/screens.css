@@ -3341,12 +3341,12 @@
   color: var(--muted);
 }
 
-/* Griglia a tre: su un telefono da 390px sono caselle da ~110px, cioe' la
-   dimensione minima in cui una faccia si riconosce ancora. */
+/* Due colonne: il Dex deve far riconoscere la forma intera, non comprimere
+   venti miniature. Il toy resta protagonista e non viene mai ritagliato. */
 .dex__grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: var(--u2);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--u4) var(--u3);
 }
 
 .dexcard {
@@ -3368,8 +3368,13 @@
 
 .dexcard__art {
   display: block;
-  aspect-ratio: 1;
+  aspect-ratio: 4 / 5;
   overflow: hidden;
+  background: #fff;
+}
+
+.dexcard__art img {
+  object-fit: contain !important;
 }
 
 .dexcard__name {

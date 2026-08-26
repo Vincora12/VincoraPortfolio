@@ -120,7 +120,7 @@ export function DexScreen({ onGo, onOpenMon }: { onGo: (o: Overlay) => void; onO
                       type="character_toy"
                       fallbackTypes={['character_master']}
                       alt={displayName(name)}
-                      fit="cover"
+                      fit="contain"
                       compactPlaceholder
                     />
                   </span>
@@ -159,7 +159,7 @@ export function DexScreen({ onGo, onOpenMon }: { onGo: (o: Overlay) => void; onO
                       type="character_toy"
                       fallbackTypes={['character_master']}
                       alt={displayName(k.record.data.name)}
-                      fit="cover"
+                      fit="contain"
                       compactPlaceholder
                     />
                   </span>
