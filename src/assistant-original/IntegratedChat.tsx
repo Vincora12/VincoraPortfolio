@@ -55,11 +55,13 @@ export const IntegratedChat: FC<IntegratedChatProps> = ({
   const themeStyle = useMemo(() => {
     if (!palette) return undefined;
     const accentOnDark = ensureContrastOnBlack(palette.accent);
+    const accentOnLight = ensureContrastOnWhite(palette.accent);
     return {
       "--char-primary": palette.primary,
-      "--char-accent": ensureContrastOnWhite(palette.accent),
+      "--char-accent": accentOnLight,
       "--char-accent-on-dark": accentOnDark,
       "--char-on-primary": palette.on_primary,
+      "--char-on-accent": readableOn(accentOnLight),
       "--char-on-accent-dark": readableOn(accentOnDark),
       "--char-primary-soft": `${palette.primary}1f`,
     } as CSSProperties;

@@ -354,6 +354,20 @@ body[data-scroll-locked] {
   color: var(--char-on-accent-dark, #0d0d0d) !important;
 }
 
+/* Il campo resta nero: il colore appartiene alla conversazione. Il balloon
+   dell'utente è il piano più grande su cui compare, seguito dai controlli e
+   dai feedback; il testo viene scelto per contrasto dalla palette corrente. */
+.vinz-user-message {
+  background: var(--char-accent, #0d0d0d);
+  color: var(--char-on-accent, #ffffff);
+  transition: background-color 220ms ease, color 220ms ease;
+}
+
+.dark .vinz-user-message {
+  background: var(--char-accent-on-dark, #ececec);
+  color: var(--char-on-accent-dark, #0d0d0d);
+}
+
 /* La risposta si compone come una voce presente, non come un blocco incollato.
    Il cursore esiste soltanto durante lo stream e prende il colore del MON. */
 .vinz-assistant-copy.is-writing::after {

@@ -418,7 +418,7 @@ const UserMessage: FC = () => {
         />
       </div>
 
-      <div className="max-w-[70%] rounded-[22px] bg-[#0d0d0d] px-4 py-2.5 leading-6 text-white dark:bg-[#ececec] dark:text-[#0d0d0d]">
+      <div className="vinz-user-message max-w-[70%] rounded-[22px] px-4 py-2.5 leading-6">
         <MessagePrimitive.Parts />
       </div>
 
