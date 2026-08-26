@@ -4348,14 +4348,48 @@
 /* SYNC — la costanza diventa una risorsa leggibile, non un altro punteggio. */
 .sync-check { --sync-workout: var(--char-secondary, #48d9ec); flex: 1 1 auto; min-height: 0; display: grid; align-content: center; padding-top: 12px; }
 .sync-check__hero { min-height: 330px; display: grid; place-items: center; }
-.sync-check__dial { --sync-fill: 0deg; position: relative; width: min(72vw, 270px); aspect-ratio: 1; display: grid; place-items: center; }
-.sync-check__dial i { position: absolute; inset: 0; border-radius: 50%; background: repeating-conic-gradient(from -90deg, var(--tc-accent) 0 4deg, transparent 4deg 12deg); mask: radial-gradient(circle, transparent 0 62%, #000 63% 100%); clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%); opacity: .25; }
-.sync-check__dial::before { content: ''; position: absolute; inset: 0; border-radius: 50%; background: conic-gradient(from -90deg, var(--tc-accent) 0 var(--sync-fill), transparent var(--sync-fill) 360deg); mask: radial-gradient(circle, transparent 0 62%, #000 63% 100%); }
+/* 🔷 «Deve riempirsi in senso orario, a trattini, non con una linea che si
+   forma» — come `GenerationDial` (la ruota di "MON IN CREAZIONE" che piaceva):
+   un trattino per giorno, che si accende quando ci si arriva, non una fetta
+   che cresce. `<i>` copre l'intero quadrante e ruota su se stesso — il suo
+   centro coincide col centro del quadrante — e il trattino vero è il suo
+   `::before`, piazzato in percentuale vicino al bordo: funziona a qualunque
+   dimensione, perché il quadrante stesso è responsive (`min(72vw, 270px)`). */
+.sync-check__dial { position: relative; width: min(72vw, 270px); aspect-ratio: 1; display: grid; place-items: center; }
+.sync-check__ticks { position: absolute; inset: 0; }
+.sync-check__ticks i { position: absolute; inset: 0; transform: rotate(calc(var(--dial-index) * (360deg / 30))); }
+.sync-check__ticks i::before { content: ''; position: absolute; top: 4%; left: calc(50% - 1.5px); width: 3px; height: 8%; border-radius: 2px; background: #33343a; opacity: .45; }
+.sync-check__ticks i.is-done::before { background: var(--tc-accent); opacity: 1; box-shadow: 0 0 5px color-mix(in srgb, var(--tc-accent) 65%, transparent); }
 .sync-check__dial::after { content: ''; position: absolute; inset: 27px; border: 1px solid #33343a; border-radius: 50%; }
 .sync-check__dial strong { position: relative; z-index: 1; color: #fff; font: italic 900 96px/.8 var(--font-display); font-variant-numeric: tabular-nums; }
 .sync-checkpoint { position: absolute; z-index: 3; width: 44px; height: 44px; display: grid; place-items: center; padding: 0; border: 1px solid #50525a; border-radius: 50%; background: #050506; color: #777a83; font: 700 11px/1 var(--font-mono); }
 .sync-checkpoint:disabled { opacity: 1; }
-.sync-checkpoint[data-ready='true'] { border-color: var(--tc-accent); background: var(--tc-accent); color: #000; box-shadow: 0 0 0 5px color-mix(in srgb, var(--tc-accent) 16%, transparent); }
+/* 🔷 «Quando si illumina un due o un sette devono pulsare, per dire che si
+   può toccare» — e a doppio colore, il primo e il secondo colore del .mon
+   (`--char-primary` / `--char-accent-on-dark`, già tarato per il nero di
+   questa pagina), non un lampeggio a tinta unica: l'inchiostro cambia insieme
+   allo sfondo (`--char-on-primary` / `--char-on-accent-dark`) così il numero
+   resta leggibile a metà animazione, non solo ai due estremi. */
+.sync-checkpoint[data-ready='true'] {
+  animation: sync-checkpoint-pulse 1600ms var(--ease-system, ease-in-out) infinite;
+}
+@keyframes sync-checkpoint-pulse {
+  0%, 100% {
+    border-color: var(--char-primary, var(--tc-accent));
+    background: var(--char-primary, var(--tc-accent));
+    color: var(--char-on-primary, #000);
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--char-primary, var(--tc-accent)) 22%, transparent);
+  }
+  50% {
+    border-color: var(--char-accent-on-dark, var(--tc-accent));
+    background: var(--char-accent-on-dark, var(--tc-accent));
+    color: var(--char-on-accent-dark, #000);
+    box-shadow: 0 0 0 8px color-mix(in srgb, var(--char-accent-on-dark, var(--tc-accent)) 28%, transparent);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sync-checkpoint[data-ready='true'] { animation: none; border-color: var(--char-accent-on-dark, var(--tc-accent)); background: var(--char-accent-on-dark, var(--tc-accent)); color: var(--char-on-accent-dark, #000); }
+}
 .sync-checkpoint--2 { top: 2px; left: 50%; transform: translateX(-50%); }
 .sync-checkpoint--7 { right: 2px; bottom: 49px; }
 .sync-checkpoint--30 { left: 2px; bottom: 49px; }

@@ -13,9 +13,18 @@
    In DEV i tre traguardi sono SOLO mostrati (nessun `onClick`): premerli per
    davvero resta un gesto della pagina vera, non un tasto rapido nascosto in
    un pannello di sviluppo.
+
+   🔷 «La notifica di "MON IN CREAZIONE" mi piaceva» — quella è `GenerationDial`
+   (system/GenerationDial.tsx): dodici trattini che si accendono uno alla
+   volta, non una linea che cresce. Il quadrante SYNC adesso usa lo stesso
+   principio, portato a 30 — un trattino per ogni giorno dei 30 che contano
+   per il desiderio — invece del conic-gradient a fetta che aveva prima.
+   Stessa idea del progetto, non un'invenzione nuova.
    ========================================================================= */
 
 import type { CSSProperties } from 'react';
+
+const DIAL_TICKS = 30;
 
 export function SyncDial({
   streak,
@@ -35,9 +44,18 @@ export function SyncDial({
   onMega?: () => void;
   onWish?: () => void;
 }) {
+  const done = Math.min(streak, DIAL_TICKS);
   return (
-    <div className="sync-check__dial" style={{ '--sync-fill': `${(Math.min(streak, 30) / 30) * 360}deg` } as CSSProperties}>
-      <i aria-hidden="true" />
+    <div className="sync-check__dial">
+      <div className="sync-check__ticks" aria-hidden="true">
+        {Array.from({ length: DIAL_TICKS }, (_, index) => (
+          <i
+            key={index}
+            className={index < done ? 'is-done' : ''}
+            style={{ '--dial-index': index } as CSSProperties}
+          />
+        ))}
+      </div>
       <strong>{streak}</strong>
       <SyncCheckpoint value="2" ready={evolutionReady} className="sync-checkpoint--2" label="Evolvi" onClick={onEvolve} />
       <SyncCheckpoint value="7" ready={megaReady} className="sync-checkpoint--7" label="Megaevolvi" onClick={onMega} />
