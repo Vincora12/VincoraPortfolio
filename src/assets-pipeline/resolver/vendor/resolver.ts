@@ -24,7 +24,12 @@ SOURCE-OF-TRUTH PRINCIPLES:
 - No Heritage / previous-mindline logic.
 
 RAW CHARACTER DATA:
-${JSON.stringify({ ...data, humanoidity: undefined }, null, 2)}
+${JSON.stringify(data, null, 2)}
+
+HUMANOID BODY MODE — BINARY AND BINDING:
+${data.humanoidity >= 5
+  ? '- YES. Use an immediately readable human body plan: one dominant head, readable human face, torso, two primary arms, two primary legs, hands, feet and upright posture. Family and Affinity transform selected anatomy without replacing that body plan. Extra anatomy is allowed only when the selected Archetype explicitly requires it.'
+  : '- NO. Let Family and Archetype define a coherent non-human body plan. Do not drift toward a human mannequin.'}
 
 CHARACTER DESIGN DNA:
 ${data.characterDesignDNA}

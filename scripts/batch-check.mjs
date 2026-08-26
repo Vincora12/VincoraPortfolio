@@ -2561,9 +2561,9 @@ m.resetCatalog('mood');
 
 console.log('\n═══ §5 — HUMANOIDITY ═══\n');
 
-/* 🔷 «I prompt creano sempre personaggi deformi» — questa mancava del tutto, ed
-   era l'ancora che diceva al modello quanto il corpo doveva restare leggibile.
-   🔷 «Nono vuol dire poco umano» — e il fondo della scala non e' «per niente». */
+/* Il controllo è binario: SÌ conserva una forma umana leggibile, NO lascia
+   vincere la Family. I valori interni 5/2 mantengono compatibili i vecchi
+   record e il compilatore, ma non sono più una scala mostrata al prodotto. */
 
 const livelli = new Map();
 let fuori = 0;
@@ -2575,39 +2575,19 @@ for (let seed = 1; seed <= 3000; seed++) {
   if (d.humanoidity < 1 || d.humanoidity > 5) fuori++;
 }
 const visti = [...livelli.keys()].sort();
-console.log(`  ····  livelli visti: ${visti.map((l) => `${l}/5 (${livelli.get(l)})`).join(' · ')}`);
+console.log(`  ····  esiti: ${visti.map((l) => `${l === 5 ? 'SÌ' : 'NO'} (${livelli.get(l)})`).join(' · ')}`);
 
-check(fuori === 0, 'ogni forma ha un livello di umanoidita fra 1 e 5');
+check(fuori === 0, 'ogni forma conserva un valore interno valido');
 check(
-  Math.min(...visti) >= m.HUMANOIDITY_FLOOR,
-  `nessuna forma scende sotto ${m.HUMANOIDITY_FLOOR}/5: VINZ.MON resta Vinz in un altro corpo`,
-  `il piu basso visto e ${Math.min(...visti)}/5`,
+  visti.length === 2 && visti[0] === 2 && visti[1] === 5,
+  'Humanoidity ha soltanto i due esiti NO e SÌ',
+  `valori interni visti: ${visti.join(', ')}`,
 );
+const umanoidi = livelli.get(5) ?? 0;
 check(
-  visti.length >= 3,
-  'e la scala si usa davvero, non e un valore fisso travestito da parametro',
-  `${visti.length} livelli distinti su 3000 nascite`,
-);
-check(
-  m.humanoidityLevel(1).it === 'poco umano' &&
-    m.HUMANOIDITY.every((h) => !/per niente/i.test(h.it)),
-  'nessun gradino si chiama «per niente umano»',
-  'una cosa senza niente di umano non e piu lui, e §3 chiede comunque una faccia leggibile',
-);
-/* 🔒 Ogni gradino porta i suoi DIVIETI: sono la parte che impedisce davvero un
-   risultato brutto — l'animale in piedi, l'umano con gli accessori, il furry. */
-check(
-  m.HUMANOIDITY.every((h) => h.avoid && h.avoid.length > 40),
-  'ogni gradino dice anche cosa NON deve venire fuori',
-);
-/* 🔒 E gli intervalli devono avere senso: un MICROBE non puo' essere umanoide
-   come un ANGEL, o il parametro non sta misurando niente. */
-const microbe = m.FAMS.find((f) => f.id === 'MICROBE');
-const angel = m.FAMS.find((f) => f.id === 'ANGEL');
-check(
-  microbe.humanoidity[1] < angel.humanoidity[0] + 2,
-  'un MICROBE non arriva dove arriva un ANGEL',
-  `MICROBE ${microbe.humanoidity.join('–')} contro ANGEL ${angel.humanoidity.join('–')}`,
+  umanoidi >= 1350 && umanoidi <= 1650,
+  'il sorteggio SÌ / NO resta vicino al 50%',
+  `${umanoidi} SÌ su 3000`,
 );
 
 console.log('\n═══ §7/§8 — RIFERIMENTI E DESIGNER ═══\n');

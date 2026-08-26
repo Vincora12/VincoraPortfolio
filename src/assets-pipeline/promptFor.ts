@@ -65,6 +65,27 @@ export function usaTemplateDerivati(record: MonRecord): boolean {
   );
 }
 
+/** La modalità binaria deve arrivare all'immagine qualunque sia la sorgente
+ * del prompt del Character Master (resolver, riscrittura o fallback). */
+function withHumanoidBodyMode(record: MonRecord, text: string, assetType: AssetType): string {
+  if (assetType !== 'character_master') return text;
+
+  const humanoid = record.data.humanoidity >= 5;
+  const bodyRule = humanoid
+    ? [
+        'HUMANOID BODY MODE: YES — BINDING',
+        'Use an immediately readable human body plan: one dominant head, readable human face, torso, two primary arms, two primary legs, hands, feet and upright posture.',
+        'Family, Archetype and Affinity may transform selected anatomy, materials or appendages, but must not replace the human body plan. Extra anatomy is allowed only when the selected Archetype explicitly requires it.',
+        'EYEWEAR: render real wearable eyeglasses with two physical lenses, a visible bridge and visible temples/arms positioned over the two main eyes. No visor, mask, integrated eye shell or floating optic.',
+      ].join('\n')
+    : [
+        'HUMANOID BODY MODE: NO — BINDING',
+        'Let Family and Archetype define one coherent non-human body plan. Do not default to a human mannequin, furry humanoid or human cosplay.',
+      ].join('\n');
+
+  return `${bodyRule}\n\n${text}`;
+}
+
 export function promptFor(record: MonRecord, assetType: AssetType): PromptChoice {
   if (usaTemplateDerivati(record)) {
     const tecnico = derivedPrompt(assetType);
@@ -73,13 +94,20 @@ export function promptFor(record: MonRecord, assetType: AssetType): PromptChoice
 
   if (record.resolution && RESOLVER_COVERS.includes(assetType)) {
     return {
-      text: compileFromResolution(characterDataFor(record), record.resolution).prompt,
+      text: withHumanoidBodyMode(
+        record,
+        compileFromResolution(characterDataFor(record), record.resolution).prompt,
+        assetType,
+      ),
       source: 'risoluzione',
     };
   }
 
   const written = record.compiledPrompts?.[assetType];
-  if (written) return { text: written, source: 'riscritto' };
+  if (written) return { text: withHumanoidBodyMode(record, written, assetType), source: 'riscritto' };
 
-  return { text: compilePrompt(record, assetType).text, source: 'concatenato' };
+  return {
+    text: withHumanoidBodyMode(record, compilePrompt(record, assetType).text, assetType),
+    source: 'concatenato',
+  };
 }

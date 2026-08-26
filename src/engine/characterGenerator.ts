@@ -17,7 +17,6 @@
 import {
   APPEARANCES,
   CULTURAL_ACTIVE_RANGE,
-  humanoidityLevel,
   CULTURAL_REFERENCES,
   culturalReference,
   DESIGN_DNA,
@@ -47,7 +46,7 @@ import {
   type Size,
 } from './generation-config';
 import { isEnabled, keepEnabled } from './catalogTuning';
-import { makeRng, pick, pickInt, pickMany, pickWeighted, type Rng } from './rng';
+import { chance, makeRng, pick, pickInt, pickMany, pickWeighted, type Rng } from './rng';
 import { tunedPick } from './axisTuning';
 import { buildSignalVector, evaluateFit, type GeneratorInput } from './signals';
 import { generatePaletteDna } from './colorDna';
@@ -226,7 +225,11 @@ export function generateMon(ctx: GenerationContext): GenerationResult {
   /* 09 — FASHION (§20) + marcatori personali (§9) */
   const drawnFashion = resolveFashion(rng, ctx);
   let fashion = anchored('fashion') ? prev!.fashion : drawnFashion;
-  const markers = resolveMarkers(rng, family, ctx);
+  /* HUMANOIDITY ora è una decisione binaria leggibile: metà delle forme
+     conserva un corpo umano, metà lascia vincere la morfologia della Family. */
+  const humanoidBody = chance(rng, 0.5);
+  const humanoidity = humanoidBody ? 5 : 2;
+  const markers = resolveMarkers(rng, family, ctx, humanoidBody);
   steps.push({
     step: 9,
     stage: 'FASHION',
@@ -333,25 +336,11 @@ export function generateMon(ctx: GenerationContext): GenerationResult {
      DISEGNARE, non una conseguenza di chi è la creatura — legarla ai segnali
      produrrebbe «i .mon tristi si disegnano alla McCracken», che è una regola
      che nessuno ha deciso e che si vedrebbe dopo dieci creature. */
-  /* 🔷 §5 — QUANTO RESTA UMANO. Si estrae dentro l'intervallo dichiarato dalla
-     Family, spostato dall'archetipo quando quell'archetipo è chiaramente più o
-     meno umano degli altri della sua specie.
-
-     🔒 L'intervallo è della FAMILY e lo scostamento è DICHIARATO: non si legge
-     mai dal nome dell'archetipo. «HUMANOID» dentro un id è una coincidenza di
-     catalogo, e dedurne un valore sarebbe la stessa classe di difetto della
-     taglia dedotta dalla posizione in elenco — già corretta una volta. */
-  const archDef = family.archetypes.find((a) => a.id === archetype);
-  const [hLo, hHi] = family.humanoidity;
-  const humanoidity = Math.max(
-    1,
-    Math.min(5, pickInt(rng, hLo, hHi) + (archDef?.humanShift ?? 0)),
-  );
   steps.push({
     step: 5.5,
     stage: 'HUMANOIDITY',
-    outcome: `${humanoidity}/5 — ${humanoidityLevel(humanoidity).it}`,
-    note: `${family.id} vive fra ${hLo} e ${hHi}${archDef?.humanShift ? `, ${archetype} sposta di ${archDef.humanShift}` : ''}`,
+    outcome: humanoidBody ? 'SÌ — corpo umano leggibile' : 'NO — morfologia Family libera',
+    note: 'estrazione binaria 50% / 50%',
   });
 
   /* 🔒 TEST PHASE 01 — il disegnatore resta KEN, e gli altri sei restano nel
@@ -805,12 +794,16 @@ function resolveCulturalDna(rng: Rng, ctx: GenerationContext): string[] {
    «Do not repeat the same eyewear silhouette in a recent lineage window.»
    ========================================================================= */
 
-function resolveMarkers(rng: Rng, family: FamilyDef, ctx: GenerationContext) {
+function resolveMarkers(rng: Rng, family: FamilyDef, ctx: GenerationContext, humanoidBody: boolean) {
   const recent = ctx.input.novelty.recentEyewear;
 
   const eyewear = family.supportsEyewear
     ? (() => {
-        const fresh = EYEWEAR_CATEGORIES.filter((c) => !recent.includes(c.id));
+        const physicalGlasses = EYEWEAR_CATEGORIES.filter((c) =>
+          ['HIGH-FRAME', 'OVERSIZED', 'RIMLESS', 'OPTICAL EDITORIAL', 'TRANSPARENT/CRYSTAL', 'TINTED', 'MIRRORED'].includes(c.id),
+        );
+        const available = humanoidBody ? physicalGlasses : EYEWEAR_CATEGORIES;
+        const fresh = available.filter((c) => !recent.includes(c.id));
         /* 🔷 «Poter dire: senti, fai in modo che escano di più quelli da vista.»
            Le sedici categorie si estraevano con un `pick` uniforme e non
            c'era nessun posto da cui toccarle. Adesso passano dai pesi.
@@ -818,10 +811,12 @@ function resolveMarkers(rng: Rng, family: FamilyDef, ctx: GenerationContext) {
            🔒 A pesi tutti uguali `tunedPick` fa esattamente quello che faceva
            `pick`, consumando lo stesso singolo `rng()`: finché non sposti un
            peso, non cambia niente. */
-        const cat = tunedPick(rng, 'eyewear', fresh.length > 0 ? fresh : EYEWEAR_CATEGORIES, (c) => c.id);
+        const cat = tunedPick(rng, 'eyewear', fresh.length > 0 ? fresh : available, (c) => c.id);
         return {
           category: cat.id,
-          description: `${cat.it}, costruite sul cranio di questa creatura invece che appoggiate sopra`,
+          description: humanoidBody
+            ? `${cat.it}: veri occhiali fisici indossati sul volto, con due lenti, ponte e aste visibili; non visiera, maschera o occhi integrati`
+            : `${cat.it}, costruite sul cranio di questa creatura invece che appoggiate sopra`,
         };
       })()
     : null;
@@ -1170,7 +1165,7 @@ export function evolveMon(
   const signals = buildSignalVector(ctx.input);
   const { primary, secondary } = resolveMood(rng, ctx, signals);
   const family = familyDef(prev.family);
-  const markers = resolveMarkers(rng, family, ctx);
+  const markers = resolveMarkers(rng, family, ctx, prev.humanoidity >= 5);
 
   const data: CharacterData = {
     ...prev,
