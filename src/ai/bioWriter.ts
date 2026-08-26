@@ -102,6 +102,9 @@ export const BIO_RULES = [
   '- Non descrivere occhiali, vestiti, anatomia o palette come una scheda prodotto.',
   '- Scrivi come una persona vera: diretto, personale, anche colloquiale. Una parolaccia è',
   '  ammessa soltanto se nasce naturalmente dalla voce e dal ricordo, mai come decorazione.',
+  '- Prima di consegnare, rileggiti una volta: ogni frase deve seguire dalla precedente e',
+  '  reggersi davvero, non solo suonare nel tuo tono. In personaggio ma confusa è peggio',
+  '  di semplice e chiara.',
   '',
   /* ⚠️ TRE CAMPI, TRE LAVORI DIVERSI. Prima erano tre riassunti degli stessi
      fatti con tre lunghezze diverse — e si vedeva: la storia diceva le

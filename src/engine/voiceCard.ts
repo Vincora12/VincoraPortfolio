@@ -35,7 +35,7 @@ const AFFINITY_LENS: Record<string, string> = {
   PSYCHIC: 'makes sharp associative leaps, while still explaining enough to remain understandable',
   MINERAL: 'speaks with weight and restraint; fewer claims, held more firmly',
   SLIME: 'is flexible, playful with categories and not embarrassed to change his mind',
-  BEAST: 'reacts bodily and directly, but does not become stupid, growling or feral by default',
+  BEAST: 'reacts bodily and directly; a real, brief animal sound can slip out rarely when something truly lands, but he does not become stupid, growling or feral by default',
   DRAGON: 'carries confidence and scale without becoming pompous fantasy narration',
   UNDEAD: 'uses dry understatement around endings, fatigue and absence; never performs spooky clichés',
   ALIEN: 'can phrase familiar things from an unfamiliar angle without becoming random or incomprehensible',
@@ -43,6 +43,19 @@ const AFFINITY_LENS: Record<string, string> = {
   FIRE: 'responds quickly and with conviction, then cools instead of endlessly escalating',
   POISON: 'recognises risk, subtext and bad incentives; sharpness is selective, never constant cruelty',
   FISH: 'notices context and movement around the subject, not only the subject itself',
+};
+
+/* 🔷 «Le bestie magari fanno anche dei versi da bestia» — un cane che abbaia,
+   una regola per archetipo BEAST, non un ruggito generico incollato su
+   tutti. Resta un TIC PERSONALE come gli altri sopra: uno su otto-nove
+   opzioni possibili, mai garantito, mai in ogni risposta. */
+const BEAST_SOUND: Record<string, string> = {
+  FELINE: 'a soft "miao" or a low satisfied purr',
+  CANINE: 'a short "wof" or an eager exhale',
+  URSINE: 'a low huff or growl, barely audible',
+  PRIMATE: 'a sharp hoot or grunt',
+  'HORNED MAMMAL': 'a short snort',
+  CHIMERIC: 'a sound that does not quite resolve into one animal',
 };
 
 function value(data: CharacterData, id: string): number {
@@ -139,7 +152,7 @@ function writingStyle(d: CharacterData): NonNullable<PersonalityCard['writingSty
         ], seed, 9);
 
   let reactions: string;
-  const reactionMode = seed % 5;
+  const reactionMode = seed % 6;
   if (emotion < 30) {
     reactions = 'uses no emoji or emoticons; emotion must remain in the wording';
   } else if (reactionMode <= 1) {
@@ -148,11 +161,17 @@ function writingStyle(d: CharacterData): NonNullable<PersonalityCard['writingSty
     reactions = 'may use one simple graphical emoji in an emotionally clear moment; most messages use none';
   } else if (reactionMode === 3 && humor > 55) {
     reactions = 'uses dry text reactions such as lol, mh, ah, or ... as part of speech; graphical emoji are absent';
+  } else if (reactionMode === 4 && humor > 55 && digital > 45) {
+    reactions = 'reaches for a small, current set of internet-register signals when something lands as genuinely funny or absurd — 💀 the way people use it now for dying laughing, an occasional "lol" — never stacked, never forced, absent from most messages';
   } else {
     reactions = 'almost never uses symbols; a rare :) is more natural than a colourful emoji';
   }
 
-  const signature = pick([
+  /* 🔷 «Le macchine magari ogni tanto si inceppano, ripetono una parolina
+     due tre volte» — un tic del CORPO, non della personalità: entra solo
+     quando `digitalArtifacts` è già alto, cioè quando il resto della sua
+     voce dice già "sono fatto così", non come costume aggiunto sopra. */
+  const signatureOptions = [
     'sometimes opens with a tiny reaction before the actual answer',
     'often ends on the strongest short sentence instead of summarising',
     'occasionally inserts a brief aside in parentheses',
@@ -161,7 +180,19 @@ function writingStyle(d: CharacterData): NonNullable<PersonalityCard['writingSty
     'when excited, sentence length gets shorter rather than louder',
     'occasionally corrects himself mid-thought with a dash',
     'prefers a direct answer first, then the reason on a new line',
-  ], seed, 12);
+  ];
+  if (d.family === 'MACHINE' && digital > 60) {
+    signatureOptions.push(
+      'very rarely, a word stutters for a beat — repeats once, like a skip in the signal — then the sentence carries on as normal; this is not a bit he performs, it is just something that occasionally happens to him',
+    );
+  }
+  const beastSound = d.family === 'BEAST' ? BEAST_SOUND[d.family_archetype] : undefined;
+  if (beastSound) {
+    signatureOptions.push(
+      `very rarely, when something truly lands — a laugh, a warning, pure instinct — a real, brief sound for what he is may slip out (${beastSound}), before or after the words, never instead of them`,
+    );
+  }
+  const signature = pick(signatureOptions, seed, 12);
 
   return { rhythm, punctuation, casing, paragraphs, reactions, signature };
 }
@@ -252,7 +283,10 @@ export function voiceCardBlock(record: MonRecord): string {
     '  not a checklist performed in every reply. Never mention or explain this writing fingerprint.',
     '',
     'Do not demonstrate every line in one reply. Do not turn these lenses into catchphrases,',
-    'role-play noises, technical status reports or lore exposition. Personality is selection:',
-    'what you notice first, what irritates you, what you find funny, and what you choose to say.',
+    'technical status reports or lore exposition. Personality is selection: what you notice first,',
+    'what irritates you, what you find funny, and what you choose to say.',
+    'The one exception is your own Personal Tic above, when it is literally something your body',
+    'would do (a sound, a stutter, an emoji): that can recur, rarely — it is a signature you were',
+    'born with, not a bit you perform. Never invent a second one beyond it.',
   ].join('\n');
 }
