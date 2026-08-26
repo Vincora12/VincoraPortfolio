@@ -275,11 +275,34 @@ export async function replyWithLocalTools(
 
     if (round === 0 && currentUser) history.push({ role: 'user', content: currentUser });
     history.push(assistantTurn(body.text ?? '', uses) as { role: 'assistant'; content: unknown });
-    userBlocks = resultBlocks(uses.map((use) => {
+    const toolResults = uses.map((use) => {
       if (use.name !== 'registra_pasto' || mealConfirmation?.status !== 'confirmed') return run(use);
       const input = typeof use.input === 'object' && use.input ? use.input as Record<string, unknown> : {};
       return run({ ...use, input: { ...input, pasto: mealConfirmation.slot } });
-    }));
+    });
+
+    /* Una scrittura imposta e riuscita è già la verità finale. Prima la
+       rimandavamo al provider per farla riformulare: quel secondo giro poteva
+       rifiutare il function_call_output e mostrare un errore anche DOPO aver
+       salvato correttamente in ME. Chiudiamo invece il turno sul risultato
+       reale dello strumento: niente falso «non ho accesso al diario». */
+    if (forcedWrite && uses.some((use) => use.name === forcedWrite)) {
+      const failed = toolResults.find((result) => result.isError);
+      if (failed) throw new Error(failed.content);
+      const confirmation = ({
+        registra_pasto: 'Pasto registrato in ME.',
+        registra_allenamento: 'Allenamento registrato in ME.',
+        registra_peso: 'Peso aggiornato in ME.',
+        imposta_dieta: 'Piano alimentare aggiornato in ME.',
+        imposta_piano_allenamento: 'Piano di allenamento aggiornato in ME.',
+        imposta_obiettivi_nutrizionali: 'Obiettivi nutrizionali aggiornati in ME.',
+        gestisci_me: 'ME aggiornato.',
+      } as Record<string, string>)[forcedWrite] ?? 'ME aggiornato.';
+      onChunk(confirmation);
+      return { costUsd: totalCostUsd, model: lastModel };
+    }
+
+    userBlocks = resultBlocks(toolResults);
     currentUser = '';
   }
 

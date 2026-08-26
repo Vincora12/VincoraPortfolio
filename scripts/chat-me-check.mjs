@@ -74,7 +74,6 @@ const replies = [
     costUsd: 0.001,
     model: 'test-model',
   },
-  { text: 'Pasto registrato in ME.', costUsd: 0.001, model: 'test-model' },
   {
     toolUses: [{ id: 'meal-2', name: 'registra_pasto', input: {
       pasto: 'spuntino', descrizione: 'Yogurt greco', kcal: 120,
@@ -83,7 +82,6 @@ const replies = [
     costUsd: 0.001,
     model: 'test-model',
   },
-  { text: 'Pasto extra registrato in ME.', costUsd: 0.001, model: 'test-model' },
   { text: 'Hai corso per 45 minuti.', costUsd: 0.001, model: 'test-model' },
   {
     toolUses: [{ id: 'workout-1', name: 'registra_allenamento', input: {
@@ -92,7 +90,6 @@ const replies = [
     costUsd: 0.001,
     model: 'test-model',
   },
-  { text: 'Allenamento registrato in ME.', costUsd: 0.001, model: 'test-model' },
 ];
 const originalFetch = globalThis.fetch;
 const toolCounts = [];
@@ -155,7 +152,6 @@ try {
   );
   replies.push(
     { toolUses: [{ id: 'plan-1', name: 'imposta_piano_allenamento', input: { titolo: 'Piano settimanale', testo: 'Lunedì: allenamento' } }], costUsd: 0.001, model: 'test-model' },
-    { text: 'Allenamento inserito lunedì nel piano.', costUsd: 0.001, model: 'test-model' },
   );
   await m.replyWithLocalTools(
     [], 'Inserisci allenamento il lunedì', new AbortController().signal, () => {}, run, 'test-model', [], undefined, undefined,
@@ -167,7 +163,7 @@ try {
   check(journal.meals[1]?.slot === 'extra', 'un secondo pasto nello stesso momento diventa extra');
   check(journal.workouts.length === 1, 'l’allenamento detto in chat entra nel diario ME');
   check(journal.workoutPlan?.text.includes('Lunedì'), 'l’allenamento futuro entra nel piano settimanale');
-  check(toolNames[8]?.includes('imposta_piano_allenamento'), 'il piano richiesto è realmente incluso tra gli strumenti inviati al backend');
+  check(toolNames[5]?.includes('imposta_piano_allenamento'), 'il piano richiesto è realmente incluso tra gli strumenti inviati al backend');
   check(journal.workouts[0]?.minutes === 45, 'ME legge durata e dettagli dell’allenamento');
   check(journal.meals[0]?.source === 'chat' && journal.workouts[0]?.source === 'chat', 'la provenienza resta CHAT');
   check(toolCounts.every((count) => count <= 12), 'ogni richiesta resta entro il limite di 12 strumenti');
@@ -175,8 +171,8 @@ try {
   check(proposal.includes('Confermi che lo registro come **spuntino**?'), 'prima del salvataggio chiede conferma del momento intuito');
   check(toolChoices[0] === null && toolChoices[1] === 'registra_pasto', 'la scrittura del pasto diventa obbligatoria solo dopo il sì');
   check(workoutProposal.includes('Confermi che registro questo **allenamento** in ME?'), 'anche l’allenamento chiede conferma prima del salvataggio');
-  check(toolChoices[6] === 'registra_allenamento', 'il backend forza la scrittura dell’allenamento solo dopo il sì');
-  check(!toolNames[0]?.includes('registra_pasto') && !toolNames[5]?.includes('registra_allenamento'), 'prima della conferma gli strumenti di scrittura del nuovo log non vengono esposti al modello');
+  check(toolChoices[4] === 'registra_allenamento', 'il backend forza la scrittura dell’allenamento solo dopo il sì');
+  check(!toolNames[0]?.includes('registra_pasto') && !toolNames[3]?.includes('registra_allenamento'), 'prima della conferma gli strumenti di scrittura del nuovo log non vengono esposti al modello');
   check(imageCounts[0] === 2, 'le due foto del pasto arrivano insieme al ciclo che aggiorna ME');
   run({ id: 'diet-1', name: 'imposta_dieta', input: { titolo: 'Piano settimanale', testo: 'Colazione: yogurt' } });
   run({ id: 'targets-1', name: 'imposta_obiettivi_nutrizionali', input: { kcal: 2100, proteine: 160 } });
