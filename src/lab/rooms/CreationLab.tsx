@@ -54,12 +54,12 @@ import '../skin/creation.css';
 
 const TABS = [
   { id: 'map', label: 'FLOW' },
+  { id: 'taxonomy', label: 'TASSONOMIA' },
   { id: 'train', label: 'BUILD' },
   { id: 'learned', label: 'LEARNED' },
   { id: 'state', label: 'STATE' },
   { id: 'versions', label: 'HISTORY' },
   { id: 'assistant', label: '🤖 ASSISTENTE' },
-  { id: 'taxonomy', label: '🧬 PROPONI' },
 ];
 
 export function CreationLab({ onBack }: { onBack: () => void }) {

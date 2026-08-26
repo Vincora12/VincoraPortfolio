@@ -79,9 +79,8 @@ export function StepTuning({ assi }: { assi: AsseDelPasso[] }) {
   /* ==========================================================================
      LA PROVA
 
-     🔒 200 creature e non 20: sotto il centinaio le percentuali ballano da
-     sole e uno legge come effetto della sua modifica quello che è solo
-     rumore. È la stessa ragione per cui `verify:batch` gira su migliaia.
+     Prova rapida da 5 creature: verifica subito se il filtro scelto viene
+     rispettato. Non sostituisce la verifica statistica completa.
      ====================================================================== */
   const generaEConta = async (a: AsseDelPasso) => {
     setGira(true);
@@ -92,7 +91,7 @@ export function StepTuning({ assi }: { assi: AsseDelPasso[] }) {
       const input = generatorInput(useApp.getState());
 
       const conte = new Map<string, number>();
-      const N = 200;
+      const N = 5;
       for (let i = 0; i < N; i++) {
         const r = generateFirstMon({
           input,
@@ -186,7 +185,7 @@ export function StepTuning({ assi }: { assi: AsseDelPasso[] }) {
               onClick={() => void generaEConta(a)}
               disabled={gira}
             >
-              {gira ? 'GENERO 200…' : 'PROVA · 200 CREATURE'}
+              {gira ? 'GENERO 5…' : 'PROVA · 5 CREATURE'}
             </button>
             <button
               type="button"
@@ -231,7 +230,7 @@ export function StepTuning({ assi }: { assi: AsseDelPasso[] }) {
                 </div>
               ))}
               {prova.conte.length === 0 && (
-                <p className="hint">Nessuna delle 200 ha toccato questo asse: forse la Family che esce non lo prevede.</p>
+                <p className="hint">Nessuna delle 5 ha toccato questo asse: prova ancora o verifica se la Family estratta lo prevede.</p>
               )}
             </div>
           )}

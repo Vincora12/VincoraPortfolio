@@ -26,6 +26,7 @@ import { chiediBozza } from '../../ai/taxonomyDraftAI';
 import { DictationComposer } from '../../brain/DictationComposer';
 import {
   FAMILIES,
+  FAMILIES_V1,
   AFFINITIES,
   ROLES,
   FASHIONS,
@@ -50,6 +51,7 @@ import {
 } from '../../engine/taxonomyProposals';
 import '../skin/taxonomy-lab.css';
 import {
+  applyTaxonomyV2,
   taxonomyDescriptionVersion,
   setTaxonomyDescriptionVersion,
   type TaxonomyDescriptionVersion,
@@ -71,6 +73,7 @@ export function TaxonomyLab() {
   const [chiedendo, setChiedendo] = useState(false);
   const [errore, setErrore] = useState<string | null>(null);
   const [catalogVersion, setCatalogVersion] = useState<TaxonomyDescriptionVersion>(() => taxonomyDescriptionVersion());
+  const [familyVista, setFamilyVista] = useState('ANGEL');
 
   const [family, setFamily] = useState<FamilyDraft | null>(null);
   const [semplice, setSemplice] = useState<SimpleDraft | null>(null);
@@ -123,8 +126,8 @@ export function TaxonomyLab() {
 
   return (
     <section className="page active taxlab">
-      <div className="kicker mono">CATALOGO · UNA VOCE ALLA VOLTA</div>
-      <h1>🧬 PROPONI</h1>
+      <div className="kicker mono">CATALOGO · VERSIONI E PROPOSTE</div>
+      <h1>TASSONOMIA</h1>
       <p className="lead">
         Aggiungi una Family nuova, o rivedi una che c'è — come MICROBE. Descrivi l'idea in italiano,
         l'AI scrive la scheda tecnica completa (quella che finisce nei prompt veri), tu la correggi e
@@ -157,7 +160,10 @@ export function TaxonomyLab() {
         </div>
       </div>
 
+      <CatalogoV2 familyVista={familyVista} setFamilyVista={setFamilyVista} />
+
       <div className="taxlab-box">
+        <div className="taxlab-proposal__head mono">PROPONI UNA MODIFICA</div>
         <div className="taxlab-row">
           <label>ASSE</label>
           <div className="taxlab-choices">
@@ -235,6 +241,69 @@ export function TaxonomyLab() {
           <ProposalRow key={p.id} proposta={p} />
         ))}
       </div>
+    </section>
+  );
+}
+
+function CatalogoV2({
+  familyVista,
+  setFamilyVista,
+}: {
+  familyVista: string;
+  setFamilyVista: (id: string) => void;
+}) {
+  const catalogo = FAMILIES_V1.map((family) => applyTaxonomyV2(family));
+  const family = catalogo.find((item) => item.id === familyVista) ?? catalogo[0]!;
+  const archetipi = catalogo.reduce((totale, item) => totale + item.archetypes.length, 0);
+
+  return (
+    <section className="taxlab-catalog" aria-labelledby="catalogo-v2-title">
+      <div className="taxlab-catalog__head">
+        <div>
+          <h2 id="catalogo-v2-title">CATALOGO V2</h2>
+          <p>{catalogo.length} Family · {archetipi} archetipi · descrizioni complete usate nei prompt</p>
+        </div>
+        <span className="taxlab-version">V2</span>
+      </div>
+
+      <label className="taxlab-catalog__select">
+        FAMILY DA LEGGERE
+        <select value={family.id} onChange={(event) => setFamilyVista(event.target.value)}>
+          {catalogo.map((item) => (
+            <option key={item.id} value={item.id}>{item.id} · {item.it}</option>
+          ))}
+        </select>
+      </label>
+
+      <article className="taxlab-family">
+        <header>
+          <h3>{family.id}</h3>
+          <span>{family.it}</span>
+        </header>
+        <dl>
+          <div>
+            <dt>CORPO / ANATOMIA</dt>
+            <dd>{family.coreAnatomy}</dd>
+          </div>
+          <div>
+            <dt>REGOLA ASSOLUTA</dt>
+            <dd>{family.absoluteRule}</dd>
+          </div>
+        </dl>
+
+        <div className="taxlab-archetypes">
+          <h4>ARCHETIPI · {family.archetypes.length}</h4>
+          {family.archetypes.map((archetype) => (
+            <details key={archetype.id}>
+              <summary>
+                <strong>{archetype.id}</strong>
+                <span>{archetype.mass}</span>
+              </summary>
+              <p>{archetype.structure}</p>
+            </details>
+          ))}
+        </div>
+      </article>
     </section>
   );
 }

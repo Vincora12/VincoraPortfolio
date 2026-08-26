@@ -210,3 +210,158 @@
   font-weight: 800;
   padding: 2px 5px;
 }
+
+.taxlab-catalog {
+  border: 1px solid #111;
+  margin-bottom: 18px;
+}
+
+.taxlab-catalog__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px;
+  border-bottom: 1px solid #111;
+}
+
+.taxlab-catalog__head h2 {
+  margin: 0 0 4px;
+  font-size: 20px;
+}
+
+.taxlab-catalog__head p {
+  margin: 0;
+  color: #666;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.taxlab-version {
+  flex: 0 0 auto;
+  border: 1px solid #111;
+  padding: 5px 7px;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.taxlab-catalog__select {
+  display: block;
+  padding: 12px 14px;
+  border-bottom: 1px solid #ddd;
+  color: #666;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+}
+
+.taxlab-catalog__select select {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  margin-top: 7px;
+  border: 1px solid #111;
+  background: #fff;
+  color: #111;
+  padding: 9px;
+  font: inherit;
+  font-size: 12px;
+}
+
+.taxlab-family {
+  padding: 14px;
+}
+
+.taxlab-family > header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.taxlab-family > header h3 {
+  margin: 0;
+  font-size: 26px;
+}
+
+.taxlab-family > header span {
+  color: #666;
+  font-size: 11px;
+  text-align: right;
+}
+
+.taxlab-family dl {
+  margin: 0;
+}
+
+.taxlab-family dl > div {
+  padding: 12px 0;
+  border-top: 1px solid #ddd;
+}
+
+.taxlab-family dt,
+.taxlab-archetypes h4 {
+  margin: 0 0 6px;
+  color: #666;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+}
+
+.taxlab-family dd,
+.taxlab-archetypes p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.taxlab-archetypes {
+  margin-top: 12px;
+  border-top: 1px solid #111;
+  padding-top: 14px;
+}
+
+.taxlab-archetypes details {
+  border-top: 1px solid #ddd;
+}
+
+.taxlab-archetypes details:last-child {
+  border-bottom: 1px solid #ddd;
+}
+
+.taxlab-archetypes summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 44px;
+  cursor: pointer;
+  font-size: 11px;
+  list-style-position: inside;
+}
+
+.taxlab-archetypes summary span {
+  color: #777;
+  font-size: 9px;
+}
+
+.taxlab-archetypes details p {
+  padding: 0 0 14px 18px;
+}
+
+@media (max-width: 520px) {
+  .taxlab-catalog__head,
+  .taxlab-family {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .taxlab-family > header {
+    display: block;
+  }
+
+  .taxlab-family > header span {
+    display: block;
+    margin-top: 3px;
+    text-align: left;
+  }
+}
