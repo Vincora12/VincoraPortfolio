@@ -326,7 +326,6 @@ function renderCharacterDna(data: CharacterData): string {
     `anatomical gimmick: ${d.anatomical_gimmick}`,
     `face / eye logic: ${d.face_logic}`,
     `body-language default: ${d.body_language}`,
-    `recurring motif: ${d.recurring_motif}`,
     /* 🔶 Era un elenco di cinque esadecimali con nomi generici — «primary»,
        «light red tint» — cioè cinque colori senza un posto dove andare. Il
        master §9 vuole i RUOLI, perché è il ruolo che dice dove il colore

@@ -161,7 +161,7 @@ export const GLOBAL_FRAGMENTS: PromptFragment[] = [
        slightly ridiculous feature» assente, «facial attitude» assente.
 
        ⚠️ E non è il CHARACTER DNA che c'era già: quello individua QUESTO .mon
-       fra i suoi simili (il suo tic di sagoma, il suo motivo ricorrente).
+       fra i suoi simili (il suo tic di sagoma e la sua costruzione anatomica).
        Questo dice come dev'essere costruito QUALUNQUE .mon per funzionare come
        personaggio. È la differenza fra «cosa lo rende lui» e «cosa lo rende
        uno che ti resta in mente», e mancava la seconda.

@@ -291,7 +291,6 @@ HOW YOUR BODY BEHAVES (§41)
 - Anatomical gimmick: ${dna.anatomical_gimmick}
 - Face logic: ${dna.face_logic}
 - Body language: ${dna.body_language}
-- Recurring motif: ${dna.recurring_motif}
 ${contradictions ? `\nYOUR CONTRADICTIONS (§41) — these are the point of you, not flaws to resolve:\n${contradictions}\n` : ''}
 ${voiceBriefBlock(d.voice_dna, d.voice_preset)}
 

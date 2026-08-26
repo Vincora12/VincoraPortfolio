@@ -24,7 +24,7 @@
      Family     → quante direzioni ha la forma
      Affinity   → cosa le è successo
      Rarità     → quanto pesa il tratto, e se il centro è pieno
-     Motivo     → l'angolo: due creature identiche negli assi restano diverse
+     Identità   → l'angolo: due creature identiche negli assi restano diverse
      Heritage   → l'angolo si eredita, così una stirpe si riconosce
    ════════════════════════════════════════════════════════════════════════════
 
@@ -64,7 +64,7 @@ export interface SigilSeed {
   arms: number;
   /** Cosa le è successo. Viene dall'Affinity. */
   mutation: SigilMutation;
-  /** L'angolo. Dal motivo ricorrente, o ereditato dalla stirpe. */
+  /** L'angolo. Dall'identità del MON, o ereditato dalla stirpe. */
   rotation: number;
   /** Spessore del tratto, 1–3. Dalla rarità. */
   weight: number;
@@ -128,8 +128,8 @@ export interface SigilSources {
   family: string;
   affinity: string;
   rarity: string;
-  /** Il motivo ricorrente del Character DNA: decide l'angolo. */
-  recurringMotif: string;
+  /** Identità stabile del MON: decide l'angolo senza introdurre segni visivi. */
+  identitySeed?: string;
   /**
    * L'angolo del sigillo precedente, se questo `.mon` ne eredita qualcosa.
    * Una stirpe condivide l'inclinazione: si riconosce senza che sia scritto
@@ -155,11 +155,11 @@ export function buildSigil(sources: SigilSources): SigilSeed {
   const rotation =
     sources.inheritedRotation !== undefined
       ? sources.inheritedRotation
-      : angleFrom(sources.recurringMotif);
+      : angleFrom(sources.identitySeed ?? `${sources.family}:${sources.affinity}:${sources.rarity}`);
   from.push(
     sources.inheritedRotation !== undefined
       ? `angolo ${rotation}° ereditato dalla stirpe`
-      : `angolo ${rotation}° dal motivo ricorrente`,
+      : `angolo ${rotation}° dall'identità del MON`,
   );
 
   return { arms, mutation, rotation, weight, solidCore, from };

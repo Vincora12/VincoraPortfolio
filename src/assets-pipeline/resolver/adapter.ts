@@ -83,7 +83,6 @@ export function characterDataFor(record: MonRecord): CharacterData {
       anatomicalGimmick: d.character_dna.anatomical_gimmick,
       faceEyeLogic: d.character_dna.face_logic,
       bodyLanguageDefault: d.character_dna.body_language,
-      recurringMotif: d.character_dna.recurring_motif,
       contradictions: d.character_dna.contradictions.map((c) => `${c.a} / ${c.b}`),
     },
   };

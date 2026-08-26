@@ -541,7 +541,14 @@ export function generateMon(ctx: GenerationContext): GenerationResult {
 export function generateFirstMon(
   ctx: Omit<GenerationContext, 'heritageOrigins' | 'previous'>,
 ): GenerationResult {
-  return generateMon({ ...ctx, heritageOrigins: [], previous: null });
+  return generateMon({
+    ...ctx,
+    heritageOrigins: [],
+    previous: null,
+    // Una ANGEL Basic nasce sempre con anatomia umana semplice. Per tutte le
+    // altre Family il filtro non trova questi id e lascia intatto il catalogo.
+    allowedArchetypes: ctx.allowedArchetypes ?? ['PUTTO', 'MESSENGER', 'GUARDIAN'],
+  });
 }
 
 /* ============================================================================
@@ -971,13 +978,6 @@ function generateCharacterDna(
         : FACE_LOGIC,
     ),
     body_language: pick(rng, BODY_LANGUAGE),
-    recurring_motif: pick(rng, [
-      'un piccolo segno ripetuto tre volte',
-      'una forma a occhio che torna ovunque',
-      'una fascia che attraversa il corpo',
-      'un nodo, sempre nello stesso punto',
-      'una serie di fori allineati',
-    ]),
     contradictions: pickMany(rng, CONTRADICTIONS, pickInt(rng, 1, 3)),
     traits: pickMany(rng, TRAITS, 3),
     drives: pickMany(rng, DRIVES, 2),
@@ -1066,7 +1066,6 @@ function generateBio(data: CharacterData, ctx: GenerationContext): BioFile {
     ],
     rememberedDetails: [
       `La mia sagoma: ${data.character_dna.silhouette_quirk}`,
-      `Torna sempre: ${data.character_dna.recurring_motif}`,
       data.heritage_traits.length > 0
         ? `Vengo anche da ${displayName(data.heritage_traits[0]!.from_mon)}`
         : 'Primo nodo, nessun prima',
@@ -1093,7 +1092,7 @@ function generateSigil(data: CharacterData, previous: MonRecord | null): SigilSe
     family: data.family,
     affinity: data.affinity,
     rarity: data.rarity,
-    recurringMotif: data.character_dna.recurring_motif,
+    identitySeed: `${data.name}:${data.family}:${data.affinity}`,
     /* `previous?.sigil` e non `previous.sigil`: un record senza sigillo non
        deve far cadere una generazione. Succede con un salvataggio piu vecchio
        di questo file, e la risposta giusta e «non eredita l'angolo», non un

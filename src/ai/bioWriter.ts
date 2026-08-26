@@ -60,7 +60,7 @@ export const BIO_RULES = [
 
      «Non ne togli» era l'errore, ed era mio. Il modello riceve venti fatti —
      Family, archetipo, affinità, taglia, ruolo, fashion, umore, contraddizioni,
-     spinte, tratti, il trucco anatomico, la sagoma, il motivo ricorrente, il
+     spinte, tratti, il trucco anatomico, la sagoma, il
      linguaggio del corpo, gli occhiali, l'eredità — e gli si diceva di non
      toglierne nessuno. Ha fatto quello che gli era stato chiesto: un collage
      corretto. Ogni frase vera, e nessuna che suoni come una persona.
@@ -176,7 +176,6 @@ function factsOf(record: MonRecord): string {
     `COME SEI: ${dna.traits.join(' · ')}`,
     `NEL CORPO TI PORTI: ${dna.anatomical_gimmick}`,
     `LA TUA SAGOMA: ${dna.silhouette_quirk}`,
-    `TORNA SEMPRE: ${dna.recurring_motif}`,
     `QUANDO NON SAI CHE FARE: ${dna.body_language}`,
     d.eyewear ? `SUGLI OCCHI: ${d.eyewear.description}` : 'NIENTE LENTI: guardi diretto.',
     '',

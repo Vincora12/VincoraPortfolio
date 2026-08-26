@@ -51,10 +51,6 @@ export function selectHeritageOrigins(rng: Rng, previous: MonRecord): HeritageOr
       origin: `il colore dominante: ${p.palette_dna.swatch_names[0]} — ${p.palette_dna.primary}`,
     },
     {
-      category: 'symbol',
-      origin: `il motivo ricorrente: ${p.character_dna.recurring_motif}`,
-    },
-    {
       category: 'contradiction',
       origin: p.character_dna.contradictions[0]
         ? `la contraddizione fra ${p.character_dna.contradictions[0].a} e ${p.character_dna.contradictions[0].b}`

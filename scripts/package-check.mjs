@@ -48,7 +48,7 @@ export { voiceBrief, voiceBriefBlock } from '${cwd}/src/engine/voiceBrief.ts';
 export { buildVoiceSystemPrompt } from '${cwd}/src/ai/voicePrompt.ts';
 export { generateVoiceDna } from '${cwd}/src/engine/voiceDna.ts';
 export { tasteBrief, formeGiaViste } from '${cwd}/src/assets-pipeline/resolver/taste.ts';
-export { FASHIONS, SIZE_GRAMMAR, HAIR_STATES, HUMANOIDITY, TEST_PHASE, lockedIn, DESIGN_DNA as ALL_DESIGNERS, FAMILIES, SIZES } from '${cwd}/src/engine/generation-config.ts';
+export { FASHIONS, SIZE_GRAMMAR, HAIR_STATES, HUMANOIDITY, EYEWEAR_CATEGORIES, TEST_PHASE, lockedIn, DESIGN_DNA as ALL_DESIGNERS, FAMILIES, SIZES } from '${cwd}/src/engine/generation-config.ts';
 export { RESOLVER_MEMORY, MEMORY_FINGERPRINTS } from '${cwd}/src/assets-pipeline/resolver/memory.ts';
 export { DESIGN_DNA } from '${cwd}/src/engine/generation-config.ts';
 export { FRAGMENT_LIBRARY } from '${cwd}/src/assets-pipeline/fragments.ts';
@@ -899,6 +899,52 @@ console.log('\n═══ TEMPERAMENTO ═══\n');
    ========================================================================= */
 
 console.log('\n═══ TEST PHASE 01 ═══\n');
+
+const angelBasic = [];
+for (let seed = 1; seed <= 60; seed++) {
+  angelBasic.push(
+    m.generateFirstMon({
+      input,
+      mindlineNodeId: `angel_basic_${seed}`,
+      originNodeId: null,
+      lineageNames: [],
+      seed: seed * 7919,
+    }).record,
+  );
+}
+const basicAngelArchetypes = new Set(['PUTTO', 'MESSENGER', 'GUARDIAN']);
+check(
+  angelBasic
+    .filter((r) => r.data.family === 'ANGEL')
+    .every((r) => basicAngelArchetypes.has(r.data.family_archetype)),
+  'una Basic ANGEL usa soltanto anatomie umane semplici',
+  'PUTTO · MESSENGER · GUARDIAN',
+);
+check(
+  angelBasic.every((r) => !('recurring_motif' in r.data.character_dna)),
+  'il motivo ricorrente non esiste più nei Character Data',
+);
+
+const eyewearCounts = new Map(m.EYEWEAR_CATEGORIES.map((e) => [e.id, 0]));
+for (let seed = 1; seed <= 1600; seed++) {
+  const r = m.generateFirstMon({
+    input,
+    mindlineNodeId: `eyewear_${seed}`,
+    originNodeId: null,
+    lineageNames: [],
+    seed: seed * 104729,
+  }).record;
+  const id = r.data.eyewear?.category;
+  if (id) eyewearCounts.set(id, (eyewearCounts.get(id) ?? 0) + 1);
+}
+const eyewearValues = [...eyewearCounts.values()];
+const eyewearAverage = eyewearValues.reduce((a, b) => a + b, 0) / eyewearValues.length;
+const shieldCount = eyewearCounts.get('SHIELD') ?? 0;
+check(
+  eyewearValues.every((n) => n > 0) && shieldCount <= eyewearAverage * 1.35,
+  'SHIELD non è favorito e tutte le categorie restano raggiungibili',
+  `SHIELD ${shieldCount} · media ${eyewearAverage.toFixed(1)} su 1.600 generazioni`,
+);
 
 const forme = [];
 for (let seed = 1; seed <= 30; seed++) {
