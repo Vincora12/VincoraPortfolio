@@ -175,7 +175,94 @@ const questions = count(SCAN, /^ {4}index: \d+,$/gm);
 
 check('SIGNAL SCAN §12', 'dodici domande', questions === 12, `${questions} trovate`);
 check('SIGNAL SCAN §12', 'la schermata esiste', existsSync('src/screens/PersonalityScan.tsx'));
-check('SIGNAL SCAN §12', 'è la prima fase della partita', has(STORE, "phase: 'scan' as Phase"));
+/* 🔶 L'AGO ERA `phase: 'scan' as Phase` E ADESSO GUARDA UN'ALTRA COSA, perché
+   la decisione è cambiata per davvero: VINZMON_COMPLETE_NARRATIVE_SYSTEM v4
+   §3 mette il First Sync all'ingresso e §3.2 dichiara il vecchio percorso
+   «no longer canonical».
+
+   ⚠️ Ma NON si cancella: quello che va protetto adesso è la compatibilità.
+   Un salvataggio fermo a metà delle dodici domande deve poterle finire, e
+   l'unico modo perché resti vero è che qualcuno lo controlli. Quindi l'ago
+   verifica che la fase esista ancora e che la schermata sia ancora montata. */
+check('SIGNAL SCAN §12', 'resta raggiungibile per i salvataggi vecchi', has(STORE, "| 'scan'"));
+check(
+  'SIGNAL SCAN §12',
+  'e la sua schermata è ancora montata',
+  has('src/App.tsx', "case 'scan':"),
+);
+
+/* ============================================================================
+   FIRST SYNC — VINZMON_COMPLETE_NARRATIVE_SYSTEM v4 §3
+   ========================================================================= */
+
+const SYNC = 'src/engine/firstSync.ts';
+const syncQuestions = count(SYNC, /^ {4}index: \d+,$/gm);
+
+check('FIRST SYNC §3', 'sedici domande', syncQuestions === 16, `${syncQuestions} trovate`);
+check('FIRST SYNC §3', 'la schermata esiste', existsSync('src/screens/FirstSync.tsx'));
+check('FIRST SYNC §3', 'è la prima fase della partita', has(STORE, "phase: 'first-sync' as Phase"));
+/* 🔒 §3.1 — «Do not show percentages by default». L'ago guarda la schermata,
+   non il motore: i conteggi ESISTONO e servono a DEV, quello che non deve
+   esistere è una percentuale sotto gli occhi dell'utente. */
+/* 🔒 §3.1 — «Do not show percentages by default». I conteggi per polo ESISTONO
+   e servono a DEV; quello che non deve succedere è che finiscano nella
+   schermata dell'utente. L'ago guarda proprio quello: `counts` non si legge
+   in `FirstSync.tsx`. */
+check(
+  'FIRST SYNC §3.1',
+  'i conteggi per polo non finiscono in interfaccia',
+  !has('src/screens/FirstSync.tsx', '.counts'),
+);
+check(
+  'FIRST SYNC §3.1',
+  'e dice che non è una diagnosi',
+  has('src/screens/FirstSync.tsx', 'Non è una diagnosi'),
+);
+/* §3: i 12 archetipi narrativi NON sono il test dell'utente. Se un giorno
+   qualcuno li usasse qui, questo strato tornerebbe a essere quello che il
+   brief passa tre paragrafi a dire che non è. */
+check(
+  'FIRST SYNC §3',
+  'non usa i 12 archetipi narrativi come test',
+  !has(SYNC, 'NARRATIVE_ARCHETYPES'),
+);
+
+/* --- §3.2 / §4 — niente incubazione, tre letture --- */
+
+check('PRIMO MON §4', 'la scelta fra tre letture esiste', existsSync('src/screens/EggChoice.tsx'));
+check('PRIMO MON §4', 'si vedono solo Family e Affinità', has('src/screens/EggChoice.tsx', 'egg.data.affinity'));
+check(
+  'PRIMO MON §4',
+  'e le altre due non entrano nel Dex',
+  has(STORE, 'eggs: []'),
+);
+check(
+  'PRIMO MON §3.2',
+  'il percorso nuovo non passa dall’incubazione',
+  has(STORE, 'function afterProtocolPhase'),
+);
+
+/* --- §13 / §15.1 — mondo e categorie epistemiche --- */
+
+const WORLD = 'src/engine/world.ts';
+check('MONDO §13', 'il mondo esiste come strato suo', existsSync(WORLD));
+check(
+  'MONDO §13',
+  'appartiene al MON e non alla forma',
+  has(WORLD, 'IL MONDO APPARTIENE AL MON, NON ALLA FORMA'),
+);
+check(
+  'MONDO §15.1',
+  'ogni voce di canone dichiara da dove viene',
+  has(WORLD, 'epistemic: Epistemic'),
+);
+check(
+  'MONDO §15.1',
+  'e un’ipotesi non si promuove da sola',
+  has(WORLD, 'export function promoteConnection'),
+);
+check('MONDO §14', 'il ritorno non ricarica un salvataggio', has(WORLD, 'export function returnBlock'));
+check('MONDO §10.2', 'il registro dice cosa non ripetere', has(WORLD, 'doNotRepeat'));
 check(
   'SIGNAL SCAN §12',
   'nessuna risposta nomina una Family',

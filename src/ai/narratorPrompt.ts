@@ -42,6 +42,8 @@ import { AI_STEPS } from '../../netlify/functions/_shared/routing';
 import type { BackendFailure } from './backend';
 import type { MonRecord } from '../engine/types';
 import { displayName } from '../engine/types';
+import { ledgerBlock, returnBlock, worldBlock } from '../engine/world';
+import type { ReturnContext, StoryLedger, World } from '../engine/world';
 
 /* --- Le regole, in cache --------------------------------------------------- */
 
@@ -129,12 +131,23 @@ export async function writeNarratorWithAi(
   token: string | null,
   record: MonRecord,
   compilerModel?: string | null,
+  /**
+   * 🔷 v4 §10.2 — cosa è già stato raccontato.
+   *
+   * Facoltativo perché la nascita del PRIMO mon non ha niente alle spalle, ed
+   * è giusto che il registro sia vuoto lì. Da lì in poi arriva sempre: un
+   * narratore che non sa cosa ha già detto ripete il corridoio finché il
+   * corridoio non vuol più dire niente.
+   */
+  context?: { world: World | null; ledger: StoryLedger },
 ): Promise<NarratorOutcome> {
   const { data, failure, detail } = await ask<{ text: string }>(token, {
     capability: 'prompt-compile',
     voiceModel: compilerModel,
     system: [{ text: NARRATOR_RULES, cache: true }],
-    user: factsOf(record),
+    user: context
+      ? [factsOf(record), '', worldBlock(context.world), '', ledgerBlock(context.ledger)].join('\n')
+      : factsOf(record),
     effort: AI_STEPS.narrator.effort,
     maxTokens: AI_STEPS.narrator.maxTokens,
   });
@@ -186,6 +199,95 @@ function parseNarrator(raw: string): string[] | null {
  * della voce AI: è la rete di sicurezza che garantisce che il narratore
  * parli SEMPRE, come chiesto.
  */
+/* ============================================================================
+   §14 — RETURN / «RIPARTI DA QUI»
+
+   🔷 «Return is not loading an old save. The user returns as their current
+   self. Past canon remains intact while the World may have changed.»
+
+   ⚠️ REGOLE PROPRIE, NON UN SECONDO GIRO DI QUELLE DI SOPRA. Un arrivo dice
+   «è successo qualcosa di nuovo»; un ritorno dice «questo posto è andato
+   avanti». Sono due tempi verbali diversi, e con lo stesso prompt il modello
+   scriverebbe una seconda nascita — che è il modo in cui un ritorno smette di
+   pesare.
+   ========================================================================= */
+
+export const RETURN_RULES = [
+  'Sei VINZ.MON: il sistema che riapre un posto già indicizzato, non che ne annuncia uno nuovo.',
+  '',
+  'COSA STA SUCCEDENDO — leggilo bene, è tutta la differenza:',
+  '- Questo posto ESISTE GIÀ. Quello che è scritto nel canone è successo davvero e non si tocca.',
+  '- Chi torna è la forma di ADESSO, non quella di allora. Non fingere che non sia cambiato niente.',
+  '- Il tempo è passato ANCHE PER IL POSTO. Non è come è stato lasciato, e non è un\'altra cosa:',
+  '  è lo stesso posto più vecchio. Qualcosa si è consumato, qualcosa si è aperto.',
+  '- Non stai facendo nascere niente. Non usare il vocabolario dell\'arrivo.',
+  '',
+  'PREFERISCI RACCOGLIERE INVECE DI PIANTARE.',
+  '- Se c\'è un filo aperto nel registro, tiralo: vale più di un\'immagine nuova.',
+  '- Non ripetere quello che il registro dice che hai già fatto.',
+  '- Puoi lasciare una cosa sola in sospeso, non tre.',
+  '',
+  'REGISTRO — le stesse regole di voce di sempre:',
+  '- Blocchi corti. Qualche etichetta da sistema, non una per riga.',
+  '- Contrasto fra la riga fredda e l\'immagine viva.',
+  '- MAI codice vero, MAI errori finti a ripetizione, MAI decorazioni ASCII.',
+  '- MAI dichiarare cosa una cosa SIGNIFICA per chi legge: puoi dire cosa è cambiato, non perché.',
+  '',
+  'COSA CONSEGNI — un oggetto JSON, e nient\'altro:',
+  '{',
+  '  "lines": ["4-7 blocchi. Il primo dice che il posto è stato riaperto.",',
+  '            "Poi cosa è cambiato mentre non c\'eravate.",',
+  '            "L\'ultimo lascia una cosa aperta, non conclude."]',
+  '}',
+  '',
+  'Solo il JSON. Nessuna premessa, nessun commento, nessun blocco di codice.',
+].join('\n');
+
+export async function writeReturnWithAi(
+  token: string | null,
+  compilerModel: string | null | undefined,
+  ctx: ReturnContext,
+): Promise<NarratorOutcome> {
+  const { data, failure, detail } = await ask<{ text: string }>(token, {
+    capability: 'prompt-compile',
+    voiceModel: compilerModel,
+    system: [{ text: RETURN_RULES, cache: true }],
+    user: returnBlock(ctx),
+    effort: AI_STEPS.narrator.effort,
+    maxTokens: AI_STEPS.narrator.maxTokens,
+  });
+
+  if (!data?.text) return { line: null, failure, rejected: detail ?? null };
+
+  const parsed = parseNarrator(data.text);
+  if (!parsed) return { line: null, failure: null, rejected: 'risposta non leggibile come JSON' };
+
+  const blob = parsed.join(' ');
+  if (/[{}]/.test(blob) || /```/.test(data.text)) {
+    return { line: null, failure: null, rejected: 'ha scritto codice letterale' };
+  }
+
+  return { line: parsed.join('\n'), failure: null, rejected: null };
+}
+
+/** Il ritorno senza chiave, costruito solo sul canone già scritto. */
+export function returnFallbackLine(ctx: ReturnContext): string {
+  const last = ctx.world.canon.at(-1);
+  return [
+    '> TRACCIA RIAPERTA',
+    `> luogo: ${ctx.world.name}`,
+    `> ultimo segnale: giorno ${last?.day ?? ctx.world.emergedOnDay}`,
+    '',
+    ctx.elapsedDays > 0
+      ? `Sono passati ${ctx.elapsedDays} giorni. Il posto non ti ha aspettato.`
+      : 'Il posto è quasi come lo hai lasciato.',
+    `Chi rientra è ${displayName(ctx.record.data.name)}, la forma di adesso.`,
+    'Quello che era vero qui è ancora vero. Il resto va guardato di nuovo.',
+    '',
+    '[TRACCIA APERTA]',
+  ].join('\n');
+}
+
 export function narratorFallbackLine(record: MonRecord): string {
   const d = record.data;
   const name = displayName(d.name);

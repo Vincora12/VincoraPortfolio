@@ -168,6 +168,22 @@ export interface BioOutcome {
 export interface BioMemoryContext {
   /** Solo ricordi realmente salvati: il writer non può ricostruirli o completarli. */
   memories: Memory[];
+  /**
+   * 🔷 v4 §9 — la lente del First Sync, se c'è.
+   *
+   * ⚠️ ARRIVA COME LENTE E NON COME FATTO, ed è la distinzione che §15 protegge:
+   * il .mon non deve MAI dire «chi mi ha fatto nascere è un ENTJ». Quel codice
+   * dice da dove si guarda questa creatura, non chi è la persona dall'altra
+   * parte — e la riga che lo accompagna nel prompt lo dichiara.
+   */
+  lens?: string;
+  /**
+   * 🔷 v4 §9 — il mondo e quello che ci è già successo.
+   *
+   * «ORIGIN BIO = generation data + First Sync result + Narrative DNA +
+   * Culture DNA + relevant life context + hatch / first World.»
+   */
+  world?: string;
 }
 
 function factsOf(record: MonRecord, context?: BioMemoryContext): string {
@@ -187,6 +203,16 @@ function factsOf(record: MonRecord, context?: BioMemoryContext): string {
        questo strato: `?` non `undefined` sparso, si salta la riga. */
     ...(d.narrativeDNA
       ? [`LA SPINA NARRATIVA (non pronunciare le etichette): sei un ${d.narrativeDNA.archetype}; nella storia adesso fai da ${d.narrativeDNA.function}`]
+      : []),
+    /* 🔷 v4 §9 — la lente e il posto. Facoltativi: una creatura nata prima di
+       questo strato non li ha, e la bio deve restare scrivibile lo stesso. */
+    ...(context?.lens ? [context.lens] : []),
+    ...(context?.world
+      ? [
+          '',
+          'IL POSTO IN CUI SEI ARRIVATO — puoi nominarlo o ignorarlo, ma non contraddirlo:',
+          context.world,
+        ]
       : []),
     `UMORE DI FONDO: ${d.mood_primary}${d.mood_secondary ? ` con dentro ${d.mood_secondary}` : ''}`,
     '',

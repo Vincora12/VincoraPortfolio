@@ -16,6 +16,7 @@ import { FolderTabs, IconButton } from '../system/components';
 import { buildLabel } from '../system/build';
 import { CatalogSection } from './CatalogSection';
 import { BioSection } from './BioSection';
+import { WorldSection } from './WorldSection';
 import { ResolverSection } from './ResolverSection';
 import { ModelsSection } from './ModelsSection';
 import { TeachSection } from './TeachSection';
@@ -44,6 +45,7 @@ type DevTab =
   | 'time'
   | 'signals'
   | 'mindline'
+  | 'world'
   | 'generate'
   | 'bio'
   | 'resolver'
@@ -107,6 +109,10 @@ const GROUPS: { id: DevGroup; label: string; tabs: { id: DevTab; label: string }
          verranno risolte tutte quelle dopo. */
       { id: 'teach', label: 'INSEGNA' },
       { id: 'mindline', label: 'MINDLINE' },
+      /* 🔷 v4 §13 — il mondo, il canone e il registro narrativo. Sta in
+         CREATURA perché il mondo appartiene al MON: è la sua storia, non una
+         mappa a parte. */
+      { id: 'world', label: 'MONDO' },
       /* 🔷 v1.16 §15.3 — la rarità era l'unica parte del motore che non si
          poteva guardare mentre la si tarava. */
       { id: 'rarity', label: 'RARITÀ' },
@@ -221,6 +227,7 @@ export function DevPanel({ onClose, onGo }: { onClose: () => void; onGo?: (o: 'a
         {inGroup && tab === 'mindline' && <MindlineSection onClose={onClose} />}
         {inGroup && tab === 'generate' && <GenerateSection onClose={onClose} />}
         {inGroup && tab === 'bio' && <BioSection />}
+        {inGroup && tab === 'world' && <WorldSection />}
         {inGroup && tab === 'resolver' && <ResolverSection />}
         {inGroup && tab === 'teach' && <TeachSection />}
         {inGroup && tab === 'voice' && <VoiceSection />}

@@ -130,6 +130,26 @@ import {
   seedFromAnswers,
   type ScanAnswers,
 } from '../engine/personalityScan';
+import {
+  firstSyncResult,
+  isSyncComplete,
+  lensLine,
+  seedFromSync,
+  type FirstSyncResult,
+  type SyncAnswers,
+} from '../engine/firstSync';
+import {
+  emptyLedger,
+  seedWorld,
+  withCanon,
+  worldBlock,
+  promoteConnection,
+  payOff,
+  type CanonKind,
+  type Epistemic,
+  type StoryLedger,
+  type World,
+} from '../engine/world';
 import { deservesThinking, extractFromMessage, extractionLabels } from '../engine/chatExtract';
 import { eggReply } from '../engine/eggVoice';
 import { typingRhythmFor } from '../engine/typingRhythm';
@@ -185,13 +205,38 @@ import { STAT_KEYS, UNKNOWN, displayName, isKnown } from '../engine/types';
 import { dropKeptAssets, keepAssetsOf, preloadMonAssets, restoreKeptAssets } from '../assets-pipeline/assetStore';
 
 export type Phase =
-  /** 🔶 §12 — il Signal Scan semina la personalità PRIMA che il tempo cominci. */
+  /**
+   * 🔷 v4 §3 — FIRST SYNC, il test dei 16 tipi. È l'ingresso di chi arriva
+   * adesso, e la prima cosa che l'app fa.
+   */
+  | 'first-sync'
+  /**
+   * 🔷 v4 §4 — le tre interpretazioni. Si vede Family + Affinità e nient'altro.
+   */
+  | 'egg-choice'
+  /**
+   * 🔶 §12 — il Signal Scan semina la personalità PRIMA che il tempo cominci.
+   *
+   * 🔒 RESTA PER I SALVATAGGI GIÀ COMINCIATI, non per chi arriva ora. È la
+   * «smallest compatibility layer possible» che §1 del brief v4 chiede: chi
+   * era a metà delle dodici domande le finisce, invece di trovarsi la partita
+   * ricominciata da un test che non ha mai visto.
+   */
   | 'scan'
   /**
    * 🔶 v1.10 §5.3 — la dieta e l'allenamento che segui. Senza questo, «hai
    * mangiato?» è l'unica domanda possibile sul cibo, e non è quella giusta.
    */
   | 'protocol'
+  /**
+   * 🔶 L'attesa dei sette giorni.
+   *
+   * 🔒 FUORI DAL PERCORSO NUOVO, VIVA PER QUELLO VECCHIO. §3.2 del brief v4:
+   * «The old one-week incubation must not be preserved as user-facing
+   * onboarding behavior. Legacy saves still need compatibility.» Chi ha
+   * un'uovo a metà strada lo porta a termine; chi comincia oggi non passa
+   * mai di qui.
+   */
   | 'incubation'
   /** Rivelazione della prima forma. */
   | 'first-encounter'
@@ -332,6 +377,41 @@ interface AppState {
   personality: PersonalitySeed;
   /** §12 — le risposte del Signal Scan, conservate per poterle rileggere. */
   scanAnswers: ScanAnswers;
+  /**
+   * 🔷 v4 §3 — le risposte del FIRST SYNC, il test dei 16 tipi.
+   *
+   * ⚠️ ACCANTO A `scanAnswers`, NON AL SUO POSTO. Sono due onboarding diversi
+   * e un salvataggio ha fatto l'uno o l'altro: sovrascrivere il campo vecchio
+   * vorrebbe dire che chi aveva già giocato si ritrova con risposte che non
+   * ha mai dato. §17 del brief: «Keep existing saves readable; new narrative
+   * fields are additive.»
+   */
+  syncAnswers: SyncAnswers;
+  /** Il tipo risolto, `null` finché il First Sync non è chiuso. */
+  firstSync: FirstSyncResult | null;
+  /**
+   * 🔷 v4 §4 — le tre interpretazioni fra cui scegliere, generate insieme.
+   *
+   * 🔒 SONO CREATURE VERE, GIÀ GENERATE. Non tre etichette che diventano un
+   * .mon dopo la scelta: tre `MonRecord` completi, di cui se ne mostrano due
+   * campi. È l'unico modo perché «Family: ANGEL / Affinity: DREAM» sia una
+   * promessa mantenuta invece che un'anteprima che poi non corrisponde.
+   *
+   * ⚠️ E LE DUE SCARTATE MUOIONO QUI. §4: «they do not enter Dex». Non
+   * finiscono in `mons`, non hanno un nodo, non esistono da nessun'altra
+   * parte: possibilità che non si sono materializzate.
+   */
+  eggs: MonRecord[];
+  /**
+   * 🔷 v4 §13 — il mondo, che appartiene al MON e non alla forma.
+   *
+   * 🔒 UNO SOLO, ed è §18 a chiederlo così: «Add one persistent World and a
+   * minimal World canon». Più mondi collegati da portali sono esplicitamente
+   * fuori dal primo passaggio sicuro.
+   */
+  world: World | null;
+  /** 🔷 v4 §10.2 — cosa è stato piantato, cosa raccolto, cosa non ripetere. */
+  ledger: StoryLedger;
   /**
    * 🔶 v1.10 §5.3 — il riferimento contro cui si legge il cibo. Dichiarato
    * all'ingresso, modificabile sempre: una dieta cambia, e un metro che non si
@@ -501,6 +581,59 @@ interface AppState {
   lockSignal: () => void;
   /** DEV — rifà lo scan da capo, senza toccare il resto della partita. */
   reopenScan: () => void;
+
+  /* --- 🔷 v4 §3/§4 — FIRST SYNC e le tre uova --- */
+
+  /** Registra una risposta del First Sync. */
+  answerSync: (index: number, answerId: string) => void;
+  /**
+   * Chiude il First Sync: risolve il tipo, semina la personalità e genera le
+   * tre interpretazioni.
+   *
+   * 🔒 LE TRE UOVA NASCONO QUI, non alla schermata dopo. Generarle mentre si
+   * mostra la scelta vorrebbe dire che tornando indietro e avanti se ne
+   * vedrebbero altre tre: la scelta smetterebbe di essere una scelta.
+   */
+  lockFirstSync: () => void;
+  /**
+   * Esce dal First Sync verso il protocollo.
+   *
+   * 🔒 SEPARATA DA `lockFirstSync` PERCHÉ IL RISULTATO È UN MOMENTO. Se
+   * chiudere il test cambiasse fase nello stesso istante, il tipo verrebbe
+   * calcolato e non lo vedrebbe nessuno.
+   */
+  leaveFirstSync: () => void;
+  /** DEV — rifà il First Sync da capo. */
+  reopenFirstSync: () => void;
+  /**
+   * §4 — sceglie una delle tre e la fa nascere SUBITO.
+   *
+   * 🔒 Nessuna incubazione: §3.2 toglie la settimana dal percorso nuovo.
+   */
+  chooseEgg: (index: number) => void;
+
+  /* --- 🔷 v4 §13/§14 — mondo, canone, ritorno --- */
+
+  /**
+   * Scrive una voce nel canone del mondo.
+   *
+   * ⚠️ `epistemic` è obbligatorio e non ha un valore predefinito, di
+   * proposito: §15.1 vieta che una cosa entri nel canone senza dichiarare da
+   * dove viene, e un default sarebbe il modo in cui succede lo stesso.
+   */
+  recordCanon: (event: { kind: CanonKind; epistemic: Epistemic; text: string }) => void;
+  /** §15.1 — promuove un'ipotesi del modello a canone. Mai automatico. */
+  promoteCanon: (eventId: string) => void;
+  /** §10.2 — pianta un setup che il narratore potrà raccogliere più avanti. */
+  addSetup: (summary: string) => void;
+  /** §10.2 — dichiara raccolto un setup. */
+  closeSetup: (id: string, how: string) => void;
+  /**
+   * §14 — «Riparti da qui»: riprende il mondo col sé di adesso.
+   *
+   * Torna il testo scritto, o `null` se non c'era niente da riprendere.
+   */
+  returnToWorld: () => Promise<string | null>;
 
   /**
    * 🔶 v1.10 §5.3 — dichiara dieta e allenamento. Testo libero, come tutto il
@@ -778,7 +911,9 @@ interface AppState {
 /* --- Stato iniziale -------------------------------------------------------- */
 
 const INITIAL = {
-  phase: 'scan' as Phase,
+  /* 🔷 v4 §3 — chi apre l'app oggi comincia dal First Sync. I salvataggi
+     vecchi tengono la loro fase: `persist` la ripristina e non passa di qui. */
+  phase: 'first-sync' as Phase,
   day: 1,
   startedAt: new Date().toISOString(),
   health: initialHealthState(),
@@ -787,6 +922,11 @@ const INITIAL = {
   formsDiscovered: 0,
   personality: neutralPersonality(),
   scanAnswers: {} as ScanAnswers,
+  syncAnswers: {} as SyncAnswers,
+  firstSync: null as FirstSyncResult | null,
+  eggs: [] as MonRecord[],
+  world: null as World | null,
+  ledger: emptyLedger(),
   protocol: EMPTY_PROTOCOL as Protocol,
   moodHistory: [] as MoodDayEntry[],
   cultural: {} as CulturalAffinities,
@@ -1069,6 +1209,19 @@ function applyPlannedRest(
   set({ days: withSignal(s.days, s.day, 'WORKOUT', 'NOT_APPLICABLE', 'riposo, da programma') });
 }
 
+/**
+ * Dove si va dopo aver dichiarato (o saltato) il protocollo.
+ *
+ * 🔒 È QUI CHE I DUE PERCORSI SI DIVIDONO, ed è l'unico posto dove succede.
+ * Chi ha fatto il First Sync ha tre uova che lo aspettano e nasce subito
+ * (v4 §3.2). Chi arriva da un salvataggio vecchio — First Sync mai fatto,
+ * nessun uovo — va all'incubazione come ha sempre fatto: la sua partita non
+ * cambia strada a metà.
+ */
+function afterProtocolPhase(s: AppState): Phase {
+  return s.eggs.length > 0 ? 'egg-choice' : 'incubation';
+}
+
 function activeRecord(s: AppState): MonRecord | null {
   return s.activeMonName ? (s.mons[s.activeMonName] ?? null) : null;
 }
@@ -1133,6 +1286,177 @@ export const useApp = create<AppState>()(
 
       reopenScan: () => set({ phase: 'scan' }),
 
+      /* ========================================================================
+         🔷 v4 §3/§4 — FIRST SYNC E LE TRE INTERPRETAZIONI
+         ==================================================================== */
+
+      answerSync: (index, answerId) =>
+        set((s) => ({ syncAnswers: { ...s.syncAnswers, [index]: answerId } })),
+
+      lockFirstSync: () => {
+        const s = get();
+        if (!isSyncComplete(s.syncAnswers)) return;
+
+        /* Il seme si calcola una volta e resta: stessa regola di `lockSignal`.
+           Cambia da dove arriva, non cosa diventa — il motore riceve la stessa
+           identica forma che riceveva dalle dodici domande. */
+        const personality = seedFromSync(s.syncAnswers);
+        const result = firstSyncResult(s.syncAnswers);
+
+        /* ⚠️ LE TRE UOVA NASCONO ADESSO, CON TRE SEMI DIVERSI E LO STESSO
+           TEMPERAMENTO. È il senso di §4: «three possible interpretations of
+           the same initial self-state». Non tre persone diverse — tre letture
+           della stessa, che è il motivo per cui la scelta ha un peso invece di
+           essere un sorteggio a tre. */
+        const base = { ...s, personality };
+        const eggs = [0, 1, 2].map(() =>
+          generateFirstMon({
+            input: generatorInput(base),
+            /* Tutte e tre credono di essere il nodo zero: solo quella scelta
+               lo diventerà davvero, e le altre due non esisteranno mai. */
+            mindlineNodeId: makeNodeId(0),
+            originNodeId: null,
+            lineageNames: [],
+            seed: randomSeed(),
+            devUnlockAll: s.dev.unlockAll,
+            devForcedMood: s.dev.forcedMood,
+            hiddenEvent: hiddenEventFor({ day: s.day, formNumber: 1, activeDays: s.progression.sync.lifetime }),
+            allowedArchetypes: angelArchetypesForStage(0),
+          }).record,
+        );
+
+        /* ⚠️ LA FASE NON CAMBIA QUI, ed è una correzione a me stesso: la
+           cambiavo, e la schermata del risultato non faceva in tempo a
+           esistere — il tipo veniva calcolato e non lo vedeva nessuno.
+           Chiudere il sync e uscire dal sync sono due gesti, e il momento in
+           mezzo è tutto quello che l'utente porta a casa da questo rito. */
+        set({ personality, firstSync: result, eggs });
+      },
+
+      leaveFirstSync: () => {
+        if (!get().firstSync) return;
+        set({ phase: 'protocol' });
+      },
+
+      reopenFirstSync: () => set({ phase: 'first-sync', firstSync: null, syncAnswers: {}, eggs: [] }),
+
+      chooseEgg: (index) => {
+        const s = get();
+        const record = s.eggs[index];
+        if (!record || s.phase !== 'egg-choice') return;
+
+        /* 🔒 LE ALTRE DUE NON VENGONO SALVATE DA NESSUNA PARTE. §4: «they do
+           not enter Dex». `eggs: []` non è pulizia — è la regola. */
+        const world = seedWorld(record, s.day);
+
+        set({
+          phase: 'live',
+          eggs: [],
+          mons: { [record.data.name]: record },
+          activeMonName: record.data.name,
+          world,
+          nodes: [
+            createNode({
+              index: 0,
+              kind: 'origin',
+              monName: record.data.name,
+              parentId: null,
+              day: s.day,
+              chapter: 1,
+              label: 'ROOT',
+            }),
+          ],
+          chat: [openingMessage(record, s.day, s.token !== null)],
+          evolutionJob: {
+            kind: 'hatch',
+            status: 'running',
+            previousName: null,
+            candidateName: record.data.name,
+            done: 0,
+            total: generationOrder().length,
+            label: 'PREPARAZIONE CHARACTER MASTER',
+            error: null,
+            serverJobId: null,
+          },
+          mood: applyMoodEvent(
+            initialMood(record.data.mood_primary, s.day),
+            'NATO',
+            record.data.mood_primary,
+            s.day,
+          ),
+        });
+
+        void preloadMonAssets(record.data.name);
+        if (s.token) void import('../system/pushNotifications').then(({ enableEvolutionNotifications }) => enableEvolutionNotifications(s.token as string));
+        void get().resumeFormEvolution();
+        requestIntroduction(set, get, record);
+      },
+
+      /* ========================================================================
+         🔷 v4 §13/§14 — MONDO, CANONE, RITORNO
+         ==================================================================== */
+
+      recordCanon: ({ kind, epistemic, text }) => {
+        const s = get();
+        if (!s.world || !s.activeMonName) return;
+        set({
+          world: withCanon(s.world, {
+            id: `canon_${kind}_${s.day}_${s.world.canon.length}`,
+            day: s.day,
+            kind,
+            epistemic,
+            text,
+            monName: s.activeMonName,
+          }),
+        });
+      },
+
+      promoteCanon: (eventId) => {
+        const s = get();
+        if (!s.world) return;
+        set({ world: promoteConnection(s.world, eventId) });
+      },
+
+      addSetup: (summary) => {
+        const s = get();
+        set({
+          ledger: {
+            ...s.ledger,
+            setups: [
+              ...s.ledger.setups,
+              { id: `setup_${s.day}_${s.ledger.setups.length}`, summary, status: 'open' as const, day: s.day },
+            ].slice(-40),
+          },
+        });
+      },
+
+      closeSetup: (id, how) => set((s) => ({ ledger: payOff(s.ledger, id, how) })),
+
+      returnToWorld: async () => {
+        const s = get();
+        const record = activeRecord(s);
+        if (!s.world || !record) return null;
+
+        const { writeReturnWithAi, returnFallbackLine } = await import('../ai/narratorPrompt');
+        const last = s.world.canon.at(-1);
+        const elapsedDays = last ? Math.max(0, s.day - last.day) : 0;
+
+        const { line } = await runStep(
+          'narrator',
+          (model) =>
+            writeReturnWithAi(s.token, model, { world: s.world as World, record, elapsedDays, ledger: s.ledger }),
+          (out) => ({ ok: out.line !== null, why: out.rejected ?? out.failure ?? undefined }),
+        );
+
+        const text = line ?? returnFallbackLine({ world: s.world, record, elapsedDays, ledger: s.ledger });
+
+        /* Il ritorno è un evento del mondo: entra nel canone come tale.
+           🔒 `WORLD_CANON` e non `FACT`: è successo nella storia, non nella
+           vita di chi legge — e §15.1 vuole che la differenza resti scritta. */
+        get().recordCanon({ kind: 'return', epistemic: 'WORLD_CANON', text });
+        return text;
+      },
+
       /* --- 🔶 v1.10 §5.3 PROTOCOLLO --- */
 
       declareProtocol: (dietText, trainingText) => {
@@ -1141,7 +1465,7 @@ export const useApp = create<AppState>()(
           training: parseTraining(trainingText),
           declaredAt: new Date().toISOString(),
         };
-        set({ protocol, phase: 'incubation' });
+        set({ protocol, phase: afterProtocolPhase(get()) });
         applyPlannedRest(set, get);
       },
 
@@ -1149,7 +1473,7 @@ export const useApp = create<AppState>()(
       // registra lo stesso, l'aderenza resta SCONOSCIUTA e nessuna schermata
       // insiste. Obbligare a compilare qualcosa prima di cominciare è
       // esattamente l'attrito che §5.2 è nato per togliere.
-      skipProtocol: () => set({ phase: 'incubation' }),
+      skipProtocol: () => set({ phase: afterProtocolPhase(get()) }),
 
       reopenProtocol: () => set({ phase: 'protocol' }),
 
@@ -1566,6 +1890,22 @@ export const useApp = create<AppState>()(
         const record = job ? initial.mons[job.candidateName] : null;
         if (!job || job.status !== 'running' || !record) return;
 
+        /* 🔴 IL NARRATORE PARTE PRIMA DEL CONTROLLO SULLA CHIAVE, e ci è
+           voluto un giro dal vivo per accorgersene.
+
+           Stava sotto, insieme alla bio. Ma qui sotto c'è un `return` per chi
+           non ha il token, quindi senza chiave `writeNarrator` non veniva
+           chiamato MAI — e il fallback deterministico che avevo scritto
+           apposta perché «il narratore parla sempre» non partiva proprio nel
+           caso per cui esisteva. Un ripiego irraggiungibile è un ripiego che
+           non c'è.
+
+           ⚠️ La bio resta sotto, e la differenza è vera: `writeBio` non ha un
+           fallback: se la chiamata non parte, resta quella deterministica del
+           motore, che è già scritta e già mostrata. Il narratore no — senza
+           questa riga non avrebbe nessun testo da nessuna parte. */
+        void get().writeNarrator(job.candidateName);
+
         /* 🔴 UN LAVORO CHE NON PUÒ PARTIRE NON DEVE RESTARE «IN CORSO».
 
            Qui c'era `|| !initial.token` dentro la stessa `return`: senza
@@ -1606,10 +1946,6 @@ export const useApp = create<AppState>()(
            chiamata fallisce, perché `writeBio` non tocca `writtenBio` in
            quel caso. */
         void get().writeBio(job.candidateName);
-        /* §10 del brief — stessa strada parallela della bio: pronta prima che
-           la rivelazione arrivi, con il fallback deterministico se l'AI non
-           regge, mai assente. */
-        void get().writeNarrator(job.candidateName);
 
         void import('../assets-pipeline/remoteGeneration').then(async ({ queueRemoteGeneration, pollRemoteGeneration }) => {
           let serverJobId = job.serverJobId;
@@ -1693,6 +2029,26 @@ export const useApp = create<AppState>()(
           mood: touchMood(current, record.data.mood_primary, []),
           chat: [...current.chat, openingMessage(record, current.day, current.token !== null)].slice(-60),
           progression: { ...current.progression, sync: { ...current.progression.sync, inForm: 0, sinceGrowth: 0 } },
+          /* 🔷 v4 §13 — «Evolution may change parts of the same World. Mega
+             Evolution may reveal deeper layers.»
+
+             🔒 IL MONDO NON RIPARTE, SI STRATIFICA. Il canone vecchio resta
+             intatto e questa riga si aggiunge in fondo: è la differenza fra
+             un posto che ha una storia e un posto che ricomincia da capo a
+             ogni forma nuova. */
+          world: current.world
+            ? withCanon(current.world, {
+                id: `canon_${job.kind}_${record.data.mindline_node}`,
+                day: current.day,
+                kind: job.kind === 'mega-evolution' ? 'mega-evolution' : 'evolution',
+                epistemic: 'WORLD_CANON',
+                text:
+                  job.kind === 'mega-evolution'
+                    ? `${displayName(previous.data.name)} è diventato ${displayName(record.data.name)}: il corpo è un altro, e qui si è aperto uno strato che prima non si vedeva.`
+                    : `${displayName(previous.data.name)} è diventato ${displayName(record.data.name)}. Il posto è lo stesso, ma non risponde più allo stesso modo.`,
+                monName: record.data.name,
+              })
+            : current.world,
         });
         requestIntroduction(set, get, record);
       },
@@ -2165,9 +2521,19 @@ export const useApp = create<AppState>()(
             return bSameDay - aSameDay || b.day - a.day;
           })
           .slice(0, 8);
+        /* 🔷 v4 §9 — «The Bio Writer should consume Narrative DNA. It should
+           not invent an unrelated personality from scratch.» La spina arriva
+           già dal `narrativeDNA` sul record; qui si aggiungono le altre due
+           sorgenti che il brief elenca per la ORIGIN BIO: la lente del First
+           Sync e il posto in cui è arrivato. */
         const { bio, failure, rejected } = await runStep(
           'bio',
-          (model) => writeBioWithAi(s.token, rec, model, { memories: birthMemories }),
+          (model) =>
+            writeBioWithAi(s.token, rec, model, {
+              memories: birthMemories,
+              lens: s.firstSync ? lensLine(s.firstSync) : undefined,
+              world: s.world ? worldBlock(s.world) : undefined,
+            }),
           (out) => ({ ok: out.bio !== null, why: out.rejected ?? out.failure ?? undefined }),
         );
 
@@ -2195,7 +2561,11 @@ export const useApp = create<AppState>()(
         const { writeNarratorWithAi, narratorFallbackLine } = await import('../ai/narratorPrompt');
         const { line, failure, rejected } = await runStep(
           'narrator',
-          (model) => writeNarratorWithAi(s.token, rec, model),
+          (model) =>
+            /* 🔷 v4 §10.2 — il narratore legge cosa ha già raccontato prima di
+               raccontare ancora. Alla primissima nascita il registro è vuoto e
+               il mondo non c'è: è corretto, lì non c'è niente da non ripetere. */
+            writeNarratorWithAi(s.token, rec, model, { world: s.world, ledger: s.ledger }),
           (out) => ({ ok: out.line !== null, why: out.rejected ?? out.failure ?? undefined }),
         );
 
@@ -2204,7 +2574,26 @@ export const useApp = create<AppState>()(
         set((cur) => {
           const now = cur.mons[monName];
           if (!now) return {};
-          return { mons: { ...cur.mons, [monName]: { ...now, narratorLine: finalLine } } };
+          return {
+            mons: { ...cur.mons, [monName]: { ...now, narratorLine: finalLine } },
+            /* 🔷 v4 §10.2 — quello che ha appena raccontato entra fra le cose
+               da non rifare. È il meccanismo che rende il registro vero invece
+               che un campo che qualcuno riempirà a mano: si alimenta da solo,
+               a ogni volta che il narratore parla.
+
+               ⚠️ Solo le righe di immagine, non le etichette da sistema:
+               «> SEGNALE RILEVATO» tornerà ancora ed è giusto così — è la sua
+               voce. Quello che non deve tornare è l'immagine che ha scelto. */
+            ledger: {
+              ...cur.ledger,
+              doNotRepeat: [
+                ...cur.ledger.doNotRepeat,
+                ...finalLine
+                  .split('\n')
+                  .filter((l) => l.trim().length > 0 && !l.trimStart().startsWith('>') && !l.trimStart().startsWith('[')),
+              ].slice(-24),
+            },
+          };
         });
         return line ? null : (rejected ?? (failure ? `chiamata fallita (${failure}), usato il fallback` : 'usato il fallback'));
       },
@@ -3087,6 +3476,15 @@ export const useApp = create<AppState>()(
           health: initialHealthState(),
           personality: neutralPersonality(),
           scanAnswers: {},
+          /* 🔷 v4 — ricominciare vuol dire rifare il First Sync: il tipo era
+             una lettura di quel momento, non una proprietà che ti segue. E il
+             mondo se ne va con la partita — apparteneva al MON, e il MON non
+             c'è più. */
+          syncAnswers: {},
+          firstSync: null,
+          eggs: [],
+          world: null,
+          ledger: emptyLedger(),
           dev: get().dev,
           // Ricominciare la partita non è motivo per far reincollare la chiave.
           token: get().token,
@@ -4347,6 +4745,18 @@ export function useScan() {
     answers,
     answered: Object.keys(answers).length,
     complete: isScanComplete(answers),
+  };
+}
+
+/** 🔷 v4 §3 — a che punto è il First Sync. */
+export function useFirstSync() {
+  const answers = useApp((s) => s.syncAnswers);
+  const result = useApp((s) => s.firstSync);
+  return {
+    answers,
+    result,
+    answered: Object.keys(answers).length,
+    complete: isSyncComplete(answers),
   };
 }
 

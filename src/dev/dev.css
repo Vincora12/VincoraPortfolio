@@ -149,6 +149,21 @@
   text-align: right;
 }
 
+/* 🔷 v4 §15.1 — la promozione di un'ipotesi a canone. Sta dentro la riga che
+   mostra l'ipotesi, e non altrove, perché è una decisione su QUELLA voce: un
+   pulsante generico «promuovi» in fondo alla pagina sarebbe un gesto che non
+   si sa più su cosa sta agendo. */
+.dev__inlinebtn {
+  border: 0;
+  padding: 0;
+  background: none;
+  color: var(--char-accent);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
 /* --- Batch ----------------------------------------------------------------- */
 
 .batch {

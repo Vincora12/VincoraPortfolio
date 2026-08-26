@@ -33,6 +33,8 @@ import { t } from './i18n/it';
 
 import { SplashScreen } from './screens/Splash';
 import { PersonalityScanScreen } from './screens/PersonalityScan';
+import { FirstSyncScreen } from './screens/FirstSync';
+import { EggChoiceScreen } from './screens/EggChoice';
 import { ProtocolSetupScreen } from './screens/ProtocolSetup';
 import { IncubationScreen } from './screens/Incubation';
 import { EncounterScreen } from './screens/Encounter';
@@ -134,7 +136,9 @@ export function pageSlugOf(overlay: Overlay): string | null {
 // la finestra del narratore restano neri lo stesso — sono livelli sopra il
 // campo, non il campo — ma il campo su cui la foto si appoggia adesso è
 // sempre bianco, qui come ovunque nel prodotto.
-const INK_PHASES: Phase[] = ['scan', 'incubation'];
+// 🔷 v4 — First Sync e la scelta delle tre letture sono riti, non superfici
+// pratiche: campo nero come lo scan che sostituiscono.
+const INK_PHASES: Phase[] = ['first-sync', 'egg-choice', 'scan', 'incubation'];
 
 export function App() {
   const phase = useApp((s) => s.phase);
@@ -579,6 +583,13 @@ function PhaseScreen({
   onEnterChat: () => void;
 }) {
   switch (phase) {
+    /* 🔷 v4 §3/§4 — l'ingresso di chi arriva adesso. */
+    case 'first-sync':
+      return <FirstSyncScreen />;
+    case 'egg-choice':
+      return <EggChoiceScreen />;
+    /* 🔒 Resta montata per i salvataggi che erano già a metà delle dodici
+       domande: la loro partita non cambia strada sotto i piedi. */
     case 'scan':
       return <PersonalityScanScreen />;
     case 'protocol':

@@ -49,6 +49,8 @@ export { TOOLS, runTool, assistantTurn, resultBlocks } from '${cwd}/src/ai/tools
 export { DEFAULT_THRESHOLDS, rarityThresholds, setRarityThresholds, resetRarityThresholds, thresholdProblems, isRarityTuned, bandShares } from '${cwd}/src/engine/rarityTuning.ts';
 export { planContinuity, EVOLVABLE_AXES, PROGRESSION, hiddenEventFor } from '${cwd}/src/engine/progression.ts';
 export { SCAN_QUESTIONS, seedFromAnswers, seedSpread } from '${cwd}/src/engine/personalityScan.ts';
+export { SYNC_QUESTIONS, TYPES as SYNC_TYPES, DIMENSIONS, resolveType, seedFromSync, isSyncComplete } from '${cwd}/src/engine/firstSync.ts';
+export { emptyLedger, ledgerBlock, seedWorld, withCanon, promoteConnection, EPISTEMIC_LABEL } from '${cwd}/src/engine/world.ts';
 export * as CONFIG from '${cwd}/src/engine/generation-config.ts';
 export { FRAGMENT_LIBRARY, slug } from '${cwd}/src/assets-pipeline/fragments.ts';
 export { extractFromMessage, extractionLabels, deservesThinking } from '${cwd}/src/engine/chatExtract.ts';
@@ -257,6 +259,172 @@ check(
   archetypesWithoutMap.length === 0,
   'ogni Narrative Archetype ha almeno un Role mappato',
   archetypesWithoutMap.join(', '),
+);
+
+/* ============================================================================
+   VINZMON_COMPLETE_NARRATIVE_SYSTEM v4 §3 — FIRST SYNC
+
+   §17: «Run regression tests after each stage.» Il First Sync è l'unico pezzo
+   nuovo che può rompersi in silenzio: una dimensione senza abbastanza domande
+   produce comunque un tipo — solo che è un tipo deciso da un tocco distratto.
+   ========================================================================= */
+
+check(
+  m.SYNC_TYPES.length === 16,
+  'il First Sync ha esattamente 16 tipi',
+  `${m.SYNC_TYPES.length}`,
+);
+
+// Ogni dimensione deve avere abbastanza domande da reggere una maggioranza.
+// Con meno di tre un pareggio o un tocco sbagliato ribaltano l'asse.
+const perDimension = Object.fromEntries(m.DIMENSIONS.map((d) => [d, 0]));
+for (const q of m.SYNC_QUESTIONS) perDimension[q.dimension] += 1;
+const thinDimensions = m.DIMENSIONS.filter((d) => perDimension[d] < 3);
+check(
+  thinDimensions.length === 0,
+  'ogni dimensione del First Sync ha almeno 3 domande',
+  Object.entries(perDimension).map(([d, n]) => `${d}:${n}`).join(' · '),
+);
+
+// Ogni domanda offre entrambi i poli della sua dimensione: una domanda con due
+// risposte dallo stesso lato non è una scelta, è una formalità.
+const lopsided = m.SYNC_QUESTIONS.filter((q) => {
+  const poles = new Set(q.answers.map((a) => a.pole));
+  return poles.size !== 2;
+});
+check(
+  lopsided.length === 0,
+  'ogni domanda del First Sync offre due poli diversi',
+  lopsided.map((q) => q.index).join(', '),
+);
+
+// I 16 tipi sono raggiungibili tutti: se un codice non uscisse mai, sarebbe un
+// tipo scritto nel catalogo e mai assegnato a nessuno.
+const reachable = new Set();
+const dimPoles = { EI: ['E', 'I'], NS: ['N', 'S'], TF: ['T', 'F'], JP: ['J', 'P'] };
+for (let mask = 0; mask < 16; mask++) {
+  const wanted = m.DIMENSIONS.map((d, i) => dimPoles[d][(mask >> i) & 1]);
+  const answers = {};
+  for (const q of m.SYNC_QUESTIONS) {
+    const target = wanted[m.DIMENSIONS.indexOf(q.dimension)];
+    const pick = q.answers.find((a) => a.pole === target);
+    if (pick) answers[q.index] = pick.id;
+  }
+  reachable.add(m.resolveType(answers).type);
+}
+check(
+  reachable.size === 16,
+  'tutti e 16 i tipi sono raggiungibili rispondendo',
+  `${reachable.size} raggiunti`,
+);
+
+// Il seme che esce dal First Sync deve essere la stessa forma che il motore
+// riceveva dal Signal Scan: 16 assi, tutti fra 0 e 100. Se divergesse, il
+// generatore riceverebbe un oggetto che non sa leggere e nessuno se ne
+// accorgerebbe finché le creature non escono tutte uguali.
+const syncSeed = m.seedFromSync(
+  Object.fromEntries(m.SYNC_QUESTIONS.map((q) => [q.index, q.answers[0].id])),
+);
+const scanSeed = m.neutralPersonality();
+const sameShape =
+  Object.keys(syncSeed).length === Object.keys(scanSeed).length &&
+  Object.keys(scanSeed).every((k) => typeof syncSeed[k] === 'number');
+const inRange = Object.values(syncSeed).every((v) => v >= 0 && v <= 100);
+check(
+  sameShape && inRange,
+  'il seme del First Sync ha la stessa forma di quello del Signal Scan',
+  `${Object.keys(syncSeed).length} assi`,
+);
+
+// Due tipi diversi devono produrre semi diversi, o la lente non sposta niente
+// e il test sarebbe decorativo.
+const seedAllFirst = m.seedFromSync(
+  Object.fromEntries(m.SYNC_QUESTIONS.map((q) => [q.index, q.answers[0].id])),
+);
+const seedAllSecond = m.seedFromSync(
+  Object.fromEntries(m.SYNC_QUESTIONS.map((q) => [q.index, q.answers[1].id])),
+);
+const movedAxes = Object.keys(seedAllFirst).filter((k) => seedAllFirst[k] !== seedAllSecond[k]);
+check(
+  movedAxes.length >= 8,
+  'due percorsi opposti nel First Sync danno semi davvero diversi',
+  `${movedAxes.length} assi su ${Object.keys(seedAllFirst).length} differiscono`,
+);
+
+/* ============================================================================
+   v4 §15.1 — LE CATEGORIE EPISTEMICHE
+
+   🔒 È il controllo che protegge la regola più delicata del brief: «never
+   silently promoted». Se un giorno qualcuno facesse promuovere un'ipotesi da
+   dentro un'altra operazione, questo test resterebbe verde solo finché la
+   promozione continua a passare dalla funzione dedicata.
+   ========================================================================= */
+
+const fakeRecord = {
+  data: {
+    name: 'VTESTZ.mon',
+    affinity: 'DREAM',
+    mindline_node: 'node_test',
+  },
+};
+const testWorld = m.seedWorld(fakeRecord, 3);
+
+check(
+  testWorld.canon.length === 1 && testWorld.canon[0].epistemic === 'WORLD_CANON',
+  'il mondo nasce con una voce di canone dichiarata',
+  testWorld.canon[0]?.epistemic,
+);
+
+// Una voce con lo stesso id non si aggiunge due volte: il canone è un registro.
+const twice = m.withCanon(m.withCanon(testWorld, testWorld.canon[0]), testWorld.canon[0]);
+check(
+  twice.canon.length === 1,
+  'il canone non accetta la stessa voce due volte',
+  `${twice.canon.length} voci`,
+);
+
+// Solo le AI_CONNECTION si promuovono: promuovere un FACT non ha senso, e
+// promuovere in silenzio è esattamente quello che §15.1 vieta.
+const withHypothesis = m.withCanon(testWorld, {
+  id: 'canon_hyp',
+  day: 4,
+  kind: 'connection',
+  epistemic: 'AI_CONNECTION',
+  text: 'forse il corridoio somiglia a quello di prima',
+  monName: 'VTESTZ.mon',
+});
+const promoted = m.promoteConnection(withHypothesis, 'canon_hyp');
+const untouched = m.promoteConnection(withHypothesis, 'canon_origin_node_test');
+check(
+  promoted.canon.find((e) => e.id === 'canon_hyp').epistemic === 'WORLD_CANON' &&
+    untouched.canon.find((e) => e.id === 'canon_origin_node_test').epistemic === 'WORLD_CANON',
+  'un\'ipotesi si promuove solo passando dalla funzione dedicata',
+);
+
+check(
+  Object.keys(m.EPISTEMIC_LABEL).length === 4,
+  'le categorie epistemiche di §15.1 sono tutte e quattro',
+  Object.keys(m.EPISTEMIC_LABEL).join(' · '),
+);
+
+// Il registro vuoto deve dire al modello che non ha niente da raccogliere,
+// invece di consegnargli un blocco vuoto che lui riempirebbe di sua iniziativa.
+const emptyBlock = m.ledgerBlock(m.emptyLedger());
+check(
+  emptyBlock.includes('REGISTRO VUOTO'),
+  'il registro vuoto lo dichiara invece di tacere',
+);
+
+const fullBlock = m.ledgerBlock({
+  recurringMotifs: ['il corridoio'],
+  openThreads: ['chi ha aperto la porta?'],
+  setups: [{ id: 's1', summary: 'una porta socchiusa', status: 'open', day: 2 }],
+  pastPayoffs: ['la prima soglia'],
+  doNotRepeat: ['Un corridoio dove ieri c\'era un muro.'],
+});
+check(
+  fullBlock.indexOf('NON DEVI RIFARE') < fullBlock.indexOf('IMMAGINI CHE TORNANO'),
+  'il registro mette i divieti PRIMA dei motivi da riusare',
 );
 
 /* ============================================================================

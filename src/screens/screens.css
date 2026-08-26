@@ -2616,6 +2616,260 @@
 }
 
 /* ============================================================================
+   🔷 v4 §3 — FIRST SYNC
+
+   ⚠️ STESSA GRAMMATICA DELLO SCAN QUI SOPRA, E DI PROPOSITO. È la schermata
+   che lo sostituisce: se avesse un linguaggio visivo suo diventerebbero due
+   riti diversi nella stessa app, e l'unico che l'utente vedrà è questo. Le
+   classi restano separate perché le due schermate devono poter divergere
+   quando il vecchio scan sarà solo compatibilità — non perché divergano oggi.
+   ========================================================================= */
+
+.firstsync__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--u5);
+  padding: var(--u5) var(--u4);
+}
+
+.firstsync__index {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--u3);
+  color: var(--muted-strong);
+}
+
+.firstsync__ticks {
+  display: flex;
+  gap: 2px;
+}
+
+.firstsync__tick {
+  width: 6px;
+  height: 3px;
+  background: var(--hairline);
+}
+
+.firstsync__tick--done { background: var(--muted-strong); }
+/* 🔴 NON `--char-accent`, e la ragione è la stessa che il commento dello scan
+   dichiara più su: qui il .mon non esiste ancora, quindi l'accento di
+   personaggio è il neutro (#111) e sul campo nero sparisce del tutto.
+   `--ink` si ribalta insieme al campo ed è leggibile in tutti e due. */
+.firstsync__tick--here { background: var(--ink); }
+
+.firstsync__question {
+  font-size: var(--type-display-l);
+  margin: 0;
+  line-height: 1.15;
+}
+
+.firstsync__answers {
+  display: flex;
+  flex-direction: column;
+  gap: var(--u2);
+}
+
+.firstsync__answer {
+  display: flex;
+  align-items: center;
+  gap: var(--u3);
+  width: 100%;
+  /* Più alto delle risposte dello scan: qui sono due sole, e due bottoni
+     bassi in mezzo a uno schermo vuoto sembrano un modulo. */
+  min-height: 72px;
+  padding: var(--u3);
+  border: var(--border) solid var(--ink);
+  background: var(--white);
+  color: var(--ink);
+  text-align: left;
+  font-family: var(--font-body);
+  font-size: var(--type-body);
+  cursor: pointer;
+}
+
+.firstsync__answer--on {
+  background: var(--ink);
+  color: var(--white);
+  border-color: var(--char-accent);
+  box-shadow: var(--shadow-hard-sm);
+}
+
+.firstsync__answertext { flex: 1; }
+.firstsync__mark { font-size: 11px; opacity: 0.8; }
+
+.firstsync__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--u3);
+}
+
+.firstsync__note {
+  color: var(--muted);
+  text-align: right;
+  margin: 0;
+}
+
+/* --- La chiusura: il tipo, una volta sola --- */
+
+.firstsync__resultbody {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--u3);
+  padding: var(--u5) var(--u4);
+  text-align: center;
+}
+
+.firstsync__type {
+  font-size: var(--type-display-xl);
+  letter-spacing: 0.08em;
+  margin: 0;
+}
+
+/* 🔴 Stesso motivo della tacca qui sopra: `--char-accent` senza .mon attivo è
+   nero, e questa riga finiva nera su campo nero — verificato a schermo, si
+   leggeva «ENTJ» e sotto il vuoto. */
+.firstsync__typelabel {
+  margin: 0;
+  color: var(--ink);
+  opacity: 0.75;
+}
+
+.firstsync__tendency {
+  margin: 0;
+  max-width: 30ch;
+  color: var(--muted-strong);
+}
+
+/* 🔒 La riga che dice «non è una diagnosi» non è una nota a piè di pagina:
+   §3.1 e §15 la chiedono entrambi, quindi ha un contorno e sta in mezzo allo
+   schermo, non sotto in grigio dove non la legge nessuno. */
+.firstsync__disclaimer {
+  margin: var(--u3) 0 0;
+  max-width: 34ch;
+  padding: var(--u3);
+  border: 1px solid var(--hairline);
+  color: var(--muted-strong);
+}
+
+/* ============================================================================
+   🔷 v4 §4 — LE TRE LETTURE
+   ========================================================================= */
+
+.eggchoice {
+  display: flex;
+  flex-direction: column;
+  gap: var(--u4);
+  padding: var(--u5) var(--u4) 0;
+}
+
+.eggchoice__head {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--u2);
+}
+
+.eggchoice__title {
+  font-size: var(--type-display-l);
+  margin: 0;
+}
+
+.eggchoice__sub {
+  margin: 0;
+  max-width: 40ch;
+  color: var(--muted-strong);
+}
+
+.eggchoice__grid {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--u2);
+  justify-content: center;
+}
+
+.eggchoice__egg {
+  display: flex;
+  align-items: center;
+  gap: var(--u3);
+  width: 100%;
+  min-height: 84px;
+  padding: var(--u3);
+  border: var(--border) solid var(--ink);
+  background: var(--white);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.eggchoice__egg--on {
+  background: var(--ink);
+  color: var(--white);
+  border-color: var(--char-accent);
+  box-shadow: var(--shadow-hard-sm);
+}
+
+.eggchoice__slot {
+  flex: 0 0 auto;
+  color: var(--muted-strong);
+}
+
+.eggchoice__egg--on .eggchoice__slot { color: var(--char-accent); }
+
+/* 🔒 UNA FORMA VUOTA, E NIENTE DENTRO. §4 vieta faccia, sagoma, arte e
+   vestiti: il modo più sicuro di non anticipare niente è non avere niente da
+   anticipare. Non è un segnaposto in attesa di un'illustrazione — è il
+   disegno finito.
+
+   🔴 QUI PRIMA C'ERA UN OVALE, e l'ago di `verify:features` mi ha preso in
+   fallo: `border-radius: 50% …` è precisamente quello che §10.4 vieta
+   («geometria rettangolare, niente card arrotondate»), e i token hanno un
+   solo ammorbidimento ammesso. Un uovo tondo era la scelta ovvia e sbagliata:
+   in questo sistema visivo la cosa non ancora aperta si legge meglio come un
+   blocco chiuso con gli angoli marcati — la stessa grammatica delle cornici
+   di asset non risolto. */
+.eggchoice__vessel {
+  position: relative;
+  flex: 0 0 auto;
+  width: 34px;
+  height: 44px;
+  border: var(--border) solid currentColor;
+  border-radius: var(--radius);
+  opacity: 0.55;
+}
+
+/* Una banda interna: dice «c'è qualcosa dentro» senza dire cosa. */
+.eggchoice__vessel::after {
+  content: '';
+  position: absolute;
+  inset: 30% 22% auto;
+  height: 2px;
+  background: currentColor;
+}
+
+.eggchoice__facts {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.eggchoice__fact { letter-spacing: 0.06em; }
+
+.eggchoice__mark { font-size: 11px; opacity: 0.8; }
+
+.eggchoice__note {
+  color: var(--muted);
+  text-align: center;
+  margin: 0;
+}
+
+/* ============================================================================
    CHAT CON L'UOVO (v1.10 §7.2)
 
    È la chat di dopo, ridotta all'osso: stesse bolle, stesso composer, stessa
