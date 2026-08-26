@@ -4316,6 +4316,35 @@
   .me-health__today article { min-height: 76px; }
 }
 
+/* OGGI — una verifica quotidiana, non un altro pannello da compilare. */
+.today-check { --tc-accent: var(--char-accent, #f4a928); min-height: 100%; padding: 22px 24px 34px; overflow-y: auto; background: #000; color: #f7f7f9; }
+.today-check__hero { min-height: 210px; display: grid; grid-template-columns: minmax(130px, 1fr) 1fr; align-items: center; gap: 12px; border-bottom: 1px solid #303036; }
+.today-check__sticker { display: block; width: 100%; max-width: 190px; aspect-ratio: 1.15; background-repeat: no-repeat; filter: drop-shadow(2px 0 #fff) drop-shadow(-2px 0 #fff) drop-shadow(0 2px #fff) drop-shadow(0 -2px #fff); animation: today-sticker-in 520ms cubic-bezier(.16,1,.3,1) both; }
+.today-check__hero > svg { width: 100px; height: 100px; color: var(--tc-accent); justify-self: center; }
+.today-check__hero > div { min-width: 0; text-align: right; }
+.today-check__hero strong { display: block; color: var(--tc-accent); font: italic 900 clamp(58px, 18vw, 92px)/.8 var(--font-display); letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
+.today-check__hero strong span { color: #747780; font-size: .34em; font-style: normal; letter-spacing: 0; }
+.today-check__hero p { margin: 15px 0 0; font: 700 10px/1 var(--font-mono); letter-spacing: .1em; }
+.today-check__streak { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 18px; min-height: 110px; border-bottom: 1px solid #303036; }
+.today-check__streak > strong { color: var(--tc-accent); font: italic 900 62px/.8 var(--font-display); font-variant-numeric: tabular-nums; }
+.today-check__streak div { display: flex; flex-direction: column; gap: 7px; }
+.today-check__streak b { font: 700 11px/1 var(--font-mono); letter-spacing: .08em; }
+.today-check__streak span { color: #aeb1ba; font-size: 12px; line-height: 1.25; }
+.today-check__tasks { padding-top: 28px; }
+.today-check__tasks h1 { margin: 0 0 14px; font: italic 900 30px/1 var(--font-display); letter-spacing: -.025em; }
+.today-check__tasks article { min-height: 62px; display: grid; grid-template-columns: 18px minmax(0,1fr) 24px; align-items: center; gap: 14px; border-top: 1px solid #29292e; color: #767983; }
+.today-check__tasks article:last-child { border-bottom: 1px solid #29292e; }
+.today-check__tasks article > span { width: 14px; height: 14px; border: 1px solid #686b74; border-radius: 50%; }
+.today-check__tasks article[data-done='true'] { color: #f7f7f9; }
+.today-check__tasks article[data-done='true'] > span { border-color: var(--tc-accent); background: var(--tc-accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--tc-accent) 18%, transparent); }
+.today-check__tasks article > div { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.today-check__tasks article strong { font: 700 10px/1 var(--font-mono); letter-spacing: .08em; }
+.today-check__tasks article small { overflow: hidden; color: #8f929a; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.today-check__tasks article[data-done='true'] small { color: #c2c4ca; }
+.today-check__tasks article svg { width: 18px; height: 18px; color: var(--tc-accent); justify-self: end; }
+@keyframes today-sticker-in { from { opacity: 0; transform: translateY(16px) rotate(-5deg) scale(.86); filter: blur(3px); } to { opacity: 1; transform: translateY(0) rotate(-2deg) scale(1); } }
+@media (prefers-reduced-motion: reduce) { .today-check__sticker { animation: none; } }
+
 /* Cornice ottagonale dello HUD: fondo-linea + pannello interno a 1px. */
 .me-health__goal,
 .me-health__nutrition,

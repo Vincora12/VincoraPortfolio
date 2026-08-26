@@ -51,7 +51,7 @@ export const ChatGPT: FC = () => {
   return (
     <CloneThreadShell>
       <ChatCostTotal />
-      <WorkoutCelebration />
+      <LogCelebration />
       <ReactionMessageDispatcher />
       <ThreadPrimitive.Root className="flex h-full flex-col items-stretch bg-white px-4 text-[#0d0d0d] dark:bg-black dark:text-[#ececec]">
         <AuiIf condition={(s) => s.thread.isEmpty}>
@@ -736,7 +736,7 @@ const WorkoutConfirmationButton: FC = () => {
 };
 
 /** Celebra esclusivamente una scrittura realmente confermata dal runtime. */
-const WorkoutCelebration: FC = () => {
+const LogCelebration: FC = () => {
   const [visible, setVisible] = useState(false);
   const initialized = useRef(false);
   const previousSignal = useRef("");
@@ -745,7 +745,7 @@ const WorkoutCelebration: FC = () => {
     state.activeMonName ? state.mons[state.activeMonName] ?? null : null,
   );
   const reactionSheet = useAssetUrl(record?.data.name ?? "", "reaction_pack");
-  const { loading, signal } = useAuiState(
+  const { loading, signal, title } = useAuiState(
     useShallow((state) => {
       const message = state.thread.messages.at(-1);
       const raw = message?.metadata.custom.updates;
@@ -755,9 +755,13 @@ const WorkoutCelebration: FC = () => {
       const workoutSaved = updates.some((item) =>
         /Allenamento (?:aggiunto|corretto) in ME/i.test(item),
       );
+      const mealSaved = updates.some((item) =>
+        /Pasto (?:aggiunto|corretto) in ME/i.test(item),
+      );
       return {
         loading: state.thread.isLoading,
-        signal: workoutSaved && message ? `${message.id}:${updates.join("|")}` : "",
+        signal: (workoutSaved || mealSaved) && message ? `${message.id}:${updates.join("|")}` : "",
+        title: workoutSaved ? 'ALLENAMENTO' : mealSaved ? 'PASTO' : '',
       };
     }),
   );
@@ -794,7 +798,7 @@ const WorkoutCelebration: FC = () => {
           }}
         />
       ) : null}
-      <strong>ALLENAMENTO<br />REGISTRATO</strong>
+      <strong>{title}<br />REGISTRATO</strong>
       <span className="vinz-workout-celebration__line" aria-hidden="true" />
     </div>
   );

@@ -38,6 +38,7 @@ import { IncubationScreen } from './screens/Incubation';
 import { EncounterScreen } from './screens/Encounter';
 import { UniversalInputScreen } from './screens/UniversalInput';
 import { MeOverviewScreen } from './screens/MeOverview';
+import { TodayChecklistScreen } from './screens/TodayChecklist';
 import { MindlineShiftScreen } from './screens/MindlineShift';
 import { EvolutionScreen } from './screens/Evolution';
 import { NewBranchScreen } from './screens/NewBranch';
@@ -86,7 +87,7 @@ function LazyChat(props: ComponentProps<typeof IntegratedChat>) {
    le forme del .mon, quindi sta in MON; il calendario racconta i miei giorni,
    quindi sta in ME.
    ========================================================================= */
-export type Tab = 'chat' | 'mon' | 'me';
+export type Tab = 'chat' | 'mon' | 'me' | 'today';
 
 /** Le viste dentro MON. La prima è la creatura. */
 export type MonView = 'mon' | 'map' | 'dex';
@@ -578,6 +579,8 @@ function PhaseScreen({
           return <MonTab view={monView} onView={onMonView} onGo={onGo} onEnterChat={onEnterChat} />;
         case 'me':
           return <MeTab view={meView} onView={onMeView} onGo={onGo} />;
+        case 'today':
+          return <TodayChecklistScreen />;
       }
   }
 }
@@ -775,10 +778,11 @@ export function TabBar({ tab, onChange }: { tab: Tab; onChange: (t: Tab) => void
 
      🔒 Tre bersagli invece di quattro vuol dire tre bersagli più larghi, su
      uno schermo dove il dito è il puntatore. */
-  const items: { id: Tab; label: string; activeLabel: string; icon: 'tell' | 'mon' | 'me' }[] = [
+  const items: { id: Tab; label: string; activeLabel: string; icon: 'tell' | 'mon' | 'me' | 'clock' }[] = [
     { id: 'chat', label: t.nav.chat, activeLabel: 'CHAT', icon: 'tell' },
     { id: 'mon', label: t.nav.mon, activeLabel: 'VINZ.MON', icon: 'mon' },
     { id: 'me', label: t.nav.me, activeLabel: 'ME', icon: 'me' },
+    { id: 'today', label: 'Controlla la giornata', activeLabel: 'OGGI', icon: 'clock' },
   ];
 
   return (
