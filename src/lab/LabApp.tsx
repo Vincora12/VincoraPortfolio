@@ -20,6 +20,7 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import type { LabId } from './entrypoint';
 import { useApp, syncWithServer } from '../state/store';
+import { TaxonomyVersionControl } from './TaxonomyVersionControl';
 import './skin/_base.css';
 import './skin/atrio.css';
 
@@ -137,6 +138,8 @@ export function LabApp({ initialLab }: { initialLab: LabId | null }) {
           👻 <strong>come vive visivamente l’anima</strong>, 🖥 <strong>come appare e si usa l’app</strong>,{' '}
           ⚙️ <strong>come gira il sistema</strong>.
         </p>
+
+        <TaxonomyVersionControl />
 
         {PORTE.map((p) => (
           <a
