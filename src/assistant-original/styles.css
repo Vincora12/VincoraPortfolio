@@ -382,7 +382,8 @@ body[data-scroll-locked] {
 }
 
 .vinz-thread-drawer__body [data-slot="aui_thread-list-search"] {
-  padding: 0 0 1.15rem;
+  padding: 0;
+  margin-bottom: 1.15rem;
 }
 
 .vinz-thread-drawer__body [data-slot="aui_thread-list-search"] input {
@@ -392,6 +393,7 @@ body[data-scroll-locked] {
   background: #202020;
   color: #f2f2f2;
   font-size: 1rem;
+  padding-left: 2.8rem;
 }
 
 .vinz-thread-drawer__body [data-slot="aui_thread-list-search-icon"] {
@@ -420,6 +422,7 @@ body[data-scroll-locked] {
 .vinz-thread-drawer [data-slot="aui_thread-list-item"] {
   min-height: 3rem;
   height: auto;
+  padding-right: 2.7rem;
   border-radius: 13px;
 }
 
@@ -430,8 +433,16 @@ body[data-scroll-locked] {
 
 .vinz-thread-drawer [data-slot="aui_thread-list-item-trigger"] {
   min-height: 3rem;
-  padding-inline: .75rem;
+  padding-inline: .75rem .25rem;
   font-size: 1rem;
+}
+
+.vinz-thread-drawer [data-slot="aui_thread-list-item-title"] {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .vinz-thread-drawer .aui-thread-icon {
