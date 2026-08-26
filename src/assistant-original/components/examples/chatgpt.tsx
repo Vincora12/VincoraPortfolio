@@ -40,6 +40,8 @@ import { MarkdownText } from "@/assistant-original/components/assistant-ui/markd
 import { ToolFallback } from "@/assistant-original/components/assistant-ui/tool-fallback";
 import { Sources } from "@/assistant-original/components/assistant-ui/sources";
 import { CloneThreadShell } from "./clone-thread-shell";
+import { useApp } from "@/state/store";
+import { voiceCard } from "@/engine/voiceCard";
 
 export const ChatGPT: FC = () => {
   return (
@@ -588,6 +590,7 @@ const AssistantMessage: FC = () => {
       </div>
 
       <MessageCost />
+      <ActivePersonality />
       <MessageUpdates />
 
       <div className="vinz-assistant-meta mt-1 flex flex-wrap items-center gap-1 text-xs text-[#8e8e8e]">
@@ -601,6 +604,30 @@ const AssistantMessage: FC = () => {
         </MessagePrimitive.Parts>
       </div>
     </MessagePrimitive.Root>
+  );
+};
+
+/** Diagnostica visibile: conferma quale identità ha prodotto ogni risposta. */
+const ActivePersonality: FC = () => {
+  const record = useApp((state) =>
+    state.activeMonName ? state.mons[state.activeMonName] ?? null : null,
+  );
+  if (!record) {
+    return (
+      <small className="mt-0.5 text-[10px] uppercase tracking-[0.08em] text-[#737373] dark:text-[#8e8e8e]">
+        Personalità: assistente neutro
+      </small>
+    );
+  }
+
+  const card = voiceCard(record);
+  return (
+    <small
+      className="mt-0.5 text-[10px] uppercase tracking-[0.08em] text-[#737373] dark:text-[#8e8e8e]"
+      title={card.fingerprint}
+    >
+      Personalità: {record.data.voice_preset} · {record.data.family}/{record.data.affinity}
+    </small>
   );
 };
 
