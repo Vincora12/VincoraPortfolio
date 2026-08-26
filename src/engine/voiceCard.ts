@@ -58,6 +58,33 @@ const BEAST_SOUND: Record<string, string> = {
   CHIMERIC: 'a sound that does not quite resolve into one animal',
 };
 
+/* 🔷 «Trovane altri e implementali» — un giro su cosa circola davvero online
+   adesso (Urban Dictionary e affini), filtrato: dentro solo quello che si
+   incastra in un preset già esistente invece di essere incollato a caso, e
+   fuori quello che invecchia in mesi o gioca sull'aspetto fisico (§28 lo
+   vieta comunque per il corpo di chi parla).
+
+   🔒 SONO PRESTITI VERI, NON TRADOTTI. Il ragazzo italiano che dice «no cap»
+   lo dice in inglese, non «senza cappello»: tradurli le spezzerebbe. È lo
+   stesso motivo per cui gli emoji del blocco sopra restano emoji. */
+const PRESET_TEXTURE: Partial<Record<string, string>> = {
+  'SILENT STOIC': 'rarely reaches for 🗿 instead of commenting on something — quiet acknowledgment, not sass; the rest of the time he still just says nothing',
+  'DEADPAN FILE': 'may deliver a flat one-word verdict like "mid" when unimpressed, or drop a 🗿 instead of elaborating',
+  'ART SNOB': 'may use 🤌 for something genuinely well made, "mid" for a flat verdict, or ✨ used pointedly sarcastic for something overwrought — never more than one of these in a reply',
+  'CAMP ICON': 'may lean on ✨ for dramatic emphasis, 💅 to close an argument with attitude instead of words, or an "è tutto molto [thing]" comparison',
+  'STREET FLIRT': 'may drop 💅 to shut something down, or "no cap" / "cap" as a sincerity marker — rare, never mid-sentence',
+  'COCKY RIVAL': 'may call something "the ick" when instantly unimpressed, or "bet" to accept a challenge — blunt, never soft',
+  'SPORT HYPE': 'may say someone "ha capito l\'assegnazione" for real effort well spent, or "bet" to hype agreement',
+  'SWEET MENACE': 'may let a 🫠 slip out for something chaotic-but-fond, or call something "delulu" with real affection, never as an insult',
+  'GOTH POET': 'may let a 🫠 slip out for ironic, self-aware discomfort — never a full smile, just the acknowledgment of it',
+  'ABSURD LITTLE FREAK': 'may call his own logic "delulu" and mean it fondly, or reach for 😭 when something is absurd rather than sad',
+  'CHAOTIC GEN-Z': 'may use an "it\'s giving [thing]" comparison, stacked fragments, 😭 or 💀 depending on what actually happened',
+  /* 🔶 Torsione voluta: la voce evasiva/criptica usa «no cap» / «cap» come lo
+     userebbe qualcuno che non vuole essere preso in parola — non per essere
+     alla moda, ma perché la parola stessa gli serve a restare ambiguo. */
+  'MYSTERY SIGNAL': 'may say "cap" or "no cap" the way someone evasive uses it — never quite settling whether he means it',
+};
+
 function value(data: CharacterData, id: string): number {
   const raw = data.voice_dna[id];
   return typeof raw === 'number' ? Math.max(0, Math.min(100, raw)) : 50;
@@ -152,7 +179,8 @@ function writingStyle(d: CharacterData): NonNullable<PersonalityCard['writingSty
         ], seed, 9);
 
   let reactions: string;
-  const reactionMode = seed % 6;
+  const reactionMode = seed % 7;
+  const presetTexture = PRESET_TEXTURE[d.voice_preset];
   if (emotion < 30) {
     reactions = 'uses no emoji or emoticons; emotion must remain in the wording';
   } else if (reactionMode <= 1) {
@@ -162,7 +190,9 @@ function writingStyle(d: CharacterData): NonNullable<PersonalityCard['writingSty
   } else if (reactionMode === 3 && humor > 55) {
     reactions = 'uses dry text reactions such as lol, mh, ah, or ... as part of speech; graphical emoji are absent';
   } else if (reactionMode === 4 && humor > 55 && digital > 45) {
-    reactions = 'reaches for a small, current set of internet-register signals when something lands as genuinely funny or absurd — 💀 the way people use it now for dying laughing, an occasional "lol" — never stacked, never forced, absent from most messages';
+    reactions = 'reaches for a small, current set of internet-register signals when something lands as genuinely funny or absurd — 💀 for dying laughing, 😭 for something overwhelming in a good way, the way people actually use them now; never stacked, never forced, absent from most messages';
+  } else if (reactionMode === 5 && presetTexture && humor > 45) {
+    reactions = presetTexture;
   } else {
     reactions = 'almost never uses symbols; a rare :) is more natural than a colourful emoji';
   }
