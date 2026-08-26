@@ -1665,12 +1665,20 @@ export const useApp = create<AppState>()(
         const job = current.evolutionJob;
         if (job?.status !== 'ready') return;
         if (job.kind === 'hatch') {
-          // Il primo MON non passa da una seconda schermata d'incontro: il
-          // caricamento lo ha tenuto completamente nascosto e questo tocco è
-          // già la sua rivelazione. Tolto il job, la pagina MON appare intera
-          // (nome, Toy, sticker e dossier) soltanto quando tutti gli asset
-          // sono pronti.
-          set({ phase: 'live', evolutionJob: null });
+          /* 🔷 «Prima una finestra del terminale con il narratore che
+             racconta la storia, poi si apre un'altra finestra con la foto
+             del mon, e un'altra con nome e statistiche.»
+
+             🔶 QUI PRIMA IL PRIMO MON SALTAVA DRITTO A `live`: il commento
+             diceva che il caricamento lo aveva tenuto nascosto e che questo
+             tocco era già la sua rivelazione. Restava vero per il carico —
+             ma è esattamente la nascita che VINZ.MON deve raccontare, e
+             saltarla voleva dire che nessuno l'avrebbe mai vista sulla
+             prima creatura, quella che conta di più. Adesso passa dalla
+             STESSA soglia di evoluzione e branch qui sotto: il job resta
+             `ready` (lo chiude `enterLive`, come già faceva per loro), la
+             pagina MON intera arriva comunque — solo un tocco dopo. */
+          set({ phase: 'first-encounter' });
           return;
         }
         const previous = job.previousName ? current.mons[job.previousName] : null;
