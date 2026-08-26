@@ -140,6 +140,21 @@ export type VoiceDna = Record<string, number> & {
   deviations?: string[];
 };
 
+/** Interpretazione persistente del Voice DNA, condivisa da BIO e chat. */
+export interface PersonalityCard {
+  version: 1;
+  fingerprint: string;
+  tendencies: string[];
+  familyLens: string;
+  affinityLens: string;
+  decisions: {
+    disagreement: string;
+    care: string;
+    uncertainty: string;
+  };
+  length: 'short' | 'medium' | 'long';
+}
+
 /** §23 — un tratto ereditato porta con sé origine e forma tradotta. */
 export interface HeritageTrait {
   id: string;
@@ -343,6 +358,8 @@ export interface MindlineNode {
 
 export interface MonRecord {
   data: CharacterData;
+  /** Assente nei vecchi salvataggi: viene ricostruita dagli stessi dati. */
+  personalityCard?: PersonalityCard;
   bio: BioFile;
   sigil: SigilSeed;
   /** Reazioni testuali di fallback finché il Reaction Pack non è importato. */

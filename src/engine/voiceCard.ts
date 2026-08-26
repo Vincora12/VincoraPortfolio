@@ -2,7 +2,7 @@
    I numeri restano la struttura stabile; Family e Affinity cambiano la lente
    con cui il MON interpreta le cose, mai con tormentoni o parole obbligatorie. */
 
-import type { MonRecord } from './types';
+import type { CharacterData, MonRecord, PersonalityCard } from './types';
 import { voiceBrief } from './voiceBrief';
 
 const FAMILY_LENS: Record<string, string> = {
@@ -45,22 +45,61 @@ const AFFINITY_LENS: Record<string, string> = {
   FISH: 'notices context and movement around the subject, not only the subject itself',
 };
 
-export interface VoiceCard {
-  tendencies: string[];
-  familyLens: string;
-  affinityLens: string;
-  length: 'short' | 'medium' | 'long';
+function value(data: CharacterData, id: string): number {
+  const raw = data.voice_dna[id];
+  return typeof raw === 'number' ? Math.max(0, Math.min(100, raw)) : 50;
 }
 
-export function voiceCard(record: MonRecord): VoiceCard {
-  const d = record.data;
+function band(n: number): 'low' | 'mid' | 'high' {
+  return n < 35 ? 'low' : n > 65 ? 'high' : 'mid';
+}
+
+/** La carta viene costruita alla nascita e non cambia a ogni apertura. */
+export function buildPersonalityCard(d: CharacterData): PersonalityCard {
   const brief = voiceBrief(d.voice_dna, d.voice_preset);
   return {
+    version: 1,
+    fingerprint: [
+      `pace:${band(value(d, 'temperament'))}`,
+      `closeness:${band(value(d, 'relationship'))}`,
+      `humour:${band(value(d, 'humor'))}`,
+      `length:${band(value(d, 'writing'))}`,
+      `precision:${band(value(d, 'lexicon'))}`,
+      `emotion:${band(value(d, 'emotion'))}`,
+      `self:${band(value(d, 'evolution'))}`,
+      `family:${d.family}`,
+      `affinity:${d.affinity}`,
+      `preset:${d.voice_preset}`,
+    ].join('|'),
     tendencies: brief.lines,
     familyLens: FAMILY_LENS[d.family] ?? 'has a specific point of view shaped by his body, without explaining the taxonomy behind it',
     affinityLens: AFFINITY_LENS[d.affinity] ?? 'lets his transformed nature affect what he notices, not the vocabulary he is forced to use',
+    decisions: {
+      disagreement:
+        value(d, 'temperament') > 65
+          ? 'states disagreement early and plainly, then gives the reason'
+          : value(d, 'relationship') > 65
+            ? 'disagrees with familiarity, without softening the actual point'
+            : 'holds back until the disagreement matters, then says it without theatre',
+      care:
+        value(d, 'emotion') > 65
+          ? 'care is visible and specific, tied to what actually happened'
+          : value(d, 'relationship') > 65
+            ? 'care appears through remembering details and practical presence'
+            : 'care is restrained; he does not manufacture warmth to fill silence',
+      uncertainty:
+        value(d, 'lexicon') > 65
+          ? 'names exactly what is unknown and what evidence would change the answer'
+          : value(d, 'humor') > 65
+            ? 'can admit uncertainty lightly, without turning it into a performance'
+            : 'says he does not know in plain language and stops there',
+    },
     length: brief.length,
   };
+}
+
+export function voiceCard(record: MonRecord): PersonalityCard {
+  return record.personalityCard ?? buildPersonalityCard(record.data);
 }
 
 export function voiceCardBlock(record: MonRecord): string {
@@ -75,6 +114,11 @@ export function voiceCardBlock(record: MonRecord): string {
     '',
     `LENS OF YOUR FAMILY: ${card.familyLens}.`,
     `LENS OF YOUR AFFINITY: ${card.affinityLens}.`,
+    '',
+    'HOW YOU MAKE CONVERSATIONAL DECISIONS',
+    `- When you disagree: ${card.decisions.disagreement}.`,
+    `- When you care: ${card.decisions.care}.`,
+    `- When you are uncertain: ${card.decisions.uncertainty}.`,
     '',
     'Do not demonstrate every line in one reply. Do not turn these lenses into catchphrases,',
     'role-play noises, technical status reports or lore exposition. Personality is selection:',

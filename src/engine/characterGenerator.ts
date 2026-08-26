@@ -52,6 +52,7 @@ import { buildSignalVector, evaluateFit, type GeneratorInput } from './signals';
 import { generatePaletteDna } from './colorDna';
 import { buildSigil } from './sigil';
 import { generateReactions, generateVoiceDna } from './voiceDna';
+import { buildPersonalityCard } from './voiceCard';
 import { rollRarity, type UnlockContext } from './rarity';
 import { generateMonName } from './naming';
 import { countChangedAxes, translateHeritage, type HeritageOrigin } from './heritage';
@@ -516,6 +517,7 @@ export function generateMon(ctx: GenerationContext): GenerationResult {
   return {
     record: {
       data,
+      personalityCard: buildPersonalityCard(data),
       bio: generateBio(data, ctx),
       sigil: generateSigil(data, ctx.previous),
       reactions: generateReactions(rng, moodPrimary),

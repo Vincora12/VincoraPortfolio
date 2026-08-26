@@ -104,6 +104,7 @@ import { selectHeritageOrigins, type HeritageOrigin } from '../engine/heritage';
 import { createNode, makeNodeId, nextChapter } from '../engine/mindline';
 import { makeMemory, rollDailyEvent } from '../engine/simulation';
 import { fallbackGreeting, fallbackReply } from '../engine/voiceDna';
+import { buildPersonalityCard } from '../engine/voiceCard';
 import { makeRng, randomSeed, seedFromString } from '../engine/rng';
 import {
   EMPTY_NOVELTY,
@@ -3029,6 +3030,11 @@ export const useApp = create<AppState>()(
         if (state?.dev.rarityThresholds) setRarityThresholds(state.dev.rarityThresholds);
         if (state) {
           migrateStepModels(state);
+          /* Anche i MON nati prima della Voice Card ricevono una carta
+             persistente ricavata dai loro valori originali, senza ritirarli. */
+          for (const record of Object.values(state.mons)) {
+            record.personalityCard ??= buildPersonalityCard(record.data);
+          }
           /* Un lavoro `running` vive sul server e viene ripreso da App. */
         }
       },
