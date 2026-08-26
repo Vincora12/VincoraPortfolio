@@ -51,6 +51,7 @@ export const ChatGPT: FC = () => {
   return (
     <CloneThreadShell>
       <ChatCostTotal />
+      <WorkoutCelebration />
       <ThreadPrimitive.Root className="flex h-full flex-col items-stretch bg-white px-4 text-[#0d0d0d] dark:bg-black dark:text-[#ececec]">
         <AuiIf condition={(s) => s.thread.isEmpty}>
           <EmptyState />
@@ -548,6 +549,8 @@ const AssistantMessage: FC = () => {
 
       <MonReactionMessage />
 
+      <WorkoutConfirmationButton />
+
       <div className="flex items-center pt-1">
         <ActionBarPrimitive.Root hideWhenRunning className="flex items-center">
           <ActionBarPrimitive.Copy asChild>
@@ -634,6 +637,106 @@ const AssistantMessage: FC = () => {
         </MessagePrimitive.Parts>
       </div>
     </MessagePrimitive.Root>
+  );
+};
+
+/** La proposta resta conversazionale, ma la conferma è un'azione inequivocabile. */
+const WorkoutConfirmationButton: FC = () => {
+  const aui = useAui();
+  const [submitted, setSubmitted] = useState(false);
+  const { text, isLast, running } = useAuiState(
+    useShallow((state) => ({
+      text: (state.message.content ?? [])
+        .filter((part) => part.type === "text")
+        .map((part) => part.text)
+        .join(""),
+      isLast: state.thread.messages.at(-1)?.id === state.message.id,
+      running: state.thread.isRunning,
+    })),
+  );
+  const asksForWorkoutConfirmation = /Confermi che registro questo \*\*allenamento\*\* in ME\?/i.test(text);
+  if (!asksForWorkoutConfirmation || !isLast) return null;
+
+  const confirm = () => {
+    if (submitted || running) return;
+    setSubmitted(true);
+    aui.thread.append("Vai, registra");
+  };
+
+  return (
+    <button
+      type="button"
+      className="vinz-workout-confirm"
+      onClick={confirm}
+      disabled={submitted || running}
+    >
+      {submitted ? "REGISTRAZIONE…" : "REGISTRA ALLENAMENTO"}
+    </button>
+  );
+};
+
+/** Celebra esclusivamente una scrittura realmente confermata dal runtime. */
+const WorkoutCelebration: FC = () => {
+  const [visible, setVisible] = useState(false);
+  const initialized = useRef(false);
+  const previousSignal = useRef("");
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const record = useApp((state) =>
+    state.activeMonName ? state.mons[state.activeMonName] ?? null : null,
+  );
+  const reactionSheet = useAssetUrl(record?.data.name ?? "", "reaction_pack");
+  const { loading, signal } = useAuiState(
+    useShallow((state) => {
+      const message = state.thread.messages.at(-1);
+      const raw = message?.metadata.custom.updates;
+      const updates = Array.isArray(raw)
+        ? raw.filter((item): item is string => typeof item === "string")
+        : [];
+      const workoutSaved = updates.some((item) =>
+        /Allenamento (?:aggiunto|corretto) in ME/i.test(item),
+      );
+      return {
+        loading: state.thread.isLoading,
+        signal: workoutSaved && message ? `${message.id}:${updates.join("|")}` : "",
+      };
+    }),
+  );
+
+  useEffect(() => {
+    if (loading) return;
+    if (!initialized.current) {
+      initialized.current = true;
+      previousSignal.current = signal;
+      return;
+    }
+    if (!signal || signal === previousSignal.current) return;
+    previousSignal.current = signal;
+    setVisible(true);
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => setVisible(false), 2100);
+    return () => {
+      if (timer.current) clearTimeout(timer.current);
+    };
+  }, [loading, signal]);
+
+  if (!visible) return null;
+  return (
+    <div className="vinz-workout-celebration" role="status" aria-live="assertive">
+      <div className="vinz-workout-celebration__pulse" aria-hidden="true" />
+      {reactionSheet ? (
+        <span
+          className="vinz-workout-celebration__sticker"
+          aria-label={`${record?.data.name ?? "Il tuo MON"} è felice`}
+          style={{
+            backgroundImage: `url(${reactionSheet})`,
+            backgroundSize: `${EXPRESSION_SPEC.columns * 100}% ${EXPRESSION_SPEC.rows * 100}%`,
+            backgroundPosition: `${100 / (EXPRESSION_SPEC.columns - 1)}% 0%`,
+          }}
+        />
+      ) : null}
+      <strong>ALLENAMENTO<br />REGISTRATO</strong>
+      <span className="vinz-workout-celebration__line" aria-hidden="true" />
+    </div>
   );
 };
 

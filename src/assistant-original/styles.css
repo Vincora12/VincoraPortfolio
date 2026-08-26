@@ -531,6 +531,140 @@ body[data-scroll-locked] {
   to { opacity: 1; clip-path: inset(0); }
 }
 
+.vinz-workout-confirm {
+  position: relative;
+  z-index: 0;
+  isolation: isolate;
+  width: min(100%, 22rem);
+  min-height: 3.25rem;
+  margin-top: 1rem;
+  overflow: hidden;
+  border: 1px solid var(--char-accent-on-dark, #ececec) !important;
+  color: var(--char-accent-on-dark, #ececec) !important;
+  font-size: 0.75rem !important;
+  font-weight: 750 !important;
+  letter-spacing: 0.08em !important;
+  transition: color 180ms ease, transform 120ms ease, opacity 180ms ease !important;
+}
+
+.vinz-workout-confirm::before {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  content: "";
+  background: var(--char-accent-on-dark, #ececec);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 280ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.vinz-workout-confirm:active {
+  transform: scale(0.97);
+}
+
+.vinz-workout-confirm:disabled {
+  color: var(--char-on-accent-dark, #000) !important;
+}
+
+.vinz-workout-confirm:disabled::before {
+  transform: scaleX(1);
+}
+
+.vinz-workout-confirm:focus-visible {
+  outline: 2px solid var(--char-accent-on-dark, #ececec);
+  outline-offset: 3px;
+}
+
+/* Un salvataggio reale invade per un attimo la chat con il colore del MON.
+   Lo sticker resta l'eroe; l'effetto non blocca mai il tocco. */
+.vinz-workout-celebration {
+  position: fixed;
+  inset: 0;
+  z-index: 10020;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.25rem;
+  overflow: hidden;
+  pointer-events: none;
+  isolation: isolate;
+  background: #000;
+  color: #fff;
+  animation: vinz-workout-scene 2100ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.vinz-workout-celebration__pulse {
+  position: absolute;
+  inset: -20%;
+  z-index: -1;
+  background:
+    linear-gradient(115deg, transparent 40%, var(--char-accent-on-dark, #fff) 40% 48%, transparent 48%),
+    var(--char-primary, #111);
+  clip-path: inset(48% 0 48% 0);
+  animation: vinz-workout-pulse 900ms cubic-bezier(0.16, 1, 0.3, 1) 80ms both;
+}
+
+.vinz-workout-celebration__sticker {
+  display: block;
+  width: min(62vw, 17rem);
+  aspect-ratio: 1.2;
+  background-repeat: no-repeat;
+  filter:
+    drop-shadow(3px 0 0 #fff) drop-shadow(-3px 0 0 #fff)
+    drop-shadow(0 3px 0 #fff) drop-shadow(0 -3px 0 #fff)
+    drop-shadow(0 14px 16px rgb(0 0 0 / 48%));
+  animation: vinz-workout-sticker 760ms cubic-bezier(0.16, 1, 0.3, 1) 120ms both;
+}
+
+.vinz-workout-celebration strong {
+  max-width: 90vw;
+  color: #fff;
+  font-size: clamp(2.15rem, 10vw, 4.5rem);
+  font-weight: 850;
+  line-height: 0.86;
+  letter-spacing: -0.035em;
+  text-align: center;
+  text-wrap: balance;
+  animation: vinz-workout-title 580ms cubic-bezier(0.16, 1, 0.3, 1) 320ms both;
+}
+
+.vinz-workout-celebration__line {
+  width: min(58vw, 15rem);
+  height: 0.25rem;
+  background: var(--char-accent-on-dark, #fff);
+  transform-origin: center;
+  animation: vinz-workout-line 520ms cubic-bezier(0.16, 1, 0.3, 1) 460ms both;
+}
+
+@keyframes vinz-workout-scene {
+  0% { opacity: 0; }
+  10%, 84% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes vinz-workout-pulse {
+  0% { clip-path: inset(48% 0 48% 0); transform: rotate(-8deg) scale(0.7); }
+  55% { clip-path: inset(0); transform: rotate(0) scale(1); }
+  100% { clip-path: inset(8% 0); transform: rotate(0) scale(1); }
+}
+
+@keyframes vinz-workout-sticker {
+  0% { opacity: 0; transform: translateY(24px) rotate(-9deg) scale(0.55); filter: blur(8px); }
+  62% { opacity: 1; transform: translateY(-4px) rotate(3deg) scale(1.06); filter: blur(0); }
+  100% { opacity: 1; transform: translateY(0) rotate(-1deg) scale(1); filter: blur(0); }
+}
+
+@keyframes vinz-workout-title {
+  from { opacity: 0; clip-path: inset(0 50%); transform: scaleX(0.72); }
+  to { opacity: 1; clip-path: inset(0); transform: scaleX(1); }
+}
+
+@keyframes vinz-workout-line {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
 @keyframes vinz-meta-reveal {
   from { opacity: 0; filter: blur(3px); }
   to { opacity: 1; filter: blur(0); }
@@ -668,6 +802,14 @@ body[data-scroll-locked] {
 
 @media (prefers-reduced-motion: reduce) {
   .vinz-chat-reaction { animation: none; }
+  .vinz-workout-celebration,
+  .vinz-workout-celebration__pulse,
+  .vinz-workout-celebration__sticker,
+  .vinz-workout-celebration strong,
+  .vinz-workout-celebration__line {
+    animation-duration: 1ms;
+    animation-delay: 0ms;
+  }
   .vinz-record__wave.is-loading::after {
     animation: none;
   }
