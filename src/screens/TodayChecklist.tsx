@@ -1,9 +1,7 @@
-import { useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import { readHealthJournal, HEALTH_JOURNAL_EVENT, type MealLog } from '../engine/healthJournal';
-import { EXPRESSION_SPEC } from '../engine/assets';
-import { completeDayStreak, saveEvolutionWish, syncRewardProgress, wishNeedsMega, type EvolutionWish, type SyncRewardKind } from '../engine/syncRewards';
+import { completeDayStreak, saveEvolutionWish, syncRewardProgress, wishNeedsMega, type EvolutionWish } from '../engine/syncRewards';
 import { useApp } from '../state/store';
-import { useAssetUrl } from '../system/AssetSlot';
 import { Icon } from '../system/Icon';
 
 const MEALS: Array<{ slot: Exclude<MealLog['slot'], 'extra'>; label: string }> = [
@@ -18,9 +16,7 @@ export function TodayChecklistScreen() {
   const [wishText, setWishText] = useState('');
   const [wishKind, setWishKind] = useState<EvolutionWish['kind']>('evolution');
   const [wishWarning, setWishWarning] = useState(false);
-  const monName = useApp((state) => state.activeMonName ?? '');
   const openFormEvolution = useApp((state) => state.openFormEvolution);
-  const reactionSheet = useAssetUrl(monName, 'reaction_pack');
 
   useEffect(() => {
     const update = () => setJournal(readHealthJournal());
@@ -31,15 +27,11 @@ export function TodayChecklistScreen() {
   const today = dayKey(new Date());
   const todayMeals = journal.meals.filter((item) => dayKey(new Date(item.at)) === today);
   const slots = new Set(todayMeals.map((item) => item.slot));
-  const trained = journal.workouts.some((item) => dayKey(new Date(item.at)) === today);
-  const done = MEALS.filter(({ slot }) => slots.has(slot)).length + Number(trained);
-  const complete = done === 6;
+  const todayWorkouts = journal.workouts.filter((item) => dayKey(new Date(item.at)) === today);
   const streak = completeDayStreak(journal);
-  const expression = done >= 4 ? 1 : 5;
-  const col = expression % EXPRESSION_SPEC.columns;
-  const row = Math.floor(expression / EXPRESSION_SPEC.columns);
-  const rewards = useMemo(() => (['evolution', 'mega-evolution', 'wish'] as SyncRewardKind[]).map((kind) => ({ kind, ...syncRewardProgress(kind, streak) })), [streak]);
-  const month = rewards[2]!;
+  const evolution = syncRewardProgress('evolution', streak);
+  const mega = syncRewardProgress('mega-evolution', streak);
+  const month = syncRewardProgress('wish', streak);
 
   const chooseReward = (kind: 'evolution' | 'mega-evolution') => {
     if (syncRewardProgress(kind, streak).ready) openFormEvolution();
@@ -56,22 +48,16 @@ export function TodayChecklistScreen() {
   return <main className="today-check sync-check" aria-label="SYNC di oggi">
     <header className="sync-check__hero">
       <div className="sync-check__dial" style={{ '--sync-fill': `${(Math.min(streak, 30) / 30) * 360}deg` } as CSSProperties}>
-        <i aria-hidden="true" /><strong>{streak}</strong><span>{streak === 1 ? 'GIORNO' : 'GIORNI'}</span>
+        <i aria-hidden="true" /><strong>{streak}</strong>
+        <Checkpoint value="2" ready={evolution.ready} className="sync-checkpoint--2" label="Evolvi" onClick={() => chooseReward('evolution')} />
+        <Checkpoint value="7" ready={mega.ready} className="sync-checkpoint--7" label="Megaevolvi" onClick={() => chooseReward('mega-evolution')} />
+        <Checkpoint value="30" ready={month.ready} className="sync-checkpoint--30" label="Esprimi un desiderio" onClick={() => month.ready && setWishOpen(true)} />
       </div>
-      {reactionSheet ? <span className="today-check__sticker" role="img" aria-label={`${monName} ${complete ? 'felice' : 'ti incoraggia'}`} style={{ backgroundImage: `url(${reactionSheet})`, backgroundSize: `${EXPRESSION_SPEC.columns * 100}% ${EXPRESSION_SPEC.rows * 100}%`, backgroundPosition: `${(col * 100) / (EXPRESSION_SPEC.columns - 1)}% ${(row * 100) / (EXPRESSION_SPEC.rows - 1)}%` }} /> : <Icon name="mon" />}
-      <div><h1>SYNC</h1><p>{complete ? 'OGGI È COMPLETO' : `${done} DI 6 COMPLETATI OGGI`}</p></div>
     </header>
 
-    <section className="sync-check__rewards" aria-label="Premi SYNC">
-      <Reward label="EVOLVI" note="OGNI 2 GIORNI" reward={rewards[0]!} onClick={() => chooseReward('evolution')} />
-      <Reward label="MEGAEVOLVI" note="OGNI 7 GIORNI" reward={rewards[1]!} onClick={() => chooseReward('mega-evolution')} />
-      <Reward label="DESIDERIO" note="OGNI 30 GIORNI" reward={month} onClick={() => month.ready && setWishOpen(true)} />
-    </section>
-
-    <section className="today-check__tasks" aria-label="Obiettivi della giornata">
-      <h2>OGGI</h2>
-      {MEALS.map(({ slot, label }) => { const entry = todayMeals.find((item) => item.slot === slot); return <article key={slot} data-done={Boolean(entry)}><span aria-hidden="true" /><div><strong>{label}</strong><small>{entry?.description ?? 'DA REGISTRARE'}</small></div>{entry && <Icon name="save" />}</article>; })}
-      <article data-done={trained}><span aria-hidden="true" /><div><strong>ALLENAMENTO</strong><small>{trained ? journal.workouts.filter((item) => dayKey(new Date(item.at)) === today).at(-1)?.title : 'DA REGISTRARE'}</small></div>{trained && <Icon name="save" />}</article>
+    <section className="sync-check__signals" aria-label="Completamento di oggi">
+      <div aria-label={`${MEALS.filter(({ slot }) => slots.has(slot)).length} pasti su 5 registrati`}>{MEALS.map(({ slot, label }) => <span key={slot} data-on={slots.has(slot)} title={label} />)}</div>
+      <div className="sync-check__workouts" aria-label={`${todayWorkouts.length} allenamenti registrati`}>{Array.from({ length: Math.max(1, todayWorkouts.length) }, (_, index) => <span key={index} data-on={index < todayWorkouts.length} />)}</div>
     </section>
 
     {wishOpen && <div className="sync-wish" role="dialog" aria-modal="true" aria-labelledby="sync-wish-title">
@@ -88,6 +74,6 @@ export function TodayChecklistScreen() {
   </main>;
 }
 
-function Reward({ label, note, reward, onClick }: { label: string; note: string; reward: { have: number; need: number; ready: boolean }; onClick: () => void }) {
-  return <button type="button" className="sync-reward" data-ready={reward.ready} onClick={onClick} disabled={!reward.ready}><span><strong>{label}</strong><small>{reward.ready ? 'PRONTO' : note}</small></span><i aria-hidden="true">{Array.from({ length: reward.need }, (_, index) => <b key={index} data-on={index < reward.have} />)}</i></button>;
+function Checkpoint({ value, ready, className, label, onClick }: { value: string; ready: boolean; className: string; label: string; onClick: () => void }) {
+  return <button type="button" className={`sync-checkpoint ${className}`} data-ready={ready} onClick={onClick} disabled={!ready} aria-label={`${label} al giorno ${value}`}>{value}</button>;
 }
