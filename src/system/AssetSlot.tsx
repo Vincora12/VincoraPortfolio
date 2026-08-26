@@ -15,7 +15,7 @@
    ========================================================================= */
 
 import { useEffect, useSyncExternalStore } from 'react';
-import type { AssetType, SigilSeed } from '../engine/types';
+import type { AssetType, PaletteDna, SigilSeed } from '../engine/types';
 import { sigilGeometry } from '../engine/sigil';
 import { assetTypeDef, placeholderLabel } from '../engine/assets';
 import {
@@ -192,9 +192,12 @@ export function AssetSlot({
  * La cura non era rimettere il tipo: era togliere la ricerca. Un sigillo È il
  * disegno, non un ripiego in attesa di un'immagine.
  */
-export function Sigil({ seed, size = 28 }: { seed: SigilSeed; size?: number }) {
+export function Sigil({ seed, size = 28, palette }: { seed: SigilSeed; size?: number; palette?: PaletteDna }) {
   const g = sigilGeometry(seed, size);
   const r = size / 2;
+  const primary = palette?.primary ?? 'currentColor';
+  const secondary = palette?.accent ?? primary;
+  const contrast = palette?.roles.contrast ?? secondary;
   /* Il tratto scala con la dimensione, non è un valore fisso: a 24px un
      tratto pensato per 40 chiude la figura, a 40px un tratto pensato per 24
      la fa sparire. */
@@ -211,8 +214,8 @@ export function Sigil({ seed, size = 28 }: { seed: SigilSeed; size?: number }) {
       <g transform={`rotate(${seed.rotation} ${r} ${r})`}>
         <polygon
           points={g.points}
-          fill={seed.solidCore ? 'currentColor' : 'none'}
-          stroke="currentColor"
+          fill={seed.solidCore ? primary : 'none'}
+          stroke={primary}
           strokeWidth={stroke}
           strokeLinejoin="miter"
           /* BROKEN non chiude la forma: il varco È il segno, quindi la
@@ -225,7 +228,7 @@ export function Sigil({ seed, size = 28 }: { seed: SigilSeed; size?: number }) {
             points={sigilGeometry({ ...seed, mutation: 'PLAIN' }, g.inner * 2).points}
             transform={`translate(${r - g.inner} ${r - g.inner}) rotate(${g.innerRotation} ${g.inner} ${g.inner})`}
             fill="none"
-            stroke="currentColor"
+            stroke={secondary}
             strokeWidth={stroke * 0.7}
             strokeLinejoin="miter"
           />
@@ -238,7 +241,7 @@ export function Sigil({ seed, size = 28 }: { seed: SigilSeed; size?: number }) {
           cy={r}
           r={g.ring}
           fill="none"
-          stroke="currentColor"
+          stroke={contrast}
           strokeWidth={stroke * (seed.mutation === 'ORBIT' ? 0.5 : 1)}
         />
       )}

@@ -101,7 +101,7 @@ export function SpecimenProfileScreen({
           </p>
         </div>
         <span className="specimen__sigil">
-          <Sigil seed={mon.sigil} size={28} />
+          <Sigil seed={mon.sigil} size={28} palette={d.palette_dna} />
         </span>
       </header>
 

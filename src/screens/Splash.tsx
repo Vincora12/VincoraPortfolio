@@ -364,7 +364,7 @@ function MonDossier({ health, mon }: { health: Parameters<typeof birthStatsFor>[
           punto della pagina dove c'è spazio vero, e l'unico posto del dossier
           dove un adesivo non finisce addosso a una riga di testo. */}
       <div className="dossier__sigil" data-pezzo="sigillo">
-        <Sigil seed={mon.sigil} size={40} />
+        <Sigil seed={mon.sigil} size={40} palette={d.palette_dna} />
         <Sticker monName={d.name} alt={displayName(d.name)} n={5} className="stick--sigil" />
       </div>
     </div>

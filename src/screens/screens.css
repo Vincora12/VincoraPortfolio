@@ -3929,7 +3929,6 @@
 .dossier__sigil {
   display: flex;
   justify-content: center;
-  opacity: 0.5;
 }
 
 .dossier__stats {
