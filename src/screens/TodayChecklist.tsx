@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { readHealthJournal, HEALTH_JOURNAL_EVENT, type MealLog } from '../engine/healthJournal';
-import { completeDayStreak, saveEvolutionWish, syncRewardProgress, wishNeedsMega, type EvolutionWish } from '../engine/syncRewards';
+import { completeDayStreak, saveEvolutionWish, syncBalance, syncRewardProgress, wishNeedsMega, type EvolutionWish } from '../engine/syncRewards';
 import { dateForDay } from '../engine/progression';
 import { useApp } from '../state/store';
 import { Icon } from '../system/Icon';
@@ -41,6 +41,7 @@ export function TodayChecklistScreen() {
   const slots = new Set(todayMeals.map((item) => item.slot));
   const todayWorkouts = journal.workouts.filter((item) => dayKey(new Date(item.at)) === today);
   const streak = completeDayStreak(journal, gameToday);
+  const balance = syncBalance(streak);
   const evolution = syncRewardProgress('evolution', streak);
   const mega = syncRewardProgress('mega-evolution', streak);
   const month = syncRewardProgress('wish', streak);
@@ -60,7 +61,7 @@ export function TodayChecklistScreen() {
   return <main className="today-check sync-check" aria-label="SYNC di oggi">
     <header className="sync-check__hero">
       <SyncDial
-        streak={streak}
+        balance={balance}
         evolutionReady={evolution.ready}
         megaReady={mega.ready}
         wishReady={month.ready}

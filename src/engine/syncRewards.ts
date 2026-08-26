@@ -1,12 +1,16 @@
 import { readHealthJournal, type HealthJournal, type MealLog } from './healthJournal';
 
 const MEAL_SLOTS: Exclude<MealLog['slot'], 'extra'>[] = ['colazione', 'spuntino', 'pranzo', 'merenda', 'cena'];
-const REWARDS_KEY = 'vinzmon.sync.rewards.v1';
+/* 🔷 v2 — chiave nuova: la forma è cambiata da tre traguardi con soglie
+   indipendenti a UNA riserva condivisa che si spende (vedi sotto). Un vecchio
+   salvataggio nella forma di prima interpretato con lo schema nuovo direbbe
+   cose senza senso, quindi non si legge: si riparte, che per un prototipo è
+   il comportamento onesto. */
+const REWARDS_KEY = 'vinzmon.sync.rewards.v2';
 const WISH_KEY = 'vinzmon.sync.wish.v1';
 
 export type SyncRewardKind = 'evolution' | 'mega-evolution' | 'wish';
 export type EvolutionWish = { text: string; kind: Exclude<SyncRewardKind, 'wish'> };
-type Claims = Record<SyncRewardKind, number>;
 
 const localDay = (date: Date) => `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
 const previousDay = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate() - 1);
@@ -43,26 +47,40 @@ export function completeDayStreak(journal = readHealthJournal(), referenceDate =
 
 export const SYNC_REWARD_DAYS: Record<SyncRewardKind, number> = { evolution: 2, 'mega-evolution': 7, wish: 30 };
 
-function readClaims(): Claims {
+/* 🔷 «Se uso il due, il sette o il trenta, il SYNC deve fare meno due, meno
+   sette, meno trenta — e si ricarica solo andando avanti coi giorni.»
+
+   🔒 UNA RISERVA SOLA, NON TRE TRAGUARDI INDIPENDENTI. Prima ogni premio
+   teneva il proprio traguardo (streak al momento del claim): evolvere non
+   toccava il conto della megaevoluzione, quindi la ruota non scendeva mai —
+   restava piena anche subito dopo averla usata. Adesso c'è un'unica riserva
+   spendibile, `streak - speso`: usarne una parte la abbassa per TUTTI i
+   traguardi, ed è quello che il quadrante disegna. */
+function readSpent(streak: number): number {
   try {
-    return { evolution: 0, 'mega-evolution': 0, wish: 0, ...JSON.parse(localStorage.getItem(REWARDS_KEY) ?? '{}') };
-  } catch { return { evolution: 0, 'mega-evolution': 0, wish: 0 }; }
+    const raw = JSON.parse(localStorage.getItem(REWARDS_KEY) ?? '0');
+    const spent = typeof raw === 'number' && raw >= 0 ? raw : 0;
+    // Se la serie si è interrotta e ricominciata, una spesa vecchia non può
+    // restare per sempre più alta della serie nuova: risucchierebbe ogni
+    // giorno futuro finché lo streak non la raggiunge di nuovo da capo.
+    return spent <= streak ? spent : 0;
+  } catch { return 0; }
+}
+
+/** Quanto SYNC è davvero spendibile ORA: lo streak meno quanto già usato. */
+export function syncBalance(streak = completeDayStreak()): number {
+  return Math.max(0, streak - readSpent(streak));
 }
 
 export function syncRewardProgress(kind: SyncRewardKind, streak = completeDayStreak()) {
   const need = SYNC_REWARD_DAYS[kind];
-  const claimedAt = readClaims()[kind];
-  // Se la serie si interrompe, la nuova serie riparte davvero da zero: un
-  // vecchio premio usato al giorno 30 non può bloccare per sempre il futuro.
-  const earnedSinceClaim = streak >= claimedAt ? streak - claimedAt : streak;
-  return { have: Math.min(need, earnedSinceClaim), need, ready: earnedSinceClaim >= need };
+  const balance = syncBalance(streak);
+  return { have: Math.min(need, balance), need, ready: balance >= need };
 }
 
 export function claimSyncReward(kind: SyncRewardKind, streak = completeDayStreak()): boolean {
   if (!syncRewardProgress(kind, streak).ready) return false;
-  const claims = readClaims();
-  claims[kind] = streak;
-  localStorage.setItem(REWARDS_KEY, JSON.stringify(claims));
+  localStorage.setItem(REWARDS_KEY, JSON.stringify(readSpent(streak) + SYNC_REWARD_DAYS[kind]));
   return true;
 }
 

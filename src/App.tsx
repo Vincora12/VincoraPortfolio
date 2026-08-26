@@ -465,7 +465,13 @@ export function App() {
     /* La MIND.MAP resta una superficie scura di percorso. Il MIND.DEX invece
        è uno scaffale ottico bianco: non deve ereditare il campo nero solo
        perché vive accanto alla mappa. */
-    (phase === 'live' && tab === 'mon' && monView === 'map' && !overlay);
+    (phase === 'live' && tab === 'mon' && monView === 'map' && !overlay) ||
+    /* 🔷 «Quella barra bianca sopra deve essere nera.» SYNC dipinge il proprio
+       sfondo nero da sé (`.today-check`), ma la barra di stato condivisa
+       (`.proto-statusbar`, `GIORNO · DEV`) vive fuori da quella schermata e
+       non lo sapeva: restava bianca per davvero, perché `--white` senza
+       questo campo resta quello di `:root`. */
+    (phase === 'live' && tab === 'today' && !overlay);
 
   // Con la tab bar in fondo, il margine di sistema lo prende lei: il composer
   // non deve aggiungere il suo, o resterebbe uno spazio vuoto doppio.

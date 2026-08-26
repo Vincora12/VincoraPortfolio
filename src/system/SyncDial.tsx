@@ -20,6 +20,12 @@
    principio, portato a 30 — un trattino per ogni giorno dei 30 che contano
    per il desiderio — invece del conic-gradient a fetta che aveva prima.
    Stessa idea del progetto, non un'invenzione nuova.
+
+   🔷 «Se uso il due, il sette o il trenta, il SYNC deve fare meno due, meno
+   sette, meno trenta.» Il numero che questo quadrante mostra ADESSO non è
+   più lo streak grezzo — è `syncBalance()` (engine/syncRewards.ts): lo
+   streak meno quanto già speso in premi. Chi lo chiama decide cosa passare;
+   il quadrante si limita a disegnare il numero che riceve.
    ========================================================================= */
 
 import type { CSSProperties } from 'react';
@@ -27,7 +33,7 @@ import type { CSSProperties } from 'react';
 const DIAL_TICKS = 30;
 
 export function SyncDial({
-  streak,
+  balance,
   evolutionReady,
   megaReady,
   wishReady,
@@ -35,7 +41,9 @@ export function SyncDial({
   onMega,
   onWish,
 }: {
-  streak: number;
+  /** La riserva SPENDIBILE (`syncBalance`), non lo streak grezzo: scende
+   *  quando si usa un traguardo, sale solo avanzando nei giorni. */
+  balance: number;
   evolutionReady: boolean;
   megaReady: boolean;
   wishReady: boolean;
@@ -44,7 +52,7 @@ export function SyncDial({
   onMega?: () => void;
   onWish?: () => void;
 }) {
-  const done = Math.min(streak, DIAL_TICKS);
+  const done = Math.min(balance, DIAL_TICKS);
   return (
     <div className="sync-check__dial">
       <div className="sync-check__ticks" aria-hidden="true">
@@ -56,7 +64,7 @@ export function SyncDial({
           />
         ))}
       </div>
-      <strong>{streak}</strong>
+      <strong>{balance}</strong>
       <SyncCheckpoint value="2" ready={evolutionReady} className="sync-checkpoint--2" label="Evolvi" onClick={onEvolve} />
       <SyncCheckpoint value="7" ready={megaReady} className="sync-checkpoint--7" label="Megaevolvi" onClick={onMega} />
       <SyncCheckpoint value="30" ready={wishReady} className="sync-checkpoint--30" label="Esprimi un desiderio" onClick={onWish} />

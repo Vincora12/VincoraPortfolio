@@ -4362,7 +4362,7 @@
    arrotondati ma netti — e via la linea/il cerchio grigio che c'era.» Niente
    `border-radius`, niente bagliore sfumato: un blocco pieno, non un puntino.
    Ancora da fare = grigio; già fatto = il colore di turno del .mon. */
-.sync-check__ticks i::before { content: ''; position: absolute; top: 3%; left: calc(50% - 2.5px); width: 5px; height: 10%; background: #3a3b42; opacity: .5; }
+.sync-check__ticks i::before { content: ''; position: absolute; top: 3%; left: calc(50% - 3.5px); width: 7px; height: 10%; background: #3a3b42; opacity: .5; }
 /* 🔒 NON `--tc-accent`: quella variabile la dichiara solo `.today-check`, la
    pagina SYNC vera. Dentro DEV il quadrante non ha quell'antenato — è lo
    stesso bug del pulsante di stop di prima, la stessa correzione: la

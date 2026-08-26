@@ -38,7 +38,7 @@ import { AssetImport } from './AssetImport';
 import { ForgePanel } from './ForgePanel';
 import { buildInfo, labSyncCode } from '../system/build';
 import { HEALTH_JOURNAL_EVENT, readHealthJournal } from '../engine/healthJournal';
-import { completeDayStreak, syncRewardProgress } from '../engine/syncRewards';
+import { completeDayStreak, syncBalance, syncRewardProgress } from '../engine/syncRewards';
 import { SyncDial } from '../system/SyncDial';
 
 /* ============================================================================
@@ -97,6 +97,7 @@ export function StartSection({
   }, []);
   const gameToday = dateForDay(day, startedAt);
   const streak = completeDayStreak(journal, gameToday);
+  const balance = syncBalance(streak);
   const evolution = syncRewardProgress('evolution', streak);
   const mega = syncRewardProgress('mega-evolution', streak);
   const month = syncRewardProgress('wish', streak);
@@ -151,7 +152,7 @@ export function StartSection({
              rapido nascosto in un pannello di sviluppo. */}
       <p className="t-meta dev__label">TEMPO</p>
       <div className="sync-check__hero">
-        <SyncDial streak={streak} evolutionReady={evolution.ready} megaReady={mega.ready} wishReady={month.ready} />
+        <SyncDial balance={balance} evolutionReady={evolution.ready} megaReady={mega.ready} wishReady={month.ready} />
       </div>
       <Button block variant="primary" small onClick={() => simulateSyncedDays(1)}>
         +1 GIORNO
