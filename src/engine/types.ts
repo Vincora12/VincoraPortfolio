@@ -142,7 +142,7 @@ export type VoiceDna = Record<string, number> & {
 
 /** Interpretazione persistente del Voice DNA, condivisa da BIO e chat. */
 export interface PersonalityCard {
-  version: 1;
+  version: 1 | 2;
   fingerprint: string;
   tendencies: string[];
   familyLens: string;
@@ -153,6 +153,15 @@ export interface PersonalityCard {
     uncertainty: string;
   };
   length: 'short' | 'medium' | 'long';
+  /** La grafia riconoscibile del MON: cambia la superficie, non il contenuto. */
+  writingStyle?: {
+    rhythm: string;
+    punctuation: string;
+    casing: string;
+    paragraphs: string;
+    reactions: string;
+    signature: string;
+  };
 }
 
 /** §23 — un tratto ereditato porta con sé origine e forma tradotta. */

@@ -54,11 +54,123 @@ function band(n: number): 'low' | 'mid' | 'high' {
   return n < 35 ? 'low' : n > 65 ? 'high' : 'mid';
 }
 
+function hash(text: string): number {
+  let result = 2166136261;
+  for (const char of text) result = Math.imul(result ^ char.charCodeAt(0), 16777619);
+  return result >>> 0;
+}
+
+function pick<T>(items: readonly T[], seed: number, shift: number): T {
+  return items[(seed >>> shift) % items.length]!;
+}
+
+/**
+ * Una firma grafica stabile, scelta una volta dagli stessi dati del MON.
+ * Non sono tic obbligatori: dicono al modello COME appare una frase quando
+ * quel tratto emerge, evitando che tutte le personalità abbiano la stessa
+ * prosa pulita da assistente.
+ */
+function writingStyle(d: CharacterData): NonNullable<PersonalityCard['writingStyle']> {
+  const seed = hash(`${d.name}|${d.voice_preset}|${d.family}|${d.affinity}`);
+  const writing = value(d, 'writing');
+  const energy = value(d, 'temperament');
+  const emotion = value(d, 'emotion');
+  const humor = value(d, 'humor');
+  const digital = value(d, 'digitalArtifacts');
+
+  const rhythm = writing < 35
+    ? pick([
+        'very short bursts; fragments are natural; often one idea and stop',
+        'compact sentences with abrupt full stops; no introductory padding',
+        'chat-like fragments, sometimes a single decisive line',
+      ], seed, 0)
+    : writing > 65
+      ? pick([
+          'long, connected sentences that gather momentum before landing',
+          'alternates a developed paragraph with one short closing sentence',
+          'thinks on the page: clauses, detours and a clear return to the point',
+        ], seed, 0)
+      : pick([
+          'mostly medium sentences, with a short line when something matters',
+          'conversational rhythm: two or three clean beats per reply',
+          'mixes complete sentences with occasional fragments',
+        ], seed, 0);
+
+  const punctuation = pick(
+    energy > 65
+      ? [
+          'favours full stops and occasional exclamation marks; never stacks them',
+          'quick commas and decisive stops; questions arrive directly',
+          'uses dashes for sudden turns — like this — more than semicolons',
+        ]
+      : [
+          'allows occasional ellipses when a thought trails off; never more than once in a reply',
+          'quiet full stops and parenthetical asides; exclamation marks are rare',
+          'uses commas and line breaks to create pauses; questions stay soft',
+        ],
+    seed,
+    3,
+  );
+
+  const casing = pick(
+    digital > 70
+      ? [
+          'normal casing, but a rare ALL-CAPS word may mark a real spike of emphasis',
+          'mostly lowercase in casual chat; proper names and clarity still win',
+          'standard casing with occasional clipped interface-like labels only when genuinely apt',
+        ]
+      : [
+          'standard natural casing; capitals are never used as decoration',
+          'relaxed casing in very casual replies, otherwise standard Italian',
+          'clean sentence case; emphasis comes from word choice, not typography',
+        ],
+    seed,
+    6,
+  );
+
+  const paragraphs = writing > 65
+    ? 'usually 2–4 short paragraphs; lists only when the information truly needs a list'
+    : writing < 35
+      ? 'usually one compact block or one line; no headings unless asked'
+      : pick([
+          'one or two compact paragraphs; line breaks follow changes of thought',
+          'a small opening line followed by the substance; no automatic summary',
+          'compact paragraphs with breathing room; avoids wall-of-text formatting',
+        ], seed, 9);
+
+  let reactions: string;
+  const reactionMode = seed % 5;
+  if (emotion < 30) {
+    reactions = 'uses no emoji or emoticons; emotion must remain in the wording';
+  } else if (reactionMode <= 1) {
+    reactions = 'uses old text emoticons instead of graphical emoji, rarely and only when earned: choose from :)  ;)  :/  :D  -_-  <3; never place more than one in a message';
+  } else if (reactionMode === 2) {
+    reactions = 'may use one simple graphical emoji in an emotionally clear moment; most messages use none';
+  } else if (reactionMode === 3 && humor > 55) {
+    reactions = 'uses dry text reactions such as lol, mh, ah, or ... as part of speech; graphical emoji are absent';
+  } else {
+    reactions = 'almost never uses symbols; a rare :) is more natural than a colourful emoji';
+  }
+
+  const signature = pick([
+    'sometimes opens with a tiny reaction before the actual answer',
+    'often ends on the strongest short sentence instead of summarising',
+    'occasionally inserts a brief aside in parentheses',
+    'when amused, lets the humour sit in a deadpan final fragment',
+    'when uncertain, pauses with “mh” before saying exactly what is unclear',
+    'when excited, sentence length gets shorter rather than louder',
+    'occasionally corrects himself mid-thought with a dash',
+    'prefers a direct answer first, then the reason on a new line',
+  ], seed, 12);
+
+  return { rhythm, punctuation, casing, paragraphs, reactions, signature };
+}
+
 /** La carta viene costruita alla nascita e non cambia a ogni apertura. */
 export function buildPersonalityCard(d: CharacterData): PersonalityCard {
   const brief = voiceBrief(d.voice_dna, d.voice_preset);
   return {
-    version: 1,
+    version: 2,
     fingerprint: [
       `pace:${band(value(d, 'temperament'))}`,
       `closeness:${band(value(d, 'relationship'))}`,
@@ -95,11 +207,20 @@ export function buildPersonalityCard(d: CharacterData): PersonalityCard {
             : 'says he does not know in plain language and stops there',
     },
     length: brief.length,
+    writingStyle: writingStyle(d),
   };
 }
 
 export function voiceCard(record: MonRecord): PersonalityCard {
-  return record.personalityCard ?? buildPersonalityCard(record.data);
+  const generated = buildPersonalityCard(record.data);
+  return record.personalityCard
+    ? {
+        ...generated,
+        ...record.personalityCard,
+        version: 2,
+        writingStyle: record.personalityCard.writingStyle ?? generated.writingStyle,
+      }
+    : generated;
 }
 
 export function voiceCardBlock(record: MonRecord): string {
@@ -119,6 +240,16 @@ export function voiceCardBlock(record: MonRecord): string {
     `- When you disagree: ${card.decisions.disagreement}.`,
     `- When you care: ${card.decisions.care}.`,
     `- When you are uncertain: ${card.decisions.uncertainty}.`,
+    '',
+    'WRITING FINGERPRINT — THE MESSAGE SHOULD LOOK LIKE YOU BEFORE IT IS READ',
+    `- Rhythm: ${card.writingStyle?.rhythm}.`,
+    `- Punctuation: ${card.writingStyle?.punctuation}.`,
+    `- Casing: ${card.writingStyle?.casing}.`,
+    `- Shape: ${card.writingStyle?.paragraphs}.`,
+    `- Reactions: ${card.writingStyle?.reactions}.`,
+    `- Personal tic: ${card.writingStyle?.signature}.`,
+    '- Apply these naturally, not mechanically. A signature is recognizable across several messages,',
+    '  not a checklist performed in every reply. Never mention or explain this writing fingerprint.',
     '',
     'Do not demonstrate every line in one reply. Do not turn these lenses into catchphrases,',
     'role-play noises, technical status reports or lore exposition. Personality is selection:',
