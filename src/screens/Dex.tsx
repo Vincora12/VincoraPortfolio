@@ -54,6 +54,7 @@ export function DexScreen({ onGo: _onGo, onOpenMon }: { onGo: (o: Overlay) => vo
   const [previewing, setPreviewing] = useState(false);
   const [keeping, setKeeping] = useState(false);
   const [pickedKeptId, setPickedKeptId] = useState<string | null>(null);
+  const [previewingKept, setPreviewingKept] = useState(false);
   const [startingKept, setStartingKept] = useState(false);
 
   /* In ordine di comparsa, non alfabetico: è una storia, e una storia si
@@ -88,6 +89,42 @@ export function DexScreen({ onGo: _onGo, onOpenMon }: { onGo: (o: Overlay) => vo
     .sort((a, b) => dayOf(a.data.name) - dayOf(b.data.name));
   const selected = picked ? mons[picked] : null;
   const selectedNode = picked ? nodes.find((n) => n.monName === picked) : null;
+  const selectedKept = pickedKeptId ? kept.find((item) => item.id === pickedKeptId) ?? null : null;
+
+  if (previewingKept && selectedKept) {
+    const d = selectedKept.record.data;
+    return (
+      <div className="screen screen--ink dex dexpreview tecapreview">
+        <div className="dexpreview__bar">
+          <button type="button" className="dexpreview__back" onClick={() => setPreviewingKept(false)}>
+            <span aria-hidden="true">←</span>
+            <span>INDIETRO</span>
+          </button>
+          <span className="t-micro">SALVATO NELLA TECA</span>
+        </div>
+        <div className="screen__body tecapreview__body">
+          <div className="tecapreview__art">
+            <AssetSlot
+              monName={selectedKept.assetName}
+              fallbackMonNames={[d.name]}
+              type="character_toy"
+              fallbackTypes={['character_master']}
+              alt={displayName(d.name)}
+              fit="contain"
+              compactPlaceholder
+            />
+          </div>
+          <h1 className="t-display tecapreview__name"><MonName name={d.name} fit /></h1>
+          <div className="tecapreview__facts t-meta">
+            <span>{d.rarity}</span>
+            <span>{d.family} / {d.family_archetype}</span>
+            <span>{d.affinity}</span>
+            <span>{d.evolution_state?.label ?? 'BASIC FORM'}</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (previewing && selected && selectedNode) {
     const isActive = selected.data.name === activeMonName;
@@ -145,6 +182,7 @@ export function DexScreen({ onGo: _onGo, onOpenMon }: { onGo: (o: Overlay) => vo
                   aria-label={`Apri la pagina di ${displayName(name)}`}
                   onClick={() => {
                     setPicked(picked === name ? null : name);
+                    setPickedKeptId(null);
                     setPreviewing(false);
                   }}
                 >
@@ -194,7 +232,10 @@ export function DexScreen({ onGo: _onGo, onOpenMon }: { onGo: (o: Overlay) => vo
                     type="button"
                     className="teca__pick"
                     aria-label={`Azioni per ${displayName(k.record.data.name)}`}
-                    onClick={() => setPickedKeptId(pickedKeptId === k.id ? null : k.id)}
+                    onClick={() => {
+                      setPicked(null);
+                      setPickedKeptId(pickedKeptId === k.id ? null : k.id);
+                    }}
                   >
                     <span className="dexcard__art">
                       <AssetSlot
@@ -215,34 +256,40 @@ export function DexScreen({ onGo: _onGo, onOpenMon }: { onGo: (o: Overlay) => vo
                       {k.fromAcceleratedRun ? ` · ${t.dex.keptTrial}` : ''}
                     </span>
                   </button>
-                  <button
-                    type="button"
-                    className="teca__forget t-micro"
-                    onClick={() => {
-                      forgetKept(k.id);
-                      if (pickedKeptId === k.id) setPickedKeptId(null);
-                    }}
-                  >
-                    {t.dex.forget}
-                  </button>
                 </div>
               ))}
             </div>
 
-            {pickedKeptId && kept.some((item) => item.id === pickedKeptId) && (
-              <div className="teca__actions">
-                <p className="t-small">Questo ricordo diventerà il MON attivo e aprirà un nuovo percorso nella MIND.MAP.</p>
+            {selectedKept && (
+              <div className="dex__actions teca__actions">
+                <Button
+                  variant="secondary"
+                  block
+                  onClick={() => setPreviewingKept(true)}
+                >
+                  VEDI LA SCHEDA
+                </Button>
+                <Button
+                  variant="secondary"
+                  block
+                  onClick={() => {
+                    forgetKept(selectedKept.id);
+                    setPickedKeptId(null);
+                  }}
+                >
+                  RIMUOVI DALLA TECA
+                </Button>
                 <Button
                   block
                   disabled={startingKept}
                   onClick={() => {
                     setStartingKept(true);
-                    void startFromKept(pickedKeptId).then((started) => {
+                    void startFromKept(selectedKept.id).then((started) => {
                       if (started) onOpenMon();
                     }).finally(() => setStartingKept(false));
                   }}
                 >
-                  {startingKept ? 'RIPRISTINO IN CORSO…' : 'USA COME NUOVO PUNTO DI PARTENZA'}
+                  {startingKept ? 'RIPRISTINO IN CORSO…' : 'RIPARTI DA QUESTO MON'}
                 </Button>
               </div>
             )}

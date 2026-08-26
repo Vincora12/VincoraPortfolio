@@ -4789,8 +4789,7 @@
 .teca__actions {
   display: grid;
   gap: var(--u3);
-  padding-top: var(--u3);
-  border-top: 1px solid var(--hairline);
+  grid-template-columns: 1fr;
 }
 
 .teca__actions p {
@@ -4813,6 +4812,40 @@
 .teca__forget:hover,
 .teca__forget:focus-visible {
   color: var(--signal-alert);
+}
+
+.tecapreview__body {
+  padding: var(--u4) var(--u3) calc(var(--u5) + env(safe-area-inset-bottom));
+  background: #fff;
+  color: #0b0b0b;
+}
+
+.tecapreview__art {
+  width: 100%;
+  min-height: 52vh;
+  background: #fff;
+}
+
+.tecapreview__art .assetslot-wrap,
+.tecapreview__art img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.tecapreview__name {
+  margin: var(--u4) 0 var(--u2);
+}
+
+.tecapreview__facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--u) var(--u2);
+}
+
+.tecapreview__facts span {
+  padding: var(--u) var(--u2);
+  border: 1px solid #0b0b0b;
 }
 
 /* 🔶 QUI C'ERANO ~170 RIGHE DI CSS DELLA STANZA — post, avatar, thread,
