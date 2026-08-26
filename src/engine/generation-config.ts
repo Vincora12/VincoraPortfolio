@@ -63,7 +63,7 @@ export type SignalVector = Record<SignalKey, number>;
 /** Una formula di fit è una somma pesata di segnali (§17). */
 export type FitFormula = Partial<Record<SignalKey, number>>;
 
-import { ACTIVE_ALIEN_FAMILY } from './taxonomy-versions';
+import { applyTaxonomyV2, taxonomyDescriptionVersion } from './taxonomy-versions';
 
 /* ============================================================================
    §3 + §4 + §17 — CATALOGO DELLE FAMILY
@@ -172,7 +172,7 @@ export interface FamilyDef {
   humanoidity: [number, number];
 }
 
-export const FAMILIES: FamilyDef[] = [
+export const FAMILIES_V1: FamilyDef[] = [
   {
     id: 'ANGEL',
     coreAnatomy: 'Celestial / feathered / ritual anatomy',
@@ -388,15 +388,22 @@ export const FAMILIES: FamilyDef[] = [
   },
   {
     id: 'ALIEN',
-    coreAnatomy: ACTIVE_ALIEN_FAMILY.coreAnatomy,
+    coreAnatomy: 'Non-terrestrial organism',
     it: 'organismo non terrestre',
     drivers: 'curiosity, novelty, mystery, technical/strange affinity',
-    absoluteRule: ACTIVE_ALIEN_FAMILY.absoluteRule,
+    absoluteRule: 'Avoid generic grey-alien convergence.',
     fit: { curiosity: 0.24, mystery: 0.18, novelty: 0.16, technical: 0.14, distance: 0.1, playfulness: 0.1, weirdCulture: 0.08 },
     supportsHair: false,
     supportsEyewear: true,
     humanoidity: [2, 4],
-    archetypes: ACTIVE_ALIEN_FAMILY.archetypes.map((a) => ({ ...a })),
+    archetypes: [
+      { id: 'GREY', structure: 'Cranial/eye-focused grey-adjacent grammar, aggressively varied.', mass: 'BALANCED' },
+      { id: 'MULTI-LIMB', structure: 'Unfamiliar limb count and symmetry.', mass: 'MASSIVE' },
+      { id: 'BIOMORPH', structure: 'Soft non-terrestrial organ structures.', mass: 'BALANCED' },
+      { id: 'EXOSPACE', structure: 'Pressure/space-adapted biological architecture.', mass: 'BALANCED' },
+      { id: 'SYMMETRIC', structure: 'Alien symmetry impossible in Earth animals.', mass: 'BALANCED' },
+      { id: 'PARASITIC', structure: 'Attached/host-like modular organism, non-gory by default.', mass: 'COMPACT' },
+    ],
   },
   {
     id: 'FOOD',
@@ -513,6 +520,11 @@ export const FAMILIES: FamilyDef[] = [
     ],
   },
 ];
+
+/** V1 resta integralmente sopra; la V2 è una trasformazione reversibile. */
+export const FAMILIES: FamilyDef[] = taxonomyDescriptionVersion() === 'v2'
+  ? FAMILIES_V1.map((family) => applyTaxonomyV2(family))
+  : FAMILIES_V1;
 
 export type FamilyId = string;
 

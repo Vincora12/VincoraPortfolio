@@ -50,8 +50,8 @@ import {
 } from '../../engine/taxonomyProposals';
 import '../skin/taxonomy-lab.css';
 import {
-  alienDescriptionVersion,
-  setAlienDescriptionVersion,
+  taxonomyDescriptionVersion,
+  setTaxonomyDescriptionVersion,
   type TaxonomyDescriptionVersion,
 } from '../../engine/taxonomy-versions';
 
@@ -70,7 +70,7 @@ export function TaxonomyLab() {
   const [richiesta, setRichiesta] = useState('');
   const [chiedendo, setChiedendo] = useState(false);
   const [errore, setErrore] = useState<string | null>(null);
-  const [alienVersion, setAlienVersion] = useState<TaxonomyDescriptionVersion>(() => alienDescriptionVersion());
+  const [catalogVersion, setCatalogVersion] = useState<TaxonomyDescriptionVersion>(() => taxonomyDescriptionVersion());
 
   const [family, setFamily] = useState<FamilyDraft | null>(null);
   const [semplice, setSemplice] = useState<SimpleDraft | null>(null);
@@ -134,16 +134,16 @@ export function TaxonomyLab() {
 
       <div className="taxlab-box">
         <div className="taxlab-row">
-          <label>PROVA DESCRIZIONI ALIEN</label>
+          <label>VERSIONE DESCRIZIONI DEL CATALOGO</label>
           <div className="taxlab-choices">
             {(['v1', 'v2'] as const).map((version) => (
               <button
                 type="button"
                 key={version}
-                className={`taxlab-chip ${alienVersion === version ? 'on' : ''}`}
+                className={`taxlab-chip ${catalogVersion === version ? 'on' : ''}`}
                 onClick={() => {
-                  setAlienDescriptionVersion(version);
-                  setAlienVersion(version);
+                  setTaxonomyDescriptionVersion(version);
+                  setCatalogVersion(version);
                   window.location.reload();
                 }}
               >
@@ -152,7 +152,7 @@ export function TaxonomyLab() {
             ))}
           </div>
           <p className="note">
-            Cambia soltanto le descrizioni di ALIEN e delle sue sei sottofamiglie. V1 resta il valore predefinito.
+            V2 applica l’audit a tutte le 18 Family e 112 sottofamiglie. V1 originale resta il valore predefinito.
           </p>
         </div>
       </div>
