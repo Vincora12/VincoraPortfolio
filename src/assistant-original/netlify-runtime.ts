@@ -154,7 +154,8 @@ function pendingMealSlot(messages: readonly ThreadMessage[]): ChatMealSlot | und
   return match?.[1]?.toLocaleLowerCase('it-IT') as ChatMealSlot | undefined;
 }
 
-const confirms = (text: string) => /^\s*(?:s[iì]|confermo|ok(?:ay)?|va bene|esatto|corretto)\b/i.test(text);
+/** Accetta anche le conferme operative naturali usate dopo una proposta. */
+const confirms = (text: string) => /^\s*(?:s[iì]|confermo|ok(?:ay)?|va bene|esatto|corretto|vai(?:\s+(?:pure|inserisci|registra|procedi))?|inserisci|registra|procedi|fallo)\b/i.test(text);
 
 function hasPendingWorkout(messages: readonly ThreadMessage[]): boolean {
   const previous = messages.at(-2);
