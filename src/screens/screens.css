@@ -252,28 +252,59 @@
   color: var(--muted-strong);
 }
 
-/* VINZMON_NARRATIVE_ROLE_IMPLEMENTATION_BRIEF §10 — VINZ.MON come sistema
-   che indicizza l'arrivo, non il .mon che parla di sé (quello è la bio,
-   bianca come il resto dell'overlay). Un pannello scuro dentro l'overlay
-   chiaro fa la differenza a colpo d'occhio, prima ancora di leggere. */
-.encounter__narrator {
+/* VINZMON_NARRATIVE_ROLE_IMPLEMENTATION_BRIEF §10 — la SUA finestra, non un
+   blocchetto nell'overlay.
+
+   🔷 «Prima una finestra del terminale con il narratore che racconta la
+   storia, poi si apre un'altra finestra con la foto del mon, e un'altra con
+   nome e statistiche.»
+
+   Copre tutto lo schermo (`inset: 0` sullo stesso contenitore relativo del
+   sipario) e sta SOPRA la foto, che intanto sotto è già salita: quando
+   questa finestra si fa da parte, la foto è già lì, ferma, pronta. */
+.encounter__narratorwindow {
+  position: absolute;
+  inset: 0;
+  z-index: 15;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  margin: 0;
-  padding: var(--u2);
+  justify-content: center;
+  gap: var(--u3);
+  padding: var(--u4);
   background: var(--ink);
-  border-left: 3px solid var(--char-primary);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 550ms var(--ease-system);
+}
+
+.encounter--beat2 .encounter__narratorwindow {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.encounter__narratorwindow-kicker {
+  color: var(--char-accent);
+  text-align: center;
+}
+
+.encounter__narratorwindow-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 0 auto;
+  max-width: 34ch;
+  width: 100%;
   font-family: var(--font-mono);
-  font-size: 12px;
-  line-height: 1.5;
+  font-size: 13px;
+  line-height: 1.65;
   color: color-mix(in srgb, var(--white) 88%, var(--char-primary));
   text-align: left;
-  animation: encounter-narrator-in 0.6s var(--ease-system) both;
 }
 
 .encounter__narrator-line {
   display: block;
+  animation: narrator-line-in 420ms var(--ease-system) backwards;
+  animation-delay: calc(var(--i) * 110ms);
 }
 
 .encounter__narrator-line--system {
@@ -287,10 +318,10 @@
   height: 4px;
 }
 
-@keyframes encounter-narrator-in {
-  0% { opacity: 0; transform: translateY(4px); }
-  100% { opacity: 1; transform: translateY(0); }
+@keyframes narrator-line-in {
+  from { opacity: 0; transform: translateY(3px); }
 }
+
 
 @keyframes encounter-before {
   0%, 32% { opacity: 1; filter: brightness(1); transform: scale(1); }
@@ -3231,7 +3262,8 @@
   opacity: 0.8;
 }
 
-/* --- La rivelazione a tre battute (v1.9 §13.2) ---
+/* --- La rivelazione a quattro finestre (v1.9 §13.2, estesa da
+   VINZMON_NARRATIVE_ROLE_IMPLEMENTATION_BRIEF §10) ---
 
    Il sipario copre tutto e si alza da sé. Non è un caricamento: la creatura è
    già stata generata prima che la schermata esistesse, quindi qui non si sta
@@ -3272,9 +3304,12 @@
   }
 }
 
-/* La creatura non compare: sale. Solo dopo che il sipario si è alzato. */
+/* La creatura non compare: sale. Solo dopo che il sipario si è alzato —
+   comincia a salire alla battuta 2 come sempre, sotto la finestra del
+   narratore (§10 del brief), che per due-tre secondi la nasconde. */
 .encounter--beat2 .encounter__stage,
-.encounter--beat3 .encounter__stage {
+.encounter--beat3 .encounter__stage,
+.encounter--beat4 .encounter__stage {
   opacity: 1;
   animation: encounter-rise 620ms var(--ease-system) both;
 }
@@ -3286,7 +3321,9 @@
   }
 }
 
-.encounter--beat3 .encounter__overlay {
+/* Battuta 4: la finestra del narratore si è già fatta da parte (beat3), la
+   foto è ferma da un momento — adesso arrivano nome e statistiche. */
+.encounter--beat4 .encounter__overlay {
   opacity: 1;
   pointer-events: auto;
   animation: reveal-in 500ms var(--ease-system) both;
@@ -3297,9 +3334,16 @@
     animation-delay: 0ms;
     animation-duration: 1ms;
   }
+  .encounter__narratorwindow {
+    transition-duration: 1ms;
+  }
+  .encounter__narrator-line {
+    animation: none;
+  }
   .encounter--beat2 .encounter__stage,
   .encounter--beat3 .encounter__stage,
-  .encounter--beat3 .encounter__overlay {
+  .encounter--beat4 .encounter__stage,
+  .encounter--beat4 .encounter__overlay {
     animation: none;
   }
   .encounter__art--before { display: none; }

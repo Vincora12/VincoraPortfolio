@@ -10,6 +10,7 @@
    ========================================================================= */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type { CSSProperties } from 'react';
 import { useApp, useActiveMon } from '../state/store';
 import { AssetSlot, useAssetUrl } from '../system/AssetSlot';
 import { MonName, SpeciesName } from '../system/MonName';
@@ -234,23 +235,40 @@ export function EncounterScreen({ variant }: { variant: 'first' | 'new' }) {
   const nodes = useApp((s) => s.nodes);
   const mons = useApp((s) => s.mons);
 
-  /* 🔶 v1.9 §13.2 — la rivelazione ha tre battute, non una.
+  /* 🔶 v1.9 §13.2, esteso da VINZMON_NARRATIVE_ROLE_IMPLEMENTATION_BRIEF §10 —
+     la rivelazione ha QUATTRO finestre, non tre.
+
+     🔷 «Prima una finestra del terminale con il narratore che racconta la
+     storia, poi si apre un'altra finestra con la foto del mon, e un'altra
+     con nome e statistiche.»
 
      Prima la schermata mostrava tutto insieme: arte, nome, rarità, tag. Dopo
      sette giorni di attesa è poco. Adesso il nero regge un attimo, poi arriva
-     il nome, poi si scopre la creatura, e solo alla fine i dati. Nessuna delle
-     tre battute dura abbastanza da diventare un'attesa, e si saltano tutte al
-     primo tocco: un momento che non si può saltare diventa un ostacolo alla
-     seconda volta che lo vedi. */
+     il nome, poi il sistema racconta cosa è appena successo, poi si scopre la
+     creatura, e solo alla fine i dati. Nessuna finestra dura abbastanza da
+     diventare un'attesa, e si saltano tutte al primo tocco: un momento che
+     non si può saltare diventa un ostacolo alla seconda volta che lo vedi.
+
+     ⚠️ LA FOTO NON ASPETTA IL NARRATORE PER APPARIRE — gli sta SOTTO. La
+     `encounter__stage` comincia a salire allo stesso istante di sempre
+     (battuta 2): l'animazione di trasformazione fra forma precedente e
+     nuova (`encounter__stage--transform`, `encounter__changebeam`) è tarata
+     su quel momento esatto e spostarla avrebbe voluto dire ritararla da
+     zero. La finestra del terminale sta SOPRA, opaca, e la nasconde finché
+     non si fa da parte: il visitatore vede prima il racconto, poi la foto —
+     ma la foto, dietro, è già arrivata e ha già finito di trasformarsi. */
+  const hasNarrator = Boolean(mon?.narratorLine);
   const [beat, setBeat] = useState(0);
   useEffect(() => {
+    const narratorCloses = 1450 + (hasNarrator ? 2600 : 300);
     const ids = [
       window.setTimeout(() => setBeat(1), 450),
       window.setTimeout(() => setBeat(2), 1450),
-      window.setTimeout(() => setBeat(3), 2250),
+      window.setTimeout(() => setBeat(3), narratorCloses),
+      window.setTimeout(() => setBeat(4), narratorCloses + 900),
     ];
     return () => ids.forEach(window.clearTimeout);
-  }, []);
+  }, [hasNarrator]);
 
   if (!mon) return null;
 
@@ -263,7 +281,7 @@ export function EncounterScreen({ variant }: { variant: 'first' | 'new' }) {
   return (
     <div
       className={`screen screen--ink encounter encounter--beat${beat}`}
-      onClick={() => setBeat(3)}
+      onClick={() => setBeat(4)}
     >
       {/* La battuta 0–1: campo nero e il nome che arriva battendo. */}
       {beat < 2 && (
@@ -278,6 +296,26 @@ export function EncounterScreen({ variant }: { variant: 'first' | 'new' }) {
               </span>
             </>
           )}
+        </div>
+      )}
+
+      {/* La battuta 2: VINZ.MON, da sistema, racconta cosa è appena successo.
+          Sta SOPRA la foto (che intanto, sotto, sta già salendo) e la copre
+          finché non si fa da parte, alla battuta 3. */}
+      {beat >= 2 && mon.narratorLine && (
+        <div className="encounter__narratorwindow" role="presentation" aria-live="polite">
+          <p className="t-meta encounter__narratorwindow-kicker">VINZ.MON</p>
+          <div className="encounter__narratorwindow-body">
+            {mon.narratorLine.split('\n').map((line, i) => (
+              <span
+                key={i}
+                className={`encounter__narrator-line${line.trimStart().startsWith('>') ? ' encounter__narrator-line--system' : ''}`}
+                style={{ '--i': i } as CSSProperties}
+              >
+                {line}
+              </span>
+            ))}
+          </div>
         </div>
       )}
 
@@ -324,23 +362,6 @@ export function EncounterScreen({ variant }: { variant: 'first' | 'new' }) {
           <p className="t-small encounter__heritage">
             Porta {d.heritage_traits.length} {d.heritage_traits.length === 1 ? 'tratto' : 'tratti'} da{' '}
             {displayName(d.heritage_traits[0]!.from_mon)}.
-          </p>
-        )}
-
-        {/* VINZMON_NARRATIVE_ROLE_IMPLEMENTATION_BRIEF §10 — VINZ.MON, da
-            sistema/narratore, racconta l'arrivo. Solo alla battuta finale:
-            prima ancora si sta rivelando l'immagine, e un blocco di testo lì
-            sotto competerebbe con l'animazione invece di chiuderla. */}
-        {beat >= 3 && mon.narratorLine && (
-          <p className="t-small encounter__narrator" aria-live="polite">
-            {mon.narratorLine.split('\n').map((line, i) => (
-              <span
-                key={i}
-                className={`encounter__narrator-line${line.trimStart().startsWith('>') ? ' encounter__narrator-line--system' : ''}`}
-              >
-                {line}
-              </span>
-            ))}
           </p>
         )}
 
