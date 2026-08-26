@@ -27,6 +27,7 @@ import {
   DAILY_SIGNALS,
   DAILY_SIGNAL_LABELS,
   PROGRESSION,
+  dateForDay,
 } from '../engine/progression';
 import { seedSpread } from '../engine/personalityScan';
 import { PERSONALITY_KEYS } from '../engine/signals';
@@ -36,9 +37,13 @@ import { BatchGenerator } from './BatchGenerator';
 import { AssetImport } from './AssetImport';
 import { ForgePanel } from './ForgePanel';
 import { buildInfo, labSyncCode } from '../system/build';
+import { HEALTH_JOURNAL_EVENT, readHealthJournal } from '../engine/healthJournal';
+import { completeDayStreak, syncRewardProgress } from '../engine/syncRewards';
+import { SyncDial } from '../system/SyncDial';
 
 /* ============================================================================
-   TEMPO — "Advance time: +1 DAY, +7 DAYS, END WEEK, NEXT MINDLINE SHIFT"
+   TEMPO — stato di oggi da leggere. Il pulsante che fa passare un giorno
+   vive in INIZIO, la prima scheda: qui non ce n'è una copia.
    ========================================================================= */
 
 /* ============================================================================
@@ -63,25 +68,38 @@ export function StartSection({
   onClose: () => void;
 }) {
   const day = useApp((s) => s.day);
+  const startedAt = useApp((s) => s.startedAt);
   const phase = useApp((s) => s.phase);
   const token = useApp((s) => s.token);
   const voiceModel = useApp((s) => s.voiceModel);
   const mon = useActiveMon();
-  const advanceDays = useApp((s) => s.advanceDays);
-  const syncDay = useApp((s) => s.syncDay);
-  const setDailySignal = useApp((s) => s.setDailySignal);
+  const simulateSyncedDays = useApp((s) => s.simulateSyncedDays);
   const resetAll = useApp((s) => s.resetAll);
   const keptCount = useApp((s) => s.kept.length);
   const build = buildInfo();
 
-  /* Un giorno «pieno»: si dichiara l'umore — che la simulazione non può
-     inventare (§5) — e si chiude. È la sequenza che si fa a mano ogni volta
-     per far camminare una partita di prova. */
-  const fullDay = () => {
-    setDailySignal('MOOD', 'KNOWN', 'dichiarato da DEV');
-    syncDay();
-    advanceDays(1);
-  };
+  /* 🔷 «Solo nel DEV in alto mi fai vedere la barra, e togli tutti gli altri
+     pulsanti per andare avanti che non sia vai avanti di 1 giorno.»
+
+     🔒 UN SOLO MODO DI FAR PASSARE UN GIORNO, ED È QUELLO CHE RIEMPIE ANCHE
+     IL DIARIO. `advanceDays`/`fullDay`/`endWeek`/`toNextShift` facevano
+     passare il tempo senza toccare il diario che il quadrante legge: la
+     ruota sarebbe rimasta ferma nonostante i giorni avanzassero. Restava
+     confuso avere quattro pulsanti che sembravano fare la stessa cosa e ne
+     facevano tre diverse. `simulateSyncedDays` (già "VIVI UN GIORNO" nella
+     scheda TEMPO) è l'unico che racconta, chiude, avanza E scrive nel
+     diario — quindi è l'unico che resta. */
+  const [journal, setJournal] = useState(readHealthJournal);
+  useEffect(() => {
+    const update = () => setJournal(readHealthJournal());
+    window.addEventListener(HEALTH_JOURNAL_EVENT, update);
+    return () => window.removeEventListener(HEALTH_JOURNAL_EVENT, update);
+  }, []);
+  const gameToday = dateForDay(day, startedAt);
+  const streak = completeDayStreak(journal, gameToday);
+  const evolution = syncRewardProgress('evolution', streak);
+  const mega = syncRewardProgress('mega-evolution', streak);
+  const month = syncRewardProgress('wish', streak);
 
   return (
     <div className="dev__section">
@@ -127,24 +145,22 @@ export function StartSection({
       </div>
 
       {/* 2 — Far passare il tempo, che è il motivo n.1 per cui questo pannello
-             esiste: l'incubazione dura 28 giorni veri. */}
+             esiste: l'incubazione dura 28 giorni veri. Il quadrante è lo
+             stesso della pagina SYNC vera — qui solo da guardare, non da
+             premere: il traguardo si raccoglie da lì, non da un tasto
+             rapido nascosto in un pannello di sviluppo. */}
       <p className="t-meta dev__label">TEMPO</p>
-      <div className="dev__row">
-        <Button small onClick={fullDay}>
-          +1 GIORNO CHIUSO
-        </Button>
-        <Button
-          small
-          onClick={() => {
-            for (let i = 0; i < 7; i++) fullDay();
-          }}
-        >
-          +7 GIORNI
-        </Button>
+      <div className="sync-check__hero">
+        <SyncDial streak={streak} evolutionReady={evolution.ready} megaReady={mega.ready} wishReady={month.ready} />
       </div>
+      <Button block variant="primary" small onClick={() => simulateSyncedDays(1)}>
+        +1 GIORNO
+      </Button>
       <p className="t-micro dev__note">
-        Chiude la giornata e avanza. L’umore lo dichiara DEV al posto tuo:
-        è l’unico segnale che nessuna simulazione può inventare.
+        Racconta, chiude, avanza e registra pasti e allenamento nel diario —
+        l’unico modo di far passare un giorno che il quadrante vede davvero.
+        L’umore lo dichiara DEV al posto tuo: è l’unico segnale che nessuna
+        simulazione può inventare.
       </p>
 
       {/* 3 — La spesa. Sta qui e non solo in COSTI perché è l'unico numero che
@@ -207,81 +223,21 @@ function SpendLine() {
 export function TimeSection() {
   const day = useApp((s) => s.day);
   const phase = useApp((s) => s.phase);
-  const advanceDays = useApp((s) => s.advanceDays);
-  const simulateSyncedDays = useApp((s) => s.simulateSyncedDays);
-  const endWeek = useApp((s) => s.endWeek);
   const bias = useApp((s) => s.bias);
   const setBias = useApp((s) => s.setBias);
-  const syncDay = useApp((s) => s.syncDay);
   const today = useToday();
   const growth = useGrowth();
-
-  /**
-   * Avanza fino al prossimo punto di decisione, chiudendo ogni giornata.
-   *
-   * 🔶 Deve chiudere i giorni a mano perché il tempo, da solo, non dà più
-   * SYNC: lo dà la conferma dell'utente. Senza `syncDay()` questo ciclo
-   * girerebbe 400 volte senza far crescere niente — che è esattamente la
-   * regola nuova, vista da dentro.
-   */
-  const toNextShift = () => {
-    for (let i = 0; i < 400; i++) {
-      const s = useApp.getState();
-      const rec = s.activeMonName ? s.mons[s.activeMonName] : null;
-      if (!rec) break;
-      if (
-        s.progression.sync.sinceGrowth >= PROGRESSION.microGrowthEvery ||
-        s.progression.sync.inForm >= PROGRESSION.formEvolutionAt
-      ) {
-        break;
-      }
-      // L'umore non lo riempie la simulazione: qui lo dichiara DEV al posto tuo.
-      useApp.getState().setDailySignal('MOOD', 'KNOWN', 'dichiarato da DEV');
-      useApp.getState().syncDay();
-      advanceDays(1);
-    }
-  };
 
   return (
     <div className="dev__section">
       <p className="t-meta">GIORNO CORRENTE: {day} · FASE: {phase.toUpperCase()}</p>
 
-      {/* 🔷 v1.10 — «se aggiungo giorni si aggiunge SYNC ma non giorni».
-
-          I pulsanti qui sotto fanno passare il TEMPO, e il tempo da solo non
-          dà SYNC: lo dà presentarsi (§7). Chi prova l'app dal pannello se ne
-          accorge solo dopo aver premuto tre volte senza vedere cambiare
-          niente, il che rende il controllo più confuso della cosa che
-          controlla.
-
-          Questo invece vive un giorno per intero — racconta, chiude, passa a
-          domani — ed è quello che serve per vedere l'uovo incrinarsi un
-          giorno alla volta. */}
-      <Button block variant="primary" small onClick={() => simulateSyncedDays(1)}>
-        VIVI UN GIORNO (RACCONTA + CHIUDI + DOMANI)
-      </Button>
-
-      <p className="t-micro dev__note">
-        I pulsanti qui sotto fanno solo passare il tempo: non danno SYNC, non
-        chiudono niente e l’incubazione non avanza. È voluto — il tempo non fa
-        crescere nessuno.
-      </p>
-
-      <div className="dev__grid">
-        <Button small onClick={() => advanceDays(1)}>+1 GIORNO</Button>
-        <Button small onClick={() => advanceDays(7)}>+7 GIORNI</Button>
-        <Button small onClick={endWeek}>FINE SETTIMANA</Button>
-        <Button small onClick={() => advanceDays(30)}>+30 GIORNI</Button>
-      </div>
-
-      <Button block variant="primary" small onClick={toNextShift}>
-        NEXT MINDLINE SHIFT
-      </Button>
-
-      <Button block small onClick={syncDay} disabled={!today.canClose}>
-        {today.closed ? 'GIORNO GIÀ CHIUSO' : 'CHIUDI IL GIORNO (+1 SYNC)'}
-      </Button>
-
+      {/* 🔷 «Togli tutti gli altri pulsanti per andare avanti che non sia
+          vai avanti di 1 giorno.» L'unico modo di far passare un giorno —
+          «+1 GIORNO», che racconta, chiude e scrive nel diario — vive ora
+          in INIZIO, la prima scheda che si apre entrando in DEV, insieme al
+          quadrante SYNC che ne mostra l'effetto. Qui resta solo lo stato di
+          oggi da leggere e il bias della simulazione. */}
       <div className="rowlist">
         <Row label="OGGI" value={`${today.status} · ${today.known}/3 segnali`} />
         <Row

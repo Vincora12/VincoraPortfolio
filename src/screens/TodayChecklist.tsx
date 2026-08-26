@@ -1,9 +1,10 @@
-import { useEffect, useState, type CSSProperties } from 'react';
+import { useEffect, useState } from 'react';
 import { readHealthJournal, HEALTH_JOURNAL_EVENT, type MealLog } from '../engine/healthJournal';
 import { completeDayStreak, saveEvolutionWish, syncRewardProgress, wishNeedsMega, type EvolutionWish } from '../engine/syncRewards';
 import { dateForDay } from '../engine/progression';
 import { useApp } from '../state/store';
 import { Icon } from '../system/Icon';
+import { SyncDial } from '../system/SyncDial';
 
 const MEALS: Array<{ slot: Exclude<MealLog['slot'], 'extra'>; label: string }> = [
   { slot: 'colazione', label: 'COLAZIONE' }, { slot: 'spuntino', label: 'SPUNTINO' },
@@ -58,12 +59,15 @@ export function TodayChecklistScreen() {
 
   return <main className="today-check sync-check" aria-label="SYNC di oggi">
     <header className="sync-check__hero">
-      <div className="sync-check__dial" style={{ '--sync-fill': `${(Math.min(streak, 30) / 30) * 360}deg` } as CSSProperties}>
-        <i aria-hidden="true" /><strong>{streak}</strong>
-        <Checkpoint value="2" ready={evolution.ready} className="sync-checkpoint--2" label="Evolvi" onClick={() => chooseReward('evolution')} />
-        <Checkpoint value="7" ready={mega.ready} className="sync-checkpoint--7" label="Megaevolvi" onClick={() => chooseReward('mega-evolution')} />
-        <Checkpoint value="30" ready={month.ready} className="sync-checkpoint--30" label="Esprimi un desiderio" onClick={() => month.ready && setWishOpen(true)} />
-      </div>
+      <SyncDial
+        streak={streak}
+        evolutionReady={evolution.ready}
+        megaReady={mega.ready}
+        wishReady={month.ready}
+        onEvolve={() => chooseReward('evolution')}
+        onMega={() => chooseReward('mega-evolution')}
+        onWish={() => month.ready && setWishOpen(true)}
+      />
     </header>
 
     <section className="sync-check__signals" aria-label="Completamento di oggi">
@@ -96,8 +100,4 @@ export function TodayChecklistScreen() {
       </form>
     </div>}
   </main>;
-}
-
-function Checkpoint({ value, ready, className, label, onClick }: { value: string; ready: boolean; className: string; label: string; onClick: () => void }) {
-  return <button type="button" className={`sync-checkpoint ${className}`} data-ready={ready} onClick={onClick} disabled={!ready} aria-label={`${label} al giorno ${value}`}>{value}</button>;
 }
