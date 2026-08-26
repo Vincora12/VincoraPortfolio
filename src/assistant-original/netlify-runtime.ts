@@ -17,6 +17,8 @@ import {
 import type { BrainMessage } from "@/brain/store/types";
 import type { ToolResult, ToolUse } from "@/ai/tools";
 import { readHealthJournal } from "@/engine/healthJournal";
+import { useApp } from "@/state/store";
+import { buildVoiceSystemPrompt } from "@/ai/voicePrompt";
 
 type Source = { title: string; url: string; domain?: string };
 type Usage = {
@@ -315,6 +317,11 @@ function createBaseNetlifyChatModel(): ChatModelAdapter {
     const useStream = modelName?.startsWith("claude-") ?? false;
     const last = messages.at(-1);
     const images = imagesForRun(messages);
+    const app = useApp.getState();
+    const activeMon = app.activeMonName ? app.mons[app.activeMonName] : null;
+    const systemPrompt = activeMon
+      ? buildVoiceSystemPrompt(activeMon, app.mood)
+      : "You are a neutral, accurate and concise personal assistant. Reply in the user's language.";
     const response = await fetch("/api/ai", {
       method: "POST",
       signal: abortSignal,
@@ -329,7 +336,7 @@ function createBaseNetlifyChatModel(): ChatModelAdapter {
         webSearch: true,
         system: [
           {
-            text: "You are a neutral, accurate and concise personal assistant. Reply in the user's language.",
+            text: systemPrompt,
           },
         ],
         turns: messages.slice(0, -1).map((message) => ({
