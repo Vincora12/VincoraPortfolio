@@ -55,6 +55,8 @@ import { LabAssistantPanel } from '../assistant/LabAssistantPanel';
 import { TaxonomyLab } from './TaxonomyLab';
 import { TaxonomyVersionControl } from '../TaxonomyVersionControl';
 import { labSyncCode } from '../../system/build';
+import { taxonomyDescriptionVersion, type TaxonomyDescriptionVersion } from '../../engine/taxonomy-versions';
+import type { GenerationTrace, MonRecord } from '../../engine/types';
 import '../skin/creation.css';
 
 const TABS = [
@@ -407,7 +409,11 @@ type Carta = {
   seed: number;
   /* Il record serve solo a compilare il prompt dell'immagine: la creatura
      resta di passaggio, non entra nella storia. */
-  record: import('../../engine/types').MonRecord;
+  record: MonRecord;
+  /** La versione descrittiva realmente attiva quando questa carta è nata. */
+  taxonomyVersion?: TaxonomyDescriptionVersion;
+  /** Trace completo della singola nascita: non dipende dall'ultima prova globale. */
+  trace?: GenerationTrace;
   righe: string[];
   valori: Partial<Record<AsseContato, string>>;
 };
@@ -475,6 +481,7 @@ function Build({ avvio = 0 }: { avvio?: number }) {
   const [conImmagini, setConImmagini] = useState(false);
   const [job, setJob] = useState<StatoJob | null>(null);
   const [foto, setFoto] = useState<Record<number, string>>({});
+  const [reviewOpen, setReviewOpen] = useState(false);
   const token = useApp((s) => s.token);
   const imageModel = useApp((s) => s.imageModel);
   const teachResolver = useApp((s) => s.teachResolver);
@@ -486,7 +493,10 @@ function Build({ avvio = 0 }: { avvio?: number }) {
     const smetti = ascoltaJob(setJob);
     void (async () => {
       const salvato = await mazzoSalvato<Carta[]>();
-      if (salvato?.length) setMazzo(salvato);
+      if (salvato?.length) {
+        setMazzo(salvato);
+        setReviewOpen(true);
+      }
       await riprendiJob(token, (titolo, corpo) => void notifica(titolo, corpo));
     })();
     return smetti;
@@ -586,6 +596,8 @@ function Build({ avvio = 0 }: { avvio?: number }) {
         fuori.push({
           seed,
           record: r.record,
+          taxonomyVersion: taxonomyDescriptionVersion(),
+          trace: r.trace,
           valori: {
             family: d.family,
             family_archetype: d.family_archetype,
@@ -609,6 +621,7 @@ function Build({ avvio = 0 }: { avvio?: number }) {
         setGuasto('Con questo perimetro non esce niente: allarga il campo.');
       } else {
         setMazzo(fuori);
+        setReviewOpen(true);
         await salvaMazzo(fuori);
         setPasso(0);
         if (immaginiOra) {
@@ -774,36 +787,23 @@ function Build({ avvio = 0 }: { avvio?: number }) {
         </div>
       )}
 
-      {corrente && (
-        <div className="deck">
-          <div className="deck__head">
-            <span>{passo + 1} / {mazzo!.length}</span>
-            <span>{scope || 'ALL'}</span>
-          </div>
+      {corrente && !reviewOpen && (
+        <button type="button" className="trainstart" onClick={() => setReviewOpen(true)}>
+          APRI A/B TEST · {passo + 1}/{mazzo!.length}
+        </button>
+      )}
 
-          <div className="deck__art">
-            {foto[corrente.seed] ? (
-              <img src={foto[corrente.seed]} alt={corrente.righe[0]} />
-            ) : (
-              <span>{conImmagini ? 'in disegno…' : 'SOLO DATI'}</span>
-            )}
-          </div>
-
-          <div className="deck__meta">
-            {corrente.righe.map((r) => (
-              <div key={r}>{r}</div>
-            ))}
-          </div>
-
-          <div className="deck__vote">
-            <button type="button" onClick={() => giudica('NO')}>💩 NO</button>
-            <button type="button" className="si" onClick={() => giudica('SI')}>❤️ SÌ</button>
-          </div>
-
-          <div className="deck__bar">
-            <i style={{ width: `${((passo + 1) / mazzo!.length) * 100}%` }} />
-          </div>
-        </div>
+      {corrente && reviewOpen && (
+        <ABReview
+          carta={corrente}
+          image={foto[corrente.seed] ?? null}
+          index={passo}
+          total={mazzo!.length}
+          scope={scope || 'ALL'}
+          waitingForImage={conImmagini}
+          onClose={() => setReviewOpen(false)}
+          onVote={giudica}
+        />
       )}
 
       {/* --- Cosa ha imparato --------------------------------------------- */}
@@ -871,6 +871,139 @@ function Build({ avvio = 0 }: { avvio?: number }) {
         <br />
         Le creature del mazzo non entrano nella tua storia, e i giudizi stanno in una memoria loro.
         Diventano una lezione vera solo quando premi APPROVA.
+      </div>
+    </section>
+  );
+}
+
+function ABReview({
+  carta,
+  image,
+  index,
+  total,
+  scope,
+  waitingForImage,
+  onClose,
+  onVote,
+}: {
+  carta: Carta;
+  image: string | null;
+  index: number;
+  total: number;
+  scope: string;
+  waitingForImage: boolean;
+  onClose: () => void;
+  onVote: (vote: Giudizio) => void;
+}) {
+  const d = carta.record.data;
+  const trace = carta.trace;
+  const versione = carta.taxonomyVersion?.toUpperCase() ?? 'NON REGISTRATA';
+  const rows: [string, string][] = [
+    ['VERSIONE TASSONOMIA', versione],
+    ['VERSIONE GENERATORE', d.generation_config_version],
+    ['SEED', String(carta.seed)],
+    ['FAMILY', d.family],
+    ['ARCHETYPE', d.family_archetype],
+    ['AFFINITY', d.affinity],
+    ['HUMANOIDITY', d.humanoidity >= 5 ? 'SÌ · CORPO UMANO' : 'NO · CORPO FAMILY'],
+    ['SIZE', d.size],
+    ['ROLE', d.role],
+    ['FASHION', d.fashion],
+    ['TEMPERAMENTO', d.mood_primary],
+    ['APPEARANCE', d.appearance],
+    ['DESIGN DNA', d.character_design_dna],
+    ['EYEWEAR', d.eyewear?.category ?? 'NESSUNO'],
+    ['COSTRUZIONE EYEWEAR', d.eyewear?.description ?? '—'],
+    ['HAIR STATE', d.hair_state ?? '—'],
+    ['HAIRCUT', d.haircut ?? '—'],
+    ['RARITÀ', `${d.rarity} · ${d.rarity_score}/100`],
+    ['CONFIDENZA DATI', `${d.data_confidence}/100`],
+    ['GIORNO', String(d.generated_at_day)],
+    ['PROMPT', carta.record.resolution ? 'CREATIVE RESOLVER' : 'COMPILATORE DETERMINISTICO'],
+  ];
+
+  return (
+    <section className="ab-review" aria-label={`A/B test di ${d.name}`}>
+      <header className="ab-review__top">
+        <button type="button" className="ab-review__back" onClick={onClose}>
+          ← TORNA AL BUILD
+        </button>
+        <div className="ab-review__position mono">
+          {index + 1}/{total} · {scope}
+        </div>
+      </header>
+
+      <div className="ab-review__progress" aria-hidden="true">
+        <i style={{ width: `${((index + 1) / total) * 100}%` }} />
+      </div>
+
+      <div className="ab-review__body">
+        <div className="ab-review__visual">
+          <div className="ab-review__image">
+            {image ? (
+              <img src={image} alt={d.name} />
+            ) : (
+              <span>{waitingForImage ? 'IMMAGINE IN GENERAZIONE…' : 'SOLO DATI'}</span>
+            )}
+          </div>
+          <h1>{d.name}</h1>
+          <p className="ab-review__summary mono">{d.generation_reason_summary}</p>
+
+          <div className="ab-review__vote">
+            <button type="button" onClick={() => onVote('NO')}>NO · NON FUNZIONA</button>
+            <button type="button" className="si" onClick={() => onVote('SI')}>SÌ · FUNZIONA</button>
+          </div>
+        </div>
+
+        <aside className="ab-review__diagnostic">
+          <section className="ab-review__section">
+            <h2>PERCHÉ È USCITO COSÌ</h2>
+            <p>
+              V1 e V2 cambiano le <b>descrizioni anatomiche passate al prompt</b>, non il sorteggio
+              di Family, Archetype o seed. Con lo stesso seed i dati possono quindi essere uguali,
+              mentre dovrebbe cambiare l’interpretazione visiva.
+            </p>
+            <dl className="ab-review__facts">
+              {rows.map(([label, value]) => (
+                <div key={label}>
+                  <dt>{label}</dt>
+                  <dd>{value}</dd>
+                </div>
+              ))}
+            </dl>
+          </section>
+
+          <section className="ab-review__section">
+            <h2>FLOW ESEGUITO</h2>
+            {trace?.steps.length ? (
+              <div className="ab-review__flow">
+                {trace.steps.map((step) => (
+                  <details key={`${step.step}-${step.stage}`}>
+                    <summary>
+                      <span>{step.step}</span>
+                      <b>{step.stage}</b>
+                      <strong>{step.outcome}</strong>
+                    </summary>
+                    {(step.note || step.candidates?.length) && (
+                      <div className="ab-review__flow-detail mono">
+                        {step.note && <p>{step.note}</p>}
+                        {step.candidates?.map((candidate) => (
+                          <div key={candidate.id}>
+                            {candidate.chosen ? '✓ ' : ''}{candidate.id} · fit {candidate.fit.toFixed(1)} ·
+                            novelty {candidate.noveltyPenalty.toFixed(1)} · cultura {candidate.culturalModifier.toFixed(1)} ·
+                            rumore {candidate.noise.toFixed(1)} · totale {candidate.total.toFixed(1)}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </details>
+                ))}
+              </div>
+            ) : (
+              <p className="hint">Questa carta è stata salvata prima del trace individuale. Rigenera il mazzo per vedere tutto il flow.</p>
+            )}
+          </section>
+        </aside>
       </div>
     </section>
   );
