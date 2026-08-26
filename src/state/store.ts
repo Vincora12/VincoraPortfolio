@@ -661,6 +661,8 @@ interface AppState {
   usedDevTime: boolean;
   /** Conserva il .mon attivo come ricordo. Torna `null` se non c'è nessuno. */
   keepActiveMon: (note?: string) => Promise<string | null>;
+  /** Conserva una forma precisa senza renderla attiva. */
+  keepMon: (monName: string, note?: string) => Promise<string | null>;
   /** Toglie un ricordo dalla teca, immagini comprese. */
   forgetKept: (id: string) => void;
 
@@ -2835,9 +2837,9 @@ export const useApp = create<AppState>()(
          vivo, un'evoluzione futura riscriverebbe il ricordo — e un ricordo che
          cambia da solo non è un ricordo.
          ========================================================================= */
-      keepActiveMon: async (note) => {
+      keepMon: async (monName, note) => {
         const s = get();
-        const rec = activeRecord(s);
+        const rec = s.mons[monName];
         if (!rec) return null;
 
         const already = s.kept.find((k) => k.record.data.name === rec.data.name);
@@ -2860,6 +2862,11 @@ export const useApp = create<AppState>()(
         });
 
         return entry.id;
+      },
+
+      keepActiveMon: async (note) => {
+        const name = get().activeMonName;
+        return name ? get().keepMon(name, note) : null;
       },
 
       /* §22.5 — il voto. Sta sul record perché è un giudizio su QUELLA forma,

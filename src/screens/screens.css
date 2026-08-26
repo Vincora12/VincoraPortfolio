@@ -3451,6 +3451,21 @@
   border-top: 1px solid var(--hairline);
 }
 
+.dex__actions {
+  position: sticky;
+  bottom: calc(var(--nav-h) + env(safe-area-inset-bottom));
+  z-index: 4;
+  padding: var(--u3);
+  border-top: var(--border) solid var(--line);
+  background: rgba(255, 255, 255, 0.97);
+  backdrop-filter: blur(12px);
+}
+
+.dex__actionlist {
+  display: grid;
+  gap: var(--u2);
+}
+
 .dex__detailhead {
   display: flex;
   align-items: center;
