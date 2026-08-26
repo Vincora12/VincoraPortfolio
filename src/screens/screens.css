@@ -446,6 +446,7 @@
 .home__evolution-progress { position: absolute; inset: auto 0 0; height: 3px; background: var(--char-primary); transform-origin: left; transition: transform var(--dur-base) var(--ease-system); }
 .home__evolution-hold {
   flex: 0 0 auto;
+  width: 100%;
   background: var(--paper);
 }
 .home__evolution-hold .hold__btn {
