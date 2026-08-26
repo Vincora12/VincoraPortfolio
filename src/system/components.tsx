@@ -182,6 +182,7 @@ export function HoldButton({
         onPointerUp={cancel}
         onPointerLeave={cancel}
         onPointerCancel={cancel}
+        onContextMenu={(event) => event.preventDefault()}
         onKeyDown={(e) => {
           if ((e.key === 'Enter' || e.key === ' ') && !disabled && !done) {
             e.preventDefault();

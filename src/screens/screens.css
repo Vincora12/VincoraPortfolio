@@ -1035,30 +1035,15 @@
 .branch__choice button[aria-pressed='true'] { border: var(--border-thick) solid var(--char-accent); background: var(--paper); }
 
 .branch--simple {
-  gap: var(--u3);
-  padding-bottom: var(--u4);
-}
-
-.branch__hero {
-  min-height: 250px;
-  max-height: 38vh;
-  background: var(--white);
-  overflow: hidden;
-}
-
-.branch__hero .assetslot-wrap,
-.branch__hero img {
-  width: 100%;
-  height: 100%;
-}
-
-.branch__identity {
-  text-align: center;
+  min-height: 100%;
+  justify-content: center;
+  padding: var(--u5) var(--u4);
 }
 
 .branch__direct {
   display: grid;
-  gap: var(--u2);
+  width: 100%;
+  gap: var(--u3);
 }
 
 .branch__direct-choice {
@@ -1066,31 +1051,17 @@
 }
 
 .branch__direct-choice .hold__btn {
-  min-height: 92px;
-  justify-content: flex-start;
-  padding: var(--u3) var(--u4);
-  text-align: left;
+  min-height: 84px;
+  justify-content: center;
+  border: var(--border) solid var(--ink);
+  background: transparent;
+  color: var(--ink);
+  text-align: center;
 }
 
-.branch__choicecopy {
-  display: grid;
-  gap: var(--u);
-}
-
-.branch__choicecopy strong {
+.branch__direct-choice .hold__label strong {
   font-size: var(--type-display-m);
-}
-
-.branch__choicecopy > span {
-  color: var(--muted-strong);
-}
-
-.branch__direct-choice .hold__hint {
-  min-height: 1em;
-}
-
-@media (max-width: 380px) {
-  .branch__hero { min-height: 210px; max-height: 32vh; }
+  letter-spacing: -0.02em;
 }
 
 .splash__evolution {
