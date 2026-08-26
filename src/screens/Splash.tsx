@@ -34,13 +34,15 @@ import { Row } from '../system/components';
 import { BioPanel } from './BioPanel';
 import { birthStatsFor } from '../engine/birthStats';
 import { STAT_LABELS, formatSignal } from '../engine/health';
-import { displayName } from '../engine/types';
+import { displayName, type MonRecord } from '../engine/types';
 import { haptic } from '../system/haptics';
 import { t } from '../i18n/it';
 
-export function SplashScreen({ onEnter }: { onEnter: () => void }) {
+export function SplashScreen({ onEnter, previewMonName }: { onEnter: () => void; previewMonName?: string }) {
   const phase = useApp((s) => s.phase);
-  const mon = useActiveMon();
+  const activeMon = useActiveMon();
+  const previewMon = useApp((s) => previewMonName ? (s.mons[previewMonName] ?? null) : null);
+  const mon = previewMon ?? activeMon;
   const inc = useIncubation();
   const health = useApp((s) => s.health);
   const evolutionJob = useApp((s) => s.evolutionJob);
@@ -58,7 +60,7 @@ export function SplashScreen({ onEnter }: { onEnter: () => void }) {
      se ne accorge solo a schermo — TypeScript no. */
   const [pokes, setPokes] = useState(0);
 
-  const incubating = phase === 'incubation';
+  const incubating = !previewMonName && phase === 'incubation';
   if (!incubating && !mon) return null;
 
   const enter = () => {
@@ -73,7 +75,7 @@ export function SplashScreen({ onEnter }: { onEnter: () => void }) {
 
   return (
     <div className="splash">
-      {!incubating && (evolutionJob || formEvolutionReady) && (
+      {!previewMonName && !incubating && (evolutionJob || formEvolutionReady) && (
         <button
           type="button"
           className={`splash__evolution ${evolutionJob ? `splash__evolution--${evolutionJob.status}` : ''}`}
@@ -215,15 +217,14 @@ export function SplashScreen({ onEnter }: { onEnter: () => void }) {
 
           Senza una regola, «tutto in una pagina» diventa un cruscotto.
           ==================================================================== */}
-      {!incubating && mon && <MonDossier health={health} />}
+      {!incubating && mon && <MonDossier health={health} mon={mon} />}
     </div>
   );
 }
 
 /* --- Il dossier sotto la faccia -------------------------------------------- */
 
-function MonDossier({ health }: { health: Parameters<typeof birthStatsFor>[0] }) {
-  const mon = useActiveMon()!;
+function MonDossier({ health, mon }: { health: Parameters<typeof birthStatsFor>[0]; mon: MonRecord }) {
   const d = mon.data;
   const birth = birthStatsFor(health, d.generated_at_day);
 

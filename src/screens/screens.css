@@ -3341,6 +3341,60 @@
   color: var(--muted);
 }
 
+.dexpreview {
+  min-height: 100%;
+}
+
+.dexpreview__bar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 52px;
+  padding: 0 var(--u3);
+  border-bottom: var(--border) solid var(--line);
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(12px);
+}
+
+.dexpreview__back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--u2);
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #0b0b0b;
+  font: 600 12px/1 var(--font-mono);
+  letter-spacing: 0.08em;
+}
+
+.dexpreview__back > :first-child {
+  font-size: 24px;
+  font-weight: 400;
+}
+
+.dexpreview__page .splash__evolution {
+  display: none;
+}
+
+.dexpreview__restore {
+  display: grid;
+  gap: var(--u2);
+  padding: var(--u4) var(--u3) calc(var(--u4) + env(safe-area-inset-bottom));
+  border-top: var(--border) solid var(--line);
+  background: #fff;
+  text-align: center;
+}
+
+.dexpreview__restore p {
+  margin: 0;
+  color: var(--muted);
+}
+
 /* Due colonne: il Dex deve far riconoscere la forma intera, non comprimere
    venti miniature. Il toy resta protagonista e non viene mai ritagliato. */
 .dex__grid {

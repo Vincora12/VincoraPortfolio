@@ -37,6 +37,7 @@ import { MonName } from '../system/MonName';
 import { Button, Row, ScreenHead, SystemLabel } from '../system/components';
 import { displayName } from '../engine/types';
 import { t } from '../i18n/it';
+import { SplashScreen } from './Splash';
 
 export function DexScreen({ onGo, onOpenMon }: { onGo: (o: Overlay) => void; onOpenMon: () => void }) {
   const mons = useApp((s) => s.mons);
@@ -85,6 +86,39 @@ export function DexScreen({ onGo, onOpenMon }: { onGo: (o: Overlay) => void; onO
   const keptOfActive = kept.some((k) => k.record.data.name === activeMonName);
   const selectedNode = picked ? nodes.find((n) => n.monName === picked) : null;
 
+  if (selected && selectedNode) {
+    const isActive = selected.data.name === activeMonName;
+    return (
+      <div className="screen screen--ink dex dexpreview">
+        <div className="dexpreview__bar">
+          <button type="button" className="dexpreview__back" onClick={() => setPicked(null)}>
+            <span aria-hidden="true">←</span>
+            <span>INDIETRO</span>
+          </button>
+          <span className="t-micro">FORMA DEL GIORNO {selectedNode.day}</span>
+        </div>
+        <div className="dexpreview__page">
+          <SplashScreen onEnter={() => undefined} previewMonName={selected.data.name} />
+        </div>
+        {!isActive && (
+          <div className="dexpreview__restore">
+            <Button
+              block
+              onClick={() => {
+                restoreNode(selectedNode.id);
+                setPicked(null);
+                onOpenMon();
+              }}
+            >
+              RITORNA A QUESTO VINZ.MON
+            </Button>
+            <p className="t-micro">La Mind.Map ripartirà da questa forma.</p>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="screen screen--ink dex">
       <ScreenHead
@@ -106,13 +140,7 @@ export function DexScreen({ onGo, onOpenMon }: { onGo: (o: Overlay) => void; onO
                   type="button"
                   className={`dexcard ${picked === name ? 'dexcard--picked' : ''}`}
                   aria-label={`Apri la pagina di ${displayName(name)}`}
-                  onClick={() => {
-                    if (!active) {
-                      const node = nodes.find((item) => item.monName === name);
-                      if (node) restoreNode(node.id);
-                    }
-                    onOpenMon();
-                  }}
+                  onClick={() => setPicked(name)}
                 >
                   <span className="dexcard__art">
                     <AssetSlot
