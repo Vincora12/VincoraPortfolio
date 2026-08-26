@@ -36,7 +36,7 @@
 import { ask } from './backend';
 import { AI_STEPS } from '../../netlify/functions/_shared/routing';
 import type { BackendFailure } from './backend';
-import type { BioFile, MonRecord } from '../engine/types';
+import type { BioFile, Memory, MonRecord } from '../engine/types';
 import { displayName } from '../engine/types';
 import { voiceBrief } from '../engine/voiceBrief';
 
@@ -84,7 +84,9 @@ export const BIO_RULES = [
   'COSA NON PUOI FARE',
   '- NON puoi cambiare un fatto, né inventarne di nuovi.',
   '- NON puoi inventare episodi, persone, luoghi o oggetti che non ti sono stati dati.',
-  '  Non hai una memoria di eventi: sei appena nato. Hai solo quello che sei.',
+  '- I RICORDI REALI DI CHI TI HA FATTO NASCERE valgono più del catalogo del tuo corpo.',
+  '  Se ci sono, scegline uno e fallo diventare parte del modo in cui racconti la tua nascita.',
+  '  Puoi ricordare soltanto ciò che compare nel blocco RICORDI REALI: mai completare i vuoti.',
   '',
   'COME SCRIVI',
   '- Parli a chi ti ha fatto nascere, dandogli del tu. Non ti presenti in terza persona.',
@@ -97,6 +99,9 @@ export const BIO_RULES = [
   '- Non usare mai i nomi di catalogo come parole tue: nessuno dice «sono un ANGEL',
   '  MESSENGER di affinità MACHINE». Quelle etichette descrivono come sei fatto,',
   '  non come parli.',
+  '- Non descrivere occhiali, vestiti, anatomia o palette come una scheda prodotto.',
+  '- Scrivi come una persona vera: diretto, personale, anche colloquiale. Una parolaccia è',
+  '  ammessa soltanto se nasce naturalmente dalla voce e dal ricordo, mai come decorazione.',
   '',
   /* ⚠️ TRE CAMPI, TRE LAVORI DIVERSI. Prima erano tre riassunti degli stessi
      fatti con tre lunghezze diverse — e si vedeva: la storia diceva le
@@ -157,7 +162,12 @@ export interface BioOutcome {
  * scrive poco davvero, e una teatrale si allarga, senza che nessuno glielo
  * ordini asse per asse.
  */
-function factsOf(record: MonRecord): string {
+export interface BioMemoryContext {
+  /** Solo ricordi realmente salvati: il writer non può ricostruirli o completarli. */
+  memories: Memory[];
+}
+
+function factsOf(record: MonRecord, context?: BioMemoryContext): string {
   const d = record.data;
   const dna = d.character_dna;
   const { lines, length } = voiceBrief(d.voice_dna, d.voice_preset);
@@ -166,18 +176,14 @@ function factsOf(record: MonRecord): string {
     '',
     `IL TUO NOME: ${displayName(d.name)}`,
     `IL GIORNO IN CUI SEI ARRIVATO: ${d.generated_at_day}`,
-    `COSA SEI: ${d.family} / ${d.family_archetype}, affinità ${d.affinity}, taglia ${d.size}`,
-    `COSA FAI: ${d.role}`,
-    `COME SEI VESTITO: ${d.fashion}`,
+    `RADICE DEL CORPO (non pronunciare queste etichette): ${d.family} / ${d.family_archetype}; affinità ${d.affinity}; taglia ${d.size}`,
+    `IMPULSO DEL RUOLO (non pronunciare l'etichetta): ${d.role}`,
     `UMORE DI FONDO: ${d.mood_primary}${d.mood_secondary ? ` con dentro ${d.mood_secondary}` : ''}`,
     '',
     `LE TUE CONTRADDIZIONI: ${dna.contradictions.map((c) => `${c.a} contro ${c.b}`).join(' · ')}`,
     `QUELLO CHE VUOI: ${dna.drives.join(' · ')}`,
     `COME SEI: ${dna.traits.join(' · ')}`,
-    `NEL CORPO TI PORTI: ${dna.anatomical_gimmick}`,
-    `LA TUA SAGOMA: ${dna.silhouette_quirk}`,
     `QUANDO NON SAI CHE FARE: ${dna.body_language}`,
-    d.eyewear ? `SUGLI OCCHI: ${d.eyewear.description}` : 'NIENTE LENTI: guardi diretto.',
     '',
     d.heritage_traits.length > 0
       ? `TI ARRIVA DA PRIMA DI TE: ${d.heritage_traits
@@ -187,6 +193,12 @@ function factsOf(record: MonRecord): string {
     '',
     'I SEGNALI CHE ERANO IN CAMPO QUEL GIORNO, come li ha visti chi ti ha fatto nascere:',
     record.bio.story,
+    '',
+    'RICORDI REALI DI CHI TI HA FATTO NASCERE — sono parole/eventi realmente salvati.',
+    'Usane al massimo UNO, solo se rende la presentazione più personale. Non inventare raccordi fattuali.',
+    ...(context?.memories.length
+      ? context.memories.map((m) => `- GIORNO ${m.day} · ${m.title}: ${m.text}`)
+      : ['- Nessun ricordo personale disponibile: non fingere di ricordare.']),
     '',
     /* 🔒 In fondo e non in cima: è come SCRIVI, non cosa scrivi. Messo fra i
        fatti verrebbe letto come un altro fatto da raccontare — «sono uno che
@@ -210,12 +222,13 @@ export async function writeBioWithAi(
   record: MonRecord,
   /** Chi la scrive, se hai scelto. Il server accetta solo modelli che conosce. */
   compilerModel?: string | null,
+  context?: BioMemoryContext,
 ): Promise<BioOutcome> {
   const { data, failure, detail } = await ask<{ text: string }>(token, {
     capability: 'prompt-compile',
     voiceModel: compilerModel,
     system: [{ text: BIO_RULES, cache: true }],
-    user: factsOf(record),
+    user: factsOf(record, context),
     /* 🔶 Era `thinking: true`, cioè `medium`. La bio è un testo corto e i
        controlli deterministici che la giudicano non sono cambiati: `low`
        basta, e quello che non basta lo BOCCIA il validatore, non il prezzo. */

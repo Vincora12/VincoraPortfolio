@@ -2065,9 +2065,20 @@ export const useApp = create<AppState>()(
         if (rec.writtenBio) return null;
 
         const { writeBioWithAi } = await import('../ai/bioWriter');
+        const bornDay = rec.data.generated_at_day;
+        /* La BIO conosce soltanto ricordi realmente salvati, privilegiando il
+           giorno della nascita e il breve periodo che l'ha preparata. */
+        const birthMemories = s.memories
+          .filter((memory) => memory.day <= bornDay && memory.day >= bornDay - 7)
+          .sort((a, b) => {
+            const aSameDay = a.day === bornDay ? 1 : 0;
+            const bSameDay = b.day === bornDay ? 1 : 0;
+            return bSameDay - aSameDay || b.day - a.day;
+          })
+          .slice(0, 8);
         const { bio, failure, rejected } = await runStep(
           'bio',
-          (model) => writeBioWithAi(s.token, rec, model),
+          (model) => writeBioWithAi(s.token, rec, model, { memories: birthMemories }),
           (out) => ({ ok: out.bio !== null, why: out.rejected ?? out.failure ?? undefined }),
         );
 
