@@ -681,7 +681,7 @@ export function MonTab({
 
       {view === 'mon' && <SplashScreen onEnter={onEnterChat} />}
       {view === 'map' && <MindlineMapScreen onGo={onGo} />}
-      {view === 'dex' && <DexScreen onGo={onGo} />}
+      {view === 'dex' && <DexScreen onGo={onGo} onOpenMon={() => onView('mon')} />}
     </div>
   );
 }

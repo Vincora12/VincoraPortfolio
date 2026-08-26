@@ -38,7 +38,7 @@ import { Button, Row, ScreenHead, SystemLabel } from '../system/components';
 import { displayName } from '../engine/types';
 import { t } from '../i18n/it';
 
-export function DexScreen({ onGo }: { onGo: (o: Overlay) => void }) {
+export function DexScreen({ onGo, onOpenMon }: { onGo: (o: Overlay) => void; onOpenMon: () => void }) {
   const mons = useApp((s) => s.mons);
   const nodes = useApp((s) => s.nodes);
   const activeMonName = useApp((s) => s.activeMonName);
@@ -105,8 +105,14 @@ export function DexScreen({ onGo }: { onGo: (o: Overlay) => void }) {
                   key={name}
                   type="button"
                   className={`dexcard ${picked === name ? 'dexcard--picked' : ''}`}
-                  aria-pressed={picked === name}
-                  onClick={() => setPicked(picked === name ? null : name)}
+                  aria-label={`Apri la pagina di ${displayName(name)}`}
+                  onClick={() => {
+                    if (!active) {
+                      const node = nodes.find((item) => item.monName === name);
+                      if (node) restoreNode(node.id);
+                    }
+                    onOpenMon();
+                  }}
                 >
                   <span className="dexcard__art">
                     <AssetSlot
@@ -181,7 +187,7 @@ export function DexScreen({ onGo }: { onGo: (o: Overlay) => void }) {
           <section className="dex__detail">
             <div className="dex__detailhead">
               <span className="t-display">
-                <MonName name={selected.data.name} />
+                <MonName name={selected.data.name} fit />
               </span>
               {selected.data.name === activeMonName && (
                 <SystemLabel tone="character">{t.dex.active}</SystemLabel>

@@ -3327,6 +3327,14 @@
   display: flex;
   flex-direction: column;
   gap: var(--u3);
+  background: #fff;
+  color: #0b0b0b;
+}
+
+.dex,
+.dex .screen__head {
+  background: #fff;
+  color: #0b0b0b;
 }
 
 .dex__empty {
@@ -3346,7 +3354,7 @@
   flex-direction: column;
   gap: 4px;
   padding: var(--u);
-  border: 1px solid var(--hairline);
+  border: 0;
   background: transparent;
   color: inherit;
   font: inherit;
@@ -3355,8 +3363,7 @@
 }
 
 .dexcard--picked {
-  border-color: var(--char-primary);
-  box-shadow: inset 0 0 0 1px var(--char-primary);
+  box-shadow: none;
 }
 
 .dexcard__art {
@@ -3369,6 +3376,8 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  color: #0b0b0b;
+  font-weight: 700;
 }
 
 .dexcard__day {
@@ -3445,7 +3454,8 @@
 .monname--fit {
   display: inline-block;
   white-space: nowrap;
-  font-size: min(1em, calc(100cqi / (var(--monname-chars, 12) * 0.58)));
+  max-width: 100%;
+  font-size: min(1em, calc((100cqi - 10px) / (var(--monname-chars, 12) * 0.72)));
 }
 
 /* --- IL DOSSIERO SOTTO LA FACCIA (v1.15 §13.12) ----------------------------

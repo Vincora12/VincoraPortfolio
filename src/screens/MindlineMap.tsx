@@ -38,7 +38,11 @@ export function MindlineMapScreen({ onGo }: { onGo: (o: Overlay) => void }) {
   // selezione la topologia si guarda intera, che è il punto della schermata.
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const layout = layoutMindline(nodes);
+  const natureOf = (monName: string) => {
+    const data = mons[monName]?.data;
+    return data ? `${data.family}|${data.family_archetype}` : '';
+  };
+  const layout = layoutMindline(nodes, (from, to) => natureOf(from.monName) !== natureOf(to.monName));
   const activeNodeId = activeMonName ? mons[activeMonName]?.data.mindline_node : null;
   const chapter = Math.max(1, ...nodes.map((n) => n.chapter));
   const selected = nodes.find((n) => n.id === selectedId) ?? null;
@@ -124,6 +128,10 @@ export function MindlineMapScreen({ onGo }: { onGo: (o: Overlay) => void }) {
               const active = node.id === activeNodeId;
               const picked = node.id === selectedId;
               const r = active ? 13 : 9;
+              const parent = node.parentId ? nodes.find((item) => item.id === node.parentId) : null;
+              const fromFamily = parent ? mons[parent.monName]?.data.family : null;
+              const toFamily = mons[node.monName]?.data.family;
+              const changedFamily = Boolean(fromFamily && toFamily && fromFamily !== toFamily);
 
               return (
                 <g
@@ -171,7 +179,7 @@ export function MindlineMapScreen({ onGo }: { onGo: (o: Overlay) => void }) {
                     <MonNameTspan name={node.monName} size={11} />
                   </text>
                   <text x={x + r + 8} y={y + 16} className="mindline__sublabel" fill="var(--muted-strong)">
-                    {nodeKindLabel(node.kind)} · G{node.day}
+                    {changedFamily ? `${fromFamily} → ${toFamily}` : `${toFamily ?? nodeKindLabel(node.kind)} · G${node.day}`}
                   </text>
                 </g>
               );
