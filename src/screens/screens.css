@@ -1043,6 +1043,16 @@
   padding: var(--u5) var(--u4);
 }
 
+.branch__back {
+  position: absolute;
+  z-index: 2;
+  top: var(--u3);
+  left: var(--u3);
+  min-height: 44px;
+  padding: 0 var(--u2);
+  color: var(--ink);
+}
+
 .branch__direct {
   display: grid;
   width: 100%;
