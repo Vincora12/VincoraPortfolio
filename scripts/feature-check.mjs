@@ -3455,6 +3455,34 @@ check(
   'dire un numero sbagliato con sicurezza manda a cambiare piattaforma per un problema che non c’era',
 );
 
+/* ============================================================================
+   §12/06 LA CHAT VERA — «Neutro è il grande problema su tutto.»
+
+   La tab CHAT era `LazyChat` (assistant-original/Brain.tsx): un prompt di
+   sistema letterale — «a neutral high-quality personal AI assistant» — senza
+   nessun parametro per il personaggio nella firma delle sue funzioni. Non
+   poteva scrivere in carattere per costruzione, non per un bug di un
+   parametro dimenticato. `CompanionHomeScreen` esisteva già, completo, e
+   chiamava `sendMessage` → `generateReply` (Voice DNA, umore, memoria) — ma
+   non era mai stato collegato alla tab. Questo ago impedisce che la tab
+   CHAT torni silenziosamente a `LazyChat`.
+   ========================================================================= */
+{
+  /* 🔶 Non un ago sul testo esatto della riga — si romperebbe alla prima
+     riga andata a capo diversamente. Guarda dentro il div `live-chat` (dove
+     vive DAVVERO la tab CHAT, non l'`assistantOpen` che resta legittimamente
+     `LazyChat`) e verifica la decisione: c'è `CompanionHomeScreen`, non
+     `LazyChat`. */
+  const appSrc = read('src/App.tsx') ?? '';
+  const liveChatBlock = /className=\{`live-chat[\s\S]{0,400}?<\/div>/.exec(appSrc)?.[0] ?? '';
+  check(
+    '§12/06 CHAT',
+    'la tab CHAT parla col personaggio, non con un assistente neutro',
+    liveChatBlock.includes('CompanionHomeScreen') && !liveChatBlock.includes('LazyChat'),
+    '«a neutral high-quality personal AI assistant» era il prompt letterale della chat vera — nessun DNA, nessun umore, nessuna memoria',
+  );
+}
+
 check(
   '§29 DEV',
   'DEV si apre su INIZIO e non su quindici linguette',

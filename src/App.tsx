@@ -52,6 +52,7 @@ import { ActivateScreen } from './screens/Activate';
 import { HeritageDnaScreen } from './screens/HeritageDna';
 import { HistoryScreen } from './screens/History';
 import { DailyScanScreen } from './screens/DailyScan';
+import { CompanionHomeScreen } from './screens/CompanionHome';
 import { DevPanel } from './dev/DevPanel';
 import { PageReader } from './screens/PageReader';
 import type { ToolUse } from './ai/tools';
@@ -529,8 +530,17 @@ export function App() {
           <LazyChat runTool={runChatTool} voiceModel={voiceModel} onModelChange={setVoiceModel} />
         ) : phase === 'live' ? (
           <>
+            {/* 🔴 «Neutro è il grande problema su tutto.» Qui c'era `LazyChat`
+                (assistant-original/Brain.tsx): un prompt di sistema generico
+                — «a neutral high-quality personal AI assistant», niente DNA,
+                niente umore, niente memoria — e senza `record` nella firma
+                delle sue funzioni non POTEVA iniettare il personaggio.
+                `CompanionHomeScreen` esisteva già, completo (§12/06, faccia
+                che reagisce, striscia SYNC, chiusura giornata) e chiama
+                `sendMessage` → `generateReply`, che il personaggio lo scrive
+                davvero — ma non era mai stato collegato qui. */}
             <div className={`live-chat ${tab === 'chat' ? '' : 'live-chat--hidden'}`}>
-              <LazyChat runTool={runChatTool} voiceModel={voiceModel} onModelChange={setVoiceModel} />
+              <CompanionHomeScreen onGo={setOverlay} onBack={() => goTab('mon')} />
             </div>
             {tab !== 'chat' && (
               <PhaseScreen
