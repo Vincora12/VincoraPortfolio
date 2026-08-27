@@ -3458,28 +3458,28 @@ check(
 /* ============================================================================
    §12/06 LA CHAT VERA — «Neutro è il grande problema su tutto.»
 
-   La tab CHAT era `LazyChat` (assistant-original/Brain.tsx): un prompt di
-   sistema letterale — «a neutral high-quality personal AI assistant» — senza
-   nessun parametro per il personaggio nella firma delle sue funzioni. Non
-   poteva scrivere in carattere per costruzione, non per un bug di un
-   parametro dimenticato. `CompanionHomeScreen` esisteva già, completo, e
-   chiamava `sendMessage` → `generateReply` (Voice DNA, umore, memoria) — ma
-   non era mai stato collegato alla tab. Questo ago impedisce che la tab
-   CHAT torni silenziosamente a `LazyChat`.
-   ========================================================================= */
+   🔴 PRIMO TENTATIVO SBAGLIATO, e la correzione lo spiega da sé: qui c'era un
+   ago che guardava QUALE componente monta `tab === 'chat'` (`CompanionHomeScreen`
+   contro `LazyChat`). Vincenzo ha chiesto indietro l'estetica di `LazyChat`
+   (markdown, allegati, composer) — «riporta la chat a prima» — e a quel punto
+   l'ago sull'identità dello schermo sarebbe rimasto rosso per una decisione
+   giusta. La schermata non era mai stata il problema: il problema era dentro
+   `replyWithLocalTools` (brain/stream.ts), il percorso che si accende ogni
+   volta che il messaggio tocca dati o azioni — cioè spesso — che aveva un
+   system prompt neutro cablato invece di `buildVoiceSystemPrompt`. Il
+   percorso senza strumenti (`netlify-runtime.ts`) lo faceva già bene.
+   Questo ago guarda quell'invariante, non lo schermo che la ospita. */
 {
-  /* 🔶 Non un ago sul testo esatto della riga — si romperebbe alla prima
-     riga andata a capo diversamente. Guarda dentro il div `live-chat` (dove
-     vive DAVVERO la tab CHAT, non l'`assistantOpen` che resta legittimamente
-     `LazyChat`) e verifica la decisione: c'è `CompanionHomeScreen`, non
-     `LazyChat`. */
-  const appSrc = read('src/App.tsx') ?? '';
-  const liveChatBlock = /className=\{`live-chat[\s\S]{0,400}?<\/div>/.exec(appSrc)?.[0] ?? '';
+  const streamSrc = read('src/brain/stream.ts') ?? '';
+  const toolsFn = /export async function replyWithLocalTools[\s\S]*?\n}/.exec(streamSrc)?.[0] ?? '';
+  const plainFn = /export async function streamReply[\s\S]*?\n}/.exec(streamSrc)?.[0] ?? '';
   check(
     '§12/06 CHAT',
-    'la tab CHAT parla col personaggio, non con un assistente neutro',
-    liveChatBlock.includes('CompanionHomeScreen') && !liveChatBlock.includes('LazyChat'),
-    '«a neutral high-quality personal AI assistant» era il prompt letterale della chat vera — nessun DNA, nessun umore, nessuna memoria',
+    'la chat — con o senza strumenti — parla col personaggio quando c’è un .mon attivo, non con un assistente neutro cablato',
+    streamSrc.includes('buildVoiceSystemPrompt') &&
+      toolsFn.includes('characterVoiceBlock()') &&
+      plainFn.includes('characterVoiceBlock()'),
+    '«a neutral high-quality personal AI assistant» era il prompt letterale del percorso che usa gli strumenti — nessun DNA, nessun umore, nessuna memoria, proprio nei turni dove la chat tocca i tuoi dati',
   );
 }
 

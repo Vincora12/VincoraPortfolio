@@ -10,7 +10,7 @@
    §26 — i controlli DEV non compaiono mai senza dev mode attiva.
    ========================================================================= */
 
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState, type ComponentProps } from 'react';
 import {
   useApp,
   type Phase,
@@ -52,11 +52,21 @@ import { ActivateScreen } from './screens/Activate';
 import { HeritageDnaScreen } from './screens/HeritageDna';
 import { HistoryScreen } from './screens/History';
 import { DailyScanScreen } from './screens/DailyScan';
-import { CompanionHomeScreen } from './screens/CompanionHome';
 import { DevPanel } from './dev/DevPanel';
 import { PageReader } from './screens/PageReader';
+import type { ToolUse } from './ai/tools';
+const IntegratedChat = lazy(() => import('./assistant-original/IntegratedChat').then((module) => ({ default: module.IntegratedChat })));
 
+const runChatTool = (use: ToolUse) => useApp.getState().runMonTool(use);
 const toyRefreshes = new Set<string>();
+
+function LazyChat(props: ComponentProps<typeof IntegratedChat>) {
+  return (
+    <Suspense fallback={<div className="brain-loader" aria-label="Apertura chat"><strong>VINZ.MON</strong><span /></div>}>
+      <IntegratedChat {...props} />
+    </Suspense>
+  );
+}
 
 /* ============================================================================
    🔷 «Il nav sotto deve avere prima la chat — appena entri c'è la chat aperta
@@ -141,6 +151,8 @@ export function App() {
     s.activeMonName ? (s.mons[s.activeMonName]?.sigil ?? null) : null,
   );
   const devEnabled = useApp((s) => s.dev.enabled);
+  const voiceModel = useApp((s) => s.voiceModel);
+  const setVoiceModel = useApp((s) => s.setVoiceModel);
   const setDev = useApp((s) => s.setDev);
   const resumeFormEvolution = useApp((s) => s.resumeFormEvolution);
   const evolutionJob = useApp((s) => s.evolutionJob);
@@ -511,17 +523,20 @@ export function App() {
           <OverlayScreen overlay={overlay} onClose={() => setOverlay(null)} onGo={setOverlay} />
         ) : phase === 'live' ? (
           <>
-            {/* 🔴 «Neutro è il grande problema su tutto.» Qui c'era `LazyChat`
-                (assistant-original/Brain.tsx): un prompt di sistema generico
-                — «a neutral high-quality personal AI assistant», niente DNA,
-                niente umore, niente memoria — e senza `record` nella firma
-                delle sue funzioni non POTEVA iniettare il personaggio.
-                `CompanionHomeScreen` esisteva già, completo (§12/06, faccia
-                che reagisce, striscia SYNC, chiusura giornata) e chiama
-                `sendMessage` → `generateReply`, che il personaggio lo scrive
-                davvero — ma non era mai stato collegato qui. */}
+            {/* 🔴 «Riporta la chat a prima.» Qui c'era stato messo
+                `CompanionHomeScreen` per risolvere «Neutro è il grande
+                problema su tutto» — ma il problema vero non era QUESTA
+                schermata, era che `replyWithLocalTools` (brain/stream.ts, il
+                percorso che si attiva quando il messaggio tocca dati o
+                azioni) usava un system prompt neutro cablato invece di
+                `buildVoiceSystemPrompt`. Il percorso senza strumenti lo
+                faceva già bene (`netlify-runtime.ts` → `buildVoiceSystemPrompt`).
+                La cura giusta era in quel file, non uno scambio di schermata:
+                l'estetica di `LazyChat` (markdown, allegati, un composer più
+                curato) torna quella di prima, e ora parla in carattere anche
+                quando usa gli strumenti. */}
             <div className={`live-chat ${tab === 'chat' ? '' : 'live-chat--hidden'}`}>
-              <CompanionHomeScreen onGo={setOverlay} onBack={() => goTab('mon')} />
+              <LazyChat runTool={runChatTool} voiceModel={voiceModel} onModelChange={setVoiceModel} />
             </div>
             {tab !== 'chat' && (
               <PhaseScreen

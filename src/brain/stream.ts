@@ -1,5 +1,37 @@
 import type { BrainMessage } from './store/types';
 import { TOOLS, assistantTurn, resultBlocks, type ToolResult, type ToolUse } from '../ai/tools';
+import { useApp } from '../state/store';
+import { buildVoiceSystemPrompt } from '../ai/voicePrompt';
+
+/* ============================================================================
+   🔷 «Riporta la chat a prima.» — e dentro, il problema vero.
+
+   Il percorso SENZA strumenti (`netlify-runtime.ts` → `createBaseNetlifyChatModel`)
+   costruiva già il prompt da `buildVoiceSystemPrompt`: il .mon rispondeva in
+   carattere. Questo percorso, quello CON gli strumenti — che si accende ogni
+   volta che il messaggio tocca dati o azioni, cioè spesso — aveva invece un
+   system prompt neutro cablato qui sotto: «a neutral high-quality personal AI
+   assistant». Due porte alla stessa chat, una in carattere e una no: da lì
+   «Neutro è il grande problema su tutto», non da QUALE schermo la monta.
+
+   🔒 Legge lo stato direttamente da `useApp.getState()`, come già fa
+   `savedToken()` qui sopra — nessun parametro in più da far passare per tre
+   livelli di componenti. Se non c'è un .mon attivo (VINZ.LAB, che non
+   condivide questo salvataggio) resta la stessa riga neutra di sempre: non è
+   una regressione, è la stessa condizione che il percorso senza strumenti usa
+   già per lo stesso caso. */
+function characterVoiceBlock(): { text: string } | null {
+  const s = useApp.getState();
+  const record = s.activeMonName ? s.mons[s.activeMonName] : undefined;
+  if (!record) return null;
+  return {
+    text: buildVoiceSystemPrompt(record, s.mood, s.voiceNotes, {
+      rating: record.rating ?? null,
+      faceRedos: s.faceRedos,
+      timeSkipped: s.usedDevTime,
+    }),
+  };
+}
 
 export type ChatCost = { costUsd: number; model?: string };
 export type ChatFileInput = { mediaType: string; data: string; filename: string };
@@ -26,15 +58,17 @@ export async function streamReply(
   const token = savedToken();
   if (!token) throw new Error('Prima attiva VINZ.MON: manca il token.');
 
-  const system = [{
-    text: [
-      'You are VINZ.MON, a high-quality general personal AI assistant.',
-      'Be accurate, useful, direct and natural. Do not roleplay or simulate emotions or consciousness.',
-      'Answer in the language used by the user. When the user writes Italian, use natural Italian.',
-      'Prefer concise answers unless detail is useful or requested.',
-      'If current information is needed, use web search and distinguish verified facts from inference.',
-    ].join(' '),
-  }];
+  const system = [
+    characterVoiceBlock() ?? {
+      text: [
+        'You are VINZ.MON, a high-quality general personal AI assistant.',
+        'Be accurate, useful, direct and natural. Do not roleplay or simulate emotions or consciousness.',
+        'Answer in the language used by the user. When the user writes Italian, use natural Italian.',
+        'Prefer concise answers unless detail is useful or requested.',
+        'If current information is needed, use web search and distinguish verified facts from inference.',
+      ].join(' '),
+    },
+  ];
 
   const response = await fetch('/api/ai', {
     method: 'POST',
@@ -158,36 +192,44 @@ export async function replyWithLocalTools(
   const workoutPlanContext = isWorkoutPlanIntent(user)
     ? run({ id: 'read-workout-plan', name: 'leggi_me', input: { sezione: 'sport' } }).content
     : '';
-  const system = [{
-    text: [
-      'You are VINZ.MON, a neutral high-quality personal AI assistant.',
-      'Answer in the user language. Use tools whenever the answer depends on personal data or the user asks for an action.',
-      'Never claim an action succeeded unless its tool result confirms it. Be concise and natural.',
-      'The five fixed meal moments are: colazione, spuntino, pranzo, merenda, cena. Additional food is extra.',
-      images.length
-        ? 'The user attached one or more real images. Inspect them directly: never say that you cannot see them. If they show food, identify visible foods, preparation, sauces and a plausible portion; estimate kcal, protein, carbohydrates and fat, clearly marking estimates and asking only for details that materially change the result. Do not invent hidden ingredients. Use all attached images together when one shows the dish and another shows a menu, label or portion reference.'
-        : '',
-      files.length
-        ? 'Read every attached PDF directly. If it is a diet or training plan, summarize it faithfully before proposing any change; distinguish values explicitly written in the document from your own estimates. Never claim that a PDF was unreadable unless the provider actually returns an error.'
-        : '',
-      mealConfirmation?.status === 'needs-confirmation'
-        ? `Analyze the food and estimate nutrition, but DO NOT call registra_pasto and do not ask the final confirmation question. The app will ask whether it is ${mealConfirmation.slot}.`
-        : '',
-      mealConfirmation?.status === 'confirmed'
-        ? `The user has just confirmed the proposed meal type: ${mealConfirmation.slot}. Call registra_pasto now and use exactly that meal type.`
-        : '',
-      workoutConfirmation?.status === 'needs-confirmation'
-        ? 'Analyze the workout, but DO NOT call registra_allenamento and do not ask the final confirmation question. The app will ask it.'
-        : '',
-      workoutConfirmation?.status === 'confirmed'
-        ? 'The user has just confirmed the workout. Call registra_allenamento now.'
-        : '',
-      'The AI may read and update every ME journal field through its dedicated tools: diet, nutrition targets, meals, completed workouts, workout plan, weight and period goal. It may also create, update, remove and reorder safe ME blocks with gestisci_me, including calendars, lists, notes and metrics. Calendar entries must use one item per event formatted as "Lunedì 08:00-09:00 · Title · Details", and belong in DIET or SPORT. Use gestisci_me when the request does not fit a fixed field. Never directly invent or edit VINZ.MON game stats; they are deterministic.',
-      workoutPlanContext
-        ? `The user is editing the workout schedule. Here is the current ME SPORT data: ${workoutPlanContext}. Preserve every existing day not explicitly changed, then call imposta_piano_allenamento. A weekday request refers to the plan, never to a completed workout.`
-        : '',
-    ].join(' '),
-  }];
+  /* 🔷 Due blocchi, non uno: il primo dice CHI risponde (il personaggio vero,
+     se c'è — `characterVoiceBlock()`; altrimenti la stessa riga neutra di
+     sempre, per VINZ.LAB che non ha un .mon attivo), il secondo dice COME
+     usare gli strumenti — regole operative valide a prescindere da chi
+     risponde, e per questo restano qui invece di finire dentro
+     `buildVoiceSystemPrompt`, che non sa niente di pasti o conferme. */
+  const system = [
+    characterVoiceBlock() ?? { text: 'You are VINZ.MON, a neutral high-quality personal AI assistant. Answer in the user language.' },
+    {
+      text: [
+        'Use tools whenever the answer depends on personal data or the user asks for an action.',
+        'Never claim an action succeeded unless its tool result confirms it. Be concise and natural.',
+        'The five fixed meal moments are: colazione, spuntino, pranzo, merenda, cena. Additional food is extra.',
+        images.length
+          ? 'The user attached one or more real images. Inspect them directly: never say that you cannot see them. If they show food, identify visible foods, preparation, sauces and a plausible portion; estimate kcal, protein, carbohydrates and fat, clearly marking estimates and asking only for details that materially change the result. Do not invent hidden ingredients. Use all attached images together when one shows the dish and another shows a menu, label or portion reference.'
+          : '',
+        files.length
+          ? 'Read every attached PDF directly. If it is a diet or training plan, summarize it faithfully before proposing any change; distinguish values explicitly written in the document from your own estimates. Never claim that a PDF was unreadable unless the provider actually returns an error.'
+          : '',
+        mealConfirmation?.status === 'needs-confirmation'
+          ? `Analyze the food and estimate nutrition, but DO NOT call registra_pasto and do not ask the final confirmation question. The app will ask whether it is ${mealConfirmation.slot}.`
+          : '',
+        mealConfirmation?.status === 'confirmed'
+          ? `The user has just confirmed the proposed meal type: ${mealConfirmation.slot}. Call registra_pasto now and use exactly that meal type.`
+          : '',
+        workoutConfirmation?.status === 'needs-confirmation'
+          ? 'Analyze the workout, but DO NOT call registra_allenamento and do not ask the final confirmation question. The app will ask it.'
+          : '',
+        workoutConfirmation?.status === 'confirmed'
+          ? 'The user has just confirmed the workout. Call registra_allenamento now.'
+          : '',
+        'The AI may read and update every ME journal field through its dedicated tools: diet, nutrition targets, meals, completed workouts, workout plan, weight and period goal. It may also create, update, remove and reorder safe ME blocks with gestisci_me, including calendars, lists, notes and metrics. Calendar entries must use one item per event formatted as "Lunedì 08:00-09:00 · Title · Details", and belong in DIET or SPORT. Use gestisci_me when the request does not fit a fixed field. Never directly invent or edit VINZ.MON game stats; they are deterministic.',
+        workoutPlanContext
+          ? `The user is editing the workout schedule. Here is the current ME SPORT data: ${workoutPlanContext}. Preserve every existing day not explicitly changed, then call imposta_piano_allenamento. A weekday request refers to the plan, never to a completed workout.`
+          : '',
+      ].join(' '),
+    },
+  ];
   const history: Array<{ role: 'user' | 'assistant'; content: unknown }> = turns.map(
     ({ role, content, context }) => ({
       role,
