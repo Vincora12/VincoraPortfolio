@@ -1,4 +1,4 @@
-import { useEffect, useMemo, type CSSProperties, type FC } from "react";
+import { useEffect, useMemo, useState, type CSSProperties, type FC } from "react";
 import {
   AssistantRuntimeProvider,
   CompositeAttachmentAdapter,
@@ -24,6 +24,8 @@ const threadAdapter = createLocalStorageAdapter({
   prefix: "assistant-ui-official-chatgpt:",
   titleGenerator: createSimpleTitleAdapter(),
 });
+
+const ACTIVE_THREAD_KEY = "assistant-ui-official-chatgpt:active-thread";
 
 const attachments = new CompositeAttachmentAdapter([
   new VinzImageAttachmentAdapter(),
@@ -70,11 +72,52 @@ export const IntegratedChat: FC<IntegratedChatProps> = ({
 
   useEffect(() => {
     if (!embedded) document.documentElement.classList.add("dark");
-    void migrateStoragePrefix("assistant-ui-official-chatgpt:");
   }, [embedded]);
+  const [restoredThreadId, setRestoredThreadId] = useState<string | null | undefined>(undefined);
+
+  useEffect(() => {
+    let cancelled = false;
+    void migrateStoragePrefix("assistant-ui-official-chatgpt:").then(() => Promise.all([
+      threadAdapter.list(),
+      serverBackedStorage.getItem(ACTIVE_THREAD_KEY),
+    ])).then(([page, saved]) => {
+      if (cancelled) return;
+      const valid = page.threads.filter((thread) => thread.status === "regular");
+      const restored = valid.some((thread) => thread.remoteId === saved)
+        ? saved
+        : valid[0]?.remoteId ?? null;
+      setRestoredThreadId(restored);
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  if (restoredThreadId === undefined) {
+    return <div className={embedded ? "h-full bg-white" : "h-full bg-black"} aria-label="Caricamento chat" />;
+  }
+
+  return (
+    <IntegratedChatRuntime
+      runTool={runTool}
+      voiceModel={voiceModel}
+      onModelChange={onModelChange}
+      embedded={embedded}
+      themeStyle={themeStyle}
+      initialThreadId={restoredThreadId ?? undefined}
+    />
+  );
+};
+
+const IntegratedChatRuntime: FC<IntegratedChatProps & {
+  themeStyle?: CSSProperties;
+  initialThreadId?: string;
+}> = ({ runTool, voiceModel, onModelChange, embedded = false, themeStyle, initialThreadId }) => {
   const model = useMemo(() => createNetlifyChatModel(runTool), [runTool]);
   const runtime = useRemoteThreadListRuntime({
     adapter: threadAdapter,
+    initialThreadId,
+    onThreadIdChange: (threadId) => {
+      if (threadId) void serverBackedStorage.setItem(ACTIVE_THREAD_KEY, threadId);
+    },
     runtimeHook: () =>
       useLocalRuntime(model, {
         adapters: { attachments },

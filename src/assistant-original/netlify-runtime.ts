@@ -464,10 +464,13 @@ function createBaseNetlifyChatModel(): ChatModelAdapter {
             text: systemPrompt,
           },
         ],
-        turns: messages.slice(0, -1).map((message) => ({
-          role: message.role,
-          content: textOf(message),
-        })),
+        turns: messages
+          .slice(0, -1)
+          .filter((message) => message.role === "user" || message.role === "assistant")
+          .map((message) => ({
+            role: message.role,
+            content: textOf(message),
+          })),
         user: textOf(last),
         ...(images.length ? { images } : {}),
         ...(files.length ? { files } : {}),

@@ -20,6 +20,7 @@ import {
   ArchiveIcon,
   BookOpenIcon,
   BriefcaseBusinessIcon,
+  CheckIcon,
   DumbbellIcon,
   FlameIcon,
   FolderIcon,
@@ -38,6 +39,8 @@ import {
 import {
   forwardRef,
   Fragment,
+  createContext,
+  useContext,
   useEffect,
   useMemo,
   useRef,
@@ -49,6 +52,7 @@ import { serverBackedStorage } from "@/system/serverStorage";
 
 const THREAD_ICONS_KEY = "assistant-ui-official-chatgpt:thread-icons";
 const THREAD_COLORS_KEY = "assistant-ui-official-chatgpt:thread-colors";
+const ACTIVE_THREAD_KEY = "assistant-ui-official-chatgpt:active-thread";
 
 const THREAD_COLORS = ["#42d8f4", "#ff4e68", "#ffb627", "#49d17d", "#9d7cff", "#f08bd6", "#f2f2f2"] as const;
 type ThreadColor = (typeof THREAD_COLORS)[number];
@@ -77,16 +81,17 @@ function readLocalThreadIcons(): ThreadIconMap {
   }
 }
 
+function readLocalThreadColors(): Record<string, ThreadColor> {
+  try {
+    return JSON.parse(localStorage.getItem(THREAD_COLORS_KEY) ?? "{}") as Record<string, ThreadColor>;
+  } catch {
+    return {};
+  }
+}
+
 function useThreadIcon(threadId: string) {
   const [name, setName] = useState<ThreadIconName>(() => readLocalThreadIcons()[threadId] ?? "chat");
-  const readColors = () => {
-    try {
-      return JSON.parse(localStorage.getItem(THREAD_COLORS_KEY) ?? "{}") as Record<string, ThreadColor>;
-    } catch {
-      return {};
-    }
-  };
-  const [color, setColor] = useState<ThreadColor | null>(() => readColors()[threadId] ?? null);
+  const [color, setColor] = useState<ThreadColor | null>(() => readLocalThreadColors()[threadId] ?? null);
 
   useEffect(() => {
     void serverBackedStorage.getItem(THREAD_ICONS_KEY).then((raw) => {
@@ -116,7 +121,7 @@ function useThreadIcon(threadId: string) {
 
   const chooseColor = (next: ThreadColor) => {
     setColor(next);
-    const map = { ...readColors(), [threadId]: next };
+    const map = { ...readLocalThreadColors(), [threadId]: next };
     void serverBackedStorage.setItem(THREAD_COLORS_KEY, JSON.stringify(map));
   };
 
@@ -182,21 +187,122 @@ export const ThreadListRoot: FC<
 export const ThreadListItems: FC<
   ComponentPropsWithoutRef<"div"> & { searchQuery?: string }
 > = ({ className, searchQuery = "", ...props }) => {
+  const aui = useAui();
+  const threadIds = useAuiState((s) => s.threads.threadIds);
+  const mainThreadId = useAuiState((s) => s.threads.mainThreadId);
+  const [selecting, setSelecting] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(() => new Set());
+  const [deleting, setDeleting] = useState(false);
+
+  useEffect(() => {
+    setSelected((current) => new Set([...current].filter((id) => threadIds.includes(id))));
+  }, [threadIds]);
+
+  const cancelSelection = () => {
+    setSelected(new Set());
+    setSelecting(false);
+  };
+
+  const deleteSelected = async () => {
+    if (!selected.size || deleting) return;
+    if (!window.confirm(`Eliminare ${selected.size} chat selezionate?`)) return;
+    setDeleting(true);
+    const ids = [...selected];
+    const remaining = threadIds.filter((id) => !selected.has(id));
+    try {
+      if (selected.has(mainThreadId) && remaining[0]) {
+        await aui.threads.switchToThread(remaining[0]);
+      }
+      const ordered = ids.sort((a, b) => Number(a === mainThreadId) - Number(b === mainThreadId));
+      for (const id of ordered) await aui.threads.item({ id }).delete();
+      await removeThreadPresentation(ids);
+      if (remaining.length === 0) {
+        await serverBackedStorage.removeItem(ACTIVE_THREAD_KEY);
+      }
+      cancelSelection();
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const selection = useMemo<ThreadSelectionContextValue>(() => ({
+    selecting,
+    selected,
+    toggle: (id) => setSelected((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    }),
+  }), [selecting, selected]);
+
   return (
-    <div
-      data-slot="aui_thread-list-items"
-      className={cn("flex flex-col gap-0.5", className)}
-      {...props}
-    >
-      <AuiIf condition={(s) => s.threads.isLoading}>
-        <ThreadListSkeleton />
-      </AuiIf>
-      <AuiIf condition={(s) => !s.threads.isLoading}>
-        <ThreadListItemGroups searchQuery={searchQuery} />
-      </AuiIf>
-    </div>
+    <ThreadSelectionContext.Provider value={selection}>
+      <div
+        data-slot="aui_thread-list-items"
+        className={cn("flex flex-col gap-0.5", className)}
+        {...props}
+      >
+        {threadIds.length > 0 && (
+          <div className="flex min-h-8 items-center justify-between gap-2 px-2.5 py-1 text-xs">
+            {selecting ? (
+              <>
+                <span className="text-muted-foreground">{selected.size} selezionate</span>
+                <div className="flex items-center gap-2">
+                  <button type="button" onClick={() => setSelected(new Set(threadIds))} className="hover:text-foreground text-muted-foreground">Tutte</button>
+                  <button type="button" disabled={!selected.size || deleting} onClick={() => void deleteSelected()} className="text-destructive disabled:opacity-40">Elimina ({selected.size})</button>
+                  <button type="button" onClick={cancelSelection} className="hover:text-foreground text-muted-foreground">Annulla</button>
+                </div>
+              </>
+            ) : (
+              <button type="button" onClick={() => setSelecting(true)} className="text-muted-foreground hover:text-foreground ms-auto">Seleziona</button>
+            )}
+          </div>
+        )}
+        <AuiIf condition={(s) => s.threads.isLoading}>
+          <ThreadListSkeleton />
+        </AuiIf>
+        <AuiIf condition={(s) => !s.threads.isLoading}>
+          <ThreadListItemGroups searchQuery={searchQuery} />
+        </AuiIf>
+      </div>
+    </ThreadSelectionContext.Provider>
   );
 };
+
+type ThreadSelectionContextValue = {
+  selecting: boolean;
+  selected: ReadonlySet<string>;
+  toggle: (id: string) => void;
+};
+
+const ThreadSelectionContext = createContext<ThreadSelectionContextValue>({
+  selecting: false,
+  selected: new Set(),
+  toggle: () => undefined,
+});
+
+async function removeThreadPresentation(ids: readonly string[]): Promise<void> {
+  const [iconsRaw, colorsRaw] = await Promise.all([
+    serverBackedStorage.getItem(THREAD_ICONS_KEY),
+    serverBackedStorage.getItem(THREAD_COLORS_KEY),
+  ]);
+  let icons = readLocalThreadIcons();
+  let colors = readLocalThreadColors();
+  try {
+    if (iconsRaw) icons = JSON.parse(iconsRaw) as ThreadIconMap;
+  } catch { /* I metadati corrotti non devono impedire l'eliminazione. */ }
+  try {
+    if (colorsRaw) colors = JSON.parse(colorsRaw) as Record<string, ThreadColor>;
+  } catch { /* I metadati corrotti non devono impedire l'eliminazione. */ }
+  for (const id of ids) {
+    delete icons[id];
+    delete colors[id];
+  }
+  await Promise.all([
+    serverBackedStorage.setItem(THREAD_ICONS_KEY, JSON.stringify(icons)),
+    serverBackedStorage.setItem(THREAD_COLORS_KEY, JSON.stringify(colors)),
+  ]);
+}
 
 const DAY_IN_MS = 86_400_000;
 
@@ -303,10 +409,27 @@ export const ThreadListNew = forwardRef<
   HTMLButtonElement,
   ComponentPropsWithoutRef<typeof Button> & { labelClassName?: string }
 >(({ className, labelClassName, children, ...props }, ref) => {
+  const aui = useAui();
+  const [creating, setCreating] = useState(false);
+  const creatingRef = useRef(false);
+  const createThread = async () => {
+    if (creatingRef.current) return;
+    creatingRef.current = true;
+    setCreating(true);
+    try {
+      await aui.threads.switchToNewThread();
+      await aui.threads.item("main").initialize();
+    } finally {
+      creatingRef.current = false;
+      setCreating(false);
+    }
+  };
   return (
-    <ThreadListPrimitive.New asChild>
       <Button
         ref={ref}
+        type="button"
+        disabled={creating}
+        onClick={() => void createThread()}
         variant="ghost"
         data-slot="aui_thread-list-new"
         className={cn(
@@ -330,7 +453,6 @@ export const ThreadListNew = forwardRef<
           </>
         )}
       </Button>
-    </ThreadListPrimitive.New>
   );
 });
 
@@ -361,6 +483,7 @@ export const ThreadListItem: FC = () => {
   const isRunning = useAuiState((s) => s.threadListItem.isRunning);
   const threadId = useAuiState((s) => s.threadListItem.id);
   const threadIcon = useThreadIcon(threadId);
+  const selection = useContext(ThreadSelectionContext);
   const [isRenaming, setIsRenaming] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const restoreFocusRef = useRef(false);
@@ -376,7 +499,21 @@ export const ThreadListItem: FC = () => {
       data-slot="aui_thread-list-item"
       className="group hover:bg-muted focus-visible:bg-muted data-active:bg-muted has-focus-visible:bg-muted has-data-[state=open]:bg-muted relative flex h-8 items-center rounded-md transition-colors focus-visible:outline-none"
     >
-      {isRenaming ? (
+      {selection.selecting ? (
+        <button
+          type="button"
+          data-slot="aui_thread-list-item-select"
+          aria-pressed={selection.selected.has(threadId)}
+          onClick={() => selection.toggle(threadId)}
+          className="flex h-full min-w-0 flex-1 items-center rounded-md px-2.5 text-start text-sm"
+        >
+          <span className={cn("me-2 flex size-4 shrink-0 items-center justify-center rounded border", selection.selected.has(threadId) && "border-[var(--char-accent-on-dark)] bg-[var(--char-accent-on-dark)] text-black")}>
+            {selection.selected.has(threadId) ? <CheckIcon className="size-3" /> : null}
+          </span>
+          <threadIcon.Icon aria-hidden className="me-2 size-4 shrink-0" style={threadIcon.color ? { color: threadIcon.color } : undefined} />
+          <span className="min-w-0 flex-1 truncate"><ThreadListItemPrimitive.Title fallback="New Chat" /></span>
+        </button>
+      ) : isRenaming ? (
         <ThreadListItemRename
           onDone={(restoreFocus) => {
             restoreFocusRef.current = restoreFocus;
@@ -410,13 +547,13 @@ export const ThreadListItem: FC = () => {
           {isRunning && <span className="sr-only">Running</span>}
         </ThreadListItemPrimitive.Trigger>
       )}
-      <ThreadListItemMore
+      {!selection.selecting && <ThreadListItemMore
         icon={threadIcon.name}
         color={threadIcon.color}
         onIconChange={threadIcon.choose}
         onColorChange={threadIcon.chooseColor}
         onRename={() => setIsRenaming(true)}
-      />
+      />}
     </ThreadListItemPrimitive.Root>
   );
 };

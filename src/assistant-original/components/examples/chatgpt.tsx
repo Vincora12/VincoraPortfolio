@@ -64,6 +64,7 @@ export const ChatGPT: FC = () => {
       <LogCelebration />
       <ReactionMessageDispatcher />
       <ConversationMemory />
+      <MonPresenceEvents />
       <ThreadPrimitive.Root className="flex h-full flex-col items-stretch bg-white px-4 text-[#0d0d0d] dark:bg-black dark:text-[#ececec]">
         <AuiIf condition={(s) => s.thread.isEmpty}>
           <EmptyState />
@@ -87,6 +88,7 @@ export const ChatGPT: FC = () => {
               <ThreadPrimitive.Messages>
                 {({ message }) => {
                   if (message.composer.isEditing) return <EditComposer />;
+                  if (message.role === "system") return <SystemEventMessage />;
                   if (message.role === "user") return <UserMessage />;
                   return <AssistantMessage />;
                 }}
@@ -131,8 +133,13 @@ const EmptyState: FC = () => {
   const record = useApp((state) =>
     state.activeMonName ? state.mons[state.activeMonName] ?? null : null,
   );
+  const remoteId = useAuiState((state) => state.threadListItem.remoteId);
 
   useEffect(() => {
+    /* La bozza iniziale senza remoteId è solo una schermata vuota: non deve
+       diventare una conversazione per effetto del mount. "Nuova chat" la
+       inizializza esplicitamente, e solo allora riceve il saluto. */
+    if (!remoteId) return;
     if (didGreet.current) return;
     didGreet.current = true;
     let cancelled = false;
@@ -150,7 +157,7 @@ const EmptyState: FC = () => {
       });
     });
     return () => { cancelled = true; };
-  }, [aui, record]);
+  }, [aui, record, remoteId]);
 
   return (
     <div className="flex grow flex-col px-4">
@@ -159,6 +166,81 @@ const EmptyState: FC = () => {
         <Composer placeholder="Ask anything" />
       </div>
     </div>
+  );
+};
+
+const monLabel = (name: string) => name.toLocaleLowerCase('it').endsWith('.mon') ? name : `${name}.mon`;
+
+/** Registra esclusivamente cambi d'identità avvenuti mentre la stessa chat è
+ * attiva. Mount, hydration e cambio conversazione stabiliscono la baseline e
+ * non producono eventi. */
+const MonPresenceEvents: FC = () => {
+  const aui = useAui();
+  const activeMonName = useApp((state) => state.activeMonName);
+  const { loading, threadId, remoteId, custom } = useAuiState(
+    useShallow((state) => ({
+      loading: state.threads.isLoading,
+      threadId: state.threads.mainThreadId,
+      remoteId: state.threadListItem.remoteId,
+      custom: state.threadListItem.custom,
+    })),
+  );
+  const baseline = useRef<{ threadId: string | null; monName: string | null }>({
+    threadId: null,
+    monName: null,
+  });
+
+  useEffect(() => {
+    if (loading || !remoteId) return;
+    const threadCustom = custom ?? {};
+    if (baseline.current.threadId !== threadId) {
+      const restoredMonName = activeMonName
+        ?? (typeof threadCustom.activeMonName === "string" ? threadCustom.activeMonName : null);
+      baseline.current = { threadId, monName: restoredMonName };
+      if (activeMonName && threadCustom.activeMonName !== activeMonName) {
+        void aui.threads.item("main").updateCustom({ ...threadCustom, activeMonName });
+      }
+      return;
+    }
+
+    const previous = baseline.current.monName;
+    if (previous === activeMonName) return;
+    baseline.current.monName = activeMonName;
+
+    if (previous) {
+      aui.thread.append({
+        role: "system",
+        content: [{ type: "text", text: `${monLabel(previous)} è uscito dalla chat` }],
+        metadata: { custom: { monPresenceEvent: "leave", monName: previous } },
+        startRun: false,
+      });
+    }
+    if (activeMonName) {
+      aui.thread.append({
+        role: "system",
+        content: [{ type: "text", text: `${monLabel(activeMonName)} è entrato nella chat` }],
+        metadata: { custom: { monPresenceEvent: "enter", monName: activeMonName } },
+        startRun: false,
+      });
+    }
+    void aui.threads.item("main").updateCustom({ ...threadCustom, activeMonName });
+  }, [activeMonName, aui, custom, loading, remoteId, threadId]);
+
+  return null;
+};
+
+const SystemEventMessage: FC = () => {
+  const isPresenceEvent = useAuiState((state) =>
+    state.message.metadata.custom.monPresenceEvent === "leave"
+    || state.message.metadata.custom.monPresenceEvent === "enter",
+  );
+  if (!isPresenceEvent) return null;
+  return (
+    <MessagePrimitive.Root className="mx-auto flex w-full max-w-3xl justify-center px-4 py-0.5">
+      <div className="rounded-full bg-black/[0.05] px-3 py-1 text-center text-[11px] leading-4 text-black/50 dark:bg-white/[0.07] dark:text-white/45">
+        <MessagePrimitive.Parts />
+      </div>
+    </MessagePrimitive.Root>
   );
 };
 
