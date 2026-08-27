@@ -3859,8 +3859,16 @@ function migrateStepModels(state: AppState): void {
  * essere chiamato. La difesa vera resta comunque di là — `resolveRoute` sul
  * server non si fida di niente che arrivi dal browser.
  */
-export function stepModel(step: AiStepId): string {
-  return modelForStep(step, useApp.getState().stepModels[step]);
+export function stepModel(
+  step: AiStepId,
+  /**
+   * 🔷 Quanto pesa questo turno. Vedi `AiStep.everyday` in `routing.ts`:
+   * «ok, segnato» e «oggi non ce la faccio» non meritano lo stesso modello,
+   * e a distinguerli è `deservesThinking()` prima di mandare.
+   */
+  weight: 'everyday' | 'full' = 'full',
+): string {
+  return modelForStep(step, useApp.getState().stepModels[step], weight);
 }
 
 /**
@@ -4472,7 +4480,24 @@ function requestIntroduction(
   // L'SDK arriva solo a chi ha una chiave: import dinamico, chunk separato.
   void import('../ai/client')
     .then((m) =>
-      m.generateIntroduction(token, record, get().mood, get().voiceNotes, get().voiceModel),
+      m.generateIntroduction(
+        token,
+        record,
+        get().mood,
+        get().voiceNotes,
+        /* 🔴 QUI C'ERA `get().voiceModel`, cioè il campo VECCHIO — quello che
+           §19.3 ha sostituito con gli step e che la migrazione tiene in giro
+           solo per leggerlo. Effetto: la presentazione girava su un modello
+           diverso da tutte le risposte che venivano dopo, e nessuno lo
+           dichiarava da nessuna parte. La prima frase che una creatura dice
+           era l'unica scritta da un altro.
+
+           🔒 E resta `full` per sempre: una presentazione è la prima
+           impressione di una forma che vivrà ventotto giorni. Non è un turno
+           di tutti i giorni, ed è l'esatto opposto del messaggio che merita
+           il modello piccolo. */
+        stepModel('voice', 'full'),
+      ),
     )
     .then(({ result }) => {
       const s = get();
@@ -4568,6 +4593,22 @@ function requestReply(
     turns: recentTurns(s0.chat.filter((m) => m.id !== messageId && m.id !== messageId.replace(/_m$/, '_v'))),
   };
 
+  /* ════════════════════════════════════════════════════════════════════════
+     🔷 QUANTO PESA QUESTO TURNO — e quindi chi risponde.
+
+     La condizione era già qui e serviva a una cosa sola: accendere il
+     ragionamento. Adesso ne decide due, ed è giusto che sia una sola riga a
+     deciderle entrambe — un messaggio che merita di essere pensato merita il
+     modello che sa pensarlo, e uno che non lo merita non merita nemmeno di
+     essere pagato al prezzo pieno.
+
+     ⚠️ IN COSTRUZIONE È SEMPRE PESANTE, e non per generosità: lì si decide
+     quale strumento chiamare per modificare l'app, che è il lavoro meno
+     perdonabile di tutti.
+     ════════════════════════════════════════════════════════════════════════ */
+  const pesante =
+    s0.buildMode || deservesThinking(userText, extractFromMessage(userText, s0.protocol.diet));
+
   void import('../ai/client')
     .then((m) =>
       m.generateReply(
@@ -4581,7 +4622,7 @@ function requestReply(
         /* 🔒 In costruzione il ragionamento si accende sempre: decidere QUALE
            strumento chiamare è esattamente il lavoro che lo merita, e a
            sforzo basso il modello sceglie la strada corta — rispondere. */
-        s0.buildMode || deservesThinking(userText, extractFromMessage(userText, s0.protocol.diet)),
+        pesante,
         /* §21 — gli strumenti. `run` passa dallo store, così una pagina scritta
            dal modello entra nello stato vero e viene salvata come tutto il
            resto, invece di vivere in una variabile che sparisce. */
@@ -4601,8 +4642,15 @@ function requestReply(
         },
         /* §19.2 — chi risponde. Ultimo argomento e non primo di proposito:
            tutto quello che viene prima — il personaggio, l'umore, la memoria,
-           gli strumenti, quello che sa di te — è identico per chiunque. */
-        stepModel('voice'),
+           gli strumenti, quello che sa di te — è identico per chiunque.
+
+           🔷 E adesso non è più sempre lo stesso: `pesante` decide se questo
+           turno merita il modello grosso o quello di tutti i giorni. La
+           STESSA condizione che accende il ragionamento sceglie anche chi
+           risponde — un turno che vale il pensiero vale il modello, e uno che
+           non lo vale non vale nemmeno l'altro. Due decisioni separate qui
+           vorrebbero dire poter pagare Opus per non farlo ragionare. */
+        stepModel('voice', pesante ? 'full' : 'everyday'),
         { build: s0.buildMode, effort: s0.buildMode ? 'medium' : undefined },
       ),
     )

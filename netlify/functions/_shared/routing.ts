@@ -615,6 +615,37 @@ export interface AiStep {
    */
   fallback: string;
   /**
+   * 🔷 IL MODELLO DI TUTTI I GIORNI, per gli step che ne meritano due.
+   *
+   * ════════════════════════════════════════════════════════════════════════
+   * PERCHÉ DUE, INVECE DI UNO SOLO PIÙ ECONOMICO.
+   *
+   * «ok», «fatto», «ho mangiato riso e pollo» e «oggi mi sento uno straccio,
+   * è da settimane che rimando tutto» arrivano dalla stessa casella di testo
+   * e non sono lo stesso lavoro. Il primo è una ricevuta; l'ultimo è il
+   * motivo per cui questa app esiste.
+   *
+   * Pagare il modello grosso per la ricevuta è lo spreco. Pagare quello
+   * piccolo per l'ultimo è il danno. `everyday` serve al primo, `fallback`
+   * al secondo, e a decidere è `deservesThinking()` — che guarda il messaggio
+   * PRIMA di mandarlo.
+   *
+   * 🔒 SI CLASSIFICA PRIMA, NON SI RIPROVA DOPO. Il modo diffuso di fare
+   * questa cosa è «prova col piccolo, controlla il risultato, se non basta
+   * rifai col grosso»: su ogni escalation paghi DUE volte, e serve anche un
+   * giudice — che è una terza chiamata. Qui la scelta si fa una volta sola
+   * leggendo il testo, quindi nessun turno viene mai pagato due volte.
+   *
+   * ⚠️ E LE DUE CACHE NON SI SOMMANO. Ogni modello ha la sua: quello raro la
+   * trova quasi sempre fredda e paga l'ingresso pieno. È già dentro i conti —
+   * il risparmio vero è intorno al 60%, non il 90% che verrebbe fuori
+   * moltiplicando i listini e basta.
+   *
+   * Assente = questo step ha un modello solo, e non c'è niente da decidere.
+   * ════════════════════════════════════════════════════════════════════════
+   */
+  everyday?: string;
+  /**
    * Il lavoro può superare la finestra della funzione, quindi parte e si va a
    * riprendere.
    *
@@ -702,6 +733,38 @@ export const AI_STEPS: Record<AiStepId, AiStep> = {
     it: 'Come parla il .mon, in chat e nella stanza. Si giudica a orecchio, non a numeri.',
     capability: 'character-voice',
     fallback: 'claude-opus-5',
+    /* ════════════════════════════════════════════════════════════════════
+       🔷 «Serve avere sempre tutto in alta? Usiamo delle AI basse, a
+       chiamata si alzano.» — sì, ed è come lo fa chi lo fa di mestiere.
+
+       I numeri pubblici del 2026 dicono la stessa cosa da tre direzioni:
+       il routing taglia il 40-85% del conto senza perdita visibile, e
+       RouteLLM tiene ~95% della qualità del modello grosso mandandogli
+       solo il 14-26% delle chiamate. Qui la quota che si alza è più o meno
+       quella: `deservesThinking()` chiede una domanda esplicita o
+       centoquaranta caratteri, e in un'app dove il messaggio più frequente
+       è «ho mangiato X» quella soglia la passa circa un messaggio su
+       cinque.
+
+       ⚠️ LUNA E OPUS SONO DI DUE AZIENDE DIVERSE, E §19.1 QUI SOPRA DICE
+       CHE LA VOCE STA SU UN FORNITORE SOLO. È una regola vera e la sto
+       piegando di proposito, quindi va detto perché.
+
+       Quella regola esiste per proteggere UNA cosa: che il carattere non
+       cambi sfumatura sotto i piedi. Questa divisione la protegge meglio
+       di quanto farebbe restare su un fornitore solo — perché i messaggi
+       che vanno a Luna sono «ok, segnato» e «buonanotte», dove di
+       carattere da perdere non ce n'è, e TUTTI i messaggi che un carattere
+       ce l'hanno continuano ad andare esattamente al modello su cui il
+       personaggio è stato scritto e tarato.
+
+       L'alternativa che rispettava la lettera della regola era
+       Luna → Sol: costa uguale, e cambia la voce proprio nei momenti che
+       contano. Fra rispettare la lettera e rispettare lo scopo, ho scelto
+       lo scopo. Se all'ascolto non regge, questa riga è l'unica da
+       cambiare.
+       ════════════════════════════════════════════════════════════════════ */
+    everyday: 'gpt-5.6-luna',
     background: false,
     effort: 'medium',
     maxTokens: 2000,
@@ -775,9 +838,20 @@ export function choicesFor(
  * CAPACITÀ — che è condiviso fra quattro step, ed è esattamente il difetto che
  * questo strato esiste per togliere.
  */
-export function modelForStep(step: AiStepId, chosen?: string | null): string {
+export function modelForStep(
+  step: AiStepId,
+  chosen?: string | null,
+  /**
+   * Quanto pesa QUESTO turno.
+   *
+   * 🔒 `everyday` vale solo se non hai scelto tu: una scelta esplicita nel
+   * menu è esplicita e vince su tutto. Chi mette Opus sulla voce perché
+   * vuole Opus deve avere Opus, anche su «ok».
+   */
+  weight: 'everyday' | 'full' = 'full',
+): string {
   const def = AI_STEPS[step];
-  if (!chosen) return def.fallback;
+  if (!chosen) return weight === 'everyday' ? (def.everyday ?? def.fallback) : def.fallback;
   const ok = choicesFor(def.capability).some((c) => c.model === chosen);
   return ok ? chosen : def.fallback;
 }
@@ -799,6 +873,18 @@ export function stepProblems(steps = AI_STEPS): string[] {
     }
     if (step.background && step.capability !== 'prompt-compile') {
       problems.push(`${step.label} → il lavoro in background esiste solo per prompt-compile`);
+    }
+    /* 🔒 Un `everyday` fuori catalogo sarebbe il guasto più silenzioso di
+       tutti: `modelForStep` lo restituirebbe, il server non lo riconoscerebbe
+       e `resolveRoute` tornerebbe al predefinito della CAPACITÀ — cioè un
+       modello che nessuno ha scelto, senza un errore da nessuna parte. */
+    if (step.everyday && !pool.some((c) => c.model === step.everyday)) {
+      problems.push(`${step.label} → «${step.everyday}» non è nel catalogo di ${step.capability}`);
+    }
+    /* E deve costare MENO del grosso, o non è il modello di tutti i giorni:
+       è solo un secondo modello messo lì per sbaglio. */
+    if (step.everyday && step.everyday === step.fallback) {
+      problems.push(`${step.label} → il modello di tutti i giorni è identico a quello pieno`);
     }
   }
   /* 🔒 E la riga che protegge il prodotto: il Character Master deve restare

@@ -132,6 +132,18 @@ export function ModelsSection() {
                 {step.background && <SystemLabel>IN BACKGROUND</SystemLabel>}
               </p>
               <p className="t-micro dev__note">{step.it}</p>
+              {/* 🔷 Uno step con due modelli deve DIRLO qui, o il menu qui
+                  sotto racconta metà della verità: mostrerebbe un modello
+                  solo mentre a rispondere sono due. */}
+              {step.everyday && !stepModels[id] && (
+                <p className="t-micro dev__note">
+                  <SystemLabel>A DUE VELOCITÀ</SystemLabel> tutti i giorni{' '}
+                  <strong>{step.everyday}</strong>; sui messaggi che lo meritano —
+                  una domanda, o più di centoquaranta caratteri —{' '}
+                  <strong>{step.fallback}</strong>. Circa un messaggio su cinque si
+                  alza. Scegliendo un modello qui sotto, quello vale per tutti e due.
+                </p>
+              )}
 
               {/* 🔒 Un elenco di uno solo NON diventa un menu finto: dove non
                   c'è scelta si dice il modello e basta. */}

@@ -310,6 +310,36 @@ check(
   'ma resta spenta finché non la accendi tu',
   has('src/state/store.ts', 'draftImages: false'),
 );
+
+/* --- La voce a due velocità -------------------------------------------------
+   🔷 «Serve avere sempre tutto in alta? Usiamo delle AI basse, a chiamata si
+   alzano.» — sì, e la letteratura del 2026 dà la stessa risposta: il routing
+   taglia il 40-85% mandando al modello grosso solo il 14-26% delle chiamate.
+   -------------------------------------------------------------------------- */
+
+const ROUTING = 'netlify/functions/_shared/routing.ts';
+check('VOCE A DUE VELOCITÀ', 'la voce ha un modello di tutti i giorni', has(ROUTING, 'everyday:'));
+/* 🔒 LA STESSA CONDIZIONE decide se pensare e chi risponde. Separarle
+   vorrebbe dire poter pagare il modello grosso per non farlo ragionare. */
+check(
+  'VOCE A DUE VELOCITÀ',
+  'e a decidere è la stessa riga che accende il ragionamento',
+  has(STORE, "stepModel('voice', pesante ? 'full' : 'everyday')"),
+);
+/* 🔒 Una presentazione è la prima frase di una forma che vivrà 28 giorni:
+   non è un turno di tutti i giorni e non deve mai finire sul modello piccolo. */
+check(
+  'VOCE A DUE VELOCITÀ',
+  'ma la presentazione alla nascita resta sempre piena',
+  has(STORE, "stepModel('voice', 'full')"),
+);
+/* 🔒 Una scelta esplicita nel menu vince: chi mette Opus perché vuole Opus
+   deve avere Opus anche su «ok». */
+check(
+  'VOCE A DUE VELOCITÀ',
+  'e una scelta esplicita vince sul risparmio',
+  has(ROUTING, "if (!chosen) return weight === 'everyday'"),
+);
 check(
   'SIGNAL SCAN §12',
   'nessuna risposta nomina una Family',
