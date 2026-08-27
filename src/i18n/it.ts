@@ -125,6 +125,7 @@ export const t = {
     newTitle: 'NUOVO INCONTRO',
     welcome: 'BENVENUTO A CASA',
     enter: 'ENTRA',
+    tapContinue: 'TOCCA PER CONTINUARE',
   },
 
   /* 06 MON / COMPANION HOME */

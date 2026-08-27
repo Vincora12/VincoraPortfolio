@@ -259,16 +259,47 @@ export function EncounterScreen({ variant }: { variant: 'first' | 'new' }) {
      ma la foto, dietro, è già arrivata e ha già finito di trasformarsi. */
   const hasNarrator = Boolean(mon?.narratorLine);
   const [beat, setBeat] = useState(0);
+
+  /* 🔷 «Poi scrive per paragrafi cosicché c'è il primo paragrafo, clicco,
+     leggo il secondo, clicco, leggo il terzo, clicco e incontro il mon.»
+     Un blocco vuoto (spaziatore fra un'etichetta di sistema e la prosa) non
+     merita un tocco tutto suo: resta attaccato al blocco pieno che segue. */
+  const paragraphs = (mon?.narratorLine ?? '').split('\n').reduce<string[][]>((groups, line) => {
+    const last = groups.at(-1);
+    if (last && line.trim().length === 0) { last.push(line); return groups; }
+    groups.push([line]);
+    return groups;
+  }, []);
+  const [shown, setShown] = useState(1);
+
   useEffect(() => {
-    const narratorCloses = 1450 + (hasNarrator ? 2600 : 300);
     const ids = [
       window.setTimeout(() => setBeat(1), 450),
       window.setTimeout(() => setBeat(2), 1450),
-      window.setTimeout(() => setBeat(3), narratorCloses),
-      window.setTimeout(() => setBeat(4), narratorCloses + 900),
     ];
+    /* Senza narratore non c'è niente da leggere a click: la sequenza resta
+       automatica, come prima. */
+    if (!hasNarrator) {
+      const narratorCloses = 1450 + 300;
+      ids.push(
+        window.setTimeout(() => setBeat(3), narratorCloses),
+        window.setTimeout(() => setBeat(4), narratorCloses + 900),
+      );
+    }
     return () => ids.forEach(window.clearTimeout);
   }, [hasNarrator]);
+
+  const advance = () => {
+    if (beat < 2) return;
+    if (beat === 2 && hasNarrator && shown < paragraphs.length) {
+      setShown((n) => n + 1);
+      return;
+    }
+    if (beat < 3) {
+      setBeat(3);
+      window.setTimeout(() => setBeat(4), 900);
+    }
+  };
 
   if (!mon) return null;
 
@@ -281,7 +312,7 @@ export function EncounterScreen({ variant }: { variant: 'first' | 'new' }) {
   return (
     <div
       className={`screen screen--ink encounter encounter--beat${beat}`}
-      onClick={() => setBeat(4)}
+      onClick={advance}
     >
       {/* La battuta 0–1: campo nero e il nome che arriva battendo. */}
       {beat < 2 && (
@@ -302,20 +333,25 @@ export function EncounterScreen({ variant }: { variant: 'first' | 'new' }) {
       {/* La battuta 2: VINZ.MON, da sistema, racconta cosa è appena successo.
           Sta SOPRA la foto (che intanto, sotto, sta già salendo) e la copre
           finché non si fa da parte, alla battuta 3. */}
-      {beat >= 2 && mon.narratorLine && (
+      {beat === 2 && mon.narratorLine && (
         <div className="encounter__narratorwindow" role="presentation" aria-live="polite">
           <p className="t-meta encounter__narratorwindow-kicker">VINZ.MON</p>
           <div className="encounter__narratorwindow-body">
-            {mon.narratorLine.split('\n').map((line, i) => (
-              <span
-                key={i}
-                className={`encounter__narrator-line${line.trimStart().startsWith('>') ? ' encounter__narrator-line--system' : ''}`}
-                style={{ '--i': i } as CSSProperties}
-              >
-                {line}
-              </span>
-            ))}
+            {paragraphs.slice(0, shown).map((group, g) =>
+              group.map((line, i) => (
+                <span
+                  key={`${g}-${i}`}
+                  className={`encounter__narrator-line${line.trimStart().startsWith('>') ? ' encounter__narrator-line--system' : ''}`}
+                  style={{ '--i': i } as CSSProperties}
+                >
+                  {line}
+                </span>
+              )),
+            )}
           </div>
+          {shown < paragraphs.length && (
+            <span className="encounter__narratorwindow-hint t-micro">{t.encounter.tapContinue}</span>
+          )}
         </div>
       )}
 

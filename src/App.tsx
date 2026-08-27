@@ -507,7 +507,14 @@ export function App() {
         className={`proto-frame ${hasTabBar ? 'has-tabbar' : ''}`}
         data-field={inkField ? 'ink' : undefined}
       >
-        {(phase !== 'live' || tab === 'mon' || tab === 'today') && (
+        {/* 🔷 «Il primo Mon sta nascendo, togli in alto la mindline e gli
+            altri — schermo intero soltanto questo, fino a quando incontro
+            il Mon.» L'incontro (narratore + rivelazione) è l'unico momento
+            oltre alla home che deve restare schermo intero: nessuna barra
+            sopra il racconto o la prima foto. */}
+        {(phase !== 'live' || tab === 'mon' || tab === 'today') &&
+          phase !== 'first-encounter' &&
+          phase !== 'new-encounter' && (
           <StatusBar
             showDev={devEnabled && overlay !== 'dev'}
             onOpenDev={() => setOverlay('dev')}

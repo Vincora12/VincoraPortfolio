@@ -24,13 +24,23 @@ function characterVoiceBlock(): { text: string } | null {
   const s = useApp.getState();
   const record = s.activeMonName ? s.mons[s.activeMonName] : undefined;
   if (!record) return null;
-  return {
-    text: buildVoiceSystemPrompt(record, s.mood, s.voiceNotes, {
-      rating: record.rating ?? null,
-      faceRedos: s.faceRedos,
-      timeSkipped: s.usedDevTime,
-    }),
-  };
+  /* 🔒 CINTURA OLTRE LA BRETELLA. Se qualcosa nei dati reali di una
+     creatura fa inciampare `buildVoiceSystemPrompt` (un campo che una
+     versione più vecchia del salvataggio non aveva ancora), l'errore non
+     deve portarsi via l'intera risposta — un .mon che risponde neutro per
+     un turno è meglio di un .mon che non risponde affatto. */
+  try {
+    return {
+      text: buildVoiceSystemPrompt(record, s.mood, s.voiceNotes, {
+        rating: record.rating ?? null,
+        faceRedos: s.faceRedos,
+        timeSkipped: s.usedDevTime,
+      }),
+    };
+  } catch (error) {
+    console.warn('[chat] system prompt del personaggio non costruito, torno al neutro:', error);
+    return null;
+  }
 }
 
 export type ChatCost = { costUsd: number; model?: string };

@@ -293,6 +293,16 @@
   text-align: center;
 }
 
+/* «Clicco, leggo il secondo, clicco, leggo il terzo» — finché resta un
+   paragrafo da rivelare, lo dice: altrimenti toccare lo schermo per
+   avanzare è un gesto che nessuno sa di dover fare. */
+.encounter__narratorwindow-hint {
+  margin: 0 auto;
+  color: color-mix(in srgb, var(--white) 55%, transparent);
+  text-align: center;
+  animation: narrator-line-in 420ms var(--ease-system);
+}
+
 .encounter__narratorwindow-body {
   display: flex;
   flex-direction: column;
@@ -2784,26 +2794,30 @@
   color: var(--muted-strong);
 }
 
+/* 🔷 «Sono disposte orizzontalmente.» Tre uova in fila, non impilate: si
+   guardano e si confrontano come le tre letture che sono. */
 .eggchoice__grid {
   flex: 1;
   min-height: 0;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   gap: var(--u2);
+  align-items: center;
   justify-content: center;
 }
 
 .eggchoice__egg {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: var(--u3);
-  width: 100%;
-  min-height: 84px;
-  padding: var(--u3);
+  gap: var(--u2);
+  flex: 1;
+  min-width: 0;
+  padding: var(--u3) var(--u2);
   border: var(--border) solid var(--ink);
   background: var(--white);
   color: var(--ink);
-  text-align: left;
+  text-align: center;
   cursor: pointer;
 }
 
@@ -2821,45 +2835,24 @@
 
 .eggchoice__egg--on .eggchoice__slot { color: var(--char-accent); }
 
-/* 🔒 UNA FORMA VUOTA, E NIENTE DENTRO. §4 vieta faccia, sagoma, arte e
-   vestiti: il modo più sicuro di non anticipare niente è non avere niente da
-   anticipare. Non è un segnaposto in attesa di un'illustrazione — è il
-   disegno finito.
-
-   🔴 QUI PRIMA C'ERA UN OVALE, e l'ago di `verify:features` mi ha preso in
-   fallo: `border-radius: 50% …` è precisamente quello che §10.4 vieta
-   («geometria rettangolare, niente card arrotondate»), e i token hanno un
-   solo ammorbidimento ammesso. Un uovo tondo era la scelta ovvia e sbagliata:
-   in questo sistema visivo la cosa non ancora aperta si legge meglio come un
-   blocco chiuso con gli angoli marcati — la stessa grammatica delle cornici
-   di asset non risolto. */
+/* 🔷 «Un vero uovo, non un segnaposto.» È lo stesso `<EggVessel>`
+   dell'incubazione: SVG generato, non CSS arrotondato — §10.4 vieta
+   `border-radius: 50%`, non un guscio disegnato a path. §4 resta rispettato
+   lo stesso: nessuna sagoma, nessuna arte finale, solo il guscio e una massa
+   che qui prende il colore del seme invece di restare sempre uguale. */
 .eggchoice__vessel {
-  position: relative;
   flex: 0 0 auto;
-  width: 34px;
-  height: 44px;
-  border: var(--border) solid currentColor;
-  border-radius: var(--radius);
-  opacity: 0.55;
-}
-
-/* Una banda interna: dice «c'è qualcosa dentro» senza dire cosa. */
-.eggchoice__vessel::after {
-  content: '';
-  position: absolute;
-  inset: 30% 22% auto;
-  height: 2px;
-  background: currentColor;
 }
 
 .eggchoice__facts {
-  flex: 1;
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 2px;
 }
 
 .eggchoice__fact { letter-spacing: 0.06em; }
+.eggchoice__fact--sub { opacity: 0.65; }
 
 .eggchoice__mark { font-size: 11px; opacity: 0.8; }
 
