@@ -62,6 +62,15 @@ h1{font-size:44px;line-height:.89;margin:0 0 14px;font-weight:900;font-style:ita
 .choices{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none}.choices::-webkit-scrollbar{display:none}
 .choice{border:1px solid var(--line);background:#fff;padding:8px;font-size:9px;white-space:nowrap}
 .choice.on{background:#111;color:#fff;border-color:#111}
+/* Una scheda per alternativa, non un pulsante corto: qui il prezzo e il
+   perché devono starci — «aiutami nella scelta», stesso principio di
+   DEV → AI/MODELLI. */
+.aicards{display:flex;flex-direction:column;gap:6px}
+.aicard{white-space:normal;text-align:left;display:flex;flex-direction:column;gap:4px;width:100%}
+.aicard__price{font-size:9px;opacity:.8}
+.aicard.on .aicard__price{opacity:1}
+.aicard__why{font-size:9px;line-height:1.45;opacity:.7}
+.aicard.on .aicard__why{opacity:.9}
 .accordion{border-top:1px solid #111}
 .drawer{border-bottom:1px solid var(--line)}
 .drawer>button{width:100%;border:0;background:#fff;padding:14px 0;display:flex;justify-content:space-between;align-items:center;text-align:left}

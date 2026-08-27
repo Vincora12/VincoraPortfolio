@@ -25,8 +25,14 @@ import type { StatKey } from '../../engine/types';
 import { DAILY_SIGNALS, DAILY_SIGNAL_LABELS } from '../../engine/progression';
 import { loadPing, loadSetup, loadShortcutStatus, type ShortcutStatus } from '../../ai/backend';
 import { lastRuns } from '../../ai/telemetry';
-import { MODEL_CHOICES } from '../../engine/aiRouting';
 import { freshSecret } from '../../engine/secret';
+import {
+  AI_STEPS,
+  AI_STEP_ORDER,
+  choicesFor,
+  modelForStep,
+  recommendedModel,
+} from '../../../netlify/functions/_shared/routing';
 import { Btn, Grid, LabTop, Notice, PageHead, Range, Rows, Section, Status } from './parts';
 import { LabAssistantPanel } from '../assistant/LabAssistantPanel';
 import '../skin/system.css';
@@ -45,27 +51,6 @@ const TABS = [
      questa scheda. */
   { id: 'shortcuts', label: 'SHORTCUTS' },
   { id: 'assistant', label: '🤖 ASSISTENTE' },
-];
-
-/* Gli otto passi AI, con le stesse etichette e le stesse descrizioni del
-   disegno. `routes` dice quale campo dello store vero governa quel passo:
-   dove è `null`, il passo esiste ma non ha ancora una manopola sua. */
-const AI_STEPS: {
-  id: string;
-  label: string;
-  desc: string;
-  critical?: boolean;
-  bg?: boolean;
-  route: 'voice' | 'compiler' | 'image' | null;
-}[] = [
-  { id: 'characterMaster', label: '🧠 CREATIVE RESOLVER', desc: 'Routing ID: characterMaster. L’AI produce la CreativeResolution visiva; oggi non parte automaticamente nell’hatch.', critical: true, bg: true, route: 'compiler' },
-  { id: 'bio', label: '🧠 WRITTEN BIO', desc: 'Riscrittura AI opzionale della Bio deterministica già esistente.', route: 'compiler' },
-  { id: 'imagePrompt', label: '🧠 PROMPT REWRITE', desc: 'Riscrittura AI opzionale. Il prompt deterministico resta sempre disponibile.', route: 'compiler' },
-  { id: 'image', label: '🎨 IMAGE ASSETS', desc: 'Genera davvero CEL, Toy, Bio Doodle ed Expression Sheet nel flusso automatico quando il backend è disponibile.', critical: true, route: 'image' },
-  { id: 'voice', label: '💬 RUNTIME VOICE', desc: 'AI conversazionale usata quando il .mon parla. Non crea il Voice DNA.', critical: true, route: 'voice' },
-  { id: 'teach', label: 'INSEGNA', desc: 'Converte il feedback al resolver in una lezione.', route: null },
-  { id: 'reflection', label: 'RIFLESSIONE', desc: 'Lettura settimanale e appunti. Legge storia personale.', route: null },
-  { id: 'vision', label: 'VISIONE', desc: 'Guarda una foto e dichiara cosa c’è.', route: null },
 ];
 
 export function SystemLab({ onBack }: { onBack: () => void }) {
@@ -230,69 +215,90 @@ function Setup() {
    AI
    ========================================================================= */
 
+/* ============================================================================
+   AI — «Non vedo modifiche alla schermata AI del lab.»
+
+   🔴 Aveva ragione: questa scheda leggeva e scriveva `voiceModel` /
+   `compilerModel` / `imageModel` — i tre campi VECCHI che §19.3 ha sostituito
+   con `stepModels`, e che la migrazione tiene in giro solo per un salvataggio
+   di prima, non perché qualcuno li usi ancora. L'ho verificato riga per riga
+   prima di toccare qualcosa: `forgeOne`, `generateAssetsFor`, `resolveWithAi`,
+   `writeBioWithAi`, `writeNarratorWithAi`, `teachResolver`, `compileWithAi` —
+   OGNI chiamata vera passa da `runStep`/`stepModel()`, mai da questi tre
+   campi. Scegliere un modello qui non cambiava NIENTE di quello che gira
+   davvero: era una manopola collegata al niente.
+
+   Adesso legge lo stesso catalogo di DEV → AI/MODELLI (`routing.ts`):
+   il consiglio (`recommendedModel`, costo + dati), il prezzo di ogni
+   alternativa e il perché — non solo il nome. Stessa fonte di verità nei
+   due posti, non due copie da tenere allineate a mano.
+   ========================================================================= */
 function Ai() {
-  const voiceModel = useApp((s) => s.voiceModel);
-  const compilerModel = useApp((s) => s.compilerModel);
-  const imageModel = useApp((s) => s.imageModel);
-  const setVoiceModel = useApp((s) => s.setVoiceModel);
-  const setCompilerModel = useApp((s) => s.setCompilerModel);
-  const setImageModel = useApp((s) => s.setImageModel);
-
+  const stepModels = useApp((s) => s.stepModels);
+  const setStepModel = useApp((s) => s.setStepModel);
   const runs = Object.fromEntries(lastRuns());
-
-  const attivo = (route: string | null) =>
-    route === 'voice' ? voiceModel : route === 'compiler' ? compilerModel : route === 'image' ? imageModel : null;
-
-  const scegli = (route: string | null, model: string) => {
-    if (route === 'voice') setVoiceModel(model);
-    if (route === 'compiler') setCompilerModel(model);
-    if (route === 'image') setImageModel(model);
-  };
-
-  const SCELTE: Record<string, string[]> = MODEL_CHOICES;
 
   return (
     <section className="page active">
       <PageHead
         kicker="SYSTEM.LAB / ROUTING"
         title="AI"
-        lead="Qui scegli quale modello serve le chiamate AI reali. Il badge non significa che quello step faccia parte dell’hatch: CREATION.LAB mostra chiaramente quali chiamate sono automatiche, opzionali o runtime."
+        lead="Per ogni lavoro: chi lo fa adesso, chi consiglio e perché, quanto costano le alternative. Stesso catalogo di DEV → AI/MODELLI, non una copia a parte."
       />
 
       <div style={{ marginTop: 12 }}>
-        {AI_STEPS.map((s) => {
-          const run = runs[s.id as keyof typeof runs];
-          const scelte = s.route ? SCELTE[s.route]! : [];
-          const ora = attivo(s.route);
+        {AI_STEP_ORDER.map((id) => {
+          const step = AI_STEPS[id];
+          const attivo = modelForStep(id, stepModels[id]);
+          const pool = choicesFor(step.capability);
+          const consiglio = recommendedModel(id);
+          const run = runs[id];
           return (
-            <div className="airow" key={s.id}>
+            <div className="airow" key={id}>
               <div className="aihead">
-                <strong>{s.label}</strong>
+                <strong>{step.label}</strong>
                 <div>
-                  {s.critical && <small>QUALITY</small>}
-                  {s.bg && <small>BACKGROUND</small>}
+                  {step.qualityCritical && <small>QUALITY</small>}
+                  {step.background && <small>BACKGROUND</small>}
                 </div>
               </div>
-              <p className="aidesc">{s.desc}</p>
-              {scelte.length > 0 ? (
-                <div className="choices">
-                  {scelte.map((c) => (
-                    <button
-                      type="button"
-                      key={c}
-                      className={`choice ${c === ora ? 'on' : ''}`}
-                      onClick={() => scegli(s.route, c)}
-                    >
-                      {c}
-                    </button>
-                  ))}
+              <p className="aidesc">{step.it}</p>
+              <p className="aidesc">
+                CONSIGLIO: <strong>{consiglio.model}</strong> — {consiglio.why}
+              </p>
+
+              {pool.length > 1 ? (
+                <div className="aicards">
+                  {pool.map((c) => {
+                    const rich = c as {
+                      it?: string;
+                      price?: { input: number; output: number };
+                      perImage?: number;
+                    };
+                    const isActive = c.model === attivo;
+                    const isRecommended = c.model === consiglio.model && !isActive;
+                    const prezzo =
+                      typeof rich.perImage === 'number'
+                        ? `$${rich.perImage.toFixed(2)} a immagine`
+                        : rich.price
+                          ? `$${rich.price.input} / $${rich.price.output} per milione`
+                          : 'prezzo non a catalogo';
+                    return (
+                      <button
+                        type="button"
+                        key={c.model}
+                        className={`choice aicard ${isActive ? 'on' : ''}`}
+                        onClick={() => setStepModel(id, c.model === step.fallback ? null : c.model)}
+                      >
+                        <strong>{c.label}{isRecommended ? ' ★' : ''}</strong>
+                        <span className="aicard__price">{prezzo}</span>
+                        {rich.it && <span className="aicard__why">{rich.it}</span>}
+                      </button>
+                    );
+                  })}
                 </div>
               ) : (
-                /* 🔒 Il disegno mostrava una scelta anche qui. Nel motore vero
-                   questi tre passi NON hanno una manopola: la rotta è fissa
-                   nel codice. Disegnare dei pulsanti che non cambiano niente
-                   sarebbe peggio che non averli. */
-                <p className="note">rotta fissa nel codice · nessuna scelta da fare qui</p>
+                <p className="note">{attivo} — non ci sono alternative.</p>
               )}
               <p className="note">
                 {run ? `last run ${(run.ms / 1000).toFixed(1)}s · ${run.ok ? 'OK' : 'FAILED'}` : 'no run yet'}
@@ -532,7 +538,11 @@ function Memory() {
 
 function Usage() {
   const runs = lastRuns();
-  const imageModel = useApp((s) => s.imageModel);
+  const stepModels = useApp((s) => s.stepModels);
+  /* 🔷 Era `s.imageModel` — il campo vecchio, lo stesso della scheda AI qui
+     sopra: non è lui a decidere chi disegna da quando `forgeOne` e
+     `generateAssetsFor` chiamano `stepModel('image')`. */
+  const imageModel = modelForStep('image', stepModels.image);
 
   return (
     <section className="page active">
@@ -562,7 +572,7 @@ function Usage() {
         title="IMAGE PIPELINE"
         note="Contabilità in sola lettura della pipeline di creazione. I controlli degli asset stanno in CREATION.LAB."
       >
-        <Rows rows={[['IMAGE MODEL', imageModel ?? 'predefinito']]} />
+        <Rows rows={[['IMAGE MODEL', imageModel]]} />
       </Section>
     </section>
   );

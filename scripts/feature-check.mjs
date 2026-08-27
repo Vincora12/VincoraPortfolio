@@ -3484,6 +3484,16 @@ check(
 }
 
 check(
+  '§19.3 STEP',
+  'SYSTEM.LAB → AI legge lo stesso catalogo di DEV → AI/MODELLI, non i tre campi morti',
+  has('src/lab/rooms/SystemLab.tsx', "from '../../../netlify/functions/_shared/routing'") &&
+    lacksInCode('src/lab/rooms/SystemLab.tsx', 's.voiceModel') &&
+    lacksInCode('src/lab/rooms/SystemLab.tsx', 's.compilerModel') &&
+    lacksInCode('src/lab/rooms/SystemLab.tsx', 's.imageModel'),
+  '«Non vedo modifiche alla schermata AI del lab» — scriveva su voiceModel/compilerModel/imageModel, che ogni chiamata vera (runStep/stepModel) ha smesso di leggere: una manopola collegata al niente',
+);
+
+check(
   '§29 DEV',
   'DEV si apre su INIZIO e non su quindici linguette',
   has('src/dev/DevPanel.tsx', "const [group, setGroup] = useState<DevGroup>('start')") &&
