@@ -293,19 +293,6 @@ export interface DevFlags {
   /** Solo DEV: forza il temperamento di nascita dei prossimi MON. */
   forcedMood: string | null;
   /**
-   * 🔷 «Un toggle dentro LAB che accorcia, così provo e vedo se va bene o
-   * torno alla versione di prima?» — questo interruttore.
-   *
-   * Toglie SOLO la duplicazione verificata nel codice (occhiali e taglio
-   * ripetuti due volte in `renderCharacterDna`): vedi `CompileOptions` in
-   * `compiler.ts` per la misura vera e il perché si ferma lì. Vale solo sui
-   * prompt che compiliamo noi — mai sul resolver di ChatGPT.
-   *
-   * 🔒 Spento di default: si accende in LAB per provare, si tiene solo dopo
-   * un confronto visivo.
-   */
-  compactPrompts: boolean;
-  /**
    * 🔷 IMMAGINI IN BOZZA — la leva che decide il conto.
    *
    * `gpt-image-2` accetta `quality`, e finora non gliela mandavamo: ogni
@@ -1006,9 +993,8 @@ const INITIAL = {
        sedute, non in una. */
     rarityThresholds: null as RarityThresholds | null,
     forcedMood: null as string | null,
-    /* 🔒 Spente: il predefinito è il prodotto, non le prove. */
+    /* 🔒 Spenta: il predefinito è il prodotto, non le prove. */
     draftImages: false,
-    compactPrompts: false,
   },
   bias: DEFAULT_BIAS,
   token: null as string | null,
@@ -1987,10 +1973,9 @@ export const useApp = create<AppState>()(
               serverJobId = crypto.randomUUID();
               const id = serverJobId;
               set((current) => ({ evolutionJob: current.evolutionJob?.candidateName === job.candidateName ? { ...current.evolutionJob, serverJobId: id, total: generationOrder().length } : current.evolutionJob }));
-              /* 🔷 La bozza e il compilatore compatto passano di qui: è
-                 l'unica strada da cui nascono davvero le immagini, quindi è
-                 l'unico posto dove entrambi gli interruttori devono arrivare
-                 perché contino qualcosa. */
+              /* 🔷 La bozza passa di qui: è l'unica strada da cui nascono
+                 davvero le sei immagini, quindi è l'unico posto dove
+                 l'interruttore deve arrivare perché conti qualcosa. */
               await queueRemoteGeneration(
                 initial.token as string,
                 id,
@@ -1998,7 +1983,6 @@ export const useApp = create<AppState>()(
                 stepModel('image'),
                 undefined,
                 initial.dev.draftImages ? 'low' : undefined,
-                initial.dev.compactPrompts,
               );
             }
 
@@ -2758,7 +2742,7 @@ export const useApp = create<AppState>()(
           get().token,
           rec,
           undefined,
-          { only: [type], replace: true, quality: get().dev.draftImages ? 'low' : undefined, compact: get().dev.compactPrompts },
+          { only: [type], replace: true, quality: get().dev.draftImages ? 'low' : undefined },
           stepModel('image'),
         );
         /* Il motivo vero se c'è, il codice se non c'è: «openai 404: model not
@@ -3391,7 +3375,7 @@ export const useApp = create<AppState>()(
             (p) => set({ assetProgress: { monName, ...p } }),
             /* La bozza non sovrascrive una scelta esplicita di chi chiama:
                `opts.quality` vince, l'interruttore riempie solo il vuoto. */
-            { ...opts, quality: opts?.quality ?? (get().dev.draftImages ? 'low' : undefined), compact: get().dev.compactPrompts },
+            { ...opts, quality: opts?.quality ?? (get().dev.draftImages ? 'low' : undefined) },
             stepModel('image'),
           );
 

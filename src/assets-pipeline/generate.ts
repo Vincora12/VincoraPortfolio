@@ -97,8 +97,6 @@ export interface GenerateOptions {
    * restare quella buona.
    */
   quality?: 'low' | 'medium' | 'high';
-  /** 🔷 DEV → LAB: la versione compatta del compilatore concatenato. */
-  compact?: boolean;
 }
 
 export interface GenerationProgress {
@@ -136,7 +134,7 @@ export async function generateMissingAssets(
        valido. La pipeline non compila da sé: chiedere una riscrittura a metà
        di una generazione di immagini vorrebbe dire due chiamate in fila con
        due modi diversi di fallire. */
-    const text = promptFor(record, type, { compact: opts.compact === true }).text;
+    const text = promptFor(record, type).text;
     /* 🔒 La misura viene da `assetTypeDef`, cioè dal posto che SA cos'è questo
        asset. Prima era un quadrato deciso dentro l'adattatore del fornitore,
        uguale per tutti e sei — e per due di loro era la forma sbagliata. */

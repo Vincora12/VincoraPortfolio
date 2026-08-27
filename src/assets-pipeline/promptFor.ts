@@ -35,7 +35,7 @@
    ========================================================================= */
 
 import type { AssetType, MonRecord } from '../engine/types';
-import { compilePrompt, type CompileOptions } from './compiler';
+import { compilePrompt } from './compiler';
 import { derivedPrompt } from './derived';
 import { characterDataFor } from './resolver/adapter';
 import { compilePrompt as compileFromResolution } from './resolver/vendor/compiler';
@@ -86,21 +86,7 @@ function withHumanoidBodyMode(record: MonRecord, text: string, assetType: AssetT
   return `${bodyRule}\n\n${text}`;
 }
 
-export function promptFor(
-  record: MonRecord,
-  assetType: AssetType,
-  /**
-   * 🔷 Vale SOLO sulla quarta strada, la CONCATENAZIONE.
-   *
-   * 🔒 Le prime tre — template derivato, risoluzione del resolver, riscritto
-   * — non passano da qui: sono testo già deciso, di un'altra fonte, e
-   * un'opzione di compattazione su di loro non vorrebbe dire niente (il
-   * resolver in particolare è `vendor/`, e non si tocca). Solo l'ultima
-   * strada, quella che questo file chiama sempre e comunque, è compilata da
-   * noi — ed è l'unica su cui questa opzione ha senso.
-   */
-  compileOpts: CompileOptions = {},
-): PromptChoice {
+export function promptFor(record: MonRecord, assetType: AssetType): PromptChoice {
   if (usaTemplateDerivati(record)) {
     const tecnico = derivedPrompt(assetType);
     if (tecnico) return { text: tecnico, source: 'derivato' };
@@ -121,7 +107,7 @@ export function promptFor(
   if (written) return { text: withHumanoidBodyMode(record, written, assetType), source: 'riscritto' };
 
   return {
-    text: withHumanoidBodyMode(record, compilePrompt(record, assetType, compileOpts).text, assetType),
+    text: withHumanoidBodyMode(record, compilePrompt(record, assetType).text, assetType),
     source: 'concatenato',
   };
 }
