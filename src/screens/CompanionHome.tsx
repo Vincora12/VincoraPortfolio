@@ -59,6 +59,21 @@ export function CompanionHomeScreen({ onGo, onBack }: { onGo: (o: Overlay) => vo
   const [draft, setDraft] = useState('');
   const listRef = useRef<HTMLDivElement>(null);
 
+  /* ME manda qui i suoi pulsanti «CON AI» — «Registra questo allenamento
+     svolto: », «Modifica il mio piano di allenamento: » — con un evento
+     globale invece di una prop, perché arriva da una tab diversa e
+     `App.tsx` deve poter cambiare tab PRIMA che il testo sia pronto. Il
+     prompt riempie il campo, non lo manda da solo: sono l'inizio di una
+     frase che continui tu. */
+  useEffect(() => {
+    const fill = (e: Event) => {
+      const prompt = (e as CustomEvent<{ prompt?: string }>).detail?.prompt;
+      if (typeof prompt === 'string') setDraft(prompt);
+    };
+    window.addEventListener('vinzmon-open-chat', fill);
+    return () => window.removeEventListener('vinzmon-open-chat', fill);
+  }, []);
+
   // L'espressione in alto è quella dell'ultima cosa che ha detto LUI, non di
   // quella che hai scritto tu: è la sua faccia, non uno specchio.
   const lastSaid = [...chat].reverse().find((m) => m.from === 'mon')?.text ?? '';

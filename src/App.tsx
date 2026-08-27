@@ -10,7 +10,7 @@
    §26 — i controlli DEV non compaiono mai senza dev mode attiva.
    ========================================================================= */
 
-import { lazy, Suspense, useEffect, useState, type ComponentProps } from 'react';
+import { useEffect, useState } from 'react';
 import {
   useApp,
   type Phase,
@@ -55,19 +55,8 @@ import { DailyScanScreen } from './screens/DailyScan';
 import { CompanionHomeScreen } from './screens/CompanionHome';
 import { DevPanel } from './dev/DevPanel';
 import { PageReader } from './screens/PageReader';
-import type { ToolUse } from './ai/tools';
-const IntegratedChat = lazy(() => import('./assistant-original/IntegratedChat').then((module) => ({ default: module.IntegratedChat })));
 
-const runChatTool = (use: ToolUse) => useApp.getState().runMonTool(use);
 const toyRefreshes = new Set<string>();
-
-function LazyChat(props: ComponentProps<typeof IntegratedChat>) {
-  return (
-    <Suspense fallback={<div className="brain-loader" aria-label="Apertura chat"><strong>VINZ.MON</strong><span /></div>}>
-      <IntegratedChat {...props} />
-    </Suspense>
-  );
-}
 
 /* ============================================================================
    🔷 «Il nav sotto deve avere prima la chat — appena entri c'è la chat aperta
@@ -152,8 +141,6 @@ export function App() {
     s.activeMonName ? (s.mons[s.activeMonName]?.sigil ?? null) : null,
   );
   const devEnabled = useApp((s) => s.dev.enabled);
-  const voiceModel = useApp((s) => s.voiceModel);
-  const setVoiceModel = useApp((s) => s.setVoiceModel);
   const setDev = useApp((s) => s.setDev);
   const resumeFormEvolution = useApp((s) => s.resumeFormEvolution);
   const evolutionJob = useApp((s) => s.evolutionJob);
@@ -221,8 +208,6 @@ export function App() {
      che si rientra nella tab. */
   const [monView, setMonView] = useState<MonView>('mon');
   const [meView, setMeView] = useState<MeView>('me');
-  /* V1: la Chat è sempre raggiungibile, anche prima di configurare il Game. */
-  const [assistantOpen, setAssistantOpen] = useState(false);
 
   /* Subito dopo HATCH si entra nella sola superficie che può essere vera in
      quel momento: la soglia di nascita. Non lasciamo che la tab iniziale CHAT
@@ -235,7 +220,7 @@ export function App() {
   }, [phase, evolutionJob?.kind]);
 
   useEffect(() => {
-    const openChat = () => { setAssistantOpen(false); setOverlay(null); setTab('chat'); };
+    const openChat = () => { setOverlay(null); setTab('chat'); };
     window.addEventListener('vinzmon-open-chat', openChat);
     return () => window.removeEventListener('vinzmon-open-chat', openChat);
   }, []);
@@ -510,13 +495,11 @@ export function App() {
         className={`proto-frame ${hasTabBar ? 'has-tabbar' : ''}`}
         data-field={inkField ? 'ink' : undefined}
       >
-        {!assistantOpen && (phase !== 'live' || tab === 'mon' || tab === 'today') && (
+        {(phase !== 'live' || tab === 'mon' || tab === 'today') && (
           <StatusBar
             showDev={devEnabled && overlay !== 'dev'}
             onOpenDev={() => setOverlay('dev')}
             onActivate={() => setOverlay('activate')}
-            assistantOpen={assistantOpen}
-            onToggleAssistant={() => setAssistantOpen((open) => !open)}
           />
         )}
 
@@ -526,8 +509,6 @@ export function App() {
             saluto. */}
         {overlay ? (
           <OverlayScreen overlay={overlay} onClose={() => setOverlay(null)} onGo={setOverlay} />
-        ) : assistantOpen ? (
-          <LazyChat runTool={runChatTool} voiceModel={voiceModel} onModelChange={setVoiceModel} />
         ) : phase === 'live' ? (
           <>
             {/* 🔴 «Neutro è il grande problema su tutto.» Qui c'era `LazyChat`
@@ -625,8 +606,6 @@ function PhaseScreen({
       return <NewBranchScreen />;
     case 'live':
       switch (tab) {
-        case 'chat':
-          return <LazyChat runTool={runChatTool} />;
         case 'mon':
           return <MonTab view={monView} onView={onMonView} onGo={onGo} onEnterChat={onEnterChat} />;
         case 'me':
@@ -884,14 +863,10 @@ function StatusBar({
   showDev,
   onOpenDev,
   onActivate,
-  assistantOpen,
-  onToggleAssistant,
 }: {
   showDev: boolean;
   onOpenDev: () => void;
   onActivate: () => void;
-  assistantOpen: boolean;
-  onToggleAssistant: () => void;
 }) {
   const day = useApp((s) => s.day);
   const sync = useApp((s) => s.progression.sync.lifetime);
@@ -930,11 +905,6 @@ function StatusBar({
             impianto — avrebbe voluto dire nasconderlo proprio a chi apre
             l'app per la prima volta. */}
         <ActivateChip onClick={onActivate} />
-        {phase !== 'live' && (
-          <button type="button" className="devtrigger" onClick={onToggleAssistant}>
-            {assistantOpen ? 'GAME' : 'CHAT'}
-          </button>
-        )}
         {/* Il trigger DEV sta qui e non fluttuante sopra la schermata:
             in overlay senza tab bar copriva il contenuto. */}
         {showDev && (
