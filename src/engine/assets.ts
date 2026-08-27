@@ -293,6 +293,30 @@ export const GENERATION_STAGES: readonly { stage: 0 | 1 | 2; label: string; note
    dal ritratto invece che dal master, l'ordine si aggiusta da sé.
    ========================================================================= */
 
+/* ============================================================================
+   🔒 OGNI FORMA NUOVA RIFÀ L'INTERO SET. NON SI OTTIMIZZA.
+
+   🔷 «L'evoluzione è diversa dalla megaevoluzione, ricordalo.» / «Rifà
+   comunque tutto l'evoluzione.»
+
+   ⚠️ SEMBRA UNO SPRECO E NON LO È, ed è il motivo per cui questa riga esiste:
+   la proposta di risparmiare qui torna fuori ogni volta che qualcuno guarda
+   la bolletta, compreso me.
+
+   L'EVOLUZIONE (2 SYNC) conserva family, size, role, fashion e temperamento,
+   ma CAMBIA L'AFFINITÀ VISIVA — cioè colori e materia. La MEGA (7 SYNC)
+   conserva il solo temperamento e può cambiare tutto il corpo.
+
+   In tutti e due i casi ogni asset mostra la creatura NUOVA. Tenere il doodle
+   o gli sticker della forma precedente vorrebbe dire mettere accanto due
+   creature che hanno cambiato colore — e si vedrebbe subito, nel posto
+   peggiore: la pagina che dovrebbe raccontare CHI È adesso.
+
+   L'unica leva legittima sul costo delle immagini è la QUALITÀ (vedi
+   `DevFlags.draftImages`), che non crea mai un asset stantio: cambia quanto
+   viene bene, mai a chi somiglia.
+   ========================================================================= */
+
 /** Gli asset da produrre, in un ordine che rispetta `dependsOn`. */
 export function generationOrder(): AssetTypeDef[] {
   const fatti = new Set<AssetType>();
