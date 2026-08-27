@@ -967,24 +967,108 @@ const ActivePersonality: FC = () => {
 
    La riga sparisce da sola appena arriva la prima parola: da lì in poi il
    testo che compare È il feedback. */
-const PENSIERI = [
-  'Sto ragionando…',
-  'Sto mettendo insieme la risposta…',
-  'Ci sto ancora pensando…',
-];
+type ThoughtKind = 'thinking' | 'recall' | 'search' | 'choice' | 'unsure' | 'action';
+type ThoughtTone = 'camp' | 'dry' | 'warm' | 'electric' | 'mysterious' | 'direct';
 
-/** Dal nome tecnico dello strumento alla frase che leggi. */
-function frasePerStrumento(toolName: string): string {
-  const n = toolName.toLowerCase();
-  if (n.includes('ricerca web')) return 'Sto cercando sul web…';
-  if (n.includes('pagina') || n.includes('page')) return 'Sto scrivendo la pagina…';
-  if (n.includes('promemoria') || n.includes('remind')) return 'Sto sistemando il promemoria…';
-  if (n.includes('dati') || n.includes('mon')) return 'Sto leggendo i tuoi dati…';
-  return 'Sto usando uno strumento…';
+const THOUGHT_LINES: Record<ThoughtTone, Record<ThoughtKind, readonly string[]>> = {
+  camp: {
+    thinking: ['Fammi pensare…', 'Sto componendo…', 'Un attimo, tesoro…'],
+    recall: ['Fammi ricordare…', 'Pesco dalla memoria…', 'Ce l’ho quasi…'],
+    search: ['Controllo subito…', 'Vado a vedere…', 'Indago un secondo…'],
+    choice: ['Questa è delicata…', 'Scelgo bene…', 'Niente mosse affrettate…'],
+    unsure: ['Mh, aspetta…', 'Qui qualcosa non torna…', 'Fammi capire…'],
+    action: ['Me ne occupo…', 'Lo sistemo…', 'Sono all’opera…'],
+  },
+  dry: {
+    thinking: ['Valuto.', 'Un momento.', 'Ci penso.'],
+    recall: ['Recupero il dato.', 'Controllo la memoria.', 'Ricostruisco.'],
+    search: ['Verifico.', 'Controllo.', 'Cerco conferma.'],
+    choice: ['Valuto le opzioni.', 'Scelgo con criterio.', 'Decisione in corso.'],
+    unsure: ['Dato incerto.', 'Un momento.', 'Non torna.'],
+    action: ['Procedo.', 'Eseguo.', 'Lo sistemo.'],
+  },
+  warm: {
+    thinking: ['Ci penso con te…', 'Un attimo…', 'Metto insieme i pezzi…'],
+    recall: ['Fammi ricordare…', 'Riprendo il filo…', 'Cerco nella memoria…'],
+    search: ['Controllo per te…', 'Vado a verificare…', 'Cerco bene…'],
+    choice: ['Valutiamola bene…', 'Scelgo con cura…', 'Un passo alla volta…'],
+    unsure: ['Aspetta, controllo…', 'Non ne sono ancora sicuro…', 'Fammi capire meglio…'],
+    action: ['Ci penso io…', 'Lo preparo…', 'Lo sistemo…'],
+  },
+  electric: {
+    thinking: ['Ci sono…', 'Elaboro…', 'Un secondo…'],
+    recall: ['Riaggancio il filo…', 'Recupero…', 'Memoria in corsa…'],
+    search: ['Check rapido…', 'Verifico al volo…', 'Cerco…'],
+    choice: ['Calcolo la mossa…', 'Scelgo la linea…', 'Decisione in corso…'],
+    unsure: ['Aspetta—', 'Segnale confuso…', 'Ricalcolo…'],
+    action: ['In azione…', 'Lo faccio…', 'Partito…'],
+  },
+  mysterious: {
+    thinking: ['Ascolto il segnale…', 'Lascialo emergere…', 'Seguo il filo…'],
+    recall: ['Torno indietro…', 'Cerco una traccia…', 'Qualcosa riaffiora…'],
+    search: ['Cerco il segnale…', 'Guardo oltre…', 'Verifico la traccia…'],
+    choice: ['Due strade…', 'Scelgo il varco…', 'Punto preciso…'],
+    unsure: ['Il segnale è sporco…', 'Aspetta…', 'C’è nebbia qui…'],
+    action: ['Muovo i pezzi…', 'Apro il varco…', 'Procedo…'],
+  },
+  direct: {
+    thinking: ['Ci penso…', 'Metto insieme i pezzi…', 'Un attimo…'],
+    recall: ['Cerco nella memoria…', 'Riprendo il filo…', 'Recupero il dato…'],
+    search: ['Sto controllando…', 'Cerco conferma…', 'Verifico…'],
+    choice: ['Valuto le opzioni…', 'Scelgo con attenzione…', 'Decisione difficile…'],
+    unsure: ['Fammi capire…', 'Qui non sono sicuro…', 'Controllo meglio…'],
+    action: ['Me ne occupo…', 'Lo preparo…', 'Procedo…'],
+  },
+};
+
+const PRESET_THOUGHT_TONE: Partial<Record<string, ThoughtTone>> = {
+  'CAMP ICON': 'camp',
+  'DEADPAN FILE': 'dry',
+  'SILENT STOIC': 'dry',
+  'CORPORATE DEMON': 'dry',
+  'NERD TERMINAL': 'dry',
+  'SOFT PROTECTOR': 'warm',
+  'SWEET MENACE': 'warm',
+  'SPORT HYPE': 'electric',
+  'COCKY RIVAL': 'electric',
+  'CHAOTIC GEN-Z': 'electric',
+  'ABSURD LITTLE FREAK': 'electric',
+  'MYSTERY SIGNAL': 'mysterious',
+  'GOTH POET': 'mysterious',
+  'OLD-SOUL ORACLE': 'mysterious',
+};
+
+function thoughtTone(preset: string | null, fingerprint: string): ThoughtTone {
+  if (preset && PRESET_THOUGHT_TONE[preset]) return PRESET_THOUGHT_TONE[preset]!;
+  if (fingerprint.includes('pace:high')) return 'electric';
+  if (fingerprint.includes('emotion:high') || fingerprint.includes('closeness:high')) return 'warm';
+  if (fingerprint.includes('emotion:low')) return 'dry';
+  return 'direct';
+}
+
+function thoughtKind(toolName: string | null, request: string): ThoughtKind {
+  const signal = `${toolName ?? ''} ${request}`.toLocaleLowerCase('it');
+  if (toolName && /(search|ricerca|web|browse|url)/.test(signal)) return 'search';
+  if (toolName && /(memory|memoria|recall|ricord|read|leggi|dati|dex)/.test(signal)) return 'recall';
+  if (toolName) return 'action';
+  if (/(cerca|controlla|verifica|online|internet|notizi|fonte)/.test(signal)) return 'search';
+  if (/(ricord|memoria|avevo detto|precedente|tempo fa)/.test(signal)) return 'recall';
+  if (/(scegli|scelta|meglio|confronta|decidi|decisione)/.test(signal)) return 'choice';
+  if (/(non capisco|confus|incert|dubbio|non so|boh)/.test(signal)) return 'unsure';
+  return 'thinking';
+}
+
+function thoughtHash(value: string): number {
+  let hash = 2166136261;
+  for (const char of value) hash = Math.imul(hash ^ char.charCodeAt(0), 16777619);
+  return hash >>> 0;
 }
 
 const StatoDelPensiero: FC = () => {
-  const { inCorso, testoGiaArrivato, strumento } = useAuiState(
+  const record = useApp((state) =>
+    state.activeMonName ? state.mons[state.activeMonName] ?? null : null,
+  );
+  const { inCorso, testoGiaArrivato, strumento, richiesta, messageId } = useAuiState(
     useShallow((s) => {
       const parts = s.message.content ?? [];
       const running = s.message.status?.type === 'running';
@@ -995,15 +1079,23 @@ const StatoDelPensiero: FC = () => {
       const attivo = parts.find(
         (p) => p.type === 'tool-call' && p.result === undefined,
       );
+      const ultimoUtente = [...s.thread.messages].reverse().find((message) => message.role === 'user');
+      const testoUtente = ultimoUtente?.content
+        .filter((part) => part.type === 'text')
+        .map((part) => part.type === 'text' ? part.text : '')
+        .join(' ') ?? '';
       return {
         inCorso: running,
         testoGiaArrivato: conTesto,
         strumento: attivo && attivo.type === 'tool-call' ? attivo.toolName : null,
+        richiesta: testoUtente,
+        messageId: s.message.id,
       };
     }),
   );
 
   const [giro, setGiro] = useState(0);
+  const precedente = useRef('');
 
   /* Il ciclo delle frasi generiche parte solo quando servono davvero: montare
      un timer che gira anche a chat ferma sarebbe lavoro per niente. */
@@ -1015,9 +1107,16 @@ const StatoDelPensiero: FC = () => {
 
   if (!inCorso || testoGiaArrivato) return null;
 
-  const frase = strumento
-    ? frasePerStrumento(strumento)
-    : PENSIERI[giro % PENSIERI.length]!;
+  const card = record ? voiceCard(record) : null;
+  const tone = thoughtTone(record?.data.voice_preset ?? null, card?.fingerprint ?? '');
+  const kind = thoughtKind(strumento, richiesta);
+  const candidates = THOUGHT_LINES[tone][kind];
+  let index = thoughtHash(`${messageId}|${record?.data.name ?? 'neutral'}|${kind}|${giro}`) % candidates.length;
+  if (candidates[index] === precedente.current && candidates.length > 1) {
+    index = (index + 1) % candidates.length;
+  }
+  const frase = candidates[index]!;
+  precedente.current = frase;
 
   return (
     <div
