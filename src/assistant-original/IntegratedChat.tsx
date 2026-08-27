@@ -26,6 +26,34 @@ const threadAdapter = createLocalStorageAdapter({
 });
 
 const ACTIVE_THREAD_KEY = "assistant-ui-official-chatgpt:active-thread";
+const THREADS_KEY = "assistant-ui-official-chatgpt:threads";
+const RESTORE_TIMEOUT_MS = 4_000;
+
+function localRestoredThreadId(): string | null | undefined {
+  try {
+    const raw = localStorage.getItem(THREADS_KEY);
+    if (raw === null) return undefined;
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return undefined;
+    const valid = parsed.filter((thread): thread is { remoteId: string; status?: string } =>
+      typeof thread === "object"
+      && thread !== null
+      && typeof (thread as { remoteId?: unknown }).remoteId === "string"
+      && ((thread as { status?: unknown }).status === undefined
+        || (thread as { status?: unknown }).status === "regular"),
+    );
+    const saved = localStorage.getItem(ACTIVE_THREAD_KEY);
+    return valid.some((thread) => thread.remoteId === saved)
+      ? saved
+      : valid[0]?.remoteId ?? null;
+  } catch {
+    return undefined;
+  }
+}
+
+function restoreTimeout(): Promise<null> {
+  return new Promise((resolve) => window.setTimeout(() => resolve(null), RESTORE_TIMEOUT_MS));
+}
 
 const attachments = new CompositeAttachmentAdapter([
   new VinzImageAttachmentAdapter(),
@@ -77,16 +105,46 @@ export const IntegratedChat: FC<IntegratedChatProps> = ({
 
   useEffect(() => {
     let cancelled = false;
-    void migrateStoragePrefix("assistant-ui-official-chatgpt:").then(() => Promise.all([
+    /* La migrazione può richiedere una chiamata per ogni vecchia chat. Serve a
+       sincronizzare copie legacy, ma non deve bloccare il primo render. */
+    void migrateStoragePrefix("assistant-ui-official-chatgpt:").catch((error: unknown) => {
+      console.warn("[VINZ chat] migrazione storage non riuscita; uso lo storage corrente", error);
+    });
+
+    const restore = Promise.allSettled([
       threadAdapter.list(),
       serverBackedStorage.getItem(ACTIVE_THREAD_KEY),
-    ])).then(([page, saved]) => {
+    ] as const);
+
+    void Promise.race([restore, restoreTimeout()]).then((result) => {
       if (cancelled) return;
-      const valid = page.threads.filter((thread) => thread.status === "regular");
-      const restored = valid.some((thread) => thread.remoteId === saved)
-        ? saved
-        : valid[0]?.remoteId ?? null;
-      setRestoredThreadId(restored);
+      if (result === null) {
+        console.warn("[VINZ chat] ripristino remoto scaduto; uso la copia locale");
+        setRestoredThreadId(localRestoredThreadId() ?? null);
+        return;
+      }
+
+      const [listResult, activeResult] = result;
+      if (listResult.status === "rejected") {
+        console.warn("[VINZ chat] elenco conversazioni non disponibile; uso la copia locale", listResult.reason);
+        setRestoredThreadId(localRestoredThreadId() ?? null);
+        return;
+      }
+
+      const valid = listResult.value.threads.filter((thread) => thread.status === "regular");
+      const saved = activeResult.status === "fulfilled" ? activeResult.value : null;
+      if (activeResult.status === "rejected") {
+        console.warn("[VINZ chat] conversazione attiva non disponibile; apro la più recente", activeResult.reason);
+      }
+      setRestoredThreadId(
+        valid.some((thread) => thread.remoteId === saved)
+          ? saved
+          : valid[0]?.remoteId ?? null,
+      );
+    }).catch((error: unknown) => {
+      if (cancelled) return;
+      console.warn("[VINZ chat] ripristino fallito; uso uno stato locale valido", error);
+      setRestoredThreadId(localRestoredThreadId() ?? null);
     });
     return () => { cancelled = true; };
   }, []);
