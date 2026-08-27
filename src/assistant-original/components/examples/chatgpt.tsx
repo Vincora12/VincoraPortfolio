@@ -56,6 +56,10 @@ import {
   thoughtKind,
   toneFor,
 } from "@/assistant-original/chat-micro-behaviors";
+import {
+  claimSessionRoomEntry,
+  consumeManualRoomEntry,
+} from "@/assistant-original/chat-room-presence";
 
 export const ChatGPT: FC = () => {
   return (
@@ -128,37 +132,6 @@ const ConversationMemory: FC = () => {
    diversi per lo stesso comando. Adesso il saluto galleggia nello spazio
    sopra e il campo sta in fondo, dove sta sempre. */
 const EmptyState: FC = () => {
-  const aui = useAui();
-  const didGreet = useRef(false);
-  const record = useApp((state) =>
-    state.activeMonName ? state.mons[state.activeMonName] ?? null : null,
-  );
-  const remoteId = useAuiState((state) => state.threadListItem.remoteId);
-
-  useEffect(() => {
-    /* La bozza iniziale senza remoteId è solo una schermata vuota: non deve
-       diventare una conversazione per effetto del mount. "Nuova chat" la
-       inizializza esplicitamente, e solo allora riceve il saluto. */
-    if (!remoteId) return;
-    if (didGreet.current) return;
-    didGreet.current = true;
-    let cancelled = false;
-    const card = record ? voiceCard(record) : null;
-    const tone = toneFor(record?.data.voice_preset ?? null, card?.fingerprint ?? '');
-    void buildOpening(tone, record?.data.name ?? 'VINZ.MON').then((greeting) => {
-      if (cancelled) return;
-      aui.thread.append({
-        role: "assistant",
-        content: [{ type: "text", text: greeting }],
-        metadata: record
-          ? { custom: { monGreeting: true, monName: record.data.name } }
-          : { custom: { monGreeting: true } },
-        startRun: false,
-      });
-    });
-    return () => { cancelled = true; };
-  }, [aui, record, remoteId]);
-
   return (
     <div className="flex grow flex-col px-4">
       <div className="grow" aria-hidden="true" />
@@ -171,12 +144,15 @@ const EmptyState: FC = () => {
 
 const monLabel = (name: string) => name.toLocaleLowerCase('it').endsWith('.mon') ? name : `${name}.mon`;
 
-/** Registra esclusivamente cambi d'identità avvenuti mentre la stessa chat è
- * attiva. Mount, hydration e cambio conversazione stabiliscono la baseline e
- * non producono eventi. */
+/** Una chat è una stanza persistente. Gli ingressi sono espliciti: avvio di una
+ * vera sessione o scelta manuale della stanza. Solo una sostituzione del Mon
+ * nella stanza corrente produce anche un'uscita. */
 const MonPresenceEvents: FC = () => {
   const aui = useAui();
-  const activeMonName = useApp((state) => state.activeMonName);
+  const activeMonKey = useApp((state) => state.activeMonName);
+  const record = useApp((state) =>
+    state.activeMonName ? state.mons[state.activeMonName] ?? null : null,
+  );
   const { loading, threadId, remoteId, custom } = useAuiState(
     useShallow((state) => ({
       loading: state.threads.isLoading,
@@ -185,27 +161,59 @@ const MonPresenceEvents: FC = () => {
       custom: state.threadListItem.custom,
     })),
   );
-  const baseline = useRef<{ threadId: string | null; monName: string | null }>({
+  const room = useRef<{ threadId: string | null; monName: string | null }>({
     threadId: null,
     monName: null,
   });
+  const openingSequence = useRef(0);
+
+  const appendOpening = (expectedThreadId: string, monName: string) => {
+    const sequence = ++openingSequence.current;
+    const card = record ? voiceCard(record) : null;
+    const tone = toneFor(record?.data.voice_preset ?? null, card?.fingerprint ?? "");
+    void buildOpening(tone, monName).then((greeting) => {
+      if (openingSequence.current !== sequence) return;
+      if (room.current.threadId !== expectedThreadId) return;
+      aui.thread.append({
+        role: "assistant",
+        content: [{ type: "text", text: greeting }],
+        metadata: { custom: { monGreeting: true, monName, roomEntry: true } },
+        startRun: false,
+      });
+    });
+  };
+
+  const appendEnter = (currentThreadId: string, monName: string) => {
+    aui.thread.append({
+      role: "system",
+      content: [{ type: "text", text: `${monLabel(monName)} è entrato nella chat` }],
+      metadata: { custom: { monPresenceEvent: "enter", monName } },
+      startRun: false,
+    });
+    appendOpening(currentThreadId, monName);
+  };
 
   useEffect(() => {
-    if (loading || !remoteId) return;
     const threadCustom = custom ?? {};
-    if (baseline.current.threadId !== threadId) {
-      const restoredMonName = activeMonName
-        ?? (typeof threadCustom.activeMonName === "string" ? threadCustom.activeMonName : null);
-      baseline.current = { threadId, monName: restoredMonName };
-      if (activeMonName && threadCustom.activeMonName !== activeMonName) {
+    const activeMonName = record?.data.name
+      ?? activeMonKey
+      ?? (typeof threadCustom.activeMonName === "string" ? threadCustom.activeMonName : null);
+    if (loading || !remoteId || !activeMonName) return;
+    if (room.current.threadId !== threadId) {
+      room.current = { threadId, monName: activeMonName };
+      const manualEntry = consumeManualRoomEntry(threadId);
+      const sessionEntry = claimSessionRoomEntry();
+      const realEntry = manualEntry || sessionEntry;
+      if (realEntry) appendEnter(threadId, activeMonName);
+      if (threadCustom.activeMonName !== activeMonName) {
         void aui.threads.item("main").updateCustom({ ...threadCustom, activeMonName });
       }
       return;
     }
 
-    const previous = baseline.current.monName;
+    const previous = room.current.monName;
     if (previous === activeMonName) return;
-    baseline.current.monName = activeMonName;
+    room.current.monName = activeMonName;
 
     if (previous) {
       aui.thread.append({
@@ -215,16 +223,9 @@ const MonPresenceEvents: FC = () => {
         startRun: false,
       });
     }
-    if (activeMonName) {
-      aui.thread.append({
-        role: "system",
-        content: [{ type: "text", text: `${monLabel(activeMonName)} è entrato nella chat` }],
-        metadata: { custom: { monPresenceEvent: "enter", monName: activeMonName } },
-        startRun: false,
-      });
-    }
+    appendEnter(threadId, activeMonName);
     void aui.threads.item("main").updateCustom({ ...threadCustom, activeMonName });
-  }, [activeMonName, aui, custom, loading, remoteId, threadId]);
+  }, [activeMonKey, aui, custom, loading, record, remoteId, threadId]);
 
   return null;
 };

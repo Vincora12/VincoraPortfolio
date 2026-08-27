@@ -49,6 +49,10 @@ import {
   type FC,
 } from "react";
 import { serverBackedStorage } from "@/system/serverStorage";
+import {
+  requestManualRoomEntry,
+  requestNextRoomEntry,
+} from "@/assistant-original/chat-room-presence";
 
 const THREAD_ICONS_KEY = "assistant-ui-official-chatgpt:thread-icons";
 const THREAD_COLORS_KEY = "assistant-ui-official-chatgpt:thread-colors";
@@ -417,6 +421,7 @@ export const ThreadListNew = forwardRef<
     creatingRef.current = true;
     setCreating(true);
     try {
+      requestNextRoomEntry();
       await aui.threads.switchToNewThread();
       await aui.threads.item("main").initialize();
     } finally {
@@ -482,6 +487,7 @@ const ThreadListSkeleton: FC = () => {
 export const ThreadListItem: FC = () => {
   const isRunning = useAuiState((s) => s.threadListItem.isRunning);
   const threadId = useAuiState((s) => s.threadListItem.id);
+  const mainThreadId = useAuiState((s) => s.threads.mainThreadId);
   const threadIcon = useThreadIcon(threadId);
   const selection = useContext(ThreadSelectionContext);
   const [isRenaming, setIsRenaming] = useState(false);
@@ -523,6 +529,9 @@ export const ThreadListItem: FC = () => {
       ) : (
         <ThreadListItemPrimitive.Trigger
           ref={triggerRef}
+          onClick={() => {
+            if (threadId !== mainThreadId) requestManualRoomEntry(threadId);
+          }}
           data-slot="aui_thread-list-item-trigger"
           className="focus-visible:ring-ring/50 flex h-full min-w-0 flex-1 items-center rounded-md px-2.5 text-start text-sm outline-none group-hover:pe-9 group-has-focus-visible:pe-9 group-has-data-[state=open]:pe-9 group-data-active:pe-9 focus-visible:ring-1"
         >
