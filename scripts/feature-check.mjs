@@ -3484,30 +3484,28 @@ check(
 }
 
 /* ============================================================================
-   §12/06 CHAT VIVA — «la chat non aggiorna più dieta/allenamento, abbiamo
-   buttato via tanto lavoro» / «esco e rientro e ritorna sempre a una
-   sessione vecchia».
+   §12/06 FEEDBACK ME — «tutte le funzionalità che c'erano in cui io
+   aggiungevo cibo ed allenamento uscita animazione e feedback sotto.»
 
-   🔴 QUESTO AGO ESISTE PERCHÉ LA STESSA SCELTA È STATA SBAGLIATA DUE VOLTE
-   nella stessa sessione, in due direzioni opposte. `LazyChat`
-   (assistant-original/IntegratedChat) ha un'estetica migliore ma è un
-   sistema PARALLELO: cronologia propria (`assistant-ui-official-chatgpt:`,
-   non `s.chat`), strumenti che passano da `runTool` senza mai toccare
-   `sendMessage` — dove vivono `extractFromMessage` (dieta/allenamento/umore
-   letti dal testo), la marcatura del SYNC del turno e l'animazione
-   «registrato». Due cronologie diverse spiegano anche il rientro su una
-   sessione vecchia. `CompanionHomeScreen` chiama `sendMessage` per davvero:
-   è l'unica integrata con tutto il resto del gioco, anche se più semplice
-   a vedersi — e quella semplicità NON è un difetto da correggere tornando
-   a `LazyChat`. */
+   🔴 QUALE SCHERMO MONTA LA TAB CHAT È STATO SBAGLIATO DUE VOLTE in questa
+   sessione, in due direzioni opposte — un ago che asserisce «deve essere
+   X» ha già sbagliato una volta e sbaglierebbe di nuovo alla prossima
+   inversione. Quello che NON deve sparire, a prescindere da quale
+   schermo vince, è il feedback: `ChatGPT` (components/examples/chatgpt.tsx)
+   ha `MessageUpdates` (mostra «Pasto aggiunto in ME» / «Allenamento
+   aggiunto in ME» sotto il messaggio) e la reazione del .mon
+   (`monReaction`) quando i suoi strumenti scrivono in ME. Questo ago
+   guarda quello — non lo schermo che lo ospita. */
 {
-  const appSrc = read('src/App.tsx') ?? '';
-  const liveChatBlock = /className=\{`live-chat[\s\S]{0,600}?<\/div>/.exec(appSrc)?.[0] ?? '';
+  const chatgptSrc = read('src/assistant-original/components/examples/chatgpt.tsx') ?? '';
   check(
-    '§12/06 CHAT VIVA',
-    'la tab CHAT monta CompanionHomeScreen — sendMessage vero, non un sistema di chat parallelo',
-    liveChatBlock.includes('CompanionHomeScreen') && !liveChatBlock.includes('LazyChat'),
-    'LazyChat tiene la sua cronologia a parte e i suoi strumenti non passano da sendMessage: dieta, allenamento, SYNC del turno e «rientra su una sessione vecchia» sono il costo reale di questo scambio, non un dettaglio estetico',
+    '§12/06 FEEDBACK ME',
+    'quando la chat registra un pasto o un allenamento, lo si vede sotto al messaggio',
+    chatgptSrc.includes('MessageUpdates') &&
+      chatgptSrc.includes('Allenamento (?:aggiunto|corretto) in ME') &&
+      chatgptSrc.includes('Pasto (?:aggiunto|corretto) in ME') &&
+      chatgptSrc.includes('monReaction'),
+    'senza questo feedback, scrivere "ho mangiato una pizza" salva il pasto ma non lo dice — e sembra che non abbia funzionato anche quando ha funzionato',
   );
 }
 
