@@ -42,7 +42,7 @@ function parseMemory(raw: string | null): MicroMemory {
       recentOpeningIntents: Array.isArray(value.recentOpeningIntents)
         ? value.recentOpeningIntents.slice(-5)
         : [],
-      recentStatuses: Array.isArray(value.recentStatuses) ? value.recentStatuses.slice(-6) : [],
+      recentStatuses: Array.isArray(value.recentStatuses) ? value.recentStatuses.slice(-16) : [],
     };
   } catch {
     return { ...EMPTY_MEMORY };
@@ -79,7 +79,7 @@ export function rememberConversation(text: string): void {
 export function rememberThoughtStatus(status: string): void {
   void updateMemory((current) => ({
     ...current,
-    recentStatuses: [...current.recentStatuses.filter((item) => item !== status), status].slice(-6),
+    recentStatuses: [...current.recentStatuses.filter((item) => item !== status), status].slice(-16),
   }));
 }
 
@@ -143,7 +143,7 @@ const THOUGHT_LINES: Record<ChatTone, Record<ThoughtKind, readonly string[]>> = 
   electric: {
     thinking: ['Ci sono…', 'Elaboro…', 'Un secondo…'], recall: ['Riaggancio il filo…', 'Recupero…', 'Memoria in corsa…'],
     search: ['Check rapido…', 'Verifico al volo…', 'Cerco…'], choice: ['Calcolo la mossa…', 'Scelgo la linea…', 'Decisione in corso…'],
-    unsure: ['Aspetta—', 'Segnale confuso…', 'Ricalcolo…'], almost: ['Ultimo giro…', 'Quasi fatto…', 'Arrivo…'], action: ['In azione…', 'Lo faccio…', 'Partito…'],
+    unsure: ['Aspetta…', 'Segnale confuso…', 'Ricalcolo…'], almost: ['Ultimo giro…', 'Quasi fatto…', 'Arrivo…'], action: ['In azione…', 'Lo faccio…', 'Partito…'],
   },
   mysterious: {
     thinking: ['Ascolto il segnale…', 'Lascialo emergere…', 'Seguo il filo…'], recall: ['Torno indietro…', 'Cerco una traccia…', 'Qualcosa riaffiora…'],
@@ -169,13 +169,105 @@ function choose(items: readonly string[], seed: string, recent: readonly string[
   return pool[hash(seed) % pool.length]!;
 }
 
+type PresetThoughtStyle = {
+  core: Record<ThoughtKind, string>;
+  starts: readonly [string, string];
+  ends: readonly [string, string];
+};
+
+/* Il significato resta comune, ma lessico e ritmo arrivano dal preset della
+   Personality Card. I piccoli frammenti generano sei forme per stato senza
+   introdurre un secondo motore di personalità o una chiamata al modello. */
+const PRESET_THOUGHT_STYLE: Record<string, PresetThoughtStyle> = {
+  'DEADPAN FILE': {
+    core: { thinking: 'Analisi aperta', recall: 'Recupero il record', search: 'Verifico la fonte', choice: 'Confronto le opzioni', unsure: 'Dato incoerente', almost: 'Chiudo il controllo', action: 'Eseguo il task' },
+    starts: ['Nota.', 'Stato:'], ends: ['Quasi chiuso.', 'Fine a breve.'],
+  },
+  'CAMP ICON': {
+    core: { thinking: 'Compongo la scena', recall: 'Riprendo il gossip', search: 'Faccio luce', choice: 'Scelgo con gusto', unsure: 'Questo non mi convince', almost: 'Ultimo ritocco', action: 'Entro in scena' },
+    starts: ['Tesoro,', 'Mh,'], ends: ['Ci siamo.', 'Quasi divina.'],
+  },
+  'CHAOTIC GEN-Z': {
+    core: { thinking: 'Il cervello sta cookando', recall: 'Ripesco la lore', search: 'Faccio un check', choice: 'Scelgo la timeline', unsure: 'Aspetta, plot twist', almost: 'Ci siamo tipo', action: 'Vado full send' },
+    starts: ['Okay,', 'Wait,'], ends: ['Quasi.', 'Ci siamo raga.'],
+  },
+  'SOFT PROTECTOR': {
+    core: { thinking: 'Metto ordine', recall: 'Riprendo il filo', search: 'Controllo bene', choice: 'Scelgo con cura', unsure: 'Voglio esserne sicuro', almost: 'Ultimo controllo', action: 'Ci penso io' },
+    starts: ['Con calma,', 'Va bene,'], ends: ['Ci sono.', 'Quasi fatto.'],
+  },
+  'COCKY RIVAL': {
+    core: { thinking: 'Studio la mossa', recall: 'Ripasso il vantaggio', search: 'Controllo il campo', choice: 'Scelgo la sfida', unsure: 'Ricalibro il colpo', almost: 'Ultimo passo', action: 'Faccio vedere come si fa' },
+    starts: ['Guarda bene,', 'Facile,'], ends: ['Quasi vinta.', 'Ora chiudo.'],
+  },
+  'MYSTERY SIGNAL': {
+    core: { thinking: 'Decifro il segnale', recall: 'Ritrovo la traccia', search: 'Cerco la frequenza', choice: 'Scelgo il varco', unsure: 'Il segnale si spezza', almost: 'La forma emerge', action: 'Muovo il segnale' },
+    starts: ['Ascolta.', 'Piano.'], ends: ['Sta emergendo.', 'Quasi visibile.'],
+  },
+  'NERD TERMINAL': {
+    core: { thinking: 'Compilo il pensiero', recall: 'Monto la cache', search: 'Interrogo la sorgente', choice: 'Valuto il branch', unsure: 'Segnale non valido', almost: 'Finalizzo il processo', action: 'Avvio il comando' },
+    starts: ['Input preso.', 'Processo attivo.'], ends: ['Output vicino.', 'Build quasi verde.'],
+  },
+  'ART SNOB': {
+    core: { thinking: 'Cerco la composizione', recall: 'Rileggo il dettaglio', search: 'Verifico il riferimento', choice: 'Scarto il banale', unsure: 'La forma non regge', almost: 'Rifinisco il taglio', action: 'Correggo la composizione' },
+    starts: ['Vediamo.', 'Con criterio,'], ends: ['Ora funziona.', 'Quasi presentabile.'],
+  },
+  'STREET FLIRT': {
+    core: { thinking: 'Studio il giro', recall: 'Riprendo la vibe', search: 'Controllo la scena', choice: 'Scelgo il fit', unsure: 'Questa vibe non torna', almost: 'Ultimo tocco', action: 'Mi muovo io' },
+    starts: ['Easy,', 'Ehi,'], ends: ['Quasi pulito.', 'Ci siamo, bello.'],
+  },
+  'GOTH POET': {
+    core: { thinking: 'Lascio sedimentare', recall: 'Richiamo il ricordo', search: 'Cerco nell’ombra', choice: 'Scelgo il sentiero', unsure: 'La nebbia resiste', almost: 'Manca un’ombra', action: 'Sposto il buio' },
+    starts: ['Nel silenzio,', 'Ancora un poco.'], ends: ['Quasi luce.', 'Sta affiorando.'],
+  },
+  'SPORT HYPE': {
+    core: { thinking: 'Leggo la giocata', recall: 'Rivedo l’azione', search: 'Controllo il campo', choice: 'Chiamo lo schema', unsure: 'Cambio assetto', almost: 'Ultimo metro', action: 'Parto forte' },
+    starts: ['Dai,', 'Testa alta,'], ends: ['Ci siamo!', 'Ultimo sprint!'],
+  },
+  'ABSURD LITTLE FREAK': {
+    core: { thinking: 'Consulto il verme saggio', recall: 'Scavo nel cassetto storto', search: 'Annuso gli indizi', choice: 'Interrogo il cucchiaio', unsure: 'Il pavimento mente', almost: 'Manca una zampa', action: 'Libero il marchingegno' },
+    starts: ['Bip.', 'Momento rituale.'], ends: ['Quasi commestibile.', 'Sta succedendo.'],
+  },
+  'OLD-SOUL ORACLE': {
+    core: { thinking: 'Peso il significato', recall: 'Ritorno alla memoria', search: 'Seguo il segno', choice: 'Discerno la via', unsure: 'Il senso è velato', almost: 'Il disegno si compie', action: 'Metto in moto il corso' },
+    starts: ['Un istante.', 'Con misura,'], ends: ['La via appare.', 'Quasi compiuto.'],
+  },
+  'CORPORATE DEMON': {
+    core: { thinking: 'Allineo il deliverable', recall: 'Recupero lo storico', search: 'Avvio la due diligence', choice: 'Ottimizzo la decisione', unsure: 'Rilevo una criticità', almost: 'Chiudo il ciclo', action: 'Metto in produzione' },
+    starts: ['Come da processo,', 'Aggiornamento:'], ends: ['Chiusura imminente.', 'KPI quasi salvo.'],
+  },
+  'SWEET MENACE': {
+    core: { thinking: 'Preparo una cosina', recall: 'Ripesco il segretino', search: 'Vado a curiosare', choice: 'Scelgo la vittima', unsure: 'Qualcosa fa resistenza', almost: 'Ultimo morsetto', action: 'Me ne occupo io' },
+    starts: ['Tranquillo :)', 'Che carino,'], ends: ['Quasi innocuo.', 'Arrivo piano.'],
+  },
+  'SILENT STOIC': {
+    core: { thinking: 'Valuto', recall: 'Ricordo', search: 'Verifico', choice: 'Decido', unsure: 'Non torna', almost: 'Quasi pronto', action: 'Procedo' },
+    starts: ['Un momento.', 'Fermo.'], ends: ['Quasi.', 'Ora.'],
+  },
+};
+
 export function buildThoughtStatus(input: {
+  preset: string | null;
+  fingerprint: string;
   tone: ChatTone;
   kind: ThoughtKind;
   seed: string;
   recent: readonly string[];
 }): string {
-  return choose(THOUGHT_LINES[input.tone][input.kind], input.seed, input.recent);
+  const style = input.preset ? PRESET_THOUGHT_STYLE[input.preset] : undefined;
+  if (!style) return choose(THOUGHT_LINES[input.tone][input.kind], input.seed, input.recent);
+
+  const core = style.core[input.kind];
+  const withStart = (start: string) =>
+    `${start} ${start.endsWith(',') ? core.toLocaleLowerCase('it') : core}`;
+  const candidates = [
+    `${core}…`,
+    `${withStart(style.starts[0])}…`,
+    `${withStart(style.starts[1])}…`,
+    `${core}. ${style.ends[0]}`,
+    `${core}. ${style.ends[1]}`,
+    `${withStart(style.starts[0])}. ${style.ends[1]}`,
+  ];
+  return choose(candidates, `${input.seed}|${input.fingerprint}`, input.recent);
 }
 
 const OPENINGS: Record<ChatTone, Record<OpeningIntent, readonly string[]>> = {
@@ -200,10 +292,10 @@ const OPENINGS: Record<ChatTone, Record<OpeningIntent, readonly string[]>> = {
     silence: ['Possiamo iniziare piano.', 'Ci sono, anche in silenzio.'], return: ['Bentornato davvero.', 'Mi fa piacere rivederti.'],
   },
   electric: {
-    greeting: ['Ehi. Si parte?', 'Buongiorno—andiamo.', 'Ci sono. Vai.'], observation: ['Oggi c’è movimento.', 'Segnale acceso.'],
+    greeting: ['Ehi. Si parte?', 'Buongiorno. Andiamo.', 'Ci sono. Vai.'], observation: ['Oggi c’è movimento.', 'Segnale acceso.'],
     question: ['Che facciamo?', 'Qual è la mossa?'], tease: ['Di nuovo? Velocissimo.', 'Neanche il tempo di salutarti.'], reaction: ['Oh, eccoti.', 'Perfetto timing.'],
     continuation: ['Riprendiamo subito?', 'Torniamo al punto?'], curiosity: ['Novità?', 'Cosa bolle?'], complaint: ['Troppa calma qui.', 'Mi stavo spegnendo.'],
-    silence: ['Okay… rompiamo il ghiaccio.', 'Dai, dimmi.'], return: ['Sei tornato. Si riparte.', 'Rientro rapido—bene.'],
+    silence: ['Okay… rompiamo il ghiaccio.', 'Dai, dimmi.'], return: ['Sei tornato. Si riparte.', 'Rientro rapido. Bene.'],
   },
   mysterious: {
     greeting: ['Sei arrivato.', 'La giornata comincia qui.', 'Ti aspettavo.'], observation: ['C’è qualcosa nell’aria.', 'Il silenzio è cambiato.'],

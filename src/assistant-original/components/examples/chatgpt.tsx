@@ -1026,6 +1026,8 @@ const StatoDelPensiero: FC = () => {
   const tone = toneFor(record?.data.voice_preset ?? null, card?.fingerprint ?? '');
   const kind = thoughtKind(strumento, richiesta, azioneCompletata && !strumento ? 'after-action' : undefined);
   const frase = buildThoughtStatus({
+    preset: record?.data.voice_preset ?? null,
+    fingerprint: card?.fingerprint ?? '',
     tone,
     kind,
     seed: `${messageId}|${record?.data.name ?? 'neutral'}|${kind}|${giro}`,
