@@ -64,6 +64,14 @@ const VARS = [
     required: false,
     where: 'platform.moonshot.ai → API keys',
   },
+  /* 🔷 brief Shortcuts §4 — un secondo segreto, non lo stesso di VINZMON_TOKEN
+     con un altro nome: revocabile da solo, senza rompere il resto dell'app. */
+  {
+    name: 'VINZMON_SHORTCUT_TOKEN',
+    what: 'serve solo se usi le Shortcut di iPhone (Siri, Action Button) — un secondo token, generato come il primo',
+    required: false,
+    where: 'openssl rand -base64 32, come per VINZMON_TOKEN',
+  },
 ] as const;
 
 export default async function handler(request: Request): Promise<Response> {

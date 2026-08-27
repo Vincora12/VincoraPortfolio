@@ -16,6 +16,7 @@ import {
   type Phase,
   syncWithServer,
   pullIngested,
+  pullShortcutQueue,
   pullLessons,
   maybeSpeakFirst,
   scheduleRemoteSave,
@@ -402,6 +403,12 @@ export function App() {
          che sta per essere sostituito. */
       const applied = await pullIngested();
       if (applied > 0) console.info(`[sync] ${applied} segnali dalle scorciatoie`);
+
+      /* La coda di `/api/shortcut` (Siri, Action Button, dettatura) è un
+         flusso diverso da quello dei sensori qui sopra, ma la stessa regola
+         di ordine vale identica: dopo il salvataggio, mai prima. */
+      const appliedShortcuts = await pullShortcutQueue();
+      if (appliedShortcuts > 0) console.info(`[sync] ${appliedShortcuts} azioni dalle Shortcut`);
 
       /* ⚠️ LE LEZIONI HANNO UN GIRO LORO, e va fatto anche quando il
          salvataggio della partita è stato rifiutato.

@@ -3763,6 +3763,93 @@ export async function pullIngested(): Promise<number> {
 }
 
 /* ============================================================================
+   🔷 brief Shortcuts §3 — QUELLO CHE `/api/shortcut` HA GIÀ PRONTO
+
+   A differenza di `pullIngested`, qui il server ha già fatto il lavoro che
+   serviva un'AI — la stima del pasto, se c'era testo da capire — e questa
+   funzione applica un risultato pronto con le STESSE funzioni di un
+   inserimento a mano: `addMeal`, `addWorkout`, `addWeight` (healthJournal.ts),
+   più `withSignal` per il Daily Sync. Zero logica duplicata col server.
+
+   🔒 STESSA REGOLA DI §21: un segnale del giorno (FOOD, WORKOUT, MOOD) si
+   riempie SOLO se è ancora sconosciuto. Se hai già dichiarato tu com'è andata
+   la giornata, una dettatura arrivata da Siri non ha il diritto di
+   correggerti — vale anche per COME STO, anche se qui il testo è tuo e non
+   di un sensore: la regola protegge «cosa hai già detto», non «da dove
+   arriva il dato».
+
+   Peso e Diet restano fuori da questa regola: `addWeight`/`addMeal` sono
+   registri che si SOMMANO (una nuova pesata non cancella la precedente),
+   non un segnale binario del giorno — coerente con come funzionano già
+   quando li scrivi tu a mano o in chat.
+   ========================================================================= */
+
+export async function pullShortcutQueue(): Promise<number> {
+  const s = useApp.getState();
+  if (!s.token) return 0;
+
+  const { loadShortcutQueue } = await import('../ai/backend');
+  const { data, failure } = await loadShortcutQueue(s.token);
+  if (failure || !data || data.pending.length === 0) return 0;
+
+  let days = s.days;
+  let applied = 0;
+  const day = s.day;
+
+  for (const item of data.pending) {
+    const at = new Date(item.at);
+    const record = days[day] ?? emptyDay(day);
+
+    if (item.action === 'weight' && item.weight) {
+      addWeight(item.weight.kg, 'chat');
+      applied++;
+    }
+
+    if (item.action === 'meal' && item.meal) {
+      addMeal(
+        {
+          slot: item.meal.slot,
+          description: item.meal.description,
+          kcal: item.meal.kcal,
+          protein: item.meal.protein,
+          carbs: item.meal.carbs,
+          fat: item.meal.fat,
+        },
+        'chat',
+        at,
+      );
+      if ((record.signals.FOOD?.status ?? 'UNKNOWN') === 'UNKNOWN') {
+        days = withSignal(days, day, 'FOOD', 'KNOWN', `dalle scorciatoie: ${item.meal.description}`);
+      }
+      applied++;
+    }
+
+    if (item.action === 'workout' && item.workout) {
+      addWorkout(item.workout, 'chat', at);
+      if ((record.signals.WORKOUT?.status ?? 'UNKNOWN') === 'UNKNOWN') {
+        const minutes = item.workout.minutes > 0 ? `${item.workout.minutes} min, ` : '';
+        days = withSignal(days, day, 'WORKOUT', 'KNOWN', `${minutes}dalle scorciatoie: ${item.workout.details}`);
+      }
+      applied++;
+    }
+
+    /* Il check-in NON ha un registro suo come Diet o Peso: vive solo come
+       segnale del giorno. Se MOOD è già conosciuto, il testo non ha
+       nessun altro posto dove andare — e non deve averlo: sovrascrivere
+       sarebbe correggere quello che hai già detto tu. */
+    if (item.action === 'checkin' && item.checkin) {
+      if ((record.signals.MOOD?.status ?? 'UNKNOWN') === 'UNKNOWN') {
+        days = withSignal(days, day, 'MOOD', 'KNOWN', `dalle scorciatoie: ${item.checkin.text}`);
+        applied++;
+      }
+    }
+  }
+
+  if (applied > 0) useApp.setState({ days });
+  return applied;
+}
+
+/* ============================================================================
    🔷 v1.13 §20 — IL SALVATAGGIO SUL SERVER
 
    Il browser resta la copia di lavoro: senza rete l'app deve funzionare

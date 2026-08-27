@@ -47,15 +47,15 @@ export interface AuthResult {
   reason?: string;
 }
 
-export function authorize(request: Request): AuthResult {
-  const expected = process.env.VINZMON_TOKEN;
+function authorizeAgainst(request: Request, envVar: string): AuthResult {
+  const expected = process.env[envVar];
 
   /* Senza segreto configurato si CHIUDE, non si apre. È la scelta opposta a
      quella comoda: un deploy in cui qualcuno si è dimenticato la variabile
      deve smettere di funzionare in modo evidente, non restare aperto in
      silenzio a chiunque passi. */
   if (!expected || expected.length < 24) {
-    return { ok: false, reason: 'VINZMON_TOKEN mancante o troppo corto sul server' };
+    return { ok: false, reason: `${envVar} mancante o troppo corto sul server` };
   }
 
   const header = request.headers.get('authorization') ?? '';
@@ -65,6 +65,27 @@ export function authorize(request: Request): AuthResult {
   if (!constantTimeEqual(token, expected)) return { ok: false, reason: 'token errato' };
 
   return { ok: true };
+}
+
+export function authorize(request: Request): AuthResult {
+  return authorizeAgainst(request, 'VINZMON_TOKEN');
+}
+
+/**
+ * Il secondo segreto (MASTER SPEC — brief Shortcuts §4): «Create a dedicated
+ * VINZ.MON Shortcuts token with limited permissions and revocation support.»
+ *
+ * ⚠️ NON è `VINZMON_TOKEN` con un altro nome. È un secondo segreto, per un
+ * motivo preciso: quello vive anche dentro le Comandi di iOS, cioè in un posto
+ * che non è il telefono sbloccato ma un file di configurazione di Apple che tu
+ * non controlli byte per byte. Se un giorno sospetti che sia uscito, lo cambi
+ * SOLO qui — le Shortcut smettono di funzionare finché non incolli il nuovo,
+ * ma l'app, la voce, le immagini, il salvataggio continuano esattamente come
+ * prima. Un solo segreto condiviso da tutto avrebbe reso «revoca solo le
+ * Shortcut» impossibile: l'unica revoca sarebbe stata «rompi tutto».
+ */
+export function authorizeShortcut(request: Request): AuthResult {
+  return authorizeAgainst(request, 'VINZMON_SHORTCUT_TOKEN');
 }
 
 /**

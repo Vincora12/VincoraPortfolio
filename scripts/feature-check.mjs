@@ -4362,6 +4362,50 @@ check(
 );
 
 /* ============================================================================
+   Shortcut API — brief «VINZ.MON iOS Shortcuts — Background Integration»
+   ========================================================================= */
+
+const SHORTCUT = 'netlify/functions/shortcut.ts';
+
+check(
+  'SHORTCUTS',
+  'le Shortcut hanno un secondo segreto, non lo stesso token dell\'app',
+  has('netlify/functions/_shared/auth.ts', "authorizeAgainst(request, 'VINZMON_SHORTCUT_TOKEN')") &&
+    has('netlify/functions/_shared/auth.ts', "authorizeAgainst(request, 'VINZMON_TOKEN')"),
+  'revocabile da solo: cambiarlo non tocca voce, immagini, salvataggio',
+);
+check(
+  'SHORTCUTS',
+  'chi scrive (POST, le Shortcut) e chi legge (GET, il .mon) usano token diversi',
+  has(SHORTCUT, 'authorizeShortcut(request)') && has(SHORTCUT, 'authorize(request)'),
+);
+check(
+  'SHORTCUTS',
+  'il tetto di spesa si controlla solo dove si spende davvero',
+  (read(SHORTCUT) ?? '').split('checkCap()').length - 1 === 1,
+  'peso, come stai e allenamento non chiamano AI: un tetto pieno non deve fermarli',
+);
+check(
+  'SHORTCUTS',
+  'un pasto che il modello non sa leggere non riceve numeri inventati',
+  has(SHORTCUT, "kcal: 0, protein: 0, carbs: 0, fat: 0, confidence: 'low'"),
+  'un numero sbagliato con l\'aria di una misura è peggio di nessun numero',
+);
+check(
+  'SHORTCUTS',
+  'ricordo e obiettivo sono registrati ma non hanno un ramo proprio',
+  lacksInCode(SHORTCUT, "actionId === 'memory'") && lacksInCode(SHORTCUT, "actionId === 'goal'"),
+  'brief §11/§14: «future/secondary V1» — dichiarati nel registro, non ancora costruiti',
+);
+check(
+  'SHORTCUTS',
+  'un segnale del giorno già dichiarato non viene corretto da una Shortcut',
+  has('src/state/store.ts', "record.signals.MOOD?.status ?? 'UNKNOWN') === 'UNKNOWN'") &&
+    has('src/state/store.ts', "record.signals.FOOD?.status ?? 'UNKNOWN') === 'UNKNOWN'"),
+  'stessa regola di §21: si riempie solo uno sconosciuto, mai si sovrascrive',
+);
+
+/* ============================================================================
    Sicurezza e tono — non negoziabili
    ========================================================================= */
 

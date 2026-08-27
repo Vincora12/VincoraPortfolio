@@ -27,15 +27,23 @@ lungo almeno 24 caratteri e non l'abbia mai visto nessuno.
 
 ## 2. Le variabili su Netlify
 
-`Site configuration → Environment variables`. Cinque righe:
+`Site configuration → Environment variables`. Sei righe:
 
 | variabile | cosa ci va | serve a |
 |---|---|---|
 | `VINZMON_TOKEN` | il token del punto 1 | far entrare solo te |
+| `VINZMON_SHORTCUT_TOKEN` | **un secondo token, diverso dal primo** (stesso comando: `openssl rand -base64 32`) | far entrare solo le Shortcut di iPhone — facoltativo, serve solo se usi `/api/shortcut` |
 | `ANTHROPIC_API_KEY` | la tua chiave Anthropic | la voce e la riflessione |
 | `GOOGLE_API_KEY` | la chiave di Google AI Studio | la lettura delle foto |
 | `OPENAI_API_KEY` | la tua chiave OpenAI | le immagini |
 | `MOONSHOT_API_KEY` | la tua chiave Moonshot | serve **solo** se scegli Kimi K3 per la voce |
+
+> 🔒 **`VINZMON_SHORTCUT_TOKEN` non è `VINZMON_TOKEN` con un altro nome.** È un
+> secondo segreto apposta: quello vive anche dentro le Comandi di iOS, che non
+> sono il tuo telefono sbloccato ma un file di configurazione di Apple. Se un
+> giorno sospetti che sia uscito, lo cambi SOLO lì — le Shortcut smettono di
+> funzionare finché non incolli il nuovo, ma l'app, la voce, le immagini, il
+> salvataggio continuano esattamente come prima.
 
 > 🔷 Il compilatore di prompt (v1.2 §10) usa la stessa `ANTHROPIC_API_KEY`: è una
 > chiamata di testo per creatura, circa due centesimi, una volta ogni ventotto
@@ -130,6 +138,44 @@ passi e allenamento. Da quel momento i dati arrivano senza che tu apra niente.
 > deduce dai passi ti sta raccontando una cosa su di te che non ha modo di
 > sapere. L'umore lo dichiari tu scrivendo, o resta sconosciuto — che è un
 > valore legittimo. Se una Shortcut manda un campo `mood`, viene ignorato.
+
+---
+
+## Le azioni da Siri e dall'Action Button
+
+`/api/ingest` (sopra) è per un'automazione notturna che manda dati di
+sensore. Questa è un'altra porta, per un'altra cosa: dettare «ho mangiato una
+piadina» ad alta voce e ricevere subito una risposta vera — senza aprire
+Safari.
+
+1. **Ottieni contenuto dell'URL** → `https://<il-tuo-sito>/api/shortcut`
+2. Metodo: **POST**
+3. Intestazioni: `Authorization` = `Bearer <VINZMON_SHORTCUT_TOKEN>` — **non**
+   il token dell'app, il secondo
+4. Corpo richiesta: **JSON**
+
+```json
+{ "action": "meal", "text": "piadina con pollo e mozzarella" }
+```
+
+Risposta:
+
+```json
+{ "ok": true, "message": "Pasto registrato", "summary": "~700-850 kcal · proteine ~35-45 g", "confidence": "medium" }
+```
+
+Le azioni oggi accese sono `weight` (un numero in `"number"`, zero AI),
+`checkin` (le tue parole in `"text"`, salvate così come sono — è COME STO),
+`workout` (`"text"` libero, più `"number"` di minuti se lo sai) e `meal`
+(`"text"`; la foto è una fase successiva). `DEV → SHORTCUT API` nell'app
+mostra la stessa tabella con un esempio pronto da copiare e le ultime
+chiamate davvero fatte.
+
+> 🔷 Il .mon non applica il risultato all'istante: lo mette in una coda, come
+> fa già `/api/ingest`, e lo scrive nella partita **con le stesse funzioni di
+> un inserimento a mano** la prossima volta che apri l'app. Un pasto o un
+> peso da Shortcut non correggono mai quello che hai già dichiarato tu quel
+> giorno — stessa regola di sopra.
 
 ---
 

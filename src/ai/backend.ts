@@ -687,3 +687,66 @@ export function loadIngested(
 ): Promise<BackendResult<{ days: IngestedDay[] }>> {
   return post<{ days: IngestedDay[] }>('/api/ingest', token, undefined, 'GET');
 }
+
+/* --- La coda di /api/shortcut (brief Shortcuts §3) --------------------------
+   Quello che una Shortcut ha già chiesto di salvare, con la stima già fatta
+   dal server quando serviva un'AI: il client applica, non ricalcola. */
+
+export type ShortcutMealSlot = 'colazione' | 'spuntino' | 'pranzo' | 'merenda' | 'cena' | 'extra';
+
+export interface PendingShortcutAction {
+  id: string;
+  action: 'meal' | 'workout' | 'checkin' | 'weight';
+  at: string;
+  meal?: {
+    slot: ShortcutMealSlot;
+    description: string;
+    kcal: number;
+    protein: number;
+    carbs: number;
+    fat: number;
+    confidence: 'high' | 'medium' | 'low';
+  };
+  workout?: { title: string; details: string; minutes: number };
+  checkin?: { text: string };
+  weight?: { kg: number };
+}
+
+/** Svuota la coda: come `loadIngested`, il .mon la chiede quando è pronto e il
+    server la consegna una volta sola — non un flusso, una cassetta della posta. */
+export function loadShortcutQueue(
+  token: string | null,
+): Promise<BackendResult<{ pending: PendingShortcutAction[] }>> {
+  return post<{ pending: PendingShortcutAction[] }>('/api/shortcut', token, undefined, 'GET');
+}
+
+/* --- VINZ.LAB → SHORTCUT API (brief §11) ------------------------------------- */
+
+export interface ShortcutActionInfo {
+  id: string;
+  label: string;
+  it: string;
+  input: string;
+  aiPolicy: 'never' | 'sometimes' | 'usually';
+  enabled: boolean;
+}
+
+export interface ShortcutCallInfo {
+  action: string;
+  at: string;
+  ok: boolean;
+  ms: number;
+  costUsd: number;
+  reason?: string;
+}
+
+export interface ShortcutStatus {
+  tokenConfigured: boolean;
+  actions: ShortcutActionInfo[];
+  recent: ShortcutCallInfo[];
+  endpoint: string;
+}
+
+export function loadShortcutStatus(token: string | null): Promise<BackendResult<ShortcutStatus>> {
+  return post<ShortcutStatus>('/api/shortcut-status', token, undefined, 'GET');
+}
