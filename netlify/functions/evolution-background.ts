@@ -10,6 +10,8 @@ type AssetItem = {
   assetId: string;
   prompt: string;
   size: ImageSize;
+  /** 🔷 Dichiarata dal tipo di asset: sticker e doodle si vedono piccoli. */
+  quality?: string;
 };
 
 type Job = {
@@ -174,7 +176,19 @@ export default async function evolutionBackground(request: Request): Promise<voi
     job.label = item.type === 'character_master' ? 'CHARACTER MASTER CEL' : item.type === 'character_toy' ? 'CHARACTER MASTER TOY' : item.type === 'bio_doodle' ? 'BIO DOODLE' : 'STICKER / REACTION';
     await save(job);
 
-    const result = await generateWithRetry(route.model, item, item.type === 'character_master' ? null : master, quality);
+    /* 🔒 PRECEDENZA: la bozza di DEV vince su quella dichiarata dall'asset.
+       Durante le prove si abbassa TUTTO, compresi master e toy che in
+       produzione restano pieni. Fuori dalle prove decide l'asset, che è
+       l'unico che sa a che dimensione finisce sotto gli occhi. */
+    const itemQuality = IMAGE_QUALITIES.includes(item.quality as ImageQuality)
+      ? (item.quality as ImageQuality)
+      : undefined;
+    const result = await generateWithRetry(
+      route.model,
+      item,
+      item.type === 'character_master' ? null : master,
+      quality ?? itemQuality,
+    );
     if (!result.ok || !result.data) {
       job.status = 'error';
       job.error = result.error?.slice(0, 400) ?? 'Generazione immagine non riuscita';

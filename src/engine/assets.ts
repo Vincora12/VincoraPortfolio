@@ -44,6 +44,43 @@ export interface AssetTypeDef {
   purpose: string;
   /** Dove viene usato nel prodotto: alimenta `usage` nel manifest. */
   usage: string[];
+  /**
+   * 🔷 QUANTO DEVE VENIRE BENE QUESTO ASSET.
+   *
+   * ════════════════════════════════════════════════════════════════════════
+   * 🔷 «Possiamo abbassare la qualità degli sticker, cose del genere?»
+   *
+   * Sì, e a differenza del riusare un asset vecchio questa cosa non produce
+   * mai un'incoerenza: la creatura è sempre quella nuova, cambia solo quanto
+   * è rifinita. E la rifinitura si paga solo dove si vede.
+   *
+   * Il criterio è UNO SOLO: a che dimensione finisce sotto gli occhi.
+   *
+   *   reaction_pack   sei espressioni in una griglia 3×2 dentro UN 1024, cioè
+   *                   ~341×512 a faccia — e a schermo uno sticker sta fra 84
+   *                   e 190px. Da due a sei volte più piccolo di come è stato
+   *                   disegnato: il dettaglio in più finisce nel
+   *                   ridimensionamento, non negli occhi di nessuno.
+   *   bio_doodle      è dichiarato «interpretazione da quaderno»: schizzato
+   *                   È il suo aspetto, non un difetto da evitare.
+   *
+   * 🔒 E DUE RESTANO PIENI, per due ragioni diverse:
+   *
+   *   character_toy    è l'immagine ufficiale, e la vedi grande — encounter,
+   *                    home, dex, profilo. È letteralmente la creatura.
+   *   character_master non lo vedi MAI (`usage: consistency-reference`), e
+   *                    verrebbe voglia di abbassarlo proprio per quello. Ma è
+   *                    l'immagine che viene ALLEGATA come riferimento a tutti
+   *                    gli altri tre: abbassare lui non risparmia su di lui,
+   *                    peggiora gli altri. È l'unico dei quattro dove il
+   *                    risparmio si propaga invece di restare locale.
+   *
+   * Assente = `medium`, il predefinito del fornitore.
+   * ⚠️ L'interruttore BOZZA di DEV vince su questo campo: durante le prove si
+   * abbassa tutto, compresi i due che qui restano pieni.
+   * ════════════════════════════════════════════════════════════════════════
+   */
+  quality?: 'low' | 'medium' | 'high';
 }
 
 /**
@@ -84,6 +121,9 @@ export const ASSET_TYPES: readonly AssetTypeDef[] = [
     label: 'BIO DOODLE',
     purpose: 'Interpretazione da quaderno, usata SOLO in BIO / PERSONAL FILE. Non è un Appearance.',
     usage: ['bio-personal-file'],
+    /* Schizzato è il suo aspetto dichiarato, non un compromesso: la qualità
+       piena qui pagherebbe una rifinitura che il disegno non deve avere. */
+    quality: 'low',
   },
   {
     type: 'reaction_pack',
@@ -96,6 +136,9 @@ export const ASSET_TYPES: readonly AssetTypeDef[] = [
     purpose:
       'Le sei espressioni canoniche, griglia 3×2. È quello che cambia in testa alla chat a ogni risposta.',
     usage: ['chat', 'companion-home', 'memories'],
+    /* Sei facce dentro una tavola sola: ~341×512 l'una, mostrate fra 84 e
+       190px. Il dettaglio in più finisce nel ridimensionamento. */
+    quality: 'low',
   },
 ];
 

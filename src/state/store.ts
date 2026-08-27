@@ -297,9 +297,10 @@ export interface DevFlags {
    *
    * `gpt-image-2` accetta `quality`, e finora non gliela mandavamo: ogni
    * immagine usciva al default del fornitore, che è `medium`. A 1024×1024
-   * `low` costa circa un nono. Sei immagini per creatura fanno $0,32 contro
-   * $0,036 — e su una giornata di prove in cui la stessa creatura si rigenera
-   * dieci volte, $3,20 contro 36 centesimi.
+   * `low` costa circa un nono. Le quattro immagini di una creatura fanno
+   * ~$0,12 con la qualità dichiarata per asset e ~$0,024 tutte in bozza — su
+   * una giornata di prove in cui la stessa creatura si rigenera dieci volte,
+   * $1,20 contro 24 centesimi.
    *
    * ⚠️ SPENTA DI DEFAULT, ED È GIUSTO COSÌ. L'immagine che l'utente TIENE
    * deve restare quella buona. Questo interruttore serve a rispondere alla

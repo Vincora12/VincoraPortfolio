@@ -22,6 +22,9 @@ export async function queueRemoteGeneration(token: string, jobId: string, record
     assetId: def.assetId,
     prompt: promptFor(record, def.type).text,
     size: def.size,
+    /* La qualità viaggia PER ASSET, non per lavoro: sticker e doodle si
+       vedono piccoli e vanno in bozza anche quando gli altri due no. */
+    quality: def.quality,
   }));
   const response = await fetch('/api/evolution-background', {
     method: 'POST',

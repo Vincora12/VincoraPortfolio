@@ -311,6 +311,46 @@ check(
   has('src/state/store.ts', 'draftImages: false'),
 );
 
+/* --- La qualità si paga dove si vede ----------------------------------------
+   🔷 «Possiamo abbassare la qualità degli sticker, cose del genere?»
+
+   Il criterio è UNO: a che dimensione l'asset finisce sotto gli occhi. Gli
+   sticker sono sei facce dentro una tavola sola (~341×512 l'una) mostrate fra
+   84 e 190px; il doodle è dichiarato «interpretazione da quaderno». I due che
+   si guardano grandi — e il master, da cui gli altri DERIVANO — restano pieni.
+   -------------------------------------------------------------------------- */
+
+const ASSET_CATALOG = 'src/engine/assets.ts';
+check(
+  'QUALITÀ PER ASSET',
+  'la qualità è dichiarata dal tipo di asset, non dal fornitore',
+  has(ASSET_CATALOG, "quality?: 'low' | 'medium' | 'high'"),
+);
+check(
+  'QUALITÀ PER ASSET',
+  'sticker e doodle si vedono piccoli e nascono in bozza',
+  (read(ASSET_CATALOG).match(/quality: 'low'/g) ?? []).length === 2,
+);
+/* 🔒 IL MASTER NON SI ABBASSA, e verrebbe voglia proprio perché non si vede
+   mai: è l'immagine ALLEGATA come riferimento a tutti gli altri, quindi il
+   risparmio non resterebbe su di lui — si propagherebbe agli altri tre. */
+const masterBlock = read(ASSET_CATALOG).slice(
+  read(ASSET_CATALOG).indexOf("type: 'character_master'"),
+  read(ASSET_CATALOG).indexOf("type: 'character_toy'"),
+);
+check(
+  'QUALITÀ PER ASSET',
+  'ma il master resta pieno: è il riferimento da cui derivano gli altri',
+  !masterBlock.includes('quality:'),
+);
+/* 🔒 E la bozza di DEV deve poter vincere su tutto: durante le prove si
+   abbassa anche quello che in produzione resta pieno. */
+check(
+  'QUALITÀ PER ASSET',
+  'la bozza di DEV vince sulla qualità dichiarata dall’asset',
+  has('src/assets-pipeline/generate.ts', 'opts.quality ?? assetTypeDef(type).quality'),
+);
+
 /* --- La voce a due velocità -------------------------------------------------
    🔷 «Serve avere sempre tutto in alta? Usiamo delle AI basse, a chiamata si
    alzano.» — sì, e la letteratura del 2026 dà la stessa risposta: il routing

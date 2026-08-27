@@ -50,8 +50,21 @@ function prezzo(capability: string, model: string): string | null {
    così la scelta si fa guardando i numeri invece che i nomi.
    ========================================================================= */
 
-/** Sei immagini, ai tre livelli di qualità. Listino di agosto 2026. */
-const COSTO_IMMAGINI = { low: 0.036, medium: 0.32, high: 1.27 };
+/* Quattro immagini per creatura — master, toy, doodle, sticker. Listino
+   agosto 2026, a 1024: low ~$0,006 · medium ~$0,053 · high ~$0,211.
+
+   🔶 QUI C'ERA SCRITTO «SEI», ed era sbagliato: i tre asset storici
+   (ritratto, idle, hero) sono in `LEGACY_ASSET_TYPES` e la pipeline non li
+   genera più. Ogni conto fatto su sei era gonfiato di un terzo. */
+const COSTO_IMMAGINI = {
+  /* Tutte e quattro in bozza: l'interruttore qui sotto. */
+  bozza: 4 * 0.006,
+  /* Come è OGGI: doodle e sticker li dichiara `assets.ts` in bozza, master e
+     toy restano pieni. È il predefinito, non un risparmio da accendere. */
+  normale: 2 * 0.053 + 2 * 0.006,
+  /* Come era PRIMA che la qualità venisse dichiarata per asset. */
+  primaDiTutto: 4 * 0.053,
+};
 
 export function ModelsSection() {
   const stepModels = useApp((s) => s.stepModels);
@@ -91,10 +104,10 @@ export function ModelsSection() {
       {/* ══════════════════════════════════════════════════════════════════
           🔷 LA LEVA VERA, e sta sopra l'elenco perché è quella che conta.
 
-          Le sei immagini sono l'80% del costo di una generazione. Il menu dei
-          modelli qui sotto muove il restante 20% — utile, ma non è lì che si
-          risparmia. */}
-      <p className="t-meta dev__label">IMMAGINI — L’80% DEL COSTO DI UNA GENERAZIONE</p>
+          Le quattro immagini sono la parte più grossa del costo di una
+          generazione. Il menu dei modelli qui sotto muove il resto — utile,
+          ma non è lì che si risparmia. */}
+      <p className="t-meta dev__label">IMMAGINI — LA VOCE PIÙ GROSSA DI UNA GENERAZIONE</p>
       <label className="dev__check">
         <input
           type="checkbox"
@@ -104,11 +117,16 @@ export function ModelsSection() {
         IMMAGINI IN BOZZA (quality: low)
       </label>
       <p className="t-micro dev__note">
-        Sei immagini per creatura: <strong>${COSTO_IMMAGINI.medium.toFixed(2)}</strong> in
-        qualità piena (il default del fornitore, cioè quello che hai sempre
-        pagato) contro <strong>${COSTO_IMMAGINI.low.toFixed(3)}</strong> in bozza.
-        Dieci rigenerazioni di prova sono ${(COSTO_IMMAGINI.medium * 10).toFixed(2)}$
-        contro {(COSTO_IMMAGINI.low * 10).toFixed(2)}$.
+        Quattro immagini per creatura. Adesso ne costano{' '}
+        <strong>${COSTO_IMMAGINI.normale.toFixed(3)}</strong>: doodle e sticker
+        li dichiara già `assets.ts` in bozza — si vedono piccoli — e master e
+        toy restano pieni. Prima erano ${COSTO_IMMAGINI.primaDiTutto.toFixed(3)}.
+      </p>
+      <p className="t-micro dev__note">
+        Con l’interruttore acceso scendono tutte e quattro a{' '}
+        <strong>${COSTO_IMMAGINI.bozza.toFixed(3)}</strong>. Dieci rigenerazioni
+        di prova: ${(COSTO_IMMAGINI.bozza * 10).toFixed(2)} contro{' '}
+        ${(COSTO_IMMAGINI.normale * 10).toFixed(2)}.
       </p>
       <p className="t-micro dev__note">
         {dev.draftImages

@@ -33,9 +33,11 @@
       l'app resta intera. §26 — «missing assets never block the product flow».
    ════════════════════════════════════════════════════════════════════════════
 
-   💶 Sei immagini per creatura, circa 21 centesimi. È la voce di spesa più
-   grossa del progetto — una creatura di immagini costa quanto una settimana di
-   conversazioni — ma succede una volta ogni ventotto giorni.
+   💶 QUATTRO immagini per creatura — master, toy, doodle, sticker. I tre
+   asset storici stanno in `LEGACY_ASSET_TYPES` e non si generano più.
+   Da quando `assets.ts` dichiara la qualità per asset costano ~12 centesimi:
+   doodle e sticker in bozza perché si vedono piccoli, master e toy pieni.
+   Resta la voce di spesa più grossa di una nascita.
    ========================================================================= */
 
 import { askImage } from '../ai/backend';
@@ -84,14 +86,15 @@ export interface GenerateOptions {
   /**
    * 🔷 Quanto devono venire bene queste immagini.
    *
-   * ⚠️ È IL PARAMETRO CHE DECIDE IL CONTO. Sei immagini a `medium` — il
-   * default del fornitore, cioè quello che è sempre stato pagato senza che
-   * nessuno lo dichiarasse — costano circa $0,32. Le stesse sei in `low`
-   * costano circa $0,036. Una giornata di prove in cui una creatura si
-   * rigenera dieci volte sono $3,20 contro 36 centesimi.
+   * ⚠️ QUESTO È IL LIVELLO DEL LAVORO, e vince su quello dichiarato dal
+   * singolo asset: è la BOZZA di DEV, che abbassa tutto per le prove —
+   * compresi master e toy, che in produzione restano pieni.
    *
-   * 🔒 Assente = `medium`, cioè come è sempre stato. Lo accende DEV, non il
-   * prodotto: l'immagine che l'utente TIENE deve restare quella buona.
+   * Assente = decide ogni asset per conto suo (`AssetTypeDef.quality`), che
+   * è il comportamento normale: la qualità si paga dove si vede.
+   *
+   * 🔒 Lo accende DEV, non il prodotto: l'immagine che l'utente TIENE deve
+   * restare quella buona.
    */
   quality?: 'low' | 'medium' | 'high';
 }
@@ -157,7 +160,10 @@ export async function generateMissingAssets(
       imageModel,
       assetTypeDef(type).size,
       reference,
-      opts.quality,
+      /* 🔷 La qualità la dichiara IL TIPO DI ASSET — è l'unico posto che sa a
+         che dimensione finisce sotto gli occhi. `opts.quality` vince solo
+         quando c'è: è la bozza di DEV, che abbassa tutto per le prove. */
+      opts.quality ?? assetTypeDef(type).quality,
     );
 
     if (!res.data) {
