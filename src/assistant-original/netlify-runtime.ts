@@ -19,6 +19,8 @@ import type { ToolResult, ToolUse } from "@/ai/tools";
 import { readHealthJournal } from "@/engine/healthJournal";
 import { useApp } from "@/state/store";
 import { buildVoiceSystemPrompt } from "@/ai/voicePrompt";
+import { persistChatTrace, recordChatTrace, traceClock, type ChatTrace } from "@/ai/chatTrace";
+import { voiceCard } from "@/engine/voiceCard";
 
 type Source = { title: string; url: string; domain?: string };
 type Usage = {
@@ -326,6 +328,7 @@ async function* runWithLocalTools(
       custom: {
         costUsd: cost.costUsd,
         model: cost.model ?? modelName,
+        traceId: cost.traceId,
         updates,
         monReaction: reactionForAnswer(answer),
       },
@@ -410,7 +413,38 @@ function createBaseNetlifyChatModel(): ChatModelAdapter {
     const systemPrompt = activeMon
       ? buildVoiceSystemPrompt(activeMon, app.mood)
       : "You are a neutral, accurate and concise personal assistant. Reply in the user's language.";
-    const response = await fetch("/api/ai", {
+    const clock = traceClock();
+    clock.mark("SYSTEM PROMPT", activeMon ? `voce vera · ${systemPrompt.length} caratteri` : "neutro");
+    const saveTrace = async (model: string | null, error: string | null, retrieved: string[] = []) => {
+      const card = activeMon ? voiceCard(activeMon) : null;
+      const trace: ChatTrace = {
+        path: "diretto",
+        characterVoice: Boolean(activeMon),
+        systemChars: systemPrompt.length,
+        model,
+        effort: reasoningEffort ?? null,
+        toolRounds: [],
+        totalMs: clock.elapsed(),
+        error,
+        steps: clock.steps(),
+        at: Date.now(),
+        ...(activeMon && card ? {
+          personality: {
+            monName: activeMon.data.name,
+            voicePreset: activeMon.data.voice_preset,
+            writingFingerprint: card.fingerprint,
+            ...(card.writingStyle?.reactions ? { reactions: card.writingStyle.reactions } : {}),
+          },
+        } : {}),
+        ...(retrieved.length ? { context: retrieved, contextKind: "sources" as const } : {}),
+      };
+      recordChatTrace(trace);
+      return persistChatTrace(trace);
+    };
+    clock.mark("RICHIESTA", "POST /api/ai · capability character-voice");
+    let response: Response;
+    try {
+      response = await fetch("/api/ai", {
       method: "POST",
       signal: abortSignal,
       headers: {
@@ -436,13 +470,20 @@ function createBaseNetlifyChatModel(): ChatModelAdapter {
         ...(files.length ? { files } : {}),
         maxTokens: 2000,
       }),
-    });
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      await saveTrace(modelName ?? null, message);
+      throw error;
+    }
 
     if (!response.ok) {
       const problem = (await response.json().catch(() => null)) as
         | { error?: string; reason?: string }
         | null;
-      throw new Error(problem?.reason ?? problem?.error ?? `Richiesta fallita (${response.status}).`);
+      const message = problem?.reason ?? problem?.error ?? `Richiesta fallita (${response.status}).`;
+      await saveTrace(modelName ?? null, message);
+      throw new Error(message);
     }
 
     if (!useStream) {
@@ -453,16 +494,26 @@ function createBaseNetlifyChatModel(): ChatModelAdapter {
         model?: string;
       };
       const parts = (body.sources ?? []).map(sourcePart);
-      if (!body.text) throw new Error("La risposta è arrivata vuota.");
+      if (!body.text) {
+        await saveTrace(body.model ?? modelName ?? null, "La risposta è arrivata vuota.");
+        throw new Error("La risposta è arrivata vuota.");
+      }
       for await (const shown of writtenSnapshots(body.text, abortSignal)) {
         yield { content: withText(parts, shown) };
       }
+      clock.mark("RISPOSTA", body.model ?? modelName ?? "modello sconosciuto");
+      const traceId = await saveTrace(
+        body.model ?? modelName ?? null,
+        null,
+        (body.sources ?? []).map((source) => `${source.title} — ${source.url}`),
+      );
       yield {
         content: withText(parts, body.text),
         metadata: {
           custom: {
             costUsd: body.costUsd ?? 0,
             model: body.model ?? modelName,
+            traceId: traceId ?? undefined,
             monReaction: reactionForAnswer(body.text),
           },
         },
@@ -505,7 +556,10 @@ function createBaseNetlifyChatModel(): ChatModelAdapter {
           answeredBy = event.model;
           for (const source of event.sources) sources.set(source.url, source);
         }
-        if (event.type === "error") throw new Error(event.message);
+        if (event.type === "error") {
+          await saveTrace(answeredBy ?? null, event.message);
+          throw new Error(event.message);
+        }
         yield { content: snapshot() };
       }
       if (done) break;
@@ -514,10 +568,16 @@ function createBaseNetlifyChatModel(): ChatModelAdapter {
     const completeParts: ThreadAssistantMessagePart[] = [];
     if (sources.size > 0) completeParts.push(searchPart(true));
     completeParts.push(...[...sources.values()].map(sourcePart));
+    clock.mark("RISPOSTA", answeredBy ?? "modello sconosciuto");
+    const traceId = await saveTrace(
+      answeredBy ?? null,
+      null,
+      [...sources.values()].map((source) => `${source.title} — ${source.url}`),
+    );
     yield {
       content: withText(completeParts, answer),
       metadata: {
-        custom: { costUsd, model: answeredBy, monReaction: reactionForAnswer(answer) },
+        custom: { costUsd, model: answeredBy, traceId: traceId ?? undefined, monReaction: reactionForAnswer(answer) },
       },
     };
   },

@@ -396,6 +396,7 @@ export default async function handler(request: Request): Promise<Response> {
         'content-type': 'text/event-stream; charset=utf-8',
         'cache-control': 'no-store',
         'x-content-type-options': 'nosniff',
+        'x-vinz-model': route.model,
       },
     });
   }

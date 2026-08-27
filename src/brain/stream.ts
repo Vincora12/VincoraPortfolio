@@ -2,7 +2,8 @@ import type { BrainMessage } from './store/types';
 import { TOOLS, assistantTurn, resultBlocks, type ToolResult, type ToolUse } from '../ai/tools';
 import { useApp } from '../state/store';
 import { buildVoiceSystemPrompt } from '../ai/voicePrompt';
-import { recordChatTrace, traceClock } from '../ai/chatTrace';
+import { persistChatTrace, recordChatTrace, traceClock, type ChatTrace } from '../ai/chatTrace';
+import { voiceCard } from '../engine/voiceCard';
 
 /* ============================================================================
    🔷 «Riporta la chat a prima.» — e dentro, il problema vero.
@@ -44,8 +45,27 @@ function characterVoiceBlock(): { text: string } | null {
   }
 }
 
-export type ChatCost = { costUsd: number; model?: string };
+export type ChatCost = { costUsd: number; model?: string; traceId?: string };
 export type ChatFileInput = { mediaType: string; data: string; filename: string };
+
+function tracePersonality(): ChatTrace['personality'] {
+  const state = useApp.getState();
+  const record = state.activeMonName ? state.mons[state.activeMonName] : undefined;
+  if (!record) return undefined;
+  const card = voiceCard(record);
+  return {
+    monName: record.data.name,
+    voicePreset: record.data.voice_preset,
+    writingFingerprint: card.fingerprint,
+    ...(card.writingStyle?.reactions ? { reactions: card.writingStyle.reactions } : {}),
+  };
+}
+
+function traceContext(): string[] {
+  return useApp.getState().voiceNotes
+    .filter((note) => note.status === 'accettata')
+    .map((note) => note.text);
+}
 
 /** Legge soltanto il token tecnico già salvato dall'app principale. */
 export function savedToken(): string | null {
@@ -86,6 +106,7 @@ export async function streamReply(
 
   let model: string | null = null;
   let errore: string | null = null;
+  let outcome: ChatCost | null = null;
   try {
     clock.mark('RICHIESTA', 'POST /api/ai · capability character-voice');
     const response = await fetch('/api/ai', {
@@ -114,13 +135,15 @@ export async function streamReply(
     }
 
     const contentType = response.headers.get('content-type') ?? '';
+    model = response.headers.get('x-vinz-model');
     if (contentType.includes('application/json')) {
       const body = await response.json() as { text?: string; costUsd?: number; model?: string };
       if (!body.text) throw new Error(image ? 'Non sono riuscito a leggere l’immagine.' : 'La risposta è arrivata vuota.');
       model = body.model ?? null;
       clock.mark('RISPOSTA', model ?? 'modello sconosciuto');
       onChunk(body.text);
-      return { costUsd: body.costUsd ?? 0, model: body.model };
+      outcome = { costUsd: body.costUsd ?? 0, model: body.model };
+      return outcome;
     }
 
     const reader = response.body.getReader();
@@ -132,12 +155,13 @@ export async function streamReply(
       if (chunk) onChunk(chunk);
     }
     clock.mark('RISPOSTA', 'stream concluso');
-    return { costUsd: 0 };
+    outcome = { costUsd: 0 };
+    return outcome;
   } catch (e) {
     errore = e instanceof Error ? e.message : String(e);
     throw e;
   } finally {
-    recordChatTrace({
+    const trace: ChatTrace = {
       path: 'diretto',
       characterVoice: Boolean(character),
       systemChars: system.reduce((n, b) => n + b.text.length, 0),
@@ -148,7 +172,14 @@ export async function streamReply(
       error: errore,
       steps: clock.steps(),
       at: Date.now(),
-    });
+      personality: tracePersonality(),
+      ...(character && traceContext().length
+        ? { context: traceContext(), contextKind: 'voice-notes' as const }
+        : {}),
+    };
+    recordChatTrace(trace);
+    const traceId = await persistChatTrace(trace);
+    if (outcome && traceId) outcome.traceId = traceId;
   }
 }
 
@@ -283,6 +314,7 @@ export async function replyWithLocalTools(
   let lastModel: string | undefined;
   const toolRounds: string[][] = [];
   let errore: string | null = null;
+  let outcome: ChatCost | null = null;
   /* Il backend accetta al massimo 12 strumenti per richiesta. Quelli salute
      sono in testa al catalogo; il limite evita che una frase come «ho
      mangiato una banana» venga rifiutata prima ancora che il modello la legga. */
@@ -358,7 +390,8 @@ export async function replyWithLocalTools(
             ? '\n\nConfermi che registro questo **allenamento** in ME?'
           : '';
         onChunk(`${body.text.trim()}${confirmation}`);
-        return { costUsd: totalCostUsd, model: lastModel };
+        outcome = { costUsd: totalCostUsd, model: lastModel };
+        return outcome;
       }
 
       toolRounds.push(uses.map((u) => u.name));
@@ -390,7 +423,8 @@ export async function replyWithLocalTools(
           gestisci_me: 'ME aggiornato.',
         } as Record<string, string>)[forcedWrite] ?? 'ME aggiornato.';
         onChunk(confirmation);
-        return { costUsd: totalCostUsd, model: lastModel };
+        outcome = { costUsd: totalCostUsd, model: lastModel };
+        return outcome;
       }
 
       userBlocks = resultBlocks(toolResults);
@@ -402,7 +436,7 @@ export async function replyWithLocalTools(
     errore = e instanceof Error ? e.message : String(e);
     throw e;
   } finally {
-    recordChatTrace({
+    const trace: ChatTrace = {
       path: 'strumenti',
       characterVoice: Boolean(character),
       systemChars: system.reduce((n, b) => n + b.text.length, 0),
@@ -413,6 +447,13 @@ export async function replyWithLocalTools(
       error: errore,
       steps: clock.steps(),
       at: Date.now(),
-    });
+      personality: tracePersonality(),
+      ...(character && traceContext().length
+        ? { context: traceContext(), contextKind: 'voice-notes' as const }
+        : {}),
+    };
+    recordChatTrace(trace);
+    const traceId = await persistChatTrace(trace);
+    if (outcome && traceId) outcome.traceId = traceId;
   }
 }

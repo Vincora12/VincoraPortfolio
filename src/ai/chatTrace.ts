@@ -27,6 +27,15 @@ export interface ChatTrace {
   /** Il modello che ha risposto per davvero, non quello richiesto. */
   model: string | null;
   effort: string | null;
+  personality?: {
+    monName: string;
+    voicePreset: string;
+    writingFingerprint?: string;
+    reactions?: string;
+  };
+  /** Solo contesto realmente caricato per questo giro. */
+  context?: string[];
+  contextKind?: 'voice-notes' | 'sources' | 'retrieved-memories' | 'other';
   /** Un giro per round di strumenti; vuoto sulla strada diretta. */
   toolRounds: string[][];
   totalMs: number;
@@ -41,6 +50,52 @@ const listeners = new Set<() => void>();
 export function recordChatTrace(t: ChatTrace): void {
   last = t;
   listeners.forEach((l) => l());
+}
+
+function auth(): HeadersInit | null {
+  try {
+    const raw = localStorage.getItem('vinzmon.prototype.v4');
+    const parsed = raw ? JSON.parse(raw) as { state?: { token?: unknown } } : null;
+    const token = typeof parsed?.state?.token === 'string' ? parsed.state.token : null;
+    return token ? { authorization: `Bearer ${token}` } : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Salva il trace nel medesimo store Netlify persistente usato dalla chat. */
+export async function persistChatTrace(trace: ChatTrace): Promise<string | null> {
+  const headers = auth();
+  if (!headers) return null;
+  const id = typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  try {
+    const response = await fetch(`/api/user-data?key=${encodeURIComponent(`chat-trace:${id}`)}`, {
+      method: 'PUT',
+      headers: { ...headers, 'content-type': 'application/json' },
+      body: JSON.stringify(trace),
+    });
+    return response.ok ? id : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function loadChatTrace(id: string): Promise<ChatTrace | null> {
+  const headers = auth();
+  if (!headers || !id) return null;
+  try {
+    const response = await fetch(`/api/user-data?key=${encodeURIComponent(`chat-trace:${id}`)}`, {
+      headers,
+      cache: 'no-store',
+    });
+    if (!response.ok) return null;
+    const body = await response.json() as { value?: string | null };
+    return typeof body.value === 'string' ? JSON.parse(body.value) as ChatTrace : null;
+  } catch {
+    return null;
+  }
 }
 
 export function lastChatTrace(): ChatTrace | null {

@@ -14,6 +14,7 @@ import {
   useAuiState,
 } from "@assistant-ui/react";
 import { useEffect, useRef, useState, type FC } from "react";
+import { createPortal } from "react-dom";
 import { useMessageError } from "@assistant-ui/core/react";
 import { TooltipIconButton } from "@/assistant-original/components/assistant-ui/tooltip-icon-button";
 import { useShallow } from "zustand/shallow";
@@ -21,6 +22,7 @@ import WaveSurfer from "wavesurfer.js";
 import RecordPlugin from "wavesurfer.js/dist/plugins/record.esm.js";
 import { savedToken } from "@/brain/stream";
 import {
+  ActivityIcon,
   ArrowUpIcon,
   CheckIcon,
   ChevronDownIcon,
@@ -46,6 +48,7 @@ import { fallbackGreeting } from "@/engine/voiceDna";
 import { makeRng, seedFromString } from "@/engine/rng";
 import { useAssetUrl } from "@/system/AssetSlot";
 import { EXPRESSION_SPEC, EXPRESSIONS } from "@/engine/assets";
+import { loadChatTrace, type ChatTrace } from "@/ai/chatTrace";
 
 export const ChatGPT: FC = () => {
   return (
@@ -513,13 +516,17 @@ const assistantActionClassName =
   "flex size-9 items-center justify-center rounded-none border-0 bg-transparent p-2 text-[#5d5d5d] transition-[color,opacity,transform] hover:bg-transparent hover:text-[#0d0d0d] active:scale-90 active:opacity-55 data-[copied]:text-[#0d0d0d] data-[submitted]:text-[#0d0d0d] dark:text-[#b4b4b4] dark:hover:bg-transparent dark:hover:text-[#ececec] dark:data-[copied]:text-[#ececec] dark:data-[submitted]:text-[#ececec]";
 
 const AssistantMessage: FC = () => {
-  const { staScrivendo, haTesto, soloSticker } = useAuiState(
+  const [traceOpen, setTraceOpen] = useState(false);
+  const { staScrivendo, haTesto, soloSticker, traceId } = useAuiState(
     useShallow((s) => ({
       staScrivendo: s.message.status?.type === "running",
       haTesto: (s.message.content ?? []).some(
         (part) => part.type === "text" && part.text.trim().length > 0,
       ),
       soloSticker: s.message.metadata.custom.monReactionOnly === true,
+      traceId: typeof s.message.metadata.custom.traceId === "string"
+        ? s.message.metadata.custom.traceId
+        : null,
     })),
   );
   if (soloSticker) {
@@ -618,14 +625,22 @@ const AssistantMessage: FC = () => {
               side="bottom"
               align="end"
               sideOffset={6}
-              className="bg-popover text-popover-foreground data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=open]:animate-in data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=closed]:animate-out data-[side=bottom]:slide-in-from-top-2 z-50 min-w-40 overflow-hidden rounded-xl border p-1.5"
+              className="bg-black text-white data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=open]:animate-in data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=closed]:animate-out data-[side=bottom]:slide-in-from-top-2 z-50 min-w-40 overflow-hidden rounded-xl border border-white/20 p-1.5"
             >
               <ActionBarPrimitive.ExportMarkdown asChild>
-                <ActionBarMorePrimitive.Item className="text-muted-foreground focus:bg-accent focus:text-accent-foreground flex cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2 text-sm outline-none select-none">
+                <ActionBarMorePrimitive.Item className="flex cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-white outline-none select-none focus:bg-white/15">
                   <Download className="size-5" />
                   Export as Markdown
                 </ActionBarMorePrimitive.Item>
               </ActionBarPrimitive.ExportMarkdown>
+              <ActionBarMorePrimitive.Item
+                disabled={!traceId}
+                onSelect={() => traceId && setTraceOpen(true)}
+                className="flex cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-white outline-none select-none focus:bg-white/15 data-[disabled]:cursor-default data-[disabled]:opacity-40"
+              >
+                <ActivityIcon className="size-5" />
+                Trace
+              </ActionBarMorePrimitive.Item>
             </ActionBarMorePrimitive.Content>
           </ActionBarMorePrimitive.Root>
         </ActionBarPrimitive.Root>
@@ -635,6 +650,7 @@ const AssistantMessage: FC = () => {
       <MessageCost />
       <ActivePersonality />
       <MessageUpdates />
+      {traceOpen && traceId ? <TracePanel traceId={traceId} onClose={() => setTraceOpen(false)} /> : null}
 
       <div className="vinz-assistant-meta mt-1 flex flex-wrap items-center gap-1 text-xs text-[#8e8e8e]">
         <MessagePrimitive.Parts>
@@ -649,6 +665,74 @@ const AssistantMessage: FC = () => {
     </MessagePrimitive.Root>
   );
 };
+
+const TracePanel: FC<{ traceId: string; onClose: () => void }> = ({ traceId, onClose }) => {
+  const [trace, setTrace] = useState<ChatTrace | null>(null);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    let current = true;
+    void loadChatTrace(traceId).then((value) => {
+      if (current) {
+        setTrace(value);
+        setLoaded(true);
+      }
+    });
+    return () => { current = false; };
+  }, [traceId]);
+
+  return createPortal(
+    <div className="fixed inset-0 z-[100] flex items-end bg-black/65 p-3 sm:items-center sm:justify-center" role="dialog" aria-modal="true" aria-label="Chat trace">
+      <section className="max-h-[85vh] w-full max-w-xl overflow-y-auto rounded-2xl border border-white/20 bg-black p-5 text-white shadow-2xl">
+        <div className="mb-5 flex items-center justify-between">
+          <h2 className="text-base font-semibold">Trace</h2>
+          <button type="button" onClick={onClose} aria-label="Chiudi trace" className="rounded-full p-2 text-white hover:bg-white/15">
+            <XIcon className="size-5" />
+          </button>
+        </div>
+        {!loaded ? <p className="text-sm text-white/60">Caricamento…</p> : !trace ? (
+          <p className="text-sm text-white/60">Trace non disponibile.</p>
+        ) : (
+          <div className="space-y-4 text-sm leading-5">
+            <TraceField label="Modello" value={trace.model} />
+            <TraceField label="Percorso" value={trace.path} />
+            <TraceField label="Personalità" value={trace.personality?.voicePreset} />
+            <TraceField label="Writing fingerprint" value={trace.personality?.writingFingerprint} />
+            <TraceField label="Reazioni" value={trace.personality?.reactions} />
+            {trace.context?.length ? (
+              <TraceList
+                label={trace.contextKind === "voice-notes"
+                  ? "Voice notes"
+                  : trace.contextKind === "sources"
+                    ? "Sources"
+                    : trace.contextKind === "retrieved-memories"
+                      ? "Retrieved memories"
+                      : "Contesto"}
+                values={trace.context}
+              />
+            ) : null}
+            <TraceList label="Strumenti" values={trace.toolRounds.flat()} empty="Nessuno" />
+            <TraceField label="Timing" value={`${trace.totalMs} ms`} />
+            {trace.steps.length ? <TraceList label="Tappe" values={trace.steps.map((step) => `${step.ms} ms · ${step.label}: ${step.detail}`)} /> : null}
+            <TraceField label="Errori" value={trace.error ?? "Nessuno"} />
+          </div>
+        )}
+      </section>
+    </div>,
+    document.body,
+  );
+};
+
+const TraceField: FC<{ label: string; value?: string | null }> = ({ label, value }) => value ? (
+  <div><div className="text-xs font-medium tracking-wide text-white/50 uppercase">{label}</div><div className="mt-1 break-words">{value}</div></div>
+) : null;
+
+const TraceList: FC<{ label: string; values: string[]; empty?: string }> = ({ label, values, empty }) => (
+  <div>
+    <div className="text-xs font-medium tracking-wide text-white/50 uppercase">{label}</div>
+    <div className="mt-1 space-y-1 break-words">{values.length ? values.map((value, index) => <div key={`${value}-${index}`}>{value}</div>) : empty}</div>
+  </div>
+);
 
 /**
  * Il modello sceglie la reaction insieme alla risposta, ma assistant-ui produce

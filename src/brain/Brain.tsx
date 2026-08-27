@@ -128,7 +128,7 @@ export function createChatModel(runTool?: (use: ToolUse) => ToolResult, voiceMod
       }
       await request;
       if (failure) throw failure;
-      yield { content: [{ type: 'text', text: answer }], metadata: { custom: { costUsd: cost.costUsd, model: cost.model } } };
+      yield { content: [{ type: 'text', text: answer }], metadata: { custom: { costUsd: cost.costUsd, model: cost.model, traceId: cost.traceId } } };
     },
   };
 }
