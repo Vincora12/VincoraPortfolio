@@ -21,6 +21,7 @@ import {
   AI_STEP_ORDER,
   choicesFor,
   modelForStep,
+  recommendedModel,
   type AiStepId,
 } from '../../netlify/functions/_shared/routing';
 
@@ -36,18 +37,24 @@ function prezzo(capability: string, model: string): string | null {
 }
 
 /* ============================================================================
-   🔴 DOVE VANNO I SOLDI DAVVERO, E PERCHÉ IL PULSANTE «ECONOMICO» NON BASTAVA.
+   🔴 DOVE VANNO I SOLDI DAVVERO — e come sceglie il pulsante «CONSIGLIATO».
 
-   Il preset economico salta gli step marcati `qualityCritical`. Sono tre:
-   CHARACTER MASTER, VOCE, IMMAGINI. Cioè esattamente i tre che costano.
+   «Per ogni sezione tu inserisci nel quale mi consigli di usare dato il costo
+   basso e la gestione dei dati. Automaticamente selezionano quella.»
 
-   Tutti gli altri — BIO, INSEGNA, NARRATORE, PROMPT IMMAGINI — hanno già Luna
-   come predefinito, quindi il pulsante li metteva su Luna dove erano già.
-   ⚠️ Premuto su una partita coi predefiniti, «ECONOMICO» non cambiava NIENTE:
-   era un pulsante che dichiarava un risparmio e non ne produceva nessuno.
+   Prima il pulsante economico si limitava a saltare gli step `qualityCritical`
+   e mettere Luna dappertutto — ed era già il predefinito, quindi premerlo su
+   una partita pulita non cambiava NIENTE. Ora chiama `recommendedModel` (in
+   `routing.ts`) per ogni step: gli step `qualityCritical` (CHARACTER MASTER,
+   VOCE, IMMAGINI) restano sempre dove sono — lì non si risparmia, per scelta
+   esplicita — gli step che portano dati personali dell'utente scelgono il più
+   economico FRA QUELLI CHE NON SI ALLENANO SUI TUOI DATI senza consenso
+   (oggi esclude solo Moonshot/Kimi), gli altri scelgono il più economico del
+   catalogo senza altri vincoli. La riga sotto ogni step, qui sotto, dice il
+   perché — costo o dati — con le stesse parole che usa il motore.
 
-   La riga qui sotto dice quanto pesa ciascuna cosa su una generazione intera,
-   così la scelta si fa guardando i numeri invece che i nomi.
+   La riga qui sotto dice invece quanto pesa ciascuna cosa su una generazione
+   intera, così la scelta si fa guardando i numeri invece che i nomi.
    ========================================================================= */
 
 /* Quattro immagini per creatura — master, toy, doodle, sticker. Listino
@@ -97,7 +104,7 @@ export function ModelsSection() {
           QUALITÀ (I PREDEFINITI)
         </Button>
         <Button small onClick={cheap}>
-          ECONOMICO · MASTER RESTA SOL
+          CONSIGLIATO · COSTO + DATI
         </Button>
       </div>
 
@@ -141,6 +148,7 @@ export function ModelsSection() {
           const pool = choicesFor(step.capability);
           const run = runOf(id);
           const costo = prezzo(step.capability, attivo);
+          const consiglio = recommendedModel(id);
 
           return (
             <li key={id} className="dev__step">
@@ -150,6 +158,15 @@ export function ModelsSection() {
                 {step.background && <SystemLabel>IN BACKGROUND</SystemLabel>}
               </p>
               <p className="t-micro dev__note">{step.it}</p>
+              {/* 🔷 Il consiglio è sempre visibile, anche quando coincide con
+                  l'attivo — «perché» è la parte che il pulsante da solo non
+                  dice: qui distingue costo da dati. */}
+              <p className="t-micro dev__note">
+                <SystemLabel tone={step.qualityCritical ? undefined : 'character'}>
+                  CONSIGLIO
+                </SystemLabel>{' '}
+                <strong>{consiglio.model}</strong> — {consiglio.why}
+              </p>
               {/* 🔷 Uno step con due modelli deve DIRLO qui, o il menu qui
                   sotto racconta metà della verità: mostrerebbe un modello
                   solo mentre a rispondere sono due. */}
@@ -177,6 +194,7 @@ export function ModelsSection() {
                       }
                     >
                       {c.label}
+                      {c.model === consiglio.model && c.model !== attivo ? ' ★' : ''}
                     </Button>
                   ))}
                 </div>

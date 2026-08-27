@@ -2446,7 +2446,14 @@ check(
 check(
   '§19.3 STEP',
   'il preset economico non tocca gli step critici per la qualità',
-  has('src/state/store.ts', 'if (step.qualityCritical) continue;'),
+  /* 🔶 Era un ago sul testo letterale di `store.ts` ('if (step.qualityCritical)
+     continue;'), e si è rotto quando la logica si è trasferita in
+     `recommendedPreset` (routing.ts) — stessa decisione, riga diversa. Punta
+     ora sulla decisione vera: `recommendedModel` restituisce sempre il
+     `fallback` (mai un risparmio) per uno step qualityCritical, e
+     `recommendedPreset` lo salta del tutto. */
+  has(ROUTING_FILE, 'if (step.qualityCritical) {') &&
+    has(ROUTING_FILE, 'if (AI_STEPS[id].qualityCritical) continue;'),
   '«non voglio un pulsante economico che mi peggiora i character»',
 );
 check(

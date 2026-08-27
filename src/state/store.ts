@@ -48,9 +48,8 @@ import { formeGiaViste } from '../assets-pipeline/resolver/taste';
    prima, e lo farebbe in silenzio. */
 import {
   AI_STEPS,
-  AI_STEP_ORDER,
-  choicesFor,
   modelForStep,
+  recommendedPreset,
   type AiStepId,
 } from '../../netlify/functions/_shared/routing';
 import { assetTypeDef, generationOrder } from '../engine/assets';
@@ -2484,18 +2483,18 @@ export const useApp = create<AppState>()(
           return { stepModels: next };
         }),
 
-      useCheapPreset: () =>
-        set(() => {
-          const next: Partial<Record<AiStepId, string>> = {};
-          for (const id of AI_STEP_ORDER) {
-            const step = AI_STEPS[id];
-            /* 🔒 La riga che protegge il prodotto. */
-            if (step.qualityCritical) continue;
-            const economico = choicesFor(step.capability).find((c) => c.model === 'gpt-5.6-luna');
-            if (economico) next[id] = economico.model;
-          }
-          return { stepModels: next };
-        }),
+      /* 🔷 «Un Hub che sceglie automaticamente ogni AI per ogni singola
+         azione, la meno costosa e con meno problemi sui dati» — questo.
+
+         🔴 PRIMA QUI C'ERA `gpt-5.6-luna` MURATO PER TUTTI GLI STEP NON
+         CRITICI, senza guardare se fosse davvero il più economico o se lo
+         step portasse dati personali. Era per questo che il pulsante
+         «ECONOMICO» non cambiava mai niente: Luna era già il predefinito di
+         ogni step non critico, quindi premerlo confermava lo stato attuale
+         invece di deciderlo. Adesso la decisione la fa `recommendedModel`
+         in `routing.ts` — guarda cataloghi e dati veri, non un nome fisso —
+         ed è lì che va letta la logica, non qui. */
+      useCheapPreset: () => set({ stepModels: recommendedPreset() }),
 
       useQualityPreset: () => set({ stepModels: {} }),
 

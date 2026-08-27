@@ -895,3 +895,110 @@ export function stepProblems(steps = AI_STEPS): string[] {
   }
   return problems;
 }
+
+/* ============================================================================
+   IL CONSIGLIO PER OGNI LAVORO — COSTO E GESTIONE DATI, SCRITTI, NON A OCCHIO
+
+   🔷 «Hai fatto un Hub in cui automaticamente scegli ogni AI per ogni singola
+   azione, così scegliamo quella meno costosa e con meno problemi sui dati?
+   Per ogni sezione inserisci quale consigli, dato il costo basso e la
+   gestione dei dati, e la seleziona automaticamente.»
+
+   ════════════════════════════════════════════════════════════════════════
+   ⚠️ IL RISULTATO PIÙ IMPORTANTE NON È IL BOTTONE: È QUELLO CHE HA RIVELATO.
+
+   Kimi (Moonshot) allena i suoi modelli sui dati dell'API PER DEFAULT, senza
+   modo di disattivarlo se non con un accordo enterprise negoziato a parte —
+   il contrario di OpenAI e Anthropic, che escludono il traffico API dal
+   training di default. Verificato online, non supposto.
+
+   E Kimi non è nemmeno IN LISTA per bio, insegna, narratore, prompt immagini
+   o master: `COMPILER_CHOICES` sopra contiene solo OpenAI e un Sonnet di
+   controllo. L'UNICO posto dove compare è `VOICE_CHOICES` — che è
+   esattamente la capacità marcata `PERSONAL`. Quindi la domanda «lo uso solo
+   dove non tocca dati» ha una risposta netta: STRUTTURALMENTE, in questo
+   catalogo, Kimi non ha una casa sicura. O è nel menu sbagliato (la voce,
+   personale) o non è nel menu per niente (tutto il resto).
+
+   E anche ignorando i dati: Kimi non è nemmeno il più economico. Luna
+   ($0,20/$1,20) costa un quarto di Kimi K2.6 ($0,95/$4). Il consiglio qui
+   sotto non esclude Kimi per principio — lo esclude perché perde su
+   ENTRAMBI gli assi, dati e prezzo, ovunque lo si metta.
+   ════════════════════════════════════════════════════════════════════════
+
+   IL CRITERIO, PER OGNI STEP:
+
+     1. `qualityCritical` → non si tocca MAI. «Non voglio un pulsante
+        economico che mi peggiora i character.» Resta sul suo `fallback`.
+     2. capacità in `PERSONAL` → il più economico FRA QUELLI CHE NON
+        ALLENANO SUI TUOI DATI SENZA CONSENSO (OpenAI, Anthropic — mai
+        Moonshot, qui, per la ragione sopra).
+     3. tutto il resto (non critico, non personale) → il più economico
+        dell'intero catalogo della sua capacità, chiunque sia.
+   ========================================================================= */
+
+/** Chi si allena sui dati dell'API per default, senza un modo semplice di
+ * disattivarlo. Verificato: solo Moonshot, ad agosto 2026. */
+const TRAINS_ON_API_DATA_BY_DEFAULT: Provider[] = ['moonshot'];
+
+export interface StepRecommendation {
+  model: string;
+  /** Perché, in una riga: costo e/o dati. */
+  why: string;
+}
+
+/**
+ * Il consiglio per UNO step, con la ragione. Pura funzione di `AI_STEPS` e
+ * dei cataloghi: nessuno stato, nessuna sorpresa — lo stesso step consiglia
+ * sempre la stessa cosa finché i listini non cambiano.
+ */
+export function recommendedModel(stepId: AiStepId): StepRecommendation {
+  const step = AI_STEPS[stepId];
+
+  if (step.qualityCritical) {
+    return {
+      model: step.fallback,
+      why: 'critico per la qualità: qui non si risparmia, per scelta esplicita.',
+    };
+  }
+
+  const pool = choicesFor(step.capability);
+  const isPersonal = PERSONAL.includes(step.capability);
+  const candidates = isPersonal
+    ? pool.filter((c) => !TRAINS_ON_API_DATA_BY_DEFAULT.includes(c.provider))
+    : pool;
+
+  /* `price` esiste solo sulle scelte di voce/compilatore; le altre capacità
+     hanno un catalogo di una voce sola e quel prezzo non serve a scegliere. */
+  const priced = candidates as { model: string; price?: { input: number; output: number } }[];
+  const cheapest = priced.reduce<typeof priced[number] | null>((best, c) => {
+    if (!c.price) return best;
+    if (!best?.price) return c;
+    // L'uscita pesa di più: sui lavori di questa capacità l'uscita domina
+    // sempre l'ingresso di almeno un ordine di grandezza (prompt lunghi,
+    // risposte lunghe). Un confronto solo sull'ingresso sceglierebbe male.
+    return c.price.output < best.price.output ? c : best;
+  }, null);
+
+  const chosen = cheapest?.model ?? step.fallback;
+  const reason = isPersonal
+    ? 'il più economico fra quelli che NON allenano sui tuoi dati senza consenso.'
+    : 'il più economico del catalogo: qui il lavoro non porta niente di personale.';
+  return { model: chosen, why: reason };
+}
+
+/**
+ * Il consiglio per TUTTI gli step, pronto per un preset.
+ *
+ * 🔒 Esclude gli step `qualityCritical`: tornano `undefined` (nessuna scelta
+ * esplicita, cioè il loro predefinito) invece di un valore uguale a sé
+ * stesso — coerente con come `useQualityPreset` già svuota `stepModels`.
+ */
+export function recommendedPreset(): Partial<Record<AiStepId, string>> {
+  const out: Partial<Record<AiStepId, string>> = {};
+  for (const id of AI_STEP_ORDER) {
+    if (AI_STEPS[id].qualityCritical) continue;
+    out[id] = recommendedModel(id).model;
+  }
+  return out;
+}
