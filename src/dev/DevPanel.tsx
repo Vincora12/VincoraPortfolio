@@ -25,6 +25,7 @@ import { PromptPreview } from './PromptPreview';
 import { VoiceSection } from './VoiceSection';
 import { CostSection } from './CostSection';
 import { ShortcutSection } from './ShortcutSection';
+import { ServerSection } from './ServerSection';
 import { MemorySection } from './MemorySection';
 import { MoodSection } from './MoodSection';
 import { RaritySection } from './RaritySection';
@@ -57,6 +58,7 @@ type DevTab =
   | 'progression'
   | 'cost'
   | 'shortcut'
+  | 'server'
   | 'models'
   | 'memory'
   | 'mood'
@@ -100,6 +102,11 @@ const GROUPS: { id: DevGroup; label: string; tabs: { id: DevTab; label: string }
          del tocco a mano. Sta accanto a SEGNALI perché è la stessa cosa
          vista da un ingresso diverso, non un sistema a parte. */
       { id: 'shortcut', label: 'SHORTCUT API' },
+      /* 🔷 «Sei sicuro che si salvi quello che faccio, ho perso vari
+         giorni.» Sta accanto a SHORTCUT API perché è la stessa domanda —
+         cosa sa il server — vista dal lato del salvataggio invece che
+         degli ingressi automatici. */
+      { id: 'server', label: 'SERVER' },
       { id: 'progression', label: 'PROGRESSIONE' },
     ],
   },
@@ -243,6 +250,7 @@ export function DevPanel({ onClose, onGo }: { onClose: () => void; onGo?: (o: 'a
         {inGroup && tab === 'progression' && <ProgressionSection />}
         {inGroup && tab === 'cost' && <CostSection />}
         {inGroup && tab === 'shortcut' && <ShortcutSection />}
+        {inGroup && tab === 'server' && <ServerSection />}
         {inGroup && tab === 'models' && <ModelsSection />}
         {inGroup && tab === 'memory' && <MemorySection />}
         {inGroup && tab === 'mood' && <MoodSection />}
