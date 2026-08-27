@@ -699,6 +699,12 @@ const TracePanel: FC<{ traceId: string; onClose: () => void }> = ({ traceId, onC
             <TraceField label="Personalità" value={trace.personality?.voicePreset} />
             <TraceField label="Writing fingerprint" value={trace.personality?.writingFingerprint} />
             <TraceField label="Reazioni" value={trace.personality?.reactions} />
+            {trace.systemPromptComposition?.length ? (
+              <TraceList
+                label="System prompt composition"
+                values={trace.systemPromptComposition.map((block) => `${block.name} · ${block.chars} caratteri`)}
+              />
+            ) : null}
             {trace.context?.length ? (
               <TraceList
                 label={trace.contextKind === "voice-notes"

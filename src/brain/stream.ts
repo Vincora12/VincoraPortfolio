@@ -2,7 +2,7 @@ import type { BrainMessage } from './store/types';
 import { TOOLS, assistantTurn, resultBlocks, type ToolResult, type ToolUse } from '../ai/tools';
 import { useApp } from '../state/store';
 import { buildVoiceSystemPrompt } from '../ai/voicePrompt';
-import { persistChatTrace, recordChatTrace, traceClock, type ChatTrace } from '../ai/chatTrace';
+import { persistChatTrace, recordChatTrace, systemPromptComposition, traceClock, type ChatTrace } from '../ai/chatTrace';
 import { voiceCard } from '../engine/voiceCard';
 
 /* ============================================================================
@@ -165,6 +165,9 @@ export async function streamReply(
       path: 'diretto',
       characterVoice: Boolean(character),
       systemChars: system.reduce((n, b) => n + b.text.length, 0),
+      systemPromptComposition: systemPromptComposition(
+        system.map((block) => ({ name: character ? 'CHARACTER VOICE' : 'NEUTRAL ASSISTANT', text: block.text })),
+      ),
       model,
       effort: null,
       toolRounds: [],
@@ -440,6 +443,12 @@ export async function replyWithLocalTools(
       path: 'strumenti',
       characterVoice: Boolean(character),
       systemChars: system.reduce((n, b) => n + b.text.length, 0),
+      systemPromptComposition: systemPromptComposition(system.map((block, index) => ({
+        name: index === 0
+          ? (character ? 'CHARACTER VOICE' : 'NEUTRAL ASSISTANT')
+          : 'TOOL POLICY',
+        text: block.text,
+      }))),
       model: lastModel ?? null,
       effort: 'none',
       toolRounds,

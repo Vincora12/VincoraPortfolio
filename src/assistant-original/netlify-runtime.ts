@@ -19,7 +19,7 @@ import type { ToolResult, ToolUse } from "@/ai/tools";
 import { readHealthJournal } from "@/engine/healthJournal";
 import { useApp } from "@/state/store";
 import { buildVoiceSystemPrompt } from "@/ai/voicePrompt";
-import { persistChatTrace, recordChatTrace, traceClock, type ChatTrace } from "@/ai/chatTrace";
+import { persistChatTrace, recordChatTrace, systemPromptComposition, traceClock, type ChatTrace } from "@/ai/chatTrace";
 import { voiceCard } from "@/engine/voiceCard";
 
 type Source = { title: string; url: string; domain?: string };
@@ -421,6 +421,9 @@ function createBaseNetlifyChatModel(): ChatModelAdapter {
         path: "diretto",
         characterVoice: Boolean(activeMon),
         systemChars: systemPrompt.length,
+        systemPromptComposition: systemPromptComposition([
+          { name: activeMon ? "CHARACTER VOICE" : "NEUTRAL ASSISTANT", text: systemPrompt },
+        ]),
         model,
         effort: reasoningEffort ?? null,
         toolRounds: [],

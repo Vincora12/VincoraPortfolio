@@ -200,7 +200,9 @@ function writingStyle(d: CharacterData): NonNullable<PersonalityCard['writingSty
   let reactions: string;
   const reactionMode = seed % 7;
   const presetTexture = PRESET_TEXTURE[d.voice_preset];
-  if (emotion < 30) {
+  if (d.voice_preset === 'CAMP ICON') {
+    reactions = PRESET_TEXTURE['CAMP ICON']!;
+  } else if (emotion < 30) {
     reactions = 'uses no emoji or emoticons; emotion must remain in the wording';
   } else if (reactionMode <= 1) {
     reactions = 'uses old text emoticons instead of graphical emoji, rarely and only when earned: choose from :)  ;)  :/  :D  -_-  <3; never place more than one in a message';

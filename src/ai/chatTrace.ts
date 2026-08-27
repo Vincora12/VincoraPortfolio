@@ -17,6 +17,11 @@ export interface ChatTraceStep {
   ms: number;
 }
 
+export interface ChatTracePromptBlock {
+  name: string;
+  chars: number;
+}
+
 export interface ChatTrace {
   /** `strumenti` = replyWithLocalTools, `diretto` = streamReply. */
   path: 'strumenti' | 'diretto';
@@ -24,6 +29,8 @@ export interface ChatTrace {
   characterVoice: boolean;
   /** Caratteri totali mandati come system, tutti i blocchi insieme. */
   systemChars: number;
+  /** Composizione del system senza conservarne o mostrarne il testo. */
+  systemPromptComposition?: ChatTracePromptBlock[];
   /** Il modello che ha risposto per davvero, non quello richiesto. */
   model: string | null;
   effort: string | null;
@@ -42,6 +49,32 @@ export interface ChatTrace {
   error: string | null;
   steps: ChatTraceStep[];
   at: number;
+}
+
+const PROMPT_HEADING = /^[A-Z][A-Z0-9 .,'’/&()§—:+-]{2,}$/;
+
+/**
+ * Misura i blocchi principali senza salvare il loro contenuto nel trace.
+ * Le intestazioni sono già parte del compilatore: qui diventano soltanto
+ * etichette diagnostiche con il numero di caratteri realmente inviati.
+ */
+export function systemPromptComposition(
+  blocks: Array<{ name: string; text: string }>,
+): ChatTracePromptBlock[] {
+  return blocks.flatMap(({ name, text }) => {
+    const headings = [...text.matchAll(/^([^\n]+)$/gm)]
+      .filter((match) => PROMPT_HEADING.test(match[1]!.trim()))
+      .map((match) => ({ name: match[1]!.trim(), at: match.index ?? 0 }));
+    if (headings.length === 0) return [{ name, chars: text.length }];
+
+    const measured: ChatTracePromptBlock[] = [];
+    if (headings[0]!.at > 0) measured.push({ name, chars: headings[0]!.at });
+    headings.forEach((heading, index) => {
+      const end = headings[index + 1]?.at ?? text.length;
+      measured.push({ name: heading.name, chars: end - heading.at });
+    });
+    return measured.filter((block) => block.chars > 0);
+  });
 }
 
 let last: ChatTrace | null = null;
