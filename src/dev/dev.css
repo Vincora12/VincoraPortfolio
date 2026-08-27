@@ -915,3 +915,19 @@
   flex-direction: column;
   gap: var(--u2);
 }
+
+/* La stima mensile: in alto, con un bordo che la stacca dal resto — non è
+   una riga come le altre, è il numero che risponde alla domanda per cui
+   tutta questa scheda esiste. */
+.dev__estimate {
+  display: flex;
+  flex-direction: column;
+  gap: var(--u2);
+  padding: var(--u4);
+  border: 1px solid var(--char-accent);
+  border-radius: var(--radius);
+  margin-bottom: var(--u4);
+}
+.dev__estimate-total {
+  margin: 0;
+}

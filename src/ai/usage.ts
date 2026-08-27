@@ -71,7 +71,7 @@ export const PRICES: Record<string, { input: number; output: number }> = {
   default: { input: 5, output: 25 },
 };
 
-function priceFor(model: string): { input: number; output: number } {
+export function priceFor(model: string): { input: number; output: number } {
   const key = Object.keys(PRICES).find((k) => k !== 'default' && model.startsWith(k));
   return PRICES[key ?? 'default']!;
 }

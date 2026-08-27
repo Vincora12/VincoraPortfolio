@@ -26,6 +26,7 @@ import { DAILY_SIGNALS, DAILY_SIGNAL_LABELS } from '../../engine/progression';
 import { loadPing, loadSetup, loadShortcutStatus, type ShortcutStatus } from '../../ai/backend';
 import { lastRuns } from '../../ai/telemetry';
 import { freshSecret } from '../../engine/secret';
+import { estimateMonthlyCost } from '../../engine/costEstimate';
 import {
   AI_STEPS,
   AI_STEP_ORDER,
@@ -254,6 +255,12 @@ function Ai() {
     };
   }, [token]);
 
+  /* 🔷 «In alto con quelle scelte metti una media mensile di spesa,
+     pensando che io lo uso ogni giorno e faccio evoluzioni ogni 2 giorni.»
+     Ricalcolata a ogni render — cambia un modello qui sotto e il numero si
+     muove. */
+  const stima = estimateMonthlyCost(stepModels);
+
   return (
     <section className="page active">
       <PageHead
@@ -261,6 +268,15 @@ function Ai() {
         title="AI"
         lead="Per ogni lavoro: chi lo fa adesso, chi consiglio e perché, quanto costano le alternative. Stesso catalogo di DEV → AI/MODELLI, non una copia a parte."
       />
+
+      <Notice title={`STIMA MENSILE: $${stima.totalUsd.toFixed(2)}`}>
+        {stima.byCategory.map((c) => `${c.label} · $${c.usd.toFixed(2)}`).join(' — ')}
+        <br />
+        Premesse: {Math.round(stima.assunzioni.evoluzioniAlMese)} evoluzioni al mese (una ogni 2
+        giorni) · {stima.assunzioni.messaggiAlGiorno} messaggi al giorno (assunto, non dichiarato)
+        · uno su cinque merita il modello pieno. Stima, non contatore: token per chiamata
+        ragionevoli non misurati, senza cache — tende ad essere un filo alta, non bassa.
+      </Notice>
 
       <div style={{ marginTop: 12 }}>
         {AI_STEP_ORDER.map((id) => {

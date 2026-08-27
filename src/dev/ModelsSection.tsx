@@ -16,6 +16,7 @@ import { useEffect, useState } from 'react';
 import { useApp } from '../state/store';
 import { Button, SystemLabel } from '../system/components';
 import { lastRuns, subscribeToRuns, type StepRun } from '../ai/telemetry';
+import { estimateMonthlyCost } from '../engine/costEstimate';
 import {
   AI_STEPS,
   AI_STEP_ORDER,
@@ -126,6 +127,13 @@ export function ModelsSection() {
           CONSIGLIATO · COSTO + DATI
         </Button>
       </div>
+
+      {/* 🔷 «In alto con quelle scelte metti una media mensile di spesa,
+          pensando che io lo uso ogni giorno e faccio evoluzioni ogni 2
+          giorni.» Ricalcolata a ogni render: cambia un modello qui sotto e
+          il numero si muove — è il punto, non un totale fisso da leggere
+          una volta. */}
+      <MonthlyEstimateBox stepModels={stepModels} />
 
       {/* ══════════════════════════════════════════════════════════════════
           🔷 LA LEVA VERA, e sta sopra l'elenco perché è quella che conta.
@@ -282,6 +290,38 @@ export function ModelsSection() {
           );
         })}
       </ul>
+    </div>
+  );
+}
+
+/* ============================================================================
+   STIMA MENSILE — «pensando che io lo uso ogni giorno e faccio evoluzioni
+   ogni 2 giorni.» Vive fuori da `ModelsSection` per restare un componente
+   puro: riceve `stepModels`, non tocca lo store da solo.
+   ========================================================================= */
+function MonthlyEstimateBox({ stepModels }: { stepModels: Partial<Record<AiStepId, string>> }) {
+  const stima = estimateMonthlyCost(stepModels);
+  return (
+    <div className="dev__estimate">
+      <p className="t-meta dev__label">STIMA MENSILE, CON QUESTE SCELTE</p>
+      <p className="t-display dev__estimate-total">${stima.totalUsd.toFixed(2)}</p>
+      <div className="rowlist">
+        {stima.byCategory.map((c) => (
+          <p className="t-micro dev__note" key={c.label}>
+            {c.label} · ${c.usd.toFixed(2)}
+          </p>
+        ))}
+      </div>
+      <p className="t-micro dev__note">
+        Premesse: {Math.round(stima.assunzioni.evoluzioniAlMese)} evoluzioni al mese (una ogni 2
+        giorni, come detto) · {stima.assunzioni.messaggiAlGiorno} messaggi al giorno (non
+        dichiarato — assunto, cambia se il tuo uso è diverso) · un messaggio su cinque abbastanza
+        importante da meritare il modello pieno.
+      </p>
+      <p className="t-micro dev__note">
+        🟡 Stima, non contatore: i token per chiamata sono numeri ragionevoli, non misurati. Non
+        conta la cache — quindi tende a essere un filo più alta del vero, non più bassa.
+      </p>
     </div>
   );
 }
