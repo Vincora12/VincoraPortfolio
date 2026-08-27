@@ -3,22 +3,31 @@
 
    §18 chiedeva «log cost by request/subsystem in DEV». Questo lo mostra.
 
-   ⚠️ Due avvertenze che stanno in schermata e non solo qui, perché chi legge
-   un numero in dollari tende a crederci:
+   🔴 «Io non vedo quanto speso fin ora anche se ho azzerato il gioco i soldi
+   spesi devono rimanere.» Il numero VERO già esisteva e già sopravvive a
+   RICOMINCIA DA CAPO — vive sul server (`spend.ts`, Netlify Blobs, una chiave
+   per mese), non nella partita, e `resetAll` non lo tocca. Ma questa schermata
+   non lo mostrava: mostrava solo il conto di sessione, che è un'altra cosa e
+   sta sotto. E diceva pure una bugia — «immagini non collegate» — scritta
+   quando la pipeline immagini era ancora manuale (§22 di un'epoca precedente).
+   Oggi le immagini si generano davvero, costano davvero, e sono la voce più
+   grossa: `evolution-background.ts` e `lab-duel-background.ts` le registrano
+   sullo stesso ledger.
+
+   Due avvertenze che restano vere e stanno in schermata, non solo qui:
 
    1. **I prezzi sono cablati e stimati.** Sono l'unico dato del progetto che
       non posso verificare dal codice: cambiano quando vuole chi vende il
       modello. Vanno ricontrollati sul listino.
-   2. **Il conto vale per questa sessione.** Non è persistito: ricaricare la
-      pagina azzera. È telemetria di sviluppo, non contabilità.
-
-   Sotto c'è anche lo stato delle AI per le immagini, che è la cosa più utile
-   da sapere qui dentro: **non ce ne sono**. La pipeline immagini del prototipo
-   è manuale per scelta documentata (§22), e questa schermata lo dice invece di
-   lasciarlo scoprire cercando un pulsante che non esiste.
+   2. **Il conto di SESSIONE, sotto, non è quello reale.** Conta solo testo,
+      vive in un array in memoria (`usage.ts`), e ricaricare la pagina lo
+      azzera — utile per capire cosa è appena successo, non quanto hai speso
+      in totale. Il numero che conta è quello in cima.
    ========================================================================= */
 
+import { useEffect, useState } from 'react';
 import { useSyncExternalStore } from 'react';
+import { useApp } from '../state/store';
 import { Button, Row, SystemLabel } from '../system/components';
 import {
   clearUsage,
@@ -29,6 +38,73 @@ import {
   usageTotals,
 } from '../ai/usage';
 import { ASSET_TYPES, GENERATION_STAGES, frameCount, totalFrames } from '../engine/assets';
+
+/** Il numero vero: quanto ha speso questo mese, letto dal server. Sopravvive a
+    RICOMINCIA DA CAPO perché non vive nella partita — vive in `spend.ts`. */
+function RealSpend() {
+  const token = useApp((s) => s.token);
+  const [state, setState] = useState<
+    { spentUsd: number; capUsd: number; month: string } | null | 'loading' | 'error'
+  >('loading');
+
+  useEffect(() => {
+    if (!token) {
+      setState('error');
+      return;
+    }
+    let cancelled = false;
+    void import('../ai/backend').then(({ loadSetup }) =>
+      loadSetup(token).then(({ data }) => {
+        if (cancelled) return;
+        setState(
+          data && typeof data.spentUsd === 'number' && typeof data.capUsd === 'number'
+            ? { spentUsd: data.spentUsd, capUsd: data.capUsd, month: data.month ?? '' }
+            : 'error',
+        );
+      }),
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
+
+  if (state === 'loading') {
+    return <p className="t-micro dev__note">sto chiedendo al server…</p>;
+  }
+  if (state === 'error' || !state) {
+    return (
+      <p className="t-micro dev__note">
+        il server non risponde — senza token non c'è niente da chiedere.
+      </p>
+    );
+  }
+
+  const ratio = state.capUsd > 0 ? state.spentUsd / state.capUsd : 0;
+  return (
+    <>
+      <div className="rowlist">
+        <Row
+          label={`SPESO A ${state.month.toUpperCase()}`}
+          value={`$${state.spentUsd.toFixed(2)} su $${state.capUsd.toFixed(2)}`}
+        />
+      </div>
+      {ratio >= 0.75 && (
+        <p className="t-micro dev__note">
+          <SystemLabel tone={ratio >= 1 ? 'alert' : 'warning'}>
+            {ratio >= 1 ? 'TETTO RAGGIUNTO' : 'VICINO AL TETTO'}
+          </SystemLabel>{' '}
+          {ratio >= 1
+            ? 'il server rifiuta nuove chiamate finché non cambia il mese.'
+            : 'oltre il 75% del tetto mensile.'}
+        </p>
+      )}
+      <p className="t-micro dev__note">
+        Vive sul server, conta TUTTO — testo e immagini — e RICOMINCIA DA CAPO
+        non lo tocca: quello cancella la partita, non i soldi già spesi.
+      </p>
+    </>
+  );
+}
 
 const SUBSYSTEM_LABELS: Record<string, string> = {
   introduction: 'presentazione alla nascita',
@@ -51,7 +127,12 @@ export function CostSection() {
 
   return (
     <div className="dev__section">
-      <p className="t-meta dev__label">QUESTA SESSIONE</p>
+      <p className="t-meta dev__label">QUANTO HAI SPESO — IL NUMERO VERO</p>
+      <RealSpend />
+
+      <p className="t-meta dev__label">
+        QUESTA SESSIONE (stima parziale — solo testo, solo questo browser)
+      </p>
       <div className="rowlist">
         <Row label="CHIAMATE" value={String(totals.calls)} />
         <Row label="TOKEN IN INGRESSO" value={totals.inputTokens.toLocaleString('it-IT')} />
@@ -61,8 +142,10 @@ export function CostSection() {
 
       <p className="t-micro dev__note">
         Prezzi cablati e stimati, non letti da un listino: vanno ricontrollati
-        prima di farci un ragionamento. Il conto è di questa sessione e
-        ricaricare la pagina lo azzera.
+        prima di farci un ragionamento. Questo conto NON include le immagini
+        (vedi sotto) e ricaricare la pagina lo azzera: è utile per capire cosa
+        è appena successo in questa scheda, non quanto hai speso davvero — per
+        quello c'è il numero in cima.
       </p>
 
       {totals.bySubsystem.length > 0 && (
@@ -112,17 +195,21 @@ export function CostSection() {
 
       <p className="t-meta dev__label">AI PER LE IMMAGINI</p>
       <div className="dev__imagestate">
-        <SystemLabel tone="warning">NON COLLEGATA</SystemLabel>
+        <SystemLabel tone="character">COLLEGATA E A PAGAMENTO</SystemLabel>
         <p className="t-small dev__note">
-          La pipeline immagini è manuale per scelta (§22): il prototipo compila
-          i prompt e li esporta, le immagini le genera una persona e le
-          reimporta da DEV → ASSET. Nessuna chiamata, nessun costo.
+          {/* 🔴 Diceva «NON COLLEGATA» — vero quando la pipeline era manuale
+              (§22 di un'epoca precedente), falso oggi: le immagini si
+              generano davvero e sono la voce di costo più grossa. */}
+          Genera davvero, chiamata per chiamata: `evolution-background.ts` per
+          l'evoluzione, `lab-duel-background.ts` per il duello del LAB. Ogni
+          chiamata paga e finisce nel numero vero in cima a questa pagina, MAI
+          nel conto di sessione qui sopra — quello non le vede.
         </p>
         <p className="t-small dev__note">
-          Collegarla è un lavoro vero, non una chiave da incollare: servono un
-          modello che accetti un'immagine di riferimento — senza, i {totalFrames()}{' '}
-          frame di un .mon non restano lo stesso personaggio — e un posto dove
-          mettere i file che non sia il browser.
+          Quanto costano per creatura, e come abbassarle in bozza, sono in
+          DEV → MODELLI. Qui c'è solo quanto ne sono già uscite: {totalFrames()}{' '}
+          frame possibili per un .mon completo, contando anche i tre asset
+          storici che oggi non si generano più (segnati LEGACY sotto).
         </p>
       </div>
 
