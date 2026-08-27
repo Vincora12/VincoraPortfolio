@@ -2,6 +2,7 @@ import type { BrainMessage } from './store/types';
 import { TOOLS, assistantTurn, resultBlocks, type ToolResult, type ToolUse } from '../ai/tools';
 import { useApp } from '../state/store';
 import { buildVoiceSystemPrompt } from '../ai/voicePrompt';
+import { recordChatTrace, traceClock } from '../ai/chatTrace';
 
 /* ============================================================================
    🔷 «Riporta la chat a prima.» — e dentro, il problema vero.
@@ -68,8 +69,10 @@ export async function streamReply(
   const token = savedToken();
   if (!token) throw new Error('Prima attiva VINZ.MON: manca il token.');
 
+  const clock = traceClock();
+  const character = characterVoiceBlock();
   const system = [
-    characterVoiceBlock() ?? {
+    character ?? {
       text: [
         'You are VINZ.MON, a high-quality general personal AI assistant.',
         'Be accurate, useful, direct and natural. Do not roleplay or simulate emotions or consciousness.',
@@ -79,49 +82,74 @@ export async function streamReply(
       ].join(' '),
     },
   ];
+  clock.mark('SYSTEM PROMPT', character ? `voce vera · ${character.text.length} caratteri` : 'neutro (nessun .mon attivo)');
 
-  const response = await fetch('/api/ai', {
-    method: 'POST',
-    signal,
-    headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
-    body: JSON.stringify({
-      capability: 'character-voice',
-      voiceModel,
-      stream: false,
-      system,
-      webSearch: !image,
-      ...(image ? { image } : {}),
-      turns: turns.map(({ role, content, context }) => ({
-        role,
-        content: context ? `${content}\n\n[ALLEGATO]\n${context}` : content,
-      })),
-      user,
-      maxTokens: 2000,
-    }),
-  });
+  let model: string | null = null;
+  let errore: string | null = null;
+  try {
+    clock.mark('RICHIESTA', 'POST /api/ai · capability character-voice');
+    const response = await fetch('/api/ai', {
+      method: 'POST',
+      signal,
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        capability: 'character-voice',
+        voiceModel,
+        stream: false,
+        system,
+        webSearch: !image,
+        ...(image ? { image } : {}),
+        turns: turns.map(({ role, content, context }) => ({
+          role,
+          content: context ? `${content}\n\n[ALLEGATO]\n${context}` : content,
+        })),
+        user,
+        maxTokens: 2000,
+      }),
+    });
 
-  if (!response.ok || !response.body) {
-    const detail = await response.json().catch(() => null) as { error?: string; reason?: string } | null;
-    throw new Error(detail?.reason ?? detail?.error ?? `Richiesta fallita (${response.status}).`);
+    if (!response.ok || !response.body) {
+      const detail = await response.json().catch(() => null) as { error?: string; reason?: string } | null;
+      throw new Error(detail?.reason ?? detail?.error ?? `Richiesta fallita (${response.status}).`);
+    }
+
+    const contentType = response.headers.get('content-type') ?? '';
+    if (contentType.includes('application/json')) {
+      const body = await response.json() as { text?: string; costUsd?: number; model?: string };
+      if (!body.text) throw new Error(image ? 'Non sono riuscito a leggere l’immagine.' : 'La risposta è arrivata vuota.');
+      model = body.model ?? null;
+      clock.mark('RISPOSTA', model ?? 'modello sconosciuto');
+      onChunk(body.text);
+      return { costUsd: body.costUsd ?? 0, model: body.model };
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      const chunk = decoder.decode(value, { stream: true });
+      if (chunk) onChunk(chunk);
+    }
+    clock.mark('RISPOSTA', 'stream concluso');
+    return { costUsd: 0 };
+  } catch (e) {
+    errore = e instanceof Error ? e.message : String(e);
+    throw e;
+  } finally {
+    recordChatTrace({
+      path: 'diretto',
+      characterVoice: Boolean(character),
+      systemChars: system.reduce((n, b) => n + b.text.length, 0),
+      model,
+      effort: null,
+      toolRounds: [],
+      totalMs: clock.elapsed(),
+      error: errore,
+      steps: clock.steps(),
+      at: Date.now(),
+    });
   }
-
-  const contentType = response.headers.get('content-type') ?? '';
-  if (contentType.includes('application/json')) {
-    const body = await response.json() as { text?: string; costUsd?: number; model?: string };
-    if (!body.text) throw new Error(image ? 'Non sono riuscito a leggere l’immagine.' : 'La risposta è arrivata vuota.');
-    onChunk(body.text);
-    return { costUsd: body.costUsd ?? 0, model: body.model };
-  }
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    const chunk = decoder.decode(value, { stream: true });
-    if (chunk) onChunk(chunk);
-  }
-  return { costUsd: 0 };
 }
 
 const TOOL_INTENT = /\b(miei dati|mia salute|come sto|\bme\b|dormit\w*|allenat\w*|allenamento|palestra|workout|programma|piano|scheda|calendario|agenda|lista|riepilogo|sezione|blocco|corsa|camminata|mangiat\w*|bevut\w*|pasto|colazione|pranzo|cena|spuntino|merenda|extra|calori\w*|kcal|protein\w*|carbo\w*|grass\w*|macro|peso|dieta|barcode|codice a barre|etichetta|obiettiv\w*|target|corregg\w*|modific\w*|giornat\w*|protocollo|ricordami|promemoria|pagina|aspetto|schermata)\b/i;
@@ -199,6 +227,7 @@ export async function replyWithLocalTools(
   const token = savedToken();
   if (!token) throw new Error('Prima attiva VINZ.MON: manca il token.');
 
+  const clock = traceClock();
   const workoutPlanContext = isWorkoutPlanIntent(user)
     ? run({ id: 'read-workout-plan', name: 'leggi_me', input: { sezione: 'sport' } }).content
     : '';
@@ -208,8 +237,9 @@ export async function replyWithLocalTools(
      usare gli strumenti — regole operative valide a prescindere da chi
      risponde, e per questo restano qui invece di finire dentro
      `buildVoiceSystemPrompt`, che non sa niente di pasti o conferme. */
+  const character = characterVoiceBlock();
   const system = [
-    characterVoiceBlock() ?? { text: 'You are VINZ.MON, a neutral high-quality personal AI assistant. Answer in the user language.' },
+    character ?? { text: 'You are VINZ.MON, a neutral high-quality personal AI assistant. Answer in the user language.' },
     {
       text: [
         'Use tools whenever the answer depends on personal data or the user asks for an action.',
@@ -240,6 +270,7 @@ export async function replyWithLocalTools(
       ].join(' '),
     },
   ];
+  clock.mark('SYSTEM PROMPT', character ? `voce vera · ${character.text.length} caratteri` : 'neutro (nessun .mon attivo)');
   const history: Array<{ role: 'user' | 'assistant'; content: unknown }> = turns.map(
     ({ role, content, context }) => ({
       role,
@@ -250,6 +281,8 @@ export async function replyWithLocalTools(
   let userBlocks: Record<string, unknown>[] | undefined;
   let totalCostUsd = 0;
   let lastModel: string | undefined;
+  const toolRounds: string[][] = [];
+  let errore: string | null = null;
   /* Il backend accetta al massimo 12 strumenti per richiesta. Quelli salute
      sono in testa al catalogo; il limite evita che una frase come «ho
      mangiato una banana» venga rifiutata prima ancora che il modello la legga. */
@@ -278,85 +311,108 @@ export async function replyWithLocalTools(
       ? 'registra_allenamento'
     : explicitWrite;
 
-  for (let round = 0; round < 4; round++) {
-    const response = await fetch('/api/ai', {
-      method: 'POST',
-      signal,
-      headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
-      body: JSON.stringify({
-        capability: 'character-voice',
-        voiceModel,
-        system,
-        turns: history,
-        user: currentUser,
-        ...(round === 0 && images.length ? { images } : {}),
-        ...(round === 0 && files.length ? { files } : {}),
-        ...(userBlocks ? { userBlocks } : {}),
-        tools: round < 3 ? availableTools : [],
-        ...(round === 0 && forcedWrite ? { toolChoice: forcedWrite } : {}),
-        webSearch: true,
-        effort: 'none',
-        maxTokens: 2000,
-      }),
+  try {
+    for (let round = 0; round < 4; round++) {
+      clock.mark(`ROUND ${round + 1}`, `POST /api/ai · ${availableTools.length} strumenti disponibili`);
+      const response = await fetch('/api/ai', {
+        method: 'POST',
+        signal,
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          capability: 'character-voice',
+          voiceModel,
+          system,
+          turns: history,
+          user: currentUser,
+          ...(round === 0 && images.length ? { images } : {}),
+          ...(round === 0 && files.length ? { files } : {}),
+          ...(userBlocks ? { userBlocks } : {}),
+          tools: round < 3 ? availableTools : [],
+          ...(round === 0 && forcedWrite ? { toolChoice: forcedWrite } : {}),
+          webSearch: true,
+          effort: 'none',
+          maxTokens: 2000,
+        }),
+      });
+      const body = await response.json().catch(() => null) as {
+        text?: string;
+        toolUses?: ToolUse[];
+        error?: string;
+        reason?: string;
+        costUsd?: number;
+        model?: string;
+      } | null;
+      if (!response.ok || !body) {
+        throw new Error(body?.reason ?? body?.error ?? `Richiesta fallita (${response.status}).`);
+      }
+      totalCostUsd += body.costUsd ?? 0;
+      lastModel = body.model ?? lastModel;
+
+      const uses = body.toolUses ?? [];
+      if (uses.length === 0) {
+        clock.mark(`ROUND ${round + 1} — TESTO`, lastModel ?? 'modello sconosciuto');
+        if (!body.text?.trim()) throw new Error('La risposta è arrivata vuota.');
+        const confirmation = mealConfirmation?.status === 'needs-confirmation'
+          ? `\n\nConfermi che lo registro come **${mealConfirmation.slot === 'extra' ? 'extra / spuntino aggiuntivo' : mealConfirmation.slot}**?`
+          : workoutConfirmation?.status === 'needs-confirmation'
+            ? '\n\nConfermi che registro questo **allenamento** in ME?'
+          : '';
+        onChunk(`${body.text.trim()}${confirmation}`);
+        return { costUsd: totalCostUsd, model: lastModel };
+      }
+
+      toolRounds.push(uses.map((u) => u.name));
+      clock.mark(`ROUND ${round + 1} — STRUMENTI`, uses.map((u) => u.name).join(', '));
+
+      if (round === 0 && currentUser) history.push({ role: 'user', content: currentUser });
+      history.push(assistantTurn(body.text ?? '', uses) as { role: 'assistant'; content: unknown });
+      const toolResults = uses.map((use) => {
+        if (use.name !== 'registra_pasto' || mealConfirmation?.status !== 'confirmed') return run(use);
+        const input = typeof use.input === 'object' && use.input ? use.input as Record<string, unknown> : {};
+        return run({ ...use, input: { ...input, pasto: mealConfirmation.slot } });
+      });
+
+      /* Una scrittura imposta e riuscita è già la verità finale. Prima la
+         rimandavamo al provider per farla riformulare: quel secondo giro poteva
+         rifiutare il function_call_output e mostrare un errore anche DOPO aver
+         salvato correttamente in ME. Chiudiamo invece il turno sul risultato
+         reale dello strumento: niente falso «non ho accesso al diario». */
+      if (forcedWrite && uses.some((use) => use.name === forcedWrite)) {
+        const failed = toolResults.find((result) => result.isError);
+        if (failed) throw new Error(failed.content);
+        const confirmation = ({
+          registra_pasto: 'Pasto registrato in ME.',
+          registra_allenamento: 'Allenamento registrato in ME.',
+          registra_peso: 'Peso aggiornato in ME.',
+          imposta_dieta: 'Piano alimentare aggiornato in ME.',
+          imposta_piano_allenamento: 'Piano di allenamento aggiornato in ME.',
+          imposta_obiettivi_nutrizionali: 'Obiettivi nutrizionali aggiornati in ME.',
+          gestisci_me: 'ME aggiornato.',
+        } as Record<string, string>)[forcedWrite] ?? 'ME aggiornato.';
+        onChunk(confirmation);
+        return { costUsd: totalCostUsd, model: lastModel };
+      }
+
+      userBlocks = resultBlocks(toolResults);
+      currentUser = '';
+    }
+
+    throw new Error('La richiesta ha usato troppi passaggi. Prova a dividerla in due.');
+  } catch (e) {
+    errore = e instanceof Error ? e.message : String(e);
+    throw e;
+  } finally {
+    recordChatTrace({
+      path: 'strumenti',
+      characterVoice: Boolean(character),
+      systemChars: system.reduce((n, b) => n + b.text.length, 0),
+      model: lastModel ?? null,
+      effort: 'none',
+      toolRounds,
+      totalMs: clock.elapsed(),
+      error: errore,
+      steps: clock.steps(),
+      at: Date.now(),
     });
-    const body = await response.json().catch(() => null) as {
-      text?: string;
-      toolUses?: ToolUse[];
-      error?: string;
-      reason?: string;
-      costUsd?: number;
-      model?: string;
-    } | null;
-    if (!response.ok || !body) {
-      throw new Error(body?.reason ?? body?.error ?? `Richiesta fallita (${response.status}).`);
-    }
-    totalCostUsd += body.costUsd ?? 0;
-    lastModel = body.model ?? lastModel;
-
-    const uses = body.toolUses ?? [];
-    if (uses.length === 0) {
-      if (!body.text?.trim()) throw new Error('La risposta è arrivata vuota.');
-      const confirmation = mealConfirmation?.status === 'needs-confirmation'
-        ? `\n\nConfermi che lo registro come **${mealConfirmation.slot === 'extra' ? 'extra / spuntino aggiuntivo' : mealConfirmation.slot}**?`
-        : workoutConfirmation?.status === 'needs-confirmation'
-          ? '\n\nConfermi che registro questo **allenamento** in ME?'
-        : '';
-      onChunk(`${body.text.trim()}${confirmation}`);
-      return { costUsd: totalCostUsd, model: lastModel };
-    }
-
-    if (round === 0 && currentUser) history.push({ role: 'user', content: currentUser });
-    history.push(assistantTurn(body.text ?? '', uses) as { role: 'assistant'; content: unknown });
-    const toolResults = uses.map((use) => {
-      if (use.name !== 'registra_pasto' || mealConfirmation?.status !== 'confirmed') return run(use);
-      const input = typeof use.input === 'object' && use.input ? use.input as Record<string, unknown> : {};
-      return run({ ...use, input: { ...input, pasto: mealConfirmation.slot } });
-    });
-
-    /* Una scrittura imposta e riuscita è già la verità finale. Prima la
-       rimandavamo al provider per farla riformulare: quel secondo giro poteva
-       rifiutare il function_call_output e mostrare un errore anche DOPO aver
-       salvato correttamente in ME. Chiudiamo invece il turno sul risultato
-       reale dello strumento: niente falso «non ho accesso al diario». */
-    if (forcedWrite && uses.some((use) => use.name === forcedWrite)) {
-      const failed = toolResults.find((result) => result.isError);
-      if (failed) throw new Error(failed.content);
-      const confirmation = ({
-        registra_pasto: 'Pasto registrato in ME.',
-        registra_allenamento: 'Allenamento registrato in ME.',
-        registra_peso: 'Peso aggiornato in ME.',
-        imposta_dieta: 'Piano alimentare aggiornato in ME.',
-        imposta_piano_allenamento: 'Piano di allenamento aggiornato in ME.',
-        imposta_obiettivi_nutrizionali: 'Obiettivi nutrizionali aggiornati in ME.',
-        gestisci_me: 'ME aggiornato.',
-      } as Record<string, string>)[forcedWrite] ?? 'ME aggiornato.';
-      onChunk(confirmation);
-      return { costUsd: totalCostUsd, model: lastModel };
-    }
-
-    userBlocks = resultBlocks(toolResults);
-    currentUser = '';
   }
-
-  throw new Error('La richiesta ha usato troppi passaggi. Prova a dividerla in due.');
 }

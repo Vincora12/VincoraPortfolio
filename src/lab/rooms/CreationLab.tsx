@@ -22,6 +22,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useApp } from '../../state/store';
+import { lastChatTrace, subscribeChatTrace, type ChatTrace } from '../../ai/chatTrace';
 import { FASI, PASSI, type FaseId } from './creationFlow';
 import { FAMILIES, MOODS, VOICE_PRESETS } from '../../engine/generation-config';
 import { keepEnabled } from '../../engine/catalogTuning';
@@ -642,7 +643,94 @@ function Persona() {
           </div>
         ))}
       </div>
+
+      {/* 6 — QUANDO RISPONDE IN CHAT */}
+      <h2 className="persona-h2">6 — QUANDO TI RISPONDE IN CHAT</h2>
+      <p className="lead" style={{ marginBottom: 10 }}>
+        «Ci mette tantissimo, e dice delle cose strane.» Questa non è la personalità che nasce —
+        è il percorso vero dell'ULTIMO scambio della sessione: quale strada ha preso, con che
+        prompt, cosa ha chiamato, quanto ci ha messo davvero.
+      </p>
+      <ChatFlow />
     </section>
+  );
+}
+
+function ChatFlow() {
+  const [trace, setTrace] = useState<ChatTrace | null>(() => lastChatTrace());
+  useEffect(() => subscribeChatTrace(() => setTrace(lastChatTrace())), []);
+
+  if (!trace) {
+    return (
+      <div className="notice mono">
+        Nessuno scambio ancora in questa sessione. Vai in chat, scrivigli qualcosa, torna qui: la
+        riga qui sotto si aggiorna da sola.
+      </div>
+    );
+  }
+
+  return (
+    <div className="truthbox">
+      <div className="kicker mono">
+        {trace.path === 'strumenti' ? '🔀 PERCORSO CON STRUMENTI' : '💬 PERCORSO DIRETTO'} ·{' '}
+        {trace.error ? '❌ FALLITO' : '✅ RISPOSTO'}
+      </div>
+
+      {/* La riga che spiega «perché sembra un'altra persona»: se qui c'è
+          scritto NEUTRO, quel turno non ha letto Voice DNA, umore o memoria —
+          non è il .mon che parla fuori personaggio, è il prompt che non
+          gliel'ha dato. */}
+      <div className="truthline">
+        <span className={`who ${trace.characterVoice ? 'ai' : 'code'}`}>VOCE</span>
+        <b>
+          {trace.characterVoice
+            ? `personaggio vero · ${trace.systemChars.toLocaleString('it-IT')} caratteri di system prompt`
+            : 'NEUTRO — nessun .mon attivo letto in questo turno'}
+        </b>
+      </div>
+      <div className="truthline">
+        <span className="who code">MODELLO</span>
+        <b>{trace.model ?? '—'}{trace.effort ? ` · effort ${trace.effort}` : ''}</b>
+      </div>
+      <div className="truthline">
+        <span className="who code">TEMPO</span>
+        <b>{(trace.totalMs / 1000).toFixed(1)}s{trace.totalMs > 6000 ? ' — lungo: guarda quanti ROUND sotto' : ''}</b>
+      </div>
+      {trace.toolRounds.length > 0 && (
+        <div className="truthline">
+          <span className="who code">STRUMENTI</span>
+          <b>{trace.toolRounds.map((r, i) => `giro ${i + 1}: ${r.join(', ')}`).join(' → ')}</b>
+        </div>
+      )}
+      {trace.error && (
+        <div className="truthline">
+          <span className="who code">ERRORE</span>
+          <b>{trace.error}</b>
+        </div>
+      )}
+
+      <details style={{ marginTop: 10 }}>
+        <summary className="mono" style={{ cursor: 'pointer', padding: '8px 0', fontSize: 11 }}>
+          LA CRONOLOGIA, TAPPA PER TAPPA
+        </summary>
+        {trace.steps.map((s, i) => (
+          <div className="truthline" key={i}>
+            <span className="who code">{s.ms}ms</span>
+            <b>
+              {s.label} — {s.detail}
+            </b>
+          </div>
+        ))}
+      </details>
+
+      <p className="hint" style={{ marginTop: 10 }}>
+        {trace.path === 'strumenti' && trace.toolRounds.length > 1
+          ? `Ogni giro (${trace.toolRounds.length} qui) è una chiamata di rete separata, in fila: è la causa più comune di una risposta lenta.`
+          : !trace.characterVoice
+            ? 'Un turno neutro succede solo se il .mon attivo non era leggibile in quel momento — capita nel .lab, che non condivide il salvataggio di VINZ.MON.'
+            : 'Una sola chiamata, in carattere: se la risposta era comunque strana o lenta, guarda il modello e i caratteri di prompt qui sopra.'}
+      </p>
+    </div>
   );
 }
 

@@ -3483,6 +3483,34 @@ check(
   );
 }
 
+/* ============================================================================
+   §12/06 CHAT VIVA — «la chat non aggiorna più dieta/allenamento, abbiamo
+   buttato via tanto lavoro» / «esco e rientro e ritorna sempre a una
+   sessione vecchia».
+
+   🔴 QUESTO AGO ESISTE PERCHÉ LA STESSA SCELTA È STATA SBAGLIATA DUE VOLTE
+   nella stessa sessione, in due direzioni opposte. `LazyChat`
+   (assistant-original/IntegratedChat) ha un'estetica migliore ma è un
+   sistema PARALLELO: cronologia propria (`assistant-ui-official-chatgpt:`,
+   non `s.chat`), strumenti che passano da `runTool` senza mai toccare
+   `sendMessage` — dove vivono `extractFromMessage` (dieta/allenamento/umore
+   letti dal testo), la marcatura del SYNC del turno e l'animazione
+   «registrato». Due cronologie diverse spiegano anche il rientro su una
+   sessione vecchia. `CompanionHomeScreen` chiama `sendMessage` per davvero:
+   è l'unica integrata con tutto il resto del gioco, anche se più semplice
+   a vedersi — e quella semplicità NON è un difetto da correggere tornando
+   a `LazyChat`. */
+{
+  const appSrc = read('src/App.tsx') ?? '';
+  const liveChatBlock = /className=\{`live-chat[\s\S]{0,600}?<\/div>/.exec(appSrc)?.[0] ?? '';
+  check(
+    '§12/06 CHAT VIVA',
+    'la tab CHAT monta CompanionHomeScreen — sendMessage vero, non un sistema di chat parallelo',
+    liveChatBlock.includes('CompanionHomeScreen') && !liveChatBlock.includes('LazyChat'),
+    'LazyChat tiene la sua cronologia a parte e i suoi strumenti non passano da sendMessage: dieta, allenamento, SYNC del turno e «rientra su una sessione vecchia» sono il costo reale di questo scambio, non un dettaglio estetico',
+  );
+}
+
 check(
   '§19.3 STEP',
   'SYSTEM.LAB → AI legge lo stesso catalogo di DEV → AI/MODELLI, non i tre campi morti',
