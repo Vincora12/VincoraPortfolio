@@ -345,6 +345,27 @@ function renderCharacterDna(data: CharacterData): string {
       .map((c) => `${c.a} together with ${c.b}`)
       .join('; ')}`,
   ];
+  /* 🔒 QUESTE DUE RIGHE RIPETONO INFORMAZIONI GIÀ SCRITTE PIÙ SU (nel blocco
+     VINZ IDENTITY, subito dopo `marker.eyewear`/`marker.*`), E DEVONO
+     RESTARE COSÌ. NON È UNA DUPLICAZIONE ACCIDENTALE DA "PULIRE".
+
+     🔷 «Gli occhiali non uscivano bene, non sembravano reali, e i capelli
+     dovevano essere più precisi» — questo era il problema, e la ripetizione
+     è la contromisura. La prima menzione (VINZ IDENTITY) dice AL DESIGNER
+     quale soluzione usare, come istruzione. Questa seconda, dentro
+     CHARACTER DNA, è diversa di natura: è una voce di una CHECKLIST — «Must
+     explicitly materialize: ... exact eyewear solution ... exact haircut /
+     bleach solution» — cioè non ripete la descrizione per pigrizia, la
+     impone di nuovo come cosa che deve REALMENTE COMPARIRE nell'immagine
+     finita, allo stesso livello di silhouette quirk, gimmick anatomico e
+     logica occhi. Un dettaglio detto una volta sola, in un prompt lungo,
+     è un dettaglio che il modello può descrivere bene e poi non disegnare.
+
+     ⚠️ È STATO TOLTO UNA VOLTA, PENSANDO FOSSE UN COPIA-INCOLLA DIMENTICATO
+     (misurando caratteri, non guardando immagini). Era nel codice fin dal
+     primo commit che ha adottato la Generation Bible v2.1 — non una toppa
+     successiva. Prima di toccarle di nuovo: genera e guarda come vengono
+     occhiali e capelli, non contare caratteri. */
   if (data.eyewear) lines.push(`exact eyewear solution: ${data.eyewear.description}`);
   if (data.haircut && data.hair_state) {
     lines.push(`exact haircut / bleach solution: ${data.haircut}, ${data.hair_state}`);
