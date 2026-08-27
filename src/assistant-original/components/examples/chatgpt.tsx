@@ -44,11 +44,18 @@ import { Sources } from "@/assistant-original/components/assistant-ui/sources";
 import { CloneThreadShell } from "./clone-thread-shell";
 import { useApp } from "@/state/store";
 import { voiceCard } from "@/engine/voiceCard";
-import { fallbackGreeting } from "@/engine/voiceDna";
-import { makeRng, seedFromString } from "@/engine/rng";
 import { useAssetUrl } from "@/system/AssetSlot";
 import { EXPRESSION_SPEC, EXPRESSIONS } from "@/engine/assets";
 import { loadChatTrace, type ChatTrace } from "@/ai/chatTrace";
+import {
+  buildOpening,
+  buildThoughtStatus,
+  localMicroMemory,
+  rememberConversation,
+  rememberThoughtStatus,
+  thoughtKind,
+  toneFor,
+} from "@/assistant-original/chat-micro-behaviors";
 
 export const ChatGPT: FC = () => {
   return (
@@ -56,6 +63,7 @@ export const ChatGPT: FC = () => {
       <ChatCostTotal />
       <LogCelebration />
       <ReactionMessageDispatcher />
+      <ConversationMemory />
       <ThreadPrimitive.Root className="flex h-full flex-col items-stretch bg-white px-4 text-[#0d0d0d] dark:bg-black dark:text-[#ececec]">
         <AuiIf condition={(s) => s.thread.isEmpty}>
           <EmptyState />
@@ -96,6 +104,22 @@ export const ChatGPT: FC = () => {
   );
 };
 
+/** Conserva solo l'ultimo messaggio utile per poter riprendere davvero il filo. */
+const ConversationMemory: FC = () => {
+  const latestUserText = useAuiState((state) => {
+    const message = [...state.thread.messages].reverse().find((item) => item.role === 'user');
+    return message?.content
+      .filter((part) => part.type === 'text')
+      .map((part) => part.type === 'text' ? part.text : '')
+      .join(' ')
+      .trim() ?? '';
+  });
+  useEffect(() => {
+    if (latestUserText) rememberConversation(latestUserText);
+  }, [latestUserText]);
+  return null;
+};
+
 /* 🔷 «La barra della chat non metterla mai al centro, sempre in basso.»
    🔴 A conversazione vuota stava in mezzo allo schermo (`justify-center` +
    `pb-[16vh]`) e poi, al primo messaggio, saltava giù in fondo: due posti
@@ -111,23 +135,21 @@ const EmptyState: FC = () => {
   useEffect(() => {
     if (didGreet.current) return;
     didGreet.current = true;
-
-    const greeting = record
-      ? fallbackGreeting(
-          makeRng(seedFromString(`${record.data.name}:chat:${Date.now()}`)),
-          record.data.mood_primary,
-          record.data.voice_dna,
-        )
-      : "Ciao. Da dove iniziamo?";
-
-    aui.thread.append({
-      role: "assistant",
-      content: [{ type: "text", text: greeting }],
-      metadata: record
-        ? { custom: { monGreeting: true, monName: record.data.name } }
-        : { custom: { monGreeting: true } },
-      startRun: false,
+    let cancelled = false;
+    const card = record ? voiceCard(record) : null;
+    const tone = toneFor(record?.data.voice_preset ?? null, card?.fingerprint ?? '');
+    void buildOpening(tone, record?.data.name ?? 'VINZ.MON').then((greeting) => {
+      if (cancelled) return;
+      aui.thread.append({
+        role: "assistant",
+        content: [{ type: "text", text: greeting }],
+        metadata: record
+          ? { custom: { monGreeting: true, monName: record.data.name } }
+          : { custom: { monGreeting: true } },
+        startRun: false,
+      });
     });
+    return () => { cancelled = true; };
   }, [aui, record]);
 
   return (
@@ -967,108 +989,11 @@ const ActivePersonality: FC = () => {
 
    La riga sparisce da sola appena arriva la prima parola: da lì in poi il
    testo che compare È il feedback. */
-type ThoughtKind = 'thinking' | 'recall' | 'search' | 'choice' | 'unsure' | 'action';
-type ThoughtTone = 'camp' | 'dry' | 'warm' | 'electric' | 'mysterious' | 'direct';
-
-const THOUGHT_LINES: Record<ThoughtTone, Record<ThoughtKind, readonly string[]>> = {
-  camp: {
-    thinking: ['Fammi pensare…', 'Sto componendo…', 'Un attimo, tesoro…'],
-    recall: ['Fammi ricordare…', 'Pesco dalla memoria…', 'Ce l’ho quasi…'],
-    search: ['Controllo subito…', 'Vado a vedere…', 'Indago un secondo…'],
-    choice: ['Questa è delicata…', 'Scelgo bene…', 'Niente mosse affrettate…'],
-    unsure: ['Mh, aspetta…', 'Qui qualcosa non torna…', 'Fammi capire…'],
-    action: ['Me ne occupo…', 'Lo sistemo…', 'Sono all’opera…'],
-  },
-  dry: {
-    thinking: ['Valuto.', 'Un momento.', 'Ci penso.'],
-    recall: ['Recupero il dato.', 'Controllo la memoria.', 'Ricostruisco.'],
-    search: ['Verifico.', 'Controllo.', 'Cerco conferma.'],
-    choice: ['Valuto le opzioni.', 'Scelgo con criterio.', 'Decisione in corso.'],
-    unsure: ['Dato incerto.', 'Un momento.', 'Non torna.'],
-    action: ['Procedo.', 'Eseguo.', 'Lo sistemo.'],
-  },
-  warm: {
-    thinking: ['Ci penso con te…', 'Un attimo…', 'Metto insieme i pezzi…'],
-    recall: ['Fammi ricordare…', 'Riprendo il filo…', 'Cerco nella memoria…'],
-    search: ['Controllo per te…', 'Vado a verificare…', 'Cerco bene…'],
-    choice: ['Valutiamola bene…', 'Scelgo con cura…', 'Un passo alla volta…'],
-    unsure: ['Aspetta, controllo…', 'Non ne sono ancora sicuro…', 'Fammi capire meglio…'],
-    action: ['Ci penso io…', 'Lo preparo…', 'Lo sistemo…'],
-  },
-  electric: {
-    thinking: ['Ci sono…', 'Elaboro…', 'Un secondo…'],
-    recall: ['Riaggancio il filo…', 'Recupero…', 'Memoria in corsa…'],
-    search: ['Check rapido…', 'Verifico al volo…', 'Cerco…'],
-    choice: ['Calcolo la mossa…', 'Scelgo la linea…', 'Decisione in corso…'],
-    unsure: ['Aspetta—', 'Segnale confuso…', 'Ricalcolo…'],
-    action: ['In azione…', 'Lo faccio…', 'Partito…'],
-  },
-  mysterious: {
-    thinking: ['Ascolto il segnale…', 'Lascialo emergere…', 'Seguo il filo…'],
-    recall: ['Torno indietro…', 'Cerco una traccia…', 'Qualcosa riaffiora…'],
-    search: ['Cerco il segnale…', 'Guardo oltre…', 'Verifico la traccia…'],
-    choice: ['Due strade…', 'Scelgo il varco…', 'Punto preciso…'],
-    unsure: ['Il segnale è sporco…', 'Aspetta…', 'C’è nebbia qui…'],
-    action: ['Muovo i pezzi…', 'Apro il varco…', 'Procedo…'],
-  },
-  direct: {
-    thinking: ['Ci penso…', 'Metto insieme i pezzi…', 'Un attimo…'],
-    recall: ['Cerco nella memoria…', 'Riprendo il filo…', 'Recupero il dato…'],
-    search: ['Sto controllando…', 'Cerco conferma…', 'Verifico…'],
-    choice: ['Valuto le opzioni…', 'Scelgo con attenzione…', 'Decisione difficile…'],
-    unsure: ['Fammi capire…', 'Qui non sono sicuro…', 'Controllo meglio…'],
-    action: ['Me ne occupo…', 'Lo preparo…', 'Procedo…'],
-  },
-};
-
-const PRESET_THOUGHT_TONE: Partial<Record<string, ThoughtTone>> = {
-  'CAMP ICON': 'camp',
-  'DEADPAN FILE': 'dry',
-  'SILENT STOIC': 'dry',
-  'CORPORATE DEMON': 'dry',
-  'NERD TERMINAL': 'dry',
-  'SOFT PROTECTOR': 'warm',
-  'SWEET MENACE': 'warm',
-  'SPORT HYPE': 'electric',
-  'COCKY RIVAL': 'electric',
-  'CHAOTIC GEN-Z': 'electric',
-  'ABSURD LITTLE FREAK': 'electric',
-  'MYSTERY SIGNAL': 'mysterious',
-  'GOTH POET': 'mysterious',
-  'OLD-SOUL ORACLE': 'mysterious',
-};
-
-function thoughtTone(preset: string | null, fingerprint: string): ThoughtTone {
-  if (preset && PRESET_THOUGHT_TONE[preset]) return PRESET_THOUGHT_TONE[preset]!;
-  if (fingerprint.includes('pace:high')) return 'electric';
-  if (fingerprint.includes('emotion:high') || fingerprint.includes('closeness:high')) return 'warm';
-  if (fingerprint.includes('emotion:low')) return 'dry';
-  return 'direct';
-}
-
-function thoughtKind(toolName: string | null, request: string): ThoughtKind {
-  const signal = `${toolName ?? ''} ${request}`.toLocaleLowerCase('it');
-  if (toolName && /(search|ricerca|web|browse|url)/.test(signal)) return 'search';
-  if (toolName && /(memory|memoria|recall|ricord|read|leggi|dati|dex)/.test(signal)) return 'recall';
-  if (toolName) return 'action';
-  if (/(cerca|controlla|verifica|online|internet|notizi|fonte)/.test(signal)) return 'search';
-  if (/(ricord|memoria|avevo detto|precedente|tempo fa)/.test(signal)) return 'recall';
-  if (/(scegli|scelta|meglio|confronta|decidi|decisione)/.test(signal)) return 'choice';
-  if (/(non capisco|confus|incert|dubbio|non so|boh)/.test(signal)) return 'unsure';
-  return 'thinking';
-}
-
-function thoughtHash(value: string): number {
-  let hash = 2166136261;
-  for (const char of value) hash = Math.imul(hash ^ char.charCodeAt(0), 16777619);
-  return hash >>> 0;
-}
-
 const StatoDelPensiero: FC = () => {
   const record = useApp((state) =>
     state.activeMonName ? state.mons[state.activeMonName] ?? null : null,
   );
-  const { inCorso, testoGiaArrivato, strumento, richiesta, messageId } = useAuiState(
+  const { inCorso, testoGiaArrivato, strumento, azioneCompletata, richiesta, messageId } = useAuiState(
     useShallow((s) => {
       const parts = s.message.content ?? [];
       const running = s.message.status?.type === 'running';
@@ -1088,6 +1013,7 @@ const StatoDelPensiero: FC = () => {
         inCorso: running,
         testoGiaArrivato: conTesto,
         strumento: attivo && attivo.type === 'tool-call' ? attivo.toolName : null,
+        azioneCompletata: parts.some((part) => part.type === 'tool-call' && part.result !== undefined),
         richiesta: testoUtente,
         messageId: s.message.id,
       };
@@ -1095,7 +1021,16 @@ const StatoDelPensiero: FC = () => {
   );
 
   const [giro, setGiro] = useState(0);
-  const precedente = useRef('');
+  const recenti = useRef(localMicroMemory().recentStatuses);
+  const card = record ? voiceCard(record) : null;
+  const tone = toneFor(record?.data.voice_preset ?? null, card?.fingerprint ?? '');
+  const kind = thoughtKind(strumento, richiesta, azioneCompletata && !strumento ? 'after-action' : undefined);
+  const frase = buildThoughtStatus({
+    tone,
+    kind,
+    seed: `${messageId}|${record?.data.name ?? 'neutral'}|${kind}|${giro}`,
+    recent: recenti.current,
+  });
 
   /* Il ciclo delle frasi generiche parte solo quando servono davvero: montare
      un timer che gira anche a chat ferma sarebbe lavoro per niente. */
@@ -1105,18 +1040,13 @@ const StatoDelPensiero: FC = () => {
     return () => clearInterval(t);
   }, [inCorso, testoGiaArrivato, strumento]);
 
-  if (!inCorso || testoGiaArrivato) return null;
+  useEffect(() => {
+    if (!inCorso || testoGiaArrivato || (giro > 0 && !strumento)) return;
+    recenti.current = [...recenti.current.filter((item) => item !== frase), frase].slice(-6);
+    rememberThoughtStatus(frase);
+  }, [frase, giro, inCorso, strumento, testoGiaArrivato]);
 
-  const card = record ? voiceCard(record) : null;
-  const tone = thoughtTone(record?.data.voice_preset ?? null, card?.fingerprint ?? '');
-  const kind = thoughtKind(strumento, richiesta);
-  const candidates = THOUGHT_LINES[tone][kind];
-  let index = thoughtHash(`${messageId}|${record?.data.name ?? 'neutral'}|${kind}|${giro}`) % candidates.length;
-  if (candidates[index] === precedente.current && candidates.length > 1) {
-    index = (index + 1) % candidates.length;
-  }
-  const frase = candidates[index]!;
-  precedente.current = frase;
+  if (!inCorso || testoGiaArrivato) return null;
 
   return (
     <div
