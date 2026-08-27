@@ -351,6 +351,30 @@ check(
   has('src/assets-pipeline/generate.ts', 'opts.quality ?? assetTypeDef(type).quality'),
 );
 
+/* --- Il compilatore compatto, e il suo confine --------------------------- */
+const COMPILER = 'src/assets-pipeline/compiler.ts';
+check(
+  'COMPILATORE COMPATTO',
+  'l’interruttore esiste ed è spento di default',
+  has(COMPILER, 'compact?: boolean') && has('src/state/store.ts', 'compactPrompts: false'),
+);
+/* 🔒 Il confine dichiarato: solo la duplicazione, mai contenuto vero. Se un
+   giorno `compact` iniziasse a rimuovere altro (un blocco AVOID, una regola
+   del designer), questo ago non lo saprebbe dire — ma sa dire che il
+   meccanismo dichiarato è ancora quello e non un `if (compact) return '';`
+   generico piazzato altrove. */
+check(
+  'COMPILATORE COMPATTO',
+  'tocca solo il compilatore concatenato, mai il resolver di ChatGPT',
+  !has('src/assets-pipeline/resolver/vendor/compiler.ts', 'compact'),
+);
+check(
+  'COMPILATORE COMPATTO',
+  'e la generazione vera lo vede: hatch, evoluzione, rifallo',
+  has('src/state/store.ts', 'initial.dev.compactPrompts') &&
+    has('src/state/store.ts', 'compact: get().dev.compactPrompts'),
+);
+
 /* --- La voce a due velocità -------------------------------------------------
    🔷 «Serve avere sempre tutto in alta? Usiamo delle AI basse, a chiamata si
    alzano.» — sì, e la letteratura del 2026 dà la stessa risposta: il routing
@@ -3022,11 +3046,18 @@ check(
     has('src/assets-pipeline/resolver/vendor/rules.ts', 'headScale'),
   'li avevo innestati anche nella nostra tabella: la seconda verità è sempre quella che resta indietro',
 );
+/* 🔶 QUI L'AGO CONTAVA `promptFor(record, type)` LETTERALE, senza argomenti
+   dopo. Si è rotto quando `promptFor` ha guadagnato un terzo parametro
+   opzionale (`{ compact }`, l'interruttore del compilatore compatto in LAB):
+   stesso difetto già corretto due volte in questa sessione, sulla FORMA della
+   chiamata invece che sulla decisione. La decisione vera è che `generate.ts`
+   chiami `promptFor` UNA volta sola per asset — non zero volte perché passa
+   diretto a `compilePrompt`, non due perché qualcuno duplica la scelta. */
 check(
   '§10 DUE STADI',
   'un prompt ha una porta sola, qualunque sia la sorgente',
   has('src/assets-pipeline/promptFor.ts', 'export function promptFor') &&
-    count('src/assets-pipeline/generate.ts', /promptFor\(record, type\)/g) === 1 &&
+    count('src/assets-pipeline/generate.ts', /promptFor\(record, type/g) === 1 &&
     lacksInCode('src/dev/AssetImport.tsx', 'compilePrompt('),
   'erano tre sorgenti e quattro consumatori: dodici occasioni di consegnare il testo sbagliato senza che niente fallisca',
 );

@@ -15,12 +15,27 @@ export type RemoteEvolutionStatus = {
 
 const headers = (token: string) => ({ 'content-type': 'application/json', authorization: `Bearer ${token}` });
 
-export async function queueRemoteGeneration(token: string, jobId: string, record: MonRecord, imageModel?: string | null, onlyTypes?: AssetType[], quality?: 'low' | 'medium' | 'high'): Promise<void> {
+export async function queueRemoteGeneration(
+  token: string,
+  jobId: string,
+  record: MonRecord,
+  imageModel?: string | null,
+  onlyTypes?: AssetType[],
+  quality?: 'low' | 'medium' | 'high',
+  /**
+   * 🔷 DEV → LAB: la versione compatta del compilatore concatenato.
+   *
+   * Puramente lato browser — al server arriva già il testo compilato dentro
+   * `prompt`, non un flag da interpretare: non c'è niente da capire dall'altra
+   * parte, solo un prompt un po' più corto.
+   */
+  compactPrompts?: boolean,
+): Promise<void> {
   const wanted = onlyTypes ? new Set(onlyTypes) : null;
   const items = generationOrder().filter((def) => !wanted || wanted.has(def.type)).map((def) => ({
     type: def.type,
     assetId: def.assetId,
-    prompt: promptFor(record, def.type).text,
+    prompt: promptFor(record, def.type, { compact: compactPrompts === true }).text,
     size: def.size,
     /* La qualità viaggia PER ASSET, non per lavoro: sticker e doodle si
        vedono piccoli e vanno in bozza anche quando gli altri due no. */

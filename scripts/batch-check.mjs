@@ -860,15 +860,24 @@ const voiceSrc = readFileSync(new URL('../src/ai/voicePrompt.ts', import.meta.ur
 const genSrc = readFileSync(new URL('../src/assets-pipeline/generate.ts', import.meta.url), 'utf8');
 const encSrc = readFileSync(new URL('../src/screens/Encounter.tsx', import.meta.url), 'utf8');
 
-/* 🔶 L'ago guardava `compilePrompt(record, type)` dentro `generate.ts`. La
-   scelta del prompt e' passata a `promptFor`, ma la decisione e' la stessa e
-   piu' forte scritta cosi': il prompt e' una FUNZIONE PURA della creatura e
-   del tipo di asset. Niente tentativo, niente seme, niente ora — o «rifalla»
-   chiederebbe un personaggio diverso invece di un altro tentativo. */
+/* 🔶 L'ago guardava prima `compilePrompt(record, type)`, poi la firma esatta
+   di `promptFor(record, type)` senza parentesi in più. Si e' rotto una
+   SECONDA volta quando `promptFor` ha guadagnato un terzo parametro opzionale
+   (`compact`, l'interruttore del compilatore compatto in LAB) — stesso
+   difetto della nota qui sopra su `{ only: [type], replace: true }`: guardava
+   la FORMA della chiamata, non la decisione.
+
+   La decisione vera resta: il prompt e' una FUNZIONE PURA della creatura, del
+   tipo di asset e delle preferenze DICHIARATE (qualità, compattezza) — mai di
+   un tentativo, un seme o un'ora. Un parametro in più che arriva
+   deterministicamente da `dev` non rompe la purezza; un `Math.random()` o un
+   `Date.now()` dentro `promptFor` la romperebbero, ed è quello che l'ago deve
+   davvero escludere. */
 const promptSrc = readFileSync(new URL('../src/assets-pipeline/promptFor.ts', import.meta.url), 'utf8');
 check(
-  genSrc.includes('promptFor(record, type).text') &&
-    /export function promptFor\(record: MonRecord, assetType: AssetType\): PromptChoice/.test(promptSrc),
+  /promptFor\(record, type,/.test(genSrc) &&
+    /export function promptFor\(/.test(promptSrc) &&
+    !/Math\.random|Date\.now/.test(promptSrc),
   'rifare una faccia usa lo STESSO prompt',
   'un prompt diverso sarebbe un altro personaggio, non un altro tentativo',
 );

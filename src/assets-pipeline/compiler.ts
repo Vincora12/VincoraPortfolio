@@ -189,7 +189,40 @@ function selectFragmentIds(data: CharacterData, assetType: AssetType): string[] 
    §46 — MASTER COMPILER TEMPLATE
    ========================================================================= */
 
-export function compilePrompt(record: MonRecord, assetType: AssetType): CompiledPrompt {
+export interface CompileOptions {
+  /**
+   * 🔷 «Possiamo abbassare il numero di caratteri, e vedere se va bene, con
+   * un interruttore che si può spegnere?» — questo è quell'interruttore.
+   *
+   * ════════════════════════════════════════════════════════════════════════
+   * ⚠️ MISURATO PRIMA DI COSTRUIRLO, non promesso a tavolino. Su un prompt
+   * vero da 17.782 caratteri: 38 in righe vuote (niente), 1.768 in 17
+   * blocchi AVOID (vincoli veri, non decorazione). Il contenuto è già denso
+   * — frasi tecniche, non prosa di riempimento.
+   *
+   * L'UNICA cosa trovata VERIFICABILE nel codice, non nel testo — è che
+   * `renderCharacterDna` RIPETE parola per parola la soluzione degli
+   * occhiali e il taglio di capelli, già scritti sopra in VINZ IDENTITY.
+   * Circa 550-600 caratteri su una creatura con occhiali.
+   *
+   * 🔒 QUESTO È IL LIMITE DI QUELLO CHE SI PUÒ TAGLIARE SENZA GUARDARE UNA
+   * FACCIA. Andare oltre — il test-specchio prima di consegnare, le regole
+   * di costruzione del designer, il blocco leggibilità chiaro/scuro —
+   * vorrebbe dire tagliare contenuto che fa lavoro vero, e quello si decide
+   * guardando l'immagine che esce, non contando caratteri. Per questo resta
+   * un interruttore e non la sostituzione del compilatore: il resto della
+   * riduzione (§30 del piano, sotto 8.000 caratteri) è un lavoro successivo,
+   * da fare un pezzo alla volta con un confronto vero davanti.
+   * ════════════════════════════════════════════════════════════════════════
+   */
+  compact?: boolean;
+}
+
+export function compilePrompt(
+  record: MonRecord,
+  assetType: AssetType,
+  opts: CompileOptions = {},
+): CompiledPrompt {
   const data = record.data;
   const ids = selectFragmentIds(data, assetType);
 
@@ -221,7 +254,7 @@ export function compilePrompt(record: MonRecord, assetType: AssetType): Compiled
 
     // I due moduli con segnaposto ricevono qui i dati veri.
     if (f.id === 'character_dna.compile') {
-      text = text.replace('{{CHARACTER_DNA}}', renderCharacterDna(data));
+      text = text.replace('{{CHARACTER_DNA}}', renderCharacterDna(data, opts.compact === true));
     }
     if (f.id === 'heritage.compile') {
       text = text.replace('{{HERITAGE}}', renderHeritage(data));
@@ -326,7 +359,7 @@ function formComplexityBlock(data: CharacterData): string {
 
 /* --- Rendering dei blocchi con dati reali ---------------------------------- */
 
-function renderCharacterDna(data: CharacterData): string {
+function renderCharacterDna(data: CharacterData, compact: boolean): string {
   const d = data.character_dna;
   const lines = [
     `silhouette quirk: ${d.silhouette_quirk}`,
@@ -345,9 +378,17 @@ function renderCharacterDna(data: CharacterData): string {
       .map((c) => `${c.a} together with ${c.b}`)
       .join('; ')}`,
   ];
-  if (data.eyewear) lines.push(`exact eyewear solution: ${data.eyewear.description}`);
-  if (data.haircut && data.hair_state) {
-    lines.push(`exact haircut / bleach solution: ${data.haircut}, ${data.hair_state}`);
+  /* 🔴 LA DUPLICAZIONE VERA, TROVATA MISURANDO E NON A OCCHIO.
+     `marker.eyewear`/`marker.*` (in `compilePrompt`) hanno già scritto la
+     soluzione esatta di occhiali e taglio poche righe sopra — sotto VINZ
+     IDENTITY. Qui veniva riscritta parola per parola: stesso testo, stesso
+     prompt, due volte. In modalità compatta non si ripete: il modello l'ha
+     già letta, e ripeterla non la rende più vera. */
+  if (!compact) {
+    if (data.eyewear) lines.push(`exact eyewear solution: ${data.eyewear.description}`);
+    if (data.haircut && data.hair_state) {
+      lines.push(`exact haircut / bleach solution: ${data.haircut}, ${data.hair_state}`);
+    }
   }
   return lines.join('\n');
 }

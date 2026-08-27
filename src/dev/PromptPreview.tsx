@@ -24,6 +24,8 @@ export function PromptPreview() {
   const mon = useActiveMon();
   const token = useApp((s) => s.token);
   const compileAssetPrompt = useApp((s) => s.compileAssetPrompt);
+  const compactPrompts = useApp((s) => s.dev.compactPrompts);
+  const setDev = useApp((s) => s.setDev);
   const [assetType, setAssetType] = useState<AssetType>('character_master');
   const [showProvenance, setShowProvenance] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -36,7 +38,14 @@ export function PromptPreview() {
 
   if (!mon) return <NoMon what="nessun prompt da compilare" />;
 
-  const compiled = compilePrompt(mon, assetType);
+  /* 🔷 «Un toggle dentro LAB che accorcia, così provo e vedo se va bene o
+     torno alla versione di prima?» — l'interruttore vive su `dev.compactPrompts`
+     perché è lo STESSO che usa la generazione vera (hatch, evoluzione,
+     RIFALLO): quello che vedi qui è esattamente quello che finirebbe
+     nell'immagine se generi adesso. */
+  const compiledNormal = compilePrompt(mon, assetType, { compact: false });
+  const compiledCompact = compilePrompt(mon, assetType, { compact: true });
+  const compiled = compactPrompts ? compiledCompact : compiledNormal;
   const broken = validateFragmentIds(compiled.fragmentIds);
 
   /* §10 — la riscrittura dell'AI, se per QUESTO tipo di asset è già stata
@@ -44,7 +53,7 @@ export function PromptPreview() {
      ogni tocco produrrebbe sei immagini di sei creature diverse. */
   /* 🔶 Erano due stati — riscritto o no. Adesso le sorgenti sono tre, e la
      terza è quella nuova: `promptFor` sa quale vince e dice quale ha scelto. */
-  const chosen = promptFor(mon, assetType);
+  const chosen = promptFor(mon, assetType, { compact: compactPrompts });
   const written = chosen.source !== 'concatenato' ? chosen.text : null;
   const shown: string = written && !showRaw ? written : compiled.text;
 
@@ -63,6 +72,31 @@ export function PromptPreview() {
       <p className="t-micro dev__note">
         compiler {compiled.compilerVersion} · config {compiled.generationConfigVersion} ·{' '}
         {compiled.fragmentIds.length} frammenti · {compiled.text.length} caratteri
+      </p>
+
+      {/* ══════════════════════════════════════════════════════════════════
+          🔷 «Un toggle dentro LAB che accorcia, così provo e vedo se va
+          bene o torno alla versione di prima?»
+
+          ⚠️ E ONESTO SU QUANTO TAGLIA. Misurato su un prompt vero da
+          17.782 caratteri: la sola duplicazione verificabile nel codice —
+          occhiali e taglio scritti due volte — vale circa il 3%. Non è la
+          riduzione grossa del piano (sotto 8.000): quella richiederebbe
+          tagliare contenuto vero — il test-specchio, le regole del
+          designer — e quello si decide guardando l'immagine, non qui. */}
+      <label className="dev__check">
+        <input
+          type="checkbox"
+          checked={compactPrompts}
+          onChange={(e) => setDev({ compactPrompts: e.target.checked })}
+        />
+        COMPILATORE COMPATTO (toglie solo la duplicazione verificata)
+      </label>
+      <p className="t-micro dev__note">
+        {compiledNormal.text.length} → {compiledCompact.text.length} caratteri su questo asset
+        (−{compiledNormal.text.length - compiledCompact.text.length}, occhiali/taglio non
+        ripetuti). Vale anche sulla generazione vera — hatch, evoluzione, RIFALLO — finché
+        resta acceso. Spegnilo e rigenera per tornare esattamente a come era prima.
       </p>
 
       <div className="dev__grid">
