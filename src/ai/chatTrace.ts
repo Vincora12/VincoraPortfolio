@@ -51,7 +51,7 @@ export interface ChatTrace {
   at: number;
 }
 
-const PROMPT_HEADING = /^[A-Z][A-Z0-9 .,'’/&()§—:+-]{2,}$/;
+const PROMPT_HEADING = /^[A-Z][A-Z0-9v .,'’/&()§—:+-]{2,}$/;
 
 /**
  * Misura i blocchi principali senza salvare il loro contenuto nel trace.
