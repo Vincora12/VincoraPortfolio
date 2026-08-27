@@ -22,7 +22,7 @@ import { voiceCard } from '../engine/voiceCard';
    condivide questo salvataggio) resta la stessa riga neutra di sempre: non è
    una regressione, è la stessa condizione che il percorso senza strumenti usa
    già per lo stesso caso. */
-function characterVoiceBlock(): { text: string } | null {
+function characterVoiceBlock(toolsAvailable = true): { text: string } | null {
   const s = useApp.getState();
   const record = s.activeMonName ? s.mons[s.activeMonName] : undefined;
   if (!record) return null;
@@ -37,7 +37,7 @@ function characterVoiceBlock(): { text: string } | null {
         rating: record.rating ?? null,
         faceRedos: s.faceRedos,
         timeSkipped: s.usedDevTime,
-      }),
+      }, { toolsAvailable }),
     };
   } catch (error) {
     console.warn('[chat] system prompt del personaggio non costruito, torno al neutro:', error);
@@ -90,7 +90,7 @@ export async function streamReply(
   if (!token) throw new Error('Prima attiva VINZ.MON: manca il token.');
 
   const clock = traceClock();
-  const character = characterVoiceBlock();
+  const character = characterVoiceBlock(false);
   const system = [
     character ?? {
       text: [

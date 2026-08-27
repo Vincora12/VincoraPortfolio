@@ -411,7 +411,7 @@ function createBaseNetlifyChatModel(): ChatModelAdapter {
     const app = useApp.getState();
     const activeMon = app.activeMonName ? app.mons[app.activeMonName] : null;
     const systemPrompt = activeMon
-      ? buildVoiceSystemPrompt(activeMon, app.mood)
+      ? buildVoiceSystemPrompt(activeMon, app.mood, undefined, undefined, { toolsAvailable: false })
       : "You are a neutral, accurate and concise personal assistant. Reply in the user's language.";
     const clock = traceClock();
     clock.mark("SYSTEM PROMPT", activeMon ? `voce vera · ${systemPrompt.length} caratteri` : "neutro");
