@@ -236,7 +236,23 @@ function Setup() {
 function Ai() {
   const stepModels = useApp((s) => s.stepModels);
   const setStepModel = useApp((s) => s.setStepModel);
+  const token = useApp((s) => s.token);
   const runs = Object.fromEntries(lastRuns());
+
+  /* «Metti anche stato per vedere se sono online, com'era nel DEV.» Stessa
+     domanda di sempre — `/api/setup` la sa già per fornitore, non solo per
+     voce/compilatore/immagini. */
+  const [providerReady, setProviderReady] = useState<Record<string, boolean>>({});
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    void loadSetup(token).then(({ data }) => {
+      if (!cancelled && data?.providerReady) setProviderReady(data.providerReady);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
 
   return (
     <section className="page active">
@@ -283,6 +299,7 @@ function Ai() {
                         : rich.price
                           ? `$${rich.price.input} / $${rich.price.output} per milione`
                           : 'prezzo non a catalogo';
+                    const online = providerReady[c.provider];
                     return (
                       <button
                         type="button"
@@ -293,6 +310,14 @@ function Ai() {
                         <strong>{c.label}{isRecommended ? ' ★' : ''}</strong>
                         <span className="aicard__price">{prezzo}</span>
                         {rich.it && <span className="aicard__why">{rich.it}</span>}
+                        {/* In fondo alla scheda, com'era in DEV → VOCE. */}
+                        <span className="aicard__status">
+                          <Status
+                            label={online === undefined ? 'STATO SCONOSCIUTO' : online ? 'ONLINE' : 'OFFLINE'}
+                            ok={online === true}
+                          />
+                          {online === false && ` manca la chiave di ${c.provider}`}
+                        </span>
                       </button>
                     );
                   })}

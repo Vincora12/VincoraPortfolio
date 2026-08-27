@@ -416,6 +416,10 @@ export interface SetupState {
    * questa cosa». Con una chiave OpenAI sola sono veri tutti e due.
    */
   ready?: { voice: boolean; compile: boolean; draw: boolean };
+  /** Un fornitore per volta: la sua chiave è configurata sul server o no.
+      Vale per QUALUNQUE scelta di QUALUNQUE capacità — non solo voce,
+      compilatore e immagini. */
+  providerReady?: Record<string, boolean>;
   vars?: SetupVar[];
   voices?: ModelChoice[];
   defaultVoice?: string;

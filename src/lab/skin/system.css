@@ -71,6 +71,7 @@ h1{font-size:44px;line-height:.89;margin:0 0 14px;font-weight:900;font-style:ita
 .aicard.on .aicard__price{opacity:1}
 .aicard__why{font-size:9px;line-height:1.45;opacity:.7}
 .aicard.on .aicard__why{opacity:.9}
+.aicard__status{font-size:8px;display:flex;align-items:center;gap:5px}
 .accordion{border-top:1px solid #111}
 .drawer{border-bottom:1px solid var(--line)}
 .drawer>button{width:100%;border:0;background:#fff;padding:14px 0;display:flex;justify-content:space-between;align-items:center;text-align:left}

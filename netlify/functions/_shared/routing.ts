@@ -378,7 +378,11 @@ export function resolveRoute(capability: Capability, preferredModel?: string | n
         ? (COMPILER_CHOICES as { provider: Provider; model: string }[])
         : capability === 'image'
           ? (IMAGE_CHOICES as { provider: Provider; model: string }[])
-          : null;
+          : capability === 'text-cheap'
+            ? (TEXT_CHEAP_CHOICES as { provider: Provider; model: string }[])
+            : capability === 'vision-quick'
+              ? (VISION_QUICK_CHOICES as { provider: Provider; model: string }[])
+              : null;
   if (!pool) return ROUTING[capability];
 
   const choice = pool.find((c) => c.model === preferredModel);
@@ -490,6 +494,88 @@ export function compilerChoiceProblems(choices = COMPILER_CHOICES): string[] {
   }
   return problems;
 }
+
+/* ============================================================================
+   RIFLESSIONE E VISIONE — «Perché non c'è niente?»
+
+   🔷 «Mi dai anche i nomi da inserire se io volessi aggiungere altre AI.»
+
+   Non c'erano alternative perché non erano mai state scritte — non un
+   limite tecnico. Adesso ce ne sono, con lo stesso criterio di
+   VOICE_CHOICES/COMPILER_CHOICES: prezzo vero, una riga di perché.
+
+   🔒 GEMINI NON È FRA LE ALTERNATIVE DI `text-cheap`, ED È DELIBERATO — non
+   una dimenticanza. La riflessione legge MESI della tua storia: è la
+   capacità più personale del catalogo. Il commento sopra `ROUTING` lo dice
+   già: il piano GRATUITO di Google addestra sui dati, quello a pagamento
+   no, e quale dei due hai dipende dalla fatturazione del TUO progetto — una
+   cosa che questo file non può vedere. Finché non è una scelta guardando la
+   tua fattura, resta fuori. Su `vision-quick` invece va bene: lì arriva solo
+   una foto senza contesto, non la tua storia.
+   ========================================================================= */
+
+export interface CheapChoice {
+  provider: Provider;
+  model: string;
+  label: string;
+  price: { input: number; output: number };
+  it: string;
+}
+
+export const TEXT_CHEAP_CHOICES: CheapChoice[] = [
+  {
+    provider: 'anthropic',
+    model: 'claude-haiku-4-5',
+    label: 'Claude Haiku 4.5',
+    price: { input: 1, output: 5 },
+    it: 'Il predefinito. Legge mesi della tua storia in un colpo solo: qui la cosa che conta è chi non addestra sui tuoi dati, non chi costa meno.',
+  },
+  {
+    provider: 'openai',
+    model: 'gpt-5.6-luna',
+    label: 'GPT-5.6 Luna',
+    price: { input: 0.2, output: 1.2 },
+    it: 'Un quinto del prezzo di Haiku. OpenAI dichiara di non usare i dati delle API per addestrare senza adesione esplicita — stessa garanzia, fornitore diverso.',
+  },
+  {
+    provider: 'moonshot',
+    model: 'kimi-k2.6',
+    label: 'Kimi K2.6',
+    price: { input: 0.95, output: 4 },
+    it: 'Circa il prezzo di Haiku. Moonshot AI, azienda cinese: le condizioni sull’uso dei dati vanno lette prima di mandarci mesi della tua storia — qui non c’è la stessa garanzia degli altri due.',
+  },
+];
+
+export const VISION_QUICK_CHOICES: CheapChoice[] = [
+  {
+    provider: 'google',
+    model: 'gemini-2.5-flash',
+    label: 'Gemini 2.5 Flash',
+    price: { input: 0.3, output: 2.5 },
+    it: 'Il predefinito. Qui arriva solo la foto, senza una riga di contesto: un piatto non dice chi sei, quindi il piano gratuito di Google va bene per questo lavoro e non per la riflessione.',
+  },
+  {
+    provider: 'anthropic',
+    model: 'claude-haiku-4-5',
+    label: 'Claude Haiku 4.5',
+    price: { input: 1, output: 5 },
+    it: 'Più caro di Gemini per leggere una foto sola, ma la stessa chiave che già usi per la riflessione: nessuna variabile in più su Netlify.',
+  },
+  {
+    provider: 'openai',
+    model: 'gpt-5.6-luna',
+    label: 'GPT-5.6 Luna',
+    price: { input: 0.2, output: 1.2 },
+    it: 'La chiave che già usi per le immagini e per il compilatore. Prezzo vicino a Gemini, stessa garanzia sui dati di Luna altrove nel catalogo.',
+  },
+  {
+    provider: 'moonshot',
+    model: 'kimi-k2.6',
+    label: 'Kimi K2.6',
+    price: { input: 0.95, output: 4 },
+    it: 'Guarda anche le foto, non solo la voce. Qui non è un problema di dati — una foto di un piatto non dice chi sei — resta solo una domanda di prezzo.',
+  },
+];
 
 /**
  * Le capacità la cui richiesta contiene cose che TI riguardano.
@@ -822,12 +908,25 @@ export const AI_STEP_ORDER: AiStepId[] = [
 export function choicesFor(
   capability: Capability,
 ): { provider: Provider; model: string; label: string }[] {
-  if (capability === 'character-voice') return VOICE_CHOICES;
-  if (capability === 'prompt-compile') return COMPILER_CHOICES;
-  if (capability === 'image') return IMAGE_CHOICES;
-  /* Vision e text-cheap non hanno ancora un catalogo di scelte: la rotta è
-     quella e basta. Un elenco di uno solo è più onesto di un menu finto. */
-  return [{ ...ROUTING[capability], label: ROUTING[capability].model }];
+  /* 🔷 «Mi dai anche i nomi da inserire se io volessi aggiungere altre AI.»
+     `text-cheap`/`vision-quick` avevano un catalogo di uno solo — «un elenco
+     di uno solo è più onesto di un menu finto» — perché nessuno le aveva
+     ancora scritte, non perché non potessero esistere. Adesso ce le hanno,
+     vedi TEXT_CHEAP_CHOICES e VISION_QUICK_CHOICES qui sopra: le cinque
+     capacità hanno tutte un catalogo vero, e uno `switch` esaustivo lo dice
+     al compilatore invece che a un commento. */
+  switch (capability) {
+    case 'character-voice':
+      return VOICE_CHOICES;
+    case 'prompt-compile':
+      return COMPILER_CHOICES;
+    case 'image':
+      return IMAGE_CHOICES;
+    case 'text-cheap':
+      return TEXT_CHEAP_CHOICES;
+    case 'vision-quick':
+      return VISION_QUICK_CHOICES;
+  }
 }
 
 /**

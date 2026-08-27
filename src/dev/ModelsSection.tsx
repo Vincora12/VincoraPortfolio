@@ -80,12 +80,31 @@ export function ModelsSection() {
   const quality = useApp((s) => s.useQualityPreset);
   const dev = useApp((s) => s.dev);
   const setDev = useApp((s) => s.setDev);
+  const token = useApp((s) => s.token);
 
   /* La telemetria vive fuori da zustand: ci si abbona come al contatore
      della spesa. */
   const [runs, setRuns] = useState<[AiStepId, StepRun][]>(lastRuns());
   useEffect(() => subscribeToRuns(() => setRuns(lastRuns())), []);
   const runOf = (id: AiStepId) => runs.find(([k]) => k === id)?.[1] ?? null;
+
+  /* 🔷 «Metti anche stato per vedere se sono online, com'era nel DEV.»
+     `/api/setup` dice, fornitore per fornitore, se la sua chiave è
+     configurata — la stessa domanda che DEV → VOCE fa da sempre, qui per
+     ogni scelta di ogni step, non solo per la voce. */
+  const [providerReady, setProviderReady] = useState<Record<string, boolean>>({});
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    void import('../ai/backend').then(({ loadSetup }) =>
+      loadSetup(token).then(({ data }) => {
+        if (!cancelled && data?.providerReady) setProviderReady(data.providerReady);
+      }),
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
 
   return (
     <div className="dev__section">
@@ -211,6 +230,7 @@ export function ModelsSection() {
                                   : 'livello piccolo'
                             }`
                           : 'prezzo non a catalogo';
+                    const online = providerReady[c.provider];
                     return (
                       <button
                         key={c.model}
@@ -227,6 +247,14 @@ export function ModelsSection() {
                         </p>
                         <p className="t-micro dev__note">{prezzoRiga}</p>
                         {rich.it && <p className="t-micro dev__note">{rich.it}</p>}
+                        {/* 🔷 In fondo, come nel DEV → VOCE di sempre: online o
+                            manca la chiave di quel fornitore. */}
+                        <p className="t-micro dev__note">
+                          <SystemLabel tone={online ? 'character' : 'warning'}>
+                            {online === undefined ? 'STATO SCONOSCIUTO' : online ? 'ONLINE' : 'OFFLINE'}
+                          </SystemLabel>
+                          {online === false && ` — manca la chiave di ${c.provider}`}
+                        </p>
                       </button>
                     );
                   })}

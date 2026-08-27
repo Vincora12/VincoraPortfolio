@@ -3493,6 +3493,17 @@ check(
   '«Non vedo modifiche alla schermata AI del lab» — scriveva su voiceModel/compilerModel/imageModel, che ogni chiamata vera (runStep/stepModel) ha smesso di leggere: una manopola collegata al niente',
 );
 
+{
+  const routingSrc = read(ROUTING_FILE) ?? '';
+  const textCheapBlock = /export const TEXT_CHEAP_CHOICES[\s\S]*?\n\];/.exec(routingSrc)?.[0] ?? '';
+  check(
+    '§19.3 STEP',
+    'Gemini non è fra le alternative della riflessione settimanale',
+    textCheapBlock.length > 0 && !textCheapBlock.includes("'google'"),
+    'la riflessione legge mesi di storia personale: il piano gratuito di Google addestra sui dati, quello a pagamento no, e questo file non può sapere quale hai — finché non è una scelta guardando la fattura, resta fuori',
+  );
+}
+
 check(
   '§29 DEV',
   'DEV si apre su INIZIO e non su quindici linguette',
