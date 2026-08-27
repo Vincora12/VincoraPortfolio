@@ -889,3 +889,29 @@
   padding: var(--u4) 0;
   border-bottom: 1px solid color-mix(in srgb, currentColor 18%, transparent);
 }
+
+/* Una scheda per alternativa, non un pulsante corto: qui il prezzo e il
+   perché devono starci, o «aiutami nella scelta» resta solo un numero. */
+.dev__modelcard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--u2);
+  padding: var(--u3) var(--u4);
+  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  border-radius: var(--radius);
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  width: 100%;
+}
+.dev__modelcard--active {
+  border-color: var(--char-accent);
+}
+
+.dev__modelcards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--u2);
+}

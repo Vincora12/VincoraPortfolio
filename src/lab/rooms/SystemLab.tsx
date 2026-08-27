@@ -26,6 +26,7 @@ import { DAILY_SIGNALS, DAILY_SIGNAL_LABELS } from '../../engine/progression';
 import { loadPing, loadSetup, loadShortcutStatus, type ShortcutStatus } from '../../ai/backend';
 import { lastRuns } from '../../ai/telemetry';
 import { MODEL_CHOICES } from '../../engine/aiRouting';
+import { freshSecret } from '../../engine/secret';
 import { Btn, Grid, LabTop, Notice, PageHead, Range, Rows, Section, Status } from './parts';
 import { LabAssistantPanel } from '../assistant/LabAssistantPanel';
 import '../skin/system.css';
@@ -579,6 +580,10 @@ function Shortcuts() {
   const [status, setStatus] = useState<ShortcutStatus | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
+  /* «Mettimi anche il generatore di stringa.» Stessa funzione di ATTIVA
+     VINZ.MON (engine/secret.ts), non salvata da nessuna parte finché non la
+     incolli tu su Netlify. */
+  const [proposed, setProposed] = useState<string | null>(null);
 
   const check = async () => {
     setChecking(true);
@@ -617,7 +622,21 @@ function Shortcuts() {
           <Btn variant="dark" onClick={() => void check()} disabled={checking}>
             {checking ? 'CONTROLLO…' : 'RUN CHECK'}
           </Btn>
+          <Btn onClick={() => setProposed(freshSecret())}>
+            {proposed ? 'GENERA UN ALTRO' : 'GENERA UN SEGRETO'}
+          </Btn>
         </Grid>
+        {proposed && (
+          <>
+            <pre className="json">{proposed}</pre>
+            <p className="note">
+              Copialo su Netlify (Site configuration → Environment variables) come
+              VINZMON_SHORTCUT_TOKEN, ripubblica, e mettilo nell'header Authorization: Bearer …
+              della Shortcut su iPhone. Generato qui, in questo browser — non è stato mandato da
+              nessuna parte finché non lo incolli tu.
+            </p>
+          </>
+        )}
         {failure && <p className="note">setup: {failure}</p>}
       </Section>
 

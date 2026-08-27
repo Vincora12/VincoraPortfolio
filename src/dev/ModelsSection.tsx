@@ -181,22 +181,55 @@ export function ModelsSection() {
               )}
 
               {/* 🔒 Un elenco di uno solo NON diventa un menu finto: dove non
-                  c'è scelta si dice il modello e basta. */}
+                  c'è scelta si dice il modello e basta.
+
+                  🔷 «Quando clicco le altre, mettimi anche una media di
+                  costo... però ragiona meglio, aiutami nella scelta.» Un
+                  pulsante con solo il nome non aiuta a scegliere: qui sotto
+                  ogni alternativa porta il SUO prezzo e la riga `it` che il
+                  catalogo (routing.ts) già scrive per quel modello — non un
+                  numero e basta, il perché che sta dietro. */}
               {pool.length > 1 ? (
-                <div className="dev__grid">
-                  {pool.map((c) => (
-                    <Button
-                      key={c.model}
-                      small
-                      variant={c.model === attivo ? 'character' : 'secondary'}
-                      onClick={() =>
-                        setStepModel(id, c.model === step.fallback ? null : c.model)
-                      }
-                    >
-                      {c.label}
-                      {c.model === consiglio.model && c.model !== attivo ? ' ★' : ''}
-                    </Button>
-                  ))}
+                <div className="dev__modelcards">
+                  {pool.map((c) => {
+                    const rich = c as {
+                      it?: string;
+                      price?: { input: number; output: number };
+                      perImage?: number;
+                    };
+                    const isActive = c.model === attivo;
+                    const isRecommended = c.model === consiglio.model && !isActive;
+                    const prezzoRiga =
+                      typeof rich.perImage === 'number'
+                        ? `$${rich.perImage.toFixed(2)} a immagine`
+                        : rich.price
+                          ? `$${rich.price.input} / $${rich.price.output} per milione — ${
+                              rich.price.output >= 20
+                                ? 'livello grosso'
+                                : rich.price.output >= 8
+                                  ? 'livello di mezzo'
+                                  : 'livello piccolo'
+                            }`
+                          : 'prezzo non a catalogo';
+                    return (
+                      <button
+                        key={c.model}
+                        type="button"
+                        className={`dev__modelcard${isActive ? ' dev__modelcard--active' : ''}`}
+                        onClick={() =>
+                          setStepModel(id, c.model === step.fallback ? null : c.model)
+                        }
+                      >
+                        <p className="t-meta">
+                          {c.label}{' '}
+                          {isActive && <SystemLabel tone="character">ATTIVO</SystemLabel>}
+                          {isRecommended && <SystemLabel>CONSIGLIATO</SystemLabel>}
+                        </p>
+                        <p className="t-micro dev__note">{prezzoRiga}</p>
+                        {rich.it && <p className="t-micro dev__note">{rich.it}</p>}
+                      </button>
+                    );
+                  })}
                 </div>
               ) : (
                 <p className="t-micro dev__note">{attivo} — non ci sono alternative.</p>

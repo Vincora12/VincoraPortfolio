@@ -14,7 +14,8 @@
 
 import { useEffect, useState } from 'react';
 import { useApp } from '../state/store';
-import { Row, SystemLabel } from '../system/components';
+import { Button, Row, SystemLabel } from '../system/components';
+import { freshSecret } from '../engine/secret';
 import type { ShortcutStatus } from '../ai/backend';
 
 const AI_POLICY_LABEL: Record<string, string> = {
@@ -28,6 +29,11 @@ const EXAMPLE_BODY = JSON.stringify({ action: 'meal', text: 'piadina con pollo e
 export function ShortcutSection() {
   const token = useApp((s) => s.token);
   const [status, setStatus] = useState<ShortcutStatus | null | 'loading' | 'error'>('loading');
+  /* 🔷 «Mettimi anche il generatore di stringa.» Non salvato da nessuna
+     parte, non mandato al server: vive solo in questo stato finché non lo
+     copi tu su Netlify. Generarne uno nuovo non invalida quello già in uso
+     finché non lo incolli davvero — è una PROPOSTA, come in ATTIVA VINZ.MON. */
+  const [proposed, setProposed] = useState<string | null>(null);
 
   useEffect(() => {
     if (!token) {
@@ -54,6 +60,34 @@ export function ShortcutSection() {
         Shortcut, e cosa è successo nelle ultime chiamate.
       </p>
 
+      {/* 🔒 IL GENERATORE STA FUORI DAL RISULTATO DEL FETCH, ED È DELIBERATO.
+          Provato dal vero: se `/api/shortcut-status` non risponde ancora —
+          niente token principale incollato, funzioni non pubblicate, rete
+          assente — il blocco sotto (che dipende da `status`) non c'è, e il
+          generatore sarebbe sparito esattamente nel momento in cui serve di
+          più: la primissima configurazione, prima che qualunque cosa
+          risponda. È testo casuale generato in questo browser: non ha
+          bisogno del server per esistere. */}
+      <p className="t-meta dev__label">IL SEGRETO DELLE SHORTCUT</p>
+      <p className="t-micro dev__note">
+        Un secondo segreto, diverso da quello dell'app: revocarlo non tocca voce, immagini,
+        salvataggio.
+      </p>
+      <Button small onClick={() => setProposed(freshSecret())}>
+        {proposed ? 'GENERA UN ALTRO' : 'GENERA UN SEGRETO'}
+      </Button>
+      {proposed && (
+        <>
+          <pre className="dev__pre">{proposed}</pre>
+          <p className="t-micro dev__note">
+            Copialo su Netlify (Site configuration → Environment variables) come{' '}
+            <code>VINZMON_SHORTCUT_TOKEN</code>, ripubblica, e mettilo nell'header{' '}
+            <code>Authorization: Bearer …</code> della Shortcut su iPhone. Generato qui, in
+            questo browser — non è stato mandato da nessuna parte finché non lo incolli tu.
+          </p>
+        </>
+      )}
+
       {status === 'loading' && <p className="t-micro dev__note">sto chiedendo al server…</p>}
       {status === 'error' && (
         <p className="t-micro dev__note">il server non risponde — serve un token valido.</p>
@@ -61,20 +95,14 @@ export function ShortcutSection() {
 
       {status && status !== 'loading' && status !== 'error' && (
         <>
-          <p className="t-meta dev__label">IL SEGRETO DELLE SHORTCUT</p>
           <div className="rowlist">
             <Row
-              label="VINZMON_SHORTCUT_TOKEN"
+              label="VINZMON_SHORTCUT_TOKEN SUL SERVER"
               value={
                 status.tokenConfigured ? 'configurato' : 'MANCANTE — le Shortcut non possono chiamare'
               }
             />
           </div>
-          <p className="t-micro dev__note">
-            {status.tokenConfigured
-              ? 'È un secondo segreto, diverso da quello dell\'app: revocarlo non tocca voce, immagini, salvataggio.'
-              : 'Genera un valore lungo e casuale (come per VINZMON_TOKEN) e mettilo su Netlify. Finché manca, ogni chiamata dalle Shortcut torna 401.'}
-          </p>
 
           <p className="t-meta dev__label">COME CHIAMARLA</p>
           <p className="t-micro dev__note">

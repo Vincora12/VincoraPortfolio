@@ -3280,7 +3280,13 @@ check(
 check(
   '§19.5 ATTIVAZIONE',
   'il segreto lo genera il caso, non tu',
-  has('src/screens/Activate.tsx', 'crypto.getRandomValues'),
+  /* 🔶 Era un ago sul testo letterale di `Activate.tsx` — si è rotto quando
+     `freshSecret` si è trasferita in `engine/secret.ts` per essere riusata
+     anche dal generatore di VINZMON_SHORTCUT_TOKEN (brief Shortcuts §4):
+     stessa funzione, un file diverso, non più duplicata a mano una seconda
+     volta. Punta ora sulla decisione vera, dove vive davvero. */
+  has('src/engine/secret.ts', 'crypto.getRandomValues') &&
+    has('src/screens/Activate.tsx', "from '../engine/secret'"),
   'un token che uno ricorda è un token corto, e dietro c’è il budget',
 );
 check(
