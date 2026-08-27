@@ -38,7 +38,7 @@ import {
   type SignalStatus,
 } from '../engine/progression';
 import { evolveMon, generateFirstMon, generateMon } from '../engine/characterGenerator';
-import type { BackendFailure } from '../ai/backend';
+import type { BackendFailure, RemoteSave } from '../ai/backend';
 import type { CreativeResolution } from '../assets-pipeline/resolver/vendor/types';
 import { migratedStepModels, type VecchieScelte } from './migrateSteps';
 import { formeGiaViste } from '../assets-pipeline/resolver/taste';
@@ -4108,24 +4108,13 @@ export function shouldDownload(local: LocalSave, server: ServerSave): boolean {
 }
 
 /**
- * All'avvio: si guarda cosa c'è sul server e si tiene la storia più lunga.
- *
- * Va chiamata DOPO che zustand ha reidratato dal `localStorage`, altrimenti
- * confronterebbe il server con uno stato vuoto e scaricherebbe sempre.
+ * Scrive la copia scaricata sopra lo stato di adesso. Condivisa da
+ * `syncWithServer` (automatico, all'avvio) e da `restoreFromServer`
+ * (manuale, da DEV → SERVER): il MODO in cui una copia scaricata diventa lo
+ * stato del gioco è uno solo, cambia solo CHI decide che vada applicata.
  */
-export async function syncWithServer(): Promise<'locale' | 'scaricato' | 'niente'> {
-  const local = useApp.getState();
-  if (!local.token) return 'niente';
-
-  const { loadRemote } = await import('../ai/backend');
-  const { data, failure } = await loadRemote(local.token);
-  if (failure || !data || data.state == null) return 'niente';
-
-  if (!shouldDownload({ day: local.day, resetAt: local.resetAt }, data)) return 'locale';
-
-  /* Il server ha più storia: quella locale era indietro (telefono nuovo,
-     dati del browser cancellati, o semplicemente un altro dispositivo). Il
-     token NON si sovrascrive: è di questo browser, non del salvataggio. */
+function applyRemoteSave(local: AppState, data: RemoteSave): void {
+  /* Il token NON si sovrascrive: è di questo browser, non del salvataggio. */
   const remote = data.state as Partial<AppState> & { __healthJournal?: unknown };
   const { __healthJournal, ...appState } = remote;
   if (__healthJournal) {
@@ -4147,7 +4136,50 @@ export async function syncWithServer(): Promise<'locale' | 'scaricato' | 'niente
   /* I salvataggi creati prima del diario server non hanno ancora questo
      campo: lasciando la firma vuota, il debounce li migra subito. */
   lastSavedSignature = __healthJournal === undefined ? '' : JSON.stringify(snapshotFor(useApp.getState()));
+}
+
+/**
+ * All'avvio: si guarda cosa c'è sul server e si tiene la storia più lunga.
+ *
+ * Va chiamata DOPO che zustand ha reidratato dal `localStorage`, altrimenti
+ * confronterebbe il server con uno stato vuoto e scaricherebbe sempre.
+ */
+export async function syncWithServer(): Promise<'locale' | 'scaricato' | 'niente'> {
+  const local = useApp.getState();
+  if (!local.token) return 'niente';
+
+  const { loadRemote } = await import('../ai/backend');
+  const { data, failure } = await loadRemote(local.token);
+  if (failure || !data || data.state == null) return 'niente';
+
+  if (!shouldDownload({ day: local.day, resetAt: local.resetAt }, data)) return 'locale';
+
+  /* Il server ha più storia: quella locale era indietro (telefono nuovo,
+     dati del browser cancellati, o semplicemente un altro dispositivo). */
+  applyRemoteSave(local, data);
   return 'scaricato';
+}
+
+/**
+ * 🔷 «Mi devi mettere un tasto salva allora» — dopo un RICOMINCIA DA CAPO,
+ * `shouldDownload` protegge il reset per disegno («un reset non si può
+ * annullare dal server»): la partita nuova non viene mai sovrascritta da
+ * sola. Ma a volte il reset non era voluto, o si vuole tornare indietro
+ * comunque — e allora la decisione dev'essere ESPLICITA, presa da chi
+ * guarda i numeri di DEV → SERVER, non automatica.
+ *
+ * `null` = nessun salvataggio da nessuna parte (server vuoto o rete giù).
+ */
+export async function restoreFromServer(): Promise<RemoteSave | null> {
+  const local = useApp.getState();
+  if (!local.token) return null;
+
+  const { loadRemote } = await import('../ai/backend');
+  const { data, failure } = await loadRemote(local.token);
+  if (failure || !data || data.state == null) return null;
+
+  applyRemoteSave(local, data);
+  return data;
 }
 
 /** Segna che questa partita ha saltato del tempo dal pannello DEV. */

@@ -12,20 +12,22 @@
    salvataggio è precisamente il genere di cosa che fa buttare via giorni
    veri per un sospetto sbagliato.
 
-   Questa schermata non ripara niente e non scrive niente: chiede
-   `/api/state` e mette i due conti UNO ACCANTO ALL'ALTRO — quello che ha
+   Questa schermata mette i due conti UNO ACCANTO ALL'ALTRO — quello che ha
    questo telefono, e quello che ha il server. Se le due colonne non
    coincidono, lo vedi invece di sospettarlo.
 
-   🔒 SOLA LETTURA, E NON È UNA CAUTELA GENERICA. Un pulsante «forza il
-   salvataggio» qui sembrerebbe la cosa comoda da avere, e sarebbe il modo
-   più veloce di sovrascrivere la copia buona con quella sbagliata proprio
-   nel momento in cui non sai ancora quale delle due sia buona. Prima si
-   guarda; si decide dopo, sapendo.
-   ========================================================================= */
+   🔷 v2 — «mi devi mettere un tasto salva allora.» La lettura resta sola
+   lettura di default: guardare non scrive niente. Ma un caso reale l'ha
+   smentita — dopo un RICOMINCIA DA CAPO, `shouldDownload` protegge il
+   reset per disegno e non scarica mai la copia del server da sola, per
+   sempre. Giusto per non annullare un reset voluto per sbaglio — ma
+   quando il reset NON era voluto, o si vuole comunque tornare indietro,
+   quella decisione dev'esistere: presa da un umano che guarda i numeri,
+   mai in automatico. `RIPRENDI DAL SERVER` fa esattamente quello, con la
+   stessa conferma a due passi del RESET COMPLETO qui accanto. */
 
 import { useCallback, useEffect, useState } from 'react';
-import { useApp } from '../state/store';
+import { restoreFromServer, useApp } from '../state/store';
 import { Button, Row, SystemLabel } from '../system/components';
 
 /** Quello che riusciamo a leggere dalla copia del server, che per il server è opaca. */
@@ -163,6 +165,13 @@ export function ServerSection() {
               la={server.activeMonName ?? '—'}
             />
           </div>
+
+          {(server.day > local.day ||
+            server.mons > local.mons ||
+            server.kept > local.kept ||
+            server.nodes > local.nodes) && (
+            <RestoreButton local={local} server={server} onDone={guarda} />
+          )}
         </>
       )}
 
@@ -240,9 +249,11 @@ function Verdetto({ local, server }: { local: ServerPeek; server: ServerPeek }) 
   if (avanti && !indietro) {
     return (
       <p className="t-micro dev__note">
-        🟡 IL SERVER HA PIÙ ROBA DI QUESTO TELEFONO. Non è un guasto: succede
-        se hai giocato altrove, o se questo dispositivo è rimasto indietro. Al
-        prossimo avvio la copia più lunga viene scaricata da sola.
+        🟡 IL SERVER HA PIÙ ROBA DI QUESTO TELEFONO. Se non hai mai fatto
+        RICOMINCIA DA CAPO, si scarica da sola al prossimo avvio — non c'è
+        niente da fare. Ma se hai resettato la partita, di proposito o per
+        sbaglio, quel salvataggio resta bloccato apposta: usa RIPRENDI DAL
+        SERVER qui sotto per tornare a quella copia.
       </p>
     );
   }
@@ -260,5 +271,67 @@ function Verdetto({ local, server }: { local: ServerPeek; server: ServerPeek }) 
       🟢 ALLINEATI. Quello che vedi nell'app è anche quello che c'è nella copia
       salvata: se chiudi tutto adesso, non perdi niente.
     </p>
+  );
+}
+
+/**
+ * 🔒 CONFERMA A DUE PASSI, COME RESET COMPLETO — e per lo stesso motivo:
+ * questo pulsante SCARTA quello che questo telefono ha in più (o di
+ * diverso) e lo sostituisce con la copia del server. Dice esplicitamente
+ * cosa perde e cosa riprende, con i numeri veri, prima di poterlo fare.
+ */
+function RestoreButton({
+  local,
+  server,
+  onDone,
+}: {
+  local: ServerPeek;
+  server: ServerPeek;
+  onDone: () => void;
+}) {
+  const [armed, setArmed] = useState(false);
+  const [working, setWorking] = useState(false);
+
+  if (!armed) {
+    return (
+      <div className="dev__row">
+        <Button small variant="secondary" onClick={() => setArmed(true)}>
+          RIPRENDI DAL SERVER
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="dev__control">
+      <p className="t-small dev__note">
+        Questo telefono torna alla copia del server: <strong>giorno {server.day}</strong>,{' '}
+        {server.mons} {server.mons === 1 ? 'forma' : 'forme'}, {server.kept} in teca,{' '}
+        mon attivo <strong>{server.activeMonName ?? '—'}</strong>.
+        {' '}Perdi quello che c'è solo qui — giorno {local.day},{' '}
+        {local.mons} {local.mons === 1 ? 'forma' : 'forme'}, {local.kept} in teca,{' '}
+        mon attivo <strong>{local.activeMonName ?? '—'}</strong> — e non si torna indietro da qui.
+      </p>
+      <div className="dev__control dev__control--row">
+        <Button small onClick={() => setArmed(false)} disabled={working}>
+          Lascia stare
+        </Button>
+        <Button
+          variant="secondary"
+          small
+          loading={working}
+          onClick={() => {
+            setWorking(true);
+            void restoreFromServer().then(() => {
+              setWorking(false);
+              setArmed(false);
+              onDone();
+            });
+          }}
+        >
+          Riprendi dal server
+        </Button>
+      </div>
+    </div>
   );
 }
