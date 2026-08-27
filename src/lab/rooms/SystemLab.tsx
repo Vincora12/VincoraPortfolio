@@ -23,7 +23,7 @@ import { useApp } from '../../state/store';
 import { STAT_KEYS, UNKNOWN, isKnown } from '../../engine/types';
 import type { StatKey } from '../../engine/types';
 import { DAILY_SIGNALS, DAILY_SIGNAL_LABELS } from '../../engine/progression';
-import { loadPing, loadSetup } from '../../ai/backend';
+import { loadPing, loadSetup, loadShortcutStatus, type ShortcutStatus } from '../../ai/backend';
 import { lastRuns } from '../../ai/telemetry';
 import { MODEL_CHOICES } from '../../engine/aiRouting';
 import { Btn, Grid, LabTop, Notice, PageHead, Range, Rows, Section, Status } from './parts';
@@ -36,6 +36,13 @@ const TABS = [
   { id: 'simulation', label: 'SIMULATION' },
   { id: 'memory', label: 'MEMORY' },
   { id: 'usage', label: 'USAGE' },
+  /* 🔷 brief Shortcuts §11, e la regola scritta nell'atrio del lab:
+     «se cambia come l'app... chiama API, va in SYSTEM.LAB». `/api/shortcut`
+     è esattamente questo — e finora esisteva SOLO in DEV → SHORTCUT API,
+     dentro l'app vera, non qui. Due superfici diverse, la stessa domanda
+     («Nel lab c'è tutto?»), e qui la risposta era no finché non c'era
+     questa scheda. */
+  { id: 'shortcuts', label: 'SHORTCUTS' },
   { id: 'assistant', label: '🤖 ASSISTENTE' },
 ];
 
@@ -72,6 +79,7 @@ export function SystemLab({ onBack }: { onBack: () => void }) {
         {tab === 'simulation' && <Simulation />}
         {tab === 'memory' && <Memory />}
         {tab === 'usage' && <Usage />}
+        {tab === 'shortcuts' && <Shortcuts />}
         {tab === 'assistant' && <LabAssistantPanel />}
         <div className="footer mono">SYSTEM.LAB · SAME VINZ.MON ENGINE / SAME REPOSITORY</div>
       </main>
@@ -554,6 +562,94 @@ function Usage() {
         note="Contabilità in sola lettura della pipeline di creazione. I controlli degli asset stanno in CREATION.LAB."
       >
         <Rows rows={[['IMAGE MODEL', imageModel ?? 'predefinito']]} />
+      </Section>
+    </section>
+  );
+}
+
+/* ============================================================================
+   SHORTCUTS (brief «VINZ.MON iOS Shortcuts — Background Integration», §11)
+   ========================================================================= */
+
+const AI_POLICY_LABEL: Record<string, string> = { never: 'MAI', sometimes: 'A VOLTE', usually: 'QUASI SEMPRE' };
+const EXAMPLE_BODY = JSON.stringify({ action: 'meal', text: 'piadina con pollo e mozzarella' }, null, 2);
+
+function Shortcuts() {
+  const token = useApp((s) => s.token);
+  const [status, setStatus] = useState<ShortcutStatus | null>(null);
+  const [failure, setFailure] = useState<string | null>(null);
+  const [checking, setChecking] = useState(false);
+
+  const check = async () => {
+    setChecking(true);
+    const { data, failure: f } = await loadShortcutStatus(token);
+    setStatus(data);
+    setFailure(f);
+    setChecking(false);
+  };
+
+  useEffect(() => {
+    void check();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
+  return (
+    <section className="page active">
+      <PageHead
+        kicker="SYSTEM.LAB / API"
+        title="SHORTCUTS"
+        lead="Non un gestore delle tue Comandi di iPhone — quelle restano su iOS. Qui c'è solo cosa /api/shortcut sa fare, con cosa costruirci sopra, e cosa è successo davvero nelle ultime chiamate."
+      />
+
+      <Section title="IL SEGRETO DELLE SHORTCUT" note="Diverso da VINZMON_TOKEN — revocabile senza toccare voce, immagini o salvataggio.">
+        <Rows
+          rows={[
+            [
+              'VINZMON_SHORTCUT_TOKEN',
+              <Status
+                label={status?.tokenConfigured ? 'CONFIGURED' : 'MISSING'}
+                ok={status?.tokenConfigured === true}
+              />,
+            ],
+          ]}
+        />
+        <Grid>
+          <Btn variant="dark" onClick={() => void check()} disabled={checking}>
+            {checking ? 'CONTROLLO…' : 'RUN CHECK'}
+          </Btn>
+        </Grid>
+        {failure && <p className="note">setup: {failure}</p>}
+      </Section>
+
+      <Section title="COME CHIAMARLA" note="Shortcut «Ottieni contenuti di URL» · POST · header Authorization: Bearer <VINZMON_SHORTCUT_TOKEN>.">
+        <Rows rows={[['ENDPOINT', status?.endpoint ?? '/api/shortcut']]} />
+        <pre className="json">{EXAMPLE_BODY}</pre>
+      </Section>
+
+      <Section title="AZIONI">
+        {status ? (
+          <Rows
+            rows={status.actions.map((a) => [
+              a.label,
+              a.enabled ? `${AI_POLICY_LABEL[a.aiPolicy]} · ${a.input}` : 'NOT YET',
+            ])}
+          />
+        ) : (
+          <p className="note">nessun dato ancora.</p>
+        )}
+      </Section>
+
+      <Section title="ULTIME CHIAMATE" note="Solo la forma della chiamata — azione, esito, durata, costo. Mai il contenuto.">
+        {status && status.recent.length > 0 ? (
+          <Rows
+            rows={status.recent.map((c) => [
+              `${c.action} · ${new Date(c.at).toLocaleString('it-IT')}`,
+              `${c.ok ? 'OK' : 'FAILED'} · ${(c.ms / 1000).toFixed(1)}s${c.costUsd > 0 ? ` · $${c.costUsd.toFixed(4)}` : ''}`,
+            ])}
+          />
+        ) : (
+          <p className="note">nessuna chiamata ancora.</p>
+        )}
       </Section>
     </section>
   );
