@@ -90,6 +90,15 @@ const PRESET_TEXTURE: Partial<Record<string, string>> = {
   'CORPORATE DEMON': 'may drop a flat 🙃 after something falsely upbeat, or close with a curt "K." — deadpan, never actually warm',
 };
 
+const GENERIC_REACTIONS = new Set([
+  'uses no emoji or emoticons; emotion must remain in the wording',
+  'uses old text emoticons instead of graphical emoji, rarely and only when earned: choose from :)  ;)  :/  :D  -_-  <3; never place more than one in a message',
+  'may use one simple graphical emoji in an emotionally clear moment; most messages use none',
+  'uses dry text reactions such as lol, mh, ah, or ... as part of speech; graphical emoji are absent',
+  'reaches for a small, current set of internet-register signals when something lands as genuinely funny or absurd — 💀 for dying laughing, 😭 for something overwhelming in a good way, the way people actually use them now; never stacked, never forced, absent from most messages',
+  'almost never uses symbols; a rare :) is more natural than a colourful emoji',
+]);
+
 /* 🔷 «Le usano tutte?» No, e non è una svista: OLD-SOUL ORACLE resta senza
    texture di proposito. Il suo intero registro è «misurato, simbolico,
    lievemente arcaico»; uno slang di internet lì non sarebbe una firma, sarebbe
@@ -151,7 +160,7 @@ function writingStyle(d: CharacterData): NonNullable<PersonalityCard['writingSty
       ? [
           'favours full stops and occasional exclamation marks; never stacks them',
           'quick commas and decisive stops; questions arrive directly',
-          'uses dashes for sudden turns — like this — more than semicolons',
+          'uses short sentences and line breaks for sudden turns; semicolons are rare',
         ]
       : [
           'allows occasional ellipses when a thought trails off; never more than once in a reply',
@@ -201,7 +210,7 @@ function writingStyle(d: CharacterData): NonNullable<PersonalityCard['writingSty
     reactions = 'uses dry text reactions such as lol, mh, ah, or ... as part of speech; graphical emoji are absent';
   } else if (reactionMode === 4 && humor > 55 && digital > 45) {
     reactions = 'reaches for a small, current set of internet-register signals when something lands as genuinely funny or absurd — 💀 for dying laughing, 😭 for something overwhelming in a good way, the way people actually use them now; never stacked, never forced, absent from most messages';
-  } else if (reactionMode === 5 && presetTexture && humor > 45) {
+  } else if (reactionMode === 5 && presetTexture) {
     reactions = presetTexture;
   } else {
     reactions = 'almost never uses symbols; a rare :) is more natural than a colourful emoji';
@@ -218,7 +227,7 @@ function writingStyle(d: CharacterData): NonNullable<PersonalityCard['writingSty
     'when amused, lets the humour sit in a deadpan final fragment',
     'when uncertain, pauses with “mh” before saying exactly what is unclear',
     'when excited, sentence length gets shorter rather than louder',
-    'occasionally corrects himself mid-thought with a dash',
+    'occasionally corrects himself mid-thought with a brief restart',
     'prefers a direct answer first, then the reason on a new line',
   ];
   if (d.family === 'MACHINE' && digital > 60) {
@@ -284,14 +293,31 @@ export function buildPersonalityCard(d: CharacterData): PersonalityCard {
 
 export function voiceCard(record: MonRecord): PersonalityCard {
   const generated = buildPersonalityCard(record.data);
-  return record.personalityCard
+  const card: PersonalityCard = record.personalityCard
     ? {
         ...generated,
         ...record.personalityCard,
         version: 2,
-        writingStyle: record.personalityCard.writingStyle ?? generated.writingStyle,
+        writingStyle: {
+          ...generated.writingStyle!,
+          ...record.personalityCard.writingStyle,
+        },
       }
     : generated;
+
+  // Cards persisted before this rule could contain a randomly assigned dash
+  // mannerism. It was never part of a preset, so do not keep it as identity.
+  if (card.writingStyle?.punctuation === 'uses dashes for sudden turns — like this — more than semicolons') {
+    card.writingStyle.punctuation = 'uses short sentences and line breaks for sudden turns; semicolons are rare';
+  }
+  if (card.writingStyle?.signature === 'occasionally corrects himself mid-thought with a dash') {
+    card.writingStyle.signature = 'occasionally corrects himself mid-thought with a brief restart';
+  }
+  const persistedReactions = record.personalityCard?.writingStyle?.reactions;
+  if (persistedReactions && GENERIC_REACTIONS.has(persistedReactions)) {
+    card.writingStyle!.reactions = generated.writingStyle!.reactions;
+  }
+  return card;
 }
 
 export function voiceCardBlock(record: MonRecord): string {
@@ -319,14 +345,15 @@ export function voiceCardBlock(record: MonRecord): string {
     `- Shape: ${card.writingStyle?.paragraphs}.`,
     `- Reactions: ${card.writingStyle?.reactions}.`,
     `- Personal tic: ${card.writingStyle?.signature}.`,
+    '- This fingerprint governs the actual wording and visible shape of the reply; do not replace it',
+    '  with a neutral assistant style. Use a dash only if a specific line in this card calls for one.',
     '- Apply these naturally, not mechanically. A signature is recognizable across several messages,',
     '  not a checklist performed in every reply. Never mention or explain this writing fingerprint.',
     '',
     'Do not demonstrate every line in one reply. Do not turn these lenses into catchphrases,',
     'technical status reports or lore exposition. Personality is selection: what you notice first,',
     'what irritates you, what you find funny, and what you choose to say.',
-    'The one exception is your own Personal Tic above, when it is literally something your body',
-    'would do (a sound, a stutter, an emoji): that can recur, rarely — it is a signature you were',
-    'born with, not a bit you perform. Never invent a second one beyond it.',
+    'Your own Personal Tic and Reactions above may recur rarely enough to become recognizable.',
+    'They are signatures, not a bit you perform. Never invent a second signature beyond them.',
   ].join('\n');
 }
