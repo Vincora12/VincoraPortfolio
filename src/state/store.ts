@@ -4092,7 +4092,19 @@ export interface ServerSave {
  */
 export function shouldDownload(local: LocalSave, server: ServerSave): boolean {
   if (local.resetAt && server.savedAt && server.savedAt <= local.resetAt) return false;
-  return server.day >= local.day;
+  /* 🔴 «Come se non aggiungesse le altre forme... come se non stesse
+     salvando, e anche i personaggi della teca.» — Era `>=`: a PARITÀ di
+     giorno scaricava comunque il server. Il salvataggio vero è debounced
+     4 secondi (`SAVE_DEBOUNCE_MS`): fai qualcosa — evolvi, tieni un .mon in
+     teca — chiudi l'app prima che quei 4 secondi passino, e al prossimo
+     avvio il server (fermo alla copia di PRIMA) vinceva comunque perché il
+     giorno non era ancora avanzato. Il progresso di oggi spariva in
+     silenzio, esattamente come se non fosse mai stato salvato — perché di
+     fatto non lo era ancora, e il pareggio lo cancellava al posto di
+     aspettare che arrivasse. A parità di giorno vince chi è già in mano:
+     il locale. Lo diceva già un test in batch-check.mjs, rimasto rosso da
+     prima di questa sessione: «a parità di giorno non si scarica niente». */
+  return server.day > local.day;
 }
 
 /**
