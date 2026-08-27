@@ -41,6 +41,7 @@ import { evolveMon, generateFirstMon, generateMon } from '../engine/characterGen
 import type { BackendFailure, RemoteSave } from '../ai/backend';
 import type { CreativeResolution } from '../assets-pipeline/resolver/vendor/types';
 import { migratedStepModels, type VecchieScelte } from './migrateSteps';
+import { runtimeConfig, updateRuntimeConfig } from '../system/runtimeConfig';
 import { formeGiaViste } from '../assets-pipeline/resolver/taste';
 /* 🔒 IL CATALOGO SI IMPORTA, NON SI RICOPIA. `routing.ts` non ha un solo
    import: è dati puri, e il browser lo può leggere com'è. Una seconda copia
@@ -2471,15 +2472,16 @@ export const useApp = create<AppState>()(
          dell'umore, nessuna riga che tocchi le forme: se un giorno ne
          comparisse una qui dentro, avrebbe smentito la premessa per cui
          questa funzione esiste. C'è un controllo che lo verifica. */
-      setVoiceModel: (model) => set({ voiceModel: model }),
-      setCompilerModel: (model) => set({ compilerModel: model }),
-      setImageModel: (model) => set({ imageModel: model }),
+      setVoiceModel: (model) => { set({ voiceModel: model }); updateRuntimeConfig({ voiceModel: model }); },
+      setCompilerModel: (model) => { set({ compilerModel: model }); updateRuntimeConfig({ compilerModel: model }); },
+      setImageModel: (model) => { set({ imageModel: model }); updateRuntimeConfig({ imageModel: model }); },
 
       setStepModel: (step, model) =>
         set((cur) => {
           const next = { ...cur.stepModels };
           if (model === null) delete next[step];
           else next[step] = model;
+          updateRuntimeConfig({ stepModels: next });
           return { stepModels: next };
         }),
 
@@ -2494,9 +2496,9 @@ export const useApp = create<AppState>()(
          invece di deciderlo. Adesso la decisione la fa `recommendedModel`
          in `routing.ts` — guarda cataloghi e dati veri, non un nome fisso —
          ed è lì che va letta la logica, non qui. */
-      useCheapPreset: () => set({ stepModels: recommendedPreset() }),
+      useCheapPreset: () => { const stepModels = recommendedPreset(); set({ stepModels }); updateRuntimeConfig({ stepModels }); },
 
-      useQualityPreset: () => set({ stepModels: {} }),
+      useQualityPreset: () => { set({ stepModels: {} }); updateRuntimeConfig({ stepModels: {} }); },
 
       compileAssetPrompt: async (monName, assetType) => {
         const s = get();
@@ -3585,6 +3587,15 @@ export const useApp = create<AppState>()(
     },
   ),
 );
+
+export function applyRuntimeConfigToStore(config = runtimeConfig()): void {
+  useApp.setState({
+    voiceModel: config.voiceModel,
+    compilerModel: config.compilerModel,
+    imageModel: config.imageModel,
+    stepModels: config.stepModels,
+  });
+}
 
 /* ============================================================================
    🔷 v1.14 §13.10 — IL MESSAGGIO CHE ARRIVA DA SOLO

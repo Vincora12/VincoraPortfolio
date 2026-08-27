@@ -56,16 +56,16 @@ export const ALIEN_FAMILY_V2 = {
 } as const;
 
 export type TaxonomyDescriptionVersion = 'v1' | 'v2';
-const VERSION_KEY = 'vinzmon.taxonomyDescriptions.catalog';
+import { runtimeConfig, updateRuntimeConfig } from '../system/runtimeConfig';
 
 export function taxonomyDescriptionVersion(): TaxonomyDescriptionVersion {
   if (typeof localStorage === 'undefined') return 'v1';
-  return localStorage.getItem(VERSION_KEY) === 'v2' ? 'v2' : 'v1';
+  return runtimeConfig().taxonomyVersion;
 }
 
-export function setTaxonomyDescriptionVersion(version: TaxonomyDescriptionVersion): void {
+export async function setTaxonomyDescriptionVersion(version: TaxonomyDescriptionVersion): Promise<void> {
   if (typeof localStorage === 'undefined') return;
-  localStorage.setItem(VERSION_KEY, version);
+  await updateRuntimeConfig({ taxonomyVersion: version });
 }
 
 /** Risolto una volta all'avvio. Il LAB ricarica la pagina dopo il cambio. */

@@ -1,7 +1,10 @@
-import { savedToken } from '../brain/stream';
-
 function auth(): HeadersInit | null {
-  const token = savedToken();
+  let token: string | null = null;
+  try {
+    const raw = localStorage.getItem('vinzmon.prototype.v4');
+    const parsed = raw ? JSON.parse(raw) as { state?: { token?: unknown } } : null;
+    token = typeof parsed?.state?.token === 'string' ? parsed.state.token : null;
+  } catch { /* Un salvataggio locale illeggibile equivale a nessun token. */ }
   return token ? { authorization: `Bearer ${token}` } : null;
 }
 

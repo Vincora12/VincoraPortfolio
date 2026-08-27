@@ -19,9 +19,9 @@ export function TaxonomyVersionControl() {
             key={version}
             className={versione === version ? 'active' : ''}
             aria-pressed={versione === version}
-            onClick={() => {
+            onClick={async () => {
               if (versione === version) return;
-              setTaxonomyDescriptionVersion(version);
+              await setTaxonomyDescriptionVersion(version);
               setVersione(version);
               window.location.reload();
             }}

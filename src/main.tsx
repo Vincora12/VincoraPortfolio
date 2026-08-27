@@ -31,6 +31,8 @@ import { ErrorBoundary } from './system/ErrorBoundary';
    ========================================================================= */
 
 async function boot() {
+  const { pullRuntimeConfig } = await import('./system/runtimeConfig');
+  const runtimeConfig = await pullRuntimeConfig();
   const entry = readEntrypoint();
   applyDocumentMeta(entry.kind === 'lab' ? 'lab' : 'app');
 
@@ -61,6 +63,9 @@ async function boot() {
     const { App } = await import('./App');
     content = <App />;
   }
+
+  const { applyRuntimeConfigToStore } = await import('./state/store');
+  applyRuntimeConfigToStore(runtimeConfig);
 
   createRoot(document.getElementById('root')!).render(
     <StrictMode>
