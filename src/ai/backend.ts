@@ -348,12 +348,27 @@ export function askImage(
   size?: string,
   /** Il CHARACTER MASTER da allegare, in base64: la consistenza vera. */
   reference?: string | null,
+  /**
+   * 🔷 Quanto deve venire bene.
+   *
+   * `low` è la BOZZA: costa circa un nono di `medium` (che è il default del
+   * fornitore, cioè quello che abbiamo sempre pagato senza dichiararlo) e
+   * serve a rispondere alla domanda «la pipeline funziona e la creatura
+   * somiglia a quello che volevo?». Per l'immagine che poi TIENI serve la
+   * qualità piena.
+   *
+   * 🔒 `undefined` = il server decide, e il server sceglie `medium`: il
+   * comportamento di prima resta il predefinito, questo parametro apre una
+   * porta e non cambia il prodotto.
+   */
+  quality?: 'low' | 'medium' | 'high',
 ): Promise<BackendResult<ImageData>> {
   return post<ImageData>('/api/ai', token, {
     capability: 'image',
     prompt,
     voiceModel: imageModel,
     ...(reference ? { reference } : {}),
+    ...(quality ? { quality } : {}),
     size,
   });
 }

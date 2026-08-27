@@ -81,6 +81,19 @@ export interface GenerateOptions {
    * perché si cerca un personaggio diverso.
    */
   replace?: boolean;
+  /**
+   * 🔷 Quanto devono venire bene queste immagini.
+   *
+   * ⚠️ È IL PARAMETRO CHE DECIDE IL CONTO. Sei immagini a `medium` — il
+   * default del fornitore, cioè quello che è sempre stato pagato senza che
+   * nessuno lo dichiarasse — costano circa $0,32. Le stesse sei in `low`
+   * costano circa $0,036. Una giornata di prove in cui una creatura si
+   * rigenera dieci volte sono $3,20 contro 36 centesimi.
+   *
+   * 🔒 Assente = `medium`, cioè come è sempre stato. Lo accende DEV, non il
+   * prodotto: l'immagine che l'utente TIENE deve restare quella buona.
+   */
+  quality?: 'low' | 'medium' | 'high';
 }
 
 export interface GenerationProgress {
@@ -144,6 +157,7 @@ export async function generateMissingAssets(
       imageModel,
       assetTypeDef(type).size,
       reference,
+      opts.quality,
     );
 
     if (!res.data) {

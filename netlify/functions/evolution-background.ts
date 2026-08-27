@@ -1,6 +1,6 @@
 import { getStore } from '@netlify/blobs';
 import { authorize } from './_shared/auth';
-import { generateImage, IMAGE_SIZES, type ImageSize } from './_shared/providers';
+import { generateImage, IMAGE_SIZES, IMAGE_QUALITIES, type ImageSize, type ImageQuality } from './_shared/providers';
 import { resolveRoute } from './_shared/routing';
 import { checkCap, recordSpend } from './_shared/spend';
 import webpush from 'web-push';
@@ -65,10 +65,10 @@ function effectivePrompt(item: AssetItem): string {
   ].join('\n\n');
 }
 
-async function generateWithRetry(routeModel: string, item: AssetItem, reference: string | null) {
+async function generateWithRetry(routeModel: string, item: AssetItem, reference: string | null, quality?: ImageQuality) {
   const prompt = effectivePrompt(item);
   const background = item.type === 'character_toy' ? 'opaque' : 'transparent';
-  let result = await generateImage(routeModel, prompt, item.size, reference, background);
+  let result = await generateImage(routeModel, prompt, item.size, reference, background, quality);
   for (let retry = 1; !result.ok && retry <= 3; retry += 1) {
     /* Credenziali e tetto di spesa non cambiano ripetendo la stessa chiamata. */
     if (/401|API_KEY mancante|tetto mensile/i.test(result.error ?? '')) break;
@@ -76,7 +76,7 @@ async function generateWithRetry(routeModel: string, item: AssetItem, reference:
       ? saferPrompt(prompt)
       : prompt;
     await new Promise((resolve) => setTimeout(resolve, retry * 1000));
-    result = await generateImage(routeModel, retryPrompt, item.size, reference, background);
+    result = await generateImage(routeModel, retryPrompt, item.size, reference, background, quality);
   }
   return result;
 }
@@ -106,7 +106,7 @@ async function sendReadyPush(candidateName: string): Promise<void> {
 export default async function evolutionBackground(request: Request): Promise<void> {
   if (!authorize(request).ok) return;
 
-  let body: { jobId?: string; candidateName?: string; imageModel?: string | null; items?: AssetItem[] };
+  let body: { jobId?: string; candidateName?: string; imageModel?: string | null; quality?: string; items?: AssetItem[] };
   try {
     body = (await request.json()) as typeof body;
   } catch {
@@ -120,6 +120,12 @@ export default async function evolutionBackground(request: Request): Promise<voi
   if (items.some((item) => !ALLOWED_ASSETS.has(item.assetId) || !IMAGE_SIZES.includes(item.size) || !item.prompt || item.prompt.length > 200_000)) return;
 
   const route = resolveRoute('image', body.imageModel);
+  /* 🔒 Validata contro il catalogo, come la misura: arriva dal browser. Un
+     valore inventato torna a `undefined`, cioè al predefinito del fornitore —
+     mai un errore per un parametro di comodità. */
+  const quality = IMAGE_QUALITIES.includes(body.quality as ImageQuality)
+    ? (body.quality as ImageQuality)
+    : undefined;
   const job: Job = {
     id,
     candidateName,
@@ -168,7 +174,7 @@ export default async function evolutionBackground(request: Request): Promise<voi
     job.label = item.type === 'character_master' ? 'CHARACTER MASTER CEL' : item.type === 'character_toy' ? 'CHARACTER MASTER TOY' : item.type === 'bio_doodle' ? 'BIO DOODLE' : 'STICKER / REACTION';
     await save(job);
 
-    const result = await generateWithRetry(route.model, item, item.type === 'character_master' ? null : master);
+    const result = await generateWithRetry(route.model, item, item.type === 'character_master' ? null : master, quality);
     if (!result.ok || !result.data) {
       job.status = 'error';
       job.error = result.error?.slice(0, 400) ?? 'Generazione immagine non riuscita';

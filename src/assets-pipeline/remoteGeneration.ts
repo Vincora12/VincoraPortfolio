@@ -15,7 +15,7 @@ export type RemoteEvolutionStatus = {
 
 const headers = (token: string) => ({ 'content-type': 'application/json', authorization: `Bearer ${token}` });
 
-export async function queueRemoteGeneration(token: string, jobId: string, record: MonRecord, imageModel?: string | null, onlyTypes?: AssetType[]): Promise<void> {
+export async function queueRemoteGeneration(token: string, jobId: string, record: MonRecord, imageModel?: string | null, onlyTypes?: AssetType[], quality?: 'low' | 'medium' | 'high'): Promise<void> {
   const wanted = onlyTypes ? new Set(onlyTypes) : null;
   const items = generationOrder().filter((def) => !wanted || wanted.has(def.type)).map((def) => ({
     type: def.type,
@@ -26,7 +26,7 @@ export async function queueRemoteGeneration(token: string, jobId: string, record
   const response = await fetch('/api/evolution-background', {
     method: 'POST',
     headers: headers(token),
-    body: JSON.stringify({ jobId, candidateName: record.data.name, imageModel, items }),
+    body: JSON.stringify({ jobId, candidateName: record.data.name, imageModel, quality, items }),
   });
   if (!response.ok && response.status !== 202) throw new Error(`Avvio server non riuscito (${response.status})`);
 }

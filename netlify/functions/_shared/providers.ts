@@ -1041,6 +1041,34 @@ export interface ImageResult {
 export const IMAGE_SIZES = ['1024x1024', '1536x1024', '1024x1536'] as const;
 export type ImageSize = (typeof IMAGE_SIZES)[number];
 
+/* ============================================================================
+   🔴 IL PARAMETRO CHE NON MANDAVAMO, ED È QUELLO CHE COSTA.
+
+   `gpt-image-2` accetta `quality`: `low`, `medium`, `high`. Qui non veniva
+   mandato NIENTE, quindi ogni immagine usciva al default — che è `medium`.
+
+   A 1024×1024 la differenza non è di sfumatura, è di ordine di grandezza:
+
+     low     ~$0,006     circa un nono di medium
+     medium  ~$0,053     il default, cioè quello che abbiamo sempre pagato
+     high    ~$0,211     quattro volte medium
+
+   Sei immagini per creatura fanno $0,32 a `medium` e $0,036 a `low`. Su una
+   giornata di prove in cui una creatura si rigenera dieci volte, sono $3,20
+   contro $0,36.
+
+   ⚠️ E NON È UN COMPROMESSO INVENTATO DA ME: la documentazione di OpenAI
+   consiglia esplicitamente di provare prima con `quality: low`. La qualità
+   alta serve all'immagine che TIENI, non a quella che guardi per capire se la
+   pipeline funziona.
+
+   🔒 Il predefinito qui resta `medium`, cioè esattamente il comportamento di
+   prima: questo parametro apre una porta, non cambia il prodotto. Chi vuole
+   risparmiare lo dichiara (DEV → ASSET → IMMAGINI IN BOZZA).
+   ========================================================================= */
+export const IMAGE_QUALITIES = ['low', 'medium', 'high'] as const;
+export type ImageQuality = (typeof IMAGE_QUALITIES)[number];
+
 export async function generateImage(
   model: string,
   prompt: string,
@@ -1064,6 +1092,8 @@ export async function generateImage(
    */
   reference?: string | null,
   background: 'transparent' | 'opaque' = 'transparent',
+  /** 🔒 `medium` = il comportamento di sempre. Vedi il blocco qui sopra. */
+  quality: ImageQuality = 'medium',
 ): Promise<ImageResult> {
   const key = process.env.OPENAI_API_KEY;
   if (!key) return { ok: false, data: '', usage: {}, error: 'OPENAI_API_KEY mancante' };
@@ -1083,7 +1113,7 @@ export async function generateImage(
       method: 'POST',
       signal: AbortSignal.timeout(120_000),
       headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` },
-      body: JSON.stringify({ model, prompt, size, n: 1, ...extras }),
+      body: JSON.stringify({ model, prompt, size, quality, n: 1, ...extras }),
     });
 
   /* Con riferimento: multipart, perché l'immagine è un file e non un campo
@@ -1095,6 +1125,7 @@ export async function generateImage(
     form.append('model', model);
     form.append('prompt', prompt);
     form.append('size', size);
+    form.append('quality', quality);
     form.append('n', '1');
     for (const [k, v] of Object.entries(extras)) form.append(k, String(v));
     const bytes = Uint8Array.from(atob(reference as string), (c) => c.charCodeAt(0));
@@ -1135,7 +1166,10 @@ export async function generateImage(
     const body = (await res.json()) as { data?: { b64_json?: string }[] };
     const data = body.data?.[0]?.b64_json ?? '';
 
-    return { ok: data.length > 0, data, usage: { images: 1 } };
+    /* 🔒 La qualità torna indietro insieme al conteggio: senza, il tetto di
+       spesa prezzerebbe una bozza come un'immagine finita — cioè conterebbe
+       nove volte il vero, e si fermerebbe con settimane di anticipo. */
+    return { ok: data.length > 0, data, usage: { images: 1, imageQuality: quality } };
   } catch (err) {
     return { ok: false, data: '', usage: {}, error: String(err) };
   }

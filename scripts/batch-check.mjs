@@ -876,8 +876,13 @@ check(
    sovrascrittura la decide `forgeOne` nello store — la schermata chiede
    l'asset e basta. La decisione e' la stessa: si sovrascrive SOLO su
    richiesta, mai per conto proprio. */
+/* 🔶 L'ago cercava l'oggetto letterale `{ only: [type], replace: true }`, e si
+   e' rotto appena quell'oggetto ha guadagnato un campo (`quality`, la bozza da
+   prove). Guardava la FORMA, non la decisione — lo stesso difetto che il
+   commento qui sopra racconta di aver gia' corretto una volta. Adesso guarda
+   le due cose che contano: si chiede UN asset solo, e lo si sovrascrive. */
 check(
-  storeSrc.includes('{ only: [type], replace: true }'),
+  /\{ only: \[type\], replace: true[,}]/.test(storeSrc),
   'e «rifalla» e l’unica cosa che puo sovrascrivere un asset',
 );
 check(

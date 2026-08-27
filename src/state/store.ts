@@ -292,6 +292,22 @@ export interface DevFlags {
   rarityThresholds: RarityThresholds | null;
   /** Solo DEV: forza il temperamento di nascita dei prossimi MON. */
   forcedMood: string | null;
+  /**
+   * 🔷 IMMAGINI IN BOZZA — la leva che decide il conto.
+   *
+   * `gpt-image-2` accetta `quality`, e finora non gliela mandavamo: ogni
+   * immagine usciva al default del fornitore, che è `medium`. A 1024×1024
+   * `low` costa circa un nono. Sei immagini per creatura fanno $0,32 contro
+   * $0,036 — e su una giornata di prove in cui la stessa creatura si rigenera
+   * dieci volte, $3,20 contro 36 centesimi.
+   *
+   * ⚠️ SPENTA DI DEFAULT, ED È GIUSTO COSÌ. L'immagine che l'utente TIENE
+   * deve restare quella buona. Questo interruttore serve a rispondere alla
+   * domanda «la pipeline funziona e la creatura somiglia a quello che
+   * volevo?», che non richiede la qualità piena — e la documentazione di
+   * OpenAI consiglia esattamente questo per le prove.
+   */
+  draftImages: boolean;
 }
 
 /* ============================================================================
@@ -838,7 +854,7 @@ interface AppState {
   /** Chiede le immagini che mancano. Non blocca: torna subito. */
   generateAssetsFor: (
     monName: string,
-    opts?: { only?: readonly AssetType[]; replace?: boolean },
+    opts?: { only?: readonly AssetType[]; replace?: boolean; quality?: 'low' | 'medium' | 'high' },
   ) => void;
   /** Quante volte gli hai fatto rifare la faccia. Lo sa anche lui. */
   faceRedos: number;
@@ -976,6 +992,8 @@ const INITIAL = {
        sedute, non in una. */
     rarityThresholds: null as RarityThresholds | null,
     forcedMood: null as string | null,
+    /* 🔒 Spenta: il predefinito è il prodotto, non le prove. */
+    draftImages: false,
   },
   bias: DEFAULT_BIAS,
   token: null as string | null,
@@ -1954,7 +1972,17 @@ export const useApp = create<AppState>()(
               serverJobId = crypto.randomUUID();
               const id = serverJobId;
               set((current) => ({ evolutionJob: current.evolutionJob?.candidateName === job.candidateName ? { ...current.evolutionJob, serverJobId: id, total: generationOrder().length } : current.evolutionJob }));
-              await queueRemoteGeneration(initial.token as string, id, record, stepModel('image'));
+              /* 🔷 La bozza passa di qui: è l'unica strada da cui nascono
+                 davvero le sei immagini, quindi è l'unico posto dove
+                 l'interruttore deve arrivare perché conti qualcosa. */
+              await queueRemoteGeneration(
+                initial.token as string,
+                id,
+                record,
+                stepModel('image'),
+                undefined,
+                initial.dev.draftImages ? 'low' : undefined,
+              );
             }
 
             const result = await pollRemoteGeneration(initial.token as string, serverJobId, record, (progress) => {
@@ -2713,7 +2741,7 @@ export const useApp = create<AppState>()(
           get().token,
           rec,
           undefined,
-          { only: [type], replace: true },
+          { only: [type], replace: true, quality: get().dev.draftImages ? 'low' : undefined },
           stepModel('image'),
         );
         /* Il motivo vero se c'è, il codice se non c'è: «openai 404: model not
@@ -3344,7 +3372,9 @@ export const useApp = create<AppState>()(
             get().token,
             rec,
             (p) => set({ assetProgress: { monName, ...p } }),
-            opts,
+            /* La bozza non sovrascrive una scelta esplicita di chi chiama:
+               `opts.quality` vince, l'interruttore riempie solo il vuoto. */
+            { ...opts, quality: opts?.quality ?? (get().dev.draftImages ? 'low' : undefined) },
             stepModel('image'),
           );
 

@@ -35,11 +35,31 @@ function prezzo(capability: string, model: string): string | null {
   return null;
 }
 
+/* ============================================================================
+   🔴 DOVE VANNO I SOLDI DAVVERO, E PERCHÉ IL PULSANTE «ECONOMICO» NON BASTAVA.
+
+   Il preset economico salta gli step marcati `qualityCritical`. Sono tre:
+   CHARACTER MASTER, VOCE, IMMAGINI. Cioè esattamente i tre che costano.
+
+   Tutti gli altri — BIO, INSEGNA, NARRATORE, PROMPT IMMAGINI — hanno già Luna
+   come predefinito, quindi il pulsante li metteva su Luna dove erano già.
+   ⚠️ Premuto su una partita coi predefiniti, «ECONOMICO» non cambiava NIENTE:
+   era un pulsante che dichiarava un risparmio e non ne produceva nessuno.
+
+   La riga qui sotto dice quanto pesa ciascuna cosa su una generazione intera,
+   così la scelta si fa guardando i numeri invece che i nomi.
+   ========================================================================= */
+
+/** Sei immagini, ai tre livelli di qualità. Listino di agosto 2026. */
+const COSTO_IMMAGINI = { low: 0.036, medium: 0.32, high: 1.27 };
+
 export function ModelsSection() {
   const stepModels = useApp((s) => s.stepModels);
   const setStepModel = useApp((s) => s.setStepModel);
   const cheap = useApp((s) => s.useCheapPreset);
   const quality = useApp((s) => s.useQualityPreset);
+  const dev = useApp((s) => s.dev);
+  const setDev = useApp((s) => s.setDev);
 
   /* La telemetria vive fuori da zustand: ci si abbona come al contatore
      della spesa. */
@@ -67,6 +87,34 @@ export function ModelsSection() {
           ECONOMICO · MASTER RESTA SOL
         </Button>
       </div>
+
+      {/* ══════════════════════════════════════════════════════════════════
+          🔷 LA LEVA VERA, e sta sopra l'elenco perché è quella che conta.
+
+          Le sei immagini sono l'80% del costo di una generazione. Il menu dei
+          modelli qui sotto muove il restante 20% — utile, ma non è lì che si
+          risparmia. */}
+      <p className="t-meta dev__label">IMMAGINI — L’80% DEL COSTO DI UNA GENERAZIONE</p>
+      <label className="dev__check">
+        <input
+          type="checkbox"
+          checked={dev.draftImages}
+          onChange={(e) => setDev({ draftImages: e.target.checked })}
+        />
+        IMMAGINI IN BOZZA (quality: low)
+      </label>
+      <p className="t-micro dev__note">
+        Sei immagini per creatura: <strong>${COSTO_IMMAGINI.medium.toFixed(2)}</strong> in
+        qualità piena (il default del fornitore, cioè quello che hai sempre
+        pagato) contro <strong>${COSTO_IMMAGINI.low.toFixed(3)}</strong> in bozza.
+        Dieci rigenerazioni di prova sono ${(COSTO_IMMAGINI.medium * 10).toFixed(2)}$
+        contro {(COSTO_IMMAGINI.low * 10).toFixed(2)}$.
+      </p>
+      <p className="t-micro dev__note">
+        {dev.draftImages
+          ? 'ACCESA: le prossime immagini escono in bozza. Per la creatura che vuoi TENERE, spegnila e rigenera.'
+          : 'SPENTA: qualità piena, come in produzione. Accendila mentre provi, non mentre tieni.'}
+      </p>
 
       <ul className="rowlist">
         {AI_STEP_ORDER.map((id) => {

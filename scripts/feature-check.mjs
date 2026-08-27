@@ -263,6 +263,53 @@ check(
 );
 check('MONDO §14', 'il ritorno non ricarica un salvataggio', has(WORLD, 'export function returnBlock'));
 check('MONDO §10.2', 'il registro dice cosa non ripetere', has(WORLD, 'doNotRepeat'));
+
+/* ============================================================================
+   SPESA — le due tabelle di prezzi devono raccontare la stessa cosa
+
+   🔴 Erano due e solo una era aggiornata: `spend.ts` (server, tetto vero) aveva
+   i prezzi GPT-5.6, `usage.ts` (browser, pannello COSTI) no — quindi Luna
+   veniva mostrata a venticinque volte il suo prezzo. Un contatore che
+   sovrastima manda a risparmiare dove non serve, ed è così che si finisce a
+   guardare il testo mentre a pesare sono le immagini.
+   ========================================================================= */
+
+const USAGE = 'src/ai/usage.ts';
+const SPEND = 'netlify/functions/_shared/spend.ts';
+const modelliDaPrezzare = ['gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna'];
+const senzaPrezzoClient = modelliDaPrezzare.filter((m) => !has(USAGE, `'${m}'`));
+check(
+  'SPESA',
+  'il pannello COSTI conosce i prezzi di tutti i modelli che usa',
+  senzaPrezzoClient.length === 0,
+  senzaPrezzoClient.join(', '),
+);
+
+/* La qualità delle immagini è il parametro che decide il conto: se smettesse
+   di essere mandato, si tornerebbe a pagare il default senza accorgersene —
+   che è esattamente com'era prima, e per mesi. */
+check(
+  'SPESA',
+  'la qualità delle immagini viene dichiarata, non lasciata al default',
+  has('netlify/functions/_shared/providers.ts', 'quality: ImageQuality'),
+);
+check(
+  'SPESA',
+  'e il tetto la prezza per quello che costa davvero',
+  has(SPEND, 'QUALITY_FACTOR'),
+);
+check(
+  'SPESA',
+  'la bozza si può accendere da DEV',
+  has('src/state/store.ts', 'draftImages'),
+);
+/* 🔒 E deve restare SPENTA di default: un interruttore da prove che si
+   accende da solo peggiora il prodotto in silenzio. */
+check(
+  'SPESA',
+  'ma resta spenta finché non la accendi tu',
+  has('src/state/store.ts', 'draftImages: false'),
+);
 check(
   'SIGNAL SCAN §12',
   'nessuna risposta nomina una Family',

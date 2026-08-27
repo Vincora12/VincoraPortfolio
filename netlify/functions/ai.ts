@@ -29,7 +29,9 @@ import {
   type ToolDef,
   type Turn,
   IMAGE_SIZES,
+  IMAGE_QUALITIES,
   type ImageSize,
+  type ImageQuality,
 } from './_shared/providers';
 import { checkCap, recordSpend, MONTHLY_CAP_USD } from './_shared/spend';
 
@@ -83,6 +85,8 @@ interface Payload {
   capability?: string;
   /** Solo per `image`: la forma della tavola, decisa dal tipo di asset. */
   size?: string;
+  /** 🔷 La qualità dell'immagine: `low` è la bozza da prove. */
+  quality?: string;
   system?: SystemBlock[];
   turns?: Turn[];
   user?: string;
@@ -243,6 +247,13 @@ export default async function handler(request: Request): Promise<Response> {
        che è quello che si faceva prima e che va sempre bene. */
     const asked = payload.size;
     const size = IMAGE_SIZES.includes(asked as ImageSize) ? (asked as ImageSize) : undefined;
+    /* 🔒 Validata contro il catalogo come la misura, e per lo stesso motivo:
+       arriva dal browser. Un valore inventato non diventa un 400 — torna al
+       predefinito, che è il comportamento di sempre. */
+    const askedQuality = payload.quality;
+    const quality = IMAGE_QUALITIES.includes(askedQuality as ImageQuality)
+      ? (askedQuality as ImageQuality)
+      : undefined;
 
     /* 🔒 Il riferimento passa dallo stesso tetto in byte dell'import a mano:
        è un PNG che arriva dal browser, e un tetto su una cosa che arriva da
@@ -251,7 +262,7 @@ export default async function handler(request: Request): Promise<Response> {
     if (reference && reference.length * 0.75 > LIMITS.imageBytes) {
       return json({ error: 'immagine di riferimento troppo grande' }, 413);
     }
-    const result = await generateImage(route.model, prompt, size, reference);
+    const result = await generateImage(route.model, prompt, size, reference, undefined, quality);
     const imageCostUsd = result.ok ? await recordSpend(capability, route.model, result.usage) : 0;
 
     if (!result.ok) {

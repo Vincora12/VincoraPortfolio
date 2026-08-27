@@ -62,11 +62,28 @@ const PRICES: Record<string, Price> = {
   'gpt-5.6-terra': { input: 2, output: 12 },
   'gpt-5.6-luna': { input: 0.2, output: 1.2 },
   'gpt-5.6-sol': { input: 5, output: 30 },
-  /* ⚠️ Stimati e arrotondati PER ECCESSO: il listino non era raggiungibile da
-     dove sono stati scritti, e un contatore che sottostima è peggio di uno
-     che non c'è. Dopo un giro vero, DEV → COSTI dice il numero giusto. */
-  'gpt-image-2': { input: 0, output: 0, perImage: 0.05 },
+  /* ⚠️ Stimati e arrotondati PER ECCESSO: un contatore che sottostima è peggio
+     di uno che non c'è. Dopo un giro vero, DEV → COSTI dice il numero giusto.
+
+     🔶 `perImage` ERA 0.05 E ARROTONDAVA PER DIFETTO — il listino di agosto
+     2026 dà ~$0,053 a 1024×1024 in qualità `medium`, cioè il default. La riga
+     diceva «per eccesso» e faceva il contrario. Adesso il numero base è la
+     qualità media e i tre livelli hanno un moltiplicatore loro. */
+  'gpt-image-2': { input: 0, output: 0, perImage: 0.06 },
   'gpt-image-1': { input: 0, output: 0, perImage: 0.04 },
+};
+
+/**
+ * Quanto costa un'immagine rispetto alla qualità media.
+ *
+ * A 1024×1024 il listino dà circa $0,006 / $0,053 / $0,211 per low / medium /
+ * high. Rapportati alla media fanno un nono e quattro volte: sono i due numeri
+ * che decidono se una giornata di prove costa tre euro o trenta centesimi.
+ */
+const QUALITY_FACTOR: Record<'low' | 'medium' | 'high', number> = {
+  low: 0.12,
+  medium: 1,
+  high: 4,
 };
 
 /* Un modello sconosciuto non costa zero: costa come il più caro che
@@ -86,6 +103,14 @@ export interface Usage {
   cacheReadTokens?: number;
   cacheWriteTokens?: number;
   images?: number;
+  /**
+   * 🔴 A QUALE QUALITÀ. Senza questa riga il tetto prezzava ogni immagine come
+   * `medium`, e una bozza — che costa circa un nono — veniva contata nove
+   * volte il vero. Un tetto che sovrastima si chiude con settimane di
+   * anticipo, che è lo stesso danno di uno che sottostima solo dall'altro
+   * lato: in tutti e due i casi il numero non descrive più la realtà.
+   */
+  imageQuality?: 'low' | 'medium' | 'high';
   /** Ricerche sul web fatte dal fornitore dentro la richiesta. */
   webSearches?: number;
 }
@@ -103,7 +128,7 @@ export function costOf(model: string, usage: Usage): number {
     ((usage.cacheReadTokens ?? 0) / 1e6) * p.input * 0.1 +
     ((usage.cacheWriteTokens ?? 0) / 1e6) * p.input * 1.25 +
     ((usage.outputTokens ?? 0) / 1e6) * p.output +
-    (usage.images ?? 0) * (p.perImage ?? 0) +
+    (usage.images ?? 0) * (p.perImage ?? 0) * QUALITY_FACTOR[usage.imageQuality ?? 'medium'] +
     (usage.webSearches ?? 0) * COST_PER_WEB_SEARCH
   );
 }
