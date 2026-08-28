@@ -1,7 +1,8 @@
 import { captureChatMemory, shouldCaptureChatMessage, type ChatMemoryResult } from './meChatMemory';
 import type { MeModelStore } from './meModel';
+import { addToMem0 } from './mem0MemoryClient';
 
-export type MemoryWriterMode = 'custom' | 'frozen';
+export type MemoryWriterMode = 'custom' | 'mem0' | 'frozen';
 
 export type ChatMemoryWriterInput = Parameters<typeof captureChatMemory>[1];
 
@@ -14,6 +15,7 @@ const emptyFrozenResult = (): ChatMemoryResult => ({
 /** The single server-side boundary for chat memory writes. */
 export function memoryWriterMode(value: string | null | undefined = process.env.VINZMON_MEMORY_WRITER_MODE): MemoryWriterMode {
   if (!value || value === 'custom') return 'custom';
+  if (value === 'mem0') return 'mem0';
   if (value === 'frozen') return 'frozen';
   throw new Error(`unknown memory writer mode: ${value}`);
 }
@@ -29,5 +31,9 @@ export async function writeChatMemory(
 ): Promise<ChatMemoryResult> {
   const selected = memoryWriterMode(mode);
   if (selected === 'frozen') return emptyFrozenResult();
+  if (selected === 'mem0') {
+    const result = await addToMem0(input);
+    return { ...emptyFrozenResult(), status: result.updated ? 'updated' : 'no_change', updated: result.updated, created: result.stored, warnings: [] };
+  }
   return captureChatMemory(store, input);
 }
