@@ -21,6 +21,7 @@ import { useShallow } from "zustand/shallow";
 import WaveSurfer from "wavesurfer.js";
 import RecordPlugin from "wavesurfer.js/dist/plugins/record.esm.js";
 import { savedToken } from "@/brain/stream";
+import { memoryTrace } from "@/assistant-original/chat-memory-feedback";
 import {
   ActivityIcon,
   ArrowUpIcon,
@@ -689,8 +690,9 @@ const assistantActionClassName =
 
 const AssistantMessage: FC = () => {
   const [traceOpen, setTraceOpen] = useState(false);
-  const { staScrivendo, haTesto, soloSticker, traceId, openingRevealDelay, openingRevealArrivalId } = useAuiState(
+  const { messageId, staScrivendo, haTesto, soloSticker, traceId, openingRevealDelay, openingRevealArrivalId } = useAuiState(
     useShallow((s) => ({
+      messageId: s.message.id,
       staScrivendo: s.message.status?.type === "running",
       haTesto: (s.message.content ?? []).some(
         (part) => part.type === "text" && part.text.trim().length > 0,
@@ -835,7 +837,7 @@ const AssistantMessage: FC = () => {
       <MessageCost />
       <ActivePersonality />
       <MessageUpdates />
-      {traceOpen && traceId ? <TracePanel traceId={traceId} onClose={() => setTraceOpen(false)} /> : null}
+      {traceOpen && traceId ? <TracePanel traceId={traceId} messageId={messageId} onClose={() => setTraceOpen(false)} /> : null}
 
       <div className="vinz-assistant-meta mt-1 flex flex-wrap items-center gap-1 text-xs text-[#8e8e8e]">
         <MessagePrimitive.Parts>
@@ -851,7 +853,7 @@ const AssistantMessage: FC = () => {
   );
 };
 
-const TracePanel: FC<{ traceId: string; onClose: () => void }> = ({ traceId, onClose }) => {
+const TracePanel: FC<{ traceId: string; messageId: string; onClose: () => void }> = ({ traceId, messageId, onClose }) => {
   const [trace, setTrace] = useState<ChatTrace | null>(null);
   const [loaded, setLoaded] = useState(false);
 
@@ -906,6 +908,7 @@ const TracePanel: FC<{ traceId: string; onClose: () => void }> = ({ traceId, onC
             <TraceField label="Timing" value={`${trace.totalMs} ms`} />
             {trace.steps.length ? <TraceList label="Tappe" values={trace.steps.map((step) => `${step.ms} ms · ${step.label}: ${step.detail}`)} /> : null}
             <TraceField label="Errori" value={trace.error ?? "Nessuno"} />
+            {memoryTrace(messageId) ? <TraceList label="Memory" values={Object.entries(memoryTrace(messageId)).map(([key, value]) => `${key}: ${String(value)}`)} /> : null}
           </div>
         )}
       </section>

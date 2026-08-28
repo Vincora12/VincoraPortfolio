@@ -2,6 +2,7 @@ import { savedToken } from '@/brain/stream';
 
 const updatedIds = new Set<string>();
 const listeners = new Set<() => void>();
+const traces = new Map<string, any>();
 
 try {
   const saved = JSON.parse(sessionStorage.getItem('vinzmon.chat.memory-updated.v1') ?? '[]') as unknown;
@@ -10,6 +11,7 @@ try {
 
 export function hasMemoryUpdated(messageId: string): boolean { return updatedIds.has(messageId); }
 export function subscribeMemoryFeedback(listener: () => void): () => void { listeners.add(listener); return () => listeners.delete(listener); }
+export function memoryTrace(messageId: string): any { return traces.get(messageId); }
 
 export async function captureChatMemoryForClient(input: { text: string; messageId: string; conversationId?: string; context?: Array<{ role: 'user' | 'assistant'; text: string }> }): Promise<void> {
   const token = savedToken();
@@ -18,6 +20,7 @@ export async function captureChatMemoryForClient(input: { text: string; messageI
     const response = await fetch('/api/me-chat-capture', { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify(input) });
     if (!response.ok) return;
     const result = await response.json() as { updated?: boolean };
+    traces.set(input.messageId, { status: result.updated ? 'UPDATED' : 'NO_CHANGE', candidate: 'YES', context: input.context?.length ?? 0, feedback: result.updated ? 'SHOWN' : 'NOT_SHOWN' });
     if (result.updated) {
       updatedIds.add(input.messageId);
       try { sessionStorage.setItem('vinzmon.chat.memory-updated.v1', JSON.stringify([...updatedIds].slice(-200))); } catch { /* optional */ }
