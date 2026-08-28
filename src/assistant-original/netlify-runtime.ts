@@ -21,6 +21,7 @@ import { useApp } from "@/state/store";
 import { buildVoiceSystemPrompt } from "@/ai/voicePrompt";
 import { persistChatTrace, recordChatTrace, systemPromptComposition, traceClock, type ChatTrace } from "@/ai/chatTrace";
 import { voiceCard } from "@/engine/voiceCard";
+import { captureChatMemoryForClient } from "@/assistant-original/chat-memory-feedback";
 
 type Source = { title: string; url: string; domain?: string };
 type Usage = {
@@ -598,6 +599,10 @@ export function createNetlifyChatModel(
     async *run(args) {
       const last = args.messages.at(-1);
       const user = textOf(last);
+      if (last?.role === "user") {
+        // Fire-and-forget: semantic capture is isolated from response latency.
+        void captureChatMemoryForClient({ text: user, messageId: last.id });
+      }
       const pendingSlot = pendingMealSlot(args.messages);
       const pendingWorkout = hasPendingWorkout(args.messages);
       const pendingPlan = pendingWorkoutPlanProposal(args.messages);

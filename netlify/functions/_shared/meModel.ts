@@ -71,9 +71,11 @@ export interface MeModelDocument {
   sources: MeSource[];
   summary: MeSummary | null;
   seedImports: MeSeedImport[];
+  chatCaptures?: MeChatCapture[];
 }
 
 export interface MeSeedImport { id: string; version: string; importedAt: string; sourceId: string; contentHash: string; }
+export interface MeChatCapture { id: string; messageId?: string; conversationId?: string; contentHash: string; capturedAt: string; result: unknown; }
 
 export interface MeModelStore {
   read(): Promise<MeModelDocument>;
@@ -103,7 +105,7 @@ function assertImportance(value: number): number {
 function emptyDocument(userName = 'User'): MeModelDocument {
   const at = now();
   const user: MeEntity = { id: 'entity_user', type: 'user', name: userName, aliases: [], status: 'active', createdAt: at, updatedAt: at };
-  return { version: 1, user, entities: [], relations: [], episodes: [], sources: [], summary: null, seedImports: [] };
+  return { version: 1, user, entities: [], relations: [], episodes: [], sources: [], summary: null, seedImports: [], chatCaptures: [] };
 }
 
 export function createMeModelStore(): MeModelStore {
@@ -121,12 +123,17 @@ export function createMeModelStore(): MeModelStore {
 
 export async function createEntity(store: MeModelStore, input: Pick<MeEntity, 'type' | 'name'> & Partial<Pick<MeEntity, 'aliases'>>): Promise<MeEntity> {
   const document = await store.read();
+  const entity = createEntityInDocument(document, input);
+  await store.write(document);
+  return entity;
+}
+
+export function createEntityInDocument(document: MeModelDocument, input: Pick<MeEntity, 'type' | 'name'> & Partial<Pick<MeEntity, 'aliases'>>): MeEntity {
   const name = assertText(input.name, 'name');
   if (input.type === 'user') return document.user;
   const at = now();
   const entity: MeEntity = { id: id('entity'), type: input.type, name, aliases: input.aliases ?? [], status: 'active', createdAt: at, updatedAt: at };
   document.entities.push(entity);
-  await store.write(document);
   return entity;
 }
 

@@ -69,6 +69,10 @@ Chat extraction, semantic retrieval/ranking, prompt integration, embeddings/vect
 
 The authenticated `netlify/functions/me-seed.ts` endpoint accepts Markdown/plain text and uses the existing `text-cheap` route (`claude-haiku-4-5`) to extract only validated entity, relation and episode candidates. `netlify/functions/_shared/meSeed.ts:importMeSeed` fingerprints the exact content with Web Crypto SHA-256, returns `already_imported` before extraction when appropriate, resolves every entity through `entityResolver`, reports `ambiguous` candidates without forcing a match, and skips dependent records. It stages all mutations in a cloned document and performs one final Blob write, so validation/resolution failures do not leave a partial import. The created `me_seed` Source is referenced by every imported relation and episode, and minimal import metadata is stored in `seedImports`. It does not connect to chat, prompts, UI, Memory[], Health migration, summaries or semantic resolution.
 
+## Chat Memory Capture V1
+
+The authenticated `netlify/functions/me-chat-capture.ts` endpoint is invoked after real user messages by the assistant-ui runtime. A deterministic filter skips filler before the existing `text-cheap` (`claude-haiku-4-5`) route performs conservative structured extraction. `netlify/functions/_shared/meChatMemory.ts` validates the result, resolves mentions through the canonical Entity Resolver, plans CREATE/NO_CHANGE/SUPERSEDE decisions and writes one staged document only after validation. Chat Sources retain conversation/message provenance; hashes and message IDs make capture idempotent. Capture failures never block the normal reply. The only UI signal is the static `Memoria aggiornata` label under the originating user message after a real mutation. New ME knowledge is deliberately not retrieved or injected into prompts, and no Memory UI is connected.
+
 ## 15. File / function index
 
 - `netlify/functions/_shared/meModel.ts` — types, `emptyDocument`, `createMeModelStore`, entity/source/relation/episode/summary operations, merge and canonical resolution.

@@ -47,6 +47,7 @@ import { voiceCard } from "@/engine/voiceCard";
 import { useAssetUrl } from "@/system/AssetSlot";
 import { EXPRESSION_SPEC, EXPRESSIONS } from "@/engine/assets";
 import { loadChatTrace, type ChatTrace } from "@/ai/chatTrace";
+import { hasMemoryUpdated, subscribeMemoryFeedback } from "@/assistant-original/chat-memory-feedback";
 import {
   buildOpening,
   buildThoughtStatus,
@@ -613,6 +614,8 @@ const ThreadScrollToBottom: FC = () => {
 };
 
 const UserMessage: FC = () => {
+  const messageId = useAuiState((state) => state.message.id);
+  const memoryUpdated = useSyncExternalStore(subscribeMemoryFeedback, () => hasMemoryUpdated(messageId), () => false);
   return (
     <MessagePrimitive.Root className="relative mx-auto flex w-full max-w-3xl flex-col items-end gap-1 px-2 sm:px-0">
       <div className="flex flex-row flex-wrap justify-end gap-2">
@@ -659,6 +662,7 @@ const UserMessage: FC = () => {
 
         <BranchPicker />
       </div>
+      {memoryUpdated ? <small className="mt-0.5 text-[11px] leading-4 text-[#737373] dark:text-[#8e8e8e]">Memoria aggiornata</small> : null}
     </MessagePrimitive.Root>
   );
 };
