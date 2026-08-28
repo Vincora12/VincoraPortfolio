@@ -12,6 +12,16 @@ future VINZ.MON Memory API → Railway Mem0 → SQLite /data + Qdrant Cloud
 
 ## Railway configuration
 
+### Railway Setup
+
+Set the Railway service **Root Directory** to `services/mem0` (the included Dockerfile is also deployable from that directory). Add a persistent volume mounted at `/data`, then configure only these environment-variable names in Railway:
+
+`VINZMON_MEMORY_SERVICE_SECRET`, `QDRANT_URL`, `QDRANT_API_KEY`, `QDRANT_COLLECTION_NAME`, `MEM0_LLM_PROVIDER`, `MEM0_LLM_MODEL`, `MEM0_LLM_API_KEY`, `MEM0_EMBEDDER_PROVIDER`, `MEM0_EMBEDDER_MODEL`, `MEM0_EMBEDDER_API_KEY`, `MEM0_EMBEDDING_DIMS`, `MEM0_HISTORY_DB_PATH`, `PORT`.
+
+Set `MEM0_HISTORY_DB_PATH` to the mounted `/data` path. Generate a Railway public domain, configure the health check as `GET /health`, and deploy. The health response is deliberately non-sensitive and reports `status`, `mem0`, `qdrant`, and the pinned version only. No Netlify deploy is involved.
+
+After deployment, run `npm run spike` from this directory with `MEMORY_SERVICE_URL` and `VINZMON_MEMORY_SERVICE_SECRET` set locally. For the volume test, run `npm run spike:persistence:create`, restart/redeploy the Railway service without deleting `/data`, then run `npm run spike:persistence:verify` with the same `MEMORY_SPIKE_USER` and `MEMORY_PERSISTENCE_MARKER`. A successful verify is required before calling the spike PASS.
+
 Attach a Railway persistent volume mounted at `/data`. The history database must be `/data/mem0-history.db`; the service rejects another path so an accidental ephemeral database is not used.
 
 Required environment variable names (values are never committed here):
