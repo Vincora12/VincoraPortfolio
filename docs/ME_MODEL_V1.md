@@ -1,0 +1,68 @@
+# ME Model V1
+
+## 1. Purpose
+
+ME Model V1 is a dormant, server-side semantic knowledge foundation for the persistent user model. It coexists with the current `Memory[]`, Health Journal, Mon, World, Opinions and lessons systems; it does not migrate or connect them yet.
+
+## 2. Architecture
+
+`netlify/functions/_shared/meModel.ts` defines the canonical document and server-side operations. The document is stored as JSON in the existing authenticated Netlify Blobs store `vinzmon-state`, key `me-model-v1`. This reuses the existing server persistence and auth boundary without adding a database, graph service or browser source of truth.
+
+## 3. Entity
+
+`MeEntity` has `id`, `type`, `name`, `aliases`, `status` (`active|archived`), `createdAt`, and `updatedAt`. Supported initial types are `user`, `person`, `project`, `organization`, `place`, `interest`, `concept`, and `other`. `createEntity` reuses an active entity with the same case-insensitive name or alias. The root user is created as the stable `entity_user` record by `emptyDocument`; it is not regenerated per operation.
+
+## 4. Relation
+
+`MeRelation` stores `subjectId`, free-form `predicate`, either `objectId` or scalar `value`, `status` (`active|superseded|disputed|archived`), optional `validFrom`/`validTo`, normalized `confidence` in `[0,1]`, `sourceIds`, and timestamps. Predicates intentionally remain extensible strings. `createRelation`, `updateRelation`, `archiveRelation` and `supersedeRelation` validate and persist records.
+
+## 5. Episode
+
+`MeEpisode` stores extensible `type`, `summary`, optional `startedAt`/`endedAt`, `entityIds`, `importance` in `[0,1]`, `sourceIds`, status (`active|archived`) and timestamps. `createEpisode`, `updateEpisode`, and `archiveEpisode` are deterministic.
+
+## 6. Source
+
+`MeSource` supports `chat`, `me_seed`, `manual`, `health`, `system`, and `derived`, with stable ID, optional `conversationId`, `messageId`, `referenceId`, `capturedAt`, and minimal optional description. It references existing conversations rather than copying them.
+
+## 7. Temporal semantics
+
+Relations preserve history. `supersedeRelation` marks the old record `superseded`, sets its `validTo` (replacement `validFrom` or operation time), creates a replacement, and preserves source references. No AI contradiction resolver is implemented.
+
+## 8. Confidence
+
+Confidence is a required normalized number for relations and is validated between 0 and 1. Episode importance uses the same bounded scale. No confidence algorithm is included.
+
+## 9. User root entity
+
+The canonical root ID is `entity_user`, created once in a new document. Entity creation never creates another user root. Authorization and per-user storage are inherited from Netlify’s existing `VINZMON_TOKEN` boundary.
+
+## 10. Persistence
+
+`createMeModelStore()` uses `getStore('vinzmon-state')`, key `me-model-v1`, and `get`/`setJSON`. It is server-side and authenticated by the hosting function context. Browser localStorage is not used by this module.
+
+## 11. Core operations
+
+Implemented exports: `createEntity`, `getEntity`, `updateEntity`, `archiveEntity`, `createSource`, `getSource`, `createRelation`, `getRelation`, `updateRelation`, `archiveRelation`, `supersedeRelation`, `createEpisode`, `getEpisode`, `updateEpisode`, `archiveEpisode`, and `setSummary`.
+
+## 12. ME Summary placeholder
+
+`MeSummary` is `{version: 1, summary, generatedAt, sourceRefs}` and is persisted only through `setSummary`. No automatic generation or model call exists.
+
+## 13. Boundaries
+
+- Health records remain in `healthJournal.ts` and existing Health state.
+- Chat history and `Memory[]` remain unchanged.
+- World/ledger, Mon records, Opinions, `writtenBio`, lessons and `customMemory` remain separate.
+- No extraction, retrieval, prompt injection, UI, ME Seed import or chat feedback is connected.
+
+## 14. Deferred functionality
+
+Chat extraction, ME Seed import, semantic retrieval/ranking, prompt integration, embeddings/vector search, reflections, pattern detection, background jobs, automatic summaries, export, user-facing editing/deletion, Mind Map and Mon generation integration are explicitly deferred.
+
+## 15. File / function index
+
+- `netlify/functions/_shared/meModel.ts` — types, `emptyDocument`, `createMeModelStore`, all entity/source/relation/episode/summary operations.
+- `netlify/functions/_shared/meModel.test.ts` — focused in-memory tests for root uniqueness, validation, provenance, lifecycle and supersession.
+- `netlify/functions/_shared/auth.ts` — existing authorization boundary used by future API callers.
+- `netlify/functions/state.ts` — existing whole-app snapshot persistence, intentionally not modified or connected.
+- `src/engine/types.ts`, `src/engine/chatExtract.ts`, `src/engine/healthJournal.ts`, `src/state/store.ts` — existing systems audited and intentionally unchanged.
