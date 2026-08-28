@@ -344,7 +344,15 @@ function intentFor(memory: MicroMemory, now: Date): OpeningIntent {
 }
 
 export async function buildOpening(tone: ChatTone, identity: string, now = new Date()): Promise<string> {
-  const memory = await loadMicroMemory();
+  // The greeting is visible UI and must not wait indefinitely for the remote
+  // micro-memory copy. Prefer the server value when it arrives promptly, then
+  // fall back to the already-canonical local mirror.
+  const memory = await Promise.race([
+    loadMicroMemory().catch(() => localMicroMemory()),
+    new Promise<MicroMemory>((resolve) => {
+      globalThis.setTimeout(() => resolve(localMicroMemory()), 180);
+    }),
+  ]);
   const intent = intentFor(memory, now);
   let lines = OPENINGS[tone][intent];
   if (intent === 'continuation' && memory.lastUserText) {
@@ -353,7 +361,7 @@ export async function buildOpening(tone: ChatTone, identity: string, now = new D
   }
   const text = choose(lines, `${identity}|${intent}|${now.getTime()}`, memory.recentOpenings);
   const today = dayKey(now);
-  await serverBackedStorage.setItem(STORAGE_KEY, JSON.stringify({
+  void serverBackedStorage.setItem(STORAGE_KEY, JSON.stringify({
     ...memory,
     lastVisitAt: now.getTime(),
     lastDay: today,

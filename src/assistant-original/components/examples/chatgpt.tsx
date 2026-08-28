@@ -192,7 +192,7 @@ const MonPresenceEvents: FC = () => {
     currentRoomEntryRevision,
   );
 
-  const appendOpening = (expectedThreadId: string, monName: string, revealDelayMs: number) => {
+  const appendOpening = (monName: string, revealDelayMs: number) => {
     const sequence = ++openingSequence.current;
     const entryRevision = currentRoomEntryRevision();
     const card = record ? voiceCard(record) : null;
@@ -200,7 +200,6 @@ const MonPresenceEvents: FC = () => {
     void buildOpening(tone, monName).then((greeting) => {
       if (openingSequence.current !== sequence) return;
       if (currentRoomEntryRevision() !== entryRevision) return;
-      if (room.current.threadId !== expectedThreadId) return;
       aui.thread.append({
         role: "assistant",
         content: [{ type: "text", text: greeting }],
@@ -217,7 +216,7 @@ const MonPresenceEvents: FC = () => {
     });
   };
 
-  const appendEnter = (currentThreadId: string, monName: string, revealDelayMs = 0) => {
+  const appendEnter = (monName: string, revealDelayMs = 0) => {
     aui.thread.append({
       role: "system",
       content: [{ type: "text", text: `${monLabel(monName)} è entrato nella chat` }],
@@ -226,7 +225,7 @@ const MonPresenceEvents: FC = () => {
       },
       startRun: false,
     });
-    appendOpening(currentThreadId, monName, revealDelayMs + PRESENCE_STEP_MS);
+    appendOpening(monName, revealDelayMs + PRESENCE_STEP_MS);
   };
 
   useEffect(() => {
@@ -240,7 +239,7 @@ const MonPresenceEvents: FC = () => {
       const manualEntry = consumeManualRoomEntry(threadId);
       const sessionEntry = claimSessionRoomEntry();
       const realEntry = manualEntry || sessionEntry;
-      if (realEntry) appendEnter(threadId, activeMonName);
+      if (realEntry) appendEnter(activeMonName);
       if (remoteId && threadCustom.activeMonName !== activeMonName) {
         void aui.threads.item("main").updateCustom({ ...threadCustom, activeMonName });
       }
@@ -250,7 +249,7 @@ const MonPresenceEvents: FC = () => {
     const previous = room.current.monName;
     if (previous === activeMonName) {
       const manualEntry = consumeManualRoomEntry(threadId);
-      if (manualEntry) appendEnter(threadId, activeMonName);
+      if (manualEntry) appendEnter(activeMonName);
       if (remoteId && threadCustom.activeMonName !== activeMonName) {
         void aui.threads.item("main").updateCustom({ ...threadCustom, activeMonName });
       }
@@ -268,7 +267,7 @@ const MonPresenceEvents: FC = () => {
         startRun: false,
       });
     }
-    appendEnter(threadId, activeMonName, PRESENCE_STEP_MS);
+    appendEnter(activeMonName, PRESENCE_STEP_MS);
     if (remoteId) void aui.threads.item("main").updateCustom({ ...threadCustom, activeMonName });
   }, [activeMonKey, aui, custom, loading, record, remoteId, roomEntryRevision, threadId]);
 
