@@ -419,6 +419,7 @@ function createBaseNetlifyChatModel(): ChatModelAdapter {
     const saveTrace = async (model: string | null, error: string | null, retrieved: string[] = []) => {
       const card = activeMon ? voiceCard(activeMon) : null;
       const trace: ChatTrace = {
+        originatingUserMessageId: [...messages].reverse().find((item) => item.role === "user")?.id,
         path: "diretto",
         characterVoice: Boolean(activeMon),
         systemChars: systemPrompt.length,

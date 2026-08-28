@@ -23,6 +23,7 @@ export interface ChatTracePromptBlock {
 }
 
 export interface ChatTrace {
+  originatingUserMessageId?: string;
   /** `strumenti` = replyWithLocalTools, `diretto` = streamReply. */
   path: 'strumenti' | 'diretto';
   /** Se il .mon attivo c'era: la voce vera, o la riga neutra di sempre. */

@@ -18,9 +18,9 @@ export async function captureChatMemoryForClient(input: { text: string; messageI
   if (!token) return;
   try {
     const response = await fetch('/api/me-chat-capture', { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify(input) });
+    const result = await response.json().catch(() => ({ status: 'failed' })) as { updated?: boolean; status?: string; warnings?: string[] };
+    traces.set(input.messageId, { status: result.updated ? 'UPDATED' : String(result.status ?? (response.ok ? 'NO_CHANGE' : 'FAILED')).toUpperCase(), candidate: 'YES', context: input.context?.length ?? 0, feedback: result.updated ? 'SHOWN' : 'NOT_SHOWN', ...(result.warnings?.[0] ? { reason: result.warnings[0] } : {}) });
     if (!response.ok) return;
-    const result = await response.json() as { updated?: boolean };
-    traces.set(input.messageId, { status: result.updated ? 'UPDATED' : 'NO_CHANGE', candidate: 'YES', context: input.context?.length ?? 0, feedback: result.updated ? 'SHOWN' : 'NOT_SHOWN' });
     if (result.updated) {
       updatedIds.add(input.messageId);
       try { sessionStorage.setItem('vinzmon.chat.memory-updated.v1', JSON.stringify([...updatedIds].slice(-200))); } catch { /* optional */ }
