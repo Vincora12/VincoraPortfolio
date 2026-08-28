@@ -53,7 +53,13 @@ const useEphemeralHistory = (
     async load() {
       const state = auiRef.current.threadListItem.getState();
       if (state.status === "new") {
-        return ephemeralRepositories.get(state.id) ?? emptyRepository();
+        // Establish the repository before returning the first snapshot. The
+        // runtime may finish its own hydration after this promise resolves;
+        // keeping one shared entry lets later procedural appends survive that
+        // reconciliation instead of being replaced by an empty snapshot.
+        const repository = ephemeralRepositories.get(state.id) ?? emptyRepository();
+        ephemeralRepositories.set(state.id, repository);
+        return repository;
       }
       return baseHistoryRef.current?.load() ?? emptyRepository();
     },
