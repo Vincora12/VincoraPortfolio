@@ -11,7 +11,7 @@ try {
 export function hasMemoryUpdated(messageId: string): boolean { return updatedIds.has(messageId); }
 export function subscribeMemoryFeedback(listener: () => void): () => void { listeners.add(listener); return () => listeners.delete(listener); }
 
-export async function captureChatMemoryForClient(input: { text: string; messageId: string; conversationId?: string }): Promise<void> {
+export async function captureChatMemoryForClient(input: { text: string; messageId: string; conversationId?: string; context?: Array<{ role: 'user' | 'assistant'; text: string }> }): Promise<void> {
   const token = savedToken();
   if (!token) return;
   try {

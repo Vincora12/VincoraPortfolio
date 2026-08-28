@@ -601,7 +601,7 @@ export function createNetlifyChatModel(
       const user = textOf(last);
       if (last?.role === "user") {
         // Fire-and-forget: semantic capture is isolated from response latency.
-        void captureChatMemoryForClient({ text: user, messageId: last.id });
+        void captureChatMemoryForClient({ text: user, messageId: last.id, context: args.messages.slice(-5, -1).map((message) => ({ role: message.role === 'assistant' ? 'assistant' : 'user', text: textOf(message) })) });
       }
       const pendingSlot = pendingMealSlot(args.messages);
       const pendingWorkout = hasPendingWorkout(args.messages);

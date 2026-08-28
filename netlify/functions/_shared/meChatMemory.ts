@@ -45,14 +45,12 @@ const emptyResult = (status: ChatMemoryResult['status']): ChatMemoryResult => ({
 
 const ACK = /^(ok(ay)?|va bene|bene|s[iì]|no|perfetto|grazie|capito|riprova|continua|lol|haha|👍|👌)[!.… ]*$/iu;
 const CALC = /^(quanto fa|calcola|risolvi|converti)\b[\s\d+*/().,%:-]+\??$/iu;
-const COMMAND = /^(fammi|scrivi|riscrivi|traduci|riassumi|accorcia|genera|mostrami|dimmi)\b/iu;
 
 export function shouldCaptureChatMessage(text: string): boolean {
   const value = text.trim();
   if (value.length < 5 || ACK.test(value) || CALC.test(value)) return false;
   // Commands can still contain durable facts ("ricorda che..."); ignore only
   // obvious one-shot formatting requests.
-  if (COMMAND.test(value) && !/\b(ricorda|progetto|lavoro|preferisco|mio|mia|voglio|trasferit|abit)\b/iu.test(value)) return false;
   return true;
 }
 
@@ -84,7 +82,7 @@ const relationEquivalent = (a: MeRelation, subjectId: string, predicate: string,
 
 export async function captureChatMemory(
   store: MeModelStore,
-  input: { text: string; conversationId?: string; messageId?: string; capturedAt?: string; extraction?: unknown },
+  input: { text: string; conversationId?: string; messageId?: string; capturedAt?: string; extraction?: unknown; context?: Array<{ role: 'user' | 'assistant'; text: string }> },
 ): Promise<ChatMemoryResult> {
   if (!shouldCaptureChatMessage(input.text)) return emptyResult('ignored');
   try {
