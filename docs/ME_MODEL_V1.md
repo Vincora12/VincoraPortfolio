@@ -16,6 +16,12 @@ ME Model V1 is a dormant, server-side semantic knowledge foundation for the pers
 
 `MeRelation` stores `subjectId`, free-form `predicate`, either `objectId` or scalar `value`, `status` (`active|superseded|disputed|archived`), optional `validFrom`/`validTo`, normalized `confidence` in `[0,1]`, `sourceIds`, and timestamps. Predicates intentionally remain extensible strings. `createRelation`, `updateRelation`, `archiveRelation` and `supersedeRelation` validate and persist records.
 
+## Entity Resolution
+
+`netlify/functions/_shared/entityResolver.ts` is the canonical entrance for future mention resolution and is separate from `createEntity`, which validates and creates records. `normalizeEntityLabel` performs only trimming, case folding, simple punctuation normalization and whitespace collapse. `findEntityCandidates` performs deterministic exact normalized canonical-name/alias matching, optionally constrained by entity type. `resolveEntity` returns typed `match`, `new`, or `ambiguous`; it never silently chooses among multiple candidates and does not create entities. The result is intentionally ready for a future semantic arbitration step, but V1 makes no AI call and uses no embeddings.
+
+Entities support an explicit `merged` status and `mergedInto` pointer. `mergeEntities` preserves the source record, adds safe aliases to the active target, redirects relation subject/object IDs and episode entity references, and protects `entity_user`. `resolveCanonicalEntityId` follows merge pointers with cycle detection so old IDs remain traceable.
+
 ## 5. Episode
 
 `MeEpisode` stores extensible `type`, `summary`, optional `startedAt`/`endedAt`, `entityIds`, `importance` in `[0,1]`, `sourceIds`, status (`active|archived`) and timestamps. `createEpisode`, `updateEpisode`, and `archiveEpisode` are deterministic.
@@ -61,8 +67,9 @@ Chat extraction, ME Seed import, semantic retrieval/ranking, prompt integration,
 
 ## 15. File / function index
 
-- `netlify/functions/_shared/meModel.ts` — types, `emptyDocument`, `createMeModelStore`, all entity/source/relation/episode/summary operations.
-- `netlify/functions/_shared/meModel.test.ts` — focused in-memory tests for root uniqueness, validation, provenance, lifecycle and supersession.
+- `netlify/functions/_shared/meModel.ts` — types, `emptyDocument`, `createMeModelStore`, entity/source/relation/episode/summary operations, merge and canonical resolution.
+- `netlify/functions/_shared/entityResolver.ts` — normalization, candidate retrieval and MATCH/NEW/AMBIGUOUS resolution.
+- `netlify/functions/_shared/meModel.test.ts` — focused in-memory tests for root uniqueness, validation, provenance, lifecycle, supersession and resolution/merge safety.
 - `netlify/functions/_shared/auth.ts` — existing authorization boundary used by future API callers.
 - `netlify/functions/state.ts` — existing whole-app snapshot persistence, intentionally not modified or connected.
 - `src/engine/types.ts`, `src/engine/chatExtract.ts`, `src/engine/healthJournal.ts`, `src/state/store.ts` — existing systems audited and intentionally unchanged.

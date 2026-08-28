@@ -10,7 +10,8 @@ export interface MeEntity {
   type: MeEntityType;
   name: string;
   aliases: string[];
-  status: 'active' | 'archived';
+  status: 'active' | 'archived' | 'merged';
+  mergedInto?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -118,8 +119,7 @@ export function createMeModelStore(): MeModelStore {
 export async function createEntity(store: MeModelStore, input: Pick<MeEntity, 'type' | 'name'> & Partial<Pick<MeEntity, 'aliases'>>): Promise<MeEntity> {
   const document = await store.read();
   const name = assertText(input.name, 'name');
-  const existing = document.entities.find((entity) => entity.status === 'active' && (entity.name.toLowerCase() === name.toLowerCase() || (input.aliases ?? []).some((alias) => entity.aliases.includes(alias))));
-  if (existing) return existing;
+  if (input.type === 'user') return document.user;
   const at = now();
   const entity: MeEntity = { id: id('entity'), type: input.type, name, aliases: input.aliases ?? [], status: 'active', createdAt: at, updatedAt: at };
   document.entities.push(entity);
@@ -144,11 +144,47 @@ export async function getEntity(store: MeModelStore, entityId: string): Promise<
 }
 
 export async function archiveEntity(store: MeModelStore, entityId: string): Promise<void> {
+  if (entityId === 'entity_user') throw new Error('user root cannot be archived');
   const document = await store.read();
   const entity = document.entities.find((item) => item.id === entityId);
   if (!entity) throw new Error('entity not found');
   entity.status = 'archived'; entity.updatedAt = now();
   await store.write(document);
+}
+
+export async function mergeEntities(store: MeModelStore, sourceId: string, targetId: string): Promise<MeEntity> {
+  if (sourceId === targetId) throw new Error('cannot merge entity into itself');
+  if (sourceId === 'entity_user' || targetId === 'entity_user') throw new Error('user root cannot be merged');
+  const document = await store.read();
+  const source = document.entities.find((item) => item.id === sourceId);
+  const target = document.entities.find((item) => item.id === targetId);
+  if (!source || !target) throw new Error('entity not found');
+  if (source.status === 'merged' || target.status !== 'active') throw new Error('entities must be unmerged source and active target');
+  if (resolveCanonicalInDocument(document, targetId) !== targetId) throw new Error('target is not canonical');
+  source.status = 'merged'; source.mergedInto = targetId; source.updatedAt = now();
+  target.aliases = [...new Set([...target.aliases, ...source.aliases, source.name])]; target.updatedAt = now();
+  for (const relation of document.relations) {
+    if (relation.subjectId === sourceId) relation.subjectId = targetId;
+    if (relation.objectId === sourceId) relation.objectId = targetId;
+  }
+  for (const episode of document.episodes) episode.entityIds = [...new Set(episode.entityIds.map((id) => id === sourceId ? targetId : id))];
+  await store.write(document); return target;
+}
+
+function resolveCanonicalInDocument(document: MeModelDocument, entityId: string): string {
+  const seen = new Set<string>(); let current = entityId;
+  while (true) {
+    if (seen.has(current)) throw new Error('entity merge cycle detected');
+    seen.add(current);
+    const entity = document.entities.find((item) => item.id === current) ?? (document.user.id === current ? document.user : undefined);
+    if (!entity) throw new Error('entity not found');
+    if (entity.status !== 'merged' || !entity.mergedInto) return current;
+    current = entity.mergedInto;
+  }
+}
+
+export async function resolveCanonicalEntityId(store: MeModelStore, entityId: string): Promise<string> {
+  return resolveCanonicalInDocument(await store.read(), entityId);
 }
 
 export async function createSource(store: MeModelStore, input: Omit<MeSource, 'id'>): Promise<MeSource> {

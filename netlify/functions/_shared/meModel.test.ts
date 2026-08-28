@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { archiveEntity, archiveEpisode, createEntity, createEpisode, createRelation, createSource, emptyDocument, supersedeRelation, updateEntity, type MeModelDocument, type MeModelStore } from './meModel';
+import { archiveEntity, archiveEpisode, createEntity, createEpisode, createRelation, createSource, emptyDocument, mergeEntities, resolveCanonicalEntityId, supersedeRelation, updateEntity, type MeModelDocument, type MeModelStore } from './meModel';
+import { findEntityCandidates, normalizeEntityLabel, resolveEntity } from './entityResolver';
 
 function fakeStore(): MeModelStore {
   let document: MeModelDocument = emptyDocument();
@@ -11,7 +12,8 @@ test('ME Model core validates identity, provenance, lifecycle and supersede', as
   const store = fakeStore();
   const user = (await store.read()).user;
   const same = await createEntity(store, { type: 'project', name: 'VINZ.MON', aliases: ['Vinz'] });
-  assert.equal((await createEntity(store, { type: 'project', name: 'vinz.mon' })).id, same.id);
+  assert.equal(normalizeEntityLabel(' FFUOCO '), normalizeEntityLabel('ffuoco'));
+  assert.equal((await resolveEntity(store, { mention: 'vinz.mon', type: 'project' })).status, 'match');
   await updateEntity(store, same.id, { aliases: ['Vinz', 'VINZ'] });
   await archiveEntity(store, same.id);
   const source = await createSource(store, { type: 'manual', capturedAt: new Date().toISOString(), description: 'test' });
@@ -24,4 +26,17 @@ test('ME Model core validates identity, provenance, lifecycle and supersede', as
   const episode = await createEpisode(store, { type: 'travel', summary: 'Canada trip', entityIds: [user.id], sourceIds: [source.id], importance: 0.75, status: 'active' });
   await archiveEpisode(store, episode.id);
   assert.equal((await store.read()).episodes[0]?.status, 'archived');
+});
+
+test('entity resolution distinguishes type and preserves explicit merges', async () => {
+  const store = fakeStore();
+  const person = await createEntity(store, { type: 'person', name: 'Jordan' });
+  const place = await createEntity(store, { type: 'place', name: 'Jordan' });
+  assert.equal((await resolveEntity(store, { mention: 'Jordan', type: 'person' })).status, 'match');
+  assert.equal((await resolveEntity(store, { mention: 'Jordan' })).status, 'ambiguous');
+  assert.equal((await resolveEntity(store, { mention: 'Unknown' })).status, 'new');
+  await mergeEntities(store, person.id, place.id);
+  assert.equal((await resolveCanonicalEntityId(store, person.id)), place.id);
+  assert.equal(findEntityCandidates(await store.read(), { mention: 'Jordan', type: 'person' }).length, 0);
+  await assert.rejects(() => mergeEntities(store, 'entity_user', place.id));
 });
