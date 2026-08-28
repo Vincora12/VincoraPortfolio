@@ -1,0 +1,1 @@
+{"name":"vinzmon-mem0-service","private":true,"type":"module","scripts":{"build":"tsc","start":"node dist/server.js","test":"NODE_ENV=test node --test dist/server.test.js"},"dependencies":{"mem0ai":"3.1.7"},"devDependencies":{"@types/node":"^22.0.0","typescript":"^5.7.0"}}
