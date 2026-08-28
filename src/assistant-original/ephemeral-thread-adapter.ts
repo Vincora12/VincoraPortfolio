@@ -61,7 +61,12 @@ const useEphemeralHistory = (
       const state = auiRef.current.threadListItem.getState();
       const base = baseHistoryRef.current;
       if (!base) return;
-      if (state.status !== "new") {
+      // During initial hydration assistant-ui can briefly report the thread as
+      // restoring before switching it to `new`. Once our local repository has
+      // seen a procedural item, keep routing writes to that repository so a
+      // later empty history snapshot cannot overwrite the greeting.
+      const ephemeral = state.status === "new" || ephemeralRepositories.has(state.id);
+      if (!ephemeral) {
         await base.append(item);
         return;
       }
