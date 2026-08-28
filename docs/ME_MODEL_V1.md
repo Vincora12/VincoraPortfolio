@@ -63,7 +63,11 @@ Implemented exports: `createEntity`, `getEntity`, `updateEntity`, `archiveEntity
 
 ## 14. Deferred functionality
 
-Chat extraction, ME Seed import, semantic retrieval/ranking, prompt integration, embeddings/vector search, reflections, pattern detection, background jobs, automatic summaries, export, user-facing editing/deletion, Mind Map and Mon generation integration are explicitly deferred.
+Chat extraction, semantic retrieval/ranking, prompt integration, embeddings/vector search, reflections, pattern detection, background jobs, automatic summaries, export, user-facing editing/deletion, Mind Map and Mon generation integration are explicitly deferred.
+
+## ME Seed V1
+
+The authenticated `netlify/functions/me-seed.ts` endpoint accepts Markdown/plain text and uses the existing `text-cheap` route (`claude-haiku-4-5`) to extract only validated entity, relation and episode candidates. `netlify/functions/_shared/meSeed.ts:importMeSeed` fingerprints the exact content with Web Crypto SHA-256, returns `already_imported` before extraction when appropriate, resolves every entity through `entityResolver`, reports `ambiguous` candidates without forcing a match, and skips dependent records. It stages all mutations in a cloned document and performs one final Blob write, so validation/resolution failures do not leave a partial import. The created `me_seed` Source is referenced by every imported relation and episode, and minimal import metadata is stored in `seedImports`. It does not connect to chat, prompts, UI, Memory[], Health migration, summaries or semantic resolution.
 
 ## 15. File / function index
 

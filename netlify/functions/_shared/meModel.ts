@@ -70,7 +70,10 @@ export interface MeModelDocument {
   episodes: MeEpisode[];
   sources: MeSource[];
   summary: MeSummary | null;
+  seedImports: MeSeedImport[];
 }
+
+export interface MeSeedImport { id: string; version: string; importedAt: string; sourceId: string; contentHash: string; }
 
 export interface MeModelStore {
   read(): Promise<MeModelDocument>;
@@ -100,7 +103,7 @@ function assertImportance(value: number): number {
 function emptyDocument(userName = 'User'): MeModelDocument {
   const at = now();
   const user: MeEntity = { id: 'entity_user', type: 'user', name: userName, aliases: [], status: 'active', createdAt: at, updatedAt: at };
-  return { version: 1, user, entities: [], relations: [], episodes: [], sources: [], summary: null };
+  return { version: 1, user, entities: [], relations: [], episodes: [], sources: [], summary: null, seedImports: [] };
 }
 
 export function createMeModelStore(): MeModelStore {

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { archiveEntity, archiveEpisode, createEntity, createEpisode, createRelation, createSource, emptyDocument, mergeEntities, resolveCanonicalEntityId, supersedeRelation, updateEntity, type MeModelDocument, type MeModelStore } from './meModel';
 import { findEntityCandidates, normalizeEntityLabel, resolveEntity } from './entityResolver';
+import { importMeSeed, validateSeedExtraction } from './meSeed';
 
 function fakeStore(): MeModelStore {
   let document: MeModelDocument = emptyDocument();
@@ -39,4 +40,26 @@ test('entity resolution distinguishes type and preserves explicit merges', async
   assert.equal((await resolveCanonicalEntityId(store, person.id)), place.id);
   assert.equal(findEntityCandidates(await store.read(), { mention: 'Jordan', type: 'person' }).length, 0);
   await assert.rejects(() => mergeEntities(store, 'entity_user', place.id));
+});
+
+test('ME Seed validates, resolves, persists provenance atomically and is idempotent', async () => {
+  const store = fakeStore();
+  const existing = await createEntity(store, { type: 'project', name: 'FFUOCO', aliases: ['Fuoco'] });
+  const extraction = { version: '1', entities: [{ mention: 'Fuoco', type: 'project' }, { mention: 'Alberto', type: 'person' }], relations: [{ subject: 'USER', predicate: 'works_on', object: 'Fuoco', confidence: 0.85 }], episodes: [{ type: 'travel', summary: 'Canada trip', entities: ['USER', 'Alberto'], importance: 0.7 }] };
+  assert.equal(validateSeedExtraction(extraction).version, '1');
+  const first = await importMeSeed(store, 'I work on FFUOCO and travelled to Canada with Alberto.', async () => extraction);
+  assert.equal(first.status, 'imported'); assert.equal(first.entitiesReused, 1); assert.equal(first.relationsCreated, 1); assert.equal(first.episodesCreated, 1);
+  const doc = await store.read(); assert.equal(doc.relations[0]?.sourceIds[0], first.sourceId); assert.equal(doc.episodes[0]?.sourceIds[0], first.sourceId); assert.equal(doc.entities.some((e) => e.id === existing.id), true);
+  const second = await importMeSeed(store, 'I work on FFUOCO and travelled to Canada with Alberto.', async () => { throw new Error('extract called twice'); });
+  assert.equal(second.status, 'already_imported');
+});
+
+test('ME Seed skips ambiguous dependencies and leaves model unchanged on extraction failure', async () => {
+  const store = fakeStore(); await createEntity(store, { type: 'person', name: 'Jordan' }); await createEntity(store, { type: 'person', name: 'Jordan Two', aliases: ['Jordan'] }); await createEntity(store, { type: 'place', name: 'Jordan' });
+  const before = JSON.stringify(await store.read());
+  const out = await importMeSeed(store, 'Jordan', async () => ({ version: '1', entities: [{ mention: 'Jordan', type: 'person' }], relations: [], episodes: [] }));
+  assert.equal(out.status, 'imported'); assert.equal(out.ambiguities.length, 1);
+  const after = JSON.stringify(await store.read());
+  const failed = await importMeSeed(store, 'bad', async () => ({ nope: true })); assert.equal(failed.status, 'failed');
+  assert.equal(JSON.stringify(await store.read()), after); assert.notEqual(before, after);
 });
