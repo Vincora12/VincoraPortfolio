@@ -52,7 +52,7 @@ const useEphemeralHistory = (
   const [history] = useState<ThreadHistoryAdapter>(() => ({
     async load() {
       const state = auiRef.current.threadListItem.getState();
-      if (state.status === "new") {
+      if (state.status === "new" || ephemeralRepositories.has(state.id)) {
         // Establish the repository before returning the first snapshot. The
         // runtime may finish its own hydration after this promise resolves;
         // keeping one shared entry lets later procedural appends survive that
@@ -95,8 +95,16 @@ const useEphemeralHistory = (
     },
     async update(item) {
       const state = auiRef.current.threadListItem.getState();
-      if (state.status === "new") {
+      if (state.status === "new" || ephemeralRepositories.has(state.id)) {
         const current = ephemeralRepositories.get(state.id) ?? emptyRepository();
+        const existing = current.messages.find((entry) => entry.message.id === item.message.id);
+        const existingGreeting = existing?.message.metadata?.custom?.monGreeting === true;
+        const incomingText = item.message.content.some((part) => part.type === "text" && part.text.trim().length > 0);
+        // assistant-ui may issue a bookkeeping update with an empty assistant
+        // payload immediately after append(). Never let that transient update
+        // erase the already-created Mon greeting; system events do not receive
+        // this lifecycle update and therefore appeared stable.
+        if (existingGreeting && !incomingText) return;
         ephemeralRepositories.set(state.id, upsert(current, item));
         return;
       }
