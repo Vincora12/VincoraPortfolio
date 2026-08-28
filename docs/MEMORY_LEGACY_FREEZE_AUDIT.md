@@ -272,4 +272,4 @@ Do not delete the following because the future integration will reuse them or th
 
 # NEXT IMPLEMENTATION TASK
 
-Add one explicit, feature-gated `MemoryWriter` boundary in `/api/me-chat-capture`, keeping the current custom writer as the only active implementation and preserving `/api/me-memory`, `Memoria aggiornata`, Trace and all existing Blob data. Do not implement Mem0 or delete legacy modules in that task.
+Implemented in `netlify/functions/_shared/memoryWriter.ts`: `/api/me-chat-capture` now reaches chat memory through one provider-neutral boundary. `custom` (default) delegates unchanged to `captureChatMemory`; `frozen` returns the compatible non-updated result without reading or writing the ME Blob. The mode is selected by `VINZMON_MEMORY_WRITER_MODE`; unknown modes fail before mutation. A future `mem0` adapter can be added beside these modes without changing the endpoint, `Memoria aggiornata`, Trace or Memory UI contracts.
