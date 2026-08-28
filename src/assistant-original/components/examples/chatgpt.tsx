@@ -13,7 +13,7 @@ import {
   useAui,
   useAuiState,
 } from "@assistant-ui/react";
-import { useEffect, useRef, useState, type FC } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type FC } from "react";
 import { createPortal } from "react-dom";
 import { useMessageError } from "@assistant-ui/core/react";
 import { TooltipIconButton } from "@/assistant-original/components/assistant-ui/tooltip-icon-button";
@@ -60,6 +60,11 @@ import {
   claimSessionRoomEntry,
   consumeManualRoomEntry,
 } from "@/assistant-original/chat-room-presence";
+import {
+  CHAT_REVEAL_SESSION,
+  PRESENCE_STEP_MS,
+  revealMetadata,
+} from "@/assistant-original/chat-presence-visual";
 
 export const ChatGPT: FC = () => {
   return (
@@ -167,7 +172,7 @@ const MonPresenceEvents: FC = () => {
   });
   const openingSequence = useRef(0);
 
-  const appendOpening = (expectedThreadId: string, monName: string) => {
+  const appendOpening = (expectedThreadId: string, monName: string, revealDelayMs: number) => {
     const sequence = ++openingSequence.current;
     const card = record ? voiceCard(record) : null;
     const tone = toneFor(record?.data.voice_preset ?? null, card?.fingerprint ?? "");
@@ -177,20 +182,29 @@ const MonPresenceEvents: FC = () => {
       aui.thread.append({
         role: "assistant",
         content: [{ type: "text", text: greeting }],
-        metadata: { custom: { monGreeting: true, monName, roomEntry: true } },
+        metadata: {
+          custom: {
+            monGreeting: true,
+            monName,
+            roomEntry: true,
+            ...revealMetadata(revealDelayMs),
+          },
+        },
         startRun: false,
       });
     });
   };
 
-  const appendEnter = (currentThreadId: string, monName: string) => {
+  const appendEnter = (currentThreadId: string, monName: string, revealDelayMs = 0) => {
     aui.thread.append({
       role: "system",
       content: [{ type: "text", text: `${monLabel(monName)} è entrato nella chat` }],
-      metadata: { custom: { monPresenceEvent: "enter", monName } },
+      metadata: {
+        custom: { monPresenceEvent: "enter", monName, ...revealMetadata(revealDelayMs) },
+      },
       startRun: false,
     });
-    appendOpening(currentThreadId, monName);
+    appendOpening(currentThreadId, monName, revealDelayMs + PRESENCE_STEP_MS);
   };
 
   useEffect(() => {
@@ -219,11 +233,13 @@ const MonPresenceEvents: FC = () => {
       aui.thread.append({
         role: "system",
         content: [{ type: "text", text: `${monLabel(previous)} è uscito dalla chat` }],
-        metadata: { custom: { monPresenceEvent: "leave", monName: previous } },
+        metadata: {
+          custom: { monPresenceEvent: "leave", monName: previous, ...revealMetadata(0) },
+        },
         startRun: false,
       });
     }
-    appendEnter(threadId, activeMonName);
+    appendEnter(threadId, activeMonName, PRESENCE_STEP_MS);
     void aui.threads.item("main").updateCustom({ ...threadCustom, activeMonName });
   }, [activeMonKey, aui, custom, loading, record, remoteId, threadId]);
 
@@ -231,13 +247,32 @@ const MonPresenceEvents: FC = () => {
 };
 
 const SystemEventMessage: FC = () => {
-  const isPresenceEvent = useAuiState((state) =>
-    state.message.metadata.custom.monPresenceEvent === "leave"
-    || state.message.metadata.custom.monPresenceEvent === "enter",
+  const { isPresenceEvent, followsPresenceEvent, revealDelayMs, revealSession } = useAuiState(
+    useShallow((state) => {
+      const custom = state.message.metadata.custom;
+      const index = state.thread.messages.findIndex((message) => message.id === state.message.id);
+      const previous = index > 0 ? state.thread.messages[index - 1] : null;
+      return {
+        isPresenceEvent: custom.monPresenceEvent === "leave" || custom.monPresenceEvent === "enter",
+        followsPresenceEvent: previous?.role === "system"
+          && (previous.metadata.custom.monPresenceEvent === "leave"
+            || previous.metadata.custom.monPresenceEvent === "enter"),
+        revealDelayMs: typeof custom.revealDelayMs === "number" ? custom.revealDelayMs : 0,
+        revealSession: custom.revealSession,
+      };
+    }),
   );
   if (!isPresenceEvent) return null;
+  const animate = revealSession === CHAT_REVEAL_SESSION;
   return (
-    <MessagePrimitive.Root className="mx-auto flex w-full max-w-3xl justify-center px-4 py-0.5">
+    <MessagePrimitive.Root
+      className={cn(
+        "mx-auto flex w-full max-w-3xl justify-center px-4 py-0.5",
+        followsPresenceEvent && "-mt-4",
+        animate && "vinz-presence-reveal",
+      )}
+      style={animate ? { "--vinz-reveal-delay": `${revealDelayMs}ms` } as CSSProperties : undefined}
+    >
       <div className="rounded-full bg-black/[0.05] px-3 py-1 text-center text-[11px] leading-4 text-black/50 dark:bg-white/[0.07] dark:text-white/45">
         <MessagePrimitive.Parts />
       </div>
@@ -622,7 +657,7 @@ const assistantActionClassName =
 
 const AssistantMessage: FC = () => {
   const [traceOpen, setTraceOpen] = useState(false);
-  const { staScrivendo, haTesto, soloSticker, traceId } = useAuiState(
+  const { staScrivendo, haTesto, soloSticker, traceId, openingRevealDelay, openingRevealSession } = useAuiState(
     useShallow((s) => ({
       staScrivendo: s.message.status?.type === "running",
       haTesto: (s.message.content ?? []).some(
@@ -631,6 +666,12 @@ const AssistantMessage: FC = () => {
       soloSticker: s.message.metadata.custom.monReactionOnly === true,
       traceId: typeof s.message.metadata.custom.traceId === "string"
         ? s.message.metadata.custom.traceId
+        : null,
+      openingRevealDelay: typeof s.message.metadata.custom.revealDelayMs === "number"
+        ? s.message.metadata.custom.revealDelayMs
+        : 0,
+      openingRevealSession: s.message.metadata.custom.roomEntry === true
+        ? s.message.metadata.custom.revealSession
         : null,
     })),
   );
@@ -641,8 +682,15 @@ const AssistantMessage: FC = () => {
       </MessagePrimitive.Root>
     );
   }
+  const animateOpening = openingRevealSession === CHAT_REVEAL_SESSION;
   return (
-    <MessagePrimitive.Root className="vinz-assistant-message relative mx-auto flex w-full max-w-3xl flex-col px-2 sm:px-0">
+    <MessagePrimitive.Root
+      className={cn(
+        "vinz-assistant-message relative mx-auto flex w-full max-w-3xl flex-col px-2 sm:px-0",
+        animateOpening && "vinz-opening-reveal",
+      )}
+      style={animateOpening ? { "--vinz-reveal-delay": `${openingRevealDelay}ms` } as CSSProperties : undefined}
+    >
       <div
         className={cn(
           "vinz-assistant-copy text-[#0d0d0d] dark:text-[#ececec]",

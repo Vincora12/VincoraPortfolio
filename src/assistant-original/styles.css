@@ -245,6 +245,29 @@ body[data-scroll-locked] {
   padding-top: calc(env(safe-area-inset-top, 0px) + 6.25rem);
 }
 
+.vinz-presence-reveal,
+.vinz-opening-reveal {
+  animation: vinz-timeline-reveal 160ms cubic-bezier(.16, 1, .3, 1) both;
+  animation-delay: var(--vinz-reveal-delay, 0ms);
+}
+
+@keyframes vinz-timeline-reveal {
+  from { opacity: 0; transform: translateY(3px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vinz-presence-reveal,
+  .vinz-opening-reveal {
+    animation-name: vinz-timeline-reveal-reduced;
+    transform: none;
+  }
+  @keyframes vinz-timeline-reveal-reduced {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+}
+
 .aui-md p {
   margin-block: 0 0.75rem;
 }

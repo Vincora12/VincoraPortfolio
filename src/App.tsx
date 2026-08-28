@@ -10,7 +10,7 @@
    §26 — i controlli DEV non compaiono mai senza dev mode attiva.
    ========================================================================= */
 
-import { lazy, Suspense, useEffect, useState, type ComponentProps } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState, type ComponentProps } from 'react';
 import {
   useApp,
   type Phase,
@@ -158,6 +158,9 @@ export function App() {
   const evolutionJob = useApp((s) => s.evolutionJob);
   const token = useApp((s) => s.token);
   const catchUpToRealDay = useApp((s) => s.catchUpToRealDay);
+  const bootNeedsChat = useRef(phase === 'live').current;
+  const [chatReady, setChatReady] = useState(false);
+  const handleChatReady = useCallback(() => setChatReady(true), []);
 
   useEffect(() => {
     if ('serviceWorker' in navigator) void navigator.serviceWorker.register('/sw.js');
@@ -500,6 +503,7 @@ export function App() {
   // `:has(...:focus)` — così la barra c'è mentre leggi la conversazione e se
   // ne va quando sale la tastiera, senza un render in mezzo.
   const hasTabBar = phase === 'live' && overlay !== 'dev' && overlay !== 'activate';
+  const bootReady = !bootNeedsChat || chatReady;
 
   return (
     <div className="proto-stage">
@@ -545,7 +549,12 @@ export function App() {
                 mancante. Ferma qui: non si ricambia più senza una prova
                 diretta che qualcosa non torna. */}
             <div className={`live-chat ${tab === 'chat' ? '' : 'live-chat--hidden'}`}>
-              <LazyChat runTool={runChatTool} voiceModel={voiceModel} onModelChange={setVoiceModel} />
+              <LazyChat
+                runTool={runChatTool}
+                voiceModel={voiceModel}
+                onModelChange={setVoiceModel}
+                onReady={handleChatReady}
+              />
             </div>
             {tab !== 'chat' && (
               <PhaseScreen
@@ -579,6 +588,16 @@ export function App() {
             schermata che copre tutto. */}
         {hasTabBar && <TabBar tab={tab} onChange={goTab} />}
       </div>
+      {!bootReady && <GlobalBootScreen />}
+    </div>
+  );
+}
+
+function GlobalBootScreen() {
+  return (
+    <div className="vinz-app-boot" role="status" aria-label="Apertura VINZ.MON">
+      <strong>VINZ.MON</strong>
+      <span aria-hidden="true" />
     </div>
   );
 }

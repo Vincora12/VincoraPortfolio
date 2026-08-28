@@ -290,6 +290,44 @@ select {
   border: 0;
 }
 
+.vinz-app-boot {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  min-height: 100dvh;
+  align-items: center;
+  justify-content: center;
+  gap: var(--u2);
+  padding: env(safe-area-inset-top, 0px) var(--u4) env(safe-area-inset-bottom, 0px);
+  background: #000;
+  color: #fff;
+}
+
+.vinz-app-boot strong {
+  font-family: var(--font-head);
+  font-size: 1.375rem;
+  font-variation-settings: 'wdth' 112;
+  letter-spacing: -.02em;
+}
+
+.vinz-app-boot span {
+  width: .32rem;
+  height: .32rem;
+  border-radius: 50%;
+  background: currentColor;
+  animation: vinz-boot-pulse 1.1s ease-in-out infinite;
+}
+
+@keyframes vinz-boot-pulse {
+  0%, 100% { opacity: .18; transform: scale(.72); }
+  50% { opacity: 1; transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vinz-app-boot span { animation: none; opacity: .65; }
+}
+
 /* ============================================================================
    LA SCHERMATA DI ROTTURA (§26)
 

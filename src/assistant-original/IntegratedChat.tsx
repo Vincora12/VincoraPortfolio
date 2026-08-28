@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState, type CSSProperties, type FC } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type FC } from "react";
 import {
   AssistantRuntimeProvider,
   CompositeAttachmentAdapter,
   SimpleTextAttachmentAdapter,
+  useAuiState,
   useLocalRuntime,
   useRemoteThreadListRuntime,
 } from "@assistant-ui/react";
@@ -72,6 +73,7 @@ type IntegratedChatProps = {
      sceglie il nero, non il componente) e niente cornice tarata sulla tacca
      del telefono, che in un riquadro del lab non esiste. */
   embedded?: boolean;
+  onReady?: () => void;
 };
 
 export const IntegratedChat: FC<IntegratedChatProps> = ({
@@ -79,6 +81,7 @@ export const IntegratedChat: FC<IntegratedChatProps> = ({
   voiceModel,
   onModelChange,
   embedded = false,
+  onReady,
 }) => {
   const palette = useApp((state) =>
     state.activeMonName ? state.mons[state.activeMonName]?.data.palette_dna ?? null : null,
@@ -161,6 +164,7 @@ export const IntegratedChat: FC<IntegratedChatProps> = ({
       embedded={embedded}
       themeStyle={themeStyle}
       initialThreadId={restoredThreadId ?? undefined}
+      onReady={onReady}
     />
   );
 };
@@ -168,7 +172,7 @@ export const IntegratedChat: FC<IntegratedChatProps> = ({
 const IntegratedChatRuntime: FC<IntegratedChatProps & {
   themeStyle?: CSSProperties;
   initialThreadId?: string;
-}> = ({ runTool, voiceModel, onModelChange, embedded = false, themeStyle, initialThreadId }) => {
+}> = ({ runTool, voiceModel, onModelChange, embedded = false, themeStyle, initialThreadId, onReady }) => {
   const model = useMemo(() => createNetlifyChatModel(runTool), [runTool]);
   const runtime = useRemoteThreadListRuntime({
     adapter: threadAdapter,
@@ -184,6 +188,7 @@ const IntegratedChatRuntime: FC<IntegratedChatProps & {
 
   return (
     <AssistantRuntimeProvider runtime={runtime}>
+      <ChatRuntimeReady onReady={onReady} />
       <ChatSurface
         model={voiceModel}
         onModelChange={onModelChange}
@@ -192,4 +197,30 @@ const IntegratedChatRuntime: FC<IntegratedChatProps & {
       />
     </AssistantRuntimeProvider>
   );
+};
+
+const CHAT_READY_FALLBACK_MS = 5_000;
+
+const ChatRuntimeReady: FC<{ onReady?: () => void }> = ({ onReady }) => {
+  const loading = useAuiState((state) => state.threads.isLoading);
+  const reported = useRef(false);
+
+  useEffect(() => {
+    if (!onReady || reported.current || loading) return;
+    reported.current = true;
+    onReady();
+  }, [loading, onReady]);
+
+  useEffect(() => {
+    if (!onReady || reported.current) return;
+    const timeout = window.setTimeout(() => {
+      if (reported.current) return;
+      reported.current = true;
+      console.warn("[VINZ chat] runtime ancora in caricamento; termino il boot in modalità degradata");
+      onReady();
+    }, CHAT_READY_FALLBACK_MS);
+    return () => window.clearTimeout(timeout);
+  }, [onReady]);
+
+  return null;
 };

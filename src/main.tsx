@@ -31,9 +31,22 @@ import { ErrorBoundary } from './system/ErrorBoundary';
    ========================================================================= */
 
 async function boot() {
-  const { pullRuntimeConfig } = await import('./system/runtimeConfig');
-  const runtimeConfig = await pullRuntimeConfig();
   const entry = readEntrypoint();
+  const { pullRuntimeConfig, runtimeConfig: localRuntimeConfig } = await import('./system/runtimeConfig');
+  let runtimeConfigTimer = 0;
+  const runtimeConfig = await Promise.race([
+    pullRuntimeConfig(),
+    new Promise<ReturnType<typeof localRuntimeConfig>>((resolve) => {
+      runtimeConfigTimer = window.setTimeout(() => {
+        console.warn('[boot] configurazione remota scaduta; uso quella locale');
+        resolve(localRuntimeConfig());
+      }, 4_000);
+    }),
+  ]).catch((error: unknown) => {
+    console.warn('[boot] configurazione remota non disponibile; uso quella locale', error);
+    return localRuntimeConfig();
+  });
+  window.clearTimeout(runtimeConfigTimer);
   applyDocumentMeta(entry.kind === 'lab' ? 'lab' : 'app');
 
   let content: ReactNode;
@@ -77,4 +90,10 @@ async function boot() {
   );
 }
 
-void boot();
+void boot().catch((error: unknown) => {
+  console.error('[boot] avvio non riuscito', error);
+  document.getElementById('root')!.innerHTML = `
+    <main style="min-height:100dvh;display:grid;place-items:center;padding:calc(env(safe-area-inset-top) + 24px) 24px calc(env(safe-area-inset-bottom) + 24px);background:#000;color:#fff;font-family:system-ui,sans-serif;text-align:center">
+      <div><strong style="display:block;font-size:22px;margin-bottom:12px">VINZ.MON</strong><p style="margin:0 0 18px;color:#aaa">Avvio non riuscito.</p><button type="button" onclick="location.reload()" style="min-height:44px;padding:0 18px;border:1px solid #fff;background:#000;color:#fff">RIPROVA</button></div>
+    </main>`;
+});
