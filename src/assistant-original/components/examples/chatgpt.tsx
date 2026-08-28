@@ -433,7 +433,7 @@ const Composer: FC<{ placeholder: string }> = ({ placeholder }) => {
   };
 
   return (
-    <ComposerPrimitive.Root className="group/composer flex w-full flex-col rounded-[28px] border border-[#e5e5e5] bg-white px-2 py-2 focus-within:border-[#d0d0d0] dark:border-transparent dark:bg-[#212121] dark:focus-within:border-transparent">
+    <ComposerPrimitive.Root className="vinz-composer group/composer box-border flex w-full min-w-0 flex-col rounded-[28px] border border-[#e5e5e5] bg-white px-2 py-2 focus-within:border-[#d0d0d0] dark:border-transparent dark:bg-[#212121] dark:focus-within:border-transparent">
       <AuiIf condition={(s) => s.composer.attachments.length > 0}>
         <div className="flex flex-row flex-wrap gap-2 px-1 pt-1 pb-2">
           <ComposerPrimitive.Attachments
@@ -487,7 +487,7 @@ const Composer: FC<{ placeholder: string }> = ({ placeholder }) => {
           </button>
         </div>
       ) : (
-      <div className="flex items-end gap-1">
+      <div className="flex w-full min-w-0 items-end gap-1">
         <ComposerPrimitive.AddAttachment asChild>
           <TooltipIconButton
             type="button"
@@ -511,7 +511,7 @@ const Composer: FC<{ placeholder: string }> = ({ placeholder }) => {
           ref={inputRef}
           placeholder={placeholder}
           rows={1}
-          className="vinz-composer-input max-h-52 min-h-9 flex-1 resize-none bg-transparent py-1.5 pr-2 pl-1 text-base text-[#0d0d0d] outline-none placeholder:text-[#8e8e8e] dark:text-[#ececec] dark:placeholder:text-[#8e8e8e]"
+          className="vinz-composer-input box-border max-h-52 min-h-9 w-full min-w-0 flex-1 resize-none bg-transparent py-1.5 pr-2 pl-1 text-base text-[#0d0d0d] outline-none placeholder:text-[#8e8e8e] dark:text-[#ececec] dark:placeholder:text-[#8e8e8e]"
         />
 
         <div className="flex shrink-0 items-center gap-1">
