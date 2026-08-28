@@ -81,3 +81,10 @@ The authenticated `netlify/functions/me-chat-capture.ts` endpoint is invoked aft
 - `netlify/functions/_shared/auth.ts` — existing authorization boundary used by future API callers.
 - `netlify/functions/state.ts` — existing whole-app snapshot persistence, intentionally not modified or connected.
 - `src/engine/types.ts`, `src/engine/chatExtract.ts`, `src/engine/healthJournal.ts`, `src/state/store.ts` — existing systems audited and intentionally unchanged.
+## ME Memory Read-only UI V1
+
+La vista MEMORY legge esclusivamente la proiezione autenticata di `/api/me-memory`, costruita dal documento server-side ME Model V1. Mostra conteggi semplici, entità e relazioni attive con predicati leggibili, episodi attivi e una lista compatta di conoscenze recenti. Gli ID, le fonti e i valori tecnici non sono esposti.
+
+Le relazioni superseded e le entità archiviate/merged non sono presentate come conoscenza corrente; i riferimenti merged vengono risolti verso l'entità canonica. Il conteggio “conoscenze” è il numero di relazioni attive, “entità” esclude il nodo radice dell'utente, “episodi” conta gli episodi attivi. Gli aggiornamenti recenti sono una proiezione temporale best-effort, non un audit log: il modello attuale non conserva eventi di mutazione distinti.
+
+La schermata è sola lettura, autenticata, senza database o stato persistente parallelo. Non abilita retrieval, prompt injection, ME Summary, modifica o cancellazione.
