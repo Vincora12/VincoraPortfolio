@@ -1,4 +1,5 @@
 import { savedToken } from '@/brain/stream';
+import { stepModel } from '@/state/store';
 
 const updatedIds = new Set<string>();
 const listeners = new Set<() => void>();
@@ -17,7 +18,7 @@ export async function captureChatMemoryForClient(input: { text: string; messageI
   const token = savedToken();
   if (!token) return;
   try {
-    const response = await fetch('/api/me-chat-capture', { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify(input) });
+    const response = await fetch('/api/me-chat-capture', { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ ...input, preferredModel: stepModel('memory', 'everyday') }) });
     const result = await response.json().catch(() => ({ status: 'failed' })) as { updated?: boolean; status?: string; warnings?: string[] };
     traces.set(input.messageId, { status: result.updated ? 'UPDATED' : String(result.status ?? (response.ok ? 'NO_CHANGE' : 'FAILED')).toUpperCase(), candidate: 'YES', context: input.context?.length ?? 0, feedback: result.updated ? 'SHOWN' : 'NOT_SHOWN', ...(result.warnings?.[0] ? { reason: result.warnings[0] } : {}) });
     if (!response.ok) return;

@@ -682,6 +682,7 @@ export type AiStepId =
   | 'imagePrompt'
   | 'voice'
   | 'reflection'
+  | 'memory'
   | 'vision'
   | 'image';
 
@@ -867,6 +868,9 @@ export const AI_STEPS: Record<AiStepId, AiStep> = {
     maxTokens: 700,
     qualityCritical: false,
   },
+  memory: {
+    id: 'memory', label: 'MEMORY', it: 'Giudizio ed estrazione della memoria semantica.', capability: 'text-cheap', fallback: 'claude-haiku-4-5', background: false, effort: 'low', maxTokens: 1800, qualityCritical: false,
+  },
   vision: {
     id: 'vision',
     label: 'VISIONE',
@@ -901,6 +905,7 @@ export const AI_STEP_ORDER: AiStepId[] = [
   'voice',
   'teach',
   'reflection',
+  'memory',
   'vision',
 ];
 

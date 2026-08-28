@@ -14,10 +14,10 @@ function extractJson(text: string): unknown {
 export default async function handler(request: Request): Promise<Response> {
   if (request.method !== 'POST') return json({ error: 'solo POST' }, 405);
   if (!authorize(request).ok) return denied();
-  let body: { seed?: string };
+  let body: { seed?: string; preferredModel?: string };
   try { body = (await request.json()) as { seed?: string }; } catch { return json({ error: 'body non leggibile' }, 400); }
   if (typeof body.seed !== 'string' || body.seed.trim().length === 0 || body.seed.length > 100_000) return json({ error: 'seed non valido' }, 400);
-  const route = resolveRoute('text-cheap');
+  const route = resolveRoute('text-cheap', body.preferredModel);
   const result = await importMeSeed(createMeModelStore(), body.seed, async (seed) => {
     const response = await callProvider(route.provider, { model: route.model, system: [{ text: INSTRUCTIONS }], turns: [], user: seed, maxTokens: 4000 });
     if (!response.ok) throw new Error(response.error ?? 'estrazione non disponibile');

@@ -15,13 +15,13 @@ function extractJson(text: string): unknown {
 export default async function handler(request: Request): Promise<Response> {
   if (request.method !== 'POST') return json({ error: 'solo POST' }, 405);
   if (!authorize(request).ok) return denied();
-  let body: { text?: string; conversationId?: string; messageId?: string; context?: Array<{ role?: string; text?: string }> };
+  let body: { text?: string; conversationId?: string; messageId?: string; preferredModel?: string; context?: Array<{ role?: string; text?: string }> };
   try { body = await request.json() as typeof body; } catch { return json({ error: 'body non leggibile' }, 400); }
   if (typeof body.text !== 'string' || body.text.trim().length === 0 || body.text.length > 20_000) return json({ error: 'messaggio non valido' }, 400);
   const context = Array.isArray(body.context) ? body.context.filter((item): item is { role: 'user' | 'assistant'; text: string } => (item.role === 'user' || item.role === 'assistant') && typeof item.text === 'string').slice(-8).map((item) => ({ ...item, text: item.text.slice(0, 4000) })) : [];
   if (!shouldCaptureChatMessage(body.text)) return json({ status: 'ignored', updated: false, created: 0, updatedCount: 0, superseded: 0, episodesCreated: 0, skipped: 0, ambiguities: [], warnings: [] });
   try {
-    const route = resolveRoute('text-cheap');
+    const route = resolveRoute('text-cheap', body.preferredModel);
     const response = await callProvider(route.provider, { model: route.model, system: [{ text: `${SEMANTIC_POLICY}\n\n${INSTRUCTIONS}` }], turns: [], user: `RECENT CONTEXT (interpretive only):\n${context.map((item) => `${item.role}: ${item.text}`).join('\n')}\n\nCURRENT USER MESSAGE (source of any mutation):\n${body.text}`, maxTokens: 1800 });
     if (!response.ok) throw new Error(response.error ?? 'estrazione non disponibile');
     const result = await captureChatMemory(createMeModelStore(), {
