@@ -61,10 +61,23 @@ import {
   consumeManualRoomEntry,
 } from "@/assistant-original/chat-room-presence";
 import {
-  CHAT_REVEAL_SESSION,
+  isPendingReveal,
+  markRevealSeen,
   PRESENCE_STEP_MS,
   revealMetadata,
 } from "@/assistant-original/chat-presence-visual";
+
+const useFirstArrivalReveal = (arrivalId: unknown) => {
+  const reveal = useRef<{ arrivalId: unknown; animate: boolean } | null>(null);
+  if (!reveal.current || reveal.current.arrivalId !== arrivalId) {
+    reveal.current = { arrivalId, animate: isPendingReveal(arrivalId) };
+  }
+  const { animate } = reveal.current;
+  useEffect(() => {
+    if (animate) markRevealSeen(arrivalId);
+  }, [animate, arrivalId]);
+  return animate;
+};
 
 export const ChatGPT: FC = () => {
   return (
@@ -247,7 +260,7 @@ const MonPresenceEvents: FC = () => {
 };
 
 const SystemEventMessage: FC = () => {
-  const { isPresenceEvent, followsPresenceEvent, revealDelayMs, revealSession } = useAuiState(
+  const { isPresenceEvent, followsPresenceEvent, revealDelayMs, revealArrivalId } = useAuiState(
     useShallow((state) => {
       const custom = state.message.metadata.custom;
       const index = state.thread.messages.findIndex((message) => message.id === state.message.id);
@@ -258,12 +271,12 @@ const SystemEventMessage: FC = () => {
           && (previous.metadata.custom.monPresenceEvent === "leave"
             || previous.metadata.custom.monPresenceEvent === "enter"),
         revealDelayMs: typeof custom.revealDelayMs === "number" ? custom.revealDelayMs : 0,
-        revealSession: custom.revealSession,
+        revealArrivalId: custom.revealArrivalId,
       };
     }),
   );
+  const animate = useFirstArrivalReveal(revealArrivalId);
   if (!isPresenceEvent) return null;
-  const animate = revealSession === CHAT_REVEAL_SESSION;
   return (
     <MessagePrimitive.Root
       className={cn(
@@ -657,7 +670,7 @@ const assistantActionClassName =
 
 const AssistantMessage: FC = () => {
   const [traceOpen, setTraceOpen] = useState(false);
-  const { staScrivendo, haTesto, soloSticker, traceId, openingRevealDelay, openingRevealSession } = useAuiState(
+  const { staScrivendo, haTesto, soloSticker, traceId, openingRevealDelay, openingRevealArrivalId } = useAuiState(
     useShallow((s) => ({
       staScrivendo: s.message.status?.type === "running",
       haTesto: (s.message.content ?? []).some(
@@ -670,11 +683,12 @@ const AssistantMessage: FC = () => {
       openingRevealDelay: typeof s.message.metadata.custom.revealDelayMs === "number"
         ? s.message.metadata.custom.revealDelayMs
         : 0,
-      openingRevealSession: s.message.metadata.custom.roomEntry === true
-        ? s.message.metadata.custom.revealSession
+      openingRevealArrivalId: s.message.metadata.custom.roomEntry === true
+        ? s.message.metadata.custom.revealArrivalId
         : null,
     })),
   );
+  const animateOpening = useFirstArrivalReveal(openingRevealArrivalId);
   if (soloSticker) {
     return (
       <MessagePrimitive.Root className="vinz-sticker-message mx-auto flex w-full max-w-3xl flex-col px-2 sm:px-0">
@@ -682,7 +696,6 @@ const AssistantMessage: FC = () => {
       </MessagePrimitive.Root>
     );
   }
-  const animateOpening = openingRevealSession === CHAT_REVEAL_SESSION;
   return (
     <MessagePrimitive.Root
       className={cn(
