@@ -13,7 +13,7 @@ import {
   useAui,
   useAuiState,
 } from "@assistant-ui/react";
-import { useEffect, useRef, useState, type CSSProperties, type FC } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type FC } from "react";
 import { createPortal } from "react-dom";
 import { useMessageError } from "@assistant-ui/core/react";
 import { TooltipIconButton } from "@/assistant-original/components/assistant-ui/tooltip-icon-button";
@@ -59,6 +59,8 @@ import {
 import {
   claimSessionRoomEntry,
   consumeManualRoomEntry,
+  currentRoomEntryRevision,
+  subscribeRoomEntry,
 } from "@/assistant-original/chat-room-presence";
 import {
   isPendingReveal,
@@ -184,13 +186,20 @@ const MonPresenceEvents: FC = () => {
     monName: null,
   });
   const openingSequence = useRef(0);
+  const roomEntryRevision = useSyncExternalStore(
+    subscribeRoomEntry,
+    currentRoomEntryRevision,
+    currentRoomEntryRevision,
+  );
 
   const appendOpening = (expectedThreadId: string, monName: string, revealDelayMs: number) => {
     const sequence = ++openingSequence.current;
+    const entryRevision = currentRoomEntryRevision();
     const card = record ? voiceCard(record) : null;
     const tone = toneFor(record?.data.voice_preset ?? null, card?.fingerprint ?? "");
     void buildOpening(tone, monName).then((greeting) => {
       if (openingSequence.current !== sequence) return;
+      if (currentRoomEntryRevision() !== entryRevision) return;
       if (room.current.threadId !== expectedThreadId) return;
       aui.thread.append({
         role: "assistant",
@@ -225,21 +234,28 @@ const MonPresenceEvents: FC = () => {
     const activeMonName = record?.data.name
       ?? activeMonKey
       ?? (typeof threadCustom.activeMonName === "string" ? threadCustom.activeMonName : null);
-    if (loading || !remoteId || !activeMonName) return;
+    if (loading || !activeMonName) return;
     if (room.current.threadId !== threadId) {
       room.current = { threadId, monName: activeMonName };
       const manualEntry = consumeManualRoomEntry(threadId);
       const sessionEntry = claimSessionRoomEntry();
       const realEntry = manualEntry || sessionEntry;
       if (realEntry) appendEnter(threadId, activeMonName);
-      if (threadCustom.activeMonName !== activeMonName) {
+      if (remoteId && threadCustom.activeMonName !== activeMonName) {
         void aui.threads.item("main").updateCustom({ ...threadCustom, activeMonName });
       }
       return;
     }
 
     const previous = room.current.monName;
-    if (previous === activeMonName) return;
+    if (previous === activeMonName) {
+      const manualEntry = consumeManualRoomEntry(threadId);
+      if (manualEntry) appendEnter(threadId, activeMonName);
+      if (remoteId && threadCustom.activeMonName !== activeMonName) {
+        void aui.threads.item("main").updateCustom({ ...threadCustom, activeMonName });
+      }
+      return;
+    }
     room.current.monName = activeMonName;
 
     if (previous) {
@@ -253,8 +269,8 @@ const MonPresenceEvents: FC = () => {
       });
     }
     appendEnter(threadId, activeMonName, PRESENCE_STEP_MS);
-    void aui.threads.item("main").updateCustom({ ...threadCustom, activeMonName });
-  }, [activeMonKey, aui, custom, loading, record, remoteId, threadId]);
+    if (remoteId) void aui.threads.item("main").updateCustom({ ...threadCustom, activeMonName });
+  }, [activeMonKey, aui, custom, loading, record, remoteId, roomEntryRevision, threadId]);
 
   return null;
 };

@@ -50,6 +50,9 @@ import {
 } from "react";
 import { serverBackedStorage } from "@/system/serverStorage";
 import {
+  discardEphemeralThread,
+} from "@/assistant-original/ephemeral-thread-adapter";
+import {
   requestManualRoomEntry,
   requestNextRoomEntry,
 } from "@/assistant-original/chat-room-presence";
@@ -421,9 +424,11 @@ export const ThreadListNew = forwardRef<
     creatingRef.current = true;
     setCreating(true);
     try {
-      requestNextRoomEntry();
       await aui.threads.switchToNewThread();
-      await aui.threads.item("main").initialize();
+      const threadId = aui.threads.item("main").getState().id;
+      discardEphemeralThread(threadId);
+      aui.thread.reset();
+      requestNextRoomEntry();
     } finally {
       creatingRef.current = false;
       setCreating(false);
