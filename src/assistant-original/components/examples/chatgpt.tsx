@@ -154,6 +154,7 @@ const ConversationMemory: FC = () => {
 };
 
 const ConversationLifecycle: FC = () => {
+  const aui = useAui();
   const { threadId, hasUserMessage } = useAuiState(
     useShallow((state) => ({
       threadId: state.threads.mainThreadId,
@@ -162,10 +163,10 @@ const ConversationLifecycle: FC = () => {
   );
   useEffect(() => {
     if (!hasUserMessage || !isLocalUnsavedSession(threadId)) return;
-    void promoteLocalSession(threadId).catch((error: unknown) => {
+    void promoteLocalSession(threadId, aui.thread.export()).catch((error: unknown) => {
       console.warn("[VINZ chat] promozione conversazione non riuscita", error);
     });
-  }, [hasUserMessage, threadId]);
+  }, [aui, hasUserMessage, threadId]);
   return null;
 };
 

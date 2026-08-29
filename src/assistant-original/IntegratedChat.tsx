@@ -26,7 +26,13 @@ export const persistentThreadAdapter = createLocalStorageAdapter({
   prefix: "assistant-ui-official-chatgpt:",
   titleGenerator: createSimpleTitleAdapter(),
 });
-const threadAdapter = withLocalUnsavedSession(persistentThreadAdapter);
+const threadAdapter = withLocalUnsavedSession(
+  persistentThreadAdapter,
+  (remoteId, repository) => serverBackedStorage.setItem(
+    `assistant-ui-official-chatgpt:messages:${remoteId}`,
+    JSON.stringify(repository),
+  ),
+);
 
 const attachments = new CompositeAttachmentAdapter([
   new VinzImageAttachmentAdapter(),

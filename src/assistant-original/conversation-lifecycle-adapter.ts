@@ -1,4 +1,5 @@
 import type {
+  ExportedMessageRepository,
   RemoteThreadListAdapter,
 } from "@assistant-ui/react";
 
@@ -14,6 +15,7 @@ type LocalSession = {
 const sessions = new Map<string, LocalSession>();
 const initialized = new Map<string, RemoteThreadInitializeResponse>();
 let persistentAdapter: RemoteThreadListAdapter | null = null;
+let persistSnapshot: ((remoteId: string, repository: ExportedMessageRepository) => Promise<void>) | null = null;
 
 const localSession = (threadId: string): LocalSession => {
   const existing = sessions.get(threadId);
@@ -32,8 +34,10 @@ const localSession = (threadId: string): LocalSession => {
  */
 export const withLocalUnsavedSession = (
   persistent: RemoteThreadListAdapter,
+  saveSnapshot: (remoteId: string, repository: ExportedMessageRepository) => Promise<void>,
 ): RemoteThreadListAdapter => {
   persistentAdapter = persistent;
+  persistSnapshot = saveSnapshot;
   return {
     ...persistent,
     initialize(threadId) {
@@ -48,12 +52,14 @@ export const isLocalUnsavedSession = (threadId: string): boolean => sessions.has
 
 export const promoteLocalSession = async (
   threadId: string,
+  repository: ExportedMessageRepository,
 ): Promise<RemoteThreadInitializeResponse | null> => {
   const session = sessions.get(threadId);
   if (!session) return null;
-  if (!persistentAdapter) throw new Error("Persistent conversation adapter unavailable");
+  if (!persistentAdapter || !persistSnapshot) throw new Error("Persistent conversation adapter unavailable");
   if (!session.promoting) {
-    session.promoting = persistentAdapter.initialize(threadId).then((result) => {
+    session.promoting = persistentAdapter.initialize(threadId).then(async (result) => {
+      await persistSnapshot!(result.remoteId, repository);
       initialized.set(threadId, result);
       session.resolve(result);
       sessions.delete(threadId);

@@ -13,16 +13,21 @@ const persistent = {
     return { remoteId: `saved:${threadId}` };
   },
 };
-const lifecycle = withLocalUnsavedSession(persistent);
+let savedSnapshot = null;
+const lifecycle = withLocalUnsavedSession(persistent, async (_remoteId, repository) => {
+  savedSnapshot = repository;
+});
 
 const pending = lifecycle.initialize("local-a");
 assert.equal(initializeCalls, 0, "procedural append must not initialize persistence");
 assert.equal(isLocalUnsavedSession("local-a"), true);
 
-const promoted = await promoteLocalSession("local-a");
+const snapshot = { messages: [{ message: { id: "enter" } }, { message: { id: "greeting" } }, { message: { id: "user" } }] };
+const promoted = await promoteLocalSession("local-a", snapshot);
 assert.deepEqual(promoted, { remoteId: "saved:local-a" });
 assert.deepEqual(await pending, promoted, "the same pending runtime becomes persistent");
 assert.equal(initializeCalls, 1, "promotion initializes exactly once");
+assert.equal(savedSnapshot, snapshot, "complete local timeline is stored before handoff");
 assert.equal(isLocalUnsavedSession("local-a"), false);
 assert.deepEqual(await lifecycle.initialize("local-a"), promoted);
 assert.equal(initializeCalls, 1, "post-promotion initialization reuses the canonical id");
