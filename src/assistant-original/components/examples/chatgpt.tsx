@@ -725,6 +725,23 @@ const EditComposer: FC = () => {
 const assistantActionClassName =
   "flex size-9 items-center justify-center rounded-none border-0 bg-transparent p-2 text-[#5d5d5d] transition-[color,opacity,transform] hover:bg-transparent hover:text-[#0d0d0d] active:scale-90 active:opacity-55 data-[copied]:text-[#0d0d0d] data-[submitted]:text-[#0d0d0d] dark:text-[#b4b4b4] dark:hover:bg-transparent dark:hover:text-[#ececec] dark:data-[copied]:text-[#ececec] dark:data-[submitted]:text-[#ececec]";
 
+const OpeningComposedText: FC<{ text: string; active: boolean; delayMs: number }> = ({ text, active, delayMs }) => {
+  const [visible, setVisible] = useState(active ? 0 : text.length);
+  useEffect(() => {
+    if (!active) { setVisible(text.length); return; }
+    let frame = 0;
+    const startedAt = performance.now() + delayMs;
+    const compose = (now: number) => {
+      const count = Math.min(text.length, Math.floor(Math.max(0, now - startedAt) / 24));
+      setVisible(count);
+      if (count < text.length) frame = requestAnimationFrame(compose);
+    };
+    frame = requestAnimationFrame(compose);
+    return () => cancelAnimationFrame(frame);
+  }, [active, delayMs, text]);
+  return <span>{text.slice(0, visible)}</span>;
+};
+
 const AssistantMessage: FC = () => {
   const [traceOpen, setTraceOpen] = useState(false);
   const { staScrivendo, haTesto, soloSticker, traceId, openingRevealDelay, openingRevealArrivalId } = useAuiState(
@@ -754,13 +771,7 @@ const AssistantMessage: FC = () => {
     );
   }
   return (
-    <MessagePrimitive.Root
-      className={cn(
-        "vinz-assistant-message relative mx-auto flex w-full max-w-3xl flex-col px-2 sm:px-0",
-        animateOpening && "vinz-opening-reveal",
-      )}
-      style={animateOpening ? { "--vinz-reveal-delay": `${openingRevealDelay}ms` } as CSSProperties : undefined}
-    >
+    <MessagePrimitive.Root className="vinz-assistant-message relative mx-auto flex w-full max-w-3xl flex-col px-2 sm:px-0">
       <div
         className={cn(
           "vinz-assistant-copy text-[#0d0d0d] dark:text-[#ececec]",
@@ -775,6 +786,9 @@ const AssistantMessage: FC = () => {
                attese sovrapposte, una muta e una che parla. Finché non è
                arrivato niente da scrivere, qui non si disegna niente. */
             if (part.type === "text") {
+              if (openingRevealArrivalId && part.text.length > 0) {
+                return <OpeningComposedText text={part.text} active={animateOpening} delayMs={openingRevealDelay} />;
+              }
               return part.text.length > 0 ? <MarkdownText /> : null;
             }
             if (part.type === "image") {
