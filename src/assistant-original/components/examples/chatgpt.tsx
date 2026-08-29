@@ -166,7 +166,15 @@ const ConversationLifecycle: FC = () => {
   useEffect(() => {
     if (!remoteId) return;
     const repository = consumePromotedRepository(remoteId);
-    if (repository) aui.thread.import(repository);
+    if (repository) {
+      aui.thread.import(repository);
+      const firstUserMessage = [...repository.messages]
+        .reverse()
+        .find((item) => item.message.role === "user");
+      if (firstUserMessage) {
+        aui.thread.startRun({ parentId: firstUserMessage.message.id });
+      }
+    }
   }, [aui, remoteId]);
   useEffect(() => {
     if (!hasUserMessage || !isLocalUnsavedSession(threadId)) return;
