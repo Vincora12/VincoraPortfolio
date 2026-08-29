@@ -8,6 +8,7 @@ import {
 import type {
   RuntimeAdapters,
 } from "@assistant-ui/core/react";
+import { traceMonGreeting } from "./mon-greeting-trace";
 
 type Repository = Awaited<ReturnType<ThreadHistoryAdapter["load"]>>;
 
@@ -15,6 +16,8 @@ const ephemeralRepositories = new Map<string, Repository>();
 const promotionTasks = new Map<string, Promise<void>>();
 
 const emptyRepository = (): Repository => ({ messages: [] });
+const isGreeting = (item: ExportedMessageRepositoryItem) => item.message.metadata?.custom?.monGreeting === true;
+const messageIds = (repository: Repository) => repository.messages.map((item) => item.message.id);
 
 const upsert = (repository: Repository, item: ExportedMessageRepositoryItem) => {
   const messages = [...repository.messages];
@@ -59,6 +62,7 @@ const useEphemeralHistory = (
         // reconciliation instead of being replaced by an empty snapshot.
         const repository = ephemeralRepositories.get(state.id) ?? emptyRepository();
         ephemeralRepositories.set(state.id, repository);
+        traceMonGreeting("history.load", { threadId: state.id, status: state.status, messageIds: messageIds(repository) });
         return repository;
       }
       return baseHistoryRef.current?.load() ?? emptyRepository();
@@ -78,8 +82,10 @@ const useEphemeralHistory = (
       }
 
       const threadId = state.id;
+      traceMonGreeting("history.append", { threadId, status: state.status, messageId: item.message.id, role: item.message.role, greeting: isGreeting(item), before: messageIds(ephemeralRepositories.get(threadId) ?? emptyRepository()) });
       const current = ephemeralRepositories.get(threadId) ?? emptyRepository();
       ephemeralRepositories.set(threadId, upsert(current, item));
+      traceMonGreeting("history.append.after", { threadId, messageIds: messageIds(ephemeralRepositories.get(threadId)!) });
       if (item.message.role !== "user") return;
 
       const existingTask = promotionTasks.get(threadId);
@@ -97,6 +103,7 @@ const useEphemeralHistory = (
       const state = auiRef.current.threadListItem.getState();
       if (state.status === "new" || ephemeralRepositories.has(state.id)) {
         const current = ephemeralRepositories.get(state.id) ?? emptyRepository();
+        traceMonGreeting("history.update", { threadId: state.id, status: state.status, messageId: item.message.id, greeting: isGreeting(item), before: messageIds(current) });
         const existing = current.messages.find((entry) => entry.message.id === item.message.id);
         const existingGreeting = existing?.message.metadata?.custom?.monGreeting === true;
         const incomingText = item.message.content.some((part) => part.type === "text" && part.text.trim().length > 0);
@@ -104,8 +111,9 @@ const useEphemeralHistory = (
         // payload immediately after append(). Never let that transient update
         // erase the already-created Mon greeting; system events do not receive
         // this lifecycle update and therefore appeared stable.
-        if (existingGreeting && !incomingText) return;
+        if (existingGreeting && !incomingText) { traceMonGreeting("history.update.ignored", { threadId: state.id, messageId: item.message.id }); return; }
         ephemeralRepositories.set(state.id, upsert(current, item));
+        traceMonGreeting("history.update.after", { threadId: state.id, messageIds: messageIds(ephemeralRepositories.get(state.id)!) });
         return;
       }
       const base = baseHistoryRef.current;
@@ -116,7 +124,9 @@ const useEphemeralHistory = (
       const state = auiRef.current.threadListItem.getState();
       if (state.status === "new" || ephemeralRepositories.has(state.id)) {
         const current = ephemeralRepositories.get(state.id) ?? emptyRepository();
+        traceMonGreeting("history.delete", { threadId: state.id, status: state.status, messageIds: items.map((item) => item.message.id), before: messageIds(current) });
         ephemeralRepositories.set(state.id, removeItems(current, items));
+        traceMonGreeting("history.delete.after", { threadId: state.id, messageIds: messageIds(ephemeralRepositories.get(state.id)!) });
         return;
       }
       await baseHistoryRef.current?.delete?.(items);

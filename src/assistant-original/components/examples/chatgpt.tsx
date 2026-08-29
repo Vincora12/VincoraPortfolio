@@ -22,6 +22,7 @@ import WaveSurfer from "wavesurfer.js";
 import RecordPlugin from "wavesurfer.js/dist/plugins/record.esm.js";
 import { savedToken } from "@/brain/stream";
 import { memoryTrace } from "@/assistant-original/chat-memory-feedback";
+import { traceMonGreeting } from "@/assistant-original/mon-greeting-trace";
 import {
   ActivityIcon,
   ArrowUpIcon,
@@ -709,6 +710,12 @@ const AssistantMessage: FC = () => {
     })),
   );
   const animateOpening = useFirstArrivalReveal(openingRevealArrivalId);
+  const greetingMessageId = useAuiState((s) => s.message.metadata.custom.monGreeting === true ? s.message.id : null);
+  useEffect(() => {
+    if (!greetingMessageId) return;
+    traceMonGreeting("ui.render", { messageId: greetingMessageId });
+    return () => traceMonGreeting("ui.unmount", { messageId: greetingMessageId });
+  }, [greetingMessageId]);
   if (soloSticker) {
     return (
       <MessagePrimitive.Root className="vinz-sticker-message mx-auto flex w-full max-w-3xl flex-col px-2 sm:px-0">
