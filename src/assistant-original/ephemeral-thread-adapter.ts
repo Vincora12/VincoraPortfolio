@@ -8,7 +8,6 @@ import {
 import type {
   RuntimeAdapters,
 } from "@assistant-ui/core/react";
-import { traceMonGreeting } from './mon-greeting-trace';
 
 type Repository = Awaited<ReturnType<ThreadHistoryAdapter["load"]>>;
 
@@ -60,7 +59,6 @@ const useEphemeralHistory = (
         // reconciliation instead of being replaced by an empty snapshot.
         const repository = ephemeralRepositories.get(state.id) ?? emptyRepository();
         ephemeralRepositories.set(state.id, repository);
-        traceMonGreeting('history.load', { threadId: state.id, threadStatus: state.status, messageIds: repository.messages.map((entry) => entry.message.id) });
         return repository;
       }
       return baseHistoryRef.current?.load() ?? emptyRepository();
@@ -81,10 +79,7 @@ const useEphemeralHistory = (
 
       const threadId = state.id;
       const current = ephemeralRepositories.get(threadId) ?? emptyRepository();
-      const isGreeting = item.message.metadata?.custom?.monGreeting === true;
-      if (isGreeting) traceMonGreeting('history.append.before', { threadId, threadStatus: state.status, messageId: item.message.id, role: item.message.role, text: item.message.content, metadata: item.message.metadata, messageIds: current.messages.map((entry) => entry.message.id) });
       ephemeralRepositories.set(threadId, upsert(current, item));
-      if (isGreeting) traceMonGreeting('history.append.after', { threadId, threadStatus: state.status, messageId: item.message.id, role: item.message.role, text: item.message.content, metadata: item.message.metadata, messageIds: ephemeralRepositories.get(threadId)?.messages.map((entry) => entry.message.id) });
       if (item.message.role !== "user") return;
 
       const existingTask = promotionTasks.get(threadId);
@@ -109,10 +104,8 @@ const useEphemeralHistory = (
         // payload immediately after append(). Never let that transient update
         // erase the already-created Mon greeting; system events do not receive
         // this lifecycle update and therefore appeared stable.
-        if (existingGreeting && !incomingText) { traceMonGreeting('history.update.ignored-empty', { threadId: state.id, threadStatus: state.status, messageId: item.message.id, role: item.message.role, text: item.message.content, metadata: item.message.metadata, messageIds: current.messages.map((entry) => entry.message.id) }); return; }
-        if (existingGreeting) traceMonGreeting('history.update.before', { threadId: state.id, threadStatus: state.status, messageId: item.message.id, role: item.message.role, text: item.message.content, metadata: item.message.metadata, messageIds: current.messages.map((entry) => entry.message.id) });
+        if (existingGreeting && !incomingText) return;
         ephemeralRepositories.set(state.id, upsert(current, item));
-        if (existingGreeting) traceMonGreeting('history.update.after', { threadId: state.id, threadStatus: state.status, messageId: item.message.id, role: item.message.role, text: item.message.content, metadata: item.message.metadata, messageIds: ephemeralRepositories.get(state.id)?.messages.map((entry) => entry.message.id) });
         return;
       }
       const base = baseHistoryRef.current;
@@ -123,7 +116,6 @@ const useEphemeralHistory = (
       const state = auiRef.current.threadListItem.getState();
       if (state.status === "new") {
         const current = ephemeralRepositories.get(state.id) ?? emptyRepository();
-        if (items.some((item) => item.message.metadata?.custom?.monGreeting === true)) traceMonGreeting('history.delete', { threadId: state.id, threadStatus: state.status, messageIdsBefore: current.messages.map((entry) => entry.message.id), deletedIds: items.map((item) => item.message.id), messageIdsAfter: current.messages.filter((entry) => !items.some((removed) => removed.message.id === entry.message.id)).map((entry) => entry.message.id) });
         ephemeralRepositories.set(state.id, removeItems(current, items));
         return;
       }

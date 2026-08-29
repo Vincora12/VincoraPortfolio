@@ -70,7 +70,6 @@ import {
   PRESENCE_STEP_MS,
   revealMetadata,
 } from "@/assistant-original/chat-presence-visual";
-import { traceMonGreeting } from "@/assistant-original/mon-greeting-trace";
 
 const useFirstArrivalReveal = (arrivalId: unknown) => {
   const reveal = useRef<{ arrivalId: unknown; animate: boolean } | null>(null);
@@ -710,13 +709,6 @@ const AssistantMessage: FC = () => {
     })),
   );
   const animateOpening = useFirstArrivalReveal(openingRevealArrivalId);
-  const greeting = useAuiState((s) => s.message.metadata.custom.monGreeting === true);
-  const greetingState = useAuiState((s) => ({ threadId: s.threads.mainThreadId, messageId: s.message.id, role: s.message.role, text: s.message.content, metadata: s.message.metadata, messageIds: s.thread.messages.map((message) => message.id) }));
-  useEffect(() => {
-    if (!greeting) return;
-    traceMonGreeting('ui.rendered', greetingState);
-    return () => traceMonGreeting('ui.unmounted', greetingState);
-  }, [greeting]);
   if (soloSticker) {
     return (
       <MessagePrimitive.Root className="vinz-sticker-message mx-auto flex w-full max-w-3xl flex-col px-2 sm:px-0">
