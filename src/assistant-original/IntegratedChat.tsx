@@ -19,13 +19,14 @@ import "./styles.css";
 import { migrateStoragePrefix, serverBackedStorage } from "@/system/serverStorage";
 import { useApp } from "@/state/store";
 import { ensureContrastOnBlack, ensureContrastOnWhite, readableOn } from "@/engine/colorDna";
-import { withEphemeralThreads } from "./ephemeral-thread-adapter";
+import { withLocalUnsavedSession } from "./conversation-lifecycle-adapter";
 
-const threadAdapter = withEphemeralThreads(createLocalStorageAdapter({
+export const persistentThreadAdapter = createLocalStorageAdapter({
   storage: serverBackedStorage,
   prefix: "assistant-ui-official-chatgpt:",
   titleGenerator: createSimpleTitleAdapter(),
-}));
+});
+const threadAdapter = withLocalUnsavedSession(persistentThreadAdapter);
 
 const attachments = new CompositeAttachmentAdapter([
   new VinzImageAttachmentAdapter(),

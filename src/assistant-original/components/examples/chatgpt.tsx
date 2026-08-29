@@ -22,7 +22,10 @@ import WaveSurfer from "wavesurfer.js";
 import RecordPlugin from "wavesurfer.js/dist/plugins/record.esm.js";
 import { savedToken } from "@/brain/stream";
 import { memoryTrace } from "@/assistant-original/chat-memory-feedback";
-import { traceMonGreeting } from "@/assistant-original/mon-greeting-trace";
+import {
+  isLocalUnsavedSession,
+  promoteLocalSession,
+} from "@/assistant-original/conversation-lifecycle-adapter";
 import {
   ActivityIcon,
   ArrowUpIcon,
@@ -91,6 +94,7 @@ export const ChatGPT: FC = () => {
       <LogCelebration />
       <ReactionMessageDispatcher />
       <ConversationMemory />
+      <ConversationLifecycle />
       <MonPresenceEvents />
       <ThreadPrimitive.Root className="flex h-full flex-col items-stretch bg-white px-4 text-[#0d0d0d] dark:bg-black dark:text-[#ececec]">
         <AuiIf condition={(s) => s.thread.isEmpty}>
@@ -146,6 +150,32 @@ const ConversationMemory: FC = () => {
   useEffect(() => {
     if (latestUserText) rememberConversation(latestUserText);
   }, [latestUserText]);
+  return null;
+};
+
+const ConversationLifecycle: FC = () => {
+  const { threadId, readyToPromote } = useAuiState(
+    useShallow((state) => ({
+      threadId: state.threads.mainThreadId,
+      readyToPromote: (() => {
+        const messages = state.thread.messages;
+        let lastUserIndex = -1;
+        for (let index = messages.length - 1; index >= 0; index -= 1) {
+          if (messages[index]?.role === "user") { lastUserIndex = index; break; }
+        }
+        if (lastUserIndex < 0) return false;
+        return messages.slice(lastUserIndex + 1).some(
+          (message) => message.role === "assistant" && message.status.type !== "running",
+        );
+      })(),
+    })),
+  );
+  useEffect(() => {
+    if (!readyToPromote || !isLocalUnsavedSession(threadId)) return;
+    void promoteLocalSession(threadId).catch((error: unknown) => {
+      console.warn("[VINZ chat] promozione conversazione non riuscita", error);
+    });
+  }, [readyToPromote, threadId]);
   return null;
 };
 
@@ -710,12 +740,6 @@ const AssistantMessage: FC = () => {
     })),
   );
   const animateOpening = useFirstArrivalReveal(openingRevealArrivalId);
-  const greetingMessageId = useAuiState((s) => s.message.metadata.custom.monGreeting === true ? s.message.id : null);
-  useEffect(() => {
-    if (!greetingMessageId) return;
-    traceMonGreeting("ui.render", { messageId: greetingMessageId });
-    return () => traceMonGreeting("ui.unmount", { messageId: greetingMessageId });
-  }, [greetingMessageId]);
   if (soloSticker) {
     return (
       <MessagePrimitive.Root className="vinz-sticker-message mx-auto flex w-full max-w-3xl flex-col px-2 sm:px-0">

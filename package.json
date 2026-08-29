@@ -13,6 +13,7 @@
     "verify": "node scripts/verify-screens.mjs",
     "verify:backend": "node scripts/backend-check.mjs",
     "verify:assistant": "node scripts/assistant-check.mjs",
+    "verify:chat-lifecycle": "node --experimental-strip-types scripts/conversation-lifecycle-check.mjs",
     "verify:chat-me": "node scripts/chat-me-check.mjs",
     "verify:batch": "node scripts/batch-check.mjs 3000",
     "verify:features": "node scripts/feature-check.mjs",

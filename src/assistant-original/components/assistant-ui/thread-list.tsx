@@ -50,8 +50,8 @@ import {
 } from "react";
 import { serverBackedStorage } from "@/system/serverStorage";
 import {
-  discardEphemeralThread,
-} from "@/assistant-original/ephemeral-thread-adapter";
+  discardLocalSession,
+} from "@/assistant-original/conversation-lifecycle-adapter";
 import {
   requestManualRoomEntry,
   requestNextRoomEntry,
@@ -426,7 +426,7 @@ export const ThreadListNew = forwardRef<
     try {
       await aui.threads.switchToNewThread();
       const threadId = aui.threads.item("main").getState().id;
-      discardEphemeralThread(threadId);
+      discardLocalSession(threadId);
       aui.thread.reset();
       requestNextRoomEntry();
     } finally {

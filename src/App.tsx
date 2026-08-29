@@ -23,7 +23,6 @@ import {
   stepModel,
 } from './state/store';
 import { applyPaletteDna } from './engine/colorDna';
-import { getMonGreetingTrace } from './assistant-original/mon-greeting-trace';
 import { applySkin } from './engine/skin';
 import { applyLayout } from './engine/layout';
 import { preloadMonAssets, syncAssetsWithServer } from './assets-pipeline/assetStore';
@@ -959,13 +958,6 @@ function StatusBar({
             aria-label="Apri il pannello sviluppatore"
           >
             DEV
-          </button>
-        )}
-        {showDev && (
-          <button type="button" className="devtrigger" onClick={() => {
-            void navigator.clipboard?.writeText(getMonGreetingTrace());
-          }} aria-label="Copia log greeting Mon">
-            LOG
           </button>
         )}
       </span>

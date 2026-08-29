@@ -1,0 +1,68 @@
+import type {
+  RemoteThreadListAdapter,
+} from "@assistant-ui/react";
+
+type RemoteThreadInitializeResponse = Awaited<ReturnType<RemoteThreadListAdapter["initialize"]>>;
+
+type LocalSession = {
+  threadId: string;
+  promise: Promise<RemoteThreadInitializeResponse>;
+  resolve: (value: RemoteThreadInitializeResponse) => void;
+  promoting: Promise<RemoteThreadInitializeResponse> | null;
+};
+
+const sessions = new Map<string, LocalSession>();
+const initialized = new Map<string, RemoteThreadInitializeResponse>();
+let persistentAdapter: RemoteThreadListAdapter | null = null;
+
+const localSession = (threadId: string): LocalSession => {
+  const existing = sessions.get(threadId);
+  if (existing) return existing;
+  let resolve!: (value: RemoteThreadInitializeResponse) => void;
+  const promise = new Promise<RemoteThreadInitializeResponse>((done) => { resolve = done; });
+  const session = { threadId, promise, resolve, promoting: null };
+  sessions.set(threadId, session);
+  return session;
+};
+
+/**
+ * Keeps assistant-ui's optimistic thread genuinely local. Procedural ENTER and
+ * greeting appends may request initialization, but that request stays pending
+ * until VINZ sees the first real user-authored message.
+ */
+export const withLocalUnsavedSession = (
+  persistent: RemoteThreadListAdapter,
+): RemoteThreadListAdapter => {
+  persistentAdapter = persistent;
+  return {
+    ...persistent,
+    initialize(threadId) {
+      const existing = initialized.get(threadId);
+      if (existing) return Promise.resolve(existing);
+      return localSession(threadId).promise;
+    },
+  };
+};
+
+export const isLocalUnsavedSession = (threadId: string): boolean => sessions.has(threadId);
+
+export const promoteLocalSession = async (
+  threadId: string,
+): Promise<RemoteThreadInitializeResponse | null> => {
+  const session = sessions.get(threadId);
+  if (!session) return null;
+  if (!persistentAdapter) throw new Error("Persistent conversation adapter unavailable");
+  if (!session.promoting) {
+    session.promoting = persistentAdapter.initialize(threadId).then((result) => {
+      initialized.set(threadId, result);
+      session.resolve(result);
+      sessions.delete(threadId);
+      return result;
+    });
+  }
+  return session.promoting;
+};
+
+export const discardLocalSession = (threadId: string): void => {
+  sessions.delete(threadId);
+};
