@@ -154,28 +154,18 @@ const ConversationMemory: FC = () => {
 };
 
 const ConversationLifecycle: FC = () => {
-  const { threadId, readyToPromote } = useAuiState(
+  const { threadId, hasUserMessage } = useAuiState(
     useShallow((state) => ({
       threadId: state.threads.mainThreadId,
-      readyToPromote: (() => {
-        const messages = state.thread.messages;
-        let lastUserIndex = -1;
-        for (let index = messages.length - 1; index >= 0; index -= 1) {
-          if (messages[index]?.role === "user") { lastUserIndex = index; break; }
-        }
-        if (lastUserIndex < 0) return false;
-        return messages.slice(lastUserIndex + 1).some(
-          (message) => message.role === "assistant" && message.status.type !== "running",
-        );
-      })(),
+      hasUserMessage: state.thread.messages.some((message) => message.role === "user"),
     })),
   );
   useEffect(() => {
-    if (!readyToPromote || !isLocalUnsavedSession(threadId)) return;
+    if (!hasUserMessage || !isLocalUnsavedSession(threadId)) return;
     void promoteLocalSession(threadId).catch((error: unknown) => {
       console.warn("[VINZ chat] promozione conversazione non riuscita", error);
     });
-  }, [readyToPromote, threadId]);
+  }, [hasUserMessage, threadId]);
   return null;
 };
 

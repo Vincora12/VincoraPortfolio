@@ -64,5 +64,10 @@ export const promoteLocalSession = async (
 };
 
 export const discardLocalSession = (threadId: string): void => {
+  const session = sessions.get(threadId);
+  if (!session) return;
+  // Release assistant-ui's pending initialization so it can leave the local
+  // runtime. The synthetic id is never written to the persistent adapter.
+  session.resolve({ remoteId: threadId });
   sessions.delete(threadId);
 };

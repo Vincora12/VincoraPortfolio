@@ -424,6 +424,8 @@ export const ThreadListNew = forwardRef<
     creatingRef.current = true;
     setCreating(true);
     try {
+      const currentThreadId = aui.threads.item("main").getState().id;
+      discardLocalSession(currentThreadId);
       await aui.threads.switchToNewThread();
       const threadId = aui.threads.item("main").getState().id;
       discardLocalSession(threadId);
