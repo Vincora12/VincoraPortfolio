@@ -2,6 +2,7 @@ import type {
   ExportedMessageRepository,
   RemoteThreadListAdapter,
 } from "@assistant-ui/react";
+import { generateVinzChatTitle } from "./chat-title-generator";
 
 type RemoteThreadInitializeResponse = Awaited<ReturnType<RemoteThreadListAdapter["initialize"]>>;
 
@@ -61,6 +62,11 @@ export const promoteLocalSession = async (
   if (!session.promoting) {
     session.promoting = persistentAdapter.initialize(threadId).then(async (result) => {
       await persistSnapshot!(result.remoteId, repository);
+      // Title generation is intentionally done only after promotion. The
+      // assistant-ui automatic trigger can run on the Mon greeting before a
+      // user message exists and would permanently save the empty fallback.
+      const titleMessages = repository.messages.map((item) => item.message);
+      await persistentAdapter!.rename(result.remoteId, generateVinzChatTitle(titleMessages));
       handoffs.set(result.remoteId, repository);
       initialized.set(threadId, result);
       session.resolve(result);

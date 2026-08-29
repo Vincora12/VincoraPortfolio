@@ -7,9 +7,7 @@ import {
   useLocalRuntime,
   useRemoteThreadListRuntime,
 } from "@assistant-ui/react";
-import {
-  createLocalStorageAdapter,
-} from "@assistant-ui/core/react";
+import { createLocalStorageAdapter } from "@assistant-ui/core/react";
 import type { ToolResult, ToolUse } from "@/ai/tools";
 import { createNetlifyChatModel } from "./netlify-runtime";
 import { VinzImageAttachmentAdapter, VinzPdfAttachmentAdapter } from "./image-attachment";
@@ -19,12 +17,10 @@ import { migrateStoragePrefix, serverBackedStorage } from "@/system/serverStorag
 import { useApp } from "@/state/store";
 import { ensureContrastOnBlack, ensureContrastOnWhite, readableOn } from "@/engine/colorDna";
 import { withLocalUnsavedSession } from "./conversation-lifecycle-adapter";
-import { vinzChatTitleGenerator } from "./chat-title-generator";
 
 export const persistentThreadAdapter = createLocalStorageAdapter({
   storage: serverBackedStorage,
   prefix: "assistant-ui-official-chatgpt:",
-  titleGenerator: vinzChatTitleGenerator,
 });
 const threadAdapter = withLocalUnsavedSession(
   persistentThreadAdapter,
