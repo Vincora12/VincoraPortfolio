@@ -114,7 +114,7 @@ const useEphemeralHistory = (
     },
     async delete(items) {
       const state = auiRef.current.threadListItem.getState();
-      if (state.status === "new") {
+      if (state.status === "new" || ephemeralRepositories.has(state.id)) {
         const current = ephemeralRepositories.get(state.id) ?? emptyRepository();
         ephemeralRepositories.set(state.id, removeItems(current, items));
         return;
