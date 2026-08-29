@@ -23,6 +23,7 @@ import RecordPlugin from "wavesurfer.js/dist/plugins/record.esm.js";
 import { savedToken } from "@/brain/stream";
 import { memoryTrace } from "@/assistant-original/chat-memory-feedback";
 import {
+  consumePromotedRepository,
   isLocalUnsavedSession,
   promoteLocalSession,
 } from "@/assistant-original/conversation-lifecycle-adapter";
@@ -155,12 +156,18 @@ const ConversationMemory: FC = () => {
 
 const ConversationLifecycle: FC = () => {
   const aui = useAui();
-  const { threadId, hasUserMessage } = useAuiState(
+  const { threadId, remoteId, hasUserMessage } = useAuiState(
     useShallow((state) => ({
       threadId: state.threads.mainThreadId,
+      remoteId: state.threadListItem.remoteId,
       hasUserMessage: state.thread.messages.some((message) => message.role === "user"),
     })),
   );
+  useEffect(() => {
+    if (!remoteId) return;
+    const repository = consumePromotedRepository(remoteId);
+    if (repository) aui.thread.import(repository);
+  }, [aui, remoteId]);
   useEffect(() => {
     if (!hasUserMessage || !isLocalUnsavedSession(threadId)) return;
     void promoteLocalSession(threadId, aui.thread.export()).catch((error: unknown) => {

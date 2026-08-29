@@ -14,6 +14,7 @@ type LocalSession = {
 
 const sessions = new Map<string, LocalSession>();
 const initialized = new Map<string, RemoteThreadInitializeResponse>();
+const handoffs = new Map<string, ExportedMessageRepository>();
 let persistentAdapter: RemoteThreadListAdapter | null = null;
 let persistSnapshot: ((remoteId: string, repository: ExportedMessageRepository) => Promise<void>) | null = null;
 
@@ -60,6 +61,7 @@ export const promoteLocalSession = async (
   if (!session.promoting) {
     session.promoting = persistentAdapter.initialize(threadId).then(async (result) => {
       await persistSnapshot!(result.remoteId, repository);
+      handoffs.set(result.remoteId, repository);
       initialized.set(threadId, result);
       session.resolve(result);
       sessions.delete(threadId);
@@ -67,6 +69,14 @@ export const promoteLocalSession = async (
     });
   }
   return session.promoting;
+};
+
+export const consumePromotedRepository = (
+  remoteId: string,
+): ExportedMessageRepository | null => {
+  const repository = handoffs.get(remoteId) ?? null;
+  if (repository) handoffs.delete(remoteId);
+  return repository;
 };
 
 export const discardLocalSession = (threadId: string): void => {

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import {
+  consumePromotedRepository,
   discardLocalSession,
   isLocalUnsavedSession,
   promoteLocalSession,
@@ -28,6 +29,8 @@ assert.deepEqual(promoted, { remoteId: "saved:local-a" });
 assert.deepEqual(await pending, promoted, "the same pending runtime becomes persistent");
 assert.equal(initializeCalls, 1, "promotion initializes exactly once");
 assert.equal(savedSnapshot, snapshot, "complete local timeline is stored before handoff");
+assert.equal(consumePromotedRepository("saved:local-a"), snapshot, "new runtime receives the complete timeline");
+assert.equal(consumePromotedRepository("saved:local-a"), null, "handoff is consumed exactly once");
 assert.equal(isLocalUnsavedSession("local-a"), false);
 assert.deepEqual(await lifecycle.initialize("local-a"), promoted);
 assert.equal(initializeCalls, 1, "post-promotion initialization reuses the canonical id");
