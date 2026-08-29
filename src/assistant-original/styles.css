@@ -531,6 +531,17 @@ body[data-scroll-locked] {
   animation: vinz-writing-caret 720ms steps(1, end) infinite;
 }
 
+.vinz-opening-writing::after {
+  content: "▍";
+  color: var(--char-accent, currentColor);
+  margin-inline-start: .16rem;
+  animation: vinz-writing-caret 720ms steps(1, end) infinite;
+}
+
+.dark .vinz-opening-writing::after {
+  color: var(--char-accent-on-dark, currentColor);
+}
+
 .dark .vinz-assistant-copy .aui-md[data-status="running"]:empty::after,
 .dark .vinz-assistant-copy .aui-md[data-status="running"] > :not(ol, ul, pre):last-child::after,
 .dark .vinz-assistant-copy .aui-md[data-status="running"] > pre:last-child code::after,

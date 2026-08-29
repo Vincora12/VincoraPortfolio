@@ -739,7 +739,7 @@ const OpeningComposedText: FC<{ text: string; active: boolean; delayMs: number }
     frame = requestAnimationFrame(compose);
     return () => cancelAnimationFrame(frame);
   }, [active, delayMs, text]);
-  return <span>{text.slice(0, visible)}</span>;
+  return <span className={active && visible < text.length ? "vinz-opening-writing" : undefined}>{text.slice(0, visible)}</span>;
 };
 
 const AssistantMessage: FC = () => {
