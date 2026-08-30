@@ -28,3 +28,28 @@ export async function enableEvolutionNotifications(token: string): Promise<void>
     body: JSON.stringify(subscription),
   });
 }
+
+/** Opt-in esplicito per gli insight delle Machines. */
+export async function enableMachineNotifications(token: string): Promise<boolean> {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) return false;
+  const permission = Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission();
+  if (permission !== 'granted') return false;
+  const registration = await navigator.serviceWorker.ready;
+  const keyResponse = await fetch('/api/push', { headers: { authorization: `Bearer ${token}` } });
+  if (!keyResponse.ok) return false;
+  const { publicKey } = await keyResponse.json() as { publicKey?: string };
+  if (!publicKey) return false;
+  const existing = await registration.pushManager.getSubscription();
+  const subscription = existing ?? await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: applicationKey(publicKey) });
+  const saved = await fetch('/api/push', { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify(subscription) });
+  return saved.ok;
+}
+
+export async function disableMachineNotifications(token: string): Promise<boolean> {
+  if (!('serviceWorker' in navigator)) return false;
+  const subscription = await (await navigator.serviceWorker.ready).pushManager.getSubscription();
+  if (!subscription) return true;
+  const response = await fetch('/api/push', { method: 'DELETE', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ endpoint: subscription.endpoint }) });
+  if (response.ok) await subscription.unsubscribe();
+  return response.ok;
+}

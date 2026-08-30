@@ -3,6 +3,7 @@ import { callProvider } from './providers';
 import { resolveRoute } from './routing';
 import { recordSpend } from './spend';
 import { listMem0 } from './mem0MemoryClient';
+import { sendMachineInsightPush } from './pushDelivery';
 
 export type MachineStatus = 'ACTIVE' | 'SLEEPING' | 'RUNNING' | 'DISABLED';
 export type MachineId = 'reflection' | 'me';
@@ -29,7 +30,10 @@ export interface PendingInsight {
   confidence: number;
   createdAt: string;
   status: 'pending' | 'opened' | 'discussed';
-  notification: 'not_sent' | 'in_app';
+  notification: 'not_sent' | 'in_app' | 'push_sent';
+  pushAttemptedAt?: string;
+  pushSentAt?: string;
+  pushError?: string;
   openedAt?: string;
   discussedAt?: string;
   dedupeKey: string;
@@ -144,6 +148,14 @@ export async function runMachine(machine: MachineId) {
       current.lastOutput = summary ? 'Sintesi ME aggiornata.' : 'Nessun aggiornamento significativo.';
     }
     current.status = 'SLEEPING'; current.lastRun = at(); current.usage = { provider: response.model.includes('claude') ? 'anthropic' : 'openai', model: response.model, costUsd };
+    const latestInsight = current.pendingInsights.at(-1);
+    if (latestInsight?.createdAt === current.lastRun || latestInsight?.machineId === machine && latestInsight.status === 'pending' && latestInsight.notification === 'in_app' && !latestInsight.pushAttemptedAt) {
+      latestInsight.pushAttemptedAt = at();
+      try {
+        const delivery = await sendMachineInsightPush(latestInsight);
+        if (delivery.sent > 0) latestInsight.notification = 'push_sent', latestInsight.pushSentAt = at();
+      } catch (error) { latestInsight.pushError = error instanceof Error ? error.message.slice(0, 160) : 'push delivery failed'; }
+    }
     await store.setJSON(KEY, state);
     return current;
   } catch (error) {

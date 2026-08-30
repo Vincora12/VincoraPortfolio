@@ -240,6 +240,22 @@ export function App() {
     return () => window.removeEventListener('vinzmon-open-chat', openChat);
   }, []);
 
+  useEffect(() => {
+    const insightId = new URLSearchParams(window.location.search).get('pendingInsight');
+    if (!token || !insightId) return;
+    void (async () => {
+      try {
+        const response = await fetch('/api/machines', { headers: { authorization: `Bearer ${token}` } });
+        const body = await response.json() as { pendingInsights?: Array<{ id: string; statement: string }> };
+        const insight = body.pendingInsights?.find((item) => item.id === insightId);
+        if (!insight) return;
+        await fetch('/api/machines', { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify({ machine: 'open_insight', insightId }) });
+        window.history.replaceState({}, '', window.location.pathname);
+        window.dispatchEvent(new CustomEvent('vinzmon-open-chat', { detail: { prompt: `Ho trovato questo insight da discutere: ${insight.statement}`, pendingInsightId: insight.id } }));
+      } catch { /* notification click remains harmless if the session is unavailable */ }
+    })();
+  }, [token]);
+
   /* ⚠️ L'INCUBAZIONE HA UNA PORTA SUA, e non può usare le tab.
 
      🔴 L'avevo dimenticato riordinando la barra, e l'incubazione si era
@@ -996,7 +1012,13 @@ function MachineInsightChip() {
     window.addEventListener('focus', onFocus);
     return () => { cancelled = true; window.removeEventListener('focus', onFocus); };
   }, [token]);
-  if (!insight) return null;
+  const canAsk = typeof window !== 'undefined' && 'Notification' in window && Notification.permission !== 'denied';
+  const enable = async () => {
+    if (!token) return;
+    const { enableMachineNotifications } = await import('./system/pushNotifications');
+    await enableMachineNotifications(token);
+  };
+  if (!insight) return canAsk ? <button type="button" className="machine-insight-chip" onClick={() => void enable()} aria-label="Attiva notifiche insight">ATTIVA INSIGHT</button> : null;
   const open = async () => {
     try {
       await fetch('/api/machines', { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify({ machine: 'open_insight', insightId: insight.id }) });
@@ -1005,5 +1027,8 @@ function MachineInsightChip() {
       setInsight(null);
     }
   };
-  return <button type="button" className="machine-insight-chip" onClick={() => void open()} aria-label="Apri insight di VINZ.MON">INSIGHT · 1</button>;
+  return <>
+    <button type="button" className="machine-insight-chip" onClick={() => void open()} aria-label="Apri insight di VINZ.MON">INSIGHT · 1</button>
+    {canAsk && <button type="button" className="machine-insight-chip" onClick={() => void enable()} aria-label="Attiva notifiche insight">ATTIVA</button>}
+  </>;
 }

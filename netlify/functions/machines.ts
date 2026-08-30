@@ -1,9 +1,10 @@
 import { authorize, denied, json } from './_shared/auth';
 import { machineSnapshot, openPendingInsight, runMachine, type MachineId } from './_shared/machines';
+import { pushStatus } from './_shared/pushDelivery';
 
 export default async function handler(request: Request): Promise<Response> {
   if (!authorize(request).ok) return denied();
-  if (request.method === 'GET') return json({ machines: await machineSnapshot() });
+  if (request.method === 'GET') return json({ ...(await machineSnapshot()), push: await pushStatus() });
   if (request.method !== 'POST') return json({ error: 'metodo non supportato' }, 405);
   let body: { machine?: string };
   try { body = await request.json() as typeof body; } catch { return json({ error: 'body non leggibile' }, 400); }

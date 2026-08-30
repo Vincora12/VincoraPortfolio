@@ -95,4 +95,6 @@ La schermata è sola lettura, autenticata, senza database o stato persistente pa
 
 La Reflection Machine legge un piccolo insieme di memorie Mem0 e, quando ce ne sono abbastanza, produce osservazioni interpretative compatte con tipo, confidenza, timestamp e riferimenti alle memorie. La ME Machine produce una sintesi derivata breve con `basedOn`; non sostituisce le memorie Mem0 e non viene iniettata nei prompt. Entrambe restano `SLEEPING` dopo l'esecuzione e non sono chiamate dal runtime della chat. Le chiamate AI usano `text-cheap` e passano dal ledger costi canonico. `SYSTEM.LAB → MACHINES` mostra definizioni e stato reale, inclusi i casi `NOT RUN`.
 
+La delivery degli insight supporta anche un canale Web Push best-effort, oltre alla consegna in-app. Le sottoscrizioni sono conservate server-side nello store `vinzmon-push`; l'abilitazione avviene solo dopo un'azione esplicita dell'utente. Il push non è fonte canonica: se non configurato o non disponibile, l'insight resta disponibile in-app. Per iPhone è necessario installare VINZ.MON come web app dalla schermata Home e consentire le notifiche. Le chiavi VAPID restano esclusivamente nelle variabili server `VAPID_PUBLIC_KEY` e `VAPID_PRIVATE_KEY`.
+
 Context Machine, automazioni periodiche, retrieval aggiuntivo, reflection per messaggio e generazione automatica della sintesi ME restano esplicitamente rinviati.
