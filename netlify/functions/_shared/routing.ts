@@ -145,7 +145,7 @@ export interface Route {
 export const ROUTING: Record<Capability, Route> = {
   'character-voice': { provider: 'openai', model: 'gpt-5.6-terra' },
   'vision-quick': { provider: 'google', model: 'gemini-2.5-flash' },
-  'text-cheap': { provider: 'anthropic', model: 'claude-haiku-4-5' },
+  'text-cheap': { provider: 'openai', model: 'gpt-5.6-luna' },
   /* 🔶 Era `gpt-image-1`, e nessuno l'aveva mai scelto: la voce e il
      compilatore si sceglievano, il disegnatore no. `gpt-image-2` è uscito
      nell'API il 21 aprile 2026 ed è il più recente. */
