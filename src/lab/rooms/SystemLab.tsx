@@ -43,6 +43,7 @@ const TABS = [
   { id: 'ai', label: 'AI' },
   { id: 'simulation', label: 'SIMULATION' },
   { id: 'memory', label: 'MEMORY' },
+  { id: 'machines', label: 'MACHINES' },
   { id: 'usage', label: 'USAGE' },
   /* 🔷 brief Shortcuts §11, e la regola scritta nell'atrio del lab:
      «se cambia come l'app... chiama API, va in SYSTEM.LAB». `/api/shortcut`
@@ -65,6 +66,7 @@ export function SystemLab({ onBack }: { onBack: () => void }) {
         {tab === 'ai' && <Ai />}
         {tab === 'simulation' && <Simulation />}
         {tab === 'memory' && <Memory />}
+        {tab === 'machines' && <Machines />}
         {tab === 'usage' && <Usage />}
         {tab === 'shortcuts' && <Shortcuts />}
         {tab === 'assistant' && <LabAssistantPanel />}
@@ -72,6 +74,52 @@ export function SystemLab({ onBack }: { onBack: () => void }) {
       </main>
     </div>
   );
+}
+
+type MachineView = {
+  id: string; name: string; purpose: string; reads: string[]; trigger: string; writes: string[]; model: string;
+  state: { status: string; lastRun: string | null; lastOutput: string | null; usage: { provider: string; model: string; costUsd: number } | null };
+};
+
+function Machines() {
+  const token = useApp((s) => s.token);
+  const [machines, setMachines] = useState<MachineView[] | null>(null);
+  const [error, setError] = useState(false);
+  const [running, setRunning] = useState<string | null>(null);
+  const load = async () => {
+    if (!token) { setError(true); return; }
+    try {
+      const response = await fetch('/api/machines', { headers: { authorization: `Bearer ${token}` } });
+      if (!response.ok) throw new Error('machines unavailable');
+      const body = await response.json() as { machines?: MachineView[] };
+      setMachines(body.machines ?? []); setError(false);
+    } catch { setError(true); }
+  };
+  useEffect(() => { void load(); }, [token]);
+  const run = async (id: string) => {
+    if (!token) return;
+    setRunning(id);
+    try { await fetch('/api/machines', { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify({ machine: id }) }); } finally { setRunning(null); void load(); }
+  };
+  return <section className="page active">
+    <PageHead kicker="SYSTEM.LAB / MACHINE MASTER" title="MACHINES" lead="Macchine indipendenti: lavorano solo quando vengono attivate, mai prima di una risposta in chat." />
+    {error && <Notice title="MACHINE STATE NON DISPONIBILE">Il server non risponde oppure manca il token.</Notice>}
+    {!machines && !error && <p className="note">Lettura dello stato…</p>}
+    {machines?.map((machine) => <Section key={machine.id} title={machine.name}>
+      <Rows rows={[
+        ['PURPOSE', machine.purpose],
+        ['READS', machine.reads.join(' · ')],
+        ['TRIGGER', machine.trigger],
+        ['WRITES', machine.writes.join(' · ')],
+        ['MODEL', machine.model],
+        ['STATUS', machine.state.status],
+        ['LAST RUN', machine.state.lastRun ? new Date(machine.state.lastRun).toLocaleString('it-IT') : 'NOT RUN'],
+        ['LAST OUTPUT', machine.state.lastOutput ?? 'NOT RUN'],
+        ...(machine.state.usage ? [['USAGE', `${machine.state.usage.provider}/${machine.state.usage.model} · $${machine.state.usage.costUsd.toFixed(4)}`] as [string, string]] : []),
+      ]} />
+      <Btn disabled={running !== null} onClick={() => void run(machine.id)}>{running === machine.id ? 'RUNNING…' : 'RUN MACHINE'}</Btn>
+    </Section>)}
+  </section>;
 }
 
 /* ============================================================================

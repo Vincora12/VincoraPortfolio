@@ -88,3 +88,11 @@ La vista MEMORY legge esclusivamente la proiezione autenticata di `/api/me-memor
 Le relazioni superseded e le entità archiviate/merged non sono presentate come conoscenza corrente; i riferimenti merged vengono risolti verso l'entità canonica. Il conteggio “conoscenze” è il numero di relazioni attive, “entità” esclude il nodo radice dell'utente, “episodi” conta gli episodi attivi. Gli aggiornamenti recenti sono una proiezione temporale best-effort, non un audit log: il modello attuale non conserva eventi di mutazione distinti.
 
 La schermata è sola lettura, autenticata, senza database o stato persistente parallelo. Non abilita retrieval, prompt injection, ME Summary, modifica o cancellazione.
+
+## Machines V1
+
+`netlify/functions/_shared/machines.ts` è il Machine Master: definisce e persiste lo stato delle macchine indipendenti in `vinzmon-machines` / `machine-state-v1` senza entrare nel normale turno chat. `netlify/functions/machines.ts` espone il controllo autenticato `GET /api/machines` e l'esecuzione esplicita `POST /api/machines` con `machine: reflection|me`.
+
+La Reflection Machine legge un piccolo insieme di memorie Mem0 e, quando ce ne sono abbastanza, produce osservazioni interpretative compatte con tipo, confidenza, timestamp e riferimenti alle memorie. La ME Machine produce una sintesi derivata breve con `basedOn`; non sostituisce le memorie Mem0 e non viene iniettata nei prompt. Entrambe restano `SLEEPING` dopo l'esecuzione e non sono chiamate dal runtime della chat. Le chiamate AI usano `text-cheap` e passano dal ledger costi canonico. `SYSTEM.LAB → MACHINES` mostra definizioni e stato reale, inclusi i casi `NOT RUN`.
+
+Context Machine, automazioni periodiche, retrieval aggiuntivo, reflection per messaggio e generazione automatica della sintesi ME restano esplicitamente rinviati.
