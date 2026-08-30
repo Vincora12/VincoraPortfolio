@@ -84,6 +84,7 @@ type PendingInsightView = { id: string; statement: string; machineId: string; st
 
 function Machines() {
   const token = useApp((s) => s.token);
+  const reflectionModel = useApp((s) => s.stepModels.reflection);
   const [machines, setMachines] = useState<MachineView[] | null>(null);
   const [pending, setPending] = useState<PendingInsightView[]>([]);
   const [push, setPush] = useState<{ configured: boolean; subscriptions: number } | null>(null);
@@ -104,7 +105,7 @@ function Machines() {
   const run = async (id: string) => {
     if (!token) return;
     setRunning(id);
-    try { await fetch('/api/machines', { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify({ machine: id }) }); } finally { setRunning(null); void load(); }
+    try { await fetch('/api/machines', { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify({ machine: id, preferredModel: reflectionModel ?? null }) }); } finally { setRunning(null); void load(); }
   };
   return <section className="page active">
     <PageHead kicker="SYSTEM.LAB / MACHINE MASTER" title="MACHINES" lead="Macchine indipendenti: lavorano solo quando vengono attivate, mai prima di una risposta in chat." />

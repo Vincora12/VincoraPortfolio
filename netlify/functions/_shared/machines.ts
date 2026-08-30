@@ -131,15 +131,15 @@ async function reflectionContext(recent: Array<{ id?: string; text: string }>, o
   return { older, previousReflections };
 }
 
-async function runModel(machine: MachineId, prompt: string, sourceIds: string[]) {
-  const route = resolveRoute('text-cheap');
+async function runModel(machine: MachineId, prompt: string, sourceIds: string[], preferredModel?: string | null) {
+  const route = resolveRoute('text-cheap', preferredModel);
   const response = await callProvider(route.provider, { model: route.model, system: [{ text: 'Return compact JSON only. Never invent facts. Interpretations must cite source memory IDs.' }], turns: [], user: prompt, maxTokens: machine === 'reflection' ? 900 : 700 });
   if (!response.ok) throw new Error(response.error ?? 'machine provider failed');
   const costUsd = response.usage.inputTokens || response.usage.outputTokens ? await recordSpend('text-cheap', response.model, response.usage, { action: machine, subsystem: 'machines' }) : 0;
   return { response, costUsd, sourceIds };
 }
 
-export async function runMachine(machine: MachineId) {
+export async function runMachine(machine: MachineId, preferredModel?: string | null) {
   const { store, state } = await readState();
   const current = state[machine];
   current.status = 'RUNNING';
@@ -168,7 +168,7 @@ export async function runMachine(machine: MachineId) {
     const prompt = machine === 'reflection'
       ? `Rifletti sulle memorie seguenti. Restituisci {"observations":[{"type":"pattern|change|tension|connection","statement":"...","confidence":0.0,"sourceIds":["..."]}]}. Se non c’è nulla di utile, restituisci un array vuoto.\n${context}`
       : `Aggiorna una sintesi ME molto breve. Restituisci {"summary":"...","basedOn":["..."]}. Se non c’è un cambiamento significativo, restituisci summary vuota.\n${context}`;
-    const { response, costUsd } = await runModel(machine, prompt, sourceIds);
+    const { response, costUsd } = await runModel(machine, prompt, sourceIds, preferredModel);
     const parsed = JSON.parse(response.text.match(/```(?:json)?\s*([\s\S]*?)\s*```/i)?.[1]?.trim() ?? response.text.trim()) as Record<string, unknown>;
     if (machine === 'reflection') {
       const observations = Array.isArray(parsed.observations) ? parsed.observations.flatMap((item) => {
