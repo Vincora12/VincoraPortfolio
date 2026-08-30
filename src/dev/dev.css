@@ -20,6 +20,22 @@
   color: var(--white);
 }
 
+.labtrigger {
+  padding: 1px var(--u);
+  border: 1px solid var(--signal-alert);
+  background: transparent;
+  color: var(--signal-alert);
+  font-family: var(--font-mono);
+  font-size: var(--type-micro);
+  letter-spacing: 0.14em;
+  line-height: 1.4;
+}
+
+.labtrigger:hover {
+  background: var(--signal-alert);
+  color: var(--white);
+}
+
 .dev {
   background: var(--white);
 }

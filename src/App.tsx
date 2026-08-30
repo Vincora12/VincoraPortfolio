@@ -522,6 +522,7 @@ export function App() {
           <StatusBar
             showDev={devEnabled && overlay !== 'dev'}
             onOpenDev={() => setOverlay('dev')}
+            onOpenLab={() => window.location.assign('/lab/')}
             onActivate={() => setOverlay('activate')}
           />
         )}
@@ -905,10 +906,12 @@ function ActivateChip({ onClick }: { onClick: () => void }) {
 function StatusBar({
   showDev,
   onOpenDev,
+  onOpenLab,
   onActivate,
 }: {
   showDev: boolean;
   onOpenDev: () => void;
+  onOpenLab: () => void;
   onActivate: () => void;
 }) {
   const day = useApp((s) => s.day);
@@ -960,6 +963,14 @@ function StatusBar({
             DEV
           </button>
         )}
+        <button
+          type="button"
+          className="labtrigger"
+          onClick={onOpenLab}
+          aria-label="Apri VINZ.LAB"
+        >
+          LAB
+        </button>
       </span>
     </div>
   );
