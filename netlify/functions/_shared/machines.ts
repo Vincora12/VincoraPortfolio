@@ -2,7 +2,7 @@ import { getStore } from '@netlify/blobs';
 import { callProvider } from './providers';
 import { resolveRoute } from './routing';
 import { recordSpend } from './spend';
-import { listMem0 } from './mem0MemoryClient';
+import { listMem0, searchMem0 } from './mem0MemoryClient';
 import { machineInsightPayload, sendPushNotification } from './pushDelivery';
 
 export type MachineStatus = 'ACTIVE' | 'SLEEPING' | 'RUNNING' | 'DISABLED';
@@ -47,6 +47,7 @@ export interface MachineState {
   observations: Array<{ type: string; statement: string; confidence: number; sourceIds: string[]; timestamp: string }>;
   meSummary: { version: 1; summary: string; generatedAt: string; basedOn: string[] } | null;
   pendingInsights: PendingInsight[];
+  reflectionContext?: { recent: number; older: number; previousReflections: number; total: number };
 }
 
 const STORE = 'vinzmon-machines';
@@ -99,6 +100,37 @@ function memoriesFrom(raw: unknown): Array<{ id?: string; text: string }> {
   });
 }
 
+function terms(text: string): Set<string> {
+  return new Set((text.toLowerCase().match(/[\p{L}\p{N}]{4,}/gu) ?? []).filter((word) => !['user', 'that', 'this', 'with', 'from', 'della', 'delle', 'degli', 'sono', 'come', 'alla', 'alle', 'agli'].includes(word)));
+}
+
+function reflectionRelevance(statement: string, themes: Set<string>): number {
+  const words = terms(statement);
+  return [...words].filter((word) => themes.has(word)).length;
+}
+
+async function reflectionContext(recent: Array<{ id?: string; text: string }>, observations: MachineState['observations']) {
+  const recentIds = new Set(recent.map((item) => item.id).filter((id): id is string => Boolean(id)));
+  const candidates = new Map<string, { id?: string; text: string }>();
+  for (const item of recent.slice(-4)) {
+    try {
+      const related = await searchMem0(item.text.slice(0, 600), 4);
+      for (const memory of related) {
+        if (memory.text && (!memory.id || !recentIds.has(memory.id))) candidates.set(memory.id ?? memory.text, { id: memory.id, text: memory.text });
+      }
+    } catch { /* long-term retrieval is best-effort; recent context remains usable */ }
+  }
+  const themes = new Set(recent.flatMap((item) => [...terms(item.text)]));
+  const older = [...candidates.values()].slice(0, 12);
+  const previousReflections = observations
+    .map((item) => ({ item, score: reflectionRelevance(item.statement, themes) }))
+    .filter(({ score }) => score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 6)
+    .map(({ item }) => item);
+  return { older, previousReflections };
+}
+
 async function runModel(machine: MachineId, prompt: string, sourceIds: string[]) {
   const route = resolveRoute('text-cheap');
   const response = await callProvider(route.provider, { model: route.model, system: [{ text: 'Return compact JSON only. Never invent facts. Interpretations must cite source memory IDs.' }], turns: [], user: prompt, maxTokens: machine === 'reflection' ? 900 : 700 });
@@ -120,7 +152,19 @@ export async function runMachine(machine: MachineId) {
       await store.setJSON(KEY, state);
       return current;
     }
-    const context = memories.slice(-20).map((item) => `${item.id ?? 'memory'}: ${item.text}`).join('\n');
+    const recent = memories.slice(-20);
+    const extended = machine === 'reflection' ? await reflectionContext(recent, current.observations) : { older: [], previousReflections: [] };
+    const context = machine === 'reflection'
+      ? [
+        'RECENT MEMORIES (user evidence):',
+        ...recent.map((item) => `${item.id ?? 'memory'}: ${item.text}`),
+        'OLDER RELEVANT MEMORIES (user evidence retrieved semantically):',
+        ...extended.older.map((item) => `${item.id ?? 'memory'}: ${item.text}`),
+        'PREVIOUS REFLECTIONS (derived interpretations, not user facts):',
+        ...extended.previousReflections.map((item) => `${item.type}: ${item.statement} [evidence: ${item.sourceIds.join(', ')}]`),
+      ].join('\n')
+      : recent.map((item) => `${item.id ?? 'memory'}: ${item.text}`).join('\n');
+    if (machine === 'reflection') current.reflectionContext = { recent: recent.length, older: extended.older.length, previousReflections: extended.previousReflections.length, total: recent.length + extended.older.length + extended.previousReflections.length };
     const prompt = machine === 'reflection'
       ? `Rifletti sulle memorie seguenti. Restituisci {"observations":[{"type":"pattern|change|tension|connection","statement":"...","confidence":0.0,"sourceIds":["..."]}]}. Se non c’è nulla di utile, restituisci un array vuoto.\n${context}`
       : `Aggiorna una sintesi ME molto breve. Restituisci {"summary":"...","basedOn":["..."]}. Se non c’è un cambiamento significativo, restituisci summary vuota.\n${context}`;

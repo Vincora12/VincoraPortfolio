@@ -78,7 +78,7 @@ export function SystemLab({ onBack }: { onBack: () => void }) {
 
 type MachineView = {
   id: string; name: string; purpose: string; reads: string[]; trigger: string; writes: string[]; model: string;
-  state: { status: string; lastRun: string | null; lastOutput: string | null; usage: { provider: string; model: string; costUsd: number } | null };
+  state: { status: string; lastRun: string | null; lastOutput: string | null; usage: { provider: string; model: string; costUsd: number } | null; reflectionContext?: { recent: number; older: number; previousReflections: number; total: number } };
 };
 type PendingInsightView = { id: string; statement: string; machineId: string; status: string; notification: string; createdAt: string; confidence: number };
 
@@ -121,6 +121,7 @@ function Machines() {
         ['STATUS', machine.state.status],
         ['LAST RUN', machine.state.lastRun ? new Date(machine.state.lastRun).toLocaleString('it-IT') : 'NOT RUN'],
         ['LAST OUTPUT', machine.state.lastOutput ?? 'NOT RUN'],
+        ...(machine.id === 'reflection' && machine.state.reflectionContext ? [['CONTEXT', `${machine.state.reflectionContext.recent} recent · ${machine.state.reflectionContext.older} older · ${machine.state.reflectionContext.previousReflections} previous reflections · ${machine.state.reflectionContext.total} total`] as [string, string]] : []),
         ...(machine.state.usage ? [['USAGE', `${machine.state.usage.provider}/${machine.state.usage.model} · $${machine.state.usage.costUsd.toFixed(4)}`] as [string, string]] : []),
       ]} />
       <Btn disabled={running !== null} onClick={() => void run(machine.id)}>{running === machine.id ? 'RUNNING…' : 'RUN MACHINE'}</Btn>
