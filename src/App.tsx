@@ -251,7 +251,7 @@ export function App() {
         if (!insight) return;
         await fetch('/api/machines', { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify({ machine: 'open_insight', insightId }) });
         window.history.replaceState({}, '', window.location.pathname);
-        window.dispatchEvent(new CustomEvent('vinzmon-open-chat', { detail: { prompt: `Ho trovato questo insight da discutere: ${insight.statement}`, pendingInsightId: insight.id } }));
+        window.dispatchEvent(new CustomEvent('vinzmon-open-chat', { detail: { pendingInsight: { id: insight.id, statement: insight.statement } } }));
       } catch { /* notification click remains harmless if the session is unavailable */ }
     })();
   }, [token]);
@@ -1023,7 +1023,7 @@ function MachineInsightChip() {
     try {
       await fetch('/api/machines', { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify({ machine: 'open_insight', insightId: insight.id }) });
     } finally {
-      window.dispatchEvent(new CustomEvent('vinzmon-open-chat', { detail: { prompt: `Ho trovato questo insight da discutere: ${insight.statement}`, pendingInsightId: insight.id } }));
+      window.dispatchEvent(new CustomEvent('vinzmon-open-chat', { detail: { pendingInsight: { id: insight.id, statement: insight.statement } } }));
       setInsight(null);
     }
   };

@@ -96,6 +96,7 @@ export const ChatGPT: FC = () => {
       <ReactionMessageDispatcher />
       <ConversationMemory />
       <ConversationLifecycle />
+      <MachineInsightHandoff />
       <MonPresenceEvents />
       <ThreadPrimitive.Root className="flex h-full flex-col items-stretch bg-white px-4 text-[#0d0d0d] dark:bg-black dark:text-[#ececec]">
         <AuiIf condition={(s) => s.thread.isEmpty}>
@@ -182,6 +183,32 @@ const ConversationLifecycle: FC = () => {
       console.warn("[VINZ chat] promozione conversazione non riuscita", error);
     });
   }, [aui, hasUserMessage, threadId]);
+  return null;
+};
+
+/** Avvia la discussione di un Insight come contesto interno della Machine.
+ * Non passa dal composer: l'interpretazione appartiene a VINZ.MON, non è una
+ * frase dell'utente e non deve attivare il normale writer della memoria chat. */
+const MachineInsightHandoff: FC = () => {
+  const aui = useAui();
+  useEffect(() => {
+    const open = (event: Event) => {
+      const insight = (event as CustomEvent<{
+        pendingInsight?: { id?: string; statement?: string };
+      }>).detail?.pendingInsight;
+      const id = insight?.id?.trim();
+      const statement = insight?.statement?.trim();
+      if (!id || !statement) return;
+      aui.thread.append({
+        role: "system",
+        content: [{ type: "text", text: statement }],
+        metadata: { custom: { machineInsightHandoff: true, pendingInsightId: id } },
+        startRun: true,
+      });
+    };
+    window.addEventListener("vinzmon-open-chat", open);
+    return () => window.removeEventListener("vinzmon-open-chat", open);
+  }, [aui]);
   return null;
 };
 

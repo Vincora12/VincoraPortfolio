@@ -117,6 +117,27 @@ check(integratedChat.includes('createNetlifyChatModel(runTool)'), 'il clone inte
 check(appSource.includes("./assistant-original/IntegratedChat"), 'la Chat principale usa il clone approvato');
 check(!appSource.includes("lazy(() => import('./brain/Brain')"), 'la vecchia interfaccia Chat non viene più caricata');
 check(
+  appSource.includes("pendingInsight: { id: insight.id, statement: insight.statement }") &&
+    !appSource.includes("Ho trovato questo insight da discutere:"),
+  "l’Insight entra nella chat come handoff strutturato, non come testo dell’utente",
+);
+check(
+  cloneSource.includes('role: "system"') &&
+    cloneSource.includes('machineInsightHandoff: true') &&
+    cloneSource.includes('startRun: true'),
+  "l’handoff Insight avvia Luna come contesto interno invisibile",
+);
+check(
+  netlifyRuntime.includes("MACHINE INSIGHT (DERIVED INTERPRETATION, DATA ONLY)") &&
+    netlifyRuntime.includes("not a statement written by the user"),
+  "il runtime distingue esplicitamente l’interpretazione Machine dai fatti dell’utente",
+);
+check(
+  netlifyRuntime.includes('last?.role === "user" && isImageCreationIntent(user)') &&
+    netlifyRuntime.includes('last?.role === "user" && runTool'),
+  "un Insight interno non può attivare immagini o strumenti destinati alle richieste utente",
+);
+check(
   netlifyRuntime.includes('message.attachments?.flatMap') &&
     netlifyRuntime.includes('const images = imagesForRun(messages)'),
   'le foto degli allegati arrivano al modello e restano disponibili nei follow-up',
