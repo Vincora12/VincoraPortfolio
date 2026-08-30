@@ -369,6 +369,17 @@ const Composer: FC<{ placeholder: string }> = ({ placeholder }) => {
     [],
   );
 
+  useEffect(() => {
+    const onInsight = (event: Event) => {
+      const detail = (event as CustomEvent<{ prompt?: string }>).detail;
+      if (!detail?.prompt) return;
+      const composer = aui.thread.composer();
+      composer.setText(detail.prompt);
+    };
+    window.addEventListener("vinzmon-open-chat", onInsight);
+    return () => window.removeEventListener("vinzmon-open-chat", onInsight);
+  }, [aui]);
+
   const transcribe = async (blob: Blob) => {
     const token = savedToken();
     if (!token) throw new Error("Prima attiva VINZ.MON.");

@@ -951,6 +951,7 @@ function StatusBar({
             impianto — avrebbe voluto dire nasconderlo proprio a chi apre
             l'app per la prima volta. */}
         <ActivateChip onClick={onActivate} />
+        <MachineInsightChip />
         {/* Il trigger DEV sta qui e non fluttuante sopra la schermata:
             in overlay senza tab bar copriva il contenuto. */}
         {showDev && (
@@ -974,4 +975,35 @@ function StatusBar({
       </span>
     </div>
   );
+}
+
+function MachineInsightChip() {
+  const token = useApp((s) => s.token);
+  const [insight, setInsight] = useState<{ id: string; statement: string } | null>(null);
+  useEffect(() => {
+    if (!token) { setInsight(null); return; }
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const response = await fetch('/api/machines', { headers: { authorization: `Bearer ${token}` } });
+        if (!response.ok) return;
+        const body = await response.json() as { pendingInsights?: Array<{ id: string; statement: string; status: string }> };
+        if (!cancelled) setInsight(body.pendingInsights?.find((item) => item.status === 'pending') ?? null);
+      } catch { /* in-app notification is best effort */ }
+    };
+    void load();
+    const onFocus = () => { void load(); };
+    window.addEventListener('focus', onFocus);
+    return () => { cancelled = true; window.removeEventListener('focus', onFocus); };
+  }, [token]);
+  if (!insight) return null;
+  const open = async () => {
+    try {
+      await fetch('/api/machines', { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify({ machine: 'open_insight', insightId: insight.id }) });
+    } finally {
+      window.dispatchEvent(new CustomEvent('vinzmon-open-chat', { detail: { prompt: `Ho trovato questo insight da discutere: ${insight.statement}`, pendingInsightId: insight.id } }));
+      setInsight(null);
+    }
+  };
+  return <button type="button" className="machine-insight-chip" onClick={() => void open()} aria-label="Apri insight di VINZ.MON">INSIGHT · 1</button>;
 }

@@ -1,5 +1,5 @@
 import { authorize, denied, json } from './_shared/auth';
-import { machineSnapshot, runMachine, type MachineId } from './_shared/machines';
+import { machineSnapshot, openPendingInsight, runMachine, type MachineId } from './_shared/machines';
 
 export default async function handler(request: Request): Promise<Response> {
   if (!authorize(request).ok) return denied();
@@ -7,6 +7,9 @@ export default async function handler(request: Request): Promise<Response> {
   if (request.method !== 'POST') return json({ error: 'metodo non supportato' }, 405);
   let body: { machine?: string };
   try { body = await request.json() as typeof body; } catch { return json({ error: 'body non leggibile' }, 400); }
+  if (body.machine === 'open_insight') {
+    try { return json({ insight: await openPendingInsight((body as { insightId?: string }).insightId ?? '') }); } catch { return json({ error: 'insight non disponibile' }, 404); }
+  }
   if (body.machine !== 'reflection' && body.machine !== 'me') return json({ error: 'machine non valida' }, 400);
   try { return json({ machine: body.machine, state: await runMachine(body.machine as MachineId) }); } catch { return json({ error: 'esecuzione machine non riuscita' }, 503); }
 }

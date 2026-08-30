@@ -80,10 +80,12 @@ type MachineView = {
   id: string; name: string; purpose: string; reads: string[]; trigger: string; writes: string[]; model: string;
   state: { status: string; lastRun: string | null; lastOutput: string | null; usage: { provider: string; model: string; costUsd: number } | null };
 };
+type PendingInsightView = { id: string; statement: string; machineId: string; status: string; notification: string; createdAt: string; confidence: number };
 
 function Machines() {
   const token = useApp((s) => s.token);
   const [machines, setMachines] = useState<MachineView[] | null>(null);
+  const [pending, setPending] = useState<PendingInsightView[]>([]);
   const [error, setError] = useState(false);
   const [running, setRunning] = useState<string | null>(null);
   const load = async () => {
@@ -91,8 +93,9 @@ function Machines() {
     try {
       const response = await fetch('/api/machines', { headers: { authorization: `Bearer ${token}` } });
       if (!response.ok) throw new Error('machines unavailable');
-      const body = await response.json() as { machines?: MachineView[] };
+      const body = await response.json() as { machines?: MachineView[]; pendingInsights?: PendingInsightView[] };
       setMachines(body.machines ?? []); setError(false);
+      setPending(body.pendingInsights ?? []);
     } catch { setError(true); }
   };
   useEffect(() => { void load(); }, [token]);
@@ -119,6 +122,9 @@ function Machines() {
       ]} />
       <Btn disabled={running !== null} onClick={() => void run(machine.id)}>{running === machine.id ? 'RUNNING…' : 'RUN MACHINE'}</Btn>
     </Section>)}
+    <Section title="PENDING INSIGHTS">
+      {pending.length ? <Rows rows={pending.map((item) => [`${item.machineId} · ${item.status}`, `${item.statement} · ${Math.round(item.confidence * 100)}%`])} /> : <p className="note">Nessun insight in attesa.</p>}
+    </Section>
   </section>;
 }
 

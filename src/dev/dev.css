@@ -36,6 +36,17 @@
   color: var(--white);
 }
 
+.machine-insight-chip {
+  padding: 1px var(--u);
+  border: 1px solid var(--signal-alert);
+  background: transparent;
+  color: var(--signal-alert);
+  font-family: var(--font-mono);
+  font-size: var(--type-micro);
+  letter-spacing: 0.08em;
+  line-height: 1.4;
+}
+
 .dev {
   background: var(--white);
 }

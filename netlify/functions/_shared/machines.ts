@@ -6,6 +6,7 @@ import { listMem0 } from './mem0MemoryClient';
 
 export type MachineStatus = 'ACTIVE' | 'SLEEPING' | 'RUNNING' | 'DISABLED';
 export type MachineId = 'reflection' | 'me';
+export type MachineDelivery = 'silent' | 'lab_only' | 'notify_user';
 
 export interface MachineDefinition {
   id: MachineId;
@@ -16,6 +17,22 @@ export interface MachineDefinition {
   instruction: string;
   writes: string[];
   model: string;
+  delivery: MachineDelivery;
+}
+
+export interface PendingInsight {
+  id: string;
+  machineId: MachineId;
+  statement: string;
+  sourceIds: string[];
+  importance: number;
+  confidence: number;
+  createdAt: string;
+  status: 'pending' | 'opened' | 'discussed';
+  notification: 'not_sent' | 'in_app';
+  openedAt?: string;
+  discussedAt?: string;
+  dedupeKey: string;
 }
 
 export interface MachineState {
@@ -25,6 +42,7 @@ export interface MachineState {
   usage: { provider: string; model: string; costUsd: number } | null;
   observations: Array<{ type: string; statement: string; confidence: number; sourceIds: string[]; timestamp: string }>;
   meSummary: { version: 1; summary: string; generatedAt: string; basedOn: string[] } | null;
+  pendingInsights: PendingInsight[];
 }
 
 const STORE = 'vinzmon-machines';
@@ -32,25 +50,40 @@ const KEY = 'machine-state-v1';
 const at = () => new Date().toISOString();
 
 export const MACHINE_DEFINITIONS: MachineDefinition[] = [
-  { id: 'reflection', name: 'REFLECTION MACHINE', purpose: 'Individua pattern, cambiamenti e connessioni significative nel tempo.', reads: ['Memorie Mem0 nuove/rilevanti', 'Osservazioni Reflection precedenti'], trigger: 'Esecuzione esplicita o batch futuro; non ogni messaggio.', instruction: 'Cerca solo pattern utili, cambiamenti, tensioni o connessioni supportate dalle memorie.', writes: ['Osservazioni interpretative con evidenza'], model: 'text-cheap' },
-  { id: 'me', name: 'ME MACHINE', purpose: 'Mantiene una sintesi compatta di ciò che VINZ.MON comprende dell’utente.', reads: ['Sintesi ME precedente', 'Memorie rilevanti', 'Osservazioni Reflection'], trigger: 'Esecuzione esplicita quando esiste informazione significativa nuova.', instruction: 'Aggiorna una sintesi breve distinguendo fatti dell’utente da interpretazioni.', writes: ['Sintesi ME derivata con riferimenti alle fonti'], model: 'text-cheap' },
+  { id: 'reflection', name: 'REFLECTION MACHINE', purpose: 'Individua pattern, cambiamenti e connessioni significative nel tempo.', reads: ['Memorie Mem0 nuove/rilevanti', 'Osservazioni Reflection precedenti'], trigger: 'Esecuzione esplicita o batch futuro; non ogni messaggio.', instruction: 'Cerca solo pattern utili, cambiamenti, tensioni o connessioni supportate dalle memorie.', writes: ['Osservazioni interpretative con evidenza'], model: 'text-cheap', delivery: 'notify_user' },
+  { id: 'me', name: 'ME MACHINE', purpose: 'Mantiene una sintesi compatta di ciò che VINZ.MON comprende dell’utente.', reads: ['Sintesi ME precedente', 'Memorie rilevanti', 'Osservazioni Reflection'], trigger: 'Esecuzione esplicita quando esiste informazione significativa nuova.', instruction: 'Aggiorna una sintesi breve distinguendo fatti dell’utente da interpretazioni.', writes: ['Sintesi ME derivata con riferimenti alle fonti'], model: 'text-cheap', delivery: 'lab_only' },
 ];
 
 function emptyState(): Record<MachineId, MachineState> {
   return {
-    reflection: { status: 'SLEEPING', lastRun: null, lastOutput: null, usage: null, observations: [], meSummary: null },
-    me: { status: 'SLEEPING', lastRun: null, lastOutput: null, usage: null, observations: [], meSummary: null },
+    reflection: { status: 'SLEEPING', lastRun: null, lastOutput: null, usage: null, observations: [], meSummary: null, pendingInsights: [] },
+    me: { status: 'SLEEPING', lastRun: null, lastOutput: null, usage: null, observations: [], meSummary: null, pendingInsights: [] },
   };
 }
 
 async function readState() {
   const store = getStore(STORE);
-  return { store, state: ((await store.get(KEY, { type: 'json' })) as Record<MachineId, MachineState> | null) ?? emptyState() };
+  const stored = (await store.get(KEY, { type: 'json' })) as Partial<Record<MachineId, MachineState>> | null;
+  const state = emptyState();
+  for (const id of ['reflection', 'me'] as MachineId[]) {
+    if (stored?.[id]) state[id] = { ...state[id], ...stored[id], pendingInsights: stored[id]?.pendingInsights ?? [] };
+  }
+  return { store, state };
 }
 
 export async function machineSnapshot() {
   const { state } = await readState();
-  return MACHINE_DEFINITIONS.map((definition) => ({ ...definition, state: state[definition.id] }));
+  const pendingInsights = Object.values(state).flatMap((item) => item.pendingInsights ?? []).filter((item) => item.status !== 'discussed');
+  return { machines: MACHINE_DEFINITIONS.map((definition) => ({ ...definition, state: state[definition.id] })), pendingInsights };
+}
+
+export async function openPendingInsight(id: string) {
+  const { store, state } = await readState();
+  for (const item of Object.values(state)) {
+    const insight = (item.pendingInsights ?? []).find((candidate) => candidate.id === id);
+    if (insight) { insight.status = 'opened'; insight.openedAt = at(); await store.setJSON(KEY, state); return insight; }
+  }
+  throw new Error('insight not found');
 }
 
 function memoriesFrom(raw: unknown): Array<{ id?: string; text: string }> {
@@ -94,7 +127,17 @@ export async function runMachine(machine: MachineId) {
         const value = item as Record<string, unknown>;
         return typeof value.statement === 'string' && typeof value.type === 'string' && typeof value.confidence === 'number' && value.confidence >= 0 && value.confidence <= 1 && Array.isArray(value.sourceIds) ? [{ type: value.type, statement: value.statement.slice(0, 500), confidence: value.confidence, sourceIds: value.sourceIds.filter((id): id is string => typeof id === 'string'), timestamp: at() }] : [];
       }) : [];
-      current.observations.push(...observations); current.lastOutput = observations.length ? `${observations.length} osservazioni derivate` : 'Nessuna osservazione significativa.';
+      current.observations.push(...observations);
+      const definition = MACHINE_DEFINITIONS.find((item) => item.id === machine)!;
+      const dayKey = new Date().toISOString().slice(0, 10);
+      const canNotify = definition.delivery === 'notify_user' && observations.some((item) => item.confidence >= 0.75)
+        && !current.pendingInsights.some((item) => item.dedupeKey === observations[0]?.statement && item.status !== 'discussed')
+        && !current.pendingInsights.some((item) => item.createdAt.slice(0, 10) === dayKey && item.notification === 'in_app');
+      if (canNotify) {
+        const selected = observations.find((item) => item.confidence >= 0.75)!;
+        current.pendingInsights.push({ id: `insight_${crypto.randomUUID()}`, machineId: machine, statement: selected.statement, sourceIds: selected.sourceIds, importance: selected.confidence, confidence: selected.confidence, createdAt: at(), status: 'pending', notification: 'in_app', dedupeKey: selected.statement });
+      }
+      current.lastOutput = observations.length ? `${observations.length} osservazioni derivate` : 'Nessuna osservazione significativa.';
     } else {
       const summary = typeof parsed.summary === 'string' ? parsed.summary.trim().slice(0, 1000) : '';
       if (summary) current.meSummary = { version: 1, summary, generatedAt: at(), basedOn: Array.isArray(parsed.basedOn) ? parsed.basedOn.filter((id): id is string => typeof id === 'string') : sourceIds };
