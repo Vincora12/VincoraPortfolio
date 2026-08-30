@@ -6,43 +6,36 @@ function applicationKey(value: string): Uint8Array<ArrayBuffer> {
   return output;
 }
 
-export async function enableEvolutionNotifications(token: string): Promise<void> {
-  if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) return;
-  const permission = await Notification.requestPermission();
-  if (permission !== 'granted') return;
-
-  const registration = await navigator.serviceWorker.ready;
-  const keyResponse = await fetch('/api/push', { headers: { authorization: `Bearer ${token}` } });
-  if (!keyResponse.ok) return;
-  const { publicKey } = (await keyResponse.json()) as { publicKey?: string };
-  if (!publicKey) return;
-
-  const existing = await registration.pushManager.getSubscription();
-  const subscription = existing ?? await registration.pushManager.subscribe({
-    userVisibleOnly: true,
-    applicationServerKey: applicationKey(publicKey),
-  });
-  await fetch('/api/push', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
-    body: JSON.stringify(subscription),
-  });
-}
-
-/** Opt-in esplicito per gli insight delle Machines. */
-export async function enableMachineNotifications(token: string): Promise<boolean> {
+async function enablePushNotifications(token: string): Promise<boolean> {
   if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) return false;
   const permission = Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission();
   if (permission !== 'granted') return false;
   const registration = await navigator.serviceWorker.ready;
   const keyResponse = await fetch('/api/push', { headers: { authorization: `Bearer ${token}` } });
   if (!keyResponse.ok) return false;
-  const { publicKey } = await keyResponse.json() as { publicKey?: string };
+  const { publicKey } = (await keyResponse.json()) as { publicKey?: string };
   if (!publicKey) return false;
+
   const existing = await registration.pushManager.getSubscription();
-  const subscription = existing ?? await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: applicationKey(publicKey) });
-  const saved = await fetch('/api/push', { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify(subscription) });
+  const subscription = existing ?? await registration.pushManager.subscribe({
+    userVisibleOnly: true,
+    applicationServerKey: applicationKey(publicKey),
+  });
+  const saved = await fetch('/api/push', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+    body: JSON.stringify(subscription),
+  });
   return saved.ok;
+}
+
+export async function enableEvolutionNotifications(token: string): Promise<void> {
+  await enablePushNotifications(token);
+}
+
+/** Opt-in esplicito per gli insight delle Machines. */
+export async function enableMachineNotifications(token: string): Promise<boolean> {
+  return enablePushNotifications(token);
 }
 
 export async function disableMachineNotifications(token: string): Promise<boolean> {

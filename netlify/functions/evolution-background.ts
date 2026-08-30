@@ -3,7 +3,7 @@ import { authorize } from './_shared/auth';
 import { generateImage, IMAGE_SIZES, IMAGE_QUALITIES, type ImageSize, type ImageQuality } from './_shared/providers';
 import { resolveRoute } from './_shared/routing';
 import { checkCap, recordSpend } from './_shared/spend';
-import webpush from 'web-push';
+import { sendPushNotification } from './_shared/pushDelivery';
 
 type AssetItem = {
   type: string;
@@ -89,17 +89,8 @@ async function save(job: Job): Promise<void> {
 }
 
 async function sendReadyPush(candidateName: string): Promise<void> {
-  const publicKey = process.env.VAPID_PUBLIC_KEY;
-  const privateKey = process.env.VAPID_PRIVATE_KEY;
-  if (!publicKey || !privateKey) return;
-  const subscription = await getStore('vinzmon-push').get('subscription', { type: 'json' });
-  if (!subscription) return;
-  webpush.setVapidDetails('mailto:vincenzotortora9517@gmail.com', publicKey, privateKey);
   try {
-    await webpush.sendNotification(
-      subscription as webpush.PushSubscription,
-      JSON.stringify({ title: 'VINZ.MON pronto', body: `${candidateName.replace(/\.mon$/i, '')} ha completato la trasformazione.` }),
-    );
+    await sendPushNotification({ title: 'VINZ.MON pronto', body: `${candidateName.replace(/\.mon$/i, '')} ha completato la trasformazione.`, tag: 'vinzmon-evolution-ready' });
   } catch (error) {
     console.warn('[evolution] notifica push non inviata:', error);
   }

@@ -3,7 +3,7 @@ import { callProvider } from './providers';
 import { resolveRoute } from './routing';
 import { recordSpend } from './spend';
 import { listMem0 } from './mem0MemoryClient';
-import { sendMachineInsightPush } from './pushDelivery';
+import { machineInsightPayload, sendPushNotification } from './pushDelivery';
 
 export type MachineStatus = 'ACTIVE' | 'SLEEPING' | 'RUNNING' | 'DISABLED';
 export type MachineId = 'reflection' | 'me';
@@ -152,7 +152,7 @@ export async function runMachine(machine: MachineId) {
     if (latestInsight?.createdAt === current.lastRun || latestInsight?.machineId === machine && latestInsight.status === 'pending' && latestInsight.notification === 'in_app' && !latestInsight.pushAttemptedAt) {
       latestInsight.pushAttemptedAt = at();
       try {
-        const delivery = await sendMachineInsightPush(latestInsight);
+        const delivery = await sendPushNotification(machineInsightPayload(latestInsight));
         if (delivery.sent > 0) latestInsight.notification = 'push_sent', latestInsight.pushSentAt = at();
       } catch (error) { latestInsight.pushError = error instanceof Error ? error.message.slice(0, 160) : 'push delivery failed'; }
     }

@@ -26,7 +26,10 @@ export async function pushStatus(): Promise<{ configured: boolean; subscriptions
   return { configured: Boolean(process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY), subscriptions: (await readPushSubscriptions()).length };
 }
 
-export async function sendMachineInsightPush(insight: PendingInsight): Promise<{ sent: number; removed: number }> {
+export type PushPayload = { title: string; body: string; url?: string; tag?: string };
+
+/** Canonical Web Push sender shared by evolution and Machine Insights. */
+export async function sendPushNotification(payload: PushPayload): Promise<{ sent: number; removed: number }> {
   const publicKey = process.env.VAPID_PUBLIC_KEY;
   const privateKey = process.env.VAPID_PRIVATE_KEY;
   if (!publicKey || !privateKey) return { sent: 0, removed: 0 };
@@ -35,7 +38,7 @@ export async function sendMachineInsightPush(insight: PendingInsight): Promise<{
   let sent = 0; const invalid: string[] = [];
   for (const subscription of subscriptions) {
     try {
-      await webpush.sendNotification(subscription, JSON.stringify({ title: 'VINZ.MON', body: 'Ho notato qualcosa.', url: `/?pendingInsight=${encodeURIComponent(insight.id)}` }));
+      await webpush.sendNotification(subscription, JSON.stringify({ ...payload, url: payload.url ?? '/' }));
       sent += 1;
     } catch (error) {
       const status = (error as { statusCode?: number }).statusCode;
@@ -44,4 +47,8 @@ export async function sendMachineInsightPush(insight: PendingInsight): Promise<{
   }
   if (invalid.length) await store().setJSON('subscriptions', subscriptions.filter((item) => !invalid.includes(item.endpoint)));
   return { sent, removed: invalid.length };
+}
+
+export function machineInsightPayload(insight: PendingInsight): PushPayload {
+  return { title: 'VINZ.MON', body: 'Ho notato qualcosa.', url: `/?pendingInsight=${encodeURIComponent(insight.id)}`, tag: 'vinzmon-machine-insight' };
 }
