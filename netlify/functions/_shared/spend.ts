@@ -144,6 +144,32 @@ export interface Ledger {
   calls: number;
   /** Per capire DOVE sono finiti i soldi, non solo quanti. */
   byCapability: Record<string, number>;
+  /** Dettaglio persistente delle stesse chiamate già incluse negli aggregati. */
+  events: UsageEvent[];
+}
+
+export interface UsageEvent {
+  id: string;
+  timestamp: string;
+  capability: string;
+  action: string;
+  subsystem: string;
+  provider: string;
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+  images: number;
+  imageQuality?: 'low' | 'medium' | 'high';
+  webSearches: number;
+  estimatedCostUsd: number;
+}
+
+export interface SpendEventMeta {
+  action?: string;
+  subsystem?: string;
+  provider?: string;
 }
 
 const store = () => getStore('vinzmon-spend');
@@ -155,7 +181,9 @@ export function currentMonth(now = new Date()): string {
 export async function readLedger(month = currentMonth()): Promise<Ledger> {
   const raw = await store().get(month, { type: 'json' });
   const l = raw as Ledger | null;
-  return l ?? { month, usd: 0, calls: 0, byCapability: {} };
+  return l
+    ? { ...l, events: Array.isArray(l.events) ? l.events : [] }
+    : { month, usd: 0, calls: 0, byCapability: {}, events: [] };
 }
 
 export interface CapState {
@@ -194,6 +222,7 @@ export async function recordSpend(
   capability: string,
   model: string,
   usage: Usage,
+  meta: SpendEventMeta = {},
 ): Promise<number> {
   const cost = costOf(model, usage);
   const ledger = await readLedger();
@@ -201,6 +230,28 @@ export async function recordSpend(
   ledger.usd += cost;
   ledger.calls += 1;
   ledger.byCapability[capability] = (ledger.byCapability[capability] ?? 0) + cost;
+  const provider = meta.provider ?? (
+    model.startsWith('claude-') ? 'anthropic' :
+      model.startsWith('gemini-') ? 'google' :
+        model.startsWith('kimi-') ? 'moonshot' : 'openai'
+  );
+  ledger.events.push({
+    id: globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    timestamp: new Date().toISOString(),
+    capability,
+    action: meta.action ?? capability,
+    subsystem: meta.subsystem ?? capability,
+    provider,
+    model,
+    inputTokens: usage.inputTokens ?? 0,
+    outputTokens: usage.outputTokens ?? 0,
+    cacheReadTokens: usage.cacheReadTokens ?? 0,
+    cacheWriteTokens: usage.cacheWriteTokens ?? 0,
+    images: usage.images ?? 0,
+    ...(usage.imageQuality ? { imageQuality: usage.imageQuality } : {}),
+    webSearches: usage.webSearches ?? 0,
+    estimatedCostUsd: cost,
+  });
 
   await store().setJSON(ledger.month, ledger);
   return cost;

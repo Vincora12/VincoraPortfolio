@@ -211,7 +211,7 @@ export default async function evolutionBackground(request: Request): Promise<voi
         ...(item.type === 'character_toy' ? { toyPipelineVersion: TOY_PIPELINE_VERSION } : {}),
       } },
     );
-    await recordSpend('image', route.model, result.usage);
+    await recordSpend('image', route.model, result.usage, { action: 'image_generation', subsystem: 'evolution' });
     job.assets.push({ type: item.type, assetId: item.assetId });
     job.done += 1;
     await save(job);

@@ -23,7 +23,7 @@ import { useApp } from '../../state/store';
 import { STAT_KEYS, UNKNOWN, isKnown } from '../../engine/types';
 import type { StatKey } from '../../engine/types';
 import { DAILY_SIGNALS, DAILY_SIGNAL_LABELS } from '../../engine/progression';
-import { loadPing, loadSetup, loadShortcutStatus, type ShortcutStatus } from '../../ai/backend';
+import { loadPing, loadSetup, loadShortcutStatus, loadUsage, type ShortcutStatus, type UsageDashboard } from '../../ai/backend';
 import { lastRuns } from '../../ai/telemetry';
 import { freshSecret } from '../../engine/secret';
 import { estimateMonthlyCost } from '../../engine/costEstimate';
@@ -578,43 +578,53 @@ function Memory() {
    ========================================================================= */
 
 function Usage() {
-  const runs = lastRuns();
-  const stepModels = useApp((s) => s.stepModels);
-  /* 🔷 Era `s.imageModel` — il campo vecchio, lo stesso della scheda AI qui
-     sopra: non è lui a decidere chi disegna da quando `forgeOne` e
-     `generateAssetsFor` chiamano `stepModel('image')`. */
-  const imageModel = modelForStep('image', stepModels.image);
+  const token = useApp((s) => s.token);
+  const [usage, setUsage] = useState<UsageDashboard | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    void loadUsage(token).then(({ data }) => {
+      if (cancelled) return;
+      setUsage(data);
+      setFailed(!data);
+    });
+    return () => { cancelled = true; };
+  }, [token]);
+
+  const summary = (value: UsageDashboard['today']) => `${value.calls}× · $${value.costUsd.toFixed(4)} · ${value.inputTokens.toLocaleString('it-IT')} in · ${value.outputTokens.toLocaleString('it-IT')} out`;
 
   return (
     <section className="page active">
       <PageHead
         kicker="SYSTEM.LAB / TELEMETRY"
         title="USAGE"
-        lead="Spesa, chiamate, tempi, errori e stato delle pipeline. Numeri tecnici, senza trasformarli in un cockpit."
+        lead="Il registro server-side unico di chiamate, token e costi. Numeri tecnici, senza trasformarli in un cockpit."
       />
-
-      <Section
-        title="LAST RUN BY STEP"
-        note="Legge la telemetria vera di `ai/telemetry.ts`: modello, durata ed esito dell’ultima chiamata di ogni passo."
-      >
-        {runs.length === 0 ? (
-          <p className="note">Nessuna chiamata ancora in questa sessione.</p>
-        ) : (
-          <Rows
-            rows={runs.map(([step, r]) => [
-              step,
-              `${(r.ms / 1000).toFixed(1)}s · ${r.ok ? 'OK' : 'FAILED'}`,
-            ])}
-          />
-        )}
-      </Section>
-
-      <Section
-        title="IMAGE PIPELINE"
-        note="Contabilità in sola lettura della pipeline di creazione. I controlli degli asset stanno in CREATION.LAB."
-      >
-        <Rows rows={[['IMAGE MODEL', imageModel]]} />
-      </Section>
+      {failed && <p className="note">Il registro non risponde. Riprova entrando di nuovo nella scheda.</p>}
+      {!usage && !failed && <p className="note">Lettura del registro…</p>}
+      {usage && <>
+        <Section title="SUMMARY">
+          <Rows rows={[
+            ['TODAY', summary(usage.today)],
+            ['7 DAYS', summary(usage.last7Days)],
+            ['THIS MONTH', summary(usage.month)],
+            ['MONTHLY CAP', `$${usage.monthlyCapUsd.toFixed(2)} · RESTANO $${usage.remainingUsd.toFixed(2)}`],
+          ]} />
+        </Section>
+        <Section title="BY CAPABILITY">
+          {Object.keys(usage.byCapability).length === 0 ? <p className="note">Nessuna chiamata registrata.</p> : <Rows rows={Object.entries(usage.byCapability).map(([name, value]) => [name, summary(value)])} />}
+        </Section>
+        <Section title="BY MODEL / PROVIDER">
+          <Rows rows={Object.entries(usage.byModel).map(([name, value]) => [name, summary(value)])} />
+        </Section>
+        <Section title="RECENT ACTIVITY">
+          {usage.recentEvents.length === 0 ? <p className="note">Nessuna attività recente.</p> : <Rows rows={usage.recentEvents.slice(0, 20).map((event) => [
+            `${event.action} · ${event.model}`,
+            `${event.images ? `${event.images} img · ` : ''}${event.inputTokens.toLocaleString('it-IT')} in · ${event.outputTokens.toLocaleString('it-IT')} out · $${event.estimatedCostUsd.toFixed(4)}`,
+          ])} />}
+        </Section>
+      </>}
     </section>
   );
 }

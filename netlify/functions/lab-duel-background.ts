@@ -99,7 +99,7 @@ export default async function labDuelBackground(request: Request): Promise<void>
       imageBytes.byteOffset + imageBytes.byteLength,
     ) as ArrayBuffer;
     await store().set(assetKey(id, item.seed), imageBuffer, { metadata: { contentType: 'image/png' } });
-    await recordSpend('image', route.model, result.usage);
+    await recordSpend('image', route.model, result.usage, { action: 'image_generation', subsystem: 'lab_duel' });
     job.assets.push(item.seed);
     job.done += 1;
     await save(job);

@@ -223,7 +223,7 @@ export default async function handler(request: Request): Promise<Response> {
        contare, e contarlo a ogni domanda «è pronto?» moltiplicherebbe il conto
        per il numero di volte che abbiamo chiesto. */
     if (out.status === 'completed' && (out.usage.inputTokens || out.usage.outputTokens)) {
-      await recordSpend(capability, route.model, out.usage);
+      await recordSpend(capability, route.model, out.usage, { action: capability, subsystem: capability });
     }
 
     if (out.status === 'completed') {
@@ -263,7 +263,7 @@ export default async function handler(request: Request): Promise<Response> {
       return json({ error: 'immagine di riferimento troppo grande' }, 413);
     }
     const result = await generateImage(route.model, prompt, size, reference, undefined, quality);
-    const imageCostUsd = result.ok ? await recordSpend(capability, route.model, result.usage) : 0;
+    const imageCostUsd = result.ok ? await recordSpend(capability, route.model, result.usage, { action: 'image_generation', subsystem: 'ai' }) : 0;
 
     if (!result.ok) {
       console.warn('[ai] immagine non generata:', result.error);
@@ -388,7 +388,7 @@ export default async function handler(request: Request): Promise<Response> {
     if (!streamed.ok) return json({ error: 'stream non disponibile', reason: streamed.error }, 502);
 
     void streamed.completed.then(async ({ model, usage }) => {
-      if (usage.inputTokens || usage.outputTokens) await recordSpend(capability, model, usage);
+      if (usage.inputTokens || usage.outputTokens) await recordSpend(capability, model, usage, { action: capability, subsystem: capability });
     }).catch((error) => console.warn('[ai] spesa dello stream non registrata:', error));
 
     return new Response(streamed.body, {
@@ -463,7 +463,7 @@ export default async function handler(request: Request): Promise<Response> {
      successi è un contatore che sottostima proprio nei giorni storti. */
   let costUsd = 0;
   if (result.usage.inputTokens || result.usage.outputTokens || result.usage.webSearches) {
-    costUsd = await recordSpend(capability, result.model, result.usage);
+    costUsd = await recordSpend(capability, result.model, result.usage, { action: capability, subsystem: capability });
   }
 
   if (!result.ok) {

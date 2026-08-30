@@ -151,6 +151,38 @@ export interface ImageData {
   image: string;
 }
 
+export interface UsageSummary {
+  calls: number;
+  costUsd: number;
+  inputTokens: number;
+  outputTokens: number;
+  images: number;
+}
+
+export interface UsageEvent {
+  id: string;
+  timestamp: string;
+  action: string;
+  subsystem: string;
+  provider: string;
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+  images: number;
+  estimatedCostUsd: number;
+}
+
+export interface UsageDashboard {
+  today: UsageSummary;
+  last7Days: UsageSummary;
+  month: UsageSummary;
+  monthlyCapUsd: number;
+  remainingUsd: number;
+  byCapability: Record<string, UsageSummary>;
+  byModel: Record<string, UsageSummary>;
+  recentEvents: UsageEvent[];
+}
+
 /* --- Lo stato del tetto, per la UI ------------------------------------------
    Vive fuori da zustand come il contatore dei costi: è telemetria, non stato
    di prodotto, e non deve finire nei salvataggi né negli export.
@@ -316,6 +348,10 @@ async function post<T>(
     remainingUsd: payload.remainingUsd,
     ms: Date.now() - startedAt,
   };
+}
+
+export function loadUsage(token: string | null): Promise<BackendResult<UsageDashboard>> {
+  return post<UsageDashboard>('/api/usage', token, undefined, 'GET');
 }
 
 /** Una richiesta di testo o immagine allo strato AI. */

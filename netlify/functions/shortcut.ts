@@ -167,7 +167,7 @@ async function estimateMeal(text: string): Promise<{ estimate: MealEstimate; cos
 
   let costUsd = 0;
   if (result.usage.inputTokens || result.usage.outputTokens) {
-    costUsd = await recordSpend('text-cheap', result.model, result.usage);
+    costUsd = await recordSpend('text-cheap', result.model, result.usage, { action: 'shortcut', subsystem: 'shortcut' });
   }
   if (!result.ok) return { estimate: null, costUsd };
   return { estimate: parseMealJson(result.text), costUsd };
