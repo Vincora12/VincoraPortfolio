@@ -46,6 +46,8 @@ h1{font-size:44px;line-height:.89;margin:0 0 14px;font-weight:900;font-style:ita
 .btn{border:1px solid #111;background:#fff;min-height:42px;padding:9px 8px;font-size:9px;font-weight:900;letter-spacing:.02em}
 .btn.dark{background:#111;color:#fff}.btn.on{background:#111;color:#fff}.btn.danger{border-style:dashed}
 .btn:disabled{opacity:.4}
+.usage-page__actions{display:flex;align-items:center;gap:10px;margin:0 0 18px}
+.usage-page__actions .note{margin:0;font-size:10px}
 .field{display:block;font-size:9px;color:#777;letter-spacing:.05em;margin-top:10px}
 .field input,.field textarea,.field select{width:100%;border:1px solid var(--line);background:#fff;padding:10px;font-size:11px;margin-top:4px}
 .field textarea{min-height:76px;resize:vertical}
@@ -96,3 +98,9 @@ h1{font-size:44px;line-height:.89;margin:0 0 14px;font-weight:900;font-style:ita
 .callout strong{font-size:11px;display:block}.callout p{font-size:10px;line-height:1.45;color:#555;margin:5px 0 0}
 .footer{border-top:1px solid var(--line);padding-top:14px;margin-top:28px;font-size:9px;color:#777}
 @media(min-width:520px){main{padding-left:22px;padding-right:22px}.grid{grid-template-columns:repeat(3,1fr)}}
+@media print{
+  .top,.footer,.usage-page__actions{display:none!important}
+  main{padding:0 18px;color:#111}
+  .page{display:block!important}
+  .section{break-inside:avoid}
+}

@@ -595,7 +595,7 @@ function Usage() {
   const summary = (value: UsageDashboard['today']) => `${value.calls}× · $${value.costUsd.toFixed(4)} · ${value.inputTokens.toLocaleString('it-IT')} in · ${value.outputTokens.toLocaleString('it-IT')} out`;
 
   return (
-    <section className="page active">
+    <section className="page active usage-page">
       <PageHead
         kicker="SYSTEM.LAB / TELEMETRY"
         title="USAGE"
@@ -604,6 +604,10 @@ function Usage() {
       {failed && <p className="note">Il registro non risponde. Riprova entrando di nuovo nella scheda.</p>}
       {!usage && !failed && <p className="note">Lettura del registro…</p>}
       {usage && <>
+        <div className="usage-page__actions">
+          <Btn onClick={() => window.print()}>ESPORTA / SALVA PDF</Btn>
+          <p className="note">Si apre la stampa del dispositivo: scegli “Salva come PDF” per conservare il report.</p>
+        </div>
         <Section title="SUMMARY">
           <Rows rows={[
             ['TODAY', summary(usage.today)],

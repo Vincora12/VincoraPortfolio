@@ -23,7 +23,6 @@ import { TeachSection } from './TeachSection';
 import { DesignTest } from './DesignTest';
 import { PromptPreview } from './PromptPreview';
 import { VoiceSection } from './VoiceSection';
-import { CostSection } from './CostSection';
 import { ShortcutSection } from './ShortcutSection';
 import { ServerSection } from './ServerSection';
 import { MemorySection } from './MemorySection';
@@ -56,7 +55,6 @@ type DevTab =
   | 'prompt'
   | 'assets'
   | 'progression'
-  | 'cost'
   | 'shortcut'
   | 'server'
   | 'models'
@@ -167,7 +165,6 @@ const GROUPS: { id: DevGroup; label: string; tabs: { id: DevTab; label: string }
     id: 'conti',
     label: 'SPESA',
     tabs: [
-      { id: 'cost', label: 'COSTI' },
       /* 🔷 «La UI deve farmi vedere chiaramente quale AI serve quale step.»
          Sta sotto SPESA e non sotto VOCE perché la domanda che ci porta è
          «quanto costa e quanto ci mette», non «come parla». */
@@ -248,7 +245,6 @@ export function DevPanel({ onClose, onGo }: { onClose: () => void; onGo?: (o: 'a
         {inGroup && tab === 'prompt' && <PromptPreview />}
         {inGroup && tab === 'assets' && <AssetsSection />}
         {inGroup && tab === 'progression' && <ProgressionSection />}
-        {inGroup && tab === 'cost' && <CostSection />}
         {inGroup && tab === 'shortcut' && <ShortcutSection />}
         {inGroup && tab === 'server' && <ServerSection />}
         {inGroup && tab === 'models' && <ModelsSection />}
