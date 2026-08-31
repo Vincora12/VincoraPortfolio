@@ -167,7 +167,7 @@ function pendingMealSlot(messages: readonly ThreadMessage[]): ChatMealSlot | und
 }
 
 /** Accetta anche le conferme operative naturali usate dopo una proposta. */
-const confirms = (text: string) => /^\s*(?:s[iì]|confermo|ok(?:ay)?|va bene|esatto|corretto|vai(?:\s+(?:pure|inserisci|registra|procedi))?|inserisci|registra|procedi|fallo)\b/i.test(text);
+export const confirms = (text: string) => /^\s*(?:s[iì]|yes|yep|yeah|sure|confermo|ok(?:ay)?|va bene|esatto|corretto|vai(?:\s+(?:pure|inserisci|registra|procedi))?|inserisci|registra|procedi|fallo)(?=\s|[.!?,;:]|$)/i.test(text);
 
 function isImageCreationIntent(text: string): boolean {
   return /\b(?:genera|crea|disegna|fammi|realizza|produci|modifica|trasforma|ritocca)\b[^.!?]{0,100}\b(?:foto|immagine|ritratto|illustrazione|render|versione)\b|\b(?:fammi vedere|mostrami)\b[^.!?]{0,100}\b(?:come (?:starei|sarei)|in versione)\b/i.test(text);

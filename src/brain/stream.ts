@@ -286,7 +286,7 @@ export async function replyWithLocalTools(
           ? 'Read every attached PDF directly. If it is a diet or training plan, summarize it faithfully before proposing any change; distinguish values explicitly written in the document from your own estimates. Never claim that a PDF was unreadable unless the provider actually returns an error.'
           : '',
         mealConfirmation?.status === 'needs-confirmation'
-          ? `Analyze the food and estimate nutrition, but DO NOT call registra_pasto and do not ask the final confirmation question. The app will ask whether it is ${mealConfirmation.slot}.`
+          ? `Analyze the food and estimate nutrition, but DO NOT call registra_pasto and do not ask the final confirmation question. The app will ask whether it is ${mealConfirmation.slot}. The write tool is intentionally withheld until confirmation: never claim that it is unavailable or that the app cannot save the meal.`
           : '',
         mealConfirmation?.status === 'confirmed'
           ? `The user has just confirmed the proposed meal type: ${mealConfirmation.slot}. Call registra_pasto now and use exactly that meal type.`

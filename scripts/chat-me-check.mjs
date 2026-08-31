@@ -11,6 +11,7 @@ const out = join(cwd, 'node_modules', '.vinz-chat-me-check.mjs');
 
 writeFileSync(entry, `
 export { replyWithLocalTools, shouldUseLocalTools, requiredWriteTool, isMealLogIntent, isWorkoutLogIntent, isWorkoutPlanIntent } from '${cwd}/src/brain/stream.ts';
+export { confirms } from '${cwd}/src/assistant-original/netlify-runtime.ts';
 export { runTool } from '${cwd}/src/ai/tools.ts';
 export { addMeal, addWorkout, addWeight, configureHealthDisplay, configureHealthTargets, healthJournalReport, manageMeBlock, readHealthJournal, setDietPlan, setWorkoutPlan, undoMeBlocks, updateLatestMeal, updateLatestWeight, updateLatestWorkout } from '${cwd}/src/engine/healthJournal.ts';
 `);
@@ -129,6 +130,7 @@ try {
   check(!m.isWorkoutLogIntent('Quanto mi sono allenato oggi?'), 'una domanda sullo sport non viene scambiata per un nuovo allenamento');
   check(m.requiredWriteTool('Ho mangiato una banana.') === undefined, 'il pasto non viene salvato prima della conferma');
   check(m.requiredWriteTool('Ho fatto 45 minuti di lower body.') === undefined, 'l’allenamento non viene salvato prima della conferma');
+  check(m.confirms('Yes') && m.confirms('Sì') && !m.confirms('No'), 'la conferma del pasto riconosce italiano e inglese senza accettare un rifiuto');
   check(m.isWorkoutPlanIntent('Inserisci allenamento il lunedì'), 'un allenamento assegnato a un giorno viene riconosciuto come piano');
   check(!m.isWorkoutLogIntent('Inserisci allenamento il lunedì'), 'un allenamento futuro non viene scambiato per uno svolto');
   check(m.requiredWriteTool('Inserisci allenamento il lunedì') === 'imposta_piano_allenamento', 'la modifica del lunedì aggiorna il piano in ME');
@@ -197,6 +199,10 @@ try {
   check(toolCounts.every((count) => count <= 12), 'ogni richiesta resta entro il limite di 12 strumenti');
   check(toolSizes.every((size) => size <= 8000), 'il catalogo ME resta entro il limite del backend');
   check(proposal.includes('Confermi che lo registro come **spuntino**?'), 'prima del salvataggio chiede conferma del momento intuito');
+  check(
+    requests[0]?.system?.some((block) => String(block.text).includes('never claim that it is unavailable')),
+    'durante la proposta non dichiara falsamente che lo strumento pasto non esiste',
+  );
   check(toolChoices[0] === null && toolChoices[1] === 'registra_pasto', 'la scrittura del pasto diventa obbligatoria solo dopo il sì');
   check(workoutProposal.includes('Confermi che registro questo **allenamento** in ME?'), 'anche l’allenamento chiede conferma prima del salvataggio');
   check(toolChoices[4] === 'registra_allenamento', 'il backend forza la scrittura dell’allenamento solo dopo il sì');
