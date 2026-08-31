@@ -16,7 +16,7 @@ export { callProvider, extractAnthropicSources, extractOpenAIResponseSources, st
 export { assistantRequestPreferences } from '${cwd}/netlify/functions/ai.ts';
 export { resolveRoute } from '${cwd}/netlify/functions/_shared/routing.ts';
 export { runTool as runLocalTool } from '${cwd}/src/ai/tools.ts';
-export { requiredWriteTool } from '${cwd}/src/brain/stream.ts';
+export { isMealLogIntent, requiredWriteTool } from '${cwd}/src/brain/stream.ts';
 `,
 );
 
@@ -62,6 +62,7 @@ const storeSource = readFileSync(join(cwd, 'src/state/store.ts'), 'utf8');
 const healthJournalSource = readFileSync(join(cwd, 'src/engine/healthJournal.ts'), 'utf8');
 const todayChecklistSource = readFileSync(join(cwd, 'src/screens/TodayChecklist.tsx'), 'utf8');
 const toolSource = readFileSync(join(cwd, 'src/ai/tools.ts'), 'utf8');
+const brainStreamSource = readFileSync(join(cwd, 'src/brain/stream.ts'), 'utf8');
 const netlifyRuntime = readFileSync(
   join(cwd, 'src/assistant-original/netlify-runtime.ts'),
   'utf8',
@@ -202,6 +203,13 @@ check(
   netlifyRuntime.includes("const FIXED_MEALS: ChatMealSlot[] = ['colazione', 'spuntino', 'pranzo', 'merenda', 'cena']") &&
     netlifyRuntime.includes('function proposedMealSlot'),
   'la chat intuisce uno dei cinque momenti fissi usando testo e ora locale',
+);
+check(
+  m.isMealLogIntent('Ho cenato con salmone, patate e pane.') &&
+    m.isMealLogIntent('Ho pranzato con una pasta.') &&
+    m.isMealLogIntent('Ho fatto colazione con una banana.') &&
+    brainStreamSource.includes("Non è ancora registrato."),
+  'i verbi naturali dei pasti richiedono conferma e non possono dichiarare un falso salvataggio',
 );
 check(
   netlifyRuntime.includes('function pendingMealSlot') &&

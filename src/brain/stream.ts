@@ -217,7 +217,7 @@ export function isWorkoutPlanIntent(text: string): boolean {
 export function isMealLogIntent(text: string): boolean {
   if (/^\s*(?:cosa|che cosa|quanto|quanti|quante)\b.*\b(?:mangiat\w*|bevut\w*)/i.test(text)) return false;
   if (/\bnon\s+ho\s+(?:mangiato|bevuto)\b/i.test(text)) return false;
-  return /\b(?:ho\s+(?:mangiato|bevuto)|(?:mangio|bevo)\b|pasto|colazione|pranzo|cena|spuntino|merenda|snack|registra(?:mi)?\s+(?:questo\s+)?pasto)\b/i.test(text);
+  return /\b(?:ho\s+(?:mangiato|bevuto|cenato|pranzato|fatto\s+(?:colazione|merenda|uno\s+spuntino))|(?:mangio|bevo)\b|pasto|colazione|pranzo|cena|spuntino|merenda|snack|registra(?:mi)?\s+(?:questo\s+)?pasto)\b/i.test(text);
 }
 
 export function isWorkoutLogIntent(text: string): boolean {
@@ -287,7 +287,7 @@ export async function replyWithLocalTools(
           ? 'Read every attached PDF directly. If it is a diet or training plan, summarize it faithfully before proposing any change; distinguish values explicitly written in the document from your own estimates. Never claim that a PDF was unreadable unless the provider actually returns an error.'
           : '',
         mealConfirmation?.status === 'needs-confirmation'
-          ? `Analyze the food and estimate nutrition, but DO NOT call registra_pasto and do not ask the final confirmation question. The app will ask whether it is ${mealConfirmation.slot}. The write tool is intentionally withheld until confirmation: never claim that it is unavailable or that the app cannot save the meal.`
+          ? `Analyze the food and estimate nutrition, but DO NOT call registra_pasto and do not ask the final confirmation question. The app will ask whether it is ${mealConfirmation.slot}. The meal is NOT stored yet: never say or imply that it was saved, registered, added or marked. The write tool is intentionally withheld until confirmation: never claim that it is unavailable or that the app cannot save the meal.`
           : '',
         mealConfirmation?.status === 'confirmed'
           ? `The user has just confirmed the proposed meal type: ${mealConfirmation.slot}. Call registra_pasto now and use exactly that meal type.`
@@ -389,12 +389,16 @@ export async function replyWithLocalTools(
       if (uses.length === 0) {
         clock.mark(`ROUND ${round + 1} — TESTO`, lastModel ?? 'modello sconosciuto');
         if (!body.text?.trim()) throw new Error('La risposta è arrivata vuota.');
+        const safeText = mealConfirmation?.status === 'needs-confirmation'
+          && /\b(?:segnat|registrat|salvat|aggiunt)\w*/i.test(body.text)
+          ? 'Ho capito cosa hai mangiato. Non è ancora registrato.'
+          : body.text.trim();
         const confirmation = mealConfirmation?.status === 'needs-confirmation'
           ? `\n\nConfermi che lo registro come **${mealConfirmation.slot === 'extra' ? 'extra / spuntino aggiuntivo' : mealConfirmation.slot}**?`
           : workoutConfirmation?.status === 'needs-confirmation'
             ? '\n\nConfermi che registro questo **allenamento** in ME?'
           : '';
-        onChunk(`${body.text.trim()}${confirmation}`);
+        onChunk(`${safeText}${confirmation}`);
         outcome = { costUsd: totalCostUsd, model: lastModel };
         return outcome;
       }
