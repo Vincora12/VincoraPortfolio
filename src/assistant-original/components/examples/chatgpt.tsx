@@ -1074,6 +1074,14 @@ const WorkoutConfirmationButton: FC = () => {
   );
 };
 
+/** La scena full-screen deve prendere il posto del composer anche su iOS. */
+function dismissComposerKeyboard() {
+  const active = document.activeElement;
+  if (!(active instanceof HTMLElement)) return;
+  if (!active.matches('input, textarea, [contenteditable="true"]')) return;
+  active.blur();
+}
+
 /** Celebra esclusivamente una scrittura realmente confermata dal runtime. */
 const LogCelebration: FC = () => {
   const [visible, setVisible] = useState(false);
@@ -1117,6 +1125,9 @@ const LogCelebration: FC = () => {
     }
     if (!signal || signal === previousSignal.current) return;
     previousSignal.current = signal;
+    // assistant-ui conserva il composer focalizzato dopo l'invio: su iOS
+    // la tastiera coprirebbe la metà inferiore della celebrazione.
+    dismissComposerKeyboard();
     setVisible(true);
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => setVisible(false), 2100);

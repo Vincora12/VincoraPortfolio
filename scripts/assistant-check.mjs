@@ -120,6 +120,11 @@ check(
   'anche una modifica generica realmente riuscita in ME attiva la celebrazione esistente',
 );
 check(
+  cloneSource.includes('dismissComposerKeyboard();') &&
+    cloneSource.indexOf('dismissComposerKeyboard();') < cloneSource.indexOf('setVisible(true);'),
+  'la celebrazione chiude la tastiera mobile prima di occupare il viewport',
+);
+check(
   cloneMain.includes('selectedRuntime === "mock" ? mockChatModel : netlifyChatModel'),
   'il backend reale è il runtime predefinito',
 );
