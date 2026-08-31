@@ -21,6 +21,8 @@ export type WorkoutLog = {
   title: string;
   details: string;
   minutes: number;
+  /** Stima energetica: non sostituisce una misura da wearable. */
+  burnedKcal?: number;
   source: 'chat' | 'manual' | 'dev';
 };
 
@@ -225,13 +227,40 @@ export function updateLatestMeal(
   return true;
 }
 
-export function updateLatestWorkout(patch: Partial<Pick<WorkoutLog, 'title' | 'details' | 'minutes'>>): boolean {
+export function updateLatestWorkout(patch: Partial<Pick<WorkoutLog, 'title' | 'details' | 'minutes' | 'burnedKcal'>>): boolean {
   const journal = readHealthJournal();
   if (!journal.workouts.length) return false;
   const workouts = journal.workouts.map((workout, index) => index === journal.workouts.length - 1
     ? { ...workout, ...patch }
     : workout);
   save({ ...journal, workouts });
+  return true;
+}
+
+/** Aggiorna la registrazione scelta dalla UI, senza affidarsi al concetto di “ultima”. */
+export function updateMealById(
+  entryId: string,
+  patch: Partial<Pick<MealLog, 'description' | 'kcal' | 'protein' | 'carbs' | 'fat'>>,
+): boolean {
+  const journal = readHealthJournal();
+  if (!journal.meals.some((meal) => meal.id === entryId)) return false;
+  save({
+    ...journal,
+    meals: journal.meals.map((meal) => meal.id === entryId ? { ...meal, ...patch } : meal),
+  });
+  return true;
+}
+
+export function updateWorkoutById(
+  entryId: string,
+  patch: Partial<Pick<WorkoutLog, 'title' | 'details' | 'minutes' | 'burnedKcal'>>,
+): boolean {
+  const journal = readHealthJournal();
+  if (!journal.workouts.some((workout) => workout.id === entryId)) return false;
+  save({
+    ...journal,
+    workouts: journal.workouts.map((workout) => workout.id === entryId ? { ...workout, ...patch } : workout),
+  });
   return true;
 }
 

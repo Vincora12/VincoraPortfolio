@@ -26,7 +26,7 @@ const loadImage = (file: File): Promise<HTMLImageElement> => new Promise((resolv
 });
 
 /** Riduce le foto del telefono prima di salvarle e inviarle all'AI. */
-async function optimizedDataUrl(file: File): Promise<string> {
+export async function optimizedImageDataUrl(file: File): Promise<string> {
   const image = await loadImage(file);
   const maxSide = 1600;
   const scale = Math.min(1, maxSide / Math.max(image.naturalWidth, image.naturalHeight));
@@ -58,7 +58,7 @@ export class VinzImageAttachmentAdapter implements AttachmentAdapter {
   async send(attachment: PendingAttachment): Promise<CompleteAttachment> {
     let image: string;
     try {
-      image = await optimizedDataUrl(attachment.file);
+      image = await optimizedImageDataUrl(attachment.file);
     } catch {
       image = await dataUrlOf(attachment.file);
     }

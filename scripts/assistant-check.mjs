@@ -61,6 +61,7 @@ const machinesSource = readFileSync(join(cwd, 'netlify/functions/_shared/machine
 const storeSource = readFileSync(join(cwd, 'src/state/store.ts'), 'utf8');
 const healthJournalSource = readFileSync(join(cwd, 'src/engine/healthJournal.ts'), 'utf8');
 const todayChecklistSource = readFileSync(join(cwd, 'src/screens/TodayChecklist.tsx'), 'utf8');
+const healthEstimateSource = readFileSync(join(cwd, 'src/ai/healthEstimate.ts'), 'utf8');
 const toolSource = readFileSync(join(cwd, 'src/ai/tools.ts'), 'utf8');
 const brainStreamSource = readFileSync(join(cwd, 'src/brain/stream.ts'), 'utf8');
 const netlifyRuntime = readFileSync(
@@ -235,6 +236,28 @@ check(
     healthJournalSource.includes("meal.source === 'dev'") &&
     todayChecklistSource.includes('alignTodayLogsToGameDay(dateForDay(day, startedAt))'),
   'SYNC recupera i pasti già presenti in ME senza spostare le simulazioni DEV',
+);
+check(
+  todayChecklistSource.includes('function LongPressRow') &&
+    todayChecklistSource.includes('onLongPress={() => openEditor') &&
+    todayChecklistSource.includes('AGGIUNGI FOTO') &&
+    todayChecklistSource.includes('CALCOLA E SALVA'),
+  'una pressione lunga sui log SYNC apre l’inserimento testuale o fotografico',
+);
+check(
+  healthEstimateSource.includes("capability: image ? 'vision-quick' : 'text-cheap'") &&
+    healthEstimateSource.includes('toolChoice: tool.name') &&
+    healthEstimateSource.includes("name: 'stima_pasto_sync'") &&
+    healthEstimateSource.includes("name: 'stima_allenamento_sync'"),
+  'SYNC usa un solo calcolo AI tipizzato per pasti e allenamenti',
+);
+check(
+  todayChecklistSource.includes('updateMealById(editTarget.entry.id, meal)') &&
+    todayChecklistSource.includes('updateWorkoutById(editTarget.entry.id, workout)') &&
+    healthJournalSource.includes('export function updateMealById') &&
+    healthJournalSource.includes('export function updateWorkoutById') &&
+    healthJournalSource.includes('burnedKcal?: number'),
+  'la stima aggiorna la riga scelta nel journal canonico e conserva le calorie bruciate',
 );
 check(
   netlifyRuntime.includes("occupied ? 'extra' : slot"),

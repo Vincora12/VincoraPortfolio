@@ -64,6 +64,8 @@ export interface AskRequest {
   maxTokens?: number;
   /** Strumenti che il modello può chiamare. Li esegue il browser. */
   tools?: ToolDefinition[];
+  /** Impone l'unico risultato strutturato richiesto da una UI specializzata. */
+  toolChoice?: string;
   /** L'ultimo messaggio come blocchi: i risultati di un giro di strumenti. */
   userBlocks?: Record<string, unknown>[];
   /** Accende la ricerca sul web, che gira dal fornitore. */
