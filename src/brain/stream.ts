@@ -279,6 +279,7 @@ export async function replyWithLocalTools(
         'Use tools whenever the answer depends on personal data or the user asks for an action.',
         'Never claim an action succeeded unless its tool result confirms it. Be concise and natural.',
         'The five fixed meal moments are: colazione, spuntino, pranzo, merenda, cena. Additional food is extra.',
+        'Meals and completed workouts must use their dedicated typed tools. Never use gestisci_me as a substitute for registra_pasto or registra_allenamento.',
         images.length
           ? 'The user attached one or more real images. Inspect them directly: never say that you cannot see them. If they show food, identify visible foods, preparation, sauces and a plausible portion; estimate kcal, protein, carbohydrates and fat, clearly marking estimates and asking only for details that materially change the result. Do not invent hidden ingredients. Use all attached images together when one shows the dish and another shows a menu, label or portion reference.'
           : '',
@@ -336,6 +337,7 @@ export async function replyWithLocalTools(
   const availableTools = toolPool.slice(0, 12).filter((tool) => {
     if (tool.name === 'registra_pasto') return mealConfirmation?.status === 'confirmed';
     if (tool.name === 'registra_allenamento') return workoutConfirmation?.status === 'confirmed';
+    if (tool.name === 'gestisci_me' && mealConfirmation) return false;
     if (tool.name === 'correggi_ultimo_pasto' && mealConfirmation?.status === 'needs-confirmation') return false;
     if (tool.name === 'correggi_ultimo_allenamento' && workoutConfirmation?.status === 'needs-confirmation') return false;
     return true;

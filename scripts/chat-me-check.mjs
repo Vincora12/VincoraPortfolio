@@ -11,7 +11,7 @@ const out = join(cwd, 'node_modules', '.vinz-chat-me-check.mjs');
 
 writeFileSync(entry, `
 export { replyWithLocalTools, shouldUseLocalTools, requiredWriteTool, isMealLogIntent, isWorkoutLogIntent, isWorkoutPlanIntent } from '${cwd}/src/brain/stream.ts';
-export { confirms } from '${cwd}/src/assistant-original/netlify-runtime.ts';
+export { confirms, createNetlifyChatModel, pendingMealSlot } from '${cwd}/src/assistant-original/netlify-runtime.ts';
 export { runTool } from '${cwd}/src/ai/tools.ts';
 export { addMeal, addWorkout, addWeight, configureHealthDisplay, configureHealthTargets, healthJournalReport, manageMeBlock, readHealthJournal, setDietPlan, setWorkoutPlan, undoMeBlocks, updateLatestMeal, updateLatestWeight, updateLatestWorkout } from '${cwd}/src/engine/healthJournal.ts';
 `);
@@ -130,7 +130,15 @@ try {
   check(!m.isWorkoutLogIntent('Quanto mi sono allenato oggi?'), 'una domanda sullo sport non viene scambiata per un nuovo allenamento');
   check(m.requiredWriteTool('Ho mangiato una banana.') === undefined, 'il pasto non viene salvato prima della conferma');
   check(m.requiredWriteTool('Ho fatto 45 minuti di lower body.') === undefined, 'l’allenamento non viene salvato prima della conferma');
-  check(m.confirms('Yes') && m.confirms('Sì') && !m.confirms('No'), 'la conferma del pasto riconosce italiano e inglese senza accettare un rifiuto');
+  check(m.confirms('Yes') && m.confirms('Sì') && m.confirms('Segnalo in ME') && !m.confirms('No'), 'la conferma del pasto riconosce anche il comando naturale senza accettare un rifiuto');
+  check(
+    m.pendingMealSlot([
+      { role: 'user', content: [{ type: 'text', text: 'Foto del pranzo' }], metadata: { custom: {} } },
+      { role: 'assistant', content: [{ type: 'text', text: 'Vuoi salvarlo?' }], metadata: { custom: { pendingMeal: { slot: 'pranzo' } } } },
+      { role: 'user', content: [{ type: 'text', text: 'Segnalo in ME' }], metadata: { custom: {} } },
+    ]) === 'pranzo',
+    'la proposta strutturata sopravvive anche se il testo del Mon non usa la formula esatta',
+  );
   check(m.isWorkoutPlanIntent('Inserisci allenamento il lunedì'), 'un allenamento assegnato a un giorno viene riconosciuto come piano');
   check(!m.isWorkoutLogIntent('Inserisci allenamento il lunedì'), 'un allenamento futuro non viene scambiato per uno svolto');
   check(m.requiredWriteTool('Inserisci allenamento il lunedì') === 'imposta_piano_allenamento', 'la modifica del lunedì aggiorna il piano in ME');
@@ -207,7 +215,31 @@ try {
   check(workoutProposal.includes('Confermi che registro questo **allenamento** in ME?'), 'anche l’allenamento chiede conferma prima del salvataggio');
   check(toolChoices[4] === 'registra_allenamento', 'il backend forza la scrittura dell’allenamento solo dopo il sì');
   check(!toolNames[0]?.includes('registra_pasto') && !toolNames[3]?.includes('registra_allenamento'), 'prima della conferma gli strumenti di scrittura del nuovo log non vengono esposti al modello');
+  check(!toolNames[0]?.includes('gestisci_me'), 'durante una proposta pasto il blocco generico ME non può sostituire il diario DIETA');
   check(imageCounts[0] === 2, 'le due foto del pasto arrivano insieme al ciclo che aggiorna ME');
+  replies.push({
+    toolUses: [{ id: 'meal-structured-confirmation', name: 'registra_pasto', input: {
+      pasto: 'extra', descrizione: 'Tagliata di pollo con riso basmati', kcal: 560,
+      proteine: 48, carboidrati: 55, grassi: 14,
+    } }],
+    costUsd: 0.001,
+    model: 'test-model',
+  });
+  const model = m.createNetlifyChatModel(run);
+  let finalSnapshot;
+  const fixtureDate = new Date('2026-08-31T12:00:00.000Z');
+  for await (const snapshot of model.run({
+    messages: [
+      { id: 'meal-user', role: 'user', createdAt: fixtureDate, content: [{ type: 'text', text: 'Questa era la foto del pranzo' }], metadata: { custom: {} } },
+      { id: 'meal-assistant', role: 'assistant', createdAt: fixtureDate, content: [{ type: 'text', text: 'Vuoi conservarlo nel diario?' }], metadata: { custom: { pendingMeal: { slot: 'pranzo' } } }, status: { type: 'complete', reason: 'stop' } },
+      { id: 'meal-confirm', role: 'user', createdAt: fixtureDate, content: [{ type: 'text', text: 'Segnalo in ME' }], metadata: { custom: {} } },
+    ],
+    abortSignal: new AbortController().signal,
+    context: { config: { modelName: 'test-model' } },
+  })) finalSnapshot = snapshot;
+  const confirmedMeal = m.readHealthJournal().meals.find((meal) => meal.description.includes('Tagliata di pollo'));
+  check(confirmedMeal?.slot === 'pranzo', 'la conferma strutturata forza registra_pasto nel momento proposto');
+  check(finalSnapshot?.metadata?.custom?.updates?.includes('Pasto aggiunto in ME'), 'la conferma reale produce il feedback tipizzato del diario');
   run({ id: 'diet-1', name: 'imposta_dieta', input: { titolo: 'Piano settimanale', testo: 'Colazione: yogurt' } });
   run({ id: 'targets-1', name: 'imposta_obiettivi_nutrizionali', input: { kcal: 2100, proteine: 160 } });
   run({ id: 'meal-fix-1', name: 'correggi_ultimo_pasto', input: { pasto: 'spuntino', kcal: 110 } });

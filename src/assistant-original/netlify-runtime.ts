@@ -157,9 +157,24 @@ function proposedMealSlot(text: string, at = new Date()): ChatMealSlot {
   return occupied ? 'extra' : slot;
 }
 
-function pendingMealSlot(messages: readonly ThreadMessage[]): ChatMealSlot | undefined {
+const CHAT_MEAL_SLOTS = new Set<ChatMealSlot>([
+  'colazione', 'spuntino', 'pranzo', 'merenda', 'cena', 'extra',
+]);
+
+/**
+ * La proposta del pasto appartiene allo stato del turno, non alla formulazione
+ * visibile scelta dal Mon. Il fallback sul testo mantiene compatibili le chat
+ * create prima dell'introduzione dei metadati strutturati.
+ */
+export function pendingMealSlot(messages: readonly ThreadMessage[]): ChatMealSlot | undefined {
   const previous = messages.at(-2);
   if (previous?.role !== 'assistant') return undefined;
+  const rawSlot = (previous.metadata.custom as {
+    pendingMeal?: { slot?: unknown };
+  }).pendingMeal?.slot;
+  if (typeof rawSlot === 'string' && CHAT_MEAL_SLOTS.has(rawSlot as ChatMealSlot)) {
+    return rawSlot as ChatMealSlot;
+  }
   const match = textOf(previous).match(
     /Confermi che lo registro come \*\*(colazione|spuntino|pranzo|merenda|cena|extra)(?:\s*\/[^*]+)?\*\*\?/i,
   );
@@ -167,7 +182,7 @@ function pendingMealSlot(messages: readonly ThreadMessage[]): ChatMealSlot | und
 }
 
 /** Accetta anche le conferme operative naturali usate dopo una proposta. */
-export const confirms = (text: string) => /^\s*(?:s[iì]|yes|yep|yeah|sure|confermo|ok(?:ay)?|va bene|esatto|corretto|vai(?:\s+(?:pure|inserisci|registra|procedi))?|inserisci|registra|procedi|fallo)(?=\s|[.!?,;:]|$)/i.test(text);
+export const confirms = (text: string) => /^\s*(?:s[iì]|yes|yep|yeah|sure|confermo|ok(?:ay)?|va bene|esatto|corretto|vai(?:\s+(?:pure|inserisci|registra|procedi))?|inserisci|registra|procedi|fallo|segna(?:lo)?(?:\s+in\s+me)?)(?=\s|[.!?,;:]|$)/i.test(text);
 
 function isImageCreationIntent(text: string): boolean {
   return /\b(?:genera|crea|disegna|fammi|realizza|produci|modifica|trasforma|ritocca)\b[^.!?]{0,100}\b(?:foto|immagine|ritratto|illustrazione|render|versione)\b|\b(?:fammi vedere|mostrami)\b[^.!?]{0,100}\b(?:come (?:starei|sarei)|in versione)\b/i.test(text);
@@ -332,6 +347,9 @@ async function* runWithLocalTools(
         traceId: cost.traceId,
         updates,
         monReaction: reactionForAnswer(answer),
+        ...(mealConfirmation?.status === 'needs-confirmation'
+          ? { pendingMeal: { slot: mealConfirmation.slot } }
+          : {}),
       },
     },
   };
