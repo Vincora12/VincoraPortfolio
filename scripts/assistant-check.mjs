@@ -214,7 +214,8 @@ check(
 check(
   netlifyRuntime.includes('function pendingMealSlot') &&
     netlifyRuntime.includes("status: 'confirmed'") &&
-    netlifyRuntime.includes("status: 'needs-confirmation'"),
+    netlifyRuntime.includes("status: 'needs-confirmation'") &&
+    netlifyRuntime.includes('shouldUseLocalTools(user) || mealConfirmation || workoutConfirmation || confirmedPlan'),
   'il pasto passa dalla conferma prima di essere registrato',
 );
 check(

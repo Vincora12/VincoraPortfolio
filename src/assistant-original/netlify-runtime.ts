@@ -645,7 +645,12 @@ export function createNetlifyChatModel(
         yield* runImageCreation(args.messages, args.abortSignal);
         return;
       }
-      if (runTool && (shouldUseLocalTools(user) || mealConfirmation?.status === 'confirmed' || workoutConfirmation?.status === 'confirmed' || confirmedPlan)) {
+      /* La decisione semantica appena calcolata deve bastare per entrare nel
+         percorso salute anche PRIMA della conferma. Prima controllavamo solo
+         `confirmed`: una frase naturale come «ho cenato» produceva
+         `needs-confirmation`, ma poi ricadeva nella chat senza strumenti e il
+         modello poteva inventare «registrato». */
+      if (runTool && (shouldUseLocalTools(user) || mealConfirmation || workoutConfirmation || confirmedPlan)) {
         yield* runWithLocalTools(
           args.messages,
           args.abortSignal,
