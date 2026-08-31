@@ -44,6 +44,7 @@ const cloneSource = readFileSync(
   'utf8',
 );
 const cloneStyles = readFileSync(join(cwd, 'src/assistant-original/styles.css'), 'utf8');
+const systemStyles = readFileSync(join(cwd, 'src/system/system.css'), 'utf8');
 const popoverSource = readFileSync(
   join(cwd, 'src/assistant-original/components/ui/popover.tsx'),
   'utf8',
@@ -97,6 +98,11 @@ check(
     cloneStyles.includes('height: 100dvh') &&
     cloneStyles.includes('top: calc(env(safe-area-inset-top) + 0.75rem)'),
   'la sidebar mobile rispetta status bar, home indicator e altezza completa',
+);
+check(
+  systemStyles.includes('--tabbar-mobile-bottom: max(8px, calc(env(safe-area-inset-bottom) - 16px))') &&
+    systemStyles.includes('height: calc(46px + var(--tabbar-mobile-bottom))'),
+  'la navigazione mobile scende nella safe area senza invadere il gesto Home',
 );
 check(!cloneMain.includes('WebSpeechDictationAdapter'), 'la vecchia dettatura browser non è più collegata');
 check(cloneSource.includes('ChatCostTotal'), 'il totale della chat resta visibile in alto');
