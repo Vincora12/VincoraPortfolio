@@ -3979,8 +3979,10 @@
    di prima senza una riga in più. */
 .archive__switch {
   display: flex;
-  border-bottom: 1px solid var(--hairline);
-  background: var(--white);
+  min-height: 60px;
+  align-items: stretch;
+  border-bottom: 0;
+  background: var(--char-primary);
 }
 
 /* ⚠️ QUATTRO SEGMENTI, NON PIÙ TRE. Dentro MON ci sono MON, MIND.MAP,
@@ -3992,21 +3994,51 @@
   flex: 1;
   min-width: 0;
   white-space: nowrap;
-  padding: var(--u2) 2px;
+  min-height: 60px;
+  padding: var(--u3) 2px;
   border: 0;
-  background: transparent;
-  color: var(--muted);
-  font: inherit;
-  font-size: var(--type-meta);
-  letter-spacing: 0.01em;
+  border-radius: 0;
+  background: var(--char-primary);
+  color: var(--char-on-primary);
+  font-family: var(--font-mono);
+  font-size: clamp(var(--type-micro), 2.8vw, var(--type-meta));
+  font-weight: 600;
+  letter-spacing: 0.035em;
   text-transform: uppercase;
   cursor: pointer;
+  transition:
+    background-color var(--dur-fast) var(--ease-system),
+    color var(--dur-fast) var(--ease-system);
+}
+
+/* La prima direzione approvata tratta le viste come cartelle: la voce attiva
+   e' il foglio bianco che entra nel contenuto; le altre formano un unico
+   nastro nel colore del .mon. Il testo usa `--char-on-primary`, quindi resta
+   leggibile anche quando il Color DNA cambia completamente. */
+.archive__seg:first-child {
+  border-start-start-radius: 22px;
+}
+
+.archive__seg:last-child {
+  border-start-end-radius: 22px;
+}
+
+.archive__seg + .archive__seg:not([aria-selected='true']) {
+  border-left: 1px solid color-mix(in srgb, var(--char-on-primary) 22%, transparent);
 }
 
 /* Stessa logica: `--ink` è «il colore del testo qui», non «nero». */
 .archive__seg[aria-selected='true'] {
+  position: relative;
+  z-index: 1;
+  border-radius: 22px 22px 0 0;
+  background: var(--white);
   color: var(--ink);
-  box-shadow: inset 0 -2px 0 var(--char-primary);
+  box-shadow:
+    inset 1px 0 0 var(--hairline),
+    inset -1px 0 0 var(--hairline),
+    inset 0 1px 0 var(--hairline),
+    inset 0 -3px 0 var(--ink);
 }
 
 .dex__body {
