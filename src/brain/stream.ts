@@ -401,6 +401,16 @@ export async function replyWithLocalTools(
       clock.mark(`ROUND ${round + 1} — STRUMENTI`, uses.map((u) => u.name).join(', '));
 
       if (round === 0 && currentUser) history.push({ role: 'user', content: currentUser });
+      /* Il risultato dell'ultimo giro era stato inviato come `userBlocks`,
+         fuori dalla cronologia. Se il modello chiede un ALTRO strumento,
+         quel risultato deve diventare parte stabile del dialogo prima di
+         aggiungere la nuova function call. Altrimenti il giro successivo
+         contiene la prima `function_call` ma soltanto l'ultimo
+         `function_call_output`, e OpenAI lo rifiuta con «No tool output found
+         for function call …». */
+      if (userBlocks?.length) {
+        history.push({ role: 'user', content: userBlocks });
+      }
       history.push(assistantTurn(body.text ?? '', uses) as { role: 'assistant'; content: unknown });
       const toolResults = uses.map((use) => {
         if (use.name !== 'registra_pasto' || mealConfirmation?.status !== 'confirmed') return run(use);

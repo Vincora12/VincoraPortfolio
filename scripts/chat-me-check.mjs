@@ -97,8 +97,16 @@ const toolNames = [];
 const toolSizes = [];
 const toolChoices = [];
 const imageCounts = [];
+const requests = [];
 globalThis.fetch = async (_url, init) => {
+  if (String(_url) !== '/api/ai') {
+    return new Response(JSON.stringify({ ok: true }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+  }
   const request = JSON.parse(String(init?.body ?? '{}'));
+  requests.push(request);
   toolCounts.push(Array.isArray(request.tools) ? request.tools.length : 0);
   toolNames.push(Array.isArray(request.tools) ? request.tools.map((tool) => tool.name) : []);
   toolSizes.push(JSON.stringify(request.tools ?? []).length);
@@ -155,6 +163,26 @@ try {
   );
   await m.replyWithLocalTools(
     [], 'Inserisci allenamento il lunedì', new AbortController().signal, () => {}, run, 'test-model', [], undefined, undefined,
+  );
+  replies.push(
+    { toolUses: [{ id: 'read-health-1', name: 'leggi_i_miei_dati', input: { giorni: 7 } }], costUsd: 0.001, model: 'test-model' },
+    { toolUses: [{ id: 'read-me-2', name: 'leggi_me', input: { sezione: 'diet' } }], costUsd: 0.001, model: 'test-model' },
+    { text: 'Ho confrontato i dati.', costUsd: 0.001, model: 'test-model' },
+  );
+  let multiToolReply = '';
+  await m.replyWithLocalTools(
+    [], 'Confronta i miei dati con ME', new AbortController().signal,
+    (chunk) => { multiToolReply += chunk; }, run, 'test-model', [], undefined, undefined,
+  );
+  const thirdToolRequest = requests.at(-1);
+  const priorResultPreserved = thirdToolRequest?.turns?.some((turn) =>
+    Array.isArray(turn.content) && turn.content.some((block) =>
+      block.type === 'tool_result' && block.tool_use_id === 'read-health-1'));
+  const latestResultPresent = thirdToolRequest?.userBlocks?.some((block) =>
+    block.type === 'tool_result' && block.tool_use_id === 'read-me-2');
+  check(
+    priorResultPreserved && latestResultPresent && multiToolReply === 'Ho confrontato i dati.',
+    'più giri OpenAI conservano ogni function_call_output fino alla risposta finale',
   );
   const journal = m.readHealthJournal();
   check(journal.meals.length === 2, 'i pasti confermati in chat entrano nel diario ME');
