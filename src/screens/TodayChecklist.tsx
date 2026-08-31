@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { estimateHealthEntry, type MealEstimate, type WorkoutEstimate } from '../ai/healthEstimate';
 import { optimizedImageDataUrl } from '../assistant-original/image-attachment';
-import { addMeal, addWorkout, alignTodayLogsToGameDay, readHealthJournal, HEALTH_JOURNAL_EVENT, updateMealById, updateWorkoutById, type MealLog, type WorkoutLog } from '../engine/healthJournal';
-import { completeDayStreak, saveEvolutionWish, syncBalance, syncRewardProgress, wishNeedsMega, type EvolutionWish } from '../engine/syncRewards';
+import { addMeal, addWorkout, alignTodayLogsToGameDay, readHealthJournal, removeHealthEntry, HEALTH_JOURNAL_EVENT, updateMealById, updateWorkoutById, type MealLog, type WorkoutLog } from '../engine/healthJournal';
+import { completeDayStreak, isCompleteHealthDay, saveEvolutionWish, syncBalance, syncRewardProgress, wishNeedsMega, type EvolutionWish } from '../engine/syncRewards';
 import { dateForDay } from '../engine/progression';
+import { EXPRESSION_SPEC } from '../engine/assets';
 import { useApp } from '../state/store';
+import { useAssetUrl } from '../system/AssetSlot';
 import { Icon } from '../system/Icon';
 import { SyncDial } from '../system/SyncDial';
 
@@ -29,9 +31,14 @@ export function TodayChecklistScreen() {
   const [editPhoto, setEditPhoto] = useState<{ name: string; dataUrl: string } | null>(null);
   const [editStatus, setEditStatus] = useState<'idle' | 'loading' | 'saved' | 'error'>('idle');
   const [editError, setEditError] = useState('');
+  const [syncCompleteVisible, setSyncCompleteVisible] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const completionState = useRef<boolean | null>(null);
+  const completionTimer = useRef<number | null>(null);
   const openFormEvolution = useApp((state) => state.openFormEvolution);
   const token = useApp((state) => state.token);
+  const activeMon = useApp((state) => state.activeMonName ? state.mons[state.activeMonName] ?? null : null);
+  const reactionSheet = useAssetUrl(activeMon?.data.name ?? '', 'reaction_pack');
   /* 🔷 «Mi dice zero giorni quando in realtà ne sto andando avanti nella
      parte web.» «Oggi», qui, non è la data del telefono: è la data del
      giorno di GIOCO — la stessa che il DEV fa avanzare. Per chi usa l'app
@@ -53,11 +60,29 @@ export function TodayChecklistScreen() {
   const todayMeals = journal.meals.filter((item) => dayKey(new Date(item.at)) === today);
   const slots = new Set(todayMeals.map((item) => item.slot));
   const todayWorkouts = journal.workouts.filter((item) => dayKey(new Date(item.at)) === today);
+  const completeToday = isCompleteHealthDay(journal, gameToday);
   const streak = completeDayStreak(journal, gameToday);
   const balance = syncBalance(streak);
   const evolution = syncRewardProgress('evolution', streak);
   const mega = syncRewardProgress('mega-evolution', streak);
   const month = syncRewardProgress('wish', streak);
+
+  useEffect(() => {
+    if (completionState.current === null) {
+      completionState.current = completeToday;
+      return;
+    }
+    const wasComplete = completionState.current;
+    completionState.current = completeToday;
+    if (wasComplete || !completeToday) return;
+    setSyncCompleteVisible(true);
+    if (completionTimer.current !== null) window.clearTimeout(completionTimer.current);
+    completionTimer.current = window.setTimeout(() => setSyncCompleteVisible(false), 2100);
+  }, [completeToday]);
+
+  useEffect(() => () => {
+    if (completionTimer.current !== null) window.clearTimeout(completionTimer.current);
+  }, []);
 
   const chooseReward = (kind: 'evolution' | 'mega-evolution') => {
     if (syncRewardProgress(kind, streak).ready) openFormEvolution();
@@ -96,6 +121,10 @@ export function TodayChecklistScreen() {
     const now = new Date();
     at.setHours(now.getHours(), now.getMinutes(), now.getSeconds(), now.getMilliseconds());
     return at;
+  };
+  const removeEntry = (kind: 'meal' | 'workout', entryId: string, label: string) => {
+    if (!window.confirm(`Rimuovere ${label.toLowerCase()} da SYNC?`)) return;
+    removeHealthEntry(kind, entryId);
   };
   const saveEstimate = async () => {
     if (!editTarget || editStatus === 'loading') return;
@@ -161,13 +190,20 @@ export function TodayChecklistScreen() {
     {detailsOpen && <section id="sync-today-details" className="today-check__tasks sync-check__details" aria-label="Resoconto completo di oggi">
       {MEALS.map(({ slot, label }) => {
         const entry = todayMeals.find((item) => item.slot === slot);
-        return <LongPressRow key={slot} done={Boolean(entry)} label={`${label}. Tieni premuto per ${entry ? 'completare o correggere' : 'registrare'}.`} onLongPress={() => openEditor({ kind: 'meal', slot, label, ...(entry ? { entry } : {}) })}><span aria-hidden="true" /><div><strong>{label}</strong><small>{entry?.description ?? 'DA REGISTRARE'}</small></div>{entry && <Icon name="save" />}</LongPressRow>;
+        return <LongPressRow key={slot} done={Boolean(entry)} label={`${label}. Tieni premuto per ${entry ? 'completare o correggere' : 'registrare'}.`} onLongPress={() => openEditor({ kind: 'meal', slot, label, ...(entry ? { entry } : {}) })} onRemove={entry ? () => removeEntry('meal', entry.id, label) : undefined}><span aria-hidden="true" /><div><strong>{label}</strong><small>{entry?.description ?? 'DA REGISTRARE'}</small></div></LongPressRow>;
       })}
-      {todayMeals.filter((meal) => meal.slot === 'extra').map((meal, index) => <LongPressRow key={meal.id} done label={`Extra ${index + 1}. Tieni premuto per completare o correggere.`} onLongPress={() => openEditor({ kind: 'meal', slot: 'extra', label: `EXTRA ${index + 1}`, entry: meal })}><span aria-hidden="true" /><div><strong>EXTRA {index + 1}</strong><small>{meal.description}</small></div><Icon name="save" /></LongPressRow>)}
+      {todayMeals.filter((meal) => meal.slot === 'extra').map((meal, index) => <LongPressRow key={meal.id} done label={`Extra ${index + 1}. Tieni premuto per completare o correggere.`} onLongPress={() => openEditor({ kind: 'meal', slot: 'extra', label: `EXTRA ${index + 1}`, entry: meal })} onRemove={() => removeEntry('meal', meal.id, `extra ${index + 1}`)}><span aria-hidden="true" /><div><strong>EXTRA {index + 1}</strong><small>{meal.description}</small></div></LongPressRow>)}
       {todayWorkouts.length === 0
         ? <LongPressRow done={false} label="Allenamento. Tieni premuto per registrare." onLongPress={() => openEditor({ kind: 'workout', label: 'ALLENAMENTO' })}><span aria-hidden="true" /><div><strong>ALLENAMENTO</strong><small>DA REGISTRARE</small></div></LongPressRow>
-        : todayWorkouts.map((workout, index) => <LongPressRow key={workout.id} done className="sync-check__workout-row" label={`Allenamento ${index + 1}. Tieni premuto per completare o correggere.`} onLongPress={() => openEditor({ kind: 'workout', label: `ALLENAMENTO ${todayWorkouts.length > 1 ? index + 1 : ''}`.trim(), entry: workout })}><span aria-hidden="true" /><div><strong>ALLENAMENTO {todayWorkouts.length > 1 ? index + 1 : ''}</strong><small>{workout.title}</small></div><Icon name="save" /></LongPressRow>)}
+        : todayWorkouts.map((workout, index) => <LongPressRow key={workout.id} done className="sync-check__workout-row" label={`Allenamento ${index + 1}. Tieni premuto per completare o correggere.`} onLongPress={() => openEditor({ kind: 'workout', label: `ALLENAMENTO ${todayWorkouts.length > 1 ? index + 1 : ''}`.trim(), entry: workout })} onRemove={() => removeEntry('workout', workout.id, `allenamento ${todayWorkouts.length > 1 ? index + 1 : ''}`.trim())}><span aria-hidden="true" /><div><strong>ALLENAMENTO {todayWorkouts.length > 1 ? index + 1 : ''}</strong><small>{workout.title}</small></div></LongPressRow>)}
     </section>}
+
+    {syncCompleteVisible && <div className="vinz-workout-celebration" role="status" aria-live="assertive">
+      <div className="vinz-workout-celebration__pulse" aria-hidden="true" />
+      {reactionSheet && <span className="vinz-workout-celebration__sticker" aria-label={`${activeMon?.data.name ?? 'Il tuo MON'} festeggia`} style={{ backgroundImage: `url(${reactionSheet})`, backgroundSize: `${EXPRESSION_SPEC.columns * 100}% ${EXPRESSION_SPEC.rows * 100}%`, backgroundPosition: `${100 / (EXPRESSION_SPEC.columns - 1)}% 0%` }} />}
+      <strong>SYNC<br />COMPLETATO</strong>
+      <span className="vinz-workout-celebration__line" aria-hidden="true" />
+    </div>}
 
     {editTarget && <div className="sync-entry" role="dialog" aria-modal="true" aria-labelledby="sync-entry-title">
       <button type="button" className="sync-entry__backdrop" onClick={closeEditor} aria-label="Chiudi modifica" />
@@ -197,7 +233,7 @@ export function TodayChecklistScreen() {
   </main>;
 }
 
-function LongPressRow({ done, label, className, onLongPress, children }: { done: boolean; label: string; className?: string; onLongPress: () => void; children: ReactNode }) {
+function LongPressRow({ done, label, className, onLongPress, onRemove, children }: { done: boolean; label: string; className?: string; onLongPress: () => void; onRemove?: () => void; children: ReactNode }) {
   const timer = useRef<number | null>(null);
   const start = useRef<{ x: number; y: number } | null>(null);
   const cancel = () => {
@@ -229,5 +265,8 @@ function LongPressRow({ done, label, className, onLongPress, children }: { done:
       event.preventDefault();
       onLongPress();
     }}
-  >{children}</article>;
+  >
+    {children}
+    {onRemove && <button type="button" className="sync-check__remove" aria-label={`Rimuovi ${label.split('.')[0]}`} onPointerDown={(event) => event.stopPropagation()} onPointerUp={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); onRemove(); }} onKeyDown={(event) => event.stopPropagation()}><Icon name="close" /></button>}
+  </article>;
 }

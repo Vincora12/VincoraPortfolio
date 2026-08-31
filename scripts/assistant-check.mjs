@@ -245,6 +245,13 @@ check(
   'una pressione lunga sui log SYNC apre l’inserimento testuale o fotografico',
 );
 check(
+  todayChecklistSource.includes('isCompleteHealthDay(journal, gameToday)') &&
+    todayChecklistSource.includes('SYNC<br />COMPLETATO') &&
+    todayChecklistSource.includes("removeHealthEntry(kind, entryId)") &&
+    todayChecklistSource.includes('className="sync-check__remove"'),
+  'SYNC celebra il passaggio a giornata completa e consente di rimuovere ogni log',
+);
+check(
   healthEstimateSource.includes("capability: image ? 'vision-quick' : 'text-cheap'") &&
     healthEstimateSource.includes('toolChoice: tool.name') &&
     healthEstimateSource.includes("name: 'stima_pasto_sync'") &&
