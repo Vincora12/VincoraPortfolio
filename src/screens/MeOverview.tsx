@@ -40,7 +40,6 @@ export function MeOverviewScreen({ onGo: _onGo }: { onGo: (o: Overlay) => void }
     if (window.confirm('Eliminare questa registrazione?')) removeHealthEntry(kind, id);
   };
   return <div className="screen me-health">
-    <header className="me-health__header"><p>{new Intl.DateTimeFormat('it-IT', { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date())}</p><button type="button" aria-label="Aggiungi con AI" onClick={() => askAi('Voglio aggiornare la mia salute: ')}><Icon name="plus" /></button></header>
     <nav className="me-health__tabs">{([['today', 'OGGI'], ['diet', 'DIETA'], ['sport', 'SPORT'], ['memory', 'MEMORY']] as const).map(([id, label]) => <button type="button" key={id} aria-current={view === id ? 'page' : undefined} onClick={() => setView(id)}>{label}</button>)}</nav>
     <div className="me-health__ai-control"><span>ME È ADATTABILE DALL’AI</span>{journal.blockHistory.length > 0 && <button type="button" onClick={() => undoMeBlocks()}>ANNULLA ULTIMA MODIFICA</button>}</div>
     <div className="me-health__scroll" ref={scrollRef}>

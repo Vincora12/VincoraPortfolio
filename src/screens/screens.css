@@ -4458,11 +4458,6 @@
 /* ME HEALTH — diario condiviso con la chat */
 .me-health { --mh-accent: #d4a532; background: #000; color: #f3f3f3; font-family: var(--font-ui); }
 .me-health button, .me-health input, .me-health select { font: inherit; }
-.me-health__header { flex: 0 0 auto; min-height: 70px; display: flex; align-items: center; justify-content: space-between; padding: max(14px, env(safe-area-inset-top)) 20px 10px; }
-.me-health__header > div { display: flex; align-items: baseline; gap: 18px; }
-.me-health__header h1 { margin: 0; font-size: 34px; line-height: 1; letter-spacing: -.03em; }
-.me-health__header p { margin: 0; color: #999; font-size: 12px; text-transform: capitalize; }
-.me-health__header button { width: 42px; height: 42px; border: 1px solid var(--mh-accent); border-radius: 50%; background: transparent; color: var(--mh-accent); font-size: 24px; }
 .me-health__tabs { flex: 0 0 auto; display: grid; grid-template-columns: repeat(4, 1fr); border-bottom: 1px solid #292929; }
 .me-health__tabs button { position: relative; min-height: 46px; padding: 0 4px; border: 0; background: transparent; color: #888; font-size: 10px; font-weight: 700; letter-spacing: .1em; }
 .me-health__tabs button[aria-current='page'] { color: var(--mh-accent); }
@@ -4520,10 +4515,6 @@
   color: #111318;
   font-family: var(--font-ui);
 }
-.me-health__header { min-height: 66px; padding: max(12px, env(safe-area-inset-top)) 20px 8px; border-bottom: 1px solid var(--mh-line); background: #fff; }
-.me-health__header h1 { font-family: var(--font-display); font-size: 34px; font-weight: 900; font-stretch: condensed; }
-.me-health__header p { color: #252830; font: 600 11px/1 var(--font-mono); letter-spacing: .1em; text-transform: uppercase; }
-.me-health__header button { width: 46px; height: 46px; border: 0; background: #111318; color: #fff; box-shadow: 0 2px 8px rgba(0,0,0,.18); }
 .me-health__tabs { border-color: var(--mh-line); background: #fff; }
 .me-health__tabs button { min-height: 40px; color: #858993; font: 500 10px/1 var(--font-mono); }
 .me-health__tabs button[aria-current='page'] { color: #111318; }
@@ -4594,10 +4585,6 @@
   color: #f7f7f9;
   color-scheme: dark;
 }
-.me-health__header { min-height: 54px; border-color: #292c33; background: var(--mh-bg); }
-.me-health__header h1 { color: #fff; font-style: italic; }
-.me-health__header p { color: #d5d6dc; }
-.me-health__header button { border: 1px solid #8b8e96; background: transparent; color: #fff; box-shadow: none; }
 .me-health__tabs { border-color: #292c33; background: var(--mh-bg); }
 .me-health__tabs { grid-template-columns: repeat(3, 1fr); }
 .me-health__tabs button { min-height: 42px; color: #8e919a; }
