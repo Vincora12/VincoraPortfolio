@@ -116,7 +116,6 @@ function TodayRecap({ journal, meals, workouts, total, health, askAi }: { journa
   const fixedMeals = new Set(meals.filter(x => x.slot !== 'extra').map(x => x.slot)).size;
   const extras = meals.filter(x => x.slot === 'extra').length;
   return <>
-    <ProgressChart journal={journal} onClick={() => askAi('Analizza i miei progressi e dimmi come sto andando: ')} />
     <Nutrition total={total} targets={journal.targets} />
     <section className="me-health__today">
       <h2>OGGI</h2>
@@ -133,22 +132,6 @@ function TodayRecap({ journal, meals, workouts, total, health, askAi }: { journa
       <button type="button" onClick={() => askAi('')}><Icon name="tell" />APRI CHAT</button>
     </div>
   </>;
-}
-
-function ProgressChart({ journal, onClick }: { journal: HealthJournal; onClick: () => void }) {
-  const values = journal.weights.slice(-8).map(x => x.kg);
-  const target = Number(journal.display.goal?.match(/\d+(?:[.,]\d+)?(?=\s*kg)/i)?.[0]?.replace(',', '.')) || undefined;
-  const series = values.length > 1 ? values : values.length === 1 && target ? [values[0], target] : values;
-  const min = series.length ? Math.min(...series) : 0;
-  const max = series.length ? Math.max(...series) : 1;
-  const range = Math.max(1, max - min);
-  const points = series.map((value, index) => `${series.length === 1 ? 140 : 8 + index * (264 / (series.length - 1))},${62 - ((value - min) / range) * 46}`).join(' ');
-  const change = values.length > 1 ? values.at(-1)! - values[0] : undefined;
-  return <button type="button" className="me-health__progress" onClick={onClick}>
-    <header><span>ANDAMENTO</span><strong>{change === undefined ? 'IN ATTESA DI DATI' : `${change > 0 ? '+' : ''}${change.toFixed(1)} KG`}</strong></header>
-    {series.length ? <svg viewBox="0 0 280 70" role="img" aria-label="Grafico dell’andamento del peso"><path d="M8 62H272" /><polyline points={points} />{series.map((value, index) => <circle key={`${value}-${index}`} cx={series.length === 1 ? 140 : 8 + index * (264 / (series.length - 1))} cy={62 - ((value - min) / range) * 46} r="3" />)}</svg> : <p>Registra il peso in chat per vedere qui i tuoi progressi.</p>}
-    <footer><span>{values.at(-1) ? `${values.at(-1)!.toFixed(1)} KG ORA` : 'NESSUN PESO'}</span><span>{target ? `${target.toFixed(1)} KG TARGET` : 'TARGET DA DEFINIRE'}</span></footer>
-  </button>;
 }
 
 function Nutrition({ total, targets }: { total: HealthJournal['targets']; targets: HealthJournal['targets'] }) { const pct = Math.min(100, Math.round(total.kcal / targets.kcal * 100)); return <section className="me-health__nutrition"><div className="me-health__calories"><div><small>ENERGIA</small><strong>{total.kcal.toLocaleString('it-IT')}</strong><span>/ {targets.kcal.toLocaleString('it-IT')} KCAL</span><Segments value={pct} count={14} /></div></div><div className="me-health__macros">{(['protein', 'carbs', 'fat'] as const).map(k => { const value = Math.min(100, total[k] / targets[k] * 100); return <div key={k}><span>{k === 'protein' ? 'PRO' : k === 'carbs' ? 'CARB' : 'FAT'}</span><strong>{total[k]}<small>g</small></strong><Segments value={value} count={8} /></div>; })}</div></section>; }
