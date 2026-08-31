@@ -135,9 +135,10 @@ try {
     m.pendingMealSlot([
       { role: 'user', content: [{ type: 'text', text: 'Foto del pranzo' }], metadata: { custom: {} } },
       { role: 'assistant', content: [{ type: 'text', text: 'Vuoi salvarlo?' }], metadata: { custom: { pendingMeal: { slot: 'pranzo' } } } },
+      { role: 'assistant', content: [{ type: 'text', text: '' }], metadata: { custom: { monReactionOnly: true } } },
       { role: 'user', content: [{ type: 'text', text: 'Segnalo in ME' }], metadata: { custom: {} } },
     ]) === 'pranzo',
-    'la proposta strutturata sopravvive anche se il testo del Mon non usa la formula esatta',
+    'la proposta strutturata sopravvive alla reazione del MON inserita prima della conferma',
   );
   check(m.isWorkoutPlanIntent('Inserisci allenamento il lunedì'), 'un allenamento assegnato a un giorno viene riconosciuto come piano');
   check(!m.isWorkoutLogIntent('Inserisci allenamento il lunedì'), 'un allenamento futuro non viene scambiato per uno svolto');

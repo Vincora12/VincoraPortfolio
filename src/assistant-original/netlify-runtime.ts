@@ -162,13 +162,30 @@ const CHAT_MEAL_SLOTS = new Set<ChatMealSlot>([
 ]);
 
 /**
+ * Trova la risposta conversazionale che precede l'ultimo messaggio utente.
+ * Le reazioni del MON sono messaggi assistant reali per assistant-ui, ma non
+ * aprono un nuovo turno: non devono quindi spezzare una conferma operativa.
+ */
+function precedingConversationAssistant(messages: readonly ThreadMessage[]): ThreadMessage | undefined {
+  for (let index = messages.length - 2; index >= 0; index--) {
+    const message = messages[index];
+    if (!message) continue;
+    if (message.role === 'user') return undefined;
+    if (message.role !== 'assistant') continue;
+    if (message.metadata.custom.monReactionOnly === true) continue;
+    return message;
+  }
+  return undefined;
+}
+
+/**
  * La proposta del pasto appartiene allo stato del turno, non alla formulazione
  * visibile scelta dal Mon. Il fallback sul testo mantiene compatibili le chat
  * create prima dell'introduzione dei metadati strutturati.
  */
 export function pendingMealSlot(messages: readonly ThreadMessage[]): ChatMealSlot | undefined {
-  const previous = messages.at(-2);
-  if (previous?.role !== 'assistant') return undefined;
+  const previous = precedingConversationAssistant(messages);
+  if (!previous) return undefined;
   const rawSlot = (previous.metadata.custom as {
     pendingMeal?: { slot?: unknown };
   }).pendingMeal?.slot;
@@ -209,15 +226,15 @@ async function* runImageCreation(messages: readonly ThreadMessage[], abortSignal
 }
 
 function hasPendingWorkout(messages: readonly ThreadMessage[]): boolean {
-  const previous = messages.at(-2);
-  return previous?.role === 'assistant'
-    && /Confermi che registro questo \*\*allenamento\*\* in ME\?/i.test(textOf(previous));
+  const previous = precedingConversationAssistant(messages);
+  return Boolean(previous
+    && /Confermi che registro questo \*\*allenamento\*\* in ME\?/i.test(textOf(previous)));
 }
 
 /** Recupera una modifica al piano proposta dall'AI e appena confermata. */
 function pendingWorkoutPlanProposal(messages: readonly ThreadMessage[]): string | undefined {
-  const previous = messages.at(-2);
-  if (previous?.role !== 'assistant') return undefined;
+  const previous = precedingConversationAssistant(messages);
+  if (!previous) return undefined;
   const proposal = textOf(previous);
   const normalized = proposal.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   const asksToAdd = /\bvuoi\s+(?:aggiungere|inserire|programmare|spostare|modificare)\b/i.test(normalized);
