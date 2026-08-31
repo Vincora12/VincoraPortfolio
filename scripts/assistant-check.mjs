@@ -100,9 +100,9 @@ check(
   'la sidebar mobile rispetta status bar, home indicator e altezza completa',
 );
 check(
-  systemStyles.includes('--tabbar-mobile-bottom: max(8px, calc(env(safe-area-inset-bottom) - 16px))') &&
+  systemStyles.includes('--tabbar-mobile-bottom: max(4px, calc(env(safe-area-inset-bottom) - 30px))') &&
     systemStyles.includes('height: calc(46px + var(--tabbar-mobile-bottom))'),
-  'la navigazione mobile scende nella safe area senza invadere il gesto Home',
+  'la navigazione mobile scende fino al margine minimo della safe area',
 );
 check(!cloneMain.includes('WebSpeechDictationAdapter'), 'la vecchia dettatura browser non è più collegata');
 check(cloneSource.includes('ChatCostTotal'), 'il totale della chat resta visibile in alto');

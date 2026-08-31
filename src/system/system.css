@@ -606,12 +606,12 @@
 }
 
 /* Su iPhone la safe area completa lasciava la barra troppo alta e produceva
-   un secondo zoccolo nero sotto ai controlli. Entriamo soltanto nella sua
-   fascia superiore: il gesto Home resta libero, mentre composer e timeline
-   recuperano automaticamente lo spazio sottratto alla tab bar. */
+   uno zoccolo nero sotto ai controlli. La barra entra quasi tutta nella safe
+   area e conserva soltanto il margine tattile minimo: composer e timeline
+   recuperano automaticamente lo spazio che prima restava vuoto. */
 @media (max-width: 860px) {
   .tabbar {
-    --tabbar-mobile-bottom: max(8px, calc(env(safe-area-inset-bottom) - 16px));
+    --tabbar-mobile-bottom: max(4px, calc(env(safe-area-inset-bottom) - 30px));
     height: calc(46px + var(--tabbar-mobile-bottom));
     padding: 2px 14px var(--tabbar-mobile-bottom);
   }
