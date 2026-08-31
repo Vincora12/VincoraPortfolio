@@ -3984,6 +3984,7 @@
   padding-top: env(safe-area-inset-top);
   border-bottom: 0;
   background: var(--char-primary);
+  isolation: isolate;
 }
 
 /* ⚠️ QUATTRO SEGMENTI, NON PIÙ TRE. Dentro MON ci sono MON, MIND.MAP,
@@ -4012,34 +4013,39 @@
     color var(--dur-fast) var(--ease-system);
 }
 
-/* La prima direzione approvata tratta le viste come cartelle: la voce attiva
-   e' il foglio bianco che entra nel contenuto; le altre formano un unico
-   nastro nel colore del .mon. Il testo usa `--char-on-primary`, quindi resta
-   leggibile anche quando il Color DNA cambia completamente. */
+/* Le quattro viste si incastrano come linguette tecniche: i bordi esterni
+   restano verticali, quelli interni sono diagonali. Il piccolo margine
+   negativo sovrappone le aree rettangolari prima del taglio, evitando fessure
+   fra un trapezio e il successivo. */
 .archive__seg:first-child {
-  border-start-start-radius: 0;
+  clip-path: polygon(0 0, calc(100% - 11px) 0, 100% 100%, 0 100%);
+}
+
+.archive__seg:nth-child(2),
+.archive__seg:nth-child(3) {
+  clip-path: polygon(0 100%, 11px 0, calc(100% - 11px) 0, 100% 100%);
 }
 
 .archive__seg:last-child {
-  border-start-end-radius: 17px;
+  clip-path: polygon(0 100%, 11px 0, 100% 0, 100% 100%);
 }
 
-.archive__seg + .archive__seg:not([aria-selected='true']) {
-  border-left: 1px solid color-mix(in srgb, var(--char-on-primary) 22%, transparent);
+.archive__seg + .archive__seg {
+  margin-left: -11px;
+  padding-left: 11px;
 }
 
 /* Stessa logica: `--ink` è «il colore del testo qui», non «nero». */
 .archive__seg[aria-selected='true'] {
   position: relative;
-  z-index: 1;
-  border-radius: 0 17px 0 0;
+  z-index: 2;
+  border-radius: 0;
   background: var(--white);
   color: var(--ink);
-  box-shadow:
-    inset 1px 0 0 var(--hairline),
-    inset -1px 0 0 var(--hairline),
-    inset 0 1px 0 var(--hairline),
-    inset 0 -3px 0 var(--ink);
+  box-shadow: inset 0 -3px 0 var(--ink);
+  filter:
+    drop-shadow(1px 0 0 var(--hairline))
+    drop-shadow(-1px 0 0 var(--hairline));
 }
 
 .dex__body {
