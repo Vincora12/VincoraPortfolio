@@ -57,6 +57,7 @@ const integratedChat = readFileSync(join(cwd, 'src/assistant-original/Integrated
 const appSource = readFileSync(join(cwd, 'src/App.tsx'), 'utf8');
 const appStyles = readFileSync(join(cwd, 'src/styles/base.css'), 'utf8');
 const machinesSource = readFileSync(join(cwd, 'netlify/functions/_shared/machines.ts'), 'utf8');
+const storeSource = readFileSync(join(cwd, 'src/state/store.ts'), 'utf8');
 const healthJournalSource = readFileSync(join(cwd, 'src/engine/healthJournal.ts'), 'utf8');
 const toolSource = readFileSync(join(cwd, 'src/ai/tools.ts'), 'utf8');
 const netlifyRuntime = readFileSync(
@@ -168,6 +169,11 @@ check(
     netlifyRuntime.includes("status: 'confirmed'") &&
     netlifyRuntime.includes("status: 'needs-confirmation'"),
   'il pasto passa dalla conferma prima di essere registrato',
+);
+check(
+  storeSource.includes("addMeal(input, 'chat', dateForDay(get().day, get().startedAt))") &&
+    storeSource.includes("addWorkout(input, 'chat', dateForDay(get().day, get().startedAt))"),
+  'i log chat finiscono nel giorno di gioco mostrato da SYNC',
 );
 check(
   netlifyRuntime.includes("occupied ? 'extra' : slot"),

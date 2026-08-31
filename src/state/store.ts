@@ -3173,9 +3173,14 @@ export const useApp = create<AppState>()(
             return { ok: e.ok, error: e.error };
           },
           readMe: (section) => healthJournalReport(section),
-          logMeal: (input) => { addMeal(input, 'chat'); },
+          /* La schermata SYNC legge il giorno di gioco. In una partita portata
+             avanti dal DEV, `new Date()` e quel giorno possono divergere:
+             datare qui i log col telefono li salva davvero, ma li rende
+             invisibili nel SYNC corrente. Nel gioco normale le due date
+             coincidono; nella simulazione questa è l'unica data coerente. */
+          logMeal: (input) => { addMeal(input, 'chat', dateForDay(get().day, get().startedAt)); },
           updateMeal: (slot, patch) => updateLatestMeal(slot, patch),
-          logWorkout: (input) => { addWorkout(input, 'chat'); },
+          logWorkout: (input) => { addWorkout(input, 'chat', dateForDay(get().day, get().startedAt)); },
           updateWorkout: (patch) => updateLatestWorkout(patch),
           logWeight: (kg) => { addWeight(kg, 'chat'); },
           updateWeight: (kg) => updateLatestWeight(kg),
