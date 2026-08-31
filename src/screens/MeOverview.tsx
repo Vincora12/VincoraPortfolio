@@ -31,7 +31,6 @@ export function MeOverviewScreen({ onGo: _onGo }: { onGo: (o: Overlay) => void }
   // pur avendo i pasti correttamente persistiti nel journal.
   const gameDay = localDay(dateForDay(day, startedAt));
   const meals = journal.meals.filter((x) => localDay(new Date(x.at)) === gameDay);
-  const workouts = journal.workouts.filter((x) => localDay(new Date(x.at)) === gameDay);
   const total = meals.reduce((s, x) => ({ kcal: s.kcal + x.kcal, protein: s.protein + x.protein, carbs: s.carbs + x.carbs, fat: s.fat + x.fat }), { kcal: 0, protein: 0, carbs: 0, fat: 0 });
   const askAi = (prompt: string) => window.dispatchEvent(new CustomEvent('vinzmon-open-chat', { detail: { prompt } }));
   const remove = (kind: 'meal' | 'workout' | 'weight', id: string) => {
@@ -40,7 +39,7 @@ export function MeOverviewScreen({ onGo: _onGo }: { onGo: (o: Overlay) => void }
   return <div className="screen me-health">
     <nav className="me-health__tabs">{([['today', 'OGGI'], ['diet', 'DIETA'], ['sport', 'SPORT'], ['memory', 'MEMORY']] as const).map(([id, label]) => <button type="button" key={id} aria-current={view === id ? 'page' : undefined} onClick={() => setView(id)}>{label}</button>)}</nav>
     <div className="me-health__scroll" ref={scrollRef}>
-      {view === 'today' && <TodayRecap journal={journal} meals={meals} workouts={workouts} total={total} />}
+      {view === 'today' && <TodayRecap journal={journal} total={total} />}
       {view === 'diet' && <><MeCalendar journal={journal} mode="diet" /><Section title="PIANO ALIMENTARE">{journal.dietPlan ? <article className="me-health__plan"><h2>{journal.dietPlan.title}</h2><p>{journal.dietPlan.text}</p><small>Aggiornato {new Date(journal.dietPlan.updatedAt).toLocaleDateString('it-IT')}</small></article> : <Empty text="Allega la dieta in chat: VINZ.MON la leggerà e la salverà qui." />}</Section><Section title="STORICO PASTI">{journal.meals.length ? [...journal.meals].reverse().map(x => <Row key={x.id} title={x.slot} text={x.description} meta={`${x.kcal} kcal`} when={new Date(x.at).toLocaleDateString('it-IT')} chat={x.source === 'chat'} remove={() => remove('meal', x.id)} />) : <Empty text="Lo storico si riempirà dalla chat o dal log manuale." />}</Section></>}
       {view === 'sport' && <><button type="button" className="me-health__start-timer" onClick={() => setTimerOpen(true)}><Icon name="workout" /><span><strong>ALLENAMENTO GUIDATO</strong><small>Timer esercizio, recupero e serie</small></span><b>AVVIA</b></button><MeCalendar journal={journal} mode="sport" /><Section title="PIANO ALLENAMENTO" action={journal.workoutPlan ? 'MODIFICA CON AI' : 'SCRIVI CON AI'} click={() => askAi(journal.workoutPlan ? 'Modifica il mio piano di allenamento attuale: ' : 'Creami un nuovo piano di allenamento. Prima fammi le domande necessarie: ')}>{journal.workoutPlan ? <article className="me-health__plan"><h2>{journal.workoutPlan.title}</h2><p>{journal.workoutPlan.text}</p><small>Aggiornato {new Date(journal.workoutPlan.updatedAt).toLocaleDateString('it-IT')}</small></article> : <Empty text="Crea il tuo piano con la chat: giorni, esercizi, serie, recuperi e progressione resteranno qui." />}</Section><Section title="ALLENAMENTI SVOLTI" action="REGISTRA CON AI" click={() => askAi('Registra questo allenamento svolto: ')}>{journal.workouts.length ? [...journal.workouts].reverse().map(x => <Row key={x.id} title={x.title} text={x.details} meta={`${x.minutes} minuti`} when={new Date(x.at).toLocaleDateString('it-IT')} chat={x.source === 'chat'} remove={() => remove('workout', x.id)} />) : <Empty text="Racconta un allenamento in chat oppure allega una foto." />}</Section></>}
       {view === 'memory' && <MemoryView memory={memory} error={memoryError} retry={loadMemory} />}
@@ -107,21 +106,9 @@ function WorkoutTimer({ onClose }: { onClose: () => void }) {
   </section>;
 }
 
-function TodayRecap({ journal, meals, workouts, total }: { journal: HealthJournal; meals: HealthJournal['meals']; workouts: HealthJournal['workouts']; total: HealthJournal['targets'] }) {
-  const workout = workouts.at(-1);
-  const weight = journal.weights.at(-1)?.kg;
-  const fixedMeals = new Set(meals.filter(x => x.slot !== 'extra').map(x => x.slot)).size;
-  const extras = meals.filter(x => x.slot === 'extra').length;
+function TodayRecap({ journal, total }: { journal: HealthJournal; total: HealthJournal['targets'] }) {
   return <>
     <Nutrition total={total} targets={journal.targets} />
-    <section className="me-health__today">
-      <h2>OGGI</h2>
-      <div>
-        <article><Icon name="tell" /><strong>{fixedMeals}<small> / 5</small></strong><span>{extras ? `PASTI · ${extras} EXTRA` : 'PASTI'}</span></article>
-        <article><Icon name="workout" /><strong>{workout?.title ?? 'RIPOSO'}</strong><span>{workout ? `${workout.minutes} MIN` : 'NESSUN LOG'}</span></article>
-        <article><Icon name="measure" /><strong>{weight ? weight.toFixed(1) : '—'}<small>{weight ? ' KG' : ''}</small></strong><span>ULTIMO PESO</span></article>
-      </div>
-    </section>
     <TodayChecklistScreen embedded defaultDetailsOpen />
   </>;
 }

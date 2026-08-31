@@ -4570,7 +4570,7 @@
   color: #f7f7f9;
   color-scheme: dark;
 }
-.me-health__scroll { padding: 10px 18px 22px; background: var(--mh-bg); scrollbar-color: var(--mh-accent) var(--mh-bg); }
+.me-health__scroll { padding: 10px 18px calc(116px + env(safe-area-inset-bottom)); background: var(--mh-bg); scrollbar-color: var(--mh-accent) var(--mh-bg); scroll-padding-bottom: calc(116px + env(safe-area-inset-bottom)); }
 .me-health__goal,
 .me-health__nutrition,
 .me-health__section,
@@ -4688,7 +4688,7 @@
 
 /* SYNC — la costanza diventa una risorsa leggibile, non un altro punteggio. */
 .sync-check { --sync-workout: var(--char-secondary, #48d9ec); flex: 1 1 auto; min-height: 0; display: grid; align-content: center; padding-top: 12px; }
-.sync-check--embedded { min-height: auto; display: block; padding: 0 0 16px; }
+.sync-check--embedded { min-height: auto; display: block; overflow: visible; padding: 0; }
 .sync-check__day { position: absolute; top: max(10px, env(safe-area-inset-top)); left: 24px; color: #787b84; font: 600 9px/1 var(--font-mono); letter-spacing: .12em; }
 .sync-check__hero { min-height: 330px; display: grid; place-items: center; }
 /* 🔷 «Deve riempirsi in senso orario, a trattini, non con una linea che si
@@ -4750,6 +4750,25 @@
 .sync-check__signals span[data-on='true'] { background: var(--tc-accent); opacity: 1; box-shadow: 0 0 0 4px color-mix(in srgb, var(--tc-accent) 14%, transparent); }
 .sync-check__signals .sync-check__workouts span { border-color: var(--sync-workout); }
 .sync-check__signals .sync-check__workouts span[data-on='true'] { background: var(--sync-workout); box-shadow: 0 0 0 4px color-mix(in srgb, var(--sync-workout) 14%, transparent); }
+.sync-check__overview { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(90px, 1fr); border-block: 1px solid #29292e; }
+.sync-check__overview > div { min-width: 0; padding: 13px 12px 12px; }
+.sync-check__overview > div + div { border-left: 1px dashed #565962; }
+.sync-check__overview header { display: flex; align-items: baseline; gap: 7px; margin-bottom: 12px; }
+.sync-check__overview header strong { color: #fff; font: italic 850 17px/1 var(--font-display); }
+.sync-check__overview header span { color: #aeb1ba; font: 600 7px/1 var(--font-mono); letter-spacing: .1em; }
+.sync-check__overview > div > div { display: flex; align-items: flex-start; gap: 6px; min-width: 0; }
+.sync-check__overview i { min-width: 0; flex: 1 1 0; display: grid; justify-items: center; gap: 5px; color: #555861; font-style: normal; }
+.sync-check__overview i[data-on='true'] { color: var(--tc-accent); }
+.sync-check__activity-icons i[data-on='true'] { color: var(--sync-workout); }
+.sync-check__overview svg { width: 22px; height: 22px; }
+.sync-check__overview small { width: 100%; overflow: hidden; color: currentColor; font: 500 5px/1 var(--font-mono); letter-spacing: .02em; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
+.sync-check--embedded .sync-check__details-toggle { width: auto; min-height: 44px; margin: 0 auto; padding: 0 16px; gap: 7px; font-size: 8px; letter-spacing: .08em; }
+.sync-check--embedded .sync-check__details-toggle span { font-size: 12px; }
+.sync-check__additions { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid #29292e; }
+.sync-check__additions button { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 0; border-left: 1px solid #29292e; background: transparent; color: var(--tc-accent); font: 600 7px/1 var(--font-mono); letter-spacing: .07em; }
+.sync-check__additions button:first-child { border-left: 0; }
+.sync-check__additions svg { width: 13px; height: 13px; }
+.sync-check__additions button:focus-visible { outline: 2px solid var(--tc-accent); outline-offset: -3px; }
 .sync-check__details-toggle { width: 100%; min-height: 48px; display: flex; align-items: center; justify-content: center; gap: 10px; border: 0; background: transparent; color: #b8bac1; font: 700 9px/1 var(--font-mono); letter-spacing: .12em; }
 .sync-check__details-toggle span { color: var(--tc-accent); font-size: 15px; }
 .sync-check__details { padding-top: 4px; animation: sync-details-in 220ms ease-out both; }

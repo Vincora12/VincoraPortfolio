@@ -16,6 +16,15 @@ export type IconName =
   | 'tell'
   | 'measure'
   | 'workout'
+  | 'mealBreakfast'
+  | 'mealSnack'
+  | 'mealLunch'
+  | 'mealAfternoon'
+  | 'mealDinner'
+  | 'run'
+  | 'dance'
+  | 'cycle'
+  | 'swim'
   | 'scan'
   | 'close'
   | 'left'
@@ -95,6 +104,51 @@ const PATHS: Record<IconName, ReactElement> = {
   workout: (
     <>
       <path d="M4 9v6M20 9v6M7 6v12M17 6v12M7 12h10" />
+    </>
+  ),
+  mealBreakfast: (
+    <>
+      <path d="M4 8h12v7a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5zM16 10h2a3 3 0 0 1 0 6h-2M7 4v2M11 3v3" />
+    </>
+  ),
+  mealSnack: (
+    <>
+      <path d="M12 7c-2-3-6-2-7 2-1 4 2 11 5 11 1 0 1.4-.6 2-.6s1 .6 2 .6c3 0 6-7 5-11-1-4-5-5-7-2zM12 7c0-2 1-4 4-4" />
+    </>
+  ),
+  mealLunch: (
+    <>
+      <path d="M4 11h16a8 8 0 0 1-16 0zM7 7h10M9 4v3M15 4v3" />
+    </>
+  ),
+  mealAfternoon: (
+    <>
+      <path d="M5 18 12 5l7 13zM8 14h8M10 10h4" />
+    </>
+  ),
+  mealDinner: (
+    <>
+      <circle cx="12" cy="13" r="7" /><circle cx="12" cy="13" r="3" /><path d="M5 4v5M3 4v3c0 1.1.9 2 2 2s2-.9 2-2V4M19 4v16" />
+    </>
+  ),
+  run: (
+    <>
+      <circle cx="14" cy="4" r="2" /><path d="m12 8 3 3 3 1M12 8 8 12l3 3-4 5M11 15h5l3 5" />
+    </>
+  ),
+  dance: (
+    <>
+      <circle cx="12" cy="4" r="2" /><path d="m12 7-3 5-5-2M12 7l4 4 4-3M9 12l3 3-3 6M12 15l5 5" />
+    </>
+  ),
+  cycle: (
+    <>
+      <circle cx="6" cy="17" r="4" /><circle cx="18" cy="17" r="4" /><path d="m6 17 4-8 4 8H6l5-5h5M14 7h3M10 9 8 6" />
+    </>
+  ),
+  swim: (
+    <>
+      <circle cx="16" cy="6" r="2" /><path d="m3 13 5-4 5 3 5-2 3 2M3 17c2-1.5 4-1.5 6 0s4 1.5 6 0 4-1.5 6 0M4 21c2-1.2 4-1.2 6 0s4 1.2 6 0 3-1.2 5 0" />
     </>
   ),
   scan: (

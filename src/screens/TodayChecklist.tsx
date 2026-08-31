@@ -7,17 +7,29 @@ import { dateForDay } from '../engine/progression';
 import { EXPRESSION_SPEC } from '../engine/assets';
 import { useApp } from '../state/store';
 import { useAssetUrl } from '../system/AssetSlot';
-import { Icon } from '../system/Icon';
+import { Icon, type IconName } from '../system/Icon';
 import { SyncDial } from '../system/SyncDial';
 
-const MEALS: Array<{ slot: Exclude<MealLog['slot'], 'extra'>; label: string }> = [
-  { slot: 'colazione', label: 'COLAZIONE' }, { slot: 'spuntino', label: 'SPUNTINO' },
-  { slot: 'pranzo', label: 'PRANZO' }, { slot: 'merenda', label: 'MERENDA' }, { slot: 'cena', label: 'CENA' },
+const MEALS: Array<{ slot: Exclude<MealLog['slot'], 'extra'>; label: string; icon: IconName }> = [
+  { slot: 'colazione', label: 'COLAZIONE', icon: 'mealBreakfast' },
+  { slot: 'spuntino', label: 'SPUNTINO', icon: 'mealSnack' },
+  { slot: 'pranzo', label: 'PRANZO', icon: 'mealLunch' },
+  { slot: 'merenda', label: 'MERENDA', icon: 'mealAfternoon' },
+  { slot: 'cena', label: 'CENA', icon: 'mealDinner' },
 ];
 const dayKey = (date: Date) => `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
 type EditTarget =
   | { kind: 'meal'; label: string; slot: MealLog['slot']; entry?: MealLog }
   | { kind: 'workout'; label: string; entry?: WorkoutLog };
+
+function workoutIcon(workout: WorkoutLog): IconName {
+  const text = `${workout.title} ${workout.details}`.toLocaleLowerCase('it-IT');
+  if (/corsa|running|jog|tapis/.test(text)) return 'run';
+  if (/hip.?hop|danza|ballo|dance/.test(text)) return 'dance';
+  if (/bici|bicicletta|bike|cicl/.test(text)) return 'cycle';
+  if (/nuoto|nuot|swim/.test(text)) return 'swim';
+  return 'workout';
+}
 
 export function TodayChecklistScreen({ embedded = false, defaultDetailsOpen = false }: { embedded?: boolean; defaultDetailsOpen?: boolean } = {}) {
   const [journal, setJournal] = useState(readHealthJournal);
@@ -180,10 +192,23 @@ export function TodayChecklistScreen({ embedded = false, defaultDetailsOpen = fa
       />
     </header>}
 
-    <section className="sync-check__signals" aria-label="Completamento di oggi">
+    {!embedded && <section className="sync-check__signals" aria-label="Completamento di oggi">
       <div aria-label={`${MEALS.filter(({ slot }) => slots.has(slot)).length} pasti su 5 registrati`}>{MEALS.map(({ slot, label }) => <span key={slot} data-on={slots.has(slot)} title={label} />)}</div>
       <div className="sync-check__workouts" aria-label={`${todayWorkouts.length} allenamenti registrati`}>{Array.from({ length: Math.max(1, todayWorkouts.length) }, (_, index) => <span key={index} data-on={index < todayWorkouts.length} />)}</div>
-    </section>
+    </section>}
+
+    {embedded && <section className="sync-check__overview" aria-label="Attività registrate oggi">
+      <div className="sync-check__meal-icons">
+        <header><strong>{MEALS.filter(({ slot }) => slots.has(slot)).length}/5</strong><span>PASTI</span></header>
+        <div>{MEALS.map(({ slot, label, icon }) => <i key={slot} data-on={slots.has(slot)} title={label}><Icon name={icon} /><small>{label}</small></i>)}</div>
+      </div>
+      <div className="sync-check__activity-icons">
+        <header><strong>{todayWorkouts.length || '—'}</strong><span>ATTIVITÀ</span></header>
+        <div>{todayWorkouts.length
+          ? todayWorkouts.map((workout) => <i key={workout.id} data-on="true" title={workout.title}><Icon name={workoutIcon(workout)} /><small>{workout.title}</small></i>)
+          : <i title="Riposo"><Icon name="workout" /><small>RIPOSO</small></i>}</div>
+      </div>
+    </section>}
 
     <button type="button" className="sync-check__details-toggle" aria-expanded={detailsOpen} aria-controls={detailsId} onClick={() => setDetailsOpen((open) => !open)}>
       {detailsOpen ? 'CHIUDI' : 'VEDI OGGI'} <span aria-hidden="true">{detailsOpen ? '↑' : '↓'}</span>
@@ -195,6 +220,10 @@ export function TodayChecklistScreen({ embedded = false, defaultDetailsOpen = fa
         return <LongPressRow key={slot} done={Boolean(entry)} label={`${label}. Tieni premuto per ${entry ? 'completare o correggere' : 'registrare'}.`} onLongPress={() => openEditor({ kind: 'meal', slot, label, ...(entry ? { entry } : {}) })} onRemove={entry ? () => removeEntry('meal', entry.id, label) : undefined}><span aria-hidden="true" /><div><strong>{label}</strong><small>{entry?.description ?? 'DA REGISTRARE'}</small></div></LongPressRow>;
       })}
       {todayMeals.filter((meal) => meal.slot === 'extra').map((meal, index) => <LongPressRow key={meal.id} done label={`Extra ${index + 1}. Tieni premuto per completare o correggere.`} onLongPress={() => openEditor({ kind: 'meal', slot: 'extra', label: `EXTRA ${index + 1}`, entry: meal })} onRemove={() => removeEntry('meal', meal.id, `extra ${index + 1}`)}><span aria-hidden="true" /><div><strong>EXTRA {index + 1}</strong><small>{meal.description}</small></div></LongPressRow>)}
+      {embedded && <div className="sync-check__additions">
+        <button type="button" onClick={() => openEditor({ kind: 'meal', slot: 'extra', label: 'PASTO EXTRA' })}><Icon name="plus" /> PASTO EXTRA</button>
+        <button type="button" onClick={() => openEditor({ kind: 'workout', label: 'ALLENAMENTO' })}><Icon name="plus" /> ALLENAMENTO</button>
+      </div>}
       {todayWorkouts.length === 0
         ? <LongPressRow done={false} label="Allenamento. Tieni premuto per registrare." onLongPress={() => openEditor({ kind: 'workout', label: 'ALLENAMENTO' })}><span aria-hidden="true" /><div><strong>ALLENAMENTO</strong><small>DA REGISTRARE</small></div></LongPressRow>
         : todayWorkouts.map((workout, index) => <LongPressRow key={workout.id} done className="sync-check__workout-row" label={`Allenamento ${index + 1}. Tieni premuto per completare o correggere.`} onLongPress={() => openEditor({ kind: 'workout', label: `ALLENAMENTO ${todayWorkouts.length > 1 ? index + 1 : ''}`.trim(), entry: workout })} onRemove={() => removeEntry('workout', workout.id, `allenamento ${todayWorkouts.length > 1 ? index + 1 : ''}`.trim())}><span aria-hidden="true" /><div><strong>ALLENAMENTO {todayWorkouts.length > 1 ? index + 1 : ''}</strong><small>{workout.title}</small></div></LongPressRow>)}
