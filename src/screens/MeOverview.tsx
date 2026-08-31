@@ -4,18 +4,19 @@ import { useApp } from '../state/store';
 import { Icon } from '../system/Icon';
 import { STAT_KEYS, isKnown, type HealthState } from '../engine/types';
 import { HEALTH_JOURNAL_EVENT, addWorkout, readHealthJournal, removeHealthEntry, undoMeBlocks, type HealthJournal, type MeBlock } from '../engine/healthJournal';
+import { dateForDay } from '../engine/progression';
 import { MeCalendar } from './MeCalendar';
 import { savedToken } from '../brain/stream';
 
 type View = 'today' | 'diet' | 'sport' | 'memory';
 const visibleView = (view: HealthJournal['display']['focus']): View => view === 'progress' ? 'today' : view;
 const localDay = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-const today = () => localDay(new Date());
-const isToday = (at: string) => localDay(new Date(at)) === today();
 const time = (at: string) => new Intl.DateTimeFormat('it-IT', { hour: '2-digit', minute: '2-digit' }).format(new Date(at));
 
 export function MeOverviewScreen({ onGo: _onGo }: { onGo: (o: Overlay) => void }) {
   const health = useApp((s) => s.health);
+  const day = useApp((s) => s.day);
+  const startedAt = useApp((s) => s.startedAt);
   const [journal, setJournal] = useState(readHealthJournal);
   const [view, setView] = useState<View>(() => visibleView(readHealthJournal().display.focus));
   const [timerOpen, setTimerOpen] = useState(false);
@@ -27,8 +28,12 @@ export function MeOverviewScreen({ onGo: _onGo }: { onGo: (o: Overlay) => void }
   const scrollRef = useRef<HTMLDivElement>(null);
   useEffect(() => { const update = () => { const next = readHealthJournal(); setJournal(next); if (next.display.focus !== configuredFocus.current) { configuredFocus.current = next.display.focus; setView(visibleView(next.display.focus)); } }; window.addEventListener(HEALTH_JOURNAL_EVENT, update); return () => window.removeEventListener(HEALTH_JOURNAL_EVENT, update); }, []);
   useEffect(() => { scrollRef.current?.scrollTo({ top: 0 }); }, [view]);
-  const meals = journal.meals.filter((x) => isToday(x.at));
-  const workouts = journal.workouts.filter((x) => isToday(x.at));
+  // Chat e SYNC scrivono i log sulla data del giorno di gioco. ME deve usare
+  // la stessa chiave, altrimenti un giorno simulato/recuperato appare vuoto
+  // pur avendo i pasti correttamente persistiti nel journal.
+  const gameDay = localDay(dateForDay(day, startedAt));
+  const meals = journal.meals.filter((x) => localDay(new Date(x.at)) === gameDay);
+  const workouts = journal.workouts.filter((x) => localDay(new Date(x.at)) === gameDay);
   const total = meals.reduce((s, x) => ({ kcal: s.kcal + x.kcal, protein: s.protein + x.protein, carbs: s.carbs + x.carbs, fat: s.fat + x.fat }), { kcal: 0, protein: 0, carbs: 0, fat: 0 });
   const askAi = (prompt: string) => window.dispatchEvent(new CustomEvent('vinzmon-open-chat', { detail: { prompt } }));
   const remove = (kind: 'meal' | 'workout' | 'weight', id: string) => {
