@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { readHealthJournal, HEALTH_JOURNAL_EVENT, type MealLog } from '../engine/healthJournal';
+import { alignTodayLogsToGameDay, readHealthJournal, HEALTH_JOURNAL_EVENT, type MealLog } from '../engine/healthJournal';
 import { completeDayStreak, saveEvolutionWish, syncBalance, syncRewardProgress, wishNeedsMega, type EvolutionWish } from '../engine/syncRewards';
 import { dateForDay } from '../engine/progression';
 import { useApp } from '../state/store';
@@ -33,8 +33,9 @@ export function TodayChecklistScreen() {
   useEffect(() => {
     const update = () => setJournal(readHealthJournal());
     window.addEventListener(HEALTH_JOURNAL_EVENT, update);
+    setJournal(alignTodayLogsToGameDay(dateForDay(day, startedAt)));
     return () => window.removeEventListener(HEALTH_JOURNAL_EVENT, update);
-  }, []);
+  }, [day, startedAt]);
 
   const today = dayKey(gameToday);
   const todayMeals = journal.meals.filter((item) => dayKey(new Date(item.at)) === today);

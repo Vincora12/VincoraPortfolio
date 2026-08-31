@@ -79,6 +79,39 @@ function save(next: HealthJournal): HealthJournal {
 const id = (kind: string) => `${kind}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 const localDay = (date: Date) => `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
 
+/**
+ * Riallinea i log inseriti oggi prima che chat e SYNC condividessero la
+ * stessa data. È una migrazione stretta: sposta solo pasti/allenamenti reali
+ * di oggi verso il giorno di gioco corrente, non i dati simulati dal DEV e
+ * non la cronologia più vecchia. Dopo il primo salvataggio diventa un no-op.
+ */
+export function alignTodayLogsToGameDay(targetDate: Date, now: Date = new Date()): HealthJournal {
+  const journal = readHealthJournal();
+  const sourceDay = localDay(now);
+  const targetDay = localDay(targetDate);
+  if (sourceDay === targetDay) return journal;
+
+  const alignAt = (at: string) => {
+    const original = new Date(at);
+    const aligned = new Date(targetDate);
+    aligned.setHours(original.getHours(), original.getMinutes(), original.getSeconds(), original.getMilliseconds());
+    return aligned.toISOString();
+  };
+  let changed = false;
+  const meals = journal.meals.map((meal) => {
+    if (meal.source === 'dev' || localDay(new Date(meal.at)) !== sourceDay) return meal;
+    changed = true;
+    return { ...meal, at: alignAt(meal.at) };
+  });
+  const workouts = journal.workouts.map((workout) => {
+    if (workout.source === 'dev' || localDay(new Date(workout.at)) !== sourceDay) return workout;
+    changed = true;
+    return { ...workout, at: alignAt(workout.at) };
+  });
+
+  return changed ? save({ ...journal, meals, workouts }) : journal;
+}
+
 /* 🔷 `at` esplicito serve a UN chiamante solo: il DEV, che dichiara un pasto
    per il giorno di gioco che sta simulando — non per «adesso». Senza questo
    parametro ogni chiamata finirebbe sempre su `new Date()`, cioè su OGGI per
