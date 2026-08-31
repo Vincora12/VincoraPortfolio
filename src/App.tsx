@@ -665,6 +665,13 @@ function canPullSystemSheet(target: EventTarget | null, boundary: HTMLElement): 
   return true;
 }
 
+const SYSTEM_SHEET_PULL_ZONE_RATIO = 1 / 8;
+
+function isSystemSheetPullOrigin(clientY: number): boolean {
+  const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
+  return clientY <= viewportHeight * SYSTEM_SHEET_PULL_ZONE_RATIO;
+}
+
 /**
  * Il vano tecnico vive dietro la scheda dell'app: non è un overlay e non
  * occupa spazio finché l'utente non tira davvero la superficie dall'alto.
@@ -695,7 +702,9 @@ function PullDownSystemSheet({ enabled, tray, children }: { enabled: boolean; tr
     if (!sheet || !enabled) return;
     const start = (event: TouchEvent) => {
       if (event.touches.length !== 1 || !canPullSystemSheet(event.target, sheet)) return;
-      gesture.current = { startY: event.touches[0].clientY, startOffset: open ? trayHeight() : 0, active: false };
+      const touch = event.touches[0];
+      if (!open && !isSystemSheetPullOrigin(touch.clientY)) return;
+      gesture.current = { startY: touch.clientY, startOffset: open ? trayHeight() : 0, active: false };
     };
     const move = (event: TouchEvent) => {
       const current = gesture.current;

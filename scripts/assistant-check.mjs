@@ -107,9 +107,11 @@ check(
 check(
   appSource.includes('PullDownSystemSheet') &&
     appSource.includes("enabled={phase === 'live' && !overlay}") &&
+    appSource.includes('const SYSTEM_SHEET_PULL_ZONE_RATIO = 1 / 8') &&
+    appSource.includes('!isSystemSheetPullOrigin(touch.clientY)') &&
     appStyles.includes('.system-tray') &&
     appStyles.includes('.proto-sheet[data-dragging'),
-  'i controlli tecnici live restano dietro la scheda e si rivelano tirando dall’alto',
+  'i controlli tecnici live restano dietro la scheda e si rivelano solo tirando dall’ottavo superiore',
 );
 check(
   !appSource.includes('proto-statusbar__day') && todayChecklistSource.includes('<span className="sync-check__day">GIORNO {day}</span>'),
