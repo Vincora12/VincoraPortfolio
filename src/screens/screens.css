@@ -3979,7 +3979,7 @@
    di prima senza una riga in più. */
 .archive__switch {
   display: flex;
-  min-height: calc(60px + env(safe-area-inset-top));
+  min-height: calc(34px + env(safe-area-inset-top));
   align-items: stretch;
   padding-top: env(safe-area-inset-top);
   border-bottom: 0;
@@ -3995,8 +3995,8 @@
   flex: 1;
   min-width: 0;
   white-space: nowrap;
-  min-height: 60px;
-  padding: var(--u3) 2px;
+  min-height: 34px;
+  padding: var(--u) 2px;
   border: 0;
   border-radius: 0;
   background: var(--char-primary);
@@ -4017,11 +4017,11 @@
    nastro nel colore del .mon. Il testo usa `--char-on-primary`, quindi resta
    leggibile anche quando il Color DNA cambia completamente. */
 .archive__seg:first-child {
-  border-start-start-radius: 22px;
+  border-start-start-radius: 0;
 }
 
 .archive__seg:last-child {
-  border-start-end-radius: 22px;
+  border-start-end-radius: 17px;
 }
 
 .archive__seg + .archive__seg:not([aria-selected='true']) {
@@ -4032,7 +4032,7 @@
 .archive__seg[aria-selected='true'] {
   position: relative;
   z-index: 1;
-  border-radius: 22px 22px 0 0;
+  border-radius: 0 17px 0 0;
   background: var(--white);
   color: var(--ink);
   box-shadow:
