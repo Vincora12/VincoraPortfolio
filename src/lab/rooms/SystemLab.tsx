@@ -143,6 +143,9 @@ function Machines() {
 function Setup() {
   const token = useApp((s) => s.token);
   const setToken = useApp((s) => s.setToken);
+  const day = useApp((s) => s.day);
+  const dayBoundaryTime = useApp((s) => s.dayBoundaryTime);
+  const setDayBoundaryTime = useApp((s) => s.setDayBoundaryTime);
   const [setup, setSetup] = useState<Awaited<ReturnType<typeof loadSetup>> | null>(null);
   const [ping, setPing] = useState<Awaited<ReturnType<typeof loadPing>> | null>(null);
   const [checking, setChecking] = useState(false);
@@ -196,6 +199,23 @@ function Setup() {
             ['IMAGES', <Status label={ready?.draw ? 'READY' : 'MISSING'} ok={ready?.draw === true} />],
           ]}
         />
+      </Section>
+
+      <Section
+        title="DAY START TIME"
+        note="Il confine ricorrente del giorno VINZ.MON. Cambiarlo non riscrive la storia: il tempo reale può solo recuperare un giorno rimasto indietro."
+      >
+        <div className="day-boundary-control">
+          <label htmlFor="day-boundary-time">INIZIO GIORNO</label>
+          <input
+            id="day-boundary-time"
+            type="time"
+            step={60}
+            value={dayBoundaryTime}
+            onChange={(event) => setDayBoundaryTime(event.target.value)}
+          />
+        </div>
+        <Rows rows={[["CURRENT GAME DAY", String(day)], ["BOUNDARY", dayBoundaryTime]]} />
       </Section>
 
       <Section title="VINZMON TOKEN">

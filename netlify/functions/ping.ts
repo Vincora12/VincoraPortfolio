@@ -85,6 +85,13 @@ const PROBES: Probe[] = [
     ids: (b) => dataIds(b),
   },
   {
+    provider: 'xai',
+    envVar: 'XAI_API_KEY',
+    url: 'https://api.x.ai/v1/models',
+    headers: (key) => ({ authorization: `Bearer ${key}` }),
+    ids: (b) => dataIds(b),
+  },
+  {
     provider: 'google',
     envVar: 'GOOGLE_API_KEY',
     /* Google la chiave la vuole nell'URL. È la stessa forma che usa

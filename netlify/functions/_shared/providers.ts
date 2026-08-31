@@ -993,6 +993,15 @@ async function moonshot(req: ProviderRequest): Promise<ProviderResult> {
   return openAiProtocol('moonshot', 'https://api.moonshot.ai/v1/chat/completions', key, req);
 }
 
+async function xai(req: ProviderRequest): Promise<ProviderResult> {
+  const key = process.env.XAI_API_KEY;
+  if (!key) return fail(req.model, 'XAI_API_KEY mancante');
+  return openAiProtocol('xai', 'https://api.x.ai/v1/chat/completions', key, {
+    ...req,
+    effort: req.effort === 'none' || !req.effort ? 'low' : req.effort,
+  });
+}
+
 /**
  * 🔷 §10 — OpenAI serve anche del TESTO, da quando il prompt lo scrive un
  * modello. Le immagini continuano a passare da `generateImage`: hanno una
@@ -1181,6 +1190,7 @@ const ADAPTERS: Record<Provider, (r: ProviderRequest) => Promise<ProviderResult>
   anthropic,
   google,
   moonshot,
+  xai,
   // Le immagini non passano da qui: hanno una forma di risposta diversa e
   // fingere che sia la stessa produrrebbe un tipo che mente.
   openai: openaiText,

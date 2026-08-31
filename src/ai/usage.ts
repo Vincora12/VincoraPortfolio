@@ -67,6 +67,7 @@ export const PRICES: Record<string, { input: number; output: number }> = {
   'gpt-5.6-sol': { input: 5, output: 30 },
   'gpt-5.6-terra': { input: 2, output: 12 },
   'gpt-5.6-luna': { input: 0.2, output: 1.2 },
+  'grok-4.6': { input: 2, output: 6 },
   'gemini-2.5-flash': { input: 0.3, output: 2.5 },
   default: { input: 5, output: 25 },
 };

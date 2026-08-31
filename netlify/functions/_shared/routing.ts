@@ -44,7 +44,7 @@ export type Capability =
    */
   | 'prompt-compile';
 
-export type Provider = 'anthropic' | 'google' | 'openai' | 'moonshot';
+export type Provider = 'anthropic' | 'google' | 'openai' | 'moonshot' | 'xai';
 
 /** Cosa una capacità pretende da chi la serve. */
 export interface Needs {
@@ -101,6 +101,10 @@ const CAN: Record<Provider, Needs> = {
      Anthropic non succederebbe niente e con Moonshot la cache non aggancerebbe
      MAI. Stesso codice, dieci volte il prezzo, nessun errore. */
   moonshot: { promptCache: true, vision: true, thinking: true, webSearch: false },
+  /* Grok usa il protocollo compatibile OpenAI. La cache è implicita e il
+     modello supporta ragionamento; la ricerca xAI non è ancora collegata al
+     nostro adattatore, quindi la scelta non la promette in LAB. */
+  xai: { promptCache: true, vision: true, thinking: true, webSearch: false },
 };
 
 export interface Route {
@@ -262,6 +266,15 @@ export const VOICE_CHOICES: VoiceChoice[] = [
     it: 'Quello con cui il personaggio è stato scritto e tarato. È il metro di paragone, non necessariamente il migliore per te.',
     webSearch: true,
     data: 'Anthropic dichiara di non usare i dati delle API per addestrare i modelli.',
+  },
+  {
+    provider: 'xai',
+    model: 'grok-4.6',
+    label: 'Grok 4.6',
+    price: { input: 2, output: 6 },
+    it: 'Il modello chat corrente di xAI. Qui usa la stessa voce e memoria di VINZ.MON; la ricerca web xAI non è ancora collegata.',
+    webSearch: false,
+    data: 'Le conversazioni vengono inviate alla xAI API: verifica retention e impostazioni dati del tuo account prima di usarla con informazioni personali.',
   },
   {
     provider: 'moonshot',

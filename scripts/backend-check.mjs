@@ -36,6 +36,8 @@ export { costOf, currentMonth, MONTHLY_CAP_USD, WARN_AT, COST_PER_WEB_SEARCH } f
 export { merge as mergeLessons } from '${cwd}/netlify/functions/lessons.ts';
 export { AI_STEPS, AI_STEP_ORDER, choicesFor, modelForStep, stepProblems } from '${cwd}/netlify/functions/_shared/routing.ts';
 export { migratedStepModels } from '${cwd}/src/state/migrateSteps.ts';
+export { realDayAt, realDayCatchUpCount, normalizeDayBoundaryTime } from '${cwd}/src/engine/progression.ts';
+export { callProvider } from '${cwd}/netlify/functions/_shared/providers.ts';
 `,
 );
 
@@ -150,6 +152,58 @@ check(
 check(
   m.resolveRoute('character-voice', 'kimi-k3').model === 'kimi-k3',
   'ma sulla capacita giusta la stessa scelta vale',
+);
+check(
+  m.VOICE_CHOICES.some((choice) => choice.provider === 'xai' && choice.model === 'grok-4.6') &&
+    m.resolveRoute('character-voice', 'grok-4.6').provider === 'xai',
+  'Grok compare nel catalogo voce e risolve sul provider xAI',
+);
+check(
+  m.modelForStep('voice', undefined) === 'claude-opus-5' &&
+    m.ROUTING['character-voice'].model === 'gpt-5.6-terra',
+  'aggiungere Grok non cambia la voce predefinita',
+);
+
+const previousFetch = globalThis.fetch;
+const previousXaiKey = process.env.XAI_API_KEY;
+let xaiRequest = null;
+process.env.XAI_API_KEY = 'test-xai-key-not-a-real-secret';
+globalThis.fetch = async (url, init) => {
+  xaiRequest = { url: String(url), init };
+  return new Response(JSON.stringify({
+    model: 'grok-4.6',
+    choices: [{ message: { content: 'ok' }, finish_reason: 'stop' }],
+    usage: { prompt_tokens: 10, completion_tokens: 2 },
+  }), { status: 200, headers: { 'content-type': 'application/json' } });
+};
+const xaiResult = await m.callProvider('xai', {
+  model: 'grok-4.6', system: [{ text: 'system' }], turns: [], user: 'ciao',
+  maxTokens: 32, effort: 'low',
+});
+globalThis.fetch = previousFetch;
+if (previousXaiKey === undefined) delete process.env.XAI_API_KEY;
+else process.env.XAI_API_KEY = previousXaiKey;
+check(
+  xaiResult.ok && xaiRequest?.url === 'https://api.x.ai/v1/chat/completions' &&
+    xaiRequest?.init?.headers?.authorization === 'Bearer test-xai-key-not-a-real-secret',
+  'la scelta Grok raggiunge davvero l\'endpoint xAI con la chiave server-side',
+);
+
+const start = new Date(2026, 7, 31, 18, 0, 0);
+check(
+  m.realDayAt(start.toISOString(), '02:00', new Date(2026, 8, 1, 1, 59, 0)) === 1 &&
+    m.realDayAt(start.toISOString(), '02:00', new Date(2026, 8, 1, 2, 0, 0)) === 2,
+  'il giorno VINZ.MON cambia esattamente al confine scelto',
+);
+check(
+  m.normalizeDayBoundaryTime('04:30') === '04:30' &&
+    m.normalizeDayBoundaryTime('29:90') === '00:00',
+  'il confine giornaliero viene validato e normalizzato',
+);
+check(
+  m.realDayCatchUpCount(12, start.toISOString(), '02:00', new Date(2026, 8, 5, 2, 0, 0)) === 0 &&
+    m.realDayCatchUpCount(1, start.toISOString(), '02:00', new Date(2026, 8, 2, 2, 0, 0)) === 2,
+  'il tempo reale recupera solo in avanti e non annulla i giorni simulati dal DEV',
 );
 check(
   m.resolveRoute('prompt-compile', 'claude-sonnet-5').provider === 'anthropic',

@@ -39,8 +39,8 @@ import {
   type Provider,
 } from './_shared/routing';
 
-/** I quattro fornitori che questo progetto sa chiamare. */
-const PROVIDERS: Provider[] = ['anthropic', 'google', 'openai', 'moonshot'];
+/** I fornitori che questo progetto sa chiamare. */
+const PROVIDERS: Provider[] = ['anthropic', 'google', 'openai', 'moonshot', 'xai'];
 
 /** Le variabili che l'app può usare, e a cosa servono in italiano. */
 const VARS = [
@@ -72,6 +72,12 @@ const VARS = [
     what: 'serve solo se scegli Kimi K3 per la voce',
     required: false,
     where: 'platform.moonshot.ai → API keys',
+  },
+  {
+    name: 'XAI_API_KEY',
+    what: 'serve solo se scegli Grok per la voce',
+    required: false,
+    where: 'console.x.ai → API Keys',
   },
   /* 🔷 brief Shortcuts §4 — un secondo segreto, non lo stesso di VINZMON_TOKEN
      con un altro nome: revocabile da solo, senza rompere il resto dell'app. */
@@ -175,6 +181,8 @@ function keyFor(provider: string): string {
     ? 'ANTHROPIC_API_KEY'
     : provider === 'moonshot'
       ? 'MOONSHOT_API_KEY'
+      : provider === 'xai'
+        ? 'XAI_API_KEY'
       : provider === 'google'
         ? 'GOOGLE_API_KEY'
         : 'OPENAI_API_KEY';

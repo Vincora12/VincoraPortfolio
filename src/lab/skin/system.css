@@ -51,6 +51,10 @@ h1{font-size:44px;line-height:.89;margin:0 0 14px;font-weight:900;font-style:ita
 .field{display:block;font-size:9px;color:#777;letter-spacing:.05em;margin-top:10px}
 .field input,.field textarea,.field select{width:100%;border:1px solid var(--line);background:#fff;padding:10px;font-size:11px;margin-top:4px}
 .field textarea{min-height:76px;resize:vertical}
+.day-boundary-control{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:10px 0 14px}
+.day-boundary-control label{font-size:9px;font-weight:900;letter-spacing:.08em}
+.day-boundary-control input{min-width:118px;min-height:42px;border:1px solid #111;border-radius:0;background:#fff;color:#111;padding:8px 10px;font:700 16px/1 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;text-align:center;color-scheme:light}
+.day-boundary-control input:focus-visible{outline:2px solid #111;outline-offset:3px}
 .secret{display:grid;grid-template-columns:1fr auto;gap:7px;margin-top:8px}
 .secret code{display:block;border:1px solid var(--line);padding:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:9px}
 .provider{border-bottom:1px solid var(--line);padding:12px 0}

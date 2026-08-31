@@ -23,6 +23,7 @@ import {
   DAILY_SIGNALS,
   PROGRESSION,
   canCloseDay,
+  dayBoundaryTimeForStart,
   dateForDay,
   dayStatus,
   emptyDay,
@@ -30,7 +31,9 @@ import {
   hiddenEventFor,
   knownSignals,
   nextEvent,
+  normalizeDayBoundaryTime,
   planContinuity,
+  realDayCatchUpCount,
   type ContinuityAxis,
   type ContinuityPlan,
   type DailySignalKey,
@@ -382,6 +385,10 @@ interface AppState {
    * tocca più: spostarla riscriverebbe la storia.
    */
   startedAt: string;
+  /** Ora locale che separa due giorni VINZ.MON senza riscrivere la storia. */
+  dayBoundaryTime: string;
+  /** Cambia solo il confine; il giorno può recuperare in avanti, mai arretrare. */
+  setDayBoundaryTime: (time: string) => void;
 
   health: HealthState;
   progression: Progression;
@@ -927,12 +934,15 @@ interface AppState {
 
 /* --- Stato iniziale -------------------------------------------------------- */
 
+const INITIAL_STARTED_AT = new Date().toISOString();
+
 const INITIAL = {
   /* 🔷 v4 §3 — chi apre l'app oggi comincia dal First Sync. I salvataggi
      vecchi tengono la loro fase: `persist` la ripristina e non passa di qui. */
   phase: 'first-sync' as Phase,
   day: 1,
-  startedAt: new Date().toISOString(),
+  startedAt: INITIAL_STARTED_AT,
+  dayBoundaryTime: dayBoundaryTimeForStart(INITIAL_STARTED_AT),
   health: initialHealthState(),
   progression: { bond: 0, sync: emptySync() } as Progression,
   days: {} as Record<number, DailySync>,
@@ -1551,12 +1561,20 @@ export const useApp = create<AppState>()(
       catchUpToRealDay: () => {
         const s = get();
         if (s.phase !== 'incubation' && s.phase !== 'live') return;
-        const elapsed = Math.floor((Date.now() - new Date(s.startedAt).getTime()) / 86_400_000) + 1;
-        const missing = Math.min(400, elapsed - s.day);
+        const missing = realDayCatchUpCount(
+          s.day,
+          s.startedAt,
+          s.dayBoundaryTime ?? dayBoundaryTimeForStart(s.startedAt),
+        );
         for (let i = 0; i < missing; i++) {
           if (get().phase !== 'incubation' && get().phase !== 'live') break;
           advanceOneDay(set, get);
         }
+      },
+
+      setDayBoundaryTime: (time) => {
+        set({ dayBoundaryTime: normalizeDayBoundaryTime(time) });
+        get().catchUpToRealDay();
       },
 
       /* --- Il primo .mon si estrae come tutti gli altri: due partite non
@@ -3532,6 +3550,7 @@ export const useApp = create<AppState>()(
           imageModel: get().imageModel,
           /* Come gli altri: è configurazione di questo browser, non partita. */
           stepModels: get().stepModels,
+          dayBoundaryTime: get().dayBoundaryTime,
           /* 🔒 LA TECA SOPRAVVIVE. È l'unica cosa che deve: ricominciare
              cancella la partita, non i ricordi che avevi deciso di tenere. */
           kept: get().kept,
@@ -3580,6 +3599,9 @@ export const useApp = create<AppState>()(
       onRehydrateStorage: () => (state) => {
         if (state?.dev.rarityThresholds) setRarityThresholds(state.dev.rarityThresholds);
         if (state) {
+          state.dayBoundaryTime = normalizeDayBoundaryTime(
+            state.dayBoundaryTime ?? dayBoundaryTimeForStart(state.startedAt),
+          );
           migrateStepModels(state);
           /* Anche i MON nati prima della Voice Card ricevono una carta
              persistente ricavata dai loro valori originali, senza ritirarli. */
@@ -4139,6 +4161,9 @@ function applyRemoteSave(local: AppState, data: RemoteSave): void {
   }
   useApp.setState({
     ...appState,
+    dayBoundaryTime: normalizeDayBoundaryTime(
+      appState.dayBoundaryTime ?? local.dayBoundaryTime ?? dayBoundaryTimeForStart(appState.startedAt ?? local.startedAt),
+    ),
     token: local.token,
     /* Stessa ragione del token: chi dà la voce è una scelta di QUESTO
        dispositivo. Un salvataggio scaricato non deve cambiartela sotto — e

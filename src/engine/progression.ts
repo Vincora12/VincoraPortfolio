@@ -194,6 +194,57 @@ export function dateForDay(day: number, startISO: string | null): Date {
   return d;
 }
 
+export const DEFAULT_DAY_BOUNDARY_TIME = '00:00';
+
+/** Mantiene il confine giornaliero in una forma unica e sicura per lo store. */
+export function normalizeDayBoundaryTime(value: string | null | undefined): string {
+  const match = /^(\d{2}):(\d{2})$/.exec(value ?? '');
+  if (!match) return DEFAULT_DAY_BOUNDARY_TIME;
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (hours > 23 || minutes > 59) return DEFAULT_DAY_BOUNDARY_TIME;
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+}
+
+/** Confine compatibile con i salvataggi precedenti: l'ora originale di avvio. */
+export function dayBoundaryTimeForStart(startISO: string): string {
+  const start = new Date(startISO);
+  if (Number.isNaN(start.getTime())) return DEFAULT_DAY_BOUNDARY_TIME;
+  return `${String(start.getHours()).padStart(2, '0')}:${String(start.getMinutes()).padStart(2, '0')}`;
+}
+
+/**
+ * Giorno reale equivalente, usando un solo confine ricorrente locale.
+ *
+ * Il primo confine e' quello scelto all'inizio (o immediatamente precedente),
+ * poi il tempo prosegue negli stessi blocchi da 24 ore usati dal gioco. In
+ * questo modo il controllo non trasforma la progressione in un calendario e
+ * non richiede mai di riscrivere `startedAt`.
+ */
+export function realDayAt(
+  startISO: string,
+  boundaryTime: string,
+  now: Date = new Date(),
+): number {
+  const start = new Date(startISO);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(now.getTime())) return 1;
+  const [hours, minutes] = normalizeDayBoundaryTime(boundaryTime).split(':').map(Number);
+  const anchor = new Date(start);
+  anchor.setHours(hours, minutes, 0, 0);
+  if (anchor.getTime() > start.getTime()) anchor.setTime(anchor.getTime() - 86_400_000);
+  return Math.max(1, Math.floor((now.getTime() - anchor.getTime()) / 86_400_000) + 1);
+}
+
+/** Solo recupero in avanti; una simulazione DEV più avanti resta intatta. */
+export function realDayCatchUpCount(
+  gameDay: number,
+  startISO: string,
+  boundaryTime: string,
+  now: Date = new Date(),
+): number {
+  return Math.min(400, Math.max(0, realDayAt(startISO, boundaryTime, now) - gameDay));
+}
+
 export const MONTH_NAMES = [
   'GENNAIO', 'FEBBRAIO', 'MARZO', 'APRILE', 'MAGGIO', 'GIUGNO',
   'LUGLIO', 'AGOSTO', 'SETTEMBRE', 'OTTOBRE', 'NOVEMBRE', 'DICEMBRE',

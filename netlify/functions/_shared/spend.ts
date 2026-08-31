@@ -62,6 +62,7 @@ const PRICES: Record<string, Price> = {
   'gpt-5.6-terra': { input: 2, output: 12 },
   'gpt-5.6-luna': { input: 0.2, output: 1.2 },
   'gpt-5.6-sol': { input: 5, output: 30 },
+  'grok-4.6': { input: 2, output: 6 },
   /* ⚠️ Stimati e arrotondati PER ECCESSO: un contatore che sottostima è peggio
      di uno che non c'è. Dopo un giro vero, DEV → COSTI dice il numero giusto.
 
@@ -233,7 +234,8 @@ export async function recordSpend(
   const provider = meta.provider ?? (
     model.startsWith('claude-') ? 'anthropic' :
       model.startsWith('gemini-') ? 'google' :
-        model.startsWith('kimi-') ? 'moonshot' : 'openai'
+        model.startsWith('kimi-') ? 'moonshot' :
+          model.startsWith('grok-') ? 'xai' : 'openai'
   );
   ledger.events.push({
     id: globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`,
