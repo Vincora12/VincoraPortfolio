@@ -237,12 +237,12 @@ export function realDayAt(
 
 /** Solo recupero in avanti; una simulazione DEV più avanti resta intatta. */
 export function realDayCatchUpCount(
-  gameDay: number,
+  realDayCursor: number,
   startISO: string,
   boundaryTime: string,
   now: Date = new Date(),
 ): number {
-  return Math.min(400, Math.max(0, realDayAt(startISO, boundaryTime, now) - gameDay));
+  return Math.min(400, Math.max(0, realDayAt(startISO, boundaryTime, now) - realDayCursor));
 }
 
 export const MONTH_NAMES = [

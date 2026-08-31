@@ -33,6 +33,7 @@ import {
   nextEvent,
   normalizeDayBoundaryTime,
   planContinuity,
+  realDayAt,
   realDayCatchUpCount,
   type ContinuityAxis,
   type ContinuityPlan,
@@ -387,6 +388,8 @@ interface AppState {
   startedAt: string;
   /** Ora locale che separa due giorni VINZ.MON senza riscrivere la storia. */
   dayBoundaryTime: string;
+  /** Ultimo blocco reale gia applicato; non comprende i salti effettuati dal DEV. */
+  realDayCursor: number;
   /** Cambia solo il confine; il giorno può recuperare in avanti, mai arretrare. */
   setDayBoundaryTime: (time: string) => void;
 
@@ -943,6 +946,7 @@ const INITIAL = {
   day: 1,
   startedAt: INITIAL_STARTED_AT,
   dayBoundaryTime: dayBoundaryTimeForStart(INITIAL_STARTED_AT),
+  realDayCursor: 1,
   health: initialHealthState(),
   progression: { bond: 0, sync: emptySync() } as Progression,
   days: {} as Record<number, DailySync>,
@@ -1561,15 +1565,26 @@ export const useApp = create<AppState>()(
       catchUpToRealDay: () => {
         const s = get();
         if (s.phase !== 'incubation' && s.phase !== 'live') return;
-        const missing = realDayCatchUpCount(
-          s.day,
+        const targetRealDay = realDayAt(
           s.startedAt,
           s.dayBoundaryTime ?? dayBoundaryTimeForStart(s.startedAt),
         );
+        /* Le vecchie partite non avevano un cursore separato. `day` puo essere
+           molto avanti per il DEV: limitarlo al giorno reale evita sia un
+           recupero doppio sia l'attesa di migliaia di giorni simulati. */
+        const cursor = Math.max(1, s.realDayCursor ?? Math.min(s.day, targetRealDay));
+        const missing = realDayCatchUpCount(
+          cursor,
+          s.startedAt,
+          s.dayBoundaryTime ?? dayBoundaryTimeForStart(s.startedAt),
+        );
+        let advanced = 0;
         for (let i = 0; i < missing; i++) {
           if (get().phase !== 'incubation' && get().phase !== 'live') break;
           advanceOneDay(set, get);
+          advanced += 1;
         }
+        set({ realDayCursor: cursor + advanced });
       },
 
       setDayBoundaryTime: (time) => {
@@ -3524,6 +3539,7 @@ export const useApp = create<AppState>()(
         set({
           ...INITIAL,
           startedAt: new Date().toISOString(),
+          realDayCursor: 1,
           /* 🔒 Il momento del reset viene PRIMA di qualunque salvataggio nuovo,
              quindi qualsiasi copia sul server scritta prima di adesso è di una
              partita che hai buttato via. */
@@ -3601,6 +3617,13 @@ export const useApp = create<AppState>()(
         if (state) {
           state.dayBoundaryTime = normalizeDayBoundaryTime(
             state.dayBoundaryTime ?? dayBoundaryTimeForStart(state.startedAt),
+          );
+          state.realDayCursor = Math.max(
+            1,
+            state.realDayCursor ?? Math.min(
+              state.day,
+              realDayAt(state.startedAt, state.dayBoundaryTime),
+            ),
           );
           migrateStepModels(state);
           /* Anche i MON nati prima della Voice Card ricevono una carta
@@ -4163,6 +4186,16 @@ function applyRemoteSave(local: AppState, data: RemoteSave): void {
     ...appState,
     dayBoundaryTime: normalizeDayBoundaryTime(
       appState.dayBoundaryTime ?? local.dayBoundaryTime ?? dayBoundaryTimeForStart(appState.startedAt ?? local.startedAt),
+    ),
+    realDayCursor: Math.max(
+      1,
+      appState.realDayCursor ?? local.realDayCursor ?? Math.min(
+        appState.day ?? local.day,
+        realDayAt(
+          appState.startedAt ?? local.startedAt,
+          appState.dayBoundaryTime ?? local.dayBoundaryTime ?? dayBoundaryTimeForStart(appState.startedAt ?? local.startedAt),
+        ),
+      ),
     ),
     token: local.token,
     /* Stessa ragione del token: chi dà la voce è una scelta di QUESTO

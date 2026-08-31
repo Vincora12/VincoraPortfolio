@@ -205,6 +205,22 @@ check(
     m.realDayCatchUpCount(1, start.toISOString(), '02:00', new Date(2026, 8, 2, 2, 0, 0)) === 2,
   'il tempo reale recupera solo in avanti e non annulla i giorni simulati dal DEV',
 );
+const simulatedGameDay = 2251;
+const cursorBeforeBoundary = m.realDayAt(
+  start.toISOString(),
+  '02:00',
+  new Date(2026, 8, 1, 1, 59, 0),
+);
+check(
+  simulatedGameDay > cursorBeforeBoundary &&
+    m.realDayCatchUpCount(
+      cursorBeforeBoundary,
+      start.toISOString(),
+      '02:00',
+      new Date(2026, 8, 1, 2, 0, 0),
+    ) === 1,
+  'un nuovo confine reale avanza anche una partita portata molto avanti dal DEV',
+);
 check(
   m.resolveRoute('prompt-compile', 'claude-sonnet-5').provider === 'anthropic',
   'ma la scelta del compilatore viene rispettata',
