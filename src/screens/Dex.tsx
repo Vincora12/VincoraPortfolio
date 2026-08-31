@@ -226,7 +226,6 @@ export function DexScreen({ onGo: _onGo, onOpenMon }: { onGo: (o: Overlay) => vo
   return (
     <div className="screen screen--ink dex">
       <ScreenHead
-        title={t.dex.title}
         sub={`${shelf.length} ${shelf.length === 1 ? t.dex.formOne : t.dex.formMany}`}
       />
 

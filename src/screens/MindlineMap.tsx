@@ -182,7 +182,6 @@ export function MindlineMapScreen({ onGo }: { onGo: (o: Overlay) => void }) {
   return (
     <div className="screen screen--ink mindline">
       <ScreenHead
-        title={t.mindline.title}
         sub={`${t.mindline.chapter} ${chapter} · ${nodes.length} ${t.mindline.nodes}`}
       />
 

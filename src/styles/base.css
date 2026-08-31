@@ -441,7 +441,7 @@ select {
 }
 
 .machine-insight-archive__head p {
-  margin: 0;
+  margin: 0 0 0 auto;
   color: #a8a8b2;
   font: 600 var(--type-micro)/1 var(--font-mono);
   letter-spacing: 0.08em;

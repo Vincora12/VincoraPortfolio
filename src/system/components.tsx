@@ -577,7 +577,7 @@ export function ScreenHead({
   left,
   right,
 }: {
-  title: string;
+  title?: string;
   sub?: string;
   left?: ReactNode;
   right?: ReactNode;
@@ -586,7 +586,7 @@ export function ScreenHead({
     <header className="screenhead">
       {left}
       <div className="screenhead__titles">
-        <h1 className="screenhead__title">{title}</h1>
+        {title && <h1 className="screenhead__title">{title}</h1>}
         {sub && <p className="screenhead__sub">{sub}</p>}
       </div>
       {right}

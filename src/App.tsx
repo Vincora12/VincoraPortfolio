@@ -1231,7 +1231,7 @@ function MachineInsightArchive({ onDiscuss }: { onDiscuss?: (insight: InsightVie
   return (
     <section className="machine-insight-archive" aria-labelledby="machine-insight-archive-title">
       <header className="machine-insight-archive__head">
-        <h1 id="machine-insight-archive-title">INSIGHT</h1>
+        <h1 id="machine-insight-archive-title" className="sr-only">INSIGHT</h1>
         <p>{insights ? `${insights.length} ${insights.length === 1 ? 'pensiero' : 'pensieri'}` : 'Caricamento…'}</p>
       </header>
       {failed ? <p className="machine-insight-archive__empty">Gli insight non sono disponibili. Riprova più tardi.</p> : null}
