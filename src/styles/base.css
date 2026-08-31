@@ -255,9 +255,11 @@ select {
      una classe che sta solo in `brain/Brain.tsx`, la chat vecchia che non è
      più montata da nessuna parte. La chat vera (`assistant-original`) non
      l'ha mai avuta: il selettore non ha mai agganciato niente. Adesso il
-     campo vero porta `vinz-composer-input`, e la barra se ne va davvero
-     mentre scrivi — tornando appena il campo perde il focus. */
-  .proto-frame:has(.vinz-composer-input:focus) .tabbar,
+     composer vero porta `vinz-composer`: `focus-within` include anche il
+     passaggio textarea → freccia d'invio. Con `:focus` sul solo campo, iOS
+     rimontava il nav fra pointer-down e click, spostava la freccia e perdeva
+     l'invio dopo aver soltanto chiuso la tastiera. */
+  .proto-frame:has(.vinz-composer:focus-within) .tabbar,
   .proto-frame:has(.aui-composer__input:focus) .tabbar {
     display: none;
   }

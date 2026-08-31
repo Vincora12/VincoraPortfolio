@@ -76,6 +76,11 @@ check(
   cloneSource.includes('aui.thread.composer().send()') || cloneSource.includes('composer.send()'),
   'la trascrizione viene inviata dal runtime, senza simulare un click',
 );
+check(
+  cloneSource.includes('submitMode="none"') &&
+    appStyles.includes('.proto-frame:has(.vinz-composer:focus-within) .tabbar'),
+  'Invio va a capo e il tap sulla freccia non viene perso quando il nav ricompare',
+);
 check(cloneStyles.includes('.vinz-record__wave.is-loading'), 'avvio e trascrizione hanno un loader dedicato');
 check(
   cloneStyles.includes('.vinz-clone-composer__send') &&

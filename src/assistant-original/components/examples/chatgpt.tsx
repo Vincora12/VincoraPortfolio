@@ -589,6 +589,7 @@ const Composer: FC<{ placeholder: string }> = ({ placeholder }) => {
           ref={inputRef}
           placeholder={placeholder}
           rows={1}
+          submitMode="none"
           className="vinz-composer-input box-border max-h-52 min-h-9 w-full min-w-0 flex-1 resize-none bg-transparent py-1.5 pr-2 pl-1 text-base text-[#0d0d0d] outline-none placeholder:text-[#8e8e8e] dark:text-[#ececec] dark:placeholder:text-[#8e8e8e]"
         />
 
