@@ -4692,6 +4692,7 @@
 
 /* SYNC — la costanza diventa una risorsa leggibile, non un altro punteggio. */
 .sync-check { --sync-workout: var(--char-secondary, #48d9ec); flex: 1 1 auto; min-height: 0; display: grid; align-content: center; padding-top: 12px; }
+.sync-check__day { position: absolute; top: max(10px, env(safe-area-inset-top)); left: 24px; color: #787b84; font: 600 9px/1 var(--font-mono); letter-spacing: .12em; }
 .sync-check__hero { min-height: 330px; display: grid; place-items: center; }
 /* 🔷 «Deve riempirsi in senso orario, a trattini, non con una linea che si
    forma» — come `GenerationDial` (la ruota di "MON IN CREAZIONE" che piaceva):

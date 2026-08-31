@@ -10,7 +10,7 @@
    §26 — i controlli DEV non compaiono mai senza dev mode attiva.
    ========================================================================= */
 
-import { lazy, Suspense, useCallback, useEffect, useRef, useState, type ComponentProps } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState, type ComponentProps, type ReactNode } from 'react';
 import {
   useApp,
   type Phase,
@@ -529,11 +529,9 @@ export function App() {
        è uno scaffale ottico bianco: non deve ereditare il campo nero solo
        perché vive accanto alla mappa. */
     (phase === 'live' && tab === 'mon' && (monView === 'map' || monView === 'insights') && !overlay) ||
-    /* 🔷 «Quella barra bianca sopra deve essere nera.» SYNC dipinge il proprio
-       sfondo nero da sé (`.today-check`), ma la barra di stato condivisa
-       (`.proto-statusbar`, `GIORNO · DEV`) vive fuori da quella schermata e
-       non lo sapeva: restava bianca per davvero, perché `--white` senza
-       questo campo resta quello di `:root`. */
+    /* SYNC e le viste d'archivio continuano a definire il proprio campo nero;
+       il vano tecnico bianco è intenzionalmente il retro della scheda e non
+       eredita questa inversione. */
     (phase === 'live' && tab === 'today' && !overlay);
 
   // Con la tab bar in fondo, il margine di sistema lo prende lei: il composer
@@ -553,12 +551,22 @@ export function App() {
         className={`proto-frame ${hasTabBar ? 'has-tabbar' : ''}`}
         data-field={inkField ? 'ink' : undefined}
       >
+        <PullDownSystemSheet
+          enabled={phase === 'live' && !overlay}
+          tray={<SystemControls
+            showDev={devEnabled}
+            onOpenDev={() => setOverlay('dev')}
+            onOpenLab={() => window.location.assign('/lab/')}
+            onActivate={() => setOverlay('activate')}
+            onOpenInsight={setVisibleInsight}
+          />}
+        >
         {/* 🔷 «Il primo Mon sta nascendo, togli in alto la mindline e gli
             altri — schermo intero soltanto questo, fino a quando incontro
             il Mon.» L'incontro (narratore + rivelazione) è l'unico momento
             oltre alla home che deve restare schermo intero: nessuna barra
             sopra il racconto o la prima foto. */}
-        {(phase !== 'live' || tab === 'mon' || tab === 'today') &&
+        {phase !== 'live' &&
           phase !== 'first-encounter' &&
           phase !== 'new-encounter' && (
           <StatusBar
@@ -633,6 +641,7 @@ export function App() {
         {/* 🔷 La barra resta anche sulla creatura: è una tab, non una
             schermata che copre tutto. */}
         {hasTabBar && <TabBar tab={tab} onChange={goTab} />}
+        </PullDownSystemSheet>
       </div>
       {visibleInsight && <MachineInsightBalloon
         insight={visibleInsight}
@@ -642,6 +651,99 @@ export function App() {
       {!bootReady && <GlobalBootScreen />}
     </div>
   );
+}
+
+function canPullSystemSheet(target: EventTarget | null, boundary: HTMLElement): boolean {
+  let node = target instanceof HTMLElement ? target : null;
+  while (node && node !== boundary) {
+    const style = window.getComputedStyle(node);
+    if (/(auto|scroll)/.test(style.overflowY) && node.scrollHeight > node.clientHeight + 1) {
+      return node.scrollTop <= 0;
+    }
+    node = node.parentElement;
+  }
+  return true;
+}
+
+/**
+ * Il vano tecnico vive dietro la scheda dell'app: non è un overlay e non
+ * occupa spazio finché l'utente non tira davvero la superficie dall'alto.
+ */
+function PullDownSystemSheet({ enabled, tray, children }: { enabled: boolean; tray: ReactNode; children: ReactNode }) {
+  const trayRef = useRef<HTMLDivElement>(null);
+  const sheetRef = useRef<HTMLDivElement>(null);
+  const gesture = useRef<{ startY: number; startOffset: number; active: boolean } | null>(null);
+  const currentOffset = useRef<number | null>(null);
+  const [open, setOpen] = useState(false);
+  const [dragOffset, setDragOffset] = useState<number | null>(null);
+
+  const trayHeight = () => trayRef.current?.getBoundingClientRect().height ?? 92;
+  const finishGesture = useCallback(() => {
+    const offset = currentOffset.current ?? (open ? trayHeight() : 0);
+    setOpen(offset >= trayHeight() * 0.42);
+    currentOffset.current = null;
+    setDragOffset(null);
+    gesture.current = null;
+  }, [open]);
+
+  useEffect(() => {
+    if (!enabled) { setOpen(false); currentOffset.current = null; setDragOffset(null); }
+  }, [enabled]);
+
+  useEffect(() => {
+    const sheet = sheetRef.current;
+    if (!sheet || !enabled) return;
+    const start = (event: TouchEvent) => {
+      if (event.touches.length !== 1 || !canPullSystemSheet(event.target, sheet)) return;
+      gesture.current = { startY: event.touches[0].clientY, startOffset: open ? trayHeight() : 0, active: false };
+    };
+    const move = (event: TouchEvent) => {
+      const current = gesture.current;
+      if (!current || event.touches.length !== 1) return;
+      const delta = event.touches[0].clientY - current.startY;
+      if (!current.active && Math.abs(delta) < 5) return;
+      if (!current.active && !open && delta < 0) return;
+      current.active = true;
+      event.preventDefault();
+      const height = trayHeight();
+      const raw = current.startOffset + delta;
+      const offset = Math.max(0, Math.min(height + Math.max(0, raw - height) * 0.18, raw));
+      currentOffset.current = offset;
+      setDragOffset(offset);
+    };
+    const end = () => { if (gesture.current?.active) finishGesture(); else gesture.current = null; };
+    sheet.addEventListener('touchstart', start, { passive: true });
+    sheet.addEventListener('touchmove', move, { passive: false });
+    sheet.addEventListener('touchend', end);
+    sheet.addEventListener('touchcancel', end);
+    return () => {
+      sheet.removeEventListener('touchstart', start);
+      sheet.removeEventListener('touchmove', move);
+      sheet.removeEventListener('touchend', end);
+      sheet.removeEventListener('touchcancel', end);
+    };
+  }, [enabled, finishGesture, open]);
+
+  const translated = dragOffset !== null
+    ? `${dragOffset}px`
+    : open ? 'var(--system-tray-height)' : '0px';
+
+  return <>
+    <div ref={trayRef} className="system-tray" aria-hidden={!open} inert={!open}>
+      <div className="system-tray__controls">{tray}</div>
+      <button type="button" className="system-tray__close" onClick={() => setOpen(false)} tabIndex={open ? 0 : -1}>CHIUDI ↑</button>
+    </div>
+    <div
+      ref={sheetRef}
+      className="proto-sheet"
+      data-dragging={dragOffset !== null || undefined}
+      data-tray-open={open || undefined}
+      style={{ transform: `translateY(${translated})` }}
+    >
+      {children}
+      {enabled && <button type="button" className="system-tray__edge" onClick={() => setOpen((value) => !value)} aria-expanded={open} aria-label={open ? 'Chiudi controlli di sistema' : 'Apri controlli di sistema'} />}
+    </div>
+  </>;
 }
 
 function GlobalBootScreen() {
@@ -972,26 +1074,19 @@ function StatusBar({
   onActivate: () => void;
   onOpenInsight: (insight: InsightView) => void;
 }) {
-  const day = useApp((s) => s.day);
   const sync = useApp((s) => s.progression.sync.lifetime);
   const inForm = useApp((s) => s.progression.sync.inForm);
   const phase = useApp((s) => s.phase);
 
-  /* 🔷 v1.14 — «VINZ.MON» in alto non serviva: sei dentro l'app, sai dove sei,
-     e quel nome rubava metà barra alla sola cosa che cambia. Il giorno resta;
-     il SYNC diventa una barra che si riempie, perché un numero che sale non
-     dice quanto manca — e quanto manca è l'unica domanda che quel dato
-     risponde. */
+  /* Durante le fasi di nascita resta soltanto l'avanzamento necessario. Nella
+     fase live il giorno vive dentro SYNC e i controlli tecnici stanno nel
+     vano a scomparsa, quindi questa barra non viene più montata. */
   const target = phase === 'incubation' ? PROGRESSION.incubationSyncDays : PROGRESSION.formEvolutionAt;
   const have = phase === 'incubation' ? sync : inForm;
   const progress = Math.min(1, have / target);
 
   return (
     <div className="proto-statusbar t-micro">
-      <span className="proto-statusbar__day" data-pezzo="giorno">
-        {t.common.day} {day}
-      </span>
-
       {phase !== 'live' && <span
         className="proto-statusbar__sync"
         role="progressbar"
@@ -1008,36 +1103,37 @@ function StatusBar({
             niente. Metterlo in DEV — dove sono finite tutte le altre cose di
             impianto — avrebbe voluto dire nasconderlo proprio a chi apre
             l'app per la prima volta. */}
-        <ActivateChip onClick={onActivate} />
-        <MachineInsightChip onOpen={onOpenInsight} />
-        {/* Il trigger DEV sta qui e non fluttuante sopra la schermata:
-            in overlay senza tab bar copriva il contenuto. */}
-        {showDev && (
-          <button
-            type="button"
-            className="devtrigger"
-            onClick={onOpenDev}
-            aria-label="Apri il pannello sviluppatore"
-          >
-            DEV
-          </button>
-        )}
-        <button
-          type="button"
-          className="labtrigger"
-          onClick={onOpenLab}
-          aria-label="Apri VINZ.LAB"
-        >
-          LAB
-        </button>
+        <SystemControls showDev={showDev} onOpenDev={onOpenDev} onOpenLab={onOpenLab} onActivate={onActivate} onOpenInsight={onOpenInsight} />
       </span>
     </div>
   );
 }
 
+function SystemControls({
+  showDev,
+  onOpenDev,
+  onOpenLab,
+  onActivate,
+  onOpenInsight,
+}: {
+  showDev: boolean;
+  onOpenDev: () => void;
+  onOpenLab: () => void;
+  onActivate: () => void;
+  onOpenInsight: (insight: InsightView) => void;
+}) {
+  return <>
+    <ActivateChip onClick={onActivate} />
+    <MachineInsightChip onOpen={onOpenInsight} />
+    {showDev && <button type="button" className="devtrigger" onClick={onOpenDev} aria-label="Apri il pannello sviluppatore">DEV</button>}
+    <button type="button" className="labtrigger" onClick={onOpenLab} aria-label="Apri VINZ.LAB">LAB</button>
+  </>;
+}
+
 function MachineInsightChip({ onOpen }: { onOpen: (insight: InsightView) => void }) {
   const token = useApp((s) => s.token);
   const [insights, setInsights] = useState<InsightView[]>([]);
+  const [notificationState, setNotificationState] = useState<'idle' | 'running' | 'active' | 'failed'>('idle');
   useEffect(() => {
     if (!token) { setInsights([]); return; }
     let cancelled = false;
@@ -1060,14 +1156,31 @@ function MachineInsightChip({ onOpen }: { onOpen: (insight: InsightView) => void
       window.removeEventListener('vinzmon-insight-seen', onSeen);
     };
   }, [token]);
+  useEffect(() => {
+    if (!token || typeof window === 'undefined' || !('Notification' in window)) { setNotificationState('idle'); return; }
+    let cancelled = false;
+    void import('./system/pushNotifications').then(({ machineNotificationsEnabled }) => machineNotificationsEnabled()).then((enabled) => {
+      if (!cancelled) setNotificationState(enabled ? 'active' : 'idle');
+    }).catch(() => { if (!cancelled) setNotificationState('idle'); });
+    return () => { cancelled = true; };
+  }, [token]);
   const canAsk = typeof window !== 'undefined' && 'Notification' in window && Notification.permission !== 'denied';
   const enable = async () => {
     if (!token) return;
+    setNotificationState('running');
     const { enableMachineNotifications } = await import('./system/pushNotifications');
-    await enableMachineNotifications(token);
+    const enabled = await enableMachineNotifications(token).catch(() => false);
+    setNotificationState(enabled ? 'active' : 'failed');
   };
+  const activation = canAsk ? <button
+    type="button"
+    className="machine-insight-chip"
+    onClick={() => void enable()}
+    disabled={notificationState === 'running' || notificationState === 'active'}
+    aria-label="Attiva notifiche insight"
+  >{notificationState === 'running' ? 'RUNNING…' : notificationState === 'active' ? 'INSIGHT ATTIVI' : notificationState === 'failed' ? 'RIPROVA INSIGHT' : 'ATTIVA INSIGHT'}</button> : null;
   const insight = insights[0];
-  if (!insight) return canAsk ? <button type="button" className="machine-insight-chip" onClick={() => void enable()} aria-label="Attiva notifiche insight">ATTIVA INSIGHT</button> : null;
+  if (!insight) return activation;
   const open = async () => {
     const response = await fetch('/api/machines', { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify({ machine: 'open_insight', insightId: insight.id }) }).catch(() => null);
     if (response?.ok) {
@@ -1078,7 +1191,7 @@ function MachineInsightChip({ onOpen }: { onOpen: (insight: InsightView) => void
   };
   return <>
     <button type="button" className="machine-insight-chip" onClick={() => void open()} aria-label="Apri insight di VINZ.MON">INSIGHT · {insights.length}</button>
-    {canAsk && <button type="button" className="machine-insight-chip" onClick={() => void enable()} aria-label="Attiva notifiche insight">ATTIVA</button>}
+    {activation}
   </>;
 }
 

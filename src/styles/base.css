@@ -102,6 +102,7 @@ select {
 }
 
 .proto-frame {
+  --system-tray-height: calc(max(36px, env(safe-area-inset-top)) + 54px);
   position: relative;
   width: var(--frame-w);
   height: var(--frame-h);
@@ -113,6 +114,106 @@ select {
   display: flex;
   flex-direction: column;
   color: var(--ink);
+}
+
+/* Il vano tecnico è il retro fisico della scheda: a riposo non occupa un
+   pixel del layout. Tirando dall'alto si muove la superficie completa, non
+   una toolbar che compare sopra al contenuto. */
+.system-tray {
+  position: absolute;
+  z-index: 0;
+  inset: 0 0 auto;
+  height: var(--system-tray-height);
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  padding: max(10px, env(safe-area-inset-top)) 14px 10px;
+  background: #f7f7f4;
+  color: #111;
+  border-bottom: 1px solid #111;
+}
+
+.system-tray__controls {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.system-tray__controls .devtrigger,
+.system-tray__controls .labtrigger,
+.system-tray__controls .machine-insight-chip {
+  min-height: 28px;
+  padding: 3px 7px;
+  border-color: #b32025;
+  color: #b32025;
+}
+
+.system-tray__controls button:disabled {
+  border-color: #686868;
+  color: #686868;
+  cursor: default;
+}
+
+.system-tray__close {
+  flex: 0 0 auto;
+  min-height: 28px;
+  padding: 3px 0 3px 8px;
+  border: 0;
+  background: transparent;
+  color: #111;
+  font: 600 9px/1 var(--font-mono);
+  letter-spacing: .1em;
+}
+
+.proto-sheet {
+  position: relative;
+  z-index: 1;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--white);
+  transition: transform 320ms cubic-bezier(.16, 1, .3, 1);
+}
+
+.proto-sheet[data-dragging='true'] { transition: none; }
+
+.system-tray__edge {
+  position: absolute;
+  z-index: 30;
+  top: 0;
+  left: 50%;
+  width: 54px;
+  height: 14px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  transform: translateX(-50%);
+}
+
+.system-tray__edge::after {
+  content: '';
+  position: absolute;
+  top: 4px;
+  left: 17px;
+  width: 20px;
+  height: 1px;
+  background: currentColor;
+  opacity: .28;
+}
+
+.system-tray__edge:focus-visible {
+  outline: 1px solid currentColor;
+  outline-offset: -2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .proto-sheet { transition-duration: 100ms; }
 }
 
 /* A schermo stretto il frame diventa l'intera finestra: il prototipo si apre

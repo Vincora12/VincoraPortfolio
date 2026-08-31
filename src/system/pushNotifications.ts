@@ -38,6 +38,11 @@ export async function enableMachineNotifications(token: string): Promise<boolean
   return enablePushNotifications(token);
 }
 
+export async function machineNotificationsEnabled(): Promise<boolean> {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window) || Notification.permission !== 'granted') return false;
+  return Boolean(await (await navigator.serviceWorker.ready).pushManager.getSubscription());
+}
+
 export async function disableMachineNotifications(token: string): Promise<boolean> {
   if (!('serviceWorker' in navigator)) return false;
   const subscription = await (await navigator.serviceWorker.ready).pushManager.getSubscription();

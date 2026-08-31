@@ -104,6 +104,23 @@ check(
     systemStyles.includes('height: calc(46px + var(--tabbar-mobile-bottom))'),
   'la navigazione mobile scende fino al margine minimo della safe area',
 );
+check(
+  appSource.includes('PullDownSystemSheet') &&
+    appSource.includes("enabled={phase === 'live' && !overlay}") &&
+    appStyles.includes('.system-tray') &&
+    appStyles.includes('.proto-sheet[data-dragging'),
+  'i controlli tecnici live restano dietro la scheda e si rivelano tirando dall’alto',
+);
+check(
+  !appSource.includes('proto-statusbar__day') && todayChecklistSource.includes('<span className="sync-check__day">GIORNO {day}</span>'),
+  'il giorno non occupa più la barra globale e resta una nota interna a SYNC',
+);
+check(
+  appSource.includes("setNotificationState('running')") &&
+    appSource.includes("'RUNNING…'") &&
+    appSource.includes("'INSIGHT ATTIVI'"),
+  'l’attivazione Insight mostra esecuzione e successo reali',
+);
 check(!cloneMain.includes('WebSpeechDictationAdapter'), 'la vecchia dettatura browser non è più collegata');
 check(cloneSource.includes('ChatCostTotal'), 'il totale della chat resta visibile in alto');
 check(cloneSource.includes('MessageCost'), 'ogni risposta mostra il proprio costo');

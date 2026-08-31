@@ -60,6 +60,7 @@ export function TodayChecklistScreen() {
   };
 
   return <main className="today-check sync-check" aria-label="SYNC di oggi">
+    <span className="sync-check__day">GIORNO {day}</span>
     <header className="sync-check__hero">
       <SyncDial
         balance={balance}
