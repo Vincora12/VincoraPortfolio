@@ -3979,8 +3979,9 @@
    di prima senza una riga in più. */
 .archive__switch {
   display: flex;
-  min-height: 60px;
+  min-height: calc(60px + env(safe-area-inset-top));
   align-items: stretch;
+  padding-top: env(safe-area-inset-top);
   border-bottom: 0;
   background: var(--char-primary);
 }
