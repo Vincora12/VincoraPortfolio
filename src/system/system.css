@@ -632,10 +632,32 @@
    area e conserva soltanto il margine tattile minimo: composer e timeline
    recuperano automaticamente lo spazio che prima restava vuoto. */
 @media (max-width: 860px) {
+  /* Su una scheda carta anche il margine sotto il frame appartiene alla
+     superficie chiara: non deve riapparire il fondo nero del documento. */
+  .proto-stage:has(.proto-frame[data-field='paper']) {
+    background: var(--white);
+  }
+
   .tabbar {
     --tabbar-mobile-bottom: max(4px, calc(env(safe-area-inset-bottom) - 30px));
     height: calc(46px + var(--tabbar-mobile-bottom));
     padding: 2px 14px var(--tabbar-mobile-bottom);
+  }
+
+  .proto-frame[data-field='paper'] .tabbar {
+    position: relative;
+  }
+
+  .proto-frame[data-field='paper'] .tabbar::after {
+    content: '';
+    position: absolute;
+    z-index: 0;
+    top: 100%;
+    right: 0;
+    left: 0;
+    height: 24px;
+    background: linear-gradient(to bottom, transparent, var(--white));
+    pointer-events: none;
   }
 }
 

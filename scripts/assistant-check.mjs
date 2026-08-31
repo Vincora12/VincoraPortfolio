@@ -110,6 +110,8 @@ check(
     appSource.includes('const SYSTEM_SHEET_PULL_ZONE_RATIO = 1 / 8') &&
     appSource.includes('!isSystemSheetPullOrigin(touch.clientY)') &&
     appSource.includes("data-field={inkField ? 'ink' : paperField ? 'paper' : undefined}") &&
+    systemStyles.includes(".proto-stage:has(.proto-frame[data-field='paper'])") &&
+    systemStyles.includes("background: linear-gradient(to bottom, transparent, var(--white))") &&
     appStyles.includes('.system-tray') &&
     appStyles.includes('.proto-sheet[data-dragging'),
   'i controlli tecnici live restano dietro la scheda e si rivelano solo tirando dall’ottavo superiore',
