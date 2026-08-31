@@ -2,19 +2,17 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { Overlay } from '../App';
 import { useApp } from '../state/store';
 import { Icon } from '../system/Icon';
-import { STAT_KEYS, isKnown, type HealthState } from '../engine/types';
 import { HEALTH_JOURNAL_EVENT, addWorkout, readHealthJournal, removeHealthEntry, type HealthJournal } from '../engine/healthJournal';
 import { dateForDay } from '../engine/progression';
 import { MeCalendar } from './MeCalendar';
+import { TodayChecklistScreen } from './TodayChecklist';
 import { savedToken } from '../brain/stream';
 
 type View = 'today' | 'diet' | 'sport' | 'memory';
 const visibleView = (view: HealthJournal['display']['focus']): View => view === 'progress' ? 'today' : view;
 const localDay = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-const time = (at: string) => new Intl.DateTimeFormat('it-IT', { hour: '2-digit', minute: '2-digit' }).format(new Date(at));
 
 export function MeOverviewScreen({ onGo: _onGo }: { onGo: (o: Overlay) => void }) {
-  const health = useApp((s) => s.health);
   const day = useApp((s) => s.day);
   const startedAt = useApp((s) => s.startedAt);
   const [journal, setJournal] = useState(readHealthJournal);
@@ -42,7 +40,7 @@ export function MeOverviewScreen({ onGo: _onGo }: { onGo: (o: Overlay) => void }
   return <div className="screen me-health">
     <nav className="me-health__tabs">{([['today', 'OGGI'], ['diet', 'DIETA'], ['sport', 'SPORT'], ['memory', 'MEMORY']] as const).map(([id, label]) => <button type="button" key={id} aria-current={view === id ? 'page' : undefined} onClick={() => setView(id)}>{label}</button>)}</nav>
     <div className="me-health__scroll" ref={scrollRef}>
-      {view === 'today' && <TodayRecap journal={journal} meals={meals} workouts={workouts} total={total} health={health} askAi={askAi} />}
+      {view === 'today' && <TodayRecap journal={journal} meals={meals} workouts={workouts} total={total} />}
       {view === 'diet' && <><MeCalendar journal={journal} mode="diet" /><Section title="PIANO ALIMENTARE">{journal.dietPlan ? <article className="me-health__plan"><h2>{journal.dietPlan.title}</h2><p>{journal.dietPlan.text}</p><small>Aggiornato {new Date(journal.dietPlan.updatedAt).toLocaleDateString('it-IT')}</small></article> : <Empty text="Allega la dieta in chat: VINZ.MON la leggerà e la salverà qui." />}</Section><Section title="STORICO PASTI">{journal.meals.length ? [...journal.meals].reverse().map(x => <Row key={x.id} title={x.slot} text={x.description} meta={`${x.kcal} kcal`} when={new Date(x.at).toLocaleDateString('it-IT')} chat={x.source === 'chat'} remove={() => remove('meal', x.id)} />) : <Empty text="Lo storico si riempirà dalla chat o dal log manuale." />}</Section></>}
       {view === 'sport' && <><button type="button" className="me-health__start-timer" onClick={() => setTimerOpen(true)}><Icon name="workout" /><span><strong>ALLENAMENTO GUIDATO</strong><small>Timer esercizio, recupero e serie</small></span><b>AVVIA</b></button><MeCalendar journal={journal} mode="sport" /><Section title="PIANO ALLENAMENTO" action={journal.workoutPlan ? 'MODIFICA CON AI' : 'SCRIVI CON AI'} click={() => askAi(journal.workoutPlan ? 'Modifica il mio piano di allenamento attuale: ' : 'Creami un nuovo piano di allenamento. Prima fammi le domande necessarie: ')}>{journal.workoutPlan ? <article className="me-health__plan"><h2>{journal.workoutPlan.title}</h2><p>{journal.workoutPlan.text}</p><small>Aggiornato {new Date(journal.workoutPlan.updatedAt).toLocaleDateString('it-IT')}</small></article> : <Empty text="Crea il tuo piano con la chat: giorni, esercizi, serie, recuperi e progressione resteranno qui." />}</Section><Section title="ALLENAMENTI SVOLTI" action="REGISTRA CON AI" click={() => askAi('Registra questo allenamento svolto: ')}>{journal.workouts.length ? [...journal.workouts].reverse().map(x => <Row key={x.id} title={x.title} text={x.details} meta={`${x.minutes} minuti`} when={new Date(x.at).toLocaleDateString('it-IT')} chat={x.source === 'chat'} remove={() => remove('workout', x.id)} />) : <Empty text="Racconta un allenamento in chat oppure allega una foto." />}</Section></>}
       {view === 'memory' && <MemoryView memory={memory} error={memoryError} retry={loadMemory} />}
@@ -109,8 +107,7 @@ function WorkoutTimer({ onClose }: { onClose: () => void }) {
   </section>;
 }
 
-function TodayRecap({ journal, meals, workouts, total, health, askAi }: { journal: HealthJournal; meals: HealthJournal['meals']; workouts: HealthJournal['workouts']; total: HealthJournal['targets']; health: HealthState; askAi: (prompt: string) => void }) {
-  const latest = [...journal.meals, ...journal.workouts, ...journal.weights].map(x => new Date(x.at)).sort((a, b) => b.getTime() - a.getTime())[0];
+function TodayRecap({ journal, meals, workouts, total }: { journal: HealthJournal; meals: HealthJournal['meals']; workouts: HealthJournal['workouts']; total: HealthJournal['targets'] }) {
   const workout = workouts.at(-1);
   const weight = journal.weights.at(-1)?.kg;
   const fixedMeals = new Set(meals.filter(x => x.slot !== 'extra').map(x => x.slot)).size;
@@ -125,12 +122,7 @@ function TodayRecap({ journal, meals, workouts, total, health, askAi }: { journa
         <article><Icon name="measure" /><strong>{weight ? weight.toFixed(1) : '—'}<small>{weight ? ' KG' : ''}</small></strong><span>ULTIMO PESO</span></article>
       </div>
     </section>
-    <Game health={health} />
-    <section className="me-health__sync"><span>AGGIORNATO DALLA CHAT · {latest ? time(latest.toISOString()) : '—'}</span><strong>SINCRONIZZATO <Icon name="save" /></strong></section>
-    <div className="me-health__actions">
-      <button type="button" onClick={() => askAi('Aggiorna il mio riepilogo salute: ')}><Icon name="sparkle" />AGGIUNGI CON AI</button>
-      <button type="button" onClick={() => askAi('')}><Icon name="tell" />APRI CHAT</button>
-    </div>
+    <TodayChecklistScreen embedded defaultDetailsOpen />
   </>;
 }
 
@@ -138,5 +130,4 @@ function Nutrition({ total, targets }: { total: HealthJournal['targets']; target
 function Section({ title, action, click, children }: { title: string; action?: string; click?: () => void; children: ReactNode }) { return <section className="me-health__section"><header><h2>{title}</h2>{action && <button type="button" onClick={click}><Icon name="plus" />{action}</button>}</header>{children}</section>; }
 function Row({ title, text, meta, when, chat, remove }: { title: string; text: string; meta: string; when: string; chat?: boolean; remove: () => void }) { return <article className="me-health__row"><div><strong>{title}</strong><p>{text}</p><small>{meta}{chat ? ' · DALLA CHAT' : ''}</small></div><time>{when}</time><button type="button" aria-label={`Elimina ${title}`} onClick={remove}><Icon name="close" /></button></article>; }
 function Empty({ text }: { text: string }) { return <p className="me-health__empty">{text}</p>; }
-function Game({ health }: { health: HealthState }) { const labels: Record<string, string> = { ATK: 'FORZA', SPD: 'VELOCITÀ', DEF: 'RESISTENZA', DISC: 'DISCIPLINA' }; const values = [...STAT_KEYS.filter(k => ['ATK', 'SPD', 'DEF'].includes(k)).map(k => [k, health.stats[k].value] as const), ['DISC', health.disc] as const]; return <section className="me-health__game"><h2>STAT VINZ.MON</h2><div>{values.map(([k, v]) => <article key={k}><span>{labels[k]}</span><Segments value={isKnown(v) ? v : 0} count={8} /><strong>{isKnown(v) ? Math.round(v) : '—'}</strong></article>)}</div></section>; }
 function Segments({ value, count }: { value: number; count: number }) { const filled = Math.round(value / 100 * count); return <i className="me-health__segments" aria-label={`${Math.round(value)}%`}>{Array.from({ length: count }, (_, i) => <b key={i} className={i < filled ? 'is-filled' : ''} />)}</i>; }

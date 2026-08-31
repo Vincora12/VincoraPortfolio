@@ -19,13 +19,13 @@ type EditTarget =
   | { kind: 'meal'; label: string; slot: MealLog['slot']; entry?: MealLog }
   | { kind: 'workout'; label: string; entry?: WorkoutLog };
 
-export function TodayChecklistScreen() {
+export function TodayChecklistScreen({ embedded = false, defaultDetailsOpen = false }: { embedded?: boolean; defaultDetailsOpen?: boolean } = {}) {
   const [journal, setJournal] = useState(readHealthJournal);
   const [wishOpen, setWishOpen] = useState(false);
   const [wishText, setWishText] = useState('');
   const [wishKind, setWishKind] = useState<EvolutionWish['kind']>('evolution');
   const [wishWarning, setWishWarning] = useState(false);
-  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(defaultDetailsOpen);
   const [editTarget, setEditTarget] = useState<EditTarget | null>(null);
   const [editText, setEditText] = useState('');
   const [editPhoto, setEditPhoto] = useState<{ name: string; dataUrl: string } | null>(null);
@@ -164,9 +164,11 @@ export function TodayChecklistScreen() {
     }
   };
 
-  return <main className="today-check sync-check" aria-label="SYNC di oggi">
-    <span className="sync-check__day">GIORNO {day}</span>
-    <header className="sync-check__hero">
+  const detailsId = embedded ? 'me-today-details' : 'sync-today-details';
+
+  return <main className={`today-check sync-check${embedded ? ' sync-check--embedded' : ''}`} aria-label={embedded ? 'Registro di oggi' : 'SYNC di oggi'}>
+    {!embedded && <span className="sync-check__day">GIORNO {day}</span>}
+    {!embedded && <header className="sync-check__hero">
       <SyncDial
         balance={balance}
         evolutionReady={evolution.ready}
@@ -176,18 +178,18 @@ export function TodayChecklistScreen() {
         onMega={() => chooseReward('mega-evolution')}
         onWish={() => month.ready && setWishOpen(true)}
       />
-    </header>
+    </header>}
 
     <section className="sync-check__signals" aria-label="Completamento di oggi">
       <div aria-label={`${MEALS.filter(({ slot }) => slots.has(slot)).length} pasti su 5 registrati`}>{MEALS.map(({ slot, label }) => <span key={slot} data-on={slots.has(slot)} title={label} />)}</div>
       <div className="sync-check__workouts" aria-label={`${todayWorkouts.length} allenamenti registrati`}>{Array.from({ length: Math.max(1, todayWorkouts.length) }, (_, index) => <span key={index} data-on={index < todayWorkouts.length} />)}</div>
     </section>
 
-    <button type="button" className="sync-check__details-toggle" aria-expanded={detailsOpen} aria-controls="sync-today-details" onClick={() => setDetailsOpen((open) => !open)}>
+    <button type="button" className="sync-check__details-toggle" aria-expanded={detailsOpen} aria-controls={detailsId} onClick={() => setDetailsOpen((open) => !open)}>
       {detailsOpen ? 'CHIUDI' : 'VEDI OGGI'} <span aria-hidden="true">{detailsOpen ? '↑' : '↓'}</span>
     </button>
 
-    {detailsOpen && <section id="sync-today-details" className="today-check__tasks sync-check__details" aria-label="Resoconto completo di oggi">
+    {detailsOpen && <section id={detailsId} className="today-check__tasks sync-check__details" aria-label="Resoconto completo di oggi">
       {MEALS.map(({ slot, label }) => {
         const entry = todayMeals.find((item) => item.slot === slot);
         return <LongPressRow key={slot} done={Boolean(entry)} label={`${label}. Tieni premuto per ${entry ? 'completare o correggere' : 'registrare'}.`} onLongPress={() => openEditor({ kind: 'meal', slot, label, ...(entry ? { entry } : {}) })} onRemove={entry ? () => removeEntry('meal', entry.id, label) : undefined}><span aria-hidden="true" /><div><strong>{label}</strong><small>{entry?.description ?? 'DA REGISTRARE'}</small></div></LongPressRow>;
@@ -219,7 +221,7 @@ export function TodayChecklistScreen() {
       </form>
     </div>}
 
-    {wishOpen && <div className="sync-wish" role="dialog" aria-modal="true" aria-labelledby="sync-wish-title">
+    {!embedded && wishOpen && <div className="sync-wish" role="dialog" aria-modal="true" aria-labelledby="sync-wish-title">
       <button type="button" className="sync-wish__backdrop" onClick={() => setWishOpen(false)} aria-label="Chiudi desiderio" />
       <form onSubmit={(event) => { event.preventDefault(); submitWish(); }}>
         <button type="button" className="sync-wish__close" onClick={() => setWishOpen(false)} aria-label="Chiudi"><Icon name="close" /></button>
