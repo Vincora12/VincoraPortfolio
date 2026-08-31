@@ -78,8 +78,11 @@ async function readState() {
 
 export async function machineSnapshot() {
   const { state } = await readState();
-  const pendingInsights = Object.values(state).flatMap((item) => item.pendingInsights ?? []).filter((item) => item.status !== 'discussed');
-  return { machines: MACHINE_DEFINITIONS.map((definition) => ({ ...definition, state: state[definition.id] })), pendingInsights };
+  const insights = Object.values(state)
+    .flatMap((item) => item.pendingInsights ?? [])
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const pendingInsights = insights.filter((item) => item.status !== 'discussed');
+  return { machines: MACHINE_DEFINITIONS.map((definition) => ({ ...definition, state: state[definition.id] })), pendingInsights, insights };
 }
 
 export async function openPendingInsight(id: string) {
@@ -89,6 +92,22 @@ export async function openPendingInsight(id: string) {
     if (insight) { insight.status = 'opened'; insight.openedAt = at(); await store.setJSON(KEY, state); return insight; }
   }
   throw new Error('insight not found');
+}
+
+export async function openAllPendingInsights() {
+  const { store, state } = await readState();
+  const openedAt = at();
+  const opened: PendingInsight[] = [];
+  for (const item of Object.values(state)) {
+    for (const insight of item.pendingInsights ?? []) {
+      if (insight.status !== 'pending') continue;
+      insight.status = 'opened';
+      insight.openedAt = openedAt;
+      opened.push(insight);
+    }
+  }
+  if (opened.length) await store.setJSON(KEY, state);
+  return opened;
 }
 
 export async function discussPendingInsight(id: string) {

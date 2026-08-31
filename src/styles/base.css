@@ -306,9 +306,64 @@ select {
   border: 0;
   padding: 6px 0;
   background: transparent;
-  color: var(--white);
+  color: #fff;
   font: 600 var(--type-micro)/1 var(--font-mono);
   letter-spacing: 0.12em;
+}
+
+.machine-insight-archive {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--u6) max(var(--u4), env(safe-area-inset-right)) calc(var(--u16) + env(safe-area-inset-bottom)) max(var(--u4), env(safe-area-inset-left));
+  background: #0b0b0c;
+  color: #f4f4f6;
+  scrollbar-color: var(--char-accent-on-dark) #0b0b0c;
+}
+
+.machine-insight-archive__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--u4);
+  margin-bottom: var(--u8);
+  border-bottom: 1px solid #34343a;
+  padding-bottom: var(--u3);
+}
+
+.machine-insight-archive__head h1 {
+  margin: 0;
+  color: #f4f4f6;
+  font: 900 clamp(2.2rem, 12vw, 3.7rem)/0.9 var(--font-display);
+  font-style: italic;
+  letter-spacing: -0.035em;
+}
+
+.machine-insight-archive__head p {
+  margin: 0;
+  color: #a8a8b2;
+  font: 600 var(--type-micro)/1 var(--font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.machine-insight-archive__empty {
+  max-width: 30ch;
+  margin: var(--u10) auto;
+  color: #a8a8b2;
+  font-size: var(--type-body);
+  line-height: 1.5;
+  text-align: center;
+}
+
+.machine-insight-archive__list {
+  display: grid;
+  gap: var(--u12);
+}
+
+.machine-insight-balloon--archive {
+  margin: 0 auto;
+  animation: none;
 }
 
 .machine-insight-balloon__thought {
@@ -376,7 +431,7 @@ select {
   width: 9.5rem;
   height: 8rem;
   margin: 14px 0 0 14px;
-  color: var(--white);
+  color: #fff;
   font: 700 var(--type-small)/1 var(--font-mono);
   user-select: none;
   -webkit-user-select: none;
@@ -393,6 +448,20 @@ select {
     drop-shadow(2px 0 0 #fff) drop-shadow(-2px 0 0 #fff)
     drop-shadow(0 2px 0 #fff) drop-shadow(0 -2px 0 #fff)
     drop-shadow(2px 6px 5px rgb(0 0 0 / 40%));
+}
+
+.machine-insight-balloon__mon > strong {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-items: center;
+  border: 2px solid currentColor;
+  padding: var(--u2);
+  color: currentColor;
+  font: 700 var(--type-micro)/1.25 var(--font-mono);
+  letter-spacing: 0.08em;
+  text-align: center;
+  text-transform: uppercase;
 }
 
 @keyframes machine-insight-arrive {

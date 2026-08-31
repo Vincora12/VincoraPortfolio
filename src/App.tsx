@@ -95,7 +95,14 @@ function LazyChat(props: ComponentProps<typeof IntegratedChat>) {
 export type Tab = 'chat' | 'mon' | 'me' | 'today';
 
 /** Le viste dentro MON. La prima è la creatura. */
-export type MonView = 'mon' | 'map' | 'dex';
+export type MonView = 'mon' | 'map' | 'dex' | 'insights';
+
+type InsightView = {
+  id: string;
+  statement: string;
+  status: 'pending' | 'opened' | 'discussed';
+  createdAt?: string;
+};
 
 /** Le viste dentro ME. La prima sono i numeri di oggi. */
 export type MeView = 'me' | 'calendar';
@@ -209,7 +216,7 @@ export function App() {
   /* 🔷 «Appena entri c'è la chat aperta.» */
   const [tab, setTab] = useState<Tab>('chat');
   const [overlay, setOverlay] = useState<Overlay>(null);
-  const [visibleInsight, setVisibleInsight] = useState<{ id: string; statement: string } | null>(null);
+  const [visibleInsight, setVisibleInsight] = useState<InsightView | null>(null);
 
   /* 🔶 QUESTO STATO DICEVA «creatura o chat». Non serve più a quello: la chat
      è una tab sua. Adesso dice quale delle quattro viste di MON stai
@@ -249,17 +256,18 @@ export function App() {
     void (async () => {
       try {
         const response = await fetch('/api/machines', { headers: { authorization: `Bearer ${token}` } });
-        const body = await response.json() as { pendingInsights?: Array<{ id: string; statement: string }> };
+        const body = await response.json() as { pendingInsights?: InsightView[] };
         const insight = body.pendingInsights?.find((item) => item.id === insightId);
         if (!insight) return;
         await fetch('/api/machines', { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify({ machine: 'open_insight', insightId }) });
+        window.dispatchEvent(new Event('vinzmon-insight-seen'));
         window.history.replaceState({}, '', window.location.pathname);
-        setVisibleInsight(insight);
+        setVisibleInsight({ ...insight, status: 'opened' });
       } catch { /* notification click remains harmless if the session is unavailable */ }
     })();
   }, [token]);
 
-  const discussInsight = (insight: { id: string; statement: string }) => {
+  const discussInsight = (insight: InsightView) => {
     setVisibleInsight(null);
     if (token) void fetch('/api/machines', {
       method: 'POST',
@@ -520,7 +528,7 @@ export function App() {
     /* La MIND.MAP resta una superficie scura di percorso. Il MIND.DEX invece
        è uno scaffale ottico bianco: non deve ereditare il campo nero solo
        perché vive accanto alla mappa. */
-    (phase === 'live' && tab === 'mon' && monView === 'map' && !overlay) ||
+    (phase === 'live' && tab === 'mon' && (monView === 'map' || monView === 'insights') && !overlay) ||
     /* 🔷 «Quella barra bianca sopra deve essere nera.» SYNC dipinge il proprio
        sfondo nero da sé (`.today-check`), ma la barra di stato condivisa
        (`.proto-statusbar`, `GIORNO · DEV`) vive fuori da quella schermata e
@@ -602,6 +610,7 @@ export function App() {
                 onMeView={setMeView}
                 onGo={setOverlay}
                 onEnterChat={() => goTab('chat')}
+                onDiscussInsight={discussInsight}
               />
             )}
           </>
@@ -617,6 +626,7 @@ export function App() {
             onMeView={setMeView}
             onGo={setOverlay}
             onEnterChat={() => goTab('chat')}
+            onDiscussInsight={discussInsight}
           />
         )}
 
@@ -654,6 +664,7 @@ function PhaseScreen({
   onMeView,
   onGo,
   onEnterChat,
+  onDiscussInsight,
 }: {
   phase: Phase;
   tab: Tab;
@@ -663,6 +674,7 @@ function PhaseScreen({
   onMeView: (v: MeView) => void;
   onGo: (o: Overlay) => void;
   onEnterChat: () => void;
+  onDiscussInsight: (insight: InsightView) => void;
 }) {
   switch (phase) {
     /* 🔷 v4 §3/§4 — l'ingresso di chi arriva adesso. */
@@ -691,7 +703,7 @@ function PhaseScreen({
     case 'live':
       switch (tab) {
         case 'mon':
-          return <MonTab view={monView} onView={onMonView} onGo={onGo} onEnterChat={onEnterChat} />;
+          return <MonTab view={monView} onView={onMonView} onGo={onGo} onEnterChat={onEnterChat} onDiscussInsight={onDiscussInsight} />;
         case 'me':
           return <MeTab view={meView} onView={onMeView} onGo={onGo} />;
         case 'today':
@@ -791,11 +803,13 @@ export function MonTab({
   onView,
   onGo,
   onEnterChat,
+  onDiscussInsight,
 }: {
   view: MonView;
   onView: (v: MonView) => void;
   onGo: (o: Overlay) => void;
   onEnterChat: () => void;
+  onDiscussInsight?: (insight: InsightView) => void;
 }) {
   return (
     <div className="archive">
@@ -807,12 +821,14 @@ export function MonTab({
           { id: 'mon', label: t.nav.mon },
           { id: 'map', label: t.archive.map },
           { id: 'dex', label: t.archive.dex },
+          { id: 'insights', label: 'INSIGHT' },
         ]}
       />
 
       {view === 'mon' && <SplashScreen onEnter={onEnterChat} />}
       {view === 'map' && <MindlineMapScreen onGo={onGo} />}
       {view === 'dex' && <DexScreen onGo={onGo} onOpenMon={() => onView('mon')} />}
+      {view === 'insights' && <MachineInsightArchive onDiscuss={onDiscussInsight} />}
     </div>
   );
 }
@@ -954,7 +970,7 @@ function StatusBar({
   onOpenDev: () => void;
   onOpenLab: () => void;
   onActivate: () => void;
-  onOpenInsight: (insight: { id: string; statement: string }) => void;
+  onOpenInsight: (insight: InsightView) => void;
 }) {
   const day = useApp((s) => s.day);
   const sync = useApp((s) => s.progression.sync.lifetime);
@@ -1019,24 +1035,30 @@ function StatusBar({
   );
 }
 
-function MachineInsightChip({ onOpen }: { onOpen: (insight: { id: string; statement: string }) => void }) {
+function MachineInsightChip({ onOpen }: { onOpen: (insight: InsightView) => void }) {
   const token = useApp((s) => s.token);
-  const [insight, setInsight] = useState<{ id: string; statement: string } | null>(null);
+  const [insights, setInsights] = useState<InsightView[]>([]);
   useEffect(() => {
-    if (!token) { setInsight(null); return; }
+    if (!token) { setInsights([]); return; }
     let cancelled = false;
     const load = async () => {
       try {
         const response = await fetch('/api/machines', { headers: { authorization: `Bearer ${token}` } });
         if (!response.ok) return;
-        const body = await response.json() as { pendingInsights?: Array<{ id: string; statement: string; status: string }> };
-        if (!cancelled) setInsight(body.pendingInsights?.find((item) => item.status !== 'discussed') ?? null);
+        const body = await response.json() as { pendingInsights?: InsightView[] };
+        if (!cancelled) setInsights(body.pendingInsights?.filter((item) => item.status === 'pending') ?? []);
       } catch { /* in-app notification is best effort */ }
     };
     void load();
     const onFocus = () => { void load(); };
+    const onSeen = () => { void load(); };
     window.addEventListener('focus', onFocus);
-    return () => { cancelled = true; window.removeEventListener('focus', onFocus); };
+    window.addEventListener('vinzmon-insight-seen', onSeen);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('focus', onFocus);
+      window.removeEventListener('vinzmon-insight-seen', onSeen);
+    };
   }, [token]);
   const canAsk = typeof window !== 'undefined' && 'Notification' in window && Notification.permission !== 'denied';
   const enable = async () => {
@@ -1044,17 +1066,105 @@ function MachineInsightChip({ onOpen }: { onOpen: (insight: { id: string; statem
     const { enableMachineNotifications } = await import('./system/pushNotifications');
     await enableMachineNotifications(token);
   };
+  const insight = insights[0];
   if (!insight) return canAsk ? <button type="button" className="machine-insight-chip" onClick={() => void enable()} aria-label="Attiva notifiche insight">ATTIVA INSIGHT</button> : null;
   const open = async () => {
-    try {
-      await fetch('/api/machines', { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify({ machine: 'open_insight', insightId: insight.id }) });
-    } finally {
-      onOpen(insight);
+    const response = await fetch('/api/machines', { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify({ machine: 'open_insight', insightId: insight.id }) }).catch(() => null);
+    if (response?.ok) {
+      setInsights((current) => current.filter((item) => item.id !== insight.id));
+      window.dispatchEvent(new Event('vinzmon-insight-seen'));
     }
+    onOpen({ ...insight, status: response?.ok ? 'opened' : insight.status });
   };
   return <>
-    <button type="button" className="machine-insight-chip" onClick={() => void open()} aria-label="Apri insight di VINZ.MON">INSIGHT · 1</button>
+    <button type="button" className="machine-insight-chip" onClick={() => void open()} aria-label="Apri insight di VINZ.MON">INSIGHT · {insights.length}</button>
     {canAsk && <button type="button" className="machine-insight-chip" onClick={() => void enable()} aria-label="Attiva notifiche insight">ATTIVA</button>}
+  </>;
+}
+
+function MachineInsightArchive({ onDiscuss }: { onDiscuss?: (insight: InsightView) => void }) {
+  const token = useApp((state) => state.token);
+  const [insights, setInsights] = useState<InsightView[] | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    if (!token) { setInsights([]); return; }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const response = await fetch('/api/machines', { headers: { authorization: `Bearer ${token}` } });
+        if (!response.ok) throw new Error('insight unavailable');
+        const body = await response.json() as { insights?: InsightView[] };
+        const archive = body.insights ?? [];
+        if (!cancelled) setInsights(archive);
+        if (archive.some((insight) => insight.status === 'pending')) {
+          const opened = await fetch('/api/machines', {
+            method: 'POST',
+            headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+            body: JSON.stringify({ machine: 'open_insights' }),
+          });
+          if (opened.ok) {
+            if (!cancelled) setInsights((current) => current?.map((insight) => insight.status === 'pending' ? { ...insight, status: 'opened' } : insight) ?? []);
+            window.dispatchEvent(new Event('vinzmon-insight-seen'));
+          }
+        }
+      } catch {
+        if (!cancelled) { setFailed(true); setInsights([]); }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [token]);
+
+  return (
+    <section className="machine-insight-archive" aria-labelledby="machine-insight-archive-title">
+      <header className="machine-insight-archive__head">
+        <h1 id="machine-insight-archive-title">INSIGHT</h1>
+        <p>{insights ? `${insights.length} ${insights.length === 1 ? 'pensiero' : 'pensieri'}` : 'Caricamento…'}</p>
+      </header>
+      {failed ? <p className="machine-insight-archive__empty">Gli insight non sono disponibili. Riprova più tardi.</p> : null}
+      {!failed && insights?.length === 0 ? <p className="machine-insight-archive__empty">Quando VINZ.MON noterà qualcosa che vale la pena conservare, apparirà qui.</p> : null}
+      <div className="machine-insight-archive__list">
+        {insights?.map((insight) => (
+          <article className="machine-insight-balloon machine-insight-balloon--archive" key={insight.id}>
+            <MachineInsightThought
+              insight={insight}
+              titleId={`machine-insight-${insight.id}`}
+              onDiscuss={onDiscuss ? () => onDiscuss(insight) : undefined}
+            />
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function MachineInsightThought({
+  insight,
+  titleId,
+  onDiscuss,
+}: {
+  insight: InsightView;
+  titleId: string;
+  onDiscuss?: () => void;
+}) {
+  const activeMonName = useApp((state) => state.activeMonName ?? 'VINZ.MON');
+  const art = useAssetUrlChain(activeMonName, ['reaction_pack', 'character_master']);
+  return <>
+    <div className="machine-insight-balloon__thought">
+      <span id={titleId}>UN PENSIERO DI {activeMonName.toLocaleUpperCase('it')}</span>
+      <p>{insight.statement}</p>
+      {onDiscuss ? <button type="button" className="machine-insight-balloon__discuss" onClick={onDiscuss}>PARLIAMONE</button> : null}
+    </div>
+    <div className="machine-insight-balloon__mon" aria-label={activeMonName}>
+      {art.url && art.resolvedType === 'reaction_pack' ? <span
+        aria-hidden="true"
+        style={{
+          backgroundImage: `url(${art.url})`,
+          backgroundSize: `${EXPRESSION_SPEC.columns * 100}% ${EXPRESSION_SPEC.rows * 100}%`,
+          backgroundPosition: `${100 / (EXPRESSION_SPEC.columns - 1)}% 0%`,
+        }}
+      /> : art.url ? <img src={art.url} alt="" /> : <strong>{activeMonName}</strong>}
+    </div>
   </>;
 }
 
@@ -1063,39 +1173,55 @@ function MachineInsightBalloon({
   onClose,
   onDiscuss,
 }: {
-  insight: { id: string; statement: string };
+  insight: InsightView;
   onClose: () => void;
   onDiscuss: () => void;
 }) {
-  const activeMonName = useApp((state) => state.activeMonName ?? 'VINZ.MON');
-  const art = useAssetUrlChain(activeMonName, ['reaction_pack', 'character_master']);
+  const dialogRef = useRef<HTMLElement>(null);
   useEffect(() => {
-    const close = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', close);
-    return () => window.removeEventListener('keydown', close);
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const dialog = dialogRef.current;
+    const focusable = () => dialog
+      ? Array.from(dialog.querySelectorAll<HTMLElement>('button:not([disabled]), [href], [tabindex]:not([tabindex="-1"])'))
+      : [];
+    focusable()[0]?.focus();
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onClose();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      const items = focusable();
+      if (!items.length) {
+        event.preventDefault();
+        dialog?.focus();
+        return;
+      }
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => {
+      window.removeEventListener('keydown', handleKey);
+      previousFocus?.focus();
+    };
   }, [onClose]);
 
   return (
     <div className="machine-insight-overlay" role="presentation" onClick={(event) => {
       if (event.target === event.currentTarget) onClose();
     }}>
-      <section className="machine-insight-balloon" role="dialog" aria-modal="true" aria-labelledby="machine-insight-title">
+      <section ref={dialogRef} className="machine-insight-balloon" role="dialog" aria-modal="true" aria-labelledby="machine-insight-title" tabIndex={-1}>
         <button type="button" className="machine-insight-balloon__close" onClick={onClose} aria-label="Chiudi il pensiero">CHIUDI</button>
-        <div className="machine-insight-balloon__thought">
-          <span id="machine-insight-title">UN PENSIERO DI {activeMonName.toLocaleUpperCase('it')}</span>
-          <p>{insight.statement}</p>
-          <button type="button" className="machine-insight-balloon__discuss" onClick={onDiscuss} autoFocus>PARLIAMONE</button>
-        </div>
-        <div className="machine-insight-balloon__mon" aria-label={activeMonName}>
-          {art.url && art.resolvedType === 'reaction_pack' ? <span
-            aria-hidden="true"
-            style={{
-              backgroundImage: `url(${art.url})`,
-              backgroundSize: `${EXPRESSION_SPEC.columns * 100}% ${EXPRESSION_SPEC.rows * 100}%`,
-              backgroundPosition: `${100 / (EXPRESSION_SPEC.columns - 1)}% 0%`,
-            }}
-          /> : art.url ? <img src={art.url} alt="" /> : <strong>{activeMonName}</strong>}
-        </div>
+        <MachineInsightThought insight={insight} titleId="machine-insight-title" onDiscuss={onDiscuss} />
       </section>
     </div>
   );

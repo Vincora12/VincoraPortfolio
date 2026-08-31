@@ -55,6 +55,8 @@ const threadListSource = readFileSync(
 const cloneMain = readFileSync(join(cwd, 'src/assistant-original/main.tsx'), 'utf8');
 const integratedChat = readFileSync(join(cwd, 'src/assistant-original/IntegratedChat.tsx'), 'utf8');
 const appSource = readFileSync(join(cwd, 'src/App.tsx'), 'utf8');
+const appStyles = readFileSync(join(cwd, 'src/styles/base.css'), 'utf8');
+const machinesSource = readFileSync(join(cwd, 'netlify/functions/_shared/machines.ts'), 'utf8');
 const healthJournalSource = readFileSync(join(cwd, 'src/engine/healthJournal.ts'), 'utf8');
 const toolSource = readFileSync(join(cwd, 'src/ai/tools.ts'), 'utf8');
 const netlifyRuntime = readFileSync(
@@ -126,6 +128,20 @@ check(
   appSource.includes('className="machine-insight-balloon"') &&
     appSource.includes('PARLIAMONE'),
   "l’Insight viene mostrato prima come pensiero del MON",
+);
+check(
+  appSource.includes("item.status === 'pending'") &&
+    appSource.includes("vinzmon-insight-seen") &&
+    appSource.includes('INSIGHT · {insights.length}'),
+  "il badge conta soltanto gli Insight non ancora visti e si aggiorna dopo l’apertura",
+);
+check(
+  appSource.includes("{ id: 'insights', label: 'INSIGHT' }") &&
+    appSource.includes('<MachineInsightArchive') &&
+    appSource.includes('<MachineInsightThought') &&
+    appStyles.includes('.machine-insight-archive') &&
+    machinesSource.includes('pendingInsights, insights'),
+  "MON espone l’archivio completo usando la stessa grafica del balloon di notifica",
 );
 check(
   appSource.includes('prompt: `Ho letto questa tua riflessione:') &&

@@ -1,5 +1,5 @@
 import { authorize, denied, json } from './_shared/auth';
-import { discussPendingInsight, machineSnapshot, openPendingInsight, runMachine, type MachineId } from './_shared/machines';
+import { discussPendingInsight, machineSnapshot, openAllPendingInsights, openPendingInsight, runMachine, type MachineId } from './_shared/machines';
 import { pushStatus } from './_shared/pushDelivery';
 
 export default async function handler(request: Request): Promise<Response> {
@@ -11,6 +11,7 @@ export default async function handler(request: Request): Promise<Response> {
   if (body.machine === 'open_insight') {
     try { return json({ insight: await openPendingInsight((body as { insightId?: string }).insightId ?? '') }); } catch { return json({ error: 'insight non disponibile' }, 404); }
   }
+  if (body.machine === 'open_insights') return json({ insights: await openAllPendingInsights() });
   if (body.machine === 'discuss_insight') {
     try { return json({ insight: await discussPendingInsight((body as { insightId?: string }).insightId ?? '') }); } catch { return json({ error: 'insight non disponibile' }, 404); }
   }
