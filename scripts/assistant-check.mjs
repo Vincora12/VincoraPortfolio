@@ -78,7 +78,9 @@ check(
 );
 check(
   cloneSource.includes('submitMode="none"') &&
-    appStyles.includes('.proto-frame:has(.vinz-composer:focus-within) .tabbar'),
+    appStyles.includes('.proto-frame:has(.vinz-composer:focus-within) .tabbar') &&
+    cloneSource.includes('event.pointerType === "touch"') &&
+    cloneSource.includes('event.preventDefault()'),
   'Invio va a capo e il tap sulla freccia non viene perso quando il nav ricompare',
 );
 check(cloneStyles.includes('.vinz-record__wave.is-loading'), 'avvio e trascrizione hanno un loader dedicato');

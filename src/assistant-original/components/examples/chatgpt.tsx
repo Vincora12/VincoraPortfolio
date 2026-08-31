@@ -621,7 +621,15 @@ const ComposerPrimaryAction: FC<{ onDictate: () => void }> = ({
       <AuiIf
         condition={(s) => !s.thread.isRunning && !s.composer.isEmpty}
       >
-        <ComposerPrimitive.Send className="vinz-clone-composer__send flex size-9 items-center justify-center rounded-full bg-[#0d0d0d] text-white transition-opacity disabled:opacity-30 dark:bg-white dark:text-black">
+        <ComposerPrimitive.Send
+          className="vinz-clone-composer__send flex size-9 items-center justify-center rounded-full bg-[#0d0d0d] text-white transition-opacity disabled:opacity-30 dark:bg-white dark:text-black"
+          onPointerDown={(event) => {
+            // Su iOS il focus passava dalla textarea al bottone al pointer-down:
+            // la tastiera si chiudeva e il click di invio veniva perso. Il
+            // bottone non ha bisogno di prendere focus per eseguire il click.
+            if (event.pointerType === "touch") event.preventDefault();
+          }}
+        >
           <ArrowUpIcon className="size-6" />
         </ComposerPrimitive.Send>
       </AuiIf>
