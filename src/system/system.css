@@ -608,7 +608,11 @@
 /* Solo le viste che dichiarano esplicitamente il campo carta usano il nav
    chiaro. Chat e ME restano nere anche se non hanno un campo evento. */
 .proto-frame[data-field='paper'] .tabbar {
-  background: var(--white);
+  /* La barra resta ancorata al fondo, ma il suo pannello non deve coprire
+     l'immagine con un rettangolo pieno: la superficie chiara sfuma verso il
+     contenuto della scheda. */
+  position: relative;
+  background: transparent;
 }
 
 .proto-frame[data-field='paper'] .tabbar__item {
@@ -627,6 +631,19 @@
   color: var(--ink);
 }
 
+.proto-frame[data-field='paper'] .tabbar::before {
+  content: '';
+  position: absolute;
+  z-index: 0;
+  inset: -88px 0 0;
+  background: linear-gradient(to bottom, transparent 0%, var(--white) 100%);
+  pointer-events: none;
+}
+
+.proto-frame[data-field='paper'] .tabbar__item {
+  z-index: 1;
+}
+
 /* Su iPhone la safe area completa lasciava la barra troppo alta e produceva
    uno zoccolo nero sotto ai controlli. La barra entra quasi tutta nella safe
    area e conserva soltanto il margine tattile minimo: composer e timeline
@@ -635,7 +652,7 @@
   /* Su una scheda carta anche il margine sotto il frame appartiene alla
      superficie chiara: non deve riapparire il fondo nero del documento. */
   .proto-stage:has(.proto-frame[data-field='paper']) {
-    background: var(--white);
+    background: var(--white) !important;
   }
 
   .tabbar {
@@ -644,21 +661,6 @@
     padding: 2px 14px var(--tabbar-mobile-bottom);
   }
 
-  .proto-frame[data-field='paper'] .tabbar {
-    position: relative;
-  }
-
-  .proto-frame[data-field='paper'] .tabbar::after {
-    content: '';
-    position: absolute;
-    z-index: 0;
-    top: 100%;
-    right: 0;
-    left: 0;
-    height: 24px;
-    background: linear-gradient(to bottom, transparent, var(--white));
-    pointer-events: none;
-  }
 }
 
 
