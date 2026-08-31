@@ -91,6 +91,15 @@ export async function openPendingInsight(id: string) {
   throw new Error('insight not found');
 }
 
+export async function discussPendingInsight(id: string) {
+  const { store, state } = await readState();
+  for (const item of Object.values(state)) {
+    const insight = (item.pendingInsights ?? []).find((candidate) => candidate.id === id);
+    if (insight) { insight.status = 'discussed'; insight.discussedAt = at(); await store.setJSON(KEY, state); return insight; }
+  }
+  throw new Error('insight not found');
+}
+
 function memoriesFrom(raw: unknown): Array<{ id?: string; text: string }> {
   const rows = Array.isArray((raw as { results?: unknown[] })?.results) ? (raw as { results: unknown[] }).results : Array.isArray(raw) ? raw : [];
   return rows.flatMap((row) => {

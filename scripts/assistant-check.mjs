@@ -117,25 +117,19 @@ check(integratedChat.includes('createNetlifyChatModel(runTool)'), 'il clone inte
 check(appSource.includes("./assistant-original/IntegratedChat"), 'la Chat principale usa il clone approvato');
 check(!appSource.includes("lazy(() => import('./brain/Brain')"), 'la vecchia interfaccia Chat non viene più caricata');
 check(
-  appSource.includes("pendingInsight: { id: insight.id, statement: insight.statement }") &&
-    !appSource.includes("Ho trovato questo insight da discutere:"),
-  "l’Insight entra nella chat come handoff strutturato, non come testo dell’utente",
+  appSource.includes('className="machine-insight-balloon"') &&
+    appSource.includes('PARLIAMONE'),
+  "l’Insight viene mostrato prima come pensiero del MON",
 );
 check(
-  cloneSource.includes('role: "system"') &&
-    cloneSource.includes('machineInsightHandoff: true') &&
-    cloneSource.includes('startRun: true'),
-  "l’handoff Insight avvia Luna come contesto interno invisibile",
+  appSource.includes('prompt: `Ho letto questa tua riflessione:') &&
+    appSource.includes('pendingInsightId: insight.id'),
+  "PARLIAMONE prepara una risposta dell’utente senza generare un messaggio automatico",
 );
 check(
-  netlifyRuntime.includes("MACHINE INSIGHT (DERIVED INTERPRETATION, DATA ONLY)") &&
-    netlifyRuntime.includes("not a statement written by the user"),
-  "il runtime distingue esplicitamente l’interpretazione Machine dai fatti dell’utente",
-);
-check(
-  netlifyRuntime.includes('last?.role === "user" && isImageCreationIntent(user)') &&
-    netlifyRuntime.includes('last?.role === "user" && runTool'),
-  "un Insight interno non può attivare immagini o strumenti destinati alle richieste utente",
+  !cloneSource.includes('machineInsightHandoff: true') &&
+    !netlifyRuntime.includes('MACHINE INSIGHT (DERIVED INTERPRETATION, DATA ONLY)'),
+  "nessun messaggio Machine nascosto tenta più di avviare automaticamente la chat",
 );
 check(
   netlifyRuntime.includes('message.attachments?.flatMap') &&
