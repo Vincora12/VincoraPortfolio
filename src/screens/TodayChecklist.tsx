@@ -24,6 +24,8 @@ type EditTarget =
 
 function workoutIcon(workout: WorkoutLog): IconName {
   const text = `${workout.title} ${workout.details}`.toLocaleLowerCase('it-IT');
+  if (/riposo|recupero|rest day|nessun allenamento/.test(text)) return 'rest';
+  if (/pesi|forza|palestra|gym|sollevamento|bilanciere|manubri/.test(text)) return 'workout';
   if (/corsa|running|jog|tapis/.test(text)) return 'run';
   if (/hip.?hop|danza|ballo|dance/.test(text)) return 'dance';
   if (/bici|bicicletta|bike|cicl/.test(text)) return 'cycle';
@@ -31,7 +33,7 @@ function workoutIcon(workout: WorkoutLog): IconName {
   return 'workout';
 }
 
-export function TodayChecklistScreen({ embedded = false, defaultDetailsOpen = false }: { embedded?: boolean; defaultDetailsOpen?: boolean } = {}) {
+export function TodayChecklistScreen({ embedded = false, defaultDetailsOpen = false, onDetailsChange }: { embedded?: boolean; defaultDetailsOpen?: boolean; onDetailsChange?: (open: boolean) => void } = {}) {
   const [journal, setJournal] = useState(readHealthJournal);
   const [wishOpen, setWishOpen] = useState(false);
   const [wishText, setWishText] = useState('');
@@ -206,11 +208,11 @@ export function TodayChecklistScreen({ embedded = false, defaultDetailsOpen = fa
         <header><strong>{todayWorkouts.length || '—'}</strong><span>ATTIVITÀ</span></header>
         <div>{todayWorkouts.length
           ? todayWorkouts.map((workout) => <i key={workout.id} data-on="true" title={workout.title}><Icon name={workoutIcon(workout)} /><small>{workout.title}</small></i>)
-          : <i title="Riposo"><Icon name="workout" /><small>RIPOSO</small></i>}</div>
+          : <i title="Riposo"><Icon name="rest" /><small>RIPOSO</small></i>}</div>
       </div>
     </section>}
 
-    <button type="button" className="sync-check__details-toggle" aria-expanded={detailsOpen} aria-controls={detailsId} onClick={() => setDetailsOpen((open) => !open)}>
+    <button type="button" className="sync-check__details-toggle" aria-expanded={detailsOpen} aria-controls={detailsId} onClick={() => setDetailsOpen((open) => { const next = !open; onDetailsChange?.(next); return next; })}>
       {detailsOpen ? 'CHIUDI' : 'VEDI OGGI'} <span aria-hidden="true">{detailsOpen ? '↑' : '↓'}</span>
     </button>
 

@@ -107,10 +107,11 @@ function WorkoutTimer({ onClose }: { onClose: () => void }) {
 }
 
 function TodayRecap({ journal, total }: { journal: HealthJournal; total: HealthJournal['targets'] }) {
-  return <>
+  const [detailsOpen, setDetailsOpen] = useState(true);
+  return <section className="me-health__today-recap" data-expanded={detailsOpen}>
     <Nutrition total={total} targets={journal.targets} />
-    <TodayChecklistScreen embedded defaultDetailsOpen />
-  </>;
+    <TodayChecklistScreen embedded defaultDetailsOpen onDetailsChange={setDetailsOpen} />
+  </section>;
 }
 
 function Nutrition({ total, targets }: { total: HealthJournal['targets']; targets: HealthJournal['targets'] }) { const pct = Math.min(100, Math.round(total.kcal / targets.kcal * 100)); return <section className="me-health__nutrition"><div className="me-health__calories"><div><small>ENERGIA</small><strong>{total.kcal.toLocaleString('it-IT')}</strong><span>/ {targets.kcal.toLocaleString('it-IT')} KCAL</span><Segments value={pct} count={14} /></div></div><div className="me-health__macros">{(['protein', 'carbs', 'fat'] as const).map(k => { const value = Math.min(100, total[k] / targets[k] * 100); return <div key={k}><span>{k === 'protein' ? 'PRO' : k === 'carbs' ? 'CARB' : 'FAT'}</span><strong>{total[k]}<small>g</small></strong><Segments value={value} count={8} /></div>; })}</div></section>; }

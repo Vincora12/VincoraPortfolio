@@ -25,6 +25,7 @@ export type IconName =
   | 'dance'
   | 'cycle'
   | 'swim'
+  | 'rest'
   | 'scan'
   | 'close'
   | 'left'
@@ -149,6 +150,11 @@ const PATHS: Record<IconName, ReactElement> = {
   swim: (
     <>
       <circle cx="16" cy="6" r="2" /><path d="m3 13 5-4 5 3 5-2 3 2M3 17c2-1.5 4-1.5 6 0s4 1.5 6 0 4-1.5 6 0M4 21c2-1.2 4-1.2 6 0s4 1.2 6 0 3-1.2 5 0" />
+    </>
+  ),
+  rest: (
+    <>
+      <path d="M19 15.5A8 8 0 0 1 8.5 5 8 8 0 1 0 19 15.5z" /><path d="M16 4h4l-4 4h4" />
     </>
   ),
   scan: (

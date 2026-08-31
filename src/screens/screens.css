@@ -4571,6 +4571,8 @@
   color-scheme: dark;
 }
 .me-health__scroll { padding: 10px 18px calc(116px + env(safe-area-inset-bottom)); background: var(--mh-bg); scrollbar-color: var(--mh-accent) var(--mh-bg); scroll-padding-bottom: calc(116px + env(safe-area-inset-bottom)); }
+.me-health__today-recap { min-height: 100%; display: grid; align-content: start; }
+.me-health__today-recap[data-expanded='false'] { align-content: center; }
 .me-health__goal,
 .me-health__nutrition,
 .me-health__section,
