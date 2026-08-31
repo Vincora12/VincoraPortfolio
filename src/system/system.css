@@ -633,6 +633,19 @@
   z-index: 1;
 }
 
+/* ME usa la stessa dissolvenza della scheda chiara, invertita sul suo campo
+   nero. Il gradiente resta dentro la barra: il contenuto continua dietro il
+   nav senza ricevere un velo nella parte superiore dello schermo. */
+.proto-frame:has(.me-health) .tabbar {
+  position: relative;
+  z-index: 10;
+  background: linear-gradient(to bottom, transparent 0%, #000 100%);
+}
+
+.proto-frame:has(.me-health) .tabbar__item {
+  z-index: 1;
+}
+
 /* Su iPhone la safe area completa lasciava la barra troppo alta e produceva
    uno zoccolo nero sotto ai controlli. La barra entra quasi tutta nella safe
    area e conserva soltanto il margine tattile minimo: composer e timeline
@@ -657,6 +670,10 @@
      proseguire la scheda dietro quella fascia: in alto si vede il contenuto,
      in basso il bianco chiude il frame. Non deve esserci nessun velo sopra. */
   .proto-frame[data-field='paper'] .tabbar {
+    margin-top: calc(-46px - var(--tabbar-mobile-bottom));
+  }
+
+  .proto-frame:has(.me-health) .tabbar {
     margin-top: calc(-46px - var(--tabbar-mobile-bottom));
   }
 

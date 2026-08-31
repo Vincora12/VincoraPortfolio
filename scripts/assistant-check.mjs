@@ -105,6 +105,11 @@ check(
   'la navigazione mobile scende fino al margine minimo della safe area',
 );
 check(
+  systemStyles.includes(".proto-frame:has(.me-health) .tabbar") &&
+    systemStyles.includes("background: linear-gradient(to bottom, transparent 0%, #000 100%)"),
+  'il nav di ME dissolve il contenuto verso il nero soltanto dentro la barra',
+);
+check(
   appSource.includes('PullDownSystemSheet') &&
     appSource.includes("enabled={phase === 'live' && !overlay}") &&
     appSource.includes('const SYSTEM_SHEET_PULL_ZONE_RATIO = 1 / 8') &&
