@@ -1097,10 +1097,13 @@ const LogCelebration: FC = () => {
       const mealSaved = updates.some((item) =>
         /Pasto (?:aggiunto|corretto) in ME/i.test(item),
       );
+      const meSaved = updates.some((item) =>
+        /Schermata ME aggiornata/i.test(item),
+      );
       return {
         loading: state.thread.isLoading,
-        signal: (workoutSaved || mealSaved) && message ? `${message.id}:${updates.join("|")}` : "",
-        title: workoutSaved ? 'ALLENAMENTO' : mealSaved ? 'PASTO' : '',
+        signal: (workoutSaved || mealSaved || meSaved) && message ? `${message.id}:${updates.join("|")}` : "",
+        title: workoutSaved ? 'ALLENAMENTO' : mealSaved ? 'PASTO' : meSaved ? 'ME' : '',
       };
     }),
   );

@@ -110,6 +110,12 @@ check(
   'ogni scrittura conferma sotto al messaggio quale sezione ha aggiornato',
 );
 check(
+  cloneSource.includes('/Schermata ME aggiornata/i.test(item)') &&
+    cloneSource.includes('workoutSaved || mealSaved || meSaved') &&
+    cloneSource.includes("meSaved ? 'ME'"),
+  'anche una modifica generica realmente riuscita in ME attiva la celebrazione esistente',
+);
+check(
   cloneMain.includes('selectedRuntime === "mock" ? mockChatModel : netlifyChatModel'),
   'il backend reale è il runtime predefinito',
 );
