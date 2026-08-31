@@ -534,6 +534,12 @@ export function App() {
        eredita questa inversione. */
     (phase === 'live' && tab === 'today' && !overlay);
 
+  const paperField =
+    phase === 'live' &&
+    tab === 'mon' &&
+    (monView === 'mon' || monView === 'dex') &&
+    !overlay;
+
   // Con la tab bar in fondo, il margine di sistema lo prende lei: il composer
   // non deve aggiungere il suo, o resterebbe uno spazio vuoto doppio.
   //
@@ -549,7 +555,7 @@ export function App() {
     <div className="proto-stage">
       <div
         className={`proto-frame ${hasTabBar ? 'has-tabbar' : ''}`}
-        data-field={inkField ? 'ink' : undefined}
+        data-field={inkField ? 'ink' : paperField ? 'paper' : undefined}
       >
         <PullDownSystemSheet
           enabled={phase === 'live' && !overlay}

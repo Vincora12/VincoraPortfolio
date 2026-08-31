@@ -109,6 +109,7 @@ check(
     appSource.includes("enabled={phase === 'live' && !overlay}") &&
     appSource.includes('const SYSTEM_SHEET_PULL_ZONE_RATIO = 1 / 8') &&
     appSource.includes('!isSystemSheetPullOrigin(touch.clientY)') &&
+    appSource.includes("data-field={inkField ? 'ink' : paperField ? 'paper' : undefined}") &&
     appStyles.includes('.system-tray') &&
     appStyles.includes('.proto-sheet[data-dragging'),
   'i controlli tecnici live restano dietro la scheda e si rivelano solo tirando dall’ottavo superiore',

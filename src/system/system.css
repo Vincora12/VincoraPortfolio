@@ -605,26 +605,25 @@
   content: none;
 }
 
-/* Sulle schede chiare anche il basamento della navigazione resta carta: il
-   blocco nero e' riservato alle superfici evento dichiarate con `data-field`.
-   La struttura e le dimensioni non cambiano, cambia soltanto il materiale. */
-.proto-frame:not([data-field='ink']) .tabbar {
+/* Solo le viste che dichiarano esplicitamente il campo carta usano il nav
+   chiaro. Chat e ME restano nere anche se non hanno un campo evento. */
+.proto-frame[data-field='paper'] .tabbar {
   background: var(--white);
 }
 
-.proto-frame:not([data-field='ink']) .tabbar__item {
+.proto-frame[data-field='paper'] .tabbar__item {
   border-color: var(--hairline);
   background: var(--white);
   color: var(--ink);
 }
 
-.proto-frame:not([data-field='ink']) .tabbar__item[aria-current='page'] {
+.proto-frame[data-field='paper'] .tabbar__item[aria-current='page'] {
   border-color: var(--ink);
   background: var(--white);
   color: var(--char-accent);
 }
 
-.proto-frame:not([data-field='ink']) .tabbar__label {
+.proto-frame[data-field='paper'] .tabbar__label {
   color: var(--ink);
 }
 
