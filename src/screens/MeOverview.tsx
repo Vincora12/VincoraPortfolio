@@ -107,10 +107,10 @@ function WorkoutTimer({ onClose }: { onClose: () => void }) {
 }
 
 function TodayRecap({ journal, total }: { journal: HealthJournal; total: HealthJournal['targets'] }) {
-  const [detailsOpen, setDetailsOpen] = useState(true);
+  const [detailsOpen, setDetailsOpen] = useState(false);
   return <section className="me-health__today-recap" data-expanded={detailsOpen}>
     <Nutrition total={total} targets={journal.targets} />
-    <TodayChecklistScreen embedded defaultDetailsOpen onDetailsChange={setDetailsOpen} />
+    <TodayChecklistScreen embedded defaultDetailsOpen={false} onDetailsChange={setDetailsOpen} />
   </section>;
 }
 
