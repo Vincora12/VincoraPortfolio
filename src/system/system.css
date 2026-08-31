@@ -608,11 +608,9 @@
 /* Solo le viste che dichiarano esplicitamente il campo carta usano il nav
    chiaro. Chat e ME restano nere anche se non hanno un campo evento. */
 .proto-frame[data-field='paper'] .tabbar {
-  /* La barra resta ancorata al fondo, ma il suo pannello non deve coprire
-     l'immagine con un rettangolo pieno: la superficie chiara sfuma verso il
-     contenuto della scheda. */
   position: relative;
-  background: transparent;
+  z-index: 10;
+  background: linear-gradient(to bottom, transparent 0%, var(--white) 100%);
 }
 
 .proto-frame[data-field='paper'] .tabbar__item {
@@ -631,15 +629,6 @@
   color: var(--ink);
 }
 
-.proto-frame[data-field='paper'] .tabbar::before {
-  content: '';
-  position: absolute;
-  z-index: 0;
-  inset: -88px 0 0;
-  background: linear-gradient(to bottom, transparent 0%, var(--white) 100%);
-  pointer-events: none;
-}
-
 .proto-frame[data-field='paper'] .tabbar__item {
   z-index: 1;
 }
@@ -649,8 +638,11 @@
    area e conserva soltanto il margine tattile minimo: composer e timeline
    recuperano automaticamente lo spazio che prima restava vuoto. */
 @media (max-width: 860px) {
-  /* Su una scheda carta anche il margine sotto il frame appartiene alla
-     superficie chiara: non deve riapparire il fondo nero del documento. */
+  /* Su una scheda carta anche il margine fisico sotto il frame appartiene
+     alla superficie chiara: non deve riapparire il fondo nero del documento
+     o della safe area di iOS. */
+  html:has(.proto-frame[data-field='paper']),
+  body:has(.proto-frame[data-field='paper']),
   .proto-stage:has(.proto-frame[data-field='paper']) {
     background: var(--white) !important;
   }
@@ -659,6 +651,13 @@
     --tabbar-mobile-bottom: max(4px, calc(env(safe-area-inset-bottom) - 30px));
     height: calc(46px + var(--tabbar-mobile-bottom));
     padding: 2px 14px var(--tabbar-mobile-bottom);
+  }
+
+  /* La sfumatura appartiene SOLO all'altezza del nav. Il margine negativo fa
+     proseguire la scheda dietro quella fascia: in alto si vede il contenuto,
+     in basso il bianco chiude il frame. Non deve esserci nessun velo sopra. */
+  .proto-frame[data-field='paper'] .tabbar {
+    margin-top: calc(-46px - var(--tabbar-mobile-bottom));
   }
 
 }

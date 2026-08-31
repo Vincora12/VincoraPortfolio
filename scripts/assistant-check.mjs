@@ -111,7 +111,7 @@ check(
     appSource.includes('!isSystemSheetPullOrigin(touch.clientY)') &&
     appSource.includes("data-field={inkField ? 'ink' : paperField ? 'paper' : undefined}") &&
     systemStyles.includes(".proto-stage:has(.proto-frame[data-field='paper'])") &&
-    systemStyles.includes("background: linear-gradient(to bottom, transparent, var(--white))") &&
+    systemStyles.includes("background: linear-gradient(to bottom, transparent 0%, var(--white) 100%)") &&
     appStyles.includes('.system-tray') &&
     appStyles.includes('.proto-sheet[data-dragging'),
   'i controlli tecnici live restano dietro la scheda e si rivelano solo tirando dall’ottavo superiore',
