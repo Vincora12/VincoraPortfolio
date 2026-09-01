@@ -13,6 +13,7 @@ import {
   useAui,
   useAuiState,
 } from "@assistant-ui/react";
+import { postChatDiagnostic } from "@/system/runtimeLog";
 import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type FC } from "react";
 import { createPortal } from "react-dom";
 import { useMessageError } from "@assistant-ui/core/react";
@@ -629,6 +630,7 @@ const ComposerPrimaryAction: FC<{ onDictate: () => void }> = ({
             // bottone non ha bisogno di prendere focus per eseguire il click.
             if (event.pointerType === "touch") event.preventDefault();
           }}
+          onClick={() => postChatDiagnostic('CHAT_UI_SUBMIT', 'ui-submit')}
         >
           <ArrowUpIcon className="size-6" />
         </ComposerPrimitive.Send>
