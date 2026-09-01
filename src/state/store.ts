@@ -1381,12 +1381,13 @@ export const useApp = create<AppState>()(
         /* 🔒 LE ALTRE DUE NON VENGONO SALVATE DA NESSUNA PARTE. §4: «they do
            not enter Dex». `eggs: []` non è pulizia — è la regola. */
         const world = seedWorld(record, s.day);
+        const recordWithWorld = { ...record, worldId: world.id };
 
         set({
           phase: 'live',
           eggs: [],
-          mons: { [record.data.name]: record },
-          activeMonName: record.data.name,
+          mons: { [record.data.name]: recordWithWorld },
+          activeMonName: recordWithWorld.data.name,
           world,
           nodes: [
             createNode({
@@ -1697,16 +1698,17 @@ export const useApp = create<AppState>()(
           },
           nodeId,
         );
+        const recordWithWorld = s.world ? { ...record, worldId: s.world.id } : record;
 
         set({
           phase: 'evolution',
-          mons: { ...s.mons, [record.data.name]: record },
+          mons: { ...s.mons, [recordWithWorld.data.name]: recordWithWorld },
           nodes: [
             ...s.nodes,
             createNode({
               index: s.nodes.length,
               kind: 'evolution',
-              monName: record.data.name,
+              monName: recordWithWorld.data.name,
               parentId: rec.data.mindline_node,
               day: s.day,
               chapter: nextChapter(s.nodes, 'evolution'),
@@ -1792,6 +1794,7 @@ export const useApp = create<AppState>()(
             activeDays: s.progression.sync.lifetime,
           }),
         });
+        const recordWithWorld = s.world ? { ...record, worldId: s.world.id } : record;
 
         /* 🔶 QUI NASCEVANO I POST DELLA STANZA, e con loro il riconoscimento
            che alzava l'appiglio della forma nuova (`MI_HANNO_RICONOSCIUTO`).
@@ -1808,9 +1811,9 @@ export const useApp = create<AppState>()(
           mons: {
             ...s.mons,
             [previous.data.name]: { ...previous, retiredOnDay: s.day },
-            [record.data.name]: record,
+            [recordWithWorld.data.name]: recordWithWorld,
           },
-          activeMonName: record.data.name,
+          activeMonName: recordWithWorld.data.name,
           formsDiscovered: s.formsDiscovered + 1,
           nodes: [
             ...s.nodes,
@@ -1911,15 +1914,16 @@ export const useApp = create<AppState>()(
               stage: 0,
               previous_labels: [],
             };
+        const recordWithWorld = s.world ? { ...record, worldId: s.world.id } : record;
 
         set({
           phase: 'live',
-          mons: { ...s.mons, [record.data.name]: record },
+          mons: { ...s.mons, [recordWithWorld.data.name]: recordWithWorld },
           evolutionJob: {
             kind,
             status: 'running',
             previousName: previous.data.name,
-            candidateName: record.data.name,
+            candidateName: recordWithWorld.data.name,
             done: 0,
             total: 1,
             label: 'PREPARAZIONE CHARACTER MASTER',

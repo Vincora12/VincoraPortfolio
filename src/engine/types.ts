@@ -397,6 +397,8 @@ export interface MindlineNode {
 
 export interface MonRecord {
   data: CharacterData;
+  /** World in cui questa forma è nata/vissuta. Opzionale per i salvataggi legacy. */
+  worldId?: string;
   /** Assente nei vecchi salvataggi: viene ricostruita dagli stessi dati. */
   personalityCard?: PersonalityCard;
   bio: BioFile;

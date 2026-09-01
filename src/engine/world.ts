@@ -31,6 +31,7 @@
 
 import type { MonRecord } from './types';
 import { displayName } from './types';
+import { CULTURAL_REFERENCES } from './generation-config';
 
 /* --- §15.1 — da dove viene una cosa che il sistema afferma ----------------- */
 
@@ -100,7 +101,42 @@ export interface World {
   emergedOnDay: number;
   /** Il nome della forma con cui è emerso. Serve alla memoria, non al legame. */
   emergedWith: string;
+  /** Identità narrativa stabile del luogo. Assente nei World legacy. */
+  identity?: string;
+  /** Riferimenti culturali del luogo, distinti dal Cultural DNA del Mon. */
+  worldCulturalDna?: string[];
   canon: CanonEvent[];
+}
+
+/**
+ * Seleziona in modo deterministico un piccolo Cultural DNA per il World.
+ * Riusa lo stesso catalogo del Mon, ma applica segnali narrativi e novelty
+ * per evitare di copiare semplicemente la forma che lo ha aperto.
+ */
+export function resolveWorldCulturalDna(record: MonRecord, seed: number): string[] {
+  const source = new Set(record.data.cultural_dna ?? []);
+  const narrative = `${record.data.narrativeDNA?.archetype ?? ''} ${record.data.narrativeDNA?.drive ?? ''} ${record.data.narrativeDNA?.contradiction ?? ''}`.toLowerCase();
+  const hash = (text: string) => {
+    let value = seed >>> 0;
+    for (const char of text) value = Math.imul(value ^ char.charCodeAt(0), 16777619) >>> 0;
+    return value >>> 0;
+  };
+  const ranked = CULTURAL_REFERENCES.map((ref) => ({
+    ref,
+    score:
+      hash(`${ref.id}:${narrative}`) +
+      (source.has(ref.id) ? 0x18000000 : 0) +
+      (narrative.includes(ref.signal.toLowerCase()) ? 0x08000000 : 0),
+  })).sort((a, b) => b.score - a.score);
+  const selected: string[] = [];
+  const clusters = new Set<string>();
+  for (const item of ranked) {
+    if (selected.length >= 4) break;
+    if (clusters.has(item.ref.cluster)) continue;
+    clusters.add(item.ref.cluster);
+    selected.push(item.ref.id);
+  }
+  return selected;
 }
 
 /* ============================================================================
@@ -290,10 +326,14 @@ export function returnBlock(ctx: ReturnContext): string {
 export function seedWorld(record: MonRecord, day: number): World {
   const d = record.data;
   const affinity = d.affinity.toLowerCase();
+  const id = `world_${d.mindline_node}`;
+  const worldCulturalDna = resolveWorldCulturalDna(record, day);
   return {
-    id: `world_${d.mindline_node}`,
+    id,
     name: `SOGLIA ${d.affinity}`,
     description: `Un posto che si è aperto insieme a ${displayName(d.name)} e che porta i segni della sua affinità ${affinity}. Nessuno lo ha ancora attraversato fino in fondo.`,
+    identity: `Una soglia nata con ${displayName(d.name)}: un luogo ancora aperto, segnato da ${worldCulturalDna.join(', ')}.`,
+    worldCulturalDna,
     emergedOnDay: day,
     emergedWith: d.name,
     canon: [
