@@ -3997,6 +3997,9 @@
   min-width: 0;
   white-space: nowrap;
   min-height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   padding: var(--u) 2px;
   border: 0;
   border-radius: 0;
@@ -4032,7 +4035,7 @@
 
 .archive__seg + .archive__seg {
   margin-left: -11px;
-  padding-left: 11px;
+  padding-left: 2px;
 }
 
 /* Stessa logica: `--ink` è «il colore del testo qui», non «nero». */
@@ -4459,12 +4462,12 @@
 .me-health { --mh-accent: #d4a532; background: #000; color: #f3f3f3; font-family: var(--font-ui); }
 .me-health button, .me-health input, .me-health select { font: inherit; }
 .me-health__tabs { flex: 0 0 auto; min-height: calc(34px + env(safe-area-inset-top)); display: flex; align-items: stretch; padding-top: env(safe-area-inset-top); border: 0; background: var(--mh-line); isolation: isolate; }
-.me-health__tabs button { flex: 1; min-width: 0; min-height: 34px; padding: var(--u) 2px; border: 0; border-radius: 0; background: var(--mh-line); color: #fff; font: 600 clamp(var(--type-micro), 2.8vw, var(--type-meta))/1 var(--font-mono); letter-spacing: .035em; white-space: nowrap; text-transform: uppercase; transition: background-color var(--dur-fast) var(--ease-system), color var(--dur-fast) var(--ease-system); }
+.me-health__tabs button { flex: 1; min-width: 0; min-height: 34px; display: flex; align-items: center; justify-content: center; padding: var(--u) 2px; border: 0; border-radius: 0; background: var(--mh-line); color: #fff; font: 600 clamp(var(--type-micro), 2.8vw, var(--type-meta))/1 var(--font-mono); letter-spacing: .035em; white-space: nowrap; text-transform: uppercase; transition: background-color var(--dur-fast) var(--ease-system), color var(--dur-fast) var(--ease-system); }
 .me-health__tabs button:first-child { clip-path: polygon(0 0, calc(100% - 11px) 0, 100% 100%, 0 100%); }
 .me-health__tabs button:nth-child(2),
 .me-health__tabs button:nth-child(3) { clip-path: polygon(0 100%, 11px 0, calc(100% - 11px) 0, 100% 100%); }
 .me-health__tabs button:last-child { clip-path: polygon(0 100%, 11px 0, 100% 0, 100% 100%); }
-.me-health__tabs button + button { margin-left: -11px; padding-left: 11px; }
+.me-health__tabs button + button { margin-left: -11px; padding-left: 2px; }
 .me-health__tabs button[aria-current='page'] { position: relative; z-index: 2; background: var(--mh-bg, #000); color: #f8f8fa; filter: drop-shadow(1px 0 0 var(--mh-line, #292c33)) drop-shadow(-1px 0 0 var(--mh-line, #292c33)); }
 .me-health__goal { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 58px; padding: 10px 20px; border: 0; border-bottom: 1px solid #292929; background: #111; color: #f3f3f3; text-align: left; }
 .me-health__goal span { color: var(--mh-accent); font-size: 9px; font-weight: 700; letter-spacing: .08em; }
