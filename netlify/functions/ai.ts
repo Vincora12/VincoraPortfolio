@@ -33,7 +33,13 @@ import {
   type ImageSize,
   type ImageQuality,
 } from './_shared/providers';
-import { checkCap, recordSpend, MONTHLY_CAP_USD } from './_shared/spend';
+import {
+  checkCap,
+  recordSpend,
+  looksLikeProviderQuota,
+  INTERNAL_CAP_EXCEEDED,
+  PROVIDER_QUOTA_EXCEEDED,
+} from './_shared/spend';
 import { appendRuntimeEvent } from './_shared/runtimeLog';
 
 /* Tetti sulla richiesta. Non difendono da un attacco — chi ha il token può
@@ -178,11 +184,21 @@ export default async function handler(request: Request): Promise<Response> {
        distinguere da un errore vero e dirti cosa è successo, invece di
        ripiegare in silenzio sulla voce deterministica e lasciarti pensare
        che il modello sia rotto. */
+    /* 🔴 IL CODICE TECNICO, non solo la frase. «Tetto mensile raggiunto» e
+       «The quota has been exceeded» del fornitore erano indistinguibili una
+       volta arrivate sullo schermo, e portano a due rimedi opposti. */
+    await appendRuntimeEvent({
+      eventType: INTERNAL_CAP_EXCEEDED,
+      status: 'FAIL',
+      scope: 'ai',
+      error: `spesa ${cap.ledger.usd.toFixed(4)} $ su un tetto di ${cap.capUsd.toFixed(2)} $ (${cap.capSource})`,
+    });
     return json(
       {
         error: 'tetto mensile raggiunto',
+        code: INTERNAL_CAP_EXCEEDED,
         spentUsd: cap.ledger.usd,
-        capUsd: MONTHLY_CAP_USD,
+        capUsd: cap.capUsd,
         month: cap.ledger.month,
       },
       402,
@@ -282,7 +298,11 @@ export default async function handler(request: Request): Promise<Response> {
          le hai chiamate. Tagliata comunque, perché un errore lungo in una
          schermata è un errore che nessuno legge. */
       return json(
-        { error: 'immagine non generata', reason: (result.error ?? '').slice(0, 300) },
+        {
+          error: 'immagine non generata',
+          reason: (result.error ?? '').slice(0, 300),
+          ...(looksLikeProviderQuota(result.error) ? { code: PROVIDER_QUOTA_EXCEEDED } : {}),
+        },
         502,
       );
     }
@@ -470,13 +490,20 @@ export default async function handler(request: Request): Promise<Response> {
   }
 
   if (!result.ok) {
-    await appendRuntimeEvent({ eventType: 'AI_CALL_ERROR', status: 'FAIL', scope: 'ai', requestId: payload.requestId, capability, provider: route.provider, model: result.model, error: result.error });
+    /* 🔶 Il credito finito dal FORNITORE non è il nostro tetto. Prima erano
+       la stessa riga di log e la stessa frase sullo schermo. */
+    const providerQuota = looksLikeProviderQuota(result.error);
+    await appendRuntimeEvent({ eventType: providerQuota ? PROVIDER_QUOTA_EXCEEDED : 'AI_CALL_ERROR', status: 'FAIL', scope: 'ai', requestId: payload.requestId, capability, provider: route.provider, model: result.model, error: result.error });
     console.warn('[ai] risposta non utilizzabile:', result.error);
     /* 🔶 Come per le immagini: il motivo torna indietro. L'avevo sistemato di
        là e lasciato muto di qua, e il compilatore è finito esattamente in
        quel buco — «chiamata fallita (error)» per tre giri. */
     return json(
-      { error: 'risposta non disponibile', reason: (result.error ?? '').slice(0, 300) },
+      {
+        error: 'risposta non disponibile',
+        reason: (result.error ?? '').slice(0, 300),
+        ...(providerQuota ? { code: PROVIDER_QUOTA_EXCEEDED } : {}),
+      },
       502,
     );
   }

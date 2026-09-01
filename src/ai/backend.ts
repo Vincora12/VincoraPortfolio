@@ -178,8 +178,22 @@ export interface UsageDashboard {
   today: UsageSummary;
   last7Days: UsageSummary;
   month: UsageSummary;
+  /** Speso questo mese, in dollari: lo stesso numero di `month.costUsd`,
+      dichiarato a parte perché è quello che il tetto confronta. */
+  spentUsd: number;
+  /** ⚠️ Il tetto EFFETTIVO applicato dal server, non un default del browser. */
   monthlyCapUsd: number;
+  capSource: 'runtime' | 'default';
+  capUpdatedAt?: string;
+  capMinUsd: number;
+  capMaxUsd: number;
   remainingUsd: number;
+  percentUsed: number;
+  /** Il server ha già smesso di chiamare l'AI. */
+  capped: boolean;
+  monthKey: string;
+  /** Spesa giorno per giorno del mese in corso, per il grafico. */
+  daily: { day: number; costUsd: number }[];
   byCapability: Record<string, UsageSummary>;
   byModel: Record<string, UsageSummary>;
   recentEvents: UsageEvent[];
@@ -354,6 +368,25 @@ async function post<T>(
 
 export function loadUsage(token: string | null): Promise<BackendResult<UsageDashboard>> {
   return post<UsageDashboard>('/api/usage', token, undefined, 'GET');
+}
+
+/**
+ * Scrive il tetto mensile.
+ *
+ * ⚠️ Va allo STESSO posto che `checkCap()` legge sul server. Non c'è una copia
+ * nel browser da tenere allineata: il LAB manda il numero e poi rilegge, così
+ * quello che vedi è quello che il server applicherà alla prossima chiamata.
+ */
+export function saveMonthlyCap(
+  token: string | null,
+  monthlyCapUsd: number,
+): Promise<BackendResult<{ monthlyCapUsd: number; capSource: string }>> {
+  return post<{ monthlyCapUsd: number; capSource: string }>(
+    '/api/usage',
+    token,
+    { monthlyCapUsd },
+    'PUT',
+  );
 }
 
 export interface RuntimeEvent {

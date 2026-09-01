@@ -23,7 +23,7 @@ import { useApp } from '../../state/store';
 import { STAT_KEYS, UNKNOWN, isKnown } from '../../engine/types';
 import type { StatKey } from '../../engine/types';
 import { DAILY_SIGNALS, DAILY_SIGNAL_LABELS } from '../../engine/progression';
-import { loadPing, loadSetup, loadShortcutStatus, loadUsage, loadRuntimeLog, type ShortcutStatus, type UsageDashboard, type RuntimeEvent } from '../../ai/backend';
+import { loadPing, loadSetup, loadShortcutStatus, loadUsage, saveMonthlyCap, loadRuntimeLog, type ShortcutStatus, type UsageDashboard, type RuntimeEvent } from '../../ai/backend';
 import { lastRuns } from '../../ai/telemetry';
 import { freshSecret } from '../../engine/secret';
 import { estimateMonthlyCost } from '../../engine/costEstimate';
@@ -661,10 +661,67 @@ function Memory() {
    USAGE
    ========================================================================= */
 
+/**
+ * La spesa del mese, giorno per giorno.
+ *
+ * 🔷 «Un grafico semplice.» Ed è letteralmente questo: barre in un `<svg>`
+ * scritto a mano, nessuna libreria nuova per disegnare venti rettangoli. La
+ * riga del tetto è la cosa che il grafico deve raccontare — non «quanto ho
+ * speso» ma «quanto manca al muro», che è la domanda vera.
+ *
+ * ⚠️ Il tetto è MENSILE e le barre sono GIORNALIERE: confrontarle sarebbe una
+ * bugia (nessun giorno arriva mai vicino al tetto). Quindi la scala verticale
+ * è il totale cumulato, e la riga del tetto attraversa quella.
+ */
+function SpendChart({ daily, capUsd }: { daily: UsageDashboard['daily']; capUsd: number }) {
+  if (daily.length === 0) return <p className="note">Nessuna spesa registrata questo mese.</p>;
+
+  let running = 0;
+  const cumulative = daily.map((d) => ({ day: d.day, costUsd: d.costUsd, total: (running += d.costUsd) }));
+  /* La scala arriva al tetto, sempre: se si fermasse alla spesa massima, una
+     barra bassa sembrerebbe alta e il grafico direbbe il contrario del vero. */
+  const peak = Math.max(capUsd, running, 0.01);
+  const W = 320;
+  const H = 96;
+  const barW = W / cumulative.length;
+  const capY = H - (capUsd / peak) * H;
+
+  return (
+    <div className="spend-chart">
+      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" role="img"
+        aria-label={`Spesa cumulata del mese: $${running.toFixed(2)} su un tetto di $${capUsd.toFixed(2)}`}>
+        {cumulative.map((d) => {
+          const h = (d.total / peak) * H;
+          return <rect key={d.day} x={(d.day - 1) * barW + 0.5} y={H - h} width={Math.max(1, barW - 1)} height={h}
+            className={d.total >= capUsd ? 'spend-chart__bar spend-chart__bar--over' : 'spend-chart__bar'} />;
+        })}
+        {capUsd > 0 && capY >= 0 && (
+          <line x1="0" y1={capY} x2={W} y2={capY} className="spend-chart__cap" />
+        )}
+      </svg>
+      <div className="spend-chart__axis">
+        <span>1</span>
+        <span className="mono">CUMULATO ${running.toFixed(2)} · TETTO ${capUsd.toFixed(2)}</span>
+        <span>{cumulative.length}</span>
+      </div>
+    </div>
+  );
+}
+
 function Usage() {
   const token = useApp((s) => s.token);
   const [usage, setUsage] = useState<UsageDashboard | null>(null);
   const [failed, setFailed] = useState(false);
+  const [draft, setDraft] = useState('');
+  const [capError, setCapError] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const read = (): Promise<void> => loadUsage(token).then(({ data }) => {
+    setUsage(data);
+    setFailed(!data);
+    if (data) setDraft(data.monthlyCapUsd.toFixed(2));
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -672,9 +729,49 @@ function Usage() {
       if (cancelled) return;
       setUsage(data);
       setFailed(!data);
+      if (data) setDraft(data.monthlyCapUsd.toFixed(2));
     });
     return () => { cancelled = true; };
   }, [token]);
+
+  /* La stessa validazione del server, scritta una volta qui: un pulsante che
+     propone un numero che il server rifiuterà è un pulsante che mente. */
+  const parsed = Number(draft.replace(',', '.').trim());
+  const valid = usage !== null
+    && draft.trim().length > 0
+    && Number.isFinite(parsed)
+    && parsed >= usage.capMinUsd
+    && parsed <= usage.capMaxUsd;
+
+  const commit = async () => {
+    if (!usage || !valid) return;
+    setSaving(true);
+    setCapError(null);
+    const { data, failure } = await saveMonthlyCap(token, Math.round(parsed * 100) / 100);
+    if (failure || !data) {
+      setCapError(failure === 'no-token' ? 'Manca il token: attiva VINZ.MON.' : 'Il server non ha accettato il tetto.');
+      setSaving(false);
+      setConfirming(false);
+      return;
+    }
+    /* Si rilegge dal server invece di fidarsi della risposta: quello che la
+       schermata mostra dev'essere quello che `checkCap()` applicherà. */
+    await read();
+    setSaving(false);
+    setConfirming(false);
+  };
+
+  const onSave = () => {
+    if (!usage || !valid) {
+      setCapError(`Serve un numero fra $${usage?.capMinUsd ?? 0} e $${usage?.capMaxUsd ?? 500}.`);
+      return;
+    }
+    /* 🔴 Abbassare il tetto sotto quello che si è GIÀ speso non è un errore, è
+       una decisione — ma è una decisione che chiude l'AI all'istante, e va
+       detto prima, non scoperto alla prossima domanda al .mon. */
+    if (parsed <= usage.spentUsd) { setConfirming(true); return; }
+    void commit();
+  };
 
   const summary = (value: UsageDashboard['today']) => `${value.calls}× · $${value.costUsd.toFixed(4)} · ${value.inputTokens.toLocaleString('it-IT')} in · ${value.outputTokens.toLocaleString('it-IT')} out`;
 
@@ -692,6 +789,52 @@ function Usage() {
           <Btn onClick={() => window.print()}>ESPORTA / SALVA PDF</Btn>
           <p className="note">Si apre la stampa del dispositivo: scegli “Salva come PDF” per conservare il report.</p>
         </div>
+        {/* 🔷 «Il LAB mostra i costi ma non il limite interno che può bloccare
+            l'AI.» Prima riga della pagina, prima di ogni dettaglio: quanto ho
+            speso, dov'è il muro, e se l'ho già colpito. */}
+        <Section title="MONTHLY AI BUDGET">
+          <Rows rows={[
+            ['CURRENT SPEND', `$${usage.spentUsd.toFixed(2)} / $${usage.monthlyCapUsd.toFixed(2)}`],
+            ['REMAINING', `$${usage.remainingUsd.toFixed(2)}`],
+            ['PERCENT USED', `${usage.percentUsed.toFixed(1)}%`],
+            ['STATUS', <Status label={usage.capped ? 'CAPPED' : 'ACTIVE'} ok={!usage.capped} />],
+            ['CAP SOURCE', usage.capSource === 'runtime' ? 'RUNTIME (LAB)' : 'DEFAULT'],
+          ]} />
+          <SpendChart daily={usage.daily} capUsd={usage.monthlyCapUsd} />
+          <div className="cap-editor">
+            <label className="field">
+              <span>MONTHLY CAP · $</span>
+              <input
+                value={draft}
+                inputMode="decimal"
+                aria-label="Tetto mensile in dollari"
+                onChange={(e) => { setDraft(e.target.value); setCapError(null); setConfirming(false); }}
+              />
+            </label>
+            <Btn variant="dark" onClick={onSave} disabled={saving || !valid}>
+              {saving ? 'SALVO…' : 'SAVE'}
+            </Btn>
+          </div>
+          {capError && <p className="note">{capError}</p>}
+          {confirming && (
+            <Notice title="SOTTO LA SPESA GIÀ FATTA">
+              <p>
+                Hai già speso ${usage.spentUsd.toFixed(2)} questo mese.
+                Questo limite bloccherà immediatamente le nuove chiamate AI.
+              </p>
+              <Grid>
+                <Btn variant="dark" onClick={() => void commit()} disabled={saving}>
+                  {saving ? 'SALVO…' : 'CONFERMA E BLOCCA'}
+                </Btn>
+                <Btn onClick={() => setConfirming(false)}>ANNULLA</Btn>
+              </Grid>
+            </Notice>
+          )}
+          <p className="note">
+            È lo stesso tetto che il server applica: vale dalla chiamata successiva,
+            senza ripubblicare. Il mese riparte da zero da solo — il tetto resta.
+          </p>
+        </Section>
         <Section title="SUMMARY">
           <Rows rows={[
             ['TODAY', summary(usage.today)],

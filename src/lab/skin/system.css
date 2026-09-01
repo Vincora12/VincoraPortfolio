@@ -48,6 +48,22 @@ h1{font-size:44px;line-height:.89;margin:0 0 14px;font-weight:900;font-style:ita
 .btn:disabled{opacity:.4}
 .usage-page__actions{display:flex;align-items:center;gap:10px;margin:0 0 18px}
 .usage-page__actions .note{margin:0;font-size:10px}
+/* Il grafico della spesa: venti rettangoli in un <svg>, nessuna libreria.
+   `height` fissa e `viewBox` non uniforme perché su iPhone la larghezza è
+   quella che è e le barre devono restare leggibili comunque. */
+.spend-chart{margin-top:12px}
+.spend-chart svg{display:block;width:100%;height:96px;border:1px solid var(--line);background:#fff}
+.spend-chart__bar{fill:#111}
+.spend-chart__bar--over{fill:#b00}
+.spend-chart__cap{stroke:#b00;stroke-width:1;stroke-dasharray:4 3;vector-effect:non-scaling-stroke}
+.spend-chart__axis{display:flex;justify-content:space-between;gap:8px;font-size:9px;color:#777;margin-top:4px}
+/* Campo + pulsante sulla stessa riga: il tetto e il gesto che lo cambia non
+   devono stare a due schermate di distanza. 16px sull'input, altrimenti Safari
+   su iPhone ingrandisce la pagina appena lo tocchi. */
+.cap-editor{display:flex;align-items:flex-end;gap:8px;margin-top:14px}
+.cap-editor .field{flex:1;margin-top:0}
+.cap-editor .field input{min-height:42px;font:700 16px/1 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;border-color:#111;color-scheme:light}
+.cap-editor .btn{min-width:92px}
 .field{display:block;font-size:9px;color:#777;letter-spacing:.05em;margin-top:10px}
 .field input,.field textarea,.field select{width:100%;border:1px solid var(--line);background:#fff;padding:10px;font-size:11px;margin-top:4px}
 .field textarea{min-height:76px;resize:vertical}

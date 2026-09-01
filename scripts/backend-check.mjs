@@ -32,7 +32,7 @@ writeFileSync(
   entry,
   `
 export { ROUTING, PERSONAL, VOICE_CHOICES, COMPILER_CHOICES, IMAGE_CHOICES, routingProblems, personalDataOnFreeTier, voiceChoiceProblems, compilerChoiceProblems, imageChoiceProblems, resolveRoute } from '${cwd}/netlify/functions/_shared/routing.ts';
-export { costOf, currentMonth, MONTHLY_CAP_USD, WARN_AT, COST_PER_WEB_SEARCH } from '${cwd}/netlify/functions/_shared/spend.ts';
+export { costOf, currentMonth, MONTHLY_CAP_USD, WARN_AT, COST_PER_WEB_SEARCH, validMonthlyCap, looksLikeProviderQuota, CAP_MIN_USD, CAP_MAX_USD } from '${cwd}/netlify/functions/_shared/spend.ts';
 export { merge as mergeLessons } from '${cwd}/netlify/functions/lessons.ts';
 export { AI_STEPS, AI_STEP_ORDER, choicesFor, modelForStep, stepProblems } from '${cwd}/netlify/functions/_shared/routing.ts';
 export { migratedStepModels } from '${cwd}/src/state/migrateSteps.ts';
@@ -410,6 +410,34 @@ check(
 
 const month = m.currentMonth(new Date('2026-03-09T00:00:00Z'));
 check(month === '2026-03', 'il registro cambia chiave ogni mese da solo', month);
+
+/* Il tetto adesso si scrive dal LAB, e quello che si scrive arriva da una
+   casella di testo: qualunque cosa ci sia dentro passa di qui prima di
+   diventare la soglia che ferma l'AI. */
+check(
+  m.validMonthlyCap(10) && m.validMonthlyCap(0) && m.validMonthlyCap(m.CAP_MAX_USD),
+  'un tetto ragionevole si può scrivere — zero compreso',
+  `da ${m.CAP_MIN_USD} a ${m.CAP_MAX_USD} $`,
+);
+check(
+  !m.validMonthlyCap(Number.NaN) &&
+    !m.validMonthlyCap(Infinity) &&
+    !m.validMonthlyCap(-1) &&
+    !m.validMonthlyCap(m.CAP_MAX_USD + 1) &&
+    !m.validMonthlyCap('10') &&
+    !m.validMonthlyCap(null) &&
+    !m.validMonthlyCap(undefined),
+  'NaN, infinito, negativi, stringhe e numeri assurdi non diventano un tetto',
+  'un tetto a NaN non blocca mai: `x >= NaN` è sempre falso',
+);
+check(
+  m.looksLikeProviderQuota('openai 429: You exceeded your current quota') &&
+    m.looksLikeProviderQuota('insufficient_quota') &&
+    !m.looksLikeProviderQuota('tetto mensile raggiunto') &&
+    !m.looksLikeProviderQuota(undefined),
+  'il credito finito dal fornitore non viene scambiato per il tetto nostro',
+  'si riparano in due modi opposti: alzare il tetto non ricarica il credito',
+);
 
 /* ============================================================================
    §21 — LA RICERCA SUL WEB

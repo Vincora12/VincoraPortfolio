@@ -22,8 +22,12 @@
 
 import { getStore } from '@netlify/blobs';
 
-/** Il tetto, in dollari: i listini sono in dollari, e convertire due volte
-    introduce solo un errore. 30 € ≈ 34,6 $ al cambio di agosto 2026. */
+/** Il tetto di partenza, in dollari: i listini sono in dollari, e convertire
+    due volte introduce solo un errore. 30 € ≈ 34,6 $ al cambio di agosto 2026.
+
+    🔒 È il DEFAULT, non più la verità finale: se qualcuno ha scritto un tetto
+    dal LAB, quello vince. La verità unica è `readMonthlyCap()`, e chiunque
+    debba decidere se bloccare passa da `checkCap()`, mai da questa costante. */
 export const MONTHLY_CAP_USD = 34.6;
 
 /**
@@ -187,8 +191,82 @@ export async function readLedger(month = currentMonth()): Promise<Ledger> {
     : { month, usd: 0, calls: 0, byCapability: {}, events: [] };
 }
 
+/* --- Il tetto configurabile -------------------------------------------------
+   🔴 IL TETTO ERA UNA COSTANTE, e cambiarlo voleva dire ripubblicare. Il LAB
+   mostrava i costi ma non il muro che li ferma: si scopriva il muro solo
+   sbattendoci contro, con un messaggio che per giunta somigliava a quello del
+   fornitore.
+
+   ⚠️ UNA VERITÀ SOLA. Il valore vive QUI, sul server, in uno store suo — non
+   nel browser, che chiunque riscrive, e non dentro `vinzmon-spend`, che è il
+   registro degli EVENTI ECONOMICI e non deve ospitare configurazione. Il LAB
+   legge e scrive esattamente questo, e `checkCap()` legge esattamente questo.
+   Se un giorno divergono, uno dei due sta mentendo — e non ci deve essere un
+   secondo posto da cui possano divergere.
+   -------------------------------------------------------------------------- */
+
+const CONFIG_STORE = 'vinzmon-config';
+const CAP_KEY = 'monthly-cap';
+
+/** Il minimo è zero — «chiudi tutto» è una scelta legittima, non un errore. */
+export const CAP_MIN_USD = 0;
+/** Il massimo NON è una comodità: è la rete contro il dito che scivola. Un
+    tetto da cinquemila dollari non è un tetto, è l'assenza di un tetto. */
+export const CAP_MAX_USD = 500;
+
+export interface MonthlyCap {
+  usd: number;
+  /** `runtime` = scritto dal LAB · `default` = la costante qui sopra. */
+  source: 'runtime' | 'default';
+  updatedAt?: string;
+}
+
+/* `strong`: il tetto cambiato dal LAB deve valere alla chiamata SUCCESSIVA,
+   non fra qualche secondo. Un limite che entra in vigore quando gli pare non
+   è un limite di cui ci si può fidare. */
+const configStore = () => getStore({ name: CONFIG_STORE, consistency: 'strong' });
+
+/** Il numero è valido? Stessa domanda per il server e per la UI, una risposta
+    sola: così il LAB non può proporre un valore che il server rifiuta. */
+export function validMonthlyCap(value: unknown): value is number {
+  return typeof value === 'number'
+    && Number.isFinite(value)
+    && value >= CAP_MIN_USD
+    && value <= CAP_MAX_USD;
+}
+
+export async function readMonthlyCap(): Promise<MonthlyCap> {
+  try {
+    const raw = await configStore().get(CAP_KEY, { type: 'json' }) as
+      { monthlyCapUsd?: unknown; updatedAt?: unknown } | null;
+    if (validMonthlyCap(raw?.monthlyCapUsd)) {
+      return {
+        usd: raw!.monthlyCapUsd as number,
+        source: 'runtime',
+        ...(typeof raw!.updatedAt === 'string' ? { updatedAt: raw!.updatedAt } : {}),
+      };
+    }
+  } catch (error) {
+    /* Se lo store non risponde si torna al default, che è il valore PRUDENTE.
+       Mai «nessun tetto»: un guasto della configurazione non deve diventare
+       un permesso di spendere. */
+    console.warn('[spend] tetto configurato non leggibile, uso il default:', error);
+  }
+  return { usd: MONTHLY_CAP_USD, source: 'default' };
+}
+
+export async function writeMonthlyCap(value: number): Promise<MonthlyCap> {
+  if (!validMonthlyCap(value)) throw new Error('tetto non valido');
+  const updatedAt = new Date().toISOString();
+  await configStore().setJSON(CAP_KEY, { monthlyCapUsd: value, updatedAt });
+  return { usd: value, source: 'runtime', updatedAt };
+}
+
 export interface CapState {
   ledger: Ledger;
+  /** Il tetto EFFETTIVO applicato a questa decisione, non il default. */
+  capUsd: number;
+  capSource: MonthlyCap['source'];
   /** Ha sfondato: non si chiama più niente finché non cambia il mese. */
   blocked: boolean;
   /** Sopra la soglia d'avviso: si continua, ma lo si dice. */
@@ -197,13 +275,41 @@ export interface CapState {
 }
 
 export async function checkCap(): Promise<CapState> {
-  const ledger = await readLedger();
+  const [ledger, cap] = await Promise.all([readLedger(), readMonthlyCap()]);
   return {
     ledger,
-    blocked: ledger.usd >= MONTHLY_CAP_USD,
-    warning: ledger.usd >= MONTHLY_CAP_USD * WARN_AT,
-    remainingUsd: Math.max(0, MONTHLY_CAP_USD - ledger.usd),
+    capUsd: cap.usd,
+    capSource: cap.source,
+    blocked: ledger.usd >= cap.usd,
+    warning: ledger.usd >= cap.usd * WARN_AT,
+    remainingUsd: Math.max(0, cap.usd - ledger.usd),
   };
+}
+
+/* --- Due muri diversi con lo stesso rumore -----------------------------------
+   🔴 «The quota has been exceeded.» — questa frase NON è mai stata nostra: è
+   il fornitore che ha finito il credito. Ma dallo schermo somigliava
+   esattamente al nostro tetto, e i due si riparano in due modi opposti:
+
+     INTERNAL_CAP_EXCEEDED   l'abbiamo deciso noi → si alza il tetto dal LAB
+     PROVIDER_QUOTA_EXCEEDED l'ha deciso il fornitore → si ricarica il credito
+
+   Alzare il nostro tetto quando è il fornitore a essere a secco non serve a
+   niente, e viceversa. Da qui in poi il codice tecnico lo dice, e finisce nel
+   Runtime Log dove si può leggere dopo.
+   -------------------------------------------------------------------------- */
+
+export const INTERNAL_CAP_EXCEEDED = 'INTERNAL_CAP_EXCEEDED';
+export const PROVIDER_QUOTA_EXCEEDED = 'PROVIDER_QUOTA_EXCEEDED';
+
+/**
+ * Riconosce nella risposta del fornitore un esaurimento di credito o di
+ * frequenza. 🔒 Guarda SOLO il testo dell'errore: non tocca chiavi, non
+ * registra nulla, non porta segreti in giro.
+ */
+export function looksLikeProviderQuota(error: string | undefined): boolean {
+  if (!error) return false;
+  return /quota|insufficient_quota|billing|rate.?limit|credit balance|exceeded your current/i.test(error);
 }
 
 /**

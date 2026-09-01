@@ -45,7 +45,8 @@ import { isShortcutAction, SHORTCUT_ACTIONS, type ShortcutActionId } from './_sh
 import { recordShortcutCall } from './_shared/shortcutLog';
 import { resolveRoute } from './_shared/routing';
 import { callProvider } from './_shared/providers';
-import { checkCap, recordSpend } from './_shared/spend';
+import { checkCap, recordSpend, INTERNAL_CAP_EXCEEDED } from './_shared/spend';
+import { appendRuntimeEvent } from './_shared/runtimeLog';
 
 const QUEUE_KEY = 'pending';
 const MAX_TEXT = 2000;
@@ -271,7 +272,19 @@ export default async function handler(request: Request): Promise<Response> {
        scrittura che non costa niente per colpa di una che non sta neanche
        chiedendo. */
     const cap = await checkCap();
-    if (cap.blocked) return fail('tetto mensile raggiunto — riprova il mese prossimo, o registra il pasto a mano', 402);
+    if (cap.blocked) {
+      /* 🔶 Lo stesso codice tecnico di `/api/ai`: nel Runtime Log dev'essere
+         leggibile che è stato IL NOSTRO tetto a fermare la stima, non il
+         credito del fornitore. Sono i due muri che si somigliavano. */
+      await appendRuntimeEvent({
+        eventType: INTERNAL_CAP_EXCEEDED,
+        status: 'FAIL',
+        scope: 'ai',
+        action: 'meal',
+        error: `spesa ${cap.ledger.usd.toFixed(4)} $ su un tetto di ${cap.capUsd.toFixed(2)} $ (${cap.capSource})`,
+      });
+      return fail('tetto mensile raggiunto — alza il tetto in LAB → USAGE, o registra il pasto a mano', 402);
+    }
 
     const { estimate, costUsd } = await estimateMeal(text);
     if (!estimate) {

@@ -2171,6 +2171,48 @@ check(
   has('netlify/functions/_shared/spend.ts', 'MONTHLY_CAP_USD'),
   'la difesa vera è quella, e non si può aggirare: il resto sono allarmi',
 );
+/* ⚠️ UNA VERITÀ SOLA PER IL TETTO. Il rischio di questa modifica è precisamente
+   quello che il LAB e il server finiscano a leggere due numeri diversi: la
+   schermata direbbe «ancora venti dollari» mentre il server ha già chiuso. Gli
+   aghi qui sotto guardano la DECISIONE — chi blocca legge la stessa funzione
+   che il LAB mostra e scrive — non la forma delle righe. */
+check(
+  '§19.2 TETTO',
+  'chi blocca legge il tetto configurato, non la costante',
+  has('netlify/functions/_shared/spend.ts', 'readMonthlyCap()') &&
+    /blocked:\s*ledger\.usd\s*>=\s*cap\.usd/.test(read('netlify/functions/_shared/spend.ts') ?? ''),
+  'un tetto modificabile che `checkCap()` non legge è una manopola scollegata: gira e non succede niente',
+);
+check(
+  '§19.2 TETTO',
+  'e il LAB legge e scrive esattamente quello',
+  has('netlify/functions/usage.ts', 'readMonthlyCap()') &&
+    has('netlify/functions/usage.ts', 'writeMonthlyCap(') &&
+    has('src/lab/rooms/SystemLab.tsx', 'saveMonthlyCap('),
+  'due sorgenti per lo stesso numero vuol dire che prima o poi divergono, e la schermata mente',
+);
+check(
+  '§19.2 TETTO',
+  'il tetto vive sul server, mai nel browser',
+  !/localStorage[^\n]*(?:cap|Cap)/.test(read('src/lab/rooms/SystemLab.tsx') ?? '') &&
+    has('netlify/functions/_shared/spend.ts', "getStore({ name: CONFIG_STORE, consistency: 'strong' })"),
+  'un limite nel browser lo aggira chiunque apra gli strumenti da sviluppatore: non è un limite, è un suggerimento',
+);
+check(
+  '§19.2 TETTO',
+  'e non contamina il registro delle spese',
+  has('netlify/functions/_shared/spend.ts', "const CONFIG_STORE = 'vinzmon-config'") &&
+    !has('netlify/functions/_shared/spend.ts', "getStore('vinzmon-spend').setJSON(CAP_KEY"),
+  '`vinzmon-spend` è il registro degli eventi economici: la configurazione lì dentro diventerebbe un evento che nessuno ha pagato',
+);
+check(
+  '§19.2 TETTO',
+  'il nostro muro e quello del fornitore hanno due nomi diversi',
+  has('netlify/functions/_shared/spend.ts', 'INTERNAL_CAP_EXCEEDED') &&
+    has('netlify/functions/_shared/spend.ts', 'PROVIDER_QUOTA_EXCEEDED') &&
+    has('netlify/functions/ai.ts', 'looksLikeProviderQuota('),
+  '«The quota has been exceeded» del fornitore e il tetto nostro si riparano in due modi opposti: alzare il tetto quando è il credito a essere finito non serve a niente',
+);
 check(
   '§10 COMPILATORE',
   'e un tetto sforato dice di quanto',
@@ -2180,7 +2222,12 @@ check(
 check(
   '§10 COMPILATORE',
   'anche il testo dice perché è fallito, non solo le immagini',
-  has('netlify/functions/ai.ts', "{ error: 'risposta non disponibile', reason:") &&
+  /* 🔶 L'ago guardava la FORMA della riga — `{ error: …, reason:` tutto su una
+     riga sola — e si è spento appena l'oggetto è andato a capo per far posto al
+     codice tecnico della quota. La decisione da difendere non è dove va a capo:
+     è che il ramo del testo rimandi indietro il motivo del fornitore. */
+  has('netlify/functions/ai.ts', "error: 'risposta non disponibile'") &&
+    has('netlify/functions/ai.ts', "reason: (result.error ?? '').slice(0, 300)") &&
     has('src/ai/promptCompiler.ts', 'rejected: detail ?? null'),
   'l’avevo sistemato per le immagini e lasciato muto per il testo: il compilatore è finito esattamente in quel buco',
 );

@@ -30,7 +30,7 @@
    ========================================================================= */
 
 import { authorize, denied, json } from './_shared/auth';
-import { checkCap, MONTHLY_CAP_USD } from './_shared/spend';
+import { checkCap } from './_shared/spend';
 import {
   COMPILER_CHOICES,
   IMAGE_CHOICES,
@@ -171,7 +171,10 @@ export default async function handler(request: Request): Promise<Response> {
     images,
     defaultImage: ROUTING.image.model,
     spentUsd: cap.ledger.usd,
-    capUsd: MONTHLY_CAP_USD,
+    /* Il tetto EFFETTIVO, quello che blocca davvero: `checkCap()` lo ha già
+       risolto qui sopra, e leggere di nuovo la costante era il modo più
+       veloce per mostrare un numero diverso da quello applicato. */
+    capUsd: cap.capUsd,
     month: cap.ledger.month,
   });
 }
