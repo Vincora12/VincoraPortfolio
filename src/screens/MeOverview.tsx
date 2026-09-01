@@ -4,7 +4,7 @@ import { useApp } from '../state/store';
 import { Icon } from '../system/Icon';
 import { HEALTH_JOURNAL_EVENT, addWorkout, readHealthJournal, removeHealthEntry, type HealthJournal } from '../engine/healthJournal';
 import { dateForDay } from '../engine/progression';
-import { MeCalendar } from './MeCalendar';
+import { MeCalendar, calendarDateKey } from './MeCalendar';
 import { TodayChecklistScreen } from './TodayChecklist';
 import { savedToken } from '../brain/stream';
 
@@ -17,6 +17,7 @@ export function MeOverviewScreen({ onGo: _onGo }: { onGo: (o: Overlay) => void }
   const startedAt = useApp((s) => s.startedAt);
   const [journal, setJournal] = useState(readHealthJournal);
   const [view, setView] = useState<View>(() => visibleView(readHealthJournal().display.focus));
+  const [selectedDate, setSelectedDate] = useState(() => dateForDay(day, startedAt));
   const [timerOpen, setTimerOpen] = useState(false);
   const [memory, setMemory] = useState<any>(null);
   const [memoryError, setMemoryError] = useState(false);
@@ -30,6 +31,9 @@ export function MeOverviewScreen({ onGo: _onGo }: { onGo: (o: Overlay) => void }
   // la stessa chiave, altrimenti un giorno simulato/recuperato appare vuoto
   // pur avendo i pasti correttamente persistiti nel journal.
   const gameDay = localDay(dateForDay(day, startedAt));
+  const selectedDay = calendarDateKey(selectedDate);
+  const selectedMeals = journal.meals.filter((x) => localDay(new Date(x.at)) === selectedDay);
+  const selectedWorkouts = journal.workouts.filter((x) => localDay(new Date(x.at)) === selectedDay);
   const meals = journal.meals.filter((x) => localDay(new Date(x.at)) === gameDay);
   const total = meals.reduce((s, x) => ({ kcal: s.kcal + x.kcal, protein: s.protein + x.protein, carbs: s.carbs + x.carbs, fat: s.fat + x.fat }), { kcal: 0, protein: 0, carbs: 0, fat: 0 });
   const askAi = (prompt: string) => window.dispatchEvent(new CustomEvent('vinzmon-open-chat', { detail: { prompt } }));
@@ -40,8 +44,8 @@ export function MeOverviewScreen({ onGo: _onGo }: { onGo: (o: Overlay) => void }
     <nav className="me-health__tabs">{([['today', 'OGGI'], ['diet', 'DIETA'], ['sport', 'SPORT'], ['memory', 'MEMORY']] as const).map(([id, label]) => <button type="button" key={id} aria-current={view === id ? 'page' : undefined} onClick={() => setView(id)}>{label}</button>)}</nav>
     <div className="me-health__scroll" ref={scrollRef}>
       {view === 'today' && <TodayRecap journal={journal} total={total} />}
-      {view === 'diet' && <><MeCalendar journal={journal} mode="diet" /><Section title="PIANO ALIMENTARE">{journal.dietPlan ? <article className="me-health__plan"><h2>{journal.dietPlan.title}</h2><p>{journal.dietPlan.text}</p><small>Aggiornato {new Date(journal.dietPlan.updatedAt).toLocaleDateString('it-IT')}</small></article> : <Empty text="Allega la dieta in chat: VINZ.MON la leggerà e la salverà qui." />}</Section><Section title="STORICO PASTI">{journal.meals.length ? [...journal.meals].reverse().map(x => <Row key={x.id} title={x.slot} text={x.description} meta={`${x.kcal} kcal`} when={new Date(x.at).toLocaleDateString('it-IT')} chat={x.source === 'chat'} remove={() => remove('meal', x.id)} />) : <Empty text="Lo storico si riempirà dalla chat o dal log manuale." />}</Section></>}
-      {view === 'sport' && <><button type="button" className="me-health__start-timer" onClick={() => setTimerOpen(true)}><Icon name="workout" /><span><strong>ALLENAMENTO GUIDATO</strong><small>Timer esercizio, recupero e serie</small></span><b>AVVIA</b></button><MeCalendar journal={journal} mode="sport" /><Section title="PIANO ALLENAMENTO" action={journal.workoutPlan ? 'MODIFICA CON AI' : 'SCRIVI CON AI'} click={() => askAi(journal.workoutPlan ? 'Modifica il mio piano di allenamento attuale: ' : 'Creami un nuovo piano di allenamento. Prima fammi le domande necessarie: ')}>{journal.workoutPlan ? <article className="me-health__plan"><h2>{journal.workoutPlan.title}</h2><p>{journal.workoutPlan.text}</p><small>Aggiornato {new Date(journal.workoutPlan.updatedAt).toLocaleDateString('it-IT')}</small></article> : <Empty text="Crea il tuo piano con la chat: giorni, esercizi, serie, recuperi e progressione resteranno qui." />}</Section><Section title="ALLENAMENTI SVOLTI" action="REGISTRA CON AI" click={() => askAi('Registra questo allenamento svolto: ')}>{journal.workouts.length ? [...journal.workouts].reverse().map(x => <Row key={x.id} title={x.title} text={x.details} meta={`${x.minutes} minuti`} when={new Date(x.at).toLocaleDateString('it-IT')} chat={x.source === 'chat'} remove={() => remove('workout', x.id)} />) : <Empty text="Racconta un allenamento in chat oppure allega una foto." />}</Section></>}
+      {view === 'diet' && <><MeCalendar journal={journal} mode="diet" selectedDate={selectedDate} onSelect={setSelectedDate} /><Section title="PIANO ALIMENTARE">{journal.dietPlan ? <article className="me-health__plan"><h2>{journal.dietPlan.title}</h2><p>{journal.dietPlan.text}</p><small>Aggiornato {new Date(journal.dietPlan.updatedAt).toLocaleDateString('it-IT')}</small></article> : <Empty text="Allega la dieta in chat: VINZ.MON la leggerà e la salverà qui." />}</Section><Section title="STORICO PASTI">{selectedMeals.length ? [...selectedMeals].reverse().map(x => <Row key={x.id} title={x.slot} text={x.description} meta={`${x.kcal} kcal`} when={new Date(x.at).toLocaleDateString('it-IT')} chat={x.source === 'chat'} remove={() => remove('meal', x.id)} />) : <Empty text="Nessun pasto registrato in questo giorno." />}</Section></>}
+      {view === 'sport' && <><button type="button" className="me-health__start-timer" onClick={() => setTimerOpen(true)}><Icon name="workout" /><span><strong>ALLENAMENTO GUIDATO</strong><small>Timer esercizio, recupero e serie</small></span><b>AVVIA</b></button><MeCalendar journal={journal} mode="sport" selectedDate={selectedDate} onSelect={setSelectedDate} /><Section title="PIANO ALLENAMENTO" action={journal.workoutPlan ? 'MODIFICA CON AI' : 'SCRIVI CON AI'} click={() => askAi(journal.workoutPlan ? 'Modifica il mio piano di allenamento attuale: ' : 'Creami un nuovo piano di allenamento. Prima fammi le domande necessarie: ')}>{journal.workoutPlan ? <article className="me-health__plan"><h2>{journal.workoutPlan.title}</h2><p>{journal.workoutPlan.text}</p><small>Aggiornato {new Date(journal.workoutPlan.updatedAt).toLocaleDateString('it-IT')}</small></article> : <Empty text="Crea il tuo piano con la chat: giorni, esercizi, serie, recuperi e progressione resteranno qui." />}</Section><Section title="ALLENAMENTI SVOLTI" action="REGISTRA CON AI" click={() => askAi('Registra questo allenamento svolto: ')}>{selectedWorkouts.length ? [...selectedWorkouts].reverse().map(x => <Row key={x.id} title={x.title} text={x.details} meta={`${x.minutes} minuti`} when={new Date(x.at).toLocaleDateString('it-IT')} chat={x.source === 'chat'} remove={() => remove('workout', x.id)} />) : <Empty text="Nessun allenamento registrato in questo giorno." />}</Section></>}
       {view === 'memory' && <MemoryView memory={memory} error={memoryError} retry={loadMemory} />}
     </div>
     {timerOpen && <WorkoutTimer onClose={() => setTimerOpen(false)} />}

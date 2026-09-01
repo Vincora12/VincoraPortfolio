@@ -5594,47 +5594,26 @@
 /* Calendario condiviso da DIETA e SPORT: il piano AI diventa consultabile per giorno. */
 .me-health__calendar {
   position: relative;
-  min-height: 430px;
-  padding: 12px 12px 16px;
+  min-height: 0;
+  padding: 18px 12px 20px;
   border-bottom: 1px solid #292c33;
   background: #000;
-  --sx-color-primary: var(--mh-accent);
-  --sx-color-on-primary: #000;
-  --sx-color-primary-container: color-mix(in srgb, var(--mh-accent) 22%, #000);
-  --sx-color-on-primary-container: #fff;
-  --sx-color-background: #000;
-  --sx-color-surface: #050506;
-  --sx-color-surface-dim: #050506;
-  --sx-color-surface-bright: #141518;
-  --sx-color-surface-container: #0c0d0f;
-  --sx-color-surface-container-low: #08090b;
-  --sx-color-surface-container-high: #17181c;
-  --sx-color-on-surface: #f5f5f6;
-  --sx-color-on-background: #f5f5f6;
-  --sx-color-outline: #555861;
-  --sx-color-outline-variant: #292c33;
-  --sx-rounding-extra-small: 0;
-  --sx-rounding-small: 0;
-  --sx-rounding-extra-large: 0;
 }
-.me-health__calendar .sx-react-calendar-wrapper { width: 100%; height: 402px; }
-.me-health__calendar .sx__calendar { border: 1px solid #555861; font-family: var(--font-ui); }
-.me-health__calendar .sx__calendar-header { padding: 8px; }
-.me-health__calendar .sx__calendar-header-content { gap: 4px; }
-.me-health__calendar button { min-width: 44px; min-height: 44px; }
-.me-health__calendar-detail {
-  position: absolute;
-  inset: auto 12px 16px;
-  z-index: 5;
-  display: grid;
-  gap: 7px;
-  width: calc(100% - 24px);
-  padding: 16px;
-  border: 1px solid var(--mh-accent) !important;
-  background: #090a0c !important;
-  color: #fff;
-  text-align: left;
-}
-.me-health__calendar-detail strong { font: 700 13px/1.35 var(--font-mono); text-transform: uppercase; }
-.me-health__calendar-detail span { color: #c5c7ce; font: 400 13px/1.45 var(--font-ui); }
-.me-health__calendar-detail small { color: var(--mh-accent); font: 700 9px/1 var(--font-mono); letter-spacing: .08em; }
+.me-health__calendar .rdp-root { width: 100%; --rdp-accent-color: var(--mh-accent); --rdp-accent-background-color: transparent; --rdp-day-width: 42px; --rdp-day-height: 42px; --rdp-day_button-width: 34px; --rdp-day_button-height: 34px; --rdp-selected-border: 1px solid var(--mh-accent); --rdp-outside-opacity: .3; color: #f3f3f3; font-family: var(--font-mono); }
+.me-health__calendar .rdp-months, .me-health__calendar .rdp-month { width: 100%; }
+.me-health__calendar .rdp-month_caption { height: 34px; justify-content: space-between; padding: 0 4px; font-size: 12px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+.me-health__calendar .rdp-caption_label { color: #f3f3f3; }
+.me-health__calendar .rdp-nav { gap: 4px; }
+.me-health__calendar .rdp-button_previous, .me-health__calendar .rdp-button_next { width: 38px; height: 34px; border: 1px solid #44474f; border-radius: 0; color: #f3f3f3; }
+.me-health__calendar .rdp-button_previous:hover:not([disabled]), .me-health__calendar .rdp-button_next:hover:not([disabled]) { background: #1b1c20; }
+.me-health__calendar .rdp-weekdays { color: #777a83; font-size: 9px; letter-spacing: .08em; }
+.me-health__calendar .rdp-weekday { height: 28px; font-weight: 700; }
+.me-health__calendar .rdp-day { position: relative; height: 42px; padding: 0; }
+.me-health__calendar .rdp-day_button { width: 34px; height: 34px; margin: 0 auto; border: 1px solid transparent; border-radius: 0; color: #e8e9ec; font: 600 11px/1 var(--font-mono); }
+.me-health__calendar .rdp-day_button:hover:not([disabled]) { background: #191a1e; }
+.me-health__calendar .rdp-day.me-calendar__selected .rdp-day_button { border-color: var(--mh-accent); background: transparent; color: #fff; }
+.me-health__calendar .rdp-day.me-calendar__today .rdp-day_button { color: var(--mh-accent); }
+.me-health__calendar .rdp-day.me-calendar__outside .rdp-day_button { color: #686b73; }
+.me-health__calendar .rdp-day.me-calendar__has-food::after, .me-health__calendar .rdp-day.me-calendar__has-workout::after { position: absolute; bottom: 1px; left: 50%; width: 4px; height: 4px; border-radius: 50%; background: var(--mh-accent); content: ''; transform: translateX(-50%); }
+.me-health__calendar .rdp-day.me-calendar__has-workout::after { background: #42c8e8; }
+.me-health__calendar .rdp-day.me-calendar__has-food.me-calendar__has-workout::after { width: 10px; border-radius: 0; background: linear-gradient(90deg, var(--mh-accent) 0 45%, #42c8e8 45% 55%, var(--mh-accent) 55%); }
