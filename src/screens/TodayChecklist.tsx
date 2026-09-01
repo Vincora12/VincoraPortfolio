@@ -10,7 +10,7 @@ import { useAssetUrl } from '../system/AssetSlot';
 import { Icon, type IconName } from '../system/Icon';
 import { SyncDial } from '../system/SyncDial';
 
-const MEALS: Array<{ slot: Exclude<MealLog['slot'], 'extra'>; label: string; icon: IconName }> = [
+export const MEALS: Array<{ slot: Exclude<MealLog['slot'], 'extra'>; label: string; icon: IconName }> = [
   { slot: 'colazione', label: 'COLAZIONE', icon: 'mealBreakfast' },
   { slot: 'spuntino', label: 'SPUNTINO', icon: 'mealSnack' },
   { slot: 'pranzo', label: 'PRANZO', icon: 'mealLunch' },
@@ -22,7 +22,7 @@ type EditTarget =
   | { kind: 'meal'; label: string; slot: MealLog['slot']; entry?: MealLog }
   | { kind: 'workout'; label: string; entry?: WorkoutLog };
 
-function workoutIcon(workout: WorkoutLog): IconName {
+export function workoutIcon(workout: WorkoutLog): IconName {
   const text = `${workout.title} ${workout.details}`.toLocaleLowerCase('it-IT');
   if (/riposo|recupero|rest day|nessun allenamento/.test(text)) return 'rest';
   if (/pesi|forza|palestra|gym|sollevamento|bilanciere|manubri/.test(text)) return 'workout';
