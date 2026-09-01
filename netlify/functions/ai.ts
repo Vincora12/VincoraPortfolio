@@ -34,6 +34,7 @@ import {
   type ImageQuality,
 } from './_shared/providers';
 import { checkCap, recordSpend, MONTHLY_CAP_USD } from './_shared/spend';
+import { appendRuntimeEvent } from './_shared/runtimeLog';
 
 /* Tetti sulla richiesta. Non difendono da un attacco — chi ha il token può
    fare richieste legittime finché il budget regge — difendono dall'errore
@@ -82,6 +83,7 @@ const LIMITS = {
 };
 
 interface Payload {
+  requestId?: string;
   capability?: string;
   /** Solo per `image`: la forma della tavola, decisa dal tipo di asset. */
   size?: string;
@@ -266,6 +268,7 @@ export default async function handler(request: Request): Promise<Response> {
     const imageCostUsd = result.ok ? await recordSpend(capability, route.model, result.usage, { action: 'image_generation', subsystem: 'ai' }) : 0;
 
     if (!result.ok) {
+      await appendRuntimeEvent({ eventType: 'AI_CALL_ERROR', status: 'FAIL', scope: 'ai', requestId: payload.requestId, capability, provider: route.provider, model: route.model, error: result.error });
       console.warn('[ai] immagine non generata:', result.error);
       /* 🔶 Tornava «immagine non generata» e basta, e il motivo restava solo
          nei log della funzione — che vuol dire: per sapere perché non funziona
@@ -467,6 +470,7 @@ export default async function handler(request: Request): Promise<Response> {
   }
 
   if (!result.ok) {
+    await appendRuntimeEvent({ eventType: 'AI_CALL_ERROR', status: 'FAIL', scope: 'ai', requestId: payload.requestId, capability, provider: route.provider, model: result.model, error: result.error });
     console.warn('[ai] risposta non utilizzabile:', result.error);
     /* 🔶 Come per le immagini: il motivo torna indietro. L'avevo sistemato di
        là e lasciato muto di qua, e il compilatore è finito esattamente in

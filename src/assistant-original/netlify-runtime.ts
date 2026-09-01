@@ -22,6 +22,7 @@ import { buildVoiceSystemPrompt } from "@/ai/voicePrompt";
 import { persistChatTrace, recordChatTrace, systemPromptComposition, traceClock, type ChatTrace } from "@/ai/chatTrace";
 import { voiceCard } from "@/engine/voiceCard";
 import { captureChatMemoryForClient } from "@/assistant-original/chat-memory-feedback";
+import { postRuntimeEvent } from "@/system/runtimeLog";
 
 type Source = { title: string; url: string; domain?: string };
 type Usage = {
@@ -439,6 +440,8 @@ function createBaseNetlifyChatModel(): ChatModelAdapter {
     if (!token) throw new Error("Prima attiva VINZ.MON: manca il token.");
 
     const modelName = context.config?.modelName;
+    const requestId = globalThis.crypto?.randomUUID?.() ?? `chat-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const startedAt = Date.now();
     const reasoningEffort = context.config?.reasoningEffort;
     const useStream = modelName?.startsWith("claude-") ?? false;
     const last = messages.at(-1);
@@ -497,6 +500,7 @@ function createBaseNetlifyChatModel(): ChatModelAdapter {
         authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({
+        requestId,
         capability: "character-voice",
         config: { modelName, reasoningEffort },
         stream: useStream,
@@ -530,6 +534,7 @@ function createBaseNetlifyChatModel(): ChatModelAdapter {
         | { error?: string; reason?: string }
         | null;
       const message = problem?.reason ?? problem?.error ?? `Richiesta fallita (${response.status}).`;
+      postRuntimeEvent({ eventType: 'CHAT_RESPONSE_ERROR', status: 'FAIL', scope: 'chat', requestId, messageId: last?.id, capability: 'character-voice', durationMs: Date.now() - startedAt, error: message });
       await saveTrace(modelName ?? null, message);
       throw new Error(message);
     }
@@ -543,6 +548,7 @@ function createBaseNetlifyChatModel(): ChatModelAdapter {
       };
       const parts = (body.sources ?? []).map(sourcePart);
       if (!body.text) {
+        postRuntimeEvent({ eventType: 'CHAT_RESPONSE_ERROR', status: 'FAIL', scope: 'chat', requestId, messageId: last?.id, capability: 'character-voice', durationMs: Date.now() - startedAt, error: 'empty response' });
         await saveTrace(body.model ?? modelName ?? null, "La risposta è arrivata vuota.");
         throw new Error("La risposta è arrivata vuota.");
       }
@@ -566,6 +572,7 @@ function createBaseNetlifyChatModel(): ChatModelAdapter {
           },
         },
       };
+      postRuntimeEvent({ eventType: 'CHAT_RESPONSE_OK', status: 'PASS', scope: 'chat', requestId, messageId: last?.id, capability: 'character-voice', model: body.model ?? modelName, durationMs: Date.now() - startedAt });
       return;
     }
 
@@ -605,6 +612,7 @@ function createBaseNetlifyChatModel(): ChatModelAdapter {
           for (const source of event.sources) sources.set(source.url, source);
         }
         if (event.type === "error") {
+          postRuntimeEvent({ eventType: 'CHAT_RESPONSE_ERROR', status: 'FAIL', scope: 'chat', requestId, messageId: last?.id, capability: 'character-voice', durationMs: Date.now() - startedAt, error: event.message });
           await saveTrace(answeredBy ?? null, event.message);
           throw new Error(event.message);
         }
@@ -622,6 +630,7 @@ function createBaseNetlifyChatModel(): ChatModelAdapter {
       null,
       [...sources.values()].map((source) => `${source.title} — ${source.url}`),
     );
+    postRuntimeEvent({ eventType: 'CHAT_RESPONSE_OK', status: 'PASS', scope: 'chat', requestId, messageId: last?.id, capability: 'character-voice', model: answeredBy, durationMs: Date.now() - startedAt });
     yield {
       content: withText(completeParts, answer),
       metadata: {
@@ -638,11 +647,13 @@ export function createNetlifyChatModel(
   const base = createBaseNetlifyChatModel();
   return {
     async *run(args) {
+      const requestId = globalThis.crypto?.randomUUID?.() ?? `chat-${Date.now()}-${Math.random().toString(36).slice(2)}`;
       const last = args.messages.at(-1);
       const user = textOf(last);
       if (last?.role === "user") {
         // Fire-and-forget: semantic capture is isolated from response latency.
-        void captureChatMemoryForClient({ text: user, messageId: last.id, context: args.messages.slice(-5, -1).map((message) => ({ role: message.role === 'assistant' ? 'assistant' : 'user', text: textOf(message) })) });
+        void captureChatMemoryForClient({ text: user, messageId: last.id, requestId, context: args.messages.slice(-5, -1).map((message) => ({ role: message.role === 'assistant' ? 'assistant' : 'user', text: textOf(message) })) });
+        postRuntimeEvent({ eventType: 'CHAT_SEND_START', status: 'START', scope: 'chat', requestId, messageId: last.id, capability: 'character-voice' });
       }
       const pendingSlot = pendingMealSlot(args.messages);
       const pendingWorkout = hasPendingWorkout(args.messages);

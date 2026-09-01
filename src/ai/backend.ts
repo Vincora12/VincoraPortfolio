@@ -356,6 +356,16 @@ export function loadUsage(token: string | null): Promise<BackendResult<UsageDash
   return post<UsageDashboard>('/api/usage', token, undefined, 'GET');
 }
 
+export interface RuntimeEvent {
+  id: string; timestamp: string; eventType: string; status: 'START' | 'PASS' | 'FAIL'; scope: string;
+  action?: string; requestId?: string; conversationId?: string; messageId?: string; monId?: string; worldId?: string;
+  capability?: string; provider?: string; model?: string; durationMs?: number; error?: string;
+  metadata?: Record<string, string | number | boolean>;
+}
+export function loadRuntimeLog(token: string | null): Promise<BackendResult<{ events: RuntimeEvent[] }>> {
+  return post<{ events: RuntimeEvent[] }>('/api/runtime-log', token, undefined, 'GET');
+}
+
 /** Una richiesta di testo o immagine allo strato AI. */
 export function ask<T = VoiceData>(
   token: string | null,

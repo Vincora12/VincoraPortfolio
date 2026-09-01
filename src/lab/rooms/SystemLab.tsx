@@ -23,7 +23,7 @@ import { useApp } from '../../state/store';
 import { STAT_KEYS, UNKNOWN, isKnown } from '../../engine/types';
 import type { StatKey } from '../../engine/types';
 import { DAILY_SIGNALS, DAILY_SIGNAL_LABELS } from '../../engine/progression';
-import { loadPing, loadSetup, loadShortcutStatus, loadUsage, type ShortcutStatus, type UsageDashboard } from '../../ai/backend';
+import { loadPing, loadSetup, loadShortcutStatus, loadUsage, loadRuntimeLog, type ShortcutStatus, type UsageDashboard, type RuntimeEvent } from '../../ai/backend';
 import { lastRuns } from '../../ai/telemetry';
 import { freshSecret } from '../../engine/secret';
 import { estimateMonthlyCost } from '../../engine/costEstimate';
@@ -45,6 +45,7 @@ const TABS = [
   { id: 'memory', label: 'MEMORY' },
   { id: 'machines', label: 'MACHINES' },
   { id: 'usage', label: 'USAGE' },
+  { id: 'runtime-log', label: 'RUNTIME LOG' },
   /* 🔷 brief Shortcuts §11, e la regola scritta nell'atrio del lab:
      «se cambia come l'app... chiama API, va in SYSTEM.LAB». `/api/shortcut`
      è esattamente questo — e finora esisteva SOLO in DEV → SHORTCUT API,
@@ -68,6 +69,7 @@ export function SystemLab({ onBack }: { onBack: () => void }) {
         {tab === 'memory' && <Memory />}
         {tab === 'machines' && <Machines />}
         {tab === 'usage' && <Usage />}
+        {tab === 'runtime-log' && <RuntimeLog />}
         {tab === 'shortcuts' && <Shortcuts />}
         {tab === 'assistant' && <LabAssistantPanel />}
         <div className="footer mono">SYSTEM.LAB · SAME VINZ.MON ENGINE / SAME REPOSITORY</div>
@@ -713,6 +715,15 @@ function Usage() {
       </>}
     </section>
   );
+}
+
+function RuntimeLog() {
+  const token = useApp((s) => s.token);
+  const [events, setEvents] = useState<RuntimeEvent[] | null>(null);
+  useEffect(() => { let cancelled = false; void loadRuntimeLog(token).then(({ data }) => { if (!cancelled) setEvents(data?.events ?? []); }); return () => { cancelled = true; }; }, [token]);
+  return <section className="page active"><PageHead kicker="SYSTEM.LAB / OBSERVABILITY" title="RUNTIME LOG" lead="Ultime 48 ore di eventi tecnici, senza contenuti personali." />
+    {!events ? <p className="note">Lettura del registro…</p> : events.length === 0 ? <p className="note">Nessun evento recente.</p> : <Section title="LAST 48H"><Rows rows={events.map((event) => [`${new Date(event.timestamp).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}  ${event.scope.toUpperCase()}`, `${event.eventType} · ${event.status}${event.model ? ` · ${event.model}` : ''}${event.error ? ` · ${event.error}` : ''}`])} /></Section>}
+  </section>;
 }
 
 /* ============================================================================

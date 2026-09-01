@@ -28,6 +28,7 @@
    ========================================================================= */
 
 import { Component, type ErrorInfo, type ReactNode } from 'react';
+import { postRuntimeEvent } from './runtimeLog';
 
 interface State {
   error: Error | null;
@@ -52,6 +53,7 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
       .join(' ← ');
     this.setState({ where });
     console.error('[vinz.mon] render fallito', error, info.componentStack);
+    postRuntimeEvent({ eventType: 'CLIENT_RUNTIME_ERROR', status: 'FAIL', scope: 'system', action: 'render', error: error.message, metadata: { screen: 'error-boundary' } });
   }
 
   render() {
