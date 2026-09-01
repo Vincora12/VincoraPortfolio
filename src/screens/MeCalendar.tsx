@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { DayPicker } from 'react-day-picker';
+import { it } from 'react-day-picker/locale';
 import 'react-day-picker/style.css';
 import type { HealthJournal } from '../engine/healthJournal';
 
@@ -16,7 +17,7 @@ export function MeCalendar({ journal, mode, selectedDate, onSelect }: { journal:
       mode="single" month={month} selected={selectedDate}
       onSelect={(date) => { if (date) { onSelect(date); setMonth(new Date(date.getFullYear(), date.getMonth(), 1)); } }}
       onMonthChange={setMonth}
-      showOutsideDays fixedWeeks weekStartsOn={1}
+      showOutsideDays fixedWeeks weekStartsOn={1} locale={it}
       modifiers={{ hasFood: [...foodDays].map(dateFromKey), hasWorkout: [...workoutDays].map(dateFromKey) }}
       modifiersClassNames={{ today: 'me-calendar__today', selected: 'me-calendar__selected', outside: 'me-calendar__outside', hasFood: 'me-calendar__has-food', hasWorkout: 'me-calendar__has-workout' }}
     />
