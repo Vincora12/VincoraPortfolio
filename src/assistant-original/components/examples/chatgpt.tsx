@@ -157,11 +157,21 @@ const ConversationMemory: FC = () => {
 
 const ConversationLifecycle: FC = () => {
   const aui = useAui();
-  const { threadId, remoteId, hasUserMessage } = useAuiState(
+  const { threadId, remoteId, readyToPromote } = useAuiState(
     useShallow((state) => ({
       threadId: state.threads.mainThreadId,
       remoteId: state.threadListItem.remoteId,
-      hasUserMessage: state.thread.messages.some((message) => message.role === "user"),
+      readyToPromote: (() => {
+        const messages = state.thread.messages;
+        let lastUserIndex = -1;
+        for (let index = messages.length - 1; index >= 0; index -= 1) {
+          if (messages[index]?.role === "user") { lastUserIndex = index; break; }
+        }
+        if (lastUserIndex < 0) return false;
+        return messages.slice(lastUserIndex + 1).some(
+          (message) => message.role === "assistant" && message.status.type !== "running",
+        );
+      })(),
     })),
   );
   useEffect(() => {
@@ -178,11 +188,11 @@ const ConversationLifecycle: FC = () => {
     }
   }, [aui, remoteId]);
   useEffect(() => {
-    if (!hasUserMessage || !isLocalUnsavedSession(threadId)) return;
+    if (!readyToPromote || !isLocalUnsavedSession(threadId)) return;
     void promoteLocalSession(threadId, aui.thread.export()).catch((error: unknown) => {
       console.warn("[VINZ chat] promozione conversazione non riuscita", error);
     });
-  }, [aui, hasUserMessage, threadId]);
+  }, [aui, readyToPromote, threadId]);
   return null;
 };
 
