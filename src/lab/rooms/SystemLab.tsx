@@ -203,6 +203,47 @@ function Setup() {
         />
       </Section>
 
+      {/* 🔴 «CONFIGURATO» E «FUNZIONANTE» ERANO ANCORA LA STESSA RIGA.
+          Il riquadro qui sopra legge `/api/setup`, che sa solo se la CHIAVE
+          C'È. Un account senza credito ha la chiave: risultava READY, e poi
+          ogni chiamata moriva con la frase del fornitore — «The quota has
+          been exceeded» — che non è mai stata una frase nostra.
+
+          `/api/ping` la domanda vera la faceva già: chiede al fornitore
+          l'elenco dei modelli, che non costa niente e non può fallire per il
+          motivo che stiamo cercando. Sapeva rispondere e nessuno lo
+          mostrava. Adesso la risposta sta sullo schermo, per fornitore:
+          la chiave c'è · il fornitore la accetta · i modelli che chiamiamo
+          esistono davvero con quel nome. 🔒 Nessuna chiave, nemmeno un
+          pezzo: solo sì e no. */}
+      <Section
+        title="PROVIDERS"
+        note="Chiedere l'elenco dei modelli non costa niente e non consuma token: se questa riga è rossa, il problema è dalla parte del fornitore, non del codice."
+      >
+        {!ping?.data ? (
+          <p className="note">Premi RUN SYSTEM CHECK per interrogare i fornitori.</p>
+        ) : ping.data.providers.length === 0 ? (
+          <p className="note">Nessun fornitore dichiarato.</p>
+        ) : (
+          <Rows
+            rows={ping.data.providers.map((probe) => {
+              const sconosciuti = probe.models.filter((m) => !m.known).map((m) => m.model);
+              const esito = !probe.configured
+                ? `CHIAVE ASSENTE · ${probe.envVar}`
+                : !probe.reachable
+                  ? `NON RAGGIUNTO${probe.error ? ` · ${probe.error.slice(0, 60)}` : ''}`
+                  : !probe.authorized
+                    ? `CHIAVE RIFIUTATA · HTTP ${probe.status ?? '?'}`
+                    : sconosciuti.length > 0
+                      ? `OK, MA NOMI IGNOTI · ${sconosciuti.join(' ')}`
+                      : `OK · ${probe.ms} ms`;
+              const bene = probe.configured && probe.reachable && probe.authorized && sconosciuti.length === 0;
+              return [probe.provider.toUpperCase(), <Status label={esito} ok={bene} />];
+            })}
+          />
+        )}
+      </Section>
+
       <Section
         title="DAY START TIME"
         note="Il confine ricorrente del giorno VINZ.MON. Cambiarlo non riscrive la storia: il tempo reale può solo recuperare un giorno rimasto indietro."
