@@ -360,6 +360,7 @@ const SystemEventMessage: FC = () => {
 
 const Composer: FC<{ placeholder: string }> = ({ placeholder }) => {
   const aui = useAui();
+  const threadId = useAuiState((state) => state.threads.mainThreadId);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const waveRef = useRef<HTMLDivElement>(null);
   const waveSurferRef = useRef<WaveSurfer | null>(null);
@@ -416,16 +417,22 @@ const Composer: FC<{ placeholder: string }> = ({ placeholder }) => {
     return body.text;
   };
 
-  const insertAndSend = (text: string) => {
+  const promoteBeforeSend = async () => {
+    if (!isLocalUnsavedSession(threadId)) return;
+    await promoteLocalSession(threadId, aui.thread.export());
+  };
+
+  const insertAndSend = async (text: string) => {
     const composer = aui.thread.composer();
     const current = composer.getState().text.trim();
     composer.setText(current ? `${current} ${text}` : text);
+    await promoteBeforeSend();
     composer.send();
   };
 
   useEffect(() => {
     if (mode !== "idle" || !pendingTranscript) return;
-    insertAndSend(pendingTranscript);
+    void insertAndSend(pendingTranscript);
     setPendingTranscript(null);
   }, [mode, pendingTranscript]);
 
@@ -605,7 +612,11 @@ const Composer: FC<{ placeholder: string }> = ({ placeholder }) => {
         />
 
         <div className="flex shrink-0 items-center gap-1">
-          <ComposerPrimaryAction onDictate={startDictation} />
+          <ComposerPrimaryAction
+            onDictate={startDictation}
+            onBeforeSend={promoteBeforeSend}
+            onSend={() => aui.thread.composer().send()}
+          />
         </div>
       </div>
       )}
@@ -618,9 +629,11 @@ const Composer: FC<{ placeholder: string }> = ({ placeholder }) => {
   );
 };
 
-const ComposerPrimaryAction: FC<{ onDictate: () => void }> = ({
-  onDictate,
-}) => {
+const ComposerPrimaryAction: FC<{
+  onDictate: () => void;
+  onBeforeSend: () => Promise<void>;
+  onSend: () => void;
+}> = ({ onDictate, onBeforeSend, onSend }) => {
   return (
     <div className="flex items-center gap-1">
       <AuiIf condition={(s) => s.thread.isRunning}>
@@ -640,7 +653,16 @@ const ComposerPrimaryAction: FC<{ onDictate: () => void }> = ({
             // bottone non ha bisogno di prendere focus per eseguire il click.
             if (event.pointerType === "touch") event.preventDefault();
           }}
-          onClick={() => postChatDiagnostic('CHAT_UI_SUBMIT', 'ui-submit')}
+          onClick={(event) => {
+            postChatDiagnostic('CHAT_UI_SUBMIT', 'ui-submit');
+            event.preventDefault();
+            void (async () => {
+              await onBeforeSend();
+              onSend();
+            })().catch((error: unknown) => {
+              console.warn('[VINZ chat] invio non riuscito', error);
+            });
+          }}
         >
           <ArrowUpIcon className="size-6" />
         </ComposerPrimitive.Send>
