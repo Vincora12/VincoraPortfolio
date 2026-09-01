@@ -720,9 +720,24 @@ function Usage() {
 function RuntimeLog() {
   const token = useApp((s) => s.token);
   const [events, setEvents] = useState<RuntimeEvent[] | null>(null);
-  useEffect(() => { let cancelled = false; void loadRuntimeLog(token).then(({ data }) => { if (!cancelled) setEvents(data?.events ?? []); }); return () => { cancelled = true; }; }, [token]);
+  const [error, setError] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    setEvents(null);
+    setError(false);
+    void loadRuntimeLog(token).then(({ data, failure }) => {
+      if (cancelled) return;
+      if (failure || !data) {
+        setError(true);
+        setEvents([]);
+      } else {
+        setEvents(data.events);
+      }
+    });
+    return () => { cancelled = true; };
+  }, [token]);
   return <section className="page active"><PageHead kicker="SYSTEM.LAB / OBSERVABILITY" title="RUNTIME LOG" lead="Ultime 48 ore di eventi tecnici, senza contenuti personali." />
-    {!events ? <p className="note">Lettura del registro…</p> : events.length === 0 ? <p className="note">Nessun evento recente.</p> : <Section title="LAST 48H"><Rows rows={events.map((event) => [`${new Date(event.timestamp).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}  ${event.scope.toUpperCase()}`, `${event.eventType} · ${event.status}${event.model ? ` · ${event.model}` : ''}${event.error ? ` · ${event.error}` : ''}`])} /></Section>}
+    {!events ? <p className="note">Lettura del registro…</p> : error ? <p className="note">Runtime Log non disponibile: verifica autenticazione o server.</p> : events.length === 0 ? <p className="note">Nessun evento recente.</p> : <Section title="LAST 48H"><Rows rows={events.map((event) => [`${new Date(event.timestamp).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}  ${event.scope.toUpperCase()}`, `${event.eventType} · ${event.status}${event.model ? ` · ${event.model}` : ''}${event.error ? ` · ${event.error}` : ''}`])} /></Section>}
   </section>;
 }
 
