@@ -39,7 +39,7 @@ const STORE = 'vinzmon-runtime-log';
 const KEY = 'events';
 const MAX_EVENTS = 500;
 const RETENTION_MS = 48 * 60 * 60 * 1000;
-const ALLOWED_META = new Set(['route', 'screen', 'reason', 'count', 'source']);
+const ALLOWED_META = new Set(['route', 'screen', 'reason', 'count', 'resultCount', 'source']);
 
 const store = () => getStore(STORE);
 

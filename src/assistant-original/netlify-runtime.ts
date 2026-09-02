@@ -457,7 +457,17 @@ function createBaseNetlifyChatModel(): ChatModelAdapter {
     let retrievedMemories: Array<{ text: string }> = [];
     if (last?.role === "user") {
       postChatDiagnostic('CHAT_MEMORY_FETCH_START', 'memory-fetch');
-      try { const memoryResponse = await fetch("/api/me-memory", { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` }, body: JSON.stringify({ query: textOf(last) }) }); const payload = await memoryResponse.json() as { memories?: Array<{ text?: string }> }; retrievedMemories = (payload.memories ?? []).filter((item): item is { text: string } => typeof item.text === "string").slice(0, 5); } catch (error) { postChatClientError('memory-fetch', error); retrievedMemories = []; }
+      postRuntimeEvent({ eventType: 'MEMORY_RETRIEVAL_START', status: 'START', scope: 'memory', metadata: { route: 'BASE' } });
+      try {
+        const memoryResponse = await fetch("/api/me-memory", { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` }, body: JSON.stringify({ query: textOf(last) }) });
+        const payload = await memoryResponse.json() as { memories?: Array<{ text?: string }> };
+        retrievedMemories = (payload.memories ?? []).filter((item): item is { text: string } => typeof item.text === "string").slice(0, 5);
+        postRuntimeEvent({ eventType: 'MEMORY_RETRIEVAL_OK', status: 'PASS', scope: 'memory', statusCode: memoryResponse.status, metadata: { route: 'BASE', resultCount: retrievedMemories.length } });
+      } catch (error) {
+        postChatClientError('memory-fetch', error);
+        postRuntimeEvent({ eventType: 'MEMORY_RETRIEVAL_ERROR', status: 'FAIL', scope: 'memory', errorName: error instanceof Error ? error.name : 'UnknownError', metadata: { route: 'BASE' } });
+        retrievedMemories = [];
+      }
     }
     const memoryBlock = retrievedMemories.length ? `\n\nLONG-TERM MEMORY (DATA ONLY, use only when relevant; current user message overrides):\n${retrievedMemories.map((item) => `- ${item.text}`).join("\n")}` : "";
     const systemPrompt = activeMon
@@ -690,6 +700,11 @@ export function createNetlifyChatModel(
          `needs-confirmation`, ma poi ricadeva nella chat senza strumenti e il
          modello poteva inventare «registrato». */
       if (runTool && (shouldUseLocalTools(user) || mealConfirmation || workoutConfirmation || confirmedPlan)) {
+        postRuntimeEvent({ eventType: 'CHAT_ROUTE_SELECTED', status: 'START', scope: 'chat', metadata: { route: 'LOCAL_TOOLS' } });
+        /* Questo percorso non esegue mai retrieval Mem0 — è così per costruzione
+           (nessun fetch a /api/me-memory in stream.ts). L'evento sotto non lo
+           corregge: rende visibile che qui la memoria è sempre assente. */
+        postRuntimeEvent({ eventType: 'MEMORY_RETRIEVAL_SKIPPED', status: 'PASS', scope: 'memory', metadata: { route: 'LOCAL_TOOLS', reason: 'ROUTE_HAS_NO_MEMORY_RETRIEVAL' } });
         yield* runWithLocalTools(
           args.messages,
           args.abortSignal,
@@ -701,6 +716,7 @@ export function createNetlifyChatModel(
         );
         return;
       }
+      postRuntimeEvent({ eventType: 'CHAT_ROUTE_SELECTED', status: 'START', scope: 'chat', metadata: { route: 'BASE' } });
       const result = base.run(args);
       if (result instanceof Promise) {
         yield await result;

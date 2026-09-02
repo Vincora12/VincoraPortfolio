@@ -28,9 +28,23 @@ export type RuntimeClientEvent = {
        nessuno lo veda finché non si perde il device. */
     | 'STATE_REMOTE_SAVE_START'
     | 'STATE_REMOTE_SAVE_OK'
-    | 'STATE_REMOTE_SAVE_ERROR';
+    | 'STATE_REMOTE_SAVE_ERROR'
+    /* MEMORY OBSERVABILITY MICRO-STEP — la chat ha due percorsi di risposta
+       (BASE e LOCAL_TOOLS) e solo BASE esegue retrieval Mem0. Questi eventi
+       non correggono nulla: rendono visibile quale percorso è stato scelto
+       e cosa è successo al retrieval/capture, per confermare la diagnosi
+       sull'uso reale prima di toccare l'architettura. */
+    | 'CHAT_ROUTE_SELECTED'
+    | 'MEMORY_RETRIEVAL_START'
+    | 'MEMORY_RETRIEVAL_OK'
+    | 'MEMORY_RETRIEVAL_ERROR'
+    | 'MEMORY_RETRIEVAL_SKIPPED'
+    | 'MEMORY_CAPTURE_START'
+    | 'MEMORY_CAPTURE_OK'
+    | 'MEMORY_CAPTURE_ERROR'
+    | 'MEMORY_CAPTURE_SKIPPED';
   status: 'START' | 'PASS' | 'FAIL';
-  scope: 'system' | 'chat';
+  scope: 'system' | 'chat' | 'memory';
   requestId?: string;
   conversationId?: string;
   messageId?: string;
