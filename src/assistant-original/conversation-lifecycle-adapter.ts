@@ -3,6 +3,7 @@ import type {
   RemoteThreadListAdapter,
 } from "@assistant-ui/react";
 import { generateVinzChatTitle } from "./chat-title-generator";
+import { postRuntimeEvent } from "@/system/runtimeLog";
 
 type RemoteThreadInitializeResponse = Awaited<ReturnType<RemoteThreadListAdapter["initialize"]>>;
 
@@ -45,6 +46,7 @@ export const withLocalUnsavedSession = (
     initialize(threadId) {
       const existing = initialized.get(threadId);
       if (existing) return Promise.resolve(existing);
+      postRuntimeEvent({ eventType: 'CHAT_THREAD_INITIALIZE_START', status: 'START', scope: 'chat', metadata: { threadId: threadId.slice(0, 100), local: true, initialized: false } });
       return localSession(threadId).promise;
     },
   };
@@ -60,17 +62,25 @@ export const promoteLocalSession = async (
   if (!session) return null;
   if (!persistentAdapter || !persistSnapshot) throw new Error("Persistent conversation adapter unavailable");
   if (!session.promoting) {
-    session.promoting = persistentAdapter.initialize(threadId).then(async (result) => {
-      await persistSnapshot!(result.remoteId, repository);
-      // Title generation is intentionally done only after promotion. The
-      // assistant-ui automatic trigger can run on the Mon greeting before a
-      // user message exists and would permanently save the empty fallback.
-      const titleMessages = repository.messages.map((item) => item.message);
-      await persistentAdapter!.rename(result.remoteId, generateVinzChatTitle(titleMessages));
+    postRuntimeEvent({ eventType: 'CHAT_THREAD_PROMOTE_START', status: 'START', scope: 'chat', metadata: { threadId: threadId.slice(0, 100), local: true, initialized: false } });
+    session.promoting = persistentAdapter.initialize(threadId).then((result) => {
+      // Resolve assistant-ui's initialization barrier as soon as ownership is
+      // established. Persistence/title work must not sit in front of model.run.
       handoffs.set(result.remoteId, repository);
       initialized.set(threadId, result);
       session.resolve(result);
       sessions.delete(threadId);
+      postRuntimeEvent({ eventType: 'CHAT_THREAD_INITIALIZE_RESOLVED', status: 'PASS', scope: 'chat', metadata: { threadId: threadId.slice(0, 100), local: false, initialized: true } });
+      postRuntimeEvent({ eventType: 'CHAT_THREAD_PROMOTE_OK', status: 'PASS', scope: 'chat', metadata: { threadId: threadId.slice(0, 100), local: false, initialized: true } });
+      void persistSnapshot!(result.remoteId, repository).then(async () => {
+        // Title generation is intentionally done only after promotion. The
+        // assistant-ui automatic trigger can run on the Mon greeting before a
+        // user message exists and would permanently save the empty fallback.
+        const titleMessages = repository.messages.map((item) => item.message);
+        await persistentAdapter!.rename(result.remoteId, generateVinzChatTitle(titleMessages));
+      }).catch((error: unknown) => {
+        console.warn('[VINZ chat] persistenza post-promozione non riuscita', error instanceof Error ? error.message : 'errore sconosciuto');
+      });
       return result;
     });
   }

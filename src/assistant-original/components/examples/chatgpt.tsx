@@ -658,6 +658,7 @@ const ComposerPrimaryAction: FC<{
             event.preventDefault();
             void (async () => {
               await onBeforeSend();
+              postChatDiagnostic('CHAT_RUN_START', 'composer-send');
               onSend();
             })().catch((error: unknown) => {
               console.warn('[VINZ chat] invio non riuscito', error);
