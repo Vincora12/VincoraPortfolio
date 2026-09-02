@@ -1,5 +1,20 @@
 type StorageEventType = 'LOCAL_STORAGE_WRITE_START' | 'LOCAL_STORAGE_WRITE_OK' | 'LOCAL_STORAGE_WRITE_ERROR';
 
+export interface LastStorageOperation {
+  source: string;
+  operation: 'setItem';
+  keyPrefix: string;
+  payloadBytes: number;
+  startedAt: string;
+  status: 'START' | 'OK' | 'ERROR';
+  errorName?: string;
+  errorMessage?: string;
+  errorCode?: number;
+}
+
+/** Synchronous, in-memory breadcrumb for a storage exception. Never persisted. */
+export let lastStorageOperation: LastStorageOperation | null = null;
+
 function token(): string | null {
   try {
     const raw = localStorage.getItem('vinzmon.prototype.v4');
@@ -54,11 +69,22 @@ function report(eventType: StorageEventType, source: string, key: string, payloa
 
 export function setLocalStorageItem(source: string, key: string, value: string): void {
   const size = bytes(value);
+  lastStorageOperation = {
+    source: source.slice(0, 100), operation: 'setItem', keyPrefix: prefix(key),
+    payloadBytes: Math.max(0, Math.round(size)), startedAt: new Date().toISOString(), status: 'START',
+  };
   report('LOCAL_STORAGE_WRITE_START', source, key, size);
   try {
     localStorage.setItem(key, value);
+    lastStorageOperation.status = 'OK';
     report('LOCAL_STORAGE_WRITE_OK', source, key, size);
   } catch (error) {
+    lastStorageOperation.status = 'ERROR';
+    lastStorageOperation.errorName = error instanceof Error ? error.name : undefined;
+    lastStorageOperation.errorMessage = clean(error instanceof Error ? error.message : error);
+    if (error && typeof error === 'object' && 'code' in error && typeof (error as { code?: unknown }).code === 'number') {
+      lastStorageOperation.errorCode = (error as { code: number }).code;
+    }
     report('LOCAL_STORAGE_WRITE_ERROR', source, key, size, error);
     throw error;
   }
