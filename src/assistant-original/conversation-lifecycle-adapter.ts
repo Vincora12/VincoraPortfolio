@@ -63,25 +63,30 @@ export const promoteLocalSession = async (
   if (!persistentAdapter || !persistSnapshot) throw new Error("Persistent conversation adapter unavailable");
   if (!session.promoting) {
     postRuntimeEvent({ eventType: 'CHAT_THREAD_PROMOTE_START', status: 'START', scope: 'chat', metadata: { threadId: threadId.slice(0, 100), local: true, initialized: false } });
-    session.promoting = persistentAdapter.initialize(threadId).then((result) => {
+    // The local-storage adapter uses the local id as its persistent id. Start
+    // its metadata mutation, but do not put that storage/network work in front
+    // of assistant-ui's first model run.
+    const initializePersistent = persistentAdapter.initialize(threadId);
+    const result: RemoteThreadInitializeResponse = { remoteId: threadId };
+    session.promoting = Promise.resolve(result).then((ready) => {
       // Resolve assistant-ui's initialization barrier as soon as ownership is
       // established. Persistence/title work must not sit in front of model.run.
-      handoffs.set(result.remoteId, repository);
-      initialized.set(threadId, result);
-      session.resolve(result);
+      handoffs.set(ready.remoteId, repository);
+      initialized.set(threadId, ready);
+      session.resolve(ready);
       sessions.delete(threadId);
       postRuntimeEvent({ eventType: 'CHAT_THREAD_INITIALIZE_RESOLVED', status: 'PASS', scope: 'chat', metadata: { threadId: threadId.slice(0, 100), local: false, initialized: true } });
       postRuntimeEvent({ eventType: 'CHAT_THREAD_PROMOTE_OK', status: 'PASS', scope: 'chat', metadata: { threadId: threadId.slice(0, 100), local: false, initialized: true } });
-      void persistSnapshot!(result.remoteId, repository).then(async () => {
+      void initializePersistent.then(() => persistSnapshot!(ready.remoteId, repository)).then(async () => {
         // Title generation is intentionally done only after promotion. The
         // assistant-ui automatic trigger can run on the Mon greeting before a
         // user message exists and would permanently save the empty fallback.
         const titleMessages = repository.messages.map((item) => item.message);
-        await persistentAdapter!.rename(result.remoteId, generateVinzChatTitle(titleMessages));
+        await persistentAdapter!.rename(ready.remoteId, generateVinzChatTitle(titleMessages));
       }).catch((error: unknown) => {
         console.warn('[VINZ chat] persistenza post-promozione non riuscita', error instanceof Error ? error.message : 'errore sconosciuto');
       });
-      return result;
+      return ready;
     });
   }
   return session.promoting;
