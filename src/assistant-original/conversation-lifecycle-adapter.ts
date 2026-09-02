@@ -128,6 +128,42 @@ export const consumePromotedRepository = (
   return repository;
 };
 
+export type PromotionHandoffResolution = {
+  shouldImport: boolean;
+  shouldStartRun: boolean;
+  runParentId: string | null;
+  reason: "ALREADY_LIVE" | "REPLAYED_NO_RUN" | "REPLAYED_WITH_RUN" | "NO_USER_MESSAGE";
+};
+
+/**
+ * FIRST TURN INTEGRITY FIX — decides what to do with a repository handed off
+ * by promoteLocalSession, WITHOUT ever trusting it more than the live
+ * thread. That handoff is captured once, at promotion time; blindly
+ * reimporting it later discarded whatever had landed live since (the Mon's
+ * opening line arriving asynchronously, or the reply from the run the
+ * normal submit already started), and unconditionally starting a new run
+ * duplicated that generation. Both risks collapse to the same question:
+ * does the live thread already have this data?
+ */
+export function resolvePromotionHandoff(
+  live: ExportedMessageRepository,
+  handoff: ExportedMessageRepository,
+): PromotionHandoffResolution {
+  const alreadyLive = live.messages.some((item) => item.message.id === handoff.headId);
+  const current = alreadyLive ? live : handoff;
+  const firstUserMessage = handoff.messages.find((item) => item.message.role === "user");
+  if (!firstUserMessage) {
+    return { shouldImport: !alreadyLive, shouldStartRun: false, runParentId: null, reason: "NO_USER_MESSAGE" };
+  }
+  const hasReply = current.messages.some((item) => item.parentId === firstUserMessage.message.id);
+  return {
+    shouldImport: !alreadyLive,
+    shouldStartRun: !hasReply,
+    runParentId: hasReply ? null : firstUserMessage.message.id,
+    reason: alreadyLive ? "ALREADY_LIVE" : hasReply ? "REPLAYED_NO_RUN" : "REPLAYED_WITH_RUN",
+  };
+}
+
 export const discardLocalSession = (threadId: string): void => {
   const session = sessions.get(threadId);
   if (!session) return;

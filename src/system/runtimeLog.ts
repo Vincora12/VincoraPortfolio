@@ -42,7 +42,12 @@ export type RuntimeClientEvent = {
     | 'MEMORY_CAPTURE_START'
     | 'MEMORY_CAPTURE_OK'
     | 'MEMORY_CAPTURE_ERROR'
-    | 'MEMORY_CAPTURE_SKIPPED';
+    | 'MEMORY_CAPTURE_SKIPPED'
+    /* FIRST TURN INTEGRITY FIX — conferma quale ramo ha preso ConversationLifecycle
+       nel consumo dell'handoff di promotion: dati già live (nessuna reimport,
+       nessuna run), riprodotti senza dover rigenerare, o riprodotti avviando la
+       prima e unica run reale. */
+    | 'CHAT_PROMOTION_HANDOFF_RESOLVED';
   status: 'START' | 'PASS' | 'FAIL';
   scope: 'system' | 'chat' | 'memory';
   requestId?: string;

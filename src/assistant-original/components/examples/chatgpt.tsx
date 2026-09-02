@@ -13,7 +13,7 @@ import {
   useAui,
   useAuiState,
 } from "@assistant-ui/react";
-import { postChatDiagnostic } from "@/system/runtimeLog";
+import { postChatDiagnostic, postRuntimeEvent } from "@/system/runtimeLog";
 import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type FC } from "react";
 import { createPortal } from "react-dom";
 import { useMessageError } from "@assistant-ui/core/react";
@@ -28,6 +28,7 @@ import {
   isLocalUnsavedSession,
   promoteLocalSession,
   repositoryWithPendingUser,
+  resolvePromotionHandoff,
 } from "@/assistant-original/conversation-lifecycle-adapter";
 import {
   ActivityIcon,
@@ -177,16 +178,19 @@ const ConversationLifecycle: FC = () => {
   );
   useEffect(() => {
     if (!remoteId) return;
-    const repository = consumePromotedRepository(remoteId);
-    if (repository) {
-      aui.thread.import(repository);
-      const firstUserMessage = [...repository.messages]
-        .reverse()
-        .find((item) => item.message.role === "user");
-      if (firstUserMessage) {
-        aui.thread.startRun({ parentId: firstUserMessage.message.id });
-      }
+    const handoff = consumePromotedRepository(remoteId);
+    if (!handoff) return;
+    const resolution = resolvePromotionHandoff(aui.thread.export(), handoff);
+    if (resolution.shouldImport) aui.thread.import(handoff);
+    if (resolution.shouldStartRun && resolution.runParentId) {
+      aui.thread.startRun({ parentId: resolution.runParentId });
     }
+    postRuntimeEvent({
+      eventType: 'CHAT_PROMOTION_HANDOFF_RESOLVED',
+      status: 'PASS',
+      scope: 'chat',
+      metadata: { reason: resolution.reason },
+    });
   }, [aui, remoteId]);
   useEffect(() => {
     if (!readyToPromote || !isLocalUnsavedSession(threadId)) return;
