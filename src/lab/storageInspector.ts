@@ -286,14 +286,48 @@ export function prototypeFieldBreakdown(): FieldBreakdown[] | null {
 /* --- STATUS -------------------------------------------------------------------
 
    ACTIVE / WARNING / CRITICAL / QUOTA EXCEEDED, calcolato sui dati che
-   riusciamo davvero a leggere — mai su un numero indovinato. */
+   riusciamo davvero a leggere — mai su un numero indovinato.
+
+   🔴 STORAGE STABILIZATION STEP 1/4 — questa funzione valeva per la quota
+   CONDIVISA di `navigator.storage.estimate()` (localStorage + IndexedDB +
+   il resto), rinominata `computeSharedStorageStatus` per dirlo. Serviva
+   ANCHE come stato di LOCAL STORAGE, e lì era una bugia: quella percentuale
+   non è la quota di localStorage, che nessuna API espone da sola — vedi
+   `computeLocalStorageStatus` qui sotto, che non la usa per niente. */
 
 export type StorageStatus = 'ACTIVE' | 'WARNING' | 'CRITICAL' | 'QUOTA EXCEEDED';
 
-export function computeStatus(percentUsed: number | null, quotaExceededRecently: boolean): StorageStatus {
+export function computeSharedStorageStatus(percentUsed: number | null, quotaExceededRecently: boolean): StorageStatus {
   if (quotaExceededRecently) return 'QUOTA EXCEEDED';
   if (percentUsed === null) return 'ACTIVE';
   if (percentUsed >= 95) return 'CRITICAL';
   if (percentUsed >= 80) return 'WARNING';
   return 'ACTIVE';
+}
+
+/** Il testo che LOCAL STORAGE mostra al posto di un numero: nessun browser
+    espone il tetto specifico di `localStorage`, solo quello condiviso
+    dell'intera origine — dirlo è più onesto che indovinare un numero
+    (5–10 MB, secondo il browser, mai dichiarato) e presentarlo come misura. */
+export const LOCAL_STORAGE_LIMIT_LABEL = 'BROWSER MANAGED / NOT EXPOSED';
+
+export type LocalStorageStatus = 'HEALTHY' | 'WARNING' | 'QUOTA EXCEEDED';
+
+/**
+ * Stato di LOCAL STORAGE, basato SOLO su evidenza reale:
+ *
+ * - QUOTA EXCEEDED: un `QuotaExceededError` è stato registrato di recente
+ *   (`lastStorageOperation` di `localStorageDiagnostics.ts`) — un fatto
+ *   accaduto, non una stima.
+ * - WARNING: sopra una soglia PRUDENZIALE di 4 MB — il minimo che quasi
+ *   ogni browser garantisce è circa 5 MB, quindi 4 avvisa prima del bordo
+ *   più stretto conosciuto. Non è il limite vero (che non è leggibile), ed
+ *   è dichiarato come soglia prudenziale nella UI, mai spacciato per una
+ *   misura del browser.
+ * - HEALTHY: nessuna delle due.
+ */
+export function computeLocalStorageStatus(usedBytes: number, quotaExceededRecently: boolean): LocalStorageStatus {
+  if (quotaExceededRecently) return 'QUOTA EXCEEDED';
+  if (usedBytes > 4 * 1024 * 1024) return 'WARNING';
+  return 'HEALTHY';
 }

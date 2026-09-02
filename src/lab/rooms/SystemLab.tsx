@@ -47,12 +47,15 @@ import {
   byIndexedDbCategory,
   INDEXEDDB_CATEGORY_LABEL,
   prototypeFieldBreakdown,
-  computeStatus,
+  computeSharedStorageStatus,
+  computeLocalStorageStatus,
+  LOCAL_STORAGE_LIMIT_LABEL,
   type BrowserStorageEstimate,
   type LocalStorageSnapshot,
   type IndexedDbSnapshot,
   type FieldBreakdown,
   type StorageStatus,
+  type LocalStorageStatus,
 } from '../storageInspector';
 import { lastStorageOperation } from '../../system/localStorageDiagnostics';
 
@@ -1027,6 +1030,7 @@ function StorageInspector() {
   const [quotaHit, setQuotaHit] = useState<typeof lastStorageOperation>(null);
   const [server, setServer] = useState<ServerBucket[] | null>(null);
   const [serverFailed, setServerFailed] = useState(false);
+  const [lastStateSave, setLastStateSave] = useState<RuntimeEvent | null | undefined>(undefined);
   const [mem0, setMem0] = useState<{ memories: number | null; note: string } | null>(null);
   const [showInspector, setShowInspector] = useState(false);
   const [expandedField, setExpandedField] = useState<string | null>(null);
@@ -1079,8 +1083,15 @@ function StorageInspector() {
           detail: `${runtimeLog.data.events.length} eventi (48h)`,
           sizeLabel: bytes ? `~${formatBytes(bytes)} (risposta)` : 'SIZE UNKNOWN',
         });
+        /* 🔒 STORAGE STABILIZATION STEP 1/5 — SERVER STATE legge da qui, non
+           da una `fetch` sua: il Runtime Log È la fonte di verità di questo
+           salvataggio, non una seconda che rischia di raccontare un'altra
+           storia. `events` arriva già ordinato dal più recente (vedi
+           `recentRuntimeEvents` server-side, `.reverse()`). */
+        setLastStateSave(runtimeLog.data.events.find((event) => event.eventType.startsWith('STATE_REMOTE_SAVE_')) ?? null);
       } else {
         buckets.push({ label: 'RUNTIME LOG', detail: 'non disponibile', sizeLabel: 'SIZE UNKNOWN' });
+        setLastStateSave(null);
       }
       if (machinesJson && typeof machinesJson === 'object') {
         const machines = (machinesJson as { machines?: unknown[] }).machines;
@@ -1119,7 +1130,9 @@ function StorageInspector() {
   const percentUsed = browser?.usageBytes != null && browser.quotaBytes != null && browser.quotaBytes > 0
     ? (browser.usageBytes / browser.quotaBytes) * 100
     : null;
-  const status = computeStatus(percentUsed, quotaHit !== null);
+  const sharedStatus = computeSharedStorageStatus(percentUsed, quotaHit !== null);
+  const localStatus: LocalStorageStatus | null = local ? computeLocalStorageStatus(local.totalBytes, quotaHit !== null) : null;
+  const LOCAL_STATUS_OK: Record<LocalStorageStatus, boolean> = { HEALTHY: true, WARNING: false, 'QUOTA EXCEEDED': false };
 
   const localCats = local ? byCategory(local.keys) : [];
   const idbCats = idb ? byIndexedDbCategory(idb.entries) : [];
@@ -1132,7 +1145,49 @@ function StorageInspector() {
         lead="Capacità e contenuti, letti direttamente dal dispositivo. Sola lettura: niente qui cancella o sposta niente."
       />
 
-      <Section title="BROWSER STORAGE" note={`Misura del browser stesso (navigator.storage.estimate) — ${browser ? MEASUREMENT_LABEL[browser.kind] : 'lettura…'}. Non è inventata: se il browser non la dà, resta NOT AVAILABLE.`}>
+      <Section
+        title="LOCAL STORAGE"
+        note="Tutte le chiavi del dominio, misurate byte per byte (UTF-16, come le tiene davvero il motore) — non è una stima. Nessun browser espone il tetto specifico di localStorage: LIMIT lo dice invece di indovinarlo, e STATUS viene solo da un QuotaExceededError reale o da una soglia prudenziale dichiarata come tale."
+      >
+        {!local || !localStatus ? <p className="note">Lettura…</p> : <>
+          <Rows rows={[
+            ['USED', formatBytes(local.totalBytes)],
+            ['LIMIT', LOCAL_STORAGE_LIMIT_LABEL],
+            ['STATUS', <Status label={localStatus} ok={LOCAL_STATUS_OK[localStatus]} />],
+            ['KEYS', String(local.keys.length)],
+          ]} />
+          {quotaHit && (
+            <p className="note">
+              ⚠️ Scrittura rifiutata di recente ({new Date(quotaHit.startedAt).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })} · {quotaHit.source} · {quotaHit.keyPrefix}) — QUOTA EXCEEDED resta finché non ricarichi la pagina.
+            </p>
+          )}
+          {localCats.map((cat) => (
+            <CategoryRow key={cat.category} label={`${CATEGORY_LABEL[cat.category]} · ${cat.count}`} bytes={cat.bytes} total={local.totalBytes} />
+          ))}
+        </>}
+      </Section>
+
+      <Section
+        title="SERVER STATE"
+        note="Il salvataggio della partita (`/api/state`, store vinzmon-state) — l'unico che ha un tetto duro. Letto dal Runtime Log, non da una richiesta a sé: è la stessa osservabilità, non una seconda copia."
+      >
+        {lastStateSave === undefined ? <p className="note">Lettura…</p> : lastStateSave === null ? (
+          <p className="note">Nessun salvataggio recente nel Runtime Log (48h). Modifica qualcosa nell'app: il prossimo salvataggio comparirà qui.</p>
+        ) : (
+          <Rows rows={[
+            ['LAST SAVE', new Date(lastStateSave.timestamp).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })],
+            ['STATUS', <Status
+              label={lastStateSave.eventType === 'STATE_REMOTE_SAVE_OK' ? 'HEALTHY' : lastStateSave.eventType === 'STATE_REMOTE_SAVE_ERROR' && lastStateSave.statusCode === 413 ? 'TOO LARGE' : lastStateSave.eventType === 'STATE_REMOTE_SAVE_ERROR' ? 'FAILED' : 'IN CORSO'}
+              ok={lastStateSave.eventType === 'STATE_REMOTE_SAVE_OK'}
+            />],
+            ['PAYLOAD', lastStateSave.payloadBytes != null ? formatBytes(lastStateSave.payloadBytes) : '—'],
+            ['LIMIT', lastStateSave.limitBytes != null ? formatBytes(lastStateSave.limitBytes) : '—'],
+            ...(lastStateSave.error ? [['REASON', lastStateSave.error] as [string, string]] : []),
+          ]} />
+        )}
+      </Section>
+
+      <Section title="BROWSER SHARED STORAGE" note={`Quota dell'intera origine — localStorage + IndexedDB + il resto insieme, MAI il limite specifico di localStorage (navigator.storage.estimate) — ${browser ? MEASUREMENT_LABEL[browser.kind] : 'lettura…'}. Non è inventata: se il browser non la dà, resta NOT AVAILABLE.`}>
         <AsciiBar percent={percentUsed} />
         <Rows rows={[
           ['USED', browser?.usageBytes != null ? formatBytes(browser.usageBytes) : '—'],
@@ -1140,28 +1195,8 @@ function StorageInspector() {
           ['REMAINING', browser?.usageBytes != null && browser?.quotaBytes != null ? formatBytes(Math.max(0, browser.quotaBytes - browser.usageBytes)) : '—'],
           ['PERCENT USED', percentUsed !== null ? `${percentUsed.toFixed(1)}%` : '—'],
           ['MEASUREMENT', browser ? MEASUREMENT_LABEL[browser.kind] : '…'],
-          ['STATUS', <Status label={status} ok={STATUS_OK[status]} />],
+          ['STATUS', <Status label={sharedStatus} ok={STATUS_OK[sharedStatus]} />],
         ]} />
-        {quotaHit && (
-          <p className="note">
-            ⚠️ Scrittura rifiutata di recente ({new Date(quotaHit.startedAt).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })} · {quotaHit.source} · {quotaHit.keyPrefix}) — QUOTA EXCEEDED resta finché non ricarichi la pagina.
-          </p>
-        )}
-      </Section>
-
-      <Section
-        title="LOCAL STORAGE"
-        note="Tutte le chiavi del dominio, misurate byte per byte (UTF-16, come le tiene davvero il motore) — non è una stima."
-      >
-        {!local ? <p className="note">Lettura…</p> : <>
-          <p className="mono storage-total">{formatBytes(local.totalBytes)} · {local.keys.length} keys</p>
-          {browser?.quotaBytes && (
-            <p className="note">BROWSER AVAILABLE: {formatBytes(Math.max(0, browser.quotaBytes - (browser.usageBytes ?? 0)))} <span className="storage-shared">SHARED BROWSER QUOTA</span></p>
-          )}
-          {localCats.map((cat) => (
-            <CategoryRow key={cat.category} label={`${CATEGORY_LABEL[cat.category]} · ${cat.count}`} bytes={cat.bytes} total={local.totalBytes} />
-          ))}
-        </>}
       </Section>
 
       <Section

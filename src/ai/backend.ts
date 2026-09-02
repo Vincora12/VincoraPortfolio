@@ -138,6 +138,16 @@ export interface BackendResult<T> {
    * l'unico che si può confrontare col tetto della piattaforma.
    */
   ms?: number;
+  /** Il codice HTTP vero, quando una risposta è arrivata. Assente per
+      `no-token`/`offline`/`timeout`, dove non c'è mai stata una risposta da
+      leggere. Serve a distinguere un 413 da un errore generico senza dover
+      indovinare dal testo di `detail`. */
+  status?: number;
+  /** Presenti solo per `/api/state`: il server li manda sia sul salvataggio
+      riuscito sia sul 413, sempre dallo stesso `MAX_BYTES` — mai un secondo
+      numero calcolato qui. */
+  payloadBytes?: number;
+  limitBytes?: number;
 }
 
 export interface VoiceData {
@@ -303,7 +313,7 @@ async function post<T>(
   }
 
   if (response.status === 401)
-    return { data: null, failure: 'unauthorized', ms: Date.now() - startedAt };
+    return { data: null, failure: 'unauthorized', ms: Date.now() - startedAt, status: response.status };
 
   if (response.status === 402) {
     /* Il tetto. Si legge il corpo per sapere quanto è stato speso: è
@@ -350,9 +360,18 @@ async function post<T>(
        not found» è una cosa, «organization must be verified» è un'altra — e
        chi guarda l'app vedeva solo «error». Due problemi diversi, due rimedi
        diversi, un messaggio solo. */
-    const reason = (payload as { reason?: string } | null)?.reason;
+    const errorBody = payload as { reason?: string; payloadBytes?: number; limitBytes?: number } | null;
+    const reason = errorBody?.reason;
     console.warn('[backend] risposta non utilizzabile', response.status, reason ?? '');
-    return { data: null, failure: 'error', detail: reason, ms: Date.now() - startedAt };
+    return {
+      data: null,
+      failure: 'error',
+      detail: reason,
+      ms: Date.now() - startedAt,
+      status: response.status,
+      payloadBytes: errorBody?.payloadBytes,
+      limitBytes: errorBody?.limitBytes,
+    };
   }
 
   noteBudget(payload.warning, payload.remainingUsd);
@@ -393,6 +412,7 @@ export interface RuntimeEvent {
   id: string; timestamp: string; eventType: string; status: 'START' | 'PASS' | 'FAIL'; scope: string;
   action?: string; requestId?: string; conversationId?: string; messageId?: string; monId?: string; worldId?: string;
   capability?: string; provider?: string; model?: string; durationMs?: number; error?: string;
+  errorName?: string; payloadBytes?: number; statusCode?: number; limitBytes?: number;
   metadata?: Record<string, string | number | boolean>;
 }
 export function loadRuntimeLog(token: string | null): Promise<BackendResult<{ events: RuntimeEvent[] }>> {
@@ -753,7 +773,7 @@ export function saveRemote(
   token: string | null,
   day: number,
   state: unknown,
-): Promise<BackendResult<{ ok: boolean; day: number; savedAt: string }>> {
+): Promise<BackendResult<{ ok: boolean; day: number; savedAt: string; payloadBytes: number; limitBytes: number }>> {
   return post('/api/state', token, { day, state }, 'PUT');
 }
 

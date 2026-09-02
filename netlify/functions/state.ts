@@ -68,7 +68,15 @@ export default async function handler(request: Request): Promise<Response> {
   }
 
   const size = JSON.stringify(incoming.state).length;
-  if (size > MAX_BYTES) return json({ error: 'salvataggio troppo grande' }, 413);
+  /* 🔴 STORAGE STABILIZATION STEP 1/3 — il `reason` in più non cambia il
+     limite, lo rende distinguibile: prima un 413 e un errore di rete
+     finivano nello stesso `failure: 'error'` lato client, e il motivo vero
+     si perdeva. `PAYLOAD_TOO_LARGE` è un codice tecnico, non spiega da solo
+     cosa fare — ma dice ESATTAMENTE cosa è successo, dove prima non c'era
+     niente da leggere. */
+  if (size > MAX_BYTES) {
+    return json({ error: 'salvataggio troppo grande', reason: 'PAYLOAD_TOO_LARGE', payloadBytes: size, limitBytes: MAX_BYTES }, 413);
+  }
 
   const existing = (await store().get(KEY, { type: 'json' })) as Save | null;
 
@@ -103,7 +111,10 @@ export default async function handler(request: Request): Promise<Response> {
      ancora, ed è la differenza fra un fastidio e la fine della partita. */
   await store().setJSON(`day-${incoming.day}`, save);
 
-  return json({ ok: true, day: save.day, savedAt: save.savedAt });
+  /* `payloadBytes`/`limitBytes` sulla risposta buona, non solo sul 413: è lo
+     stesso numero (`MAX_BYTES`) che decide il rifiuto, mai un duplicato
+     scritto altrove — SYSTEM.LAB → STORAGE lo legge da qui, non lo indovina. */
+  return json({ ok: true, day: save.day, savedAt: save.savedAt, payloadBytes: size, limitBytes: MAX_BYTES });
 }
 
 export const config = { path: '/api/state' };

@@ -3616,6 +3616,16 @@ export const useApp = create<AppState>()(
              adesso. Salvarlo vorrebbe dire riaprire l'app su una barra ferma
              al 40% di un lavoro che nessuno sta più facendo. */
           forgeProgress: _f,
+          /* 🔴 STORAGE STABILIZATION STEP 1 — stessa ragione già scritta in
+             `snapshotFor()` per il salvataggio server, applicata adesso anche
+             qui: `lessons` ha una chiave sua (`/api/lessons`), ed è quella la
+             fonte canonica. Persisterle ANCHE qui non le rendeva più sicure —
+             solo più pesanti, l'una delle due voci più grosse del salvataggio
+             locale. `pullLessons()` (App.tsx, all'avvio) le ripopola da sole
+             da server: un vecchio salvataggio che le porta ancora si legge
+             lo stesso (il merge di persist non si rompe), e la prossima
+             scrittura le lascia fuori senza che nessuno se ne accorga. */
+          lessons: _lessons,
           ...rest
         } = s;
         /* Image prompt compilations are a rebuildable cache. They can be very
@@ -3630,7 +3640,17 @@ export const useApp = create<AppState>()(
             return [name, compactMon];
           }),
         );
-        return { ...rest, mons } as AppState;
+        /* 🔴 STEP 1.2 — la stessa esclusione, ma per i Mon conservati in
+           teca: `keepActiveMon`/`keepMon` copiano il `MonRecord` così com'è,
+           `compiledPrompts` compreso. Il fix sopra chiudeva solo metà della
+           falla — un Mon conservato PRIMA di quel fix porta ancora il suo
+           prompt compilato dentro `kept`, e ce lo porterà per sempre finché
+           qualcosa non lo toglie alla scrittura successiva, come qui. */
+        const kept = rest.kept.map((entry) => {
+          const { compiledPrompts: _compiledPrompts, ...compactRecord } = entry.record;
+          return { ...entry, record: compactRecord };
+        });
+        return { ...rest, mons, kept } as AppState;
       },
       /* 🔒 Il modulo di taratura è la sorgente che il motore legge, e allo
          start non sa niente. Senza questa riga una taratura salvata resterebbe
@@ -4004,15 +4024,42 @@ export function scheduleRemoteSave(): void {
     if (signature === lastSavedSignature) return;
 
     void import('../ai/backend').then(async ({ saveRemote }) => {
-      const { failure } = await saveRemote(now.token, now.day, snapshot);
-      if (!failure) {
+      /* 🔴 STORAGE STABILIZATION STEP 1/3 — `vinzmon-state` ha un tetto di
+         2 MB, e finora un salvataggio che lo sforava spariva esattamente
+         nel commento qui sotto: «non si annuncia». Import dinamico per lo
+         stesso motivo di `ai/backend`: `runtimeLog.ts` porta `brain/stream`,
+         che importa questo stesso file — un import statico qui creerebbe un
+         ciclo. */
+      const { postStateSaveDiagnostic } = await import('../system/runtimeLog');
+      const payloadBytes = signature.length;
+      postStateSaveDiagnostic({ eventType: 'STATE_REMOTE_SAVE_START', payloadBytes });
+
+      const result = await saveRemote(now.token, now.day, snapshot);
+      if (!result.failure) {
         lastSavedSignature = signature;
+        postStateSaveDiagnostic({
+          eventType: 'STATE_REMOTE_SAVE_OK',
+          payloadBytes: result.data?.payloadBytes ?? payloadBytes,
+          statusCode: result.status,
+          limitBytes: result.data?.limitBytes,
+        });
         return;
       }
       /* Un salvataggio fallito non si annuncia e non si ritenta a raffica: la
          copia locale c'è, e il prossimo cambiamento riproverà da solo. Se la
-         rete è giù, insistere non la riaccende. */
-      console.warn('[sync] salvataggio non riuscito:', failure);
+         rete è giù, insistere non la riaccende. Ma adesso, a differenza di
+         prima, il fallimento FINISCE nel Runtime Log — non annunciarlo
+         all'utente non deve più voler dire che nessuno lo vede mai. */
+      console.warn('[sync] salvataggio non riuscito:', result.failure);
+      postStateSaveDiagnostic({
+        eventType: 'STATE_REMOTE_SAVE_ERROR',
+        payloadBytes: result.payloadBytes ?? payloadBytes,
+        statusCode: result.status,
+        limitBytes: result.limitBytes,
+        errorName: result.failure,
+        errorMessage: result.detail,
+        reason: result.status === 413 ? 'PAYLOAD_TOO_LARGE' : undefined,
+      });
     });
   }, SAVE_DEBOUNCE_MS);
 }

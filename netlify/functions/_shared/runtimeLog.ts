@@ -27,6 +27,11 @@ export interface RuntimeEvent {
   source?: string;
   errorMessage?: string;
   errorCode?: number;
+  /** Il codice HTTP della risposta — distinto da `errorCode`, che è il
+      `DOMException.code` di uno storage pieno, non uno status di rete. */
+  statusCode?: number;
+  /** Il tetto reale applicato dal server — mai un numero duplicato qui. */
+  limitBytes?: number;
   metadata?: Record<string, string | number | boolean>;
 }
 
@@ -76,6 +81,8 @@ export function sanitizeRuntimeEvent(input: Partial<RuntimeEvent>): RuntimeEvent
     ...(cleanText(input.source, 100) ? { source: cleanText(input.source, 100) } : {}),
     ...(cleanText(input.errorMessage, 240) ? { errorMessage: cleanText(input.errorMessage, 240) } : {}),
     ...(typeof input.errorCode === 'number' && Number.isFinite(input.errorCode) ? { errorCode: Math.round(input.errorCode) } : {}),
+    ...(typeof input.statusCode === 'number' && Number.isFinite(input.statusCode) ? { statusCode: Math.round(input.statusCode) } : {}),
+    ...(typeof input.limitBytes === 'number' && Number.isFinite(input.limitBytes) ? { limitBytes: Math.max(0, Math.round(input.limitBytes)) } : {}),
     ...(metadata && Object.keys(metadata).length ? { metadata } : {}),
   };
 }
