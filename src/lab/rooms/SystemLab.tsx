@@ -58,6 +58,7 @@ import {
   type LocalStorageStatus,
 } from '../storageInspector';
 import { lastStorageOperation } from '../../system/localStorageDiagnostics';
+import { LiveDebug } from './liveDebug';
 
 const TABS = [
   { id: 'setup', label: 'SETUP' },
@@ -68,6 +69,7 @@ const TABS = [
   { id: 'usage', label: 'USAGE' },
   { id: 'runtime-log', label: 'RUNTIME LOG' },
   { id: 'storage', label: 'STORAGE' },
+  { id: 'live-debug', label: 'LIVE DEBUG' },
   /* 🔷 brief Shortcuts §11, e la regola scritta nell'atrio del lab:
      «se cambia come l'app... chiama API, va in SYSTEM.LAB». `/api/shortcut`
      è esattamente questo — e finora esisteva SOLO in DEV → SHORTCUT API,
@@ -93,6 +95,7 @@ export function SystemLab({ onBack }: { onBack: () => void }) {
         {tab === 'usage' && <Usage />}
         {tab === 'runtime-log' && <RuntimeLog />}
         {tab === 'storage' && <StorageInspector />}
+        {tab === 'live-debug' && <LiveDebug />}
         {tab === 'shortcuts' && <Shortcuts />}
         {tab === 'assistant' && <LabAssistantPanel />}
         <div className="footer mono">SYSTEM.LAB · SAME VINZ.MON ENGINE / SAME REPOSITORY</div>

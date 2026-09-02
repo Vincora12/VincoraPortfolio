@@ -14,6 +14,7 @@ import {
   useAuiState,
 } from "@assistant-ui/react";
 import { postChatDiagnostic, postRuntimeEvent } from "@/system/runtimeLog";
+import { publishChatLiveSnapshot } from "@/system/chatLiveDebug";
 import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type FC } from "react";
 import { createPortal } from "react-dom";
 import { useMessageError } from "@assistant-ui/core/react";
@@ -159,6 +160,7 @@ export const ChatGPT: FC = () => {
       <ReactionMessageDispatcher />
       <ConversationMemory />
       <ConversationLifecycle />
+      <ChatLiveDebugPublisher />
       <MonPresenceEvents />
       <ThreadPrimitive.Root className="flex h-full flex-col items-stretch bg-white px-4 text-[#0d0d0d] dark:bg-black dark:text-[#ececec]">
         <AuiIf condition={(s) => s.thread.isEmpty}>
@@ -258,6 +260,40 @@ const ConversationLifecycle: FC = () => {
       console.warn("[VINZ chat] promozione conversazione non riuscita", error);
     });
   }, [aui, readyToPromote, threadId]);
+  return null;
+};
+
+/* LIVE DEBUG — pubblica sul canale diagnostico runtime-only
+   (src/system/chatLiveDebug.ts) uno snapshot tecnico del thread: solo id,
+   ruolo, parent e conteggi, mai il contenuto di un messaggio. Legge SOLO
+   API pubbliche di assistant-ui (aui.subscribe — «fires after every
+   state [change]», thread.getState/export, threads.item/
+   threadListItem.getState, già usate altrove in questo file) — non
+   tocca il vendor, non cambia niente del comportamento della chat: è un
+   lettore passivo. */
+const ChatLiveDebugPublisher: FC = () => {
+  const aui = useAui();
+  useEffect(() => {
+    const publish = () => {
+      const threadState = aui.thread.getState();
+      const exported = aui.thread.export();
+      publishChatLiveSnapshot({
+        threadId: aui.threads.item("main").getState().id ?? null,
+        remoteId: aui.threadListItem.getState().remoteId ?? null,
+        headId: exported.headId ?? null,
+        visibleMessageIds: threadState.messages.map((message) => message.id),
+        repositoryMessages: exported.messages.map((item) => ({
+          id: item.message.id,
+          role: item.message.role,
+          parentId: item.parentId,
+        })),
+        runStatus: threadState.isRunning ? "running" : "idle",
+        updatedAt: new Date().toISOString(),
+      });
+    };
+    publish();
+    return aui.subscribe(publish);
+  }, [aui]);
   return null;
 };
 
