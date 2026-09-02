@@ -47,7 +47,16 @@ export type RuntimeClientEvent = {
        nel consumo dell'handoff di promotion: dati già live (nessuna reimport,
        nessuna run), riprodotti senza dover rigenerare, o riprodotti avviando la
        prima e unica run reale. */
-    | 'CHAT_PROMOTION_HANDOFF_RESOLVED';
+    | 'CHAT_PROMOTION_HANDOFF_RESOLVED'
+    /* FIRST TURN OBSERVABILITY ONLY — tracciano l'albero dei messaggi e la
+       chiave di storage che lo persiste, senza mai il loro contenuto: solo
+       conteggi e id. Servono a vedere sul device reale dove la timeline del
+       primo turno cambia forma. */
+    | 'CHAT_THREAD_IMPORT'
+    | 'CHAT_STORAGE_WRITE'
+    | 'CHAT_STORAGE_READ'
+    | 'CHAT_HISTORY_LOAD'
+    | 'CHAT_RUN_BOUNDARY';
   status: 'START' | 'PASS' | 'FAIL';
   scope: 'system' | 'chat' | 'memory';
   requestId?: string;

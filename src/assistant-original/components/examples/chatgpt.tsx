@@ -79,6 +79,66 @@ import {
   revealMetadata,
 } from "@/assistant-original/chat-presence-visual";
 
+/* FIRST TURN OBSERVABILITY ONLY — nessun cambio di comportamento: queste
+   due funzioni avvolgono aui.thread.import()/startRun() con un log
+   tecnico prima/dopo (conteggio messaggi, headId), senza mai leggerne
+   il contenuto. Servono a capire, sul device reale, dove esattamente
+   nell'albero dei messaggi la timeline del primo turno cambia forma. */
+type AuiHandle = ReturnType<typeof useAui>;
+
+const auiSnapshot = (aui: AuiHandle): { messageCount: number; headId: string } => {
+  const exported = aui.thread.export();
+  return { messageCount: exported.messages.length, headId: exported.headId ?? 'none' };
+};
+
+const importWithObservability = (
+  aui: AuiHandle,
+  caller: string,
+  reason: string,
+  repository: Parameters<AuiHandle['thread']['import']>[0],
+): void => {
+  const before = auiSnapshot(aui);
+  aui.thread.import(repository);
+  const after = auiSnapshot(aui);
+  postRuntimeEvent({
+    eventType: 'CHAT_THREAD_IMPORT',
+    status: 'PASS',
+    scope: 'chat',
+    metadata: {
+      caller,
+      beforeMessageCount: before.messageCount,
+      afterMessageCount: after.messageCount,
+      beforeHeadId: before.headId,
+      afterHeadId: after.headId,
+      reason,
+    },
+  });
+};
+
+const startRunWithObservability = (
+  aui: AuiHandle,
+  caller: string,
+  parentId: string,
+): void => {
+  const before = auiSnapshot(aui);
+  postRuntimeEvent({
+    eventType: 'CHAT_RUN_BOUNDARY',
+    status: 'START',
+    scope: 'chat',
+    metadata: { phase: 'START', parentId, messageCount: before.messageCount, headId: before.headId, caller },
+  });
+  const result = aui.thread.startRun({ parentId });
+  void Promise.resolve(result).finally(() => {
+    const after = auiSnapshot(aui);
+    postRuntimeEvent({
+      eventType: 'CHAT_RUN_BOUNDARY',
+      status: 'PASS',
+      scope: 'chat',
+      metadata: { phase: 'END', parentId, messageCount: after.messageCount, headId: after.headId, caller },
+    });
+  });
+};
+
 const useFirstArrivalReveal = (arrivalId: unknown) => {
   const reveal = useRef<{ arrivalId: unknown; animate: boolean } | null>(null);
   if (!reveal.current || reveal.current.arrivalId !== arrivalId) {
@@ -181,9 +241,9 @@ const ConversationLifecycle: FC = () => {
     const handoff = consumePromotedRepository(remoteId);
     if (!handoff) return;
     const resolution = resolvePromotionHandoff(aui.thread.export(), handoff);
-    if (resolution.shouldImport) aui.thread.import(handoff);
+    if (resolution.shouldImport) importWithObservability(aui, 'ConversationLifecycle', resolution.reason, handoff);
     if (resolution.shouldStartRun && resolution.runParentId) {
-      aui.thread.startRun({ parentId: resolution.runParentId });
+      startRunWithObservability(aui, 'ConversationLifecycle', resolution.runParentId);
     }
     postRuntimeEvent({
       eventType: 'CHAT_PROMOTION_HANDOFF_RESOLVED',
@@ -426,7 +486,7 @@ const Composer: FC<{ placeholder: string }> = ({ placeholder }) => {
     if (!isLocalUnsavedSession(threadId)) return null;
     const composer = aui.thread.composer();
     const pending = repositoryWithPendingUser(aui.thread.export(), composer.getState().text.trim());
-    aui.thread.import(pending.repository);
+    importWithObservability(aui, 'promoteBeforeSend', 'FIRST_SEND', pending.repository);
     await promoteLocalSession(threadId, pending.repository);
     composer.setText("");
     composer.clearAttachments();
@@ -438,7 +498,7 @@ const Composer: FC<{ placeholder: string }> = ({ placeholder }) => {
     const current = composer.getState().text.trim();
     composer.setText(current ? `${current} ${text}` : text);
     const userId = await promoteBeforeSend();
-    if (userId) aui.thread.startRun({ parentId: userId });
+    if (userId) startRunWithObservability(aui, 'insertAndSend', userId);
     else composer.send();
   };
 
@@ -628,7 +688,7 @@ const Composer: FC<{ placeholder: string }> = ({ placeholder }) => {
             onDictate={startDictation}
             onBeforeSend={promoteBeforeSend}
             onSend={(userId) => {
-              if (userId) aui.thread.startRun({ parentId: userId });
+              if (userId) startRunWithObservability(aui, 'ComposerPrimaryAction', userId);
               else aui.thread.composer().send();
             }}
           />

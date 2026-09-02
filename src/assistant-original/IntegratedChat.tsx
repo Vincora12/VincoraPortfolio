@@ -27,6 +27,7 @@ const threadAdapter = withLocalUnsavedSession(
   (remoteId, repository) => serverBackedStorage.setItem(
     `assistant-ui-official-chatgpt:messages:${remoteId}`,
     JSON.stringify(repository),
+    'persistSnapshot',
   ),
 );
 

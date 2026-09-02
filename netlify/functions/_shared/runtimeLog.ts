@@ -39,7 +39,13 @@ const STORE = 'vinzmon-runtime-log';
 const KEY = 'events';
 const MAX_EVENTS = 500;
 const RETENTION_MS = 48 * 60 * 60 * 1000;
-const ALLOWED_META = new Set(['route', 'screen', 'reason', 'count', 'resultCount', 'source']);
+const ALLOWED_META = new Set([
+  'route', 'screen', 'reason', 'count', 'resultCount', 'source',
+  /* FIRST TURN OBSERVABILITY ONLY — conteggi/id dell'albero messaggi e
+     della chiave di storage che lo persiste, mai il loro contenuto. */
+  'caller', 'beforeMessageCount', 'afterMessageCount', 'beforeHeadId', 'afterHeadId',
+  'messageCount', 'headId', 'parentId', 'phase',
+]);
 
 const store = () => getStore(STORE);
 
