@@ -6,6 +6,8 @@ const MEAL_SLOTS: Exclude<MealLog['slot'], 'extra'>[] = ['colazione', 'spuntino'
    salvataggio nella forma di prima interpretato con lo schema nuovo direbbe
    cose senza senso, quindi non si legge: si riparte, che per un prototipo è
    il comportamento onesto. */
+import { setLocalStorageItem } from '../system/localStorageDiagnostics';
+
 const REWARDS_KEY = 'vinzmon.sync.rewards.v2';
 const WISH_KEY = 'vinzmon.sync.wish.v1';
 
@@ -80,11 +82,11 @@ export function syncRewardProgress(kind: SyncRewardKind, streak = completeDayStr
 
 export function claimSyncReward(kind: SyncRewardKind, streak = completeDayStreak()): boolean {
   if (!syncRewardProgress(kind, streak).ready) return false;
-  localStorage.setItem(REWARDS_KEY, JSON.stringify(readSpent(streak) + SYNC_REWARD_DAYS[kind]));
+  setLocalStorageItem('engine/syncRewards', REWARDS_KEY, JSON.stringify(readSpent(streak) + SYNC_REWARD_DAYS[kind]));
   return true;
 }
 
-export function saveEvolutionWish(wish: EvolutionWish): void { localStorage.setItem(WISH_KEY, JSON.stringify(wish)); }
+export function saveEvolutionWish(wish: EvolutionWish): void { setLocalStorageItem('engine/syncRewards wish', WISH_KEY, JSON.stringify(wish)); }
 export function clearEvolutionWish(): void { localStorage.removeItem(WISH_KEY); }
 export function readEvolutionWish(): EvolutionWish | null {
   try {

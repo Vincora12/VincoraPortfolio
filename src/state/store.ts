@@ -10,29 +10,14 @@
    ========================================================================= */
 
 import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
-import { isQuotaExceededError, recordQuotaExceeded } from '../system/storageQuota';
+import { createJSONStorage, persist } from 'zustand/middleware';
+import { setLocalStorageItem, setLocalStorageItemBestEffort } from '../system/localStorageDiagnostics';
 
-/* Il salvataggio più grande dell'app passa da qui: `localStorage` diretto,
-   ma con un occhio a un solo errore — quello che oggi non ha nessuno che lo
-   guardi. Il comportamento non cambia: se prima uno storage pieno faceva
-   fallire lo scrivere, fallisce ancora esattamente allo stesso modo. In più,
-   SYSTEM.LAB → STORAGE può dirtelo. */
-const quotaAwareLocalStorage: Storage = {
-  get length() { return localStorage.length; },
-  clear: () => localStorage.clear(),
-  key: (i) => localStorage.key(i),
-  getItem: (key) => localStorage.getItem(key),
-  removeItem: (key) => localStorage.removeItem(key),
-  setItem: (key, value) => {
-    try {
-      localStorage.setItem(key, value);
-    } catch (error) {
-      if (isQuotaExceededError(error)) recordQuotaExceeded(`prototype:${key}`);
-      throw error;
-    }
-  },
-};
+const appPersistStorage = createJSONStorage(() => ({
+  getItem: (name: string) => localStorage.getItem(name),
+  setItem: (name: string, value: string) => { setLocalStorageItemBestEffort('state/store persist', name, value); },
+  removeItem: (name: string) => localStorage.removeItem(name),
+}));
 
 import {
   DEFAULT_BIAS,
@@ -3620,7 +3605,7 @@ export const useApp = create<AppState>()(
          in modo confuso. Ripartire da zero costringe a incollare il token
          giusto una volta, che è il comportamento onesto. */
       name: 'vinzmon.prototype.v4',
-      storage: createJSONStorage(() => quotaAwareLocalStorage),
+      storage: appPersistStorage,
       version: 3,
       partialize: (s) => {
         const {
@@ -3633,7 +3618,19 @@ export const useApp = create<AppState>()(
           forgeProgress: _f,
           ...rest
         } = s;
-        return rest as AppState;
+        /* Image prompt compilations are a rebuildable cache. They can be very
+           large (and are already represented canonically by the resolution,
+           remote assets and server save), so never duplicate them in the
+           browser's Zustand snapshot. This also safely migrates old snapshots:
+           the next successful write stores the compact projection without
+           deleting any server/canonical data. */
+        const mons = Object.fromEntries(
+          Object.entries(rest.mons).map(([name, mon]) => {
+            const { compiledPrompts: _compiledPrompts, ...compactMon } = mon;
+            return [name, compactMon];
+          }),
+        );
+        return { ...rest, mons } as AppState;
       },
       /* 🔒 Il modulo di taratura è la sorgente che il motore legge, e allo
          start non sa niente. Senza questa riga una taratura salvata resterebbe
@@ -4206,7 +4203,7 @@ function applyRemoteSave(local: AppState, data: RemoteSave): void {
   const remote = data.state as Partial<AppState> & { __healthJournal?: unknown };
   const { __healthJournal, ...appState } = remote;
   if (__healthJournal) {
-    localStorage.setItem('vinzmon.health.journal.v1', JSON.stringify(__healthJournal));
+    setLocalStorageItem('state/store remote health journal', 'vinzmon.health.journal.v1', JSON.stringify(__healthJournal));
     window.dispatchEvent(new Event('vinzmon-health-journal'));
   }
   useApp.setState({

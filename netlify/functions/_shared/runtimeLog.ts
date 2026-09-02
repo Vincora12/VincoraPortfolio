@@ -19,6 +19,14 @@ export interface RuntimeEvent {
   model?: string;
   durationMs?: number;
   error?: string;
+  errorName?: string;
+  operation?: string;
+  keyPrefix?: string;
+  payloadBytes?: number;
+  storage?: string;
+  source?: string;
+  errorMessage?: string;
+  errorCode?: number;
   metadata?: Record<string, string | number | boolean>;
 }
 
@@ -60,6 +68,14 @@ export function sanitizeRuntimeEvent(input: Partial<RuntimeEvent>): RuntimeEvent
     ...(cleanText(input.model, 80) ? { model: cleanText(input.model, 80) } : {}),
     ...(typeof input.durationMs === 'number' && Number.isFinite(input.durationMs) ? { durationMs: Math.max(0, Math.round(input.durationMs)) } : {}),
     ...(cleanText(input.error, 240) ? { error: cleanText(input.error, 240) } : {}),
+    ...(cleanText(input.errorName, 80) ? { errorName: cleanText(input.errorName, 80) } : {}),
+    ...(cleanText(input.operation, 80) ? { operation: cleanText(input.operation, 80) } : {}),
+    ...(cleanText(input.keyPrefix, 100) ? { keyPrefix: cleanText(input.keyPrefix, 100) } : {}),
+    ...(typeof input.payloadBytes === 'number' && Number.isFinite(input.payloadBytes) ? { payloadBytes: Math.max(0, Math.round(input.payloadBytes)) } : {}),
+    ...(cleanText(input.storage, 40) ? { storage: cleanText(input.storage, 40) } : {}),
+    ...(cleanText(input.source, 100) ? { source: cleanText(input.source, 100) } : {}),
+    ...(cleanText(input.errorMessage, 240) ? { errorMessage: cleanText(input.errorMessage, 240) } : {}),
+    ...(typeof input.errorCode === 'number' && Number.isFinite(input.errorCode) ? { errorCode: Math.round(input.errorCode) } : {}),
     ...(metadata && Object.keys(metadata).length ? { metadata } : {}),
   };
 }

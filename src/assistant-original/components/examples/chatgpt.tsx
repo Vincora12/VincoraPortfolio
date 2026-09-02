@@ -13,6 +13,7 @@ import {
   useAui,
   useAuiState,
 } from "@assistant-ui/react";
+import { postChatDiagnostic } from "@/system/runtimeLog";
 import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type FC } from "react";
 import { createPortal } from "react-dom";
 import { useMessageError } from "@assistant-ui/core/react";
@@ -26,6 +27,7 @@ import {
   consumePromotedRepository,
   isLocalUnsavedSession,
   promoteLocalSession,
+  repositoryWithPendingUser,
 } from "@/assistant-original/conversation-lifecycle-adapter";
 import {
   ActivityIcon,
@@ -156,11 +158,21 @@ const ConversationMemory: FC = () => {
 
 const ConversationLifecycle: FC = () => {
   const aui = useAui();
-  const { threadId, remoteId, hasUserMessage } = useAuiState(
+  const { threadId, remoteId, readyToPromote } = useAuiState(
     useShallow((state) => ({
       threadId: state.threads.mainThreadId,
       remoteId: state.threadListItem.remoteId,
-      hasUserMessage: state.thread.messages.some((message) => message.role === "user"),
+      readyToPromote: (() => {
+        const messages = state.thread.messages;
+        let lastUserIndex = -1;
+        for (let index = messages.length - 1; index >= 0; index -= 1) {
+          if (messages[index]?.role === "user") { lastUserIndex = index; break; }
+        }
+        if (lastUserIndex < 0) return false;
+        return messages.slice(lastUserIndex + 1).some(
+          (message) => message.role === "assistant" && message.status.type !== "running",
+        );
+      })(),
     })),
   );
   useEffect(() => {
@@ -177,11 +189,11 @@ const ConversationLifecycle: FC = () => {
     }
   }, [aui, remoteId]);
   useEffect(() => {
-    if (!hasUserMessage || !isLocalUnsavedSession(threadId)) return;
+    if (!readyToPromote || !isLocalUnsavedSession(threadId)) return;
     void promoteLocalSession(threadId, aui.thread.export()).catch((error: unknown) => {
       console.warn("[VINZ chat] promozione conversazione non riuscita", error);
     });
-  }, [aui, hasUserMessage, threadId]);
+  }, [aui, readyToPromote, threadId]);
   return null;
 };
 
@@ -349,6 +361,7 @@ const SystemEventMessage: FC = () => {
 
 const Composer: FC<{ placeholder: string }> = ({ placeholder }) => {
   const aui = useAui();
+  const threadId = useAuiState((state) => state.threads.mainThreadId);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const waveRef = useRef<HTMLDivElement>(null);
   const waveSurferRef = useRef<WaveSurfer | null>(null);
@@ -405,16 +418,29 @@ const Composer: FC<{ placeholder: string }> = ({ placeholder }) => {
     return body.text;
   };
 
-  const insertAndSend = (text: string) => {
+  const promoteBeforeSend = async (): Promise<string | null> => {
+    if (!isLocalUnsavedSession(threadId)) return null;
+    const composer = aui.thread.composer();
+    const pending = repositoryWithPendingUser(aui.thread.export(), composer.getState().text.trim());
+    aui.thread.import(pending.repository);
+    await promoteLocalSession(threadId, pending.repository);
+    composer.setText("");
+    composer.clearAttachments();
+    return pending.userId;
+  };
+
+  const insertAndSend = async (text: string) => {
     const composer = aui.thread.composer();
     const current = composer.getState().text.trim();
     composer.setText(current ? `${current} ${text}` : text);
-    composer.send();
+    const userId = await promoteBeforeSend();
+    if (userId) aui.thread.startRun({ parentId: userId });
+    else composer.send();
   };
 
   useEffect(() => {
     if (mode !== "idle" || !pendingTranscript) return;
-    insertAndSend(pendingTranscript);
+    void insertAndSend(pendingTranscript);
     setPendingTranscript(null);
   }, [mode, pendingTranscript]);
 
@@ -594,7 +620,14 @@ const Composer: FC<{ placeholder: string }> = ({ placeholder }) => {
         />
 
         <div className="flex shrink-0 items-center gap-1">
-          <ComposerPrimaryAction onDictate={startDictation} />
+          <ComposerPrimaryAction
+            onDictate={startDictation}
+            onBeforeSend={promoteBeforeSend}
+            onSend={(userId) => {
+              if (userId) aui.thread.startRun({ parentId: userId });
+              else aui.thread.composer().send();
+            }}
+          />
         </div>
       </div>
       )}
@@ -607,9 +640,11 @@ const Composer: FC<{ placeholder: string }> = ({ placeholder }) => {
   );
 };
 
-const ComposerPrimaryAction: FC<{ onDictate: () => void }> = ({
-  onDictate,
-}) => {
+const ComposerPrimaryAction: FC<{
+  onDictate: () => void;
+  onBeforeSend: () => Promise<string | null>;
+  onSend: (userId: string | null) => void;
+}> = ({ onDictate, onBeforeSend, onSend }) => {
   return (
     <div className="flex items-center gap-1">
       <AuiIf condition={(s) => s.thread.isRunning}>
@@ -628,6 +663,17 @@ const ComposerPrimaryAction: FC<{ onDictate: () => void }> = ({
             // la tastiera si chiudeva e il click di invio veniva perso. Il
             // bottone non ha bisogno di prendere focus per eseguire il click.
             if (event.pointerType === "touch") event.preventDefault();
+          }}
+          onClick={(event) => {
+            postChatDiagnostic('CHAT_UI_SUBMIT', 'ui-submit');
+            event.preventDefault();
+            void (async () => {
+              const userId = await onBeforeSend();
+              postChatDiagnostic('CHAT_RUN_START', 'composer-send');
+              onSend(userId);
+            })().catch((error: unknown) => {
+              console.warn('[VINZ chat] invio non riuscito', error);
+            });
           }}
         >
           <ArrowUpIcon className="size-6" />

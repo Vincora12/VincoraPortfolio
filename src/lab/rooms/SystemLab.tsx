@@ -54,7 +54,7 @@ import {
   type FieldBreakdown,
   type StorageStatus,
 } from '../storageInspector';
-import { recentQuotaExceeded, type QuotaExceededRecord } from '../../system/storageQuota';
+import { lastStorageOperation } from '../../system/localStorageDiagnostics';
 
 const TABS = [
   { id: 'setup', label: 'SETUP' },
@@ -1024,7 +1024,7 @@ function StorageInspector() {
   const [local, setLocal] = useState<LocalStorageSnapshot | null>(null);
   const [idb, setIdb] = useState<IndexedDbSnapshot | null>(null);
   const [fields, setFields] = useState<FieldBreakdown[] | null>(null);
-  const [quotaHit, setQuotaHit] = useState<QuotaExceededRecord | null>(null);
+  const [quotaHit, setQuotaHit] = useState<typeof lastStorageOperation>(null);
   const [server, setServer] = useState<ServerBucket[] | null>(null);
   const [serverFailed, setServerFailed] = useState(false);
   const [mem0, setMem0] = useState<{ memories: number | null; note: string } | null>(null);
@@ -1035,7 +1035,11 @@ function StorageInspector() {
     /* Sincrone e gratuite: nessun motivo di aspettare un frame per queste. */
     setLocal(localStorageSnapshot());
     setFields(prototypeFieldBreakdown());
-    setQuotaHit(recentQuotaExceeded());
+    /* `lastStorageOperation` è di `localStorageDiagnostics.ts`: un solo
+       breadcrumb in memoria, aggiornato da ogni `setItem` dell'app —
+       incluso il salvataggio principale. È lo stesso segnale che porta la
+       schermata di crash, non una copia parallela. */
+    setQuotaHit(lastStorageOperation?.status === 'ERROR' && lastStorageOperation.errorName === 'QuotaExceededError' ? lastStorageOperation : null);
     void browserStorageEstimate().then(setBrowser);
     void indexedDbSnapshot().then(setIdb);
   }, []);
@@ -1140,7 +1144,7 @@ function StorageInspector() {
         ]} />
         {quotaHit && (
           <p className="note">
-            ⚠️ Scrittura rifiutata di recente ({new Date(quotaHit.at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })} · {quotaHit.context}) — QUOTA EXCEEDED resta finché non chiudi e riapri la scheda.
+            ⚠️ Scrittura rifiutata di recente ({new Date(quotaHit.startedAt).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })} · {quotaHit.source} · {quotaHit.keyPrefix}) — QUOTA EXCEEDED resta finché non ricarichi la pagina.
           </p>
         )}
       </Section>

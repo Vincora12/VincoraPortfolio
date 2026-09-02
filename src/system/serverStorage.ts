@@ -1,4 +1,4 @@
-import { isQuotaExceededError, recordQuotaExceeded } from './storageQuota';
+import { setLocalStorageItem } from './localStorageDiagnostics';
 
 function auth(): HeadersInit | null {
   let token: string | null = null;
@@ -19,21 +19,12 @@ export const serverBackedStorage = {
       const response = await fetch(`/api/user-data?key=${encodeURIComponent(key)}`, { headers, cache: 'no-store' });
       if (!response.ok) return local;
       const { value } = await response.json() as { value: string | null };
-      if (typeof value === 'string') localStorage.setItem(key, value);
+      if (typeof value === 'string') setLocalStorageItem('serverStorage.getItem cache', key, value);
       return value ?? local;
     } catch { return local; }
   },
   async setItem(key: string, value: string): Promise<void> {
-    /* 🔴 Non era protetta: uno storage pieno faceva esplodere questa funzione
-       per intero, rete compresa, invece di continuare a provare a salvare sul
-       server. Adesso la copia locale può fallire da sola — il tentativo di
-       rete sotto parte comunque, ed è quello che in un browser pieno conta
-       davvero. */
-    try {
-      localStorage.setItem(key, value);
-    } catch (error) {
-      if (isQuotaExceededError(error)) recordQuotaExceeded(`user-data:${key}`);
-    }
+    setLocalStorageItem('serverStorage.setItem', key, value);
     const headers = auth();
     if (!headers) return;
     try {
@@ -63,7 +54,7 @@ export async function migrateStoragePrefix(prefix: string): Promise<void> {
       const response = await fetch(`/api/user-data?key=${encodeURIComponent(key)}`, { headers, cache: 'no-store' });
       if (!response.ok) continue;
       const { value } = await response.json() as { value: string | null };
-      if (typeof value === 'string') localStorage.setItem(key, value);
+      if (typeof value === 'string') setLocalStorageItem('serverStorage.migrate cache', key, value);
       else await serverBackedStorage.setItem(key, local);
     } catch { /* Riprova alla prossima apertura. */ }
   }

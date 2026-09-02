@@ -38,6 +38,7 @@
    ========================================================================= */
 
 import { serverBackedStorage } from '../system/serverStorage';
+import { setLocalStorageItem } from '../system/localStorageDiagnostics';
 
 export type TokenKind = 'color' | 'length' | 'text';
 
@@ -171,7 +172,7 @@ const ascoltatori = new Set<() => void>();
 
 function salva() {
   try {
-    localStorage.setItem(CHIAVE, JSON.stringify(overrides));
+    setLocalStorageItem('engine/designTokens', CHIAVE, JSON.stringify(overrides));
   } catch {
     /* storage pieno o negato: l'override resta solo in memoria per questa sessione */
   }

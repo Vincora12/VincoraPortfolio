@@ -27,6 +27,7 @@ import { applySkin } from './engine/skin';
 import { applyLayout } from './engine/layout';
 import { preloadMonAssets, syncAssetsWithServer } from './assets-pipeline/assetStore';
 import { Icon } from './system/Icon';
+import { setLocalStorageItem } from './system/localStorageDiagnostics';
 import { haptic } from './system/haptics';
 import { PROGRESSION } from './engine/progression';
 import { applySigilFavicon } from './system/favicon';
@@ -206,7 +207,7 @@ export function App() {
     toyRefreshes.add(activeMonName);
     void import('./assets-pipeline/remoteGeneration')
       .then(({ refreshToyAsset }) => refreshToyAsset(token, record, stepModel('image')))
-      .then(() => localStorage.setItem(migrationKey, 'ready'))
+      .then(() => setLocalStorageItem('App migration marker', migrationKey, 'ready'))
       .catch((error) => {
         toyRefreshes.delete(activeMonName);
         console.warn('[toy] aggiornamento automatico non riuscito:', error);

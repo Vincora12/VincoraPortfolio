@@ -29,6 +29,7 @@
 
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { postRuntimeEvent } from './runtimeLog';
+import { lastStorageOperation } from './localStorageDiagnostics';
 
 interface State {
   error: Error | null;
@@ -53,7 +54,13 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
       .join(' ← ');
     this.setState({ where });
     console.error('[vinz.mon] render fallito', error, info.componentStack);
-    postRuntimeEvent({ eventType: 'CLIENT_RUNTIME_ERROR', status: 'FAIL', scope: 'system', action: 'render', error: error.message, metadata: { screen: 'error-boundary' } });
+    postRuntimeEvent({
+      eventType: 'CLIENT_RUNTIME_ERROR', status: 'FAIL', scope: 'system', action: 'render',
+      error: error.message, errorName: error.name,
+      ...(typeof (error as Error & { code?: unknown }).code === 'number' ? { errorCode: (error as Error & { code: number }).code } : {}),
+      errorMessage: error.message,
+      metadata: { screen: 'error-boundary' },
+    });
   }
 
   render() {
@@ -74,6 +81,19 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
             console da aprire. Un messaggio gentile e generico qui vorrebbe
             dire non poterlo mai riparare. */}
         <pre className="crash__what">{error.message || String(error)}</pre>
+        {lastStorageOperation && (
+          <pre className="crash__what" aria-label="LAST STORAGE OPERATION">{[
+            'LAST STORAGE OPERATION',
+            `STATUS: ${lastStorageOperation.status}`,
+            `SOURCE: ${lastStorageOperation.source}`,
+            `OPERATION: ${lastStorageOperation.operation}`,
+            `KEY PREFIX: ${lastStorageOperation.keyPrefix}`,
+            `PAYLOAD BYTES: ${lastStorageOperation.payloadBytes}`,
+            `ERROR NAME: ${lastStorageOperation.errorName ?? '—'}`,
+            `ERROR MESSAGE: ${lastStorageOperation.errorMessage ?? '—'}`,
+            `ERROR CODE: ${lastStorageOperation.errorCode ?? '—'}`,
+          ].join('\n')}</pre>
+        )}
         {where && <p className="t-micro crash__where">{where}</p>}
 
         <div className="crash__actions">

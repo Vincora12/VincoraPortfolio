@@ -89,6 +89,8 @@ export interface Proposta {
   semplice?: SimpleDraft;
 }
 
+import { setLocalStorageItem } from '../system/localStorageDiagnostics';
+
 const CHIAVE = 'vinzmon.taxonomyProposals.v1';
 
 function leggi(): Proposta[] {
@@ -106,7 +108,7 @@ const ascoltatori = new Set<() => void>();
 
 function salva() {
   try {
-    localStorage.setItem(CHIAVE, JSON.stringify(proposte));
+    setLocalStorageItem('engine/taxonomyProposals', CHIAVE, JSON.stringify(proposte));
   } catch {
     /* senza scrittura la coda vale per questa sessione */
   }
