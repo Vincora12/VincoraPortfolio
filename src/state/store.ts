@@ -11,11 +11,11 @@
 
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
-import { setLocalStorageItem } from '../system/localStorageDiagnostics';
+import { setLocalStorageItem, setLocalStorageItemBestEffort } from '../system/localStorageDiagnostics';
 
 const appPersistStorage = createJSONStorage(() => ({
   getItem: (name: string) => localStorage.getItem(name),
-  setItem: (name: string, value: string) => setLocalStorageItem('state/store persist', name, value),
+  setItem: (name: string, value: string) => { setLocalStorageItemBestEffort('state/store persist', name, value); },
   removeItem: (name: string) => localStorage.removeItem(name),
 }));
 
@@ -3618,7 +3618,19 @@ export const useApp = create<AppState>()(
           forgeProgress: _f,
           ...rest
         } = s;
-        return rest as AppState;
+        /* Image prompt compilations are a rebuildable cache. They can be very
+           large (and are already represented canonically by the resolution,
+           remote assets and server save), so never duplicate them in the
+           browser's Zustand snapshot. This also safely migrates old snapshots:
+           the next successful write stores the compact projection without
+           deleting any server/canonical data. */
+        const mons = Object.fromEntries(
+          Object.entries(rest.mons).map(([name, mon]) => {
+            const { compiledPrompts: _compiledPrompts, ...compactMon } = mon;
+            return [name, compactMon];
+          }),
+        );
+        return { ...rest, mons } as AppState;
       },
       /* 🔒 Il modulo di taratura è la sorgente che il motore legge, e allo
          start non sa niente. Senza questa riga una taratura salvata resterebbe

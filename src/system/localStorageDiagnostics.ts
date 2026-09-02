@@ -89,3 +89,20 @@ export function setLocalStorageItem(source: string, key: string, value: string):
     throw error;
   }
 }
+
+/**
+ * Local persistence is a cache. A full browser quota must never take down the
+ * application; the canonical server/IndexedDB stores remain untouched.
+ */
+export function setLocalStorageItemBestEffort(source: string, key: string, value: string): boolean {
+  try {
+    setLocalStorageItem(source, key, value);
+    return true;
+  } catch (error) {
+    if (error && typeof error === 'object' && (error as { name?: unknown }).name === 'QuotaExceededError') {
+      console.warn('[vinz.mon] localStorage quota reached; continuing without local cache');
+      return false;
+    }
+    throw error;
+  }
+}
