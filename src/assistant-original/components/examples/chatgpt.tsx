@@ -27,6 +27,7 @@ import {
   consumePromotedRepository,
   isLocalUnsavedSession,
   promoteLocalSession,
+  repositoryWithPendingUser,
 } from "@/assistant-original/conversation-lifecycle-adapter";
 import {
   ActivityIcon,
@@ -417,17 +418,24 @@ const Composer: FC<{ placeholder: string }> = ({ placeholder }) => {
     return body.text;
   };
 
-  const promoteBeforeSend = async () => {
-    if (!isLocalUnsavedSession(threadId)) return;
-    await promoteLocalSession(threadId, aui.thread.export());
+  const promoteBeforeSend = async (): Promise<string | null> => {
+    if (!isLocalUnsavedSession(threadId)) return null;
+    const composer = aui.thread.composer();
+    const pending = repositoryWithPendingUser(aui.thread.export(), composer.getState().text.trim());
+    aui.thread.import(pending.repository);
+    await promoteLocalSession(threadId, pending.repository);
+    composer.setText("");
+    composer.clearAttachments();
+    return pending.userId;
   };
 
   const insertAndSend = async (text: string) => {
     const composer = aui.thread.composer();
     const current = composer.getState().text.trim();
     composer.setText(current ? `${current} ${text}` : text);
-    await promoteBeforeSend();
-    composer.send();
+    const userId = await promoteBeforeSend();
+    if (userId) aui.thread.startRun({ parentId: userId });
+    else composer.send();
   };
 
   useEffect(() => {
@@ -615,7 +623,10 @@ const Composer: FC<{ placeholder: string }> = ({ placeholder }) => {
           <ComposerPrimaryAction
             onDictate={startDictation}
             onBeforeSend={promoteBeforeSend}
-            onSend={() => aui.thread.composer().send()}
+            onSend={(userId) => {
+              if (userId) aui.thread.startRun({ parentId: userId });
+              else aui.thread.composer().send();
+            }}
           />
         </div>
       </div>
@@ -631,8 +642,8 @@ const Composer: FC<{ placeholder: string }> = ({ placeholder }) => {
 
 const ComposerPrimaryAction: FC<{
   onDictate: () => void;
-  onBeforeSend: () => Promise<void>;
-  onSend: () => void;
+  onBeforeSend: () => Promise<string | null>;
+  onSend: (userId: string | null) => void;
 }> = ({ onDictate, onBeforeSend, onSend }) => {
   return (
     <div className="flex items-center gap-1">
@@ -657,9 +668,9 @@ const ComposerPrimaryAction: FC<{
             postChatDiagnostic('CHAT_UI_SUBMIT', 'ui-submit');
             event.preventDefault();
             void (async () => {
-              await onBeforeSend();
+              const userId = await onBeforeSend();
               postChatDiagnostic('CHAT_RUN_START', 'composer-send');
-              onSend();
+              onSend(userId);
             })().catch((error: unknown) => {
               console.warn('[VINZ chat] invio non riuscito', error);
             });

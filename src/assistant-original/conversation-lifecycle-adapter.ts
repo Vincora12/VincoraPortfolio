@@ -1,6 +1,7 @@
 import type {
   ExportedMessageRepository,
   RemoteThreadListAdapter,
+  ThreadMessage,
 } from "@assistant-ui/react";
 import { generateVinzChatTitle } from "./chat-title-generator";
 import { postRuntimeEvent } from "@/system/runtimeLog";
@@ -62,6 +63,8 @@ export const promoteLocalSession = async (
   if (!session) return null;
   if (!persistentAdapter || !persistSnapshot) throw new Error("Persistent conversation adapter unavailable");
   if (!session.promoting) {
+    const roles = repository.messages.map(({ message }) => message.role).join('/');
+    postRuntimeEvent({ eventType: 'CHAT_PROMOTION_TIMELINE_BEFORE', status: 'START', scope: 'chat', metadata: { messageCount: repository.messages.length, roleSequence: roles, threadId: threadId.slice(0, 100), local: true, remoteId: threadId.slice(0, 100) } });
     postRuntimeEvent({ eventType: 'CHAT_THREAD_PROMOTE_START', status: 'START', scope: 'chat', metadata: { threadId: threadId.slice(0, 100), local: true, initialized: false } });
     // The local-storage adapter uses the local id as its persistent id. Start
     // its metadata mutation, but do not put that storage/network work in front
@@ -78,6 +81,7 @@ export const promoteLocalSession = async (
       postRuntimeEvent({ eventType: 'CHAT_THREAD_INITIALIZE_RESOLVED', status: 'PASS', scope: 'chat', metadata: { threadId: threadId.slice(0, 100), local: false, initialized: true } });
       postRuntimeEvent({ eventType: 'CHAT_THREAD_PROMOTE_OK', status: 'PASS', scope: 'chat', metadata: { threadId: threadId.slice(0, 100), local: false, initialized: true } });
       void initializePersistent.then(() => persistSnapshot!(ready.remoteId, repository)).then(async () => {
+        postRuntimeEvent({ eventType: 'CHAT_PROMOTION_TIMELINE_PERSISTED', status: 'PASS', scope: 'chat', metadata: { messageCount: repository.messages.length, roleSequence: roles, threadId: threadId.slice(0, 100), local: false, remoteId: ready.remoteId.slice(0, 100) } });
         // Title generation is intentionally done only after promotion. The
         // assistant-ui automatic trigger can run on the Mon greeting before a
         // user message exists and would permanently save the empty fallback.
@@ -86,10 +90,34 @@ export const promoteLocalSession = async (
       }).catch((error: unknown) => {
         console.warn('[VINZ chat] persistenza post-promozione non riuscita', error instanceof Error ? error.message : 'errore sconosciuto');
       });
+      postRuntimeEvent({ eventType: 'CHAT_PROMOTION_TIMELINE_AFTER', status: 'PASS', scope: 'chat', metadata: { messageCount: repository.messages.length, roleSequence: roles, threadId: threadId.slice(0, 100), local: false, remoteId: ready.remoteId.slice(0, 100) } });
       return ready;
     });
   }
   return session.promoting;
+};
+
+export const repositoryWithPendingUser = (
+  repository: ExportedMessageRepository,
+  text: string,
+): { repository: ExportedMessageRepository; userId: string } => {
+  const random = typeof crypto !== 'undefined' && 'randomUUID' in crypto
+    ? crypto.randomUUID()
+    : `${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  const userId = `msg_${random}`;
+  const parentId = repository.messages.at(-1)?.message.id ?? null;
+  const message: ThreadMessage = {
+    id: userId,
+    createdAt: new Date(),
+    role: 'user',
+    content: [{ type: 'text', text }],
+    attachments: [],
+    metadata: { custom: {} },
+  };
+  return {
+    userId,
+    repository: { ...repository, headId: userId, messages: [...repository.messages, { parentId, message }] },
+  };
 };
 
 export const consumePromotedRepository = (
