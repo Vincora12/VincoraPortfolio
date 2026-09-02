@@ -29,6 +29,9 @@ export type RuntimeClientEvent = {
   keyPrefix?: string;
   payloadBytes?: number;
   storage?: string;
+  source?: string;
+  errorMessage?: string;
+  errorCode?: number;
   metadata?: Record<string, string | number | boolean>;
 };
 

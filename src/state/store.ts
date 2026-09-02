@@ -10,7 +10,14 @@
    ========================================================================= */
 
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { createJSONStorage, persist } from 'zustand/middleware';
+import { setLocalStorageItem } from '../system/localStorageDiagnostics';
+
+const appPersistStorage = createJSONStorage(() => ({
+  getItem: (name: string) => localStorage.getItem(name),
+  setItem: (name: string, value: string) => setLocalStorageItem('state/store persist', name, value),
+  removeItem: (name: string) => localStorage.removeItem(name),
+}));
 
 import {
   DEFAULT_BIAS,
@@ -3598,6 +3605,7 @@ export const useApp = create<AppState>()(
          in modo confuso. Ripartire da zero costringe a incollare il token
          giusto una volta, che è il comportamento onesto. */
       name: 'vinzmon.prototype.v4',
+      storage: appPersistStorage,
       version: 3,
       partialize: (s) => {
         const {
@@ -4183,7 +4191,7 @@ function applyRemoteSave(local: AppState, data: RemoteSave): void {
   const remote = data.state as Partial<AppState> & { __healthJournal?: unknown };
   const { __healthJournal, ...appState } = remote;
   if (__healthJournal) {
-    localStorage.setItem('vinzmon.health.journal.v1', JSON.stringify(__healthJournal));
+    setLocalStorageItem('state/store remote health journal', 'vinzmon.health.journal.v1', JSON.stringify(__healthJournal));
     window.dispatchEvent(new Event('vinzmon-health-journal'));
   }
   useApp.setState({

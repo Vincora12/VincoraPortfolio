@@ -18,6 +18,7 @@
    ========================================================================= */
 
 import { useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
+import { setLocalStorageItem } from './localStorageDiagnostics';
 import { AssetSlot, useAssetUrl } from './AssetSlot';
 import {
   EXPRESSION_SPEC,
@@ -124,7 +125,7 @@ export function Sticker({
   const savePosition = (next: { x: number; y: number }) => {
     setPosition(next);
     try {
-      localStorage.setItem(storageKey, JSON.stringify(next));
+      setLocalStorageItem('system/LiveMon', storageKey, JSON.stringify(next));
     } catch {
       // Safari può negare lo storage privato: il trascinamento resta comunque attivo.
     }

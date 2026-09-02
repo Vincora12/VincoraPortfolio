@@ -1,5 +1,6 @@
 import type { AiStepId } from '../../netlify/functions/_shared/routing';
 import { serverBackedStorage } from './serverStorage';
+import { setLocalStorageItem } from './localStorageDiagnostics';
 
 export type RuntimeConfig = {
   taxonomyVersion: 'v1' | 'v2';
@@ -56,6 +57,6 @@ export async function pullRuntimeConfig(): Promise<RuntimeConfig> {
   if (typeof localStorage === 'undefined') return runtimeConfig();
   const config = parse(await serverBackedStorage.getItem(KEY));
   await serverBackedStorage.setItem(KEY, JSON.stringify(config));
-  localStorage.setItem(LEGACY_TAXONOMY_KEY, config.taxonomyVersion);
+  setLocalStorageItem('system/runtimeConfig legacy taxonomy', LEGACY_TAXONOMY_KEY, config.taxonomyVersion);
   return config;
 }

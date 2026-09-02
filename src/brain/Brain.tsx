@@ -27,10 +27,11 @@ import { loadSetup, type ModelChoice } from '../ai/backend';
 import type { BrainMessage } from './store/types';
 import type { ToolResult, ToolUse } from '../ai/tools';
 import { VinzImageAttachmentAdapter } from '../assistant-original/image-attachment';
+import { setLocalStorageItem } from '../system/localStorageDiagnostics';
 
 const storage = {
   getItem: async (key: string) => localStorage.getItem(key),
-  setItem: async (key: string, value: string) => localStorage.setItem(key, value),
+  setItem: async (key: string, value: string) => setLocalStorageItem('brain/Brain storage', key, value),
   removeItem: async (key: string) => localStorage.removeItem(key),
 };
 
@@ -59,7 +60,7 @@ function addDailyCost(costUsd: number) {
   try {
     const saved = JSON.parse(localStorage.getItem(DAILY_COST_KEY) ?? '{}') as Record<string, number>;
     saved[day] = (saved[day] ?? 0) + costUsd;
-    localStorage.setItem(DAILY_COST_KEY, JSON.stringify(saved));
+    setLocalStorageItem('brain/Brain daily cost', DAILY_COST_KEY, JSON.stringify(saved));
     window.dispatchEvent(new Event('vinzmon-cost-update'));
   } catch { /* Il contatore non deve mai bloccare la chat. */ }
 }
@@ -234,7 +235,7 @@ function ChatDrawer({ onClose }: { onClose: () => void }) {
   const [hiddenIds, setHiddenIds] = useState(() => new Set<string>());
   const layoutRef = useRef(layout);
   layoutRef.current = layout;
-  const saveLayout = (next: ChatTreeLayout) => { layoutRef.current = next; setLayout(next); localStorage.setItem(CHAT_TREE_KEY, JSON.stringify(next)); };
+  const saveLayout = (next: ChatTreeLayout) => { layoutRef.current = next; setLayout(next); setLocalStorageItem('brain/Brain layout', CHAT_TREE_KEY, JSON.stringify(next)); };
   const nodes = useMemo(() => {
     const map = new Map<string, ChatTreeNode>();
     map.set('root', { id: 'root', name: 'Chat', kind: 'root', icon: '', color: '', parentId: null });

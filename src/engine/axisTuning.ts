@@ -28,6 +28,7 @@
 
 import { pickWeighted, type Rng } from './rng';
 import { serverBackedStorage } from '../system/serverStorage';
+import { setLocalStorageItem } from '../system/localStorageDiagnostics';
 
 /** Gli assi che si possono pesare, oltre a quelli già in `catalogTuning`. */
 export const WEIGHTED_AXES = ['eyewear', 'hairState', 'haircut'] as const;
@@ -66,7 +67,7 @@ let pesi: Pesi = typeof localStorage === 'undefined' ? {} : leggi();
 function salva(): void {
   const testo = JSON.stringify(pesi);
   try {
-    localStorage.setItem(CHIAVE, testo);
+    setLocalStorageItem('engine/axisTuning', CHIAVE, testo);
   } catch {
     /* Se il browser non scrive, i pesi valgono per questa sessione. */
   }

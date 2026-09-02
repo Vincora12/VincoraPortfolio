@@ -1,5 +1,6 @@
 import { savedToken } from '../stream';
 import { EMPTY_BRAIN, type BrainMessage, type BrainState } from './types';
+import { setLocalStorageItem } from '../../system/localStorageDiagnostics';
 
 const LOCAL_KEY = 'vinzmon.brain.v1';
 
@@ -13,7 +14,7 @@ function localState(): BrainState {
 }
 
 function keepLocal(state: BrainState): BrainState {
-  localStorage.setItem(LOCAL_KEY, JSON.stringify(state));
+  setLocalStorageItem('brain/store client', LOCAL_KEY, JSON.stringify(state));
   return state;
 }
 

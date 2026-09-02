@@ -40,6 +40,7 @@ import {
   ROLES,
 } from './generation-config';
 import { serverBackedStorage } from '../system/serverStorage';
+import { setLocalStorageItem } from '../system/localStorageDiagnostics';
 
 /** Gli assi su cui si può accendere e spegnere. */
 export const CATALOG_AXES = ['family', 'affinity', 'role', 'fashion', 'mood', 'appearance', 'design', 'size'] as const;
@@ -217,7 +218,7 @@ export function senzaSpingereSulServer<T>(fn: () => T): T {
 function salva(): void {
   const testo = serializza();
   try {
-    localStorage.setItem(CHIAVE, testo);
+    setLocalStorageItem('engine/catalogTuning', CHIAVE, testo);
   } catch {
     /* Senza scrittura vale per questa sessione. */
   }

@@ -35,6 +35,8 @@ export type Carta = {
   commento: string;
 };
 
+import { setLocalStorageItem } from '../../system/localStorageDiagnostics';
+
 const CHIAVE = 'vinzlab.training.v2';
 
 export function leggiCarte(): Carta[] {
@@ -50,7 +52,7 @@ export function leggiCarte(): Carta[] {
 export function salvaCarta(c: Carta): Carta[] {
   const tutte = [...leggiCarte(), c].slice(-400);
   try {
-    localStorage.setItem(CHIAVE, JSON.stringify(tutte));
+  setLocalStorageItem('lab/training', CHIAVE, JSON.stringify(tutte));
   } catch {
     /* Se il browser non scrive, il mazzo vale per questa sessione. */
   }

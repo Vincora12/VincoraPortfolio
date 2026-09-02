@@ -1,3 +1,5 @@
+import { setLocalStorageItem } from '../system/localStorageDiagnostics';
+
 /* 🔒 `'dev'` NON È `'manual'`. `manual` dice che sei stato tu a scriverlo;
    `dev` dice che è stato il pannello DEV a dichiararlo al posto tuo, per
    simulare un giorno vissuto — la stessa onestà con cui `advanceOneDay`
@@ -73,7 +75,7 @@ export function readHealthJournal(): HealthJournal {
 }
 
 function save(next: HealthJournal): HealthJournal {
-  localStorage.setItem(KEY, JSON.stringify(next));
+  setLocalStorageItem('engine/healthJournal', KEY, JSON.stringify(next));
   window.dispatchEvent(new Event(HEALTH_JOURNAL_EVENT));
   return next;
 }

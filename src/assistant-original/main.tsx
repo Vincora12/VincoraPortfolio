@@ -17,10 +17,11 @@ import { netlifyChatModel } from "./netlify-runtime";
 import { VinzImageAttachmentAdapter, VinzPdfAttachmentAdapter } from "./image-attachment";
 import "@fontsource-variable/inter";
 import "./standalone.css";
+import { setLocalStorageItem } from "../system/localStorageDiagnostics";
 
 const storage = {
   getItem: async (key: string) => localStorage.getItem(key),
-  setItem: async (key: string, value: string) => localStorage.setItem(key, value),
+  setItem: async (key: string, value: string) => setLocalStorageItem('assistant-original/main storage', key, value),
   removeItem: async (key: string) => localStorage.removeItem(key),
 };
 
