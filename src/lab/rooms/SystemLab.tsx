@@ -18,7 +18,7 @@
    peggiore che ci possa stare qui dentro.
    ========================================================================= */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useApp } from '../../state/store';
 import { STAT_KEYS, UNKNOWN, isKnown } from '../../engine/types';
 import type { StatKey } from '../../engine/types';
@@ -37,6 +37,7 @@ import {
 import { Btn, Grid, LabTop, Notice, PageHead, Range, Rows, Section, Status } from './parts';
 import { LabAssistantPanel } from '../assistant/LabAssistantPanel';
 import '../skin/system.css';
+import { lastStorageOperation } from '../../system/localStorageDiagnostics';
 
 const TABS = [
   { id: 'setup', label: 'SETUP' },
@@ -46,6 +47,7 @@ const TABS = [
   { id: 'machines', label: 'MACHINES' },
   { id: 'usage', label: 'USAGE' },
   { id: 'runtime-log', label: 'RUNTIME LOG' },
+  { id: 'storage', label: 'STORAGE' },
   /* 🔷 brief Shortcuts §11, e la regola scritta nell'atrio del lab:
      «se cambia come l'app... chiama API, va in SYSTEM.LAB». `/api/shortcut`
      è esattamente questo — e finora esisteva SOLO in DEV → SHORTCUT API,
@@ -70,12 +72,64 @@ export function SystemLab({ onBack }: { onBack: () => void }) {
         {tab === 'machines' && <Machines />}
         {tab === 'usage' && <Usage />}
         {tab === 'runtime-log' && <RuntimeLog />}
+        {tab === 'storage' && <StorageInspector />}
         {tab === 'shortcuts' && <Shortcuts />}
         {tab === 'assistant' && <LabAssistantPanel />}
         <div className="footer mono">SYSTEM.LAB · SAME VINZ.MON ENGINE / SAME REPOSITORY</div>
       </main>
     </div>
   );
+}
+
+type StorageRow = { key: string; category: string; bytes: number; classification: string };
+const byteCount = (value: string) => { try { return new TextEncoder().encode(value).byteLength; } catch { return value.length; } };
+const formatBytes = (n: number) => n < 1024 ? `${n} B` : n < 1024 * 1024 ? `${(n / 1024).toFixed(1)} KB` : `${(n / 1024 / 1024).toFixed(2)} MB`;
+const localCategory = (key: string) => key === 'vinzmon.prototype.v4' ? 'prototype' : key.includes('messages') ? 'assistant-ui messages' : key.includes('threads') ? 'assistant-ui threads' : key.includes('health') ? 'health journal' : key.includes('brain') ? 'brain' : key.includes('config') ? 'configuration' : key.includes('asset') ? 'cache' : 'other';
+const localClass = (key: string) => key === 'vinzmon.prototype.v4' ? 'CANONICAL / SERVER-BACKED' : key.includes('assistant-ui') ? 'SERVER-BACKED' : key.includes('health') ? 'CANONICAL' : key.includes('asset') ? 'CACHE' : 'RECONSTRUCTIBLE';
+
+function Meter({ used, total, label }: { used: number; total?: number; label?: string }) {
+  const percent = total && total > 0 ? Math.min(100, Math.round((used / total) * 100)) : null;
+  return <div className="storage-meter"><div className="storage-meter__bar"><span style={{ width: `${percent ?? 0}%` }} /></div><span className="storage-meter__value">{label ?? (percent == null ? 'NOT AVAILABLE' : `${percent}%`)}</span></div>;
+}
+
+function StorageInspector() {
+  const token = useApp((s) => s.token);
+  const [estimate, setEstimate] = useState<{ usage?: number; quota?: number } | null>(null);
+  const [memories, setMemories] = useState<number | null>(null);
+  const rows = useMemo<StorageRow[]>(() => {
+    if (typeof localStorage === 'undefined') return [];
+    const out: StorageRow[] = [];
+    for (let i = 0; i < localStorage.length; i += 1) {
+      const key = localStorage.key(i); if (!key) continue;
+      const value = localStorage.getItem(key) ?? '';
+      out.push({ key, category: localCategory(key), bytes: byteCount(value), classification: localClass(key) });
+    }
+    return out.sort((a, b) => b.bytes - a.bytes);
+  }, []);
+  useEffect(() => {
+    let active = true;
+    void navigator.storage?.estimate?.().then((value) => { if (active) setEstimate(value); }).catch(() => undefined);
+    if (token) void fetch('/api/me-memory', { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' }).then((r) => r.ok ? r.json() as Promise<{ memories?: unknown[] }> : null).then((body) => { if (active) setMemories(body?.memories?.length ?? null); }).catch(() => undefined);
+    return () => { active = false; };
+  }, [token]);
+  const localUsed = rows.reduce((sum, row) => sum + row.bytes, 0);
+  const quota = estimate?.quota;
+  const status = lastStorageOperation?.status === 'ERROR' && lastStorageOperation.errorName === 'QuotaExceededError' ? 'QUOTA EXCEEDED' : estimate?.usage && quota ? estimate.usage >= quota ? 'QUOTA EXCEEDED' : estimate.usage / quota > .85 ? 'CRITICAL' : estimate.usage / quota > .68 ? 'WARNING' : 'ACTIVE' : 'ESTIMATED';
+  const groups = Object.entries(rows.reduce<Record<string, number>>((acc, row) => { acc[row.category] = (acc[row.category] ?? 0) + row.bytes; return acc; }, {})).sort((a, b) => b[1] - a[1]);
+  return <section className="page active">
+    <PageHead kicker="SYSTEM.LAB / STORAGE" title="STORAGE INSPECTOR" lead="Lettura tecnica: nessuna cancellazione, nessun valore o contenuto personale." />
+    <Section title="BROWSER STORAGE"><Rows rows={[
+      ['USED', formatBytes(estimate?.usage ?? localUsed)], ['AVAILABLE', estimate?.usage != null && quota ? formatBytes(Math.max(0, quota - estimate.usage)) : 'NOT AVAILABLE'], ['TOTAL / QUOTA', quota ? formatBytes(quota) : 'NOT AVAILABLE'], ['PERCENT USED', estimate?.usage != null && quota ? `${Math.round((estimate.usage / quota) * 100)}% · MEASURED` : 'ESTIMATED / NOT AVAILABLE'], ['STATUS', status],
+    ]} /><Meter used={estimate?.usage ?? localUsed} total={quota} /></Section>
+    <Section title="LOCAL STORAGE" note={`${rows.length} keys · dimensione calcolata dai valori, senza mostrarli`}>
+      <Rows rows={groups.map(([name, size]) => [name.toUpperCase(), formatBytes(size)])} />
+      <Meter used={localUsed} total={estimate?.usage ?? localUsed} label={estimate?.usage ? `${Math.round(localUsed / estimate.usage * 100)}% of measured browser usage` : 'ESTIMATED'} />
+    </Section>
+    <Section title="INDEXEDDB / ASSETS" note="La quota browser può essere condivisa: non viene attribuita falsamente agli asset."><Rows rows={[['USED', estimate?.usage != null ? `${formatBytes(Math.max(0, estimate.usage - localUsed))} · ESTIMATED` : 'NOT AVAILABLE'], ['AVAILABLE', quota && estimate?.usage != null ? `${formatBytes(Math.max(0, quota - estimate.usage))} · SHARED BROWSER QUOTA` : 'NOT AVAILABLE'], ['ASSET RECORDS', 'NOT ENUMERATED · READ-ONLY']]} /></Section>
+    <Section title="SERVER-BACKED DATA"><Rows rows={['user-data', 'chats', 'runtime config', 'usage ledger', 'runtime log', 'machines'].map((name) => [name.toUpperCase(), 'SIZE UNKNOWN'])} /></Section>
+    <Section title="MEM0"><Rows rows={[['SERVICE', 'RAILWAY MEM0'], ['MEMORIES', memories == null ? 'UNKNOWN' : String(memories)], ['STORAGE SIZE', 'UNKNOWN · QDRANT REMOTE']]} /></Section>
+    <Section title="LOCAL KEYS"><Rows rows={rows.map((row) => [row.key, `${row.category} · ${formatBytes(row.bytes)} · ${localUsed ? `${Math.round(row.bytes / localUsed * 100)}%` : '0%'} · ${row.classification}`])} /></Section>
+  </section>;
 }
 
 type MachineView = {

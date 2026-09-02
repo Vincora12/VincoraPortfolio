@@ -106,6 +106,7 @@ h1{font-size:44px;line-height:.89;margin:0 0 14px;font-weight:900;font-style:ita
 .picker button{border:1px solid var(--line);background:#fff;padding:8px 5px;font-size:8px}
 .picker button.on{background:#111;color:#fff}
 .json{background:#111;color:#fff;padding:11px;font:9px/1.5 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere;margin-top:9px}
+.storage-meter{display:flex;align-items:center;gap:10px;margin-top:12px}.storage-meter__bar{height:12px;flex:1;background:#eee;border:1px solid var(--line)}.storage-meter__bar span{display:block;height:100%;background:#111}.storage-meter__value{font:700 9px ui-monospace,SFMono-Regular,monospace;white-space:nowrap}
 .dist-row{display:grid;grid-template-columns:82px 1fr 38px;gap:7px;align-items:center;margin:7px 0;font-size:9px}
 .bar{height:8px;background:#eee}.bar i{display:block;height:100%;background:#111}
 .assetgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
