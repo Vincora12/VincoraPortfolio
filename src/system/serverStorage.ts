@@ -1,3 +1,5 @@
+import { isQuotaExceededError, recordQuotaExceeded } from './storageQuota';
+
 function auth(): HeadersInit | null {
   let token: string | null = null;
   try {
@@ -22,7 +24,16 @@ export const serverBackedStorage = {
     } catch { return local; }
   },
   async setItem(key: string, value: string): Promise<void> {
-    localStorage.setItem(key, value);
+    /* 🔴 Non era protetta: uno storage pieno faceva esplodere questa funzione
+       per intero, rete compresa, invece di continuare a provare a salvare sul
+       server. Adesso la copia locale può fallire da sola — il tentativo di
+       rete sotto parte comunque, ed è quello che in un browser pieno conta
+       davvero. */
+    try {
+      localStorage.setItem(key, value);
+    } catch (error) {
+      if (isQuotaExceededError(error)) recordQuotaExceeded(`user-data:${key}`);
+    }
     const headers = auth();
     if (!headers) return;
     try {

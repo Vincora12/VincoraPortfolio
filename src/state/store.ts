@@ -10,7 +10,29 @@
    ========================================================================= */
 
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import { isQuotaExceededError, recordQuotaExceeded } from '../system/storageQuota';
+
+/* Il salvataggio più grande dell'app passa da qui: `localStorage` diretto,
+   ma con un occhio a un solo errore — quello che oggi non ha nessuno che lo
+   guardi. Il comportamento non cambia: se prima uno storage pieno faceva
+   fallire lo scrivere, fallisce ancora esattamente allo stesso modo. In più,
+   SYSTEM.LAB → STORAGE può dirtelo. */
+const quotaAwareLocalStorage: Storage = {
+  get length() { return localStorage.length; },
+  clear: () => localStorage.clear(),
+  key: (i) => localStorage.key(i),
+  getItem: (key) => localStorage.getItem(key),
+  removeItem: (key) => localStorage.removeItem(key),
+  setItem: (key, value) => {
+    try {
+      localStorage.setItem(key, value);
+    } catch (error) {
+      if (isQuotaExceededError(error)) recordQuotaExceeded(`prototype:${key}`);
+      throw error;
+    }
+  },
+};
 
 import {
   DEFAULT_BIAS,
@@ -3598,6 +3620,7 @@ export const useApp = create<AppState>()(
          in modo confuso. Ripartire da zero costringe a incollare il token
          giusto una volta, che è il comportamento onesto. */
       name: 'vinzmon.prototype.v4',
+      storage: createJSONStorage(() => quotaAwareLocalStorage),
       version: 3,
       partialize: (s) => {
         const {

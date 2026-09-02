@@ -37,6 +37,24 @@ import {
 import { Btn, Grid, LabTop, Notice, PageHead, Range, Rows, Section, Status } from './parts';
 import { LabAssistantPanel } from '../assistant/LabAssistantPanel';
 import '../skin/system.css';
+import {
+  formatBytes,
+  browserStorageEstimate,
+  localStorageSnapshot,
+  byCategory,
+  CATEGORY_LABEL,
+  indexedDbSnapshot,
+  byIndexedDbCategory,
+  INDEXEDDB_CATEGORY_LABEL,
+  prototypeFieldBreakdown,
+  computeStatus,
+  type BrowserStorageEstimate,
+  type LocalStorageSnapshot,
+  type IndexedDbSnapshot,
+  type FieldBreakdown,
+  type StorageStatus,
+} from '../storageInspector';
+import { recentQuotaExceeded, type QuotaExceededRecord } from '../../system/storageQuota';
 
 const TABS = [
   { id: 'setup', label: 'SETUP' },
@@ -46,6 +64,7 @@ const TABS = [
   { id: 'machines', label: 'MACHINES' },
   { id: 'usage', label: 'USAGE' },
   { id: 'runtime-log', label: 'RUNTIME LOG' },
+  { id: 'storage', label: 'STORAGE' },
   /* 🔷 brief Shortcuts §11, e la regola scritta nell'atrio del lab:
      «se cambia come l'app... chiama API, va in SYSTEM.LAB». `/api/shortcut`
      è esattamente questo — e finora esisteva SOLO in DEV → SHORTCUT API,
@@ -70,6 +89,7 @@ export function SystemLab({ onBack }: { onBack: () => void }) {
         {tab === 'machines' && <Machines />}
         {tab === 'usage' && <Usage />}
         {tab === 'runtime-log' && <RuntimeLog />}
+        {tab === 'storage' && <StorageInspector />}
         {tab === 'shortcuts' && <Shortcuts />}
         {tab === 'assistant' && <LabAssistantPanel />}
         <div className="footer mono">SYSTEM.LAB · SAME VINZ.MON ENGINE / SAME REPOSITORY</div>
@@ -923,6 +943,306 @@ function RuntimeLog() {
   return <section className="page active"><PageHead kicker="SYSTEM.LAB / OBSERVABILITY" title="RUNTIME LOG" lead="Ultime 48 ore di eventi tecnici, senza contenuti personali." />
     {!events ? <p className="note">Lettura del registro…</p> : error ? <p className="note">Runtime Log non disponibile: verifica autenticazione o server.</p> : events.length === 0 ? <p className="note">Nessun evento recente.</p> : <Section title="LAST 48H"><Rows rows={events.map((event) => [`${new Date(event.timestamp).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}  ${event.scope.toUpperCase()}`, `${event.eventType} · ${event.status}${event.model ? ` · ${event.model}` : ''}${event.error ? ` · ${event.error}` : ''}`])} /></Section>}
   </section>;
+}
+
+/* ============================================================================
+   STORAGE (LAB → SYSTEM → STORAGE)
+
+   🔷 «Voglio vedere sul mio iPhone quanto storage stiamo usando, quanto
+   rimane, quanto pesa localStorage, quanto pesa IndexedDB, quali categorie
+   occupano spazio, quali key sono responsabili, cosa è cache e cosa è
+   canonico.»
+
+   ⚠️ SOLO LETTURA (per ora). Nessun pulsante cancella niente qui — la logica
+   di misura vive in `../storageInspector.ts`, testabile e senza React.
+
+   🔒 Non c'è mai un `value` in questa schermata: né testo di chat, né
+   prompt, né token, né immagini. Solo nomi di chiave, byte, percentuali.
+   ========================================================================= */
+
+/** `[██████████████░░░░░░] 68%` — letterale, com'era nella richiesta: un
+    testo monospaziato si legge sull'iPhone meglio di qualunque libreria di
+    grafici, e qui non ne serve una. */
+function AsciiBar({ percent, width = 22 }: { percent: number | null; width?: number }) {
+  if (percent === null) return <span className="mono storage-bar">[{'░'.repeat(width)}] —</span>;
+  const clamped = Math.max(0, Math.min(100, percent));
+  const filled = Math.round((clamped / 100) * width);
+  return (
+    <span className="mono storage-bar">
+      [{'█'.repeat(filled)}{'░'.repeat(width - filled)}] {clamped.toFixed(1)}%
+    </span>
+  );
+}
+
+/** Una riga di categoria: nome, barra proporzionata al totale del suo
+    contenitore (non alla quota del browser — sono scale diverse), byte. */
+function CategoryRow({ label, bytes, total }: { label: string; bytes: number; total: number }) {
+  const percent = total > 0 ? (bytes / total) * 100 : 0;
+  const width = 14;
+  const filled = Math.max(bytes > 0 ? 1 : 0, Math.round((percent / 100) * width));
+  return (
+    <div className="storage-cat">
+      <span className="storage-cat__label">{label}</span>
+      <span className="mono storage-cat__bar">[{'█'.repeat(filled)}{'░'.repeat(width - filled)}]</span>
+      <span className="storage-cat__bytes mono">{formatBytes(bytes)} · {percent.toFixed(0)}%</span>
+    </div>
+  );
+}
+
+const MEASUREMENT_LABEL: Record<'measured' | 'estimated' | 'unavailable', string> = {
+  measured: 'MEASURED',
+  estimated: 'ESTIMATED',
+  unavailable: 'NOT AVAILABLE',
+};
+
+const STATUS_OK: Record<StorageStatus, boolean> = {
+  ACTIVE: true,
+  WARNING: false,
+  CRITICAL: false,
+  'QUOTA EXCEEDED': false,
+};
+
+/** Le classificazioni dell'INSPECTOR: cosa succede se questa chiave sparisce. */
+const CLASSIFICATION_NOTE: Record<string, string> = {
+  CANONICAL: 'unica copia qui',
+  'SERVER-BACKED': 'il server ne tiene una copia',
+  RECONSTRUCTIBLE: 'torna un default',
+  CACHE: 'copia locale di qualcos\'altro',
+  UNKNOWN: 'chiave non riconosciuta',
+};
+
+interface ServerBucket {
+  label: string;
+  detail: string;
+  sizeLabel: string;
+}
+
+function StorageInspector() {
+  const token = useApp((s) => s.token);
+
+  const [browser, setBrowser] = useState<BrowserStorageEstimate | null>(null);
+  const [local, setLocal] = useState<LocalStorageSnapshot | null>(null);
+  const [idb, setIdb] = useState<IndexedDbSnapshot | null>(null);
+  const [fields, setFields] = useState<FieldBreakdown[] | null>(null);
+  const [quotaHit, setQuotaHit] = useState<QuotaExceededRecord | null>(null);
+  const [server, setServer] = useState<ServerBucket[] | null>(null);
+  const [serverFailed, setServerFailed] = useState(false);
+  const [mem0, setMem0] = useState<{ memories: number | null; note: string } | null>(null);
+  const [showInspector, setShowInspector] = useState(false);
+  const [expandedField, setExpandedField] = useState<string | null>(null);
+
+  useEffect(() => {
+    /* Sincrone e gratuite: nessun motivo di aspettare un frame per queste. */
+    setLocal(localStorageSnapshot());
+    setFields(prototypeFieldBreakdown());
+    setQuotaHit(recentQuotaExceeded());
+    void browserStorageEstimate().then(setBrowser);
+    void indexedDbSnapshot().then(setIdb);
+  }, []);
+
+  useEffect(() => {
+    if (!token) { setServerFailed(true); return; }
+    const headers = { authorization: `Bearer ${token}` };
+    let cancelled = false;
+    /* 🔒 NIENTE endpoint nuovo per elencare i blob: si usano le stesse GET
+       che USAGE, RUNTIME LOG e MACHINES già chiamano, e se ne misura solo la
+       risposta — SIZE UNKNOWN dove non c'è già un numero reale da leggere. */
+    void Promise.all([
+      loadUsage(token),
+      loadRuntimeLog(token),
+      fetch('/api/machines', { headers }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+      fetch('/api/me-memory', { headers }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+    ]).then(([usage, runtimeLog, machinesJson, meMemoryJson]) => {
+      if (cancelled) return;
+      const responseBytes = (value: unknown) => {
+        try { return new TextEncoder().encode(JSON.stringify(value)).length; } catch { return null; }
+      };
+      const buckets: ServerBucket[] = [];
+      if (usage.data) {
+        const bytes = responseBytes(usage.data);
+        buckets.push({
+          label: 'USAGE LEDGER',
+          detail: `${usage.data.month.calls}× questo mese`,
+          sizeLabel: bytes ? `~${formatBytes(bytes)} (risposta)` : 'SIZE UNKNOWN',
+        });
+      } else {
+        buckets.push({ label: 'USAGE LEDGER', detail: 'non disponibile', sizeLabel: 'SIZE UNKNOWN' });
+      }
+      if (runtimeLog.data) {
+        const bytes = responseBytes(runtimeLog.data);
+        buckets.push({
+          label: 'RUNTIME LOG',
+          detail: `${runtimeLog.data.events.length} eventi (48h)`,
+          sizeLabel: bytes ? `~${formatBytes(bytes)} (risposta)` : 'SIZE UNKNOWN',
+        });
+      } else {
+        buckets.push({ label: 'RUNTIME LOG', detail: 'non disponibile', sizeLabel: 'SIZE UNKNOWN' });
+      }
+      if (machinesJson && typeof machinesJson === 'object') {
+        const machines = (machinesJson as { machines?: unknown[] }).machines;
+        const bytes = responseBytes(machinesJson);
+        buckets.push({
+          label: 'MACHINES',
+          detail: Array.isArray(machines) ? `${machines.length} macchine` : '—',
+          sizeLabel: bytes ? `~${formatBytes(bytes)} (risposta)` : 'SIZE UNKNOWN',
+        });
+      } else {
+        buckets.push({ label: 'MACHINES', detail: 'non disponibile', sizeLabel: 'SIZE UNKNOWN' });
+      }
+      buckets.push({
+        label: 'CHATS · RUNTIME CONFIG',
+        detail: 'in vinzmon-user-data · dimensione dal mirror locale sotto',
+        sizeLabel: 'vedi LOCAL STORAGE',
+      });
+      buckets.push({
+        label: 'ALTRI BLOB (state, assets, evolution, duel, shortcut, push, brain, ingest)',
+        detail: 'nessun endpoint elenca questi store dal client',
+        sizeLabel: 'SIZE UNKNOWN',
+      });
+      setServer(buckets);
+      setServerFailed(false);
+
+      if (meMemoryJson && typeof meMemoryJson === 'object' && 'counts' in (meMemoryJson as object)) {
+        const counts = (meMemoryJson as { counts?: { memories?: number } }).counts;
+        setMem0({ memories: typeof counts?.memories === 'number' ? counts.memories : null, note: 'mem0' });
+      } else {
+        setMem0({ memories: null, note: 'non in modalità mem0, o non disponibile' });
+      }
+    }).catch(() => { if (!cancelled) setServerFailed(true); });
+    return () => { cancelled = true; };
+  }, [token]);
+
+  const percentUsed = browser?.usageBytes != null && browser.quotaBytes != null && browser.quotaBytes > 0
+    ? (browser.usageBytes / browser.quotaBytes) * 100
+    : null;
+  const status = computeStatus(percentUsed, quotaHit !== null);
+
+  const localCats = local ? byCategory(local.keys) : [];
+  const idbCats = idb ? byIndexedDbCategory(idb.entries) : [];
+
+  return (
+    <section className="page active">
+      <PageHead
+        kicker="SYSTEM.LAB / STORAGE"
+        title="STORAGE"
+        lead="Capacità e contenuti, letti direttamente dal dispositivo. Sola lettura: niente qui cancella o sposta niente."
+      />
+
+      <Section title="BROWSER STORAGE" note={`Misura del browser stesso (navigator.storage.estimate) — ${browser ? MEASUREMENT_LABEL[browser.kind] : 'lettura…'}. Non è inventata: se il browser non la dà, resta NOT AVAILABLE.`}>
+        <AsciiBar percent={percentUsed} />
+        <Rows rows={[
+          ['USED', browser?.usageBytes != null ? formatBytes(browser.usageBytes) : '—'],
+          ['QUOTA', browser?.quotaBytes != null ? formatBytes(browser.quotaBytes) : '—'],
+          ['REMAINING', browser?.usageBytes != null && browser?.quotaBytes != null ? formatBytes(Math.max(0, browser.quotaBytes - browser.usageBytes)) : '—'],
+          ['PERCENT USED', percentUsed !== null ? `${percentUsed.toFixed(1)}%` : '—'],
+          ['MEASUREMENT', browser ? MEASUREMENT_LABEL[browser.kind] : '…'],
+          ['STATUS', <Status label={status} ok={STATUS_OK[status]} />],
+        ]} />
+        {quotaHit && (
+          <p className="note">
+            ⚠️ Scrittura rifiutata di recente ({new Date(quotaHit.at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })} · {quotaHit.context}) — QUOTA EXCEEDED resta finché non chiudi e riapri la scheda.
+          </p>
+        )}
+      </Section>
+
+      <Section
+        title="LOCAL STORAGE"
+        note="Tutte le chiavi del dominio, misurate byte per byte (UTF-16, come le tiene davvero il motore) — non è una stima."
+      >
+        {!local ? <p className="note">Lettura…</p> : <>
+          <p className="mono storage-total">{formatBytes(local.totalBytes)} · {local.keys.length} keys</p>
+          {browser?.quotaBytes && (
+            <p className="note">BROWSER AVAILABLE: {formatBytes(Math.max(0, browser.quotaBytes - (browser.usageBytes ?? 0)))} <span className="storage-shared">SHARED BROWSER QUOTA</span></p>
+          )}
+          {localCats.map((cat) => (
+            <CategoryRow key={cat.category} label={`${CATEGORY_LABEL[cat.category]} · ${cat.count}`} bytes={cat.bytes} total={local.totalBytes} />
+          ))}
+        </>}
+      </Section>
+
+      <Section
+        title="INDEXEDDB / ASSETS"
+        note="Immagini dei .mon e delle prove del duello — misurate leggendo la dimensione reale di ogni Blob, mai il contenuto."
+      >
+        {!idb ? <p className="note">Lettura…</p> : idb.kind === 'unavailable' ? <p className="note">IndexedDB non disponibile in questo browser.</p> : <>
+          <p className="mono storage-total">{formatBytes(idb.totalBytes)} · {idb.entries.length} record</p>
+          {browser?.quotaBytes && <p className="note storage-shared">SHARED BROWSER QUOTA — stessa quota di LOCAL STORAGE, non una separata</p>}
+          {idbCats.map((cat) => (
+            <CategoryRow key={cat.category} label={`${INDEXEDDB_CATEGORY_LABEL[cat.category]} · ${cat.count}`} bytes={cat.bytes} total={idb.totalBytes} />
+          ))}
+        </>}
+      </Section>
+
+      <Section
+        title="SERVER-BACKED DATA"
+        note="Quello che VINZ.MON tiene su Netlify, non nel browser. Non condivide la quota qui sopra: è un'altra macchina."
+      >
+        {serverFailed && !server ? <p className="note">Non disponibile: manca il token o il server non risponde.</p> : !server ? <p className="note">Lettura…</p> : (
+          <Rows rows={server.map((bucket) => [bucket.label, `${bucket.detail} · ${bucket.sizeLabel}`])} />
+        )}
+      </Section>
+
+      <Section
+        title="MEM0"
+        note="Servizio di memoria a lungo termine, esterno: non è localStorage e non ne condivide la quota."
+      >
+        <Rows rows={[
+          ['SERVICE', 'mem0'],
+          ['MEMORIES', mem0?.memories != null ? String(mem0.memories) : 'SIZE UNKNOWN'],
+          ['NOTE', mem0?.note ?? '…'],
+        ]} />
+      </Section>
+
+      <Section title="STORAGE INSPECTOR" note="Ogni chiave di LOCAL STORAGE, classificata per capire cosa succede se sparisce.">
+        <Btn onClick={() => setShowInspector((v) => !v)}>{showInspector ? 'NASCONDI LISTA' : `MOSTRA ${local?.keys.length ?? 0} KEYS`}</Btn>
+        {showInspector && local && (
+          <div className="storage-inspector-list">
+            {local.keys.map((item) => (
+              <div className="storage-key-row" key={item.key}>
+                <span className="storage-key-row__key mono">{item.key}</span>
+                <span className="storage-key-row__cat">{CATEGORY_LABEL[item.category]}</span>
+                <span className="storage-key-row__size mono">{formatBytes(item.bytes)}</span>
+                <span className="storage-key-row__size mono">{local.totalBytes > 0 ? `${((item.bytes / local.totalBytes) * 100).toFixed(1)}%` : '—'}</span>
+                <span className={`storage-key-row__class storage-key-row__class--${item.classification.toLowerCase().replace(/\s+/g, '-')}`}>
+                  {item.classification}
+                  <span className="storage-key-row__class-note"> · {CLASSIFICATION_NOTE[item.classification]}</span>
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {fields && fields.length > 0 && (
+          <>
+            <p className="note" style={{ marginTop: 14 }}>Drill-down di <code>vinzmon.prototype.v4</code> — dimensione per campo, mai il contenuto.</p>
+            {fields.map((field) => (
+              <div key={field.field}>
+                <div
+                  className="storage-field-row"
+                  role={field.children ? 'button' : undefined}
+                  onClick={field.children ? () => setExpandedField((v) => (v === field.field ? null : field.field)) : undefined}
+                >
+                  <span className="mono">{field.children ? (expandedField === field.field ? '▾ ' : '▸ ') : '  '}{field.field}</span>
+                  <span className="mono">{formatBytes(field.bytes)}</span>
+                </div>
+                {field.children && expandedField === field.field && (
+                  <div className="storage-field-children">
+                    {field.children.slice(0, 12).map((child) => (
+                      <div className="storage-field-row storage-field-row--child" key={child.field}>
+                        <span className="mono">{child.field}</span>
+                        <span className="mono">{formatBytes(child.bytes)}</span>
+                      </div>
+                    ))}
+                    {field.children.length > 12 && <p className="note">+{field.children.length - 12} altri</p>}
+                  </div>
+                )}
+              </div>
+            ))}
+          </>
+        )}
+      </Section>
+    </section>
+  );
 }
 
 /* ============================================================================

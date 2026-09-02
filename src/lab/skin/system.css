@@ -117,6 +117,30 @@ h1{font-size:44px;line-height:.89;margin:0 0 14px;font-weight:900;font-style:ita
 .callout{border:1px solid #111;padding:11px;margin:10px 0}
 .callout strong{font-size:11px;display:block}.callout p{font-size:10px;line-height:1.45;color:#555;margin:5px 0 0}
 .footer{border-top:1px solid var(--line);padding-top:14px;margin-top:28px;font-size:9px;color:#777}
+
+/* STORAGE — barre di testo monospaziato, nessuna libreria: la richiesta era
+   letterale ([██████████████░░░░░░] 68%) e su iPhone si legge meglio di
+   qualunque SVG a questa scala. */
+.storage-bar{font-size:13px;letter-spacing:-0.5px;display:block;margin:6px 0;overflow-x:auto;white-space:pre}
+.storage-total{font-size:14px;font-weight:700;margin:6px 0 10px}
+.storage-shared{display:inline-block;font-size:8px;letter-spacing:.06em;border:1px solid var(--line);padding:2px 5px;margin-left:6px;color:#777}
+.storage-cat{display:grid;grid-template-columns:1fr;gap:2px;margin:8px 0;font-size:9px}
+.storage-cat__label{font-weight:700;letter-spacing:.02em}
+.storage-cat__bar{font-size:11px;letter-spacing:-0.5px}
+.storage-cat__bytes{color:#777}
+.storage-inspector-list{margin-top:10px;max-height:60vh;overflow-y:auto;border-top:1px solid var(--line)}
+.storage-key-row{display:grid;grid-template-columns:1fr;gap:2px;padding:8px 0;border-bottom:1px solid var(--line);font-size:9px}
+.storage-key-row__key{word-break:break-all;font-weight:700}
+.storage-key-row__cat{color:#777}
+.storage-key-row__size{color:#777}
+.storage-key-row__class{display:inline-block;margin-top:2px;font-size:8px;letter-spacing:.05em;border:1px solid var(--line);padding:2px 5px}
+.storage-key-row__class--server-backed{border-color:#111}
+.storage-key-row__class--canonical{border-color:#111;font-weight:700}
+.storage-key-row__class--unknown{border-style:dashed}
+.storage-key-row__class-note{color:#999;font-weight:400}
+.storage-field-row{display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px solid var(--line);font-size:9px;cursor:pointer}
+.storage-field-row--child{cursor:default;padding-left:14px;color:#777;border-bottom:none}
+.storage-field-children{border-bottom:1px solid var(--line)}
 @media(min-width:520px){main{padding-left:22px;padding-right:22px}.grid{grid-template-columns:repeat(3,1fr)}}
 @media print{
   .top,.footer,.usage-page__actions{display:none!important}
