@@ -5,113 +5,31 @@
       direttamente da iPhone, così possiamo osservare lo stato reale della
       chat mentre il bug accade.»
 
+   🔴 «in attesa del primo snapshot dalla chat…» — sempre, sul device
+   reale. LAB e Chat sono due pagine separate (`lab/index.html` vs
+   `index.html`: `window.location.assign('/lab/')` in App.tsx è una
+   navigazione vera), quindi due heap JavaScript diversi: lo snapshot
+   runtime-only pubblicato dalla Chat non può attraversare quel confine.
+   Per QUESTO esiste anche l'overlay dentro la Chat stessa
+   (chatgpt.tsx → ChatDebugTrigger/ChatDebugOverlay, dietro DEV) — questa
+   scheda resta utile quando LAB e Chat sono aperte nella stessa sessione
+   (due tab, o la Chat aperta di recente nella stessa pagina prima di
+   navigare qui) e per leggere comunque LIVE EVENTS, che passa dal
+   server e quindi funziona sempre.
+
    🔒 QUESTA STANZA È SOLO OSSERVABILITÀ. Non corregge il bug del primo
    turno, non tocca ConversationLifecycle/resolvePromotionHandoff/
    promoteBeforeSend/promoteLocalSession/buildOpening/serverBackedStorage/
-   il vendor assistant-ui — legge due canali già esistenti e mai
-   duplicati: lo snapshot runtime-only pubblicato dalla chat
-   (../../system/chatLiveDebug.ts, letto qui in sola lettura) e il
-   Runtime Log server già usato da RUNTIME LOG (../../ai/backend.ts).
+   il vendor assistant-ui. La logica (snapshot, detector, Runtime Log) è
+   condivisa con l'overlay della Chat via ../../system/useChatLiveDebug —
+   un solo debugger, due vestiti.
 
    ⚠️ Mai un testo di messaggio: solo id tecnici (abbreviati), ruoli,
    relazioni di parentela e conteggi.
    ========================================================================= */
 
-import { useEffect, useState, useSyncExternalStore } from 'react';
-import { useApp } from '../../state/store';
-import { loadRuntimeLog, type RuntimeEvent } from '../../ai/backend';
 import { Section, Rows, Status, Btn, PageHead } from './parts';
-import {
-  subscribeChatLiveSnapshot,
-  currentChatLiveSnapshot,
-  type ChatLiveThreadSnapshot,
-} from '../../system/chatLiveDebug';
-
-/** Solo questi eventi riguardano il primo turno della chat — riusa il
- * Runtime Log esistente, non ne crea uno nuovo. */
-const CHAT_EVENT_TYPES = new Set([
-  'CHAT_THREAD_IMPORT',
-  'CHAT_STORAGE_WRITE',
-  'CHAT_STORAGE_READ',
-  'CHAT_HISTORY_LOAD',
-  'CHAT_RUN_BOUNDARY',
-  'CHAT_PROMOTION_HANDOFF_RESOLVED',
-  'CHAT_UI_SUBMIT',
-  'CHAT_MODEL_ADAPTER_START',
-  'CHAT_ROUTE_SELECTED',
-]);
-
-const shortId = (id: string | null): string => {
-  if (!id) return '—';
-  return id.length > 10 ? `…${id.slice(-8)}` : id;
-};
-
-function numMeta(event: RuntimeEvent, key: string): number | null {
-  const value = event.metadata?.[key];
-  if (typeof value === 'number') return value;
-  if (typeof value === 'string' && value.trim() !== '' && !Number.isNaN(Number(value))) return Number(value);
-  return null;
-}
-function strMeta(event: RuntimeEvent, key: string): string | null {
-  const value = event.metadata?.[key];
-  return typeof value === 'string' ? value : null;
-}
-
-type DetectorResult = { suspect: boolean; detail: string };
-
-/** A · MESSAGE COUNT DROP — un CHAT_THREAD_IMPORT il cui afterMessageCount
- * è più basso del beforeMessageCount: prova diretta di una cancellazione. */
-function detectMessageCountDrop(events: RuntimeEvent[]): DetectorResult {
-  const hit = events.find((event) => {
-    if (event.eventType !== 'CHAT_THREAD_IMPORT') return false;
-    const before = numMeta(event, 'beforeMessageCount');
-    const after = numMeta(event, 'afterMessageCount');
-    return before !== null && after !== null && after < before;
-  });
-  if (!hit) return { suspect: false, detail: 'nessun calo osservato negli eventi recenti' };
-  return {
-    suspect: true,
-    detail: `${numMeta(hit, 'beforeMessageCount')} → ${numMeta(hit, 'afterMessageCount')} messaggi (${strMeta(hit, 'caller') ?? strMeta(hit, 'reason') ?? '—'})`,
-  };
-}
-
-/** B · OFF-BRANCH — il repository contiene più messaggi di quanti il
- * branch attivo ne renderizzi. Calcolato dal vivo, non dagli eventi. */
-function detectOffBranch(snapshot: ChatLiveThreadSnapshot | null): DetectorResult & { count: number } {
-  if (!snapshot) return { suspect: false, detail: 'nessuno snapshot ancora', count: 0 };
-  const count = snapshot.repositoryMessages.length - snapshot.visibleMessageIds.length;
-  if (count <= 0) return { suspect: false, detail: 'repository e branch attivo combaciano', count: 0 };
-  return { suspect: true, detail: `${count} messaggi nel repository non sono nel branch attivo`, count };
-}
-
-/** C · DUPLICATE RUN — due CHAT_RUN_BOUNDARY phase=START con lo stesso
- * parentId nella stessa finestra di eventi osservata. */
-function detectDuplicateRun(events: RuntimeEvent[]): DetectorResult {
-  const starts = events.filter((event) => event.eventType === 'CHAT_RUN_BOUNDARY' && strMeta(event, 'phase') === 'START');
-  const byParent = new Map<string, number>();
-  for (const event of starts) {
-    const parentId = strMeta(event, 'parentId');
-    if (!parentId) continue;
-    byParent.set(parentId, (byParent.get(parentId) ?? 0) + 1);
-  }
-  const duplicated = [...byParent.entries()].find(([, count]) => count > 1);
-  if (!duplicated) return { suspect: false, detail: 'nessuna startRun ripetuta sullo stesso messaggio' };
-  return { suspect: true, detail: `${duplicated[1]} avvii di run per lo stesso messaggio utente` };
-}
-
-/** D · STALE LOAD SUSPECTED — una CHAT_STORAGE_READ o CHAT_HISTORY_LOAD
- * con messageCount più basso del massimo repository live osservato per
- * questo thread. */
-function detectStaleLoad(events: RuntimeEvent[], maxRepoSeen: number | null): DetectorResult {
-  if (maxRepoSeen === null) return { suspect: false, detail: 'nessun repository live osservato ancora' };
-  const hit = events.find((event) => {
-    if (event.eventType !== 'CHAT_STORAGE_READ' && event.eventType !== 'CHAT_HISTORY_LOAD') return false;
-    const count = numMeta(event, 'messageCount');
-    return count !== null && count < maxRepoSeen;
-  });
-  if (!hit) return { suspect: false, detail: `nessuna lettura più corta di ${maxRepoSeen} messaggi` };
-  return { suspect: true, detail: `${hit.eventType}: ${numMeta(hit, 'messageCount')} < ${maxRepoSeen} osservati dal vivo` };
-}
+import { shortId, useChatLiveDebug, type DetectorResult } from '../../system/useChatLiveDebug';
 
 function Detector({ label, result }: { label: string; result: DetectorResult }) {
   return (
@@ -124,67 +42,9 @@ function Detector({ label, result }: { label: string; result: DetectorResult }) 
 }
 
 export function LiveDebug() {
-  const token = useApp((s) => s.token);
-  const liveSnapshot = useSyncExternalStore(subscribeChatLiveSnapshot, currentChatLiveSnapshot, currentChatLiveSnapshot);
-
-  const [events, setEvents] = useState<RuntimeEvent[]>([]);
-  const [eventsFailed, setEventsFailed] = useState(false);
-  const [frozen, setFrozen] = useState(false);
-  const [frozenSnapshot, setFrozenSnapshot] = useState<ChatLiveThreadSnapshot | null>(null);
-  const [frozenEvents, setFrozenEvents] = useState<RuntimeEvent[]>([]);
-  const [clearedAt, setClearedAt] = useState(0);
-  const [maxRepoSeen, setMaxRepoSeen] = useState<number | null>(null);
-
-  /* LIVE EVENTS — riusa /api/runtime-log già esistente, aggiornamento a
-     ~1s come richiesto: nessun WebSocket, nessun secondo sistema di log. */
-  useEffect(() => {
-    if (frozen) return;
-    let cancelled = false;
-    const poll = () => {
-      void loadRuntimeLog(token).then(({ data, failure }) => {
-        if (cancelled) return;
-        if (failure || !data) { setEventsFailed(true); return; }
-        setEventsFailed(false);
-        setEvents(data.events.filter((event) => CHAT_EVENT_TYPES.has(event.eventType)));
-      });
-    };
-    poll();
-    const interval = setInterval(poll, 1000);
-    return () => { cancelled = true; clearInterval(interval); };
-  }, [token, frozen]);
-
-  /* Massimo REPOSITORY MESSAGES osservato dal vivo per questo thread —
-     serve solo al detector D, MAI usato per correggere/reimportare nulla. */
-  useEffect(() => {
-    if (frozen || !liveSnapshot) return;
-    setMaxRepoSeen((prev) => (prev === null || liveSnapshot.repositoryMessages.length > prev ? liveSnapshot.repositoryMessages.length : prev));
-  }, [liveSnapshot, frozen]);
-
-  const onFreeze = () => {
-    setFrozenSnapshot(liveSnapshot);
-    setFrozenEvents(events);
-    setFrozen(true);
-  };
-  const onResume = () => {
-    setFrozen(false);
-    setFrozenSnapshot(null);
-    setFrozenEvents([]);
-  };
-  const onClearView = () => {
-    setClearedAt(Date.now());
-    setMaxRepoSeen(null);
-  };
-
-  const activeSnapshot = frozen ? frozenSnapshot : liveSnapshot;
-  const activeEvents = frozen ? frozenEvents : events;
-  const eventsSinceClear = activeEvents.filter((event) => new Date(event.timestamp).getTime() >= clearedAt);
+  const { snapshot, eventsSinceClear, eventsFailed, frozen, freeze, resume, clearView, detectors } = useChatLiveDebug();
   const visibleEvents = eventsSinceClear.slice(0, 30);
-  const activeBranchIds = new Set(activeSnapshot?.visibleMessageIds ?? []);
-
-  const offBranch = detectOffBranch(activeSnapshot);
-  const messageCountDrop = detectMessageCountDrop(eventsSinceClear);
-  const duplicateRun = detectDuplicateRun(eventsSinceClear);
-  const staleLoad = detectStaleLoad(eventsSinceClear, maxRepoSeen);
+  const activeBranchIds = new Set(snapshot?.visibleMessageIds ?? []);
 
   return (
     <section className="page active">
@@ -196,39 +56,47 @@ export function LiveDebug() {
       <div className="livedebug-status">
         <Status label={frozen ? 'FROZEN' : 'LIVE'} ok={!frozen} />
         <span className="note" style={{ margin: 0 }}>
-          {activeSnapshot ? `aggiornato ${new Date(activeSnapshot.updatedAt).toLocaleTimeString('it-IT')}` : 'in attesa del primo snapshot dalla chat…'}
+          {snapshot ? `aggiornato ${new Date(snapshot.updatedAt).toLocaleTimeString('it-IT')}` : 'in attesa del primo snapshot dalla chat…'}
         </span>
       </div>
+
+      {!snapshot && (
+        <p className="note">
+          Se la Chat non è aperta in questa stessa pagina: LAB e Chat sono due pagine separate
+          e lo snapshot runtime-only non le attraversa. Apri LIVE DEBUG dalla Chat stessa
+          (pulsante DEBUG, visibile con DEV attivo) mentre il primo turno succede.
+        </p>
+      )}
 
       {frozen && (
         <div className="livedebug-frozen mono">
           <span>vista congelata — la chat continua a girare normalmente</span>
-          <Btn onClick={onResume}>RESUME</Btn>
+          <Btn onClick={resume}>RESUME</Btn>
         </div>
       )}
 
       <Section title="THREAD">
         <Rows
           rows={[
-            ['THREAD ID', shortId(activeSnapshot?.threadId ?? null)],
-            ['REMOTE ID', shortId(activeSnapshot?.remoteId ?? null)],
-            ['HEAD ID', shortId(activeSnapshot?.headId ?? null)],
-            ['VISIBLE MESSAGES', String(activeSnapshot?.visibleMessageIds.length ?? '—')],
-            ['REPOSITORY MESSAGES', String(activeSnapshot?.repositoryMessages.length ?? '—')],
-            ['RUN STATUS', activeSnapshot ? activeSnapshot.runStatus.toUpperCase() : '—'],
-            ['LAST UPDATE', activeSnapshot ? new Date(activeSnapshot.updatedAt).toLocaleTimeString('it-IT') : '—'],
+            ['THREAD ID', shortId(snapshot?.threadId ?? null)],
+            ['REMOTE ID', shortId(snapshot?.remoteId ?? null)],
+            ['HEAD ID', shortId(snapshot?.headId ?? null)],
+            ['VISIBLE MESSAGES', String(snapshot?.visibleMessageIds.length ?? '—')],
+            ['REPOSITORY MESSAGES', String(snapshot?.repositoryMessages.length ?? '—')],
+            ['RUN STATUS', snapshot ? snapshot.runStatus.toUpperCase() : '—'],
+            ['LAST UPDATE', snapshot ? new Date(snapshot.updatedAt).toLocaleTimeString('it-IT') : '—'],
           ]}
         />
       </Section>
 
       <Section
         title="CURRENT THREAD"
-        note={!activeSnapshot ? 'Apri una chat per vedere i dati reali.' : undefined}
+        note={!snapshot ? 'Apri una chat, nella stessa pagina, per vedere i dati reali.' : undefined}
       >
-        {offBranch.suspect && <p className="livedebug-offbranch mono">OFF-BRANCH MESSAGES: {offBranch.count}</p>}
-        {activeSnapshot && activeSnapshot.repositoryMessages.length > 0 && (
+        {detectors.offBranch.suspect && <p className="livedebug-offbranch mono">OFF-BRANCH MESSAGES: {detectors.offBranch.count}</p>}
+        {snapshot && snapshot.repositoryMessages.length > 0 && (
           <div className="livedebug-msglist">
-            {activeSnapshot.repositoryMessages.map((message) => (
+            {snapshot.repositoryMessages.map((message) => (
               <div className="livedebug-msgrow" key={message.id}>
                 <div>
                   <div className="livedebug-msgrow__id mono">{shortId(message.id)}</div>
@@ -237,7 +105,7 @@ export function LiveDebug() {
                 <div className="livedebug-msgrow__meta mono">
                   {activeBranchIds.has(message.id) ? 'BRANCH: YES' : 'BRANCH: NO'}
                   <br />
-                  {message.id === activeSnapshot.headId ? 'HEAD: YES' : 'HEAD: NO'}
+                  {message.id === snapshot.headId ? 'HEAD: YES' : 'HEAD: NO'}
                 </div>
               </div>
             ))}
@@ -247,16 +115,16 @@ export function LiveDebug() {
 
       <Section title="BUG DETECTORS" note="Solo visivi: nessuna correzione automatica.">
         <div className="livedebug-detectors">
-          <Detector label="A · MESSAGE COUNT DROP" result={messageCountDrop} />
-          <Detector label="B · OFF-BRANCH" result={offBranch} />
-          <Detector label="C · DUPLICATE RUN" result={duplicateRun} />
-          <Detector label="D · STALE LOAD SUSPECTED" result={staleLoad} />
+          <Detector label="A · MESSAGE COUNT DROP" result={detectors.messageCountDrop} />
+          <Detector label="B · OFF-BRANCH" result={detectors.offBranch} />
+          <Detector label="C · DUPLICATE RUN" result={detectors.duplicateRun} />
+          <Detector label="D · STALE LOAD SUSPECTED" result={detectors.staleLoad} />
         </div>
       </Section>
 
       <div className="livedebug-actions">
-        {frozen ? <Btn variant="dark" onClick={onResume}>RESUME</Btn> : <Btn onClick={onFreeze}>FREEZE</Btn>}
-        <Btn onClick={onClearView}>CLEAR VIEW</Btn>
+        {frozen ? <Btn variant="dark" onClick={resume}>RESUME</Btn> : <Btn onClick={freeze}>FREEZE</Btn>}
+        <Btn onClick={clearView}>CLEAR VIEW</Btn>
       </div>
 
       <Section

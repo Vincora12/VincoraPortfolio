@@ -15,6 +15,7 @@ import {
 } from "@assistant-ui/react";
 import { postChatDiagnostic, postRuntimeEvent } from "@/system/runtimeLog";
 import { publishChatLiveSnapshot } from "@/system/chatLiveDebug";
+import { shortId, useChatLiveDebug, type DetectorResult } from "@/system/useChatLiveDebug";
 import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type FC } from "react";
 import { createPortal } from "react-dom";
 import { useMessageError } from "@assistant-ui/core/react";
@@ -161,6 +162,7 @@ export const ChatGPT: FC = () => {
       <ConversationMemory />
       <ConversationLifecycle />
       <ChatLiveDebugPublisher />
+      <ChatDebugTrigger />
       <MonPresenceEvents />
       <ThreadPrimitive.Root className="flex h-full flex-col items-stretch bg-white px-4 text-[#0d0d0d] dark:bg-black dark:text-[#ececec]">
         <AuiIf condition={(s) => s.thread.isEmpty}>
@@ -295,6 +297,159 @@ const ChatLiveDebugPublisher: FC = () => {
     return aui.subscribe(publish);
   }, [aui]);
   return null;
+};
+
+/* LIVE DEBUG — overlay dentro la Chat stessa (non nel LAB).
+
+   🔴 «in attesa del primo snapshot dalla chat…» sempre, sul device
+   reale: LAB e Chat sono due pagine separate (lab/index.html vs
+   index.html — window.location.assign('/lab/') in App.tsx è una vera
+   navigazione), quindi due heap JavaScript diversi. Lo snapshot
+   runtime-only di chatLiveDebug.ts non attraversa quel confine per
+   costruzione. Questo overlay vive nello STESSO runtime del publisher
+   (ChatLiveDebugPublisher, sopra), quindi lo vede sempre.
+
+   Stessa logica del LAB (../../../system/useChatLiveDebug — un solo
+   debugger, due vestiti), stesso criterio di visibilità del pulsante
+   DEV già usato altrove nell'app (useApp((s) => s.dev.enabled)). */
+const ChatDebugTrigger: FC = () => {
+  const devEnabled = useApp((s) => s.dev.enabled);
+  const [open, setOpen] = useState(false);
+  if (!devEnabled) return null;
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        aria-label="Apri live debug"
+        className="fixed bottom-24 right-3 z-[90] rounded-full border border-black/20 bg-white/90 px-3 py-1.5 text-[10px] font-bold tracking-wide text-black/70 shadow-sm backdrop-blur dark:border-white/20 dark:bg-black/70 dark:text-white/70"
+      >
+        DEBUG
+      </button>
+      {open && <ChatDebugOverlay onClose={() => setOpen(false)} />}
+    </>
+  );
+};
+
+const ChatDebugRow: FC<{ label: string; value: string }> = ({ label, value }) => (
+  <div className="flex justify-between border-b border-black/5 py-1 dark:border-white/5">
+    <span className="text-black/50 dark:text-white/50">{label}</span>
+    <span className="font-semibold">{value}</span>
+  </div>
+);
+
+const ChatDebugDetectorTile: FC<{ label: string; result: DetectorResult }> = ({ label, result }) => (
+  <div className={`rounded-md border px-2 py-1.5 ${result.suspect ? "border-red-600" : "border-black/15 dark:border-white/15"}`}>
+    <div className="font-semibold">{label}</div>
+    <div className={`text-[11px] font-black ${result.suspect ? "text-red-600" : ""}`}>{result.suspect ? "SUSPECT" : "OK"}</div>
+    <div className="text-black/50 dark:text-white/50">{result.detail}</div>
+  </div>
+);
+
+const ChatDebugOverlay: FC<{ onClose: () => void }> = ({ onClose }) => {
+  const { snapshot, eventsSinceClear, eventsFailed, frozen, freeze, resume, clearView, detectors } = useChatLiveDebug();
+  const visibleEvents = eventsSinceClear.slice(0, 30);
+  const activeBranchIds = new Set(snapshot?.visibleMessageIds ?? []);
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-end bg-black/65 p-3 sm:items-center sm:justify-center" role="dialog" aria-modal="true" aria-label="Live debug">
+      <div className="flex max-h-[85vh] w-full max-w-md flex-col overflow-hidden rounded-2xl bg-white text-[#0d0d0d] dark:bg-[#141414] dark:text-[#ececec] sm:max-h-[80vh]">
+        <div className="flex items-center justify-between border-b border-black/10 px-4 py-3 dark:border-white/10">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-semibold">LIVE DEBUG</span>
+            <span
+              className={`rounded-full px-2 py-0.5 text-[10px] font-bold tracking-wide ${
+                frozen ? "bg-black/10 text-black/60 dark:bg-white/15 dark:text-white/70" : "bg-black text-white dark:bg-white dark:text-black"
+              }`}
+            >
+              {frozen ? "FROZEN" : "LIVE"}
+            </span>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Chiudi live debug" className="rounded-full p-2 hover:bg-black/5 dark:hover:bg-white/10">
+            <XIcon size={18} />
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto px-4 py-3 text-xs">
+          {!snapshot ? (
+            <p className="text-black/50 dark:text-white/50">in attesa del primo snapshot dalla chat…</p>
+          ) : (
+            <>
+              <ChatDebugRow label="THREAD ID" value={shortId(snapshot.threadId)} />
+              <ChatDebugRow label="REMOTE ID" value={shortId(snapshot.remoteId)} />
+              <ChatDebugRow label="HEAD ID" value={shortId(snapshot.headId)} />
+              <ChatDebugRow label="VISIBLE MESSAGES" value={String(snapshot.visibleMessageIds.length)} />
+              <ChatDebugRow label="REPOSITORY MESSAGES" value={String(snapshot.repositoryMessages.length)} />
+              <ChatDebugRow label="RUN STATUS" value={snapshot.runStatus.toUpperCase()} />
+            </>
+          )}
+
+          {detectors.offBranch.suspect && (
+            <p className="mt-3 rounded-md border border-red-600 px-2 py-1.5 text-[11px] font-bold text-red-600">
+              OFF-BRANCH MESSAGES: {detectors.offBranch.count}
+            </p>
+          )}
+
+          {snapshot && snapshot.repositoryMessages.length > 0 && (
+            <div className="mt-3 divide-y divide-black/10 border-t border-black/10 dark:divide-white/10 dark:border-white/10">
+              {snapshot.repositoryMessages.map((message) => (
+                <div key={message.id} className="flex items-center justify-between gap-2 py-1.5">
+                  <div>
+                    <div className="font-semibold">{shortId(message.id)}</div>
+                    <div className="text-black/50 dark:text-white/50">{message.role.toUpperCase()} · parent {shortId(message.parentId)}</div>
+                  </div>
+                  <div className="text-right text-black/50 dark:text-white/50">
+                    {activeBranchIds.has(message.id) ? "BRANCH: YES" : "BRANCH: NO"}
+                    <br />
+                    {message.id === snapshot.headId ? "HEAD: YES" : "HEAD: NO"}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            <ChatDebugDetectorTile label="A · MESSAGE COUNT DROP" result={detectors.messageCountDrop} />
+            <ChatDebugDetectorTile label="B · OFF-BRANCH" result={detectors.offBranch} />
+            <ChatDebugDetectorTile label="C · DUPLICATE RUN" result={detectors.duplicateRun} />
+            <ChatDebugDetectorTile label="D · STALE LOAD" result={detectors.staleLoad} />
+          </div>
+
+          <div className="mt-4">
+            <div className="mb-1 font-semibold">LIVE EVENTS</div>
+            {eventsFailed && <p className="text-black/50 dark:text-white/50">Runtime Log non disponibile.</p>}
+            {visibleEvents.length === 0 ? (
+              <p className="text-black/50 dark:text-white/50">Nessun evento recente.</p>
+            ) : (
+              <div className="max-h-40 space-y-1.5 overflow-y-auto border-t border-black/10 pt-1.5 dark:border-white/10">
+                {visibleEvents.map((event) => (
+                  <div key={event.id} className="border-b border-black/5 pb-1.5 dark:border-white/5">
+                    <div className="flex justify-between">
+                      <span>{new Date(event.timestamp).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</span>
+                      <span>{event.eventType} · {event.status}</span>
+                    </div>
+                    {event.metadata && Object.keys(event.metadata).length > 0 && (
+                      <div className="break-all text-black/50 dark:text-white/50">
+                        {Object.entries(event.metadata).map(([key, value]) => `${key}=${String(value)}`).join("  ")}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="flex gap-2 border-t border-black/10 px-4 py-3 dark:border-white/10">
+          {frozen ? (
+            <button type="button" onClick={resume} className="flex-1 rounded-full bg-[#0d0d0d] px-3 py-2 text-xs font-bold text-white dark:bg-white dark:text-black">RESUME</button>
+          ) : (
+            <button type="button" onClick={freeze} className="flex-1 rounded-full border border-[#0d0d0d] px-3 py-2 text-xs font-bold dark:border-white">FREEZE</button>
+          )}
+          <button type="button" onClick={clearView} className="flex-1 rounded-full border border-[#0d0d0d] px-3 py-2 text-xs font-bold dark:border-white">CLEAR VIEW</button>
+          <button type="button" onClick={onClose} className="flex-1 rounded-full border border-[#0d0d0d] px-3 py-2 text-xs font-bold dark:border-white">CLOSE</button>
+        </div>
+      </div>
+    </div>
+  );
 };
 
 /* 🔷 «La barra della chat non metterla mai al centro, sempre in basso.»
