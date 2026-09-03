@@ -13,5 +13,8 @@ node_modules/.vinz-backend-check.mjs
 # ragione: il modulo sotto esame e' TypeScript con import senza estensione).
 node_modules/.vinz-chat-lifecycle.mjs
 
+# Bundle temporaneo di scripts/v2-issues-check.mjs (stessa ragione).
+node_modules/.vinz-v2-issues-check.mjs
+
 # Local Netlify folder
 .netlify

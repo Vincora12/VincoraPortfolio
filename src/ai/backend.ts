@@ -25,6 +25,7 @@
 
 /** Cosa si può chiedere. Gli stessi nomi che il backend conosce. */
 import type { Lesson } from '../engine/types';
+import type { V2Issue } from './v2Issues';
 
 export type Capability = 'character-voice' | 'vision-quick' | 'text-cheap' | 'image' | 'prompt-compile';
 
@@ -417,6 +418,28 @@ export interface RuntimeEvent {
 }
 export function loadRuntimeLog(token: string | null): Promise<BackendResult<{ events: RuntimeEvent[] }>> {
   return post<{ events: RuntimeEvent[] }>('/api/runtime-log', token, undefined, 'GET');
+}
+
+/** V2 ISSUES — conoscenza di prodotto per la ricostruzione pulita, non
+ * osservabilità tecnica. Vedi docs/PROTOTYPE_V1_STATUS.md e
+ * netlify/functions/v2-issues.ts: unica fonte di verità server-side,
+ * mai Mem0/localStorage/Runtime Log. */
+export function loadV2Issues(token: string | null): Promise<BackendResult<{ issues: V2Issue[] }>> {
+  return post<{ issues: V2Issue[] }>('/api/v2-issues', token, undefined, 'GET');
+}
+
+export function createV2Issue(
+  token: string | null,
+  input: {
+    title: string;
+    area: V2Issue['area'];
+    type: V2Issue['type'];
+    observation: string;
+    expectedBehavior?: string;
+    finalRequirement?: string;
+  },
+): Promise<BackendResult<{ issue: V2Issue; merged: boolean }>> {
+  return post<{ issue: V2Issue; merged: boolean }>('/api/v2-issues', token, input, 'POST');
 }
 
 /** Una richiesta di testo o immagine allo strato AI. */

@@ -23,7 +23,8 @@ import { useApp } from '../../state/store';
 import { STAT_KEYS, UNKNOWN, isKnown } from '../../engine/types';
 import type { StatKey } from '../../engine/types';
 import { DAILY_SIGNALS, DAILY_SIGNAL_LABELS } from '../../engine/progression';
-import { loadPing, loadSetup, loadShortcutStatus, loadUsage, saveMonthlyCap, loadRuntimeLog, type ShortcutStatus, type UsageDashboard, type RuntimeEvent } from '../../ai/backend';
+import { loadPing, loadSetup, loadShortcutStatus, loadUsage, saveMonthlyCap, loadRuntimeLog, loadV2Issues, type ShortcutStatus, type UsageDashboard, type RuntimeEvent } from '../../ai/backend';
+import type { V2Issue } from '../../ai/v2Issues';
 import { lastRuns } from '../../ai/telemetry';
 import { freshSecret } from '../../engine/secret';
 import { estimateMonthlyCost } from '../../engine/costEstimate';
@@ -78,6 +79,10 @@ const TABS = [
      questa scheda. */
   { id: 'shortcuts', label: 'SHORTCUTS' },
   { id: 'assistant', label: '🤖 ASSISTENTE' },
+  /* VINZ.MON PROTOTYPE V1 → V2 (docs/PROTOTYPE_V1_STATUS.md). Sola
+     lettura: la cattura resta nella Chat, qui si legge solo l'elenco
+     canonico server-side — non un secondo posto dove editarlo. */
+  { id: 'v2-issues', label: 'V2 ISSUES' },
 ];
 
 export function SystemLab({ onBack }: { onBack: () => void }) {
@@ -98,6 +103,7 @@ export function SystemLab({ onBack }: { onBack: () => void }) {
         {tab === 'live-debug' && <LiveDebug />}
         {tab === 'shortcuts' && <Shortcuts />}
         {tab === 'assistant' && <LabAssistantPanel />}
+        {tab === 'v2-issues' && <V2Issues />}
         <div className="footer mono">SYSTEM.LAB · SAME VINZ.MON ENGINE / SAME REPOSITORY</div>
       </main>
     </div>
@@ -949,6 +955,92 @@ function RuntimeLog() {
   return <section className="page active"><PageHead kicker="SYSTEM.LAB / OBSERVABILITY" title="RUNTIME LOG" lead="Ultime 48 ore di eventi tecnici, senza contenuti personali." />
     {!events ? <p className="note">Lettura del registro…</p> : error ? <p className="note">Runtime Log non disponibile: verifica autenticazione o server.</p> : events.length === 0 ? <p className="note">Nessun evento recente.</p> : <Section title="LAST 48H"><Rows rows={events.map((event) => [`${new Date(event.timestamp).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}  ${event.scope.toUpperCase()}`, `${event.eventType} · ${event.status}${event.model ? ` · ${event.model}` : ''}${event.error ? ` · ${event.error}` : ''}`])} /></Section>}
   </section>;
+}
+
+/* ============================================================================
+   V2 ISSUES (LAB → SYSTEM → V2 ISSUES)
+
+   VINZ.MON PROTOTYPE V1 → V2 (docs/PROTOTYPE_V1_STATUS.md,
+   docs/V2_ISSUES.md). Sola lettura della fonte canonica server-side
+   (netlify/functions/v2-issues.ts) — la cattura resta nella Chat
+   ("Segna per la V2 che..."), qui si guarda soltanto. Niente Kanban,
+   niente editing: un elenco e, al tocco, i tre campi che contano per
+   ricostruire V2.
+   ========================================================================= */
+
+function V2Issues() {
+  const token = useApp((s) => s.token);
+  const [issues, setIssues] = useState<V2Issue[] | null>(null);
+  const [error, setError] = useState(false);
+  const [openId, setOpenId] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    setIssues(null);
+    setError(false);
+    void loadV2Issues(token).then(({ data, failure }) => {
+      if (cancelled) return;
+      if (failure || !data) {
+        setError(true);
+        setIssues([]);
+      } else {
+        setIssues(data.issues);
+      }
+    });
+    return () => { cancelled = true; };
+  }, [token]);
+  const open = issues && issues.length > 0
+    ? issues.filter((issue) => issue.status === 'OPEN').length
+    : 0;
+  const closed = issues ? issues.length - open : 0;
+  return (
+    <section className="page active">
+      <PageHead
+        kicker="SYSTEM.LAB / PROTOTYPE → V2"
+        title="V2 ISSUES"
+        lead="Requisiti registrati usando il prototipo, per ricostruire VINZ.MON da zero. Si aggiungono dalla Chat («Segna per la V2 che…»), non da qui."
+      />
+      {!issues ? <p className="note">Lettura dell'elenco…</p>
+        : error ? <p className="note">V2 Issues non disponibile: verifica autenticazione o server.</p>
+        : issues.length === 0 ? <p className="note">Nessun issue registrato ancora.</p>
+        : (
+          <>
+            <Section title="TOTALI">
+              <Rows rows={[
+                ['TOTAL', String(issues.length)],
+                ['OPEN', String(open)],
+                ['CLOSED', String(closed)],
+              ]} />
+            </Section>
+            <Section title="ELENCO" note="Tocca una riga per vedere osservazione, comportamento atteso e requisito finale.">
+              {issues.slice().reverse().map((issue) => {
+                const expanded = openId === issue.id;
+                return (
+                  <div key={issue.id} className="v2-issue-row">
+                    <button
+                      type="button"
+                      className="row v2-issue-row__head"
+                      onClick={() => setOpenId(expanded ? null : issue.id)}
+                      aria-expanded={expanded}
+                    >
+                      <span>{issue.id} · {issue.title}</span>
+                      <span className="value mono">{issue.area} · {issue.type} · {issue.status}</span>
+                    </button>
+                    {expanded && (
+                      <div className="v2-issue-row__detail">
+                        <p><strong>OBSERVATION</strong><br />{issue.observation}</p>
+                        <p><strong>EXPECTED FINAL BEHAVIOR</strong><br />{issue.expectedBehavior || '—'}</p>
+                        <p><strong>FINAL REQUIREMENT</strong><br />{issue.finalRequirement || '—'}</p>
+                        <p className="note">creato {new Date(issue.createdAt).toLocaleDateString('it-IT')} · aggiornato {new Date(issue.updatedAt).toLocaleDateString('it-IT')}</p>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </Section>
+          </>
+        )}
+    </section>
+  );
 }
 
 /* ============================================================================
