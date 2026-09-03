@@ -21,7 +21,7 @@ import {
   currentRepositoryOperation,
 } from "@/system/chatLiveDebug";
 import { shortId, useChatLiveDebug, type DetectorResult, type ChatLiveDebugState, type ChatIncident } from "@/system/useChatLiveDebug";
-import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type FC } from "react";
+import { useContext, useEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type FC } from "react";
 import { createPortal } from "react-dom";
 import { useMessageError } from "@assistant-ui/core/react";
 import { TooltipIconButton } from "@/assistant-original/components/assistant-ui/tooltip-icon-button";
@@ -33,9 +33,9 @@ import { memoryTrace } from "@/assistant-original/chat-memory-feedback";
 import {
   acquireRunOwnership,
   consumePromotedRepository,
+  GateMarkLiveContext,
   isLocalUnsavedSession,
   newLocalMessageId,
-  notifyLiveSessionImportAcquired,
   openingStillWelcome,
   promoteLocalSession,
   repositoryWithMessage,
@@ -109,6 +109,7 @@ const importWithObservability = (
   caller: string,
   reason: string,
   repository: Parameters<AuiHandle['thread']['import']>[0],
+  markLive: (() => void) | null,
 ): void => {
   const before = auiSnapshot(aui);
   /* import() è sincrono da cima a fondo (clear()+import()+resetHead(),
@@ -120,8 +121,10 @@ const importWithObservability = (
      tocca mai l'adapter history (confermato: BaseThreadRuntimeCore.import()
      non chiama adapters.history). Senza questo, una history.load() già in
      volo nel momento in cui QUESTO import atterra verrebbe ancora fidata e
-     potrebbe cancellarlo. */
-  notifyLiveSessionImportAcquired();
+     potrebbe cancellarlo. `markLive` arriva da GateMarkLiveContext — il
+     gate DI QUESTO thread, non un puntatore globale che un altro gate
+     montato altrove potrebbe aver sovrascritto. */
+  markLive?.();
   aui.thread.import(repository);
   endRepositoryOperation();
   const after = auiSnapshot(aui);
@@ -269,6 +272,7 @@ const ConversationMemory: FC = () => {
 
 const ConversationLifecycle: FC = () => {
   const aui = useAui();
+  const markLive = useContext(GateMarkLiveContext);
   const { threadId, remoteId, readyToPromote } = useAuiState(
     useShallow((state) => ({
       threadId: state.threads.mainThreadId,
@@ -291,14 +295,14 @@ const ConversationLifecycle: FC = () => {
     const handoff = consumePromotedRepository(remoteId);
     if (!handoff) return;
     const resolution = resolvePromotionHandoff(aui.thread.export(), handoff);
-    if (resolution.shouldImport) importWithObservability(aui, 'ConversationLifecycle', resolution.reason, handoff);
+    if (resolution.shouldImport) importWithObservability(aui, 'ConversationLifecycle', resolution.reason, handoff, markLive);
     postRuntimeEvent({
       eventType: 'CHAT_PROMOTION_HANDOFF_RESOLVED',
       status: 'PASS',
       scope: 'chat',
       metadata: { reason: resolution.reason },
     });
-  }, [aui, remoteId]);
+  }, [aui, remoteId, markLive]);
   useEffect(() => {
     if (!readyToPromote || !isLocalUnsavedSession(threadId)) return;
     void promoteLocalSession(threadId, aui.thread.export()).catch((error: unknown) => {
@@ -690,6 +694,7 @@ const monLabel = (name: string) => name.toLocaleLowerCase('it').endsWith('.mon')
  * nella stanza corrente produce anche un'uscita. */
 const MonPresenceEvents: FC = () => {
   const aui = useAui();
+  const markLive = useContext(GateMarkLiveContext);
   const activeMonKey = useApp((state) => state.activeMonName);
   const record = useApp((state) =>
     state.activeMonName ? state.mons[state.activeMonName] ?? null : null,
@@ -729,7 +734,7 @@ const MonPresenceEvents: FC = () => {
      giusta: è anche ciò che lo persiste. */
   const insertPresenceMessage = (message: ThreadMessage, reason: string) => {
     if (isLocalUnsavedSession(threadId)) {
-      importWithObservability(aui, 'MonPresenceEvents', reason, repositoryWithMessage(aui.thread.export(), message));
+      importWithObservability(aui, 'MonPresenceEvents', reason, repositoryWithMessage(aui.thread.export(), message), markLive);
       return;
     }
     aui.thread.append({
@@ -877,6 +882,7 @@ const SystemEventMessage: FC = () => {
 
 const Composer: FC<{ placeholder: string }> = ({ placeholder }) => {
   const aui = useAui();
+  const markLive = useContext(GateMarkLiveContext);
   const threadId = useAuiState((state) => state.threads.mainThreadId);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const waveRef = useRef<HTMLDivElement>(null);
@@ -938,7 +944,7 @@ const Composer: FC<{ placeholder: string }> = ({ placeholder }) => {
     if (!isLocalUnsavedSession(threadId)) return null;
     const composer = aui.thread.composer();
     const pending = repositoryWithPendingUser(aui.thread.export(), composer.getState().text.trim());
-    importWithObservability(aui, 'promoteBeforeSend', 'FIRST_SEND', pending.repository);
+    importWithObservability(aui, 'promoteBeforeSend', 'FIRST_SEND', pending.repository, markLive);
     await promoteLocalSession(threadId, pending.repository);
     composer.setText("");
     composer.clearAttachments();

@@ -18,7 +18,7 @@ import "./styles.css";
 import { migrateStoragePrefix, serverBackedStorage } from "@/system/serverStorage";
 import { useApp } from "@/state/store";
 import { ensureContrastOnBlack, ensureContrastOnWhite, readableOn } from "@/engine/colorDna";
-import { createOwnershipGatedHistoryAdapter, withLocalUnsavedSession } from "./conversation-lifecycle-adapter";
+import { createOwnershipGatedHistoryAdapter, GateMarkLiveContext, withLocalUnsavedSession } from "./conversation-lifecycle-adapter";
 
 export const persistentThreadAdapter = createLocalStorageAdapter({
   storage: serverBackedStorage,
@@ -32,18 +32,29 @@ export const persistentThreadAdapter = createLocalStorageAdapter({
    closure — un-acquired at mount — naturally starts over for every new
    thread/reload, never leaking ownership across threads. See the invariant
    and mechanism written up next to `createOwnershipGatedHistoryAdapter` in
-   conversation-lifecycle-adapter.ts. */
+   conversation-lifecycle-adapter.ts.
+
+   🔴 `RemoteThreadListHookInstanceManager` keeps more than one instance
+   mounted at a time (not just the thread on screen), so more than one
+   `HistoryOwnershipGate` can exist simultaneously. `markLive` is
+   therefore provided through `GateMarkLiveContext` scoped to THIS gate's
+   own subtree, not through a module-level pointer shared by all of
+   them — see the comment on `GateMarkLiveContext` for the on-device
+   incident that caught the module-level version marking the wrong
+   gate. */
 const HistoryOwnershipGate: FC<PropsWithChildren> = ({ children }) => {
   const adapters = useRuntimeAdapters();
   const realHistory = adapters?.history;
-  const gatedHistory = useMemo(
+  const gated = useMemo(
     () => (realHistory ? createOwnershipGatedHistoryAdapter(realHistory) : undefined),
     [realHistory],
   );
-  if (!gatedHistory) return <>{children}</>;
+  if (!gated) return <>{children}</>;
   return (
-    <RuntimeAdapterProvider adapters={{ history: gatedHistory }}>
-      {children}
+    <RuntimeAdapterProvider adapters={{ history: gated.adapter }}>
+      <GateMarkLiveContext.Provider value={gated.markLive}>
+        {children}
+      </GateMarkLiveContext.Provider>
     </RuntimeAdapterProvider>
   );
 };

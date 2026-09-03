@@ -20,7 +20,7 @@ const out = join(cwd, "node_modules", ".vinz-chat-lifecycle.mjs");
 
 writeFileSync(
   entry,
-  `export { acquireRunOwnership, consumePromotedRepository, createOwnershipGatedHistoryAdapter, discardLocalSession, hasRunOwnership, isLocalUnsavedSession, notifyLiveSessionImportAcquired, openingStillWelcome, promoteLocalSession, repositoryWithMessage, resolvePromotionHandoff, withLocalUnsavedSession } from '${cwd}/src/assistant-original/conversation-lifecycle-adapter.ts';\n`,
+  `export { acquireRunOwnership, consumePromotedRepository, createOwnershipGatedHistoryAdapter, discardLocalSession, hasRunOwnership, isLocalUnsavedSession, openingStillWelcome, promoteLocalSession, repositoryWithMessage, resolvePromotionHandoff, withLocalUnsavedSession } from '${cwd}/src/assistant-original/conversation-lifecycle-adapter.ts';\n`,
 );
 
 await build({
@@ -40,7 +40,6 @@ const {
   discardLocalSession,
   hasRunOwnership,
   isLocalUnsavedSession,
-  notifyLiveSessionImportAcquired,
   openingStillWelcome,
   promoteLocalSession,
   repositoryWithMessage,
@@ -171,7 +170,7 @@ function deferred() {
     load: async () => ({ headId: "m1", messages: [msg("m1", "user")] }),
     append: async () => {},
   };
-  const gated = createOwnershipGatedHistoryAdapter(real);
+  const { adapter: gated, markLive } = createOwnershipGatedHistoryAdapter(real);
   const result = await gated.load();
   assert.deepEqual(result, { headId: "m1", messages: [msg("m1", "user")] }, "HISTORY A: genuine initial load hydrates normally");
 }
@@ -184,7 +183,7 @@ function deferred() {
     load: async () => { loadCalls += 1; return { headId: "old", messages: [msg("old", "user")] }; },
     append: async () => {},
   };
-  const gated = createOwnershipGatedHistoryAdapter(real);
+  const { adapter: gated, markLive } = createOwnershipGatedHistoryAdapter(real);
   await gated.append(msg("live-1"));
   const result = await gated.load();
   assert.equal(result, undefined, "HISTORY B: a load arriving after live state must be skipped");
@@ -199,7 +198,7 @@ function deferred() {
     load: async () => { await gate.promise; return { headId: "stale", messages: [msg("stale", "user")] }; },
     append: async () => {},
   };
-  const gated = createOwnershipGatedHistoryAdapter(real);
+  const { adapter: gated, markLive } = createOwnershipGatedHistoryAdapter(real);
   const loadPromise = gated.load(); // dispatched while the thread was still empty — legitimate at call time
   await gated.append(msg("promoted-1")); // promotion's live append lands mid-flight
   gate.resolve();
@@ -214,7 +213,7 @@ function deferred() {
     load: async () => ({ headId: "d2", messages: [msg("d1", "user"), msg("d2", "assistant", "d1")] }),
     append: async () => {},
   };
-  const gated = createOwnershipGatedHistoryAdapter(real);
+  const { adapter: gated, markLive } = createOwnershipGatedHistoryAdapter(real);
   const result = await gated.load();
   assert.equal(result.messages.length, 2, "HISTORY D: a fresh mount (reload) still loads its persisted history");
 }
@@ -230,7 +229,7 @@ function deferred() {
     },
     append: async () => {},
   };
-  const gated = createOwnershipGatedHistoryAdapter(real);
+  const { adapter: gated, markLive } = createOwnershipGatedHistoryAdapter(real);
   const loadPromise = gated.load();
   await gated.append(msg("live-1")); // one live-current message
   gate.resolve();
@@ -245,7 +244,7 @@ function deferred() {
     load: async () => ({ headId: "f1", messages: [msg("f1", "user")] }),
     append: async () => {},
   };
-  const gated = createOwnershipGatedHistoryAdapter(real);
+  const { adapter: gated, markLive } = createOwnershipGatedHistoryAdapter(real);
   const result = await gated.load();
   assert.equal(result.messages.length, 1, "HISTORY F: one legitimate message on an empty thread must still load");
 }
@@ -278,9 +277,9 @@ function deferred() {
     load: async () => { await gate.promise; return { headId: "stale-import", messages: [msg("stale-import", "user")] }; },
     append: async () => {},
   };
-  const gated = createOwnershipGatedHistoryAdapter(real);
+  const { adapter: gated, markLive } = createOwnershipGatedHistoryAdapter(real);
   const loadPromise = gated.load(); // legitimate at call time — nothing live yet
-  notifyLiveSessionImportAcquired(); // simulates promoteBeforeSend's/ConversationLifecycle's aui.thread.import()
+  markLive(); // simulates promoteBeforeSend's/ConversationLifecycle's aui.thread.import(), scoped to THIS gate via GateMarkLiveContext
   gate.resolve();
   const result = await loadPromise;
   assert.equal(result, undefined, "CASE 3: a live import must protect the thread exactly like append/update does");
@@ -292,7 +291,7 @@ function deferred() {
     load: async () => ({ headId: "case4", messages: [msg("case4", "user")] }),
     append: async () => {},
   };
-  const gated = createOwnershipGatedHistoryAdapter(real);
+  const { adapter: gated, markLive } = createOwnershipGatedHistoryAdapter(real);
   const result = await gated.load();
   assert.deepEqual(result, { headId: "case4", messages: [msg("case4", "user")] }, "CASE 4: an untouched runtime may still hydrate from history");
 }
@@ -330,7 +329,7 @@ function deferred() {
     load: async () => ({ headId: "case8-b", messages: [msg("case8-a", "user"), msg("case8-b", "assistant", "case8-a")] }),
     append: async () => {},
   };
-  const gated = createOwnershipGatedHistoryAdapter(real);
+  const { adapter: gated, markLive } = createOwnershipGatedHistoryAdapter(real);
   const result = await gated.load();
   assert.equal(result.messages.length, 2, "CASE 8: reloading an existing persistent thread still loads its full history");
 }
@@ -348,7 +347,7 @@ function deferred() {
     load: async () => { loadCalls += 1; return { messages: [] }; },
     append: async () => {},
   };
-  const gated = createOwnershipGatedHistoryAdapter(real);
+  const { adapter: gated, markLive } = createOwnershipGatedHistoryAdapter(real);
   const result = await gated.load();
   assert.equal(loadCalls, 1, "CASE 9: the read still happens — this is about what we do with it");
   assert.equal(result, undefined, "CASE 9: an empty stored repository must never be applied to a live thread");
@@ -358,7 +357,7 @@ function deferred() {
 // nothing to hydrate, and importing it would still resetHead away.
 {
   const real = { load: async () => ({ headId: null, messages: [] }), append: async () => {} };
-  const gated = createOwnershipGatedHistoryAdapter(real);
+  const { adapter: gated, markLive } = createOwnershipGatedHistoryAdapter(real);
   assert.equal(await gated.load(), undefined, "CASE 10: a headId with no messages is still nothing to hydrate");
 }
 
@@ -374,7 +373,7 @@ function deferred() {
     load: async () => { await gate.promise; return { messages: [] }; },
     append: async () => {},
   };
-  const gated = createOwnershipGatedHistoryAdapter(real);
+  const { adapter: gated, markLive } = createOwnershipGatedHistoryAdapter(real);
   const loadPromise = gated.load();
   // deliberately NO append() and NO import notification: exactly the
   // new-chat situation, where neither can reach this adapter.
@@ -389,7 +388,7 @@ function deferred() {
     load: async () => ({ headId: "c12-b", messages: [msg("c12-a", "user"), msg("c12-b", "assistant", "c12-a")] }),
     append: async () => {},
   };
-  const gated = createOwnershipGatedHistoryAdapter(real);
+  const { adapter: gated, markLive } = createOwnershipGatedHistoryAdapter(real);
   const result = await gated.load();
   assert.equal(result.messages.length, 2, "CASE 12: real stored history must still load — the rule is about EMPTY, not about small");
 }
@@ -427,6 +426,71 @@ function deferred() {
     "CASE 14: ENTER is the root and the greeting hangs off it",
   );
   assert.equal(withGreeting.headId, "greeting", "CASE 14: the greeting is the head the user then writes under");
+}
+
+// FIRST TURN — GATE SCOPING (device incident, 2026-09-03: C · DUPLICATE
+// RUN / a real run ending at messageCount=1, detector E blind to it).
+// `RemoteThreadListHookInstanceManager` keeps more than the on-screen
+// thread instance mounted, so more than one `HistoryOwnershipGate` can
+// exist at once. `markLive` used to be a single module-level pointer
+// (`currentGateMarkLive`), overwritten by whichever gate was created
+// last — so an import meant to protect thread A's gate could silently
+// mark thread B's gate instead, leaving A's own in-flight stale read
+// free to resolve later and overwrite A's live content. `markLive` is
+// now returned per gate instance (and threaded through React via
+// `GateMarkLiveContext`, scoped to that gate's own subtree) instead of
+// shared through one global — these two cases prove the isolation this
+// module can prove without mounting React: two simultaneously-open
+// gates never affect each other's `liveAcquired`, in either direction.
+
+// CASE 15 — marking a DIFFERENT gate live must not protect (or corrupt)
+// this one: gate A's own legitimate read still resolves normally.
+{
+  const gateA = deferred();
+  const realA = {
+    load: async () => { await gateA.promise; return { headId: "gate-a", messages: [msg("gate-a", "user")] }; },
+    append: async () => {},
+  };
+  const realB = { load: async () => ({ messages: [] }), append: async () => {} };
+  const { adapter: gatedA } = createOwnershipGatedHistoryAdapter(realA);
+  const loadPromiseA = gatedA.load(); // legitimate at call time — thread A untouched yet
+
+  // Thread B's gate mounts afterward — the "another instance is kept
+  // alive" scenario — and its own import marks its own gate, not A's.
+  const { markLive: markLiveB } = createOwnershipGatedHistoryAdapter(realB);
+  markLiveB();
+
+  gateA.resolve();
+  const resultA = await loadPromiseA;
+  assert.deepEqual(
+    resultA,
+    { headId: "gate-a", messages: [msg("gate-a", "user")] },
+    "CASE 15: a sibling gate's markLive must not affect this gate's own (legitimate) read",
+  );
+}
+
+// CASE 16 — the reverse: marking gate A live must not also protect gate
+// B from a read that is genuinely stale for B.
+{
+  const gateB = deferred();
+  const realA = { load: async () => ({ messages: [] }), append: async () => {} };
+  const realB = {
+    load: async () => { await gateB.promise; return { headId: "stale-b", messages: [msg("stale-b", "user")] }; },
+    append: async () => {},
+  };
+  const { markLive: markLiveA } = createOwnershipGatedHistoryAdapter(realA);
+  const { adapter: gatedB } = createOwnershipGatedHistoryAdapter(realB);
+  const loadPromiseB = gatedB.load(); // legitimate at call time — thread B untouched yet
+
+  markLiveA(); // an import lands for a DIFFERENT thread's gate
+  await gatedB.append(msg("live-b")); // thread B's own genuine live append
+
+  gateB.resolve();
+  assert.equal(
+    await loadPromiseB,
+    undefined,
+    "CASE 16: gate B's own append must still protect it regardless of gate A's unrelated markLive",
+  );
 }
 
 console.log("Conversation lifecycle checks passed.");

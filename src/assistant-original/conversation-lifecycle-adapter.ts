@@ -1,3 +1,4 @@
+import { createContext } from "react";
 import type {
   ExportedMessageRepository,
   RemoteThreadListAdapter,
@@ -264,8 +265,8 @@ export function openingStillWelcome(
  * ANY append (ours or assistant-ui's own composer-submit path, both go
  * through `ThreadHistoryAdapter.append`/`.update`, called synchronously
  * *after* the in-memory repository already mutated) OR by an explicit live
- * `aui.thread.import()` (see `notifyLiveSessionImportAcquired()` below —
- * the confirmed blind spot this left open) — no history read may still
+ * `aui.thread.import()` (see `GateMarkLiveContext` below — the confirmed
+ * blind spot this left open) — no history read may still
  * resolve into an import. A read already in flight when that happens is
  * checked a second time at resolution and discarded rather than trusted.
  *
@@ -295,29 +296,44 @@ function generateGateId(): string {
 }
 
 /**
- * FIRST TURN — HISTORY OWNERSHIP BLIND SPOT, CLOSED. `liveAcquired` used
- * to be set only by `.append()`/`.update()`. The forensic audit confirmed
+ * FIRST TURN — HISTORY OWNERSHIP BLIND SPOT, CLOSED (and, below, re-scoped
+ * after being caught wrong on-device). `liveAcquired` used to be set only
+ * by `.append()`/`.update()`. The forensic audit confirmed
  * `aui.thread.import()` (`BaseThreadRuntimeCore.import()`) establishes/
  * replaces live session state exactly the same way but never touches the
- * history adapter at all — invisible to the gate. `notifyLiveSessionImportAcquired()`
- * is the missing third path: `importWithObservability()` (chatgpt.tsx,
- * the only place `aui.thread.import()` is called for THIS thread) calls
- * it on every import, marking whichever gate is currently active — there
- * is only ever one live thread's gate at a time, so "currently active"
- * is unambiguous. Marking an already-superseded gate is harmless: an
- * orphaned load that somehow still resolved would just also, correctly,
- * be discarded. */
-let currentGateMarkLive: (() => void) | null = null;
+ * history adapter at all — invisible to the gate. This context is the
+ * missing third path: whoever calls `aui.thread.import()` reads the
+ * gate's own `markLive` through it and calls it directly.
+ *
+ * PROVEN WRONG BY DEVICE EVIDENCE (2026-09-03, C · DUPLICATE RUN incident:
+ * a real run ending at messageCount=1 with detector E — the live
+ * subscribe-diff watcher — blind to it). This used to be a single
+ * module-level `currentGateMarkLive` pointer, reasoned safe because
+ * "there is only ever one live thread's gate at a time." That premise is
+ * false: `RemoteThreadListHookInstanceManager` mounts one
+ * `_OuterActiveThreadProvider` — hence one `HistoryOwnershipGate`, hence
+ * one gate — per instance it keeps, and it keeps more than the one on
+ * screen. Every later gate's creation silently overwrote the pointer, so
+ * an import for thread A's own gate could mark thread B's gate live
+ * instead, leaving A's own already-in-flight `real.load()` free to
+ * resolve later and reimport a stale snapshot over live content — with
+ * no count-based detector able to catch it, because a freshly mounted
+ * gate/watcher starts with no baseline to compare against.
+ *
+ * The fix scopes `markLive` the way `RuntimeAdapterProvider` already
+ * scopes `adapters.history` itself: as a value provided by
+ * `HistoryOwnershipGate` down ITS OWN subtree. A caller anywhere inside
+ * that subtree — the only place that specific thread's `aui.thread` is
+ * reachable at all — reads the matching gate through `useContext`,
+ * regardless of how many sibling gates exist alongside it. */
+export const GateMarkLiveContext = createContext<(() => void) | null>(null);
 
-export function notifyLiveSessionImportAcquired(): void {
-  currentGateMarkLive?.();
-}
-
-export function createOwnershipGatedHistoryAdapter(real: ThreadHistoryAdapter): ThreadHistoryAdapter {
+export function createOwnershipGatedHistoryAdapter(
+  real: ThreadHistoryAdapter,
+): { adapter: ThreadHistoryAdapter; markLive: () => void } {
   let liveAcquired = false;
   const gateId = generateGateId();
   const markLive = () => { liveAcquired = true; };
-  currentGateMarkLive = markLive;
 
   const gated: ThreadHistoryAdapter = {
     ...real,
@@ -370,7 +386,7 @@ export function createOwnershipGatedHistoryAdapter(real: ThreadHistoryAdapter): 
       return update(item);
     };
   }
-  return gated;
+  return { adapter: gated, markLive };
 }
 
 export const discardLocalSession = (threadId: string): void => {
