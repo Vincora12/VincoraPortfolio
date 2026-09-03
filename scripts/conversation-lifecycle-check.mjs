@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {
   consumePromotedRepository,
+  createOwnershipGatedHistoryAdapter,
   discardLocalSession,
   isLocalUnsavedSession,
   promoteLocalSession,
@@ -109,6 +110,103 @@ const msg = (id, role, parentId = null) => ({ parentId, message: { id, role } })
   const liveAfterFirstRun = { headId: "reply-d", messages: [...handoff.messages, msg("reply-d", "assistant", "user-d")] };
   const second = resolvePromotionHandoff(liveAfterFirstRun, handoff);
   assert.equal(second.shouldStartRun, false, "CASE D: resolving the same handoff again must never duplicate the run");
+}
+
+// FIRST TURN — STALE HISTORY RACE FIX. createOwnershipGatedHistoryAdapter
+// must decide purely on ownership/timing (has THIS mount's live repository
+// been written to?), never on message count — CASE E is the case that
+// proves it: five stale messages must still lose to one live-current one.
+
+function deferred() {
+  let resolve;
+  const promise = new Promise((res) => { resolve = res; });
+  return { promise, resolve };
+}
+
+// HISTORY OWNERSHIP CASE A — history arrives before live state: hydration
+// is allowed, the genuine initial load path.
+{
+  const real = {
+    load: async () => ({ headId: "m1", messages: [msg("m1", "user")] }),
+    append: async () => {},
+  };
+  const gated = createOwnershipGatedHistoryAdapter(real);
+  const result = await gated.load();
+  assert.deepEqual(result, { headId: "m1", messages: [msg("m1", "user")] }, "HISTORY A: genuine initial load hydrates normally");
+}
+
+// HISTORY OWNERSHIP CASE B — live state exists already; a load arriving
+// late must be skipped, and must not even touch storage.
+{
+  let loadCalls = 0;
+  const real = {
+    load: async () => { loadCalls += 1; return { headId: "old", messages: [msg("old", "user")] }; },
+    append: async () => {},
+  };
+  const gated = createOwnershipGatedHistoryAdapter(real);
+  await gated.append(msg("live-1"));
+  const result = await gated.load();
+  assert.equal(result, undefined, "HISTORY B: a load arriving after live state must be skipped");
+  assert.equal(loadCalls, 0, "HISTORY B: the underlying storage read must not even be attempted once live state exists");
+}
+
+// HISTORY OWNERSHIP CASE C — local -> persistent promotion while a history
+// read is still in flight: the promoted (live) repository must survive.
+{
+  const gate = deferred();
+  const real = {
+    load: async () => { await gate.promise; return { headId: "stale", messages: [msg("stale", "user")] }; },
+    append: async () => {},
+  };
+  const gated = createOwnershipGatedHistoryAdapter(real);
+  const loadPromise = gated.load(); // dispatched while the thread was still empty — legitimate at call time
+  await gated.append(msg("promoted-1")); // promotion's live append lands mid-flight
+  gate.resolve();
+  const result = await loadPromise;
+  assert.equal(result, undefined, "HISTORY C: a load in flight during promotion must not resurrect the pre-promotion snapshot");
+}
+
+// HISTORY OWNERSHIP CASE D — reload of a persistent thread: on a fresh
+// mount (nothing live yet), history still loads normally.
+{
+  const real = {
+    load: async () => ({ headId: "d2", messages: [msg("d1", "user"), msg("d2", "assistant", "d1")] }),
+    append: async () => {},
+  };
+  const gated = createOwnershipGatedHistoryAdapter(real);
+  const result = await gated.load();
+  assert.equal(result.messages.length, 2, "HISTORY D: a fresh mount (reload) still loads its persisted history");
+}
+
+// HISTORY OWNERSHIP CASE E — history numerically larger but older must NOT
+// win just because it has more messages: count is not freshness.
+{
+  const gate = deferred();
+  const real = {
+    load: async () => {
+      await gate.promise;
+      return { headId: "old-5", messages: [msg("m1"), msg("m2"), msg("m3"), msg("m4"), msg("m5")] };
+    },
+    append: async () => {},
+  };
+  const gated = createOwnershipGatedHistoryAdapter(real);
+  const loadPromise = gated.load();
+  await gated.append(msg("live-1")); // one live-current message
+  gate.resolve();
+  const result = await loadPromise;
+  assert.equal(result, undefined, "HISTORY E: five stale messages must not outrank one live-current message");
+}
+
+// HISTORY OWNERSHIP CASE F — history smaller but legitimate on an empty
+// thread must still be allowed to load.
+{
+  const real = {
+    load: async () => ({ headId: "f1", messages: [msg("f1", "user")] }),
+    append: async () => {},
+  };
+  const gated = createOwnershipGatedHistoryAdapter(real);
+  const result = await gated.load();
+  assert.equal(result.messages.length, 1, "HISTORY F: one legitimate message on an empty thread must still load");
 }
 
 console.log("Conversation lifecycle checks passed.");

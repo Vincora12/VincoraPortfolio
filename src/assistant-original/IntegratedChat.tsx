@@ -1,11 +1,13 @@
-import { useEffect, useMemo, useRef, type CSSProperties, type FC } from "react";
+import { useEffect, useMemo, useRef, type CSSProperties, type FC, type PropsWithChildren } from "react";
 import {
   AssistantRuntimeProvider,
   CompositeAttachmentAdapter,
+  RuntimeAdapterProvider,
   SimpleTextAttachmentAdapter,
   useAuiState,
   useLocalRuntime,
   useRemoteThreadListRuntime,
+  useRuntimeAdapters,
 } from "@assistant-ui/react";
 import { createLocalStorageAdapter } from "@assistant-ui/core/react";
 import type { ToolResult, ToolUse } from "@/ai/tools";
@@ -16,14 +18,47 @@ import "./styles.css";
 import { migrateStoragePrefix, serverBackedStorage } from "@/system/serverStorage";
 import { useApp } from "@/state/store";
 import { ensureContrastOnBlack, ensureContrastOnWhite, readableOn } from "@/engine/colorDna";
-import { withLocalUnsavedSession } from "./conversation-lifecycle-adapter";
+import { createOwnershipGatedHistoryAdapter, withLocalUnsavedSession } from "./conversation-lifecycle-adapter";
 
 export const persistentThreadAdapter = createLocalStorageAdapter({
   storage: serverBackedStorage,
   prefix: "assistant-ui-official-chatgpt:",
 });
+
+/* FIRST TURN — STALE HISTORY RACE FIX. `unstable_Provider` is remounted
+   fresh per thread id by assistant-ui itself (`_OuterActiveThreadProvider`
+   in RemoteThreadListHookInstanceManager.tsx keys its render on
+   `${threadId}:${generation}`), so `createOwnershipGatedHistoryAdapter`'s
+   closure — un-acquired at mount — naturally starts over for every new
+   thread/reload, never leaking ownership across threads. See the invariant
+   and mechanism written up next to `createOwnershipGatedHistoryAdapter` in
+   conversation-lifecycle-adapter.ts. */
+const HistoryOwnershipGate: FC<PropsWithChildren> = ({ children }) => {
+  const adapters = useRuntimeAdapters();
+  const realHistory = adapters?.history;
+  const gatedHistory = useMemo(
+    () => (realHistory ? createOwnershipGatedHistoryAdapter(realHistory) : undefined),
+    [realHistory],
+  );
+  if (!gatedHistory) return <>{children}</>;
+  return (
+    <RuntimeAdapterProvider adapters={{ history: gatedHistory }}>
+      {children}
+    </RuntimeAdapterProvider>
+  );
+};
+
+const BasePersistentProvider = persistentThreadAdapter.unstable_Provider!;
+
 const threadAdapter = withLocalUnsavedSession(
-  persistentThreadAdapter,
+  {
+    ...persistentThreadAdapter,
+    unstable_Provider: ({ children }) => (
+      <BasePersistentProvider>
+        <HistoryOwnershipGate>{children}</HistoryOwnershipGate>
+      </BasePersistentProvider>
+    ),
+  },
   (remoteId, repository) => serverBackedStorage.setItem(
     `assistant-ui-official-chatgpt:messages:${remoteId}`,
     JSON.stringify(repository),

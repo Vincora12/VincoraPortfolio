@@ -1,6 +1,7 @@
 import type {
   ExportedMessageRepository,
   RemoteThreadListAdapter,
+  ThreadHistoryAdapter,
   ThreadMessage,
 } from "@assistant-ui/react";
 import { generateVinzChatTitle } from "./chat-title-generator";
@@ -162,6 +163,76 @@ export function resolvePromotionHandoff(
     runParentId: hasReply ? null : firstUserMessage.message.id,
     reason: alreadyLive ? "ALREADY_LIVE" : hasReply ? "REPLAYED_NO_RUN" : "REPLAYED_WITH_RUN",
   };
+}
+
+/**
+ * FIRST TURN — STALE HISTORY RACE FIX.
+ *
+ * INVARIANT: history may hydrate an empty/uninitialized thread. Once the
+ * current thread has acquired live session state, a late history load must
+ * not replace that live session state.
+ *
+ * Confirmed mechanism (device evidence, 08:11:34 incident): assistant-ui's
+ * `useLocalThreadRuntime` calls `LocalThreadRuntimeCore.__internal_load()`
+ * unconditionally on mount (`useLocalRuntime.ts`, effect with `[runtime]`
+ * deps). `__internal_load()` dispatches `adapters.history.load()` — our
+ * `AsyncStorageHistoryAdapter`, an async network read via serverBackedStorage
+ * — and, whenever that read resolves, calls `this.repository.import(repo)`
+ * unconditionally (`local-thread-runtime-core.ts`). `MessageRepository.import()`
+ * always ends in `resetHead(repo.headId ?? …)` (`message-repository.ts`),
+ * which DELETES every descendant of that head — genuine deletion from the
+ * Map, not a branch switch. If the live thread has already grown past what
+ * the read found (ENTER/opening/first exchange appended while the read was
+ * still in flight over the network), that growth is a descendant of the
+ * read's (older) head and gets deleted the moment the read resolves. This
+ * is exactly the observed 2→1 (and separately, 3→1) repository collapse.
+ *
+ * Root cause is NOT the message count — a `count` comparison was explicitly
+ * rejected (CASE E below): a numerically larger but older read must still
+ * lose to a smaller but live-current thread. The fix is ownership/lifecycle:
+ * once this thread's live repository has been written to (by ANY append —
+ * ours or assistant-ui's own composer-submit path, both go through
+ * `ThreadHistoryAdapter.append`/`.update`, called synchronously *after* the
+ * in-memory repository already mutated), no history read may still resolve
+ * into an import. A read already in flight when that happens is checked a
+ * second time at resolution and discarded rather than trusted.
+ *
+ * This wraps the ADAPTER, not `node_modules`: `__internal_load()`'s own
+ * `.then((repo) => { if (!repo) return; … })` already tolerates a falsy
+ * `load()` result as "nothing to hydrate" — we rely on that documented
+ * tolerance, we do not invent it.
+ *
+ * One gate instance must live exactly as long as one thread's live
+ * runtime mount (see `IntegratedChat.tsx`'s `HistoryOwnershipGate`, keyed by
+ * `unstable_Provider`'s per-thread remount) — a fresh mount starts
+ * un-acquired, so CASE A/D (genuine initial/reload hydration) still load.
+ */
+export function createOwnershipGatedHistoryAdapter(real: ThreadHistoryAdapter): ThreadHistoryAdapter {
+  let liveAcquired = false;
+
+  const gated: ThreadHistoryAdapter = {
+    ...real,
+    async load() {
+      if (liveAcquired) return undefined as unknown as Awaited<ReturnType<ThreadHistoryAdapter["load"]>>;
+      const repo = await real.load();
+      // A live append may have landed while this read was in flight —
+      // recheck at resolution, not just at call time.
+      if (liveAcquired) return undefined as unknown as Awaited<ReturnType<ThreadHistoryAdapter["load"]>>;
+      return repo;
+    },
+    async append(item) {
+      liveAcquired = true;
+      return real.append(item);
+    },
+  };
+  if (real.update) {
+    const update = real.update.bind(real);
+    gated.update = async (item) => {
+      liveAcquired = true;
+      return update(item);
+    };
+  }
+  return gated;
 }
 
 export const discardLocalSession = (threadId: string): void => {
