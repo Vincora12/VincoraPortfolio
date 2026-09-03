@@ -594,6 +594,59 @@ const ChatDebugOverlay: FC<{ onClose: () => void; debug: ChatLiveDebugState }> =
   );
 };
 
+/* COPIA TESTO — la lista EVENTS ha uno scroll interno separato da quello
+   della schermata (max-h-40 su un contenitore dentro un altro
+   overflow-y-auto): su schermi piccoli è facile fermarsi al bordo
+   sbagliato e perdere righe senza accorgersene, anche facendo più
+   screenshot. Il testo copiato non ha questo problema: contiene SEMPRE
+   tutti gli eventi catturati (fino a 20, lo stesso limite già imposto in
+   buildIncident/chatLiveDebug.ts), mai solo quelli visibili a schermo. */
+function buildIncidentText(
+  incident: ChatIncident,
+  liveSnapshot: ChatLiveDebugState["snapshot"],
+): string {
+  const s = incident.snapshot;
+  const lines: string[] = [];
+  lines.push(`INCIDENT — ${incident.triggerLabel}`);
+  lines.push(`catturato ${incident.capturedAt}`);
+  lines.push("");
+  lines.push("THREAD");
+  lines.push(`  THREAD ID: ${s?.threadId ?? "—"}`);
+  lines.push(`  REMOTE ID: ${s?.remoteId ?? "—"}`);
+  lines.push("");
+  lines.push("COUNTS");
+  lines.push(`  VISIBLE MESSAGES: ${s?.visibleMessageIds.length ?? 0}`);
+  lines.push(`  REPOSITORY MESSAGES: ${s?.repositoryMessages.length ?? 0}`);
+  lines.push("");
+  lines.push("HEAD");
+  lines.push(`  HEAD ID: ${s?.headId ?? "—"}`);
+  lines.push(`  RUN STATUS: ${(s?.runStatus ?? "—").toUpperCase()}`);
+  lines.push("");
+  lines.push("CURRENT THREAD (dal vivo, al momento della copia)");
+  if (!liveSnapshot) {
+    lines.push("  nessuno snapshot dal vivo disponibile ora");
+  } else {
+    lines.push(`  HEAD ID: ${liveSnapshot.headId}`);
+    lines.push(`  VISIBLE MESSAGES: ${liveSnapshot.visibleMessageIds.length}`);
+    lines.push(`  REPOSITORY MESSAGES: ${liveSnapshot.repositoryMessages.length}`);
+    lines.push(`  RUN STATUS: ${liveSnapshot.runStatus.toUpperCase()}`);
+  }
+  lines.push("");
+  lines.push("DETECTORS");
+  for (const detector of incident.detectors) {
+    lines.push(`  ${detector.label}: ${detector.suspect ? "SUSPECT" : "OK"} — ${detector.detail}`);
+  }
+  lines.push("");
+  lines.push(`EVENTS (${incident.events.length})`);
+  for (const event of incident.events) {
+    const meta = event.metadata
+      ? Object.entries(event.metadata).map(([key, value]) => `${key}=${String(value)}`).join(" ")
+      : "";
+    lines.push(`  ${event.timestamp}  ${event.eventType} · ${event.status}${meta ? `  ${meta}` : ""}`);
+  }
+  return lines.join("\n");
+}
+
 /* BLACK BOX — vista congelata dell'incidente catturato, così l'utente può
    fare screenshot anche minuti dopo (l'incidente resta nel modulo
    runtime-only finché non arriva un CLEAR VIEW). Sezioni richieste:
@@ -606,6 +659,14 @@ const ChatIncidentView: FC<{
   onCaptureAgain: () => void;
 }> = ({ incident, liveSnapshot, onClose, onCaptureAgain }) => {
   const s = incident.snapshot;
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
+  const copyIncidentText = () => {
+    const text = buildIncidentText(incident, liveSnapshot);
+    void navigator.clipboard.writeText(text)
+      .then(() => setCopyState("copied"))
+      .catch(() => setCopyState("failed"))
+      .finally(() => setTimeout(() => setCopyState("idle"), 2000));
+  };
   return (
     <div className="fixed inset-0 z-[110] flex items-end bg-black/70 p-3 sm:items-center sm:justify-center" role="dialog" aria-modal="true" aria-label="Incidente catturato">
       <div className="flex max-h-[85vh] w-full max-w-md flex-col overflow-hidden rounded-2xl bg-white text-[#0d0d0d] dark:bg-[#141414] dark:text-[#ececec] sm:max-h-[80vh]">
@@ -664,6 +725,9 @@ const ChatIncidentView: FC<{
         </div>
         <div className="flex gap-2 border-t border-black/10 px-4 py-3 dark:border-white/10">
           <button type="button" onClick={onCaptureAgain} className="flex-1 rounded-full border border-[#0d0d0d] px-3 py-2 text-xs font-bold dark:border-white">CAPTURE AGAIN</button>
+          <button type="button" onClick={copyIncidentText} className="flex-1 rounded-full border border-[#0d0d0d] px-3 py-2 text-xs font-bold dark:border-white">
+            {copyState === "copied" ? "COPIATO" : copyState === "failed" ? "NON RIUSCITO" : "COPY TEXT"}
+          </button>
           <button type="button" onClick={onClose} className="flex-1 rounded-full bg-[#0d0d0d] px-3 py-2 text-xs font-bold text-white dark:bg-white dark:text-black">CLOSE</button>
         </div>
       </div>
