@@ -9,5 +9,9 @@ screenshots/
 # progetto perche' Node risolva @netlify/blobs, quindi non puo' stare in /tmp).
 node_modules/.vinz-backend-check.mjs
 
+# Bundle temporaneo di scripts/conversation-lifecycle-check.mjs (stessa
+# ragione: il modulo sotto esame e' TypeScript con import senza estensione).
+node_modules/.vinz-chat-lifecycle.mjs
+
 # Local Netlify folder
 .netlify

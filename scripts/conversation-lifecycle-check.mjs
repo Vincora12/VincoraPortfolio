@@ -1,5 +1,39 @@
 import assert from "node:assert/strict";
-import {
+import { build } from "esbuild";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+/* Stessa strada di scripts/backend-check.mjs, e per la stessa ragione: il
+   modulo sotto esame è TypeScript e importa senza estensione
+   (`./chat-title-generator`, aggiunto da a596bf9), cosa che
+   `node --experimental-strip-types` non sa risolvere. Il controllo non
+   partiva PROPRIO — falliva al caricamento del modulo, prima di eseguire
+   una sola asserzione — e per tutto quel tempo le invarianti del primo
+   turno sono rimaste senza rete di protezione automatica. esbuild
+   risolve e impacchetta, Node esegue: nessuna modifica al sorgente,
+   nessuna modifica al tsconfig. */
+const cwd = process.cwd();
+const dir = mkdtempSync(join(tmpdir(), "vinz-lifecycle-"));
+const entry = join(dir, "entry.ts");
+const out = join(cwd, "node_modules", ".vinz-chat-lifecycle.mjs");
+
+writeFileSync(
+  entry,
+  `export { acquireRunOwnership, consumePromotedRepository, createOwnershipGatedHistoryAdapter, discardLocalSession, hasRunOwnership, isLocalUnsavedSession, notifyLiveSessionImportAcquired, openingStillWelcome, promoteLocalSession, resolvePromotionHandoff, withLocalUnsavedSession } from '${cwd}/src/assistant-original/conversation-lifecycle-adapter.ts';\n`,
+);
+
+await build({
+  entryPoints: [entry],
+  bundle: true,
+  format: "esm",
+  platform: "node",
+  outfile: out,
+  logLevel: "error",
+  alias: { "@": join(cwd, "src") },
+});
+
+const {
   acquireRunOwnership,
   consumePromotedRepository,
   createOwnershipGatedHistoryAdapter,
@@ -11,14 +45,17 @@ import {
   promoteLocalSession,
   resolvePromotionHandoff,
   withLocalUnsavedSession,
-} from "../src/assistant-original/conversation-lifecycle-adapter.ts";
+} = await import(`file://${out}`);
 
 let initializeCalls = 0;
+let renamedTo = null;
 const persistent = {
   initialize: async (threadId) => {
     initializeCalls += 1;
+    // Deliberately NOT the id promotion resolves on — see below.
     return { remoteId: `saved:${threadId}` };
   },
+  rename: async (_remoteId, title) => { renamedTo = title; },
 };
 let savedSnapshot = null;
 const lifecycle = withLocalUnsavedSession(persistent, async (_remoteId, repository) => {
@@ -31,15 +68,26 @@ assert.equal(isLocalUnsavedSession("local-a"), true);
 
 const snapshot = { messages: [{ message: { id: "enter" } }, { message: { id: "greeting" } }, { message: { id: "user" } }] };
 const promoted = await promoteLocalSession("local-a", snapshot);
-assert.deepEqual(promoted, { remoteId: "saved:local-a" });
+/* Since 2f79df0 ("resolve local promotion before storage completion") the
+   local id IS the persistent id: promotion resolves on it immediately and
+   does NOT wait for the adapter's own initialize to settle, so the first
+   model run never queues behind storage/network. This assertion used to
+   expect the adapter's returned id ("saved:local-a") and went stale in
+   that same commit — unnoticed, because the check could not even load
+   its module (see the esbuild note at the top of this file). */
+assert.deepEqual(promoted, { remoteId: "local-a" }, "promotion resolves on the local id, without waiting for storage");
 assert.deepEqual(await pending, promoted, "the same pending runtime becomes persistent");
 assert.equal(initializeCalls, 1, "promotion initializes exactly once");
-assert.equal(savedSnapshot, snapshot, "complete local timeline is stored before handoff");
-assert.equal(consumePromotedRepository("saved:local-a"), snapshot, "new runtime receives the complete timeline");
-assert.equal(consumePromotedRepository("saved:local-a"), null, "handoff is consumed exactly once");
+assert.equal(consumePromotedRepository("local-a"), snapshot, "new runtime receives the complete timeline");
+assert.equal(consumePromotedRepository("local-a"), null, "handoff is consumed exactly once");
 assert.equal(isLocalUnsavedSession("local-a"), false);
 assert.deepEqual(await lifecycle.initialize("local-a"), promoted);
 assert.equal(initializeCalls, 1, "post-promotion initialization reuses the canonical id");
+
+// Storage and title work land after the handoff, off the first run's path.
+await new Promise((resolve) => setTimeout(resolve, 0));
+assert.equal(savedSnapshot, snapshot, "the complete local timeline is stored once promotion has already resolved");
+assert.equal(typeof renamedTo, "string", "the title is generated only after promotion, never before a user message exists");
 
 void lifecycle.initialize("local-empty");
 assert.equal(isLocalUnsavedSession("local-empty"), true);
