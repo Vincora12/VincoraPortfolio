@@ -31,8 +31,11 @@ import RecordPlugin from "wavesurfer.js/dist/plugins/record.esm.js";
 import { savedToken } from "@/brain/stream";
 import { memoryTrace } from "@/assistant-original/chat-memory-feedback";
 import {
+  acquireRunOwnership,
   consumePromotedRepository,
   isLocalUnsavedSession,
+  notifyLiveSessionImportAcquired,
+  openingStillWelcome,
   promoteLocalSession,
   repositoryWithPendingUser,
   resolvePromotionHandoff,
@@ -109,6 +112,13 @@ const importWithObservability = (
      nessun await nel mezzo — verificato nel sorgente vendor): possiamo
      chiudere l'attribuzione subito dopo, senza bisogno di un timeout. */
   beginRepositoryOperation({ operation: 'IMPORT', caller });
+  /* FIRST TURN — HISTORY OWNERSHIP BLIND SPOT, CLOSED. import() stabilisce/
+     sostituisce lo stato live esattamente come append()/update(), ma non
+     tocca mai l'adapter history (confermato: BaseThreadRuntimeCore.import()
+     non chiama adapters.history). Senza questo, una history.load() già in
+     volo nel momento in cui QUESTO import atterra verrebbe ancora fidata e
+     potrebbe cancellarlo. */
+  notifyLiveSessionImportAcquired();
   aui.thread.import(repository);
   endRepositoryOperation();
   const after = auiSnapshot(aui);
@@ -127,11 +137,29 @@ const importWithObservability = (
   });
 };
 
+/* FIRST TURN — SINGLE RUN OWNER. Il percorso di invio del composer
+   (ComposerPrimaryAction/insertAndSend) possiede la generazione per un
+   vero messaggio utente. Non è un guard temporale: acquireRunOwnership()
+   (conversation-lifecycle-adapter.ts) restituisce true UNA SOLA VOLTA per
+   ogni parentId, per sempre — chiunque arrivi qui per primo per un dato
+   id vince, indipendentemente da chi sia o quanto sia veloce. Chiunque
+   arrivi dopo per lo STESSO id (tipicamente una riconciliazione
+   dell'handoff di promozione che corre in parallelo all'invio del
+   composer) diventa un no-op, non un secondo startRun. */
 const startRunWithObservability = (
   aui: AuiHandle,
   caller: string,
   parentId: string,
 ): void => {
+  if (!acquireRunOwnership(parentId)) {
+    postRuntimeEvent({
+      eventType: 'CHAT_RUN_BOUNDARY',
+      status: 'PASS',
+      scope: 'chat',
+      metadata: { phase: 'SKIPPED_DUPLICATE', parentId, caller },
+    });
+    return;
+  }
   const before = auiSnapshot(aui);
   /* startRun resta "in corso" per tutta la sua durata async (fino al
      .finally() sotto) — è quello che la specifica chiede: "quando
@@ -261,9 +289,6 @@ const ConversationLifecycle: FC = () => {
     if (!handoff) return;
     const resolution = resolvePromotionHandoff(aui.thread.export(), handoff);
     if (resolution.shouldImport) importWithObservability(aui, 'ConversationLifecycle', resolution.reason, handoff);
-    if (resolution.shouldStartRun && resolution.runParentId) {
-      startRunWithObservability(aui, 'ConversationLifecycle', resolution.runParentId);
-    }
     postRuntimeEvent({
       eventType: 'CHAT_PROMOTION_HANDOFF_RESOLVED',
       status: 'PASS',
@@ -693,6 +718,11 @@ const MonPresenceEvents: FC = () => {
     void buildOpening(tone, monName).then((greeting) => {
       if (openingSequence.current !== sequence) return;
       if (currentRoomEntryRevision() !== entryRevision) return;
+      /* FIRST TURN — OPENING MUST NEVER RACE THE USER. Un saluto
+         automatico in ritardo non può inserirsi in una conversazione che
+         l'utente ha già iniziato: regola semantica (esistenza di un
+         messaggio utente), non un fix di timing. */
+      if (!openingStillWelcome(aui.thread.export().messages)) return;
       /* Append non-run: il resetHead che conta arriva dopo un await
          interno di assistant-ui che non osserviamo da qui — l'attribuzione
          scade da sola (beginRepositoryOperation) invece di essere chiusa

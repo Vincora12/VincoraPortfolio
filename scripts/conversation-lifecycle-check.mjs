@@ -1,9 +1,13 @@
 import assert from "node:assert/strict";
 import {
+  acquireRunOwnership,
   consumePromotedRepository,
   createOwnershipGatedHistoryAdapter,
   discardLocalSession,
+  hasRunOwnership,
   isLocalUnsavedSession,
+  notifyLiveSessionImportAcquired,
+  openingStillWelcome,
   promoteLocalSession,
   resolvePromotionHandoff,
   withLocalUnsavedSession,
@@ -42,16 +46,20 @@ assert.equal(isLocalUnsavedSession("local-empty"), true);
 discardLocalSession("local-empty");
 assert.equal(isLocalUnsavedSession("local-empty"), false, "abandoned local chat is discarded");
 
-// FIRST TURN INTEGRITY FIX — resolvePromotionHandoff must never let a stale
-// handoff snapshot overwrite live data, and must never start a second run
-// for a user message that already has a reply. CASE E (reload persists the
-// timeline) and CASE F (Chat -> Mon -> Chat does not re-promote) are already
-// covered above by the untouched promoteLocalSession/isLocalUnsavedSession
-// assertions: this fix does not touch either mechanism.
+// FIRST TURN — ARCHITECTURAL FIX. resolvePromotionHandoff no longer
+// decides run-starting at all (that responsibility moved entirely to
+// acquireRunOwnership, tested further below) — it only decides whether a
+// stale handoff snapshot may overwrite live data. CASE E (reload persists
+// the timeline) and CASE F (Chat -> Mon -> Chat does not re-promote) are
+// already covered above by the untouched promoteLocalSession/
+// isLocalUnsavedSession assertions: this fix does not touch either
+// mechanism.
 
 const msg = (id, role, parentId = null) => ({ parentId, message: { id, role } });
 
-// CASE A — opening already live before send: handoff and live agree.
+// PROMOTION HANDOFF CASE A — opening already live before send: handoff
+// and live agree, whether or not a reply has landed yet — reply presence
+// is no longer this function's concern.
 {
   const handoff = {
     headId: "user-a",
@@ -59,18 +67,16 @@ const msg = (id, role, parentId = null) => ({ parentId, message: { id, role } })
   };
   const liveNoReplyYet = { headId: "user-a", messages: handoff.messages };
   const beforeRun = resolvePromotionHandoff(liveNoReplyYet, handoff);
-  assert.equal(beforeRun.shouldImport, false, "CASE A: opening already live, no reimport needed");
-  assert.equal(beforeRun.shouldStartRun, true, "CASE A: exactly one run must start when no reply exists yet");
-  assert.equal(beforeRun.runParentId, "user-a");
+  assert.equal(beforeRun.shouldImport, false, "PROMOTION A: opening already live, no reimport needed");
 
   const liveWithReply = { headId: "reply-a", messages: [...handoff.messages, msg("reply-a", "assistant", "user-a")] };
   const afterRun = resolvePromotionHandoff(liveWithReply, handoff);
-  assert.equal(afterRun.shouldImport, false, "CASE A: still no reimport once the real reply exists");
-  assert.equal(afterRun.shouldStartRun, false, "CASE A: never a second run once one reply already exists");
+  assert.equal(afterRun.shouldImport, false, "PROMOTION A: still no reimport once the real reply exists");
 }
 
-// CASE B — the Mon's opening arrives during promotion: the handoff was
-// captured before it landed, but it is already live by the time this runs.
+// PROMOTION HANDOFF CASE B — the Mon's opening arrives during promotion:
+// the handoff was captured before it landed, but the user message is
+// already live by the time this runs.
 {
   const handoff = { headId: "user-b", messages: [msg("enter"), msg("user-b", "user", "enter")] };
   const liveWithLateGreeting = {
@@ -78,12 +84,11 @@ const msg = (id, role, parentId = null) => ({ parentId, message: { id, role } })
     messages: [msg("enter"), msg("greeting", "assistant", "enter"), msg("user-b", "user", "greeting")],
   };
   const resolution = resolvePromotionHandoff(liveWithLateGreeting, handoff);
-  assert.equal(resolution.shouldImport, false, "CASE B: live already has the user message; the late greeting must not be overwritten");
-  assert.equal(resolution.shouldStartRun, true, "CASE B: exactly one run must still start");
+  assert.equal(resolution.shouldImport, false, "PROMOTION B: live already has the user message; the late greeting must not be overwritten");
 }
 
-// CASE C — the opening (and the real reply) arrive only after the handoff
-// was captured: a stale reimport must never erase them.
+// PROMOTION HANDOFF CASE C — the opening (and the real reply) arrive only
+// after the handoff was captured: a stale reimport must never erase them.
 {
   const handoff = { headId: "user-c", messages: [msg("enter"), msg("user-c", "user", "enter")] };
   const liveWithGreetingAfterReply = {
@@ -96,20 +101,7 @@ const msg = (id, role, parentId = null) => ({ parentId, message: { id, role } })
     ],
   };
   const resolution = resolvePromotionHandoff(liveWithGreetingAfterReply, handoff);
-  assert.equal(resolution.shouldImport, false, "CASE C: a stale handoff must never overwrite messages that landed live after it");
-  assert.equal(resolution.shouldStartRun, false, "CASE C: the reply already live must not be regenerated");
-}
-
-// CASE D — the first user message keeps one messageId end to end, and
-// resolving the same handoff again (even if it somehow happened) must never
-// duplicate the run.
-{
-  const handoff = { headId: "user-d", messages: [msg("user-d", "user")] };
-  const first = resolvePromotionHandoff({ headId: "user-d", messages: handoff.messages }, handoff);
-  assert.equal(first.runParentId, "user-d", "CASE D: the run must target the real first user message id, never a copy");
-  const liveAfterFirstRun = { headId: "reply-d", messages: [...handoff.messages, msg("reply-d", "assistant", "user-d")] };
-  const second = resolvePromotionHandoff(liveAfterFirstRun, handoff);
-  assert.equal(second.shouldStartRun, false, "CASE D: resolving the same handoff again must never duplicate the run");
+  assert.equal(resolution.shouldImport, false, "PROMOTION C: a stale handoff must never overwrite messages that landed live after it");
 }
 
 // FIRST TURN — STALE HISTORY RACE FIX. createOwnershipGatedHistoryAdapter
@@ -207,6 +199,91 @@ function deferred() {
   const gated = createOwnershipGatedHistoryAdapter(real);
   const result = await gated.load();
   assert.equal(result.messages.length, 1, "HISTORY F: one legitimate message on an empty thread must still load");
+}
+
+// FIRST TURN — ARCHITECTURAL FIX. Targeted tests for the new single-owner
+// pipeline: ownership/state transitions, never message counts or timing.
+
+// CASE 1 — first user send acquires run ownership exactly once.
+{
+  assert.equal(acquireRunOwnership("case1-user"), true, "CASE 1: the first call for a user id acquires ownership");
+  assert.equal(acquireRunOwnership("case1-user"), false, "CASE 1: a second call for the SAME user id must not acquire ownership again");
+  assert.equal(hasRunOwnership("case1-user"), true, "CASE 1: ownership, once acquired, stays acquired");
+}
+
+// CASE 2 — Composer submission + ConversationLifecycle handoff racing for
+// the same user id: the second attempt must not launch a second run.
+{
+  const composerOwns = acquireRunOwnership("case2-user");
+  const lifecycleAttempt = acquireRunOwnership("case2-user");
+  assert.equal(composerOwns, true, "CASE 2: the composer submission owns generation for this user id");
+  assert.equal(lifecycleAttempt, false, "CASE 2: ConversationLifecycle's later attempt for the same id must be a no-op, not a second run");
+}
+
+// CASE 3 — history load in flight, then a live IMPORT (not append) lands:
+// the confirmed import() ownership blind spot, now closed — the stale
+// read must still be discarded.
+{
+  const gate = deferred();
+  const real = {
+    load: async () => { await gate.promise; return { headId: "stale-import", messages: [msg("stale-import", "user")] }; },
+    append: async () => {},
+  };
+  const gated = createOwnershipGatedHistoryAdapter(real);
+  const loadPromise = gated.load(); // legitimate at call time — nothing live yet
+  notifyLiveSessionImportAcquired(); // simulates promoteBeforeSend's/ConversationLifecycle's aui.thread.import()
+  gate.resolve();
+  const result = await loadPromise;
+  assert.equal(result, undefined, "CASE 3: a live import must protect the thread exactly like append/update does");
+}
+
+// CASE 4 — legitimate history load on an untouched runtime: accepted.
+{
+  const real = {
+    load: async () => ({ headId: "case4", messages: [msg("case4", "user")] }),
+    append: async () => {},
+  };
+  const gated = createOwnershipGatedHistoryAdapter(real);
+  const result = await gated.load();
+  assert.deepEqual(result, { headId: "case4", messages: [msg("case4", "user")] }, "CASE 4: an untouched runtime may still hydrate from history");
+}
+
+// CASE 5 — opening resolves before any user message: still welcome.
+{
+  assert.equal(openingStillWelcome([msg("enter", "system")]), true, "CASE 5: no user message yet — the opening may append");
+}
+
+// CASE 6 — opening resolves after a user message already exists: dropped.
+{
+  assert.equal(
+    openingStillWelcome([msg("enter", "system"), msg("case6-user", "user")]),
+    false,
+    "CASE 6: a real user message already exists — the delayed opening must be dropped",
+  );
+}
+
+// CASE 7 — fast first send + promotion: live has already grown past the
+// handoff (the assistant reply arrived before the handoff was resolved).
+// The full timeline — user AND assistant — must be preserved, not
+// reimported over.
+{
+  const handoff = { headId: "case7-user", messages: [msg("enter"), msg("case7-user", "user", "enter")] };
+  const liveWithReply = { headId: "case7-reply", messages: [...handoff.messages, msg("case7-reply", "assistant", "case7-user")] };
+  const resolution = resolvePromotionHandoff(liveWithReply, handoff);
+  assert.equal(resolution.shouldImport, false, "CASE 7: fast first send — user and assistant already live must survive promotion's handoff resolution");
+}
+
+// CASE 8 — persistent thread reload: history is loaded normally on a
+// fresh, untouched mount (same shape as HISTORY D/CASE 4, stated
+// explicitly for the reload scenario the task calls out).
+{
+  const real = {
+    load: async () => ({ headId: "case8-b", messages: [msg("case8-a", "user"), msg("case8-b", "assistant", "case8-a")] }),
+    append: async () => {},
+  };
+  const gated = createOwnershipGatedHistoryAdapter(real);
+  const result = await gated.load();
+  assert.equal(result.messages.length, 2, "CASE 8: reloading an existing persistent thread still loads its full history");
 }
 
 console.log("Conversation lifecycle checks passed.");

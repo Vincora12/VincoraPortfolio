@@ -132,38 +132,75 @@ export const consumePromotedRepository = (
 
 export type PromotionHandoffResolution = {
   shouldImport: boolean;
-  shouldStartRun: boolean;
-  runParentId: string | null;
-  reason: "ALREADY_LIVE" | "REPLAYED_NO_RUN" | "REPLAYED_WITH_RUN" | "NO_USER_MESSAGE";
+  reason: "ALREADY_LIVE" | "HANDOFF_APPLIED";
 };
 
 /**
- * FIRST TURN INTEGRITY FIX — decides what to do with a repository handed off
- * by promoteLocalSession, WITHOUT ever trusting it more than the live
- * thread. That handoff is captured once, at promotion time; blindly
- * reimporting it later discarded whatever had landed live since (the Mon's
- * opening line arriving asynchronously, or the reply from the run the
- * normal submit already started), and unconditionally starting a new run
- * duplicated that generation. Both risks collapse to the same question:
- * does the live thread already have this data?
+ * FIRST TURN — ARCHITECTURAL FIX: promotion is state transfer, not
+ * generation. This used to also decide whether to start a run for the
+ * handoff's first user message (`shouldStartRun`/`runParentId`) — that
+ * responsibility overlapped with the composer submission path
+ * (`ComposerPrimaryAction`/`insertAndSend`) and was the confirmed source
+ * of the observed DUPLICATE RUN: both this reconciliation and the
+ * composer could independently decide "no reply yet, start one." Removed
+ * entirely, not guarded — the single owner of generation for a real user
+ * message is now `acquireRunOwnership()` below, called only from the
+ * composer submission path.
+ *
+ * What's left is exactly the reconciliation question this handoff
+ * mechanism exists for: does the live thread already have this data?
+ * Blindly reimporting it discarded whatever had landed live since (the
+ * Mon's opening line arriving asynchronously, or the reply from the run
+ * the composer already started).
  */
 export function resolvePromotionHandoff(
   live: ExportedMessageRepository,
   handoff: ExportedMessageRepository,
 ): PromotionHandoffResolution {
-  const alreadyLive = live.messages.some((item) => item.message.id === handoff.headId);
-  const current = alreadyLive ? live : handoff;
-  const firstUserMessage = handoff.messages.find((item) => item.message.role === "user");
-  if (!firstUserMessage) {
-    return { shouldImport: !alreadyLive, shouldStartRun: false, runParentId: null, reason: "NO_USER_MESSAGE" };
-  }
-  const hasReply = current.messages.some((item) => item.parentId === firstUserMessage.message.id);
+  const alreadyLive = handoff.headId != null && live.messages.some((item) => item.message.id === handoff.headId);
   return {
     shouldImport: !alreadyLive,
-    shouldStartRun: !hasReply,
-    runParentId: hasReply ? null : firstUserMessage.message.id,
-    reason: alreadyLive ? "ALREADY_LIVE" : hasReply ? "REPLAYED_NO_RUN" : "REPLAYED_WITH_RUN",
+    reason: alreadyLive ? "ALREADY_LIVE" : "HANDOFF_APPLIED",
   };
+}
+
+/**
+ * FIRST TURN — SINGLE RUN OWNER. The composer submission path
+ * (`ComposerPrimaryAction`/`insertAndSend`) owns generation for a real
+ * user message. This is the one place that invariant is enforced, so it
+ * holds regardless of which caller reaches it or how fast either runs —
+ * explicit ownership, not a timing guard: `acquireRunOwnership(id)`
+ * returns `true` exactly once per message id, ever, for the life of this
+ * module (a real message id is globally unique — this Set never needs
+ * clearing, same pattern as `sessions`/`initialized`/`handoffs` above).
+ * Any later caller for the SAME id — most notably a promotion-handoff
+ * reconciliation racing the composer's own call — gets `false` and must
+ * treat that as a no-op.
+ */
+const ownedRuns = new Set<string>();
+
+export function acquireRunOwnership(parentId: string): boolean {
+  if (ownedRuns.has(parentId)) return false;
+  ownedRuns.add(parentId);
+  return true;
+}
+
+export function hasRunOwnership(parentId: string): boolean {
+  return ownedRuns.has(parentId);
+}
+
+/**
+ * FIRST TURN — OPENING MUST NEVER RACE THE USER. `MonPresenceEvents`'
+ * automatic greeting is asynchronous (`buildOpening()`); by the time it
+ * resolves, a real user message may already exist. A delayed automatic
+ * greeting must not insert itself into a conversation the user has
+ * already started — existence, not count or timing: this is a semantic
+ * rule, not a race fixed by checking "fast enough".
+ */
+export function openingStillWelcome(
+  liveMessages: readonly { message: { role: string } }[],
+): boolean {
+  return !liveMessages.some((item) => item.message.role === "user");
 }
 
 /**
@@ -191,12 +228,14 @@ export function resolvePromotionHandoff(
  * Root cause is NOT the message count — a `count` comparison was explicitly
  * rejected (CASE E below): a numerically larger but older read must still
  * lose to a smaller but live-current thread. The fix is ownership/lifecycle:
- * once this thread's live repository has been written to (by ANY append —
- * ours or assistant-ui's own composer-submit path, both go through
- * `ThreadHistoryAdapter.append`/`.update`, called synchronously *after* the
- * in-memory repository already mutated), no history read may still resolve
- * into an import. A read already in flight when that happens is checked a
- * second time at resolution and discarded rather than trusted.
+ * once this thread's live repository has acquired live session state — by
+ * ANY append (ours or assistant-ui's own composer-submit path, both go
+ * through `ThreadHistoryAdapter.append`/`.update`, called synchronously
+ * *after* the in-memory repository already mutated) OR by an explicit live
+ * `aui.thread.import()` (see `notifyLiveSessionImportAcquired()` below —
+ * the confirmed blind spot this left open) — no history read may still
+ * resolve into an import. A read already in flight when that happens is
+ * checked a second time at resolution and discarded rather than trusted.
  *
  * This wraps the ADAPTER, not `node_modules`: `__internal_load()`'s own
  * `.then((repo) => { if (!repo) return; … })` already tolerates a falsy
@@ -223,9 +262,30 @@ function generateGateId(): string {
   return `hg_${random.replace(/-/g, '').slice(0, 8)}`;
 }
 
+/**
+ * FIRST TURN — HISTORY OWNERSHIP BLIND SPOT, CLOSED. `liveAcquired` used
+ * to be set only by `.append()`/`.update()`. The forensic audit confirmed
+ * `aui.thread.import()` (`BaseThreadRuntimeCore.import()`) establishes/
+ * replaces live session state exactly the same way but never touches the
+ * history adapter at all — invisible to the gate. `notifyLiveSessionImportAcquired()`
+ * is the missing third path: `importWithObservability()` (chatgpt.tsx,
+ * the only place `aui.thread.import()` is called for THIS thread) calls
+ * it on every import, marking whichever gate is currently active — there
+ * is only ever one live thread's gate at a time, so "currently active"
+ * is unambiguous. Marking an already-superseded gate is harmless: an
+ * orphaned load that somehow still resolved would just also, correctly,
+ * be discarded. */
+let currentGateMarkLive: (() => void) | null = null;
+
+export function notifyLiveSessionImportAcquired(): void {
+  currentGateMarkLive?.();
+}
+
 export function createOwnershipGatedHistoryAdapter(real: ThreadHistoryAdapter): ThreadHistoryAdapter {
   let liveAcquired = false;
   const gateId = generateGateId();
+  const markLive = () => { liveAcquired = true; };
+  currentGateMarkLive = markLive;
 
   const gated: ThreadHistoryAdapter = {
     ...real,
@@ -233,20 +293,20 @@ export function createOwnershipGatedHistoryAdapter(real: ThreadHistoryAdapter): 
       if (liveAcquired) return undefined as unknown as Awaited<ReturnType<ThreadHistoryAdapter["load"]>>;
       markNextHistoryReadAsGated(gateId);
       const repo = await real.load();
-      // A live append may have landed while this read was in flight —
-      // recheck at resolution, not just at call time.
+      // A live append or import may have landed while this read was in
+      // flight — recheck at resolution, not just at call time.
       if (liveAcquired) return undefined as unknown as Awaited<ReturnType<ThreadHistoryAdapter["load"]>>;
       return repo;
     },
     async append(item) {
-      liveAcquired = true;
+      markLive();
       return real.append(item);
     },
   };
   if (real.update) {
     const update = real.update.bind(real);
     gated.update = async (item) => {
-      liveAcquired = true;
+      markLive();
       return update(item);
     };
   }
