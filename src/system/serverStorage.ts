@@ -1,4 +1,5 @@
 import { setLocalStorageItem } from './localStorageDiagnostics';
+import { consumePendingHistoryReadGateId } from './chatLiveDebug';
 
 /* Import dinamico deliberato: runtimeLog.ts porta con sé savedToken() da
    brain/stream.ts, una catena pesante. serverStorage.ts è importato in
@@ -48,6 +49,13 @@ function repositoryShape(raw: string | null): { messageCount: number; headId: st
 
 export const serverBackedStorage = {
   async getItem(key: string): Promise<string | null> {
+    /* FIRST TURN — FINAL DISCRIMINATOR. Consumato SUBITO, in modo
+       sincrono, prima di qualunque await: vedi il commento in
+       chatLiveDebug.ts su perché questo è sicuro con letture
+       concorrenti. Se questa chiamata non è passata da
+       createOwnershipGatedHistoryAdapter(), gateId è null — non lo
+       inventiamo mai qui. */
+    const gateId = CHAT_MESSAGES_KEY_PATTERN.test(key) ? consumePendingHistoryReadGateId() : null;
     const local = localStorage.getItem(key);
     const headers = auth();
     let result = local;
@@ -73,14 +81,14 @@ export const serverBackedStorage = {
         status: 'PASS',
         scope: 'chat',
         payloadBytes: result ? byteLength(result) : 0,
-        metadata: { source, messageCount: shape?.messageCount ?? 0, headId: shape?.headId ?? 'none' },
+        metadata: { source, messageCount: shape?.messageCount ?? 0, headId: shape?.headId ?? 'none', ...(gateId ? { gateId } : {}) },
       });
       if (shape) {
         postThreadStorageEvent({
           eventType: 'CHAT_HISTORY_LOAD',
           status: 'PASS',
           scope: 'chat',
-          metadata: { messageCount: shape.messageCount, headId: shape.headId },
+          metadata: { messageCount: shape.messageCount, headId: shape.headId, ...(gateId ? { gateId } : {}) },
         });
       }
     }

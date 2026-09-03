@@ -49,6 +49,10 @@ const ALLOWED_META = new Set([
      APPEND_GREETING / IMPORT / START_RUN / UNATTRIBUTED_DROP; 'messageId'
      è l'id (mai il contenuto) del messaggio coinvolto, quando noto. */
   'operation', 'messageId',
+  /* FIRST TURN — FINAL DISCRIMINATOR — id runtime-only di quale
+     createOwnershipGatedHistoryAdapter() ha originato la lettura, mai
+     inventato quando la lettura non è passata dal gate. */
+  'gateId',
 ]);
 
 const store = () => getStore(STORE);

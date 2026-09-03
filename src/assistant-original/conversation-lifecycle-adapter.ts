@@ -6,6 +6,7 @@ import type {
 } from "@assistant-ui/react";
 import { generateVinzChatTitle } from "./chat-title-generator";
 import { postRuntimeEvent } from "@/system/runtimeLog";
+import { markNextHistoryReadAsGated } from "@/system/chatLiveDebug";
 
 type RemoteThreadInitializeResponse = Awaited<ReturnType<RemoteThreadListAdapter["initialize"]>>;
 
@@ -206,14 +207,31 @@ export function resolvePromotionHandoff(
  * runtime mount (see `IntegratedChat.tsx`'s `HistoryOwnershipGate`, keyed by
  * `unstable_Provider`'s per-thread remount) — a fresh mount starts
  * un-acquired, so CASE A/D (genuine initial/reload hydration) still load.
+ *
+ * FIRST TURN — FINAL DISCRIMINATOR (observability only, no gating logic
+ * changed here): each instance gets a short runtime-only `gateId`,
+ * marked via `markNextHistoryReadAsGated()` immediately before calling
+ * `real.load()` so `serverBackedStorage.getItem()` can attach it to the
+ * matching `CHAT_STORAGE_READ`/`CHAT_HISTORY_LOAD` event — proving
+ * on-device whether a given stale read passed through this gate at all,
+ * without changing what the gate decides to do with the result.
  */
+function generateGateId(): string {
+  const random = typeof crypto !== 'undefined' && 'randomUUID' in crypto
+    ? crypto.randomUUID()
+    : `${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  return `hg_${random.replace(/-/g, '').slice(0, 8)}`;
+}
+
 export function createOwnershipGatedHistoryAdapter(real: ThreadHistoryAdapter): ThreadHistoryAdapter {
   let liveAcquired = false;
+  const gateId = generateGateId();
 
   const gated: ThreadHistoryAdapter = {
     ...real,
     async load() {
       if (liveAcquired) return undefined as unknown as Awaited<ReturnType<ThreadHistoryAdapter["load"]>>;
+      markNextHistoryReadAsGated(gateId);
       const repo = await real.load();
       // A live append may have landed while this read was in flight —
       // recheck at resolution, not just at call time.

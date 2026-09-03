@@ -105,6 +105,35 @@ export function currentRepositoryOperation(): ChatRepositoryOperation | null {
   return activeOperation;
 }
 
+/* HISTORY GATE ID — discriminatore, runtime-only. Diverso apposta dal
+   meccanismo ATTRIBUTION sopra: quello usa un timer (va bene per
+   un'attribuzione "migliore di niente"), ma qui serve sapere ESATTAMENTE
+   quale createOwnershipGatedHistoryAdapter() ha causato QUESTA lettura,
+   e un valore globale con timeout potrebbe essere sovrascritto da una
+   lettura concorrente slegata prima che la nostra si concluda.
+
+   La correttezza qui non viene da un timeout: viene dal fatto che
+   AsyncStorageHistoryAdapter.load() chiama storage.getItem(key) come
+   PRIMA cosa, in modo sincrono, senza nessun await frapposto (verificato
+   nel sorgente vendor). Quindi: il gate marca l'id SUBITO PRIMA di
+   chiamare real.load(); getItem() lo consuma (legge e azzera)
+   SINCRONAMENTE, prima di qualunque proprio await — nello stesso turno
+   dell'event loop, prima che qualunque altro codice (compreso un secondo
+   gate) possa intromettersi. Una volta consumato, resta nella closure di
+   QUELLA chiamata a getItem(): letture successive, anche di un altro
+   gate, non lo vedono più. */
+let pendingHistoryReadGateId: string | null = null;
+
+export function markNextHistoryReadAsGated(gateId: string): void {
+  pendingHistoryReadGateId = gateId;
+}
+
+export function consumePendingHistoryReadGateId(): string | null {
+  const id = pendingHistoryReadGateId;
+  pendingHistoryReadGateId = null;
+  return id;
+}
+
 /* ============================================================================
    BLACK BOX — cattura automatica al primo passaggio OK→SUSPECT di un
    detector A-E, runtime-only come tutto il resto di questo modulo. Vive
