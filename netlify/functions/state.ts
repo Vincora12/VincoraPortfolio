@@ -34,6 +34,20 @@ const MAX_BYTES = 2 * 1024 * 1024;
 interface Save {
   /** Il giorno di gioco: è l'arbitro fra due copie. */
   day: number;
+  /* ⚠️ L'UNICA COSA CHE PUÒ FAR TORNARE INDIETRO IL GIORNO.
+
+     Il guardiano qui sotto («un salvataggio non può far tornare indietro la
+     storia») è giusto per ogni scrittura AUTOMATICA, e sbagliato per l'unica
+     scrittura che è una DECISIONE: NUOVA PARTITA. Lì il giorno torna a 1
+     apposta, e finora il server rifiutava — quindi la partita vecchia
+     restava lassù, e bastava un telefono nuovo o i dati del browser
+     cancellati per farla tornare su come se il reset non fosse mai
+     successo.
+
+     🔒 Non è una porta aperta: arriva solo da LAB → SYSTEM → SAVE →
+     NUOVA PARTITA, dopo una conferma esplicita, e la copia superata NON
+     viene distrutta (vedi `pre-reset-…` più sotto). */
+  reset?: boolean;
   /** Quando è stato scritto, in ora reale. Serve a te, non alla decisione. */
   savedAt: string;
   /** Lo stato dell'app, opaco per il server. */
@@ -86,7 +100,9 @@ export default async function handler(request: Request): Promise<Response> {
      indietro, quello manda il suo stato vecchio, e settimane di .mon
      spariscono. Il server rifiuta, l'app riceve il rifiuto e SCARICA la
      copia buona invece di insistere. */
-  if (existing && incoming.day < existing.day) {
+  const isReset = incoming.reset === true;
+
+  if (!isReset && existing && incoming.day < existing.day) {
     return json(
       {
         error: 'esiste un salvataggio più avanti',
@@ -95,6 +111,17 @@ export default async function handler(request: Request): Promise<Response> {
       },
       409,
     );
+  }
+
+  /* 🔒 UNA NUOVA PARTITA NON DISTRUGGE QUELLA DI PRIMA, LA METTE DA PARTE.
+
+     Sovrascrivere e basta sarebbe la cosa più semplice e la più cattiva: il
+     reset serve a ripartire, non a bruciare quaranta giorni senza rete di
+     sicurezza. La copia superata resta leggibile sotto una chiave sua, e le
+     copie per giorno (`day-N`) restano dov'erano — questa scrittura non
+     tocca nemmeno una di loro. */
+  if (isReset && existing) {
+    await store().setJSON(`pre-reset-${new Date().toISOString()}`, existing);
   }
 
   const save: Save = {
@@ -114,7 +141,7 @@ export default async function handler(request: Request): Promise<Response> {
   /* `payloadBytes`/`limitBytes` sulla risposta buona, non solo sul 413: è lo
      stesso numero (`MAX_BYTES`) che decide il rifiuto, mai un duplicato
      scritto altrove — SYSTEM.LAB → STORAGE lo legge da qui, non lo indovina. */
-  return json({ ok: true, day: save.day, savedAt: save.savedAt, payloadBytes: size, limitBytes: MAX_BYTES });
+  return json({ ok: true, day: save.day, savedAt: save.savedAt, payloadBytes: size, limitBytes: MAX_BYTES, reset: isReset });
 }
 
 export const config = { path: '/api/state' };

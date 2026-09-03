@@ -796,8 +796,14 @@ export function saveRemote(
   token: string | null,
   day: number,
   state: unknown,
-): Promise<BackendResult<{ ok: boolean; day: number; savedAt: string; payloadBytes: number; limitBytes: number }>> {
-  return post('/api/state', token, { day, state }, 'PUT');
+  /* ⚠️ Il flag che permette al giorno di tornare indietro. Esiste per una
+     sola strada — LAB → SYSTEM → SAVE → NUOVA PARTITA — e il salvataggio
+     automatico (`scheduleRemoteSave`) non lo passa mai: se lo passasse,
+     ogni scrittura potrebbe cancellare una partita più avanti, che è
+     esattamente ciò che il guardiano sul server esiste per impedire. */
+  opts?: { reset?: boolean },
+): Promise<BackendResult<{ ok: boolean; day: number; savedAt: string; payloadBytes: number; limitBytes: number; reset?: boolean }>> {
+  return post('/api/state', token, opts?.reset ? { day, state, reset: true } : { day, state }, 'PUT');
 }
 
 /* --- Dati dalle Shortcut ----------------------------------------------------- */

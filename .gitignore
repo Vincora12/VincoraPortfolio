@@ -16,5 +16,8 @@ node_modules/.vinz-chat-lifecycle.mjs
 # Bundle temporaneo di scripts/v2-issues-check.mjs (stessa ragione).
 node_modules/.vinz-v2-issues-check.mjs
 
+# Bundle temporaneo di scripts/save-control-check.mjs (stessa ragione).
+node_modules/.vinz-save-control-check.mjs
+
 # Local Netlify folder
 .netlify

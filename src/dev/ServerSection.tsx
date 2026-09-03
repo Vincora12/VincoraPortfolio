@@ -28,48 +28,11 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { restoreFromServer, useApp } from '../state/store';
+/* 🔒 Il confronto sta in `state/saveComparison.ts`, non più qui: LAB →
+   SYSTEM → SAVE fa la stessa domanda, e due copie della stessa decisione
+   diventerebbero due risposte diverse alla prima modifica. */
+import { compareSaves, peekSave, quandoFa, type SavePeek } from '../state/saveComparison';
 import { Button, Row, SystemLabel } from '../system/components';
-
-/** Quello che riusciamo a leggere dalla copia del server, che per il server è opaca. */
-interface ServerPeek {
-  day: number;
-  savedAt: string | null;
-  mons: number;
-  activeMonName: string | null;
-  kept: number;
-  nodes: number;
-}
-
-/**
- * Il server tiene lo stato come `unknown` di proposito (vedi `state.ts`): non
- * sa cosa contiene e non deve saperlo. Qui lo si guarda dentro per la prima
- * volta, quindi ogni campo si legge in difesa — un salvataggio vecchio può
- * non avere una chiave che oggi diamo per scontata, e questa schermata deve
- * dire «non lo so» invece di rompersi proprio mentre stai cercando di capire
- * se hai perso dei dati.
- */
-function peek(raw: unknown, day: number, savedAt: string | null): ServerPeek {
-  const s = (raw ?? {}) as Record<string, unknown>;
-  const mons = s.mons && typeof s.mons === 'object' ? Object.keys(s.mons as object).length : 0;
-  const kept = Array.isArray(s.kept) ? s.kept.length : 0;
-  const nodes = Array.isArray(s.nodes) ? s.nodes.length : 0;
-  const active = typeof s.activeMonName === 'string' ? s.activeMonName : null;
-  return { day, savedAt, mons, activeMonName: active, kept, nodes };
-}
-
-/** «Due minuti fa» dice più di un timestamp ISO quando la domanda è «sta salvando?». */
-function quandoFa(iso: string | null): string {
-  if (!iso) return 'mai';
-  const ms = Date.now() - new Date(iso).getTime();
-  if (Number.isNaN(ms)) return iso;
-  const min = Math.round(ms / 60000);
-  if (min < 1) return 'meno di un minuto fa';
-  if (min < 60) return `${min} ${min === 1 ? 'minuto' : 'minuti'} fa`;
-  const ore = Math.round(min / 60);
-  if (ore < 24) return `${ore} ${ore === 1 ? 'ora' : 'ore'} fa`;
-  const giorni = Math.round(ore / 24);
-  return `${giorni} ${giorni === 1 ? 'giorno' : 'giorni'} fa`;
-}
 
 export function ServerSection() {
   const token = useApp((s) => s.token);
@@ -77,8 +40,8 @@ export function ServerSection() {
   /* Il confronto ha senso solo se le due colonne sono lette nello STESSO
      istante: leggere il locale al primo render e il server due secondi dopo
      mostrerebbe una differenza che è solo il tempo passato in mezzo. */
-  const [server, setServer] = useState<ServerPeek | null | 'loading' | 'error'>('loading');
-  const [local, setLocal] = useState<ServerPeek | null>(null);
+  const [server, setServer] = useState<SavePeek | null | 'loading' | 'error'>('loading');
+  const [local, setLocal] = useState<SavePeek | null>(null);
 
   const guarda = useCallback(() => {
     if (!token) {
@@ -101,7 +64,7 @@ export function ServerSection() {
           setServer('error');
           return;
         }
-        setServer(data.state == null ? null : peek(data.state, data.day, data.savedAt));
+        setServer(data.state == null ? null : peekSave(data.state, data.day, data.savedAt));
       }),
     );
   }, [token]);
@@ -166,12 +129,10 @@ export function ServerSection() {
             />
           </div>
 
-          {(server.day > local.day ||
-            server.mons > local.mons ||
-            server.kept > local.kept ||
-            server.nodes > local.nodes) && (
-            <RestoreButton local={local} server={server} onDone={guarda} />
-          )}
+          {compareSaves(local, server) !== 'allineati' &&
+            compareSaves(local, server) !== 'server-indietro' && (
+              <RestoreButton local={local} server={server} onDone={guarda} />
+            )}
         </>
       )}
 
@@ -224,19 +185,10 @@ function Confronto({
  * esattamente il caso che ha fatto sparire dei progressi, quindi è il caso
  * che questa riga deve saper nominare.
  */
-function Verdetto({ local, server }: { local: ServerPeek; server: ServerPeek }) {
-  const indietro =
-    server.day < local.day ||
-    server.mons < local.mons ||
-    server.kept < local.kept ||
-    server.nodes < local.nodes;
-  const avanti =
-    server.day > local.day ||
-    server.mons > local.mons ||
-    server.kept > local.kept ||
-    server.nodes > local.nodes;
+function Verdetto({ local, server }: { local: SavePeek; server: SavePeek }) {
+  const verdetto = compareSaves(local, server);
 
-  if (indietro && !avanti) {
+  if (verdetto === 'server-indietro') {
     return (
       <p className="t-micro dev__note">
         🔴 IL SERVER È INDIETRO. Qualcosa che hai su questo telefono non è
@@ -246,7 +198,7 @@ function Verdetto({ local, server }: { local: ServerPeek; server: ServerPeek }) 
       </p>
     );
   }
-  if (avanti && !indietro) {
+  if (verdetto === 'server-avanti') {
     return (
       <p className="t-micro dev__note">
         🟡 IL SERVER HA PIÙ ROBA DI QUESTO TELEFONO. Se non hai mai fatto
@@ -257,7 +209,7 @@ function Verdetto({ local, server }: { local: ServerPeek; server: ServerPeek }) 
       </p>
     );
   }
-  if (avanti && indietro) {
+  if (verdetto === 'divergenti') {
     return (
       <p className="t-micro dev__note">
         🟠 LE DUE COPIE SONO DIVERSE IN DUE DIREZIONI. Ognuna ha qualcosa che
@@ -285,8 +237,8 @@ function RestoreButton({
   server,
   onDone,
 }: {
-  local: ServerPeek;
-  server: ServerPeek;
+  local: SavePeek;
+  server: SavePeek;
   onDone: () => void;
 }) {
   const [armed, setArmed] = useState(false);

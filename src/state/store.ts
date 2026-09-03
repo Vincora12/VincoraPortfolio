@@ -4327,6 +4327,98 @@ export async function restoreFromServer(): Promise<RemoteSave | null> {
   return data;
 }
 
+/* ============================================================================
+   IL CONTROLLO DEL SALVATAGGIO — LAB → SYSTEM → SAVE
+
+   🔷 «Continua a tornare su una partita vecchia.»
+
+   ⚠️ IL SALVATAGGIO AUTOMATICO NON BASTA A GOVERNARLO, e non è un difetto:
+   fa apposta una cosa sola e la fa da solo. Ma tre decisioni non possono
+   essere automatiche, perché nessuna di loro ha una risposta giusta che il
+   codice possa indovinare:
+
+     · «salva ADESSO, non fra quattro secondi» — perché sto per chiudere;
+     · «riprendi dal server» — perché questo telefono è quello sbagliato;
+     · «nuova partita» — perché voglio ripartire, e voglio che resti.
+
+   🔒 E LA TERZA È QUELLA CHE FINORA NON FUNZIONAVA FINO IN FONDO.
+   `resetAll` puliva il telefono, e `shouldDownload` proteggeva il reset da
+   qui; ma sul server la partita vecchia restava, intatta, al giorno 40. Su
+   un telefono nuovo — o dopo che Safari ha liberato lo spazio del sito —
+   quella copia tornava su, e il reset non era mai davvero successo. Adesso
+   la nuova partita ARRIVA sul server, con l'unica scrittura autorizzata a
+   far tornare indietro il giorno.
+
+   🔒 E NON TOCCA NIENTE CHE NON SIA LA PARTITA. Le lezioni, la memoria
+   scritta a mano, la teca vivono fuori da questo salvataggio (chiavi loro,
+   `resetAll` le rimette); i V2 Issues, Mem0 e i log stanno in altri store
+   che questa funzione non apre nemmeno.
+   ========================================================================= */
+
+export interface SaveOutcome {
+  ok: boolean;
+  day?: number;
+  savedAt?: string | null;
+  /** Il motivo tecnico quando è andata male, così la UI non deve inventarlo. */
+  failure?: string;
+  detail?: string;
+  status?: number;
+}
+
+/**
+ * Salva ADESSO, senza aspettare il debounce e senza la scorciatoia della
+ * firma.
+ *
+ * ⚠️ La firma si salta di proposito: qui la domanda non è «è cambiato
+ * qualcosa?» ma «la copia del server è quella di adesso?». Se il server ha
+ * perso una scrittura, la firma direbbe «già salvato» e non manderebbe
+ * niente — che è precisamente il caso in cui questo pulsante serve.
+ */
+export async function saveNowToServer(): Promise<SaveOutcome> {
+  const now = useApp.getState();
+  if (!now.token) return { ok: false, failure: 'no-token' };
+
+  const snapshot = snapshotFor(now);
+  const { saveRemote } = await import('../ai/backend');
+  const result = await saveRemote(now.token, now.day, snapshot);
+  if (result.failure) {
+    return { ok: false, failure: result.failure, detail: result.detail, status: result.status };
+  }
+  lastSavedSignature = JSON.stringify(snapshot);
+  return { ok: true, day: result.data?.day ?? now.day, savedAt: result.data?.savedAt ?? null };
+}
+
+/**
+ * Ricomincia da capo, e fa in modo che RESTI ricominciato.
+ *
+ * 🔒 L'ordine conta. Prima si pulisce il telefono (`resetAll`, il reset
+ * canonico — non un secondo reset scritto qui), poi si scrive subito sul
+ * server con `reset: true`. Se si aspettasse il debounce, quella scrittura
+ * partirebbe come una normale e il server la rifiuterebbe con un 409:
+ * giorno 1 contro giorno 40. La partita nuova resterebbe chiusa dentro
+ * questo telefono, e il reset sarebbe di nuovo reversibile per sbaglio.
+ *
+ * ⚠️ Se il server non risponde, il reset LOCALE è comunque avvenuto: si
+ * dice, non si finge. `shouldDownload` continua a proteggerlo da qui grazie
+ * a `resetAt`, ma finché la scrittura non passa la copia vecchia è ancora
+ * lassù — e la UI deve poterlo dire invece di mostrare una spunta verde.
+ */
+export async function startNewGame(): Promise<SaveOutcome> {
+  useApp.getState().resetAll();
+
+  const fresh = useApp.getState();
+  if (!fresh.token) return { ok: false, failure: 'no-token' };
+
+  const snapshot = snapshotFor(fresh);
+  const { saveRemote } = await import('../ai/backend');
+  const result = await saveRemote(fresh.token, fresh.day, snapshot, { reset: true });
+  if (result.failure) {
+    return { ok: false, failure: result.failure, detail: result.detail, status: result.status };
+  }
+  lastSavedSignature = JSON.stringify(snapshot);
+  return { ok: true, day: result.data?.day ?? fresh.day, savedAt: result.data?.savedAt ?? null };
+}
+
 /** Segna che questa partita ha saltato del tempo dal pannello DEV. */
 function markAccelerated(set: (p: Partial<AppState>) => void, get: () => AppState): void {
   if (!get().usedDevTime) set({ usedDevTime: true });

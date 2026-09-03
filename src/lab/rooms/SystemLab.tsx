@@ -18,12 +18,12 @@
    peggiore che ci possa stare qui dentro.
    ========================================================================= */
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useApp } from '../../state/store';
 import { STAT_KEYS, UNKNOWN, isKnown } from '../../engine/types';
 import type { StatKey } from '../../engine/types';
 import { DAILY_SIGNALS, DAILY_SIGNAL_LABELS } from '../../engine/progression';
-import { loadPing, loadSetup, loadShortcutStatus, loadUsage, saveMonthlyCap, loadRuntimeLog, loadV2Issues, type ShortcutStatus, type UsageDashboard, type RuntimeEvent } from '../../ai/backend';
+import { loadPing, loadSetup, loadShortcutStatus, loadUsage, saveMonthlyCap, loadRuntimeLog, loadV2Issues, loadRemote, type ShortcutStatus, type UsageDashboard, type RuntimeEvent } from '../../ai/backend';
 import type { V2Issue } from '../../ai/v2Issues';
 import { lastRuns } from '../../ai/telemetry';
 import { freshSecret } from '../../engine/secret';
@@ -37,6 +37,14 @@ import {
 } from '../../../netlify/functions/_shared/routing';
 import { Btn, Grid, LabTop, Notice, PageHead, Range, Rows, Section, Status } from './parts';
 import { LabAssistantPanel } from '../assistant/LabAssistantPanel';
+/* 🔷 LAB CONSOLIDATION + SAVE CONTROL. Il confronto LOCALE·SERVER e il
+   verdetto vivono in `state/saveComparison.ts` — le stesse funzioni che
+   `dev/ServerSection.tsx` usa già, non una copia. Le tre azioni
+   (`saveNowToServer`, `restoreFromServer`, `startNewGame`) vivono in
+   `state/store.ts`: sono i meccanismi canonici, questa scheda li chiama e
+   basta. */
+import { compareSaves, peekSave, quandoFa, type SavePeek } from '../../state/saveComparison';
+import { restoreFromServer, saveNowToServer, startNewGame } from '../../state/store';
 import '../skin/system.css';
 import {
   formatBytes,
@@ -63,6 +71,11 @@ import { LiveDebug } from './liveDebug';
 
 const TABS = [
   { id: 'setup', label: 'SETUP' },
+  /* 🔷 LAB CONSOLIDATION + SAVE CONTROL — «mi devi mettere un tasto salva
+     allora.» Prima scheda dopo SETUP perché la domanda che ci porta qui è
+     la stessa: «sta funzionando davvero, o sto solo indovinando?» — solo
+     che questa volta la risposta è sulla partita, non sul backend. */
+  { id: 'save', label: 'SAVE' },
   { id: 'ai', label: 'AI' },
   { id: 'simulation', label: 'SIMULATION' },
   { id: 'memory', label: 'MEMORY' },
@@ -83,6 +96,14 @@ const TABS = [
      lettura: la cattura resta nella Chat, qui si legge solo l'elenco
      canonico server-side — non un secondo posto dove editarlo. */
   { id: 'v2-issues', label: 'V2 ISSUES' },
+  /* 🔷 LAB CONSOLIDATION — «integra la parte che c'era dietro per poi
+     utilizzarle», non ridisegnarla. TEMPO, CREATURA e metà di VOCE vivono
+     ancora solo dentro DEV://VINZ.MON: rifarle qui una a una è il
+     refactor grosso che questo giro doveva evitare («se inizia a
+     richiedere refactor grandi, fermati»). Questa scheda non le nasconde
+     — dice dove sono, con lo stesso nome che hanno là — finché non
+     arriva il loro turno nella lista delle priorità. */
+  { id: 'legacy', label: 'LEGACY' },
 ];
 
 export function SystemLab({ onBack }: { onBack: () => void }) {
@@ -93,6 +114,7 @@ export function SystemLab({ onBack }: { onBack: () => void }) {
       <LabTop tabs={TABS} active={tab} onTab={setTab} onBack={onBack} />
       <main>
         {tab === 'setup' && <Setup />}
+        {tab === 'save' && <Save />}
         {tab === 'ai' && <Ai />}
         {tab === 'simulation' && <Simulation />}
         {tab === 'memory' && <Memory />}
@@ -104,6 +126,7 @@ export function SystemLab({ onBack }: { onBack: () => void }) {
         {tab === 'shortcuts' && <Shortcuts />}
         {tab === 'assistant' && <LabAssistantPanel />}
         {tab === 'v2-issues' && <V2Issues />}
+        {tab === 'legacy' && <Legacy />}
         <div className="footer mono">SYSTEM.LAB · SAME VINZ.MON ENGINE / SAME REPOSITORY</div>
       </main>
     </div>
@@ -365,6 +388,266 @@ function Setup() {
           </p>
         )}
       </Section>
+    </section>
+  );
+}
+
+/* ============================================================================
+   SAVE — LAB CONSOLIDATION + SAVE CONTROL
+
+   🔷 «Continua a tornare su una partita vecchia.» / «Mi devi mettere un
+   tasto salva allora.»
+
+   🔒 QUESTA SCHEDA NON INVENTA UN SECONDO SALVATAGGIO. LOCALE·SERVER usa lo
+   stesso confronto di DEV → SERVER (`state/saveComparison.ts`), e le tre
+   azioni chiamano i meccanismi canonici di `state/store.ts`:
+   `saveNowToServer`, `restoreFromServer`, `startNewGame`. Se uno di questi
+   tre cambia comportamento, cambia per ENTRAMBE le superfici — non c'è una
+   seconda copia da tenere allineata a mano.
+
+   ⚠️ NUOVA PARTITA non è RIPRENDI DAL SERVER al contrario: pulisce QUESTO
+   telefono (`resetAll`, lo stesso reset di sempre) e poi scrive `reset:
+   true` sul server, l'unica scrittura che può far tornare indietro il
+   giorno. La copia superata non si perde — resta sul server sotto una
+   chiave `pre-reset-…` — e i V2 Issues, le lezioni, Mem0 non sono nemmeno
+   aperti da questa funzione.
+   ========================================================================= */
+
+function Save() {
+  const token = useApp((s) => s.token);
+  const day = useApp((s) => s.day);
+
+  const [server, setServer] = useState<SavePeek | null | 'loading' | 'error'>('loading');
+  const [local, setLocal] = useState<SavePeek | null>(null);
+  const [busy, setBusy] = useState<'save' | 'restore' | 'new' | null>(null);
+  const [outcome, setOutcome] = useState<string | null>(null);
+  const [confirmRestore, setConfirmRestore] = useState(false);
+  const [confirmNew, setConfirmNew] = useState(false);
+
+  const guarda = useCallback(() => {
+    if (!token) {
+      setServer('error');
+      return;
+    }
+    setServer('loading');
+    const s = useApp.getState();
+    setLocal({
+      day: s.day,
+      savedAt: null,
+      mons: Object.keys(s.mons).length,
+      activeMonName: s.activeMonName,
+      kept: s.kept.length,
+      nodes: s.nodes.length,
+    });
+    void loadRemote(token).then(({ data, failure }) => {
+      if (failure || !data) {
+        setServer('error');
+        return;
+      }
+      setServer(data.state == null ? null : peekSave(data.state, data.day, data.savedAt));
+    });
+  }, [token]);
+
+  useEffect(guarda, [guarda]);
+
+  const verdetto = server && server !== 'loading' && server !== 'error' && local ? compareSaves(local, server) : null;
+
+  return (
+    <section className="page active">
+      <PageHead
+        kicker="VINZ.LAB / SYSTEM"
+        title="SAVE"
+        lead="Cosa sa questo telefono, cosa sa il server, e le tre decisioni che nessuna delle due parti può prendere da sola."
+      />
+
+      {!token && (
+        <Notice title="NESSUN TOKEN">
+          Senza segreto non c'è niente da chiedere: vai in SETUP e incolla il segreto già su
+          Netlify.
+        </Notice>
+      )}
+
+      {token && (
+        <Section
+          title="LOCALE · SERVER"
+          note="Sola lettura di default: guardare non scrive niente. Le tre azioni qui sotto sono le uniche che scrivono."
+        >
+          {server === 'loading' && <p className="note">Sto chiedendo…</p>}
+          {server === 'error' && (
+            <p className="note">
+              Il server non ha risposto. Rete giù, o il segreto non vale più — in tutti e due i
+              casi questo telefono continua a funzionare da solo, ma NON sta salvando da nessuna
+              parte.
+            </p>
+          )}
+          {server === null && (
+            <p className="note">Il server risponde, ma non ha ancora nessun salvataggio.</p>
+          )}
+          {server && server !== 'loading' && server !== 'error' && local && (
+            <>
+              {verdetto === 'allineati' && (
+                <Notice title="🟢 ALLINEATI">
+                  Quello che vedi qui è anche quello che c'è sul server. Se chiudi tutto adesso,
+                  non perdi niente.
+                </Notice>
+              )}
+              {verdetto === 'server-indietro' && (
+                <Notice title="🔴 IL SERVER È INDIETRO">
+                  Qualcosa che hai qui non è ancora arrivato sul server. Il salvataggio parte
+                  quattro secondi dopo l'ultima cosa che fai — se resta indietro a lungo, usa
+                  SALVA QUESTO STATO SUL SERVER qui sotto.
+                </Notice>
+              )}
+              {verdetto === 'server-avanti' && (
+                <Notice title="🟡 IL SERVER HA PIÙ ROBA">
+                  Se non hai fatto NUOVA PARTITA, si scarica da sola al prossimo avvio. Se hai
+                  resettato di proposito o per sbaglio, quel salvataggio resta bloccato apposta:
+                  usa RIPRENDI DAL SERVER per tornare a quella copia.
+                </Notice>
+              )}
+              {verdetto === 'divergenti' && (
+                <Notice title="🟠 LE DUE COPIE SONO DIVERSE IN DUE DIREZIONI">
+                  Ognuna ha qualcosa che l'altra non ha — succede con due dispositivi in
+                  parallelo. Guarda i numeri prima di scegliere un'azione.
+                </Notice>
+              )}
+
+              <p className="note"><strong>ULTIMA SCRITTURA SERVER</strong></p>
+              <Rows rows={[['quando', quandoFa(server.savedAt)]]} />
+
+              <p className="note"><strong>QUESTO TELEFONO · SERVER</strong></p>
+              <Rows
+                rows={[
+                  ['giorno', `${local.day} · ${server.day}`],
+                  ['forme (.mon)', `${local.mons} · ${server.mons}`],
+                  ['in teca', `${local.kept} · ${server.kept}`],
+                  ['nodi mindline', `${local.nodes} · ${server.nodes}`],
+                  ['mon attivo', `${local.activeMonName ?? '—'} · ${server.activeMonName ?? '—'}`],
+                ]}
+              />
+            </>
+          )}
+          <Grid>
+            <Btn onClick={guarda} disabled={!token}>
+              GUARDA DI NUOVO
+            </Btn>
+          </Grid>
+        </Section>
+      )}
+
+      {token && (
+        <Section
+          title="AZIONI"
+          note="Le uniche tre scritture di questa scheda. Ognuna dice cosa sta per fare prima di farlo."
+        >
+          {outcome && <p className="note">{outcome}</p>}
+
+          <Grid>
+            <Btn
+              onClick={() => {
+                setBusy('save');
+                setOutcome(null);
+                void saveNowToServer().then((r) => {
+                  setBusy(null);
+                  setOutcome(
+                    r.ok
+                      ? `Salvato sul server — giorno ${r.day}.`
+                      : `Non sono riuscito a salvare: ${r.failure ?? 'errore sconosciuto'}.`,
+                  );
+                  guarda();
+                });
+              }}
+              disabled={busy !== null}
+            >
+              {busy === 'save' ? 'STO SALVANDO…' : 'SALVA QUESTO STATO SUL SERVER'}
+            </Btn>
+          </Grid>
+          <p className="note">
+            Salva ADESSO, senza aspettare i quattro secondi normali. Utile prima di chiudere
+            l'app o cambiare telefono.
+          </p>
+
+          {!confirmRestore ? (
+            <Grid>
+              <Btn onClick={() => setConfirmRestore(true)} disabled={busy !== null}>
+                RIPRENDI DAL SERVER
+              </Btn>
+            </Grid>
+          ) : (
+            <>
+              <p className="note">
+                Questo telefono torna alla copia del server
+                {server && server !== 'loading' && server !== 'error' && server
+                  ? ` — giorno ${server.day}, ${server.mons} forme, mon attivo ${server.activeMonName ?? '—'}`
+                  : ''}
+                . Perdi quello che c'è solo qui, e non si torna indietro da qui.
+              </p>
+              <Grid>
+                <Btn onClick={() => setConfirmRestore(false)} disabled={busy !== null}>
+                  Lascia stare
+                </Btn>
+                <Btn
+                  onClick={() => {
+                    setBusy('restore');
+                    setOutcome(null);
+                    void restoreFromServer().then((data) => {
+                      setBusy(null);
+                      setConfirmRestore(false);
+                      setOutcome(data ? 'Ripreso dal server.' : 'Il server non aveva niente da dare.');
+                      guarda();
+                    });
+                  }}
+                  disabled={busy !== null}
+                >
+                  Riprendi dal server
+                </Btn>
+              </Grid>
+            </>
+          )}
+
+          {!confirmNew ? (
+            <Grid>
+              <Btn onClick={() => setConfirmNew(true)} disabled={busy !== null}>
+                NUOVA PARTITA
+              </Btn>
+            </Grid>
+          ) : (
+            <>
+              <p className="note">
+                Ricomincia da capo: questo telefono torna al giorno 1, e il server riceve subito
+                la stessa scrittura — così la partita vecchia (giorno {day}) non torna su da sola
+                su un altro telefono. La copia vecchia NON viene distrutta, resta sul server da
+                parte. Le lezioni, la memoria scritta a mano e i V2 Issues NON vengono toccati da
+                questa azione. Non si torna indietro da qui.
+              </p>
+              <Grid>
+                <Btn onClick={() => setConfirmNew(false)} disabled={busy !== null}>
+                  Lascia stare
+                </Btn>
+                <Btn
+                  onClick={() => {
+                    setBusy('new');
+                    setOutcome(null);
+                    void startNewGame().then((r) => {
+                      setBusy(null);
+                      setConfirmNew(false);
+                      setOutcome(
+                        r.ok
+                          ? `Nuova partita — giorno ${r.day}, scritta sul server.`
+                          : `Reset fatto su questo telefono, ma NON è arrivato al server: ${r.failure ?? 'errore sconosciuto'}. Riprova SALVA QUESTO STATO SUL SERVER.`,
+                      );
+                      guarda();
+                    });
+                  }}
+                  disabled={busy !== null}
+                >
+                  Nuova partita
+                </Btn>
+              </Grid>
+            </>
+          )}
+        </Section>
+      )}
     </section>
   );
 }
@@ -1480,6 +1763,62 @@ function Shortcuts() {
         ) : (
           <p className="note">nessuna chiamata ancora.</p>
         )}
+      </Section>
+    </section>
+  );
+}
+
+/* ============================================================================
+   LEGACY — QUELLO CHE VINZ.LAB NON HA ANCORA INTEGRATO
+
+   🔷 «Consolida DEV in LAB come unica sala controllo del prototipo.»
+
+   ⚠️ ONESTA, NON UN ALIBI. TEMPO, CREATURA e metà di VOCE sono ancora solo
+   in DEV://VINZ.MON: portarle qui una a una — dodici schede, ognuna con la
+   sua logica — è il refactor grosso che la priorità dichiarata (SAVE →
+   SERVER → SIMULATION → CREATURE → AI → PERSONA) mette in coda, non alla
+   testa. SAVE e SERVER sono già qui sopra. Questa scheda esiste per
+   dirlo, non per nasconderlo dietro un pulsante che sembra fare qualcosa.
+
+   🔒 NON APRE UN SECONDO DEV. Porta all'UNICO pannello vero — la stessa
+   route che apriva già il pulsante DEV nell'app — perché duplicare quelle
+   sezioni qui, anche solo come iframe, sarebbe la seconda copia che questo
+   intero lavoro esiste per non creare.
+   ========================================================================= */
+
+const LEGACY_GROUPS: { titolo: string; voci: string[] }[] = [
+  { titolo: 'TEMPO', voci: ['TEMPO', 'SEGNALI', 'PROGRESSIONE'] },
+  {
+    titolo: 'CREATURA',
+    voci: ['GENERA', 'BIO', 'RESOLVER', 'INSEGNA', 'MINDLINE', 'MONDO', 'RARITÀ', 'ASSET', 'PROMPT IMMAGINI', 'CATALOGHI', 'PROVE'],
+  },
+  { titolo: 'VOCE', voci: ['PROVA', 'UMORE E OPINIONI', 'STRUMENTI'] },
+];
+
+function Legacy() {
+  return (
+    <section className="page active">
+      <PageHead
+        kicker="VINZ.LAB / SYSTEM"
+        title="LEGACY"
+        lead="Quello che VINZ.LAB non ha ancora integrato. Non è sparito: vive in DEV://VINZ.MON, raggiungibile dal pulsante DEV nell'app."
+      />
+
+      <Section
+        title="ANCORA SOLO IN DEV"
+        note="Stessi nomi che hanno là, così cercarli non è indovinare due volte."
+      >
+        <Rows rows={LEGACY_GROUPS.map((g) => [g.titolo, g.voci.join(' · ')])} />
+      </Section>
+
+      <Section title="APRI">
+        <p className="note">
+          Torna all'app vera: il pulsante DEV in basso a destra apre lo stesso pannello, con
+          tutte queste sezioni.
+        </p>
+        <Grid>
+          <Btn onClick={() => window.location.assign('/')}>TORNA ALL'APP</Btn>
+        </Grid>
       </Section>
     </section>
   );
