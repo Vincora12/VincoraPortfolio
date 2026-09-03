@@ -45,6 +45,10 @@ const ALLOWED_META = new Set([
      della chiave di storage che lo persiste, mai il loro contenuto. */
   'caller', 'beforeMessageCount', 'afterMessageCount', 'beforeHeadId', 'afterHeadId',
   'messageCount', 'headId', 'parentId', 'phase',
+  /* REPOSITORY MUTATION WATCHER — 'operation' distingue APPEND_ENTER /
+     APPEND_GREETING / IMPORT / START_RUN / UNATTRIBUTED_DROP; 'messageId'
+     è l'id (mai il contenuto) del messaggio coinvolto, quando noto. */
+  'operation', 'messageId',
 ]);
 
 const store = () => getStore(STORE);

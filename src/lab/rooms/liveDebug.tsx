@@ -119,6 +119,7 @@ export function LiveDebug() {
           <Detector label="B · OFF-BRANCH" result={detectors.offBranch} />
           <Detector label="C · DUPLICATE RUN" result={detectors.duplicateRun} />
           <Detector label="D · STALE LOAD SUSPECTED" result={detectors.staleLoad} />
+          <Detector label="E · REPOSITORY DROP" result={detectors.repositoryDrop} />
         </div>
       </Section>
 

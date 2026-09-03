@@ -36,6 +36,7 @@ export const CHAT_EVENT_TYPES = new Set([
   'CHAT_UI_SUBMIT',
   'CHAT_MODEL_ADAPTER_START',
   'CHAT_ROUTE_SELECTED',
+  'CHAT_REPOSITORY_MUTATION',
 ]);
 
 export const shortId = (id: string | null): string => {
@@ -110,6 +111,20 @@ export function detectStaleLoad(events: RuntimeEvent[], maxRepoSeen: number | nu
   return { suspect: true, detail: `${hit.eventType}: ${numMeta(hit, 'messageCount')} < ${maxRepoSeen} osservati dal vivo` };
 }
 
+/** E · REPOSITORY DROP — un CHAT_REPOSITORY_MUTATION osservato: cattura
+ * ANCHE i cali che non passano dai nostri wrapper (import/startRun/
+ * append), perché è generato confrontando due export() consecutivi ad
+ * ogni notifica di aui.subscribe(), non filtrando per chiamante. */
+export function detectRepositoryDrop(events: RuntimeEvent[]): DetectorResult {
+  const hit = events.find((event) => event.eventType === 'CHAT_REPOSITORY_MUTATION');
+  if (!hit) return { suspect: false, detail: 'nessuna mutazione con calo osservata' };
+  const before = numMeta(hit, 'beforeMessageCount');
+  const after = numMeta(hit, 'afterMessageCount');
+  const operation = strMeta(hit, 'operation') ?? 'UNATTRIBUTED_DROP';
+  const caller = strMeta(hit, 'caller') ?? 'ASSISTANT_UI_INTERNAL';
+  return { suspect: true, detail: `${before ?? '?'} → ${after ?? '?'} messaggi · ${operation} (${caller})` };
+}
+
 export type ChatLiveDebugState = {
   snapshot: ChatLiveThreadSnapshot | null;
   eventsSinceClear: RuntimeEvent[];
@@ -123,6 +138,7 @@ export type ChatLiveDebugState = {
     offBranch: DetectorResult & { count: number };
     duplicateRun: DetectorResult;
     staleLoad: DetectorResult;
+    repositoryDrop: DetectorResult;
   };
 };
 
@@ -184,6 +200,7 @@ export function useChatLiveDebug(): ChatLiveDebugState {
       offBranch: detectOffBranch(snapshot),
       duplicateRun: detectDuplicateRun(eventsSinceClear),
       staleLoad: detectStaleLoad(eventsSinceClear, maxRepoSeen),
+      repositoryDrop: detectRepositoryDrop(eventsSinceClear),
     },
   };
 }

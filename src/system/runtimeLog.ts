@@ -56,7 +56,12 @@ export type RuntimeClientEvent = {
     | 'CHAT_STORAGE_WRITE'
     | 'CHAT_STORAGE_READ'
     | 'CHAT_HISTORY_LOAD'
-    | 'CHAT_RUN_BOUNDARY';
+    | 'CHAT_RUN_BOUNDARY'
+    /* REPOSITORY MUTATION WATCHER — cattura ANCHE le mutazioni che non
+       passano dai nostri wrapper (es. dentro __internal_load() del
+       vendor): confronta due export() consecutivi ad ogni notifica di
+       aui.subscribe(), non solo attorno alle nostre chiamate. */
+    | 'CHAT_REPOSITORY_MUTATION';
   status: 'START' | 'PASS' | 'FAIL';
   scope: 'system' | 'chat' | 'memory';
   requestId?: string;

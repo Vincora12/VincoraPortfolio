@@ -14,7 +14,12 @@ import {
   useAuiState,
 } from "@assistant-ui/react";
 import { postChatDiagnostic, postRuntimeEvent } from "@/system/runtimeLog";
-import { publishChatLiveSnapshot } from "@/system/chatLiveDebug";
+import {
+  publishChatLiveSnapshot,
+  beginRepositoryOperation,
+  endRepositoryOperation,
+  currentRepositoryOperation,
+} from "@/system/chatLiveDebug";
 import { shortId, useChatLiveDebug, type DetectorResult } from "@/system/useChatLiveDebug";
 import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type FC } from "react";
 import { createPortal } from "react-dom";
@@ -100,7 +105,12 @@ const importWithObservability = (
   repository: Parameters<AuiHandle['thread']['import']>[0],
 ): void => {
   const before = auiSnapshot(aui);
+  /* import() è sincrono da cima a fondo (clear()+import()+resetHead(),
+     nessun await nel mezzo — verificato nel sorgente vendor): possiamo
+     chiudere l'attribuzione subito dopo, senza bisogno di un timeout. */
+  beginRepositoryOperation({ operation: 'IMPORT', caller });
   aui.thread.import(repository);
+  endRepositoryOperation();
   const after = auiSnapshot(aui);
   postRuntimeEvent({
     eventType: 'CHAT_THREAD_IMPORT',
@@ -123,6 +133,10 @@ const startRunWithObservability = (
   parentId: string,
 ): void => {
   const before = auiSnapshot(aui);
+  /* startRun resta "in corso" per tutta la sua durata async (fino al
+     .finally() sotto) — è quello che la specifica chiede: "quando
+     un'operazione pubblica è in corso". */
+  beginRepositoryOperation({ operation: 'START_RUN', caller, parentId });
   postRuntimeEvent({
     eventType: 'CHAT_RUN_BOUNDARY',
     status: 'START',
@@ -131,6 +145,7 @@ const startRunWithObservability = (
   });
   const result = aui.thread.startRun({ parentId });
   void Promise.resolve(result).finally(() => {
+    endRepositoryOperation();
     const after = auiSnapshot(aui);
     postRuntimeEvent({
       eventType: 'CHAT_RUN_BOUNDARY',
@@ -276,9 +291,40 @@ const ConversationLifecycle: FC = () => {
 const ChatLiveDebugPublisher: FC = () => {
   const aui = useAui();
   useEffect(() => {
+    /* REPOSITORY MUTATION WATCHER — snapshot precedente tenuto SOLO in
+       memoria (variabile locale alla closure dell'effetto: sparisce al
+       remount, mai persistito). aui.subscribe() spara dopo OGNI
+       mutazione del thread, comprese quelle interne ad assistant-ui che
+       non passano da nessuno dei nostri wrapper (es. dentro
+       __internal_load()): confrontando due export() consecutivi qui,
+       vediamo un calo di messageCount indipendentemente da chi l'ha
+       causato. */
+    let previous: { messageCount: number; headId: string } | null = null;
     const publish = () => {
       const threadState = aui.thread.getState();
       const exported = aui.thread.export();
+      const current = { messageCount: exported.messages.length, headId: exported.headId ?? 'none' };
+
+      if (previous && current.messageCount < previous.messageCount) {
+        const active = currentRepositoryOperation();
+        postRuntimeEvent({
+          eventType: 'CHAT_REPOSITORY_MUTATION',
+          status: 'FAIL',
+          scope: 'chat',
+          metadata: {
+            operation: active?.operation ?? 'UNATTRIBUTED_DROP',
+            caller: active?.caller ?? 'ASSISTANT_UI_INTERNAL',
+            beforeMessageCount: previous.messageCount,
+            afterMessageCount: current.messageCount,
+            beforeHeadId: previous.headId,
+            afterHeadId: current.headId,
+            ...(active?.parentId ? { parentId: active.parentId } : {}),
+            ...(active?.messageId ? { messageId: active.messageId } : {}),
+          },
+        });
+      }
+      previous = current;
+
       publishChatLiveSnapshot({
         threadId: aui.threads.item("main").getState().id ?? null,
         remoteId: aui.threadListItem.getState().remoteId ?? null,
@@ -412,6 +458,7 @@ const ChatDebugOverlay: FC<{ onClose: () => void }> = ({ onClose }) => {
             <ChatDebugDetectorTile label="B · OFF-BRANCH" result={detectors.offBranch} />
             <ChatDebugDetectorTile label="C · DUPLICATE RUN" result={detectors.duplicateRun} />
             <ChatDebugDetectorTile label="D · STALE LOAD" result={detectors.staleLoad} />
+            <ChatDebugDetectorTile label="E · REPOSITORY DROP" result={detectors.repositoryDrop} />
           </div>
 
           <div className="mt-4">
@@ -506,6 +553,11 @@ const MonPresenceEvents: FC = () => {
     void buildOpening(tone, monName).then((greeting) => {
       if (openingSequence.current !== sequence) return;
       if (currentRoomEntryRevision() !== entryRevision) return;
+      /* Append non-run: il resetHead che conta arriva dopo un await
+         interno di assistant-ui che non osserviamo da qui — l'attribuzione
+         scade da sola (beginRepositoryOperation) invece di essere chiusa
+         con certezza che non abbiamo. */
+      beginRepositoryOperation({ operation: "APPEND_GREETING", caller: "MonPresenceEvents" });
       aui.thread.append({
         role: "assistant",
         content: [{ type: "text", text: greeting }],
@@ -523,6 +575,7 @@ const MonPresenceEvents: FC = () => {
   };
 
   const appendEnter = (monName: string, revealDelayMs = 0) => {
+    beginRepositoryOperation({ operation: "APPEND_ENTER", caller: "MonPresenceEvents" });
     aui.thread.append({
       role: "system",
       content: [{ type: "text", text: `${monLabel(monName)} è entrato nella chat` }],
