@@ -34,12 +34,15 @@ import {
   acquireRunOwnership,
   consumePromotedRepository,
   isLocalUnsavedSession,
+  newLocalMessageId,
   notifyLiveSessionImportAcquired,
   openingStillWelcome,
   promoteLocalSession,
+  repositoryWithMessage,
   repositoryWithPendingUser,
   resolvePromotionHandoff,
 } from "@/assistant-original/conversation-lifecycle-adapter";
+import type { ThreadMessage } from "@assistant-ui/react";
 import {
   ActivityIcon,
   ArrowUpIcon,
@@ -710,6 +713,33 @@ const MonPresenceEvents: FC = () => {
     currentRoomEntryRevision,
   );
 
+  /* FIRST TURN — PARKED APPEND FIX. Su una sessione locale non ancora
+     promossa, aui.thread.append() NON è sicuro: dentro _runAppend il
+     messaggio entra nel repository e la chiamata si PARCHEGGIA su
+     `await this._getInitializePromise?.()` — la barriera che
+     withLocalUnsavedSession tiene apposta pendente fino alla promozione.
+     Quando la promozione la sblocca, ogni chiamata parcheggiata riprende
+     ed esegue `resetHead(ilProprioMessaggio)`, che a quel punto ha figli
+     (il saluto, il primo messaggio dell'utente, la risposta) e li
+     CANCELLA tutti: resta quel solo messaggio, il SYSTEM root di ogni
+     incidente. Finché la sessione è locale inseriamo quindi per import,
+     che ottiene lo stesso risultato live senza barriera su cui
+     parcheggiarsi e senza resetHead differito. Su un thread già
+     persistente la barriera è già risolta e append resta la strada
+     giusta: è anche ciò che lo persiste. */
+  const insertPresenceMessage = (message: ThreadMessage, reason: string) => {
+    if (isLocalUnsavedSession(threadId)) {
+      importWithObservability(aui, 'MonPresenceEvents', reason, repositoryWithMessage(aui.thread.export(), message));
+      return;
+    }
+    aui.thread.append({
+      role: message.role,
+      content: message.content,
+      metadata: { custom: message.metadata.custom },
+      startRun: false,
+    } as Parameters<AuiHandle['thread']['append']>[0]);
+  };
+
   const appendOpening = (monName: string, revealDelayMs: number) => {
     const sequence = ++openingSequence.current;
     const entryRevision = currentRoomEntryRevision();
@@ -728,10 +758,17 @@ const MonPresenceEvents: FC = () => {
          scade da sola (beginRepositoryOperation) invece di essere chiusa
          con certezza che non abbiamo. */
       beginRepositoryOperation({ operation: "APPEND_GREETING", caller: "MonPresenceEvents" });
-      aui.thread.append({
+      insertPresenceMessage({
+        id: newLocalMessageId(),
+        createdAt: new Date(),
         role: "assistant",
         content: [{ type: "text", text: greeting }],
+        status: { type: "complete", reason: "unknown" },
         metadata: {
+          unstable_state: null,
+          unstable_annotations: [],
+          unstable_data: [],
+          steps: [],
           custom: {
             monGreeting: true,
             monName,
@@ -739,21 +776,21 @@ const MonPresenceEvents: FC = () => {
             ...revealMetadata(revealDelayMs),
           },
         },
-        startRun: false,
-      });
+      }, 'PRESENCE_GREETING');
     });
   };
 
   const appendEnter = (monName: string, revealDelayMs = 0) => {
     beginRepositoryOperation({ operation: "APPEND_ENTER", caller: "MonPresenceEvents" });
-    aui.thread.append({
+    insertPresenceMessage({
+      id: newLocalMessageId(),
+      createdAt: new Date(),
       role: "system",
       content: [{ type: "text", text: `${monLabel(monName)} è entrato nella chat` }],
       metadata: {
         custom: { monPresenceEvent: "enter", monName, ...revealMetadata(revealDelayMs) },
       },
-      startRun: false,
-    });
+    }, 'PRESENCE_ENTER');
     appendOpening(monName, revealDelayMs + PRESENCE_STEP_MS);
   };
 
@@ -787,14 +824,15 @@ const MonPresenceEvents: FC = () => {
     room.current.monName = activeMonName;
 
     if (previous) {
-      aui.thread.append({
+      insertPresenceMessage({
+        id: newLocalMessageId(),
+        createdAt: new Date(),
         role: "system",
         content: [{ type: "text", text: `${monLabel(previous)} è uscito dalla chat` }],
         metadata: {
           custom: { monPresenceEvent: "leave", monName: previous, ...revealMetadata(0) },
         },
-        startRun: false,
-      });
+      }, 'PRESENCE_LEAVE');
     }
     appendEnter(activeMonName, PRESENCE_STEP_MS);
     if (remoteId) void aui.threads.item("main").updateCustom({ ...threadCustom, activeMonName });

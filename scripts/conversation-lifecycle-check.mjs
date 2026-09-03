@@ -20,7 +20,7 @@ const out = join(cwd, "node_modules", ".vinz-chat-lifecycle.mjs");
 
 writeFileSync(
   entry,
-  `export { acquireRunOwnership, consumePromotedRepository, createOwnershipGatedHistoryAdapter, discardLocalSession, hasRunOwnership, isLocalUnsavedSession, notifyLiveSessionImportAcquired, openingStillWelcome, promoteLocalSession, resolvePromotionHandoff, withLocalUnsavedSession } from '${cwd}/src/assistant-original/conversation-lifecycle-adapter.ts';\n`,
+  `export { acquireRunOwnership, consumePromotedRepository, createOwnershipGatedHistoryAdapter, discardLocalSession, hasRunOwnership, isLocalUnsavedSession, notifyLiveSessionImportAcquired, openingStillWelcome, promoteLocalSession, repositoryWithMessage, resolvePromotionHandoff, withLocalUnsavedSession } from '${cwd}/src/assistant-original/conversation-lifecycle-adapter.ts';\n`,
 );
 
 await build({
@@ -43,6 +43,7 @@ const {
   notifyLiveSessionImportAcquired,
   openingStillWelcome,
   promoteLocalSession,
+  repositoryWithMessage,
   resolvePromotionHandoff,
   withLocalUnsavedSession,
 } = await import(`file://${out}`);
@@ -391,6 +392,41 @@ function deferred() {
   const gated = createOwnershipGatedHistoryAdapter(real);
   const result = await gated.load();
   assert.equal(result.messages.length, 2, "CASE 12: real stored history must still load — the rule is about EMPTY, not about small");
+}
+
+// FIRST TURN — PARKED APPEND. On an un-promoted local session
+// aui.thread.append() parks inside _runAppend on the initialize barrier
+// and, when promotion releases it, resumes with resetHead(itsOwnMessage) —
+// which by then deletes every descendant that arrived meanwhile. The
+// presence messages are inserted by import instead, and this is the
+// snapshot operation that replaces the append.
+
+// CASE 13 — the inserted message becomes the new tail and the new head,
+// and nothing already in the repository is lost.
+{
+  const base = { headId: "enter", messages: [msg("enter", "system")] };
+  const greeting = { id: "greeting", role: "assistant" };
+  const next = repositoryWithMessage(base, greeting);
+  assert.equal(next.messages.length, 2, "CASE 13: the existing timeline is preserved");
+  assert.equal(next.headId, "greeting", "CASE 13: the inserted message becomes the head");
+  assert.deepEqual(next.messages.at(-1), { parentId: "enter", message: greeting }, "CASE 13: it is parented on the previous tail");
+  assert.equal(base.messages.length, 1, "CASE 13: the input snapshot is not mutated");
+}
+
+// CASE 14 — chaining ENTER then the greeting produces the linear shape the
+// first turn depends on. With append() this same shape is what the parked
+// resetHead(ENTER) later prunes back to ENTER alone.
+{
+  const enter = { id: "enter", role: "system" };
+  const greeting = { id: "greeting", role: "assistant" };
+  const withEnter = repositoryWithMessage({ messages: [] }, enter);
+  const withGreeting = repositoryWithMessage(withEnter, greeting);
+  assert.deepEqual(
+    withGreeting.messages.map((item) => [item.parentId, item.message.id]),
+    [[null, "enter"], ["enter", "greeting"]],
+    "CASE 14: ENTER is the root and the greeting hangs off it",
+  );
+  assert.equal(withGreeting.headId, "greeting", "CASE 14: the greeting is the head the user then writes under");
 }
 
 console.log("Conversation lifecycle checks passed.");

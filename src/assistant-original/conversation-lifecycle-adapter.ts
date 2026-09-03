@@ -99,15 +99,50 @@ export const promoteLocalSession = async (
   return session.promoting;
 };
 
+export const newLocalMessageId = (): string => {
+  const random = typeof crypto !== 'undefined' && 'randomUUID' in crypto
+    ? crypto.randomUUID()
+    : `${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  return `msg_${random}`;
+};
+
+/**
+ * FIRST TURN — PARKED APPEND FIX. Adds a message to a repository snapshot as
+ * the new tail and head, without going through the live runtime at all.
+ *
+ * This exists because `aui.thread.append()` is NOT safe on an un-promoted
+ * local session. Inside assistant-ui's `_runAppend` the message is put in
+ * the repository and the call then PARKS on
+ * `await this._getInitializePromise?.()` — the initialize barrier that
+ * `withLocalUnsavedSession` deliberately keeps pending until promotion.
+ * When promotion finally resolves it, every parked call resumes and, for a
+ * non-run append (`startRun: false`, which is what the presence messages
+ * are), runs `this.repository.resetHead(itsOwnMessageId)`. By then that
+ * message has children — the greeting, the user's first message, the
+ * assistant's reply — and `resetHead` deletes every descendant. The
+ * repository collapses to that one message: the lone SYSTEM root every
+ * captured incident ended on.
+ *
+ * Importing instead reaches the same live result with no barrier to park on
+ * and no deferred `resetHead` to fire later.
+ */
+export function repositoryWithMessage(
+  repository: ExportedMessageRepository,
+  message: ThreadMessage,
+): ExportedMessageRepository {
+  const parentId = repository.messages.at(-1)?.message.id ?? null;
+  return {
+    ...repository,
+    headId: message.id,
+    messages: [...repository.messages, { parentId, message }],
+  };
+}
+
 export const repositoryWithPendingUser = (
   repository: ExportedMessageRepository,
   text: string,
 ): { repository: ExportedMessageRepository; userId: string } => {
-  const random = typeof crypto !== 'undefined' && 'randomUUID' in crypto
-    ? crypto.randomUUID()
-    : `${Date.now()}_${Math.random().toString(36).slice(2)}`;
-  const userId = `msg_${random}`;
-  const parentId = repository.messages.at(-1)?.message.id ?? null;
+  const userId = newLocalMessageId();
   const message: ThreadMessage = {
     id: userId,
     createdAt: new Date(),
@@ -116,10 +151,7 @@ export const repositoryWithPendingUser = (
     attachments: [],
     metadata: { custom: {} },
   };
-  return {
-    userId,
-    repository: { ...repository, headId: userId, messages: [...repository.messages, { parentId, message }] },
-  };
+  return { userId, repository: repositoryWithMessage(repository, message) };
 };
 
 export const consumePromotedRepository = (
