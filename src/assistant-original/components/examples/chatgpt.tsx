@@ -556,6 +556,7 @@ const ChatDebugOverlay: FC<{ onClose: () => void; debug: ChatLiveDebugState }> =
             <ChatDebugDetectorTile label="C · DUPLICATE RUN" result={detectors.duplicateRun} />
             <ChatDebugDetectorTile label="D · STALE LOAD" result={detectors.staleLoad} />
             <ChatDebugDetectorTile label="E · REPOSITORY DROP" result={detectors.repositoryDrop} />
+            <ChatDebugDetectorTile label="F · SYSTEM ONLY" result={detectors.systemOnlyRegression} />
           </div>
 
           <div className="mt-4">

@@ -120,6 +120,7 @@ export function LiveDebug() {
           <Detector label="C · DUPLICATE RUN" result={detectors.duplicateRun} />
           <Detector label="D · STALE LOAD SUSPECTED" result={detectors.staleLoad} />
           <Detector label="E · REPOSITORY DROP" result={detectors.repositoryDrop} />
+          <Detector label="F · SYSTEM ONLY" result={detectors.systemOnlyRegression} />
         </div>
       </Section>
 

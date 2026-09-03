@@ -135,6 +135,39 @@ export function detectRepositoryDrop(events: RuntimeEvent[]): DetectorResult {
   return { suspect: true, detail: `${before ?? '?'} → ${after ?? '?'} messaggi · ${operation} (${caller})` };
 }
 
+/** F · SYSTEM ONLY REGRESSION — il repository dal vivo è tornato a un
+ * solo messaggio SYSTEM (ENTER, senza nient'altro) dopo aver visto dal
+ * vivo, in questa stessa sessione, più messaggi di quanti ce ne siano
+ * ora. È la firma di ogni incident catturato finora (il "solo SYSTEM
+ * root" con cui finiscono tutti), ma nessuno dei detector A-E la copre:
+ * A/C/D/E leggono eventi che, sul device reale, non sempre vengono
+ * generati (il crollo può avvenire per un remount che l'osservabilità
+ * non intercetta), e B confronta repository/branch che qui combaciano
+ * — sono entrambi collassati insieme a 1.
+ *
+ * Il confronto con maxRepoSeen è quello che lo distingue da un avvio
+ * legittimo: un thread appena montato passa per "1 messaggio SYSTEM"
+ * per l'istante prima che arrivi il saluto, ed è uno stato sano, non un
+ * crollo — per questo scatta solo se questa sessione ha già visto dal
+ * vivo un repository più grande di 1. */
+export function detectSystemOnlyRegression(
+  snapshot: ChatLiveThreadSnapshot | null,
+  maxRepoSeen: number | null,
+): DetectorResult {
+  if (!snapshot || maxRepoSeen === null) {
+    return { suspect: false, detail: 'nessuno snapshot dal vivo ancora' };
+  }
+  const messages = snapshot.repositoryMessages;
+  const isSystemOnly = messages.length === 1 && messages[0]?.role === 'system';
+  if (!isSystemOnly || maxRepoSeen <= 1) {
+    return { suspect: false, detail: `repository a ${messages.length} messaggi, massimo osservato dal vivo ${maxRepoSeen}` };
+  }
+  return {
+    suspect: true,
+    detail: `tornato a 1 solo messaggio SYSTEM dopo aver visto ${maxRepoSeen} messaggi dal vivo in questa sessione`,
+  };
+}
+
 /** Costruisce la BLACK BOX: stessa forma per la cattura automatica
  * (transizione OK→SUSPECT) e per CAPTURE AGAIN (manuale). Prende gli
  * ultimi 20 eventi già filtrati sugli eventi del primo turno — mai il
@@ -176,6 +209,7 @@ export type ChatLiveDebugState = {
     duplicateRun: DetectorResult;
     staleLoad: DetectorResult;
     repositoryDrop: DetectorResult;
+    systemOnlyRegression: DetectorResult;
   };
   /** BLACK BOX — null finché nessun detector A-E è mai passato da OK a
    * SUSPECT (o finché CLEAR VIEW non l'ha cancellata). Vive nel modulo
@@ -222,8 +256,8 @@ export function useChatLiveDebug(): ChatLiveDebugState {
     return () => { cancelled = true; clearInterval(interval); };
   }, [token, frozen]);
 
-  /* Massimo REPOSITORY MESSAGES osservato dal vivo — serve solo al
-     detector D, mai usato per correggere/reimportare nulla. */
+  /* Massimo REPOSITORY MESSAGES osservato dal vivo — serve ai detector D
+     e F, mai usato per correggere/reimportare nulla. */
   useEffect(() => {
     if (frozen || !liveSnapshot) return;
     setMaxRepoSeen((prev) => (prev === null || liveSnapshot.repositoryMessages.length > prev ? liveSnapshot.repositoryMessages.length : prev));
@@ -239,9 +273,10 @@ export function useChatLiveDebug(): ChatLiveDebugState {
     duplicateRun: detectDuplicateRun(eventsSinceClear),
     staleLoad: detectStaleLoad(eventsSinceClear, maxRepoSeen),
     repositoryDrop: detectRepositoryDrop(eventsSinceClear),
+    systemOnlyRegression: detectSystemOnlyRegression(snapshot, maxRepoSeen),
   };
 
-  /* Stessi 5 detector del riquadro BUG DETECTORS, con id+label per la
+  /* Stessi 6 detector del riquadro BUG DETECTORS, con id+label per la
    * BLACK BOX — nessuna nuova chiamata ai detector, solo un elenco dei
    * risultati già calcolati sopra. */
   const detectorList: Array<{ id: ChatIncidentDetectorId; label: string; result: DetectorResult }> = [
@@ -250,6 +285,7 @@ export function useChatLiveDebug(): ChatLiveDebugState {
     { id: 'duplicateRun', label: 'C · DUPLICATE RUN', result: detectors.duplicateRun },
     { id: 'staleLoad', label: 'D · STALE LOAD', result: detectors.staleLoad },
     { id: 'repositoryDrop', label: 'E · REPOSITORY DROP', result: detectors.repositoryDrop },
+    { id: 'systemOnlyRegression', label: 'F · SYSTEM ONLY', result: detectors.systemOnlyRegression },
   ];
 
   /* BLACK BOX — AUTO CAPTURE: la prima transizione OK→SUSPECT di

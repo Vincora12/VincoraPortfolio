@@ -142,7 +142,7 @@ export function consumePendingHistoryReadGateId(): string | null {
    il reload della pagina la cancellano. Nessun testo di messaggio: solo
    gli stessi id/conteggi/enum già usati dallo snapshot e dagli eventi.
    ========================================================================= */
-export type ChatIncidentDetectorId = 'messageCountDrop' | 'offBranch' | 'duplicateRun' | 'staleLoad' | 'repositoryDrop';
+export type ChatIncidentDetectorId = 'messageCountDrop' | 'offBranch' | 'duplicateRun' | 'staleLoad' | 'repositoryDrop' | 'systemOnlyRegression';
 export type ChatIncidentTrigger = ChatIncidentDetectorId | 'MANUAL';
 
 export type ChatIncidentDetectorSnapshot = {
