@@ -104,3 +104,78 @@ export function endRepositoryOperation(): void {
 export function currentRepositoryOperation(): ChatRepositoryOperation | null {
   return activeOperation;
 }
+
+/* ============================================================================
+   BLACK BOX — cattura automatica al primo passaggio OK→SUSPECT di un
+   detector A-E, runtime-only come tutto il resto di questo modulo. Vive
+   qui (non nello stato locale dell'overlay React) apposta: chiudere e
+   riaprire DEBUG nella stessa Chat non deve perderla, solo CLEAR VIEW o
+   il reload della pagina la cancellano. Nessun testo di messaggio: solo
+   gli stessi id/conteggi/enum già usati dallo snapshot e dagli eventi.
+   ========================================================================= */
+export type ChatIncidentDetectorId = 'messageCountDrop' | 'offBranch' | 'duplicateRun' | 'staleLoad' | 'repositoryDrop';
+export type ChatIncidentTrigger = ChatIncidentDetectorId | 'MANUAL';
+
+export type ChatIncidentDetectorSnapshot = {
+  id: ChatIncidentDetectorId;
+  label: string;
+  suspect: boolean;
+  detail: string;
+};
+
+export type ChatIncidentEvent = {
+  id: string;
+  timestamp: string;
+  eventType: string;
+  status: string;
+  metadata?: Record<string, string | number | boolean>;
+};
+
+export type ChatIncident = {
+  capturedAt: string;
+  triggerDetector: ChatIncidentTrigger;
+  triggerLabel: string;
+  snapshot: ChatLiveThreadSnapshot | null;
+  detectors: ChatIncidentDetectorSnapshot[];
+  events: ChatIncidentEvent[];
+};
+
+let currentIncident: ChatIncident | null = null;
+const incidentListeners = new Set<() => void>();
+
+function notifyIncidentListeners(): void {
+  incidentListeners.forEach((listener) => listener());
+}
+
+export function currentChatIncident(): ChatIncident | null {
+  return currentIncident;
+}
+
+export function subscribeChatIncident(listener: () => void): () => void {
+  incidentListeners.add(listener);
+  return () => incidentListeners.delete(listener);
+}
+
+export function captureChatIncident(incident: ChatIncident): void {
+  currentIncident = incident;
+  notifyIncidentListeners();
+}
+
+export function clearChatIncident(): void {
+  currentIncident = null;
+  notifyIncidentListeners();
+}
+
+/* Ricorda l'ultimo stato osservato (SUSPECT o no) di ogni detector — solo
+   per distinguere una VERA transizione OK→SUSPECT da un detector che era
+   già SUSPECT quando qualcuno ha iniziato a guardarlo. Runtime-only,
+   sopravvive allo smontaggio di chi lo consulta ma non al reload. */
+const lastDetectorSuspect = new Map<ChatIncidentDetectorId, boolean>();
+
+/** @returns true SOLO se questa chiamata rappresenta una transizione
+ * fresca da OK a SUSPECT (mai il contrario, mai SUSPECT→SUSPECT). */
+export function noteDetectorTransitionToSuspect(id: ChatIncidentDetectorId, suspect: boolean): boolean {
+  const was = lastDetectorSuspect.get(id) ?? false;
+  lastDetectorSuspect.set(id, suspect);
+  return suspect && !was;
+}

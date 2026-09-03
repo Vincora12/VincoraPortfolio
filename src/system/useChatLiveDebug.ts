@@ -21,8 +21,18 @@ import { loadRuntimeLog, type RuntimeEvent } from '../ai/backend';
 import {
   subscribeChatLiveSnapshot,
   currentChatLiveSnapshot,
+  subscribeChatIncident,
+  currentChatIncident,
+  captureChatIncident,
+  clearChatIncident,
+  noteDetectorTransitionToSuspect,
   type ChatLiveThreadSnapshot,
+  type ChatIncident,
+  type ChatIncidentDetectorId,
+  type ChatIncidentTrigger,
 } from './chatLiveDebug';
+
+export type { ChatIncident } from './chatLiveDebug';
 
 /** Solo questi eventi riguardano il primo turno della chat — riusa il
  * Runtime Log esistente, non ne crea uno nuovo. */
@@ -125,6 +135,33 @@ export function detectRepositoryDrop(events: RuntimeEvent[]): DetectorResult {
   return { suspect: true, detail: `${before ?? '?'} → ${after ?? '?'} messaggi · ${operation} (${caller})` };
 }
 
+/** Costruisce la BLACK BOX: stessa forma per la cattura automatica
+ * (transizione OK→SUSPECT) e per CAPTURE AGAIN (manuale). Prende gli
+ * ultimi 20 eventi già filtrati sugli eventi del primo turno — mai il
+ * testo di un messaggio. */
+function buildIncident(
+  trigger: ChatIncidentTrigger,
+  triggerLabel: string,
+  snapshot: ChatLiveThreadSnapshot | null,
+  detectorList: Array<{ id: ChatIncidentDetectorId; label: string; result: DetectorResult }>,
+  events: RuntimeEvent[],
+): ChatIncident {
+  return {
+    capturedAt: new Date().toISOString(),
+    triggerDetector: trigger,
+    triggerLabel,
+    snapshot,
+    detectors: detectorList.map(({ id, label, result }) => ({ id, label, suspect: result.suspect, detail: result.detail })),
+    events: events.slice(0, 20).map((event) => ({
+      id: event.id,
+      timestamp: event.timestamp,
+      eventType: event.eventType,
+      status: event.status,
+      ...(event.metadata ? { metadata: event.metadata } : {}),
+    })),
+  };
+}
+
 export type ChatLiveDebugState = {
   snapshot: ChatLiveThreadSnapshot | null;
   eventsSinceClear: RuntimeEvent[];
@@ -140,6 +177,14 @@ export type ChatLiveDebugState = {
     staleLoad: DetectorResult;
     repositoryDrop: DetectorResult;
   };
+  /** BLACK BOX — null finché nessun detector A-E è mai passato da OK a
+   * SUSPECT (o finché CLEAR VIEW non l'ha cancellata). Vive nel modulo
+   * runtime-only chatLiveDebug.ts, non in questo stato React: sopravvive
+   * a chiusura/riapertura di DEBUG nella stessa Chat. */
+  incident: ChatIncident | null;
+  /** Sostituisce manualmente la black box con lo stato corrente,
+   * indipendentemente da cattura automatica già avvenuta o meno. */
+  captureIncidentNow: () => void;
 };
 
 /** Stato + polling + detector condivisi. Nessuna persistenza: frozen/
@@ -149,6 +194,7 @@ export type ChatLiveDebugState = {
 export function useChatLiveDebug(): ChatLiveDebugState {
   const token = useApp((s) => s.token);
   const liveSnapshot = useSyncExternalStore(subscribeChatLiveSnapshot, currentChatLiveSnapshot, currentChatLiveSnapshot);
+  const incident = useSyncExternalStore(subscribeChatIncident, currentChatIncident, currentChatIncident);
 
   const [events, setEvents] = useState<RuntimeEvent[]>([]);
   const [eventsFailed, setEventsFailed] = useState(false);
@@ -187,6 +233,43 @@ export function useChatLiveDebug(): ChatLiveDebugState {
   const activeEvents = frozen ? frozenEvents : events;
   const eventsSinceClear = activeEvents.filter((event) => new Date(event.timestamp).getTime() >= clearedAt);
 
+  const detectors = {
+    messageCountDrop: detectMessageCountDrop(eventsSinceClear),
+    offBranch: detectOffBranch(snapshot),
+    duplicateRun: detectDuplicateRun(eventsSinceClear),
+    staleLoad: detectStaleLoad(eventsSinceClear, maxRepoSeen),
+    repositoryDrop: detectRepositoryDrop(eventsSinceClear),
+  };
+
+  /* Stessi 5 detector del riquadro BUG DETECTORS, con id+label per la
+   * BLACK BOX — nessuna nuova chiamata ai detector, solo un elenco dei
+   * risultati già calcolati sopra. */
+  const detectorList: Array<{ id: ChatIncidentDetectorId; label: string; result: DetectorResult }> = [
+    { id: 'messageCountDrop', label: 'A · MESSAGE COUNT DROP', result: detectors.messageCountDrop },
+    { id: 'offBranch', label: 'B · OFF-BRANCH', result: detectors.offBranch },
+    { id: 'duplicateRun', label: 'C · DUPLICATE RUN', result: detectors.duplicateRun },
+    { id: 'staleLoad', label: 'D · STALE LOAD', result: detectors.staleLoad },
+    { id: 'repositoryDrop', label: 'E · REPOSITORY DROP', result: detectors.repositoryDrop },
+  ];
+
+  /* BLACK BOX — AUTO CAPTURE: la prima transizione OK→SUSPECT di
+   * qualunque detector cattura automaticamente, senza che l'utente debba
+   * premere FREEZE in tempo. Non ferma niente (chat/run/log/repository
+   * continuano): è solo una copia diagnostica in memoria. Se una black
+   * box è già presente, le transizioni successive non la sovrascrivono
+   * — solo CAPTURE AGAIN (manuale) o CLEAR VIEW la toccano di nuovo. */
+  useEffect(() => {
+    let firstTransition: { id: ChatIncidentDetectorId; label: string } | null = null;
+    for (const entry of detectorList) {
+      const isNewTransition = noteDetectorTransitionToSuspect(entry.id, entry.result.suspect);
+      if (isNewTransition && !firstTransition) firstTransition = entry;
+    }
+    if (firstTransition && currentChatIncident() === null) {
+      captureChatIncident(buildIncident(firstTransition.id, firstTransition.label, snapshot, detectorList, activeEvents));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [detectorList, snapshot, activeEvents]);
+
   return {
     snapshot,
     eventsSinceClear,
@@ -194,13 +277,11 @@ export function useChatLiveDebug(): ChatLiveDebugState {
     frozen,
     freeze: () => { setFrozenSnapshot(liveSnapshot); setFrozenEvents(events); setFrozen(true); },
     resume: () => { setFrozen(false); setFrozenSnapshot(null); setFrozenEvents([]); },
-    clearView: () => { setClearedAt(Date.now()); setMaxRepoSeen(null); },
-    detectors: {
-      messageCountDrop: detectMessageCountDrop(eventsSinceClear),
-      offBranch: detectOffBranch(snapshot),
-      duplicateRun: detectDuplicateRun(eventsSinceClear),
-      staleLoad: detectStaleLoad(eventsSinceClear, maxRepoSeen),
-      repositoryDrop: detectRepositoryDrop(eventsSinceClear),
+    clearView: () => { setClearedAt(Date.now()); setMaxRepoSeen(null); clearChatIncident(); },
+    detectors,
+    incident,
+    captureIncidentNow: () => {
+      captureChatIncident(buildIncident('MANUAL', 'CAPTURE AGAIN', snapshot, detectorList, activeEvents));
     },
   };
 }

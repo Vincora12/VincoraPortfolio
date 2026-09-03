@@ -20,7 +20,7 @@ import {
   endRepositoryOperation,
   currentRepositoryOperation,
 } from "@/system/chatLiveDebug";
-import { shortId, useChatLiveDebug, type DetectorResult } from "@/system/useChatLiveDebug";
+import { shortId, useChatLiveDebug, type DetectorResult, type ChatLiveDebugState, type ChatIncident } from "@/system/useChatLiveDebug";
 import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type FC } from "react";
 import { createPortal } from "react-dom";
 import { useMessageError } from "@assistant-ui/core/react";
@@ -360,8 +360,20 @@ const ChatLiveDebugPublisher: FC = () => {
    DEV già usato altrove nell'app (useApp((s) => s.dev.enabled)). */
 const ChatDebugTrigger: FC = () => {
   const devEnabled = useApp((s) => s.dev.enabled);
-  const [open, setOpen] = useState(false);
   if (!devEnabled) return null;
+  return <ChatDebugArmed />;
+};
+
+/* BLACK BOX — questo componente monta SOLO quando i dev tools sono
+   attivi (stesso criterio del pulsante DEBUG), non solo quando l'overlay
+   è aperto: così l'hook (e la rilevazione OK→SUSPECT che contiene) resta
+   attivo anche a drawer chiuso, e un incidente viene catturato anche se
+   l'utente non stava guardando in quel momento — "L'utente NON deve
+   dover premere FREEZE in tempo." Per chi non ha i dev tools attivi
+   questo componente non monta mai: nessun polling in più per loro. */
+const ChatDebugArmed: FC = () => {
+  const [open, setOpen] = useState(false);
+  const debug = useChatLiveDebug();
   return (
     <>
       <button
@@ -372,7 +384,7 @@ const ChatDebugTrigger: FC = () => {
       >
         DEBUG
       </button>
-      {open && <ChatDebugOverlay onClose={() => setOpen(false)} />}
+      {open && <ChatDebugOverlay onClose={() => setOpen(false)} debug={debug} />}
     </>
   );
 };
@@ -392,8 +404,31 @@ const ChatDebugDetectorTile: FC<{ label: string; result: DetectorResult }> = ({ 
   </div>
 );
 
-const ChatDebugOverlay: FC<{ onClose: () => void }> = ({ onClose }) => {
-  const { snapshot, eventsSinceClear, eventsFailed, frozen, freeze, resume, clearView, detectors } = useChatLiveDebug();
+type ChatDebugEventLike = {
+  id: string;
+  timestamp: string;
+  eventType: string;
+  status: string;
+  metadata?: Record<string, string | number | boolean>;
+};
+
+const ChatDebugEventRow: FC<{ event: ChatDebugEventLike }> = ({ event }) => (
+  <div className="border-b border-black/5 pb-1.5 dark:border-white/5">
+    <div className="flex justify-between">
+      <span>{new Date(event.timestamp).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</span>
+      <span>{event.eventType} · {event.status}</span>
+    </div>
+    {event.metadata && Object.keys(event.metadata).length > 0 && (
+      <div className="break-all text-black/50 dark:text-white/50">
+        {Object.entries(event.metadata).map(([key, value]) => `${key}=${String(value)}`).join("  ")}
+      </div>
+    )}
+  </div>
+);
+
+const ChatDebugOverlay: FC<{ onClose: () => void; debug: ChatLiveDebugState }> = ({ onClose, debug }) => {
+  const { snapshot, eventsSinceClear, eventsFailed, frozen, freeze, resume, clearView, detectors, incident, captureIncidentNow } = debug;
+  const [showIncident, setShowIncident] = useState(false);
   const visibleEvents = eventsSinceClear.slice(0, 30);
   const activeBranchIds = new Set(snapshot?.visibleMessageIds ?? []);
 
@@ -416,6 +451,36 @@ const ChatDebugOverlay: FC<{ onClose: () => void }> = ({ onClose }) => {
           </button>
         </div>
         <div className="flex-1 overflow-y-auto px-4 py-3 text-xs">
+          <div className={`mb-3 rounded-md border px-2 py-1.5 ${incident ? "border-red-600" : "border-black/15 dark:border-white/15"}`}>
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-semibold">BLACK BOX</span>
+              <button
+                type="button"
+                onClick={captureIncidentNow}
+                className="rounded-full border border-black/20 px-2 py-0.5 text-[10px] font-bold dark:border-white/20"
+              >
+                CAPTURE AGAIN
+              </button>
+            </div>
+            {!incident ? (
+              <p className="mt-1 text-black/50 dark:text-white/50">NO INCIDENT CAPTURED</p>
+            ) : (
+              <div className="mt-1">
+                <p className="text-[11px] font-black text-red-600">INCIDENT CAPTURED</p>
+                <p className="text-black/50 dark:text-white/50">
+                  {new Date(incident.capturedAt).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit", second: "2-digit" })} · trigger: {incident.triggerLabel}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setShowIncident(true)}
+                  className="mt-1.5 rounded-full bg-[#0d0d0d] px-3 py-1 text-[10px] font-bold text-white dark:bg-white dark:text-black"
+                >
+                  VIEW INCIDENT
+                </button>
+              </div>
+            )}
+          </div>
+
           {!snapshot ? (
             <p className="text-black/50 dark:text-white/50">in attesa del primo snapshot dalla chat…</p>
           ) : (
@@ -469,17 +534,7 @@ const ChatDebugOverlay: FC<{ onClose: () => void }> = ({ onClose }) => {
             ) : (
               <div className="max-h-40 space-y-1.5 overflow-y-auto border-t border-black/10 pt-1.5 dark:border-white/10">
                 {visibleEvents.map((event) => (
-                  <div key={event.id} className="border-b border-black/5 pb-1.5 dark:border-white/5">
-                    <div className="flex justify-between">
-                      <span>{new Date(event.timestamp).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</span>
-                      <span>{event.eventType} · {event.status}</span>
-                    </div>
-                    {event.metadata && Object.keys(event.metadata).length > 0 && (
-                      <div className="break-all text-black/50 dark:text-white/50">
-                        {Object.entries(event.metadata).map(([key, value]) => `${key}=${String(value)}`).join("  ")}
-                      </div>
-                    )}
-                  </div>
+                  <ChatDebugEventRow key={event.id} event={event} />
                 ))}
               </div>
             )}
@@ -493,6 +548,91 @@ const ChatDebugOverlay: FC<{ onClose: () => void }> = ({ onClose }) => {
           )}
           <button type="button" onClick={clearView} className="flex-1 rounded-full border border-[#0d0d0d] px-3 py-2 text-xs font-bold dark:border-white">CLEAR VIEW</button>
           <button type="button" onClick={onClose} className="flex-1 rounded-full border border-[#0d0d0d] px-3 py-2 text-xs font-bold dark:border-white">CLOSE</button>
+        </div>
+      </div>
+      {showIncident && incident && (
+        <ChatIncidentView
+          incident={incident}
+          liveSnapshot={snapshot}
+          onClose={() => setShowIncident(false)}
+          onCaptureAgain={captureIncidentNow}
+        />
+      )}
+    </div>
+  );
+};
+
+/* BLACK BOX — vista congelata dell'incidente catturato, così l'utente può
+   fare screenshot anche minuti dopo (l'incidente resta nel modulo
+   runtime-only finché non arriva un CLEAR VIEW). Sezioni richieste:
+   THREAD / COUNTS / HEAD / CURRENT THREAD (per confronto col vivo, non
+   con l'incidente) / DETECTORS / EVENTS. */
+const ChatIncidentView: FC<{
+  incident: ChatIncident;
+  liveSnapshot: ChatLiveDebugState["snapshot"];
+  onClose: () => void;
+  onCaptureAgain: () => void;
+}> = ({ incident, liveSnapshot, onClose, onCaptureAgain }) => {
+  const s = incident.snapshot;
+  return (
+    <div className="fixed inset-0 z-[110] flex items-end bg-black/70 p-3 sm:items-center sm:justify-center" role="dialog" aria-modal="true" aria-label="Incidente catturato">
+      <div className="flex max-h-[85vh] w-full max-w-md flex-col overflow-hidden rounded-2xl bg-white text-[#0d0d0d] dark:bg-[#141414] dark:text-[#ececec] sm:max-h-[80vh]">
+        <div className="flex items-center justify-between border-b border-black/10 px-4 py-3 dark:border-white/10">
+          <span className="text-sm font-semibold">INCIDENT — {incident.triggerLabel}</span>
+          <button type="button" onClick={onClose} aria-label="Chiudi incidente" className="rounded-full p-2 hover:bg-black/5 dark:hover:bg-white/10">
+            <XIcon size={18} />
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto px-4 py-3 text-xs">
+          <p className="mb-3 text-black/50 dark:text-white/50">
+            catturato {new Date(incident.capturedAt).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+          </p>
+
+          <div className="mb-1 font-semibold">THREAD</div>
+          <ChatDebugRow label="THREAD ID" value={shortId(s?.threadId ?? null)} />
+          <ChatDebugRow label="REMOTE ID" value={shortId(s?.remoteId ?? null)} />
+
+          <div className="mb-1 mt-3 font-semibold">COUNTS</div>
+          <ChatDebugRow label="VISIBLE MESSAGES" value={String(s?.visibleMessageIds.length ?? 0)} />
+          <ChatDebugRow label="REPOSITORY MESSAGES" value={String(s?.repositoryMessages.length ?? 0)} />
+
+          <div className="mb-1 mt-3 font-semibold">HEAD</div>
+          <ChatDebugRow label="HEAD ID" value={shortId(s?.headId ?? null)} />
+          <ChatDebugRow label="RUN STATUS" value={(s?.runStatus ?? "—").toUpperCase()} />
+
+          <div className="mb-1 mt-3 font-semibold">CURRENT THREAD</div>
+          {!liveSnapshot ? (
+            <p className="text-black/50 dark:text-white/50">nessuno snapshot dal vivo disponibile ora</p>
+          ) : (
+            <>
+              <ChatDebugRow label="HEAD ID" value={shortId(liveSnapshot.headId)} />
+              <ChatDebugRow label="VISIBLE MESSAGES" value={String(liveSnapshot.visibleMessageIds.length)} />
+              <ChatDebugRow label="REPOSITORY MESSAGES" value={String(liveSnapshot.repositoryMessages.length)} />
+              <ChatDebugRow label="RUN STATUS" value={liveSnapshot.runStatus.toUpperCase()} />
+            </>
+          )}
+
+          <div className="mb-1 mt-3 font-semibold">DETECTORS</div>
+          <div className="grid grid-cols-2 gap-2">
+            {incident.detectors.map((detector) => (
+              <ChatDebugDetectorTile key={detector.id} label={detector.label} result={{ suspect: detector.suspect, detail: detector.detail }} />
+            ))}
+          </div>
+
+          <div className="mb-1 mt-3 font-semibold">EVENTS</div>
+          {incident.events.length === 0 ? (
+            <p className="text-black/50 dark:text-white/50">nessun evento catturato.</p>
+          ) : (
+            <div className="max-h-40 space-y-1.5 overflow-y-auto border-t border-black/10 pt-1.5 dark:border-white/10">
+              {incident.events.map((event) => (
+                <ChatDebugEventRow key={event.id} event={event} />
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="flex gap-2 border-t border-black/10 px-4 py-3 dark:border-white/10">
+          <button type="button" onClick={onCaptureAgain} className="flex-1 rounded-full border border-[#0d0d0d] px-3 py-2 text-xs font-bold dark:border-white">CAPTURE AGAIN</button>
+          <button type="button" onClick={onClose} className="flex-1 rounded-full bg-[#0d0d0d] px-3 py-2 text-xs font-bold text-white dark:bg-white dark:text-black">CLOSE</button>
         </div>
       </div>
     </div>
