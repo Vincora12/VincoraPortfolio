@@ -157,6 +157,12 @@ export type ChatIncidentEvent = {
   timestamp: string;
   eventType: string;
   status: string;
+  /** Messaggio/nome dell'eccezione vendor quando aui.thread.startRun()
+   * rifiuta — vedi startRunWithObservability (chatgpt.tsx). Campi a
+   * livello di evento, non dentro metadata: sono già sanitizzati
+   * lato server come RuntimeEvent.error/.errorName. */
+  error?: string;
+  errorName?: string;
   metadata?: Record<string, string | number | boolean>;
 };
 

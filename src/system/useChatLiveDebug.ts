@@ -190,6 +190,8 @@ function buildIncident(
       timestamp: event.timestamp,
       eventType: event.eventType,
       status: event.status,
+      ...(event.error ? { error: event.error } : {}),
+      ...(event.errorName ? { errorName: event.errorName } : {}),
       ...(event.metadata ? { metadata: event.metadata } : {}),
     })),
   };

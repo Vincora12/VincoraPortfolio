@@ -177,16 +177,42 @@ const startRunWithObservability = (
     scope: 'chat',
     metadata: { phase: 'START', parentId, messageCount: before.messageCount, headId: before.headId, caller },
   });
+  /* FIRST TURN — CHE COSA GETTA startRun(). Il vendor lancia
+     "Parent message not found" (message-repository.ts) se il parentId
+     che gli passiamo non esiste nel repository su cui sta operando —
+     una prova diretta e distinguibile del sospetto emerso da un
+     incident reale (E · REPOSITORY DROP attribuito a START_RUN, head
+     dopo il crollo nel formato generateId() del vendor, mai il nostro
+     msg_<uuid>): che aui.thread in questo punto non sia più la stessa
+     istanza runtime su cui promoteBeforeSend aveva appena importato
+     quel messaggio. .then(success, failure) invece di solo .finally()
+     perché un rifiuto è un'informazione diversa da un successo, non
+     solo "la run è finita": senza questo l'errore del vendor si perde
+     nel .catch() già presente sull'IIFE del click, mai osservato. */
   const result = aui.thread.startRun({ parentId });
-  void Promise.resolve(result).finally(() => {
+  void Promise.resolve(result).then(
+    () => {
+      const after = auiSnapshot(aui);
+      postRuntimeEvent({
+        eventType: 'CHAT_RUN_BOUNDARY',
+        status: 'PASS',
+        scope: 'chat',
+        metadata: { phase: 'END', parentId, messageCount: after.messageCount, headId: after.headId, caller },
+      });
+    },
+    (error: unknown) => {
+      const after = auiSnapshot(aui);
+      postRuntimeEvent({
+        eventType: 'CHAT_RUN_BOUNDARY',
+        status: 'FAIL',
+        scope: 'chat',
+        error: error instanceof Error ? error.message : String(error),
+        errorName: error instanceof Error ? error.name : 'Unknown',
+        metadata: { phase: 'ERROR', parentId, messageCount: after.messageCount, headId: after.headId, caller },
+      });
+    },
+  ).finally(() => {
     endRepositoryOperation();
-    const after = auiSnapshot(aui);
-    postRuntimeEvent({
-      eventType: 'CHAT_RUN_BOUNDARY',
-      status: 'PASS',
-      scope: 'chat',
-      metadata: { phase: 'END', parentId, messageCount: after.messageCount, headId: after.headId, caller },
-    });
   });
 };
 
@@ -441,6 +467,8 @@ type ChatDebugEventLike = {
   timestamp: string;
   eventType: string;
   status: string;
+  error?: string;
+  errorName?: string;
   metadata?: Record<string, string | number | boolean>;
 };
 
@@ -450,6 +478,11 @@ const ChatDebugEventRow: FC<{ event: ChatDebugEventLike }> = ({ event }) => (
       <span>{new Date(event.timestamp).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</span>
       <span>{event.eventType} · {event.status}</span>
     </div>
+    {(event.error || event.errorName) && (
+      <div className="break-all text-red-600">
+        {event.errorName ?? "Error"}{event.error ? `: ${event.error}` : ""}
+      </div>
+    )}
     {event.metadata && Object.keys(event.metadata).length > 0 && (
       <div className="break-all text-black/50 dark:text-white/50">
         {Object.entries(event.metadata).map(([key, value]) => `${key}=${String(value)}`).join("  ")}
@@ -643,7 +676,8 @@ function buildIncidentText(
     const meta = event.metadata
       ? Object.entries(event.metadata).map(([key, value]) => `${key}=${String(value)}`).join(" ")
       : "";
-    lines.push(`  ${event.timestamp}  ${event.eventType} · ${event.status}${meta ? `  ${meta}` : ""}`);
+    const err = event.error || event.errorName ? `  [${event.errorName ?? "Error"}: ${event.error ?? "—"}]` : "";
+    lines.push(`  ${event.timestamp}  ${event.eventType} · ${event.status}${err}${meta ? `  ${meta}` : ""}`);
   }
   return lines.join("\n");
 }
