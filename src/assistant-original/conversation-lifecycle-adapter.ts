@@ -296,6 +296,34 @@ export function createOwnershipGatedHistoryAdapter(real: ThreadHistoryAdapter): 
       // A live append or import may have landed while this read was in
       // flight — recheck at resolution, not just at call time.
       if (liveAcquired) return undefined as unknown as Awaited<ReturnType<ThreadHistoryAdapter["load"]>>;
+      /* NEW-CHAT WIPE — the confirmed cause of "the first message
+         disappears", and why it only ever happened on a NEW chat.
+         A brand-new local thread has no stored repository at all, so the
+         read resolves to `{ messages: [] }` (parseStoredMessageRepository
+         returns that for a missing key — an OBJECT, not null). It is
+         therefore truthy, so `__internal_load()`'s own `if (!repo) return;`
+         does not skip it, and `MessageRepository.import([])` ends in
+         `resetHead(headId ?? messages.at(-1) ?? null)` = `resetHead(null)`
+         = `clear()`: the whole live repository is wiped, and the ENTER
+         that MonPresenceEvents re-appends right after is the lone SYSTEM
+         root every captured incident ended on.
+
+         Ownership could not catch this one: on an un-promoted local
+         session `history.append()` is never reached at all, because
+         `_runAppend` awaits the initialize barrier that
+         `withLocalUnsavedSession` deliberately keeps pending until
+         promotion — so ENTER and the greeting live in the repository
+         while this adapter has heard nothing. On an already-persistent
+         thread the barrier resolves immediately, append marks ownership,
+         and the thread is protected — which is exactly why old chats
+         always worked.
+
+         The rule is semantic, not a timing guard: an empty stored
+         repository carries no information, so applying it can only
+         destroy and never add. There is nothing to hydrate FROM it. */
+      if (!repo || repo.messages.length === 0) {
+        return undefined as unknown as Awaited<ReturnType<ThreadHistoryAdapter["load"]>>;
+      }
       return repo;
     },
     async append(item) {

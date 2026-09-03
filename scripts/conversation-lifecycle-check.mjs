@@ -334,4 +334,63 @@ function deferred() {
   assert.equal(result.messages.length, 2, "CASE 8: reloading an existing persistent thread still loads its full history");
 }
 
+// FIRST TURN — NEW-CHAT WIPE. The confirmed cause of "the first message
+// disappears", and why it only ever reproduced on a NEW chat.
+
+// CASE 9 — a brand-new chat has no stored repository, so the read resolves
+// to { messages: [] }: an OBJECT, so truthy, so assistant-ui applies it,
+// and import([]) ends in resetHead(null) -> clear(). Nothing can be
+// hydrated from an empty result: it must never be applied.
+{
+  let loadCalls = 0;
+  const real = {
+    load: async () => { loadCalls += 1; return { messages: [] }; },
+    append: async () => {},
+  };
+  const gated = createOwnershipGatedHistoryAdapter(real);
+  const result = await gated.load();
+  assert.equal(loadCalls, 1, "CASE 9: the read still happens — this is about what we do with it");
+  assert.equal(result, undefined, "CASE 9: an empty stored repository must never be applied to a live thread");
+}
+
+// CASE 10 — the same, with a headId present but still no messages. Also
+// nothing to hydrate, and importing it would still resetHead away.
+{
+  const real = { load: async () => ({ headId: null, messages: [] }), append: async () => {} };
+  const gated = createOwnershipGatedHistoryAdapter(real);
+  assert.equal(await gated.load(), undefined, "CASE 10: a headId with no messages is still nothing to hydrate");
+}
+
+// CASE 11 — the new-chat ownership blind spot itself: on an un-promoted
+// local session history.append() is never reached (in _runAppend it sits
+// after the initialize barrier that withLocalUnsavedSession keeps pending
+// until promotion), so the gate is NEVER marked. A live thread must
+// survive the read anyway — this is the case ownership alone could not
+// cover, and the one the device reproduced every time.
+{
+  const gate = deferred();
+  const real = {
+    load: async () => { await gate.promise; return { messages: [] }; },
+    append: async () => {},
+  };
+  const gated = createOwnershipGatedHistoryAdapter(real);
+  const loadPromise = gated.load();
+  // deliberately NO append() and NO import notification: exactly the
+  // new-chat situation, where neither can reach this adapter.
+  gate.resolve();
+  assert.equal(await loadPromise, undefined, "CASE 11: an unowned new chat must still not be wiped by an empty read");
+}
+
+// CASE 12 — the guard must not become an excuse to drop real history: a
+// non-empty stored repository on an untouched thread still hydrates.
+{
+  const real = {
+    load: async () => ({ headId: "c12-b", messages: [msg("c12-a", "user"), msg("c12-b", "assistant", "c12-a")] }),
+    append: async () => {},
+  };
+  const gated = createOwnershipGatedHistoryAdapter(real);
+  const result = await gated.load();
+  assert.equal(result.messages.length, 2, "CASE 12: real stored history must still load — the rule is about EMPTY, not about small");
+}
+
 console.log("Conversation lifecycle checks passed.");
