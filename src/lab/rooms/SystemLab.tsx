@@ -32,6 +32,7 @@ import { loadPing, loadSetup, loadShortcutStatus, loadUsage, saveMonthlyCap, loa
 import type { V2Issue } from '../../ai/v2Issues';
 import { lastRuns } from '../../ai/telemetry';
 import { freshSecret } from '../../engine/secret';
+import { projectJourneyState, validateJourneyCoherence } from '../../engine/journey';
 import { estimateMonthlyCost } from '../../engine/costEstimate';
 import {
   AI_STEPS,
@@ -928,6 +929,12 @@ function Simulation({ onOpenUsage }: { onOpenUsage: () => void }) {
   const dev = useApp((s) => s.dev);
   const nodes = useApp((s) => s.nodes);
   const oggi = useApp((s) => s.days[s.day]);
+  const mons = useApp((s) => s.mons);
+  const activeMonName = useApp((s) => s.activeMonName);
+  const world = useApp((s) => s.world);
+  const ledger = useApp((s) => s.ledger);
+  const journey = projectJourneyState({ mons, activeMonName, world, ledger });
+  const coherence = validateJourneyCoherence(mons, activeMonName, world);
 
   /* 🔷 FINAL DEV → LAB CONSOLIDATION (CORREZIONE) — «LAB +1 DAY and DEV +1
      DAY must ultimately invoke the same underlying operation.» Era
@@ -993,6 +1000,28 @@ function Simulation({ onOpenUsage }: { onOpenUsage: () => void }) {
           <Btn onClick={() => simulateSyncedDays(7)}>RUN 7 COMPLETE DAYS</Btn>
           <Btn onClick={openShift}>NEXT MINDLINE EVENT</Btn>
         </Grid>
+      </Section>
+
+      {/* CORE EXTRACTION PHASE 3 — la prima lettura reale del boundary
+          Journey (src/engine/journey.ts): Mon attivo, World e Ledger letti
+          attraverso projectJourneyState/validateJourneyCoherence invece che
+          ricostruiti qui a mano dai campi grezzi dello store. */}
+      <Section title="JOURNEY" note="Mon attivo, World e Story Ledger — proiezione e coerenza, non lo stato grezzo.">
+        <Rows
+          rows={[
+            ['ACTIVE MON', journey.activeMon ? journey.activeMon.data.name : '—'],
+            ['WORLD', journey.world ? journey.world.name : 'nessuno ancora'],
+            ['CANON EVENTS', journey.world ? String(journey.world.canon.length) : '—'],
+            ['LEDGER · OPEN SETUPS', String(journey.ledger.setups.filter((setup) => setup.status === 'open').length)],
+            ['LEDGER · DO NOT REPEAT', String(journey.ledger.doNotRepeat.length)],
+            ['COHERENCE', coherence.issues.length === 0 ? 'OK' : `${coherence.issues.length} da verificare`],
+          ]}
+        />
+        {coherence.issues.length > 0 && (
+          <ul className="note" style={{ margin: '8px 0 0', paddingLeft: 18 }}>
+            {coherence.issues.map((issue, index) => <li key={index}>{issue}</li>)}
+          </ul>
+        )}
       </Section>
 
       <Section title="CURRENT DAY INPUTS" note="Modifica il giorno corrente prima di simularlo. UNKNOWN resta davvero sconosciuto.">

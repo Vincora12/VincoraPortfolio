@@ -163,6 +163,7 @@ import {
 } from '../engine/world';
 import { deservesThinking, extractFromMessage, extractionLabels } from '../engine/chatExtract';
 import { eggReply } from '../engine/eggVoice';
+import { resolveActiveMon } from '../engine/journey';
 import { typingRhythmFor } from '../engine/typingRhythm';
 import { unpromptedFor, type UnpromptedKind } from '../engine/unprompted';
 import { buildMemoryBlock, recentTurns } from '../engine/memoryContext';
@@ -1272,7 +1273,7 @@ function afterProtocolPhase(s: AppState): Phase {
 }
 
 function activeRecord(s: AppState): MonRecord | null {
-  return s.activeMonName ? (s.mons[s.activeMonName] ?? null) : null;
+  return resolveActiveMon(s.mons, s.activeMonName);
 }
 
 /** Costruisce l'input del generatore da tutto ciò che il prodotto misura. */
@@ -5126,7 +5127,7 @@ function readPhoto(
    -------------------------------------------------------------------------- */
 
 export function useActiveMon(): MonRecord | null {
-  return useApp((s) => (s.activeMonName ? (s.mons[s.activeMonName] ?? null) : null));
+  return useApp((s) => resolveActiveMon(s.mons, s.activeMonName));
 }
 
 /** Il prossimo evento di crescita e quanto manca. È l'unica barra della Home. */
