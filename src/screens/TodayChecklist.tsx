@@ -167,6 +167,20 @@ export function TodayChecklistScreen({ embedded = false, defaultDetailsOpen = fa
         else addMeal({ slot: editTarget.slot, ...meal }, 'manual', dateOnGameDay());
       } else {
         const workout = estimate as WorkoutEstimate;
+        /* Un esito diverso da "workout" non è un errore di stima: è la stima
+           stessa a dire "questo non è un allenamento" o "non è chiaro". Non
+           si inventa un record — si dice onestamente cosa è successo, con lo
+           stesso riquadro già usato per gli errori. */
+        if (workout.outcome === 'not-workout') {
+          setEditStatus('error');
+          setEditError('Non sembra descrivere un allenamento — non ho registrato nulla.');
+          return;
+        }
+        if (workout.outcome === 'ambiguous') {
+          setEditStatus('error');
+          setEditError('Non è chiaro se sia stato un allenamento — aggiungi qualche dettaglio in più e riprova.');
+          return;
+        }
         if (editTarget.entry) updateWorkoutById(editTarget.entry.id, workout);
         else addWorkout(workout, 'manual', dateOnGameDay());
       }

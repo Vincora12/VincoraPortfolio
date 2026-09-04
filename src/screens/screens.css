@@ -4541,6 +4541,9 @@
 .me-health__macros span { color: var(--mh-accent); font: 600 8px/1 var(--font-mono); letter-spacing: .1em; }
 .me-health__macros strong { color: #111318; font-family: var(--font-display); font-size: 15px; font-weight: 750; line-height: 1; }
 .me-health__macros strong small { color: var(--mh-muted); font-size: 9px; font-weight: 500; }
+.me-health__workout-burn { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0; padding: 10px 16px; border-top: 1px solid var(--mh-line); }
+.me-health__workout-burn span { color: var(--mh-muted); font: 600 8px/1 var(--font-mono); letter-spacing: .1em; }
+.me-health__workout-burn strong { color: #111318; font-family: var(--font-display); font-size: 14px; font-weight: 750; }
 .me-health__segments { display: flex; width: 100%; height: 8px; gap: 2px; margin-top: 10px; background: transparent; }
 .me-health__segments b { flex: 1; height: 100%; border: 1px solid #aeb4bf; background: #fff; }
 .me-health__segments b.is-filled { border-color: var(--mh-accent); background: var(--mh-accent); }

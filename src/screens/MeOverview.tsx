@@ -36,6 +36,16 @@ export function MeOverviewScreen({ onGo: _onGo }: { onGo: (o: Overlay) => void }
   const selectedWorkouts = journal.workouts.filter((x) => localDay(new Date(x.at)) === selectedDay);
   const meals = journal.meals.filter((x) => localDay(new Date(x.at)) === gameDay);
   const total = meals.reduce((s, x) => ({ kcal: s.kcal + x.kcal, protein: s.protein + x.protein, carbs: s.carbs + x.carbs, fat: s.fat + x.fat }), { kcal: 0, protein: 0, carbs: 0, fat: 0 });
+  /* CORE HEALTH INTERPRETATION + DAILY ENERGY — mostra SOLO ciò che è già
+     calcolabile onestamente: la somma delle stime di calorie bruciate negli
+     allenamenti di oggi. Non un TOTALE DISPENDIO GIORNALIERO e non un
+     BILANCIO: mancano altezza, età, sesso e un'attività di base per
+     calcolare BMR/TDEE (vedi docs/HEALTH_ENERGY_AUDIT_2026-09-04.md). Somma
+     due numeri senza una base di calcolo comune sarebbe inventare
+     precisione, non offrirla. */
+  const todaysWorkoutBurnedKcal = journal.workouts
+    .filter((x) => localDay(new Date(x.at)) === gameDay)
+    .reduce((sum, x) => sum + (x.burnedKcal ?? 0), 0);
   const askAi = (prompt: string) => window.dispatchEvent(new CustomEvent('vinzmon-open-chat', { detail: { prompt } }));
   const remove = (kind: 'meal' | 'workout' | 'weight', id: string) => {
     if (window.confirm('Eliminare questa registrazione?')) removeHealthEntry(kind, id);
@@ -43,7 +53,7 @@ export function MeOverviewScreen({ onGo: _onGo }: { onGo: (o: Overlay) => void }
   return <div className="screen me-health">
     <nav className="me-health__tabs">{([['today', 'OGGI'], ['diet', 'DIETA'], ['sport', 'SPORT'], ['memory', 'MEMORY']] as const).map(([id, label]) => <button type="button" key={id} aria-current={view === id ? 'page' : undefined} onClick={() => setView(id)}>{label}</button>)}</nav>
     <div className="me-health__scroll" ref={scrollRef}>
-      {view === 'today' && <TodayRecap journal={journal} total={total} />}
+      {view === 'today' && <TodayRecap journal={journal} total={total} workoutBurnedKcal={todaysWorkoutBurnedKcal} />}
       {view === 'diet' && <><MeCalendar journal={journal} mode="diet" selectedDate={selectedDate} onSelect={setSelectedDate} /><Section title="PIANO ALIMENTARE">{journal.dietPlan ? <article className="me-health__plan"><h2>{journal.dietPlan.title}</h2><p>{journal.dietPlan.text}</p><small>Aggiornato {new Date(journal.dietPlan.updatedAt).toLocaleDateString('it-IT')}</small></article> : <Empty text="Allega la dieta in chat: VINZ.MON la leggerà e la salverà qui." />}</Section><Section title="STORICO PASTI">{selectedMeals.length ? <div className="me-health__history-tasks">{[...selectedMeals].reverse().map(x => <HistoryRow key={x.id} done title={MEALS.find((meal) => meal.slot === x.slot)?.label ?? x.slot.toUpperCase()} text={x.description} meta={`${x.kcal} kcal${x.source === 'chat' ? ' · DALLA CHAT' : ''}`} remove={() => remove('meal', x.id)} />)}</div> : <Empty text="Nessun pasto registrato in questo giorno." />}</Section></>}
       {view === 'sport' && <><button type="button" className="me-health__start-timer" onClick={() => setTimerOpen(true)}><Icon name="workout" /><span><strong>ALLENAMENTO GUIDATO</strong><small>Timer esercizio, recupero e serie</small></span><b>AVVIA</b></button><MeCalendar journal={journal} mode="sport" selectedDate={selectedDate} onSelect={setSelectedDate} /><Section title="PIANO ALLENAMENTO" action={journal.workoutPlan ? 'MODIFICA CON AI' : 'SCRIVI CON AI'} click={() => askAi(journal.workoutPlan ? 'Modifica il mio piano di allenamento attuale: ' : 'Creami un nuovo piano di allenamento. Prima fammi le domande necessarie: ')}>{journal.workoutPlan ? <article className="me-health__plan"><h2>{journal.workoutPlan.title}</h2><p>{journal.workoutPlan.text}</p><small>Aggiornato {new Date(journal.workoutPlan.updatedAt).toLocaleDateString('it-IT')}</small></article> : <Empty text="Crea il tuo piano con la chat: giorni, esercizi, serie, recuperi e progressione resteranno qui." />}</Section><Section title="ALLENAMENTI SVOLTI" action="REGISTRA CON AI" click={() => askAi('Registra questo allenamento svolto: ')}>{selectedWorkouts.length ? <div className="me-health__history-tasks">{[...selectedWorkouts].reverse().map(x => <HistoryRow key={x.id} done icon={workoutIcon(x)} title={x.title} text={x.details} meta={`${x.minutes} minuti${x.source === 'chat' ? ' · DALLA CHAT' : ''}`} remove={() => remove('workout', x.id)} />)}</div> : <Empty text="Nessun allenamento registrato in questo giorno." />}</Section></>}
       {view === 'memory' && <MemoryView memory={memory} error={memoryError} retry={loadMemory} />}
@@ -124,15 +134,26 @@ function WorkoutTimer({ onClose }: { onClose: () => void }) {
   </section>;
 }
 
-function TodayRecap({ journal, total }: { journal: HealthJournal; total: HealthJournal['targets'] }) {
+function TodayRecap({ journal, total, workoutBurnedKcal }: { journal: HealthJournal; total: HealthJournal['targets']; workoutBurnedKcal: number }) {
   const [detailsOpen, setDetailsOpen] = useState(false);
   return <section className="me-health__today-recap" data-expanded={detailsOpen}>
-    <Nutrition total={total} targets={journal.targets} />
+    <Nutrition total={total} targets={journal.targets} workoutBurnedKcal={workoutBurnedKcal} />
     <TodayChecklistScreen embedded defaultDetailsOpen={false} onDetailsChange={setDetailsOpen} />
   </section>;
 }
 
-function Nutrition({ total, targets }: { total: HealthJournal['targets']; targets: HealthJournal['targets'] }) { const pct = Math.min(100, Math.round(total.kcal / targets.kcal * 100)); return <section className="me-health__nutrition"><div className="me-health__calories"><div><small>ENERGIA</small><strong>{total.kcal.toLocaleString('it-IT')}</strong><span>/ {targets.kcal.toLocaleString('it-IT')} KCAL</span><Segments value={pct} count={14} /></div></div><div className="me-health__macros">{(['protein', 'carbs', 'fat'] as const).map(k => { const value = Math.min(100, total[k] / targets[k] * 100); return <div key={k}><span>{k === 'protein' ? 'PRO' : k === 'carbs' ? 'CARB' : 'FAT'}</span><strong>{total[k]}<small>g</small></strong><Segments value={value} count={8} /></div>; })}</div></section>; }
+function Nutrition({ total, targets, workoutBurnedKcal }: { total: HealthJournal['targets']; targets: HealthJournal['targets']; workoutBurnedKcal: number }) {
+  const pct = Math.min(100, Math.round(total.kcal / targets.kcal * 100));
+  /* Riga separata e non sommata a ENERGIA: quella è INTAKE vs obiettivo, questa
+     è una stima di allenamento — combinarle in un unico numero servirebbe un
+     dispendio energetico totale che qui non è calcolabile onestamente (manca
+     BMR/TDEE, vedi docs/HEALTH_ENERGY_AUDIT_2026-09-04.md). */
+  return <section className="me-health__nutrition">
+    <div className="me-health__calories"><div><small>ENERGIA</small><strong>{total.kcal.toLocaleString('it-IT')}</strong><span>/ {targets.kcal.toLocaleString('it-IT')} KCAL</span><Segments value={pct} count={14} /></div></div>
+    <div className="me-health__macros">{(['protein', 'carbs', 'fat'] as const).map(k => { const value = Math.min(100, total[k] / targets[k] * 100); return <div key={k}><span>{k === 'protein' ? 'PRO' : k === 'carbs' ? 'CARB' : 'FAT'}</span><strong>{total[k]}<small>g</small></strong><Segments value={value} count={8} /></div>; })}</div>
+    {workoutBurnedKcal > 0 && <p className="me-health__workout-burn"><span>ALLENAMENTO · STIMA, NON MISURA</span><strong>{workoutBurnedKcal.toLocaleString('it-IT')} KCAL</strong></p>}
+  </section>;
+}
 function Section({ title, action, click, children }: { title: string; action?: string; click?: () => void; children: ReactNode }) { return <section className="me-health__section"><header><h2>{title}</h2>{action && <button type="button" onClick={click}><Icon name="plus" />{action}</button>}</header>{children}</section>; }
 function HistoryRow({ done, icon, title, text, meta, remove }: { done: boolean; icon?: import('../system/Icon').IconName; title: string; text: string; meta: string; remove: () => void }) { return <article className="me-health__history-row" data-done={done}><span aria-hidden="true">{icon && <Icon name={icon} />}</span><div><strong>{title}</strong><small>{text}</small><em>{meta}</em></div><button type="button" className="sync-check__remove" aria-label={`Elimina ${title}`} onClick={remove}><Icon name="close" /></button></article>; }
 function Empty({ text }: { text: string }) { return <p className="me-health__empty">{text}</p>; }

@@ -461,6 +461,24 @@ export function ask<T = VoiceData>(
   return post<T>('/api/ai', token, request);
 }
 
+export interface PersonalMemorySearchResult {
+  memories: Array<{ id?: string; text: string; score?: number }>;
+}
+
+/**
+ * Ricerca di memoria personale rilevante per un testo, senza sapere quale
+ * backend (ME Model o Mem0) la serva — lo decide il server (Core memory
+ * boundary, `netlify/functions/_shared/core/memory.ts`). Usata per portare
+ * contesto rilevante dentro un'interpretazione, non per leggere l'intera
+ * memoria.
+ */
+export function searchPersonalMemory(
+  token: string | null,
+  query: string,
+): Promise<BackendResult<PersonalMemorySearchResult>> {
+  return post<PersonalMemorySearchResult>('/api/me-memory', token, { query }, 'POST');
+}
+
 export function askImage(
   token: string | null,
   prompt: string,
