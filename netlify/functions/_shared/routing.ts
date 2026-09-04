@@ -692,6 +692,7 @@ export type AiStepId =
   | 'teach'
   | 'bio'
   | 'narrator'
+  | 'worldIdentity'
   | 'imagePrompt'
   | 'voice'
   | 'reflection'
@@ -816,6 +817,22 @@ export const AI_STEPS: Record<AiStepId, AiStep> = {
     maxTokens: 900,
     qualityCritical: false,
   },
+  /* 🔷 Narrative System Phase 2 — GOAL/AI COST: «un solo testo cheap per
+     World genuinamente nuovo». Riusa `text-cheap`, la stessa capacità di
+     RIFLESSIONE e MEMORY: non merita `prompt-compile` perché non è mai
+     critico per la qualità e non parte mai per TUNE, solo per RISE, e una
+     volta sola per World (vedi la guardia in store.ts). */
+  worldIdentity: {
+    id: 'worldIdentity',
+    label: 'IDENTITÀ MONDO',
+    it: 'Nome e identità del World nuovo dopo una RISE. Testo cortissimo, una volta sola per mondo — mai per TUNE.',
+    capability: 'text-cheap',
+    fallback: 'claude-haiku-4-5',
+    background: false,
+    effort: 'low',
+    maxTokens: 400,
+    qualityCritical: false,
+  },
   imagePrompt: {
     id: 'imagePrompt',
     label: 'PROMPT IMMAGINI',
@@ -913,6 +930,7 @@ export const AI_STEP_ORDER: AiStepId[] = [
   'characterMaster',
   'bio',
   'narrator',
+  'worldIdentity',
   'imagePrompt',
   'image',
   'voice',

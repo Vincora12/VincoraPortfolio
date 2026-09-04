@@ -932,6 +932,7 @@ function Simulation({ onOpenUsage }: { onOpenUsage: () => void }) {
   const mons = useApp((s) => s.mons);
   const activeMonName = useApp((s) => s.activeMonName);
   const world = useApp((s) => s.world);
+  const worldHistory = useApp((s) => s.worldHistory);
   const ledger = useApp((s) => s.ledger);
   const journey = projectJourneyState({ mons, activeMonName, world, ledger });
   const coherence = validateJourneyCoherence(mons, activeMonName, world);
@@ -1005,13 +1006,19 @@ function Simulation({ onOpenUsage }: { onOpenUsage: () => void }) {
       {/* CORE EXTRACTION PHASE 3 — la prima lettura reale del boundary
           Journey (src/engine/journey.ts): Mon attivo, World e Ledger letti
           attraverso projectJourneyState/validateJourneyCoherence invece che
-          ricostruiti qui a mano dai campi grezzi dello store. */}
+          ricostruiti qui a mano dai campi grezzi dello store.
+
+          NARRATIVE SYSTEM PHASE 2 — WORLD ORIGIN/HISTORY: la riga in più che
+          rende visibile la RISE. `worldHistory` esiste solo per una RISE già
+          avvenuta; `previousWorldId` solo sul World che una RISE ha aperto. */}
       <Section title="JOURNEY" note="Mon attivo, World e Story Ledger — proiezione e coerenza, non lo stato grezzo.">
         <Rows
           rows={[
             ['ACTIVE MON', journey.activeMon ? journey.activeMon.data.name : '—'],
             ['WORLD', journey.world ? journey.world.name : 'nessuno ancora'],
+            ['WORLD ORIGIN', journey.world?.previousWorldId ? `RISE da ${journey.world.previousWorldId}` : journey.world ? 'nascita (seedWorld)' : '—'],
             ['CANON EVENTS', journey.world ? String(journey.world.canon.length) : '—'],
+            ['WORLD HISTORY', `${worldHistory.length} mondo/i lasciato/i indietro`],
             ['LEDGER · OPEN SETUPS', String(journey.ledger.setups.filter((setup) => setup.status === 'open').length)],
             ['LEDGER · DO NOT REPEAT', String(journey.ledger.doNotRepeat.length)],
             ['COHERENCE', coherence.issues.length === 0 ? 'OK' : `${coherence.issues.length} da verificare`],

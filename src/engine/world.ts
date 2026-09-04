@@ -105,6 +105,12 @@ export interface World {
   identity?: string;
   /** Riferimenti culturali del luogo, distinti dal Cultural DNA del Mon. */
   worldCulturalDna?: string[];
+  /**
+   * 🔷 Narrative System Phase 2 — presente solo sui World aperti da una RISE
+   * (mega-evoluzione). Assente sui World seminati da `seedWorld` (nascita) e
+   * su ogni World legacy: non si fabbrica una provenienza che non c'era.
+   */
+  previousWorldId?: string;
   canon: CanonEvent[];
 }
 
@@ -267,6 +273,14 @@ export function worldBlock(world: World | null): string {
     `IL MONDO: ${world.name}`,
     world.description,
     `Emerso il giorno ${world.emergedOnDay}, con ${displayName(world.emergedWith)}.`,
+    /* 🔷 Narrative System Phase 2 — GOAL 5: il World Cultural DNA esisteva già
+       (`resolveWorldCulturalDna`) ma nessun prompt lo leggeva mai. È tono e
+       vocabolario del LUOGO, non anatomia del .mon — resta fuori dal
+       compilatore immagini di proposito (vedi `promptFor.ts`, mai importato
+       qui). */
+    ...(world.worldCulturalDna && world.worldCulturalDna.length > 0
+      ? [`RIFERIMENTI CULTURALI DEL LUOGO (tono, non aspetto fisico del .mon): ${world.worldCulturalDna.join(', ')}`]
+      : []),
     '',
     recent.length > 0 ? 'QUELLO CHE È GIÀ VERO QUI (non contraddirlo):' : 'Il canone è ancora vuoto.',
     ...recent.map((e) => `- [${EPISTEMIC_LABEL[e.epistemic]}] giorno ${e.day}: ${e.text}`),
@@ -343,6 +357,61 @@ export function seedWorld(record: MonRecord, day: number): World {
         kind: 'origin',
         epistemic: 'WORLD_CANON',
         text: `${displayName(d.name)} è arrivato, e con lui questo posto.`,
+        monName: d.name,
+      },
+    ],
+  };
+}
+
+/* ============================================================================
+   RISE — Narrative System Phase 2, decisione canonica
+
+   🔷 «TUNE → VINZ.MON evolve → STESSO World. RISE → VINZ.MON megaevolve →
+   World NUOVO.» Fino a qui il codice reale trattava evoluzione e
+   mega-evoluzione allo stesso modo (`revealFormEvolution` in `store.ts`
+   chiamava `withCanon` identico per entrambe) — CORE EXTRACTION PHASE 3 lo ha
+   tracciato e documentato come discrepanza, non lo ha corretto perché
+   correggerlo era lavoro di Narrative. Questa è quella decisione, presa.
+
+   🔒 TUNE resta esattamente com'era: la sezione qui sopra (§13 nel commento
+   di store.ts, «il mondo non riparte, si stratifica») continua a valere per
+   l'evoluzione ordinaria. RISE è l'eccezione dichiarata, non una riscrittura
+   della regola generale.
+   ========================================================================= */
+
+/**
+ * Il World dopo una RISE: non uno strato dello stesso posto — una soglia
+ * nuova, con una provenienza dichiarata.
+ *
+ * 🔒 NON È UN SECONDO GENERATORE. Riusa `resolveWorldCulturalDna`, lo stesso
+ * schema id (`world_<mindline_node>`, sempre univoco: ogni forma ha il suo
+ * nodo) e la stessa garanzia di `seedWorld` — un World deterministico che
+ * esiste anche senza chiave AI. Quello che cambia è solo cosa ci si
+ * costruisce sopra: qui c'è un `previousWorldId` e il canone si apre con un
+ * evento `world-change`, non `origin` — quel posto non nasce dal nulla,
+ * arriva da un altro.
+ */
+export function riseWorld(previous: World, record: MonRecord, day: number): World {
+  const d = record.data;
+  const affinity = d.affinity.toLowerCase();
+  const id = `world_${d.mindline_node}`;
+  const worldCulturalDna = resolveWorldCulturalDna(record, day);
+  return {
+    id,
+    name: `SOGLIA ${d.affinity}`,
+    description: `Un posto che si è aperto quando ${displayName(d.name)} ha lasciato ${previous.name} — uno strato che quel posto non arrivava a mostrare, segnato dall'affinità ${affinity}. Nessuno lo ha ancora attraversato fino in fondo.`,
+    identity: `Una soglia aperta da una RISE, dopo ${previous.name}: segnata da ${worldCulturalDna.join(', ')}.`,
+    worldCulturalDna,
+    emergedOnDay: day,
+    emergedWith: d.name,
+    previousWorldId: previous.id,
+    canon: [
+      {
+        id: `canon_world-change_origin_${d.mindline_node}`,
+        day,
+        kind: 'world-change',
+        epistemic: 'WORLD_CANON',
+        text: `${displayName(d.name)} è arrivato qui lasciandosi dietro ${previous.name}. Quello che era vero là non smette di esserlo: qui comincia un'altra pagina.`,
         monName: d.name,
       },
     ],

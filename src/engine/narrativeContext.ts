@@ -8,6 +8,9 @@ export interface NarrativeContext {
   previousMon?: MonRecord;
   transitionType?: string;
   world?: World;
+  /** 🔷 Narrative System Phase 2 — presente solo su una transizione RISE:
+   *  il World che si sta lasciando, non solo quello di adesso. */
+  previousWorld?: World;
   worldCulturalDna: string[];
   monCulturalDna: string[];
   narrativeDna: MonRecord['data']['narrativeDNA'];
@@ -22,6 +25,7 @@ export function buildNarrativeContext(input: {
   currentMon: MonRecord;
   previousMon?: MonRecord;
   world?: World | null;
+  previousWorld?: World | null;
   ledger?: StoryLedger;
   transitionType?: string;
   wish?: string;
@@ -31,6 +35,7 @@ export function buildNarrativeContext(input: {
     previousMon: input.previousMon,
     transitionType: input.transitionType,
     world: input.world ?? undefined,
+    previousWorld: input.previousWorld ?? undefined,
     worldCulturalDna: input.world?.worldCulturalDna ?? [],
     monCulturalDna: input.currentMon.data.cultural_dna ?? [],
     narrativeDna: input.currentMon.data.narrativeDNA,

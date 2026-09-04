@@ -152,6 +152,7 @@ import {
 import {
   emptyLedger,
   seedWorld,
+  riseWorld,
   withCanon,
   worldBlock,
   promoteConnection,
@@ -163,7 +164,8 @@ import {
 } from '../engine/world';
 import { deservesThinking, extractFromMessage, extractionLabels } from '../engine/chatExtract';
 import { eggReply } from '../engine/eggVoice';
-import { resolveActiveMon } from '../engine/journey';
+import { projectJourneyState, resolveActiveMon } from '../engine/journey';
+import { buildNarrativeContext } from '../engine/narrativeContext';
 import { typingRhythmFor } from '../engine/typingRhythm';
 import { unpromptedFor, type UnpromptedKind } from '../engine/unprompted';
 import { buildMemoryBlock, recentTurns } from '../engine/memoryContext';
@@ -286,6 +288,17 @@ export interface EvolutionJob {
   error: string | null;
   /** Identificativo persistente del lavoro Netlify: sopravvive alla chiusura. */
   serverJobId: string | null;
+  /**
+   * 🔷 Narrative System Phase 2 — presente solo su una RISE (mega-evoluzione)
+   * con un World corrente da cui partire. Il World vero e proprio (candidato,
+   * non ancora attivo) nasce qui, deterministico (`riseWorld`), e può venire
+   * arricchito una volta da `resolveWorldIdentity` prima che la rivelazione
+   * lo renda il World attivo. Non è stato salvato: se il lavoro viene
+   * abbandonato prima della rivelazione, il World candidato semplicemente
+   * scompare con il job — esattamente come il resto di un candidato non
+   * ancora rivelato.
+   */
+  pendingWorld?: World;
 }
 
 /** 🔶 v1.4 — sette giorni SINCRONIZZATI, non sette giorni di calendario. */
@@ -454,6 +467,15 @@ interface AppState {
    * fuori dal primo passaggio sicuro.
    */
   world: World | null;
+  /**
+   * 🔷 Narrative System Phase 2 — i World lasciati indietro da una RISE. Non
+   * un secondo database di mondi: un archivio append-only, stessa forma di
+   * `nodes`, che esiste solo perché «Do NOT delete or overwrite historical
+   * World meaning» — senza questo, il World precedente sparirebbe nel
+   * momento in cui `world` punta al nuovo. Vuoto per ogni salvataggio che non
+   * ha mai fatto una RISE, compresi tutti quelli legacy.
+   */
+  worldHistory: World[];
   /** 🔷 v4 §10.2 — cosa è stato piantato, cosa raccolto, cosa non ripetere. */
   ledger: StoryLedger;
   /**
@@ -974,6 +996,7 @@ const INITIAL = {
   firstSync: null as FirstSyncResult | null,
   eggs: [] as MonRecord[],
   world: null as World | null,
+  worldHistory: [] as World[],
   ledger: emptyLedger(),
   protocol: EMPTY_PROTOCOL as Protocol,
   moodHistory: [] as MoodDayEntry[],
@@ -1065,6 +1088,61 @@ const INITIAL = {
 
 /** Evita due poller sullo stesso lavoro quando React rimonta la schermata. */
 const runningEvolutionJobs = new Set<string>();
+
+/**
+ * 🔷 Narrative System Phase 2 — AI COST: «un solo testo cheap per World
+ * genuinamente nuovo». `writeBio` e `writeNarrator` chiamano entrambi questa
+ * funzione per lo stesso candidato RISE; questo Set impedisce che le due
+ * chiamate, quasi simultanee, paghino la stessa arricchitura due volte —
+ * stesso ruolo di `runningEvolutionJobs`, un guardiano leggero, non un lock
+ * vero.
+ */
+const worldIdentityRequested = new Set<string>();
+
+/**
+ * Risolve il World da mostrare a bio/narratore per il candidato di un
+ * evolutionJob. Per TUNE (o hatch, o senza job) non fa niente: chi chiama usa
+ * il World corrente via `journey.ts`. Solo per una RISE con un World
+ * candidato prova ad arricchirlo — al massimo una volta, e solo se c'è una
+ * chiave — e nel frattempo torna comunque il World deterministico che
+ * `riseWorld()` ha già scritto, perché quello esiste sempre.
+ */
+async function resolveWorldIdentity(
+  set: (p: Partial<AppState> | ((s: AppState) => Partial<AppState>)) => void,
+  get: () => AppState,
+  candidateName: string,
+): Promise<World | null> {
+  const s = get();
+  const job = s.evolutionJob;
+  if (!job || job.candidateName !== candidateName || job.kind !== 'mega-evolution' || !job.pendingWorld) {
+    return s.world;
+  }
+  const pendingWorld = job.pendingWorld;
+  if (!s.token) return pendingWorld;
+  if (worldIdentityRequested.has(candidateName)) return get().evolutionJob?.pendingWorld ?? pendingWorld;
+  worldIdentityRequested.add(candidateName);
+
+  const record = s.mons[candidateName];
+  const previousWorld = s.world;
+  if (!record || !previousWorld) return pendingWorld;
+
+  const { writeWorldIdentityWithAi } = await import('../ai/worldIdentity');
+  const { identity } = await runStep(
+    'worldIdentity',
+    (model) => writeWorldIdentityWithAi(s.token, model, { world: pendingWorld, previousWorld, record, wish: record.data.user_wish }),
+    (out) => ({ ok: out.identity !== null, why: out.rejected ?? out.failure ?? undefined }),
+  );
+  if (!identity) return pendingWorld;
+
+  const enriched: World = { ...pendingWorld, name: identity.name, identity: identity.identity, description: identity.descriptor };
+  set((current) => ({
+    evolutionJob:
+      current.evolutionJob?.candidateName === candidateName && current.evolutionJob.pendingWorld
+        ? { ...current.evolutionJob, pendingWorld: enriched }
+        : current.evolutionJob,
+  }));
+  return enriched;
+}
 
 async function notifyEvolutionReady(monName: string): Promise<void> {
   if (!('Notification' in window) || Notification.permission !== 'granted') return;
@@ -1931,7 +2009,21 @@ export const useApp = create<AppState>()(
               stage: 0,
               previous_labels: [],
             };
-        const recordWithWorld = s.world ? { ...record, worldId: s.world.id } : record;
+        /* 🔷 Narrative System Phase 2 — decisione canonica: RISE apre un World
+           nuovo, TUNE resta in quello di adesso. Il World candidato nasce QUI,
+           deterministico (`riseWorld`, stessa garanzia di `seedWorld`: esiste
+           anche senza chiave AI) — non ancora attivo, esattamente come il
+           record stesso non è ancora `activeMonName` finché la rivelazione
+           non arriva. `s.world` resta quello di adesso fino a quel momento:
+           chi guarda il World corrente in mezzo (via `journey.ts`) vede
+           ancora una relazione coerente Mon-attivo/World-attivo, non un
+           mondo già cambiato sotto una forma non ancora rivelata. */
+        const pendingWorld = kind === 'mega-evolution' && s.world ? riseWorld(s.world, record, s.day) : undefined;
+        const recordWithWorld = pendingWorld
+          ? { ...record, worldId: pendingWorld.id }
+          : s.world
+            ? { ...record, worldId: s.world.id }
+            : record;
 
         set({
           phase: 'live',
@@ -1946,6 +2038,7 @@ export const useApp = create<AppState>()(
             label: 'PREPARAZIONE CHARACTER MASTER',
             error: null,
             serverJobId: null,
+            pendingWorld,
           },
           pendingHeritage: [],
           pendingPlan: null,
@@ -2103,6 +2196,59 @@ export const useApp = create<AppState>()(
         const previous = job.previousName ? current.mons[job.previousName] : null;
         const record = current.mons[job.candidateName];
         if (!previous || !record) return;
+
+        /* 🔷 Narrative System Phase 2 — decisione canonica: TUNE (evoluzione)
+           resta nello stesso World, come da sempre (v4 §13, sotto). RISE
+           (mega-evoluzione) con un World candidato pronto (`job.pendingWorld`,
+           nato in `beginFormEvolution` via `riseWorld`) transita per davvero:
+           il World vecchio non sparisce — riceve un ultimo evento
+           `world-change` di chiusura e va in `worldHistory`, append-only,
+           mai riscritto. Se manca `current.world` (caso di bordo: nessun
+           World quando la RISE è cominciata) si ricade nel ramo di sempre,
+           che già gestisce `current.world === null` senza fare niente. */
+        const isRiseTransition = job.kind === 'mega-evolution' && Boolean(job.pendingWorld) && Boolean(current.world);
+        const worldTransition = isRiseTransition
+          ? {
+              world: job.pendingWorld!,
+              worldHistory: [
+                ...current.worldHistory,
+                withCanon(current.world!, {
+                  id: `canon_world-change_${record.data.mindline_node}`,
+                  day: current.day,
+                  kind: 'world-change',
+                  epistemic: 'WORLD_CANON',
+                  text: `${displayName(previous.data.name)} lascia ${current.world!.name}: quello che è già vero qui resta vero, non si cancella. Con ${displayName(record.data.name)} si apre ${job.pendingWorld!.name}.`,
+                  monName: record.data.name,
+                }),
+              ],
+            }
+          : {
+              /* 🔷 v4 §13 — «Evolution may change parts of the same World.
+                 Mega Evolution may reveal deeper layers.»
+
+                 🔒 IL MONDO NON RIPARTE, SI STRATIFICA. Il canone vecchio
+                 resta intatto e questa riga si aggiunge in fondo: è la
+                 differenza fra un posto che ha una storia e un posto che
+                 ricomincia da capo a ogni forma nuova. Vale ancora per TUNE
+                 (sempre) e per una mega-evoluzione senza World candidato
+                 (caso di bordo legacy). Non vale più per una RISE vera: vedi
+                 il ramo sopra. */
+              world: current.world
+                ? withCanon(current.world, {
+                    id: `canon_${job.kind}_${record.data.mindline_node}`,
+                    day: current.day,
+                    kind: job.kind === 'mega-evolution' ? 'mega-evolution' : 'evolution',
+                    epistemic: 'WORLD_CANON',
+                    text:
+                      job.kind === 'mega-evolution'
+                        ? `${displayName(previous.data.name)} è diventato ${displayName(record.data.name)}: il corpo è un altro, e qui si è aperto uno strato che prima non si vedeva.`
+                        : `${displayName(previous.data.name)} è diventato ${displayName(record.data.name)}. Il posto è lo stesso, ma non risponde più allo stesso modo.`,
+                    monName: record.data.name,
+                  })
+                : current.world,
+              worldHistory: current.worldHistory,
+            };
+
         set({
           phase: 'new-encounter',
           mons: { ...current.mons, [previous.data.name]: { ...previous, retiredOnDay: current.day } },
@@ -2112,26 +2258,7 @@ export const useApp = create<AppState>()(
           mood: touchMood(current, record.data.mood_primary, []),
           chat: [...current.chat, openingMessage(record, current.day, current.token !== null)].slice(-60),
           progression: { ...current.progression, sync: { ...current.progression.sync, inForm: 0, sinceGrowth: 0 } },
-          /* 🔷 v4 §13 — «Evolution may change parts of the same World. Mega
-             Evolution may reveal deeper layers.»
-
-             🔒 IL MONDO NON RIPARTE, SI STRATIFICA. Il canone vecchio resta
-             intatto e questa riga si aggiunge in fondo: è la differenza fra
-             un posto che ha una storia e un posto che ricomincia da capo a
-             ogni forma nuova. */
-          world: current.world
-            ? withCanon(current.world, {
-                id: `canon_${job.kind}_${record.data.mindline_node}`,
-                day: current.day,
-                kind: job.kind === 'mega-evolution' ? 'mega-evolution' : 'evolution',
-                epistemic: 'WORLD_CANON',
-                text:
-                  job.kind === 'mega-evolution'
-                    ? `${displayName(previous.data.name)} è diventato ${displayName(record.data.name)}: il corpo è un altro, e qui si è aperto uno strato che prima non si vedeva.`
-                    : `${displayName(previous.data.name)} è diventato ${displayName(record.data.name)}. Il posto è lo stesso, ma non risponde più allo stesso modo.`,
-                monName: record.data.name,
-              })
-            : current.world,
+          ...worldTransition,
         });
         requestIntroduction(set, get, record);
       },
@@ -2605,6 +2732,16 @@ export const useApp = create<AppState>()(
             return bSameDay - aSameDay || b.day - a.day;
           })
           .slice(0, 8);
+        /* 🔷 Narrative System Phase 2 — GOAL 5/GOAL 6 dell'allineamento
+           opzionale: stesso World risolto del narratore (RISE → il World
+           candidato, arricchito al massimo una volta; tutto il resto → il
+           World corrente via `journey.ts`, la stessa relazione Mon/World che
+           ogni altro consumatore legge). Non un secondo contesto: la stessa
+           risoluzione, letta due volte. */
+        const isRiseCandidate = s.evolutionJob?.candidateName === monName && s.evolutionJob.kind === 'mega-evolution' && Boolean(s.evolutionJob.pendingWorld);
+        const world = isRiseCandidate
+          ? await resolveWorldIdentity(set, get, monName)
+          : projectJourneyState({ mons: s.mons, activeMonName: s.activeMonName, world: s.world, ledger: s.ledger }).world;
         /* 🔷 v4 §9 — «The Bio Writer should consume Narrative DNA. It should
            not invent an unrelated personality from scratch.» La spina arriva
            già dal `narrativeDNA` sul record; qui si aggiungono le altre due
@@ -2616,7 +2753,7 @@ export const useApp = create<AppState>()(
             writeBioWithAi(s.token, rec, model, {
               memories: birthMemories,
               lens: s.firstSync ? lensLine(s.firstSync) : undefined,
-              world: s.world ? worldBlock(s.world) : undefined,
+              world: world ? worldBlock(world) : undefined,
             }),
           (out) => ({ ok: out.bio !== null, why: out.rejected ?? out.failure ?? undefined }),
         );
@@ -2643,13 +2780,44 @@ export const useApp = create<AppState>()(
         if (rec.narratorLine) return null;
 
         const { writeNarratorWithAi, narratorFallbackLine } = await import('../ai/narratorPrompt');
+
+        /* 🔷 Narrative System Phase 2 — GOAL 4: Core Journey projection →
+           NarrativeContext → Narrator, per davvero, non solo nei tipi.
+           `journey.ts` risolve la relazione Mon/World COMMESSA; una RISE non
+           ancora rivelata non è commessa — il suo World candidato vive sul
+           job, non su `activeMonName`/`world`, esattamente come il record
+           candidato stesso non è ancora l'attivo. Le due fonti restano
+           distinte di proposito: `journey.ts` non deve fingere di conoscere
+           uno stato che non è ancora vero. */
+        const job = s.evolutionJob;
+        const isRiseCandidate = job?.candidateName === monName && job.kind === 'mega-evolution' && Boolean(job.pendingWorld);
+        const isTune = job?.candidateName === monName && job.kind === 'evolution';
+        const previousMon = job?.previousName ? s.mons[job.previousName] : undefined;
+        const world = isRiseCandidate
+          ? await resolveWorldIdentity(set, get, monName)
+          : projectJourneyState({ mons: s.mons, activeMonName: s.activeMonName, world: s.world, ledger: s.ledger }).world;
+
+        const narrativeContext = buildNarrativeContext({
+          currentMon: rec,
+          previousMon,
+          world,
+          previousWorld: isRiseCandidate ? s.world : undefined,
+          ledger: s.ledger,
+          transitionType: isRiseCandidate ? 'RISE' : isTune ? 'TUNE' : undefined,
+          wish: rec.data.user_wish,
+        });
+
         const { line, failure, rejected } = await runStep(
           'narrator',
           (model) =>
             /* 🔷 v4 §10.2 — il narratore legge cosa ha già raccontato prima di
                raccontare ancora. Alla primissima nascita il registro è vuoto e
-               il mondo non c'è: è corretto, lì non c'è niente da non ripetere. */
-            writeNarratorWithAi(s.token, rec, model, { world: s.world, ledger: s.ledger }),
+               il mondo non c'è: è corretto, lì non c'è niente da non ripetere.
+               Il World stesso — se è una RISE — è già quello nuovo: la voce
+               non ricostruisce la transizione da sola, la legge da
+               `narrativeContext.world` (vedi `worldBlock`, che mostra anche
+               l'evento world-change già scritto in testa al suo canone). */
+            writeNarratorWithAi(s.token, rec, model, { world: narrativeContext.world ?? null, ledger: narrativeContext.ledger ?? s.ledger }),
           (out) => ({ ok: out.line !== null, why: out.rejected ?? out.failure ?? undefined }),
         );
 
