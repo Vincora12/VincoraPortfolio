@@ -23,6 +23,7 @@
     "verify:parity": "node scripts/parity-check.mjs",
     "verify:package": "node scripts/package-check.mjs",
     "verify:memory-cleanup": "node scripts/memory-cleanup-check.mjs",
+    "verify:core-memory": "node scripts/core-memory-check.mjs",
     "icons": "node scripts/make-icon.mjs",
     "icons:lab": "node scripts/make-lab-icon.mjs"
   },

@@ -193,8 +193,15 @@ generic `/api/state` blob. That is the template: give each Core concept its own 
 endpoint/key, let the generic state blob shrink toward "the fields that are genuinely just this
 save file," and never introduce a second store that competes with an existing canonical one.
 
-Nothing is extracted in this task. This section documents the shape of the move, not a plan with
-dates.
+Nothing was extracted when this document was first written. **CORE EXTRACTION PHASE 1
+(2026-09-04)** did the first one: personal Memory's *ownership boundary* — which backend
+(ME Model vs. Mem0) answers a read/write/search — was centralized into
+`netlify/functions/_shared/core/memory.ts`, ending three independent, inconsistent mode-checks
+(one of which, in `machines.ts`, wasn't checking the mode at all). No Blobs key moved — ME Model
+still lives at `me-model-v1`, Mem0 is still reached only server-side. Full account:
+`docs/CORE_EXTRACTION_PHASE1_2026-09-04.md`. This section still documents the shape of a real
+storage move (Lessons/ME-model-style, own key per concept) for whichever domain is next — Mon
+State is the largest remaining candidate still sharing the generic `/api/state` blob.
 
 ## 8. Tool / Permission implications
 

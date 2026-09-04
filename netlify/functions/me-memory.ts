@@ -1,6 +1,18 @@
 import { authorize, denied, json } from './_shared/auth';
-import { createMeModelStore } from './_shared/meModel';
-import { projectMeModel } from './_shared/meMemoryProjection';
-import { listMem0, searchMem0 } from './_shared/mem0MemoryClient';
-export default async function handler(request: Request): Promise<Response> { if (!authorize(request).ok) return denied(); try { if (process.env.VINZMON_MEMORY_WRITER_MODE === 'mem0') { if (request.method === 'POST') { const body = await request.json() as { query?: string }; return json({ memories: await searchMem0(body.query ?? '', 5) }); } if (request.method !== 'GET') return json({ error: 'metodo non supportato' }, 405); const raw = await listMem0() as any; const memories = (Array.isArray(raw?.results) ? raw.results : Array.isArray(raw) ? raw : []).flatMap((item: any) => typeof item?.memory === 'string' ? [{ id: item.id, text: item.memory, score: item.score, metadata: item.metadata }] : typeof item?.text === 'string' ? [item] : []); return json({ memories, counts: { memories: memories.length } }); } if (request.method !== 'GET') return json({ error: 'solo GET' }, 405); return json(projectMeModel(await createMeModelStore().read())); } catch { return json({ error: 'memoria non disponibile' }, 503); } }
+import { readMeMemoryView, searchMeMemoryView } from './_shared/core/memory';
+
+export default async function handler(request: Request): Promise<Response> {
+  if (!authorize(request).ok) return denied();
+  try {
+    if (request.method === 'POST') {
+      const body = await request.json() as { query?: string };
+      return json(await searchMeMemoryView(body.query ?? ''));
+    }
+    if (request.method !== 'GET') return json({ error: 'solo GET' }, 405);
+    return json(await readMeMemoryView());
+  } catch {
+    return json({ error: 'memoria non disponibile' }, 503);
+  }
+}
+
 export const config = { path: '/api/me-memory' };

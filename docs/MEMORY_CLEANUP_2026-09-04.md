@@ -6,6 +6,15 @@ Bounded Prototype V1 cleanup task, scoped by `docs/CORE_BOUNDARY.md`'s
 it records what was verified against current code, what changed, and what
 is explicitly deferred.
 
+**Superseded reference below:** this doc's "FILES CHANGED" and "Explicit
+Remember" sections cite `memoryWriter.ts` as the single write boundary.
+CORE EXTRACTION PHASE 1 (same day, later) replaced it with
+`netlify/functions/_shared/core/memory.ts`, which does the same job plus
+also fixes the mode-check `machines.ts` and `me-memory.ts` were each doing
+independently. See `docs/CORE_EXTRACTION_PHASE1_2026-09-04.md`. Nothing
+below is wrong about *what* changed on this date — only the module name is
+now historical.
+
 ## Canonical model (verified against current code, not assumed)
 
 | Concept | Canonical store | Status |
