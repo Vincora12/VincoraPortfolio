@@ -69,7 +69,7 @@ import { voiceCard } from "@/engine/voiceCard";
 import { useAssetUrl } from "@/system/AssetSlot";
 import { EXPRESSION_SPEC, EXPRESSIONS } from "@/engine/assets";
 import { loadChatTrace, type ChatTrace } from "@/ai/chatTrace";
-import { hasMemoryUpdated, subscribeMemoryFeedback } from "@/assistant-original/chat-memory-feedback";
+import { memoryFeedbackFor, subscribeMemoryFeedback } from "@/assistant-original/chat-memory-feedback";
 import {
   buildOpening,
   buildThoughtStatus,
@@ -1347,7 +1347,7 @@ const ThreadScrollToBottom: FC = () => {
 
 const UserMessage: FC = () => {
   const messageId = useAuiState((state) => state.message.id);
-  const memoryUpdated = useSyncExternalStore(subscribeMemoryFeedback, () => hasMemoryUpdated(messageId), () => false);
+  const memoryFeedback = useSyncExternalStore(subscribeMemoryFeedback, () => memoryFeedbackFor(messageId), () => "none" as const);
   return (
     <MessagePrimitive.Root className="relative mx-auto flex w-full max-w-3xl flex-col items-end gap-1 px-2 sm:px-0">
       <div className="flex flex-row flex-wrap justify-end gap-2">
@@ -1394,7 +1394,13 @@ const UserMessage: FC = () => {
 
         <BranchPicker />
       </div>
-      {memoryUpdated ? <small className="mt-0.5 text-[11px] leading-4 text-[#737373] dark:text-[#8e8e8e]">Memoria aggiornata</small> : null}
+      {memoryFeedback === "explicit-failed" ? (
+        <small className="mt-0.5 text-[11px] leading-4 text-red-600 dark:text-red-400">Non sono riuscito a ricordarlo — riprova</small>
+      ) : memoryFeedback === "explicit-updated" ? (
+        <small className="mt-0.5 text-[11px] leading-4 text-[#737373] dark:text-[#8e8e8e]">Ricordato ✓</small>
+      ) : memoryFeedback === "updated" ? (
+        <small className="mt-0.5 text-[11px] leading-4 text-[#737373] dark:text-[#8e8e8e]">Memoria aggiornata</small>
+      ) : null}
     </MessagePrimitive.Root>
   );
 };

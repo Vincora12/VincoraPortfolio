@@ -146,20 +146,27 @@ violates them before enforcement exists:
 12. TRACE target is a cross-client technical history carrying client/device/session/correlation
     metadata. Today's Runtime Log has the log, not the correlation fields. See §9.
 
-## 6. Memory Cleanup implications (next roadmap step, not implemented here)
+## 6. Memory Cleanup implications — addressed 2026-09-04
 
-This section only assigns architectural *ownership*. It changes nothing.
+Bounded cleanup done; full result, rationale, and classification in
+`docs/MEMORY_CLEANUP_2026-09-04.md`. Summary of ownership as it stands now:
 
-- **Chat History** — Mixed/Legacy (§4). Two representations exist (`AppState.chat` legacy array
-  vs. the assistant-ui thread system). Memory Cleanup must decide which is canonical before any
-  cross-client chat continuity is possible; this document does not decide it.
+- **Chat History** — Mixed/Legacy (§4), and this is now a documented, verified split rather than
+  an open question: `AppState.chat` is incubation + DEV-tool scoped (its only live-phase writer,
+  `CompanionHome.tsx`, was dead code and has been removed); the assistant-ui thread system is the
+  real live Chat and never writes to `AppState.chat`. Cross-client continuity is still not solved —
+  that remains a real Core Extraction question — but the two representations no longer look like
+  competing sources of the same thing.
 - **Mem0** — Core (server, external service). Already isolated behind
   `netlify/functions/_shared/mem0MemoryClient.ts` and the writer-mode gate in
-  `docs/MEMORY_LEGACY_FREEZE_AUDIT.md`. No web-only path exists or should exist.
-- **Explicit Remember writes** — no dedicated code path exists separate from automatic chat
-  capture today (`meChatMemory.ts`'s `SEMANTIC_POLICY` treats an explicit request as *strong
-  evidence* for the same capture pipeline, not a separate write). Whatever Memory Cleanup builds
-  here belongs server-side, next to the rest of ME capture — never a client-only "remember" list.
+  `docs/MEMORY_LEGACY_FREEZE_AUDIT.md`. No web-only path exists or should exist. Confirmed
+  `/api/me-memory` is genuinely mode-dependent (Mem0 vs. ME Model) — see the cleanup doc.
+- **Explicit Remember writes** — still one pipeline, not a separate store (unchanged, correctly).
+  What was missing was honest client-side feedback when an explicit request's write failed or
+  produced nothing; that gap is now closed (`me-chat-capture.ts` + `chat-memory-feedback.ts` +
+  `chatgpt.tsx`) without adding a second write path. A tool-based awaitable version was
+  investigated and ruled out — the local tool pipeline is fully synchronous — and is deferred to
+  Core Extraction.
 - **Insight Machine** — Core (server, `vinzmon-machines`). Already correctly isolated; triggers
   are client-*initiated* HTTP calls today (no scheduled function), which is a legitimate client
   responsibility ("ask Core to run a reflection") as long as the machine's own state and output

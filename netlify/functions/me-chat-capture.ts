@@ -13,6 +13,29 @@ function extractJson(text: string): unknown {
   return JSON.parse(fenced.trim());
 }
 
+/* ============================================================================
+   MEMORY CLEANUP — "ricordati che..." merita una risposta onesta.
+
+   🔒 QUESTO NON DECIDE COSA SI SCRIVE. `SEMANTIC_POLICY` sopra già istruisce
+   il modello a trattare una richiesta esplicita come prova forte — quella
+   decisione resta sua, invariata. Questo flag serve SOLO a scegliere quale
+   riscontro mostrare in chat: oggi un "ricordati che..." e un messaggio
+   qualsiasi ricevono lo STESSO trattamento silenzioso se la scrittura fallisce
+   — nessun segnale, né positivo né negativo. Chi ha chiesto esplicitamente
+   di ricordare merita di sapere se è successo davvero.
+
+   ⚠️ Deterministico e a basso rischio per costruzione: un falso positivo
+   mostra solo un'etichetta più sicura di quella generica quando la memoria
+   comunque si aggiorna — non scrive niente in più e non ne impedisce niente.
+   Un falso negativo lascia semplicemente il comportamento di oggi (silenzio).
+   ========================================================================= */
+const EXPLICIT_REMEMBER = /\b(ricorda(ti)?|non\s+dimenticare|tieni\s+a\s+mente|memorizza)\b[^.!?]{0,40}\bche\b|\bremember\s+(that|this|to)\b|\bdon'?t\s+forget\b/i;
+
+/** Esportata per `scripts/memory-cleanup-check.mjs`. */
+export function looksLikeExplicitRemember(text: string): boolean {
+  return EXPLICIT_REMEMBER.test(text);
+}
+
 export default async function handler(request: Request): Promise<Response> {
   if (request.method !== 'POST') return json({ error: 'solo POST' }, 405);
   if (!authorize(request).ok) return denied();
@@ -20,13 +43,14 @@ export default async function handler(request: Request): Promise<Response> {
   try { body = await request.json() as typeof body; } catch { return json({ error: 'body non leggibile' }, 400); }
   if (typeof body.text !== 'string' || body.text.trim().length === 0 || body.text.length > 20_000) return json({ error: 'messaggio non valido' }, 400);
   const context = Array.isArray(body.context) ? body.context.filter((item): item is { role: 'user' | 'assistant'; text: string } => (item.role === 'user' || item.role === 'assistant') && typeof item.text === 'string').slice(-8).map((item) => ({ ...item, text: item.text.slice(0, 4000) })) : [];
-  if (!shouldCaptureForMemoryWriter(body.text)) return json({ status: 'ignored', updated: false, created: 0, updatedCount: 0, superseded: 0, episodesCreated: 0, skipped: 0, ambiguities: [], warnings: [] });
+  const explicitRequest = looksLikeExplicitRemember(body.text);
+  if (!shouldCaptureForMemoryWriter(body.text)) return json({ status: 'ignored', updated: false, created: 0, updatedCount: 0, superseded: 0, episodesCreated: 0, skipped: 0, ambiguities: [], warnings: [], explicitRequest });
   const startedAt = Date.now();
   try {
     if (memoryWriterMode() === 'mem0') {
       const result = await writeChatMemory(createMeModelStore(), { text: body.text, conversationId: body.conversationId, messageId: body.messageId, extraction: {}, context }, 'mem0');
       await appendRuntimeEvent({ eventType: result.updated ? 'MEMORY_WRITE_OK' : 'MEMORY_WRITE_ERROR', status: result.updated ? 'PASS' : 'FAIL', scope: 'memory', requestId: body.requestId, conversationId: body.conversationId, messageId: body.messageId, durationMs: Date.now() - startedAt, metadata: { count: result.created ?? 0 } });
-      return json(result, 200);
+      return json({ ...result, explicitRequest }, 200);
     }
     const route = resolveRoute('text-cheap', body.preferredModel);
     const response = await callProvider(route.provider, { model: route.model, system: [{ text: `${SEMANTIC_POLICY}\n\n${INSTRUCTIONS}` }], turns: [], user: `RECENT CONTEXT (interpretive only):\n${context.map((item) => `${item.role}: ${item.text}`).join('\n')}\n\nCURRENT USER MESSAGE (source of any mutation):\n${body.text}`, maxTokens: 1800 });
@@ -39,10 +63,10 @@ export default async function handler(request: Request): Promise<Response> {
       context,
     });
     await appendRuntimeEvent({ eventType: result.status === 'failed' ? 'MEMORY_WRITE_ERROR' : 'MEMORY_WRITE_OK', status: result.status === 'failed' ? 'FAIL' : 'PASS', scope: 'memory', requestId: body.requestId, conversationId: body.conversationId, messageId: body.messageId, durationMs: Date.now() - startedAt });
-    return json(result, result.status === 'failed' ? 422 : 200);
+    return json({ ...result, explicitRequest }, result.status === 'failed' ? 422 : 200);
   } catch (error) {
     await appendRuntimeEvent({ eventType: 'MEMORY_WRITE_ERROR', status: 'FAIL', scope: 'memory', requestId: body.requestId, conversationId: body.conversationId, messageId: body.messageId, durationMs: Date.now() - startedAt, error: error instanceof Error ? error.message : 'memory capture failed' });
-    return json({ status: 'failed', updated: false, created: 0, updatedCount: 0, superseded: 0, episodesCreated: 0, skipped: 0, ambiguities: [], warnings: [error instanceof Error ? error.message : 'memory capture failed'] }, 200);
+    return json({ status: 'failed', updated: false, created: 0, updatedCount: 0, superseded: 0, episodesCreated: 0, skipped: 0, ambiguities: [], warnings: [error instanceof Error ? error.message : 'memory capture failed'], explicitRequest }, 200);
   }
 }
 
