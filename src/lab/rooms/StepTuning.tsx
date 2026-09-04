@@ -44,7 +44,8 @@ import {
 } from '../../engine/catalogTuning';
 import { StepAB } from './StepAB';
 import type { BersaglioAB } from './testMon';
-import '../skin/flow-tuning.css';
+import { LabStyle } from '../embed/LabStyle';
+import flowTuningCss from '../skin/flow-tuning.css?inline';
 
 /** Da dove leggere il valore uscito, per contare la distribuzione. */
 type Lettore = (d: Record<string, unknown>) => string | null;
@@ -118,6 +119,7 @@ export function StepTuning({ assi }: { assi: AsseDelPasso[] }) {
 
   return (
     <>
+      <LabStyle css={flowTuningCss} />
       {assi.map((a) => (
         <div className="tune" key={a.asse}>
           <div className="tune__head">

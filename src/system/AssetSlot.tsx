@@ -20,12 +20,22 @@ import { sigilGeometry } from '../engine/sigil';
 import { assetTypeDef, placeholderLabel } from '../engine/assets';
 import {
   getAssetUrlSync,
+  isAssetsSynced,
   loadAsset,
   subscribeToAssets,
 } from '../assets-pipeline/assetStore';
 import { ScannerFrame } from './components';
 
 /* --- Hook ------------------------------------------------------------------ */
+
+/**
+ * Vero una volta che il primo giro di `syncAssetsWithServer` (LAB, al boot)
+ * è finito, bene o male. Serve a distinguere «non ancora sincronizzato» da
+ * «confermato mancante» — vedi `assetStore.ts` per il perché.
+ */
+export function useAssetsSynced(): boolean {
+  return useSyncExternalStore(subscribeToAssets, isAssetsSynced, () => false);
+}
 
 /** URL dell'asset, o `null` finché non è stato importato. */
 export function useAssetUrl(monName: string, type: AssetType): string | null {

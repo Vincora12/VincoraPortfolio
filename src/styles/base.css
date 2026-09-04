@@ -121,12 +121,14 @@ select {
    una toolbar che compare sopra al contenuto. */
 .system-tray {
   position: absolute;
-  z-index: 0;
+  z-index: 1;
   inset: 0 0 auto;
-  height: var(--system-tray-height);
+  min-height: var(--system-tray-height);
+  height: auto;
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 12px;
   padding: max(10px, env(safe-area-inset-top)) 14px 10px;
   background: #f7f7f4;
@@ -134,20 +136,51 @@ select {
   border-bottom: 1px solid #111;
 }
 
+/* Il cassetto di LAB — sotto il vano tecnico, ancora più indietro. Stessa
+   idea del vano tecnico: a riposo non occupa spazio, il gesto lo scopre.
+   `LabEmbed` porta i componenti nativi di VINZ.LAB in uno shadow root: il
+   loro CSS (`:root`/`html`/`body` — un documento intero) non esce da lì
+   dentro e non tocca questi colori. */
+.lab-underlayer {
+  position: absolute;
+  z-index: 0;
+  inset: 0 0 auto;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  background: #fff;
+}
+
+.lab-embed-host {
+  height: 100%;
+}
+
 .system-tray__controls {
   min-width: 0;
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 7px;
 }
 
 .system-tray__controls .devtrigger,
 .system-tray__controls .labtrigger,
+.system-tray__controls .debugtrigger,
 .system-tray__controls .machine-insight-chip {
   min-height: 28px;
   padding: 3px 7px;
   border-color: #b32025;
   color: #b32025;
+}
+
+.system-tray__controls .daystatus,
+.system-tray__controls .mestatus {
+  min-height: 28px;
+  padding: 3px 7px;
+  border: 1px solid var(--line, #ccc);
+  color: var(--ink);
+  font: 600 9px/1.6 var(--font-mono);
+  letter-spacing: .05em;
+  white-space: nowrap;
 }
 
 .system-tray__controls button:disabled {

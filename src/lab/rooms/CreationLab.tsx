@@ -20,25 +20,22 @@
    riga che distingue un controllo collegato da uno che gli somiglia.
    ========================================================================= */
 
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useApp, useActiveMon } from '../../state/store';
 import { lastChatTrace, subscribeChatTrace, type ChatTrace } from '../../ai/chatTrace';
 import { FASI, PASSI, type FaseId } from './creationFlow';
 import { FAMILIES, MOODS, VOICE_PRESETS } from '../../engine/generation-config';
-import { keepEnabled, isEnabled, setCatalogEnabled } from '../../engine/catalogTuning';
+import { keepEnabled } from '../../engine/catalogTuning';
 /* 🔷 LAB INFORMATION ARCHITECTURE CLEANUP — reuse LOGIC, not a copy: le
    stesse funzioni che il resolver/asset/lezioni di SYSTEM.LAB → CREATURE
    chiamavano, montate qui con i mattoni di CREATION (`.page`/`.kicker`/
    `.tokenlist`/`.notice`, non `parts.tsx` di SYSTEM.LAB — coerenza visiva
    con lo STATE/HISTORY che c'erano già). */
 import { useElapsed, waitingText } from '../../dev/useElapsed';
-import { characterDataFor } from '../../assets-pipeline/resolver/adapter';
-import { numericGrammarFor } from '../../assets-pipeline/resolver/vendor/rules';
-import { buildCreativeResolverPrompt } from '../../assets-pipeline/resolver/vendor/resolver';
-import { compilePrompt } from '../../assets-pipeline/resolver/vendor/compiler';
 import { resolverMemoryWith } from '../../assets-pipeline/resolver/memory';
-import { ASSET_TYPES } from '../../engine/assets';
-import { getAssetUrlSync } from '../../assets-pipeline/assetStore';
+import { ASSET_TYPES, assetTypeDef } from '../../engine/assets';
+import { importAssetFile } from '../../assets-pipeline/assetStore';
+import { useAssetUrl, useAssetsSynced } from '../../system/AssetSlot';
 import { PERSONALITY_KEYS, type PersonalityKey } from '../../engine/signals';
 import { SCAN_QUESTIONS, seedSpread } from '../../engine/personalityScan';
 import { MOOD_AFFINITY } from '../../engine/characterGenerator';
@@ -69,30 +66,30 @@ import {
   type StatoJob,
 } from './duelImages';
 import { EYEWEAR_CATEGORIES, HAIRCUTS, HAIR_STATES } from '../../engine/generation-config';
-import { TaxonomyLab } from './TaxonomyLab';
 import { TaxonomyVersionControl } from '../TaxonomyVersionControl';
 import { labSyncCode } from '../../system/build';
 import { taxonomyDescriptionVersion, type TaxonomyDescriptionVersion } from '../../engine/taxonomy-versions';
-import type { GenerationTrace, MonRecord } from '../../engine/types';
-import '../skin/creation.css';
+import type { AssetType, GenerationTrace, MonRecord } from '../../engine/types';
+import { LabStyle } from '../embed/LabStyle';
+import creationCss from '../skin/creation.css?inline';
 
-/* 🔷 LAB INFORMATION ARCHITECTURE CLEANUP — «CREATURE deve integrarsi in
-   CREATION, non esistere come destinazione a parte.» RESOLVER e ASSET erano
-   nativi solo in SYSTEM.LAB → CREATURE (una consultazione fa ricadere il
-   torto: era proprio la duplicazione concettuale da correggere). Adesso
-   sono qui, stesse azioni dello store (`resolveWithAi`, `forgeEverything`,
-   `writeBio`), non una copia. LEARNED diventa LESSONS e guadagna
-   insegna/dimentica (prima solo lettura). TASSONOMIA diventa FAMILY: le
-   famiglie vere (`generation-config.ts`) affiancano il compositore di
-   bozze che già c'era, invece di lasciarlo sembrare l'unico editor. ASSISTENTE
-   è tolto ovunque nel prodotto — l'esperimento non funzionava. */
+/* 🔷 CREATION LAB FIX + UI CLEANUP — seconda passata. RESOLVER come tab a
+   parte confondeva («non chiaro, non utile») senza aggiungere niente che
+   FLOW → passo 05 non dicesse già; il motore (`resolveWithAi`, `mon.resolution`,
+   `promptFor.ts`) resta, con un secondo chiamante vero e indipendente in
+   `dev/ResolverSection.tsx`. FAMILY come tab a parte duplicava lo stesso
+   controllo ACCESO/SPENTO già presente dentro FLOW → passo 04
+   (`StepTuning` con `asse:'family'`) — una sola superficie, non due.
+   TASSONOMIA (bozze per famiglie nuove) sparisce con lei: creare una family
+   vera non è supportato oggi (`FAMILIES` è un array fisso), quindi non
+   restava un flusso di proposta che non porta a nulla di reale. Quello che
+   TASSONOMIA aveva di davvero utile — il catalogo ARCHETIPI, in sola
+   lettura — si sposta dentro FLOW. */
 const TABS = [
   { id: 'map', label: 'FLOW' },
   { id: 'state', label: 'STATE' },
-  { id: 'resolver', label: 'RESOLVER' },
   { id: 'lessons', label: 'LESSONS' },
   { id: 'assets', label: 'ASSETS' },
-  { id: 'family', label: 'FAMILY' },
   { id: 'persona', label: 'PERSONALITÀ' },
   { id: 'train', label: 'BUILD' },
   { id: 'versions', label: 'HISTORY' },
@@ -108,6 +105,7 @@ export function CreationLab({ onBack }: { onBack: () => void }) {
 
   return (
     <div className="app">
+      <LabStyle css={creationCss} />
       <header className="top">
         <div className="nav">
           <a
@@ -147,10 +145,8 @@ export function CreationLab({ onBack }: { onBack: () => void }) {
         )}
         {tab === 'train' && <Build avvio={avvioDalFlusso} />}
         {tab === 'state' && <State />}
-        {tab === 'resolver' && <Resolver />}
         {tab === 'lessons' && <Lessons />}
         {tab === 'assets' && <Assets />}
-        {tab === 'family' && <Family />}
         {tab === 'versions' && <History />}
         {tab === 'persona' && <Persona />}
         <div className="footer mono">
@@ -273,6 +269,7 @@ function Flow({ onAvviaAB }: { onAvviaAB: () => void }) {
           genera niente» è utile ma non risponde a quella. Sotto una risposta
           a un'altra domanda, la risposta giusta non si legge. */}
       <CosaEAcceso />
+      <Archetypes />
 
       <div className="notice mono">
         <strong>PRODUCTION = READ ONLY</strong>
@@ -797,6 +794,62 @@ function CosaEAcceso() {
       {accese.length === 1
         ? `Una Family sola accesa: è per questo che nasce sempre un ${accese[0]}. Le altre sono spente nella lista del passo 04, e si accendono con un tocco.`
         : `${accese.length} Family accese su ${FAMILIES.length}. Si accendono e si spengono dalla lista del passo 04.`}
+    </div>
+  );
+}
+
+/* ============================================================================
+   ARCHETYPES — catalogo in sola lettura.
+
+   🔷 «Voglio gli archetipi dentro FLOW.» Prima viveva sotto TASSONOMIA
+   (`CatalogoV2`, ora rimossa insieme al resto di quella superficie): stessa
+   lettura, stesso dato canonico (`FAMILIES`, `generation-config.ts` — già
+   nella versione di prosa scelta in testata), portata dove il passo 05 del
+   flusso già mostra QUALE archetipo è uscito nell'ultima generazione. Qui
+   si vede invece COSA ESISTE: non si inventa nulla, non si crea nulla.
+   ========================================================================= */
+
+function Archetypes() {
+  const [familyId, setFamilyId] = useState(FAMILIES[0]?.id ?? '');
+  const family = FAMILIES.find((f) => f.id === familyId) ?? FAMILIES[0];
+  if (!family) return null;
+
+  return (
+    <div className="phase" style={{ marginTop: 0, marginBottom: 22 }}>
+      <div className="kicker mono">CATALOGO · SOLA LETTURA</div>
+      <p className="lead" style={{ fontSize: 13, marginBottom: 8 }}>ARCHETYPES</p>
+      <p className="lead mono" style={{ fontSize: 11, marginBottom: 10 }}>
+        {FAMILIES.length} Family · {FAMILIES.reduce((n, f) => n + f.archetypes.length, 0)} archetipi in tutto.
+        Quale Family nasce lo decide il passo 04 qui sopra; quale archetipo dentro quella Family lo
+        decide il passo 05 più sotto — questo elenco mostra solo cosa esiste già nel motore.
+      </p>
+      <select
+        value={family.id}
+        onChange={(e) => setFamilyId(e.target.value)}
+        className="mono"
+        style={{ width: '100%', padding: 8, border: '1px solid var(--line)', marginBottom: 10 }}
+      >
+        {FAMILIES.map((f) => (
+          <option key={f.id} value={f.id}>{f.id} · {f.it}</option>
+        ))}
+      </select>
+      <div className="box soft" style={{ marginBottom: 10 }}>
+        <span className="label mono">CORPO / ANATOMIA</span>
+        <div className="rule">{family.coreAnatomy}</div>
+      </div>
+      <div className="tokenlist">
+        {family.archetypes.map((a) => (
+          <details key={a.id} className="step">
+            <summary>
+              <span className="title">{a.id}</span>
+              <span className="state mono">{a.mass}</span>
+            </summary>
+            <div className="detail" style={{ paddingLeft: 0 }}>
+              <div className="rule">{a.structure}</div>
+            </div>
+          </details>
+        ))}
+      </div>
     </div>
   );
 }
@@ -1509,118 +1562,30 @@ function Lessons() {
 }
 
 /* ============================================================================
-   RESOLVER — priorità 1. Stessa azione di sempre: `resolveWithAi`.
-   ========================================================================= */
-
-function Resolver() {
-  const mon = useActiveMon();
-  const token = useApp((s) => s.token);
-  const resolveWithAi = useApp((s) => s.resolveWithAi);
-  const clearResolution = useApp((s) => s.clearResolution);
-
-  const [busy, setBusy] = useState(false);
-  const waiting = useElapsed(busy);
-  const [problems, setProblems] = useState<string[] | null>(null);
-
-  const prepared = useMemo(() => {
-    if (!mon) return null;
-    const input = characterDataFor(mon);
-    const numeric = numericGrammarFor(input);
-    return { input, numeric, prompt: buildCreativeResolverPrompt(input, numeric) };
-  }, [mon]);
-
-  if (!mon || !prepared) {
-    return (
-      <section className="page active">
-        <div className="kicker mono">IL PROMPT</div>
-        <h1>RESOLVER</h1>
-        <div className="notice mono">
-          <strong>NESSUN .MON ATTIVO</strong>
-          <br />
-          Serve una creatura attiva per chiedere una risoluzione visiva.
-        </div>
-      </section>
-    );
-  }
-
-  const resolution = mon.resolution ?? null;
-  const compiled = resolution ? compilePrompt(prepared.input, resolution) : null;
-
-  const run = async () => {
-    setBusy(true);
-    setProblems(null);
-    const out = await resolveWithAi(mon.data.name);
-    setBusy(false);
-    setProblems(out.problems);
-  };
-
-  return (
-    <section className="page active">
-      <div className="kicker mono">IL PROMPT</div>
-      <h1>RESOLVER</h1>
-      <p className="lead">
-        Un modello decide chi è questa creatura, il codice scrive il prompt. Meno di un centesimo,
-        qualche secondo. Stato: {compiled ? 'PRONTO' : 'DA FARE'}.
-      </p>
-
-      {!token && <p className="lead mono" style={{ fontSize: 11 }}>Serve il segreto: FLOW → attiva VINZ.MON.</p>}
-
-      {!compiled ? (
-        <button type="button" className="btn dark" disabled={!token || busy} onClick={() => void run()}>
-          {busy ? waitingText('STO DECIDENDO', waiting) : 'DAMMI IL PROMPT'}
-        </button>
-      ) : (
-        <>
-          <p className="lead mono" style={{ fontSize: 11 }}>
-            {prepared.input.family} / {prepared.input.archetype} · {prepared.input.characterDesignDNA} ·{' '}
-            {compiled.prompt.length} caratteri
-          </p>
-          <CreationCopyBtn text={compiled.prompt} label="COPIA IL PROMPT" />
-          <button
-            type="button"
-            className="btn"
-            disabled={busy}
-            style={{ marginTop: 8 }}
-            onClick={() => { clearResolution(mon.data.name); setProblems(null); void run(); }}
-          >
-            RIFALLO
-          </button>
-          {compiled.warnings.length > 0 && (
-            <div className="tokenlist" style={{ marginTop: 10 }}>
-              {compiled.warnings.map((w, i) => (
-                <p key={i} className="lead mono" style={{ fontSize: 11 }}>⚠️ {w}</p>
-              ))}
-            </div>
-          )}
-        </>
-      )}
-      {problems && problems.length > 0 && (
-        <div className="notice mono" style={{ marginTop: 10 }}>{problems.join(' · ')}</div>
-      )}
-    </section>
-  );
-}
-
-function CreationCopyBtn({ text, label }: { text: string; label: string }) {
-  const [state, setState] = useState<'idle' | 'done' | 'failed'>('idle');
-  return (
-    <button
-      type="button"
-      className="btn"
-      onClick={() => {
-        const done = (s: 'done' | 'failed') => { setState(s); window.setTimeout(() => setState('idle'), 2000); };
-        const api = navigator.clipboard;
-        if (!api) { done('failed'); return; }
-        void api.writeText(text).then(() => done('done'), () => done('failed'));
-      }}
-    >
-      {state === 'done' ? 'COPIATO' : state === 'failed' ? 'NON RIESCO' : label}
-    </button>
-  );
-}
-
-/* ============================================================================
    ASSETS — priorità 3. Stessa azione di sempre: `forgeEverything`/`writeBio`.
+
+   🔷 CREATION LAB FIX — RESOLVER come tab a parte è sparito («non chiaro,
+   non utile»): il pulsante DAMMI IL PROMPT/RIFALLO viveva solo lì, ma il
+   motore che chiamava (`resolveWithAi`/`mon.resolution`/`compilePrompt`) ha
+   un secondo chiamante vero in `dev/ResolverSection.tsx` — non un residuo
+   orfano.
+
+   🔴 IL BUG: un .mon appena forgiato risultava «MANCA» su ogni slot. Non era
+   la cache vuota — `importAssetFile` la scriveva subito, come sempre. Era
+   che questo componente la leggeva con `getAssetUrlSync` dentro il render,
+   una lettura sincrona una tantum, MAI risottoscritta. Ogni altro punto
+   dell'app (`Encounter`, `MindlineMap`, `MonAvatar`…) usa `useAssetUrl`
+   (`system/AssetSlot.tsx`), che si abbona alla cache con
+   `useSyncExternalStore` E chiama `loadAsset` per leggerla da IndexedDB.
+   Qui sotto, adesso, la stessa cosa — lo stesso hook, non una copia.
+
+   🔒 E c'è una seconda causa reale, non solo il bug di lettura: LAB è un
+   DOCUMENTO SEPARATO (`lab/index.html`), quindi ogni apertura riparte da una
+   cache vuota; `LabApp` la ripopola con `syncAssetsWithServer`, che carica
+   PRIMA da IndexedDB locale (dove un asset appena forgiato c'è già, upload
+   sul server o no) e poi dal server. Finché quel giro non finisce, uno slot
+   vuoto NON è ancora «MANCA» — è «non ancora sincronizzato». `useAssetsSynced`
+   (stesso file) distingue le due cose invece di dichiarare MANCA subito.
    ========================================================================= */
 
 function Assets() {
@@ -1629,6 +1594,7 @@ function Assets() {
   const forgeEverything = useApp((s) => s.forgeEverything);
   const writeBio = useApp((s) => s.writeBio);
   const progress = useApp((s) => s.forgeProgress);
+  const synced = useAssetsSynced();
 
   const [busy, setBusy] = useState<'forge' | 'bio' | null>(null);
   const waiting = useElapsed(busy !== null);
@@ -1654,19 +1620,19 @@ function Assets() {
         Bio + le quattro immagini canoniche (CEL, TOY, DOODLE, EXPRESSION SHEET). Il master
         condiziona le altre: farlo bene una volta vale per tutte.
       </p>
+      {!synced && (
+        <div className="notice mono">
+          <strong>SYNC…</strong>
+          <br />
+          LAB è un documento a parte: sta ancora scaricando gli asset già forgiati prima di
+          dichiarare uno slot davvero mancante.
+        </div>
+      )}
 
       <div className="tokenlist">
-        {ASSET_TYPES.map((def) => {
-          const url = getAssetUrlSync(mon.data.name, def.type);
-          return (
-            <div className="row" key={def.type}>
-              <div><b>{def.label}</b></div>
-              <span className="value mono">
-                {url ? <img src={url} alt={def.label} style={{ maxWidth: 64, maxHeight: 64, display: 'block' }} /> : 'MANCA'}
-              </span>
-            </div>
-          );
-        })}
+        {ASSET_TYPES.map((def) => (
+          <AssetRow key={def.type} mon={mon} type={def.type} synced={synced} />
+        ))}
       </div>
 
       {progress && <p className="lead mono" style={{ fontSize: 11 }}>{progress.label} — {progress.done}/{progress.total}</p>}
@@ -1703,84 +1669,71 @@ function Assets() {
   );
 }
 
-/* ============================================================================
-   FAMILY — FINAL DEV → LAB CLEANUP: era «TASSONOMIA», e nascondeva che sono
-   TRE cose diverse dietro un nome solo:
+/**
+ * Una riga slot: preview, stato onesto, DOWNLOAD/UPLOAD/REPLACE.
+ *
+ * 🔒 `useAssetUrl` è lo STESSO hook di `AssetSlot.tsx` — sottoscrive la
+ * cache (si ridisegna quando `notify()` scatta, non solo al prossimo giro
+ * di stato React) e chiama `loadAsset` per leggerla da IndexedDB. Niente di
+ * nuovo: il bug era che questo file non lo usava già.
+ */
+function AssetRow({ mon, type, synced }: { mon: MonRecord; type: AssetType; synced: boolean }) {
+  const def = assetTypeDef(type);
+  const monName = mon.data.name;
+  const url = useAssetUrl(monName, type);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
 
-     1. quali delle 18 family/archetipi fissi sono estraibili adesso
-        (`catalogTuning.ts` — accende/spegne, non crea)
-     2. quale VERSIONE DI PROSA usano i prompt per le stesse 18 family
-        (`taxonomy-versions.ts`, il controllo v1/v2 in testata — non tocca
-        id, pesi o numero di archetipi)
-     3. una coda di BOZZE per famiglie nuove (`TaxonomyLab`, sotto) — non
-        entra MAI nel motore da sola: resta una proposta finché qualcuno
-        non la porta dentro a mano nel codice.
+  const onFile = (file: File | undefined) => {
+    if (!file) return;
+    setUploading(true);
+    void importAssetFile(mon, file, def.assetId).finally(() => setUploading(false));
+  };
 
-   🔒 NON SI PUÒ CREARE UNA FAMILY VERA DA QUI. `FAMILIES` è un array
-   TypeScript fisso in `generation-config.ts`; non esiste una scrittura a
-   runtime che ne aggiunga una. Il pulsante qui sotto lo dice invece di
-   fingere che funzioni.
-   ========================================================================= */
+  const stato = url ? 'PRONTO' : synced ? 'MANCA' : 'SYNC…';
 
-function Family() {
-  const [, force] = useState(0);
   return (
-    <section className="page active">
-      <div className="kicker mono">FAMILY · TASSONOMIA</div>
-      <h1>FAMILY</h1>
-      <p className="lead">
-        Le 18 famiglie esistono nel codice, non in un database: qui sotto puoi accenderle/
-        spegnerle e scegliere la versione di prosa che usano — non crearne una nuova davvero.
-      </p>
-
-      <p className="lead" style={{ fontSize: 13 }}>FAMIGLIE ESISTENTI</p>
-      <div className="tokenlist">
-        {FAMILIES.map((f) => {
-          const on = isEnabled('family', f.id);
-          return (
-            <div className="row" key={f.id}>
-              <div>
-                <b>{f.id}</b>
-                <small style={{ display: 'block', color: '#777', fontSize: 10 }}>
-                  {f.archetypes.length} archetipi · {f.it}
-                </small>
-              </div>
-              <button
-                type="button"
-                className="btn"
-                onClick={() => { setCatalogEnabled('family', f.id, !on); force((n) => n + 1); }}
-              >
-                {on ? 'ACCESA' : 'SPENTA'}
-              </button>
-            </div>
-          );
-        })}
+    <div className="row" key={type} style={{ alignItems: 'flex-start' }}>
+      <div>
+        <b>{def.label}</b>
+        <small style={{ display: 'block', color: '#777', fontSize: 10, marginTop: 2 }}>{stato}</small>
       </div>
-
-      <p className="lead" style={{ fontSize: 13, marginTop: 18 }}>+ NUOVA FAMILY</p>
-      <div className="notice mono">
-        <strong>NON SUPPORTATO OGGI</strong>
-        <br />
-        `FAMILIES` è un elenco fisso nel codice (`generation-config.ts`), letto da almeno cinque
-        altri punti del motore (logica del volto, semi di default, compatibilità coi vestiti, la
-        versione v2 della prosa…). Aggiungerne una vera richiede una modifica al codice e un
-        redeploy — non un modulo qui dentro. Sotto, la coda di bozze prepara il testo per quella
-        modifica: non sostituisce il redeploy.
-      </div>
-
-      <p className="lead" style={{ fontSize: 13, marginTop: 18 }}>VERSIONE DI PROSA</p>
-      <p className="lead mono" style={{ fontSize: 11 }}>
-        Il controllo v1/v2 (in testata, sempre visibile) sceglie fra due prosa diverse per le
-        STESSE famiglie — non aggiunge o toglie niente al catalogo.
-      </p>
-
-      <p className="lead" style={{ fontSize: 13, marginTop: 18 }}>BOZZE PER FAMIGLIE NUOVE</p>
-      <p className="lead mono" style={{ fontSize: 11 }}>
-        Il compositore qui sotto scrive proposte tecniche complete con l'AI. Restano in coda:
-        nessuna entra nel motore da sola.
-      </p>
-      <TaxonomyLab />
-    </section>
+      <span className="value mono" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+        {url ? (
+          <img src={url} alt={def.label} style={{ maxWidth: 64, maxHeight: 64, display: 'block' }} />
+        ) : (
+          <span style={{ fontSize: 10 }}>{synced ? 'MANCA' : '…'}</span>
+        )}
+        <span style={{ display: 'flex', gap: 6 }}>
+          {url && (
+            <a
+              href={url}
+              download={`${monName}-${def.assetId}.png`}
+              className="btn"
+              style={{ fontSize: 9, padding: '4px 6px' }}
+            >
+              DOWNLOAD
+            </a>
+          )}
+          <button
+            type="button"
+            className="btn"
+            style={{ fontSize: 9, padding: '4px 6px' }}
+            disabled={uploading}
+            onClick={() => fileRef.current?.click()}
+          >
+            {uploading ? '…' : url ? 'REPLACE' : 'UPLOAD'}
+          </button>
+        </span>
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*"
+          style={{ display: 'none' }}
+          onChange={(e) => { onFile(e.target.files?.[0]); e.target.value = ''; }}
+        />
+      </span>
+    </div>
   );
 }
 

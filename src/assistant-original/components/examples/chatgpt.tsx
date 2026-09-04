@@ -237,7 +237,6 @@ export const ChatGPT: FC = () => {
       <ConversationMemory />
       <ConversationLifecycle />
       <ChatLiveDebugPublisher />
-      <ChatDebugTrigger />
       <MonPresenceEvents />
       <ThreadPrimitive.Root className="flex h-full flex-col items-stretch bg-white px-4 text-[#0d0d0d] dark:bg-black dark:text-[#ececec]">
         <AuiIf condition={(s) => s.thread.isEmpty}>
@@ -403,7 +402,8 @@ const ChatLiveDebugPublisher: FC = () => {
   return null;
 };
 
-/* LIVE DEBUG — overlay dentro la Chat stessa (non nel LAB).
+/* LIVE DEBUG — l'overlay resta lo stesso, il punto d'ingresso adesso è
+   globale (CREATION LAB FIX + UI CLEANUP §16).
 
    🔴 «in attesa del primo snapshot dalla chat…» sempre, sul device
    reale: LAB e Chat sono due pagine separate (lab/index.html vs
@@ -413,10 +413,17 @@ const ChatLiveDebugPublisher: FC = () => {
    costruzione. Questo overlay vive nello STESSO runtime del publisher
    (ChatLiveDebugPublisher, sopra), quindi lo vede sempre.
 
-   Stessa logica del LAB (../../../system/useChatLiveDebug — un solo
-   debugger, due vestiti), stesso criterio di visibilità del pulsante
-   DEV già usato altrove nell'app (useApp((s) => s.dev.enabled)). */
-const ChatDebugTrigger: FC = () => {
+   🔷 «Il debug che sta nella chat, spostalo nel layer globale.» Il
+   pulsante viveva DENTRO l'albero di `ChatGPT`, che App.tsx tiene montato
+   sempre ma nasconde con CSS quando il tab attivo non è CHAT
+   (`live-chat--hidden`) — quindi non era mai davvero raggiungibile da
+   MON/SYNC/ME. Il PUBLISHER (sopra) resta qui: deve continuare a
+   catturare anche a tab nascosta. Solo il TRIGGER si sposta — via
+   `ChatDebugTrigger`, esportato e montato da `SystemControls` in
+   App.tsx, stesso runtime quindi stesso stato — non una copia.
+   Comportamento del debug stesso: invariato, `ChatDebugOverlay` non è
+   toccato. */
+export const ChatDebugTrigger: FC = () => {
   const devEnabled = useApp((s) => s.dev.enabled);
   if (!devEnabled) return null;
   return <ChatDebugArmed />;
@@ -438,7 +445,7 @@ const ChatDebugArmed: FC = () => {
         type="button"
         onClick={() => setOpen(true)}
         aria-label="Apri live debug"
-        className="fixed bottom-24 right-3 z-[90] rounded-full border border-black/20 bg-white/90 px-3 py-1.5 text-[10px] font-bold tracking-wide text-black/70 shadow-sm backdrop-blur dark:border-white/20 dark:bg-black/70 dark:text-white/70"
+        className="debugtrigger"
       >
         DEBUG
       </button>

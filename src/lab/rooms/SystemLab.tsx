@@ -49,7 +49,8 @@ import { Btn, Grid, LabTop, Notice, PageHead, Range, Rows, Section, Status } fro
    basta. */
 import { compareSaves, peekSave, quandoFa, type SavePeek } from '../../state/saveComparison';
 import { restoreFromServer, saveNowToServer, startNewGame } from '../../state/store';
-import '../skin/system.css';
+import { LabStyle } from '../embed/LabStyle';
+import systemCss from '../skin/system.css?inline';
 import {
   formatBytes,
   browserStorageEstimate,
@@ -124,6 +125,7 @@ export function SystemLab({ onBack }: { onBack: () => void }) {
 
   return (
     <div className="app">
+      <LabStyle css={systemCss} />
       <LabTop tabs={TABS} active={tab} onTab={setTab} onBack={onBack} />
       <main>
         {tab === 'setup' && <Setup />}
@@ -2056,15 +2058,27 @@ function Shortcuts() {
    because code exists for it… List only tools genuinely not yet ported.»
 
    🔒 CREATURE NON C'È PIÙ COME DESTINAZIONE, E NON PERCHÉ SIA SPARITA:
-   RESOLVER, LESSONS, ASSET e STATE vivono adesso dentro CREATION.LAB —
-   stesse azioni dello store, un solo posto per «la creatura attuale»
-   invece di due. ASSISTENTE, SOUL.LAB e DESIGN.LAB sono rimossi del tutto
-   dal prodotto (esperimenti falliti o non più utili) — non sono in questa
-   lista perché non sono «da portare», sono chiusi. Quello che resta qui
-   sotto è codice vero, ancora raggiungibile solo da DEV://VINZ.MON.
+   LESSONS, ASSET e STATE vivono adesso dentro CREATION.LAB — stesse azioni
+   dello store, un solo posto per «la creatura attuale» invece di due.
+   ASSISTENTE, SOUL.LAB e DESIGN.LAB sono rimossi del tutto dal prodotto
+   (esperimenti falliti o non più utili) — non sono in questa lista perché
+   non sono «da portare», sono chiusi.
+
+   🔷 CREATION LAB FIX + UI CLEANUP — RESOLVER è tornato ad essere SOLO qui
+   sotto (`dev/ResolverSection.tsx`): come tab a parte in CREATION.LAB
+   confondeva senza aggiungere niente che FLOW → passo 05 non dicesse già.
+   FAMILY come tab a parte è sparita del tutto: lo stesso ACCESO/SPENTO
+   viveva già dentro FLOW → passo 04 (`StepTuning`) — una duplicazione vera,
+   non solo percepita. Quello che resta qui sotto è codice vero, ancora
+   raggiungibile solo da DEV://VINZ.MON.
    ========================================================================= */
 
 const LEGACY_REMAINING: { titolo: string; dove: string; perche: string }[] = [
+  {
+    titolo: 'RESOLVER — il prompt AI',
+    dove: 'DEV → CREATURA → RESOLVER',
+    perche: 'Come tab a parte in CREATION.LAB (\'RESOLVER\') non era chiaro né utile — rimosso da lì. Il motore che chiamava (resolveWithAi/mon.resolution) resta vero e chiamabile da qui.',
+  },
   {
     titolo: 'MONDO',
     dove: 'DEV → CREATURA → MONDO',
@@ -2078,7 +2092,7 @@ const LEGACY_REMAINING: { titolo: string; dove: string; perche: string }[] = [
   {
     titolo: 'CATALOGHI — assi diversi da Family',
     dove: 'DEV → CREATURA → CATALOGHI',
-    perche: 'CREATION → FAMILY copre già l\'asse Family; affinity/role/fashion/mood/appearance/design/size restano qui.',
+    perche: 'CREATION → FLOW → passo 04 copre già l\'asse Family (stesso ACCESO/SPENTO); affinity/role/fashion/mood/appearance/design/size restano qui.',
   },
   {
     titolo: 'PROMPT IMMAGINI — anteprima/riscrittura',
@@ -2118,11 +2132,11 @@ function Legacy() {
       <PageHead
         kicker="VINZ.LAB / SYSTEM"
         title="LEGACY"
-        lead="CREATURE non esiste più: RESOLVER, LESSONS, ASSET e STATE sono in CREATION.LAB. ASSISTENTE, SOUL.LAB e DESIGN.LAB sono rimossi dal prodotto. Quello che resta è codice vero, ancora raggiungibile solo da DEV."
+        lead="CREATURE non esiste più: LESSONS, ASSET e STATE sono in CREATION.LAB. RESOLVER e FAMILY come tab a parte sono rimossi (duplicavano FLOW). ASSISTENTE, SOUL.LAB e DESIGN.LAB sono rimossi dal prodotto. Quello che resta è codice vero, ancora raggiungibile solo da DEV."
       />
 
       <Notice title="✅ IL FLUSSO PRINCIPALE È NATIVO">
-        SAVE, CREATION (Resolver/Lessons/Asset/State/Family), PERSONA (Voice/Mood/Opinions),
+        SAVE, CREATION (Flow con Archetipi/Lessons/Asset/State), PERSONA (Voice/Mood/Opinions),
         SIMULATION (Tempo/+1 giorno/SYNC) e AI sono componenti di LAB, non finestre su DEV:
         chiamano le stesse azioni dello store, disegnate coi mattoni del laboratorio.
       </Notice>

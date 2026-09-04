@@ -21,8 +21,9 @@ import { lazy, Suspense, useEffect, useState } from 'react';
 import type { LabId } from './entrypoint';
 import { useApp, syncWithServer } from '../state/store';
 import { TaxonomyVersionControl } from './TaxonomyVersionControl';
-import './skin/_base.css';
-import './skin/atrio.css';
+import { LabStyle } from './embed/LabStyle';
+import baseCss from './skin/_base.css?inline';
+import atrioCss from './skin/atrio.css?inline';
 
 const CreationLab = lazy(() => import('./rooms/CreationLab').then((m) => ({ default: m.CreationLab })));
 const SystemLab = lazy(() => import('./rooms/SystemLab').then((m) => ({ default: m.SystemLab })));
@@ -38,8 +39,8 @@ const PORTE: { id: LabId; nome: string; desc: string; tags: string[] }[] = [
   {
     id: 'creation',
     nome: '🧬 CREATION.LAB',
-    desc: 'Character Data, creatura attuale, Resolver, Lezioni, Asset, Bio, Family, Mondo, Rarità, training e lineage.',
-    tags: ['CREATE THE MON', 'RESOLVER INSIDE', 'ONE FLOW'],
+    desc: 'Character Data, creatura attuale, Lezioni, Asset, Archetipi, Bio, Mondo, Rarità, training e lineage.',
+    tags: ['CREATE THE MON', 'ONE FLOW'],
   },
   {
     id: 'system',
@@ -111,15 +112,21 @@ export function LabApp({ initialLab }: { initialLab: LabId | null }) {
   if (active) {
     const indietro = () => vai(null);
     return (
-      <Suspense fallback={<div className="app" />}>
-        {active === 'creation' && <CreationLab onBack={indietro} />}
-        {active === 'system' && <SystemLab onBack={indietro} />}
-      </Suspense>
+      <>
+        <LabStyle css={baseCss} />
+        <LabStyle css={atrioCss} />
+        <Suspense fallback={<div className="app" />}>
+          {active === 'creation' && <CreationLab onBack={indietro} />}
+          {active === 'system' && <SystemLab onBack={indietro} />}
+        </Suspense>
+      </>
     );
   }
 
   return (
     <div className="app">
+      <LabStyle css={baseCss} />
+      <LabStyle css={atrioCss} />
       <main>
         <div className="kicker mono">VINZ.MON / INTERNAL TOOLS</div>
         <h1>VINZ.LAB</h1>

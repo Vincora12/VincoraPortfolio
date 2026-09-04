@@ -59,6 +59,18 @@ import { DevPanel } from './dev/DevPanel';
 import { PageReader } from './screens/PageReader';
 import type { ToolUse } from './ai/tools';
 const IntegratedChat = lazy(() => import('./assistant-original/IntegratedChat').then((module) => ({ default: module.IntegratedChat })));
+/* Il cassetto di VINZ.LAB (§14-19) — `LabEmbed` monta i componenti nativi
+   del lab in uno shadow root; caricato solo quando il cassetto viene
+   davvero aperto la prima volta, non al boot dell'app. */
+const LabEmbed = lazy(() => import('./lab/embed/LabEmbed').then((module) => ({ default: module.LabEmbed })));
+/* CREATION LAB FIX + UI CLEANUP §16 — il DEBUG che viveva dentro la Chat
+   (invisibile da MON/SYNC/ME perché quel sottoalbero resta CSS-hidden
+   fuori dal tab CHAT) si sposta qui: stesso componente, stesso runtime,
+   solo montato dal vano tecnico globale invece che da dentro la Chat.
+   Lazy: `chatgpt.tsx` porta con sé tutto assistant-ui, che oggi carica
+   solo quando la Chat stessa viene aperta — restare lazy anche qui evita
+   di anticiparlo nel bundle principale. */
+const ChatDebugTrigger = lazy(() => import('./assistant-original/components/examples/chatgpt').then((module) => ({ default: module.ChatDebugTrigger })));
 
 const runChatTool = (use: ToolUse) => useApp.getState().runMonTool(use);
 const toyRefreshes = new Set<string>();
@@ -679,29 +691,58 @@ function isSystemSheetPullOrigin(clientY: number): boolean {
   return clientY <= viewportHeight * SYSTEM_SHEET_PULL_ZONE_RATIO;
 }
 
+/* CREATION LAB FIX + UI CLEANUP §14-19 — quanto dello schermo resta di
+   VINZ.LAB al secondo scatto, e quanto dell'app resta visibile e
+   raggiungibile per tornare su subito. */
+const LAB_DRAWER_SCREEN_RATIO = 7 / 8;
+
+type SheetStage = 'closed' | 'compact' | 'lab';
+
 /**
  * Il vano tecnico vive dietro la scheda dell'app: non è un overlay e non
  * occupa spazio finché l'utente non tira davvero la superficie dall'alto.
- */
+ *
+ * 🔷 «Continuando a tirare, sotto c'è LAB.» Stesso gesto di sempre, un
+ * secondo scatto: il primo scopre il vano tecnico (DAY/INSIGHTS/DEBUG/ME
+ * MACHINE/DEV — invariato), il secondo scopre VINZ.LAB nativo (non un
+ * iframe — `LabEmbed`) SOTTO di lui. Tre fermate (`SheetStage`), non due:
+ * `closed` (0), `compact` (l'altezza vera del vano, misurata), `lab`
+ * (7/8 della cornice — resta visibile l'ottavo inferiore dell'app, la
+ * via per tornare su subito senza toccare altro). */
 function PullDownSystemSheet({ enabled, tray, children }: { enabled: boolean; tray: ReactNode; children: ReactNode }) {
   const trayRef = useRef<HTMLDivElement>(null);
   const sheetRef = useRef<HTMLDivElement>(null);
   const gesture = useRef<{ startY: number; startOffset: number; active: boolean } | null>(null);
   const currentOffset = useRef<number | null>(null);
-  const [open, setOpen] = useState(false);
+  const [stage, setStage] = useState<SheetStage>('closed');
   const [dragOffset, setDragOffset] = useState<number | null>(null);
+  const [labMounted, setLabMounted] = useState(false);
 
   const trayHeight = () => trayRef.current?.getBoundingClientRect().height ?? 92;
+  const labHeight = () => {
+    const frameHeight = sheetRef.current?.parentElement?.getBoundingClientRect().height
+      ?? window.visualViewport?.height ?? window.innerHeight;
+    return frameHeight * LAB_DRAWER_SCREEN_RATIO;
+  };
+  const offsetForStage = (s: SheetStage) => (s === 'closed' ? 0 : s === 'compact' ? trayHeight() : labHeight());
+
   const finishGesture = useCallback(() => {
-    const offset = currentOffset.current ?? (open ? trayHeight() : 0);
-    setOpen(offset >= trayHeight() * 0.42);
+    const offset = currentOffset.current ?? offsetForStage(stage);
+    const targets: [SheetStage, number][] = [['closed', 0], ['compact', trayHeight()], ['lab', labHeight()]];
+    let nearest = targets[0];
+    for (const candidate of targets) {
+      if (Math.abs(offset - candidate[1]) < Math.abs(offset - nearest[1])) nearest = candidate;
+    }
+    if (nearest[0] === 'lab') setLabMounted(true);
+    setStage(nearest[0]);
     currentOffset.current = null;
     setDragOffset(null);
     gesture.current = null;
-  }, [open]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stage]);
 
   useEffect(() => {
-    if (!enabled) { setOpen(false); currentOffset.current = null; setDragOffset(null); }
+    if (!enabled) { setStage('closed'); currentOffset.current = null; setDragOffset(null); }
   }, [enabled]);
 
   useEffect(() => {
@@ -710,20 +751,20 @@ function PullDownSystemSheet({ enabled, tray, children }: { enabled: boolean; tr
     const start = (event: TouchEvent) => {
       if (event.touches.length !== 1 || !canPullSystemSheet(event.target, sheet)) return;
       const touch = event.touches[0];
-      if (!open && !isSystemSheetPullOrigin(touch.clientY)) return;
-      gesture.current = { startY: touch.clientY, startOffset: open ? trayHeight() : 0, active: false };
+      if (stage === 'closed' && !isSystemSheetPullOrigin(touch.clientY)) return;
+      gesture.current = { startY: touch.clientY, startOffset: offsetForStage(stage), active: false };
     };
     const move = (event: TouchEvent) => {
       const current = gesture.current;
       if (!current || event.touches.length !== 1) return;
       const delta = event.touches[0].clientY - current.startY;
       if (!current.active && Math.abs(delta) < 5) return;
-      if (!current.active && !open && delta < 0) return;
+      if (!current.active && stage === 'closed' && delta < 0) return;
       current.active = true;
       event.preventDefault();
-      const height = trayHeight();
+      const max = labHeight();
       const raw = current.startOffset + delta;
-      const offset = Math.max(0, Math.min(height + Math.max(0, raw - height) * 0.18, raw));
+      const offset = Math.max(0, Math.min(max + Math.max(0, raw - max) * 0.18, raw));
       currentOffset.current = offset;
       setDragOffset(offset);
     };
@@ -738,16 +779,28 @@ function PullDownSystemSheet({ enabled, tray, children }: { enabled: boolean; tr
       sheet.removeEventListener('touchend', end);
       sheet.removeEventListener('touchcancel', end);
     };
-  }, [enabled, finishGesture, open]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled, finishGesture, stage]);
 
-  const translated = dragOffset !== null
-    ? `${dragOffset}px`
-    : open ? 'var(--system-tray-height)' : '0px';
+  const translated = dragOffset !== null ? `${dragOffset}px` : `${offsetForStage(stage)}px`;
+  const open = stage !== 'closed';
 
   return <>
-    <div ref={trayRef} className="system-tray" aria-hidden={!open} inert={!open}>
+    {labMounted && (
+      <div
+        className="lab-underlayer"
+        style={{ height: `${labHeight()}px` }}
+        aria-hidden={stage !== 'lab'}
+        inert={stage !== 'lab' || undefined}
+      >
+        <Suspense fallback={null}>
+          <LabEmbed initialLab={null} />
+        </Suspense>
+      </div>
+    )}
+    <div ref={trayRef} className="system-tray" aria-hidden={!open} inert={!open || undefined}>
       <div className="system-tray__controls">{tray}</div>
-      <button type="button" className="system-tray__close" onClick={() => setOpen(false)} tabIndex={open ? 0 : -1}>CHIUDI ↑</button>
+      <button type="button" className="system-tray__close" onClick={() => setStage('closed')} tabIndex={open ? 0 : -1}>CHIUDI ↑</button>
     </div>
     <div
       ref={sheetRef}
@@ -757,7 +810,7 @@ function PullDownSystemSheet({ enabled, tray, children }: { enabled: boolean; tr
       style={{ transform: `translateY(${translated})` }}
     >
       {children}
-      {enabled && <button type="button" className="system-tray__edge" onClick={() => setOpen((value) => !value)} aria-expanded={open} aria-label={open ? 'Chiudi controlli di sistema' : 'Apri controlli di sistema'} />}
+      {enabled && <button type="button" className="system-tray__edge" onClick={() => setStage((s) => (s === 'closed' ? 'compact' : 'closed'))} aria-expanded={open} aria-label={open ? 'Chiudi controlli di sistema' : 'Apri controlli di sistema'} />}
     </div>
   </>;
 }
@@ -1139,11 +1192,52 @@ function SystemControls({
   onOpenInsight: (insight: InsightView) => void;
 }) {
   return <>
+    <DayStatus />
     <ActivateChip onClick={onActivate} />
     <MachineInsightChip onOpen={onOpenInsight} />
+    <MeMachineStatus />
+    <Suspense fallback={null}><ChatDebugTrigger /></Suspense>
     {showDev && <button type="button" className="devtrigger" onClick={onOpenDev} aria-label="Apri il pannello sviluppatore">DEV</button>}
     <button type="button" className="labtrigger" onClick={onOpenLab} aria-label="Apri VINZ.LAB">LAB</button>
   </>;
+}
+
+/* CREATION LAB FIX + UI CLEANUP §15/§17 — il giorno corrente, letto dallo
+   stesso `s.day` che SYNC/ME già leggono altrove (nessun secondo contatore:
+   vedi store.ts). Il vano tecnico è l'unico posto dove compariva "Giorno N"
+   FUORI da SYNC — prima non c'era proprio, non lo si sposta da nessun'altra
+   parte decorativa. */
+function DayStatus() {
+  const day = useApp((s) => s.day);
+  const phase = useApp((s) => s.phase);
+  if (phase !== 'live') return null;
+  return <span className="daystatus" aria-label={`Giorno ${day}`}>GIORNO {day}</span>;
+}
+
+/* CREATION LAB FIX + UI CLEANUP §15 — stato vero della ME MACHINE, stessa
+   fonte che SYSTEM.LAB → MACHINES già legge (`/api/machines`, `machines[].
+   state.status`). Nessuno stato nuovo: se la chiamata fallisce o non c'è
+   token, dice SCONOSCIUTO — mai ACTIVE finto. */
+function MeMachineStatus() {
+  const token = useApp((s) => s.token);
+  const [status, setStatus] = useState<string | null>(null);
+  useEffect(() => {
+    if (!token) { setStatus(null); return; }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const response = await fetch('/api/machines', { headers: { authorization: `Bearer ${token}` } });
+        if (!response.ok) throw new Error('machines unavailable');
+        const body = await response.json() as { machines?: { id: string; state?: { status?: string } }[] };
+        const me = body.machines?.find((m) => m.id === 'me');
+        if (!cancelled) setStatus(me?.state?.status ?? null);
+      } catch {
+        if (!cancelled) setStatus(null);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [token]);
+  return <span className="mestatus" aria-label="Stato ME MACHINE">ME · {status ?? 'SCONOSCIUTO'}</span>;
 }
 
 function MachineInsightChip({ onOpen }: { onOpen: (insight: InsightView) => void }) {
