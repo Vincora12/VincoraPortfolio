@@ -384,6 +384,15 @@ export interface BatchCandidate {
   seed: number;
 }
 
+/* 🔒 CORE BOUNDARY — leggi `docs/CORE_BOUNDARY.md` prima di aggiungere un
+   campo qui. Questo tipo mescola stato di VINZ.MON (Mon State, World,
+   Ledger, Memories — quello che `snapshotFor()` più sotto manda a
+   `/api/state`) con configurazione di QUESTO browser (`dev`, `bias`,
+   `skin`, `layout`, `voiceModel`/`compilerModel`/`imageModel`/
+   `stepModels` — la differenza è già scritta nei loro stessi commenti).
+   Non si separa qui: un campo nuovo che descrive VINZ.MON, non questo
+   client, merita una chiave server sua (come già hanno `lessons` e
+   `me-model-v1`), non un altro posto in questo blob misto. */
 interface AppState {
   phase: Phase;
   day: number;
@@ -3980,7 +3989,16 @@ const SAVE_DEBOUNCE_MS = 4000;
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
 let lastSavedSignature = '';
 
-/** Lo stato da mandare: tutto tranne le cose che non hanno senso altrove. */
+/**
+ * Lo stato da mandare: tutto tranne le cose che non hanno senso altrove.
+ *
+ * 🔒 CORE BOUNDARY — questo è esattamente il punto che mescola Mon
+ * State/World/Ledger/Memories (VINZ.MON) con `skin`/`layout`/`dev`/`bias`/
+ * `voiceModel`/`compilerModel`/`imageModel`/`stepModels` (questo browser)
+ * in un solo blob opaco. `lessons`/`customMemory` sono già usciti da qui
+ * per una chiave server propria — vedi `docs/CORE_BOUNDARY.md` §7 per il
+ * perché e per il modello da seguire quando (non ora) si estrae il resto.
+ */
 function snapshotFor(state: AppState): unknown {
   const {
     token: _token,
