@@ -85,7 +85,7 @@ type DevTab =
    prima.
    ========================================================================= */
 
-export type DevGroup = 'start' | 'tempo' | 'creatura' | 'voce' | 'conti';
+type DevGroup = 'start' | 'tempo' | 'creatura' | 'voce' | 'conti';
 
 const GROUPS: { id: DevGroup; label: string; tabs: { id: DevTab; label: string }[] }[] = [
   { id: 'start', label: 'INIZIO', tabs: [] },
@@ -178,23 +178,9 @@ const GROUP_OF: Record<DevTab, DevGroup> = Object.fromEntries(
   GROUPS.flatMap((g) => g.tabs.map((t) => [t.id, g.id])),
 ) as Record<DevTab, DevGroup>;
 
-export function DevPanel({
-  onClose,
-  onGo,
-  initialGroup,
-}: {
-  onClose: () => void;
-  onGo?: (o: 'activate') => void;
-  /* 🔷 FINAL DEV → LAB CONSOLIDATION — VINZ.LAB apre questo stesso pannello
-     dentro un iframe (vedi lab/rooms/SystemLab.tsx → CREATURE / PERSONA),
-     già sul gruppo giusto invece che su INIZIO: chi arriva da LAB → CREATURE
-     non deve rifare la strada che LAB gli ha già indicato. */
-  initialGroup?: DevGroup;
-}) {
-  const [group, setGroup] = useState<DevGroup>(initialGroup ?? 'start');
-  const [tab, setTab] = useState<DevTab>(
-    initialGroup ? (GROUPS.find((g) => g.id === initialGroup)?.tabs[0]?.id ?? 'time') : 'time',
-  );
+export function DevPanel({ onClose, onGo }: { onClose: () => void; onGo?: (o: 'activate') => void }) {
+  const [group, setGroup] = useState<DevGroup>('start');
+  const [tab, setTab] = useState<DevTab>('time');
 
   /* La scheda mostrata è sempre coerente col gruppo scelto: cambiando gruppo
      si apre la sua PRIMA scheda, invece di lasciare a schermo quella di prima

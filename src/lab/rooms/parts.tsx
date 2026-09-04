@@ -12,7 +12,7 @@
    uguali diventano quattro pagine che si somigliano.
    ========================================================================= */
 
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 
 export function Section({
   title,
@@ -185,33 +185,27 @@ export function PageHead({
 }
 
 /* ============================================================================
-   DEV EMBED — LO STRUMENTO VERO, DENTRO LAB
-
-   🔷 FINAL DEV → LAB CONSOLIDATION — «LAB diventa l'unica sala controllo.»
-
-   🔒 PERCHÉ UN IFRAME E NON UNA SECONDA IMPLEMENTAZIONE. VINZ.LAB e
-   VINZ.MON sono due DOCUMENTI diversi (`vite.config.ts`: due pagine, due
-   fogli di stile — il laboratorio non carica quello dell'app, di proposito:
-   vedi `src/appStyles.ts`). Montare qui dentro un componente DEV vero (per
-   esempio `ResolverSection`) lo farebbe girare SENZA i suoi token
-   (`--white`, `--ink`, `--signal-alert`…), che questa pagina non definisce:
-   sembrerebbe rotto anche se il codice sotto è identico. Riscriverlo con i
-   mattoni del laboratorio sarebbe la seconda implementazione che la
-   consulenza vieta esplicitamente («avoid duplicate logic»).
-
-   Un iframe sullo stesso indirizzo (`/?openDevGroup=…`) risolve i due
-   problemi insieme: monta il documento VERO, coi suoi token veri, quindi
-   lo stesso identico strumento — e resta comunque dentro la pagina di LAB,
-   quindi chi lo usa non deve sapere che DEV esiste come indirizzo a parte.
-   Stessa tecnica già in uso in DESIGN.LAB per le schermate vere (differenza:
-   qui NON è a sola lettura — questi strumenti scrivono per davvero, come
-   hanno sempre fatto). */
-export function DevEmbed({ group, title }: { group: 'creatura' | 'voce'; title: string }) {
+   COPY — la stessa logica di clipboard di `system/CopyButton.tsx`, con i
+   mattoni di LAB invece di quelli dell'app (LAB non carica `appStyles.ts`,
+   quindi `Button` dell'app renderizzerebbe senza i suoi token). Stessa
+   funzione, resa due volte per lo stesso motivo per cui lo era già —
+   niente da inventare, `navigator.clipboard.writeText` e basta.
+   ========================================================================= */
+export function CopyBtn({ text, label = 'COPIA' }: { text: string; label?: string }) {
+  const [state, setState] = useState<'idle' | 'done' | 'failed'>('idle');
   return (
-    <iframe
-      className="devembed"
-      title={title}
-      src={`/?openDevGroup=${group}`}
-    />
+    <Btn
+      onClick={() => {
+        const done = (s: 'done' | 'failed') => {
+          setState(s);
+          window.setTimeout(() => setState('idle'), 2000);
+        };
+        const api = navigator.clipboard;
+        if (!api) { done('failed'); return; }
+        void api.writeText(text).then(() => done('done'), () => done('failed'));
+      }}
+    >
+      {state === 'done' ? 'COPIATO' : state === 'failed' ? 'NON RIESCO' : label}
+    </Btn>
   );
 }

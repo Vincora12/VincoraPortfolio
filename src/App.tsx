@@ -55,7 +55,7 @@ import { ActivateScreen } from './screens/Activate';
 import { HeritageDnaScreen } from './screens/HeritageDna';
 import { HistoryScreen } from './screens/History';
 import { DailyScanScreen } from './screens/DailyScan';
-import { DevPanel, type DevGroup } from './dev/DevPanel';
+import { DevPanel } from './dev/DevPanel';
 import { PageReader } from './screens/PageReader';
 import type { ToolUse } from './ai/tools';
 const IntegratedChat = lazy(() => import('./assistant-original/IntegratedChat').then((module) => ({ default: module.IntegratedChat })));
@@ -218,20 +218,6 @@ export function App() {
   const [tab, setTab] = useState<Tab>('chat');
   const [overlay, setOverlay] = useState<Overlay>(null);
   const [visibleInsight, setVisibleInsight] = useState<InsightView | null>(null);
-
-  /* 🔷 FINAL DEV → LAB CONSOLIDATION — «LAB diventa l'unica sala controllo.»
-     VINZ.LAB → SYSTEM → CREATURE / PERSONA montano un iframe su questo
-     stesso indirizzo con `?openDevGroup=<gruppo>`, così l'utente non deve
-     più sapere che DEV esiste a parte: apre DEV già sul gruppo giusto, senza
-     ripassare da INIZIO. Nessuna seconda implementazione — è lo stesso
-     overlay, lo stesso `DevPanel`, aperto da un posto diverso. */
-  const [initialDevGroup, setInitialDevGroup] = useState<DevGroup | undefined>(undefined);
-  useEffect(() => {
-    const group = new URLSearchParams(window.location.search).get('openDevGroup');
-    if (group !== 'tempo' && group !== 'creatura' && group !== 'voce' && group !== 'conti') return;
-    setInitialDevGroup(group);
-    setOverlay('dev');
-  }, []);
 
   /* 🔶 QUESTO STATO DICEVA «creatura o chat». Non serve più a quello: la chat
      è una tab sua. Adesso dice quale delle quattro viste di MON stai
@@ -604,7 +590,7 @@ export function App() {
             Un overlay è una navigazione esplicita e vince sempre su un
             saluto. */}
         {overlay ? (
-          <OverlayScreen overlay={overlay} onClose={() => setOverlay(null)} onGo={setOverlay} initialDevGroup={initialDevGroup} />
+          <OverlayScreen overlay={overlay} onClose={() => setOverlay(null)} onGo={setOverlay} />
         ) : phase === 'live' ? (
           <>
             {/* 🔷 «Molto semplice devi riportare la ui di quella chat e
@@ -1001,12 +987,10 @@ function OverlayScreen({
   overlay,
   onClose,
   onGo,
-  initialDevGroup,
 }: {
   overlay: Exclude<Overlay, null>;
   onClose: () => void;
   onGo: (o: Overlay) => void;
-  initialDevGroup?: DevGroup;
 }) {
   switch (overlay) {
     case 'specimen':
@@ -1020,7 +1004,7 @@ function OverlayScreen({
     case 'scan':
       return <DailyScanScreen onClose={onClose} />;
     case 'dev':
-      return <DevPanel onClose={onClose} onGo={onGo} initialGroup={initialDevGroup} />;
+      return <DevPanel onClose={onClose} onGo={onGo} />;
     case 'activate':
       return <ActivateScreen onClose={onClose} />;
     default: {

@@ -18,11 +18,24 @@
    peggiore che ci possa stare qui dentro.
    ========================================================================= */
 
-import { useCallback, useEffect, useState } from 'react';
-import { useApp } from '../../state/store';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useApp, useActiveMon } from '../../state/store';
+/* 🔷 FINAL DEV → LAB CONSOLIDATION (CORREZIONE) — reuse LOGIC, not the DEV
+   screen: gli stessi moduli che ResolverSection/TeachSection/ForgePanel
+   chiamano, montati sotto componenti nativi di LAB. */
+import { useElapsed, waitingText } from '../../dev/useElapsed';
+import { characterDataFor } from '../../assets-pipeline/resolver/adapter';
+import { numericGrammarFor } from '../../assets-pipeline/resolver/vendor/rules';
+import { buildCreativeResolverPrompt } from '../../assets-pipeline/resolver/vendor/resolver';
+import { compilePrompt } from '../../assets-pipeline/resolver/vendor/compiler';
+import { resolverMemoryWith } from '../../assets-pipeline/resolver/memory';
+import { ASSET_TYPES } from '../../engine/assets';
+import { getAssetUrlSync } from '../../assets-pipeline/assetStore';
 import { STAT_KEYS, UNKNOWN, isKnown } from '../../engine/types';
 import type { StatKey } from '../../engine/types';
-import { DAILY_SIGNALS, DAILY_SIGNAL_LABELS } from '../../engine/progression';
+import { DAILY_SIGNALS, DAILY_SIGNAL_LABELS, dateForDay } from '../../engine/progression';
+import { completeDayStreak, syncBalance, syncRewardProgress } from '../../engine/syncRewards';
+import { readHealthJournal, HEALTH_JOURNAL_EVENT } from '../../engine/healthJournal';
 import { loadPing, loadSetup, loadShortcutStatus, loadUsage, saveMonthlyCap, loadRuntimeLog, loadV2Issues, loadRemote, type ShortcutStatus, type UsageDashboard, type RuntimeEvent } from '../../ai/backend';
 import type { V2Issue } from '../../ai/v2Issues';
 import { lastRuns } from '../../ai/telemetry';
@@ -35,7 +48,7 @@ import {
   modelForStep,
   recommendedModel,
 } from '../../../netlify/functions/_shared/routing';
-import { Btn, DevEmbed, Grid, LabTop, Notice, PageHead, Range, Rows, Section, Status } from './parts';
+import { Btn, CopyBtn, Grid, LabTop, Notice, PageHead, Range, Rows, Section, Status } from './parts';
 import { LabAssistantPanel } from '../assistant/LabAssistantPanel';
 /* 🔷 LAB CONSOLIDATION + SAVE CONTROL. Il confronto LOCALE·SERVER e il
    verdetto vivono in `state/saveComparison.ts` — le stesse funzioni che
@@ -76,18 +89,21 @@ const TABS = [
      la stessa: «sta funzionando davvero, o sto solo indovinando?» — solo
      che questa volta la risposta è sulla partita, non sul backend. */
   { id: 'save', label: 'SAVE' },
-  /* 🔷 FINAL DEV → LAB CONSOLIDATION — Resolver, Insegna, Bio, Mondo,
-     Rarità, Asset, Prompt Immagini, Cataloghi, Prove: undici schede che
-     esistevano solo dentro DEV → CREATURA, adesso raggiungibili da qui.
-     Stesso motore, vedi `DevEmbed` in `./parts.tsx` per il perché di un
-     iframe invece di una riscrittura. */
+  /* 🔷 FINAL DEV → LAB CONSOLIDATION (CORREZIONE) — non un iframe su DEV:
+     RESOLVER, INSEGNA e ASSET nativi, disegnati coi mattoni del laboratorio,
+     che chiamano le STESSE azioni dello store (`resolveWithAi`,
+     `teachResolver`, `forgeEverything`, …) usate da DEV → CREATURA. Il resto
+     del gruppo (MONDO, RARITÀ, CATALOGHI, PROMPT PREVIEW, PROVE) resta in
+     LEGACY: sono strumenti da tarare o da designer, non il flusso di ogni
+     giorno. */
   { id: 'creature', label: 'CREATURE' },
   { id: 'ai', label: 'AI' },
   { id: 'simulation', label: 'SIMULATION' },
   /* 🔷 Era «MEMORY», ed era il nome sbagliato: qui dentro non c'è mai stata
      una memoria personale, sono MOOD/OPINIONS/BUILD MODE — lo strato di
-     persona, non di ricordo. Adesso porta anche VOCE, che stava solo in
-     DEV → VOCE → PROVA. */
+     persona, non di ricordo. Adesso porta anche VOCE, nativa, non un
+     iframe: chiama `generateIntroduction` — la stessa funzione che
+     DEV → VOCE → PROVA ha sempre chiamato. */
   { id: 'memory', label: 'PERSONA' },
   { id: 'machines', label: 'MACHINES' },
   { id: 'usage', label: 'USAGE' },
@@ -127,7 +143,7 @@ export function SystemLab({ onBack }: { onBack: () => void }) {
         {tab === 'save' && <Save />}
         {tab === 'creature' && <Creature />}
         {tab === 'ai' && <Ai />}
-        {tab === 'simulation' && <Simulation />}
+        {tab === 'simulation' && <Simulation onOpenUsage={() => setTab('usage')} />}
         {tab === 'memory' && <Memory />}
         {tab === 'machines' && <Machines />}
         {tab === 'usage' && <Usage />}
@@ -668,35 +684,313 @@ function Save() {
    ========================================================================= */
 
 /* ============================================================================
-   CREATURE — FINAL DEV → LAB CONSOLIDATION
+   CREATURE — FINAL DEV → LAB CONSOLIDATION (CORREZIONE)
 
-   🔷 «LAB diventa l'unica sala controllo per SYSTEM / CREATURE / PERSONA /
-   SIMULATION / AI.»
+   🔷 «TAKE THE USEFUL DEV TOOLS AND INTEGRATE THEM NATIVELY INTO LAB…
+   reuse logic, not the DEV screen.»
 
    🔒 QUESTA SCHEDA NON RIDISEGNA RESOLVER, NON CAMBIA LA GENERAZIONE DELLA
-   CREATURA, NON TOCCA I PROMPT. È navigazione: undici schede di DEV →
-   CREATURA (Genera, Bio, Resolver, Insegna, Mindline, Mondo, Rarità, Asset,
-   Prompt Immagini, Cataloghi, Prove) diventano raggiungibili da qui, tutte
-   insieme, senza riscrivere una riga del motore sotto. Vedi `DevEmbed` in
-   `./parts.tsx` per il perché di un iframe invece di una copia.
+   CREATURA, NON TOCCA I PROMPT, NON TOCCA IL COMPORTAMENTO DEL RESOLVER. Le
+   quattro sotto-schede chiamano le STESSE azioni dello store che
+   `dev/ResolverSection.tsx`, `dev/TeachSection.tsx` e `dev/ForgePanel.tsx`
+   chiamano — `resolveWithAi`, `teachResolver`, `forgeEverything`, `writeBio`
+   — con markup e CSS di LAB al posto di quelli di DEV. Priorità dichiarate:
+   1. RESOLVER, 2. INSEGNA, 3. ASSET, 4. QUESTA CREATURA (ispezione).
+   MONDO/RARITÀ/CATALOGHI/PROMPT PREVIEW/PROVE restano in LEGACY — sono
+   strumenti da tarare, non il flusso di ogni giorno.
    ========================================================================= */
 
+type CreatureSub = 'resolver' | 'teach' | 'assets' | 'inspect';
+const CREATURE_SUBS: { id: CreatureSub; label: string }[] = [
+  { id: 'resolver', label: 'RESOLVER' },
+  { id: 'teach', label: 'INSEGNA' },
+  { id: 'assets', label: 'ASSET' },
+  { id: 'inspect', label: 'QUESTA CREATURA' },
+];
+
 function Creature() {
+  const [sub, setSub] = useState<CreatureSub>('resolver');
+  const mon = useActiveMon();
+
   return (
     <section className="page active">
       <PageHead
         kicker="VINZ.LAB / CREATURE"
         title="CREATURE"
-        lead="Resolver, Insegna, Bio, Mondo, Rarità, Asset, Prompt Immagini, Cataloghi, Prove — lo stesso motore di DEV → CREATURA, aperto da qui."
+        lead="Resolver, Insegna e Asset — lo stesso motore di DEV → CREATURA, nativo qui. Mondo, Rarità e i controlli da designer restano in LEGACY."
       />
-      <Notice title="STRUMENTO LIVE, NON UNA COPIA">
-        Quello che vedi sotto è DEV://VINZ.MON vero, sullo stesso .mon attivo:
-        scrive per davvero. Le schede in alto (dentro la cornice) portano a
-        GENERA · BIO · RESOLVER · INSEGNA · MINDLINE · MONDO · RARITÀ · ASSET ·
-        PROMPT IMMAGINI · CATALOGHI · PROVE.
-      </Notice>
-      <DevEmbed group="creatura" title="DEV → CREATURA" />
+      <div className="grid" style={{ marginBottom: 10 }}>
+        {CREATURE_SUBS.map((s) => (
+          <Btn key={s.id} variant={sub === s.id ? 'dark' : undefined} onClick={() => setSub(s.id)}>
+            {s.label}
+          </Btn>
+        ))}
+      </div>
+
+      {!mon ? (
+        <Notice title="NESSUNA CREATURA ATTIVA">
+          Questi strumenti lavorano sul .mon attivo. Attiva o crea una creatura in VINZ.MON, poi
+          torna qui.
+        </Notice>
+      ) : (
+        <>
+          {sub === 'resolver' && <CreatureResolver mon={mon} />}
+          {sub === 'teach' && <CreatureTeach />}
+          {sub === 'assets' && <CreatureAssets mon={mon} />}
+          {sub === 'inspect' && <CreatureInspect mon={mon} />}
+        </>
+      )}
     </section>
+  );
+}
+
+/* --- RESOLVER — priorità 1 --------------------------------------------------
+   Stessa azione di DEV: `resolveWithAi(monName, onTick)`. Stesso prompt
+   compilato: `characterDataFor` → `numericGrammarFor` →
+   `buildCreativeResolverPrompt` → `compilePrompt(input, resolution)`. */
+function CreatureResolver({ mon }: { mon: NonNullable<ReturnType<typeof useActiveMon>> }) {
+  const token = useApp((s) => s.token);
+  const resolveWithAi = useApp((s) => s.resolveWithAi);
+  const clearResolution = useApp((s) => s.clearResolution);
+
+  const [busy, setBusy] = useState(false);
+  const waiting = useElapsed(busy);
+  const [problems, setProblems] = useState<string[] | null>(null);
+
+  const prepared = useMemo(() => {
+    const input = characterDataFor(mon);
+    const numeric = numericGrammarFor(input);
+    return { input, numeric, prompt: buildCreativeResolverPrompt(input, numeric) };
+  }, [mon]);
+
+  const resolution = mon.resolution ?? null;
+  const compiled = resolution ? compilePrompt(prepared.input, resolution) : null;
+
+  const run = async () => {
+    setBusy(true);
+    setProblems(null);
+    const out = await resolveWithAi(mon.data.name);
+    setBusy(false);
+    setProblems(out.problems);
+  };
+
+  return (
+    <Section
+      title="IL PROMPT"
+      note="Un modello decide chi è questa creatura, il codice scrive il prompt. Meno di un centesimo, qualche secondo."
+    >
+      <Rows rows={[['STATO', compiled ? 'PRONTO' : 'DA FARE']]} />
+      {!token && <p className="note">Serve il segreto: SETUP → incolla il token.</p>}
+
+      {!compiled ? (
+        <Grid>
+          <Btn variant="dark" disabled={!token || busy} onClick={() => void run()}>
+            {busy ? waitingText('STO DECIDENDO', waiting) : 'DAMMI IL PROMPT'}
+          </Btn>
+        </Grid>
+      ) : (
+        <>
+          <p className="note">
+            {prepared.input.family} / {prepared.input.archetype} · {prepared.input.characterDesignDNA} ·{' '}
+            {compiled.prompt.length} caratteri
+          </p>
+          <CopyBtn text={compiled.prompt} label="COPIA IL PROMPT" />
+          <Grid>
+            <Btn
+              disabled={busy}
+              onClick={() => {
+                clearResolution(mon.data.name);
+                setProblems(null);
+                void run();
+              }}
+            >
+              RIFALLO
+            </Btn>
+          </Grid>
+          {compiled.warnings.length > 0 && (
+            <div className="rowlist">
+              {compiled.warnings.map((w, i) => (
+                <p key={i} className="note">⚠️ {w}</p>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+      {problems && problems.length > 0 && (
+        <Notice title="PROBLEMI">{problems.join(' · ')}</Notice>
+      )}
+    </Section>
+  );
+}
+
+/* --- INSEGNA — priorità 2 ----------------------------------------------------
+   Stessa azione di DEV: `teachResolver(testo, turni)`. Stessa memoria:
+   `resolverMemoryWith(lessons)` — la STESSA funzione che compone il testo
+   per il modello, non una copia. */
+function CreatureTeach() {
+  const lessons = useApp((s) => s.lessons);
+  const teach = useApp((s) => s.teachResolver);
+  const forget = useApp((s) => s.forgetLesson);
+
+  const [bozza, setBozza] = useState('');
+  const [busy, setBusy] = useState(false);
+  const waiting = useElapsed(busy);
+  const [nota, setNota] = useState<string | null>(null);
+  const [showMemory, setShowMemory] = useState(false);
+  const memoria = resolverMemoryWith(lessons);
+
+  const manda = async () => {
+    const testo = bozza.trim();
+    if (!testo || busy) return;
+    const primaIds = lessons.map((l) => l.id);
+    setBozza('');
+    setBusy(true);
+    setNota(null);
+    const { reply, failure, detail } = await teach(testo, []);
+    setBusy(false);
+    const dopo = useApp.getState().lessons;
+    const imparata = dopo.find((l) => !primaIds.includes(l.id));
+    if (failure) setNota(detail ?? `chiamata fallita (${failure})`);
+    else setNota(imparata ? `imparato: «${imparata.text}»` : reply ? 'ha risposto, ma non ha aggiunto una lezione' : 'nessuna risposta');
+  };
+
+  return (
+    <>
+      <Section title="INSEGNA UNA REGOLA" note="Diventa una lezione nella MEMORIA RESOLVER, e resta anche dopo un reset.">
+        <label className="field">
+          COSA CORREGGERE
+          <textarea
+            value={bozza}
+            onChange={(e) => setBozza(e.target.value)}
+            rows={3}
+            placeholder="es. niente occhiali tondi, preferisce colori scuri…"
+          />
+        </label>
+        <Grid>
+          <Btn variant="dark" disabled={!bozza.trim() || busy} onClick={() => void manda()}>
+            {busy ? waitingText('STO INSEGNANDO', waiting) : 'INSEGNA'}
+          </Btn>
+        </Grid>
+        {nota && <p className="note">{nota}</p>}
+      </Section>
+
+      <Section title={`LEZIONI (${lessons.length})`}>
+        {lessons.length === 0 ? (
+          <p className="note">Nessuna lezione ancora.</p>
+        ) : (
+          <Rows rows={lessons.map((l) => [l.text, <Btn key={l.id} onClick={() => forget(l.id)}>DIMENTICALA</Btn>] as [string, ReactNode])} />
+        )}
+      </Section>
+
+      <Section title="MEMORIA RESOLVER">
+        <p className="note">
+          Non è memoria personale: è la conoscenza di progettazione che il resolver porta con sé —
+          la stessa che DEV → INSEGNA chiama «MEMORIA RESOLVER, TUTTA».
+        </p>
+        <Grid>
+          <Btn onClick={() => setShowMemory((v) => !v)}>{showMemory ? 'NASCONDI' : 'MOSTRA'} LA MEMORIA</Btn>
+        </Grid>
+        {showMemory && <pre className="note" style={{ whiteSpace: 'pre-wrap', border: '1px solid var(--line)', padding: 10 }}>{memoria}</pre>}
+      </Section>
+    </>
+  );
+}
+
+/* --- ASSET — priorità 3 ------------------------------------------------------
+   Stessa azione di DEV: `forgeEverything(monName)` / `writeBio(monName)`.
+   Stesse immagini: `getAssetUrlSync(monName, type)` legge la cache che
+   `LabApp` già scarica dal server all'apertura del laboratorio. */
+function CreatureAssets({ mon }: { mon: NonNullable<ReturnType<typeof useActiveMon>> }) {
+  const token = useApp((s) => s.token);
+  const forgeEverything = useApp((s) => s.forgeEverything);
+  const writeBio = useApp((s) => s.writeBio);
+  const progress = useApp((s) => s.forgeProgress);
+
+  const [busy, setBusy] = useState<'forge' | 'bio' | null>(null);
+  const waiting = useElapsed(busy !== null);
+  const [failures, setFailures] = useState<string[] | null>(null);
+
+  return (
+    <Section
+      title="ASSET"
+      note="Bio + le quattro immagini canoniche (CEL, TOY, DOODLE, EXPRESSION SHEET). Il master condiziona le altre: farlo bene una volta vale per tutte."
+    >
+      <div className="rowlist">
+        {ASSET_TYPES.map((def) => {
+          const url = getAssetUrlSync(mon.data.name, def.type);
+          return (
+            <div key={def.type} className="row">
+              <span>{def.label}</span>
+              <span className="value mono">
+                {url ? <img src={url} alt={def.label} style={{ maxWidth: 64, maxHeight: 64, display: 'block' }} /> : 'MANCA'}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+
+      {progress && <p className="note">{progress.label} — {progress.done}/{progress.total}</p>}
+      {!token && <p className="note">Serve il segreto: SETUP → incolla il token.</p>}
+
+      <Grid>
+        <Btn
+          variant="dark"
+          disabled={!token || busy !== null}
+          onClick={() => {
+            setBusy('forge');
+            setFailures(null);
+            void forgeEverything(mon.data.name).then((f) => {
+              setBusy(null);
+              setFailures(f);
+            });
+          }}
+        >
+          {busy === 'forge' ? waitingText('STO FORGIANDO', waiting) : 'FORGIA TUTTO'}
+        </Btn>
+        <Btn
+          disabled={!token || busy !== null}
+          onClick={() => {
+            setBusy('bio');
+            void writeBio(mon.data.name).then(() => setBusy(null));
+          }}
+        >
+          {busy === 'bio' ? waitingText('STO SCRIVENDO', waiting) : 'RISCRIVI BIO'}
+        </Btn>
+      </Grid>
+      {failures && (
+        failures.length === 0
+          ? <p className="note">Tutto fatto.</p>
+          : <Notice title="NON RIUSCITI">{failures.join(' · ')}</Notice>
+      )}
+    </Section>
+  );
+}
+
+/* --- QUESTA CREATURA — priorità 4 (ispezione) -------------------------------- */
+function CreatureInspect({ mon }: { mon: NonNullable<ReturnType<typeof useActiveMon>> }) {
+  const [showJson, setShowJson] = useState(false);
+  return (
+    <>
+      <Section title={mon.data.name}>
+        <Rows
+          rows={[
+            ['FAMILY', mon.data.family],
+            ['ARCHETYPE', mon.data.family_archetype],
+            ['NATA IL GIORNO', String(mon.bornOnDay)],
+            ['HERITAGE TRAITS', String(mon.data.heritage_traits.length)],
+          ]}
+        />
+      </Section>
+      <Section title="BIO">
+        <p className="note">{mon.bio.story || 'Nessuna bio ancora.'}</p>
+      </Section>
+      <Section title="CHARACTER DATA">
+        <Grid>
+          <Btn onClick={() => setShowJson((v) => !v)}>{showJson ? 'NASCONDI' : 'MOSTRA'} JSON</Btn>
+        </Grid>
+        {showJson && <pre className="note" style={{ whiteSpace: 'pre-wrap', border: '1px solid var(--line)', padding: 10, maxHeight: 400, overflow: 'auto' }}>{JSON.stringify(mon.data, null, 2)}</pre>}
+      </Section>
+    </>
   );
 }
 
@@ -837,10 +1131,92 @@ function Ai() {
 }
 
 /* ============================================================================
+   TEMPO — FINAL DEV → LAB CONSOLIDATION (CORREZIONE)
+
+   🔷 «The original DEV home/TEMPO screen contains a useful operational
+   dashboard… bring its useful functionality into LAB natively.»
+
+   🔒 STESSI NUMERI DI DEV → INIZIO, DISEGNO NUOVO. `syncBalance` /
+   `syncRewardProgress` / `completeDayStreak` sono le STESSE funzioni pure
+   che disegnano `SyncDial` — qui il disegno è una barra e tre soglie nel
+   linguaggio di LAB, non `SyncDial` stesso: quel componente porta le classi
+   CSS dell'app (`sync-check__dial`…) che LAB non carica, e importarlo
+   sembrerebbe rotto pur essendo identico sotto. Vedi `parts.tsx` per lo
+   stesso ragionamento su `CopyBtn`.
+   ========================================================================= */
+
+function Tempo({ day, onAdvance, onOpenUsage }: { day: number; onAdvance: () => void; onOpenUsage: () => void }) {
+  const startedAt = useApp((s) => s.startedAt);
+  const token = useApp((s) => s.token);
+  const [journal, setJournal] = useState(readHealthJournal);
+  const [spend, setSpend] = useState<{ spentUsd: number; capUsd: number } | 'loading' | 'error'>('loading');
+
+  useEffect(() => {
+    const update = () => setJournal(readHealthJournal());
+    window.addEventListener(HEALTH_JOURNAL_EVENT, update);
+    return () => window.removeEventListener(HEALTH_JOURNAL_EVENT, update);
+  }, []);
+
+  useEffect(() => {
+    if (!token) { setSpend('error'); return; }
+    setSpend('loading');
+    void loadUsage(token).then(({ data, failure }) => {
+      if (failure || !data) { setSpend('error'); return; }
+      setSpend({ spentUsd: data.spentUsd, capUsd: data.monthlyCapUsd });
+    });
+  }, [token, day]);
+
+  const gameToday = dateForDay(day, startedAt);
+  const streak = completeDayStreak(journal, gameToday);
+  const balance = syncBalance(streak);
+  const evolution = syncRewardProgress('evolution', streak);
+  const mega = syncRewardProgress('mega-evolution', streak);
+  const wish = syncRewardProgress('wish', streak);
+  const pct = (n: number) => `${Math.min(100, (n / 30) * 100)}%`;
+
+  return (
+    <Section title="TEMPO" note="Il quadrante SYNC — stessi numeri di DEV → INIZIO, qui nello stile di SYSTEM.LAB.">
+      <Rows rows={[['GIORNO', String(day)], ['SYNC', `${balance}/30`]]} />
+
+      <div className="tempo-dial" aria-hidden="true">
+        <div className="tempo-dial__fill" style={{ width: pct(balance) }} />
+        <span className="tempo-dial__mark" style={{ left: pct(2) }} data-ready={evolution.ready} />
+        <span className="tempo-dial__mark" style={{ left: pct(7) }} data-ready={mega.ready} />
+        <span className="tempo-dial__mark" style={{ left: pct(30) }} data-ready={wish.ready} />
+      </div>
+      <Rows
+        rows={[
+          ['2 · EVOLVI', evolution.ready ? 'PRONTO' : `${evolution.have}/2`],
+          ['7 · MEGAEVOLVI', mega.ready ? 'PRONTO' : `${mega.have}/7`],
+          ['30 · ESPRIMI UN DESIDERIO', wish.ready ? 'PRONTO' : `${wish.have}/30`],
+        ]}
+      />
+
+      <Grid>
+        <Btn variant="dark" onClick={onAdvance}>+1 GIORNO</Btn>
+      </Grid>
+      <p className="note">
+        Racconta, chiude, avanza e registra pasti e allenamento nel diario — lo stesso +1 GIORNO
+        di DEV → INIZIO, non un secondo pulsante.
+      </p>
+
+      <p className="note">
+        <strong>SPESA DEL MESE:</strong>{' '}
+        {spend === 'loading' ? 'sto chiedendo…'
+          : spend === 'error' ? 'il server non risponde.'
+          : `$${spend.spentUsd.toFixed(2)} / $${spend.capUsd.toFixed(2)}`}
+        {' — '}
+        <a href="#" onClick={(e) => { e.preventDefault(); onOpenUsage(); }}>dettaglio in AI / USAGE</a>
+      </p>
+    </Section>
+  );
+}
+
+/* ============================================================================
    SIMULATION
    ========================================================================= */
 
-function Simulation() {
+function Simulation({ onOpenUsage }: { onOpenUsage: () => void }) {
   const day = useApp((s) => s.day);
   const progression = useApp((s) => s.progression);
   const health = useApp((s) => s.health);
@@ -849,7 +1225,15 @@ function Simulation() {
   const nodes = useApp((s) => s.nodes);
   const oggi = useApp((s) => s.days[s.day]);
 
-  const advanceDays = useApp((s) => s.advanceDays);
+  /* 🔷 FINAL DEV → LAB CONSOLIDATION (CORREZIONE) — «LAB +1 DAY and DEV +1
+     DAY must ultimately invoke the same underlying operation.» Era
+     `advanceDays`, che NON chiude la giornata (`syncDay()`) e quindi non
+     muove mai SYNC TOTAL — la riga qui sotto lo mostrava, ma restava ferma.
+     `simulateSyncedDays` è l'azione canonica di DEV → INIZIO: fa tutto quello
+     che faceva `advanceDays` più il riempimento del diario e la chiusura del
+     giorno. Non è una seconda implementazione: è la stessa, adesso in un
+     punto solo. */
+  const simulateSyncedDays = useApp((s) => s.simulateSyncedDays);
   const openShift = useApp((s) => s.openShift);
   const setBias = useApp((s) => s.setBias);
   const setSignal = useApp((s) => s.setSignal);
@@ -888,6 +1272,8 @@ function Simulation() {
         finiscono anche sul server.
       </Notice>
 
+      <Tempo day={day} onAdvance={() => simulateSyncedDays(1)} onOpenUsage={onOpenUsage} />
+
       <Section title="TIME CONTROL" note="Questo è l’unico punto di SYSTEM.LAB che fa avanzare la simulazione.">
         <Rows
           rows={[
@@ -899,8 +1285,8 @@ function Simulation() {
           ]}
         />
         <Grid>
-          <Btn variant="dark" onClick={() => advanceDays(1)}>RUN 1 COMPLETE DAY</Btn>
-          <Btn onClick={() => advanceDays(7)}>RUN 7 COMPLETE DAYS</Btn>
+          <Btn variant="dark" onClick={() => simulateSyncedDays(1)}>RUN 1 COMPLETE DAY</Btn>
+          <Btn onClick={() => simulateSyncedDays(7)}>RUN 7 COMPLETE DAYS</Btn>
           <Btn onClick={openShift}>NEXT MINDLINE EVENT</Btn>
         </Grid>
       </Section>
@@ -1057,14 +1443,59 @@ function Memory() {
         </Btn>
       </Section>
 
-      {/* 🔷 FINAL DEV → LAB CONSOLIDATION — VOCE stava solo in DEV → VOCE:
-          PROVA (test voce), MEMORIA (l'archivio qui sopra, la stessa cosa),
-          UMORE E OPINIONI (gli stessi dati qui sopra, con più storia) e
-          STRUMENTI. Un iframe, non una riscrittura: vedi `DevEmbed`. */}
-      <Section title="VOICE" note="DEV → VOCE vero, stesso .mon: PROVA · MEMORIA · UMORE E OPINIONI · STRUMENTI.">
-        <DevEmbed group="voce" title="DEV → VOCE" />
-      </Section>
+      {/* 🔷 FINAL DEV → LAB CONSOLIDATION (CORREZIONE) — VOICE nativa, non un
+          iframe: chiama `generateIntroduction`, la STESSA funzione che
+          `dev/VoiceSection.tsx` chiama, con la voce e l'umore veri del .mon
+          attivo. */}
+      <PersonaVoice mood={mood} />
     </section>
+  );
+}
+
+/* --- VOICE — chiama `generateIntroduction`, la stessa funzione di DEV → VOCE → PROVA --- */
+function PersonaVoice({ mood }: { mood: ReturnType<typeof useApp.getState>['mood'] }) {
+  const token = useApp((s) => s.token);
+  const mon = useActiveMon();
+  const [busy, setBusy] = useState(false);
+  const waiting = useElapsed(busy);
+  const [sample, setSample] = useState<string | null>(null);
+  const [problem, setProblem] = useState<string | null>(null);
+
+  const tryVoice = async () => {
+    if (!mon) return;
+    setBusy(true);
+    setSample(null);
+    setProblem(null);
+    const [{ generateIntroduction }, { stepModel }] = await Promise.all([
+      import('../../ai/client'),
+      import('../../state/store'),
+    ]);
+    const { result, failure } = await generateIntroduction(token, mon, mood, [], stepModel('voice'));
+    setBusy(false);
+    if (result) { setSample(result.text); return; }
+    setProblem(
+      failure === 'no-key' ? 'Nessuna chiave: la voce resta quella deterministica.'
+        : failure === 'refused' ? 'Il modello ha declinato la richiesta.'
+        : failure === 'capped' ? 'Tetto mensile raggiunto: è una decisione tua, non un guasto.'
+        : 'Chiamata fallita: token sbagliato, funzioni non pubblicate o rete assente.',
+    );
+  };
+
+  return (
+    <Section title="VOICE" note="Prova la voce vera del .mon attivo, con l'umore di adesso — la stessa chiamata di DEV → VOCE → PROVA.">
+      {!mon && <p className="note">Nessuna creatura attiva.</p>}
+      {mon && (
+        <>
+          <Grid>
+            <Btn variant="dark" disabled={busy} onClick={() => void tryVoice()}>
+              {busy ? waitingText('STO ASCOLTANDO', waiting) : 'PROVA LA VOCE'}
+            </Btn>
+          </Grid>
+          {sample && <p className="note">«{sample}»</p>}
+          {problem && <p className="note">{problem}</p>}
+        </>
+      )}
+    </Section>
   );
 }
 
@@ -1826,31 +2257,64 @@ function Shortcuts() {
 /* ============================================================================
    LEGACY — LO STATO DELLA CONSOLIDAZIONE
 
-   🔷 «Consolida DEV in LAB come unica sala controllo del prototipo. Questo è
-   l'ULTIMO giro di pulizia DEV/LAB.»
+   🔷 «After native integration, update LAB → LEGACY accurately. List only
+   tools genuinely not yet ported. Do NOT claim a feature is integrated
+   merely because an iframe exposes DEV.»
 
-   🔒 QUESTA SCHEDA NON È PIÙ UN ELENCO DI ASSENTI. TEMPO era già coperto da
-   SIMULATION (stesso `useApp`, non una copia) e questa scheda non se n'era
-   accorta; CREATURA e VOCE erano il vero buco, e adesso sono raggiungibili
-   da CREATURE e da PERSONA → VOICE (un `DevEmbed`, lo stesso motore, non
-   una riscrittura — vedi `./parts.tsx`). Quello che resta qui sotto non è
-   «non ancora fatto»: è la lista di cosa vive ANCORA solo dentro
-   DEV://VINZ.MON perché duplicarlo qui, con la spesa/routing già coperti da
-   AI e la spesa mensile da USAGE, non aggiungerebbe niente — sono gli
-   strumenti a bassa frequenza che questa consulenza chiama esplicitamente
-   «historical/status surface», non funzionalità mancante.
+   🔒 QUESTA VOLTA L'ELENCO È VERO. Il giro precedente segnava CREATURE e
+   VOCE come «integrate» perché un iframe apriva DEV — non lo erano, ed è il
+   motivo per cui questo task esiste. Adesso RESOLVER, INSEGNA, ASSET (con
+   BIO) e l'ispezione della creatura sono nativi in CREATURE, chiamando le
+   stesse azioni dello store; VOICE è nativa in PERSONA. Quello che resta
+   qui sotto è VERO codice ancora raggiungibile solo da DEV://VINZ.MON, non
+   uno stesso strumento dietro un'altra porta.
    ========================================================================= */
 
-const LEGACY_REMAINING: { titolo: string; voci: string; perche: string }[] = [
+const LEGACY_REMAINING: { titolo: string; dove: string; perche: string }[] = [
   {
-    titolo: 'SHORTCUT · SETUP DA DEV',
-    voci: 'La scheda SHORTCUT API di DEV → TEMPO',
-    perche: 'LAB → SYSTEM → SHORTCUTS copre già l\'operatività (stato, coda); il modulo di setup guidato resta in DEV per chi lo configura una volta sola.',
+    titolo: 'MONDO',
+    dove: 'DEV → CREATURA → MONDO',
+    perche: 'Canone e registro narrativo del world attivo — si tocca raramente, non nel flusso di ogni giorno.',
   },
   {
-    titolo: 'DESIGNTEST · PROTOCOLLO §12',
-    voci: 'DEV → CREATURA → PROVE',
-    perche: 'Raggiungibile dentro CREATURE (fa parte del gruppo incorporato), qui elencato solo perché è uno strumento da designer, non da uso quotidiano.',
+    titolo: 'RARITÀ — soglie',
+    dove: 'DEV → CREATURA → RARITÀ',
+    perche: 'Taratura delle bande di rarità: uno strumento da chi bilancia il motore, non da chi gioca.',
+  },
+  {
+    titolo: 'CATALOGHI',
+    dove: 'DEV → CREATURA → CATALOGHI',
+    perche: 'Accende/spegne Family, archetipi, stili — configurazione, non uso quotidiano.',
+  },
+  {
+    titolo: 'PROMPT IMMAGINI — anteprima/riscrittura',
+    dove: 'DEV → CREATURA → PROMPT IMMAGINI',
+    perche: 'CREATURE → ASSET forgia le immagini vere; questa resta la vista sul prompt grezzo, per chi lo sta mettendo a punto.',
+  },
+  {
+    titolo: 'PROVE — protocollo designer §12',
+    dove: 'DEV → CREATURA → PROVE',
+    perche: 'Il protocollo con cui un designer approva o scarta un\'immagine — non uno strumento del prototipo di tutti i giorni.',
+  },
+  {
+    titolo: 'GENERAZIONE BATCH',
+    dove: 'DEV → CREATURA → GENERA',
+    perche: 'Mille generazioni per controllare le distribuzioni statistiche — diagnostica del motore, non creazione.',
+  },
+  {
+    titolo: 'MINDLINE — forzature di eleggibilità',
+    dove: 'DEV → CREATURA → MINDLINE',
+    perche: 'SIMULATION → NEXT MINDLINE EVENT copre l\'uso normale; le forzature per raggiungere condizioni rare restano qui.',
+  },
+  {
+    titolo: 'STRUMENTI — avvio a mano',
+    dove: 'DEV → VOCE → STRUMENTI',
+    perche: 'Far partire un tool (promemoria, pagine, ricerca web) a mano per provarlo — diagnostica, non un controllo di persona.',
+  },
+  {
+    titolo: 'SHORTCUT API — setup guidato',
+    dove: 'DEV → TEMPO → SHORTCUT API',
+    perche: 'LAB → SYSTEM → SHORTCUTS copre lo stato operativo (coda, ultimo invio); il modulo di configurazione iniziale resta in DEV.',
   },
 ];
 
@@ -1860,22 +2324,22 @@ function Legacy() {
       <PageHead
         kicker="VINZ.LAB / SYSTEM"
         title="LEGACY"
-        lead="TEMPO, CREATURA e VOCE sono integrati (SIMULATION, CREATURE, PERSONA). Quello che resta è a bassa frequenza — status, non funzionalità mancante."
+        lead="RESOLVER, INSEGNA, ASSET e VOICE sono nativi (CREATURE, PERSONA), non dietro un iframe. Quello che resta è codice vero, ancora raggiungibile solo da DEV."
       />
 
-      <Notice title="✅ CONSOLIDATO">
-        Un utente normale non ha più bisogno di uscire da LAB per operare il prototipo: SAVE,
-        CREATURE, PERSONA, SIMULATION e AI coprono tutto quello che prima stava solo in
-        DEV://VINZ.MON.
+      <Notice title="✅ IL FLUSSO PRINCIPALE È NATIVO">
+        SAVE, CREATURE (Resolver/Insegna/Asset/ispezione), PERSONA (Voice/Mood/Opinions/Build
+        Mode), SIMULATION (Tempo/+1 giorno/SYNC) e AI sono componenti di LAB, non finestre su
+        DEV: chiamano le stesse azioni dello store, disegnate coi mattoni del laboratorio.
       </Notice>
 
       <Section
-        title="A BASSA FREQUENZA, ANCORA SOLO IN DEV"
-        note="Non funzionalità mancante: strumenti che si usano raramente, lasciati dove sono per non aggiungere una seconda strada a qualcosa che già funziona."
+        title="ANCORA SOLO IN DEV"
+        note="Ognuna con la ragione per cui non è (ancora) qui: taratura, diagnostica del motore, o setup una tantum — non il flusso quotidiano."
       >
         {LEGACY_REMAINING.map((r) => (
           <div key={r.titolo} style={{ padding: '9px 0', borderBottom: '1px solid var(--line)' }}>
-            <p className="note" style={{ margin: 0 }}><strong>{r.titolo}</strong> — {r.voci}</p>
+            <p className="note" style={{ margin: 0 }}><strong>{r.titolo}</strong> — {r.dove}</p>
             <p className="note">{r.perche}</p>
           </div>
         ))}
@@ -1883,7 +2347,8 @@ function Legacy() {
 
       <Section title="APRI DEV DIRETTAMENTE">
         <p className="note">
-          Per queste due voci soltanto: il pulsante DEV nell'app vera apre lo stesso pannello.
+          Per queste voci: il pulsante DEV nell'app vera apre lo stesso pannello, con lo stesso
+          stato — non una seconda copia.
         </p>
         <Grid>
           <Btn onClick={() => window.location.assign('/')}>TORNA ALL'APP</Btn>

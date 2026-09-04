@@ -164,11 +164,12 @@ h1{font-size:44px;line-height:.89;margin:0 0 14px;font-weight:900;font-style:ita
 .livedebug-event{padding:7px 0;border-bottom:1px solid var(--line);font-size:9px}
 .livedebug-event__head{display:flex;justify-content:space-between;gap:8px}
 .livedebug-event__meta{color:#777;margin-top:3px;word-break:break-all}
-/* FINAL DEV → LAB CONSOLIDATION — lo strumento vero, incorporato.
-   Nessuno stile nuovo da inventare: è un documento a parte (il suo, con i
-   suoi token), la cornice qui è solo il bordo che lo tiene dentro la pagina
-   del laboratorio. */
-.devembed{border:1px solid var(--line);width:100%;height:min(78vh,720px);display:block;margin-top:10px}
+/* TEMPO — il quadrante SYNC nel linguaggio di LAB: una barra, tre soglie. */
+.tempo-dial{position:relative;height:14px;border:1px solid var(--line);margin:10px 0;background:#fff}
+.tempo-dial__fill{position:absolute;top:0;left:0;bottom:0;background:#111}
+.tempo-dial__mark{position:absolute;top:-3px;width:2px;height:20px;background:var(--line)}
+.tempo-dial__mark[data-ready="true"]{background:#b00}
+
 @media(min-width:520px){main{padding-left:22px;padding-right:22px}.grid{grid-template-columns:repeat(3,1fr)}}
 @media print{
   .top,.footer,.usage-page__actions{display:none!important}

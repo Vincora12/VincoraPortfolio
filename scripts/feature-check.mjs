@@ -3580,10 +3580,7 @@ check(
 check(
   '§29 DEV',
   'DEV si apre su INIZIO e non su quindici linguette',
-  /* FINAL DEV → LAB CONSOLIDATION: `initialGroup` esiste solo per LAB, che
-     apre DEV già sul gruppo giusto (`?openDevGroup=…`); senza, il default
-     resta 'start' — la stessa cosa che questo controllo verificava prima. */
-  has('src/dev/DevPanel.tsx', "useState<DevGroup>(initialGroup ?? 'start')") &&
+  has('src/dev/DevPanel.tsx', "const [group, setGroup] = useState<DevGroup>('start')") &&
     has('src/dev/DevPanel.tsx', 'GROUPS.map((g) => ({ id: g.id, label: g.label }))'),
 );
 check(
@@ -3994,10 +3991,7 @@ check(
 check(
   'VINZ.LAB',
   'il pannello DEV non viene tolto prima che il laboratorio sappia farne le veci',
-  /* FINAL DEV → LAB CONSOLIDATION: la parità è verde adesso (CREATURE e
-     PERSONA aprono lo stesso pannello dentro un iframe), e questo prop in
-     più è esattamente il collegamento — non una rimozione. */
-  has(APP, "<DevPanel onClose={onClose} onGo={onGo} initialGroup={initialDevGroup} />"),
+  has(APP, "<DevPanel onClose={onClose} onGo={onGo} />"),
   'DEV_PARITY_MATRIX: «do not remove legacy DEV until parity is verified»',
 );
 
