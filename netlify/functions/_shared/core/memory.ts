@@ -24,9 +24,11 @@
 import { captureChatMemory, shouldCaptureChatMessage, type ChatMemoryResult } from '../meChatMemory';
 import { createMeModelStore, type MeModelDocument, type MeModelStore } from '../meModel';
 import { projectMeModel, type MemoryProjection } from '../meMemoryProjection';
+import { importMeSeed, type SeedImportResult } from '../meSeed';
 import { addToMem0, listMem0, searchMem0 } from '../mem0MemoryClient';
 import { callProvider } from '../providers';
 import { resolveRoute } from '../routing';
+import { recordSpend } from '../spend';
 
 export type MemoryWriterMode = 'custom' | 'mem0' | 'frozen';
 
@@ -48,6 +50,27 @@ const SEMANTIC_POLICY = `Decide whether the CURRENT USER MESSAGE contains inform
 function extractJson(text: string): unknown {
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/i)?.[1] ?? text;
   return JSON.parse(fenced.trim());
+}
+
+/* ⚠️ Found while tracing ME Seed (CORE EXTRACTION PHASE 2): neither this module's own chat
+   extraction call nor me-seed.ts's extraction call ever recorded spend — unlike every other
+   LLM call site in this codebase (ai.ts, machines.ts, shortcut.ts, evolution-background.ts,
+   lab-duel-background.ts all call recordSpend). Their cost was real but invisible to the USAGE
+   ledger, and — since other call sites check that same ledger against the monthly cap before
+   spending — the cap they check against was itself computed from an incomplete picture.
+
+   Fixed here as the smallest correct addition: record it. Deliberately NOT wrapped into also
+   calling checkCap() before the call — that would be a real behavior change (memory capture
+   could start being silently blocked once a user is over budget, which is a product decision
+   about fallback UX, not a telemetry fix) and is reported as deferred, not decided here.
+
+   Wrapped in try/catch: a spend-ledger write failure must never turn an otherwise-successful
+   personal-memory write into a reported failure — telemetry is not allowed to be that load-bearing. */
+async function recordExtractionSpendBestEffort(action: string, model: string, usage: { inputTokens?: number; outputTokens?: number }): Promise<void> {
+  if (!usage.inputTokens && !usage.outputTokens) return;
+  try {
+    await recordSpend('text-cheap', model, usage, { action, subsystem: 'memory' });
+  } catch { /* telemetry must not fail the write it is measuring */ }
 }
 
 const emptyFrozenResult = (): ChatMemoryResult => ({
@@ -123,6 +146,7 @@ export async function writePersonalMemory(
     maxTokens: 1800,
   });
   if (!response.ok) throw new Error(response.error ?? 'estrazione non disponibile');
+  await recordExtractionSpendBestEffort('me_chat_capture', response.model, response.usage);
   const result = await captureChatMemory(store, {
     text: input.text,
     conversationId: input.conversationId,
@@ -149,14 +173,30 @@ export async function searchPersonalMemory(query: string, limit = 5, store: MeMo
   return filterByQuery(await listPersonalMemory(store), query, limit);
 }
 
-/** Exact response shape for `GET /api/me-memory`, whichever backend is active. */
-export async function readMeMemoryView(store: MeModelStore = createMeModelStore()): Promise<unknown> {
+/* ⚠️ CORE EXTRACTION PHASE 2 — this used to return two entirely different shapes depending on
+   the active backend: `{memories:[...], counts:{memories}}` for Mem0, or the full
+   `MemoryProjection` (`{counts:{knowledge,entities,episodes}, user, entities, relations,
+   episodes, recent}`) for the ME Model. The only real consumer, MeOverview.tsx, inferred which
+   one it got with `Array.isArray(memory.memories)` — the Web client guessing the active backend
+   from response shape, which is exactly what this boundary exists to prevent.
+
+   Both backends already resolve to the same flat `{id?, text}` shape everywhere else in this
+   module (`flattenMeModelDocument`, `mem0RowsToItems`) — reusing that here removes the
+   inference entirely instead of adding a second, parallel unification. `backend` is included
+   for LAB diagnostics only (SystemLab.tsx); the normal Web client (MeOverview.tsx) does not
+   read it and must not need to. */
+export type MemoryView = { memories: PersonalMemoryItem[]; counts: { memories: number }; user: string; backend: MemoryWriterMode };
+
+/** Backend-neutral response shape for `GET /api/me-memory`. Same shape on every backend. */
+export async function readMeMemoryView(store: MeModelStore = createMeModelStore()): Promise<MemoryView> {
   const backend = memoryBackendMode();
   if (backend === 'mem0') {
     const memories = mem0RowsToItems(await listMem0());
-    return { memories, counts: { memories: memories.length } };
+    return { memories, counts: { memories: memories.length }, user: 'Utente', backend };
   }
-  return projectMeModel(await store.read());
+  const doc = await store.read();
+  const memories = flattenMeModelDocument(doc);
+  return { memories, counts: { memories: memories.length }, user: doc.user.name || 'Utente', backend };
 }
 
 /* ⚠️ Found while tracing this domain, fixed as part of it: `POST /api/me-memory` is how the
@@ -168,4 +208,30 @@ export async function readMeMemoryView(store: MeModelStore = createMeModelStore(
 /** Exact response shape for `POST /api/me-memory` (search), on whichever backend is active. */
 export async function searchMeMemoryView(query: string, store: MeModelStore = createMeModelStore()): Promise<unknown> {
   return { memories: await searchPersonalMemory(query, 5, store) };
+}
+
+/* ⚠️ CORE EXTRACTION PHASE 2 — ME Seed ownership, traced.
+
+   me-seed.ts used to import `createMeModelStore` from `meModel.ts` directly — a second,
+   independent doorway into the same store this module exists to own, alongside chat capture,
+   ME memory reads and the Insight/Reflection/ME machines. This wrapper closes that doorway:
+   `meModel.ts` should now have exactly one importer, this file.
+
+   What did NOT change: `importMeSeed`'s actual bulk-import mechanics (entity resolution,
+   staging, one commit) are untouched in `meSeed.ts` — Seed is a fundamentally different shape
+   of operation than `writePersonalMemory` (one whole onboarding transcript staged and committed
+   once, with its own content-hash idempotency, vs. one chat message). Folding it into
+   `writePersonalMemory` would have been a real rewrite of working, tested logic for no benefit.
+
+   What deliberately did NOT change: Seed still always targets the ME Model, regardless of
+   `VINZMON_MEMORY_WRITER_MODE`. It has no Mem0 equivalent today, and gating it on the writer
+   mode (e.g. silently no-op'ing in 'mem0' mode) would be a real onboarding behavior change, not
+   a boundary cleanup — `docs/MEMORY_LEGACY_FREEZE_AUDIT.md` already named this as its own,
+   separately-scoped migration decision. Left exactly as documented there. */
+export async function importPersonalMemorySeed(
+  seed: string,
+  extract: (seed: string) => Promise<unknown>,
+  store: MeModelStore = createMeModelStore(),
+): Promise<SeedImportResult> {
+  return importMeSeed(store, seed, extract);
 }

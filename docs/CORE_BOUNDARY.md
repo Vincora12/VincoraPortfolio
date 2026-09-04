@@ -197,9 +197,15 @@ Nothing was extracted when this document was first written. **CORE EXTRACTION PH
 (2026-09-04)** did the first one: personal Memory's *ownership boundary* — which backend
 (ME Model vs. Mem0) answers a read/write/search — was centralized into
 `netlify/functions/_shared/core/memory.ts`, ending three independent, inconsistent mode-checks
-(one of which, in `machines.ts`, wasn't checking the mode at all). No Blobs key moved — ME Model
-still lives at `me-model-v1`, Mem0 is still reached only server-side. Full account:
-`docs/CORE_EXTRACTION_PHASE1_2026-09-04.md`. This section still documents the shape of a real
+(one of which, in `machines.ts`, wasn't checking the mode at all). **PHASE 2 (same day)** closed
+the two edges Phase 1 left open: `MeOverview.tsx` no longer infers the active backend from
+response shape (one unified `GET /api/me-memory` projection now serves both), and ME Seed
+(`meSeed.ts`/`/api/me-seed`) now routes its store access through the same boundary instead of
+importing `meModel.ts` independently — its actual import mechanics and its ME-Model-only scope
+are both unchanged, per `docs/MEMORY_LEGACY_FREEZE_AUDIT.md`'s own deferral of that decision. No
+Blobs key moved in either phase — ME Model still lives at `me-model-v1`, Mem0 is still reached
+only server-side. Full accounts: `docs/CORE_EXTRACTION_PHASE1_2026-09-04.md`,
+`docs/CORE_EXTRACTION_PHASE2_2026-09-04.md`. This section still documents the shape of a real
 storage move (Lessons/ME-model-style, own key per concept) for whichever domain is next — Mon
 State is the largest remaining candidate still sharing the generic `/api/state` blob.
 

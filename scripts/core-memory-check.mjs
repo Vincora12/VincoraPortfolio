@@ -23,6 +23,7 @@ export {
   searchPersonalMemory,
   readMeMemoryView,
   searchMeMemoryView,
+  importPersonalMemorySeed,
 } from '${cwd}/netlify/functions/_shared/core/memory.ts';
 `,
 );
@@ -134,10 +135,34 @@ try {
   check(searched.length === 1 && searched[0].text.includes('FFUOCO'), 'in modalità custom la ricerca è la ricerca deterministica sul ME Model');
 
   const view = await m.readMeMemoryView(readStore);
-  check(typeof view === 'object' && view !== null && 'relations' in view && 'counts' in view, 'GET /api/me-memory in modalità custom resta la proiezione ME Model');
+  check(
+    Array.isArray(view.memories) && view.memories.length === 2 && view.counts.memories === 2 && view.backend === 'custom',
+    'GET /api/me-memory in modalità custom usa la STESSA forma unificata di mem0 — niente più Array.isArray(memory.memories) lato client per indovinare il backend',
+  );
+  check(view.user === 'Utente', 'il nome utente della proiezione ME Model arriva nella vista unificata (bug della Fase 1 restato corretto)');
 
   const searchedView = await m.searchMeMemoryView('FFUOCO', readStore);
   check(Array.isArray(searchedView.memories) && searchedView.memories.length === 1, 'POST /api/me-memory ora funziona anche in modalità custom — prima tornava sempre 405 e la memoria a lungo termine della Chat dal vivo non arrivava mai nel prompt in questa modalità');
+
+  // Il registro spesa reale non è configurabile in questo ambiente offline: la scrittura sopra
+  // (customWrite) è già la prova che recordSpend, avvolto in try/catch, non ha fatto fallire una
+  // scrittura altrimenti riuscita — è esattamente il comportamento che deve avere in produzione
+  // se il registro spesa avesse un problema.
+  check(customWrite.result.updated === true, 'la spesa non tracciabile in questo test non ha fatto fallire la scrittura personale — la telemetria non può essere così vincolante');
+
+  // ── ME Seed: instrada attraverso il boundary Core, non tocca più meModel.ts direttamente ──
+  const seedStore = fakeStore({ ...doc, entities: [], relations: [], episodes: [], seedImports: [] });
+  const seedExtraction = {
+    version: '1',
+    entities: [{ mention: 'Milano', type: 'place' }],
+    relations: [{ subject: 'USER', predicate: 'lives_in', object: 'Milano', confidence: 0.9 }],
+    episodes: [],
+  };
+  const seedResult = await m.importPersonalMemorySeed('Vivo a Milano da tre anni.', async () => seedExtraction, seedStore);
+  check(seedResult.status === 'imported' && seedResult.relationsCreated === 1, 'il seed viene importato nello stesso ME Model, con lo stesso meccanismo di sempre');
+  check(seedStore.document.relations.some((r) => r.predicate === 'lives_in'), 'il fatto del seed finisce davvero nel documento che anche la chat scrive — nessuna verità indipendente');
+  const seedAgain = await m.importPersonalMemorySeed('Vivo a Milano da tre anni.', async () => { throw new Error('non deve essere richiamato: il seed è già stato importato'); }, seedStore);
+  check(seedAgain.status === 'already_imported', 'un seed identico non viene re-importato né richiama di nuovo il modello — idempotenza del seed invariata');
 } finally {
   globalThis.fetch = originalFetch;
   if (originalOpenAiKey === undefined) delete process.env.OPENAI_API_KEY;
@@ -169,7 +194,10 @@ try {
   check(mem0Search[0]?.score === 0.9, 'in modalità mem0 la ricerca è la ricerca semantica reale di Mem0, non il filtro per parole');
 
   const mem0View = await m.readMeMemoryView(untouchedStore);
-  check(typeof mem0View === 'object' && Array.isArray(mem0View.memories) && mem0View.counts.memories === 1, 'GET /api/me-memory in modalità mem0 resta la lista Mem0, stessa forma di prima');
+  check(
+    Array.isArray(mem0View.memories) && mem0View.counts.memories === 1 && mem0View.backend === 'mem0',
+    'GET /api/me-memory in modalità mem0 usa la stessa forma unificata di custom — stesso contratto, backend diverso',
+  );
 
   const mem0Search2 = await m.searchMeMemoryView('Milano', untouchedStore);
   check(Array.isArray(mem0Search2.memories), 'POST /api/me-memory in modalità mem0 resta la ricerca Mem0, stessa forma di prima');

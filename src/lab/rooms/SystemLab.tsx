@@ -1778,11 +1778,20 @@ function StorageInspector() {
       setServer(buckets);
       setServerFailed(false);
 
-      if (meMemoryJson && typeof meMemoryJson === 'object' && 'counts' in (meMemoryJson as object)) {
+      /* CORE EXTRACTION PHASE 2 — /api/me-memory ora dichiara sempre `backend` (custom/mem0/
+         frozen): prima questa sezione indovinava "mem0 attivo" dalla sola presenza di `counts`,
+         che però esiste anche nella proiezione ME Model — un falso "mem0" ogni volta che il
+         backend reale era l'ME Model. Diagnostica LAB: qui è il posto giusto per leggerlo. */
+      if (meMemoryJson && typeof meMemoryJson === 'object') {
+        const backend = (meMemoryJson as { backend?: string }).backend;
         const counts = (meMemoryJson as { counts?: { memories?: number } }).counts;
-        setMem0({ memories: typeof counts?.memories === 'number' ? counts.memories : null, note: 'mem0' });
+        setMem0(
+          backend === 'mem0'
+            ? { memories: typeof counts?.memories === 'number' ? counts.memories : null, note: 'mem0 attivo' }
+            : { memories: null, note: backend ? `non attivo — backend attuale: ${backend}` : 'non disponibile' },
+        );
       } else {
-        setMem0({ memories: null, note: 'non in modalità mem0, o non disponibile' });
+        setMem0({ memories: null, note: 'non disponibile' });
       }
     }).catch(() => { if (!cancelled) setServerFailed(true); });
     return () => { cancelled = true; };

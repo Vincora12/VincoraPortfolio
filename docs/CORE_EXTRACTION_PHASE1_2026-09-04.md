@@ -7,6 +7,12 @@ a redesign, not a storage migration. Grounded in `docs/CORE_BOUNDARY.md`,
 this document does not redo any of them, only the tracing needed to find
 the minimum coupling that stood between today's code and a clean boundary.
 
+**Continued same day in `docs/CORE_EXTRACTION_PHASE2_2026-09-04.md`:** this
+phase's own "Web client impact: none" and "Deferred" sections named the
+two edges left open — `MeOverview.tsx`'s `Array.isArray(memory.memories)`
+backend-shape inference, and ME Seed's independent `meModel.ts` doorway.
+Phase 2 closed both.
+
 ## What existed before this phase (traced, not assumed)
 
 Three server-side places each independently decided which personal-memory

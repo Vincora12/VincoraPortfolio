@@ -52,8 +52,22 @@ export function MeOverviewScreen({ onGo: _onGo }: { onGo: (o: Overlay) => void }
   </div>;
 }
 
+/* CORE EXTRACTION PHASE 2 — /api/me-memory now returns one backend-neutral shape
+   ({memories, counts, user, backend}) regardless of whether ME Model or Mem0 is active
+   server-side; this view never branches on response shape to infer the backend. `backend` is a
+   LAB-diagnostics field (see SystemLab.tsx) and is intentionally not read here. */
+type MemoryViewData = { memories: Array<{ id?: string; text: string }>; counts: { memories: number }; user: string };
 function displayMemoryText(text: string): string { const clean = text.replace(/^On \d{4}-\d{2}-\d{2} the User (?:expressed|said|stated) that /i, '').replace(/^The User /i, '').trim(); return clean.length > 180 ? `${clean.slice(0, 177)}…` : clean; }
-function MemoryView({ memory, error, retry }: { memory: any; error: boolean; retry: () => void }) { if (error) return <section className="me-health__section"><h2>MEMORY</h2><Empty text="Memoria non disponibile." /><button type="button" onClick={retry}>RIPROVA</button></section>; if (!memory) return <section className="me-health__section"><h2>MEMORY</h2><Empty text="Caricamento…" /></section>; if (Array.isArray(memory.memories)) { if (!memory.memories.length) return <section className="me-health__section"><h2>MEMORY</h2><Empty text="La memoria è ancora vuota. VINZ.MON inizierà a costruirla mentre parlate." /></section>; return <div className="me-memory"><header><h2>MEMORY</h2><p>{memory.memories.length} {memory.memories.length === 1 ? 'memoria' : 'memorie'}</p></header><Section title="CONOSCENZE">{memory.memories.map((item: any, i: number) => <details className="me-memory__relation" key={item.id ?? i}><summary><strong>{displayMemoryText(String(item.text ?? ''))}</strong></summary><p>{String(item.text ?? '')}</p>{item.createdAt && <small>{new Date(item.createdAt).toLocaleDateString('it-IT')}</small>}</details>)}</Section></div>; } if (!memory.counts.knowledge && !memory.counts.entities && !memory.counts.episodes) return <section className="me-health__section"><h2>MEMORY</h2><Empty text="La memoria è ancora vuota. VINZ.MON inizierà a costruirla mentre parlate." /></section>; return <div className="me-memory"><header><h2>MEMORY</h2><p>{memory.counts.knowledge} conoscenze · {memory.counts.entities} entità · {memory.counts.episodes} episodi</p></header><Section title={memory.user}>{memory.relations.map((r: any, i: number) => <article className="me-memory__relation" key={i}><strong>{r.object || r.value}</strong><small>{r.predicateLabel}</small></article>)}</Section></div>; }
+function MemoryView({ memory, error, retry }: { memory: MemoryViewData | null; error: boolean; retry: () => void }) {
+  if (error) return <section className="me-health__section"><h2>MEMORY</h2><Empty text="Memoria non disponibile." /><button type="button" onClick={retry}>RIPROVA</button></section>;
+  if (!memory) return <section className="me-health__section"><h2>MEMORY</h2><Empty text="Caricamento…" /></section>;
+  const items = memory.memories ?? [];
+  if (!items.length) return <section className="me-health__section"><h2>MEMORY</h2><Empty text="La memoria è ancora vuota. VINZ.MON inizierà a costruirla mentre parlate." /></section>;
+  return <div className="me-memory">
+    <header><h2>MEMORY</h2><p>{items.length} {items.length === 1 ? 'memoria' : 'memorie'}</p></header>
+    <Section title={memory.user}>{items.map((item, i) => <details className="me-memory__relation" key={item.id ?? i}><summary><strong>{displayMemoryText(String(item.text ?? ''))}</strong></summary><p>{String(item.text ?? '')}</p></details>)}</Section>
+  </div>;
+}
 
 type TimerPreset = { label: string; work: number; rest: number; rounds: number };
 const TIMER_PRESETS: TimerPreset[] = [
