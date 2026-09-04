@@ -18,25 +18,17 @@
    peggiore che ci possa stare qui dentro.
    ========================================================================= */
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useApp, useActiveMon } from '../../state/store';
-/* 🔷 FINAL DEV → LAB CONSOLIDATION (CORREZIONE) — reuse LOGIC, not the DEV
-   screen: gli stessi moduli che ResolverSection/TeachSection/ForgePanel
-   chiamano, montati sotto componenti nativi di LAB. */
+/* PERSONA → VOICE riusa questo hook (attesa) per la stessa chiamata di
+   DEV → VOCE → PROVA — vedi PersonaVoice più sotto. */
 import { useElapsed, waitingText } from '../../dev/useElapsed';
-import { characterDataFor } from '../../assets-pipeline/resolver/adapter';
-import { numericGrammarFor } from '../../assets-pipeline/resolver/vendor/rules';
-import { buildCreativeResolverPrompt } from '../../assets-pipeline/resolver/vendor/resolver';
-import { compilePrompt } from '../../assets-pipeline/resolver/vendor/compiler';
-import { resolverMemoryWith } from '../../assets-pipeline/resolver/memory';
-import { ASSET_TYPES } from '../../engine/assets';
-import { getAssetUrlSync } from '../../assets-pipeline/assetStore';
 import { STAT_KEYS, UNKNOWN, isKnown } from '../../engine/types';
 import type { StatKey } from '../../engine/types';
 import { DAILY_SIGNALS, DAILY_SIGNAL_LABELS, dateForDay } from '../../engine/progression';
 import { completeDayStreak, syncBalance, syncRewardProgress } from '../../engine/syncRewards';
 import { readHealthJournal, HEALTH_JOURNAL_EVENT } from '../../engine/healthJournal';
-import { loadPing, loadSetup, loadShortcutStatus, loadUsage, saveMonthlyCap, loadRuntimeLog, loadV2Issues, loadRemote, type ShortcutStatus, type UsageDashboard, type RuntimeEvent } from '../../ai/backend';
+import { loadPing, loadSetup, loadShortcutStatus, loadUsage, saveMonthlyCap, loadRuntimeLog, loadV2Issues, loadRemote, type ShortcutStatus, type UsageDashboard, type UsageEvent, type RuntimeEvent } from '../../ai/backend';
 import type { V2Issue } from '../../ai/v2Issues';
 import { lastRuns } from '../../ai/telemetry';
 import { freshSecret } from '../../engine/secret';
@@ -48,8 +40,7 @@ import {
   modelForStep,
   recommendedModel,
 } from '../../../netlify/functions/_shared/routing';
-import { Btn, CopyBtn, Grid, LabTop, Notice, PageHead, Range, Rows, Section, Status } from './parts';
-import { LabAssistantPanel } from '../assistant/LabAssistantPanel';
+import { Btn, Grid, LabTop, Notice, PageHead, Range, Rows, Section, Status } from './parts';
 /* 🔷 LAB CONSOLIDATION + SAVE CONTROL. Il confronto LOCALE·SERVER e il
    verdetto vivono in `state/saveComparison.ts` — le stesse funzioni che
    `dev/ServerSection.tsx` usa già, non una copia. Le tre azioni
@@ -89,14 +80,11 @@ const TABS = [
      la stessa: «sta funzionando davvero, o sto solo indovinando?» — solo
      che questa volta la risposta è sulla partita, non sul backend. */
   { id: 'save', label: 'SAVE' },
-  /* 🔷 FINAL DEV → LAB CONSOLIDATION (CORREZIONE) — non un iframe su DEV:
-     RESOLVER, INSEGNA e ASSET nativi, disegnati coi mattoni del laboratorio,
-     che chiamano le STESSE azioni dello store (`resolveWithAi`,
-     `teachResolver`, `forgeEverything`, …) usate da DEV → CREATURA. Il resto
-     del gruppo (MONDO, RARITÀ, CATALOGHI, PROMPT PREVIEW, PROVE) resta in
-     LEGACY: sono strumenti da tarare o da designer, non il flusso di ogni
-     giorno. */
-  { id: 'creature', label: 'CREATURE' },
+  /* 🔷 LAB INFORMATION ARCHITECTURE CLEANUP — CREATURE non esiste più qui:
+     era una destinazione top-level in concorrenza con CREATION.LAB per lo
+     stesso concetto («la creatura attuale»). RESOLVER/LESSONS/ASSETS/STATE
+     vivono ora dentro CREATION.LAB, dove c'era già FLOW/STATE/HISTORY —
+     un solo posto per «chi è / come nasce» il .mon, non due. */
   { id: 'ai', label: 'AI' },
   { id: 'simulation', label: 'SIMULATION' },
   /* 🔷 Era «MEMORY», ed era il nome sbagliato: qui dentro non c'è mai stata
@@ -117,7 +105,6 @@ const TABS = [
      («Nel lab c'è tutto?»), e qui la risposta era no finché non c'era
      questa scheda. */
   { id: 'shortcuts', label: 'SHORTCUTS' },
-  { id: 'assistant', label: '🤖 ASSISTENTE' },
   /* VINZ.MON PROTOTYPE V1 → V2 (docs/PROTOTYPE_V1_STATUS.md). Sola
      lettura: la cattura resta nella Chat, qui si legge solo l'elenco
      canonico server-side — non un secondo posto dove editarlo. */
@@ -141,7 +128,6 @@ export function SystemLab({ onBack }: { onBack: () => void }) {
       <main>
         {tab === 'setup' && <Setup />}
         {tab === 'save' && <Save />}
-        {tab === 'creature' && <Creature />}
         {tab === 'ai' && <Ai />}
         {tab === 'simulation' && <Simulation onOpenUsage={() => setTab('usage')} />}
         {tab === 'memory' && <Memory />}
@@ -151,7 +137,6 @@ export function SystemLab({ onBack }: { onBack: () => void }) {
         {tab === 'storage' && <StorageInspector />}
         {tab === 'live-debug' && <LiveDebug />}
         {tab === 'shortcuts' && <Shortcuts />}
-        {tab === 'assistant' && <LabAssistantPanel />}
         {tab === 'v2-issues' && <V2Issues />}
         {tab === 'legacy' && <Legacy />}
         <div className="footer mono">SYSTEM.LAB · SAME VINZ.MON ENGINE / SAME REPOSITORY</div>
@@ -191,23 +176,55 @@ function Machines() {
     setRunning(id);
     try { await fetch('/api/machines', { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify({ machine: id, preferredModel: reflectionModel ?? null }) }); } finally { setRunning(null); void load(); }
   };
+  /* 🔷 LAB INFORMATION ARCHITECTURE CLEANUP — «ME MACHINE still shows
+     ANTHROPIC. Trace the actual ME machine, don't just rename the label.»
+
+     🔒 QUELLO CHE HO TROVATO. Il campo `machine.model` non è un modello:
+     è il nome della CAPACITÀ (`text-cheap`) dichiarata nel registro
+     server (`_shared/machines.ts`) — mostrarlo come «MODEL» lascia
+     credere che sia una scelta, quando è solo una categoria. Il modello
+     VERO si vede solo in USAGE, dopo un run — e SOLO lì.
+
+     ⚠️ E C'È UN DISALLINEAMENTO VERO SOTTO. Questa scheda manda
+     `preferredModel: reflectionModel` — la STESSA scelta della scheda
+     AI → RIFLESSIONE — a QUALSIASI macchina tu avvii, ME compresa: è
+     already collegata, non due sistemi separati. Ma se in AI → RIFLESSIONE
+     non hai scelto nulla, `reflectionModel` è `null`: la scheda AI mostra
+     allora un predefinito Claude (`claude-haiku-4-5`), mentre il server,
+     ricevendo `null`, cade sul SUO predefinito di riserva — che per
+     `text-cheap` è OpenAI (`gpt-5.6-luna`), non Claude. Due «predefinito»
+     diversi per la stessa domanda. Il testo qui sotto lo dice, non lo
+     nasconde dietro un'etichetta ferma. */
   return <section className="page active">
     <PageHead kicker="SYSTEM.LAB / MACHINE MASTER" title="MACHINES" lead="Macchine indipendenti: lavorano solo quando vengono attivate, mai prima di una risposta in chat." />
     {error && <Notice title="MACHINE STATE NON DISPONIBILE">Il server non risponde oppure manca il token.</Notice>}
     {!machines && !error && <p className="note">Lettura dello stato…</p>}
+    <Notice title="MODELLO — DA DOVE VIENE">
+      Ogni macchina qui sotto usa lo stesso modello scelto in AI → RIFLESSIONE (`preferredModel`):
+      non sono due sistemi separati. Se lì non hai scelto niente, la macchina non cade sul
+      predefinito Claude che AI → RIFLESSIONE mostra: cade sul predefinito del server per questa
+      capacità, che oggi è OpenAI gpt-5.6-luna. La riga USAGE qui sotto, dopo un run, dice sempre
+      il modello VERO — non questa nota.
+    </Notice>
     {machines?.map((machine) => <Section key={machine.id} title={machine.name}>
       <Rows rows={[
         ['PURPOSE', machine.purpose],
         ['READS', machine.reads.join(' · ')],
         ['TRIGGER', machine.trigger],
         ['WRITES', machine.writes.join(' · ')],
-        ['MODEL', machine.model],
+        ['CAPABILITY', machine.model],
+        ['CONFIG SOURCE', reflectionModel ? `AI → RIFLESSIONE: ${reflectionModel}` : 'AI → RIFLESSIONE: nessuna scelta → riserva del server (OpenAI gpt-5.6-luna)'],
         ['DELIVERY', (machine as MachineView & { delivery?: string }).delivery ?? '—'],
         ['STATUS', machine.state.status],
         ['LAST RUN', machine.state.lastRun ? new Date(machine.state.lastRun).toLocaleString('it-IT') : 'NOT RUN'],
         ['LAST OUTPUT', machine.state.lastOutput ?? 'NOT RUN'],
         ...(machine.id === 'reflection' && machine.state.reflectionContext ? [['CONTEXT', `${machine.state.reflectionContext.recent} recent · ${machine.state.reflectionContext.older} older · ${machine.state.reflectionContext.previousReflections} previous reflections · ${machine.state.reflectionContext.total} total`] as [string, string]] : []),
-        ...(machine.state.usage ? [['USAGE', `${machine.state.usage.provider}/${machine.state.usage.model} · $${machine.state.usage.costUsd.toFixed(4)}`] as [string, string]] : []),
+        [
+          'MODELLO VERO (USAGE)',
+          machine.state.usage
+            ? `${machine.state.usage.provider}/${machine.state.usage.model} · $${machine.state.usage.costUsd.toFixed(4)} — dall'ultimo run`
+            : 'nessun run ancora — non risolto',
+        ],
       ]} />
       <Btn disabled={running !== null} onClick={() => void run(machine.id)}>{running === machine.id ? 'RUNNING…' : 'RUN MACHINE'}</Btn>
     </Section>)}
@@ -680,321 +697,6 @@ function Save() {
 }
 
 /* ============================================================================
-   AI
-   ========================================================================= */
-
-/* ============================================================================
-   CREATURE — FINAL DEV → LAB CONSOLIDATION (CORREZIONE)
-
-   🔷 «TAKE THE USEFUL DEV TOOLS AND INTEGRATE THEM NATIVELY INTO LAB…
-   reuse logic, not the DEV screen.»
-
-   🔒 QUESTA SCHEDA NON RIDISEGNA RESOLVER, NON CAMBIA LA GENERAZIONE DELLA
-   CREATURA, NON TOCCA I PROMPT, NON TOCCA IL COMPORTAMENTO DEL RESOLVER. Le
-   quattro sotto-schede chiamano le STESSE azioni dello store che
-   `dev/ResolverSection.tsx`, `dev/TeachSection.tsx` e `dev/ForgePanel.tsx`
-   chiamano — `resolveWithAi`, `teachResolver`, `forgeEverything`, `writeBio`
-   — con markup e CSS di LAB al posto di quelli di DEV. Priorità dichiarate:
-   1. RESOLVER, 2. INSEGNA, 3. ASSET, 4. QUESTA CREATURA (ispezione).
-   MONDO/RARITÀ/CATALOGHI/PROMPT PREVIEW/PROVE restano in LEGACY — sono
-   strumenti da tarare, non il flusso di ogni giorno.
-   ========================================================================= */
-
-type CreatureSub = 'resolver' | 'teach' | 'assets' | 'inspect';
-const CREATURE_SUBS: { id: CreatureSub; label: string }[] = [
-  { id: 'resolver', label: 'RESOLVER' },
-  { id: 'teach', label: 'INSEGNA' },
-  { id: 'assets', label: 'ASSET' },
-  { id: 'inspect', label: 'QUESTA CREATURA' },
-];
-
-function Creature() {
-  const [sub, setSub] = useState<CreatureSub>('resolver');
-  const mon = useActiveMon();
-
-  return (
-    <section className="page active">
-      <PageHead
-        kicker="VINZ.LAB / CREATURE"
-        title="CREATURE"
-        lead="Resolver, Insegna e Asset — lo stesso motore di DEV → CREATURA, nativo qui. Mondo, Rarità e i controlli da designer restano in LEGACY."
-      />
-      <div className="grid" style={{ marginBottom: 10 }}>
-        {CREATURE_SUBS.map((s) => (
-          <Btn key={s.id} variant={sub === s.id ? 'dark' : undefined} onClick={() => setSub(s.id)}>
-            {s.label}
-          </Btn>
-        ))}
-      </div>
-
-      {!mon ? (
-        <Notice title="NESSUNA CREATURA ATTIVA">
-          Questi strumenti lavorano sul .mon attivo. Attiva o crea una creatura in VINZ.MON, poi
-          torna qui.
-        </Notice>
-      ) : (
-        <>
-          {sub === 'resolver' && <CreatureResolver mon={mon} />}
-          {sub === 'teach' && <CreatureTeach />}
-          {sub === 'assets' && <CreatureAssets mon={mon} />}
-          {sub === 'inspect' && <CreatureInspect mon={mon} />}
-        </>
-      )}
-    </section>
-  );
-}
-
-/* --- RESOLVER — priorità 1 --------------------------------------------------
-   Stessa azione di DEV: `resolveWithAi(monName, onTick)`. Stesso prompt
-   compilato: `characterDataFor` → `numericGrammarFor` →
-   `buildCreativeResolverPrompt` → `compilePrompt(input, resolution)`. */
-function CreatureResolver({ mon }: { mon: NonNullable<ReturnType<typeof useActiveMon>> }) {
-  const token = useApp((s) => s.token);
-  const resolveWithAi = useApp((s) => s.resolveWithAi);
-  const clearResolution = useApp((s) => s.clearResolution);
-
-  const [busy, setBusy] = useState(false);
-  const waiting = useElapsed(busy);
-  const [problems, setProblems] = useState<string[] | null>(null);
-
-  const prepared = useMemo(() => {
-    const input = characterDataFor(mon);
-    const numeric = numericGrammarFor(input);
-    return { input, numeric, prompt: buildCreativeResolverPrompt(input, numeric) };
-  }, [mon]);
-
-  const resolution = mon.resolution ?? null;
-  const compiled = resolution ? compilePrompt(prepared.input, resolution) : null;
-
-  const run = async () => {
-    setBusy(true);
-    setProblems(null);
-    const out = await resolveWithAi(mon.data.name);
-    setBusy(false);
-    setProblems(out.problems);
-  };
-
-  return (
-    <Section
-      title="IL PROMPT"
-      note="Un modello decide chi è questa creatura, il codice scrive il prompt. Meno di un centesimo, qualche secondo."
-    >
-      <Rows rows={[['STATO', compiled ? 'PRONTO' : 'DA FARE']]} />
-      {!token && <p className="note">Serve il segreto: SETUP → incolla il token.</p>}
-
-      {!compiled ? (
-        <Grid>
-          <Btn variant="dark" disabled={!token || busy} onClick={() => void run()}>
-            {busy ? waitingText('STO DECIDENDO', waiting) : 'DAMMI IL PROMPT'}
-          </Btn>
-        </Grid>
-      ) : (
-        <>
-          <p className="note">
-            {prepared.input.family} / {prepared.input.archetype} · {prepared.input.characterDesignDNA} ·{' '}
-            {compiled.prompt.length} caratteri
-          </p>
-          <CopyBtn text={compiled.prompt} label="COPIA IL PROMPT" />
-          <Grid>
-            <Btn
-              disabled={busy}
-              onClick={() => {
-                clearResolution(mon.data.name);
-                setProblems(null);
-                void run();
-              }}
-            >
-              RIFALLO
-            </Btn>
-          </Grid>
-          {compiled.warnings.length > 0 && (
-            <div className="rowlist">
-              {compiled.warnings.map((w, i) => (
-                <p key={i} className="note">⚠️ {w}</p>
-              ))}
-            </div>
-          )}
-        </>
-      )}
-      {problems && problems.length > 0 && (
-        <Notice title="PROBLEMI">{problems.join(' · ')}</Notice>
-      )}
-    </Section>
-  );
-}
-
-/* --- INSEGNA — priorità 2 ----------------------------------------------------
-   Stessa azione di DEV: `teachResolver(testo, turni)`. Stessa memoria:
-   `resolverMemoryWith(lessons)` — la STESSA funzione che compone il testo
-   per il modello, non una copia. */
-function CreatureTeach() {
-  const lessons = useApp((s) => s.lessons);
-  const teach = useApp((s) => s.teachResolver);
-  const forget = useApp((s) => s.forgetLesson);
-
-  const [bozza, setBozza] = useState('');
-  const [busy, setBusy] = useState(false);
-  const waiting = useElapsed(busy);
-  const [nota, setNota] = useState<string | null>(null);
-  const [showMemory, setShowMemory] = useState(false);
-  const memoria = resolverMemoryWith(lessons);
-
-  const manda = async () => {
-    const testo = bozza.trim();
-    if (!testo || busy) return;
-    const primaIds = lessons.map((l) => l.id);
-    setBozza('');
-    setBusy(true);
-    setNota(null);
-    const { reply, failure, detail } = await teach(testo, []);
-    setBusy(false);
-    const dopo = useApp.getState().lessons;
-    const imparata = dopo.find((l) => !primaIds.includes(l.id));
-    if (failure) setNota(detail ?? `chiamata fallita (${failure})`);
-    else setNota(imparata ? `imparato: «${imparata.text}»` : reply ? 'ha risposto, ma non ha aggiunto una lezione' : 'nessuna risposta');
-  };
-
-  return (
-    <>
-      <Section title="INSEGNA UNA REGOLA" note="Diventa una lezione nella MEMORIA RESOLVER, e resta anche dopo un reset.">
-        <label className="field">
-          COSA CORREGGERE
-          <textarea
-            value={bozza}
-            onChange={(e) => setBozza(e.target.value)}
-            rows={3}
-            placeholder="es. niente occhiali tondi, preferisce colori scuri…"
-          />
-        </label>
-        <Grid>
-          <Btn variant="dark" disabled={!bozza.trim() || busy} onClick={() => void manda()}>
-            {busy ? waitingText('STO INSEGNANDO', waiting) : 'INSEGNA'}
-          </Btn>
-        </Grid>
-        {nota && <p className="note">{nota}</p>}
-      </Section>
-
-      <Section title={`LEZIONI (${lessons.length})`}>
-        {lessons.length === 0 ? (
-          <p className="note">Nessuna lezione ancora.</p>
-        ) : (
-          <Rows rows={lessons.map((l) => [l.text, <Btn key={l.id} onClick={() => forget(l.id)}>DIMENTICALA</Btn>] as [string, ReactNode])} />
-        )}
-      </Section>
-
-      <Section title="MEMORIA RESOLVER">
-        <p className="note">
-          Non è memoria personale: è la conoscenza di progettazione che il resolver porta con sé —
-          la stessa che DEV → INSEGNA chiama «MEMORIA RESOLVER, TUTTA».
-        </p>
-        <Grid>
-          <Btn onClick={() => setShowMemory((v) => !v)}>{showMemory ? 'NASCONDI' : 'MOSTRA'} LA MEMORIA</Btn>
-        </Grid>
-        {showMemory && <pre className="note" style={{ whiteSpace: 'pre-wrap', border: '1px solid var(--line)', padding: 10 }}>{memoria}</pre>}
-      </Section>
-    </>
-  );
-}
-
-/* --- ASSET — priorità 3 ------------------------------------------------------
-   Stessa azione di DEV: `forgeEverything(monName)` / `writeBio(monName)`.
-   Stesse immagini: `getAssetUrlSync(monName, type)` legge la cache che
-   `LabApp` già scarica dal server all'apertura del laboratorio. */
-function CreatureAssets({ mon }: { mon: NonNullable<ReturnType<typeof useActiveMon>> }) {
-  const token = useApp((s) => s.token);
-  const forgeEverything = useApp((s) => s.forgeEverything);
-  const writeBio = useApp((s) => s.writeBio);
-  const progress = useApp((s) => s.forgeProgress);
-
-  const [busy, setBusy] = useState<'forge' | 'bio' | null>(null);
-  const waiting = useElapsed(busy !== null);
-  const [failures, setFailures] = useState<string[] | null>(null);
-
-  return (
-    <Section
-      title="ASSET"
-      note="Bio + le quattro immagini canoniche (CEL, TOY, DOODLE, EXPRESSION SHEET). Il master condiziona le altre: farlo bene una volta vale per tutte."
-    >
-      <div className="rowlist">
-        {ASSET_TYPES.map((def) => {
-          const url = getAssetUrlSync(mon.data.name, def.type);
-          return (
-            <div key={def.type} className="row">
-              <span>{def.label}</span>
-              <span className="value mono">
-                {url ? <img src={url} alt={def.label} style={{ maxWidth: 64, maxHeight: 64, display: 'block' }} /> : 'MANCA'}
-              </span>
-            </div>
-          );
-        })}
-      </div>
-
-      {progress && <p className="note">{progress.label} — {progress.done}/{progress.total}</p>}
-      {!token && <p className="note">Serve il segreto: SETUP → incolla il token.</p>}
-
-      <Grid>
-        <Btn
-          variant="dark"
-          disabled={!token || busy !== null}
-          onClick={() => {
-            setBusy('forge');
-            setFailures(null);
-            void forgeEverything(mon.data.name).then((f) => {
-              setBusy(null);
-              setFailures(f);
-            });
-          }}
-        >
-          {busy === 'forge' ? waitingText('STO FORGIANDO', waiting) : 'FORGIA TUTTO'}
-        </Btn>
-        <Btn
-          disabled={!token || busy !== null}
-          onClick={() => {
-            setBusy('bio');
-            void writeBio(mon.data.name).then(() => setBusy(null));
-          }}
-        >
-          {busy === 'bio' ? waitingText('STO SCRIVENDO', waiting) : 'RISCRIVI BIO'}
-        </Btn>
-      </Grid>
-      {failures && (
-        failures.length === 0
-          ? <p className="note">Tutto fatto.</p>
-          : <Notice title="NON RIUSCITI">{failures.join(' · ')}</Notice>
-      )}
-    </Section>
-  );
-}
-
-/* --- QUESTA CREATURA — priorità 4 (ispezione) -------------------------------- */
-function CreatureInspect({ mon }: { mon: NonNullable<ReturnType<typeof useActiveMon>> }) {
-  const [showJson, setShowJson] = useState(false);
-  return (
-    <>
-      <Section title={mon.data.name}>
-        <Rows
-          rows={[
-            ['FAMILY', mon.data.family],
-            ['ARCHETYPE', mon.data.family_archetype],
-            ['NATA IL GIORNO', String(mon.bornOnDay)],
-            ['HERITAGE TRAITS', String(mon.data.heritage_traits.length)],
-          ]}
-        />
-      </Section>
-      <Section title="BIO">
-        <p className="note">{mon.bio.story || 'Nessuna bio ancora.'}</p>
-      </Section>
-      <Section title="CHARACTER DATA">
-        <Grid>
-          <Btn onClick={() => setShowJson((v) => !v)}>{showJson ? 'NASCONDI' : 'MOSTRA'} JSON</Btn>
-        </Grid>
-        {showJson && <pre className="note" style={{ whiteSpace: 'pre-wrap', border: '1px solid var(--line)', padding: 10, maxHeight: 400, overflow: 'auto' }}>{JSON.stringify(mon.data, null, 2)}</pre>}
-      </Section>
-    </>
-  );
-}
-
-/* ============================================================================
    AI — «Non vedo modifiche alla schermata AI del lab.»
 
    🔴 Aveva ragione: questa scheda leggeva e scriveva `voiceModel` /
@@ -1375,11 +1077,11 @@ function Memory() {
       <PageHead
         kicker="VINZ.LAB / PERSONA"
         title="PERSONA"
-        lead="MOOD (il tono di adesso), OPINIONS (quello che il .mon ha maturato) e ADJUSTMENTS (come parla) — non memoria personale. Qui sotto anche VOICE, che stava solo in DEV → VOCE → PROVA."
+        lead="MOOD (il tono di adesso), OPINIONS (quello che il .mon ha maturato) e la modalità operativa della chat — non memoria personale. Qui sotto anche VOICE, che stava solo in DEV → VOCE → PROVA."
       />
 
       <Notice title="⚠️ ANCHE QUI SI SCRIVE">
-        La Build Mode qui sotto è quella vera: accesa, il .mon smette di essere
+        La modalità operativa qui sotto è quella vera: accesa, il .mon smette di essere
         un personaggio anche nella chat normale, finché non la rispegni.
       </Notice>
 
@@ -1432,14 +1134,24 @@ function Memory() {
         )}
       </Section>
 
-      <Section title="ADJUSTMENTS · BUILD MODE">
+      {/* 🔷 LAB INFORMATION ARCHITECTURE CLEANUP — «the user does not
+          understand what BUILD MODE does. Do NOT simply rename it. Trace
+          it.» Tracciato: `buildMode` è REALE, non residuo. Da
+          `state/store.ts` (~4978) e `ai/client.ts` (~144-163): quando è
+          acceso, la CHAT smette di rispondere in personaggio — il system
+          prompt cambia da quello vocale/persona a un prompt operativo
+          neutro, la memoria e la cronologia non vengono lette, il modello
+          passa a quello "pieno" con ragionamento, e se una chiamata fallisce
+          si vede l'errore vero invece della battuta di ripiego in
+          personaggio. Non tocca ASSET/RESOLVER/BIO — solo la CHAT. */}
+      <Section title="MODALITÀ OPERATIVA IN CHAT">
         <p className="note">
           {buildMode
-            ? 'Build Mode ON: nessun personaggio, nessuna memoria, nessun ripiego.'
-            : 'Character mode ON. Build Mode rende espliciti i guasti degli strumenti.'}
+            ? 'ACCESA: in chat il .mon non risponde più in personaggio. Niente memoria, niente cronologia, modello con ragionamento — e se qualcosa fallisce vedi l\'errore vero, non una battuta di ripiego.'
+            : 'SPENTA: la chat risponde in personaggio, con memoria e cronologia, e nasconde i guasti tecnici dietro una frase in tono.'}
         </p>
         <Btn variant={buildMode ? 'on' : undefined} onClick={() => setBuildMode(!buildMode)}>
-          {buildMode ? 'BACK TO CHARACTER' : 'TURN ON BUILD MODE'}
+          {buildMode ? 'TORNA IN PERSONAGGIO' : 'PASSA A MODALITÀ OPERATIVA'}
         </Btn>
       </Section>
 
@@ -1631,6 +1343,27 @@ function Usage() {
           <Btn onClick={() => window.print()}>ESPORTA / SALVA PDF</Btn>
           <p className="note">Si apre la stampa del dispositivo: scegli “Salva come PDF” per conservare il report.</p>
         </div>
+        {/* 🔷 LAB INFORMATION ARCHITECTURE CLEANUP — «audit how the
+            telemetry cost is calculated… report whether ACTUAL /
+            ESTIMATED / MIXED.»
+
+            🔒 VERIFICATO IN `_shared/spend.ts`: il TESTO è ATTUALE — i
+            token di input/output vengono letti dalla risposta vera del
+            fornitore, non stimati. Le IMMAGINI sono STIMATE — un prezzo
+            fisso per immagine (dal listino) moltiplicato per un fattore di
+            qualità (low/medium/high), non il costo reale fatturato dal
+            fornitore, che quest'app non riceve mai. Il totale del mese è
+            quindi MISTO: preciso sulla parte testo, una stima ragionevole
+            sulla parte immagini — che è anche la parte più grande della
+            spesa (per un Mon tipico, la maggioranza dei centesimi sono
+            immagini). Non è un errore da correggere: è cosa dice davvero
+            il numero. */}
+        <Notice title="ACCURATEZZA — TESTO ATTUALE, IMMAGINI STIMATE">
+          Il costo del TESTO viene dai token veri restituiti dal fornitore. Il costo delle
+          IMMAGINI è una stima — prezzo per immagine dal listino × fattore di qualità — non la
+          fattura reale, che questa app non riceve. Il totale sotto è quindi MISTO: preciso sul
+          testo, stimato sulle immagini (di solito la voce più grande).
+        </Notice>
         {/* 🔷 «Il LAB mostra i costi ma non il limite interno che può bloccare
             l'AI.» Prima riga della pagina, prima di ogni dettaglio: quanto ho
             speso, dov'è il muro, e se l'ho già colpito. */}
@@ -1691,6 +1424,7 @@ function Usage() {
         <Section title="BY MODEL / PROVIDER">
           <Rows rows={Object.entries(usage.byModel).map(([name, value]) => [name, summary(value)])} />
         </Section>
+        <LastMonCost events={usage.recentEvents} />
         <Section title="RECENT ACTIVITY">
           {usage.recentEvents.length === 0 ? <p className="note">Nessuna attività recente.</p> : <Rows rows={usage.recentEvents.slice(0, 20).map((event) => [
             `${event.action} · ${event.model}`,
@@ -1699,6 +1433,67 @@ function Usage() {
         </Section>
       </>}
     </section>
+  );
+}
+
+/* ============================================================================
+   LAST MON CREATION — COST PER MON
+
+   🔷 «Add a useful way to understand: HOW MUCH DID THIS MON CREATION COST?
+   Do NOT fake grouping by arbitrary time windows if a real creation/run id
+   exists. First inspect whether calls already carry a mon id… If no
+   reliable correlation exists, implement the smallest safe correlation
+   metadata needed for FUTURE creation runs. Do not fabricate historical
+   per-Mon totals that cannot be proven.»
+
+   🔒 NON ESISTEVA NESSUNA CORRELAZIONE — verificato in `_shared/spend.ts`:
+   né `UsageEvent` né `SpendEventMeta` portavano un id di run o il nome
+   del .mon, su nessuna chiamata. Il campo `monName` aggiunto a questo
+   giro (`AskRequest.monName` → `Payload.monName` → `recordSpend`) copre
+   OGGI SOLO la generazione immagini (`generate.ts` → `askImage`) — che è
+   anche la voce di spesa più grande, secondo la stessa telemetria che ha
+   fatto notare il problema. Resolver e Bio non lo portano ancora: si
+   vede sotto, onestamente, come «senza nome».
+
+   ⚠️ NIENTE FINESTRE TEMPORALI ARBITRARIE. Questo pannello raggruppa per
+   `monName` reale, non per «le ultime N ore»: se non c'è nessun evento
+   con `monName`, lo dice — non inventa un raggruppamento sui tempi. */
+function LastMonCost({ events }: { events: UsageEvent[] }) {
+  const withName = events.filter((e) => e.monName);
+  if (withName.length === 0) {
+    return (
+      <Section title="COSTO PER MON — ULTIMA CREAZIONE">
+        <Notice title="NESSUNA CORRELAZIONE ANCORA">
+          Prima di questo aggiornamento nessuna chiamata portava il nome del .mon nel registro di
+          spesa: non si può ricostruire il costo di creazioni passate senza inventarlo. Da adesso
+          in poi, ogni immagine forgiata lo dichiara — la prossima forgia comparirà qui.
+        </Notice>
+      </Section>
+    );
+  }
+  const lastName = withName[0]!.monName!;
+  const mine = withName.filter((e) => e.monName === lastName);
+  const images = mine.filter((e) => e.images > 0);
+  const text = mine.filter((e) => e.images === 0);
+  const total = mine.reduce((sum, e) => sum + e.estimatedCostUsd, 0);
+  const imagesCost = images.reduce((sum, e) => sum + e.estimatedCostUsd, 0);
+  const textCost = text.reduce((sum, e) => sum + e.estimatedCostUsd, 0);
+
+  return (
+    <Section
+      title="COSTO PER MON — ULTIMA CREAZIONE"
+      note="Solo le chiamate che portano il nome del .mon (oggi: le immagini). Resolver e Bio non sono ancora etichettati — non contati qui, non inventati."
+    >
+      <Rows
+        rows={[
+          ['MON', lastName],
+          ['TOTALE (tracciato)', `$${total.toFixed(4)}`],
+          ['IMMAGINI', `$${imagesCost.toFixed(4)} · ${images.length} chiamate`],
+          ['ALTRO TRACCIATO', `$${textCost.toFixed(4)} · ${text.length} chiamate`],
+          ['CHIAMATE TOTALI', String(mine.length)],
+        ]}
+      />
+    </Section>
   );
 }
 
@@ -2257,17 +2052,16 @@ function Shortcuts() {
 /* ============================================================================
    LEGACY — LO STATO DELLA CONSOLIDAZIONE
 
-   🔷 «After native integration, update LAB → LEGACY accurately. List only
-   tools genuinely not yet ported. Do NOT claim a feature is integrated
-   merely because an iframe exposes DEV.»
+   🔷 «LAB INFORMATION ARCHITECTURE CLEANUP — do not preserve a panel merely
+   because code exists for it… List only tools genuinely not yet ported.»
 
-   🔒 QUESTA VOLTA L'ELENCO È VERO. Il giro precedente segnava CREATURE e
-   VOCE come «integrate» perché un iframe apriva DEV — non lo erano, ed è il
-   motivo per cui questo task esiste. Adesso RESOLVER, INSEGNA, ASSET (con
-   BIO) e l'ispezione della creatura sono nativi in CREATURE, chiamando le
-   stesse azioni dello store; VOICE è nativa in PERSONA. Quello che resta
-   qui sotto è VERO codice ancora raggiungibile solo da DEV://VINZ.MON, non
-   uno stesso strumento dietro un'altra porta.
+   🔒 CREATURE NON C'È PIÙ COME DESTINAZIONE, E NON PERCHÉ SIA SPARITA:
+   RESOLVER, LESSONS, ASSET e STATE vivono adesso dentro CREATION.LAB —
+   stesse azioni dello store, un solo posto per «la creatura attuale»
+   invece di due. ASSISTENTE, SOUL.LAB e DESIGN.LAB sono rimossi del tutto
+   dal prodotto (esperimenti falliti o non più utili) — non sono in questa
+   lista perché non sono «da portare», sono chiusi. Quello che resta qui
+   sotto è codice vero, ancora raggiungibile solo da DEV://VINZ.MON.
    ========================================================================= */
 
 const LEGACY_REMAINING: { titolo: string; dove: string; perche: string }[] = [
@@ -2282,14 +2076,14 @@ const LEGACY_REMAINING: { titolo: string; dove: string; perche: string }[] = [
     perche: 'Taratura delle bande di rarità: uno strumento da chi bilancia il motore, non da chi gioca.',
   },
   {
-    titolo: 'CATALOGHI',
+    titolo: 'CATALOGHI — assi diversi da Family',
     dove: 'DEV → CREATURA → CATALOGHI',
-    perche: 'Accende/spegne Family, archetipi, stili — configurazione, non uso quotidiano.',
+    perche: 'CREATION → FAMILY copre già l\'asse Family; affinity/role/fashion/mood/appearance/design/size restano qui.',
   },
   {
     titolo: 'PROMPT IMMAGINI — anteprima/riscrittura',
     dove: 'DEV → CREATURA → PROMPT IMMAGINI',
-    perche: 'CREATURE → ASSET forgia le immagini vere; questa resta la vista sul prompt grezzo, per chi lo sta mettendo a punto.',
+    perche: 'CREATION → ASSETS forgia le immagini vere; questa resta la vista sul prompt grezzo, per chi lo sta mettendo a punto.',
   },
   {
     titolo: 'PROVE — protocollo designer §12',
@@ -2324,13 +2118,13 @@ function Legacy() {
       <PageHead
         kicker="VINZ.LAB / SYSTEM"
         title="LEGACY"
-        lead="RESOLVER, INSEGNA, ASSET e VOICE sono nativi (CREATURE, PERSONA), non dietro un iframe. Quello che resta è codice vero, ancora raggiungibile solo da DEV."
+        lead="CREATURE non esiste più: RESOLVER, LESSONS, ASSET e STATE sono in CREATION.LAB. ASSISTENTE, SOUL.LAB e DESIGN.LAB sono rimossi dal prodotto. Quello che resta è codice vero, ancora raggiungibile solo da DEV."
       />
 
       <Notice title="✅ IL FLUSSO PRINCIPALE È NATIVO">
-        SAVE, CREATURE (Resolver/Insegna/Asset/ispezione), PERSONA (Voice/Mood/Opinions/Build
-        Mode), SIMULATION (Tempo/+1 giorno/SYNC) e AI sono componenti di LAB, non finestre su
-        DEV: chiamano le stesse azioni dello store, disegnate coi mattoni del laboratorio.
+        SAVE, CREATION (Resolver/Lessons/Asset/State/Family), PERSONA (Voice/Mood/Opinions),
+        SIMULATION (Tempo/+1 giorno/SYNC) e AI sono componenti di LAB, non finestre su DEV:
+        chiamano le stesse azioni dello store, disegnate coi mattoni del laboratorio.
       </Notice>
 
       <Section

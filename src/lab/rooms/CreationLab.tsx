@@ -21,11 +21,24 @@
    ========================================================================= */
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { useApp } from '../../state/store';
+import { useApp, useActiveMon } from '../../state/store';
 import { lastChatTrace, subscribeChatTrace, type ChatTrace } from '../../ai/chatTrace';
 import { FASI, PASSI, type FaseId } from './creationFlow';
 import { FAMILIES, MOODS, VOICE_PRESETS } from '../../engine/generation-config';
-import { keepEnabled } from '../../engine/catalogTuning';
+import { keepEnabled, isEnabled, setCatalogEnabled } from '../../engine/catalogTuning';
+/* 🔷 LAB INFORMATION ARCHITECTURE CLEANUP — reuse LOGIC, not a copy: le
+   stesse funzioni che il resolver/asset/lezioni di SYSTEM.LAB → CREATURE
+   chiamavano, montate qui con i mattoni di CREATION (`.page`/`.kicker`/
+   `.tokenlist`/`.notice`, non `parts.tsx` di SYSTEM.LAB — coerenza visiva
+   con lo STATE/HISTORY che c'erano già). */
+import { useElapsed, waitingText } from '../../dev/useElapsed';
+import { characterDataFor } from '../../assets-pipeline/resolver/adapter';
+import { numericGrammarFor } from '../../assets-pipeline/resolver/vendor/rules';
+import { buildCreativeResolverPrompt } from '../../assets-pipeline/resolver/vendor/resolver';
+import { compilePrompt } from '../../assets-pipeline/resolver/vendor/compiler';
+import { resolverMemoryWith } from '../../assets-pipeline/resolver/memory';
+import { ASSET_TYPES } from '../../engine/assets';
+import { getAssetUrlSync } from '../../assets-pipeline/assetStore';
 import { PERSONALITY_KEYS, type PersonalityKey } from '../../engine/signals';
 import { SCAN_QUESTIONS, seedSpread } from '../../engine/personalityScan';
 import { MOOD_AFFINITY } from '../../engine/characterGenerator';
@@ -56,7 +69,6 @@ import {
   type StatoJob,
 } from './duelImages';
 import { EYEWEAR_CATEGORIES, HAIRCUTS, HAIR_STATES } from '../../engine/generation-config';
-import { LabAssistantPanel } from '../assistant/LabAssistantPanel';
 import { TaxonomyLab } from './TaxonomyLab';
 import { TaxonomyVersionControl } from '../TaxonomyVersionControl';
 import { labSyncCode } from '../../system/build';
@@ -64,15 +76,26 @@ import { taxonomyDescriptionVersion, type TaxonomyDescriptionVersion } from '../
 import type { GenerationTrace, MonRecord } from '../../engine/types';
 import '../skin/creation.css';
 
+/* 🔷 LAB INFORMATION ARCHITECTURE CLEANUP — «CREATURE deve integrarsi in
+   CREATION, non esistere come destinazione a parte.» RESOLVER e ASSET erano
+   nativi solo in SYSTEM.LAB → CREATURE (una consultazione fa ricadere il
+   torto: era proprio la duplicazione concettuale da correggere). Adesso
+   sono qui, stesse azioni dello store (`resolveWithAi`, `forgeEverything`,
+   `writeBio`), non una copia. LEARNED diventa LESSONS e guadagna
+   insegna/dimentica (prima solo lettura). TASSONOMIA diventa FAMILY: le
+   famiglie vere (`generation-config.ts`) affiancano il compositore di
+   bozze che già c'era, invece di lasciarlo sembrare l'unico editor. ASSISTENTE
+   è tolto ovunque nel prodotto — l'esperimento non funzionava. */
 const TABS = [
   { id: 'map', label: 'FLOW' },
-  { id: 'taxonomy', label: 'TASSONOMIA' },
+  { id: 'state', label: 'STATE' },
+  { id: 'resolver', label: 'RESOLVER' },
+  { id: 'lessons', label: 'LESSONS' },
+  { id: 'assets', label: 'ASSETS' },
+  { id: 'family', label: 'FAMILY' },
   { id: 'persona', label: 'PERSONALITÀ' },
   { id: 'train', label: 'BUILD' },
-  { id: 'learned', label: 'LEARNED' },
-  { id: 'state', label: 'STATE' },
   { id: 'versions', label: 'HISTORY' },
-  { id: 'assistant', label: '🤖 ASSISTENTE' },
 ];
 
 export function CreationLab({ onBack }: { onBack: () => void }) {
@@ -123,11 +146,12 @@ export function CreationLab({ onBack }: { onBack: () => void }) {
           />
         )}
         {tab === 'train' && <Build avvio={avvioDalFlusso} />}
-        {tab === 'learned' && <Learned />}
         {tab === 'state' && <State />}
+        {tab === 'resolver' && <Resolver />}
+        {tab === 'lessons' && <Lessons />}
+        {tab === 'assets' && <Assets />}
+        {tab === 'family' && <Family />}
         {tab === 'versions' && <History />}
-        {tab === 'assistant' && <LabAssistantPanel />}
-        {tab === 'taxonomy' && <TaxonomyLab />}
         {tab === 'persona' && <Persona />}
         <div className="footer mono">
           <strong>SYNC {labSyncCode()}</strong>
@@ -1383,30 +1407,84 @@ function Pick({ on, onClick, label, nota }: { on: boolean; onClick: () => void; 
    LEARNED — le lezioni vere
    ========================================================================= */
 
-function Learned() {
+/* ============================================================================
+   LESSONS — FINAL DEV → LAB / CREATION CONSOLIDATION
+
+   🔷 «The current consolidation forgot LESSONS. This is a mistake. Lessons
+   given to the Resolver/Creator are important and must be visible.»
+
+   🔒 QUESTA È CONOSCENZA DI PROGETTAZIONE DEL RESOLVER, NON MEMORIA
+   PERSONALE. Stessa azione dello store di sempre (`teachResolver`,
+   `forgetLesson`), stessa funzione che compone il testo per il modello
+   (`resolverMemoryWith`) — prima LEARNED la leggeva soltanto, adesso si
+   insegna e si dimentica da qui, invece che solo da SYSTEM.LAB.
+   ========================================================================= */
+
+function Lessons() {
   const lessons = useApp((s) => s.lessons);
   const forgotten = useApp((s) => s.forgottenLessons);
+  const teach = useApp((s) => s.teachResolver);
+  const forget = useApp((s) => s.forgetLesson);
+
+  const [bozza, setBozza] = useState('');
+  const [busy, setBusy] = useState(false);
+  const waiting = useElapsed(busy);
+  const [nota, setNota] = useState<string | null>(null);
+  const [showMemory, setShowMemory] = useState(false);
+  const memoria = resolverMemoryWith(lessons);
+
+  const manda = async () => {
+    const testo = bozza.trim();
+    if (!testo || busy) return;
+    const primaIds = lessons.map((l) => l.id);
+    setBozza('');
+    setBusy(true);
+    setNota(null);
+    const { reply, failure, detail } = await teach(testo, []);
+    setBusy(false);
+    const dopo = useApp.getState().lessons;
+    const imparata = dopo.find((l) => !primaIds.includes(l.id));
+    if (failure) setNota(detail ?? `chiamata fallita (${failure})`);
+    else setNota(imparata ? `imparato: «${imparata.text}»` : reply ? 'ha risposto, ma non ha aggiunto una lezione' : 'nessuna risposta');
+  };
 
   return (
     <section className="page active">
-      <div className="kicker mono">RESOLVER MEMORY</div>
-      <h1>LEARNED</h1>
+      <div className="kicker mono">RESOLVER KNOWLEDGE — NON MEMORIA PERSONALE</div>
+      <h1>LESSONS</h1>
       <p className="lead">
-        Quello che hai insegnato al resolver, e che si applica alle creature che nascono da adesso
-        in poi. Sono lezioni vere: le legge il prompt del resolver.
+        Quello che hai insegnato al resolver: si applica alle creature che nascono da adesso in
+        poi. Non è Mem0, non è memoria personale — è la conoscenza di progettazione del resolver.
       </p>
 
+      <label className="field" style={{ display: 'block', fontSize: 9, color: '#777', letterSpacing: '.05em' }}>
+        COSA CORREGGERE
+        <textarea
+          value={bozza}
+          onChange={(e) => setBozza(e.target.value)}
+          rows={3}
+          placeholder="es. niente occhiali tondi, preferisce colori scuri…"
+          style={{ width: '100%', border: '1px solid var(--line)', padding: 9, marginTop: 4, fontSize: 12 }}
+        />
+      </label>
+      <button type="button" className="btn dark" disabled={!bozza.trim() || busy} onClick={() => void manda()} style={{ marginTop: 8 }}>
+        {busy ? waitingText('STO INSEGNANDO', waiting) : 'INSEGNA'}
+      </button>
+      {nota && <p className="lead mono" style={{ fontSize: 11, marginTop: 8 }}>{nota}</p>}
+
+      <p className="lead" style={{ fontSize: 13, marginTop: 20 }}>LEZIONI ({lessons.length})</p>
       {lessons.length === 0 ? (
         <div className="notice mono">
           <strong>NIENTE ANCORA</strong>
           <br />
-          Le lezioni si scrivono commentando le decisioni del resolver, non aprendo questa scheda.
+          Le lezioni si scrivono commentando le decisioni del resolver, o insegnandole qui sopra.
         </div>
       ) : (
         lessons.map((l) => (
           <div className="lesson" key={l.id}>
             <strong className="mono">{l.about ?? 'GENERALE'}</strong>
             <p>{l.text}</p>
+            <button type="button" className="btn" onClick={() => forget(l.id)}>DIMENTICALA</button>
           </div>
         ))
       )}
@@ -1416,6 +1494,292 @@ function Learned() {
           {forgotten.length} lezioni dimenticate di proposito.
         </p>
       )}
+
+      <p className="lead" style={{ fontSize: 13, marginTop: 20 }}>MEMORIA RESOLVER, TUTTA</p>
+      <button type="button" className="btn" onClick={() => setShowMemory((v) => !v)}>
+        {showMemory ? 'NASCONDI' : 'MOSTRA'} LA MEMORIA
+      </button>
+      {showMemory && (
+        <pre className="mono" style={{ fontSize: 10, whiteSpace: 'pre-wrap', border: '1px solid var(--line)', padding: 10, marginTop: 8 }}>
+          {memoria}
+        </pre>
+      )}
+    </section>
+  );
+}
+
+/* ============================================================================
+   RESOLVER — priorità 1. Stessa azione di sempre: `resolveWithAi`.
+   ========================================================================= */
+
+function Resolver() {
+  const mon = useActiveMon();
+  const token = useApp((s) => s.token);
+  const resolveWithAi = useApp((s) => s.resolveWithAi);
+  const clearResolution = useApp((s) => s.clearResolution);
+
+  const [busy, setBusy] = useState(false);
+  const waiting = useElapsed(busy);
+  const [problems, setProblems] = useState<string[] | null>(null);
+
+  const prepared = useMemo(() => {
+    if (!mon) return null;
+    const input = characterDataFor(mon);
+    const numeric = numericGrammarFor(input);
+    return { input, numeric, prompt: buildCreativeResolverPrompt(input, numeric) };
+  }, [mon]);
+
+  if (!mon || !prepared) {
+    return (
+      <section className="page active">
+        <div className="kicker mono">IL PROMPT</div>
+        <h1>RESOLVER</h1>
+        <div className="notice mono">
+          <strong>NESSUN .MON ATTIVO</strong>
+          <br />
+          Serve una creatura attiva per chiedere una risoluzione visiva.
+        </div>
+      </section>
+    );
+  }
+
+  const resolution = mon.resolution ?? null;
+  const compiled = resolution ? compilePrompt(prepared.input, resolution) : null;
+
+  const run = async () => {
+    setBusy(true);
+    setProblems(null);
+    const out = await resolveWithAi(mon.data.name);
+    setBusy(false);
+    setProblems(out.problems);
+  };
+
+  return (
+    <section className="page active">
+      <div className="kicker mono">IL PROMPT</div>
+      <h1>RESOLVER</h1>
+      <p className="lead">
+        Un modello decide chi è questa creatura, il codice scrive il prompt. Meno di un centesimo,
+        qualche secondo. Stato: {compiled ? 'PRONTO' : 'DA FARE'}.
+      </p>
+
+      {!token && <p className="lead mono" style={{ fontSize: 11 }}>Serve il segreto: FLOW → attiva VINZ.MON.</p>}
+
+      {!compiled ? (
+        <button type="button" className="btn dark" disabled={!token || busy} onClick={() => void run()}>
+          {busy ? waitingText('STO DECIDENDO', waiting) : 'DAMMI IL PROMPT'}
+        </button>
+      ) : (
+        <>
+          <p className="lead mono" style={{ fontSize: 11 }}>
+            {prepared.input.family} / {prepared.input.archetype} · {prepared.input.characterDesignDNA} ·{' '}
+            {compiled.prompt.length} caratteri
+          </p>
+          <CreationCopyBtn text={compiled.prompt} label="COPIA IL PROMPT" />
+          <button
+            type="button"
+            className="btn"
+            disabled={busy}
+            style={{ marginTop: 8 }}
+            onClick={() => { clearResolution(mon.data.name); setProblems(null); void run(); }}
+          >
+            RIFALLO
+          </button>
+          {compiled.warnings.length > 0 && (
+            <div className="tokenlist" style={{ marginTop: 10 }}>
+              {compiled.warnings.map((w, i) => (
+                <p key={i} className="lead mono" style={{ fontSize: 11 }}>⚠️ {w}</p>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+      {problems && problems.length > 0 && (
+        <div className="notice mono" style={{ marginTop: 10 }}>{problems.join(' · ')}</div>
+      )}
+    </section>
+  );
+}
+
+function CreationCopyBtn({ text, label }: { text: string; label: string }) {
+  const [state, setState] = useState<'idle' | 'done' | 'failed'>('idle');
+  return (
+    <button
+      type="button"
+      className="btn"
+      onClick={() => {
+        const done = (s: 'done' | 'failed') => { setState(s); window.setTimeout(() => setState('idle'), 2000); };
+        const api = navigator.clipboard;
+        if (!api) { done('failed'); return; }
+        void api.writeText(text).then(() => done('done'), () => done('failed'));
+      }}
+    >
+      {state === 'done' ? 'COPIATO' : state === 'failed' ? 'NON RIESCO' : label}
+    </button>
+  );
+}
+
+/* ============================================================================
+   ASSETS — priorità 3. Stessa azione di sempre: `forgeEverything`/`writeBio`.
+   ========================================================================= */
+
+function Assets() {
+  const mon = useActiveMon();
+  const token = useApp((s) => s.token);
+  const forgeEverything = useApp((s) => s.forgeEverything);
+  const writeBio = useApp((s) => s.writeBio);
+  const progress = useApp((s) => s.forgeProgress);
+
+  const [busy, setBusy] = useState<'forge' | 'bio' | null>(null);
+  const waiting = useElapsed(busy !== null);
+  const [failures, setFailures] = useState<string[] | null>(null);
+
+  if (!mon) {
+    return (
+      <section className="page active">
+        <div className="kicker mono">BIO + IMMAGINI</div>
+        <h1>ASSETS</h1>
+        <div className="notice mono">
+          <strong>NESSUN .MON ATTIVO</strong>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="page active">
+      <div className="kicker mono">BIO + IMMAGINI</div>
+      <h1>ASSETS</h1>
+      <p className="lead">
+        Bio + le quattro immagini canoniche (CEL, TOY, DOODLE, EXPRESSION SHEET). Il master
+        condiziona le altre: farlo bene una volta vale per tutte.
+      </p>
+
+      <div className="tokenlist">
+        {ASSET_TYPES.map((def) => {
+          const url = getAssetUrlSync(mon.data.name, def.type);
+          return (
+            <div className="row" key={def.type}>
+              <div><b>{def.label}</b></div>
+              <span className="value mono">
+                {url ? <img src={url} alt={def.label} style={{ maxWidth: 64, maxHeight: 64, display: 'block' }} /> : 'MANCA'}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+
+      {progress && <p className="lead mono" style={{ fontSize: 11 }}>{progress.label} — {progress.done}/{progress.total}</p>}
+      {!token && <p className="lead mono" style={{ fontSize: 11 }}>Serve il segreto: FLOW → attiva VINZ.MON.</p>}
+
+      <button
+        type="button"
+        className="btn dark"
+        disabled={!token || busy !== null}
+        style={{ marginTop: 10 }}
+        onClick={() => {
+          setBusy('forge');
+          setFailures(null);
+          void forgeEverything(mon.data.name).then((f) => { setBusy(null); setFailures(f); });
+        }}
+      >
+        {busy === 'forge' ? waitingText('STO FORGIANDO', waiting) : 'FORGIA TUTTO'}
+      </button>
+      <button
+        type="button"
+        className="btn"
+        disabled={!token || busy !== null}
+        style={{ marginTop: 8, marginLeft: 8 }}
+        onClick={() => { setBusy('bio'); void writeBio(mon.data.name).then(() => setBusy(null)); }}
+      >
+        {busy === 'bio' ? waitingText('STO SCRIVENDO', waiting) : 'RISCRIVI BIO'}
+      </button>
+      {failures && (
+        failures.length === 0
+          ? <p className="lead mono" style={{ fontSize: 11, marginTop: 8 }}>Tutto fatto.</p>
+          : <div className="notice mono" style={{ marginTop: 10 }}>{failures.join(' · ')}</div>
+      )}
+    </section>
+  );
+}
+
+/* ============================================================================
+   FAMILY — FINAL DEV → LAB CLEANUP: era «TASSONOMIA», e nascondeva che sono
+   TRE cose diverse dietro un nome solo:
+
+     1. quali delle 18 family/archetipi fissi sono estraibili adesso
+        (`catalogTuning.ts` — accende/spegne, non crea)
+     2. quale VERSIONE DI PROSA usano i prompt per le stesse 18 family
+        (`taxonomy-versions.ts`, il controllo v1/v2 in testata — non tocca
+        id, pesi o numero di archetipi)
+     3. una coda di BOZZE per famiglie nuove (`TaxonomyLab`, sotto) — non
+        entra MAI nel motore da sola: resta una proposta finché qualcuno
+        non la porta dentro a mano nel codice.
+
+   🔒 NON SI PUÒ CREARE UNA FAMILY VERA DA QUI. `FAMILIES` è un array
+   TypeScript fisso in `generation-config.ts`; non esiste una scrittura a
+   runtime che ne aggiunga una. Il pulsante qui sotto lo dice invece di
+   fingere che funzioni.
+   ========================================================================= */
+
+function Family() {
+  const [, force] = useState(0);
+  return (
+    <section className="page active">
+      <div className="kicker mono">FAMILY · TASSONOMIA</div>
+      <h1>FAMILY</h1>
+      <p className="lead">
+        Le 18 famiglie esistono nel codice, non in un database: qui sotto puoi accenderle/
+        spegnerle e scegliere la versione di prosa che usano — non crearne una nuova davvero.
+      </p>
+
+      <p className="lead" style={{ fontSize: 13 }}>FAMIGLIE ESISTENTI</p>
+      <div className="tokenlist">
+        {FAMILIES.map((f) => {
+          const on = isEnabled('family', f.id);
+          return (
+            <div className="row" key={f.id}>
+              <div>
+                <b>{f.id}</b>
+                <small style={{ display: 'block', color: '#777', fontSize: 10 }}>
+                  {f.archetypes.length} archetipi · {f.it}
+                </small>
+              </div>
+              <button
+                type="button"
+                className="btn"
+                onClick={() => { setCatalogEnabled('family', f.id, !on); force((n) => n + 1); }}
+              >
+                {on ? 'ACCESA' : 'SPENTA'}
+              </button>
+            </div>
+          );
+        })}
+      </div>
+
+      <p className="lead" style={{ fontSize: 13, marginTop: 18 }}>+ NUOVA FAMILY</p>
+      <div className="notice mono">
+        <strong>NON SUPPORTATO OGGI</strong>
+        <br />
+        `FAMILIES` è un elenco fisso nel codice (`generation-config.ts`), letto da almeno cinque
+        altri punti del motore (logica del volto, semi di default, compatibilità coi vestiti, la
+        versione v2 della prosa…). Aggiungerne una vera richiede una modifica al codice e un
+        redeploy — non un modulo qui dentro. Sotto, la coda di bozze prepara il testo per quella
+        modifica: non sostituisce il redeploy.
+      </div>
+
+      <p className="lead" style={{ fontSize: 13, marginTop: 18 }}>VERSIONE DI PROSA</p>
+      <p className="lead mono" style={{ fontSize: 11 }}>
+        Il controllo v1/v2 (in testata, sempre visibile) sceglie fra due prosa diverse per le
+        STESSE famiglie — non aggiunge o toglie niente al catalogo.
+      </p>
+
+      <p className="lead" style={{ fontSize: 13, marginTop: 18 }}>BOZZE PER FAMIGLIE NUOVE</p>
+      <p className="lead mono" style={{ fontSize: 11 }}>
+        Il compositore qui sotto scrive proposte tecniche complete con l'AI. Restano in coda:
+        nessuna entra nel motore da sola.
+      </p>
+      <TaxonomyLab />
     </section>
   );
 }
@@ -1454,6 +1818,13 @@ function State() {
     ['ROLE', d.role],
     ['FASHION', d.fashion],
     ['MOOD', d.mood_primary],
+    /* 🔷 LAB INFORMATION ARCHITECTURE CLEANUP — questi tre stavano solo
+       nell'ex CREATURE → QUESTA CREATURA di SYSTEM.LAB (una superficie a
+       parte che mostrava lo stesso .mon con più campi). Un solo STATE,
+       non due: qui prende i campi che a QUESTA CREATURA c'erano e a STATE
+       no, invece di lasciarli in due posti diversi. */
+    ['NATA IL GIORNO', String(mon.bornOnDay)],
+    ['HERITAGE TRAITS', String(d.heritage_traits.length)],
   ];
 
   return (
@@ -1472,7 +1843,30 @@ function State() {
           </div>
         ))}
       </div>
+
+      <p className="lead" style={{ fontSize: 13, marginTop: 18 }}>BIO</p>
+      <div className="notice mono" style={{ marginBottom: 12 }}>
+        {mon.bio.story || 'Nessuna bio ancora.'}
+      </div>
+
+      <StateJson mon={mon} />
     </section>
+  );
+}
+
+function StateJson({ mon }: { mon: MonRecord }) {
+  const [show, setShow] = useState(false);
+  return (
+    <>
+      <button type="button" className="btn" onClick={() => setShow((v) => !v)}>
+        {show ? 'NASCONDI' : 'MOSTRA'} CHARACTER DATA (JSON)
+      </button>
+      {show && (
+        <pre className="mono" style={{ fontSize: 10, whiteSpace: 'pre-wrap', border: '1px solid var(--line)', padding: 10, marginTop: 8, maxHeight: 360, overflow: 'auto' }}>
+          {JSON.stringify(mon.data, null, 2)}
+        </pre>
+      )}
+    </>
   );
 }
 
@@ -1494,6 +1888,10 @@ function History() {
         Le forme che questa entità ha avuto, in ordine di comparsa. Non è una collezione di
         creature diverse: è la stessa, in configurazioni diverse.
       </p>
+      <div className="notice mono">
+        Questo non è un salvataggio: non scrive né legge nulla dal server. Per salvare o
+        riprendere uno stato usa SYSTEM → SAVE.
+      </div>
 
       {forme.length === 0 ? (
         <div className="notice mono">

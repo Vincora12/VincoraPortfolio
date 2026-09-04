@@ -86,6 +86,15 @@ export interface AskRequest {
    * di un modello inventato non lo fa chiamare — fa tornare al predefinito.
    */
   voiceModel?: string | null;
+  /* 🔷 LAB INFORMATION ARCHITECTURE CLEANUP — «Cost per Mon… use an
+     existing correlation identifier if possible, else implement the
+     smallest safe correlation metadata for future runs.» Non esisteva
+     nessun id di correlazione: né sul client né sul server. Questo campo
+     è quel minimo — il nome del .mon per cui questa chiamata lavora,
+     quando lo sappiamo — e il server lo scrive nell'evento di spesa solo
+     se presente. Gli eventi vecchi restano senza, ed è onesto che sia
+     così. */
+  monName?: string;
 }
 
 /**
@@ -183,6 +192,8 @@ export interface UsageEvent {
   outputTokens: number;
   images: number;
   estimatedCostUsd: number;
+  /** Assente sugli eventi registrati prima di questo campo — onesto, non si inventa. */
+  monName?: string;
 }
 
 export interface UsageDashboard {
@@ -486,6 +497,8 @@ export function askImage(
    * porta e non cambia il prodotto.
    */
   quality?: 'low' | 'medium' | 'high',
+  /** Per chi sta costando: vedi `AskRequest.monName`. */
+  monName?: string,
 ): Promise<BackendResult<ImageData>> {
   return post<ImageData>('/api/ai', token, {
     capability: 'image',
@@ -493,6 +506,7 @@ export function askImage(
     voiceModel: imageModel,
     ...(reference ? { reference } : {}),
     ...(quality ? { quality } : {}),
+    ...(monName ? { monName } : {}),
     size,
   });
 }

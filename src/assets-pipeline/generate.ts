@@ -164,6 +164,9 @@ export async function generateMissingAssets(
          che dimensione finisce sotto gli occhi. `opts.quality` vince solo
          quando c'è: è la bozza di DEV, che abbassa tutto per le prove. */
       opts.quality ?? assetTypeDef(type).quality,
+      /* Per LAB → AI → COST PER MON: questa chiamata sa già per quale
+         creatura sta disegnando. */
+      name,
     );
 
     if (!res.data) {
