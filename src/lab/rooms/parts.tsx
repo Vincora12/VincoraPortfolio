@@ -183,3 +183,35 @@ export function PageHead({
     </>
   );
 }
+
+/* ============================================================================
+   DEV EMBED — LO STRUMENTO VERO, DENTRO LAB
+
+   🔷 FINAL DEV → LAB CONSOLIDATION — «LAB diventa l'unica sala controllo.»
+
+   🔒 PERCHÉ UN IFRAME E NON UNA SECONDA IMPLEMENTAZIONE. VINZ.LAB e
+   VINZ.MON sono due DOCUMENTI diversi (`vite.config.ts`: due pagine, due
+   fogli di stile — il laboratorio non carica quello dell'app, di proposito:
+   vedi `src/appStyles.ts`). Montare qui dentro un componente DEV vero (per
+   esempio `ResolverSection`) lo farebbe girare SENZA i suoi token
+   (`--white`, `--ink`, `--signal-alert`…), che questa pagina non definisce:
+   sembrerebbe rotto anche se il codice sotto è identico. Riscriverlo con i
+   mattoni del laboratorio sarebbe la seconda implementazione che la
+   consulenza vieta esplicitamente («avoid duplicate logic»).
+
+   Un iframe sullo stesso indirizzo (`/?openDevGroup=…`) risolve i due
+   problemi insieme: monta il documento VERO, coi suoi token veri, quindi
+   lo stesso identico strumento — e resta comunque dentro la pagina di LAB,
+   quindi chi lo usa non deve sapere che DEV esiste come indirizzo a parte.
+   Stessa tecnica già in uso in DESIGN.LAB per le schermate vere (differenza:
+   qui NON è a sola lettura — questi strumenti scrivono per davvero, come
+   hanno sempre fatto). */
+export function DevEmbed({ group, title }: { group: 'creatura' | 'voce'; title: string }) {
+  return (
+    <iframe
+      className="devembed"
+      title={title}
+      src={`/?openDevGroup=${group}`}
+    />
+  );
+}

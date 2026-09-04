@@ -35,7 +35,7 @@ import {
   modelForStep,
   recommendedModel,
 } from '../../../netlify/functions/_shared/routing';
-import { Btn, Grid, LabTop, Notice, PageHead, Range, Rows, Section, Status } from './parts';
+import { Btn, DevEmbed, Grid, LabTop, Notice, PageHead, Range, Rows, Section, Status } from './parts';
 import { LabAssistantPanel } from '../assistant/LabAssistantPanel';
 /* 🔷 LAB CONSOLIDATION + SAVE CONTROL. Il confronto LOCALE·SERVER e il
    verdetto vivono in `state/saveComparison.ts` — le stesse funzioni che
@@ -76,9 +76,19 @@ const TABS = [
      la stessa: «sta funzionando davvero, o sto solo indovinando?» — solo
      che questa volta la risposta è sulla partita, non sul backend. */
   { id: 'save', label: 'SAVE' },
+  /* 🔷 FINAL DEV → LAB CONSOLIDATION — Resolver, Insegna, Bio, Mondo,
+     Rarità, Asset, Prompt Immagini, Cataloghi, Prove: undici schede che
+     esistevano solo dentro DEV → CREATURA, adesso raggiungibili da qui.
+     Stesso motore, vedi `DevEmbed` in `./parts.tsx` per il perché di un
+     iframe invece di una riscrittura. */
+  { id: 'creature', label: 'CREATURE' },
   { id: 'ai', label: 'AI' },
   { id: 'simulation', label: 'SIMULATION' },
-  { id: 'memory', label: 'MEMORY' },
+  /* 🔷 Era «MEMORY», ed era il nome sbagliato: qui dentro non c'è mai stata
+     una memoria personale, sono MOOD/OPINIONS/BUILD MODE — lo strato di
+     persona, non di ricordo. Adesso porta anche VOCE, che stava solo in
+     DEV → VOCE → PROVA. */
+  { id: 'memory', label: 'PERSONA' },
   { id: 'machines', label: 'MACHINES' },
   { id: 'usage', label: 'USAGE' },
   { id: 'runtime-log', label: 'RUNTIME LOG' },
@@ -115,6 +125,7 @@ export function SystemLab({ onBack }: { onBack: () => void }) {
       <main>
         {tab === 'setup' && <Setup />}
         {tab === 'save' && <Save />}
+        {tab === 'creature' && <Creature />}
         {tab === 'ai' && <Ai />}
         {tab === 'simulation' && <Simulation />}
         {tab === 'memory' && <Memory />}
@@ -657,6 +668,39 @@ function Save() {
    ========================================================================= */
 
 /* ============================================================================
+   CREATURE — FINAL DEV → LAB CONSOLIDATION
+
+   🔷 «LAB diventa l'unica sala controllo per SYSTEM / CREATURE / PERSONA /
+   SIMULATION / AI.»
+
+   🔒 QUESTA SCHEDA NON RIDISEGNA RESOLVER, NON CAMBIA LA GENERAZIONE DELLA
+   CREATURA, NON TOCCA I PROMPT. È navigazione: undici schede di DEV →
+   CREATURA (Genera, Bio, Resolver, Insegna, Mindline, Mondo, Rarità, Asset,
+   Prompt Immagini, Cataloghi, Prove) diventano raggiungibili da qui, tutte
+   insieme, senza riscrivere una riga del motore sotto. Vedi `DevEmbed` in
+   `./parts.tsx` per il perché di un iframe invece di una copia.
+   ========================================================================= */
+
+function Creature() {
+  return (
+    <section className="page active">
+      <PageHead
+        kicker="VINZ.LAB / CREATURE"
+        title="CREATURE"
+        lead="Resolver, Insegna, Bio, Mondo, Rarità, Asset, Prompt Immagini, Cataloghi, Prove — lo stesso motore di DEV → CREATURA, aperto da qui."
+      />
+      <Notice title="STRUMENTO LIVE, NON UNA COPIA">
+        Quello che vedi sotto è DEV://VINZ.MON vero, sullo stesso .mon attivo:
+        scrive per davvero. Le schede in alto (dentro la cornice) portano a
+        GENERA · BIO · RESOLVER · INSEGNA · MINDLINE · MONDO · RARITÀ · ASSET ·
+        PROMPT IMMAGINI · CATALOGHI · PROVE.
+      </Notice>
+      <DevEmbed group="creatura" title="DEV → CREATURA" />
+    </section>
+  );
+}
+
+/* ============================================================================
    AI — «Non vedo modifiche alla schermata AI del lab.»
 
    🔴 Aveva ragione: questa scheda leggeva e scriveva `voiceModel` /
@@ -943,9 +987,9 @@ function Memory() {
   return (
     <section className="page active">
       <PageHead
-        kicker="SYSTEM.LAB / INNER STATE"
-        title="MEMORY"
-        lead="Quello che VINZ.MON ricorda, pensa e usa quando parla. Qui stanno anche gli strumenti tecnici che non devono mai diventare una schermata utente."
+        kicker="VINZ.LAB / PERSONA"
+        title="PERSONA"
+        lead="MOOD (il tono di adesso), OPINIONS (quello che il .mon ha maturato) e ADJUSTMENTS (come parla) — non memoria personale. Qui sotto anche VOICE, che stava solo in DEV → VOCE → PROVA."
       />
 
       <Notice title="⚠️ ANCHE QUI SI SCRIVE">
@@ -953,7 +997,10 @@ function Memory() {
         un personaggio anche nella chat normale, finché non la rispegni.
       </Notice>
 
-      <Section title="ARCHIVE">
+      <Section
+        title="ARCHIVE"
+        note="La memoria CONVERSAZIONALE del .mon — non Mem0, non memoria personale: è l'archivio che alimenta la voce, come lo era già in DEV → VOCE → MEMORIA."
+      >
         <Rows
           rows={[
             ['MEMORIES', String(memories.length)],
@@ -999,7 +1046,7 @@ function Memory() {
         )}
       </Section>
 
-      <Section title="BUILD MODE">
+      <Section title="ADJUSTMENTS · BUILD MODE">
         <p className="note">
           {buildMode
             ? 'Build Mode ON: nessun personaggio, nessuna memoria, nessun ripiego.'
@@ -1008,6 +1055,14 @@ function Memory() {
         <Btn variant={buildMode ? 'on' : undefined} onClick={() => setBuildMode(!buildMode)}>
           {buildMode ? 'BACK TO CHARACTER' : 'TURN ON BUILD MODE'}
         </Btn>
+      </Section>
+
+      {/* 🔷 FINAL DEV → LAB CONSOLIDATION — VOCE stava solo in DEV → VOCE:
+          PROVA (test voce), MEMORIA (l'archivio qui sopra, la stessa cosa),
+          UMORE E OPINIONI (gli stessi dati qui sopra, con più storia) e
+          STRUMENTI. Un iframe, non una riscrittura: vedi `DevEmbed`. */}
+      <Section title="VOICE" note="DEV → VOCE vero, stesso .mon: PROVA · MEMORIA · UMORE E OPINIONI · STRUMENTI.">
+        <DevEmbed group="voce" title="DEV → VOCE" />
       </Section>
     </section>
   );
@@ -1769,30 +1824,34 @@ function Shortcuts() {
 }
 
 /* ============================================================================
-   LEGACY — QUELLO CHE VINZ.LAB NON HA ANCORA INTEGRATO
+   LEGACY — LO STATO DELLA CONSOLIDAZIONE
 
-   🔷 «Consolida DEV in LAB come unica sala controllo del prototipo.»
+   🔷 «Consolida DEV in LAB come unica sala controllo del prototipo. Questo è
+   l'ULTIMO giro di pulizia DEV/LAB.»
 
-   ⚠️ ONESTA, NON UN ALIBI. TEMPO, CREATURA e metà di VOCE sono ancora solo
-   in DEV://VINZ.MON: portarle qui una a una — dodici schede, ognuna con la
-   sua logica — è il refactor grosso che la priorità dichiarata (SAVE →
-   SERVER → SIMULATION → CREATURE → AI → PERSONA) mette in coda, non alla
-   testa. SAVE e SERVER sono già qui sopra. Questa scheda esiste per
-   dirlo, non per nasconderlo dietro un pulsante che sembra fare qualcosa.
-
-   🔒 NON APRE UN SECONDO DEV. Porta all'UNICO pannello vero — la stessa
-   route che apriva già il pulsante DEV nell'app — perché duplicare quelle
-   sezioni qui, anche solo come iframe, sarebbe la seconda copia che questo
-   intero lavoro esiste per non creare.
+   🔒 QUESTA SCHEDA NON È PIÙ UN ELENCO DI ASSENTI. TEMPO era già coperto da
+   SIMULATION (stesso `useApp`, non una copia) e questa scheda non se n'era
+   accorta; CREATURA e VOCE erano il vero buco, e adesso sono raggiungibili
+   da CREATURE e da PERSONA → VOICE (un `DevEmbed`, lo stesso motore, non
+   una riscrittura — vedi `./parts.tsx`). Quello che resta qui sotto non è
+   «non ancora fatto»: è la lista di cosa vive ANCORA solo dentro
+   DEV://VINZ.MON perché duplicarlo qui, con la spesa/routing già coperti da
+   AI e la spesa mensile da USAGE, non aggiungerebbe niente — sono gli
+   strumenti a bassa frequenza che questa consulenza chiama esplicitamente
+   «historical/status surface», non funzionalità mancante.
    ========================================================================= */
 
-const LEGACY_GROUPS: { titolo: string; voci: string[] }[] = [
-  { titolo: 'TEMPO', voci: ['TEMPO', 'SEGNALI', 'PROGRESSIONE'] },
+const LEGACY_REMAINING: { titolo: string; voci: string; perche: string }[] = [
   {
-    titolo: 'CREATURA',
-    voci: ['GENERA', 'BIO', 'RESOLVER', 'INSEGNA', 'MINDLINE', 'MONDO', 'RARITÀ', 'ASSET', 'PROMPT IMMAGINI', 'CATALOGHI', 'PROVE'],
+    titolo: 'SHORTCUT · SETUP DA DEV',
+    voci: 'La scheda SHORTCUT API di DEV → TEMPO',
+    perche: 'LAB → SYSTEM → SHORTCUTS copre già l\'operatività (stato, coda); il modulo di setup guidato resta in DEV per chi lo configura una volta sola.',
   },
-  { titolo: 'VOCE', voci: ['PROVA', 'UMORE E OPINIONI', 'STRUMENTI'] },
+  {
+    titolo: 'DESIGNTEST · PROTOCOLLO §12',
+    voci: 'DEV → CREATURA → PROVE',
+    perche: 'Raggiungibile dentro CREATURE (fa parte del gruppo incorporato), qui elencato solo perché è uno strumento da designer, non da uso quotidiano.',
+  },
 ];
 
 function Legacy() {
@@ -1801,20 +1860,30 @@ function Legacy() {
       <PageHead
         kicker="VINZ.LAB / SYSTEM"
         title="LEGACY"
-        lead="Quello che VINZ.LAB non ha ancora integrato. Non è sparito: vive in DEV://VINZ.MON, raggiungibile dal pulsante DEV nell'app."
+        lead="TEMPO, CREATURA e VOCE sono integrati (SIMULATION, CREATURE, PERSONA). Quello che resta è a bassa frequenza — status, non funzionalità mancante."
       />
 
+      <Notice title="✅ CONSOLIDATO">
+        Un utente normale non ha più bisogno di uscire da LAB per operare il prototipo: SAVE,
+        CREATURE, PERSONA, SIMULATION e AI coprono tutto quello che prima stava solo in
+        DEV://VINZ.MON.
+      </Notice>
+
       <Section
-        title="ANCORA SOLO IN DEV"
-        note="Stessi nomi che hanno là, così cercarli non è indovinare due volte."
+        title="A BASSA FREQUENZA, ANCORA SOLO IN DEV"
+        note="Non funzionalità mancante: strumenti che si usano raramente, lasciati dove sono per non aggiungere una seconda strada a qualcosa che già funziona."
       >
-        <Rows rows={LEGACY_GROUPS.map((g) => [g.titolo, g.voci.join(' · ')])} />
+        {LEGACY_REMAINING.map((r) => (
+          <div key={r.titolo} style={{ padding: '9px 0', borderBottom: '1px solid var(--line)' }}>
+            <p className="note" style={{ margin: 0 }}><strong>{r.titolo}</strong> — {r.voci}</p>
+            <p className="note">{r.perche}</p>
+          </div>
+        ))}
       </Section>
 
-      <Section title="APRI">
+      <Section title="APRI DEV DIRETTAMENTE">
         <p className="note">
-          Torna all'app vera: il pulsante DEV in basso a destra apre lo stesso pannello, con
-          tutte queste sezioni.
+          Per queste due voci soltanto: il pulsante DEV nell'app vera apre lo stesso pannello.
         </p>
         <Grid>
           <Btn onClick={() => window.location.assign('/')}>TORNA ALL'APP</Btn>

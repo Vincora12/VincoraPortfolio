@@ -187,7 +187,11 @@ export function TeachSection() {
           apre questa scheda per insegnare qualcosa non deve scorrere
           diciassettemila caratteri per arrivare alla casella di testo.
           ════════════════════════════════════════════════════════════════ */}
-      <p className="t-meta dev__label">LA SUA MEMORIA, TUTTA</p>
+      {/* 🔷 FINAL DEV → LAB CONSOLIDATION — «MEMORIA» qui è la conoscenza di
+          progettazione del Resolver (correzioni imparate), non la memoria
+          personale/Mem0 dell'utente. L'etichetta lo dice adesso, il
+          contenuto (`resolverMemoryWith`) resta esattamente lo stesso. */}
+      <p className="t-meta dev__label">MEMORIA RESOLVER, TUTTA</p>
       <MemoryView testo={memoria} />
     </div>
   );
