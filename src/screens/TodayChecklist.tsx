@@ -50,6 +50,7 @@ export function TodayChecklistScreen({ embedded = false, defaultDetailsOpen = fa
   const completionState = useRef<boolean | null>(null);
   const completionTimer = useRef<number | null>(null);
   const openFormEvolution = useApp((state) => state.openFormEvolution);
+  const setDailySignal = useApp((state) => state.setDailySignal);
   const token = useApp((state) => state.token);
   const activeMon = useApp((state) => state.activeMonName ? state.mons[state.activeMonName] ?? null : null);
   const reactionSheet = useAssetUrl(activeMon?.data.name ?? '', 'reaction_pack');
@@ -169,11 +170,23 @@ export function TodayChecklistScreen({ embedded = false, defaultDetailsOpen = fa
         const workout = estimate as WorkoutEstimate;
         /* Un esito diverso da "workout" non è un errore di stima: è la stima
            stessa a dire "questo non è un allenamento" o "non è chiaro". Non
-           si inventa un record — si dice onestamente cosa è successo, con lo
-           stesso riquadro già usato per gli errori. */
-        if (workout.outcome === 'not-workout') {
-          setEditStatus('error');
-          setEditError('Non sembra descrivere un allenamento — non ho registrato nulla.');
+           si inventa un record.
+
+           🔷 V1 SMALL FIXES — REST DAY: "riposo" non è più equivalente a
+           "niente registrato". È un giorno vissuto quanto uno con
+           allenamento vero — non genera un WorkoutLog (nessuna durata o
+           caloria inventata), ma il segnale WORKOUT del giorno passa a
+           NOT_APPLICABLE, esattamente il meccanismo che `canCloseDay`
+           (`engine/progression.ts`) già tratta come "noto quanto un dato
+           vero" — «WORKOUT = REST DAY still counts as KNOWN» — e che questo
+           stesso store usa già altrove per un riposo dichiarato (vedi
+           `applyPlannedRest` e l'ingest delle Shortcut, entrambi in questo
+           file). Non un secondo registro: lo stesso segnale che un
+           allenamento vero avrebbe acceso. */
+        if (workout.outcome === 'rest') {
+          setDailySignal('WORKOUT', 'NOT_APPLICABLE', editText.trim() || 'riposo dichiarato');
+          setEditStatus('saved');
+          window.setTimeout(() => setEditTarget(null), 650);
           return;
         }
         if (workout.outcome === 'ambiguous') {

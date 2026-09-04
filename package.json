@@ -27,6 +27,8 @@
     "verify:health-interpret": "node scripts/health-interpret-check.mjs",
     "verify:journey": "node scripts/journey-check.mjs",
     "verify:narrative-phase2": "node scripts/narrative-phase2-check.mjs",
+    "verify:rest-day-sync": "node scripts/rest-day-sync-check.mjs",
+    "verify:lab-layout": "node scripts/lab-layout-check.mjs",
     "icons": "node scripts/make-icon.mjs",
     "icons:lab": "node scripts/make-lab-icon.mjs"
   },

@@ -15,10 +15,19 @@ export type MealEstimate = {
    inventare titolo/durata/calorie, anche per un input come "Oggi relax,
    giornata tranquilla". `outcome` è l'esito reale, deciso dal modello dal
    significato del testo (con l'aiuto del contesto personale, vedi sotto),
-   non da una lista di parole vietate nel codice. */
+   non da una lista di parole vietate nel codice.
+
+   🔷 V1 SMALL FIXES — `esito: 'non_allenamento'` (sotto) è già, semanticamente,
+   un giorno di riposo dichiarato: il prompt lo definisce esplicitamente come
+   "riposo, relax o una giornata tranquilla senza attività fisica reale". La
+   forma `'not-workout'` nascondeva quel significato dietro un nome negativo —
+   `outcome: 'rest'` è lo stesso identico esito del classificatore, chiamato
+   con il suo nome vero. Nessuna nuova classificazione, nessuna nuova chiamata
+   AI: solo la forma che chi consuma questo esito può finalmente leggere per
+   quello che è. */
 export type WorkoutEstimate =
   | { outcome: 'workout'; title: string; details: string; minutes: number; burnedKcal: number }
-  | { outcome: 'not-workout' }
+  | { outcome: 'rest' }
   | { outcome: 'ambiguous' };
 
 type EstimateRequest = {
@@ -145,7 +154,7 @@ export async function estimateHealthEntry(request: EstimateRequest): Promise<Mea
     };
   }
   const esito = typeof input.esito === 'string' ? input.esito : '';
-  if (esito === 'non_allenamento') return { outcome: 'not-workout' };
+  if (esito === 'non_allenamento') return { outcome: 'rest' };
   if (esito === 'ambiguo') return { outcome: 'ambiguous' };
   if (esito !== 'allenamento') throw new Error('La stima AI non ha classificato il testo.');
   return {

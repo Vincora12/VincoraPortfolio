@@ -71,11 +71,11 @@ globalThis.fetch = async (path, init) => {
 let aiToolInput;
 
 try {
-  // ── Stage 1: non-workout ────────────────────────────────────────────────
+  // ── Stage 1: rest/recovery ──────────────────────────────────────────────
   aiToolInput = { esito: 'non_allenamento' };
-  const notWorkout = await m.estimateHealthEntry({ token: 'tok', kind: 'workout', label: 'ALLENAMENTO', text: 'Oggi relax, giornata tranquilla.' });
-  check(notWorkout.outcome === 'not-workout', 'STAGE 1 — "Oggi relax, giornata tranquilla" non diventa un allenamento');
-  check(!('minutes' in notWorkout) && !('burnedKcal' in notWorkout), 'STAGE 1 — nessuna durata o caloria inventata quando non è un allenamento');
+  const restDay = await m.estimateHealthEntry({ token: 'tok', kind: 'workout', label: 'ALLENAMENTO', text: 'Oggi relax, giornata tranquilla.' });
+  check(restDay.outcome === 'rest', 'STAGE 1 — "Oggi relax, giornata tranquilla" non diventa un allenamento, e l’esito si chiama rest');
+  check(!('minutes' in restDay) && !('burnedKcal' in restDay), 'STAGE 1 — nessuna durata o caloria inventata per un giorno di riposo');
 
   // ── Stage 2: real workout ───────────────────────────────────────────────
   aiToolInput = { esito: 'allenamento', title: 'Arrampicata', details: 'Sessione intensa su parete indoor', minutes: 45, burnedKcal: 420 };

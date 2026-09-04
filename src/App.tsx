@@ -789,7 +789,23 @@ function PullDownSystemSheet({ enabled, tray, children }: { enabled: boolean; tr
     {labMounted && (
       <div
         className="lab-underlayer"
-        style={{ height: `${labHeight()}px` }}
+        /* 🔷 V1 SMALL FIXES — LAB FULLY-OPEN HEIGHT. Prima questo div partiva
+           da `top: 0` (dalla classe, `.lab-underlayer{inset:0 0 auto}`) con
+           `height: labHeight()` intero: la stessa striscia in alto dove sta
+           `.system-tray` (z-index più alto, sfondo opaco) copriva il primo
+           pezzo del suo stesso contenuto — VINZ.LAB veniva disegnato come se
+           possedesse tutta l'altezza, ma la parte in cima non si vedeva mai.
+           Sottrarre `trayHeight()` (misura reale del DOM, la stessa che il
+           trascinamento usa già per `offsetForStage('compact')` — non un
+           pixel inventato, e include già `env(safe-area-inset-top)` perché è
+           quel padding, misurato) e spostare `top` della stessa quantità fa
+           coincidere il box di VINZ.LAB con lo spazio davvero visibile: sotto
+           i controlli in alto, sopra la striscia MON/CHAT che resta scoperta
+           in fondo (quella non cambia — è ancora `frameHeight - labHeight()`,
+           invariato). Lo scroll interno (`.lab-underlayer{overflow-y:auto}`)
+           non cambia: ora scorre uno spazio della misura giusta, non uno più
+           alto di quanto se ne vede. */
+        style={{ top: `${trayHeight()}px`, height: `${Math.max(0, labHeight() - trayHeight())}px` }}
         aria-hidden={stage !== 'lab'}
         inert={stage !== 'lab' || undefined}
       >
