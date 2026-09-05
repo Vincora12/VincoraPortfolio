@@ -63,7 +63,7 @@ try {
     kicker: document.querySelector('.kicker')?.textContent ?? '',
     hasBoundaryNotice: [...document.querySelectorAll('.notice')].some((n) => n.textContent?.includes('READ ACCESS') && n.textContent?.includes('WRITE ACCESS')),
     hasComposer: document.querySelector('.agentlab-composer textarea') !== null,
-    hasSendButton: [...document.querySelectorAll('button')].some((b) => b.textContent?.trim() === 'INVIA'),
+    hasSendButton: document.querySelector('.agentlab-send') !== null,
   }));
   check(room.h1 === 'AGENT.LAB', 'la stanza si apre e mostra il titolo AGENT.LAB');
   check(room.kicker.includes('PROJECT INSPECTOR'), 'il kicker identifica AGENT.LAB come ambiente tecnico ("PROJECT INSPECTOR")');
@@ -73,7 +73,7 @@ try {
 
   // ── Senza token: errore onesto, non un crash ───────────────────────────
   await page.fill('.agentlab-composer textarea', 'Come funziona davvero il Bio Writer?');
-  await page.click('button:text-is("INVIA")');
+  await page.click('.agentlab-send');
   await page.waitForSelector('.notice:has-text("AGENT.LAB NON RISPONDE")', { timeout: 8000 }).catch(() => {});
   const afterSend = await page.evaluate(() => ({
     hasHonestError: [...document.querySelectorAll('.notice')].some((n) => n.textContent?.includes('AGENT.LAB NON RISPONDE')),
@@ -129,6 +129,41 @@ try {
   await sleep(300);
   const appBoots = await page.evaluate(() => (document.getElementById('root')?.childElementCount ?? 0) > 0);
   check(appBoots, 'G5 — l’app VINZ.MON continua ad avviarsi normalmente (nessuna rottura di boot introdotta da Agent.lab)');
+
+  // ── G1 — TOP CONTROLS: una sola riga vera, non due, con un .mon vero attivo ──
+  await page.evaluate(async () => {
+    const { testMon } = await import('/src/lab/rooms/testMon.ts');
+    const { useApp } = await import('/src/state/store.ts');
+    const record = await testMon();
+    useApp.setState((state) => ({
+      phase: 'live',
+      mons: { [record.data.name]: record },
+      activeMonName: record.data.name,
+      eggs: [],
+      firstSync: null,
+      dev: { ...state.dev, enabled: true },
+    }));
+  });
+  await page.waitForSelector('.system-tray', { timeout: 5000 });
+  await sleep(300);
+  const tray = await page.evaluate(() => {
+    const chips = [...document.querySelectorAll('.system-tray__controls > *')];
+    const tops = chips.map((el) => Math.round(el.getBoundingClientRect().top));
+    const container = document.querySelector('.system-tray__controls');
+    return {
+      chipCount: chips.length,
+      singleRow: tops.length > 0 && tops.every((t) => Math.abs(t - tops[0]) <= 1),
+      hasDev: !!document.querySelector('.devtrigger'),
+      hasLab: !!document.querySelector('.labtrigger'),
+      overflowsHorizontally: container ? container.scrollWidth > container.clientWidth + 1 : false,
+      scrollWidthOfPage: document.documentElement.scrollWidth,
+      innerWidth: window.innerWidth,
+    };
+  });
+  check(tray.chipCount >= 4, 'G1 — la tray dei controlli in alto ha davvero più pulsanti da mettere alla prova (non un DOM vuoto)');
+  check(tray.hasDev && tray.hasLab, 'G1 — DEV e LAB sono davvero presenti nella tray (non nascosti da un altro stato)');
+  check(tray.singleRow, 'G1 — tutti i controlli in alto stanno sulla STESSA riga (nessun "top" diverso, quindi nessun a-capo su una seconda riga)');
+  check(tray.scrollWidthOfPage <= tray.innerWidth + 1, 'G1 — nessuno scroll orizzontale sulla PAGINA intera: l’overflow, se c’è, resta dentro la tray');
 
   check(consoleErrors.length === 0, `nessun errore di console durante l’intero percorso (${consoleErrors.length} trovati)`);
   if (consoleErrors.length) consoleErrors.forEach((e) => console.log(`    · ${e}`));

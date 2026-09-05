@@ -16,16 +16,21 @@
    in nessun modo lo stato o lo storage della chat vera — G5 (nessuna
    regressione della chat del MON) è garantito così, non per fortuna.
 
-   🔒 CHI ESEGUE COSA. Nessuno strumento gira qui nel browser: il server
-   (`netlify/functions/agent-lab.ts`) legge il progetto ed esegue l'intero
-   giro strumenti prima di rispondere — questo componente manda un messaggio
-   e riceve un testo finito, come qualunque altra chiamata a `/api/ai`.
+   🔷 UI ALIGNMENT — «stessa UI della chat del MON, non stesso comportamento.»
+   Il corpo sotto (bolle, tipografia, composer, pulsante d'invio) riusa gli
+   stessi valori visivi della chat vera (`assistant-original/styles.css`:
+   colori del tema scuro, raggio delle bolle, forma del composer a pillola,
+   bottone d'invio circolare) — non il componente `<ChatGPT/>` in sé, che
+   dentro porta voce/reazioni/memoria/ciclo di vita del thread: tutta roba
+   che appartiene al .mon, non ad Agent.lab, e che il confine READ/WRITE di
+   questo task vieta di toccare. Stessi NUMERI, non stessa MACCHINA.
    ========================================================================= */
 
 import { useEffect, useRef, useState } from 'react';
+import { ArrowUpIcon } from 'lucide-react';
 import { useApp } from '../../state/store';
 import { askAgentLab, type AgentLabRequest } from '../../ai/backend';
-import { Btn, Notice } from './parts';
+import { Notice } from './parts';
 
 export interface AgentLabStepContext {
   stepId?: string;
@@ -78,6 +83,15 @@ function renderWithTags(text: string) {
   );
 }
 
+/* Il composer cresce con il testo come quello vero (fino a un tetto), invece
+   di partire già alto su tre righe vuote — quella era la barra sproporzionata
+   da assottigliare. */
+function autoGrow(el: HTMLTextAreaElement | null): void {
+  if (!el) return;
+  el.style.height = 'auto';
+  el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+}
+
 export function AgentLabChat({ context, persistKey }: { context?: AgentLabStepContext | null; persistKey?: string }) {
   const token = useApp((s) => s.token);
   const storageKey = persistKey ? `vinzmon.agentlab.thread.${persistKey}.v1` : undefined;
@@ -86,11 +100,13 @@ export function AgentLabChat({ context, persistKey }: { context?: AgentLabStepCo
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const listRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => writeStored(storageKey, history), [storageKey, history]);
   useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight });
   }, [history, busy]);
+  useEffect(() => autoGrow(inputRef.current), [draft]);
 
   const send = async () => {
     const text = draft.trim();
@@ -119,6 +135,8 @@ export function AgentLabChat({ context, persistKey }: { context?: AgentLabStepCo
     setHistory([...withUser, { role: 'assistant', text: result.data.text, toolTrace: result.data.toolTrace }]);
   };
 
+  const canSend = !busy && draft.trim().length > 0;
+
   return (
     <div className="agentlab-chat">
       {context && (context.stepId || context.stepLabel) && (
@@ -127,51 +145,74 @@ export function AgentLabChat({ context, persistKey }: { context?: AgentLabStepCo
         </Notice>
       )}
 
-      <div className="agentlab-msglist" ref={listRef}>
-        {history.length === 0 && (
-          <p className="note">
-            Fai una domanda su come funziona davvero il progetto. Agent.lab legge il codice reale
-            prima di rispondere — non spiega a memoria.
-          </p>
-        )}
-        {history.map((entry, i) => (
-          <div className={`agentlab-msg agentlab-msg--${entry.role}`} key={i}>
-            <span className="agentlab-msg__who mono">{entry.role === 'user' ? 'TU' : 'AGENT.LAB'}</span>
-            <div className="agentlab-msg__text">{renderWithTags(entry.text)}</div>
-            {entry.toolTrace && entry.toolTrace.length > 0 && (
-              <div className="agentlab-msg__trace mono">
-                {entry.toolTrace.map((t, j) => (
-                  <span key={j} className={`agentlab-chip${t.ok ? '' : ' agentlab-trace--error'}`}>
-                    {t.name}{t.ok ? '' : ' ✕'}
-                  </span>
-                ))}
+      <div className="agentlab-thread">
+        <div className="agentlab-viewport" ref={listRef}>
+          <div className="agentlab-viewport__inner">
+            {history.length === 0 && (
+              <p className="agentlab-empty">
+                Fai una domanda su come funziona davvero il progetto. Agent.lab legge il codice
+                reale prima di rispondere — non spiega a memoria.
+              </p>
+            )}
+            {history.map((entry, i) =>
+              entry.role === 'user' ? (
+                <div className="agentlab-row agentlab-row--user" key={i}>
+                  <div className="agentlab-bubble">{renderWithTags(entry.text)}</div>
+                </div>
+              ) : (
+                <div className="agentlab-row agentlab-row--assistant" key={i}>
+                  <div className="agentlab-copy">
+                    <span className="agentlab-copy__who mono">AGENT.LAB</span>
+                    {renderWithTags(entry.text)}
+                    {entry.toolTrace && entry.toolTrace.length > 0 && (
+                      <div className="agentlab-msg__trace mono">
+                        {entry.toolTrace.map((t, j) => (
+                          <span key={j} className={`agentlab-chip${t.ok ? '' : ' agentlab-trace--error'}`}>
+                            {t.name}{t.ok ? '' : ' ✕'}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ),
+            )}
+            {busy && (
+              <div className="agentlab-row agentlab-row--assistant">
+                <div className="agentlab-copy agentlab-copy--thinking">Agent.lab sta leggendo il progetto…</div>
               </div>
             )}
           </div>
-        ))}
-        {busy && <p className="note">Agent.lab sta leggendo il progetto…</p>}
+        </div>
+
+        <div className="agentlab-composer">
+          <textarea
+            ref={inputRef}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder="Chiedi qualcosa…"
+            rows={1}
+            disabled={busy}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                e.preventDefault();
+                void send();
+              }
+            }}
+          />
+          <button
+            type="button"
+            className="agentlab-send"
+            aria-label="Invia"
+            disabled={!canSend}
+            onClick={() => void send()}
+          >
+            <ArrowUpIcon size={18} />
+          </button>
+        </div>
       </div>
 
       {error && <Notice title="AGENT.LAB NON RISPONDE">{error}</Notice>}
-
-      <div className="agentlab-composer">
-        <textarea
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          placeholder="Come funziona davvero...? Quali file lo controllano? Da dove arrivano gli input?"
-          rows={3}
-          disabled={busy}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-              e.preventDefault();
-              void send();
-            }
-          }}
-        />
-      </div>
-      <Btn onClick={() => void send()} disabled={busy || draft.trim().length === 0} variant="dark">
-        {busy ? 'LEGGO IL PROGETTO…' : 'INVIA'}
-      </Btn>
     </div>
   );
 }
