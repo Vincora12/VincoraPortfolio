@@ -299,7 +299,7 @@ async function foodBarcodeContext(text: string, token: string, signal: AbortSign
 async function* runWithLocalTools(
   messages: readonly ThreadMessage[],
   abortSignal: AbortSignal,
-  runTool: (use: ToolUse) => ToolResult,
+  runTool: (use: ToolUse) => ToolResult | Promise<ToolResult>,
   modelName?: string,
   mealConfirmation?: MealConfirmation,
   workoutConfirmation?: WorkoutConfirmation,
@@ -326,8 +326,8 @@ async function* runWithLocalTools(
   const updates: string[] = [];
   const meBefore = JSON.stringify(readHealthJournal());
 
-  const runAndDescribe = (use: ToolUse): ToolResult => {
-    const result = runTool(use);
+  const runAndDescribe = async (use: ToolUse): Promise<ToolResult> => {
+    const result = await runTool(use);
     if (result.isError) return result;
     const label = ({
       registra_pasto: "Pasto aggiunto in ME",
@@ -688,7 +688,7 @@ function createBaseNetlifyChatModel(): ChatModelAdapter {
 }
 
 export function createNetlifyChatModel(
-  runTool?: (use: ToolUse) => ToolResult,
+  runTool?: (use: ToolUse) => ToolResult | Promise<ToolResult>,
 ): ChatModelAdapter {
   const base = createBaseNetlifyChatModel();
   return {

@@ -34,6 +34,7 @@
     "verify:agent-lab-ui": "node scripts/agent-lab-ui-check.mjs",
     "verify:remote-chat-history": "node scripts/remote-chat-history-check.mjs",
     "verify:remote-chat-history-ui": "node scripts/remote-chat-history-ui-check.mjs",
+    "verify:tool-layer": "node scripts/tool-layer-check.mjs",
     "icons": "node scripts/make-icon.mjs",
     "icons:lab": "node scripts/make-lab-icon.mjs"
   },

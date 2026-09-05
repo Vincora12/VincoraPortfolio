@@ -1,5 +1,6 @@
 import type { BrainMessage } from './store/types';
 import { TOOLS, assistantTurn, resultBlocks, type ToolResult, type ToolUse } from '../ai/tools';
+import { CODE_TOOL_DEFS } from '../ai/toolLayer';
 import { useApp } from '../state/store';
 import { buildVoiceSystemPrompt } from '../ai/voicePrompt';
 import { persistChatTrace, recordChatTrace, systemPromptComposition, traceClock, type ChatTrace } from '../ai/chatTrace';
@@ -188,6 +189,20 @@ export async function streamReply(
 
 const TOOL_INTENT = /\b(miei dati|mia salute|come sto|\bme\b|dormit\w*|allenat\w*|allenamento|palestra|workout|programma|piano|scheda|calendario|agenda|lista|riepilogo|sezione|blocco|corsa|camminata|mangiat\w*|bevut\w*|pasto|colazione|pranzo|cena|spuntino|merenda|extra|calori\w*|kcal|protein\w*|carbo\w*|grass\w*|macro|peso|dieta|barcode|codice a barre|etichetta|obiettiv\w*|target|corregg\w*|modific\w*|giornat\w*|protocollo|ricordami|promemoria|pagina|aspetto|schermata)\b/i;
 
+/* TOOL LAYER PHASE 1 — riconosce una domanda di ispezione tecnica del
+   repository ("puoi leggere il tuo codice?", "dove viene gestito X",
+   "quale file gestisce Y", "esiste già una funzione per Z") perché il
+   catalogo `TOOL_INTENT` sopra non conosce vocabolario tecnico: senza
+   questo, quelle domande cadevano nel percorso SENZA strumenti e il .mon
+   poteva solo tirare a indovinare o negare di avere accesso al codice. */
+const CODE_INSPECTION_INTENT = /\b(tuo codice|codice sorgente|leggere il (?:tuo )?codice|guarda(?:re)? (?:nel|il) (?:tuo )?codice|cerca(?:re)? nel (?:tuo )?codice|controll\w* (?:nel|il) (?:tuo )?codice|quale file|quali file|che file|file gestisce|dove viene (?:gestit\w*|usat\w*|implementat\w*|chiamat\w*)|esiste (?:gi[aà] )?una funzione|una funzione per|repository|nel tuo repo|source code)\b/i;
+
+/** Usa il Tool Layer (code_search/code_read) solo quando la domanda è
+    davvero un'ispezione tecnica — mai per ogni conversazione. */
+export function isCodeInspectionIntent(text: string): boolean {
+  return CODE_INSPECTION_INTENT.test(text);
+}
+
 export type ChatMealSlot = 'colazione' | 'spuntino' | 'pranzo' | 'merenda' | 'cena' | 'extra';
 export type MealConfirmation = {
   status: 'needs-confirmation' | 'confirmed';
@@ -229,7 +244,7 @@ export function isWorkoutLogIntent(text: string): boolean {
 
 /** Usa il loop strumenti solo quando la richiesta riguarda dati o azioni locali. */
 export function shouldUseLocalTools(text: string): boolean {
-  return TOOL_INTENT.test(text);
+  return TOOL_INTENT.test(text) || CODE_INSPECTION_INTENT.test(text);
 }
 
 /** Le registrazioni esplicite non devono dipendere dalla buona volontà del modello. */
@@ -251,7 +266,7 @@ export async function replyWithLocalTools(
   user: string,
   signal: AbortSignal,
   onChunk: (chunk: string) => void,
-  run: (use: ToolUse) => ToolResult,
+  run: (use: ToolUse) => ToolResult | Promise<ToolResult>,
   voiceModel?: string | null,
   images: { mediaType: string; data: string }[] = [],
   mealConfirmation?: MealConfirmation,
@@ -263,7 +278,7 @@ export async function replyWithLocalTools(
 
   const clock = traceClock();
   const workoutPlanContext = isWorkoutPlanIntent(user)
-    ? run({ id: 'read-workout-plan', name: 'leggi_me', input: { sezione: 'sport' } }).content
+    ? (await run({ id: 'read-workout-plan', name: 'leggi_me', input: { sezione: 'sport' } })).content
     : '';
   /* 🔷 Due blocchi, non uno: il primo dice CHI risponde (il personaggio vero,
      se c'è — `characterVoiceBlock()`; altrimenti la stessa riga neutra di
@@ -302,6 +317,9 @@ export async function replyWithLocalTools(
         workoutPlanContext
           ? `The user is editing the workout schedule. Here is the current ME SPORT data: ${workoutPlanContext}. Preserve every existing day not explicitly changed, then call imposta_piano_allenamento. A weekday request refers to the plan, never to a completed workout.`
           : '',
+        isCodeInspectionIntent(user)
+          ? 'The user is asking a technical question about your own real source code/repository. Use code_search to find real files and code_read to actually read them before answering — never claim a file path, function name or implementation detail you have not actually retrieved through these tools. If a search returns no results or a read fails, say inspection found nothing or failed — never invent evidence.'
+          : '',
       ].join(' '),
     },
   ];
@@ -331,9 +349,18 @@ export async function replyWithLocalTools(
   const isHealthRequest = Boolean(explicitWrite)
     || /\b(me|salute|pasto|mangiat\w*|bevut\w*|colazione|spuntino|pranzo|merenda|cena|extra|calori\w*|protein\w*|carbo\w*|grass\w*|macro|diet\w*|allenament\w*|allenat\w*|palestra|workout|corsa|camminata|peso|kg|obiettiv\w*)\b/i.test(user)
     || Boolean(mealConfirmation || workoutConfirmation);
-  const toolPool = isHealthRequest
-    ? TOOLS.filter((tool) => healthToolNames.has(tool.name))
-    : TOOLS.filter((tool) => !healthToolNames.has(tool.name) || tool.name === 'leggi_i_miei_dati');
+  /* TOOL LAYER PHASE 1 — un'ispezione tecnica ("dove viene gestito X") non è
+     né una richiesta salute né una richiesta di pagine/aspetto: è il suo
+     stesso terzo caso, con il proprio pool di soli due strumenti (mai
+     mescolato agli altri, per restare "on demand" e non gonfiare ogni
+     richiesta con strumenti irrilevanti). La salute vince in caso di
+     ambiguità reale (un messaggio che parla anche di dati personali). */
+  const isCodeInspection = isCodeInspectionIntent(user) && !isHealthRequest;
+  const toolPool = isCodeInspection
+    ? CODE_TOOL_DEFS
+    : isHealthRequest
+      ? TOOLS.filter((tool) => healthToolNames.has(tool.name))
+      : TOOLS.filter((tool) => !healthToolNames.has(tool.name) || tool.name === 'leggi_i_miei_dati');
   const availableTools = toolPool.slice(0, 12).filter((tool) => {
     if (tool.name === 'registra_pasto') return mealConfirmation?.status === 'confirmed';
     if (tool.name === 'registra_allenamento') return workoutConfirmation?.status === 'confirmed';
@@ -418,11 +445,11 @@ export async function replyWithLocalTools(
         history.push({ role: 'user', content: userBlocks });
       }
       history.push(assistantTurn(body.text ?? '', uses) as { role: 'assistant'; content: unknown });
-      const toolResults = uses.map((use) => {
+      const toolResults = await Promise.all(uses.map((use) => {
         if (use.name !== 'registra_pasto' || mealConfirmation?.status !== 'confirmed') return run(use);
         const input = typeof use.input === 'object' && use.input ? use.input as Record<string, unknown> : {};
         return run({ ...use, input: { ...input, pasto: mealConfirmation.slot } });
-      });
+      }));
 
       /* Una scrittura imposta e riuscita è già la verità finale. Prima la
          rimandavamo al provider per farla riformulare: quel secondo giro poteva

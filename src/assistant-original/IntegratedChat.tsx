@@ -84,7 +84,7 @@ const attachments = new CompositeAttachmentAdapter([
 ]);
 
 type IntegratedChatProps = {
-  runTool: (use: ToolUse) => ToolResult;
+  runTool: (use: ToolUse) => ToolResult | Promise<ToolResult>;
   voiceModel?: string | null;
   onModelChange?: (model: string) => void;
   /* 🔷 «Tutte le pagine assistente devono essere interamente come quella

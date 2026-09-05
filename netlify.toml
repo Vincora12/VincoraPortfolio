@@ -66,6 +66,21 @@
     "package.json",
   ]
 
+# 🔷 TOOL LAYER PHASE 1 — stesso motivo di `agent-lab` sopra: `code-tools.ts`
+# importa `_shared/agentLabFiles.ts`, che ha bisogno di trovare il repository
+# vero dentro il pacchetto della funzione. Stesso elenco, stessa sicurezza —
+# è la STESSA funzione di lettura, richiamata da un endpoint diverso.
+[functions."code-tools"]
+  included_files = [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "src/**/*.css",
+    "netlify/**/*.ts",
+    "docs/**/*.md",
+    "*.md",
+    "package.json",
+  ]
+
 [build.environment]
   # vite 8 e typescript 7 girano su Node 22, la stessa versione con cui il
   # prototipo è stato verificato. Senza questo Netlify sceglie il suo default.

@@ -1,0 +1,148 @@
+/* ============================================================================
+   VINZ.MON TOOL LAYER — PHASE 1 (ispezione tecnica di sola lettura)
+
+   🔷 «VINZ.MON è l'entità. Web, Desktop, House.mon e i client futuri sono
+   solo corpi. Deve esistere un unico Core condiviso.» Questo file è quella
+   parte condivisa per le capacità TECNICHE (leggere/cercare nel proprio
+   codice) — non appartiene alla chat normale né esclusivamente ad Agent.lab:
+   entrambi la importeranno dallo stesso posto.
+
+   🔒 CONFINE — SOLA LETTURA, SEMPRE. Nessuna funzione qui dentro scrive un
+   file, esegue un comando o tocca git. L'esecuzione vera (validazione dei
+   percorsi, lista delle radici consentite, filtro delle estensioni) vive
+   server-side in `netlify/functions/_shared/agentLabFiles.ts`, dietro
+   `netlify/functions/code-tools.ts` — qui c'è solo la DEFINIZIONE dello
+   strumento (nome/descrizione/schema, quello che il modello vede) e una
+   chiamata di rete che ne formatta il risultato per la chat. Se l'ispezione
+   fallisce, il risultato dice che è fallita — non inventa mai un percorso o
+   un contenuto.
+
+   🔷 PERCHÉ NON `ai/tools.ts`. Quel catalogo è legato allo stato applicativo
+   di VINZ.MON (salute, ME, pagine, aspetto — vedi `ToolContext`, costruito
+   da `state/store.ts`). Le capacità tecniche di questo file non hanno
+   bisogno di NESSUNO stato applicativo: sono chiamate di rete pure, quindi
+   vivono in un modulo separato che Agent.lab può importare senza tirarsi
+   dietro l'intero stato del gioco.
+   ========================================================================= */
+
+import type { ToolDef, ToolResult, ToolUse } from './tools';
+
+function toolLayerToken(): string | null {
+  try {
+    const raw = localStorage.getItem('vinzmon.prototype.v4');
+    const parsed = raw ? (JSON.parse(raw) as { state?: { token?: unknown } }) : null;
+    return typeof parsed?.state?.token === 'string' ? parsed.state.token : null;
+  } catch {
+    return null;
+  }
+}
+
+/** I nomi veri delle capacità (senza punto: molti fornitori di function-calling
+    rifiutano un "." nel nome dello strumento — `code.search`/`code.read` restano
+    l'identificatore concettuale usato nella documentazione). */
+export const CODE_SEARCH_TOOL_NAME = 'code_search';
+export const CODE_READ_TOOL_NAME = 'code_read';
+
+export const CODE_TOOL_DEFS: ToolDef[] = [
+  {
+    name: CODE_SEARCH_TOOL_NAME,
+    description:
+      'Cerca un testo (nome di funzione, variabile, concetto) nel repository VERO di VINZ.MON — non nella tua memoria. Usalo quando ti chiedono dove è gestita una cosa, se esiste già una funzione, o in quali file compare un termine. Torna percorso, numero di riga e frammento di codice reale: mai un percorso inventato.',
+    schema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'Il termine da cercare — almeno due caratteri.' },
+        cartella: { type: 'string', description: 'Limita la ricerca a una cartella (es. "src/engine"). Opzionale.' },
+      },
+      required: ['query'],
+    },
+  },
+  {
+    name: CODE_READ_TOOL_NAME,
+    description:
+      'Legge il contenuto reale di un file del repository VINZ.MON, dato il suo percorso relativo (es. "src/engine/progression.ts"). Usalo dopo code_search per vedere davvero come funziona qualcosa, prima di spiegarlo. Se il percorso non è valido o il file non esiste, lo strumento lo dice: non inventare mai un contenuto.',
+    schema: {
+      type: 'object',
+      properties: {
+        percorso: { type: 'string', description: 'Percorso relativo al repository, es. "src/engine/progression.ts".' },
+      },
+      required: ['percorso'],
+    },
+  },
+];
+
+export const CODE_TOOL_NAMES = new Set(CODE_TOOL_DEFS.map((t) => t.name));
+
+interface SearchMatch { path: string; line: number; text: string }
+type SearchResponse =
+  | { ok: true; matches: SearchMatch[]; filesScanned: number; truncated: boolean }
+  | { ok: false; error: string };
+type ReadResponse =
+  | { ok: true; path: string; text: string; truncated: boolean }
+  | { ok: false; error: string };
+
+function formatSearchResult(res: SearchResponse): ToolResult['content'] {
+  if (!res.ok) return `ISPEZIONE FALLITA — ${res.error}`;
+  if (res.matches.length === 0) return 'Nessun risultato reale trovato nel repository per questa ricerca. Non è un file che manca di essere letto: è che il termine non compare (o non con queste lettere).';
+  const lines = res.matches.map((m) => `${m.path}:${m.line} — ${m.text}`);
+  const note = res.truncated ? '\n\n(risultati troncati: la ricerca ha trovato più di quanto mostrato qui)' : '';
+  return `${res.matches.length} risultato/i reali nel repository:\n\n${lines.join('\n')}${note}`;
+}
+
+function formatReadResult(res: ReadResponse): ToolResult['content'] {
+  if (!res.ok) return `ISPEZIONE FALLITA — ${res.error}`;
+  const note = res.truncated ? '\n\n[CONTENUTO TRONCATO — il file continua oltre questo punto]' : '';
+  return `FILE: ${res.path}\n\n${res.text}${note}`;
+}
+
+async function postCodeTool(body: Record<string, unknown>): Promise<Response> {
+  const token = toolLayerToken();
+  if (!token) throw new Error('nessun token');
+  return fetch('/api/code-tools', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+    body: JSON.stringify(body),
+  });
+}
+
+/**
+ * Esegue uno strumento del Tool Layer, se `use.name` gli appartiene.
+ * Torna `undefined` per qualunque altro strumento — così chi chiama può
+ * ricadere sul proprio dispatcher esistente (`runMonTool`) senza duplicare
+ * la lista dei nomi altrove.
+ *
+ * ⚠️ Non lancia MAI per un fallimento dell'ispezione: un percorso rifiutato
+ * o un file inesistente tornano un `ToolResult` con `isError:true` e un
+ * messaggio onesto, che il modello legge e può raccontare — mai un'eccezione
+ * che interrompe il turno, mai un contenuto inventato al posto suo.
+ */
+export async function runToolLayerTool(use: ToolUse): Promise<ToolResult | undefined> {
+  if (!CODE_TOOL_NAMES.has(use.name)) return undefined;
+  const args = (use.input ?? {}) as Record<string, unknown>;
+
+  try {
+    if (use.name === CODE_SEARCH_TOOL_NAME) {
+      const query = typeof args.query === 'string' ? args.query : '';
+      const path = typeof args.cartella === 'string' && args.cartella.trim() ? args.cartella.trim() : undefined;
+      if (query.trim().length < 2) return { id: use.id, content: 'ISPEZIONE FALLITA — la ricerca serve almeno due caratteri.', isError: true };
+      const response = await postCodeTool({ op: 'search', query, path });
+      if (!response.ok) return { id: use.id, content: `ISPEZIONE FALLITA — il servizio di ricerca non ha risposto (${response.status}).`, isError: true };
+      const body = await response.json() as SearchResponse;
+      return { id: use.id, content: formatSearchResult(body), ...(body.ok ? {} : { isError: true }) };
+    }
+
+    if (use.name === CODE_READ_TOOL_NAME) {
+      const path = typeof args.percorso === 'string' ? args.percorso : '';
+      if (!path.trim()) return { id: use.id, content: 'ISPEZIONE FALLITA — manca il percorso del file.', isError: true };
+      const response = await postCodeTool({ op: 'read', path });
+      if (!response.ok) return { id: use.id, content: `ISPEZIONE FALLITA — il servizio di lettura non ha risposto (${response.status}).`, isError: true };
+      const body = await response.json() as ReadResponse;
+      return { id: use.id, content: formatReadResult(body), ...(body.ok ? {} : { isError: true }) };
+    }
+
+    return undefined;
+  } catch {
+    /* Rete assente, token mancante, o risposta non JSON: onesto, non inventato. */
+    return { id: use.id, content: 'ISPEZIONE FALLITA — impossibile raggiungere il servizio di ispezione del codice in questo momento.', isError: true };
+  }
+}

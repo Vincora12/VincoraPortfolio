@@ -57,7 +57,8 @@ import { HistoryScreen } from './screens/History';
 import { DailyScanScreen } from './screens/DailyScan';
 import { DevPanel } from './dev/DevPanel';
 import { PageReader } from './screens/PageReader';
-import type { ToolUse } from './ai/tools';
+import type { ToolResult, ToolUse } from './ai/tools';
+import { runToolLayerTool } from './ai/toolLayer';
 const IntegratedChat = lazy(() => import('./assistant-original/IntegratedChat').then((module) => ({ default: module.IntegratedChat })));
 /* Il cassetto di VINZ.LAB (§14-19) — `LabEmbed` monta i componenti nativi
    del lab in uno shadow root; caricato solo quando il cassetto viene
@@ -72,7 +73,17 @@ const LabEmbed = lazy(() => import('./lab/embed/LabEmbed').then((module) => ({ d
    di anticiparlo nel bundle principale. */
 const ChatDebugTrigger = lazy(() => import('./assistant-original/components/examples/chatgpt').then((module) => ({ default: module.ChatDebugTrigger })));
 
-const runChatTool = (use: ToolUse) => useApp.getState().runMonTool(use);
+/* TOOL LAYER PHASE 1 — le capacità tecniche condivise (code_search/code_read,
+   `src/ai/toolLayer.ts`) vengono provate PRIMA del catalogo legato allo
+   stato di gioco (`runMonTool`, che non le conosce e non deve conoscerle:
+   sono chiamate di rete pure, nessuno stato applicativo). `runMonTool` resta
+   intatto — questo è solo il punto in cui le due cose si incontrano, la
+   stessa funzione di sempre più un controllo in testa. */
+const runChatTool = async (use: ToolUse): Promise<ToolResult> => {
+  const fromToolLayer = await runToolLayerTool(use);
+  if (fromToolLayer) return fromToolLayer;
+  return useApp.getState().runMonTool(use);
+};
 const toyRefreshes = new Set<string>();
 
 function LazyChat(props: ComponentProps<typeof IntegratedChat>) {
