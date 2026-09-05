@@ -23,7 +23,8 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useApp, useActiveMon } from '../../state/store';
 import { lastChatTrace, subscribeChatTrace, type ChatTrace } from '../../ai/chatTrace';
-import { FASI, PASSI, type FaseId } from './creationFlow';
+import { FASI, PASSI, type FaseId, type Passo } from './creationFlow';
+import { AgentLabModal } from './AgentLabModal';
 import { FAMILIES, MOODS, VOICE_PRESETS } from '../../engine/generation-config';
 import { keepEnabled } from '../../engine/catalogTuning';
 /* 🔷 LAB INFORMATION ARCHITECTURE CLEANUP — reuse LOGIC, not a copy: le
@@ -234,6 +235,10 @@ const CORSA: Record<string, string> = {
 function Flow({ onAvviaAB }: { onAvviaAB: () => void }) {
   const trace = useApp((s) => s.lastTrace);
   const famiglieAccese = keepEnabled('family', FAMILIES, (f) => f.id).map((f) => f.id);
+  /* 🔷 AGENT.LAB V1 — «aprirlo da uno specifico nodo del FLOW e interrogarlo
+     già nel contesto di quel nodo». Un modal, non una navigazione: il FLOW
+     sotto resta esattamente com'era mentre la chat è aperta. */
+  const [agentStep, setAgentStep] = useState<Passo | null>(null);
 
   /* 🔒 QUALE PASSO È DAVVERO SUCCESSO. Il disegno mostrava trentadue righe
      tutte uguali; qui quelle che l'ultima generazione ha davvero eseguito
@@ -397,6 +402,15 @@ function Flow({ onAvviaAB }: { onAvviaAB: () => void }) {
                         <StepTuning assi={COMANDI[p.id]!} />
                       </div>
                     )}
+
+                    {/* 🔷 AGENT.LAB V1 — ogni passo REALE del FLOW può aprire
+                        l'inspector nel proprio contesto, non solo quelli con
+                        una taratura in linea (COMANDI). */}
+                    <div className="box">
+                      <button type="button" className="btn" onClick={() => setAgentStep(p)}>
+                        🕵️ CHIEDI AD AGENT.LAB
+                      </button>
+                    </div>
                   </div>
                 </details>
               );
@@ -424,6 +438,13 @@ function Flow({ onAvviaAB }: { onAvviaAB: () => void }) {
           GUARDA 12 CREATURE · UNA ALLA VOLTA
         </button>
       </div>
+
+      {agentStep && (
+        <AgentLabModal
+          step={{ stepId: agentStep.id, stepLabel: agentStep.nome, stepDetail: agentStep.istruzione, stepPhase: FASI[agentStep.fase][0] }}
+          onClose={() => setAgentStep(null)}
+        />
+      )}
     </section>
   );
 }

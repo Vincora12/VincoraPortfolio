@@ -29,6 +29,9 @@
     "verify:narrative-phase2": "node scripts/narrative-phase2-check.mjs",
     "verify:rest-day-sync": "node scripts/rest-day-sync-check.mjs",
     "verify:lab-layout": "node scripts/lab-layout-check.mjs",
+    "verify:agent-lab-files": "node scripts/agent-lab-files-check.mjs",
+    "verify:agent-lab": "node scripts/agent-lab-check.mjs",
+    "verify:agent-lab-ui": "node scripts/agent-lab-ui-check.mjs",
     "icons": "node scripts/make-icon.mjs",
     "icons:lab": "node scripts/make-lab-icon.mjs"
   },

@@ -461,6 +461,28 @@ export function ask<T = VoiceData>(
   return post<T>('/api/ai', token, request);
 }
 
+/** 🔷 AGENT.LAB V1 — una domanda all'inspector tecnico del progetto.
+ *  Il server esegue da solo il giro lettura-strumenti-risposta
+ *  (`netlify/functions/agent-lab.ts`): qui non c'è nessun ciclo da orchestrare,
+ *  solo una richiesta e una risposta, come per qualunque altra chiamata AI. */
+export interface AgentLabRequest {
+  message: string;
+  messages: { role: 'user' | 'assistant'; text: string }[];
+  context?: { stepId?: string; stepLabel?: string; stepDetail?: string; stepPhase?: string } | null;
+}
+
+export interface AgentLabResponse {
+  text: string;
+  toolTrace: { name: string; ok: boolean }[];
+  model: string;
+  costUsd: number;
+  warning?: boolean;
+}
+
+export function askAgentLab(token: string | null, request: AgentLabRequest): Promise<BackendResult<AgentLabResponse>> {
+  return post<AgentLabResponse>('/api/agent-lab', token, request);
+}
+
 export interface PersonalMemorySearchResult {
   memories: Array<{ id?: string; text: string; score?: number }>;
 }

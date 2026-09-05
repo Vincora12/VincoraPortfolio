@@ -1,7 +1,7 @@
 import { getStore } from '@netlify/blobs';
 
 export type RuntimeStatus = 'START' | 'PASS' | 'FAIL';
-export type RuntimeScope = 'chat' | 'ai' | 'memory' | 'progression' | 'system';
+export type RuntimeScope = 'chat' | 'ai' | 'memory' | 'progression' | 'system' | 'agent-lab';
 export interface RuntimeEvent {
   id: string;
   timestamp: string;

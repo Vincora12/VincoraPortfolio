@@ -1,0 +1,84 @@
+/* ============================================================================
+   AGENT.LAB — poche regole in più sopra a system.css
+
+   🔒 Riusa i token di `system.css` (`--ink`/`--muted`/`--line`/`--soft`,
+   caricato prima di questo foglio in AgentLab.tsx/AgentLabModal.tsx) invece
+   di inventarne di nuovi: stesso sistema grafico del resto del laboratorio,
+   solo la forma della chat e del modal, che non esistevano ancora.
+   ========================================================================= */
+
+.agentlab-chat { margin-top: 4px }
+
+.agentlab-msglist {
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  max-height: 50vh;
+  overflow-y: auto;
+  padding: 4px 0;
+  margin-bottom: 12px;
+}
+
+.agentlab-msg { padding: 10px 0; border-bottom: 1px solid var(--line) }
+.agentlab-msg:last-child { border-bottom: 0 }
+.agentlab-msg__who { display: block; font-size: 9px; letter-spacing: .06em; color: var(--muted); margin-bottom: 4px }
+.agentlab-msg--user .agentlab-msg__who { color: var(--ink) }
+.agentlab-msg__text { font-size: 12px; line-height: 1.5 }
+.agentlab-msg__trace { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 4px }
+
+/* Badge autosufficiente: non dipende da `.storage-shared` di system.css,
+   perché questo pannello vive anche dentro CREATION.LAB (creation.css), che
+   non la definisce. Stesso trattamento visivo (bordo sottile, mono, piccolo)
+   con cui il resto del laboratorio disegna già le etichette. */
+.agentlab-chip {
+  display: inline-block;
+  font-size: 8px;
+  letter-spacing: .05em;
+  border: 1px solid var(--line);
+  padding: 2px 5px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+.agentlab-trace--error { border-color: #b32025; color: #b32025 }
+.agentlab-tag { margin: 0 2px; white-space: nowrap }
+
+.agentlab-composer { margin: 8px 0 }
+.agentlab-composer textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink);
+  padding: 10px;
+  font-size: 12px;
+  font-family: inherit;
+  resize: vertical;
+}
+.agentlab-composer textarea:disabled { opacity: .5 }
+
+/* Il modal aperto da un nodo del FLOW di CREATION.LAB — sopra la pagina, non
+   una seconda stanza: chiude senza perdere lo stato del FLOW sotto. */
+.agentlab-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, .55);
+  z-index: 200;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.agentlab-modal-panel {
+  background: #fff;
+  color: var(--ink);
+  width: 100%;
+  max-width: 560px;
+  max-height: 88vh;
+  overflow-y: auto;
+  border: 1px solid #111;
+  border-bottom: 0;
+  padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
+}
+@media (min-width: 640px) {
+  .agentlab-modal-overlay { align-items: center }
+  .agentlab-modal-panel { border-bottom: 1px solid #111; max-height: 80vh }
+}
+.agentlab-modal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px }
+.agentlab-modal-head h2 { font-size: 14px; margin: 0 }
+.agentlab-modal-close { border: 1px solid var(--line); background: #fff; width: 32px; height: 32px; font-size: 16px; flex: 0 0 auto }

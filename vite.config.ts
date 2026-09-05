@@ -63,7 +63,7 @@ const labEntryInDev = {
   name: 'vinz-lab-entry-in-dev',
   configureServer(server: { middlewares: { use: (fn: (req: { url?: string }, res: unknown, next: () => void) => void) => void } }) {
     server.middlewares.use((req, _res, next) => {
-      if (req.url && /^\/lab(?:\/(creation|system))?\/?(?:\?|$)/.test(req.url)) {
+      if (req.url && /^\/lab(?:\/(creation|system|agent))?\/?(?:\?|$)/.test(req.url)) {
         req.url = '/lab/index.html';
       }
       next();
