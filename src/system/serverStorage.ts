@@ -1,5 +1,6 @@
 import { setLocalStorageItem } from './localStorageDiagnostics';
 import { consumePendingHistoryReadGateId } from './chatLiveDebug';
+import { mergeMessageRepositories, mergeThreadLists } from './chatHistoryMerge';
 
 /* Import dinamico deliberato: runtimeLog.ts porta con sé savedToken() da
    brain/stream.ts, una catena pesante. serverStorage.ts è importato in
@@ -29,6 +30,35 @@ function auth(): HeadersInit | null {
    scrive cosa e in che ordine — mai il contenuto dei messaggi, solo
    quanti sono e qual è il loro headId (un id, non un testo). */
 const CHAT_MESSAGES_KEY_PATTERN = /^assistant-ui-official-chatgpt:messages:/;
+
+/* REMOTE CHAT HISTORY V1 — le due sole chiavi dove una PUT cieca perde dati
+   scritti da un altro dispositivo nella stessa finestra di tempo (G5/G6):
+   il repository messaggi di UN thread, e l'indice dei thread stesso
+   (`LocalStorageThreadListAdapter`'s `threadsKey = ${prefix}threads`).
+   Ogni altra chiave che passa da questo storage (tuning, config, chat-trace,
+   icone/colori dei thread, ...) continua a scrivere senza condizioni,
+   esattamente come prima — vedi REMOTE_CHAT_HISTORY_V1.md. */
+const CHAT_THREADS_KEY = 'assistant-ui-official-chatgpt:threads';
+const MAX_CONFLICT_RETRIES = 3;
+
+function isConcurrencyAwareKey(key: string): boolean {
+  return key === CHAT_THREADS_KEY || CHAT_MESSAGES_KEY_PATTERN.test(key);
+}
+
+function mergeForKey(key: string, serverValue: string | null, oursValue: string): string {
+  return key === CHAT_THREADS_KEY
+    ? mergeThreadLists(serverValue, oursValue)
+    : mergeMessageRepositories(serverValue, oursValue);
+}
+
+/* ETag dell'ultima lettura/scrittura riuscita per chiave — SOLO in memoria,
+   SOLO per decidere la condizione della prossima PUT (`If-Match` se lo
+   conosciamo, `X-Only-If-New` se no). Non è una cache di dati: si perde ad
+   ogni reload, e va benissimo così, perché `append()`/`initialize()` (vedi
+   `LocalStorageThreadListAdapter`) fanno sempre una `getItem()` subito prima
+   di una `setItem()` sulla stessa chiave — l'etag è quasi sempre già fresco
+   quando serve. */
+const knownEtags = new Map<string, string>();
 
 function byteLength(value: string): number {
   try { return new TextEncoder().encode(value).byteLength; } catch { return value.length; }
@@ -68,7 +98,8 @@ export const serverBackedStorage = {
         if (!response.ok) {
           result = local;
         } else {
-          const { value } = await response.json() as { value: string | null };
+          const { value, etag } = await response.json() as { value: string | null; etag?: string | null };
+          if (typeof etag === 'string') knownEtags.set(key, etag);
           if (typeof value === 'string') setLocalStorageItem('serverStorage.getItem cache', key, value);
           if (typeof value === 'string') { result = value; source = 'SERVER'; } else { result = local; }
         }
@@ -108,9 +139,68 @@ export const serverBackedStorage = {
     }
     const headers = auth();
     if (!headers) return;
-    try {
-      await fetch(`/api/user-data?key=${encodeURIComponent(key)}`, { method: 'PUT', headers, body: value });
-    } catch { /* La copia locale resta disponibile e verrà riscritta al prossimo cambiamento. */ }
+
+    if (!isConcurrencyAwareKey(key)) {
+      try {
+        await fetch(`/api/user-data?key=${encodeURIComponent(key)}`, { method: 'PUT', headers, body: value });
+      } catch { /* La copia locale resta disponibile e verrà riscritta al prossimo cambiamento. */ }
+      return;
+    }
+
+    /* REMOTE CHAT HISTORY V1 — scrittura condizionale con unione al conflitto
+       (G5/G6). Le altre chiavi (sopra) restano una PUT cieca esattamente
+       come sempre: qui, e solo qui, una PUT rifiutata (409 — un altro
+       dispositivo ha scritto la stessa chiave nel frattempo) non è un
+       errore da inghiottire: si unisce il valore corrente del server con
+       quello che stavamo per scrivere (`mergeForKey` — mai una perdita, mai
+       un id duplicato) e si ritenta, fino a `MAX_CONFLICT_RETRIES` volte. */
+    let attemptValue = value;
+    for (let attempt = 1; attempt <= MAX_CONFLICT_RETRIES + 1; attempt++) {
+      const etag = knownEtags.get(key);
+      const conditionHeaders: HeadersInit = etag ? { 'if-match': etag } : { 'x-only-if-new': '1' };
+      let outcome: { kind: 'ok'; etag?: string } | { kind: 'conflict'; value: string | null; etag: string | null } | { kind: 'error' };
+      try {
+        const response = await fetch(`/api/user-data?key=${encodeURIComponent(key)}`, {
+          method: 'PUT',
+          headers: { ...headers, ...conditionHeaders },
+          body: attemptValue,
+        });
+        if (response.status === 409) {
+          const body = await response.json().catch(() => null) as { value?: string | null; etag?: string | null } | null;
+          outcome = { kind: 'conflict', value: body?.value ?? null, etag: body?.etag ?? null };
+        } else if (!response.ok) {
+          outcome = { kind: 'error' };
+        } else {
+          const body = await response.json().catch(() => null) as { etag?: string } | null;
+          outcome = { kind: 'ok', etag: body?.etag };
+        }
+      } catch {
+        outcome = { kind: 'error' };
+      }
+
+      if (outcome.kind === 'ok') {
+        if (outcome.etag) knownEtags.set(key, outcome.etag);
+        return;
+      }
+      if (outcome.kind === 'error') {
+        /* Rete assente o server irraggiungibile: la copia locale (già
+           scritta sopra, incondizionatamente) resta la verità disponibile —
+           G8. Nessun altro ritentativo qui: il prossimo setItem() su questa
+           chiave riparte da un getItem() fresco. */
+        return;
+      }
+
+      const isFinalAttempt = attempt === MAX_CONFLICT_RETRIES + 1;
+      postThreadStorageEvent({
+        eventType: 'CHAT_STORAGE_CONFLICT',
+        status: isFinalAttempt ? 'FAIL' : 'START',
+        scope: 'chat',
+        metadata: { key: key.slice(0, 80), caller, attempt },
+      });
+      if (outcome.etag) knownEtags.set(key, outcome.etag);
+      attemptValue = mergeForKey(key, outcome.value, attemptValue);
+      setLocalStorageItem('serverStorage.setItem merge', key, attemptValue);
+    }
   },
   async removeItem(key: string): Promise<void> {
     localStorage.removeItem(key);

@@ -61,7 +61,15 @@ export type RuntimeClientEvent = {
        passano dai nostri wrapper (es. dentro __internal_load() del
        vendor): confronta due export() consecutivi ad ogni notifica di
        aui.subscribe(), non solo attorno alle nostre chiamate. */
-    | 'CHAT_REPOSITORY_MUTATION';
+    | 'CHAT_REPOSITORY_MUTATION'
+    /* REMOTE CHAT HISTORY V1 — una PUT condizionale (`If-Match`/
+       `X-Only-If-New`, vedi `serverStorage.ts`/`netlify/functions/
+       user-data.ts`) è stata rifiutata perché un altro dispositivo ha
+       scritto la stessa chiave nel frattempo. STATUS 'START' per ogni
+       tentativo di unione+ritentativo, 'FAIL' solo se anche l'ultimo
+       tentativo consentito fallisce ancora — mai il contenuto della chat,
+       solo la chiave (troncata) e il numero di tentativo. */
+    | 'CHAT_STORAGE_CONFLICT';
   status: 'START' | 'PASS' | 'FAIL';
   scope: 'system' | 'chat' | 'memory';
   requestId?: string;
