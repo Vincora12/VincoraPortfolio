@@ -1,5 +1,5 @@
 import { useAui, useAuiState } from '@assistant-ui/react';
-import { useEffect, useState, useSyncExternalStore } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useShallow } from 'zustand/shallow';
 import { ReminderPanel } from '../projects/ReminderPanel';
 import { ProjectWorkspace } from '../projects/ProjectWorkspace';
@@ -90,16 +90,26 @@ type ConversationScope = { projectId: string | null; projectTitle: string };
 
 export function ConversationTabs({ scope, onNewThread }: { scope: ConversationScope; onNewThread: (threadId: string) => void }) {
   const aui = useAui();
+  const tabsRef = useRef<HTMLElement>(null);
   const { items, current } = useAuiState(useShallow((s) => ({ items: s.threads.threadItems, current: s.threads.mainThreadId })));
   const regular = items.filter((item) => item.status === 'regular' && (item.id === current || (typeof item.custom?.projectId === 'string' ? item.custom.projectId : null) === scope.projectId));
   const visible = regular.slice(0, 5);
   const active = regular.find((item) => item.id === current);
   if (active && !visible.includes(active)) visible.push(active);
-  return <nav className="vinz-conversation-tabs me-health__tabs" aria-label="Conversazioni">
+  useEffect(() => {
+    const tabs = tabsRef.current;
+    const selected = tabs?.querySelector<HTMLElement>("button[aria-current='page']");
+    if (!tabs || !selected) return;
+    const left = selected.offsetLeft;
+    const right = left + selected.offsetWidth;
+    if (left < tabs.scrollLeft) tabs.scrollTo({ left, behavior: 'smooth' });
+    else if (right > tabs.scrollLeft + tabs.clientWidth) tabs.scrollTo({ left: right - tabs.clientWidth, behavior: 'smooth' });
+  }, [current]);
+  return <nav ref={tabsRef} className="vinz-conversation-tabs me-health__tabs" aria-label="Conversazioni">
     {!active && <button type="button" aria-current="page">NUOVA CHAT</button>}
     {visible.map((item) => <button type="button" key={item.id} aria-current={current === item.id ? 'page' : undefined}
       title={item.title || 'Chat'} onClick={() => { if (current !== item.id) { requestManualRoomEntry(item.id); void aui.threads.switchToThread(item.id); } }}>
-      {item.title || 'Chat'}
+      <span className="vinz-conversation-tab__label">{item.title || 'Chat'}</span>
     </button>)}
     <ThreadListNew className="vinz-conversation-new" labelClassName="sr-only" onCreated={onNewThread} />
   </nav>;

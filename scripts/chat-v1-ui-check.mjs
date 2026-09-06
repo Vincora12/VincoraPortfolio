@@ -175,14 +175,30 @@ try {
   await page.locator('.vinz-conversation-new').click();
   await chooseScope('Project A');
   assert.equal(await page.locator('.vinz-chat-gesture-surface').getAttribute('data-project-scope'), 'project_A');
-  await send('Alpha scope note', 3);
+  await send('Alpha scope note with longer title', 3);
   assert.equal(await page.locator('.vinz-conversation-tabs > button:not(.vinz-conversation-new)').count(), 1, 'Project A excludes global chats');
   await page.locator('.vinz-conversation-new').click();
   assert.equal(await page.locator('.vinz-chat-gesture-surface').getAttribute('data-project-scope'), 'project_A', 'new chat inherits Project A');
   await send('Alpha second note', 4);
-  const alphaTabs = await page.locator('.vinz-conversation-tabs > button:not(.vinz-conversation-new)').allTextContents();
+  await mount();
+  await chooseScope('Project A');
+  await page.locator('.vinz-conversation-tabs').getByRole('button', { name: 'Alpha scope note with longer title', exact: true }).waitFor();
+  const alphaTabs = await page.locator('.vinz-conversation-tabs .vinz-conversation-tab__label').allTextContents();
   assert.equal(alphaTabs.length, 2);
   assert(!alphaTabs.some((title) => /First fixture|Second fixture|Beta/.test(title)), 'Project A tabs contain only Project A chats');
+  const longAlphaTab = page.locator('.vinz-conversation-tabs').getByRole('button', { name: 'Alpha scope note with longer title', exact: true });
+  const inactiveLabel = longAlphaTab.locator('.vinz-conversation-tab__label');
+  assert.equal(await inactiveLabel.evaluate((element) => getComputedStyle(element).textOverflow), 'ellipsis', 'inactive long title uses an ellipsis');
+  assert.equal(await inactiveLabel.evaluate((element) => element.scrollWidth > element.clientWidth), true, 'inactive long title is actually truncated');
+  await longAlphaTab.click();
+  await page.waitForTimeout(300);
+  assert.equal(await inactiveLabel.evaluate((element) => element.scrollWidth === element.clientWidth), true, 'selected tab expands to reveal its whole title');
+  assert.equal(await longAlphaTab.evaluate((element) => {
+    const tabs = element.parentElement.getBoundingClientRect();
+    const selected = element.getBoundingClientRect();
+    return selected.left >= tabs.left && selected.right <= tabs.right;
+  }), true, 'expanded selected tab is fully visible inside the tab scroller');
+  await page.screenshot({ path: '/tmp/vinz-chat-tab-expanded.png' });
 
   await page.locator('.vinz-conversation-new').click();
   await chooseScope('Project B');
