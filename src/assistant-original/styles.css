@@ -212,10 +212,22 @@ body[data-scroll-locked] {
 }
 
 .assistant-clone {
+  --mh-line: #747780;
+  --mh-bg: #000;
   width: 100%;
   max-width: 100%;
   min-width: 0;
+  overflow-x: hidden;
   isolation: isolate;
+}
+
+.vinz-chat-gesture-surface {
+  overscroll-behavior-x: none;
+  touch-action: pan-y;
+}
+
+.vinz-chat-rail {
+  display: none !important;
 }
 
 /* Il composer non partecipa alle animazioni della timeline: contenitore e
@@ -303,6 +315,16 @@ body[data-scroll-locked] {
   padding: 0.125rem 0.375rem;
   font-size: 0.6875rem;
   opacity: 0.72;
+}
+
+.vinz-assistant-message .vinz-message-updates,
+.vinz-assistant-message .vinz-message-updates *,
+.vinz-assistant-message .vinz-assistant-meta,
+.vinz-assistant-message .vinz-assistant-meta * {
+  font-family: var(--font-sans);
+  font-size: 0.6875rem;
+  font-weight: 400;
+  line-height: 1rem;
 }
 
 .vinz-record__cancel,
@@ -412,6 +434,11 @@ body[data-scroll-locked] {
   background: #090909 !important;
   color: #f2f2f2 !important;
   box-shadow: 22px 0 55px rgb(0 0 0 / 58%);
+}
+
+.vinz-thread-drawer[data-dragging] {
+  transform: translateX(calc(-100% + var(--vinz-drawer-drag))) !important;
+  transition: none !important;
 }
 
 .vinz-thread-drawer__title {

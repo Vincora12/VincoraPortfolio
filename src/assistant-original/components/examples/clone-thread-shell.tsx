@@ -11,7 +11,6 @@ import {
   Sheet,
   SheetContent,
   SheetTitle,
-  SheetTrigger,
 } from "@/assistant-original/components/ui/sheet";
 import {
   Tooltip,
@@ -22,7 +21,7 @@ import {
 import { cn } from "@/assistant-original/lib/utils";
 import { useAuiState } from "@assistant-ui/react";
 import { PanelLeftIcon } from "lucide-react";
-import { useRef, useState, type FC, type MouseEvent, type ReactNode, type TouchEvent } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type FC, type MouseEvent, type ReactNode } from "react";
 
 type CloneThreadShellProps = {
   children: ReactNode;
@@ -37,6 +36,8 @@ type CloneThreadShellProps = {
   showSearch?: boolean | undefined;
   wrapNewThreadTooltip?: boolean | undefined;
   showThreadList?: boolean | undefined;
+  newThreadScope?: { projectId: string | null; projectTitle: string } | undefined;
+  onNewThread?: ((threadId: string) => void) | undefined;
 };
 
 export const CloneThreadShell: FC<CloneThreadShellProps> = ({
@@ -52,11 +53,17 @@ export const CloneThreadShell: FC<CloneThreadShellProps> = ({
   showSearch = true,
   wrapNewThreadTooltip = false,
   showThreadList = true,
+  newThreadScope,
+  onNewThread,
 }) => {
   const [internalCollapsed, setInternalCollapsed] = useState(true);
   const [internalMobileOpen, setInternalMobileOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const touchStart = useRef<{ x: number; y: number; target: EventTarget | null } | null>(null);
+  const gestureSurface = useRef<HTMLDivElement>(null);
+  const touchStart = useRef<{ x: number; y: number; target: EventTarget | null; axis: 'pending' | 'x' | 'y' } | null>(null);
+  const drawerDragRef = useRef<number | null>(null);
+  const protectOpenUntil = useRef(0);
+  const [drawerDrag, setDrawerDrag] = useState<number | null>(null);
   const hasThreads = useAuiState((s) => s.threads.threadIds.length > 0);
 
   // A controlled value means the caller renders the chrome that drives it, so
@@ -72,25 +79,58 @@ export const CloneThreadShell: FC<CloneThreadShellProps> = ({
     onCollapsedChange?.(value);
   };
   const setMobileOpen = (open: boolean) => {
+    if (!open && (touchStart.current?.axis === 'x' || performance.now() < protectOpenUntil.current)) return;
     if (!mobileControlled) setInternalMobileOpen(open);
     onMobileSidebarOpenChange?.(open);
   };
 
-  const onTouchStart = (event: TouchEvent<HTMLDivElement>) => {
-    const touch = event.touches[0];
-    touchStart.current = touch ? { x: touch.clientX, y: touch.clientY, target: event.target } : null;
-  };
-  const onTouchEnd = (event: TouchEvent<HTMLDivElement>) => {
-    const start = touchStart.current;
-    touchStart.current = null;
-    if (!start || mobileOpen || !(window.matchMedia?.('(max-width: 767px)').matches ?? true)) return;
-    if (start.target instanceof Element && start.target.closest('.vinz-conversation-tabs')) return;
-    const touch = event.changedTouches[0];
-    if (!touch) return;
-    const dx = touch.clientX - start.x;
-    const dy = touch.clientY - start.y;
-    if (dx >= 56 && Math.abs(dx) > Math.abs(dy) * 1.25) setMobileOpen(true);
-  };
+  useEffect(() => {
+    const surface = gestureSurface.current;
+    if (!surface) return;
+    const mobile = () => window.matchMedia?.('(max-width: 767px)').matches ?? true;
+    const width = () => Math.min(window.innerWidth * 0.88, 390);
+    const start = (event: globalThis.TouchEvent) => {
+      if (!mobile() || mobileOpen || event.touches.length !== 1) return;
+      if (event.target instanceof Element && event.target.closest('.vinz-conversation-tabs')) return;
+      const touch = event.touches[0];
+      touchStart.current = { x: touch.clientX, y: touch.clientY, target: event.target, axis: 'pending' };
+    };
+    const move = (event: globalThis.TouchEvent) => {
+      const initial = touchStart.current;
+      const touch = event.touches[0];
+      if (!initial || !touch) return;
+      const dx = touch.clientX - initial.x;
+      const dy = touch.clientY - initial.y;
+      if (initial.axis === 'pending' && Math.max(Math.abs(dx), Math.abs(dy)) < 7) return;
+      if (initial.axis === 'pending') initial.axis = Math.abs(dx) > Math.abs(dy) * 1.15 && dx > 0 ? 'x' : 'y';
+      if (initial.axis !== 'x') return;
+      event.preventDefault();
+      setMobileOpen(true);
+      const distance = Math.min(width(), Math.max(0, dx));
+      drawerDragRef.current = distance;
+      setDrawerDrag(distance);
+    };
+    const end = () => {
+      const initial = touchStart.current;
+      touchStart.current = null;
+      if (initial?.axis !== 'x') return;
+      const open = (drawerDragRef.current ?? 0) >= Math.max(72, width() * 0.3);
+      if (open) protectOpenUntil.current = performance.now() + 220;
+      drawerDragRef.current = null;
+      setDrawerDrag(null);
+      setMobileOpen(open);
+    };
+    surface.addEventListener('touchstart', start, { passive: true });
+    window.addEventListener('touchmove', move, { passive: false });
+    window.addEventListener('touchend', end);
+    window.addEventListener('touchcancel', end);
+    return () => {
+      surface.removeEventListener('touchstart', start);
+      window.removeEventListener('touchmove', move);
+      window.removeEventListener('touchend', end);
+      window.removeEventListener('touchcancel', end);
+    };
+  }, [mobileOpen]);
 
   const closeMobileSidebarAfterNavigation = (
     event: MouseEvent<HTMLDivElement>,
@@ -113,6 +153,7 @@ export const CloneThreadShell: FC<CloneThreadShellProps> = ({
           ? "w-8 gap-0 px-2 has-[>svg]:px-2"
           : "w-full gap-2 px-2.5 has-[>svg]:px-2.5",
       )}
+      onCreated={onNewThread}
       labelClassName={cn(
         "overflow-hidden transition-all duration-200",
         sidebarCollapsed ? "max-w-0 opacity-0" : "max-w-24 opacity-100",
@@ -121,10 +162,15 @@ export const CloneThreadShell: FC<CloneThreadShellProps> = ({
   );
 
   return (
-    <div className="relative flex h-full w-full overflow-hidden" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+    <div
+      ref={gestureSurface}
+      className="vinz-chat-gesture-surface relative flex h-full w-full overflow-hidden"
+      data-project-scope={newThreadScope?.projectId ?? 'global'}
+      data-drawer-open={mobileOpen || undefined}
+    >
       <aside
         className={cn(
-          "bg-muted/30 hidden h-full shrink-0 flex-col overflow-hidden border-r transition-[width] duration-200 md:flex",
+          "vinz-chat-rail bg-muted/30 hidden h-full shrink-0 flex-col overflow-hidden border-r transition-[width] duration-200 md:flex",
           railClassName,
           sidebarCollapsed ? "w-12" : "w-65",
         )}
@@ -196,8 +242,12 @@ export const CloneThreadShell: FC<CloneThreadShellProps> = ({
       </aside>
 
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-        {!mobileControlled && <SheetTrigger className="sr-only">Apri progetti</SheetTrigger>}
-        <SheetContent side="left" className="vinz-thread-drawer flex flex-col gap-0 p-0">
+        <SheetContent
+          side="left"
+          className="vinz-thread-drawer flex flex-col gap-0 p-0"
+          data-dragging={drawerDrag !== null || undefined}
+          style={drawerDrag !== null ? { '--vinz-drawer-drag': `${drawerDrag}px` } as CSSProperties : undefined}
+        >
           <SheetTitle className="vinz-thread-drawer__title flex shrink-0 items-center px-5 text-2xl font-semibold">
             {sheetTitle ?? "VINZ.MON"}
           </SheetTitle>
@@ -217,7 +267,7 @@ export const CloneThreadShell: FC<CloneThreadShellProps> = ({
             </>}
           </div>
           <div className="vinz-thread-drawer__footer shrink-0 px-4">
-            <ThreadListNew className="vinz-thread-drawer__new h-12 w-full justify-center rounded-full text-base font-semibold" />
+            <ThreadListNew className="vinz-thread-drawer__new h-12 w-full justify-center rounded-full text-base font-semibold" onCreated={onNewThread} />
           </div>
         </SheetContent>
       </Sheet>

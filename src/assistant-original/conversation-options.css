@@ -1,10 +1,11 @@
-.vinz-chat-top-controls{position:absolute;top:calc(env(safe-area-inset-top) + 6px);left:0;right:0;z-index:25}
-.vinz-conversation-tabs{display:flex;align-items:stretch;overflow-x:auto;min-width:0;max-width:100%;background:var(--mh-line,#75767d);scrollbar-width:none}
-.vinz-conversation-tabs>button{flex:1 0 auto;min-width:96px;min-height:34px;max-width:none;display:flex;align-items:center;justify-content:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:var(--u,4px) 2px;background:var(--mh-line,#75767d);color:#fff;font:600 clamp(var(--type-micro,10px),2.8vw,var(--type-meta,12px))/1 var(--font-mono,'IBM Plex Mono',monospace);letter-spacing:.035em;text-transform:uppercase;transition:background-color var(--dur-fast,140ms) var(--ease-system,ease),color var(--dur-fast,140ms) var(--ease-system,ease);clip-path:polygon(11px 0,calc(100% - 11px) 0,100% 100%,0 100%);border:0}
+.vinz-chat-top-controls{position:absolute;top:0;left:0;right:0;z-index:25}
+.vinz-conversation-tabs{overflow-x:auto;overflow-y:hidden;min-width:0;max-width:100%;scrollbar-width:none;touch-action:pan-x;overscroll-behavior-x:contain}
+.vinz-conversation-tabs::-webkit-scrollbar{display:none}
+.vinz-conversation-tabs>button{flex:1 0 96px;max-width:none;overflow:hidden;text-overflow:ellipsis;clip-path:polygon(11px 0,calc(100% - 11px) 0,100% 100%,0 100%)}
 .vinz-conversation-tabs>button+button{margin-left:-11px;padding-left:2px}.vinz-conversation-tabs>button:first-child{clip-path:polygon(0 0,calc(100% - 11px) 0,100% 100%,0 100%)}
 .vinz-conversation-tabs>button:nth-last-child(2){clip-path:polygon(0 100%,11px 0,100% 0,100% 100%)}
 .vinz-conversation-tabs>button.vinz-conversation-new{clip-path:none;background:transparent;color:inherit}
-.vinz-conversation-tabs>button[aria-current=page]{position:relative;z-index:2;background:var(--mh-bg,#000);color:#f8f8fa;filter:drop-shadow(1px 0 0 var(--mh-line,#292c33)) drop-shadow(-1px 0 0 var(--mh-line,#292c33))}.vinz-conversation-tabs>button:focus-visible{outline:2px solid currentColor;outline-offset:-4px}
+.vinz-conversation-tabs>button:focus-visible{outline:2px solid currentColor;outline-offset:-4px}
 .vinz-conversation-tabs .vinz-conversation-new{max-width:50px;min-width:44px;padding:10px 15px;justify-content:center}
 .vinz-chat-options{padding:12px 0;border-bottom:1px solid #777;display:grid;gap:12px;color:inherit;font:11px 'IBM Plex Mono',monospace}
 .vinz-chat-options button,.vinz-chat-options select{color:inherit;background:transparent;border:1px solid #777;min-height:44px;padding:9px;width:100%;text-align:left;font:inherit}.vinz-chat-options select{display:block;margin-top:8px;max-width:100%}.vinz-chat-options option{color:#111;background:white}.vinz-chat-options small{font-size:10px;line-height:1.5;color:#999}

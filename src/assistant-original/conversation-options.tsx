@@ -26,7 +26,7 @@ function ProjectChatSidebar({
   token: string | null;
   value: { model: string; projectId: string | null; projectTitle: string };
   scopeLocked: boolean;
-  onProject: (project: ProjectSummary) => void;
+  onProject: (project: ProjectSummary | null) => void;
   onAutomations: () => void;
   onModel: (model: string) => void;
   openWorkspace: () => void;
@@ -73,6 +73,7 @@ function ProjectChatSidebar({
     </div>
     <div className="vinz-project-sidebar__section">
       <span className="vinz-project-sidebar__label">CAMBIA PROGETTO</span>
+      <button type="button" className={`vinz-project-sidebar__row ${value.projectId === null ? 'is-selected' : ''}`} disabled={scopeLocked} onClick={() => onProject(null)}>GLOBAL<small>CHAT</small></button>
       {error ? <span className="vinz-project-sidebar__empty">{error}</span> : projects.length ? projects.map((item) => <button type="button" className={`vinz-project-sidebar__row ${item.id === value.projectId ? 'is-selected' : ''}`} key={item.id} disabled={scopeLocked} onClick={() => onProject(item)}>{item.title}<small>{item.artifactCount} FILE</small></button>) : <span className="vinz-project-sidebar__empty">Nessun progetto salvato.</span>}
       <button type="button" className="vinz-project-sidebar__outline" onClick={openWorkspace}>GESTISCI PROGETTI E FILE</button>
     </div>
@@ -85,10 +86,12 @@ function ProjectChatSidebar({
   </section>;
 }
 
-export function ConversationTabs() {
+type ConversationScope = { projectId: string | null; projectTitle: string };
+
+export function ConversationTabs({ scope, onNewThread }: { scope: ConversationScope; onNewThread: (threadId: string) => void }) {
   const aui = useAui();
   const { items, current } = useAuiState(useShallow((s) => ({ items: s.threads.threadItems, current: s.threads.mainThreadId })));
-  const regular = items.filter((item) => item.status === 'regular');
+  const regular = items.filter((item) => item.status === 'regular' && (item.id === current || (typeof item.custom?.projectId === 'string' ? item.custom.projectId : null) === scope.projectId));
   const visible = regular.slice(0, 5);
   const active = regular.find((item) => item.id === current);
   if (active && !visible.includes(active)) visible.push(active);
@@ -98,7 +101,7 @@ export function ConversationTabs() {
       title={item.title || 'Chat'} onClick={() => { if (current !== item.id) { requestManualRoomEntry(item.id); void aui.threads.switchToThread(item.id); } }}>
       {item.title || 'Chat'}
     </button>)}
-    <ThreadListNew className="vinz-conversation-new" labelClassName="sr-only" />
+    <ThreadListNew className="vinz-conversation-new" labelClassName="sr-only" onCreated={onNewThread} />
   </nav>;
 }
 
@@ -124,13 +127,16 @@ export function useConversationOptions() {
       void aui.threads.item('main').updateCustom({ ...custom, model: value.model, projectId: value.projectId, projectTitle: value.projectTitle });
     }
   }, [aui, id, draft.id, remoteId, value.model, value.projectId, value.projectTitle, custom]);
-  const controls = <ProjectChatSidebar token={token} value={value} scopeLocked={scopeLocked} onProject={(project) => { setDraft({ ...value, projectId: project.id, projectTitle: project.title }); }} onAutomations={() => setRemindersOpen(true)} onModel={(model) => setDraft({ ...value, model })} openWorkspace={() => setOpen(true)} />;
+  const inheritScope = (threadId: string) => {
+    setDraft({ id: threadId, model: 'auto', projectId: value.projectId, projectTitle: value.projectTitle });
+  };
+  const controls = <ProjectChatSidebar token={token} value={value} scopeLocked={scopeLocked} onProject={(project) => { setDraft({ ...value, projectId: project?.id ?? null, projectTitle: project?.title ?? '' }); }} onAutomations={() => setRemindersOpen(true)} onModel={(model) => setDraft({ ...value, model })} openWorkspace={() => setOpen(true)} />;
   const workspace = remindersOpen ? <div className="vinz-project-overlay" role="dialog" aria-modal="true" aria-label="Promemoria">
     <ReminderPanel token={token} onClose={() => { setRemindersOpen(false); if (location.hash === '#reminders') history.replaceState(null, '', location.pathname); }} />
   </div> : open ? <div className="vinz-project-overlay" role="dialog" aria-modal="true" aria-label="Projects">
     <ProjectWorkspace token={token} onClose={() => setOpen(false)} onSelectProject={scopeLocked ? undefined : (project) => { setDraft({ ...value, projectId: project.id, projectTitle: project.title }); setOpen(false); }} />
   </div> : null;
-  return { controls, workspace, projectTitle: value.projectTitle };
+  return { controls, workspace, scope: { projectId: value.projectId, projectTitle: value.projectTitle }, inheritScope };
 }
 
 export function ChatStorageStatus() {

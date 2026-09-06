@@ -228,10 +228,13 @@ const useFirstArrivalReveal = (arrivalId: unknown) => {
   return animate;
 };
 
-export const ChatGPT: FC<{ sidebarContent?: React.ReactNode }> = ({ sidebarContent }) => {
+export const ChatGPT: FC<{
+  sidebarContent?: React.ReactNode;
+  newThreadScope?: { projectId: string | null; projectTitle: string };
+  onNewThread?: (threadId: string) => void;
+}> = ({ sidebarContent, newThreadScope, onNewThread }) => {
   return (
-    <CloneThreadShell sidebarContent={sidebarContent} showThreadList={false}>
-      <ChatCostTotal />
+    <CloneThreadShell sidebarContent={sidebarContent} showThreadList={false} newThreadScope={newThreadScope} onNewThread={onNewThread}>
       <LogCelebration />
       <ReactionMessageDispatcher />
       <ConversationMemory />
@@ -1459,7 +1462,10 @@ const OpeningComposedText: FC<{ text: string; active: boolean; delayMs: number }
 
 const AssistantMessage: FC = () => {
   const [traceOpen, setTraceOpen] = useState(false);
-  const { staScrivendo, haTesto, soloSticker, traceId, openingRevealDelay, openingRevealArrivalId } = useAuiState(
+  const record = useApp((state) =>
+    state.activeMonName ? state.mons[state.activeMonName] ?? null : null,
+  );
+  const { staScrivendo, haTesto, soloSticker, traceId, responseCost, chatCost, hasChatCost, openingRevealDelay, openingRevealArrivalId } = useAuiState(
     useShallow((s) => ({
       staScrivendo: s.message.status?.type === "running",
       haTesto: (s.message.content ?? []).some(
@@ -1469,6 +1475,14 @@ const AssistantMessage: FC = () => {
       traceId: typeof s.message.metadata.custom.traceId === "string"
         ? s.message.metadata.custom.traceId
         : null,
+      responseCost: typeof s.message.metadata.custom.costUsd === 'number'
+        ? s.message.metadata.custom.costUsd
+        : null,
+      chatCost: s.thread.messages.reduce((sum, message) => {
+        const cost = message.metadata.custom.costUsd;
+        return sum + (typeof cost === 'number' ? cost : 0);
+      }, 0),
+      hasChatCost: s.thread.messages.some((message) => typeof message.metadata.custom.costUsd === 'number'),
       openingRevealDelay: typeof s.message.metadata.custom.revealDelayMs === "number"
         ? s.message.metadata.custom.revealDelayMs
         : 0,
@@ -1586,23 +1600,25 @@ const AssistantMessage: FC = () => {
                 </ActionBarMorePrimitive.Item>
               </ActionBarPrimitive.ExportMarkdown>
               <ActionBarMorePrimitive.Item
-                disabled={!traceId}
-                onSelect={() => traceId && setTraceOpen(true)}
-                className="flex cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-white outline-none select-none focus:bg-white/15 data-[disabled]:cursor-default data-[disabled]:opacity-40"
+                onSelect={() => setTraceOpen(true)}
+                className="flex cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-white outline-none select-none focus:bg-white/15"
               >
                 <ActivityIcon className="size-5" />
-                Trace
+                NERD TERMINAL
               </ActionBarMorePrimitive.Item>
+              {hasChatCost && (
+                <ActionBarMorePrimitive.Item disabled className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-white/65 outline-none select-none">
+                  Costo chat {formatCost(chatCost)}
+                </ActionBarMorePrimitive.Item>
+              )}
             </ActionBarMorePrimitive.Content>
           </ActionBarMorePrimitive.Root>
         </ActionBarPrimitive.Root>
         <BranchPicker className="ml-1" />
       </div>
 
-      <MessageCost />
-      <ActivePersonality />
       <MessageUpdates />
-      {traceOpen && traceId ? <TracePanel traceId={traceId} onClose={() => setTraceOpen(false)} /> : null}
+      {traceOpen ? <NerdTerminalPanel traceId={traceId} responseCost={responseCost} personality={record ? `${record.data.voice_preset} · ${record.data.family}/${record.data.affinity}` : 'Assistente neutro'} onClose={() => setTraceOpen(false)} /> : null}
 
       <div className="vinz-assistant-meta mt-1 flex flex-wrap items-center gap-1 text-xs text-[#8e8e8e]">
         <MessagePrimitive.Parts>
@@ -1618,11 +1634,12 @@ const AssistantMessage: FC = () => {
   );
 };
 
-const TracePanel: FC<{ traceId: string; onClose: () => void }> = ({ traceId, onClose }) => {
+const NerdTerminalPanel: FC<{ traceId: string | null; responseCost: number | null; personality: string; onClose: () => void }> = ({ traceId, responseCost, personality, onClose }) => {
   const [trace, setTrace] = useState<ChatTrace | null>(null);
-  const [loaded, setLoaded] = useState(false);
+  const [loaded, setLoaded] = useState(!traceId);
 
   useEffect(() => {
+    if (!traceId) { setLoaded(true); return; }
     let current = true;
     void loadChatTrace(traceId).then((value) => {
       if (current) {
@@ -1634,21 +1651,21 @@ const TracePanel: FC<{ traceId: string; onClose: () => void }> = ({ traceId, onC
   }, [traceId]);
 
   return createPortal(
-    <div className="fixed inset-0 z-[100] flex items-end bg-black/65 p-3 sm:items-center sm:justify-center" role="dialog" aria-modal="true" aria-label="Chat trace">
+    <div className="fixed inset-0 z-[100] flex items-end bg-black/65 p-3 sm:items-center sm:justify-center" role="dialog" aria-modal="true" aria-label="Nerd Terminal">
       <section className="max-h-[85vh] w-full max-w-xl overflow-y-auto rounded-2xl border border-white/20 bg-black p-5 text-white shadow-2xl">
         <div className="mb-5 flex items-center justify-between">
-          <h2 className="text-base font-semibold">Trace</h2>
-          <button type="button" onClick={onClose} aria-label="Chiudi trace" className="rounded-full p-2 text-white hover:bg-white/15">
+          <h2 className="text-base font-semibold">NERD TERMINAL</h2>
+          <button type="button" onClick={onClose} aria-label="Chiudi Nerd Terminal" className="rounded-full p-2 text-white hover:bg-white/15">
             <XIcon className="size-5" />
           </button>
         </div>
-        {!loaded ? <p className="text-sm text-white/60">Caricamento…</p> : !trace ? (
-          <p className="text-sm text-white/60">Trace non disponibile.</p>
-        ) : (
-          <div className="space-y-4 text-sm leading-5">
+        <div className="space-y-4 text-sm leading-5">
+          {responseCost !== null ? <TraceField label="Costo risposta" value={formatCost(responseCost)} /> : null}
+          <TraceField label="Personalità" value={personality} />
+          {!loaded ? <p className="text-sm text-white/60">Caricamento trace…</p> : trace ? (
+            <>
             <TraceField label="Modello" value={trace.model} />
             <TraceField label="Percorso" value={trace.path} />
-            <TraceField label="Personalità" value={trace.personality?.voicePreset} />
             <TraceField label="Writing fingerprint" value={trace.personality?.writingFingerprint} />
             <TraceField label="Reazioni" value={trace.personality?.reactions} />
             {trace.systemPromptComposition?.length ? (
@@ -1674,8 +1691,9 @@ const TracePanel: FC<{ traceId: string; onClose: () => void }> = ({ traceId, onC
             {trace.steps.length ? <TraceList label="Tappe" values={trace.steps.map((step) => `${step.ms} ms · ${step.label}: ${step.detail}`)} /> : null}
             <TraceField label="Errori" value={trace.error ?? "Nessuno"} />
             {trace.originatingUserMessageId && memoryTrace(trace.originatingUserMessageId) ? <TraceList label="Memory" values={Object.entries(memoryTrace(trace.originatingUserMessageId)).map(([key, value]) => `${key}: ${String(value)}`)} /> : <TraceField label="Memory" value="Non disponibile per il messaggio origine" />}
-          </div>
-        )}
+            </>
+          ) : null}
+        </div>
       </section>
     </div>,
     document.body,
@@ -1890,30 +1908,6 @@ const MonReactionMessage: FC = () => {
   );
 };
 
-/** Diagnostica visibile: conferma quale identità ha prodotto ogni risposta. */
-const ActivePersonality: FC = () => {
-  const record = useApp((state) =>
-    state.activeMonName ? state.mons[state.activeMonName] ?? null : null,
-  );
-  if (!record) {
-    return (
-      <small className="mt-0.5 text-[10px] uppercase tracking-[0.08em] text-[#737373] dark:text-[#8e8e8e]">
-        Personalità: assistente neutro
-      </small>
-    );
-  }
-
-  const card = voiceCard(record);
-  return (
-    <small
-      className="mt-0.5 text-[10px] uppercase tracking-[0.08em] text-[#737373] dark:text-[#8e8e8e]"
-      title={card.fingerprint}
-    >
-      Personalità: {record.data.voice_preset} · {record.data.family}/{record.data.affinity}
-    </small>
-  );
-};
-
 /* ============================================================================
    COSA STA FACENDO, MENTRE LO FA
 
@@ -2013,21 +2007,6 @@ function formatCost(value: number): string {
   return `$${value.toFixed(2)}`;
 }
 
-const MessageCost: FC = () => {
-  const value = useAuiState((s) => s.message.metadata.custom.costUsd);
-  /* Durante l'attesa il costo non esiste ancora e mostrava «Costo risposta —»
-     accanto a «Sto ragionando…»: due righe, una sola informativa. Il prezzo
-     compare quando c'è un prezzo. */
-  const inCorso = useAuiState((s) => s.message.status?.type === "running");
-  if (inCorso && typeof value !== "number") return null;
-  const cost = typeof value === "number" ? formatCost(value) : "—";
-  return (
-    <small className="mt-0.5 text-[11px] leading-4 text-[#737373] tabular-nums dark:text-[#8e8e8e]">
-      Costo risposta {cost}
-    </small>
-  );
-};
-
 const MessageUpdates: FC = () => {
   const activityValue = useAuiState((s) => s.message.metadata.custom.activity);
   const activity = Array.isArray(activityValue) ? activityValue as Array<{tool: string; status: string; durationMs?: number}> : [];
@@ -2051,20 +2030,6 @@ const MessageUpdates: FC = () => {
           {update}
         </small>
       ))}
-    </div>
-  );
-};
-
-const ChatCostTotal: FC = () => {
-  const total = useAuiState((s) =>
-    s.thread.messages.reduce((sum, message) => {
-      const value = message.metadata.custom.costUsd;
-      return sum + (typeof value === "number" ? value : 0);
-    }, 0),
-  );
-  return (
-    <div className="vinz-chat-cost pointer-events-none absolute left-12 z-30 text-[11px] leading-4 font-medium text-[#737373] tabular-nums md:left-1/2 md:-translate-x-1/2 dark:text-[#8e8e8e]">
-      Chat {formatCost(total)}
     </div>
   );
 };

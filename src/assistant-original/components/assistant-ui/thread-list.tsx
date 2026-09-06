@@ -414,8 +414,8 @@ const ThreadListItemGroups: FC<{ searchQuery?: string }> = ({
 
 export const ThreadListNew = forwardRef<
   HTMLButtonElement,
-  ComponentPropsWithoutRef<typeof Button> & { labelClassName?: string }
->(({ className, labelClassName, children, ...props }, ref) => {
+  ComponentPropsWithoutRef<typeof Button> & { labelClassName?: string; onCreated?: (threadId: string) => void }
+>(({ className, labelClassName, children, onCreated, ...props }, ref) => {
   const aui = useAui();
   const [creating, setCreating] = useState(false);
   const creatingRef = useRef(false);
@@ -430,6 +430,7 @@ export const ThreadListNew = forwardRef<
       const threadId = aui.threads.item("main").getState().id;
       discardLocalSession(threadId);
       aui.thread.reset();
+      onCreated?.(threadId);
       requestNextRoomEntry();
     } finally {
       creatingRef.current = false;

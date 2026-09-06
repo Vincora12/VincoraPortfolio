@@ -17,14 +17,14 @@ type ChatSurfaceProps = {
 
 /** La superficie approvata resta identica sia nell'esempio sia dentro VINZ.MON. */
 export const ChatSurface: FC<ChatSurfaceProps> = ({ embedded = false, themeStyle }) => {
-  const { controls, workspace } = useConversationOptions();
+  const { controls, workspace, scope, inheritScope } = useConversationOptions();
 
   if (embedded) {
     return (
       <main style={themeStyle} className="assistant-clone relative flex h-full min-h-0 flex-col overflow-hidden bg-white text-[#0d0d0d]">
-        <ConversationTabs /><ChatStorageStatus />
+        <ConversationTabs scope={scope} onNewThread={inheritScope} /><ChatStorageStatus />
         <div className="min-h-0 flex-1">
-          <ChatGPT sidebarContent={controls} />
+          <ChatGPT sidebarContent={controls} newThreadScope={scope} onNewThread={inheritScope} />
         </div>
         {workspace}
       </main>
@@ -37,8 +37,8 @@ export const ChatSurface: FC<ChatSurfaceProps> = ({ embedded = false, themeStyle
         aria-hidden="true"
         className="vinz-chat-top-fade pointer-events-none absolute inset-x-0 top-0 z-10 md:hidden"
       />
-      <div className="vinz-chat-top-controls"><ConversationTabs /><ChatStorageStatus /></div>
-      <ChatGPT sidebarContent={controls} />
+      <div className="vinz-chat-top-controls"><ConversationTabs scope={scope} onNewThread={inheritScope} /><ChatStorageStatus /></div>
+      <ChatGPT sidebarContent={controls} newThreadScope={scope} onNewThread={inheritScope} />
       {workspace}
     </main>
   );
