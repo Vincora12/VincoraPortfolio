@@ -1,4 +1,4 @@
-import { getStore } from '@netlify/blobs';
+import { getStore } from './_shared/localStore';
 import { authorize } from './_shared/auth';
 import { generateImage, IMAGE_SIZES, type ImageSize } from './_shared/providers';
 import { resolveRoute } from './_shared/routing';

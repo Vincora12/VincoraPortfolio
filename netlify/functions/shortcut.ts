@@ -39,7 +39,7 @@
    ════════════════════════════════════════════════════════════════════════════
    ========================================================================= */
 
-import { getStore } from '@netlify/blobs';
+import { getStore } from './_shared/localStore';
 import { authorize, authorizeShortcut, denied, json } from './_shared/auth';
 import { isShortcutAction, SHORTCUT_ACTIONS, type ShortcutActionId } from './_shared/shortcutActions';
 import { recordShortcutCall } from './_shared/shortcutLog';

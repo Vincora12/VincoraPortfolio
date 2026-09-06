@@ -35,7 +35,7 @@
    ════════════════════════════════════════════════════════════════════════════
    ========================================================================= */
 
-import { getStore } from '@netlify/blobs';
+import { getStore } from './_shared/localStore';
 import { authorize, denied, json } from './_shared/auth';
 
 /** Quello che una Shortcut può dire. Volutamente poco. */

@@ -21,7 +21,7 @@ export function getStore() { return {
 }; }
 `;
 try {
-  await build({ entryPoints: ['netlify/functions/projects.ts', 'src/engine/projects.ts'], outdir: directory, outbase: '.', bundle: true, format: 'esm', platform: 'node', outExtension: { '.js': '.mjs' }, plugins: [{ name: 'isolated-blobs', setup(builder) { builder.onResolve({ filter: /^@netlify\/blobs$/ }, () => ({ path: 'mock-blobs', namespace: 'test' })); builder.onLoad({ filter: /.*/, namespace: 'test' }, () => ({ contents: blobMock, loader: 'js' })); } }] });
+  await build({ entryPoints: ['netlify/functions/projects.ts', 'src/engine/projects.ts'], outdir: directory, outbase: '.', bundle: true, format: 'esm', platform: 'node', outExtension: { '.js': '.mjs' }, plugins: [{ name: 'isolated-blobs', setup(builder) { builder.onResolve({ filter: /^@netlify\/blobs$|\/localStore$|^\.\/_shared\/localStore$/ }, () => ({ path: 'mock-blobs', namespace: 'test' })); builder.onLoad({ filter: /.*/, namespace: 'test' }, () => ({ contents: blobMock, loader: 'js' })); } }] });
   const { default: handler } = await import(pathToFileURL(join(directory, 'netlify/functions/projects.mjs')));
   const { buildProjectContext, mutationProblem, artifactHref } = await import(pathToFileURL(join(directory, 'src/engine/projects.mjs')));
   const token = 'synthetic-project-test-token-123456';

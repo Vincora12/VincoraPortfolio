@@ -13,7 +13,7 @@ globalThis.__calendarStoreFixture = {
 };
 const { outputFiles } = await build({ entryPoints: ['netlify/functions/calendar.ts'], bundle: true, format: 'esm', platform: 'node', write: false,
   plugins: [{ name: 'fixture-storage', setup(build) {
-    build.onResolve({ filter: /^@netlify\/blobs$/ }, () => ({ path: 'fixture', namespace: 'fixture' }));
+    build.onResolve({ filter: /^@netlify\/blobs$|\/localStore$|^\.\/_shared\/localStore$/ }, () => ({ path: 'fixture', namespace: 'fixture' }));
     build.onLoad({ filter: /.*/, namespace: 'fixture' }, () => ({ contents: 'export const getStore = () => globalThis.__calendarStoreFixture;', loader: 'js' }));
   } }] });
 const { default: handler } = await import(`data:text/javascript;base64,${Buffer.from(outputFiles[0].text).toString('base64')}`);

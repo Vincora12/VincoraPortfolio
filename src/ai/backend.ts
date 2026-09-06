@@ -271,7 +271,7 @@ function noteBudget(warning: boolean | undefined, remaining: number | undefined)
  * ⚠️ E il numero da guardare non è questo: è quello che finisce nel messaggio.
  * I secondi veri li riporta `detail`, e quelli non dipendono da cosa credo io.
  */
-const NETLIFY_WALL_MS = 24_000;
+const REQUEST_WALL_MS = 24_000;
 
 /**
  * Quanto è durata, in parole.
@@ -305,7 +305,7 @@ async function post<T>(
      fallisce SUBITO, una funzione uccisa fallisce DOPO NOVE SECONDI E MEZZO.
      Non è un'euristica delicata — è un ordine di grandezza. */
   const startedAt = Date.now();
-  const wall = () => Date.now() - startedAt >= NETLIFY_WALL_MS;
+  const wall = () => Date.now() - startedAt >= REQUEST_WALL_MS;
 
   let response: Response;
   try {

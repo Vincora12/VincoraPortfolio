@@ -10,7 +10,7 @@
    forma della chiamata: cosa, quando, riuscita o no, quanto è costata.
    ========================================================================= */
 
-import { getStore } from '@netlify/blobs';
+import { getStore } from './localStore';
 import type { ShortcutActionId } from './shortcutActions';
 
 export interface ShortcutCallLog {

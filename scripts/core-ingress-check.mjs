@@ -14,7 +14,7 @@ const compiled = await build({
   `, resolveDir:process.cwd(), loader:'ts' },
   bundle:true, write:false, platform:'node', format:'esm', logLevel:'silent',
   plugins:[{name:'fake-io',setup(b){
-    b.onResolve({filter:/^@netlify\/blobs$/},()=>({path:'blobs',namespace:'fixture'}));
+    b.onResolve({filter:/^@netlify\/blobs$|\/localStore$|^\.\/_shared\/localStore$/},()=>({path:'blobs',namespace:'fixture'}));
     b.onLoad({filter:/.*/,namespace:'fixture'},()=>({contents:`export function getStore(){return {async get(key){if(globalThis.__coreTest.failStore)throw Error('offline');return key==='save'?globalThis.__coreTest.save:null;}}}`}));
     b.onLoad({filter:/_shared\/providers\.ts$/},()=>({contents:`export async function callProvider(provider,input){globalThis.__coreTest.calls.push({provider,...input});return {ok:true,text:'contract response',model:'fixture',toolUses:[],usage:{inputTokens:11,outputTokens:3}};}`}));
     b.onLoad({filter:/_shared\/spend\.ts$/},()=>({contents:`export const INTERNAL_CAP_EXCEEDED='cap',PROVIDER_QUOTA_EXCEEDED='quota';export const looksLikeProviderQuota=()=>false;export async function checkCap(){return {blocked:false,ledger:{usd:0},capUsd:35}};export async function recordSpend(){}`}));

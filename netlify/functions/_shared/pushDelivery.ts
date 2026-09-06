@@ -1,5 +1,5 @@
 import webpush from 'web-push';
-import { getStore } from '@netlify/blobs';
+import { getStore } from './localStore';
 import type { PendingInsight } from './machines';
 
 export type StoredPushSubscription = { endpoint: string; keys: { p256dh: string; auth: string } };

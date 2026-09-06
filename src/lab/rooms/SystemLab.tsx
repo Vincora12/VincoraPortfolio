@@ -386,7 +386,7 @@ function Setup() {
         {showPaste && (
           <>
             <label className="field">
-              IL SEGRETO GIÀ SU NETLIFY
+              IL SEGRETO DEL CORE SERVER
               <input
                 type="text"
                 value={draft}

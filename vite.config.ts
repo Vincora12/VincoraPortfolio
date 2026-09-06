@@ -104,5 +104,10 @@ export default defineConfig({
   server: {
     host: true,
     port: 5173,
+    proxy: {
+      '/api': `http://127.0.0.1:${process.env.CORE_PORT ?? '8787'}`,
+      '/v1': `http://127.0.0.1:${process.env.CORE_PORT ?? '8787'}`,
+      '/health': `http://127.0.0.1:${process.env.CORE_PORT ?? '8787'}`,
+    },
   },
 });

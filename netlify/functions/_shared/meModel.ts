@@ -1,4 +1,4 @@
-import { getStore } from '@netlify/blobs';
+import { getStore } from './localStore';
 
 export type MeEntityType = 'user' | 'person' | 'project' | 'organization' | 'place' | 'interest' | 'concept' | 'other';
 export type MeStatus = 'active' | 'archived' | 'superseded' | 'disputed';

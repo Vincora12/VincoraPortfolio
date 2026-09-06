@@ -1,4 +1,4 @@
-import { getStore } from '@netlify/blobs';
+import { getStore } from './localStore';
 import type { CalendarEvent } from '../../../src/engine/calendarEvents';
 import { sendPushNotification } from './pushDelivery';
 

@@ -5,7 +5,7 @@
 
    🔴 «Io non vedo quanto speso fin ora anche se ho azzerato il gioco i soldi
    spesi devono rimanere.» Il numero VERO già esisteva e già sopravvive a
-   RICOMINCIA DA CAPO — vive sul server (`spend.ts`, Netlify Blobs, una chiave
+   RICOMINCIA DA CAPO — vive sul server (`spend.ts`, archivio locale, una chiave
    per mese), non nella partita, e `resetAll` non lo tocca. Ma questa schermata
    non lo mostrava: mostrava solo il conto di sessione, che è un'altra cosa e
    sta sotto. E diceva pure una bugia — «immagini non collegate» — scritta

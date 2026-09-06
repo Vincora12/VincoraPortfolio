@@ -1,4 +1,4 @@
-import { getStore } from '@netlify/blobs';
+import { getStore } from './localStore';
 
 export type RuntimeStatus = 'START' | 'PASS' | 'FAIL';
 export type RuntimeScope = 'chat' | 'ai' | 'memory' | 'progression' | 'system' | 'agent-lab' | 'openai-ingress';

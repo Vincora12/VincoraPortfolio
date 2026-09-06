@@ -21,3 +21,7 @@ node_modules/.vinz-save-control-check.mjs
 
 # Local Netlify folder
 .netlify
+data/
+backups/
+server-dist/
+.env

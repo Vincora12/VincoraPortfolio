@@ -1,4 +1,4 @@
-import { getStore } from '@netlify/blobs';
+import { getStore } from './localStore';
 import { callProvider } from './providers';
 import { resolveRoute } from './routing';
 import { recordSpend } from './spend';

@@ -6,7 +6,7 @@
    Vivono in uno store separato: il Brain non legge e non scrive la partita.
    ========================================================================= */
 
-import { getStore } from '@netlify/blobs';
+import { getStore } from './_shared/localStore';
 import { authorize, denied, json } from './_shared/auth';
 
 type Role = 'user' | 'assistant';

@@ -3,7 +3,7 @@ import { build } from 'esbuild';
 
 globalThis.__userDataTest = { records: new Map(), sequence: 0 };
 const server = await build({ stdin: { contents: "export { default as handler } from './netlify/functions/user-data';", resolveDir: process.cwd(), loader: 'ts' }, bundle: true, write: false, platform: 'node', format: 'esm', logLevel: 'silent', plugins: [{ name: 'atomic-blob-fixture', setup(b) {
-  b.onResolve({filter:/^@netlify\/blobs$/},()=>({path:'blobs',namespace:'fixture'}));
+  b.onResolve({filter:/^@netlify\/blobs$|\/localStore$|^\.\/_shared\/localStore$/},()=>({path:'blobs',namespace:'fixture'}));
   b.onLoad({filter:/.*/,namespace:'fixture'},()=>({contents:`export function getStore(){return {
     async getWithMetadata(key){return structuredClone(globalThis.__userDataTest.records.get(key)??null);},
     async getMetadata(key){const r=globalThis.__userDataTest.records.get(key);return r?{etag:r.etag,metadata:r.metadata}:null;},

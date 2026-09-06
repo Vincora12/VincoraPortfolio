@@ -1,4 +1,4 @@
-import { getStore } from '@netlify/blobs';
+import { getStore } from './localStore';
 import { buildCoreSystemPrompt, type CoreContext } from '../../../src/ai/coreContext';
 import type { MonRecord } from '../../../src/engine/types';
 import type { MoodState } from '../../../src/engine/mood';

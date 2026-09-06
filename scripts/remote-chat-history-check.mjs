@@ -277,7 +277,9 @@ export function getStore() {
     platform: 'node',
     outfile: out,
     logLevel: 'error',
-    alias: { '@netlify/blobs': fakeBlobsPath },
+    plugins: [{ name: 'local-store-fixture', setup(builder) {
+      builder.onResolve({ filter: /^@netlify\/blobs$|\/localStore$|^\.\/_shared\/localStore$/ }, () => ({ path: fakeBlobsPath }));
+    } }],
   });
 
   process.env.VINZMON_TOKEN = 'a-fake-token-just-for-this-offline-check';

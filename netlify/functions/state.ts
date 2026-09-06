@@ -23,7 +23,7 @@
    giocando, quindi «più avanti» significa davvero «contiene più storia».
    ========================================================================= */
 
-import { getStore } from '@netlify/blobs';
+import { getStore } from './_shared/localStore';
 import { authorize, denied, json } from './_shared/auth';
 
 const KEY = 'save';

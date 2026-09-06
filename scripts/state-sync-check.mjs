@@ -6,7 +6,7 @@ const compiled = await build({
   stdin: { contents: `export { default as handler } from './netlify/functions/state'; export * from './src/system/stateSync';`, resolveDir: process.cwd(), loader: 'ts' },
   bundle: true, write: false, platform: 'node', format: 'esm', logLevel: 'silent',
   plugins: [{ name: 'fake-atomic-blob', setup(b) {
-    b.onResolve({ filter: /^@netlify\/blobs$/ }, () => ({ path: 'blobs', namespace: 'fixture' }));
+    b.onResolve({ filter: /^@netlify\/blobs$|\/localStore$|^\.\/_shared\/localStore$/ }, () => ({ path: 'blobs', namespace: 'fixture' }));
     b.onLoad({ filter: /.*/, namespace: 'fixture' }, () => ({ contents: `
       export function getStore(){return {
         async getWithMetadata(key){const r=globalThis.__syncTest.records.get(key);return r?structuredClone(r):null;},

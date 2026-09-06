@@ -1,4 +1,4 @@
-import { getStore } from '@netlify/blobs';
+import { getStore } from './_shared/localStore';
 import { authorize, denied, json } from './_shared/auth';
 import { createProject, updateProject, mutationProblem, projectSummary, validProjectId, PROJECT_LIMITS } from '../../src/engine/projects';
 import type { Project, ProjectMutation } from '../../src/engine/projects';

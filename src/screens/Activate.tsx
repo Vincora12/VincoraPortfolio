@@ -274,7 +274,7 @@ export function ActivateScreen({ onClose }: { onClose: () => void }) {
           n={3}
           title="CONTROLLA"
           done={live}
-          detail="Dopo aver messo il segreto su Netlify e ripubblicato."
+          detail="Dopo aver messo il segreto nel file .env e riavviato VINZ.MON."
         >
           {/* ⚠️ «Anche se lo collego non mi dice attivato.» Prima qui c'era un
               campo da riempire e un messaggio con UNA causa. Ma le cose che
@@ -291,7 +291,7 @@ export function ActivateScreen({ onClose }: { onClose: () => void }) {
               </span>
             </li>
             <li className="activate__var">
-              <span className="t-meta activate__varname">LO STESSO, SU NETLIFY</span>
+              <span className="t-meta activate__varname">LO STESSO, SUL CORE SERVER</span>
               <SystemLabel tone={setup?.serverToken ? 'character' : 'alert'}>
                 {setup === null ? '…' : setup.serverToken ? 'COINCIDE' : 'NO'}
               </SystemLabel>
@@ -300,7 +300,7 @@ export function ActivateScreen({ onClose }: { onClose: () => void }) {
                   ? 'sto chiedendo al server'
                   : setup.serverToken
                     ? 'il server ci ha aperto'
-                    : (setup.reason ?? 'il server non ci riconosce: ripubblica dopo averlo messo')}
+                    : (setup.reason ?? 'il server non ci riconosce: controlla .env e riavvia')}
               </span>
             </li>
             <li className="activate__var">

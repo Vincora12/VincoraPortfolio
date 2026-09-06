@@ -1,5 +1,5 @@
 import { authorize, denied, json } from './_shared/auth';
-import { getStore } from '@netlify/blobs';
+import { getStore } from './_shared/localStore';
 import {
   CAP_MAX_USD,
   CAP_MIN_USD,

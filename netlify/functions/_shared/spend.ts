@@ -20,7 +20,7 @@
    che ti fa scoprire il problema il giorno stesso invece che a fine mese.
    ========================================================================= */
 
-import { getStore } from '@netlify/blobs';
+import { getStore } from './localStore';
 
 /** Il tetto di partenza, in dollari: i listini sono in dollari, e convertire
     due volte introduce solo un errore. 30 € ≈ 34,6 $ al cambio di agosto 2026.

@@ -13,7 +13,7 @@ globalThis.__reminderStore = {
 globalThis.__reminderPush = async payload => {pushCalls++;assert.equal(payload.body,'Hai un promemoria da consultare.');assert(!JSON.stringify(payload).includes('Synthetic private'));return {sent:acceptedSubscriptions,removed:0};};
 async function moduleFrom(path) {
   const {outputFiles}=await build({entryPoints:[path],bundle:true,format:'esm',platform:'node',write:false,plugins:[{name:'isolated-reminders',setup(builder){
-    builder.onResolve({filter:/^@netlify\/blobs$/},()=>({path:'store',namespace:'fixture'}));
+    builder.onResolve({filter:/^@netlify\/blobs$|\/localStore$|^\.\/_shared\/localStore$/},()=>({path:'store',namespace:'fixture'}));
     builder.onResolve({filter:/\/pushDelivery$|^\.\/pushDelivery$/},()=>({path:'push',namespace:'fixture'}));
     builder.onLoad({filter:/.*/,namespace:'fixture'},({path})=>({contents:path==='store'?'export const getStore = () => globalThis.__reminderStore;':'export const sendPushNotification = payload => globalThis.__reminderPush(payload);',loader:'js'}));
   }}]});
