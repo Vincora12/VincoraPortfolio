@@ -1239,11 +1239,24 @@ const Composer: FC<{ placeholder: string }> = ({ placeholder }) => {
             la tastiera (serve un gesto), ma fa scattare lo stesso `:focus`:
             il nav spariva appena aprivi la chat, senza nessuna tastiera a
             prenderne il posto. Il campo si tocca, e allora sì. */}
+        {/* 🔴 MAIN CHAT — ENTER (2026-09-06). Era `submitMode="none"`
+            (invio da tastiera SEMPRE disattivato, "fix: stabilize mobile
+            chat sending" del 31/08): la vera causa mobile era solo che su
+            iOS il nav rimontava fra pointer-down e click sulla freccia,
+            spostandola e perdendo il tap — non che Invio dovesse smettere
+            di inviare ovunque. `submitMode="enter"` (il default della
+            libreria: Invio invia, Shift+Invio va a capo, IME/composition e
+            stato disabled già gestiti dal primitivo) più
+            `unstable_insertNewlineOnTouchEnter` risolve lo stesso caso
+            mobile (Invio va a capo SOLO su dispositivi touch-primari) senza
+            disattivare Invio=invia su desktop. Nessun secondo percorso di
+            invio: resta lo stesso `composer.send()`/submit del primitivo. */}
         <ComposerPrimitive.Input
           ref={inputRef}
           placeholder={placeholder}
           rows={1}
-          submitMode="none"
+          submitMode="enter"
+          unstable_insertNewlineOnTouchEnter
           className="vinz-composer-input box-border max-h-52 min-h-9 w-full min-w-0 flex-1 resize-none bg-transparent py-1.5 pr-2 pl-1 text-base text-[#0d0d0d] outline-none placeholder:text-[#8e8e8e] dark:text-[#ececec] dark:placeholder:text-[#8e8e8e]"
         />
 

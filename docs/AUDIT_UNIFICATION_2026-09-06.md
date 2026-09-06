@@ -559,6 +559,48 @@ produzione in questa sessione, stessa scelta di sicurezza di tutte le fasi prece
 - **Streaming incrementale vero**: nessun provider di questo progetto lo
   emette oggi (limite preesistente, non introdotto qui).
 
+---
+
+## ADDENDUM 2 — 2026-09-06: EXPORT TXT (Main Chat) + ENTER
+
+**1) Main Chat non confermava mai "file creato" dopo `esporta_report`.**
+Diagnosi (flow reale, tool_use → dispatcher → download → ToolResult →
+reinserimento → risposta): il dispatcher e il download erano già corretti
+(`runToolLayerTool`/`runExportReportTool`), ma il budget di turno
+dell'ADDENDUM 1 (sopra) poteva rimandare/accorciare la conferma
+dell'export quando arrivava DOPO una lettura grande nello stesso turno —
+il MON leggeva quel rinvio ("RISULTATO RIMANDATO") invece del vero
+successo, e per onestà ("mai claimare successo senza conferma") diceva di
+non aver ricevuto il risultato. Corretto: `budgetToolResults` (client e
+Agent.lab) non accorcia/rimanda MAI un risultato ≤400 caratteri — una
+conferma operativa è sempre corta, il budget serve ai dump di codice, non
+alle conferme. Il testo del `ToolResult` è ora inequivocabile
+(`SUCCESSO`/`FILE: <nome>` in testa, o `EXPORT FALLITO`), e il system
+prompt (Main Chat e Agent.lab) dice esplicitamente di citare "file creato"
+SOLO dopo aver letto un `SUCCESSO`. Nuovo test di regressione riproduce
+esattamente lo scenario (lettura grande + export nello stesso turno, in
+entrambi gli ordini) in `scripts/audit-unification-check.mjs` (sezione
+2bis). Verifica online del round-trip reale non eseguita in questa
+sessione (nessun token di produzione) — vedi checklist aggiornata.
+
+**2) MAIN CHAT — ENTER non inviava.** Causa reale: `submitMode="none"` su
+`ComposerPrimitive.Input` (`chatgpt.tsx`), aggiunto in un fix precedente
+("fix: stabilize mobile chat sending", 31/08) per un problema SOLO mobile
+(su iOS il nav rimontava fra pointer-down e click sulla freccia) ma
+applicato ovunque, disattivando Invio=invia anche su desktop. Corretto con
+`submitMode="enter"` (il default della libreria: Invio invia, Shift+Invio
+va a capo, IME/disabled/loading già gestiti dal primitivo — verificato
+leggendo `ComposerInput.js` della libreria) + `unstable_insertNewlineOnTouchEnter`
+(Invio va a capo SOLO sui dispositivi touch-primari, lo stesso identico
+caso mobile). Nessun secondo percorso di invio: resta lo stesso
+`requestSubmit()`/`composer.send()` del primitivo, pulsante di invio
+invariato. Nuovo test reale con Playwright
+(`scripts/main-chat-enter-check.mjs`, `verify:main-chat-enter`) verifica:
+Invio da solo invia e svuota il composer, Shift+Invio va a capo senza
+inviare, Invio su composer vuoto non fa nulla, Invio durante una
+composizione IME non invia prematuramente, il pulsante di invio resta
+presente.
+
 ## 24 — RISCHI TECNICI
 
 - Le regex di `isAuditIntent`/`isExportIntent` sono pattern-matching, non
@@ -590,9 +632,16 @@ produzione in questa sessione, stessa scelta di sicurezza di tutte le fasi prece
    funzioni che hai verificato e dammi anche un file TXT completo del
    report." PASS solo se: non compare più "risultati degli strumenti troppo
    lunghi"; vengono usati tool reali; vengono citati file/funzioni verificati
-   davvero; l'audit si completa; il TXT viene prodotto e scaricato; il report
-   non inventa evidenze; la chat normale (messaggi brevi, pasti, allenamenti)
-   non è regredita.
+   davvero; l'audit si completa; il TXT viene prodotto e scaricato E il MON
+   conferma "file creato" citando il nome esatto (non più "non ricevo il
+   risultato operativo"); il report non inventa evidenze; la chat normale
+   (messaggi brevi, pasti, allenamenti) non è regredita.
+0bis. **Verifica manuale di ENTER online**: aprire Main Chat da tastiera
+   fisica, scrivere un messaggio, premere solo Invio (deve inviare),
+   scrivere due righe con Shift+Invio in mezzo (deve andare a capo senza
+   inviare), verificare su un telefono vero che digitare non invii per
+   sbaglio mentre si scrive con l'IME (cinese/giapponese/coreano, se
+   disponibile per la prova).
 1. Il deploy è già online (verificato meccanicamente, item 23). Resta da
    fare, con il token di produzione in mano: aprire Main Chat online e
    mandare esattamente le frasi di TEST B/C/D; aprire Agent.lab online

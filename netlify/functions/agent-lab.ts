@@ -132,7 +132,7 @@ const BOUNDARY_RULES = [
   'STILE: rispondi in italiano, diretto, tecnico. Cita percorsi di file reali quando li hai letti. Non hardcodare spiegazioni teoriche di uno step solo perché ne conosci il nome — leggi il codice vero anche quando arrivi già con un contesto.',
   '',
   'AUDIT — quando ti viene chiesto un audit/diagnosi di un sottosistema o dell\'intero VINZ.MON, struttura la risposta come: TITOLO / SCOPE / EXECUTIVE SUMMARY / CAPABILITY MATRIX (capacità, stato EXISTS o PARTIAL o MISSING o BROKEN, evidenza con percorso file reale, rischio, azione consigliata) / DETAILED FINDINGS / ROOT CAUSES / RECOMMENDED NEXT STEPS. Distingui sempre FATTO (verificato con uno strumento) da INFERENZA da RACCOMANDAZIONE. Se una capacità non esiste davvero, dillo chiaramente — non fingere che esista.',
-  'EXPORT — se l\'utente chiede il report come file/TXT/qualcosa da passare ad un\'altra AI, dopo aver scritto il report completo in chat chiama export_report con "contenuto" uguale al report COMPLETO (non un riassunto) e un "titolo" breve.',
+  'EXPORT — se l\'utente chiede il report come file/TXT/qualcosa da passare ad un\'altra AI, chiama export_report con "contenuto" uguale al report COMPLETO (non un riassunto) e un "titolo" breve. Il suo tool_result inizia con "SUCCESSO" e una riga "FILE: <nome>" quando il download è davvero pronto, o con "EXPORT FALLITO" altrimenti. Di\' che il file è stato creato, citando esattamente quel nome, SOLO dopo aver letto un tool_result che inizia con "SUCCESSO" — se vedi "EXPORT FALLITO" o non ricevi nessun tool_result, dillo onestamente invece di darlo per scontato.',
 ].join('\n');
 
 /** Esportato solo per `scripts/agent-lab-check.mjs`: verifica offline che il contesto del FLOW arrivi davvero nel prompt, senza dover chiamare il modello. */
@@ -171,6 +171,12 @@ function resultBlock(id: string, content: string, isError?: boolean): Record<str
    budgettava la SOMMA di un turno che legge più file insieme. */
 const TOOL_ROUND_BUDGET_CHARS = 9_000;
 
+/* MAIN CHAT — EXPORT TXT FOLLOW-UP (2026-09-06): stessa correzione di
+   `src/ai/tools.ts` — una conferma operativa corta (es. `export_report`)
+   non deve mai essere accorciata/rimandata solo perché arriva dopo una
+   lettura grande nello stesso turno. */
+const NEVER_BUDGET_UNDER_CHARS = 400;
+
 /** Esportata per `scripts/audit-unification-check.mjs`: verifica il budget
     combinato senza dover montare un round agentico intero. */
 export function budgetToolResults(
@@ -179,6 +185,10 @@ export function budgetToolResults(
 ): { id: string; content: string; isError: boolean }[] {
   let remaining = budgetChars;
   return results.map((result) => {
+    if (result.content.length <= NEVER_BUDGET_UNDER_CHARS) {
+      remaining -= result.content.length;
+      return result;
+    }
     if (remaining <= 0) {
       return {
         ...result,
@@ -223,7 +233,7 @@ export function executeTool(use: ToolUse): { id: string; content: string; isErro
       const filename = safeFileName(titolo);
       return {
         id: use.id,
-        content: `File "${filename}" pronto per il download nel browser (${contenuto.length} caratteri reali, non un riassunto).`,
+        content: `SUCCESSO — file pronto per il download nel browser.\nFILE: ${filename}\nCARATTERI: ${contenuto.length} (il report completo, non un riassunto).`,
         isError: false,
         exportFile: { filename, content: contenuto },
       };

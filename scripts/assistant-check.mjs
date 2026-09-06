@@ -78,11 +78,19 @@ check(
   'la trascrizione viene inviata dal runtime, senza simulare un click',
 );
 check(
-  cloneSource.includes('submitMode="none"') &&
-    appStyles.includes('.proto-frame:has(.vinz-composer:focus-within) .tabbar') &&
+  appStyles.includes('.proto-frame:has(.vinz-composer:focus-within) .tabbar') &&
     cloneSource.includes('event.pointerType === "touch"') &&
     cloneSource.includes('event.preventDefault()'),
-  'Invio va a capo e il tap sulla freccia non viene perso quando il nav ricompare',
+  'il tap sulla freccia non viene perso quando il nav ricompare (mobile)',
+);
+check(
+  cloneSource.includes('submitMode="enter"') && cloneSource.includes('unstable_insertNewlineOnTouchEnter'),
+  'MAIN CHAT — ENTER: Invio invia su desktop, va a capo solo sui dispositivi touch-primari (mai disattivato ovunque come submitMode="none")',
+);
+// Il prop vero, non un commento: nessuna riga di codice (non un commento) assegna ancora submitMode="none" a un elemento.
+check(
+  !/^\s*submitMode="none"/m.test(cloneSource),
+  'MAIN CHAT — ENTER: nessun elemento disattiva ancora l’invio da tastiera con submitMode="none"',
 );
 check(cloneStyles.includes('.vinz-record__wave.is-loading'), 'avvio e trascrizione hanno un loader dedicato');
 check(

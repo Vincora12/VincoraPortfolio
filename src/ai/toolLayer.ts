@@ -130,7 +130,12 @@ function runExportReportTool(use: ToolUse): ToolResult {
     a.click();
     a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 10_000);
-    return { id: use.id, content: `File "${filename}" generato e scaricato nel browser (${contenuto.length} caratteri reali, non un riassunto).` };
+    /* MAIN CHAT — EXPORT TXT FOLLOW-UP (2026-09-06). "SUCCESSO"/"FILE:" in
+       testa, in maiuscolo e sulla propria riga: il modello deve poter
+       riconoscere l'esito senza ambiguità (non un participio in mezzo a una
+       frase) prima di dire "file creato" — vedi l'istruzione gemella in
+       `src/brain/stream.ts`. */
+    return { id: use.id, content: `SUCCESSO — file scaricato nel browser.\nFILE: ${filename}\nCARATTERI: ${contenuto.length} (il report completo, non un riassunto).` };
   } catch {
     return { id: use.id, content: 'EXPORT FALLITO — il browser non ha permesso di generare il file in questo momento.', isError: true };
   }

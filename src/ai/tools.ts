@@ -697,6 +697,16 @@ export function assistantTurn(text: string, uses: readonly ToolUse[]): Record<st
    credere di aver visto tutto. */
 const TOOL_ROUND_BUDGET_CHARS = 9_000;
 
+/* MAIN CHAT — EXPORT TXT FOLLOW-UP (2026-09-06). Una conferma operativa
+   (es. `esporta_report`: "File ... generato...") è sempre corta e vale più
+   di qualunque dump di codice — se capita dopo una lettura grande nello
+   STESSO turno, il budget sopra la rimandava esplicitamente al turno
+   successivo, e il modello leggeva quel rinvio come "non ho conferma che il
+   file sia stato creato" invece del successo vero. Un risultato entro
+   questa soglia non viene MAI accorciato/rimandato: il budget resta per i
+   dump grandi (code_read/code_search), non per le conferme operative. */
+const NEVER_BUDGET_UNDER_CHARS = 400;
+
 /**
  * Applica un budget di caratteri alla SOMMA dei risultati di un turno.
  * Esportata per essere testata direttamente (nessun round agentico serve a
@@ -708,6 +718,12 @@ export function budgetToolResults(
 ): ToolResult[] {
   let remaining = budgetChars;
   return results.map((result) => {
+    if (result.content.length <= NEVER_BUDGET_UNDER_CHARS) {
+      // Conta comunque nel budget (può andare in negativo) — ma non è MAI
+      // lei a essere accorciata: solo i risultati grandi che seguono lo sono.
+      remaining -= result.content.length;
+      return result;
+    }
     if (remaining <= 0) {
       return {
         ...result,

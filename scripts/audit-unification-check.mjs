@@ -117,6 +117,7 @@ console.log('\n═══ 2 — esporta_report / export_report ═══\n');
   const okResult = await m.runToolLayerTool({ id: 't1', name: m.EXPORT_REPORT_TOOL_NAME, input: { titolo: 'Audit Tool Layer', contenuto: 'TITOLO\nSCOPE\n...report vero e completo...' } });
   check(okResult !== undefined && !okResult.isError, 'esporta_report (client) genera un file senza errore');
   check(clicked.includes('audit-tool-layer.txt'), 'esporta_report (client) sceglie un nome file leggibile dal titolo');
+  check(okResult.content.startsWith('SUCCESSO') && okResult.content.includes('FILE: audit-tool-layer.txt'), 'MAIN CHAT — EXPORT TXT: il ToolResult conferma successo + filename in un formato inequivocabile (SUCCESSO/FILE:), non una frase generica');
 
   const emptyResult = await m.runToolLayerTool({ id: 't2', name: m.EXPORT_REPORT_TOOL_NAME, input: { titolo: 'x', contenuto: '' } });
   check(emptyResult?.isError === true, 'esporta_report (client) rifiuta un contenuto vuoto invece di scaricare un file vuoto');
@@ -133,9 +134,59 @@ console.log('\n═══ 2 — esporta_report / export_report ═══\n');
   check(!ok.isError, 'export_report (Agent.lab, server-side) prepara il file senza errore');
   check(ok.exportFile?.filename === 'audit-runtime-agentico.txt', 'export_report (Agent.lab) sceglie lo stesso schema di nome file del client');
   check(ok.exportFile?.content === 'report completo vero', 'export_report (Agent.lab) porta il contenuto COMPLETO, non un riassunto');
+  check(ok.content.startsWith('SUCCESSO') && ok.content.includes('FILE: audit-runtime-agentico.txt'), 'export_report (Agent.lab) — stesso formato inequivocabile SUCCESSO/FILE:');
 
   const empty = m.executeTool({ id: 't2', name: 'export_report', input: { titolo: 'x', contenuto: '' } });
   check(empty.isError === true && empty.exportFile === undefined, 'export_report (Agent.lab) rifiuta un contenuto vuoto');
+}
+
+/* ============================================================================
+   2bis — MAIN CHAT · EXPORT TXT FOLLOW-UP: la conferma di esporta_report
+   sopravvive al budget di turno anche accanto a una lettura grande
+   ========================================================================= */
+console.log('\n═══ 2bis — la conferma di export sopravvive al budget di turno ═══\n');
+{
+  const m = await bundle(
+    'export-vs-budget',
+    `export { budgetToolResults } from '${cwd}/src/ai/tools.ts';`,
+  );
+
+  // REGRESSIONE REALE (segnalata online, 2026-09-06): un audit che legge un
+  // file grande e POI chiama esporta_report nello stesso turno vedeva la
+  // conferma dell'export accorciata/rimandata dal budget combinato — il MON
+  // diceva "non ricevo il risultato operativo" pur avendo davvero scaricato
+  // il file. La conferma (sempre corta) non deve MAI essere toccata dal
+  // budget, indipendentemente da quanto grande sia il risultato che la
+  // precede nello stesso turno.
+  const exportConfirmation = 'SUCCESSO — file scaricato nel browser.\nFILE: audit-tool-layer.txt\nCARATTERI: 9000 (il report completo, non un riassunto).';
+  const roundWithExportLast = [
+    { id: 't1', content: 'A'.repeat(9000) }, // un code_read grande, PRIMA
+    { id: 't2', content: exportConfirmation }, // esporta_report, DOPO — il budget è già a zero qui
+  ];
+  const budgetedLast = m.budgetToolResults(roundWithExportLast);
+  check(budgetedLast[1].content === exportConfirmation, 'REGRESSIONE — la conferma di esporta_report NON viene mai accorciata/rimandata, anche quando arriva dopo un risultato che ha già esaurito il budget');
+  check(budgetedLast[1].content.startsWith('SUCCESSO') && budgetedLast[1].content.includes('FILE:'), 'la conferma sopravvissuta resta nel formato SUCCESSO/FILE: che il modello deve leggere per dire "file creato"');
+
+  // Stesso scenario con l'export PRIMA (ordine diverso, deve funzionare comunque).
+  const roundWithExportFirst = [
+    { id: 't1', content: exportConfirmation },
+    { id: 't2', content: 'B'.repeat(9000) },
+  ];
+  const budgetedFirst = m.budgetToolResults(roundWithExportFirst);
+  check(budgetedFirst[0].content === exportConfirmation, 'la conferma di esporta_report sopravvive anche quando è il PRIMO risultato del turno');
+}
+{
+  const m = await bundle(
+    'export-vs-budget-agentlab',
+    `export { budgetToolResults } from '${cwd}/netlify/functions/agent-lab.ts';`,
+  );
+  const exportConfirmation = 'SUCCESSO — file pronto per il download nel browser.\nFILE: audit.txt\nCARATTERI: 9000 (il report completo, non un riassunto).';
+  const round = [
+    { id: 't1', content: 'A'.repeat(9000), isError: false },
+    { id: 't2', content: exportConfirmation, isError: false },
+  ];
+  const budgeted = m.budgetToolResults(round);
+  check(budgeted[1].content === exportConfirmation, 'Agent.lab — stessa regressione, stessa protezione: export_report non viene mai accorciato/rimandato dal budget');
 }
 
 /* ============================================================================
