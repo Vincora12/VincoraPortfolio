@@ -86,6 +86,23 @@ console.log('\n═══ 1 — riconoscimento dell\'intento di audit/export (bra
     check(m.shouldUseLocalTools(phrase), `TEST C — entra nel loop strumenti: "${phrase}"`);
   }
 
+  /* PRODOTTO — FILE TXT SCARICABILI (2026-09-06), FIX 1D: le frasi ESATTE del
+     task, richieste dirette e generiche (non un audit già in corso). Prima
+     di questa correzione cadevano nel percorso BASE, senza `esporta_report`
+     disponibile — root cause del "non ho uno strumento per creare un file". */
+  const GENERIC_TXT_PHRASES = [
+    'Creami un txt con scritto ciao',
+    'Salvami questa risposta come audit_tool_layer.txt',
+    'Fammi un file txt con questo testo lungo',
+    'Creami un file chiamato appunti', // FIX 1D — senza estensione esplicita
+  ];
+  for (const phrase of GENERIC_TXT_PHRASES) {
+    check(m.isExportIntent(phrase), `FIX 1D — riconosciuta come richiesta diretta di file: "${phrase}"`);
+    check(m.shouldUseLocalTools(phrase), `FIX 1D — entra nel loop strumenti (esporta_report disponibile): "${phrase}"`);
+  }
+  // Non deve accendersi per un "crea" che è in realtà un'altra scrittura tipizzata.
+  check(!m.isExportIntent('Crea un piano di allenamento per lunedì'), 'FIX 1D — "crea un piano" NON è confuso con una richiesta di file');
+
   // Non deve accendersi per la conversazione ordinaria.
   const ORDINARY = ['Come va oggi?', 'Dimmi una battuta', 'Che tempo fa?'];
   for (const phrase of ORDINARY) {
@@ -187,6 +204,62 @@ console.log('\n═══ 2bis — la conferma di export sopravvive al budget di 
   ];
   const budgeted = m.budgetToolResults(round);
   check(budgeted[1].content === exportConfirmation, 'Agent.lab — stessa regressione, stessa protezione: export_report non viene mai accorciato/rimandato dal budget');
+}
+
+/* ============================================================================
+   2ter — FIX 1: TXT SCARICABILI DA RICHIESTE GENERICHE — il tool stesso
+   (2026-09-06). L'intent detection sopra decide QUANDO offrire lo strumento;
+   qui si verifica che lo strumento stesso rispetti i requisiti del task:
+   nome file mai scelto liberamente dal modello, nessuna traversal, UTF-8,
+   contenuto grande supportato, nessun falso successo.
+   ========================================================================= */
+console.log('\n═══ 2ter — FIX 1: nome file sicuro, contenuto grande, fallimento onesto ═══\n');
+{
+  const m = await bundle(
+    'export-fix1',
+    `export { EXPORT_REPORT_TOOL_NAME, runToolLayerTool } from '${cwd}/src/ai/toolLayer.ts';`,
+  );
+
+  const clicked = [];
+  let createObjectURLCalls = 0;
+  globalThis.document = {
+    createElement: () => ({ set href(_v) {}, set download(v) { this._download = v; }, click() { clicked.push(this._download); }, remove() {} }),
+    body: { appendChild() {} },
+  };
+  globalThis.URL.createObjectURL = () => { createObjectURLCalls += 1; return 'blob:fake'; };
+  globalThis.URL.revokeObjectURL = () => {};
+
+  // Percorso/caratteri non sicuri nel titolo: mai usato alla lettera, mai una
+  // traversal, sempre .txt — il modello non sceglie MAI un percorso reale.
+  const traversal = await m.runToolLayerTool({ id: 't1', name: m.EXPORT_REPORT_TOOL_NAME, input: { titolo: '../../etc/passwd', contenuto: 'ciao' } });
+  check(!traversal.isError, 'FIX 1B — un titolo con caratteri di percorso non fa fallire l\'export (viene sanificato, non rifiutato)');
+  check(!clicked.at(-1)?.includes('/') && !clicked.at(-1)?.includes('..'), 'FIX 1B — nessuna traversal: il nome file scaricato non contiene "/" né "..' + '"', clicked.at(-1));
+  check(clicked.at(-1)?.endsWith('.txt'), 'FIX 1B — estensione .txt sempre garantita anche con un titolo "malevolo"');
+
+  const scriptTitle = await m.runToolLayerTool({ id: 't2', name: m.EXPORT_REPORT_TOOL_NAME, input: { titolo: '<script>alert(1)</script>.exe', contenuto: 'ciao' } });
+  check(!scriptTitle.isError, 'FIX 1B — un titolo con markup/estensione eseguibile non fa fallire l\'export');
+  check(/^[a-z0-9-]+\.txt$/.test(clicked.at(-1) ?? ''), 'FIX 1B — il nome file scaricato è ridotto a caratteri sicuri + .txt, mai ".exe" o markup', clicked.at(-1));
+
+  // Nome file mancante/vuoto: fallback onesto, mai un file senza nome.
+  const noTitle = await m.runToolLayerTool({ id: 't3', name: m.EXPORT_REPORT_TOOL_NAME, input: { titolo: '', contenuto: 'ciao' } });
+  check(!noTitle.isError && clicked.at(-1) === 'report.txt', 'FIX 1B — titolo vuoto usa un nome di fallback leggibile, non un file senza nome');
+
+  // Contenuto grande: nessun tetto artificiale nel tool stesso (il budget dei
+  // tool_result nel loop chat è un'altra cosa — vedi §5 sopra — questa è
+  // esattamente la generazione del file).
+  const big = 'Riga di report molto lunga con dettagli veri. '.repeat(4000); // ~47.000 caratteri
+  const bigResult = await m.runToolLayerTool({ id: 't4', name: m.EXPORT_REPORT_TOOL_NAME, input: { titolo: 'report grande', contenuto: big } });
+  check(!bigResult.isError, 'FIX 1B — un contenuto grande (~47.000 caratteri) genera comunque il file, nessun tetto artificiale');
+  check(bigResult.content.includes(`CARATTERI: ${big.length}`), 'FIX 1B — il ToolResult dichiara la lunghezza reale del contenuto scaricato, non una stima');
+
+  // Fallimento vero del browser: mai un "successo" finto.
+  const savedCreateElement = globalThis.document.createElement;
+  globalThis.document.createElement = () => { throw new Error('DOM non disponibile in questo momento'); };
+  const failed = await m.runToolLayerTool({ id: 't5', name: m.EXPORT_REPORT_TOOL_NAME, input: { titolo: 'x', contenuto: 'ciao' } });
+  check(failed?.isError === true && failed.content.startsWith('EXPORT FALLITO'), 'FIX 1B — un fallimento reale del browser torna EXPORT FALLITO, mai un SUCCESSO finto');
+  globalThis.document.createElement = savedCreateElement;
+
+  check(createObjectURLCalls === 5, 'ogni chiamata riuscita ha davvero generato un blob (nessuna simulazione muta)', `${createObjectURLCalls}`);
 }
 
 /* ============================================================================
@@ -357,6 +430,67 @@ console.log('\n═══ 5 — budget combinato dei tool result + lettura per ra
   }
   const beyond = m.readProjectFile('src/engine/progression.ts', { startLine: 999999 });
   check(!beyond.ok, 'chiedere una riga oltre la fine del file torna un errore leggibile, non un crash o un contenuto vuoto scambiato per successo');
+}
+
+/* ============================================================================
+   6 — FIX 3 (2026-09-06): VINZ.MON CONOSCE LE SUE VERE CAPACITÀ
+
+   Root cause reale: "Che strumenti hai?"/"Cosa puoi fare?" non toccano
+   NESSUN intento sopra (non è un audit, non è una richiesta di dati) e
+   cadevano nel BASE senza nessuna descrizione delle capacità applicative —
+   il modello rispondeva con quello che si ricorda di sé (web.run), non con
+   quello che VINZ.MON sa fare davvero. Qui si verifica `buildCapabilitySummary`
+   (la fonte unica, proiettata dai registri veri — TOOLS/CODE_TOOL_DEFS/
+   EXPORT_REPORT_TOOL_DEF) e che sia davvero cablata nei due percorso che
+   costruiscono il system prompt (BASE e loop strumenti).
+   ========================================================================= */
+console.log('\n═══ 6 — FIX 3: capacità reali, non "web.run e basta" ═══\n');
+{
+  const m = await bundle(
+    'capability-summary',
+    `export { buildCapabilitySummary } from '${cwd}/src/ai/toolLayer.ts';`,
+  );
+
+  const withWebSearch = m.buildCapabilitySummary(true);
+  const withoutWebSearch = m.buildCapabilitySummary(false);
+
+  // §3C — capacità in linguaggio naturale, MAI nomi di funzione interni.
+  const INTERNAL_NAMES = ['leggi_i_miei_dati', 'leggi_me', 'code_search', 'code_read', 'esporta_report', 'gestisci_me'];
+  for (const name of INTERNAL_NAMES) {
+    check(!withWebSearch.includes(name), `FIX 3C — il riassunto non nomina l'implementazione interna "${name}"`);
+  }
+
+  // §3F — dopo FIX 1+FIX 3, "posso creare un file" deve essere dichiarato:
+  // niente stato in cui VINZ.MON ha `esporta_report` ma dice di non poterlo fare.
+  check(/file\s+\.txt|txt.*scaricabile|file.*scaricabile/i.test(withWebSearch), 'FIX 3F — la creazione di un file .txt scaricabile è dichiarata come capacità reale');
+  check(/dat[ei].*ME|ME.*(?:pasti|dati)/i.test(withWebSearch), 'la lettura dei dati registrati in ME è dichiarata');
+  check(/codice sorgente|ispezionare/i.test(withWebSearch), 'l\'ispezione del codice sorgente reale è dichiarata (per un audit tecnico)');
+
+  // §3D — provider-dependent: la ricerca web è runtime-aware, non sempre "sì".
+  check(/cercare.*web|web.*cercare/i.test(withWebSearch), 'con un fornitore che la supporta, la ricerca web è dichiarata disponibile');
+  check(!/cercare.*informazioni sul web quando serve/i.test(withoutWebSearch), 'FIX 3D — senza un fornitore che la supporta, la ricerca web NON viene dichiarata disponibile');
+
+  // §3D/§3F — non deve MAI rivendicare capacità che non esistono in questa
+  // sessione: computer/filesystem del dispositivo, Gmail, calendario esterno.
+  check(/non ho accesso.*(?:computer|filesystem)/i.test(withWebSearch), 'FIX 3D — il controllo del computer/filesystem dell\'utente è dichiarato NON disponibile, non ignorato in silenzio');
+  check(/gmail/i.test(withWebSearch) && /non ho accesso/i.test(withWebSearch), 'FIX 3D — Gmail è esplicitamente dichiarato non connesso, mai rivendicato');
+  check(/calendario esterno/i.test(withWebSearch), 'FIX 3D — un calendario esterno è esplicitamente dichiarato non connesso');
+
+  // Deterministica: stesso input, stesso output — nessuna casualità nel
+  // riassunto delle capacità (il modello deve poter fare affidamento sempre
+  // sulla stessa descrizione).
+  check(m.buildCapabilitySummary(true) === withWebSearch, 'il riassunto delle capacità è deterministico, non varia fra due chiamate identiche');
+
+  // ⚠️ CABLAGGIO REALE — non basta che la funzione esista: deve essere
+  // davvero chiamata nei due percorsi che costruiscono il system prompt.
+  // Un controllo testuale sul sorgente, come già fa questo file altrove
+  // (FORBIDDEN_EVENTS in batch-check.mjs) per una wiring-regression che un
+  // test puramente funzionale non potrebbe cogliere (import mai usato).
+  const { readFileSync } = await import('node:fs');
+  const baseSrc = readFileSync(new URL('../src/assistant-original/netlify-runtime.ts', import.meta.url), 'utf8');
+  check(/buildCapabilitySummary/.test(baseSrc) && /systemPrompt\s*=.*capabilitySummary|capabilitySummary/.test(baseSrc), 'FIX 3 — il percorso BASE (netlify-runtime.ts) chiama davvero buildCapabilitySummary e la usa nel system prompt');
+  const toolLoopSrc = readFileSync(new URL('../src/brain/stream.ts', import.meta.url), 'utf8');
+  check(/buildCapabilitySummary\(true\)/.test(toolLoopSrc), 'FIX 3 — il percorso col loop strumenti (brain/stream.ts) chiama davvero buildCapabilitySummary, non solo per l\'export/audit ma SEMPRE');
 }
 
 console.log(`\n${failures === 0 ? 'Tutto coerente.' : `${failures} controllo/i falliti.`}\n`);

@@ -23,6 +23,8 @@ import { executeRuntimeTool, type ToolResult, type ToolUse } from "@/ai/tools";
 import { readHealthJournal } from "@/engine/healthJournal";
 import { useApp } from "@/state/store";
 import { resolveChatContext } from '@/ai/chatContext';
+import { buildCapabilitySummary } from "@/ai/toolLayer";
+import { typingRhythmFor, liveRevealDurationMs, type TypingRhythm } from "@/engine/typingRhythm";
 import { persistChatTrace, recordChatTrace, systemPromptComposition, traceClock, type ChatTrace } from "@/ai/chatTrace";
 import { voiceCard } from "@/engine/voiceCard";
 import { captureChatMemoryForClient } from "@/assistant-original/chat-memory-feedback";
@@ -600,10 +602,18 @@ function withText(
 
 /** Anche i provider che restituiscono la risposta tutta insieme la mostrano
  * come scrittura, non come un blocco che compare di colpo. Il testo resta già
- * completo lato dati: questa funzione controlla soltanto la sua presentazione. */
+ * completo lato dati: questa funzione controlla soltanto la sua presentazione.
+ *
+ * PRODUCT FIX (2026-09-06) — «le risposte lunghe devono comparire molto più
+ * in fretta»: le prime ~20 parole restano ESATTAMENTE come prima (il ritmo
+ * percepibile che racconta il carattere); oltre, il tempo totale è vincolato
+ * al budget di `liveRevealDurationMs` (centralizzato in typingRhythm.ts) e le
+ * parole restanti si spartiscono quel poco che avanza — quale che sia la
+ * lunghezza della risposta, l'utente non aspetta mai un testo già arrivato. */
 async function* writtenSnapshots(
   text: string,
   abortSignal: AbortSignal,
+  rhythm: TypingRhythm,
 ): AsyncGenerator<string> {
   const reducedMotion = typeof window !== "undefined"
     && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -613,22 +623,37 @@ async function* writtenSnapshots(
   }
 
   const words = text.match(/\S+\s*/g) ?? [text];
-  const startedAt = performance.now();
-  const revealBudget = words.length > 250 ? 650 : 3000;
+
+  const CHARACTER_WORDS = 20;
+  const characterWordCount = Math.min(CHARACTER_WORDS, words.length);
+  // Un ritmo percepibile anche su iPhone: la parola cresce con la propria
+  // lunghezza e la punteggiatura introduce vere micro-pause. Prima venivano
+  // mostrate tre parole ogni 24 ms, quindi l'effetto sembrava istantaneo.
+  const characterPause = (word: string) => {
+    const basePause = Math.min(210, Math.max(72, word.trim().length * 22));
+    return basePause
+      + (/[.!?][\s\n]*$/.test(word) ? 220 : /[,;:][\s\n]*$/.test(word) ? 110 : 0);
+  };
+  // Il budget per il "resto" viene dalla curva pura di typingRhythm.ts,
+  // confrontata con se stessa al confine delle 20 parole — non da una somma
+  // basata sulla lunghezza delle singole parole (quella sopra, che decide
+  // solo il ritmo delle prime 20): così il resto è sempre esattamente la
+  // quota che la curva dice, indipendentemente da quanto sono lunghe le
+  // parole vere del messaggio.
+  const remainingWords = words.length - characterWordCount;
+  const remainingBudgetMs = remainingWords > 0
+    ? liveRevealDurationMs(rhythm, words.length) - liveRevealDurationMs(rhythm, characterWordCount)
+    : 0;
+  const perWordRemainingMs = remainingWords > 0 ? remainingBudgetMs / remainingWords : 0;
+
   let shown = "";
   for (let index = 0; index < words.length; index += 1) {
     if (abortSignal.aborted) return;
-    if (performance.now() - startedAt >= revealBudget) { yield text; return; }
     const word = words[index];
     shown += word;
     yield shown;
-    // Un ritmo percepibile anche su iPhone: la parola cresce con la propria
-    // lunghezza e la punteggiatura introduce vere micro-pause. Prima venivano
-    // mostrate tre parole ogni 24 ms, quindi l'effetto sembrava istantaneo.
-    const basePause = Math.min(210, Math.max(72, word.trim().length * 22));
-    const pause = basePause
-      + (/[.!?][\s\n]*$/.test(word) ? 220 : /[,;:][\s\n]*$/.test(word) ? 110 : 0);
-    await new Promise<void>((resolve) => setTimeout(resolve, Math.min(pause, revealBudget / Math.max(1, words.length))));
+    const pause = index < characterWordCount ? characterPause(word) : perWordRemainingMs;
+    if (pause > 0) await new Promise<void>((resolve) => setTimeout(resolve, pause));
   }
 }
 
@@ -762,7 +787,8 @@ function createBaseNetlifyChatModel(shared: { systemPrompt: string; requestId: s
         await saveTrace(body.model ?? modelName ?? null, "La risposta è arrivata vuota.");
         throw new Error("La risposta è arrivata vuota.");
       }
-      for await (const shown of writtenSnapshots(body.text, abortSignal)) {
+      const liveRhythm = typingRhythmFor(activeMon ? activeMon.data.voice_dna : ({} as import("@/engine/types").VoiceDna));
+      for await (const shown of writtenSnapshots(body.text, abortSignal, liveRhythm)) {
         yield { content: withText(parts, shown) };
       }
       clock.mark("RISPOSTA", body.model ?? modelName ?? "modello sconosciuto");
@@ -937,6 +963,16 @@ export function createNetlifyChatModel(
       if (resumed) {
         systemPrompt += `\n\nCONVERSAZIONE PRECEDENTE RIPRESA DALL'UTENTE — «${resumed.title}»\n${resumed.summary}\nEND. È il riassunto di uno scambio passato: usalo per riprendere il filo, non trattarlo come qualcosa detto adesso.`;
       }
+
+      // FIX 3 (2026-09-06) — capacità sempre dichiarate, in OGNI percorso che
+      // parte da qui (BASE e loop strumenti condividono questo UNICO punto
+      // in cui il system prompt viene risolto): una domanda come "che
+      // strumenti hai?" non attiva nessun intento sopra e senza questo
+      // blocco il modello rispondeva con quello che si ricorda di sé
+      // (web.run) invece di quello che VINZ.MON sa fare davvero. Vedi
+      // `buildCapabilitySummary` in `ai/toolLayer.ts` — proiettata dai
+      // registri veri dei tool, mai una lista scritta a mano scollegata.
+      systemPrompt += buildCapabilitySummary(true);
       if (runTool && useTools) {
         yield* runWithLocalTools(
           args.messages,

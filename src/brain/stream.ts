@@ -1,6 +1,6 @@
 import type { BrainMessage } from './store/types';
 import { TOOLS, assistantTurn, resultBlocks, type ToolResult, type ToolUse } from '../ai/tools';
-import { CODE_TOOL_DEFS, EXPORT_REPORT_TOOL_DEF } from '../ai/toolLayer';
+import { CODE_TOOL_DEFS, EXPORT_REPORT_TOOL_DEF, buildCapabilitySummary } from '../ai/toolLayer';
 import { useApp } from '../state/store';
 import { buildVoiceSystemPrompt } from '../ai/voicePrompt';
 import { persistChatTrace, recordChatTrace, systemPromptComposition, traceClock, type ChatTrace } from '../ai/chatTrace';
@@ -229,8 +229,21 @@ export function isAuditIntent(text: string): boolean {
 /** "Esporta questo audit in TXT" può arrivare come turno successivo, senza
     ripetere vocabolario di audit: un rilevatore separato, più permissivo solo
     sul verbo di esportazione, evita di dover tenere l'intero pool aperto per
-    ogni turno della conversazione. */
-const EXPORT_INTENT = /\b(esport\w*\s+.{0,30}\btxt\b|\btxt\b.{0,30}esport\w*|scaric\w*\s+.{0,20}(?:report|audit|file)|(?:dammi|fammi)\s+.{0,30}\b(?:file|txt)\b|report\s+come\s+file)\b/i;
+    ogni turno della conversazione.
+
+    PRODOTTO — FILE TXT SCARICABILI (2026-09-06): questo rilevatore copriva
+    solo l'esportazione di un audit/report già discusso ("dammi"/"fammi" +
+    "file"/"txt"). Una richiesta diretta e generica ("creami un txt con
+    scritto ciao", "salvami questa risposta come nome.txt") non passava da
+    nessun verbo riconosciuto e cadeva nel percorso BASE, senza lo strumento
+    `esporta_report` disponibile — da lì il "non ho uno strumento per
+    creare... file scaricabile", non da una vera assenza di capacità (lo
+    strumento esiste già, vedi `EXPORT_REPORT_TOOL_DEF` in `ai/toolLayer.ts`).
+    Aggiunti "crea(mi)"/"salva(mi)"/"genera(mi)"/"scrivi(mi)"/"prepara(mi)"
+    come verbi equivalenti, e allargata la distanza dal verbo a "file"/"txt"
+    per lasciare spazio a un nome file reale nel mezzo ("...come
+    audit_tool_layer.txt"). */
+const EXPORT_INTENT = /\b(esport\w*\s+.{0,30}\btxt\b|\btxt\b.{0,30}esport\w*|scaric\w*\s+.{0,20}(?:report|audit|file)|(?:dammi|fammi|crea(?:mi)?|salva(?:mi)?|genera(?:mi)?|scrivi(?:mi)?|prepara(?:mi)?)\s+.{0,80}\b(?:file|txt)\b|report\s+come\s+file)\b/i;
 
 export function isExportIntent(text: string): boolean {
   return EXPORT_INTENT.test(text);
@@ -408,13 +421,22 @@ export async function replyWithLocalTools(
   const workoutPlanContext = isWorkoutPlanIntent(user)
     ? (await run({ id: 'read-workout-plan', name: 'leggi_me', input: { sezione: 'sport' } })).content
     : '';
-  /* 🔷 Due blocchi, non uno: il primo dice CHI risponde (il personaggio vero,
-     se c'è — `characterVoiceBlock()`; altrimenti la stessa riga neutra di
-     sempre, per VINZ.LAB che non ha un .mon attivo), il secondo dice COME
-     usare gli strumenti — regole operative valide a prescindere da chi
-     risponde, e per questo restano qui invece di finire dentro
-     `buildVoiceSystemPrompt`, che non sa niente di pasti o conferme. */
-  const character = { text: shared?.systemPrompt ?? await resolveChatContext(token, user, true, signal) };
+  /* 🔷 Due blocchi, non uno: il primo dice CHI risponde (il contesto
+     canonico risolto da `resolveChatContext`/`shared.systemPrompt` — un solo
+     punto condiviso col percorso BASE, vedi netlify-runtime.ts), il secondo
+     dice COME usare gli strumenti — regole operative valide a prescindere da
+     chi risponde, e per questo restano qui invece di finire dentro
+     `buildCoreSystemPrompt`, che non sa niente di pasti o conferme.
+
+     FIX 3 (2026-09-06) — `buildCapabilitySummary(true)` va DENTRO questo
+     `character.text`, mai anche nel blocco sotto: quando arriva `shared`
+     (il percorso vero di netlify-runtime.ts) lo porta già — calcolato una
+     sola volta e condiviso con `createBaseNetlifyChatModel` — e aggiungerlo
+     di nuovo qui lo duplicherebbe nello stesso prompt. Il ramo di fallback
+     serve solo al chiamante legacy senza `shared` (`brain/Brain.tsx`, non
+     più caricato — vedi `assistant-check.mjs`), che altrimenti non lo
+     vedrebbe mai. */
+  const character = { text: shared?.systemPrompt ?? (await resolveChatContext(token, user, true, signal)) + buildCapabilitySummary(true) };
   /* Calcolati qui (non più sotto, insieme al resto del pool) perché il
      system prompt sotto ne ha bisogno prima ancora di sapere quali
      strumenti saranno disponibili. */
@@ -463,7 +485,7 @@ export async function replyWithLocalTools(
           ? 'The user is asking for a real AUDIT of yourself (a subsystem or your whole system: tool layer, memory, persona, agent loop, ME...). This must be a grounded audit, never a generic or invented answer, and never "I cannot" when you have the tools to check. Use code_search/code_read to inspect the real repository for the subsystem in question (e.g. tool layer: src/ai/tools.ts, src/ai/toolLayer.ts, netlify/functions/code-tools.ts, src/brain/stream.ts; memory/ME: src/state/store.ts and its ME/journal fields; agent loop: src/brain/stream.ts replyWithLocalTools, netlify/functions/agent-lab.ts). Use leggi_me/leggi_i_miei_dati when the audit is about live ME/personal data, not source code. Structure the answer as TITLE / SCOPE / EXECUTIVE SUMMARY / CAPABILITY MATRIX (capability, status EXISTS or PARTIAL or MISSING or BROKEN, evidence with real file/path, risk, recommended action) / DETAILED FINDINGS / ROOT CAUSES / RECOMMENDED NEXT STEPS. Clearly separate FACT (verified via a tool) from INFERENCE (your reasoning) from RECOMMENDATION. If a capability genuinely does not exist, say so plainly — never claim it does.'
           : '',
         wantsExport
-          ? 'The user wants this audit/report as a real downloadable file (a ".txt", "a file", "something to pass to Astra"...). Call esporta_report with the COMPLETE report text as "contenuto" (not a shortened summary) and a short "titolo" — the exported text must be self-sufficient: readable and usable without depending on this conversation. Its tool_result starts with "SUCCESSO" and a "FILE: <name>" line when the download really happened, or starts with "EXPORT FALLITO" when it did not. Only say the file was created, and only cite that exact filename, after reading a "SUCCESSO" tool_result — if you see "EXPORT FALLITO" or get no tool_result at all, say plainly that the export failed or is missing, never assume success.'
+          ? 'The user wants a real downloadable ".txt" file — this can be an audit/report, but just as often it is any other text they asked for: a short note ("creami un txt con scritto ciao"), this reply saved under a name they gave ("salvami questa risposta come nome.txt"), or a longer piece of writing. Call esporta_report with the exact requested text as "contenuto" — for a full audit/report use the COMPLETE text, never a shortened summary; for a short explicit text (e.g. "scritto ciao") contenuto is exactly that text, verbatim, nothing added or embellished — and a short "titolo" (used to name the file; if the user gave an explicit filename, use it as the titolo). The exported text must be self-sufficient: readable and usable without depending on this conversation. Its tool_result starts with "SUCCESSO" and a "FILE: <name>" line when the download really happened, or starts with "EXPORT FALLITO" when it did not. Only say the file was created, and only cite that exact filename, after reading a "SUCCESSO" tool_result — if you see "EXPORT FALLITO" or get no tool_result at all, say plainly that the export failed or is missing, never assume success.'
           : '',
       ].join(' '),
     },

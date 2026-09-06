@@ -26,6 +26,7 @@
    ========================================================================= */
 
 import type { ToolDef, ToolResult, ToolUse } from './tools';
+import { TOOLS } from './tools';
 
 function toolLayerToken(): string | null {
   try {
@@ -221,4 +222,80 @@ export async function runToolLayerTool(use: ToolUse): Promise<ToolResult | undef
     /* Rete assente, token mancante, o risposta non JSON: onesto, non inventato. */
     return { id: use.id, content: 'ISPEZIONE FALLITA — impossibile raggiungere il servizio di ispezione del codice in questo momento.', isError: true };
   }
+}
+
+/* ============================================================================
+   PRODOTTO — VINZ.MON DEVE CONOSCERE LE SUE VERE CAPACITÀ (2026-09-06)
+
+   🔷 «Che strumenti hai?» rispondeva con `web.run` e basta — non perché il
+   fornitore lo limiti davvero, ma perché NESSUN percorso (né il BASE della
+   chat viva, né il pool a intento del loop strumenti) mette mai una parola
+   sulle capacità applicative nel system prompt quando la domanda è proprio
+   quella: senza quel testo, il modello risponde con quello che si ricorda
+   di essere in generale. Root cause = un'OMISSIONE, non un limite reale.
+
+   🔒 UNA SOLA FONTE, PROIETTATA — non una terza lista scritta a mano. Ogni
+   riga qui sotto è condizionata alla presenza REALE del/i tool che descrive
+   nei registri veri (`TOOLS` di ai/tools.ts, `CODE_TOOL_DEFS` ed
+   `EXPORT_REPORT_TOOL_DEF` di questo stesso file): se un tool sparisse o
+   cambiasse nome, la riga corrispondente sparirebbe da sola invece di
+   continuare a promettere una capacità che non c'è più.
+
+   ⚠️ CAPACITÀ, NON IMPLEMENTAZIONE (§3C del task): frasi come "posso leggere
+   i tuoi dati" o "posso cercare online", mai un nome di funzione tipo
+   `leggi_i_miei_dati` o `code_search` — quelli restano dentro gli schema dei
+   tool veri, che il modello vede solo quando quel pool è già acceso.
+
+   Questo blocco va aggiunto SEMPRE al system prompt (BASE in
+   `netlify-runtime.ts` e il blocco del loop strumenti in `brain/stream.ts`),
+   indipendentemente da quale pool di strumenti è attivo per quel turno —
+   §3E: la CONSAPEVOLEZZA delle capacità non deve dipendere dall'esecuzione
+   di un tool specifico in quel messaggio. È per questo che sta qui, non
+   dentro `buildVoiceSystemPrompt` (personalità — non si tocca) né dentro un
+   `wantsExport`/`isAudit` condizionale (quelli decidono solo QUALI tool
+   caricare in quel turno, non cosa il modello SA di poter fare in generale). */
+function hasAllToolNames(names: string[], registry: Set<string>): boolean {
+  return names.every((name) => registry.has(name));
+}
+
+export function buildCapabilitySummary(webSearchAvailable: boolean): string {
+  const registry = new Set<string>([
+    ...TOOLS.map((tool) => tool.name),
+    ...CODE_TOOL_DEFS.map((tool) => tool.name),
+    EXPORT_REPORT_TOOL_NAME,
+  ]);
+  const lines: string[] = [];
+
+  if (hasAllToolNames(['leggi_i_miei_dati', 'leggi_me'], registry)) {
+    lines.push('Posso leggere i dati che hai registrato in ME (pasti, allenamenti, peso, dieta, obiettivi, stato di oggi).');
+  }
+  if (hasAllToolNames(['registra_pasto', 'registra_allenamento', 'registra_peso'], registry)) {
+    lines.push('Posso registrare per te un pasto, un allenamento o il peso quando me lo racconti.');
+  }
+  if (hasAllToolNames(['imposta_dieta', 'imposta_piano_allenamento', 'imposta_obiettivi_nutrizionali', 'gestisci_me'], registry)) {
+    lines.push('Posso aggiornare dieta, piano di allenamento, obiettivi, e gestire liste, note o calendario dentro ME.');
+  }
+  if (hasAllToolNames(['elenca_le_pagine', 'leggi_una_pagina', 'scrivi_una_pagina', 'aggiorna_una_pagina'], registry)) {
+    lines.push("Posso leggere e scrivere pagine dentro l'app.");
+  }
+  if (hasAllToolNames(['ricorda_di'], registry)) {
+    lines.push('Posso impostarti dei promemoria.');
+  }
+  if (hasAllToolNames([CODE_SEARCH_TOOL_NAME, CODE_READ_TOOL_NAME], registry)) {
+    lines.push('Posso ispezionare il mio vero codice sorgente (cercarlo e leggerlo davvero) quando mi chiedi un audit o una verifica tecnica su me stesso.');
+  }
+  if (hasAllToolNames([EXPORT_REPORT_TOOL_NAME], registry)) {
+    lines.push('Posso crearti un vero file .txt scaricabile con un testo, una risposta o un report che mi chiedi.');
+  }
+  if (webSearchAvailable) {
+    lines.push('Posso cercare informazioni sul web quando serve.');
+  }
+  lines.push('Non ho accesso al tuo computer, al filesystem del tuo dispositivo, a Gmail, a un calendario esterno o ad altri servizi non elencati qui in questa sessione: se me li chiedi, dillo chiaramente invece di far finta di poterlo fare.');
+
+  return [
+    '',
+    '',
+    'LE TUE VERE CAPACITÀ — usa SOLO questo elenco (non quello che ricordi di essere in generale) per rispondere a domande come "che strumenti hai", "cosa puoi fare" o "puoi fare X": descrivile come cose che sai fare in linguaggio naturale, mai come nomi di funzione interni.',
+    ...lines.map((line) => `- ${line}`),
+  ].join('\n');
 }
