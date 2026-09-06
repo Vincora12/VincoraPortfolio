@@ -129,12 +129,14 @@ export function ConversationTabs({ scope, onNewThread }: { scope: ConversationSc
   };
   return <nav ref={tabsRef} className="vinz-conversation-tabs me-health__tabs" aria-label="Conversazioni">
     {!active && <button type="button" aria-current="page">NUOVA CHAT</button>}
-    {visible.map((item) => <div key={item.id} className={`vinz-conversation-tab ${current === item.id ? 'is-active' : ''}`} aria-current={current === item.id ? 'page' : undefined}>
-      <button type="button" className="vinz-conversation-tab__select" title={item.title || 'Chat'} onClick={() => { if (current !== item.id) { requestManualRoomEntry(item.id); void aui.threads.switchToThread(item.id); } }}>
-        <span className="vinz-conversation-tab__label">{item.title || 'Chat'}</span>
-      </button>
-      {current === item.id && <button type="button" className="vinz-conversation-tab__close" aria-label={`Chiudi ${item.title || 'chat'}`} onClick={() => closeActiveTab(item.id)}><XIcon aria-hidden="true" /></button>}
-    </div>)}
+    {visible.map((item) => <button type="button" key={item.id} aria-current={current === item.id ? 'page' : undefined}
+      title={item.title || 'Chat'} onClick={(event) => {
+        if (current === item.id && event.target instanceof Element && event.target.closest('.vinz-conversation-tab__close')) { closeActiveTab(item.id); return; }
+        if (current !== item.id) { requestManualRoomEntry(item.id); void aui.threads.switchToThread(item.id); }
+      }}>
+      <span className="vinz-conversation-tab__label">{item.title || 'Chat'}</span>
+      {current === item.id && <span className="vinz-conversation-tab__close" aria-hidden="true"><XIcon /></span>}
+    </button>)}
     <ThreadListNew className="vinz-conversation-new" labelClassName="sr-only" onCreated={onNewThread} />
   </nav>;
 }

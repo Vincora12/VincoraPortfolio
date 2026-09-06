@@ -1,17 +1,17 @@
 .vinz-chat-top-controls{position:absolute;top:0;left:0;right:0;z-index:25}
 .vinz-conversation-tabs{overflow-x:auto;overflow-y:hidden;min-width:0;max-width:100%;scrollbar-width:none;touch-action:pan-x;overscroll-behavior-x:contain}
 .vinz-conversation-tabs::-webkit-scrollbar{display:none}
-.vinz-conversation-tabs>.vinz-conversation-tab{position:relative;display:flex;flex:1 0 96px;max-width:none;overflow:hidden;clip-path:polygon(11px 0,calc(100% - 11px) 0,100% 100%,0 100%)}
-.vinz-conversation-tabs>.vinz-conversation-tab>.vinz-conversation-tab__select{display:flex;min-width:0;flex:1;align-items:center;justify-content:center;overflow:hidden;clip-path:none!important}
+.vinz-conversation-tabs>button{flex:1 0 96px;max-width:none;overflow:hidden;clip-path:polygon(11px 0,calc(100% - 11px) 0,100% 100%,0 100%)}
 .vinz-conversation-tab__label{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.vinz-conversation-tabs>.vinz-conversation-tab:not(.is-active) .vinz-conversation-tab__label{width:calc(100% - 22px);max-width:calc(100% - 22px)}
-.vinz-conversation-tabs>.vinz-conversation-tab.is-active{z-index:2;flex:2 0 160px;width:auto;min-width:160px;background:var(--mh-bg,#000);color:#f8f8fa;filter:drop-shadow(1px 0 0 var(--mh-line,#292c33)) drop-shadow(-1px 0 0 var(--mh-line,#292c33))}
-.vinz-conversation-tabs>.vinz-conversation-tab.is-active .vinz-conversation-tab__label{flex:0 1 auto;width:max-content;max-width:calc(100% - 28px);overflow:hidden;text-overflow:ellipsis}
-.vinz-conversation-tabs>.vinz-conversation-tab+.vinz-conversation-tab,.vinz-conversation-tabs>.vinz-conversation-tab+button,.vinz-conversation-tabs>button+.vinz-conversation-tab{margin-left:-11px;padding-left:2px}.vinz-conversation-tabs>.vinz-conversation-tab:first-of-type{clip-path:polygon(0 0,calc(100% - 11px) 0,100% 100%,0 100%)}
+.vinz-conversation-tabs>button:not([aria-current='page']):not(.vinz-conversation-new) .vinz-conversation-tab__label{width:calc(100% - 22px);max-width:calc(100% - 22px)}
+.vinz-conversation-tabs>button[aria-current='page']{flex:2 0 160px;width:auto;min-width:160px}
+.vinz-conversation-tabs>button[aria-current='page'] .vinz-conversation-tab__label{flex:0 0 auto;width:max-content;max-width:none;overflow:visible;text-overflow:clip}
+.vinz-conversation-tabs>button+button{margin-left:-11px;padding-left:2px}.vinz-conversation-tabs>button:first-child{clip-path:polygon(0 0,calc(100% - 11px) 0,100% 100%,0 100%)}
+.vinz-conversation-tabs>button:nth-last-child(2){clip-path:polygon(0 100%,11px 0,100% 0,100% 100%)}
 .vinz-conversation-tabs>button.vinz-conversation-new{clip-path:none;background:transparent;color:inherit}
 .vinz-conversation-tabs>button:focus-visible{outline:2px solid currentColor;outline-offset:-4px}
 .vinz-conversation-tabs .vinz-conversation-new{flex:0 0 50px;max-width:50px;min-width:44px;padding:10px 15px;justify-content:center}
-.vinz-conversation-tab__close{position:absolute!important;z-index:3;top:50%;right:8px;display:grid!important;width:20px!important;min-width:20px!important;height:20px!important;min-height:20px!important;place-items:center;margin-left:0!important;padding:0!important;transform:translateY(-50%);border:0!important;border-radius:0!important;background:transparent!important;color:inherit!important;clip-path:none!important}.vinz-conversation-tab__close svg{width:13px;height:13px}.vinz-conversation-tab__close:focus-visible{outline:1px solid currentColor;outline-offset:1px}
+.vinz-conversation-tabs>button[aria-current='page']{position:relative}.vinz-conversation-tabs>button[aria-current='page'] .vinz-conversation-tab__label{padding-right:22px}.vinz-conversation-tab__close{position:absolute;top:50%;right:8px;display:grid;width:18px;height:18px;place-items:center;transform:translateY(-50%)}.vinz-conversation-tab__close svg{width:13px;height:13px}
 .vinz-chat-options{padding:12px 0;border-bottom:1px solid #777;display:grid;gap:12px;color:inherit;font:11px 'IBM Plex Mono',monospace}
 .vinz-chat-options button,.vinz-chat-options select{color:inherit;background:transparent;border:1px solid #777;min-height:44px;padding:9px;width:100%;text-align:left;font:inherit}.vinz-chat-options select{display:block;margin-top:8px;max-width:100%}.vinz-chat-options option{color:#111;background:white}.vinz-chat-options small{font-size:10px;line-height:1.5;color:#999}
 .vinz-chat-storage-status{padding:6px;background:#252525;color:white;font-size:11px}.vinz-chat-storage-status button{text-decoration:underline;padding:6px}
