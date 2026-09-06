@@ -24,7 +24,7 @@ function deliveryLabel(event: CalendarEvent): string {
 }
 
 /** Same CalendarEvent owner/API as ME Calendar. This view is not a second scheduler. */
-export function ReminderPanel({ token, onClose, onCreate }: { token: string | null; onClose: () => void; onCreate?: () => void }) {
+export function ReminderPanel({ token, onClose, onCreate, projectId, createBusy = false }: { token: string | null; onClose: () => void; onCreate?: () => void; projectId?: string | null; createBusy?: boolean }) {
   const [rows, setRows] = useState<Row[]>([]);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState('');
@@ -45,15 +45,15 @@ export function ReminderPanel({ token, onClose, onCreate }: { token: string | nu
     setBusy(true); setError(''); setNotice('');
     try { await action(); } catch (e) { setError(e instanceof Error ? e.message : 'Operazione non riuscita.'); } finally { setBusy(false); }
   }
-  const reminders = rows.filter(({event}) => !!event.reminderAt).sort((a,b) => a.event.reminderAt!.localeCompare(b.event.reminderAt!));
+  const reminders = rows.filter(({event}) => !!event.reminderAt && (projectId === undefined || (event.projectId ?? null) === projectId)).sort((a,b) => a.event.reminderAt!.localeCompare(b.event.reminderAt!));
   return <section className="project-workspace project-workspace--reader" aria-label="Promemoria">
     <header className="project-workspace__head"><h1>PROMEMORIA</h1><button onClick={onClose}>CHIUDI ×</button></header>
-    {onCreate && <><h2>Automazioni</h2><button onClick={onCreate}>Crea con l’AI</button></>}
-    <p className="project-workspace__muted">Promemoria con data e ora. Per crearne uno, descrivi in chat cosa vuoi ricordare e quando. Al momento sono disponibili promemoria singoli.</p>
-    <button disabled={busy} onClick={() => void run(refresh)}>AGGIORNA</button>
+    {onCreate && <button className="workspace-panel__primary" disabled={createBusy} onClick={onCreate}>Crea con l’AI</button>}
+    <p className="project-workspace__muted">Descrivi in chat cosa vuoi ricordare e quando. VINZ.MON ti aiuta a programmare un promemoria singolo.</p>
+    <button disabled={busy} onClick={() => void run(refresh)}>Aggiorna elenco</button>
     {error && <p role="alert">{error}</p>}
     <p role="status">{busy ? 'Operazione in corso…' : notice}</p>
-    {!busy && !error && !reminders.length && <p>Nessun promemoria con data reale.</p>}
+    {!busy && !error && !reminders.length && <div className="workspace-panel__empty"><strong>Nessuna automazione in questo spazio</strong><p>Inizia dalla chat: per esempio, «Ricordami di controllare il preventivo domani alle 10».</p></div>}
     {reminders.map((row) => <article key={row.event.id} className="project-workspace__artifact-row">
       <div><strong>{row.event.title}</strong><p>{new Date(row.event.reminderAt!).toLocaleString('it-IT')} · {row.event.timezone}</p><small>{deliveryLabel(row.event)}</small></div>
       <div className="project-workspace__actions">

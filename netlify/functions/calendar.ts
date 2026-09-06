@@ -31,6 +31,7 @@ export default async function handler(request: Request): Promise<Response> {
     // Explicit null disables the reminder, changing its date starts a new one-time attempt.
     const reminderAt = input.reminderAt === undefined ? previous?.reminderAt : input.reminderAt === null ? undefined : new Date(input.reminderAt).toISOString();
     const event: CalendarEvent = { id: body.id, title: input.title.trim(), start: new Date(input.start).toISOString(),
+      projectId: input.projectId === undefined ? previous?.projectId ?? null : input.projectId,
       ...(input.end ? { end: new Date(input.end).toISOString() } : {}), timezone: input.timezone, category: input.category,
       source: 'vinzmon', status: input.status, notes: input.notes.trim(), updatedAt: new Date().toISOString(),
       ...(reminderAt ? { reminderAt } : {}),

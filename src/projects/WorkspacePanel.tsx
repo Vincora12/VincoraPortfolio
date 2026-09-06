@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { ArrowLeftIcon, ArrowRightIcon, FileTextIcon, FolderIcon, PackageIcon, CalendarDaysIcon } from 'lucide-react';
-import { artifactHref, PROJECT_LIMITS, type Project, type ProjectFile, type ProjectArtifact, type ProjectSummary } from '../engine/projects';
+import { ArrowLeftIcon, ArrowRightIcon, FileTextIcon, FolderIcon, PackageIcon, CalendarDaysIcon, ChevronDownIcon, Trash2Icon } from 'lucide-react';
+import { artifactHref, PROJECT_LIMITS, GLOBAL_PROJECT_ID, type Project, type ProjectFile, type ProjectArtifact, type ProjectSummary } from '../engine/projects';
 import { listProjects, loadProject, mutateProject } from './client';
 import { ReminderPanel } from './ReminderPanel';
 import { Markdown } from '../system/Markdown';
@@ -35,8 +35,8 @@ export function WorkspacePanel({ token, projectId, onBeginChat, model, onModel }
   useEffect(() => {
     let live = true;
     setBusy(true); busyRef.current = true;
-    Promise.all([listProjects(token), listProjects(token, true), projectId ? loadProject(token, projectId) : Promise.resolve(null)])
-      .then(([items, deleted, current]) => { if (live) { setProjects(items); setTrash(deleted); setProject(current?.trashedAt ? null : current); } })
+    Promise.all([listProjects(token), listProjects(token, true), loadProject(token, projectId ?? GLOBAL_PROJECT_ID)])
+      .then(async ([items, deleted, current]) => { const active = current.trashedAt ? await loadProject(token, GLOBAL_PROJECT_ID) : current; if (live) { setProjects(items); setTrash(deleted); setProject(active); } })
       .catch(e => { if (live) setError(e instanceof Error ? e.message : 'Caricamento non riuscito.'); })
       .finally(() => { if (live) { setBusy(false); busyRef.current = false; } });
     return () => { live = false; };
@@ -49,7 +49,7 @@ export function WorkspacePanel({ token, projectId, onBeginChat, model, onModel }
   }
   function toggle(id: string) { setSelected(ids => ids.includes(id) ? ids.filter(i => i !== id) : [...ids, id]); }
   async function begin(intent: WorkspaceIntent) {
-    if (intent === 'artifact' && !project) { navigate('projects'); setNotice('Scegli o crea il gruppo in cui salvare il nuovo artefatto.'); return; }
+    if (!project) throw new Error('Lo spazio non è ancora disponibile. Premi Ricarica.');
     await onBeginChat(project, intent);
   }
   async function uploadFiles(files: File[]) {
@@ -69,26 +69,31 @@ export function WorkspacePanel({ token, projectId, onBeginChat, model, onModel }
   }
   const back = <button className="workspace-panel__back" onClick={() => artifact ? setArtifact(null) : navigate('home')}><ArrowLeftIcon aria-hidden="true" />{artifact ? 'Artefatti' : 'Spazio di lavoro'}</button>;
   const destination = (label: string, detail: string, next: typeof page, icon: ReactNode) => <button className="workspace-panel__row" onClick={() => navigate(next)}>{icon}<span>{label}<small>{detail}</small></span><ArrowRightIcon aria-hidden="true" /></button>;
+  const empty = (title: string, text: string) => <div className="workspace-panel__empty"><strong>{title}</strong><p>{text}</p></div>;
   return <section className="workspace-panel" aria-label="Spazio di lavoro" aria-busy={busy}>
     {page !== 'home' && back}
-    {error && <p role="alert">{error} <button disabled={busy} onClick={() => void run(async () => { await refresh(); if (project) setProject(await loadProject(token, project.id)); })}>Ricarica</button></p>}
+    {page !== 'home' && page !== 'projects' && page !== 'trash' && <button className="workspace-panel__scope" onClick={() => navigate('projects')}><FolderIcon aria-hidden="true" /><span>{project?.title ?? 'Caricamento spazio…'}</span><ChevronDownIcon aria-hidden="true" /></button>}
+    {error && <p role="alert">{error} <button disabled={busy} onClick={() => void run(async () => { await refresh(); const current = await loadProject(token, project?.id ?? projectId ?? GLOBAL_PROJECT_ID); setProject(current.trashedAt ? await loadProject(token, GLOBAL_PROJECT_ID) : current); })}>Ricarica</button></p>}
     <p className="workspace-panel__status" role="status">{busy ? 'Caricamento…' : notice}</p>
     {page === 'home' && <>
-      <h2>{project?.title ?? 'GLOBAL'}</h2><p>Il tuo spazio di lavoro</p>
-      {destination('Progetti', 'Scegli e gestisci i gruppi', 'projects', <FolderIcon />)}
-      {destination('File', `${project?.files?.length ?? 0} file`, 'files', <FileTextIcon />)}
-      {destination('Artefatti', `${project?.artifacts.length ?? 0} documenti`, 'artifacts', <PackageIcon />)}
-      {destination('Automazioni', 'Promemoria programmati', 'automations', <CalendarDaysIcon />)}
-      <button className="workspace-panel__back" onClick={() => navigate('trash')}>Cestino · {trash.length} gruppi</button>
-      <details><summary>Modello della chat</summary><select aria-label="Modello della chat" value={model} onChange={e => onModel(e.target.value)}><option value="auto">Automatico</option>{MODELS.map(m => <option value={m.id} key={m.id}>{m.name}</option>)}</select></details>
+      <header className="workspace-panel__hero"><h2>{project?.title ?? 'GLOBAL'}</h2><p>{project?.id && project.id !== GLOBAL_PROJECT_ID ? 'Tutto quello che serve a questo progetto.' : 'Il tuo spazio personale. Tutto, in un posto.'}</p>
+        <button className="workspace-panel__switch" disabled={busy} onClick={() => navigate('projects')}><FolderIcon aria-hidden="true" />Cambia progetto<ChevronDownIcon aria-hidden="true" /></button>
+      </header>
+      <nav className="workspace-panel__destinations" aria-label="Contenuti dello spazio">
+        {destination('File', `${project?.files?.length ?? 0} file · Carica e scarica`, 'files', <FileTextIcon aria-hidden="true" />)}
+        {destination('Artefatti', `${project?.artifacts.length ?? 0} documenti · Creati con l’AI`, 'artifacts', <PackageIcon aria-hidden="true" />)}
+        {destination('Automazioni', 'Consulta e gestisci i promemoria', 'automations', <CalendarDaysIcon aria-hidden="true" />)}
+      </nav>
+      <footer className="workspace-panel__utilities"><button className="workspace-panel__back" onClick={() => navigate('trash')}><Trash2Icon aria-hidden="true" />Cestino{trash.length > 0 ? ` · ${trash.length}` : ''}</button>
+      <details><summary>Modello della chat</summary><select aria-label="Modello della chat" value={model} onChange={e => onModel(e.target.value)}><option value="auto">Automatico</option>{MODELS.map(m => <option value={m.id} key={m.id}>{m.name}</option>)}</select></details></footer>
     </>}
     {(page === 'projects' || page === 'trash') && <>
       <h2>{page === 'trash' ? 'Cestino' : 'Progetti'}</h2>
-      <p>{page === 'trash' ? 'Ripristina un gruppo con tutti i suoi file e artefatti.' : 'Ogni progetto è un gruppo di file e artefatti.'}</p>
+      <p>{page === 'trash' ? 'Ripristina un gruppo con tutti i suoi file e artefatti.' : 'Scegli dove lavorare. File, artefatti e automazioni seguono il progetto.'}</p>
       {page === 'projects' && <>
         <div className="workspace-panel__actions"><button disabled={busy} onClick={() => setCreating(!creating)}>Nuovo gruppo</button><button onClick={() => { setSelecting(!selecting); setSelected([]); }}>{selecting ? 'Annulla' : 'Seleziona'}</button></div>
         {creating && <form onSubmit={e => { e.preventDefault(); void run(async () => { const saved = await mutateProject(token, { action: 'create', title: name.trim() }); setProject(saved); await refresh(); setName(''); setCreating(false); navigate('home'); }); }}><label>Nome del gruppo<input required maxLength={PROJECT_LIMITS.title} value={name} onChange={e => setName(e.target.value)} /></label><button disabled={busy || !name.trim()}>Crea gruppo</button></form>}
-        {!selecting && <button className="workspace-panel__row" onClick={() => { setProject(null); navigate('home'); }}><FolderIcon /><span>GLOBAL<small>Spazio personale</small></span><ArrowRightIcon /></button>}
+        {!selecting && <button disabled={busy} className="workspace-panel__row" onClick={() => void run(async () => { setProject(await loadProject(token, GLOBAL_PROJECT_ID)); navigate('home'); })}><FolderIcon /><span>GLOBAL<small>Spazio personale</small></span><ArrowRightIcon /></button>}
       </>}
       {(page === 'trash' ? trash : projects).map(item => <div key={item.id} className="workspace-panel__item">
         {selecting && <input type="checkbox" aria-label={`Seleziona ${item.title}`} checked={selected.includes(item.id)} onChange={() => toggle(item.id)} />}
@@ -103,31 +108,31 @@ export function WorkspacePanel({ token, projectId, onBeginChat, model, onModel }
         const targets = projects.filter(p => selected.includes(p.id));
         if (!confirm(`Spostare nel cestino ${targets.length} gruppi con ${targets.reduce((n,p) => n+(p.fileCount ?? 0),0)} file e ${targets.reduce((n,p) => n+p.artifactCount,0)} artefatti? Puoi ripristinarli. Le chat restano conservate.`)) return;
         void run(async () => {
-          for (const item of targets) { await mutateProject(token, { action: 'trash', projectId: item.id, revision: item.revision }); if (item.id === project?.id) setProject(null); setSelected(ids => ids.filter(id => id !== item.id)); }
+          for (const item of targets) { await mutateProject(token, { action: 'trash', projectId: item.id, revision: item.revision }); if (item.id === project?.id) setProject(await loadProject(token, GLOBAL_PROJECT_ID)); setSelected(ids => ids.filter(id => id !== item.id)); }
           await refresh(); setSelecting(false); setNotice('Gruppi spostati nel cestino.');
         });
       }}>Sposta nel cestino ({selected.length})</button>}
     </>}
     {page === 'files' && <>
-      <h2>File</h2><p>{project?.title ?? 'Scegli un gruppo per caricare i file.'}</p>
+      <h2>File</h2><p>I tuoi materiali, sempre a portata di mano.</p>
       {project ? <>
         <div className="workspace-panel__actions"><button className="workspace-panel__primary" disabled={busy} onClick={() => upload.current?.click()}>Carica file</button><button onClick={() => { setSelecting(!selecting); setSelected([]); }}>{selecting ? 'Annulla' : 'Seleziona'}</button></div>
         <input ref={upload} type="file" multiple hidden onChange={e => { const files = Array.from(e.target.files ?? []); e.target.value = ''; if (files.length) void run(() => uploadFiles(files)); }} />
         <p className="workspace-panel__hint">Massimo 5 MB per caricamento. I file restano sul Mac e puoi scaricarli da qui.</p>
         {(project.files ?? []).map(file => <div className="workspace-panel__item" key={file.id}>{selecting && <input type="checkbox" aria-label={`Seleziona ${file.name}`} checked={selected.includes(file.id)} onChange={() => toggle(file.id)} />}<button className="workspace-panel__row" onClick={() => selecting ? toggle(file.id) : download(file)}><FileTextIcon /><span>{file.name}<small>{Math.ceil(file.size / 1024)} KB · Scarica</small></span><ArrowRightIcon /></button></div>)}
-        {!project.files?.length && <p>Nessun file caricato.</p>}
+        {!project.files?.length && empty('Qui trovi i tuoi file', 'Carica documenti, immagini o altri materiali. Verranno conservati in questo spazio sul tuo Mac.')}
         {project.context && <details><summary>Fonti salvate in precedenza</summary><pre>{project.context}</pre></details>}
         {selected.length > 0 && <button disabled={busy} onClick={() => { if (!confirm(`Eliminare definitivamente ${selected.length} file da questo gruppo?`)) return; void run(async () => { setProject(await mutateProject(token, { action: 'remove-files', projectId: project.id, revision: project.revision, ids: selected })); await refresh(); setSelected([]); setSelecting(false); setNotice('File eliminati.'); }); }}>Elimina selezionati ({selected.length})</button>}
-      </> : <button onClick={() => navigate('projects')}>Scegli un gruppo</button>}
+      </> : <p>{busy ? 'Apertura dei file dello spazio…' : 'Spazio non disponibile. Premi Ricarica per riprovare.'}</p>}
     </>}
     {page === 'artifacts' && <>
-      <h2>{artifact?.title ?? 'Artefatti'}</h2><p>{project?.title ?? 'Scegli un gruppo per il nuovo artefatto.'}</p>
+      <h2>{artifact?.title ?? 'Artefatti'}</h2>{!artifact && <p>Dall’idea al documento, insieme all’AI.</p>}
       {artifact ? <article><Markdown source={artifact.markdown} /></article> : <>
-        <button className="workspace-panel__primary" disabled={busy} onClick={() => void run(() => begin('artifact'))}>Crea con l’AI</button>
+        <button className="workspace-panel__primary" disabled={busy || !project} onClick={() => void run(() => begin('artifact'))}>Crea con l’AI</button>
         {(project?.artifacts ?? []).map(item => <div key={item.slug} className="workspace-panel__artifact"><button className="workspace-panel__row" onClick={() => setArtifact(item)}><PackageIcon /><span>{item.title}<small>Versione {item.revision} · Apri nell’app</small></span><ArrowRightIcon /></button><button onClick={() => void run(async () => { await navigator.clipboard.writeText(new URL(artifactHref(project!.id, item.slug), `${location.origin}/`).href); setNotice('Link privato copiato. Richiede accesso a VINZ.MON e alla rete Tailscale.'); })}>Copia link privato</button></div>)}
-        {!project?.artifacts.length && <p>Nessun artefatto. Descrivi in chat cosa vuoi creare.</p>}
+        {!project?.artifacts.length && !busy && empty('La prossima idea parte dalla chat', 'Descrivi cosa vuoi creare: un report, un piano, un testo. Ritroverai qui il documento salvato, pronto da aprire.')}
       </>}
     </>}
-    {page === 'automations' && <ReminderPanel token={token} onClose={() => navigate('home')} onCreate={() => void run(() => begin('automation'))} />}
+    {page === 'automations' && <><h2>Automazioni</h2><ReminderPanel token={token} projectId={project?.id === GLOBAL_PROJECT_ID ? null : project?.id ?? null} createBusy={busy || !project} onClose={() => navigate('home')} onCreate={() => void run(() => begin('automation'))} /></>}
   </section>;
 }

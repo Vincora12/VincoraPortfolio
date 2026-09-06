@@ -23,7 +23,7 @@ export function getStore() { return {
 try {
   await build({ entryPoints: ['netlify/functions/projects.ts', 'src/engine/projects.ts'], outdir: directory, outbase: '.', bundle: true, format: 'esm', platform: 'node', outExtension: { '.js': '.mjs' }, plugins: [{ name: 'isolated-blobs', setup(builder) { builder.onResolve({ filter: /^@netlify\/blobs$|\/localStore$|^\.\/_shared\/localStore$/ }, () => ({ path: 'mock-blobs', namespace: 'test' })); builder.onLoad({ filter: /.*/, namespace: 'test' }, () => ({ contents: blobMock, loader: 'js' })); } }] });
   const { default: handler } = await import(pathToFileURL(join(directory, 'netlify/functions/projects.mjs')));
-  const { buildProjectContext, mutationProblem, artifactHref } = await import(pathToFileURL(join(directory, 'src/engine/projects.mjs')));
+  const { buildProjectContext, mutationProblem, artifactHref, GLOBAL_PROJECT_ID } = await import(pathToFileURL(join(directory, 'src/engine/projects.mjs')));
   const token = 'synthetic-project-test-token-123456';
   const previous = process.env.VINZMON_TOKEN;
   process.env.VINZMON_TOKEN = token;
@@ -31,6 +31,18 @@ try {
   try {
     assert.equal((await call(null, '', false)).status, 401);
     assert.equal((await call({ action: 'create', title: 'x' }, '', false)).status, 401);
+    const globals = await Promise.all([call(null, `?projectId=${GLOBAL_PROJECT_ID}`), call(null, `?projectId=${GLOBAL_PROJECT_ID}`)]);
+    const [{project: globalA}, {project: globalB}] = await Promise.all(globals.map(r => r.json()));
+    assert.equal(globalA.id, GLOBAL_PROJECT_ID);
+    assert.deepEqual(globalA, globalB, 'Concurrent first reads create one canonical GLOBAL');
+    assert.equal((await call({ action: 'trash', projectId: globalA.id, revision: globalA.revision })).status, 400);
+    const {project: globalFile} = await (await call({action:'upload-files',projectId:globalA.id,revision:globalA.revision,files:[{id:'global-file-test',name:'global.txt',size:2,data:'aGk='}]})).json();
+    const {project: globalDoc} = await (await call({action:'save-artifact',projectId:globalA.id,revision:globalFile.revision,title:'Global document',markdown:'# Only GLOBAL'})).json();
+    const {project: globalRead} = await (await call(null, `?projectId=${GLOBAL_PROJECT_ID}`)).json();
+    assert.equal(globalRead.artifacts[0].markdown, '# Only GLOBAL');
+    assert.equal(globalRead.files[0].data, 'aGk=');
+    assert.equal(globalRead.revision, globalDoc.revision);
+    assert.equal((await (await call(null)).json()).projects.length, 0, 'GLOBAL is not a duplicate selectable group');
     assert.equal((await call({ action: 'create', title: 'x', context: 'data:image/png;base64,AAAA' })).status, 400);
     const created = await call({ action: 'create', title: 'Alpha synthetic', context: 'Alpha only fact', instructions: 'Use concise sections' });
     assert.equal(created.status, 201);

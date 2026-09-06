@@ -794,7 +794,7 @@ export function resultBlocks(results: readonly ToolResult[]): Record<string, unk
   return budgetToolResults(results).map(resultBlock);
 }
 
-async function executeReminderTool(use: ToolUse, token: string | null): Promise<ToolResult> {
+async function executeReminderTool(use: ToolUse, token: string | null, projectId: string | null = null): Promise<ToolResult> {
   const fail = (content: string): ToolResult => ({ id: use.id, content, isError: true });
   if (!token) return fail('Token mancante: promemoria non disponibile.');
   const args = (use.input && typeof use.input === 'object' ? use.input : {}) as Record<string, unknown>;
@@ -805,7 +805,7 @@ async function executeReminderTool(use: ToolUse, token: string | null): Promise<
   const read = async (): Promise<Row[]> => {
     const response = await fetch('/api/calendar', { headers });
     if (!response.ok) throw new Error('CALENDAR_READ_FAILED');
-    return ((await response.json()) as { events: Row[] }).events;
+    return ((await response.json()) as { events: Row[] }).events.filter(({ event }) => (event.projectId ?? null) === projectId);
   };
   const rows = await read();
   if (action === 'list') return { id: use.id, content: JSON.stringify({ source: 'canonical-calendar', reminders: rows.filter((row) => row.event.reminderAt).map(({event,version}) => ({ id: event.id, version, title: event.title, when: event.reminderAt, timezone: event.timezone, status: event.status, notification: event.reminderDelivery ?? 'not attempted' })) }) };
@@ -821,10 +821,10 @@ async function executeReminderTool(use: ToolUse, token: string | null): Promise<
     if (!title || title.length > 160 || !/^\d{4}-\d{2}-\d{2}T.*(?:Z|[+-]\d{2}:\d{2})$/.test(when) || !Number.isFinite(Date.parse(when)) || Date.parse(when) <= Date.now()) return fail('Servono titolo e data futura ISO completa di offset/Z, confermati dall’utente. Non scegliere un orario arbitrario.');
     try { if (!timezone) throw new Error(); new Intl.DateTimeFormat('it', { timeZone: timezone }); } catch { return fail('Serve un fuso orario IANA esplicito e valido.'); }
     const reminderAt = new Date(when).toISOString();
-    input = row ? { ...row.event, title, reminderAt, timezone } : { title, start: reminderAt, reminderAt, timezone, category: 'task', notes: '', status: 'planned' };
+    input = row ? { ...row.event, title, reminderAt, timezone } : { title, start: reminderAt, reminderAt, timezone, category: 'task', notes: '', status: 'planned', projectId };
     if (row && row.event.status !== 'planned') return fail('L’evento è annullato/completato: non viene riattivato implicitamente.');
     // Stable technical key makes an exact repeated request idempotent without another store.
-    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify([title, reminderAt, timezone])));
+    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify([title, reminderAt, timezone, ...(projectId ? [projectId] : [])])));
     id = row?.event.id ?? `reminder_${Array.from(new Uint8Array(digest)).slice(0, 16).map((n) => n.toString(16).padStart(2, '0')).join('')}`;
     const existing = !row && rows.find(({event}) => event.id === id);
     if (existing) return { id: use.id, content: JSON.stringify({ status: 'already-exists', id, when: existing.event.reminderAt ?? null, eventStatus: existing.event.status, note: 'Nessun duplicato creato. Se disattivato, aggiorna esplicitamente usando id/versione.' }) };
@@ -846,15 +846,15 @@ export async function executeRuntimeTool(
   const fail = (content: string): ToolResult => ({ id: use.id, content, isError: true });
   const ok = (content: string): ToolResult => ({ id: use.id, content });
   try {
-    if (use.name === 'programma_promemoria') return await executeReminderTool(use, scope.token);
+    if (use.name === 'programma_promemoria') return await executeReminderTool(use, scope.token, scope.projectId ?? null);
     const isProjectTool = ['leggi_progetto', 'leggi_sorgente_progetto', 'scrivi_artifact_progetto'].includes(use.name);
-    const projectFile = use.name === 'crea_file_testo' && !!scope.projectId;
+    const projectFile = use.name === 'crea_file_testo';
     if (!isProjectTool && !projectFile) return await localRun(use);
-    if (!scope.projectId) return fail('Nessun progetto selezionato per questa chat. Chiedi all’utente di selezionarlo da Projects. Nessun altro progetto è stato letto.');
     if (!scope.token) return fail('Archivio progetti non autorizzato: token mancante.');
     const { loadProject, mutateProject } = await import('../projects/client');
-    const { artifactHref, buildProjectContext } = await import('../engine/projects');
-    const project = await loadProject(scope.token, scope.projectId);
+    const { artifactHref, buildProjectContext, GLOBAL_PROJECT_ID } = await import('../engine/projects');
+    const project = await loadProject(scope.token, scope.projectId ?? GLOBAL_PROJECT_ID);
+    if (project.trashedAt) return fail('Questo gruppo è nel cestino. Ripristinalo prima di usarlo.');
     const args = (use.input && typeof use.input === 'object' ? use.input : {}) as Record<string, unknown>;
     if (use.name === 'leggi_progetto') return ok(JSON.stringify({ projectId: project.id, revision: project.revision, source: 'authenticated-project-store', context: buildProjectContext(project), artifacts: project.artifacts.map((p) => ({ slug: p.slug, title: p.title, revision: p.revision, url: artifactHref(project.id, p.slug) })) }));
     if (use.name === 'leggi_sorgente_progetto') {

@@ -77,10 +77,10 @@ export const CloneThreadShell: FC<CloneThreadShellProps> = ({
     onMobileSidebarOpenChange?.(open);
   };
   useEffect(() => {
-    const close = () => setMobileOpen(false);
+    const close = () => { setMobileOpen(false); if (!showThreadList) setSidebarCollapsed(true); };
     window.addEventListener('vinz-workspace-close', close);
     return () => window.removeEventListener('vinz-workspace-close', close);
-  }, [mobileControlled, onMobileSidebarOpenChange]);
+  }, [mobileControlled, onMobileSidebarOpenChange, collapsedControlled, onCollapsedChange, showThreadList]);
 
   useEffect(() => {
     const surface = gestureSurface.current;
@@ -175,7 +175,7 @@ export const CloneThreadShell: FC<CloneThreadShellProps> = ({
         className={cn(
           "vinz-chat-rail bg-muted/30 hidden h-full shrink-0 flex-col overflow-hidden border-r transition-[width] duration-200 md:flex",
           railClassName,
-          sidebarCollapsed ? "w-12" : "w-65",
+          sidebarCollapsed ? "w-12" : showThreadList ? "w-65" : "w-96 max-w-[45vw]",
         )}
       >
         <div className="flex h-12 shrink-0 items-center overflow-hidden px-2">
@@ -197,7 +197,7 @@ export const CloneThreadShell: FC<CloneThreadShellProps> = ({
                 <span className="ml-2 truncate text-sm font-medium">Chats</span>
               )}
         </div>
-        {!sidebarCollapsed && sidebarContent}
+        {!sidebarCollapsed && (showThreadList ? sidebarContent : <div className="min-h-0 flex-1 overflow-y-auto px-4">{sidebarContent}</div>)}
         {showThreadList && <ThreadListRoot
           className={cn(
             "relative flex-1 transition-[padding,width] duration-200",

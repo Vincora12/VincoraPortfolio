@@ -5,6 +5,7 @@ import { XIcon } from 'lucide-react';
 import { ReminderPanel } from '../projects/ReminderPanel';
 import { ProjectWorkspace } from '../projects/ProjectWorkspace';
 import type { Project } from '../engine/projects';
+import { GLOBAL_PROJECT_ID } from '../engine/projects';
 import { WorkspacePanel, type WorkspaceIntent } from '../projects/WorkspacePanel';
 import { discardLocalSession } from './conversation-lifecycle-adapter';
 import { useApp, syncWithServer, resolveStateSyncConflict } from '../state/store';
@@ -88,11 +89,14 @@ export function useConversationOptions() {
     window.dispatchEvent(new Event('vinz-workspace-close'));
   }, [pendingPrompt, id, draft.id, aui]);
   const beginWorkspaceChat = async (project: Project | null, intent: WorkspaceIntent) => {
+    // The initial greeting can hold initialize() until the first user message.
+    // Release that local-only session before asking the runtime to switch.
+    discardLocalSession(aui.threads.item('main').getState().id);
     await aui.threads.switchToNewThread();
     const newId = aui.threads.item('main').getState().id;
     discardLocalSession(newId);
     aui.thread.reset();
-    setDraft({ id: newId, model: 'auto', projectId: project?.id ?? null, projectTitle: project?.title ?? '' });
+    setDraft({ id: newId, model: 'auto', projectId: project?.id === GLOBAL_PROJECT_ID ? null : project?.id ?? null, projectTitle: project?.id === GLOBAL_PROJECT_ID ? '' : project?.title ?? '' });
     setPendingPrompt({ id: newId, text: intent === 'artifact'
       ? 'Aiutami a creare un artefatto in questo progetto. Chiedimi cosa voglio ottenere, poi lavoriamo insieme e salva il risultato come artefatto con il suo link. Vorrei creare: '
       : 'Aiutami a creare un promemoria. Chiedimi cosa ricordare e quando, poi riepiloga e chiedimi conferma prima di attivarlo. Vorrei: ' });

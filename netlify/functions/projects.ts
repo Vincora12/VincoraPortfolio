@@ -1,6 +1,6 @@
 import { getStore } from './_shared/localStore';
 import { authorize, denied, json } from './_shared/auth';
-import { createProject, updateProject, mutationProblem, projectSummary, validProjectId, PROJECT_LIMITS } from '../../src/engine/projects';
+import { createProject, updateProject, mutationProblem, projectSummary, validProjectId, PROJECT_LIMITS, GLOBAL_PROJECT_ID } from '../../src/engine/projects';
 import type { Project, ProjectMutation } from '../../src/engine/projects';
 
 const projectStore = () => getStore({ name: 'vinzmon-projects', consistency: 'strong' });
@@ -14,6 +14,9 @@ export default async function handler(request: Request): Promise<Response> {
       const id = new URL(request.url).searchParams.get('projectId');
       if (id !== null) {
         if (!validProjectId(id)) return json({ error: 'Progetto non valido.' }, 400);
+        if (id === GLOBAL_PROJECT_ID && !(await store.getWithMetadata(`projects/${id}`, { type: 'json' }))) {
+          await store.setJSON(`projects/${id}`, createProject({ action: 'create', title: 'GLOBAL' }, id, new Date().toISOString()), { onlyIfNew: true });
+        }
         const project = await store.get(`projects/${id}`, { type: 'json' }) as Project | null;
         return project ? json({ project }) : json({ error: 'Progetto non trovato.' }, 404);
       }
@@ -24,7 +27,7 @@ export default async function handler(request: Request): Promise<Response> {
       const trash = new URL(request.url).searchParams.get('trash') === 'true';
       const projects = await Promise.all(blobs.map(async ({ key }) => {
         const p = await store.get(key, { type: 'json' }) as Project | null;
-        return p && !!p.trashedAt === trash ? projectSummary(p) : null;
+        return p && p.id !== GLOBAL_PROJECT_ID && !!p.trashedAt === trash ? projectSummary(p) : null;
       }));
       return json({ projects: projects.filter((p) => p !== null).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)) });
     }
@@ -38,7 +41,8 @@ export default async function handler(request: Request): Promise<Response> {
     if (input.action === 'create') {
       // Content is kept in bounded individual records, not a giant global snapshot.
       const { blobs } = await store.list({ prefix: 'projects/' });
-      if (blobs.length >= PROJECT_LIMITS.projects) return json({ error: 'Limite progetti raggiunto.' }, 409);
+      const active = await Promise.all(blobs.filter(b => b.key !== `projects/${GLOBAL_PROJECT_ID}`).map(b => store.get(b.key, { type: 'json' })));
+      if (active.filter(p => p && !(p as Project).trashedAt).length >= PROJECT_LIMITS.projects) return json({ error: 'Limite progetti raggiunto.' }, 409);
       const project = createProject(input, crypto.randomUUID(), now);
       const written = await store.setJSON(`projects/${project.id}`, project, { onlyIfNew: true });
       if (!written.modified) return json({ error: 'Conflitto: riprova.' }, 409);

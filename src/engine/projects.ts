@@ -1,5 +1,6 @@
 import { makePage, pageProblems, MAX_PAGES, MAX_MARKDOWN_CHARS } from './pages';
 import type { Page } from './pages';
+export const GLOBAL_PROJECT_ID = 'vinzmon-global';
 
 /** Project knowledge is explicitly scoped, never copied into personal memory. */
 export interface ProjectArtifact extends Page {
@@ -74,6 +75,7 @@ export function createProject(input: Extract<ProjectMutation, { action: 'create'
 }
 export function updateProject(project: Project, input: Exclude<ProjectMutation, { action: 'create' }>, now: string): Project {
   if (input.projectId !== project.id || input.revision !== project.revision) throw new Error('CONFLICT');
+  if (project.id === GLOBAL_PROJECT_ID && (input.action === 'trash' || input.action === 'restore' || (input.action === 'update' && input.title !== 'GLOBAL'))) throw new Error('GLOBAL_PROTECTED');
   const changed = { ...project, revision: project.revision + 1, updatedAt: now };
   if (input.action === 'restore') return { ...changed, trashedAt: null };
   if (project.trashedAt) throw new Error('PROJECT_TRASHED');

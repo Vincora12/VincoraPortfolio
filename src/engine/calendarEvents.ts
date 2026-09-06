@@ -2,6 +2,8 @@
 export type CalendarCategory = 'meal' | 'workout' | 'appointment' | 'task' | 'personal';
 export interface CalendarEvent {
   id: string;
+  /** Missing on legacy events means GLOBAL. */
+  projectId?: string | null;
   title: string;
   start: string;
   end?: string;
@@ -16,10 +18,11 @@ export interface CalendarEvent {
   /** Server-owned. Accepted means Web Push accepted, not confirmed user delivery. */
   reminderDelivery?: { attemptedAt: string; status: 'attempting' | 'accepted' | 'not-sent'; acceptedSubscriptions?: number };
 }
-export type CalendarEventInput = Pick<CalendarEvent, 'title' | 'start' | 'end' | 'timezone' | 'category' | 'status' | 'notes'> & { reminderAt?: string | null };
+export type CalendarEventInput = Pick<CalendarEvent, 'title' | 'start' | 'end' | 'timezone' | 'category' | 'status' | 'notes' | 'projectId'> & { reminderAt?: string | null };
 export function validCalendarEventInput(value: unknown): value is CalendarEventInput {
   if (!value || typeof value !== 'object') return false;
   const item = value as CalendarEventInput;
+  if (item.projectId !== undefined && item.projectId !== null && (typeof item.projectId !== 'string' || !/^[a-zA-Z0-9_-]{8,80}$/.test(item.projectId))) return false;
   if (typeof item.title !== 'string' || !item.title.trim() || item.title.length > 160
     || typeof item.notes !== 'string' || item.notes.length > 2000
     || typeof item.start !== 'string' || !Number.isFinite(Date.parse(item.start))

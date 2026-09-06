@@ -101,6 +101,13 @@ try {
     assert(!cancel.isError);assert.equal(JSON.parse(cancel.content).status,'reminder-disabled-event-preserved');assert.equal(reminderRows[0].event.status,'planned');
     const ambiguous=await executeRuntimeTool({id:'bad-time',name:'programma_promemoria',input:{azione:'create',titolo:'Do not guess',quando:'tomorrow',fuso:'Europe/Rome'}},()=>{throw new Error();},scope);
     assert(ambiguous.isError);assert.equal(reminderWrites,2);
+    const scoped = await executeRuntimeTool(create,()=>{throw new Error();},{...scope,projectId:'project-other'});
+    assert(!scoped.isError);assert.equal(reminderRows[0].event.projectId,'project-other');
+    assert.notEqual(reminderRows[0].event.id,id,'Identical reminders in different projects must not collide');
+    const globalList = await executeRuntimeTool({id:'list-global',name:'programma_promemoria',input:{azione:'list'}},()=>{throw new Error();},scope);
+    assert.deepEqual(JSON.parse(globalList.content).reminders,[]);
+    const wrongCancel=await executeRuntimeTool({id:'wrong-cancel',name:'programma_promemoria',input:{azione:'cancel',id:reminderRows[0].event.id,versione:'3'}},()=>{throw new Error();},scope);
+    assert(wrongCancel.isError);assert.equal(reminderWrites,3);
   } finally { globalThis.fetch=originalFetch; }
   assert.equal(new Set(TOOLS.map(t=>t.name)).size, TOOLS.length);
   console.log('PASS tools: aggregate UTF-8/escaped/multiple budgets, stable IDs/order/error flags, truthful truncation, actual file reference only after write, workout provenance/missing energy, deterministic energy contract, absent project and exception safety, one catalog.');
