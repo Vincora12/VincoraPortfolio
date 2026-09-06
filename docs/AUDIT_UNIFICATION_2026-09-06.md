@@ -416,16 +416,31 @@ Nel campo "OpenAI-compatible base URL" di OpenClicky:
 | E — stessa identità/Persona/ME/memoria/runtime fra Main Chat e Agent.lab | **PASS con nota** | STESSO Core/routing/auth/provider; Persona/voce sono DIVERSE per progetto (Agent.lab è deliberatamente "Project Inspector", non il .mon — documentato da AGENT.LAB V1); la memoria/ME restano quelle del .mon, non lette da Agent.lab (limite dichiarato, non un difetto nuovo) |
 | F — endpoint OpenAI-compatibile risponde dal runtime vero | **PASS strutturale** | `runIngress` chiama LO STESSO `callProvider`/`resolveRoute` di `ai.ts`/`agent-lab.ts` — nessun secondo adattatore; verifica end-to-end con chiave di produzione non eseguita in questa sessione |
 | G — richiesta che richiede uno strumento autorizzato | **PASS** | dimostrato da `verify:tool-layer`/`verify:agent-lab` (già esistenti) più i nuovi test dell'export tool: decide → esegue → valuta → risponde, reale |
-| H — verifica del deploy online | **NON ESEGUITO IN QUESTA SESSIONE** | vedi item 23 |
+| H — verifica del deploy online | **PASS meccanico, non autenticato** | vedi item 23 |
 
 ## 23 — CAPACITÀ ANCORA MANCANTI / NON VERIFICATE ONLINE
 
-- **Verifica online (TEST H)**: questa sessione non ha il token di
-  produzione (`VINZMON_TOKEN`) — stessa scelta di sicurezza già documentata
-  in AGENT.LAB V1/REMOTE CHAT HISTORY V1/TOOL LAYER PHASE 1: non viene
-  recuperato né inserito in nessun log. Il codice è pushato; la verifica
-  "in chat, con un browser vero, sul dominio pubblicato" resta da fare con
-  quel token in mano (checklist minima all'item 26).
+- **Verifica online (TEST H) — fatto quello che si poteva fare senza il
+  token, verificato meccanicamente tramite l'API di Netlify** (questa
+  sessione non ha accesso di rete diretto verso domini arbitrari — l'egress
+  proxy dell'ambiente lo blocca — quindi non ha potuto eseguire un `curl`
+  contro il sito pubblicato: verificato invece tramite gli strumenti Netlify
+  disponibili). Risultato: il push ha attivato un deploy reale e completo
+  sul sito di produzione collegato al branch (`fluffy-cocada-88715c`,
+  contesto `production`, branch `claude/project-prototype-jxjc3d`) —
+  deploy `6a9d401df5aaca0008bbcc9f`, `commit_ref` = `9de54c6…` (l'esatto
+  commit di questo intervento), stato `ready`, scansione dei segreti pulita
+  (0 corrispondenze su 426 file), **30 funzioni deployate** (erano 27 prima
+  di questo intervento) incluse le tre nuove con le rotte dichiarate:
+  `v1-models` → `/v1/models`, `v1-chat-completions` →
+  `/v1/chat/completions`, `v1-responses` → `/v1/responses`. Questo prova
+  meccanicamente che il codice è online e le rotte sono registrate.
+  **Non provato**: una vera chiamata autenticata (con `VINZMON_TOKEN` di
+  produzione) che riceva una risposta reale dal modello — questa sessione
+  non recupera né inserisce quel token in nessun log, stessa scelta di
+  sicurezza già documentata in AGENT.LAB V1/REMOTE CHAT HISTORY V1/TOOL
+  LAYER PHASE 1. Quella verifica resta da fare con il token in mano
+  (checklist minima all'item 26).
 - **Persona/ME/Memoria nell'ingresso OpenAI-compatibile**: dichiarato in
   item 19, non implementato in questa fase. Richiederebbe leggere lo stato
   salvato (`/api/state` o equivalente) per un .mon specifico e ricostruire
@@ -463,10 +478,15 @@ Nel campo "OpenAI-compatible base URL" di OpenClicky:
 
 ## 26 — PROSSIMI PASSI CONSIGLIATI
 
-1. Con il token di produzione: aprire Main Chat online e mandare
-   esattamente le frasi di TEST B/C/D; aprire Agent.lab online e verificare
-   che riempia lo schermo; chiamare `/v1/models` e `/v1/chat/completions`
-   con `curl` per confermare l'ingresso risponde dal Core vero.
+1. Il deploy è già online (verificato meccanicamente, item 23). Resta da
+   fare, con il token di produzione in mano: aprire Main Chat online e
+   mandare esattamente le frasi di TEST B/C/D; aprire Agent.lab online
+   (`https://fluffy-cocada-88715c.netlify.app/lab/agent` o l'alias di
+   produzione) e verificare che riempia lo schermo; chiamare
+   `https://fluffy-cocada-88715c.netlify.app/v1/models` e
+   `.../v1/chat/completions` con `curl -H "Authorization: Bearer
+   $VINZMON_TOKEN"` per confermare l'ingresso risponde dal Core vero, non
+   solo che la rotta esiste.
 2. Decidere se vale la pena colmare il limite Persona/ME per l'ingresso
    OpenAI-compatibile (item 23) — richiede leggere lo stato salvato
    server-side, non piccolo.
