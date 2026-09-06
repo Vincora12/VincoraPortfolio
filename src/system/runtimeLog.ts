@@ -20,9 +20,58 @@ export type RuntimeClientEvent = {
     | 'CHAT_CLIENT_ERROR'
     | 'STORAGE_LOCAL_WRITE_START'
     | 'STORAGE_LOCAL_WRITE_OK'
-    | 'STORAGE_CLIENT_ERROR';
+    | 'STORAGE_CLIENT_ERROR'
+    /* STORAGE STABILIZATION STEP 1/3 — `vinzmon-state` fallisce a 2 MB e
+       finora falliva IN SILENZIO (`scheduleRemoteSave` lo dice nel proprio
+       commento: «non si annuncia e non si ritenta»). Il salvataggio locale
+       resta comunque, ma il backup server smette di aggiornarsi senza che
+       nessuno lo veda finché non si perde il device. */
+    | 'STATE_REMOTE_SAVE_START'
+    | 'STATE_REMOTE_SAVE_OK'
+    | 'STATE_REMOTE_SAVE_ERROR'
+    /* MEMORY OBSERVABILITY MICRO-STEP — la chat ha due percorsi di risposta
+       (BASE e LOCAL_TOOLS) e solo BASE esegue retrieval Mem0. Questi eventi
+       non correggono nulla: rendono visibile quale percorso è stato scelto
+       e cosa è successo al retrieval/capture, per confermare la diagnosi
+       sull'uso reale prima di toccare l'architettura. */
+    | 'CHAT_ROUTE_SELECTED'
+    | 'MEMORY_RETRIEVAL_START'
+    | 'MEMORY_RETRIEVAL_OK'
+    | 'MEMORY_RETRIEVAL_ERROR'
+    | 'MEMORY_RETRIEVAL_SKIPPED'
+    | 'MEMORY_CAPTURE_START'
+    | 'MEMORY_CAPTURE_OK'
+    | 'MEMORY_CAPTURE_ERROR'
+    | 'MEMORY_CAPTURE_SKIPPED'
+    /* FIRST TURN INTEGRITY FIX — conferma quale ramo ha preso ConversationLifecycle
+       nel consumo dell'handoff di promotion: dati già live (nessuna reimport,
+       nessuna run), riprodotti senza dover rigenerare, o riprodotti avviando la
+       prima e unica run reale. */
+    | 'CHAT_PROMOTION_HANDOFF_RESOLVED'
+    /* FIRST TURN OBSERVABILITY ONLY — tracciano l'albero dei messaggi e la
+       chiave di storage che lo persiste, senza mai il loro contenuto: solo
+       conteggi e id. Servono a vedere sul device reale dove la timeline del
+       primo turno cambia forma. */
+    | 'CHAT_THREAD_IMPORT'
+    | 'CHAT_STORAGE_WRITE'
+    | 'CHAT_STORAGE_READ'
+    | 'CHAT_HISTORY_LOAD'
+    | 'CHAT_RUN_BOUNDARY'
+    /* REPOSITORY MUTATION WATCHER — cattura ANCHE le mutazioni che non
+       passano dai nostri wrapper (es. dentro __internal_load() del
+       vendor): confronta due export() consecutivi ad ogni notifica di
+       aui.subscribe(), non solo attorno alle nostre chiamate. */
+    | 'CHAT_REPOSITORY_MUTATION'
+    /* REMOTE CHAT HISTORY V1 — una PUT condizionale (`If-Match`/
+       `X-Only-If-New`, vedi `serverStorage.ts`/`netlify/functions/
+       user-data.ts`) è stata rifiutata perché un altro dispositivo ha
+       scritto la stessa chiave nel frattempo. STATUS 'START' per ogni
+       tentativo di unione+ritentativo, 'FAIL' solo se anche l'ultimo
+       tentativo consentito fallisce ancora — mai il contenuto della chat,
+       solo la chiave (troncata) e il numero di tentativo. */
+    | 'CHAT_STORAGE_CONFLICT';
   status: 'START' | 'PASS' | 'FAIL';
-  scope: 'system' | 'chat';
+  scope: 'system' | 'chat' | 'memory';
   requestId?: string;
   conversationId?: string;
   messageId?: string;
@@ -40,6 +89,12 @@ export type RuntimeClientEvent = {
   source?: string;
   errorMessage?: string;
   errorCode?: number;
+  /** Il codice HTTP della risposta — distinto da `errorCode`, che è il
+      `DOMException.code` di uno storage pieno, non uno status di rete. */
+  statusCode?: number;
+  /** Il tetto reale che il server ha applicato — `MAX_BYTES` di
+      `netlify/functions/state.ts`, mai un numero duplicato qui. */
+  limitBytes?: number;
   metadata?: Record<string, string | number | boolean>;
 };
 
@@ -110,4 +165,34 @@ export function postStorageDiagnostic(input: {
     ...(input.error ? { errorName: input.error instanceof Error ? input.error.name : undefined, error: errorMessage || 'Errore storage' } : {}),
   });
 }
+/**
+ * Il salvataggio server (`/api/state`) osservabile: START prima della
+ * `fetch`, OK o ERROR dopo. `vinzmon-state` ha un tetto di 2 MB e finora un
+ * salvataggio troppo grande veniva scartato senza dirlo a nessuno — questo
+ * non lo evita, lo rende visibile in SYSTEM.LAB → RUNTIME LOG.
+ */
+export function postStateSaveDiagnostic(input: {
+  eventType: 'STATE_REMOTE_SAVE_START' | 'STATE_REMOTE_SAVE_OK' | 'STATE_REMOTE_SAVE_ERROR';
+  payloadBytes: number;
+  statusCode?: number;
+  limitBytes?: number;
+  errorName?: string;
+  errorMessage?: string;
+  /** Un motivo tecnico distinguibile, es. `PAYLOAD_TOO_LARGE`. */
+  reason?: string;
+}): void {
+  postRuntimeEvent({
+    eventType: input.eventType,
+    status: input.eventType === 'STATE_REMOTE_SAVE_ERROR' ? 'FAIL' : input.eventType === 'STATE_REMOTE_SAVE_OK' ? 'PASS' : 'START',
+    scope: 'system',
+    action: 'state/store remote save',
+    payloadBytes: Number.isFinite(input.payloadBytes) ? Math.max(0, Math.round(input.payloadBytes)) : 0,
+    ...(typeof input.statusCode === 'number' ? { statusCode: input.statusCode } : {}),
+    ...(typeof input.limitBytes === 'number' ? { limitBytes: input.limitBytes } : {}),
+    ...(input.errorName ? { errorName: input.errorName } : {}),
+    ...(input.errorMessage ? { error: input.errorMessage } : {}),
+    ...(input.reason ? { metadata: { reason: input.reason } } : {}),
+  });
+}
+
 import { savedToken } from '../brain/stream';

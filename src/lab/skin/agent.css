@@ -1,0 +1,245 @@
+/* ============================================================================
+   AGENT.LAB — poche regole in più sopra a system.css
+
+   🔒 Riusa i token di `system.css` (`--ink`/`--muted`/`--line`/`--soft`,
+   caricato prima di questo foglio in AgentLab.tsx/AgentLabModal.tsx) invece
+   di inventarne di nuovi per la cornice del laboratorio (notice, testata del
+   modal) — stesso sistema grafico del resto del laboratorio.
+
+   🔷 UI ALIGNMENT — «il corpo della chat deve essere visivamente lo stesso
+   della chat del MON.» Il CORPO (`.agentlab-thread` e tutto ciò che ci vive
+   dentro) usa gli stessi valori — non gli stessi token — del tema scuro di
+   `assistant-original/styles.css`: sfondo nero, bolla utente chiara,
+   composer a pillola, bottone d'invio circolare. Sono copiati come NUMERI
+   (colori esadecimali, raggi, padding), non importando quel foglio: quel
+   foglio porta anche il reset Tailwind e le variabili di `.assistant-clone`,
+   pensate per un documento intero, non per un riquadro dentro un'altra
+   pagina. Il resto del laboratorio (testata, notice, pulsante indietro)
+   resta con l'aspetto di LAB — è così che Agent.lab «resta riconoscibile
+   tramite header/label tecnico» pur avendo il corpo della chat uguale.
+   ========================================================================= */
+
+.agentlab-chat { margin-top: 4px; display: flex; flex-direction: column; gap: 10px }
+
+/* ---- AUDIT & UNIFICATION (TEST A) — pagina intera, non un riquadro --------
+   `.agentlab-page`/`.agentlab-main`/`.agentlab-fullpage` esistono SOLO per
+   questa stanza (caricati da `AgentLab.tsx`, mai da `system.css` condiviso):
+   nessun'altra stanza del laboratorio cambia aspetto per questa regola. */
+.agentlab-page { display: flex; flex-direction: column; height: 100dvh; min-height: 0; overflow: hidden }
+.agentlab-main {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 10px 14px 10px;
+}
+.agentlab-page .page.agentlab-fullpage.active {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.agentlab-toolbar { flex: 0 0 auto; display: flex; align-items: flex-start; justify-content: space-between; gap: 10px }
+.agentlab-toolbar__title h1 { margin: 2px 0 0 }
+.agentlab-info-toggle {
+  flex: 0 0 auto;
+  border: 1px solid var(--line);
+  background: #fff;
+  min-height: 30px;
+  padding: 0 10px;
+  font-size: 9px;
+  letter-spacing: .04em;
+}
+.agentlab-drawer { flex: 0 0 auto; display: flex; flex-direction: column; gap: 8px; padding-bottom: 4px }
+
+.agentlab-page .agentlab-chat { flex: 1 1 auto; min-height: 0 }
+
+/* ---- il corpo della chat: stessi valori del tema scuro della chat vera --- */
+
+.agentlab-thread {
+  background: #000;
+  color: #ececec;
+  border-radius: 18px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 320px;
+  max-height: 62vh;
+}
+.agentlab-page .agentlab-thread { max-height: none; flex: 1 1 auto; min-height: 0 }
+
+.agentlab-viewport {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 16px 14px 8px;
+}
+
+.agentlab-viewport__inner {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-height: 100%;
+  justify-content: flex-end;
+}
+
+.agentlab-empty {
+  margin: auto 0;
+  color: #8e8e8e;
+  font-size: 13px;
+  line-height: 1.5;
+  text-align: center;
+  max-width: 32ch;
+  align-self: center;
+}
+
+.agentlab-row { display: flex; width: 100% }
+.agentlab-row--user { justify-content: flex-end }
+.agentlab-row--assistant { justify-content: flex-start }
+
+.agentlab-bubble {
+  max-width: 78%;
+  background: #ececec;
+  color: #0d0d0d;
+  border-radius: 22px;
+  padding: 10px 16px;
+  font-size: 14px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.agentlab-copy {
+  max-width: 100%;
+  color: #ececec;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.agentlab-copy__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.agentlab-copy__who {
+  display: block;
+  font-size: 9px;
+  letter-spacing: .08em;
+  color: #8e8e8e;
+}
+
+/* Il pulsante COPIA riusa `<Btn>`/`.btn` di system.css (sfondo bianco, bordo
+   scuro) — su un corpo di chat nero serve un travestimento minimo, non un
+   componente nuovo: stessa logica di clipboard, altro solo aspetto. */
+.agentlab-copy__head .btn {
+  min-height: 0;
+  padding: 3px 8px;
+  font-size: 8px;
+  background: transparent;
+  border-color: rgb(255 255 255 / 25%);
+  color: #b4b4b4;
+}
+
+.agentlab-copy--thinking { color: #8e8e8e; font-size: 13px }
+
+.agentlab-msg__trace { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 4px }
+
+/* Badge autosufficiente sopra il fondo nero del corpo della chat. */
+.agentlab-chip {
+  display: inline-block;
+  font-size: 8px;
+  letter-spacing: .05em;
+  border: 1px solid rgb(255 255 255 / 20%);
+  color: #b4b4b4;
+  padding: 2px 5px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+.agentlab-trace--error { border-color: #ff6767; color: #ff8a8a }
+.agentlab-tag {
+  margin: 0 2px;
+  white-space: nowrap;
+  border-color: rgb(255 255 255 / 32%);
+  color: #ececec;
+}
+.agentlab-bubble .agentlab-tag { border-color: rgb(13 13 13 / 30%); color: #0d0d0d }
+
+/* ---- il composer: una pillola a riga singola, come quello vero — non più
+   una textarea da tre righe più un bottone largo quanto lo schermo sotto. */
+.agentlab-composer {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  margin: 8px 10px calc(10px + env(safe-area-inset-bottom));
+  padding: 6px 6px 6px 14px;
+  background: #212121;
+  border: 1px solid rgb(255 255 255 / 12%);
+  border-radius: 24px;
+}
+
+.agentlab-composer textarea {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 22px;
+  max-height: 160px;
+  resize: none;
+  border: 0;
+  background: transparent;
+  color: #ececec;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.4;
+  padding: 6px 0;
+  outline: none;
+}
+.agentlab-composer textarea::placeholder { color: #8e8e8e }
+.agentlab-composer textarea:disabled { opacity: .5 }
+
+.agentlab-send {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 50%;
+  background: #ececec;
+  color: #0d0d0d;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.agentlab-send:disabled { opacity: .3 }
+
+/* Il modal aperto da un nodo del FLOW di CREATION.LAB — sopra la pagina, non
+   una seconda stanza: chiude senza perdere lo stato del FLOW sotto. */
+.agentlab-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, .55);
+  z-index: 200;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.agentlab-modal-panel {
+  background: #fff;
+  color: var(--ink);
+  width: 100%;
+  max-width: 560px;
+  max-height: 88vh;
+  overflow-y: auto;
+  border: 1px solid #111;
+  border-bottom: 0;
+  padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
+}
+@media (min-width: 640px) {
+  .agentlab-modal-overlay { align-items: center }
+  .agentlab-modal-panel { border-bottom: 1px solid #111; max-height: 80vh }
+}
+.agentlab-modal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px }
+.agentlab-modal-head h2 { font-size: 14px; margin: 0 }
+.agentlab-modal-close { border: 1px solid var(--line); background: #fff; width: 32px; height: 32px; font-size: 16px; flex: 0 0 auto }

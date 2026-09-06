@@ -25,42 +25,26 @@ class Storage {
 globalThis.__clientStores=new Map();
 async function client(id,storage=new Storage()) {
   globalThis.__clientStores.set(id,storage);
-  const compiled=await build({stdin:{contents:"export * from './src/system/serverStorage';",resolveDir:process.cwd(),loader:'ts'},bundle:true,write:false,platform:'node',format:'esm',logLevel:'silent',define:{localStorage:'__storage'},banner:{js:`const __storage=globalThis.__clientStores.get(${JSON.stringify(id)});`},plugins:[{name:'quiet-diagnostics',setup(b){b.onLoad({filter:/localStorageDiagnostics\.ts$/},()=>({contents:'export function setLocalStorageItem(source,key,value){localStorage.setItem(key,value);}'}));}}]});
+  const compiled=await build({stdin:{contents:"export * from './src/system/serverStorage';",resolveDir:process.cwd(),loader:'ts'},bundle:true,write:false,platform:'node',format:'esm',logLevel:'silent',define:{localStorage:'__storage'},banner:{js:`const __storage=globalThis.__clientStores.get(${JSON.stringify(id)});`},plugins:[{name:'quiet-diagnostics',setup(b){b.onLoad({filter:/runtimeLog\\.ts$/},()=>({contents:'export function postRuntimeEvent(){}'}));b.onLoad({filter:/localStorageDiagnostics\.ts$/},()=>({contents:'export function setLocalStorageItem(source,key,value){localStorage.setItem(key,value);} export function setLocalStorageItemBestEffort(source,key,value){try{localStorage.setItem(key,value);return true;}catch{return false;}}'}));}}]});
   const module=await import(`data:text/javascript;base64,${Buffer.from(compiled.outputFiles[0].text).toString('base64')}`);
   module.configureStorageTokenReader(()=>process.env.VINZMON_TOKEN);
   return {...module,storage};
 }
-const key='assistant-ui-official-chatgpt:threads';
-let response=await fetch(`/api/user-data?key=${key}`,{method:'PUT',headers:{...headers,'if-match':'vinzmon-new'},body:'["initial"]'});
-assert.equal(response.status,200);
-const initialRevision=(await response.json()).revision;
-const a=await client('a');const b=await client('b');
-assert.equal(await a.serverBackedStorage.getItem(key),'["initial"]');
-assert.equal(await b.serverBackedStorage.getItem(key),'["initial"]');
-await a.serverBackedStorage.setItem(key,'["initial","a"]');
-await b.serverBackedStorage.setItem(key,'["initial","b"]');
-assert.deepEqual(b.storageSyncConflicts(),[key]);
-assert.equal(await b.serverBackedStorage.getItem(key),'["initial","b"]','pending timeline retained');
-assert.equal((await (await fetch(`/api/user-data?key=${key}`,{headers})).json()).value,'["initial","a"]','stale client did not overwrite server');
-await b.retryStorageSync();
-assert.equal(b.storageSyncFailures(),1,'retry does not silently resolve conflict');
-const reloadedB=await client('b-reload',b.storage);
-assert.equal(await reloadedB.serverBackedStorage.getItem(key),'["initial","b"]','dirty local cache survives reload');
-assert.deepEqual(reloadedB.storageSyncConflicts(),[key]);
-assert.equal((await reloadedB.resolveStorageSyncConflict(key,'use-server')).reloadRequired,true);
-assert.equal(reloadedB.storage.getItem(key),'["initial","a"]');
-assert.equal(reloadedB.storageSyncFailures(),0);
-// Browser cache quota does not prevent a canonical write with the active token.
+// Cross-device merge/CAS is covered by remote-chat-history-check.mjs.
+// This suite covers the added cache failure and retry boundary.
+const a=await client('a');
 a.storage.quota=true;
-await a.serverBackedStorage.setItem('new-messages','["user","assistant"]');
+await a.serverBackedStorage.setItem('cache-quota-fixture','technical-value');
 assert.equal(a.storageSyncFailures(),0);
-assert.equal((await (await fetch('/api/user-data?key=new-messages',{headers})).json()).value,'["user","assistant"]');
-a.storage.quota=false;
-// DELETE is conditional too, and a clean remote tombstone cannot resurrect cached history.
-await reloadedB.serverBackedStorage.removeItem(key);
-assert.equal((await (await fetch(`/api/user-data?key=${key}`,{headers})).json()).value,null);
-assert.equal(await a.serverBackedStorage.getItem(key),null);
-assert.equal((await fetch(`/api/user-data?key=${key}`,{method:'PUT',headers:{...headers,'if-match':initialRevision},body:'stale'})).status,409);
-assert.equal((await fetch(`/api/user-data?key=${key}`,{method:'PUT',headers,body:'old-client'})).status,409);
-assert.equal((await fetch(`/api/user-data?key=${key}`,{})).status,401);
-console.log('PASS: user-data CAS, cross-client conflict/no silent overwrite, pending local timeline/reload protection, explicit conflict recovery, delete tombstone, active-token quota resilience. Fixtures only; no production data written.');
+assert.equal((await (await fetch('/api/user-data?key=cache-quota-fixture',{headers})).json()).value,'technical-value');
+assert.equal(await a.serverBackedStorage.getItem('cache-quota-fixture'),'technical-value','quota cache cannot hide server data');
+const online=globalThis.fetch;
+globalThis.fetch=async()=>{throw Error('offline fixture');};
+await a.serverBackedStorage.setItem('offline-fixture','pending-value');
+assert.equal(a.storageSyncFailures(),1,'unconfirmed save visible');
+assert.equal(await a.serverBackedStorage.getItem('offline-fixture'),'pending-value','in-memory pending value survives full cache');
+globalThis.fetch=online;
+await a.retryStorageSync();
+assert.equal(a.storageSyncFailures(),0);
+assert.equal((await (await fetch('/api/user-data?key=offline-fixture',{headers})).json()).value,'pending-value');
+console.log('PASS cache quota isolation, active token auth, offline in-memory retention, visible failure/retry, canonical read. Synthetic I/O only.');

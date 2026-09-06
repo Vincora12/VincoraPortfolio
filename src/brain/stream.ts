@@ -1,5 +1,6 @@
 import type { BrainMessage } from './store/types';
 import { TOOLS, assistantTurn, resultBlocks, type ToolResult, type ToolUse } from '../ai/tools';
+import { CODE_TOOL_DEFS, EXPORT_REPORT_TOOL_DEF } from '../ai/toolLayer';
 import { useApp } from '../state/store';
 import { buildVoiceSystemPrompt } from '../ai/voicePrompt';
 import { persistChatTrace, recordChatTrace, systemPromptComposition, traceClock, type ChatTrace } from '../ai/chatTrace';
@@ -192,6 +193,49 @@ export async function streamReply(
 
 const TOOL_INTENT = /\b(miei dati|mia salute|come sto|\bme\b|dormit\w*|allenat\w*|allenamento|palestra|workout|programma|piano|scheda|calendario|agenda|lista|riepilogo|sezione|blocco|corsa|camminata|mangiat\w*|bevut\w*|pasto|colazione|pranzo|cena|spuntino|merenda|extra|calori\w*|kcal|protein\w*|carbo\w*|grass\w*|macro|peso|dieta|barcode|codice a barre|etichetta|obiettiv\w*|target|corregg\w*|modific\w*|giornat\w*|protocollo|ricordami|promemoria|pagina|aspetto|schermata)\b/i;
 
+/* TOOL LAYER PHASE 1 — riconosce una domanda di ispezione tecnica del
+   repository ("puoi leggere il tuo codice?", "dove viene gestito X",
+   "quale file gestisce Y", "esiste già una funzione per Z") perché il
+   catalogo `TOOL_INTENT` sopra non conosce vocabolario tecnico: senza
+   questo, quelle domande cadevano nel percorso SENZA strumenti e il .mon
+   poteva solo tirare a indovinare o negare di avere accesso al codice. */
+const CODE_INSPECTION_INTENT = /\b(tuo codice|codice sorgente|leggere il (?:tuo )?codice|guarda(?:re)? (?:nel|il) (?:tuo )?codice|cerca(?:re)? nel (?:tuo )?codice|controll\w* (?:nel|il) (?:tuo )?codice|quale file|quali file|che file|file gestisce|dove viene (?:gestit\w*|usat\w*|implementat\w*|chiamat\w*)|esiste (?:gi[aà] )?una funzione|una funzione per|repository|nel tuo repo|source code)\b/i;
+
+/** Usa il Tool Layer (code_search/code_read) solo quando la domanda è
+    davvero un'ispezione tecnica — mai per ogni conversazione. */
+export function isCodeInspectionIntent(text: string): boolean {
+  return CODE_INSPECTION_INTENT.test(text);
+}
+
+/* VINZ.MON AUDIT & UNIFICATION — root cause del "non posso": `TOOL_INTENT` e
+   `CODE_INSPECTION_INTENT` sopra non conoscono il vocabolario dell'AUDIT
+   ("audit", "tool layer", "runtime agentico", "diagnosi", "cosa manca per
+   essere un vero agent", "un report da passare ad Astra"...). Una domanda
+   come «Fammi un audit del Tool Layer. Controlla realmente il sistema e cita
+   le evidenze.» non tocca né dati personali né la sintassi tecnica di
+   CODE_INSPECTION_INTENT ("quale file", "dove viene gestito") — cadeva
+   quindi nel percorso BASE, senza NESSUNO strumento disponibile: da lì il
+   "non posso", non da una vera assenza di capacità. */
+const AUDIT_INTENT = /\b(audit\w*|diagnosi|diagnostic\w*|tool\s*layer|runtime\s*agentico|agent\s*loop|cosa\s+manca\s+per\s+essere\s+un\s+vero\s+agent\w*|report\b[^.!?]{0,40}\bastra\b|astra\b[^.!?]{0,40}\breport\b|controll\w*\s+(?:se\s+)?(?:il\s+|la\s+|lo\s+|i\s+)?(?:tuo\s+|tua\s+)?sistema|verific\w*\s+se\s+il\s+runtime|persona\s+viene\s+caricat\w*|narratore|\bnarrator\b)\b/i;
+
+/** Usa il pool di strumenti dell'AUDIT (codice + dati/ME in sola lettura +
+    export) quando la domanda chiede esplicitamente un audit/diagnosi del
+    sistema stesso — indipendente da CODE_INSPECTION_INTENT/TOOL_INTENT,
+    perché un audit vero spesso ha bisogno di ENTRAMBI insieme. */
+export function isAuditIntent(text: string): boolean {
+  return AUDIT_INTENT.test(text);
+}
+
+/** "Esporta questo audit in TXT" può arrivare come turno successivo, senza
+    ripetere vocabolario di audit: un rilevatore separato, più permissivo solo
+    sul verbo di esportazione, evita di dover tenere l'intero pool aperto per
+    ogni turno della conversazione. */
+const EXPORT_INTENT = /\b(esport\w*\s+.{0,30}\btxt\b|\btxt\b.{0,30}esport\w*|scaric\w*\s+.{0,20}(?:report|audit|file)|(?:dammi|fammi)\s+.{0,30}\b(?:file|txt)\b|report\s+come\s+file)\b/i;
+
+export function isExportIntent(text: string): boolean {
+  return EXPORT_INTENT.test(text);
+}
+
 export type ChatMealSlot = 'colazione' | 'spuntino' | 'pranzo' | 'merenda' | 'cena' | 'extra';
 export type MealConfirmation = {
   status: 'needs-confirmation' | 'confirmed';
@@ -234,7 +278,7 @@ export function isWorkoutLogIntent(text: string): boolean {
 
 /** Usa il loop strumenti solo quando la richiesta riguarda dati o azioni locali. */
 export function shouldUseLocalTools(text: string): boolean {
-  return TOOL_INTENT.test(text) || isDailyEnergyIntent(text) || /\b(file|txt|markdown|documento|artifact|progett\w*|sorgent\w*|codice|bmr|tdee|deficit|energia)\b/i.test(text);
+  return TOOL_INTENT.test(text) || CODE_INSPECTION_INTENT.test(text) || AUDIT_INTENT.test(text) || EXPORT_INTENT.test(text) || isDailyEnergyIntent(text) || /\b(file|txt|markdown|documento|artifact|progett\w*|sorgent\w*|codice|bmr|tdee|deficit|energia)\b/i.test(text);
 }
 
 const CORRECTION_INTENT = /\b(?:corregg\w*|rettific\w*|modific\w*|anzi)\b/i;
@@ -297,6 +341,11 @@ export async function replyWithLocalTools(
      risponde, e per questo restano qui invece di finire dentro
      `buildVoiceSystemPrompt`, che non sa niente di pasti o conferme. */
   const character = { text: shared?.systemPrompt ?? await resolveChatContext(token, user, true, signal) };
+  /* Calcolati qui (non più sotto, insieme al resto del pool) perché il
+     system prompt sotto ne ha bisogno prima ancora di sapere quali
+     strumenti saranno disponibili. */
+  const isAudit = isAuditIntent(user) && !requiredWriteTool(user) && !mealConfirmation && !workoutConfirmation;
+  const wantsExport = (isExportIntent(user) || isAudit) && !requiredWriteTool(user) && !mealConfirmation && !workoutConfirmation;
   const system = [
     character ?? { text: 'You are VINZ.MON, a neutral high-quality personal AI assistant. Answer in the user language.' },
     {
@@ -326,6 +375,15 @@ export async function replyWithLocalTools(
         'The AI may read and update every ME journal field through its dedicated tools: diet, nutrition targets, meals, completed workouts, workout plan, weight and period goal. It may also create, update, remove and reorder safe ME blocks with gestisci_me, including calendars, lists, notes and metrics. Calendar entries must use one item per event formatted as "Lunedì 08:00-09:00 · Title · Details", and belong in DIET or SPORT. Use gestisci_me when the request does not fit a fixed field. Never directly invent or edit VINZ.MON game stats; they are deterministic.',
         workoutPlanContext
           ? `The user is editing the workout schedule. Here is the current ME SPORT data: ${workoutPlanContext}. Preserve every existing day not explicitly changed, then call imposta_piano_allenamento. A weekday request refers to the plan, never to a completed workout.`
+          : '',
+        isCodeInspectionIntent(user)
+          ? 'The user is asking a technical question about your own real source code/repository. Use code_search to find real files and code_read to actually read them before answering — never claim a file path, function name or implementation detail you have not actually retrieved through these tools. If a search returns no results or a read fails, say inspection found nothing or failed — never invent evidence.'
+          : '',
+        isAudit
+          ? 'The user is asking for a real AUDIT of yourself (a subsystem or your whole system: tool layer, memory, persona, agent loop, ME...). This must be a grounded audit, never a generic or invented answer, and never "I cannot" when you have the tools to check. Use code_search/code_read to inspect the real repository for the subsystem in question (e.g. tool layer: src/ai/tools.ts, src/ai/toolLayer.ts, netlify/functions/code-tools.ts, src/brain/stream.ts; memory/ME: src/state/store.ts and its ME/journal fields; agent loop: src/brain/stream.ts replyWithLocalTools, netlify/functions/agent-lab.ts). Use leggi_me/leggi_i_miei_dati when the audit is about live ME/personal data, not source code. Structure the answer as TITLE / SCOPE / EXECUTIVE SUMMARY / CAPABILITY MATRIX (capability, status EXISTS or PARTIAL or MISSING or BROKEN, evidence with real file/path, risk, recommended action) / DETAILED FINDINGS / ROOT CAUSES / RECOMMENDED NEXT STEPS. Clearly separate FACT (verified via a tool) from INFERENCE (your reasoning) from RECOMMENDATION. If a capability genuinely does not exist, say so plainly — never claim it does.'
+          : '',
+        wantsExport
+          ? 'The user wants this audit/report as a real downloadable file (a ".txt", "a file", "something to pass to Astra"...). Call esporta_report with the COMPLETE report text as "contenuto" (not a shortened summary) and a short "titolo" — the exported text must be self-sufficient: readable and usable without depending on this conversation. Its tool_result starts with "SUCCESSO" and a "FILE: <name>" line when the download really happened, or starts with "EXPORT FALLITO" when it did not. Only say the file was created, and only cite that exact filename, after reading a "SUCCESSO" tool_result — if you see "EXPORT FALLITO" or get no tool_result at all, say plainly that the export failed or is missing, never assume success.'
           : '',
       ].join(' '),
     },
@@ -360,9 +418,11 @@ export async function replyWithLocalTools(
     || Boolean(mealConfirmation || workoutConfirmation);
   const projectTools = new Set(['leggi_progetto', 'leggi_sorgente_progetto', 'scrivi_artifact_progetto']);
   const reminderRequest = /\b(promemori\w*|ricordami|ricorda|reminder|domani)\b/i.test(user);
-  const toolPool = TOOLS.filter((tool) => (reminderRequest && tool.name === 'programma_promemoria')
+  const basePool = isAudit ? [...CODE_TOOL_DEFS, ...TOOLS.filter(tool => tool.name === 'leggi_me' || tool.name === 'leggi_i_miei_dati')]
+    : isCodeInspectionIntent(user) && !isHealthRequest ? CODE_TOOL_DEFS : TOOLS.filter((tool) => (reminderRequest && tool.name === 'programma_promemoria')
     || (shared?.projectId && projectTools.has(tool.name))
     || (isHealthRequest ? healthToolNames.has(tool.name) : !healthToolNames.has(tool.name) || tool.name === 'leggi_i_miei_dati'));
+  const toolPool = wantsExport ? [...basePool, EXPORT_REPORT_TOOL_DEF] : basePool;
   const availableTools = toolPool.filter((tool) => shared?.projectId || !projectTools.has(tool.name))
     .sort((a, b) => {
       const priority = (name: string) => name === explicitWrite
@@ -385,9 +445,17 @@ export async function replyWithLocalTools(
       ? 'registra_allenamento'
     : explicitWrite;
 
+  /* Un audit reale spesso ha bisogno di raccogliere prove in PIÙ passaggi:
+     cerca, legge un file, magari ne legge un altro o continua uno troncato,
+     e solo allora sintetizza (ed eventualmente esporta). Il tetto di 4 round
+     di ogni altra richiesta lascerebbe l'ultimo round senza strumenti
+     (`round < maxRounds - 1`) troppo presto per un audit con export —
+     esteso SOLO per l'audit, invariato per il resto della chat. */
+  const maxRounds = isAudit ? 6 : 4;
+
   try {
     const completed = new Map<string, ToolResult>();
-    for (let round = 0; round < 4; round++) {
+    for (let round = 0; round < maxRounds; round++) {
       signal.throwIfAborted();
       clock.mark(`ROUND ${round + 1}`, `POST /api/ai · ${availableTools.length} strumenti disponibili`);
       const response = await fetch('/api/ai', {
@@ -404,7 +472,7 @@ export async function replyWithLocalTools(
           ...(round === 0 && images.length ? { images } : {}),
           ...(round === 0 && files.length ? { files } : {}),
           ...(userBlocks ? { userBlocks } : {}),
-          tools: round < 3 ? availableTools : [],
+          tools: round < maxRounds - 1 ? availableTools : [],
           ...(round === 0 && (forcedWrite || energyRequest) ? { toolChoice: forcedWrite ?? 'calcola_energia_giornaliera' } : {}),
           webSearch: true,
           effort: 'none',
@@ -461,7 +529,7 @@ export async function replyWithLocalTools(
       const toolResults: ToolResult[] = [];
       for (const use of uses) {
         signal.throwIfAborted();
-        if (!availableTools.some((tool) => tool.name === use.name) || round === 3) {
+        if (!availableTools.some((tool) => tool.name === use.name) || round === maxRounds - 1) {
           toolResults.push({ id: use.id, isError: true, content: 'Tool not available or not authorized in this turn. No action performed.' });
           continue;
         }

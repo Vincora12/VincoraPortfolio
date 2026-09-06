@@ -46,6 +46,41 @@
   directory = "netlify/functions"
   node_bundler = "esbuild"
 
+# 🔷 AGENT.LAB V1 — l'unica funzione che ha bisogno di leggere il progetto
+# oltre al proprio grafo di import. `node_bundler = "esbuild"` (sopra)
+# impacchetta di norma SOLO quello che una funzione importa staticamente:
+# senza questo blocco, `netlify/functions/_shared/agentLabFiles.ts` non
+# troverebbe nessun file da leggere una volta deployato. Solo testo, solo le
+# cartelle che quel modulo dichiara come consentite (src/netlify/docs) — mai
+# `.env*`/`node_modules`/`dist`/`.git`, che questi pattern non toccano
+# comunque. È la stessa versione già pubblica su GitHub per questo commit,
+# copiata nel pacchetto della funzione — non un accesso live al repository.
+[functions."agent-lab"]
+  included_files = [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "src/**/*.css",
+    "netlify/**/*.ts",
+    "docs/**/*.md",
+    "*.md",
+    "package.json",
+  ]
+
+# 🔷 TOOL LAYER PHASE 1 — stesso motivo di `agent-lab` sopra: `code-tools.ts`
+# importa `_shared/agentLabFiles.ts`, che ha bisogno di trovare il repository
+# vero dentro il pacchetto della funzione. Stesso elenco, stessa sicurezza —
+# è la STESSA funzione di lettura, richiamata da un endpoint diverso.
+[functions."code-tools"]
+  included_files = [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "src/**/*.css",
+    "netlify/**/*.ts",
+    "docs/**/*.md",
+    "*.md",
+    "package.json",
+  ]
+
 [build.environment]
   # vite 8 e typescript 7 girano su Node 22, la stessa versione con cui il
   # prototipo è stato verificato. Senza questo Netlify sceglie il suo default.

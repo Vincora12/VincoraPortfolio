@@ -144,6 +144,12 @@ interface Payload {
   effort?: 'none' | 'low' | 'medium' | 'high';
   /** Risposta progressiva per la chat. */
   stream?: boolean;
+  /* 🔷 LAB INFORMATION ARCHITECTURE CLEANUP — vedi `AskRequest.monName` nel
+     client (`src/ai/backend.ts`): il nome del .mon per cui questa chiamata
+     lavora, quando lo sappiamo. Serve solo a etichettare l'evento di spesa
+     per il raggruppamento «costo dell'ultima creatura» — non un ordine,
+     non validato contro nient'altro. */
+  monName?: string;
 }
 
 type Effort = NonNullable<Payload['effort']>;
@@ -281,7 +287,7 @@ export default async function handler(request: Request): Promise<Response> {
       return json({ error: 'immagine di riferimento troppo grande' }, 413);
     }
     const result = await generateImage(route.model, prompt, size, reference, undefined, quality);
-    const imageCostUsd = result.ok ? await recordSpend(capability, route.model, result.usage, { action: 'image_generation', subsystem: 'ai' }) : 0;
+    const imageCostUsd = result.ok ? await recordSpend(capability, route.model, result.usage, { action: 'image_generation', subsystem: 'ai', ...(payload.monName ? { monName: payload.monName } : {}) }) : 0;
 
     if (!result.ok) {
       await appendRuntimeEvent({ eventType: 'AI_CALL_ERROR', status: 'FAIL', scope: 'ai', requestId: payload.requestId, capability, provider: route.provider, model: route.model, error: result.error });

@@ -121,33 +121,92 @@ select {
    una toolbar che compare sopra al contenuto. */
 .system-tray {
   position: absolute;
-  z-index: 0;
+  z-index: 1;
   inset: 0 0 auto;
-  height: var(--system-tray-height);
+  min-height: var(--system-tray-height);
+  height: auto;
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  flex-wrap: nowrap;
+  gap: 10px;
   padding: max(10px, env(safe-area-inset-top)) 14px 10px;
   background: #f7f7f4;
   color: #111;
   border-bottom: 1px solid #111;
 }
 
+/* Il cassetto di LAB — sotto il vano tecnico, ancora più indietro. Stessa
+   idea del vano tecnico: a riposo non occupa spazio, il gesto lo scopre.
+   `LabEmbed` porta i componenti nativi di VINZ.LAB in uno shadow root: il
+   loro CSS (`:root`/`html`/`body` — un documento intero) non esce da lì
+   dentro e non tocca questi colori. */
+.lab-underlayer {
+  position: absolute;
+  z-index: 0;
+  inset: 0 0 auto;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  background: #fff;
+}
+
+.lab-embed-host {
+  height: 100%;
+}
+
+/* 🔷 «Uniformati e su una sola riga.» Erano già alti uguali (28px ovunque),
+   ma `flex-wrap: wrap` lasciava che DEV/LAB — gli ultimi nel markup — colino
+   su una seconda riga quando lo spazio non basta. Una sola riga sempre:
+   `nowrap` + scorrimento orizzontale invece del ritorno a capo, con la
+   scrollbar nascosta perché è un gesto, non un elemento da guardare. */
 .system-tray__controls {
+  flex: 1 1 auto;
   min-width: 0;
   display: flex;
   align-items: center;
+  flex-wrap: nowrap;
   gap: 7px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.system-tray__controls::-webkit-scrollbar {
+  display: none;
+}
+
+.system-tray__controls > * {
+  flex: 0 0 auto;
+}
+
+.system-tray__controls .activatechip,
+.system-tray__controls .devtrigger,
+.system-tray__controls .labtrigger,
+.system-tray__controls .debugtrigger,
+.system-tray__controls .machine-insight-chip,
+.system-tray__controls .daystatus,
+.system-tray__controls .mestatus {
+  box-sizing: border-box;
+  min-height: 28px;
+  padding: 3px 7px;
+  white-space: nowrap;
 }
 
 .system-tray__controls .devtrigger,
 .system-tray__controls .labtrigger,
+.system-tray__controls .debugtrigger,
 .system-tray__controls .machine-insight-chip {
-  min-height: 28px;
-  padding: 3px 7px;
   border-color: #b32025;
   color: #b32025;
+}
+
+.system-tray__controls .daystatus,
+.system-tray__controls .mestatus {
+  border: 1px solid var(--line, #ccc);
+  color: var(--ink);
+  font: 600 9px/1.6 var(--font-mono);
+  letter-spacing: .05em;
 }
 
 .system-tray__controls button:disabled {

@@ -760,7 +760,7 @@ function safePrefix(text: string, length: number): string {
 }
 function fitContent(text: string, budget: number): string {
   if (contentCost(text) <= budget) return text;
-  const marker = '\n[TRUNCATED: aggregate tool-result budget]';
+  const marker = '\n[TRUNCATED / ACCORCIATO: aggregate tool-result budget; request a narrower range next round]';
   const suffix = contentCost(marker) <= budget ? marker : '[TRUNCATED]';
   if (contentCost(suffix) > budget) throw new RangeError('Tool result identifiers leave no room for a truthful truncation marker.');
   let low = 0;
@@ -777,11 +777,15 @@ export function budgetToolResults(results: readonly ToolResult[], maxBytes = TOO
   const original = results.map(resultBlock);
   if (bytes(JSON.stringify(original)) <= maxBytes) return results.map((r) => ({ ...r }));
   const overhead = bytes(JSON.stringify(results.map((r) => resultBlock({ ...r, content: '' }))));
-  let remaining = maxBytes - overhead;
+  let remaining = Math.min(9000, maxBytes - overhead);
   if (remaining < results.length * contentCost('[TRUNCATED]')) throw new RangeError('Tool-result identifiers exceed the aggregate budget.');
+  const deferred = '[TRUNCATED / RIMANDATO: request this result in the next round]';
+  // Reserve short operational receipts before allocating space to large reads.
+  const reserved = results.map(r => contentCost(r.content) <= 400 ? contentCost(r.content) : contentCost(deferred));
   return results.map((r, index) => {
-    const allocation = Math.floor(remaining / (results.length - index));
-    const content = fitContent(r.content, allocation);
+    const allocation = remaining - reserved.slice(index + 1).reduce((a, b) => a + b, 0);
+    const content = contentCost(r.content) <= allocation ? r.content
+      : allocation <= contentCost(deferred) ? deferred : fitContent(r.content, allocation);
     remaining -= contentCost(content);
     return { ...r, content };
   });

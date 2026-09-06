@@ -13,8 +13,15 @@ import {
   useAui,
   useAuiState,
 } from "@assistant-ui/react";
-import { postChatDiagnostic } from "@/system/runtimeLog";
-import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type FC, type ReactNode } from "react";
+import { postChatDiagnostic, postRuntimeEvent } from "@/system/runtimeLog";
+import {
+  publishChatLiveSnapshot,
+  beginRepositoryOperation,
+  endRepositoryOperation,
+  currentRepositoryOperation,
+} from "@/system/chatLiveDebug";
+import { shortId, useChatLiveDebug, type DetectorResult, type ChatLiveDebugState, type ChatIncident } from "@/system/useChatLiveDebug";
+import { useContext, useEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type FC } from "react";
 import { createPortal } from "react-dom";
 import { useMessageError } from "@assistant-ui/core/react";
 import { TooltipIconButton } from "@/assistant-original/components/assistant-ui/tooltip-icon-button";
@@ -24,9 +31,18 @@ import RecordPlugin from "wavesurfer.js/dist/plugins/record.esm.js";
 import { savedToken } from "@/brain/stream";
 import { memoryTrace } from "@/assistant-original/chat-memory-feedback";
 import {
+  acquireRunOwnership,
+  consumePromotedRepository,
+  GateMarkLiveContext,
   isLocalUnsavedSession,
+  newLocalMessageId,
+  openingStillWelcome,
   promoteLocalSession,
+  repositoryWithMessage,
+  repositoryWithPendingUser,
+  resolvePromotionHandoff,
 } from "@/assistant-original/conversation-lifecycle-adapter";
+import type { ThreadMessage } from "@assistant-ui/react";
 import {
   ActivityIcon,
   ArrowUpIcon,
@@ -53,7 +69,7 @@ import { voiceCard } from "@/engine/voiceCard";
 import { useAssetUrl } from "@/system/AssetSlot";
 import { EXPRESSION_SPEC, EXPRESSIONS } from "@/engine/assets";
 import { loadChatTrace, type ChatTrace } from "@/ai/chatTrace";
-import { hasMemoryUpdated, subscribeMemoryFeedback } from "@/assistant-original/chat-memory-feedback";
+import { memoryFeedbackFor, subscribeMemoryFeedback } from "@/assistant-original/chat-memory-feedback";
 import {
   buildOpening,
   buildThoughtStatus,
@@ -76,6 +92,130 @@ import {
   revealMetadata,
 } from "@/assistant-original/chat-presence-visual";
 
+/* FIRST TURN OBSERVABILITY ONLY — nessun cambio di comportamento: queste
+   due funzioni avvolgono aui.thread.import()/startRun() con un log
+   tecnico prima/dopo (conteggio messaggi, headId), senza mai leggerne
+   il contenuto. Servono a capire, sul device reale, dove esattamente
+   nell'albero dei messaggi la timeline del primo turno cambia forma. */
+type AuiHandle = ReturnType<typeof useAui>;
+
+const auiSnapshot = (aui: AuiHandle): { messageCount: number; headId: string } => {
+  const exported = aui.thread.export();
+  return { messageCount: exported.messages.length, headId: exported.headId ?? 'none' };
+};
+
+const importWithObservability = (
+  aui: AuiHandle,
+  caller: string,
+  reason: string,
+  repository: Parameters<AuiHandle['thread']['import']>[0],
+  markLive: (() => void) | null,
+): void => {
+  const before = auiSnapshot(aui);
+  /* import() è sincrono da cima a fondo (clear()+import()+resetHead(),
+     nessun await nel mezzo — verificato nel sorgente vendor): possiamo
+     chiudere l'attribuzione subito dopo, senza bisogno di un timeout. */
+  beginRepositoryOperation({ operation: 'IMPORT', caller });
+  /* FIRST TURN — HISTORY OWNERSHIP BLIND SPOT, CLOSED. import() stabilisce/
+     sostituisce lo stato live esattamente come append()/update(), ma non
+     tocca mai l'adapter history (confermato: BaseThreadRuntimeCore.import()
+     non chiama adapters.history). Senza questo, una history.load() già in
+     volo nel momento in cui QUESTO import atterra verrebbe ancora fidata e
+     potrebbe cancellarlo. `markLive` arriva da GateMarkLiveContext — il
+     gate DI QUESTO thread, non un puntatore globale che un altro gate
+     montato altrove potrebbe aver sovrascritto. */
+  markLive?.();
+  aui.thread.import(repository);
+  endRepositoryOperation();
+  const after = auiSnapshot(aui);
+  postRuntimeEvent({
+    eventType: 'CHAT_THREAD_IMPORT',
+    status: 'PASS',
+    scope: 'chat',
+    metadata: {
+      caller,
+      beforeMessageCount: before.messageCount,
+      afterMessageCount: after.messageCount,
+      beforeHeadId: before.headId,
+      afterHeadId: after.headId,
+      reason,
+    },
+  });
+};
+
+/* FIRST TURN — SINGLE RUN OWNER. Il percorso di invio del composer
+   (ComposerPrimaryAction/insertAndSend) possiede la generazione per un
+   vero messaggio utente. Non è un guard temporale: acquireRunOwnership()
+   (conversation-lifecycle-adapter.ts) restituisce true UNA SOLA VOLTA per
+   ogni parentId, per sempre — chiunque arrivi qui per primo per un dato
+   id vince, indipendentemente da chi sia o quanto sia veloce. Chiunque
+   arrivi dopo per lo STESSO id (tipicamente una riconciliazione
+   dell'handoff di promozione che corre in parallelo all'invio del
+   composer) diventa un no-op, non un secondo startRun. */
+const startRunWithObservability = (
+  aui: AuiHandle,
+  caller: string,
+  parentId: string,
+): void => {
+  if (!acquireRunOwnership(parentId)) {
+    postRuntimeEvent({
+      eventType: 'CHAT_RUN_BOUNDARY',
+      status: 'PASS',
+      scope: 'chat',
+      metadata: { phase: 'SKIPPED_DUPLICATE', parentId, caller },
+    });
+    return;
+  }
+  const before = auiSnapshot(aui);
+  /* startRun resta "in corso" per tutta la sua durata async (fino al
+     .finally() sotto) — è quello che la specifica chiede: "quando
+     un'operazione pubblica è in corso". */
+  beginRepositoryOperation({ operation: 'START_RUN', caller, parentId });
+  postRuntimeEvent({
+    eventType: 'CHAT_RUN_BOUNDARY',
+    status: 'START',
+    scope: 'chat',
+    metadata: { phase: 'START', parentId, messageCount: before.messageCount, headId: before.headId, caller },
+  });
+  /* FIRST TURN — CHE COSA GETTA startRun(). Il vendor lancia
+     "Parent message not found" (message-repository.ts) se il parentId
+     che gli passiamo non esiste nel repository su cui sta operando —
+     una prova diretta e distinguibile del sospetto emerso da un
+     incident reale (E · REPOSITORY DROP attribuito a START_RUN, head
+     dopo il crollo nel formato generateId() del vendor, mai il nostro
+     msg_<uuid>): che aui.thread in questo punto non sia più la stessa
+     istanza runtime su cui promoteBeforeSend aveva appena importato
+     quel messaggio. .then(success, failure) invece di solo .finally()
+     perché un rifiuto è un'informazione diversa da un successo, non
+     solo "la run è finita": senza questo l'errore del vendor si perde
+     nel .catch() già presente sull'IIFE del click, mai osservato. */
+  const result = aui.thread.startRun({ parentId });
+  void Promise.resolve(result).then(
+    () => {
+      const after = auiSnapshot(aui);
+      postRuntimeEvent({
+        eventType: 'CHAT_RUN_BOUNDARY',
+        status: 'PASS',
+        scope: 'chat',
+        metadata: { phase: 'END', parentId, messageCount: after.messageCount, headId: after.headId, caller },
+      });
+    },
+    (error: unknown) => {
+      const after = auiSnapshot(aui);
+      postRuntimeEvent({
+        eventType: 'CHAT_RUN_BOUNDARY',
+        status: 'FAIL',
+        scope: 'chat',
+        error: error instanceof Error ? error.message : String(error),
+        errorName: error instanceof Error ? error.name : 'Unknown',
+        metadata: { phase: 'ERROR', parentId, messageCount: after.messageCount, headId: after.headId, caller },
+      });
+    },
+  ).finally(() => {
+    endRepositoryOperation();
+  });
+};
+
 const useFirstArrivalReveal = (arrivalId: unknown) => {
   const reveal = useRef<{ arrivalId: unknown; animate: boolean } | null>(null);
   if (!reveal.current || reveal.current.arrivalId !== arrivalId) {
@@ -88,7 +228,7 @@ const useFirstArrivalReveal = (arrivalId: unknown) => {
   return animate;
 };
 
-export const ChatGPT: FC<{ sidebarContent?: ReactNode }> = ({ sidebarContent }) => {
+export const ChatGPT: FC<{ sidebarContent?: React.ReactNode }> = ({ sidebarContent }) => {
   return (
     <CloneThreadShell sidebarContent={sidebarContent}>
       <ChatCostTotal />
@@ -96,6 +236,7 @@ export const ChatGPT: FC<{ sidebarContent?: ReactNode }> = ({ sidebarContent }) 
       <ReactionMessageDispatcher />
       <ConversationMemory />
       <ConversationLifecycle />
+      <ChatLiveDebugPublisher />
       <MonPresenceEvents />
       <ThreadPrimitive.Root className="flex h-full flex-col items-stretch bg-white px-4 text-[#0d0d0d] dark:bg-black dark:text-[#ececec]">
         <AuiIf condition={(s) => s.thread.isEmpty}>
@@ -156,13 +297,37 @@ const ConversationMemory: FC = () => {
 
 const ConversationLifecycle: FC = () => {
   const aui = useAui();
-  const { threadId, readyToPromote } = useAuiState(
+  const markLive = useContext(GateMarkLiveContext);
+  const { threadId, remoteId, readyToPromote } = useAuiState(
     useShallow((state) => ({
       threadId: state.threads.mainThreadId,
-      readyToPromote: state.thread.messages.some((message) => message.role === 'user'
-        && (message.attachments.length > 0 || message.content.some((part) => part.type === 'text' && part.text.trim().length > 0))),
+      remoteId: state.threadListItem.remoteId,
+      readyToPromote: (() => {
+        const messages = state.thread.messages;
+        let lastUserIndex = -1;
+        for (let index = messages.length - 1; index >= 0; index -= 1) {
+          if (messages[index]?.role === "user") { lastUserIndex = index; break; }
+        }
+        if (lastUserIndex < 0) return false;
+        // Native composer submission (keyboard/attachments) must release the
+        // same initialize barrier without waiting for the response it blocks.
+        return true;
+      })(),
     })),
   );
+  useEffect(() => {
+    if (!remoteId) return;
+    const handoff = consumePromotedRepository(remoteId);
+    if (!handoff) return;
+    const resolution = resolvePromotionHandoff(aui.thread.export(), handoff);
+    if (resolution.shouldImport) importWithObservability(aui, 'ConversationLifecycle', resolution.reason, handoff, markLive);
+    postRuntimeEvent({
+      eventType: 'CHAT_PROMOTION_HANDOFF_RESOLVED',
+      status: 'PASS',
+      scope: 'chat',
+      metadata: { reason: resolution.reason },
+    });
+  }, [aui, remoteId, markLive]);
   useEffect(() => {
     if (!readyToPromote || !isLocalUnsavedSession(threadId)) return;
     void promoteLocalSession(threadId, aui.thread.export()).catch((error: unknown) => {
@@ -170,6 +335,446 @@ const ConversationLifecycle: FC = () => {
     });
   }, [aui, readyToPromote, threadId]);
   return null;
+};
+
+/* LIVE DEBUG — pubblica sul canale diagnostico runtime-only
+   (src/system/chatLiveDebug.ts) uno snapshot tecnico del thread: solo id,
+   ruolo, parent e conteggi, mai il contenuto di un messaggio. Legge SOLO
+   API pubbliche di assistant-ui (aui.subscribe — «fires after every
+   state [change]», thread.getState/export, threads.item/
+   threadListItem.getState, già usate altrove in questo file) — non
+   tocca il vendor, non cambia niente del comportamento della chat: è un
+   lettore passivo. */
+const ChatLiveDebugPublisher: FC = () => {
+  const aui = useAui();
+  useEffect(() => {
+    /* REPOSITORY MUTATION WATCHER — snapshot precedente tenuto SOLO in
+       memoria (variabile locale alla closure dell'effetto: sparisce al
+       remount, mai persistito). aui.subscribe() spara dopo OGNI
+       mutazione del thread, comprese quelle interne ad assistant-ui che
+       non passano da nessuno dei nostri wrapper (es. dentro
+       __internal_load()): confrontando due export() consecutivi qui,
+       vediamo un calo di messageCount indipendentemente da chi l'ha
+       causato. */
+    let previous: { messageCount: number; headId: string } | null = null;
+    const publish = () => {
+      const threadState = aui.thread.getState();
+      const exported = aui.thread.export();
+      const current = { messageCount: exported.messages.length, headId: exported.headId ?? 'none' };
+
+      if (previous && current.messageCount < previous.messageCount) {
+        const active = currentRepositoryOperation();
+        postRuntimeEvent({
+          eventType: 'CHAT_REPOSITORY_MUTATION',
+          status: 'FAIL',
+          scope: 'chat',
+          metadata: {
+            operation: active?.operation ?? 'UNATTRIBUTED_DROP',
+            caller: active?.caller ?? 'ASSISTANT_UI_INTERNAL',
+            beforeMessageCount: previous.messageCount,
+            afterMessageCount: current.messageCount,
+            beforeHeadId: previous.headId,
+            afterHeadId: current.headId,
+            ...(active?.parentId ? { parentId: active.parentId } : {}),
+            ...(active?.messageId ? { messageId: active.messageId } : {}),
+          },
+        });
+      }
+      previous = current;
+
+      publishChatLiveSnapshot({
+        threadId: aui.threads.item("main").getState().id ?? null,
+        remoteId: aui.threadListItem.getState().remoteId ?? null,
+        headId: exported.headId ?? null,
+        visibleMessageIds: threadState.messages.map((message) => message.id),
+        repositoryMessages: exported.messages.map((item) => ({
+          id: item.message.id,
+          role: item.message.role,
+          parentId: item.parentId,
+        })),
+        runStatus: threadState.isRunning ? "running" : "idle",
+        updatedAt: new Date().toISOString(),
+      });
+    };
+    publish();
+    return aui.subscribe(publish);
+  }, [aui]);
+  return null;
+};
+
+/* LIVE DEBUG — l'overlay resta lo stesso, il punto d'ingresso adesso è
+   globale (CREATION LAB FIX + UI CLEANUP §16).
+
+   🔴 «in attesa del primo snapshot dalla chat…» sempre, sul device
+   reale: LAB e Chat sono due pagine separate (lab/index.html vs
+   index.html — window.location.assign('/lab/') in App.tsx è una vera
+   navigazione), quindi due heap JavaScript diversi. Lo snapshot
+   runtime-only di chatLiveDebug.ts non attraversa quel confine per
+   costruzione. Questo overlay vive nello STESSO runtime del publisher
+   (ChatLiveDebugPublisher, sopra), quindi lo vede sempre.
+
+   🔷 «Il debug che sta nella chat, spostalo nel layer globale.» Il
+   pulsante viveva DENTRO l'albero di `ChatGPT`, che App.tsx tiene montato
+   sempre ma nasconde con CSS quando il tab attivo non è CHAT
+   (`live-chat--hidden`) — quindi non era mai davvero raggiungibile da
+   MON/SYNC/ME. Il PUBLISHER (sopra) resta qui: deve continuare a
+   catturare anche a tab nascosta. Solo il TRIGGER si sposta — via
+   `ChatDebugTrigger`, esportato e montato da `SystemControls` in
+   App.tsx, stesso runtime quindi stesso stato — non una copia.
+   Comportamento del debug stesso: invariato, `ChatDebugOverlay` non è
+   toccato. */
+export const ChatDebugTrigger: FC = () => {
+  const devEnabled = useApp((s) => s.dev.enabled);
+  if (!devEnabled) return null;
+  return <ChatDebugArmed />;
+};
+
+/* BLACK BOX — questo componente monta SOLO quando i dev tools sono
+   attivi (stesso criterio del pulsante DEBUG), non solo quando l'overlay
+   è aperto: così l'hook (e la rilevazione OK→SUSPECT che contiene) resta
+   attivo anche a drawer chiuso, e un incidente viene catturato anche se
+   l'utente non stava guardando in quel momento — "L'utente NON deve
+   dover premere FREEZE in tempo." Per chi non ha i dev tools attivi
+   questo componente non monta mai: nessun polling in più per loro. */
+const ChatDebugArmed: FC = () => {
+  const [open, setOpen] = useState(false);
+  const debug = useChatLiveDebug();
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        aria-label="Apri live debug"
+        className="debugtrigger"
+      >
+        DEBUG
+      </button>
+      {open && <ChatDebugOverlay onClose={() => setOpen(false)} debug={debug} />}
+    </>
+  );
+};
+
+const ChatDebugRow: FC<{ label: string; value: string }> = ({ label, value }) => (
+  <div className="flex justify-between border-b border-black/5 py-1 dark:border-white/5">
+    <span className="text-black/50 dark:text-white/50">{label}</span>
+    <span className="font-semibold">{value}</span>
+  </div>
+);
+
+const ChatDebugDetectorTile: FC<{ label: string; result: DetectorResult }> = ({ label, result }) => (
+  <div className={`rounded-md border px-2 py-1.5 ${result.suspect ? "border-red-600" : "border-black/15 dark:border-white/15"}`}>
+    <div className="font-semibold">{label}</div>
+    <div className={`text-[11px] font-black ${result.suspect ? "text-red-600" : ""}`}>{result.suspect ? "SUSPECT" : "OK"}</div>
+    <div className="text-black/50 dark:text-white/50">{result.detail}</div>
+  </div>
+);
+
+type ChatDebugEventLike = {
+  id: string;
+  timestamp: string;
+  eventType: string;
+  status: string;
+  error?: string;
+  errorName?: string;
+  metadata?: Record<string, string | number | boolean>;
+};
+
+const ChatDebugEventRow: FC<{ event: ChatDebugEventLike }> = ({ event }) => (
+  <div className="border-b border-black/5 pb-1.5 dark:border-white/5">
+    <div className="flex justify-between">
+      <span>{new Date(event.timestamp).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</span>
+      <span>{event.eventType} · {event.status}</span>
+    </div>
+    {(event.error || event.errorName) && (
+      <div className="break-all text-red-600">
+        {event.errorName ?? "Error"}{event.error ? `: ${event.error}` : ""}
+      </div>
+    )}
+    {event.metadata && Object.keys(event.metadata).length > 0 && (
+      <div className="break-all text-black/50 dark:text-white/50">
+        {Object.entries(event.metadata).map(([key, value]) => `${key}=${String(value)}`).join("  ")}
+      </div>
+    )}
+  </div>
+);
+
+const ChatDebugOverlay: FC<{ onClose: () => void; debug: ChatLiveDebugState }> = ({ onClose, debug }) => {
+  const { snapshot, eventsSinceClear, eventsFailed, frozen, freeze, resume, clearView, detectors, incident, captureIncidentNow } = debug;
+  const [showIncident, setShowIncident] = useState(false);
+  const visibleEvents = eventsSinceClear.slice(0, 30);
+  const activeBranchIds = new Set(snapshot?.visibleMessageIds ?? []);
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-end bg-black/65 p-3 sm:items-center sm:justify-center" role="dialog" aria-modal="true" aria-label="Live debug">
+      <div className="flex max-h-[85vh] w-full max-w-md flex-col overflow-hidden rounded-2xl bg-white text-[#0d0d0d] dark:bg-[#141414] dark:text-[#ececec] sm:max-h-[80vh]">
+        <div className="flex items-center justify-between border-b border-black/10 px-4 py-3 dark:border-white/10">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-semibold">LIVE DEBUG</span>
+            <span
+              className={`rounded-full px-2 py-0.5 text-[10px] font-bold tracking-wide ${
+                frozen ? "bg-black/10 text-black/60 dark:bg-white/15 dark:text-white/70" : "bg-black text-white dark:bg-white dark:text-black"
+              }`}
+            >
+              {frozen ? "FROZEN" : "LIVE"}
+            </span>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Chiudi live debug" className="rounded-full p-2 hover:bg-black/5 dark:hover:bg-white/10">
+            <XIcon size={18} />
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto px-4 py-3 text-xs">
+          <div className={`mb-3 rounded-md border px-2 py-1.5 ${incident ? "border-red-600" : "border-black/15 dark:border-white/15"}`}>
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-semibold">BLACK BOX</span>
+              <button
+                type="button"
+                onClick={captureIncidentNow}
+                className="rounded-full border border-black/20 px-2 py-0.5 text-[10px] font-bold dark:border-white/20"
+              >
+                CAPTURE AGAIN
+              </button>
+            </div>
+            {!incident ? (
+              <p className="mt-1 text-black/50 dark:text-white/50">NO INCIDENT CAPTURED</p>
+            ) : (
+              <div className="mt-1">
+                <p className="text-[11px] font-black text-red-600">INCIDENT CAPTURED</p>
+                <p className="text-black/50 dark:text-white/50">
+                  {new Date(incident.capturedAt).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit", second: "2-digit" })} · trigger: {incident.triggerLabel}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setShowIncident(true)}
+                  className="mt-1.5 rounded-full bg-[#0d0d0d] px-3 py-1 text-[10px] font-bold text-white dark:bg-white dark:text-black"
+                >
+                  VIEW INCIDENT
+                </button>
+              </div>
+            )}
+          </div>
+
+          {!snapshot ? (
+            <p className="text-black/50 dark:text-white/50">in attesa del primo snapshot dalla chat…</p>
+          ) : (
+            <>
+              <ChatDebugRow label="THREAD ID" value={shortId(snapshot.threadId)} />
+              <ChatDebugRow label="REMOTE ID" value={shortId(snapshot.remoteId)} />
+              <ChatDebugRow label="HEAD ID" value={shortId(snapshot.headId)} />
+              <ChatDebugRow label="VISIBLE MESSAGES" value={String(snapshot.visibleMessageIds.length)} />
+              <ChatDebugRow label="REPOSITORY MESSAGES" value={String(snapshot.repositoryMessages.length)} />
+              <ChatDebugRow label="RUN STATUS" value={snapshot.runStatus.toUpperCase()} />
+            </>
+          )}
+
+          {detectors.offBranch.suspect && (
+            <p className="mt-3 rounded-md border border-red-600 px-2 py-1.5 text-[11px] font-bold text-red-600">
+              OFF-BRANCH MESSAGES: {detectors.offBranch.count}
+            </p>
+          )}
+
+          {snapshot && snapshot.repositoryMessages.length > 0 && (
+            <div className="mt-3 divide-y divide-black/10 border-t border-black/10 dark:divide-white/10 dark:border-white/10">
+              {snapshot.repositoryMessages.map((message) => (
+                <div key={message.id} className="flex items-center justify-between gap-2 py-1.5">
+                  <div>
+                    <div className="font-semibold">{shortId(message.id)}</div>
+                    <div className="text-black/50 dark:text-white/50">{message.role.toUpperCase()} · parent {shortId(message.parentId)}</div>
+                  </div>
+                  <div className="text-right text-black/50 dark:text-white/50">
+                    {activeBranchIds.has(message.id) ? "BRANCH: YES" : "BRANCH: NO"}
+                    <br />
+                    {message.id === snapshot.headId ? "HEAD: YES" : "HEAD: NO"}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            <ChatDebugDetectorTile label="A · MESSAGE COUNT DROP" result={detectors.messageCountDrop} />
+            <ChatDebugDetectorTile label="B · OFF-BRANCH" result={detectors.offBranch} />
+            <ChatDebugDetectorTile label="C · DUPLICATE RUN" result={detectors.duplicateRun} />
+            <ChatDebugDetectorTile label="D · STALE LOAD" result={detectors.staleLoad} />
+            <ChatDebugDetectorTile label="E · REPOSITORY DROP" result={detectors.repositoryDrop} />
+            <ChatDebugDetectorTile label="F · SYSTEM ONLY" result={detectors.systemOnlyRegression} />
+          </div>
+
+          <div className="mt-4">
+            <div className="mb-1 font-semibold">LIVE EVENTS</div>
+            {eventsFailed && <p className="text-black/50 dark:text-white/50">Runtime Log non disponibile.</p>}
+            {visibleEvents.length === 0 ? (
+              <p className="text-black/50 dark:text-white/50">Nessun evento recente.</p>
+            ) : (
+              <div className="max-h-40 space-y-1.5 overflow-y-auto border-t border-black/10 pt-1.5 dark:border-white/10">
+                {visibleEvents.map((event) => (
+                  <ChatDebugEventRow key={event.id} event={event} />
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="flex gap-2 border-t border-black/10 px-4 py-3 dark:border-white/10">
+          {frozen ? (
+            <button type="button" onClick={resume} className="flex-1 rounded-full bg-[#0d0d0d] px-3 py-2 text-xs font-bold text-white dark:bg-white dark:text-black">RESUME</button>
+          ) : (
+            <button type="button" onClick={freeze} className="flex-1 rounded-full border border-[#0d0d0d] px-3 py-2 text-xs font-bold dark:border-white">FREEZE</button>
+          )}
+          <button type="button" onClick={clearView} className="flex-1 rounded-full border border-[#0d0d0d] px-3 py-2 text-xs font-bold dark:border-white">CLEAR VIEW</button>
+          <button type="button" onClick={onClose} className="flex-1 rounded-full border border-[#0d0d0d] px-3 py-2 text-xs font-bold dark:border-white">CLOSE</button>
+        </div>
+      </div>
+      {showIncident && incident && (
+        <ChatIncidentView
+          incident={incident}
+          liveSnapshot={snapshot}
+          onClose={() => setShowIncident(false)}
+          onCaptureAgain={captureIncidentNow}
+        />
+      )}
+    </div>
+  );
+};
+
+/* COPIA TESTO — la lista EVENTS ha uno scroll interno separato da quello
+   della schermata (max-h-40 su un contenitore dentro un altro
+   overflow-y-auto): su schermi piccoli è facile fermarsi al bordo
+   sbagliato e perdere righe senza accorgersene, anche facendo più
+   screenshot. Il testo copiato non ha questo problema: contiene SEMPRE
+   tutti gli eventi catturati (fino a 20, lo stesso limite già imposto in
+   buildIncident/chatLiveDebug.ts), mai solo quelli visibili a schermo. */
+function buildIncidentText(
+  incident: ChatIncident,
+  liveSnapshot: ChatLiveDebugState["snapshot"],
+): string {
+  const s = incident.snapshot;
+  const lines: string[] = [];
+  lines.push(`INCIDENT — ${incident.triggerLabel}`);
+  lines.push(`catturato ${incident.capturedAt}`);
+  lines.push("");
+  lines.push("THREAD");
+  lines.push(`  THREAD ID: ${s?.threadId ?? "—"}`);
+  lines.push(`  REMOTE ID: ${s?.remoteId ?? "—"}`);
+  lines.push("");
+  lines.push("COUNTS");
+  lines.push(`  VISIBLE MESSAGES: ${s?.visibleMessageIds.length ?? 0}`);
+  lines.push(`  REPOSITORY MESSAGES: ${s?.repositoryMessages.length ?? 0}`);
+  lines.push("");
+  lines.push("HEAD");
+  lines.push(`  HEAD ID: ${s?.headId ?? "—"}`);
+  lines.push(`  RUN STATUS: ${(s?.runStatus ?? "—").toUpperCase()}`);
+  lines.push("");
+  lines.push("CURRENT THREAD (dal vivo, al momento della copia)");
+  if (!liveSnapshot) {
+    lines.push("  nessuno snapshot dal vivo disponibile ora");
+  } else {
+    lines.push(`  HEAD ID: ${liveSnapshot.headId}`);
+    lines.push(`  VISIBLE MESSAGES: ${liveSnapshot.visibleMessageIds.length}`);
+    lines.push(`  REPOSITORY MESSAGES: ${liveSnapshot.repositoryMessages.length}`);
+    lines.push(`  RUN STATUS: ${liveSnapshot.runStatus.toUpperCase()}`);
+  }
+  lines.push("");
+  lines.push("DETECTORS");
+  for (const detector of incident.detectors) {
+    lines.push(`  ${detector.label}: ${detector.suspect ? "SUSPECT" : "OK"} — ${detector.detail}`);
+  }
+  lines.push("");
+  lines.push(`EVENTS (${incident.events.length})`);
+  for (const event of incident.events) {
+    const meta = event.metadata
+      ? Object.entries(event.metadata).map(([key, value]) => `${key}=${String(value)}`).join(" ")
+      : "";
+    const err = event.error || event.errorName ? `  [${event.errorName ?? "Error"}: ${event.error ?? "—"}]` : "";
+    lines.push(`  ${event.timestamp}  ${event.eventType} · ${event.status}${err}${meta ? `  ${meta}` : ""}`);
+  }
+  return lines.join("\n");
+}
+
+/* BLACK BOX — vista congelata dell'incidente catturato, così l'utente può
+   fare screenshot anche minuti dopo (l'incidente resta nel modulo
+   runtime-only finché non arriva un CLEAR VIEW). Sezioni richieste:
+   THREAD / COUNTS / HEAD / CURRENT THREAD (per confronto col vivo, non
+   con l'incidente) / DETECTORS / EVENTS. */
+const ChatIncidentView: FC<{
+  incident: ChatIncident;
+  liveSnapshot: ChatLiveDebugState["snapshot"];
+  onClose: () => void;
+  onCaptureAgain: () => void;
+}> = ({ incident, liveSnapshot, onClose, onCaptureAgain }) => {
+  const s = incident.snapshot;
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
+  const copyIncidentText = () => {
+    const text = buildIncidentText(incident, liveSnapshot);
+    void navigator.clipboard.writeText(text)
+      .then(() => setCopyState("copied"))
+      .catch(() => setCopyState("failed"))
+      .finally(() => setTimeout(() => setCopyState("idle"), 2000));
+  };
+  return (
+    <div className="fixed inset-0 z-[110] flex items-end bg-black/70 p-3 sm:items-center sm:justify-center" role="dialog" aria-modal="true" aria-label="Incidente catturato">
+      <div className="flex max-h-[85vh] w-full max-w-md flex-col overflow-hidden rounded-2xl bg-white text-[#0d0d0d] dark:bg-[#141414] dark:text-[#ececec] sm:max-h-[80vh]">
+        <div className="flex items-center justify-between border-b border-black/10 px-4 py-3 dark:border-white/10">
+          <span className="text-sm font-semibold">INCIDENT — {incident.triggerLabel}</span>
+          <button type="button" onClick={onClose} aria-label="Chiudi incidente" className="rounded-full p-2 hover:bg-black/5 dark:hover:bg-white/10">
+            <XIcon size={18} />
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto px-4 py-3 text-xs">
+          <p className="mb-3 text-black/50 dark:text-white/50">
+            catturato {new Date(incident.capturedAt).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+          </p>
+
+          <div className="mb-1 font-semibold">THREAD</div>
+          <ChatDebugRow label="THREAD ID" value={shortId(s?.threadId ?? null)} />
+          <ChatDebugRow label="REMOTE ID" value={shortId(s?.remoteId ?? null)} />
+
+          <div className="mb-1 mt-3 font-semibold">COUNTS</div>
+          <ChatDebugRow label="VISIBLE MESSAGES" value={String(s?.visibleMessageIds.length ?? 0)} />
+          <ChatDebugRow label="REPOSITORY MESSAGES" value={String(s?.repositoryMessages.length ?? 0)} />
+
+          <div className="mb-1 mt-3 font-semibold">HEAD</div>
+          <ChatDebugRow label="HEAD ID" value={shortId(s?.headId ?? null)} />
+          <ChatDebugRow label="RUN STATUS" value={(s?.runStatus ?? "—").toUpperCase()} />
+
+          <div className="mb-1 mt-3 font-semibold">CURRENT THREAD</div>
+          {!liveSnapshot ? (
+            <p className="text-black/50 dark:text-white/50">nessuno snapshot dal vivo disponibile ora</p>
+          ) : (
+            <>
+              <ChatDebugRow label="HEAD ID" value={shortId(liveSnapshot.headId)} />
+              <ChatDebugRow label="VISIBLE MESSAGES" value={String(liveSnapshot.visibleMessageIds.length)} />
+              <ChatDebugRow label="REPOSITORY MESSAGES" value={String(liveSnapshot.repositoryMessages.length)} />
+              <ChatDebugRow label="RUN STATUS" value={liveSnapshot.runStatus.toUpperCase()} />
+            </>
+          )}
+
+          <div className="mb-1 mt-3 font-semibold">DETECTORS</div>
+          <div className="grid grid-cols-2 gap-2">
+            {incident.detectors.map((detector) => (
+              <ChatDebugDetectorTile key={detector.id} label={detector.label} result={{ suspect: detector.suspect, detail: detector.detail }} />
+            ))}
+          </div>
+
+          <div className="mb-1 mt-3 font-semibold">EVENTS</div>
+          {incident.events.length === 0 ? (
+            <p className="text-black/50 dark:text-white/50">nessun evento catturato.</p>
+          ) : (
+            <div className="max-h-40 space-y-1.5 overflow-y-auto border-t border-black/10 pt-1.5 dark:border-white/10">
+              {incident.events.map((event) => (
+                <ChatDebugEventRow key={event.id} event={event} />
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="flex gap-2 border-t border-black/10 px-4 py-3 dark:border-white/10">
+          <button type="button" onClick={onCaptureAgain} className="flex-1 rounded-full border border-[#0d0d0d] px-3 py-2 text-xs font-bold dark:border-white">CAPTURE AGAIN</button>
+          <button type="button" onClick={copyIncidentText} className="flex-1 rounded-full border border-[#0d0d0d] px-3 py-2 text-xs font-bold dark:border-white">
+            {copyState === "copied" ? "COPIATO" : copyState === "failed" ? "NON RIUSCITO" : "COPY TEXT"}
+          </button>
+          <button type="button" onClick={onClose} className="flex-1 rounded-full bg-[#0d0d0d] px-3 py-2 text-xs font-bold text-white dark:bg-white dark:text-black">CLOSE</button>
+        </div>
+      </div>
+    </div>
+  );
 };
 
 /* 🔷 «La barra della chat non metterla mai al centro, sempre in basso.»
@@ -195,6 +800,7 @@ const monLabel = (name: string) => name.toLocaleLowerCase('it').endsWith('.mon')
  * nella stanza corrente produce anche un'uscita. */
 const MonPresenceEvents: FC = () => {
   const aui = useAui();
+  const markLive = useContext(GateMarkLiveContext);
   const activeMonKey = useApp((state) => state.activeMonName);
   const record = useApp((state) =>
     state.activeMonName ? state.mons[state.activeMonName] ?? null : null,
@@ -218,6 +824,33 @@ const MonPresenceEvents: FC = () => {
     currentRoomEntryRevision,
   );
 
+  /* FIRST TURN — PARKED APPEND FIX. Su una sessione locale non ancora
+     promossa, aui.thread.append() NON è sicuro: dentro _runAppend il
+     messaggio entra nel repository e la chiamata si PARCHEGGIA su
+     `await this._getInitializePromise?.()` — la barriera che
+     withLocalUnsavedSession tiene apposta pendente fino alla promozione.
+     Quando la promozione la sblocca, ogni chiamata parcheggiata riprende
+     ed esegue `resetHead(ilProprioMessaggio)`, che a quel punto ha figli
+     (il saluto, il primo messaggio dell'utente, la risposta) e li
+     CANCELLA tutti: resta quel solo messaggio, il SYSTEM root di ogni
+     incidente. Finché la sessione è locale inseriamo quindi per import,
+     che ottiene lo stesso risultato live senza barriera su cui
+     parcheggiarsi e senza resetHead differito. Su un thread già
+     persistente la barriera è già risolta e append resta la strada
+     giusta: è anche ciò che lo persiste. */
+  const insertPresenceMessage = (message: ThreadMessage, reason: string) => {
+    if (isLocalUnsavedSession(threadId)) {
+      importWithObservability(aui, 'MonPresenceEvents', reason, repositoryWithMessage(aui.thread.export(), message), markLive);
+      return;
+    }
+    aui.thread.append({
+      role: message.role,
+      content: message.content,
+      metadata: { custom: message.metadata.custom },
+      startRun: false,
+    } as Parameters<AuiHandle['thread']['append']>[0]);
+  };
+
   const appendOpening = (monName: string, revealDelayMs: number) => {
     const sequence = ++openingSequence.current;
     const entryRevision = currentRoomEntryRevision();
@@ -226,10 +859,27 @@ const MonPresenceEvents: FC = () => {
     void buildOpening(tone, monName).then((greeting) => {
       if (openingSequence.current !== sequence) return;
       if (currentRoomEntryRevision() !== entryRevision) return;
-      aui.thread.append({
+      /* FIRST TURN — OPENING MUST NEVER RACE THE USER. Un saluto
+         automatico in ritardo non può inserirsi in una conversazione che
+         l'utente ha già iniziato: regola semantica (esistenza di un
+         messaggio utente), non un fix di timing. */
+      if (!openingStillWelcome(aui.thread.export().messages)) return;
+      /* Append non-run: il resetHead che conta arriva dopo un await
+         interno di assistant-ui che non osserviamo da qui — l'attribuzione
+         scade da sola (beginRepositoryOperation) invece di essere chiusa
+         con certezza che non abbiamo. */
+      beginRepositoryOperation({ operation: "APPEND_GREETING", caller: "MonPresenceEvents" });
+      insertPresenceMessage({
+        id: newLocalMessageId(),
+        createdAt: new Date(),
         role: "assistant",
         content: [{ type: "text", text: greeting }],
+        status: { type: "complete", reason: "unknown" },
         metadata: {
+          unstable_state: null,
+          unstable_annotations: [],
+          unstable_data: [],
+          steps: [],
           custom: {
             monGreeting: true,
             monName,
@@ -237,20 +887,21 @@ const MonPresenceEvents: FC = () => {
             ...revealMetadata(revealDelayMs),
           },
         },
-        startRun: false,
-      });
+      }, 'PRESENCE_GREETING');
     });
   };
 
   const appendEnter = (monName: string, revealDelayMs = 0) => {
-    aui.thread.append({
+    beginRepositoryOperation({ operation: "APPEND_ENTER", caller: "MonPresenceEvents" });
+    insertPresenceMessage({
+      id: newLocalMessageId(),
+      createdAt: new Date(),
       role: "system",
       content: [{ type: "text", text: `${monLabel(monName)} è entrato nella chat` }],
       metadata: {
         custom: { monPresenceEvent: "enter", monName, ...revealMetadata(revealDelayMs) },
       },
-      startRun: false,
-    });
+    }, 'PRESENCE_ENTER');
     appendOpening(monName, revealDelayMs + PRESENCE_STEP_MS);
   };
 
@@ -284,14 +935,15 @@ const MonPresenceEvents: FC = () => {
     room.current.monName = activeMonName;
 
     if (previous) {
-      aui.thread.append({
+      insertPresenceMessage({
+        id: newLocalMessageId(),
+        createdAt: new Date(),
         role: "system",
         content: [{ type: "text", text: `${monLabel(previous)} è uscito dalla chat` }],
         metadata: {
           custom: { monPresenceEvent: "leave", monName: previous, ...revealMetadata(0) },
         },
-        startRun: false,
-      });
+      }, 'PRESENCE_LEAVE');
     }
     appendEnter(activeMonName, PRESENCE_STEP_MS);
     if (remoteId) void aui.threads.item("main").updateCustom({ ...threadCustom, activeMonName });
@@ -336,6 +988,8 @@ const SystemEventMessage: FC = () => {
 
 const Composer: FC<{ placeholder: string }> = ({ placeholder }) => {
   const aui = useAui();
+  const markLive = useContext(GateMarkLiveContext);
+  const threadId = useAuiState((state) => state.threads.mainThreadId);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const waveRef = useRef<HTMLDivElement>(null);
   const waveSurferRef = useRef<WaveSurfer | null>(null);
@@ -392,20 +1046,26 @@ const Composer: FC<{ placeholder: string }> = ({ placeholder }) => {
     return body.text;
   };
 
-  const send = () => {
+  const promoteBeforeSend = async (): Promise<string | null> => {
+    if (!isLocalUnsavedSession(threadId)) return null;
     const composer = aui.thread.composer();
-    if (composer.getState().isEmpty || aui.thread.getState().isRunning) return;
-    postChatDiagnostic('CHAT_UI_SUBMIT', 'ui-submit');
-    // assistant-ui creates the real user message (including attachments and
-    // parent branch), then the single lifecycle effect releases initialize.
-    composer.send();
+    const state = composer.getState();
+    const attachments = state.attachments.filter((attachment) => attachment.status.type === 'complete');
+    const pending = repositoryWithPendingUser(aui.thread.export(), state.text.trim(), attachments as Extract<ThreadMessage, { role: 'user' }>['attachments']);
+    importWithObservability(aui, 'promoteBeforeSend', 'FIRST_SEND', pending.repository, markLive);
+    await promoteLocalSession(threadId, pending.repository);
+    composer.setText("");
+    composer.clearAttachments();
+    return pending.userId;
   };
 
   const insertAndSend = async (text: string) => {
     const composer = aui.thread.composer();
     const current = composer.getState().text.trim();
     composer.setText(current ? `${current} ${text}` : text);
-    send();
+    const userId = await promoteBeforeSend();
+    if (userId) startRunWithObservability(aui, 'insertAndSend', userId);
+    else composer.send();
   };
 
   useEffect(() => {
@@ -581,23 +1241,35 @@ const Composer: FC<{ placeholder: string }> = ({ placeholder }) => {
             la tastiera (serve un gesto), ma fa scattare lo stesso `:focus`:
             il nav spariva appena aprivi la chat, senza nessuna tastiera a
             prenderne il posto. Il campo si tocca, e allora sì. */}
+        {/* 🔴 MAIN CHAT — ENTER (2026-09-06). Era `submitMode="none"`
+            (invio da tastiera SEMPRE disattivato, "fix: stabilize mobile
+            chat sending" del 31/08): la vera causa mobile era solo che su
+            iOS il nav rimontava fra pointer-down e click sulla freccia,
+            spostandola e perdendo il tap — non che Invio dovesse smettere
+            di inviare ovunque. `submitMode="enter"` (il default della
+            libreria: Invio invia, Shift+Invio va a capo, IME/composition e
+            stato disabled già gestiti dal primitivo) più
+            `unstable_insertNewlineOnTouchEnter` risolve lo stesso caso
+            mobile (Invio va a capo SOLO su dispositivi touch-primari) senza
+            disattivare Invio=invia su desktop. Nessun secondo percorso di
+            invio: resta lo stesso `composer.send()`/submit del primitivo. */}
         <ComposerPrimitive.Input
           ref={inputRef}
           placeholder={placeholder}
           rows={1}
-          submitMode="none"
-          onKeyDown={(event) => {
-            if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing || event.keyCode === 229) return;
-            event.preventDefault();
-            send();
-          }}
+          submitMode="enter"
+          unstable_insertNewlineOnTouchEnter
           className="vinz-composer-input box-border max-h-52 min-h-9 w-full min-w-0 flex-1 resize-none bg-transparent py-1.5 pr-2 pl-1 text-base text-[#0d0d0d] outline-none placeholder:text-[#8e8e8e] dark:text-[#ececec] dark:placeholder:text-[#8e8e8e]"
         />
 
         <div className="flex shrink-0 items-center gap-1">
           <ComposerPrimaryAction
             onDictate={startDictation}
-            onSend={send}
+            onBeforeSend={promoteBeforeSend}
+            onSend={(userId) => {
+              if (userId) startRunWithObservability(aui, 'ComposerPrimaryAction', userId);
+              else aui.thread.composer().send();
+            }}
           />
         </div>
       </div>
@@ -613,8 +1285,9 @@ const Composer: FC<{ placeholder: string }> = ({ placeholder }) => {
 
 const ComposerPrimaryAction: FC<{
   onDictate: () => void;
-  onSend: () => void;
-}> = ({ onDictate, onSend }) => {
+  onBeforeSend: () => Promise<string | null>;
+  onSend: (userId: string | null) => void;
+}> = ({ onDictate, onBeforeSend, onSend }) => {
   return (
     <div className="flex items-center gap-1">
       <AuiIf condition={(s) => s.thread.isRunning}>
@@ -635,8 +1308,15 @@ const ComposerPrimaryAction: FC<{
             if (event.pointerType === "touch") event.preventDefault();
           }}
           onClick={(event) => {
+            postChatDiagnostic('CHAT_UI_SUBMIT', 'ui-submit');
             event.preventDefault();
-            onSend();
+            void (async () => {
+              const userId = await onBeforeSend();
+              postChatDiagnostic('CHAT_RUN_START', 'composer-send');
+              onSend(userId);
+            })().catch((error: unknown) => {
+              console.warn('[VINZ chat] invio non riuscito', error);
+            });
           }}
         >
           <ArrowUpIcon className="size-6" />
@@ -682,7 +1362,7 @@ const ThreadScrollToBottom: FC = () => {
 
 const UserMessage: FC = () => {
   const messageId = useAuiState((state) => state.message.id);
-  const memoryUpdated = useSyncExternalStore(subscribeMemoryFeedback, () => hasMemoryUpdated(messageId), () => false);
+  const memoryFeedback = useSyncExternalStore(subscribeMemoryFeedback, () => memoryFeedbackFor(messageId), () => "none" as const);
   return (
     <MessagePrimitive.Root className="relative mx-auto flex w-full max-w-3xl flex-col items-end gap-1 px-2 sm:px-0">
       <div className="flex flex-row flex-wrap justify-end gap-2">
@@ -729,7 +1409,13 @@ const UserMessage: FC = () => {
 
         <BranchPicker />
       </div>
-      {memoryUpdated ? <small className="mt-0.5 text-[11px] leading-4 text-[#737373] dark:text-[#8e8e8e]">Memoria aggiornata</small> : null}
+      {memoryFeedback === "explicit-failed" ? (
+        <small className="mt-0.5 text-[11px] leading-4 text-red-600 dark:text-red-400">Non sono riuscito a ricordarlo — riprova</small>
+      ) : memoryFeedback === "explicit-updated" ? (
+        <small className="mt-0.5 text-[11px] leading-4 text-[#737373] dark:text-[#8e8e8e]">Ricordato ✓</small>
+      ) : memoryFeedback === "updated" ? (
+        <small className="mt-0.5 text-[11px] leading-4 text-[#737373] dark:text-[#8e8e8e]">Memoria aggiornata</small>
+      ) : null}
     </MessagePrimitive.Root>
   );
 };
@@ -1343,18 +2029,16 @@ const MessageCost: FC = () => {
 };
 
 const MessageUpdates: FC = () => {
+  const activityValue = useAuiState((s) => s.message.metadata.custom.activity);
+  const activity = Array.isArray(activityValue) ? activityValue as Array<{tool: string; status: string; durationMs?: number}> : [];
   const value = useAuiState((s) => s.message.metadata.custom.updates);
-  const rawActivity = useAuiState((s) => s.message.metadata.custom.activity);
-  const activity = Array.isArray(rawActivity) ? rawActivity.filter((item): item is {tool: string; status: string; durationMs?: number} => !!item && typeof item.tool === 'string' && ['RUNNING', 'PASS', 'FAIL'].includes(item.status)) : [];
   const updates = Array.isArray(value)
     ? value.filter((item): item is string => typeof item === "string")
     : [];
   if (updates.length === 0 && activity.length === 0) return null;
   return (
     <div className="vinz-message-updates mt-1 flex flex-col gap-1" aria-live="polite">
-      {activity.length > 0 && <details className="text-[11px] leading-5 text-[#a8a8a8]"><summary className="cursor-pointer py-2">Attività · {activity.length} operazioni</summary>
-        {activity.map((item, index) => <div key={index}>{item.tool.replaceAll('_', ' ')} · {item.status}{typeof item.durationMs === 'number' && item.status !== 'RUNNING' ? ` · ${item.durationMs} ms` : ''}</div>)}
-      </details>}
+      {activity.length > 0 && <details className="vinz-tool-activity"><summary>Attività · {activity.length}</summary>{activity.map((entry, index) => <small key={index}>{entry.tool} · {entry.status}{entry.durationMs !== undefined ? ` · ${entry.durationMs} ms` : ''}</small>)}</details>}
       {updates.map((update) => (
         <small
           key={update}

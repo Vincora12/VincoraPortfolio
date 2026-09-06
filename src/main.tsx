@@ -6,24 +6,19 @@ import { applyDocumentMeta } from './lab/applyLabDocumentMeta';
 import { ErrorBoundary } from './system/ErrorBoundary';
 
 /* ============================================================================
-   TRE INGRESSI, UNA PAGINA SOLA
+   DUE INGRESSI, UNA PAGINA SOLA
 
    🔷 «Una nuova parte del sito, LAB, dove dentro c'è DEV e tanto altro.»
 
-   Prima qui c'era una riga sola: monta `App`. Adesso si legge l'indirizzo una
-   volta e si decide COSA montare — e le tre cose si escludono a vicenda:
+   Si legge l'indirizzo una volta e si decide COSA montare:
 
-     /                     → VINZ.MON, identica a prima
-     /#/lab                → VINZ.LAB, il laboratorio privato
-     /?design-preview=mon  → UNA schermata vera, sola, dentro l'iframe di
-                             DESIGN.LAB
+     /       → VINZ.MON, identica a prima
+     /#/lab  → VINZ.LAB, il laboratorio privato
 
-   🔒 L'ORDINE DELLE IMPORTAZIONI È LA COSA CHE CONTA, e per questo `boot` è
-   asincrona. In modalità preview i guardiani vanno installati PRIMA che il
-   modulo dello store venga caricato: `import` statico si esegue tutto
-   all'avvio, `await import()` no. Se lo store si inizializzasse per primo,
-   scriverebbe prima che ci sia qualcuno a impedirglielo — cioè la preview
-   avrebbe già toccato la produzione al primo render.
+   🔷 LAB INFORMATION ARCHITECTURE CLEANUP — il terzo ingresso,
+   `?design-preview=…`, montava una schermata vera dentro l'iframe di
+   DESIGN.LAB. Con quella stanza rimossa (nessun altro la usava — verificato)
+   sparisce anche questo ramo di boot.
 
    ⚠️ `App` resta un import dinamico anche sulla strada normale. Non è
    eleganza: è che così il bundle del laboratorio non trascina dentro l'app
@@ -62,14 +57,7 @@ async function boot() {
     applyTokenOverrides();
   }
 
-  if (entry.kind === 'design-preview') {
-    const { installPreviewGuards } = await import('./lab/design/installPreviewGuards');
-    installPreviewGuards();
-
-    // Dopo i guardiani, mai prima.
-    const { DesignPreviewRoute } = await import('./lab/design/DesignPreviewRoute');
-    content = <DesignPreviewRoute screen={entry.screen} />;
-  } else if (entry.kind === 'lab') {
+  if (entry.kind === 'lab') {
     const { LabApp } = await import('./lab/LabApp');
     content = <LabApp initialLab={entry.lab} />;
   } else if (/^#\/artifact\/[a-zA-Z0-9_-]+\/[a-z0-9-]+$/.test(location.hash)) {

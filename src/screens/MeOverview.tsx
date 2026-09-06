@@ -37,6 +37,13 @@ export function MeOverviewScreen({ onGo: _onGo }: { onGo: (o: Overlay) => void }
   const gameDay = localDay(dateForDay(day, startedAt));
   const meals = journal.meals.filter((x) => localDay(new Date(x.at)) === gameDay);
   const total = meals.reduce((s, x) => ({ kcal: s.kcal + x.kcal, protein: s.protein + x.protein, carbs: s.carbs + x.carbs, fat: s.fat + x.fat }), { kcal: 0, protein: 0, carbs: 0, fat: 0 });
+  /* CORE HEALTH INTERPRETATION + DAILY ENERGY — mostra SOLO ciò che è già
+     calcolabile onestamente: la somma delle stime di calorie bruciate negli
+     allenamenti di oggi. Non un TOTALE DISPENDIO GIORNALIERO e non un
+     BILANCIO: mancano altezza, età, sesso e un'attività di base per
+     calcolare BMR/TDEE (vedi docs/HEALTH_ENERGY_AUDIT_2026-09-04.md). Somma
+     due numeri senza una base di calcolo comune sarebbe inventare
+     precisione, non offrirla. */
   const askAi = (prompt: string) => window.dispatchEvent(new CustomEvent('vinzmon-open-chat', { detail: { prompt } }));
   return <div className="screen me-health">
     <nav className="me-health__tabs">{([['today', 'OGGI'], ['calendar', 'CALENDARIO'], ['memory', 'MEMORY']] as const).map(([id, label]) => <button type="button" key={id} aria-current={view === id ? 'page' : undefined} onClick={() => setView(id)}>{label}</button>)}</nav>
@@ -119,13 +126,24 @@ function WorkoutTimer({ onClose }: { onClose: () => void }) {
 function TodayRecap({ journal, total, date }: { journal: HealthJournal; total: HealthJournal['targets']; date: Date }) {
   const [detailsOpen, setDetailsOpen] = useState(false);
   return <section className="me-health__today-recap" data-expanded={detailsOpen}>
-    <Nutrition total={total} targets={journal.targets} />
+    <Nutrition total={total} targets={journal.targets} workoutBurnedKcal={journal.workouts.filter(w => localDay(new Date(w.at)) === localDay(date)).reduce((sum, w) => sum + (w.burnedKcal ?? 0), 0)} />
     <DailyEnergy journal={journal} date={date} />
     <TodayChecklistScreen embedded defaultDetailsOpen={false} onDetailsChange={setDetailsOpen} />
   </section>;
 }
 
-function Nutrition({ total, targets }: { total: HealthJournal['targets']; targets: HealthJournal['targets'] }) { const pct = Math.min(100, Math.round(total.kcal / targets.kcal * 100)); return <section className="me-health__nutrition"><div className="me-health__calories"><div><small>ENERGIA</small><strong>{total.kcal.toLocaleString('it-IT')}</strong><span>/ {targets.kcal.toLocaleString('it-IT')} KCAL</span><Segments value={pct} count={14} /></div></div><div className="me-health__macros">{(['protein', 'carbs', 'fat'] as const).map(k => { const value = Math.min(100, total[k] / targets[k] * 100); return <div key={k}><span>{k === 'protein' ? 'PRO' : k === 'carbs' ? 'CARB' : 'FAT'}</span><strong>{total[k]}<small>g</small></strong><Segments value={value} count={8} /></div>; })}</div></section>; }
+function Nutrition({ total, targets, workoutBurnedKcal }: { total: HealthJournal['targets']; targets: HealthJournal['targets']; workoutBurnedKcal: number }) {
+  const pct = Math.min(100, Math.round(total.kcal / targets.kcal * 100));
+  /* Riga separata e non sommata a ENERGIA: quella è INTAKE vs obiettivo, questa
+     è una stima di allenamento — combinarle in un unico numero servirebbe un
+     dispendio energetico totale che qui non è calcolabile onestamente (manca
+     BMR/TDEE, vedi docs/HEALTH_ENERGY_AUDIT_2026-09-04.md). */
+  return <section className="me-health__nutrition">
+    <div className="me-health__calories"><div><small>ENERGIA</small><strong>{total.kcal.toLocaleString('it-IT')}</strong><span>/ {targets.kcal.toLocaleString('it-IT')} KCAL</span><Segments value={pct} count={14} /></div></div>
+    <div className="me-health__macros">{(['protein', 'carbs', 'fat'] as const).map(k => { const value = Math.min(100, total[k] / targets[k] * 100); return <div key={k}><span>{k === 'protein' ? 'PRO' : k === 'carbs' ? 'CARB' : 'FAT'}</span><strong>{total[k]}<small>g</small></strong><Segments value={value} count={8} /></div>; })}</div>
+    {workoutBurnedKcal > 0 && <p className="me-health__workout-burn"><span>ALLENAMENTO · STIMA, NON MISURA</span><strong>{workoutBurnedKcal.toLocaleString('it-IT')} KCAL</strong></p>}
+  </section>;
+}
 function Section({ title, action, click, children }: { title: string; action?: string; click?: () => void; children: ReactNode }) { return <section className="me-health__section"><header><h2>{title}</h2>{action && <button type="button" onClick={click}><Icon name="plus" />{action}</button>}</header>{children}</section>; }
 function DailyEnergy({ journal, date }: { journal: HealthJournal; date: Date }) {
   const energy = calculateDailyEnergy(journal, date);

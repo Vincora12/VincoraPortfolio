@@ -173,6 +173,30 @@ function notify() {
   listeners.forEach((l) => l());
 }
 
+/* ============================================================================
+   SINCRONIZZATO, O NO — ANCORA
+
+   🔴 UN .MON APPENA FORGIATO NELLA APP RISULTAVA «MANCA» APRENDO LAB.
+
+   LAB è un documento a parte (`lab/index.html`): ogni apertura riparte con
+   `urlCache` vuota, e `LabApp` la ripopola chiamando `syncAssetsWithServer`
+   una volta al boot. Finché quella chiamata non finisce, uno slot vuoto NON
+   è ancora la verità — è solo che nessuno gliel'ha ancora detto. Prima non
+   esisteva un modo di saperlo: uno slot vuoto era sempre «MANCA», anche nel
+   primo istante dopo l'apertura.
+
+   🔒 Un flag solo, vero per la sessione: parte falso, `syncAssetsWithServer`
+   lo mette vero nel `finally` — ANCHE se il giro fallisce (offline, server
+   giù), perché restare in «sto sincronizzando» per sempre sarebbe peggio di
+   un «manca» che poi si scopre sbagliato: almeno si può riprovare a mano.
+   ========================================================================= */
+let synced = false;
+
+/** Vero una volta che il primo giro di `syncAssetsWithServer` è finito (bene o male). */
+export function isAssetsSynced(): boolean {
+  return synced;
+}
+
 /* --- Lettura --------------------------------------------------------------- */
 
 /** URL dell'asset già caricato in cache, o `null` se non risolto. */
@@ -363,28 +387,35 @@ export async function removeAsset(monName: string, type: AssetType): Promise<voi
 
 /** Porta le immagini locali sul server e ripristina quelle mancanti sul dispositivo. */
 export async function syncAssetsWithServer(token: string): Promise<void> {
-  const all = await keys();
-  for (const key of all) {
-    if (typeof key !== 'string' || !key.startsWith('asset:')) continue;
-    const match = key.match(/^asset:(.+):([^:]+)$/);
-    if (!match) continue;
-    const blob = await get<Blob>(key);
-    if (blob) await uploadRemote(match[1], match[2], blob);
-  }
-
   try {
-    const listResponse = await fetch('/api/assets', { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' });
-    if (!listResponse.ok) return;
-    const { assets } = await listResponse.json() as { assets: { monName: string; assetId: string }[] };
-    for (const remote of assets) {
-      const key = storageKey(remote.monName, remote.assetId);
-      if (await get(key)) continue;
-      const response = await fetch(`/api/assets?monName=${encodeURIComponent(remote.monName)}&assetId=${encodeURIComponent(remote.assetId)}`, { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' });
-      if (!response.ok) continue;
-      await set(key, await response.blob());
+    const all = await keys();
+    for (const key of all) {
+      if (typeof key !== 'string' || !key.startsWith('asset:')) continue;
+      const match = key.match(/^asset:(.+):([^:]+)$/);
+      if (!match) continue;
+      const blob = await get<Blob>(key);
+      if (blob) await uploadRemote(match[1], match[2], blob);
     }
-    for (const remote of assets) await preloadMonAssets(remote.monName);
-  } catch { /* Il ripristino riproverà al prossimo avvio. */ }
+
+    try {
+      const listResponse = await fetch('/api/assets', { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' });
+      if (!listResponse.ok) return;
+      const { assets } = await listResponse.json() as { assets: { monName: string; assetId: string }[] };
+      for (const remote of assets) {
+        const key = storageKey(remote.monName, remote.assetId);
+        if (await get(key)) continue;
+        const response = await fetch(`/api/assets?monName=${encodeURIComponent(remote.monName)}&assetId=${encodeURIComponent(remote.assetId)}`, { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' });
+        if (!response.ok) continue;
+        await set(key, await response.blob());
+      }
+      for (const remote of assets) await preloadMonAssets(remote.monName);
+    } catch { /* Il ripristino riproverà al prossimo avvio. */ }
+  } finally {
+    /* 🔒 SEMPRE, anche se il giro sopra fallisce: restare in «sto
+       sincronizzando» all'infinito sarebbe peggio di un MANCA rivedibile. */
+    synced = true;
+    notify();
+  }
 }
 
 /**

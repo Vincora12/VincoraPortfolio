@@ -2,7 +2,7 @@ import { getStore } from '@netlify/blobs';
 import { callProvider } from './providers';
 import { resolveRoute } from './routing';
 import { recordSpend } from './spend';
-import { listMem0, searchMem0 } from './mem0MemoryClient';
+import { listPersonalMemory, searchPersonalMemory } from './core/memory';
 import { machineInsightPayload, sendPushNotification } from './pushDelivery';
 
 export type MachineStatus = 'ACTIVE' | 'SLEEPING' | 'RUNNING' | 'DISABLED';
@@ -55,8 +55,8 @@ const KEY = 'machine-state-v1';
 const at = () => new Date().toISOString();
 
 export const MACHINE_DEFINITIONS: MachineDefinition[] = [
-  { id: 'reflection', name: 'REFLECTION MACHINE', purpose: 'Individua pattern, cambiamenti e connessioni significative nel tempo.', reads: ['Memorie Mem0 nuove/rilevanti', 'Osservazioni Reflection precedenti'], trigger: 'Esecuzione esplicita o batch futuro; non ogni messaggio.', instruction: 'Cerca solo pattern utili, cambiamenti, tensioni o connessioni supportate dalle memorie.', writes: ['Osservazioni interpretative con evidenza'], model: 'text-cheap', delivery: 'notify_user' },
-  { id: 'me', name: 'ME MACHINE', purpose: 'Mantiene una sintesi compatta di ciò che VINZ.MON comprende dell’utente.', reads: ['Sintesi ME precedente', 'Memorie rilevanti', 'Osservazioni Reflection'], trigger: 'Esecuzione esplicita quando esiste informazione significativa nuova.', instruction: 'Aggiorna una sintesi breve distinguendo fatti dell’utente da interpretazioni.', writes: ['Sintesi ME derivata con riferimenti alle fonti'], model: 'text-cheap', delivery: 'lab_only' },
+  { id: 'reflection', name: 'REFLECTION MACHINE', purpose: 'Individua pattern, cambiamenti e connessioni significative nel tempo.', reads: ['Memoria personale nuova/rilevante', 'Osservazioni Reflection precedenti'], trigger: 'Esecuzione esplicita o batch futuro; non ogni messaggio.', instruction: 'Cerca solo pattern utili, cambiamenti, tensioni o connessioni supportate dalle memorie.', writes: ['Osservazioni interpretative con evidenza'], model: 'text-cheap', delivery: 'notify_user' },
+  { id: 'me', name: 'ME MACHINE', purpose: 'Mantiene una sintesi compatta di ciò che VINZ.MON comprende dell’utente.', reads: ['Sintesi ME precedente', 'Memoria personale rilevante', 'Osservazioni Reflection'], trigger: 'Esecuzione esplicita quando esiste informazione significativa nuova.', instruction: 'Aggiorna una sintesi breve distinguendo fatti dell’utente da interpretazioni.', writes: ['Sintesi ME derivata con riferimenti alle fonti'], model: 'text-cheap', delivery: 'lab_only' },
 ];
 
 function emptyState(): Record<MachineId, MachineState> {
@@ -119,15 +119,6 @@ export async function discussPendingInsight(id: string) {
   throw new Error('insight not found');
 }
 
-function memoriesFrom(raw: unknown): Array<{ id?: string; text: string }> {
-  const rows = Array.isArray((raw as { results?: unknown[] })?.results) ? (raw as { results: unknown[] }).results : Array.isArray(raw) ? raw : [];
-  return rows.flatMap((row) => {
-    const item = row as { id?: string; memory?: unknown; text?: unknown };
-    const text = typeof item.memory === 'string' ? item.memory : typeof item.text === 'string' ? item.text : '';
-    return text ? [{ id: item.id, text }] : [];
-  });
-}
-
 function terms(text: string): Set<string> {
   return new Set((text.toLowerCase().match(/[\p{L}\p{N}]{4,}/gu) ?? []).filter((word) => !['user', 'that', 'this', 'with', 'from', 'della', 'delle', 'degli', 'sono', 'come', 'alla', 'alle', 'agli'].includes(word)));
 }
@@ -142,7 +133,7 @@ async function reflectionContext(recent: Array<{ id?: string; text: string }>, o
   const candidates = new Map<string, { id?: string; text: string }>();
   for (const item of recent.slice(-4)) {
     try {
-      const related = await searchMem0(item.text.slice(0, 600), 4);
+      const related = await searchPersonalMemory(item.text.slice(0, 600), 4);
       for (const memory of related) {
         if (memory.text && (!memory.id || !recentIds.has(memory.id))) candidates.set(memory.id ?? memory.text, { id: memory.id, text: memory.text });
       }
@@ -173,7 +164,7 @@ export async function runMachine(machine: MachineId, preferredModel?: string | n
   current.status = 'RUNNING';
   await store.setJSON(KEY, state);
   try {
-    const memories = memoriesFrom(await listMem0());
+    const memories = await listPersonalMemory();
     const sourceIds = memories.map((item) => item.id).filter((id): id is string => Boolean(id));
     if (memories.length < 2) {
       current.status = 'SLEEPING'; current.lastRun = at(); current.lastOutput = 'Non ci sono ancora abbastanza memorie per un’elaborazione significativa.';

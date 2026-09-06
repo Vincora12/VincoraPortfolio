@@ -1,170 +1,270 @@
 import { setLocalStorageItem } from './localStorageDiagnostics';
+import { consumePendingHistoryReadGateId } from './chatLiveDebug';
+import { mergeMessageRepositories, mergeThreadLists } from './chatHistoryMerge';
 
-// Per-key order and unacknowledged values belong to this client only. The
-// authoritative value stays in the existing user-data store, guarded by ETag.
-const pendingValues = new Map<string, string | null>();
-const revisions = new Map<string, number>();
-const writes = new Map<string, Promise<void>>();
-const failed = new Set<string>();
-const conflicts = new Set<string>();
-const listeners = new Set<() => void>();
-export const subscribeStorageSync = (listener: () => void) => { listeners.add(listener); return () => { listeners.delete(listener); }; };
-export const storageSyncFailures = () => failed.size;
-export const storageSyncConflicts = () => [...conflicts];
-function notify() { listeners.forEach((listener) => { try { listener(); } catch { /* Observers cannot stop persistence. */ } }); }
-
-type Receipt = { revision: string | null; hash: string };
-const RECEIPTS_KEY = 'vinzmon.storage-sync.receipts.v1';
-let receipts: Map<string, Receipt> | undefined;
-function acknowledgements() {
-  if (!receipts) {
-    try {
-      const raw = JSON.parse(localStorage.getItem(RECEIPTS_KEY) ?? '[]') as unknown;
-      receipts = new Map(Array.isArray(raw) ? raw.filter((r): r is [string, Receipt] => Array.isArray(r) && typeof r[0] === 'string' && typeof r[1]?.hash === 'string' && (typeof r[1]?.revision === 'string' || r[1]?.revision === null)) : []);
-    } catch { receipts = new Map(); }
-  }
-  return receipts;
-}
-async function hash(value: string | null) {
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(value)));
-  return [...new Uint8Array(digest)].map((v) => v.toString(16).padStart(2, '0')).join('');
-}
-async function acknowledge(key: string, revision: string | null, value: string | null) {
-  const map = acknowledgements();
-  const fingerprint = await hash(value);
-  map.delete(key); map.set(key, { revision, hash: fingerprint });
-  while (map.size > 1000) map.delete(map.keys().next().value!);
-  try { localStorage.setItem(RECEIPTS_KEY, JSON.stringify([...map])); } catch { /* Cache only; memory remains usable, reload is conservative. */ }
-}
-function cached(key: string): string | null {
-  if (pendingValues.has(key)) return pendingValues.get(key)!;
-  try { return localStorage.getItem(key); } catch { return null; }
-}
-function cache(key: string, value: string | null, source: string) {
-  try { if (value === null) localStorage.removeItem(key); else setLocalStorageItem(source, key, value); return true; }
-  catch { console.warn('[VINZ storage] browser cache unavailable; canonical write retained'); return false; }
-}
-let activeTokenReader: (() => string | null) | undefined;
-/** Registered after store creation; avoids importing browser state into server context compilation. */
-export function configureStorageTokenReader(reader: () => string | null) { activeTokenReader = reader; }
-function auth(): HeadersInit | null {
-  try { const token = activeTokenReader?.(); if (token) return { authorization: `Bearer ${token}` }; } catch { /* Initialization may not be complete yet. */ }
-  try {
-    const raw = localStorage.getItem('vinzmon.prototype.v4');
-    const parsed = raw ? JSON.parse(raw) as { state?: { token?: unknown } } : null;
-    return typeof parsed?.state?.token === 'string' ? { authorization: `Bearer ${parsed.state.token}` } : null;
-  } catch { return null; }
-}
-async function remote(key: string, headers: HeadersInit) {
-  const response = await fetch(`/api/user-data?key=${encodeURIComponent(key)}`, { headers, cache: 'no-store' });
-  if (!response.ok) throw new Error('storage unavailable');
-  const body = await response.json() as { value: string | null; revision?: string | null };
-  if ((body.value !== null && typeof body.value !== 'string') || (body.revision !== null && typeof body.revision !== 'string')) throw new Error('storage revision unavailable');
-  return { value: body.value, revision: body.revision! };
-}
-function conflict(key: string) { failed.add(key); conflicts.add(key); notify(); }
-
-async function writeItem(key: string, value: string | null): Promise<void> {
-  const previous = cached(key);
-  const revision = (revisions.get(key) ?? 0) + 1;
-  revisions.set(key, revision);
-  pendingValues.set(key, value);
-  cache(key, value, 'serverStorage.setItem');
-  const write = (writes.get(key) ?? Promise.resolve()).then(async () => {
-    try {
-      const headers = auth();
-      if (!headers) throw new Error('auth unavailable');
-      if (conflicts.has(key)) return; // Retry is not permission to discard another client's changes.
-      if (!acknowledgements().has(key)) {
-        const found = await remote(key, headers);
-        if (found.value !== previous && found.value !== value && found.revision !== null) { conflict(key); return; }
-        await acknowledge(key, found.revision, found.value);
-      }
-      const baseline = acknowledgements().get(key)!;
-      const response = await fetch(`/api/user-data?key=${encodeURIComponent(key)}`, {
-        method: value === null ? 'DELETE' : 'PUT', headers: { ...headers, 'if-match': baseline.revision ?? 'vinzmon-new' },
-        ...(value === null ? {} : { body: value }),
-      });
-      if (response.status === 409) { conflict(key); return; }
-      if (!response.ok) throw new Error('storage write failed');
-      const result = await response.json() as { revision?: string };
-      if (typeof result.revision !== 'string') throw new Error('write unconfirmed');
-      await acknowledge(key, result.revision, value);
-      if (revisions.get(key) === revision) { pendingValues.delete(key); failed.delete(key); conflicts.delete(key); }
-    } catch {
-      failed.add(key);
-      console.warn('[VINZ storage] server sync pending; local session retained');
-    } finally { notify(); }
-  });
-  writes.set(key, write);
-  await write;
-  if (writes.get(key) === write) writes.delete(key);
-}
-
-export const serverBackedStorage = {
-  async getItem(key: string): Promise<string | null> {
-    const local = cached(key);
-    if (pendingValues.has(key)) return local;
-    const revision = revisions.get(key);
-    const headers = auth();
-    if (!headers) return local;
-    try {
-      const found = await remote(key, headers);
-      if (revision !== revisions.get(key)) return cached(key);
-      const baseline = acknowledgements().get(key);
-      const localHash = await hash(local);
-      if (revision !== revisions.get(key)) return cached(key);
-      // Unknown legacy divergence and unsynced edits survive reload. A server
-      // tombstone removes only an acknowledged clean cache, never dirty edits.
-      if (local !== null && found.value !== local && found.revision !== null && baseline?.hash !== localHash) {
-        pendingValues.set(key, local); conflict(key); return local;
-      }
-      await acknowledge(key, found.revision, found.value);
-      if (revision !== revisions.get(key)) return cached(key);
-      if (found.value === null && found.revision === null) return local;
-      cache(key, found.value, 'serverStorage.getItem cache');
-      return found.value;
-    } catch { return local; }
-  },
-  setItem: (key: string, value: string): Promise<void> => writeItem(key, value),
-  removeItem: (key: string): Promise<void> => writeItem(key, null),
+/* Import dinamico deliberato: runtimeLog.ts porta con sé savedToken() da
+   brain/stream.ts, una catena pesante. serverStorage.ts è importato in
+   modo statico da moduli molto presto nel bundle (state/store.ts): un
+   import statico qui vanificherebbe lo split che tiene runtimeLog fuori
+   dal bundle principale (stesso motivo per cui state/store.ts lo importa
+   già così). */
+const postThreadStorageEvent = (event: Parameters<typeof import('./runtimeLog').postRuntimeEvent>[0]): void => {
+  void import('./runtimeLog').then(({ postRuntimeEvent }) => postRuntimeEvent(event));
 };
 
-/** Migration uses the same protected read/write boundary, never a raw overwrite. */
-export async function migrateStoragePrefix(prefix: string): Promise<void> {
-  let keys: string[];
-  try { keys = Array.from({ length: localStorage.length }, (_, i) => localStorage.key(i)).filter((key): key is string => Boolean(key?.startsWith(prefix))); } catch { return; }
-  for (const key of keys) {
-    const value = await serverBackedStorage.getItem(key);
-    if (value !== null && acknowledgements().get(key)?.revision === null && !conflicts.has(key)) await serverBackedStorage.setItem(key, value);
+let activeToken: (() => string | null) | undefined;
+export function configureStorageTokenReader(reader: () => string | null): void { activeToken = reader; }
+const pending = new Map<string, { value: string; caller: string }>();
+const listeners = new Set<() => void>();
+const notify = () => listeners.forEach(listener => { try { listener(); } catch { /* Observability cannot fail a write. */ } });
+export const storageSyncFailures = () => pending.size;
+export function subscribeStorageSync(listener: () => void) { listeners.add(listener); return () => { listeners.delete(listener); }; }
+function cache(source: string, key: string, value: string): void {
+  try { setLocalStorageItem(source, key, value); } catch { /* Optional browser cache must not prevent the canonical server write. */ }
+}
+function auth(): HeadersInit | null {
+  let token: string | null = null;
+  try {
+    token = activeToken?.() ?? null;
+    if (token) return { authorization: `Bearer ${token}` };
+    const raw = localStorage.getItem('vinzmon.prototype.v4');
+    const parsed = raw ? JSON.parse(raw) as { state?: { token?: unknown } } : null;
+    token = typeof parsed?.state?.token === 'string' ? parsed.state.token : null;
+  } catch { /* Un salvataggio locale illeggibile equivale a nessun token. */ }
+  return token ? { authorization: `Bearer ${token}` } : null;
+}
+
+/* FIRST TURN OBSERVABILITY ONLY — la chiave dei messaggi della chat
+   (assistant-ui-official-chatgpt:messages:<remoteId>) è scritta sia dal
+   nostro codice (persistSnapshot) sia, internamente, da assistant-ui
+   stesso (AsyncStorageHistoryAdapter). Nessuna delle due scritture sa
+   dell'altra. Questi contatori aiutano a vedere, sul device reale, chi
+   scrive cosa e in che ordine — mai il contenuto dei messaggi, solo
+   quanti sono e qual è il loro headId (un id, non un testo). */
+const CHAT_MESSAGES_KEY_PATTERN = /^assistant-ui-official-chatgpt:messages:/;
+
+/* REMOTE CHAT HISTORY V1 — le due sole chiavi dove una PUT cieca perde dati
+   scritti da un altro dispositivo nella stessa finestra di tempo (G5/G6):
+   il repository messaggi di UN thread, e l'indice dei thread stesso
+   (`LocalStorageThreadListAdapter`'s `threadsKey = ${prefix}threads`).
+   Ogni altra chiave che passa da questo storage (tuning, config, chat-trace,
+   icone/colori dei thread, ...) continua a scrivere senza condizioni,
+   esattamente come prima — vedi REMOTE_CHAT_HISTORY_V1.md. */
+const CHAT_THREADS_KEY = 'assistant-ui-official-chatgpt:threads';
+const MAX_CONFLICT_RETRIES = 3;
+
+function isConcurrencyAwareKey(key: string): boolean {
+  return key === CHAT_THREADS_KEY || CHAT_MESSAGES_KEY_PATTERN.test(key);
+}
+
+function mergeForKey(key: string, serverValue: string | null, oursValue: string): string {
+  return key === CHAT_THREADS_KEY
+    ? mergeThreadLists(serverValue, oursValue)
+    : mergeMessageRepositories(serverValue, oursValue);
+}
+
+/* ETag dell'ultima lettura/scrittura riuscita per chiave — SOLO in memoria,
+   SOLO per decidere la condizione della prossima PUT (`If-Match` se lo
+   conosciamo, `X-Only-If-New` se no). Non è una cache di dati: si perde ad
+   ogni reload, e va benissimo così, perché `append()`/`initialize()` (vedi
+   `LocalStorageThreadListAdapter`) fanno sempre una `getItem()` subito prima
+   di una `setItem()` sulla stessa chiave — l'etag è quasi sempre già fresco
+   quando serve. */
+const knownEtags = new Map<string, string>();
+
+function byteLength(value: string): number {
+  try { return new TextEncoder().encode(value).byteLength; } catch { return value.length; }
+}
+
+function repositoryShape(raw: string | null): { messageCount: number; headId: string } | null {
+  if (raw === null) return null;
+  try {
+    const parsed = JSON.parse(raw) as { headId?: string | null; messages?: unknown[] };
+    return {
+      messageCount: Array.isArray(parsed.messages) ? parsed.messages.length : 0,
+      headId: typeof parsed.headId === 'string' ? parsed.headId : 'none',
+    };
+  } catch {
+    return { messageCount: 0, headId: 'unparseable' };
   }
 }
 
-/** Explicit retry preserves latest pending data; conflicts require a choice. */
+const storage = {
+  async getItem(key: string): Promise<string | null> {
+    /* FIRST TURN — FINAL DISCRIMINATOR. Consumato SUBITO, in modo
+       sincrono, prima di qualunque await: vedi il commento in
+       chatLiveDebug.ts su perché questo è sicuro con letture
+       concorrenti. Se questa chiamata non è passata da
+       createOwnershipGatedHistoryAdapter(), gateId è null — non lo
+       inventiamo mai qui. */
+    const gateId = CHAT_MESSAGES_KEY_PATTERN.test(key) ? consumePendingHistoryReadGateId() : null;
+    let local = pending.get(key)?.value ?? null;
+    try { local ??= localStorage.getItem(key); } catch { /* Browser cache unavailable. */ }
+    const headers = auth();
+    let result = local;
+    let source: 'LOCAL' | 'SERVER' = 'LOCAL';
+    if (!headers) {
+      result = local;
+    } else {
+      try {
+        const response = await fetch(`/api/user-data?key=${encodeURIComponent(key)}`, { headers, cache: 'no-store' });
+        if (!response.ok) {
+          result = local;
+        } else {
+          const { value, etag } = await response.json() as { value: string | null; etag?: string | null };
+          if (typeof etag === 'string') knownEtags.set(key, etag);
+          if (typeof value === 'string') cache('serverStorage.getItem cache', key, value);
+          if (typeof value === 'string') { result = value; source = 'SERVER'; } else { result = local; }
+        }
+      } catch { result = local; }
+    }
+    if (CHAT_MESSAGES_KEY_PATTERN.test(key)) {
+      const shape = repositoryShape(result);
+      postThreadStorageEvent({
+        eventType: 'CHAT_STORAGE_READ',
+        status: 'PASS',
+        scope: 'chat',
+        payloadBytes: result ? byteLength(result) : 0,
+        metadata: { source, messageCount: shape?.messageCount ?? 0, headId: shape?.headId ?? 'none', ...(gateId ? { gateId } : {}) },
+      });
+      if (shape) {
+        postThreadStorageEvent({
+          eventType: 'CHAT_HISTORY_LOAD',
+          status: 'PASS',
+          scope: 'chat',
+          metadata: { messageCount: shape.messageCount, headId: shape.headId, ...(gateId ? { gateId } : {}) },
+        });
+      }
+    }
+    return result;
+  },
+  async setItem(key: string, value: string, caller = 'UNTAGGED'): Promise<void> {
+    cache('serverStorage.setItem', key, value);
+    if (CHAT_MESSAGES_KEY_PATTERN.test(key)) {
+      const shape = repositoryShape(value);
+      postThreadStorageEvent({
+        eventType: 'CHAT_STORAGE_WRITE',
+        status: 'PASS',
+        scope: 'chat',
+        payloadBytes: byteLength(value),
+        metadata: { caller, messageCount: shape?.messageCount ?? 0, headId: shape?.headId ?? 'none' },
+      });
+    }
+    const headers = auth();
+    if (!headers) throw new Error('STORAGE_AUTH_UNAVAILABLE');
+
+    if (!isConcurrencyAwareKey(key)) {
+      const response = await fetch(`/api/user-data?key=${encodeURIComponent(key)}`, { method: 'PUT', headers, body: value });
+      if (!response.ok) throw new Error('STORAGE_WRITE_UNCONFIRMED');
+      return;
+    }
+
+    /* REMOTE CHAT HISTORY V1 — scrittura condizionale con unione al conflitto
+       (G5/G6). Le altre chiavi (sopra) restano una PUT cieca esattamente
+       come sempre: qui, e solo qui, una PUT rifiutata (409 — un altro
+       dispositivo ha scritto la stessa chiave nel frattempo) non è un
+       errore da inghiottire: si unisce il valore corrente del server con
+       quello che stavamo per scrivere (`mergeForKey` — mai una perdita, mai
+       un id duplicato) e si ritenta, fino a `MAX_CONFLICT_RETRIES` volte. */
+    let attemptValue = value;
+    for (let attempt = 1; attempt <= MAX_CONFLICT_RETRIES + 1; attempt++) {
+      const etag = knownEtags.get(key);
+      const conditionHeaders: HeadersInit = etag ? { 'if-match': etag } : { 'x-only-if-new': '1' };
+      let outcome: { kind: 'ok'; etag?: string } | { kind: 'conflict'; value: string | null; etag: string | null } | { kind: 'error' };
+      try {
+        const response = await fetch(`/api/user-data?key=${encodeURIComponent(key)}`, {
+          method: 'PUT',
+          headers: { ...headers, ...conditionHeaders },
+          body: attemptValue,
+        });
+        if (response.status === 409) {
+          const body = await response.json().catch(() => null) as { value?: string | null; etag?: string | null } | null;
+          outcome = { kind: 'conflict', value: body?.value ?? null, etag: body?.etag ?? null };
+        } else if (!response.ok) {
+          outcome = { kind: 'error' };
+        } else {
+          const body = await response.json().catch(() => null) as { etag?: string } | null;
+          outcome = { kind: 'ok', etag: body?.etag };
+        }
+      } catch {
+        outcome = { kind: 'error' };
+      }
+
+      if (outcome.kind === 'ok') {
+        if (outcome.etag) knownEtags.set(key, outcome.etag);
+        if (!outcome.etag) throw new Error('STORAGE_WRITE_UNCONFIRMED');
+        return;
+      }
+      if (outcome.kind === 'error') {
+        /* Rete assente o server irraggiungibile: la copia locale (già
+           scritta sopra, incondizionatamente) resta la verità disponibile —
+           G8. Nessun altro ritentativo qui: il prossimo setItem() su questa
+           chiave riparte da un getItem() fresco. */
+        throw new Error('STORAGE_WRITE_UNCONFIRMED');
+      }
+
+      const isFinalAttempt = attempt === MAX_CONFLICT_RETRIES + 1;
+      postThreadStorageEvent({
+        eventType: 'CHAT_STORAGE_CONFLICT',
+        status: isFinalAttempt ? 'FAIL' : 'START',
+        scope: 'chat',
+        metadata: { key: key.slice(0, 80), caller, attempt },
+      });
+      if (outcome.etag) knownEtags.set(key, outcome.etag);
+      attemptValue = mergeForKey(key, outcome.value, attemptValue);
+      cache('serverStorage.setItem merge', key, attemptValue);
+    }
+    throw new Error('STORAGE_CONFLICT_RETRY_EXHAUSTED');
+  },
+  async removeItem(key: string): Promise<void> {
+    localStorage.removeItem(key);
+    const headers = auth();
+    if (!headers) return;
+    try {
+      await fetch(`/api/user-data?key=${encodeURIComponent(key)}`, { method: 'DELETE', headers });
+    } catch { /* Non bloccare la chat se la rete manca. */ }
+  },
+};
+
+// One writer per key, preserving the existing remote merge/CAS owner.
+// Pending values remain in memory on failure, never falsely acknowledged.
+const writes = new Map<string, Promise<void>>();
+export const serverBackedStorage = {
+  ...storage,
+  async setItem(key: string, value: string, caller = 'UNTAGGED'): Promise<void> {
+    const entry = { value, caller };
+    pending.set(key, entry); notify();
+    const task = (writes.get(key) ?? Promise.resolve()).then(async () => {
+      try {
+        await storage.setItem(key, value, caller);
+        if (pending.get(key) === entry) pending.delete(key);
+      } catch { /* Caller remains live; retry UI exposes unconfirmed persistence. */ }
+      notify();
+    });
+    writes.set(key, task);
+    await task;
+    if (writes.get(key) === task) writes.delete(key);
+  },
+};
 export async function retryStorageSync(): Promise<void> {
-  await Promise.all([...failed].filter((key) => !conflicts.has(key)).map((key) => pendingValues.has(key) ? writeItem(key, pendingValues.get(key)!) : Promise.resolve()));
+  await Promise.all([...pending].map(([key, { value, caller }]) => serverBackedStorage.setItem(key, value, caller)));
 }
 
-/** UI must confirm data replacement. use-server requires a client reload. */
-export async function resolveStorageSyncConflict(key: string, choice: 'keep-local' | 'use-server'): Promise<{ reloadRequired: boolean }> {
-  await writes.get(key);
-  if (!conflicts.has(key)) return { reloadRequired: false };
-  const revision = revisions.get(key);
-  const headers = auth();
-  if (!headers) throw new Error('Autenticazione non disponibile');
-  const found = await remote(key, headers);
-  if (revision !== revisions.get(key)) throw new Error('La copia locale è cambiata: ripeti la scelta.');
-  const local = cached(key);
-  await acknowledge(key, found.revision, found.value);
-  if (revision !== revisions.get(key)) throw new Error('La copia locale è cambiata: ripeti la scelta.');
-  if (choice === 'keep-local') {
-    conflicts.delete(key);
-    await writeItem(key, local);
-    return { reloadRequired: false };
+/** Migra le chiavi già presenti senza sovrascrivere una copia server esistente. */
+export async function migrateStoragePrefix(prefix: string): Promise<void> {
+  const keys = Array.from({ length: localStorage.length }, (_, index) => localStorage.key(index))
+    .filter((key): key is string => Boolean(key?.startsWith(prefix)));
+  for (const key of keys) {
+    const local = localStorage.getItem(key);
+    if (local === null) continue;
+    const headers = auth();
+    if (!headers) return;
+    try {
+      const response = await fetch(`/api/user-data?key=${encodeURIComponent(key)}`, { headers, cache: 'no-store' });
+      if (!response.ok) continue;
+      const { value } = await response.json() as { value: string | null };
+      if (typeof value === 'string') setLocalStorageItem('serverStorage.migrate cache', key, value);
+      else await serverBackedStorage.setItem(key, local);
+    } catch { /* Riprova alla prossima apertura. */ }
   }
-  if (!cache(key, found.value, 'serverStorage explicit server choice')) throw new Error('Cache browser non scrivibile: nessun dato locale scartato.');
-  conflicts.delete(key); pendingValues.delete(key); failed.delete(key);
-  revisions.set(key, (revisions.get(key) ?? 0) + 1);
-  notify();
-  return { reloadRequired: true };
 }

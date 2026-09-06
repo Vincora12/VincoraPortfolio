@@ -12,7 +12,7 @@
    uguali diventano quattro pagine che si somigliano.
    ========================================================================= */
 
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 
 export function Section({
   title,
@@ -181,5 +181,31 @@ export function PageHead({
       <h1>{title}</h1>
       <p className="lead">{lead}</p>
     </>
+  );
+}
+
+/* ============================================================================
+   COPY — la stessa logica di clipboard di `system/CopyButton.tsx`, con i
+   mattoni di LAB invece di quelli dell'app (LAB non carica `appStyles.ts`,
+   quindi `Button` dell'app renderizzerebbe senza i suoi token). Stessa
+   funzione, resa due volte per lo stesso motivo per cui lo era già —
+   niente da inventare, `navigator.clipboard.writeText` e basta.
+   ========================================================================= */
+export function CopyBtn({ text, label = 'COPIA' }: { text: string; label?: string }) {
+  const [state, setState] = useState<'idle' | 'done' | 'failed'>('idle');
+  return (
+    <Btn
+      onClick={() => {
+        const done = (s: 'done' | 'failed') => {
+          setState(s);
+          window.setTimeout(() => setState('idle'), 2000);
+        };
+        const api = navigator.clipboard;
+        if (!api) { done('failed'); return; }
+        void api.writeText(text).then(() => done('done'), () => done('failed'));
+      }}
+    >
+      {state === 'done' ? 'COPIATO' : state === 'failed' ? 'NON RIESCO' : label}
+    </Btn>
   );
 }

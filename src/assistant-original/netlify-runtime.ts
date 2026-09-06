@@ -23,6 +23,8 @@ import { persistChatTrace, recordChatTrace, systemPromptComposition, traceClock,
 import { voiceCard } from "@/engine/voiceCard";
 import { captureChatMemoryForClient } from "@/assistant-original/chat-memory-feedback";
 import { postChatClientError, postChatDiagnostic, postRuntimeEvent } from "@/system/runtimeLog";
+import { createV2Issue } from "@/ai/backend";
+import { classifyV2Issue, isV2IssueIntent, v2IssueConfirmationText } from "@/ai/v2Issues";
 
 type Source = { title: string; url: string; domain?: string };
 type Usage = {
@@ -202,6 +204,30 @@ export function pendingMealSlot(messages: readonly ThreadMessage[]): ChatMealSlo
 /** Accetta anche le conferme operative naturali usate dopo una proposta. */
 export const confirms = (text: string) => /^\s*(?:s[iì]|yes|yep|yeah|sure|confermo|ok(?:ay)?|va bene|esatto|corretto|vai(?:\s+(?:pure|inserisci|registra|procedi))?|inserisci|registra|procedi|fallo|segna(?:lo)?(?:\s+in\s+me)?)(?=\s|[.!?,;:]|$)/i.test(text);
 
+/* V2 ISSUE CAPTURE — VINZ.MON PROTOTYPE V1 → V2 (docs/PROTOTYPE_V1_STATUS.md,
+   docs/V2_ISSUES.md, src/ai/v2Issues.ts). Stesso punto e stessa forma di
+   `isImageCreationIntent`/`runImageCreation` qui sotto: un intento
+   deterministico intercettato PRIMA che il messaggio raggiunga il modello
+   o il loop degli strumenti, apposta per restare fuori da Composer,
+   promozione e ownership del thread — di quelli non si tocca più niente
+   per questo lavoro. Nessuna chiamata AI: solo regex e parole chiave
+   (classifyV2Issue), come richiesto esplicitamente per tenere il costo a
+   zero. Conferma solo DOPO che il salvataggio server è riuscito davvero —
+   mai un "segnato" ottimistico prima di saperlo. */
+async function* runV2IssueCapture(user: string) {
+  const token = savedToken();
+  if (!token) {
+    yield { content: [{ type: "text" as const, text: "Prima attiva VINZ.MON: manca il token." }] };
+    return;
+  }
+  const { title, area, type, observation } = classifyV2Issue(user);
+  const result = await createV2Issue(token, { title, area, type, observation });
+  const text = result.failure || !result.data?.issue
+    ? v2IssueConfirmationText({ ok: false })
+    : v2IssueConfirmationText({ ok: true, issue: result.data.issue, merged: result.data.merged });
+  yield { content: [{ type: "text" as const, text }] };
+}
+
 function isImageCreationIntent(text: string): boolean {
   return /\b(?:genera|crea|disegna|fammi|realizza|produci|modifica|trasforma|ritocca)\b[^.!?]{0,100}\b(?:foto|immagine|ritratto|illustrazione|render|versione)\b|\b(?:fammi vedere|mostrami)\b[^.!?]{0,100}\b(?:come (?:starei|sarei)|in versione)\b/i.test(text);
 }
@@ -273,7 +299,7 @@ async function foodBarcodeContext(text: string, token: string, signal: AbortSign
 async function* runWithLocalTools(
   messages: readonly ThreadMessage[],
   abortSignal: AbortSignal,
-  runTool: (use: ToolUse) => ToolResult,
+  runTool: (use: ToolUse) => ToolResult | Promise<ToolResult>,
   modelName?: string,
   mealConfirmation?: MealConfirmation,
   workoutConfirmation?: WorkoutConfirmation,
@@ -667,7 +693,7 @@ function createBaseNetlifyChatModel(shared: { systemPrompt: string; requestId: s
 }
 
 export function createNetlifyChatModel(
-  runTool?: (use: ToolUse) => ToolResult,
+  runTool?: (use: ToolUse) => ToolResult | Promise<ToolResult>,
 ): ChatModelAdapter {
   return {
     async *run(args) {
@@ -695,6 +721,10 @@ export function createNetlifyChatModel(
           ? { status: 'needs-confirmation' }
           : undefined;
       const confirmedPlan = pendingPlan && confirms(user) ? pendingPlan : undefined;
+      if (isV2IssueIntent(user)) {
+        yield* runV2IssueCapture(user);
+        return;
+      }
       if (isImageCreationIntent(user)) {
         yield* runImageCreation(args.messages, args.abortSignal);
         return;

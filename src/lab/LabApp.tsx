@@ -21,39 +21,45 @@ import { lazy, Suspense, useEffect, useState } from 'react';
 import type { LabId } from './entrypoint';
 import { useApp, syncWithServer } from '../state/store';
 import { TaxonomyVersionControl } from './TaxonomyVersionControl';
-import './skin/_base.css';
-import './skin/atrio.css';
+import { LabStyle } from './embed/LabStyle';
+import baseCss from './skin/_base.css?inline';
+import atrioCss from './skin/atrio.css?inline';
 
 const CreationLab = lazy(() => import('./rooms/CreationLab').then((m) => ({ default: m.CreationLab })));
-const SoulLab = lazy(() => import('./rooms/SoulLab').then((m) => ({ default: m.SoulLab })));
-const DesignLab = lazy(() => import('./rooms/DesignLab').then((m) => ({ default: m.DesignLab })));
 const SystemLab = lazy(() => import('./rooms/SystemLab').then((m) => ({ default: m.SystemLab })));
+const AgentLab = lazy(() => import('./rooms/AgentLab').then((m) => ({ default: m.AgentLab })));
 
-/* Le quattro porte, parola per parola dal disegno. */
+/* 🔷 LAB INFORMATION ARCHITECTURE CLEANUP — «una sala controllo, non un
+   museo di ogni esperimento.» SOUL.LAB e DESIGN.LAB non aiutavano più a
+   capire il prodotto reale: la prima era una preview visiva isolata,
+   la seconda un editor di token/preview che nessuno usava per decidere
+   niente. Il motore di entrambe (`src/soul/*`, `engine/designTokens.ts`)
+   resta — vedi i file di quelle stanze, rimossi qui sotto — solo la PORTA
+   sparisce.
+
+   🔷 AGENT.LAB V1 — la terza porta, di natura diversa dalle prime due: non
+   "chi è / come nasce" né "come gira il sistema", ma "chiedilo al progetto
+   stesso" — un agente tecnico di sola lettura (più una scrittura solo
+   presentazionale, mai automatica) sopra a entrambe. Vedi
+   `docs/AGENT_LAB_V1_2026-09-04.md`. */
 const PORTE: { id: LabId; nome: string; desc: string; tags: string[] }[] = [
   {
     id: 'creation',
     nome: '🧬 CREATION.LAB',
-    desc: 'Character Data, resolver visivo, Bio, Voice DNA, sigillo, reazioni, prompt, asset, training e history.',
-    tags: ['CREATE THE MON', 'RESOLVER INSIDE', 'ONE FLOW'],
-  },
-  {
-    id: 'soul',
-    nome: '👻 SOUL.LAB',
-    desc: 'Anima 2D vettoriale: orb + wisp, faccia modulare, colore dal .mon, espressioni e movimento.',
-    tags: ['ORB', 'FACE', 'MOOD'],
-  },
-  {
-    id: 'design',
-    nome: '🖥 DESIGN.LAB',
-    desc: 'Preview reale della UI, selezione di schermate e componenti, Design AI contestuale, patch, A/B e history.',
-    tags: ['EDIT THE UI', 'REAL COMPONENTS', 'AI DESIGN CHAT'],
+    desc: 'Character Data, creatura attuale, Lezioni, Asset, Archetipi, Bio, Mondo, Rarità, training e lineage.',
+    tags: ['CREATE THE MON', 'ONE FLOW'],
   },
   {
     id: 'system',
     nome: '⚙️ SYSTEM.LAB',
-    desc: 'Setup, API, AI routing, simulazione, memoria runtime, strumenti e usage.',
+    desc: 'Setup, SAVE, AI/Machines, simulazione, Persona, strumenti e usage.',
     tags: ['RUN THE SYSTEM', 'NO CREATION DUPLICATES'],
+  },
+  {
+    id: 'agent',
+    nome: '🕵️ AGENT.LAB',
+    desc: 'Chiedi al progetto come funziona davvero — legge tutto il codice, scrive solo presentazione, mai da solo.',
+    tags: ['PROJECT INSPECTOR', 'READ-ONLY BY DEFAULT'],
   },
 ];
 
@@ -103,7 +109,7 @@ export function LabApp({ initialLab }: { initialLab: LabId | null }) {
 
   useEffect(() => {
     const sync = () => {
-      const m = /^#\/lab(?:\/(creation|soul|design|system))?\/?$/.exec(window.location.hash);
+      const m = /^#\/lab(?:\/(creation|soul|design|system|agent))?\/?$/.exec(window.location.hash);
       setActive((m?.[1] as LabId | undefined) ?? null);
     };
     window.addEventListener('hashchange', sync);
@@ -119,24 +125,28 @@ export function LabApp({ initialLab }: { initialLab: LabId | null }) {
   if (active) {
     const indietro = () => vai(null);
     return (
-      <Suspense fallback={<div className="app" />}>
-        {active === 'creation' && <CreationLab onBack={indietro} />}
-        {active === 'soul' && <SoulLab onBack={indietro} />}
-        {active === 'design' && <DesignLab onBack={indietro} />}
-        {active === 'system' && <SystemLab onBack={indietro} />}
-      </Suspense>
+      <>
+        <LabStyle css={baseCss} />
+        <LabStyle css={atrioCss} />
+        <Suspense fallback={<div className="app" />}>
+          {active === 'creation' && <CreationLab onBack={indietro} />}
+          {active === 'system' && <SystemLab onBack={indietro} />}
+          {active === 'agent' && <AgentLab onBack={indietro} />}
+        </Suspense>
+      </>
     );
   }
 
   return (
     <div className="app">
+      <LabStyle css={baseCss} />
+      <LabStyle css={atrioCss} />
       <main>
         <div className="kicker mono">VINZ.MON / INTERNAL TOOLS</div>
         <h1>VINZ.LAB</h1>
         <p className="intro">
-          Quattro laboratori, quattro responsabilità: 🧬 <strong>come nasce il .mon</strong>,{' '}
-          👻 <strong>come vive visivamente l’anima</strong>, 🖥 <strong>come appare e si usa l’app</strong>,{' '}
-          ⚙️ <strong>come gira il sistema</strong>.
+          Tre laboratori, tre responsabilità: 🧬 <strong>come nasce ed è fatta la creatura</strong>,{' '}
+          ⚙️ <strong>come gira il sistema</strong>, 🕵️ <strong>chiedilo al progetto stesso</strong>.
         </p>
 
         <TaxonomyVersionControl />
@@ -166,9 +176,8 @@ export function LabApp({ initialLab }: { initialLab: LabId | null }) {
 
         <div className="rule">
           <b>Regola architetturale:</b> se cambia <em>chi è / come nasce</em> il .mon, va in
-          CREATION.LAB. Se cambia <em>layout, componenti, design token o UX</em>, va in DESIGN.LAB.
-          Se cambia <em>come l’app gira, simula, chiama API o conserva lo stato runtime</em>, va in
-          SYSTEM.LAB.
+          CREATION.LAB. Se cambia <em>come l’app gira, simula, chiama API o conserva lo stato
+          runtime</em>, va in SYSTEM.LAB.
         </div>
 
         <div className="footer mono">SAME REPO · SAME APP · THREE CLEAR RESPONSIBILITIES</div>

@@ -8,7 +8,7 @@ import { getStateSyncStatus, subscribeStateSync } from '../system/stateSync';
 import { MODELS } from './models';
 import { requestManualRoomEntry } from './chat-room-presence';
 import { ThreadListNew } from './components/assistant-ui/thread-list';
-import { retryStorageSync, storageSyncFailures, subscribeStorageSync, storageSyncConflicts, resolveStorageSyncConflict } from '../system/serverStorage';
+import { retryStorageSync, storageSyncFailures, subscribeStorageSync } from '../system/serverStorage';
 import './conversation-options.css';
 
 export function ConversationTabs() {
@@ -70,22 +70,9 @@ export function useConversationOptions() {
 
 export function ChatStorageStatus() {
   const failures = useSyncExternalStore(subscribeStorageSync, storageSyncFailures, () => 0);
-  const conflicts = storageSyncConflicts();
-  const [storageError, setStorageError] = useState('');
-  async function resolve(key: string, choice: 'keep-local' | 'use-server') {
-    if (!confirm(choice === 'keep-local' ? 'Sostituire la copia server di questa conversazione/configurazione con quella locale? Le due copie non verranno unite.' : 'Sostituire questa copia locale con quella server e ricaricare? Le modifiche non sincronizzate a questa voce verranno sostituite.')) return;
-    try { const result = await resolveStorageSyncConflict(key, choice); if (result.reloadRequired) location.reload(); }
-    catch { setStorageError('Conflitto non risolto. Nessuna conferma di salvataggio: riprova.'); }
-  }
   const sync = useSyncExternalStore(subscribeStateSync, getStateSyncStatus, getStateSyncStatus);
   return <>
     {failures > 0 && <div role="status" className="vinz-chat-storage-status">Sincronizzazione chat non completata. Non cancellare i dati del browser. <button onClick={() => void retryStorageSync()}>Riprova</button></div>}
-    {conflicts.length > 0 && <details className="vinz-chat-storage-status"><summary>Copie in conflitto · {conflicts.length}</summary>
-      {conflicts.map((key, index) => <div key={key}>Voce {index + 1} · {key.includes(':messages:') ? 'messaggi chat' : key.endsWith(':threads') ? 'indice chat' : 'configurazione'}
-        <button onClick={() => void resolve(key, 'keep-local')}>Conserva locale</button><button onClick={() => void resolve(key, 'use-server')}>Usa server</button>
-      </div>)}
-    </details>}
-    {storageError && <p role="alert" className="vinz-chat-storage-status">{storageError}</p>}
     {sync.status === 'conflict' ? <div role="alert" className="vinz-chat-storage-status">Lo stato locale e quello server differiscono. Nessuna copia è stata sovrascritta.
       <button onClick={() => { if (confirm('Conservare lo stato di questo dispositivo al posto di quello server? Le modifiche dell’altra copia non saranno unite.')) void resolveStateSyncConflict('keep-local'); }}>Conserva questo dispositivo</button>
       <button onClick={() => { if (confirm('Caricare lo stato server? Le modifiche locali non sincronizzate verranno sostituite.')) void resolveStateSyncConflict('use-server'); }}>Usa copia server</button>

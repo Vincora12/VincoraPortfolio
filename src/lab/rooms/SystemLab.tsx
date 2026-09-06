@@ -18,14 +18,21 @@
    peggiore che ci possa stare qui dentro.
    ========================================================================= */
 
-import { useEffect, useMemo, useState } from 'react';
-import { useApp } from '../../state/store';
+import { useCallback, useEffect, useState } from 'react';
+import { useApp, useActiveMon } from '../../state/store';
+/* PERSONA → VOICE riusa questo hook (attesa) per la stessa chiamata di
+   DEV → VOCE → PROVA — vedi PersonaVoice più sotto. */
+import { useElapsed, waitingText } from '../../dev/useElapsed';
 import { STAT_KEYS, UNKNOWN, isKnown } from '../../engine/types';
 import type { StatKey } from '../../engine/types';
-import { DAILY_SIGNALS, DAILY_SIGNAL_LABELS } from '../../engine/progression';
-import { loadPing, loadSetup, loadShortcutStatus, loadUsage, saveMonthlyCap, loadRuntimeLog, type ShortcutStatus, type UsageDashboard, type RuntimeEvent } from '../../ai/backend';
+import { DAILY_SIGNALS, DAILY_SIGNAL_LABELS, dateForDay } from '../../engine/progression';
+import { completeDayStreak, syncBalance, syncRewardProgress } from '../../engine/syncRewards';
+import { readHealthJournal, HEALTH_JOURNAL_EVENT } from '../../engine/healthJournal';
+import { loadPing, loadSetup, loadShortcutStatus, loadUsage, saveMonthlyCap, loadRuntimeLog, loadV2Issues, loadRemote, type ShortcutStatus, type UsageDashboard, type UsageEvent, type RuntimeEvent } from '../../ai/backend';
+import type { V2Issue } from '../../ai/v2Issues';
 import { lastRuns } from '../../ai/telemetry';
 import { freshSecret } from '../../engine/secret';
+import { projectJourneyState, validateJourneyCoherence } from '../../engine/journey';
 import { estimateMonthlyCost } from '../../engine/costEstimate';
 import {
   AI_STEPS,
@@ -35,19 +42,64 @@ import {
   recommendedModel,
 } from '../../../netlify/functions/_shared/routing';
 import { Btn, Grid, LabTop, Notice, PageHead, Range, Rows, Section, Status } from './parts';
-import { LabAssistantPanel } from '../assistant/LabAssistantPanel';
-import '../skin/system.css';
+/* 🔷 LAB CONSOLIDATION + SAVE CONTROL. Il confronto LOCALE·SERVER e il
+   verdetto vivono in `state/saveComparison.ts` — le stesse funzioni che
+   `dev/ServerSection.tsx` usa già, non una copia. Le tre azioni
+   (`saveNowToServer`, `restoreFromServer`, `startNewGame`) vivono in
+   `state/store.ts`: sono i meccanismi canonici, questa scheda li chiama e
+   basta. */
+import { compareSaves, peekSave, quandoFa, type SavePeek } from '../../state/saveComparison';
+import { restoreFromServer, saveNowToServer, startNewGame } from '../../state/store';
+import { LabStyle } from '../embed/LabStyle';
+import systemCss from '../skin/system.css?inline';
+import {
+  formatBytes,
+  browserStorageEstimate,
+  localStorageSnapshot,
+  byCategory,
+  CATEGORY_LABEL,
+  indexedDbSnapshot,
+  byIndexedDbCategory,
+  INDEXEDDB_CATEGORY_LABEL,
+  prototypeFieldBreakdown,
+  computeSharedStorageStatus,
+  computeLocalStorageStatus,
+  LOCAL_STORAGE_LIMIT_LABEL,
+  type BrowserStorageEstimate,
+  type LocalStorageSnapshot,
+  type IndexedDbSnapshot,
+  type FieldBreakdown,
+  type StorageStatus,
+  type LocalStorageStatus,
+} from '../storageInspector';
 import { lastStorageOperation } from '../../system/localStorageDiagnostics';
+import { LiveDebug } from './liveDebug';
 
 const TABS = [
   { id: 'setup', label: 'SETUP' },
+  /* 🔷 LAB CONSOLIDATION + SAVE CONTROL — «mi devi mettere un tasto salva
+     allora.» Prima scheda dopo SETUP perché la domanda che ci porta qui è
+     la stessa: «sta funzionando davvero, o sto solo indovinando?» — solo
+     che questa volta la risposta è sulla partita, non sul backend. */
+  { id: 'save', label: 'SAVE' },
+  /* 🔷 LAB INFORMATION ARCHITECTURE CLEANUP — CREATURE non esiste più qui:
+     era una destinazione top-level in concorrenza con CREATION.LAB per lo
+     stesso concetto («la creatura attuale»). RESOLVER/LESSONS/ASSETS/STATE
+     vivono ora dentro CREATION.LAB, dove c'era già FLOW/STATE/HISTORY —
+     un solo posto per «chi è / come nasce» il .mon, non due. */
   { id: 'ai', label: 'AI' },
   { id: 'simulation', label: 'SIMULATION' },
-  { id: 'memory', label: 'MEMORY' },
+  /* 🔷 Era «MEMORY», ed era il nome sbagliato: qui dentro non c'è mai stata
+     una memoria personale, sono MOOD/OPINIONS/BUILD MODE — lo strato di
+     persona, non di ricordo. Adesso porta anche VOCE, nativa, non un
+     iframe: chiama `generateIntroduction` — la stessa funzione che
+     DEV → VOCE → PROVA ha sempre chiamato. */
+  { id: 'memory', label: 'PERSONA' },
   { id: 'machines', label: 'MACHINES' },
   { id: 'usage', label: 'USAGE' },
   { id: 'runtime-log', label: 'RUNTIME LOG' },
   { id: 'storage', label: 'STORAGE' },
+  { id: 'live-debug', label: 'LIVE DEBUG' },
   /* 🔷 brief Shortcuts §11, e la regola scritta nell'atrio del lab:
      «se cambia come l'app... chiama API, va in SYSTEM.LAB». `/api/shortcut`
      è esattamente questo — e finora esisteva SOLO in DEV → SHORTCUT API,
@@ -55,7 +107,18 @@ const TABS = [
      («Nel lab c'è tutto?»), e qui la risposta era no finché non c'era
      questa scheda. */
   { id: 'shortcuts', label: 'SHORTCUTS' },
-  { id: 'assistant', label: '🤖 ASSISTENTE' },
+  /* VINZ.MON PROTOTYPE V1 → V2 (docs/PROTOTYPE_V1_STATUS.md). Sola
+     lettura: la cattura resta nella Chat, qui si legge solo l'elenco
+     canonico server-side — non un secondo posto dove editarlo. */
+  { id: 'v2-issues', label: 'V2 ISSUES' },
+  /* 🔷 LAB CONSOLIDATION — «integra la parte che c'era dietro per poi
+     utilizzarle», non ridisegnarla. TEMPO, CREATURA e metà di VOCE vivono
+     ancora solo dentro DEV://VINZ.MON: rifarle qui una a una è il
+     refactor grosso che questo giro doveva evitare («se inizia a
+     richiedere refactor grandi, fermati»). Questa scheda non le nasconde
+     — dice dove sono, con lo stesso nome che hanno là — finché non
+     arriva il loro turno nella lista delle priorità. */
+  { id: 'legacy', label: 'LEGACY' },
 ];
 
 export function SystemLab({ onBack }: { onBack: () => void }) {
@@ -63,73 +126,26 @@ export function SystemLab({ onBack }: { onBack: () => void }) {
 
   return (
     <div className="app">
+      <LabStyle css={systemCss} />
       <LabTop tabs={TABS} active={tab} onTab={setTab} onBack={onBack} />
       <main>
         {tab === 'setup' && <Setup />}
+        {tab === 'save' && <Save />}
         {tab === 'ai' && <Ai />}
-        {tab === 'simulation' && <Simulation />}
+        {tab === 'simulation' && <Simulation onOpenUsage={() => setTab('usage')} />}
         {tab === 'memory' && <Memory />}
         {tab === 'machines' && <Machines />}
         {tab === 'usage' && <Usage />}
         {tab === 'runtime-log' && <RuntimeLog />}
         {tab === 'storage' && <StorageInspector />}
+        {tab === 'live-debug' && <LiveDebug />}
         {tab === 'shortcuts' && <Shortcuts />}
-        {tab === 'assistant' && <LabAssistantPanel />}
+        {tab === 'v2-issues' && <V2Issues />}
+        {tab === 'legacy' && <Legacy />}
         <div className="footer mono">SYSTEM.LAB · SAME VINZ.MON ENGINE / SAME REPOSITORY</div>
       </main>
     </div>
   );
-}
-
-type StorageRow = { key: string; category: string; bytes: number; classification: string };
-const byteCount = (value: string) => { try { return new TextEncoder().encode(value).byteLength; } catch { return value.length; } };
-const formatBytes = (n: number) => n < 1024 ? `${n} B` : n < 1024 * 1024 ? `${(n / 1024).toFixed(1)} KB` : `${(n / 1024 / 1024).toFixed(2)} MB`;
-const localCategory = (key: string) => key === 'vinzmon.prototype.v4' ? 'prototype' : key.includes('messages') ? 'assistant-ui messages' : key.includes('threads') ? 'assistant-ui threads' : key.includes('health') ? 'health journal' : key.includes('brain') ? 'brain' : key.includes('config') ? 'configuration' : key.includes('asset') ? 'cache' : 'other';
-const localClass = (key: string) => key === 'vinzmon.prototype.v4' ? 'CANONICAL / SERVER-BACKED' : key.includes('assistant-ui') ? 'SERVER-BACKED' : key.includes('health') ? 'CANONICAL' : key.includes('asset') ? 'CACHE' : 'RECONSTRUCTIBLE';
-
-function Meter({ used, total, label }: { used: number; total?: number; label?: string }) {
-  const percent = total && total > 0 ? Math.min(100, Math.round((used / total) * 100)) : null;
-  return <div className="storage-meter"><div className="storage-meter__bar"><span style={{ width: `${percent ?? 0}%` }} /></div><span className="storage-meter__value">{label ?? (percent == null ? 'NOT AVAILABLE' : `${percent}%`)}</span></div>;
-}
-
-function StorageInspector() {
-  const token = useApp((s) => s.token);
-  const [estimate, setEstimate] = useState<{ usage?: number; quota?: number } | null>(null);
-  const [memories, setMemories] = useState<number | null>(null);
-  const rows = useMemo<StorageRow[]>(() => {
-    if (typeof localStorage === 'undefined') return [];
-    const out: StorageRow[] = [];
-    for (let i = 0; i < localStorage.length; i += 1) {
-      const key = localStorage.key(i); if (!key) continue;
-      const value = localStorage.getItem(key) ?? '';
-      out.push({ key, category: localCategory(key), bytes: byteCount(value), classification: localClass(key) });
-    }
-    return out.sort((a, b) => b.bytes - a.bytes);
-  }, []);
-  useEffect(() => {
-    let active = true;
-    void navigator.storage?.estimate?.().then((value) => { if (active) setEstimate(value); }).catch(() => undefined);
-    if (token) void fetch('/api/me-memory', { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' }).then((r) => r.ok ? r.json() as Promise<{ memories?: unknown[] }> : null).then((body) => { if (active) setMemories(body?.memories?.length ?? null); }).catch(() => undefined);
-    return () => { active = false; };
-  }, [token]);
-  const localUsed = rows.reduce((sum, row) => sum + row.bytes, 0);
-  const quota = estimate?.quota;
-  const status = lastStorageOperation?.status === 'ERROR' && lastStorageOperation.errorName === 'QuotaExceededError' ? 'QUOTA EXCEEDED' : estimate?.usage && quota ? estimate.usage >= quota ? 'QUOTA EXCEEDED' : estimate.usage / quota > .85 ? 'CRITICAL' : estimate.usage / quota > .68 ? 'WARNING' : 'ACTIVE' : 'ESTIMATED';
-  const groups = Object.entries(rows.reduce<Record<string, number>>((acc, row) => { acc[row.category] = (acc[row.category] ?? 0) + row.bytes; return acc; }, {})).sort((a, b) => b[1] - a[1]);
-  return <section className="page active">
-    <PageHead kicker="SYSTEM.LAB / STORAGE" title="STORAGE INSPECTOR" lead="Lettura tecnica: nessuna cancellazione, nessun valore o contenuto personale." />
-    <Section title="BROWSER STORAGE"><Rows rows={[
-      ['USED', formatBytes(estimate?.usage ?? localUsed)], ['AVAILABLE', estimate?.usage != null && quota ? formatBytes(Math.max(0, quota - estimate.usage)) : 'NOT AVAILABLE'], ['TOTAL / QUOTA', quota ? formatBytes(quota) : 'NOT AVAILABLE'], ['PERCENT USED', estimate?.usage != null && quota ? `${Math.round((estimate.usage / quota) * 100)}% · MEASURED` : 'ESTIMATED / NOT AVAILABLE'], ['STATUS', status],
-    ]} /><Meter used={estimate?.usage ?? localUsed} total={quota} /></Section>
-    <Section title="LOCAL STORAGE" note={`${rows.length} keys · dimensione calcolata dai valori, senza mostrarli`}>
-      <Rows rows={groups.map(([name, size]) => [name.toUpperCase(), formatBytes(size)])} />
-      <Meter used={localUsed} total={estimate?.usage ?? localUsed} label={estimate?.usage ? `${Math.round(localUsed / estimate.usage * 100)}% of measured browser usage` : 'ESTIMATED'} />
-    </Section>
-    <Section title="INDEXEDDB / ASSETS" note="La quota browser può essere condivisa: non viene attribuita falsamente agli asset."><Rows rows={[['USED', estimate?.usage != null ? `${formatBytes(Math.max(0, estimate.usage - localUsed))} · ESTIMATED` : 'NOT AVAILABLE'], ['AVAILABLE', quota && estimate?.usage != null ? `${formatBytes(Math.max(0, quota - estimate.usage))} · SHARED BROWSER QUOTA` : 'NOT AVAILABLE'], ['ASSET RECORDS', 'NOT ENUMERATED · READ-ONLY']]} /></Section>
-    <Section title="SERVER-BACKED DATA"><Rows rows={['user-data', 'chats', 'runtime config', 'usage ledger', 'runtime log', 'machines'].map((name) => [name.toUpperCase(), 'SIZE UNKNOWN'])} /></Section>
-    <Section title="MEM0"><Rows rows={[['SERVICE', 'RAILWAY MEM0'], ['MEMORIES', memories == null ? 'UNKNOWN' : String(memories)], ['STORAGE SIZE', 'UNKNOWN · QDRANT REMOTE']]} /></Section>
-    <Section title="LOCAL KEYS"><Rows rows={rows.map((row) => [row.key, `${row.category} · ${formatBytes(row.bytes)} · ${localUsed ? `${Math.round(row.bytes / localUsed * 100)}%` : '0%'} · ${row.classification}`])} /></Section>
-  </section>;
 }
 
 type MachineView = {
@@ -163,23 +179,55 @@ function Machines() {
     setRunning(id);
     try { await fetch('/api/machines', { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify({ machine: id, preferredModel: reflectionModel ?? null }) }); } finally { setRunning(null); void load(); }
   };
+  /* 🔷 LAB INFORMATION ARCHITECTURE CLEANUP — «ME MACHINE still shows
+     ANTHROPIC. Trace the actual ME machine, don't just rename the label.»
+
+     🔒 QUELLO CHE HO TROVATO. Il campo `machine.model` non è un modello:
+     è il nome della CAPACITÀ (`text-cheap`) dichiarata nel registro
+     server (`_shared/machines.ts`) — mostrarlo come «MODEL» lascia
+     credere che sia una scelta, quando è solo una categoria. Il modello
+     VERO si vede solo in USAGE, dopo un run — e SOLO lì.
+
+     ⚠️ E C'È UN DISALLINEAMENTO VERO SOTTO. Questa scheda manda
+     `preferredModel: reflectionModel` — la STESSA scelta della scheda
+     AI → RIFLESSIONE — a QUALSIASI macchina tu avvii, ME compresa: è
+     already collegata, non due sistemi separati. Ma se in AI → RIFLESSIONE
+     non hai scelto nulla, `reflectionModel` è `null`: la scheda AI mostra
+     allora un predefinito Claude (`claude-haiku-4-5`), mentre il server,
+     ricevendo `null`, cade sul SUO predefinito di riserva — che per
+     `text-cheap` è OpenAI (`gpt-5.6-luna`), non Claude. Due «predefinito»
+     diversi per la stessa domanda. Il testo qui sotto lo dice, non lo
+     nasconde dietro un'etichetta ferma. */
   return <section className="page active">
     <PageHead kicker="SYSTEM.LAB / MACHINE MASTER" title="MACHINES" lead="Macchine indipendenti: lavorano solo quando vengono attivate, mai prima di una risposta in chat." />
     {error && <Notice title="MACHINE STATE NON DISPONIBILE">Il server non risponde oppure manca il token.</Notice>}
     {!machines && !error && <p className="note">Lettura dello stato…</p>}
+    <Notice title="MODELLO — DA DOVE VIENE">
+      Ogni macchina qui sotto usa lo stesso modello scelto in AI → RIFLESSIONE (`preferredModel`):
+      non sono due sistemi separati. Se lì non hai scelto niente, la macchina non cade sul
+      predefinito Claude che AI → RIFLESSIONE mostra: cade sul predefinito del server per questa
+      capacità, che oggi è OpenAI gpt-5.6-luna. La riga USAGE qui sotto, dopo un run, dice sempre
+      il modello VERO — non questa nota.
+    </Notice>
     {machines?.map((machine) => <Section key={machine.id} title={machine.name}>
       <Rows rows={[
         ['PURPOSE', machine.purpose],
         ['READS', machine.reads.join(' · ')],
         ['TRIGGER', machine.trigger],
         ['WRITES', machine.writes.join(' · ')],
-        ['MODEL', machine.model],
+        ['CAPABILITY', machine.model],
+        ['CONFIG SOURCE', reflectionModel ? `AI → RIFLESSIONE: ${reflectionModel}` : 'AI → RIFLESSIONE: nessuna scelta → riserva del server (OpenAI gpt-5.6-luna)'],
         ['DELIVERY', (machine as MachineView & { delivery?: string }).delivery ?? '—'],
         ['STATUS', machine.state.status],
         ['LAST RUN', machine.state.lastRun ? new Date(machine.state.lastRun).toLocaleString('it-IT') : 'NOT RUN'],
         ['LAST OUTPUT', machine.state.lastOutput ?? 'NOT RUN'],
         ...(machine.id === 'reflection' && machine.state.reflectionContext ? [['CONTEXT', `${machine.state.reflectionContext.recent} recent · ${machine.state.reflectionContext.older} older · ${machine.state.reflectionContext.previousReflections} previous reflections · ${machine.state.reflectionContext.total} total`] as [string, string]] : []),
-        ...(machine.state.usage ? [['USAGE', `${machine.state.usage.provider}/${machine.state.usage.model} · $${machine.state.usage.costUsd.toFixed(4)}`] as [string, string]] : []),
+        [
+          'MODELLO VERO (USAGE)',
+          machine.state.usage
+            ? `${machine.state.usage.provider}/${machine.state.usage.model} · $${machine.state.usage.costUsd.toFixed(4)} — dall'ultimo run`
+            : 'nessun run ancora — non risolto',
+        ],
       ]} />
       <Btn disabled={running !== null} onClick={() => void run(machine.id)}>{running === machine.id ? 'RUNNING…' : 'RUN MACHINE'}</Btn>
     </Section>)}
@@ -392,8 +440,264 @@ function Setup() {
 }
 
 /* ============================================================================
-   AI
+   SAVE — LAB CONSOLIDATION + SAVE CONTROL
+
+   🔷 «Continua a tornare su una partita vecchia.» / «Mi devi mettere un
+   tasto salva allora.»
+
+   🔒 QUESTA SCHEDA NON INVENTA UN SECONDO SALVATAGGIO. LOCALE·SERVER usa lo
+   stesso confronto di DEV → SERVER (`state/saveComparison.ts`), e le tre
+   azioni chiamano i meccanismi canonici di `state/store.ts`:
+   `saveNowToServer`, `restoreFromServer`, `startNewGame`. Se uno di questi
+   tre cambia comportamento, cambia per ENTRAMBE le superfici — non c'è una
+   seconda copia da tenere allineata a mano.
+
+   ⚠️ NUOVA PARTITA non è RIPRENDI DAL SERVER al contrario: pulisce QUESTO
+   telefono (`resetAll`, lo stesso reset di sempre) e poi scrive `reset:
+   true` sul server, l'unica scrittura che può far tornare indietro il
+   giorno. La copia superata non si perde — resta sul server sotto una
+   chiave `pre-reset-…` — e i V2 Issues, le lezioni, Mem0 non sono nemmeno
+   aperti da questa funzione.
    ========================================================================= */
+
+function Save() {
+  const token = useApp((s) => s.token);
+  const day = useApp((s) => s.day);
+
+  const [server, setServer] = useState<SavePeek | null | 'loading' | 'error'>('loading');
+  const [local, setLocal] = useState<SavePeek | null>(null);
+  const [busy, setBusy] = useState<'save' | 'restore' | 'new' | null>(null);
+  const [outcome, setOutcome] = useState<string | null>(null);
+  const [confirmRestore, setConfirmRestore] = useState(false);
+  const [confirmNew, setConfirmNew] = useState(false);
+
+  const guarda = useCallback(() => {
+    if (!token) {
+      setServer('error');
+      return;
+    }
+    setServer('loading');
+    const s = useApp.getState();
+    setLocal({
+      day: s.day,
+      savedAt: null,
+      mons: Object.keys(s.mons).length,
+      activeMonName: s.activeMonName,
+      kept: s.kept.length,
+      nodes: s.nodes.length,
+    });
+    void loadRemote(token).then(({ data, failure }) => {
+      if (failure || !data) {
+        setServer('error');
+        return;
+      }
+      setServer(data.state == null ? null : peekSave(data.state, data.day, data.savedAt));
+    });
+  }, [token]);
+
+  useEffect(guarda, [guarda]);
+
+  const verdetto = server && server !== 'loading' && server !== 'error' && local ? compareSaves(local, server) : null;
+
+  return (
+    <section className="page active">
+      <PageHead
+        kicker="VINZ.LAB / SYSTEM"
+        title="SAVE"
+        lead="Cosa sa questo telefono, cosa sa il server, e le tre decisioni che nessuna delle due parti può prendere da sola."
+      />
+
+      {!token && (
+        <Notice title="NESSUN TOKEN">
+          Senza segreto non c'è niente da chiedere: vai in SETUP e incolla il segreto già su
+          Netlify.
+        </Notice>
+      )}
+
+      {token && (
+        <Section
+          title="LOCALE · SERVER"
+          note="Sola lettura di default: guardare non scrive niente. Le tre azioni qui sotto sono le uniche che scrivono."
+        >
+          {server === 'loading' && <p className="note">Sto chiedendo…</p>}
+          {server === 'error' && (
+            <p className="note">
+              Il server non ha risposto. Rete giù, o il segreto non vale più — in tutti e due i
+              casi questo telefono continua a funzionare da solo, ma NON sta salvando da nessuna
+              parte.
+            </p>
+          )}
+          {server === null && (
+            <p className="note">Il server risponde, ma non ha ancora nessun salvataggio.</p>
+          )}
+          {server && server !== 'loading' && server !== 'error' && local && (
+            <>
+              {verdetto === 'allineati' && (
+                <Notice title="🟢 ALLINEATI">
+                  Quello che vedi qui è anche quello che c'è sul server. Se chiudi tutto adesso,
+                  non perdi niente.
+                </Notice>
+              )}
+              {verdetto === 'server-indietro' && (
+                <Notice title="🔴 IL SERVER È INDIETRO">
+                  Qualcosa che hai qui non è ancora arrivato sul server. Il salvataggio parte
+                  quattro secondi dopo l'ultima cosa che fai — se resta indietro a lungo, usa
+                  SALVA QUESTO STATO SUL SERVER qui sotto.
+                </Notice>
+              )}
+              {verdetto === 'server-avanti' && (
+                <Notice title="🟡 IL SERVER HA PIÙ ROBA">
+                  Se non hai fatto NUOVA PARTITA, si scarica da sola al prossimo avvio. Se hai
+                  resettato di proposito o per sbaglio, quel salvataggio resta bloccato apposta:
+                  usa RIPRENDI DAL SERVER per tornare a quella copia.
+                </Notice>
+              )}
+              {verdetto === 'divergenti' && (
+                <Notice title="🟠 LE DUE COPIE SONO DIVERSE IN DUE DIREZIONI">
+                  Ognuna ha qualcosa che l'altra non ha — succede con due dispositivi in
+                  parallelo. Guarda i numeri prima di scegliere un'azione.
+                </Notice>
+              )}
+
+              <p className="note"><strong>ULTIMA SCRITTURA SERVER</strong></p>
+              <Rows rows={[['quando', quandoFa(server.savedAt)]]} />
+
+              <p className="note"><strong>QUESTO TELEFONO · SERVER</strong></p>
+              <Rows
+                rows={[
+                  ['giorno', `${local.day} · ${server.day}`],
+                  ['forme (.mon)', `${local.mons} · ${server.mons}`],
+                  ['in teca', `${local.kept} · ${server.kept}`],
+                  ['nodi mindline', `${local.nodes} · ${server.nodes}`],
+                  ['mon attivo', `${local.activeMonName ?? '—'} · ${server.activeMonName ?? '—'}`],
+                ]}
+              />
+            </>
+          )}
+          <Grid>
+            <Btn onClick={guarda} disabled={!token}>
+              GUARDA DI NUOVO
+            </Btn>
+          </Grid>
+        </Section>
+      )}
+
+      {token && (
+        <Section
+          title="AZIONI"
+          note="Le uniche tre scritture di questa scheda. Ognuna dice cosa sta per fare prima di farlo."
+        >
+          {outcome && <p className="note">{outcome}</p>}
+
+          <Grid>
+            <Btn
+              onClick={() => {
+                setBusy('save');
+                setOutcome(null);
+                void saveNowToServer().then((r) => {
+                  setBusy(null);
+                  setOutcome(
+                    r.ok
+                      ? `Salvato sul server — giorno ${r.day}.`
+                      : `Non sono riuscito a salvare: ${r.failure ?? 'errore sconosciuto'}.`,
+                  );
+                  guarda();
+                });
+              }}
+              disabled={busy !== null}
+            >
+              {busy === 'save' ? 'STO SALVANDO…' : 'SALVA QUESTO STATO SUL SERVER'}
+            </Btn>
+          </Grid>
+          <p className="note">
+            Salva ADESSO, senza aspettare i quattro secondi normali. Utile prima di chiudere
+            l'app o cambiare telefono.
+          </p>
+
+          {!confirmRestore ? (
+            <Grid>
+              <Btn onClick={() => setConfirmRestore(true)} disabled={busy !== null}>
+                RIPRENDI DAL SERVER
+              </Btn>
+            </Grid>
+          ) : (
+            <>
+              <p className="note">
+                Questo telefono torna alla copia del server
+                {server && server !== 'loading' && server !== 'error' && server
+                  ? ` — giorno ${server.day}, ${server.mons} forme, mon attivo ${server.activeMonName ?? '—'}`
+                  : ''}
+                . Perdi quello che c'è solo qui, e non si torna indietro da qui.
+              </p>
+              <Grid>
+                <Btn onClick={() => setConfirmRestore(false)} disabled={busy !== null}>
+                  Lascia stare
+                </Btn>
+                <Btn
+                  onClick={() => {
+                    setBusy('restore');
+                    setOutcome(null);
+                    void restoreFromServer().then((data) => {
+                      setBusy(null);
+                      setConfirmRestore(false);
+                      setOutcome(data ? 'Ripreso dal server.' : 'Il server non aveva niente da dare.');
+                      guarda();
+                    });
+                  }}
+                  disabled={busy !== null}
+                >
+                  Riprendi dal server
+                </Btn>
+              </Grid>
+            </>
+          )}
+
+          {!confirmNew ? (
+            <Grid>
+              <Btn onClick={() => setConfirmNew(true)} disabled={busy !== null}>
+                NUOVA PARTITA
+              </Btn>
+            </Grid>
+          ) : (
+            <>
+              <p className="note">
+                Ricomincia da capo: questo telefono torna al giorno 1, e il server riceve subito
+                la stessa scrittura — così la partita vecchia (giorno {day}) non torna su da sola
+                su un altro telefono. La copia vecchia NON viene distrutta, resta sul server da
+                parte. Le lezioni, la memoria scritta a mano e i V2 Issues NON vengono toccati da
+                questa azione. Non si torna indietro da qui.
+              </p>
+              <Grid>
+                <Btn onClick={() => setConfirmNew(false)} disabled={busy !== null}>
+                  Lascia stare
+                </Btn>
+                <Btn
+                  onClick={() => {
+                    setBusy('new');
+                    setOutcome(null);
+                    void startNewGame().then((r) => {
+                      setBusy(null);
+                      setConfirmNew(false);
+                      setOutcome(
+                        r.ok
+                          ? `Nuova partita — giorno ${r.day}, scritta sul server.`
+                          : `Reset fatto su questo telefono, ma NON è arrivato al server: ${r.failure ?? 'errore sconosciuto'}. Riprova SALVA QUESTO STATO SUL SERVER.`,
+                      );
+                      guarda();
+                    });
+                  }}
+                  disabled={busy !== null}
+                >
+                  Nuova partita
+                </Btn>
+              </Grid>
+            </>
+          )}
+        </Section>
+      )}
+    </section>
+  );
+}
 
 /* ============================================================================
    AI — «Non vedo modifiche alla schermata AI del lab.»
@@ -532,10 +836,92 @@ function Ai() {
 }
 
 /* ============================================================================
+   TEMPO — FINAL DEV → LAB CONSOLIDATION (CORREZIONE)
+
+   🔷 «The original DEV home/TEMPO screen contains a useful operational
+   dashboard… bring its useful functionality into LAB natively.»
+
+   🔒 STESSI NUMERI DI DEV → INIZIO, DISEGNO NUOVO. `syncBalance` /
+   `syncRewardProgress` / `completeDayStreak` sono le STESSE funzioni pure
+   che disegnano `SyncDial` — qui il disegno è una barra e tre soglie nel
+   linguaggio di LAB, non `SyncDial` stesso: quel componente porta le classi
+   CSS dell'app (`sync-check__dial`…) che LAB non carica, e importarlo
+   sembrerebbe rotto pur essendo identico sotto. Vedi `parts.tsx` per lo
+   stesso ragionamento su `CopyBtn`.
+   ========================================================================= */
+
+function Tempo({ day, onAdvance, onOpenUsage }: { day: number; onAdvance: () => void; onOpenUsage: () => void }) {
+  const startedAt = useApp((s) => s.startedAt);
+  const token = useApp((s) => s.token);
+  const [journal, setJournal] = useState(readHealthJournal);
+  const [spend, setSpend] = useState<{ spentUsd: number; capUsd: number } | 'loading' | 'error'>('loading');
+
+  useEffect(() => {
+    const update = () => setJournal(readHealthJournal());
+    window.addEventListener(HEALTH_JOURNAL_EVENT, update);
+    return () => window.removeEventListener(HEALTH_JOURNAL_EVENT, update);
+  }, []);
+
+  useEffect(() => {
+    if (!token) { setSpend('error'); return; }
+    setSpend('loading');
+    void loadUsage(token).then(({ data, failure }) => {
+      if (failure || !data) { setSpend('error'); return; }
+      setSpend({ spentUsd: data.spentUsd, capUsd: data.monthlyCapUsd });
+    });
+  }, [token, day]);
+
+  const gameToday = dateForDay(day, startedAt);
+  const streak = completeDayStreak(journal, gameToday);
+  const balance = syncBalance(streak);
+  const evolution = syncRewardProgress('evolution', streak);
+  const mega = syncRewardProgress('mega-evolution', streak);
+  const wish = syncRewardProgress('wish', streak);
+  const pct = (n: number) => `${Math.min(100, (n / 30) * 100)}%`;
+
+  return (
+    <Section title="TEMPO" note="Il quadrante SYNC — stessi numeri di DEV → INIZIO, qui nello stile di SYSTEM.LAB.">
+      <Rows rows={[['GIORNO', String(day)], ['SYNC', `${balance}/30`]]} />
+
+      <div className="tempo-dial" aria-hidden="true">
+        <div className="tempo-dial__fill" style={{ width: pct(balance) }} />
+        <span className="tempo-dial__mark" style={{ left: pct(2) }} data-ready={evolution.ready} />
+        <span className="tempo-dial__mark" style={{ left: pct(7) }} data-ready={mega.ready} />
+        <span className="tempo-dial__mark" style={{ left: pct(30) }} data-ready={wish.ready} />
+      </div>
+      <Rows
+        rows={[
+          ['2 · EVOLVI', evolution.ready ? 'PRONTO' : `${evolution.have}/2`],
+          ['7 · MEGAEVOLVI', mega.ready ? 'PRONTO' : `${mega.have}/7`],
+          ['30 · ESPRIMI UN DESIDERIO', wish.ready ? 'PRONTO' : `${wish.have}/30`],
+        ]}
+      />
+
+      <Grid>
+        <Btn variant="dark" onClick={onAdvance}>+1 GIORNO</Btn>
+      </Grid>
+      <p className="note">
+        Racconta, chiude, avanza e registra pasti e allenamento nel diario — lo stesso +1 GIORNO
+        di DEV → INIZIO, non un secondo pulsante.
+      </p>
+
+      <p className="note">
+        <strong>SPESA DEL MESE:</strong>{' '}
+        {spend === 'loading' ? 'sto chiedendo…'
+          : spend === 'error' ? 'il server non risponde.'
+          : `$${spend.spentUsd.toFixed(2)} / $${spend.capUsd.toFixed(2)}`}
+        {' — '}
+        <a href="#" onClick={(e) => { e.preventDefault(); onOpenUsage(); }}>dettaglio in AI / USAGE</a>
+      </p>
+    </Section>
+  );
+}
+
+/* ============================================================================
    SIMULATION
    ========================================================================= */
 
-function Simulation() {
+function Simulation({ onOpenUsage }: { onOpenUsage: () => void }) {
   const day = useApp((s) => s.day);
   const progression = useApp((s) => s.progression);
   const health = useApp((s) => s.health);
@@ -543,8 +929,23 @@ function Simulation() {
   const dev = useApp((s) => s.dev);
   const nodes = useApp((s) => s.nodes);
   const oggi = useApp((s) => s.days[s.day]);
+  const mons = useApp((s) => s.mons);
+  const activeMonName = useApp((s) => s.activeMonName);
+  const world = useApp((s) => s.world);
+  const worldHistory = useApp((s) => s.worldHistory);
+  const ledger = useApp((s) => s.ledger);
+  const journey = projectJourneyState({ mons, activeMonName, world, ledger });
+  const coherence = validateJourneyCoherence(mons, activeMonName, world);
 
-  const advanceDays = useApp((s) => s.advanceDays);
+  /* 🔷 FINAL DEV → LAB CONSOLIDATION (CORREZIONE) — «LAB +1 DAY and DEV +1
+     DAY must ultimately invoke the same underlying operation.» Era
+     `advanceDays`, che NON chiude la giornata (`syncDay()`) e quindi non
+     muove mai SYNC TOTAL — la riga qui sotto lo mostrava, ma restava ferma.
+     `simulateSyncedDays` è l'azione canonica di DEV → INIZIO: fa tutto quello
+     che faceva `advanceDays` più il riempimento del diario e la chiusura del
+     giorno. Non è una seconda implementazione: è la stessa, adesso in un
+     punto solo. */
+  const simulateSyncedDays = useApp((s) => s.simulateSyncedDays);
   const openShift = useApp((s) => s.openShift);
   const setBias = useApp((s) => s.setBias);
   const setSignal = useApp((s) => s.setSignal);
@@ -583,6 +984,8 @@ function Simulation() {
         finiscono anche sul server.
       </Notice>
 
+      <Tempo day={day} onAdvance={() => simulateSyncedDays(1)} onOpenUsage={onOpenUsage} />
+
       <Section title="TIME CONTROL" note="Questo è l’unico punto di SYSTEM.LAB che fa avanzare la simulazione.">
         <Rows
           rows={[
@@ -594,10 +997,38 @@ function Simulation() {
           ]}
         />
         <Grid>
-          <Btn variant="dark" onClick={() => advanceDays(1)}>RUN 1 COMPLETE DAY</Btn>
-          <Btn onClick={() => advanceDays(7)}>RUN 7 COMPLETE DAYS</Btn>
+          <Btn variant="dark" onClick={() => simulateSyncedDays(1)}>RUN 1 COMPLETE DAY</Btn>
+          <Btn onClick={() => simulateSyncedDays(7)}>RUN 7 COMPLETE DAYS</Btn>
           <Btn onClick={openShift}>NEXT MINDLINE EVENT</Btn>
         </Grid>
+      </Section>
+
+      {/* CORE EXTRACTION PHASE 3 — la prima lettura reale del boundary
+          Journey (src/engine/journey.ts): Mon attivo, World e Ledger letti
+          attraverso projectJourneyState/validateJourneyCoherence invece che
+          ricostruiti qui a mano dai campi grezzi dello store.
+
+          NARRATIVE SYSTEM PHASE 2 — WORLD ORIGIN/HISTORY: la riga in più che
+          rende visibile la RISE. `worldHistory` esiste solo per una RISE già
+          avvenuta; `previousWorldId` solo sul World che una RISE ha aperto. */}
+      <Section title="JOURNEY" note="Mon attivo, World e Story Ledger — proiezione e coerenza, non lo stato grezzo.">
+        <Rows
+          rows={[
+            ['ACTIVE MON', journey.activeMon ? journey.activeMon.data.name : '—'],
+            ['WORLD', journey.world ? journey.world.name : 'nessuno ancora'],
+            ['WORLD ORIGIN', journey.world?.previousWorldId ? `RISE da ${journey.world.previousWorldId}` : journey.world ? 'nascita (seedWorld)' : '—'],
+            ['CANON EVENTS', journey.world ? String(journey.world.canon.length) : '—'],
+            ['WORLD HISTORY', `${worldHistory.length} mondo/i lasciato/i indietro`],
+            ['LEDGER · OPEN SETUPS', String(journey.ledger.setups.filter((setup) => setup.status === 'open').length)],
+            ['LEDGER · DO NOT REPEAT', String(journey.ledger.doNotRepeat.length)],
+            ['COHERENCE', coherence.issues.length === 0 ? 'OK' : `${coherence.issues.length} da verificare`],
+          ]}
+        />
+        {coherence.issues.length > 0 && (
+          <ul className="note" style={{ margin: '8px 0 0', paddingLeft: 18 }}>
+            {coherence.issues.map((issue, index) => <li key={index}>{issue}</li>)}
+          </ul>
+        )}
       </Section>
 
       <Section title="CURRENT DAY INPUTS" note="Modifica il giorno corrente prima di simularlo. UNKNOWN resta davvero sconosciuto.">
@@ -682,17 +1113,20 @@ function Memory() {
   return (
     <section className="page active">
       <PageHead
-        kicker="SYSTEM.LAB / INNER STATE"
-        title="MEMORY"
-        lead="Quello che VINZ.MON ricorda, pensa e usa quando parla. Qui stanno anche gli strumenti tecnici che non devono mai diventare una schermata utente."
+        kicker="VINZ.LAB / PERSONA"
+        title="PERSONA"
+        lead="MOOD (il tono di adesso), OPINIONS (quello che il .mon ha maturato) e la modalità operativa della chat — non memoria personale. Qui sotto anche VOICE, che stava solo in DEV → VOCE → PROVA."
       />
 
       <Notice title="⚠️ ANCHE QUI SI SCRIVE">
-        La Build Mode qui sotto è quella vera: accesa, il .mon smette di essere
+        La modalità operativa qui sotto è quella vera: accesa, il .mon smette di essere
         un personaggio anche nella chat normale, finché non la rispegni.
       </Notice>
 
-      <Section title="ARCHIVE">
+      <Section
+        title="ARCHIVE"
+        note="La memoria CONVERSAZIONALE del .mon — non Mem0, non memoria personale: è l'archivio che alimenta la voce, come lo era già in DEV → VOCE → MEMORIA."
+      >
         <Rows
           rows={[
             ['MEMORIES', String(memories.length)],
@@ -738,17 +1172,80 @@ function Memory() {
         )}
       </Section>
 
-      <Section title="BUILD MODE">
+      {/* 🔷 LAB INFORMATION ARCHITECTURE CLEANUP — «the user does not
+          understand what BUILD MODE does. Do NOT simply rename it. Trace
+          it.» Tracciato: `buildMode` è REALE, non residuo. Da
+          `state/store.ts` (~4978) e `ai/client.ts` (~144-163): quando è
+          acceso, la CHAT smette di rispondere in personaggio — il system
+          prompt cambia da quello vocale/persona a un prompt operativo
+          neutro, la memoria e la cronologia non vengono lette, il modello
+          passa a quello "pieno" con ragionamento, e se una chiamata fallisce
+          si vede l'errore vero invece della battuta di ripiego in
+          personaggio. Non tocca ASSET/RESOLVER/BIO — solo la CHAT. */}
+      <Section title="MODALITÀ OPERATIVA IN CHAT">
         <p className="note">
           {buildMode
-            ? 'Build Mode ON: nessun personaggio, nessuna memoria, nessun ripiego.'
-            : 'Character mode ON. Build Mode rende espliciti i guasti degli strumenti.'}
+            ? 'ACCESA: in chat il .mon non risponde più in personaggio. Niente memoria, niente cronologia, modello con ragionamento — e se qualcosa fallisce vedi l\'errore vero, non una battuta di ripiego.'
+            : 'SPENTA: la chat risponde in personaggio, con memoria e cronologia, e nasconde i guasti tecnici dietro una frase in tono.'}
         </p>
         <Btn variant={buildMode ? 'on' : undefined} onClick={() => setBuildMode(!buildMode)}>
-          {buildMode ? 'BACK TO CHARACTER' : 'TURN ON BUILD MODE'}
+          {buildMode ? 'TORNA IN PERSONAGGIO' : 'PASSA A MODALITÀ OPERATIVA'}
         </Btn>
       </Section>
+
+      {/* 🔷 FINAL DEV → LAB CONSOLIDATION (CORREZIONE) — VOICE nativa, non un
+          iframe: chiama `generateIntroduction`, la STESSA funzione che
+          `dev/VoiceSection.tsx` chiama, con la voce e l'umore veri del .mon
+          attivo. */}
+      <PersonaVoice mood={mood} />
     </section>
+  );
+}
+
+/* --- VOICE — chiama `generateIntroduction`, la stessa funzione di DEV → VOCE → PROVA --- */
+function PersonaVoice({ mood }: { mood: ReturnType<typeof useApp.getState>['mood'] }) {
+  const token = useApp((s) => s.token);
+  const mon = useActiveMon();
+  const [busy, setBusy] = useState(false);
+  const waiting = useElapsed(busy);
+  const [sample, setSample] = useState<string | null>(null);
+  const [problem, setProblem] = useState<string | null>(null);
+
+  const tryVoice = async () => {
+    if (!mon) return;
+    setBusy(true);
+    setSample(null);
+    setProblem(null);
+    const [{ generateIntroduction }, { stepModel }] = await Promise.all([
+      import('../../ai/client'),
+      import('../../state/store'),
+    ]);
+    const { result, failure } = await generateIntroduction(token, mon, mood, [], stepModel('voice'));
+    setBusy(false);
+    if (result) { setSample(result.text); return; }
+    setProblem(
+      failure === 'no-key' ? 'Nessuna chiave: la voce resta quella deterministica.'
+        : failure === 'refused' ? 'Il modello ha declinato la richiesta.'
+        : failure === 'capped' ? 'Tetto mensile raggiunto: è una decisione tua, non un guasto.'
+        : 'Chiamata fallita: token sbagliato, funzioni non pubblicate o rete assente.',
+    );
+  };
+
+  return (
+    <Section title="VOICE" note="Prova la voce vera del .mon attivo, con l'umore di adesso — la stessa chiamata di DEV → VOCE → PROVA.">
+      {!mon && <p className="note">Nessuna creatura attiva.</p>}
+      {mon && (
+        <>
+          <Grid>
+            <Btn variant="dark" disabled={busy} onClick={() => void tryVoice()}>
+              {busy ? waitingText('STO ASCOLTANDO', waiting) : 'PROVA LA VOCE'}
+            </Btn>
+          </Grid>
+          {sample && <p className="note">«{sample}»</p>}
+          {problem && <p className="note">{problem}</p>}
+        </>
+      )}
+    </Section>
   );
 }
 
@@ -884,6 +1381,27 @@ function Usage() {
           <Btn onClick={() => window.print()}>ESPORTA / SALVA PDF</Btn>
           <p className="note">Si apre la stampa del dispositivo: scegli “Salva come PDF” per conservare il report.</p>
         </div>
+        {/* 🔷 LAB INFORMATION ARCHITECTURE CLEANUP — «audit how the
+            telemetry cost is calculated… report whether ACTUAL /
+            ESTIMATED / MIXED.»
+
+            🔒 VERIFICATO IN `_shared/spend.ts`: il TESTO è ATTUALE — i
+            token di input/output vengono letti dalla risposta vera del
+            fornitore, non stimati. Le IMMAGINI sono STIMATE — un prezzo
+            fisso per immagine (dal listino) moltiplicato per un fattore di
+            qualità (low/medium/high), non il costo reale fatturato dal
+            fornitore, che quest'app non riceve mai. Il totale del mese è
+            quindi MISTO: preciso sulla parte testo, una stima ragionevole
+            sulla parte immagini — che è anche la parte più grande della
+            spesa (per un Mon tipico, la maggioranza dei centesimi sono
+            immagini). Non è un errore da correggere: è cosa dice davvero
+            il numero. */}
+        <Notice title="ACCURATEZZA — TESTO ATTUALE, IMMAGINI STIMATE">
+          Il costo del TESTO viene dai token veri restituiti dal fornitore. Il costo delle
+          IMMAGINI è una stima — prezzo per immagine dal listino × fattore di qualità — non la
+          fattura reale, che questa app non riceve. Il totale sotto è quindi MISTO: preciso sul
+          testo, stimato sulle immagini (di solito la voce più grande).
+        </Notice>
         {/* 🔷 «Il LAB mostra i costi ma non il limite interno che può bloccare
             l'AI.» Prima riga della pagina, prima di ogni dettaglio: quanto ho
             speso, dov'è il muro, e se l'ho già colpito. */}
@@ -944,6 +1462,7 @@ function Usage() {
         <Section title="BY MODEL / PROVIDER">
           <Rows rows={Object.entries(usage.byModel).map(([name, value]) => [name, summary(value)])} />
         </Section>
+        <LastMonCost events={usage.recentEvents} />
         <Section title="RECENT ACTIVITY">
           {usage.recentEvents.length === 0 ? <p className="note">Nessuna attività recente.</p> : <Rows rows={usage.recentEvents.slice(0, 20).map((event) => [
             `${event.action} · ${event.model}`,
@@ -952,6 +1471,67 @@ function Usage() {
         </Section>
       </>}
     </section>
+  );
+}
+
+/* ============================================================================
+   LAST MON CREATION — COST PER MON
+
+   🔷 «Add a useful way to understand: HOW MUCH DID THIS MON CREATION COST?
+   Do NOT fake grouping by arbitrary time windows if a real creation/run id
+   exists. First inspect whether calls already carry a mon id… If no
+   reliable correlation exists, implement the smallest safe correlation
+   metadata needed for FUTURE creation runs. Do not fabricate historical
+   per-Mon totals that cannot be proven.»
+
+   🔒 NON ESISTEVA NESSUNA CORRELAZIONE — verificato in `_shared/spend.ts`:
+   né `UsageEvent` né `SpendEventMeta` portavano un id di run o il nome
+   del .mon, su nessuna chiamata. Il campo `monName` aggiunto a questo
+   giro (`AskRequest.monName` → `Payload.monName` → `recordSpend`) copre
+   OGGI SOLO la generazione immagini (`generate.ts` → `askImage`) — che è
+   anche la voce di spesa più grande, secondo la stessa telemetria che ha
+   fatto notare il problema. Resolver e Bio non lo portano ancora: si
+   vede sotto, onestamente, come «senza nome».
+
+   ⚠️ NIENTE FINESTRE TEMPORALI ARBITRARIE. Questo pannello raggruppa per
+   `monName` reale, non per «le ultime N ore»: se non c'è nessun evento
+   con `monName`, lo dice — non inventa un raggruppamento sui tempi. */
+function LastMonCost({ events }: { events: UsageEvent[] }) {
+  const withName = events.filter((e) => e.monName);
+  if (withName.length === 0) {
+    return (
+      <Section title="COSTO PER MON — ULTIMA CREAZIONE">
+        <Notice title="NESSUNA CORRELAZIONE ANCORA">
+          Prima di questo aggiornamento nessuna chiamata portava il nome del .mon nel registro di
+          spesa: non si può ricostruire il costo di creazioni passate senza inventarlo. Da adesso
+          in poi, ogni immagine forgiata lo dichiara — la prossima forgia comparirà qui.
+        </Notice>
+      </Section>
+    );
+  }
+  const lastName = withName[0]!.monName!;
+  const mine = withName.filter((e) => e.monName === lastName);
+  const images = mine.filter((e) => e.images > 0);
+  const text = mine.filter((e) => e.images === 0);
+  const total = mine.reduce((sum, e) => sum + e.estimatedCostUsd, 0);
+  const imagesCost = images.reduce((sum, e) => sum + e.estimatedCostUsd, 0);
+  const textCost = text.reduce((sum, e) => sum + e.estimatedCostUsd, 0);
+
+  return (
+    <Section
+      title="COSTO PER MON — ULTIMA CREAZIONE"
+      note="Solo le chiamate che portano il nome del .mon (oggi: le immagini). Resolver e Bio non sono ancora etichettati — non contati qui, non inventati."
+    >
+      <Rows
+        rows={[
+          ['MON', lastName],
+          ['TOTALE (tracciato)', `$${total.toFixed(4)}`],
+          ['IMMAGINI', `$${imagesCost.toFixed(4)} · ${images.length} chiamate`],
+          ['ALTRO TRACCIATO', `$${textCost.toFixed(4)} · ${text.length} chiamate`],
+          ['CHIAMATE TOTALI', String(mine.length)],
+        ]}
+      />
+    </Section>
   );
 }
 
@@ -977,6 +1557,437 @@ function RuntimeLog() {
   return <section className="page active"><PageHead kicker="SYSTEM.LAB / OBSERVABILITY" title="RUNTIME LOG" lead="Ultime 48 ore di eventi tecnici, senza contenuti personali." />
     {!events ? <p className="note">Lettura del registro…</p> : error ? <p className="note">Runtime Log non disponibile: verifica autenticazione o server.</p> : events.length === 0 ? <p className="note">Nessun evento recente.</p> : <Section title="LAST 48H"><Rows rows={events.map((event) => [`${new Date(event.timestamp).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}  ${event.scope.toUpperCase()}`, `${event.eventType} · ${event.status}${event.model ? ` · ${event.model}` : ''}${event.error ? ` · ${event.error}` : ''}`])} /></Section>}
   </section>;
+}
+
+/* ============================================================================
+   V2 ISSUES (LAB → SYSTEM → V2 ISSUES)
+
+   VINZ.MON PROTOTYPE V1 → V2 (docs/PROTOTYPE_V1_STATUS.md,
+   docs/V2_ISSUES.md). Sola lettura della fonte canonica server-side
+   (netlify/functions/v2-issues.ts) — la cattura resta nella Chat
+   ("Segna per la V2 che..."), qui si guarda soltanto. Niente Kanban,
+   niente editing: un elenco e, al tocco, i tre campi che contano per
+   ricostruire V2.
+   ========================================================================= */
+
+function V2Issues() {
+  const token = useApp((s) => s.token);
+  const [issues, setIssues] = useState<V2Issue[] | null>(null);
+  const [error, setError] = useState(false);
+  const [openId, setOpenId] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    setIssues(null);
+    setError(false);
+    void loadV2Issues(token).then(({ data, failure }) => {
+      if (cancelled) return;
+      if (failure || !data) {
+        setError(true);
+        setIssues([]);
+      } else {
+        setIssues(data.issues);
+      }
+    });
+    return () => { cancelled = true; };
+  }, [token]);
+  const open = issues && issues.length > 0
+    ? issues.filter((issue) => issue.status === 'OPEN').length
+    : 0;
+  const closed = issues ? issues.length - open : 0;
+  return (
+    <section className="page active">
+      <PageHead
+        kicker="SYSTEM.LAB / PROTOTYPE → V2"
+        title="V2 ISSUES"
+        lead="Requisiti registrati usando il prototipo, per ricostruire VINZ.MON da zero. Si aggiungono dalla Chat («Segna per la V2 che…»), non da qui."
+      />
+      {!issues ? <p className="note">Lettura dell'elenco…</p>
+        : error ? <p className="note">V2 Issues non disponibile: verifica autenticazione o server.</p>
+        : issues.length === 0 ? <p className="note">Nessun issue registrato ancora.</p>
+        : (
+          <>
+            <Section title="TOTALI">
+              <Rows rows={[
+                ['TOTAL', String(issues.length)],
+                ['OPEN', String(open)],
+                ['CLOSED', String(closed)],
+              ]} />
+            </Section>
+            <Section title="ELENCO" note="Tocca una riga per vedere osservazione, comportamento atteso e requisito finale.">
+              {issues.slice().reverse().map((issue) => {
+                const expanded = openId === issue.id;
+                return (
+                  <div key={issue.id} className="v2-issue-row">
+                    <button
+                      type="button"
+                      className="row v2-issue-row__head"
+                      onClick={() => setOpenId(expanded ? null : issue.id)}
+                      aria-expanded={expanded}
+                    >
+                      <span>{issue.id} · {issue.title}</span>
+                      <span className="value mono">{issue.area} · {issue.type} · {issue.status}</span>
+                    </button>
+                    {expanded && (
+                      <div className="v2-issue-row__detail">
+                        <p><strong>OBSERVATION</strong><br />{issue.observation}</p>
+                        <p><strong>EXPECTED FINAL BEHAVIOR</strong><br />{issue.expectedBehavior || '—'}</p>
+                        <p><strong>FINAL REQUIREMENT</strong><br />{issue.finalRequirement || '—'}</p>
+                        <p className="note">creato {new Date(issue.createdAt).toLocaleDateString('it-IT')} · aggiornato {new Date(issue.updatedAt).toLocaleDateString('it-IT')}</p>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </Section>
+          </>
+        )}
+    </section>
+  );
+}
+
+/* ============================================================================
+   STORAGE (LAB → SYSTEM → STORAGE)
+
+   🔷 «Voglio vedere sul mio iPhone quanto storage stiamo usando, quanto
+   rimane, quanto pesa localStorage, quanto pesa IndexedDB, quali categorie
+   occupano spazio, quali key sono responsabili, cosa è cache e cosa è
+   canonico.»
+
+   ⚠️ SOLO LETTURA (per ora). Nessun pulsante cancella niente qui — la logica
+   di misura vive in `../storageInspector.ts`, testabile e senza React.
+
+   🔒 Non c'è mai un `value` in questa schermata: né testo di chat, né
+   prompt, né token, né immagini. Solo nomi di chiave, byte, percentuali.
+   ========================================================================= */
+
+/** `[██████████████░░░░░░] 68%` — letterale, com'era nella richiesta: un
+    testo monospaziato si legge sull'iPhone meglio di qualunque libreria di
+    grafici, e qui non ne serve una. */
+function AsciiBar({ percent, width = 22 }: { percent: number | null; width?: number }) {
+  if (percent === null) return <span className="mono storage-bar">[{'░'.repeat(width)}] —</span>;
+  const clamped = Math.max(0, Math.min(100, percent));
+  const filled = Math.round((clamped / 100) * width);
+  return (
+    <span className="mono storage-bar">
+      [{'█'.repeat(filled)}{'░'.repeat(width - filled)}] {clamped.toFixed(1)}%
+    </span>
+  );
+}
+
+/** Una riga di categoria: nome, barra proporzionata al totale del suo
+    contenitore (non alla quota del browser — sono scale diverse), byte. */
+function CategoryRow({ label, bytes, total }: { label: string; bytes: number; total: number }) {
+  const percent = total > 0 ? (bytes / total) * 100 : 0;
+  const width = 14;
+  const filled = Math.max(bytes > 0 ? 1 : 0, Math.round((percent / 100) * width));
+  return (
+    <div className="storage-cat">
+      <span className="storage-cat__label">{label}</span>
+      <span className="mono storage-cat__bar">[{'█'.repeat(filled)}{'░'.repeat(width - filled)}]</span>
+      <span className="storage-cat__bytes mono">{formatBytes(bytes)} · {percent.toFixed(0)}%</span>
+    </div>
+  );
+}
+
+const MEASUREMENT_LABEL: Record<'measured' | 'estimated' | 'unavailable', string> = {
+  measured: 'MEASURED',
+  estimated: 'ESTIMATED',
+  unavailable: 'NOT AVAILABLE',
+};
+
+const STATUS_OK: Record<StorageStatus, boolean> = {
+  ACTIVE: true,
+  WARNING: false,
+  CRITICAL: false,
+  'QUOTA EXCEEDED': false,
+};
+
+/** Le classificazioni dell'INSPECTOR: cosa succede se questa chiave sparisce. */
+const CLASSIFICATION_NOTE: Record<string, string> = {
+  CANONICAL: 'unica copia qui',
+  'SERVER-BACKED': 'il server ne tiene una copia',
+  RECONSTRUCTIBLE: 'torna un default',
+  CACHE: 'copia locale di qualcos\'altro',
+  UNKNOWN: 'chiave non riconosciuta',
+};
+
+interface ServerBucket {
+  label: string;
+  detail: string;
+  sizeLabel: string;
+}
+
+function StorageInspector() {
+  const token = useApp((s) => s.token);
+
+  const [browser, setBrowser] = useState<BrowserStorageEstimate | null>(null);
+  const [local, setLocal] = useState<LocalStorageSnapshot | null>(null);
+  const [idb, setIdb] = useState<IndexedDbSnapshot | null>(null);
+  const [fields, setFields] = useState<FieldBreakdown[] | null>(null);
+  const [quotaHit, setQuotaHit] = useState<typeof lastStorageOperation>(null);
+  const [server, setServer] = useState<ServerBucket[] | null>(null);
+  const [serverFailed, setServerFailed] = useState(false);
+  const [lastStateSave, setLastStateSave] = useState<RuntimeEvent | null | undefined>(undefined);
+  const [mem0, setMem0] = useState<{ memories: number | null; note: string } | null>(null);
+  const [showInspector, setShowInspector] = useState(false);
+  const [expandedField, setExpandedField] = useState<string | null>(null);
+
+  useEffect(() => {
+    /* Sincrone e gratuite: nessun motivo di aspettare un frame per queste. */
+    setLocal(localStorageSnapshot());
+    setFields(prototypeFieldBreakdown());
+    /* `lastStorageOperation` è di `localStorageDiagnostics.ts`: un solo
+       breadcrumb in memoria, aggiornato da ogni `setItem` dell'app —
+       incluso il salvataggio principale. È lo stesso segnale che porta la
+       schermata di crash, non una copia parallela. */
+    setQuotaHit(lastStorageOperation?.status === 'ERROR' && lastStorageOperation.errorName === 'QuotaExceededError' ? lastStorageOperation : null);
+    void browserStorageEstimate().then(setBrowser);
+    void indexedDbSnapshot().then(setIdb);
+  }, []);
+
+  useEffect(() => {
+    if (!token) { setServerFailed(true); return; }
+    const headers = { authorization: `Bearer ${token}` };
+    let cancelled = false;
+    /* 🔒 NIENTE endpoint nuovo per elencare i blob: si usano le stesse GET
+       che USAGE, RUNTIME LOG e MACHINES già chiamano, e se ne misura solo la
+       risposta — SIZE UNKNOWN dove non c'è già un numero reale da leggere. */
+    void Promise.all([
+      loadUsage(token),
+      loadRuntimeLog(token),
+      fetch('/api/machines', { headers }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+      fetch('/api/me-memory', { headers }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+    ]).then(([usage, runtimeLog, machinesJson, meMemoryJson]) => {
+      if (cancelled) return;
+      const responseBytes = (value: unknown) => {
+        try { return new TextEncoder().encode(JSON.stringify(value)).length; } catch { return null; }
+      };
+      const buckets: ServerBucket[] = [];
+      if (usage.data) {
+        const bytes = responseBytes(usage.data);
+        buckets.push({
+          label: 'USAGE LEDGER',
+          detail: `${usage.data.month.calls}× questo mese`,
+          sizeLabel: bytes ? `~${formatBytes(bytes)} (risposta)` : 'SIZE UNKNOWN',
+        });
+      } else {
+        buckets.push({ label: 'USAGE LEDGER', detail: 'non disponibile', sizeLabel: 'SIZE UNKNOWN' });
+      }
+      if (runtimeLog.data) {
+        const bytes = responseBytes(runtimeLog.data);
+        buckets.push({
+          label: 'RUNTIME LOG',
+          detail: `${runtimeLog.data.events.length} eventi (48h)`,
+          sizeLabel: bytes ? `~${formatBytes(bytes)} (risposta)` : 'SIZE UNKNOWN',
+        });
+        /* 🔒 STORAGE STABILIZATION STEP 1/5 — SERVER STATE legge da qui, non
+           da una `fetch` sua: il Runtime Log È la fonte di verità di questo
+           salvataggio, non una seconda che rischia di raccontare un'altra
+           storia. `events` arriva già ordinato dal più recente (vedi
+           `recentRuntimeEvents` server-side, `.reverse()`). */
+        setLastStateSave(runtimeLog.data.events.find((event) => event.eventType.startsWith('STATE_REMOTE_SAVE_')) ?? null);
+      } else {
+        buckets.push({ label: 'RUNTIME LOG', detail: 'non disponibile', sizeLabel: 'SIZE UNKNOWN' });
+        setLastStateSave(null);
+      }
+      if (machinesJson && typeof machinesJson === 'object') {
+        const machines = (machinesJson as { machines?: unknown[] }).machines;
+        const bytes = responseBytes(machinesJson);
+        buckets.push({
+          label: 'MACHINES',
+          detail: Array.isArray(machines) ? `${machines.length} macchine` : '—',
+          sizeLabel: bytes ? `~${formatBytes(bytes)} (risposta)` : 'SIZE UNKNOWN',
+        });
+      } else {
+        buckets.push({ label: 'MACHINES', detail: 'non disponibile', sizeLabel: 'SIZE UNKNOWN' });
+      }
+      buckets.push({
+        label: 'CHATS · RUNTIME CONFIG',
+        detail: 'in vinzmon-user-data · dimensione dal mirror locale sotto',
+        sizeLabel: 'vedi LOCAL STORAGE',
+      });
+      buckets.push({
+        label: 'ALTRI BLOB (state, assets, evolution, duel, shortcut, push, brain, ingest)',
+        detail: 'nessun endpoint elenca questi store dal client',
+        sizeLabel: 'SIZE UNKNOWN',
+      });
+      setServer(buckets);
+      setServerFailed(false);
+
+      /* CORE EXTRACTION PHASE 2 — /api/me-memory ora dichiara sempre `backend` (custom/mem0/
+         frozen): prima questa sezione indovinava "mem0 attivo" dalla sola presenza di `counts`,
+         che però esiste anche nella proiezione ME Model — un falso "mem0" ogni volta che il
+         backend reale era l'ME Model. Diagnostica LAB: qui è il posto giusto per leggerlo. */
+      if (meMemoryJson && typeof meMemoryJson === 'object') {
+        const backend = (meMemoryJson as { backend?: string }).backend;
+        const counts = (meMemoryJson as { counts?: { memories?: number } }).counts;
+        setMem0(
+          backend === 'mem0'
+            ? { memories: typeof counts?.memories === 'number' ? counts.memories : null, note: 'mem0 attivo' }
+            : { memories: null, note: backend ? `non attivo — backend attuale: ${backend}` : 'non disponibile' },
+        );
+      } else {
+        setMem0({ memories: null, note: 'non disponibile' });
+      }
+    }).catch(() => { if (!cancelled) setServerFailed(true); });
+    return () => { cancelled = true; };
+  }, [token]);
+
+  const percentUsed = browser?.usageBytes != null && browser.quotaBytes != null && browser.quotaBytes > 0
+    ? (browser.usageBytes / browser.quotaBytes) * 100
+    : null;
+  const sharedStatus = computeSharedStorageStatus(percentUsed, quotaHit !== null);
+  const localStatus: LocalStorageStatus | null = local ? computeLocalStorageStatus(local.totalBytes, quotaHit !== null) : null;
+  const LOCAL_STATUS_OK: Record<LocalStorageStatus, boolean> = { HEALTHY: true, WARNING: false, 'QUOTA EXCEEDED': false };
+
+  const localCats = local ? byCategory(local.keys) : [];
+  const idbCats = idb ? byIndexedDbCategory(idb.entries) : [];
+
+  return (
+    <section className="page active">
+      <PageHead
+        kicker="SYSTEM.LAB / STORAGE"
+        title="STORAGE"
+        lead="Capacità e contenuti, letti direttamente dal dispositivo. Sola lettura: niente qui cancella o sposta niente."
+      />
+
+      <Section
+        title="LOCAL STORAGE"
+        note="Tutte le chiavi del dominio, misurate byte per byte (UTF-16, come le tiene davvero il motore) — non è una stima. Nessun browser espone il tetto specifico di localStorage: LIMIT lo dice invece di indovinarlo, e STATUS viene solo da un QuotaExceededError reale o da una soglia prudenziale dichiarata come tale."
+      >
+        {!local || !localStatus ? <p className="note">Lettura…</p> : <>
+          <Rows rows={[
+            ['USED', formatBytes(local.totalBytes)],
+            ['LIMIT', LOCAL_STORAGE_LIMIT_LABEL],
+            ['STATUS', <Status label={localStatus} ok={LOCAL_STATUS_OK[localStatus]} />],
+            ['KEYS', String(local.keys.length)],
+          ]} />
+          {quotaHit && (
+            <p className="note">
+              ⚠️ Scrittura rifiutata di recente ({new Date(quotaHit.startedAt).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })} · {quotaHit.source} · {quotaHit.keyPrefix}) — QUOTA EXCEEDED resta finché non ricarichi la pagina.
+            </p>
+          )}
+          {localCats.map((cat) => (
+            <CategoryRow key={cat.category} label={`${CATEGORY_LABEL[cat.category]} · ${cat.count}`} bytes={cat.bytes} total={local.totalBytes} />
+          ))}
+        </>}
+      </Section>
+
+      <Section
+        title="SERVER STATE"
+        note="Il salvataggio della partita (`/api/state`, store vinzmon-state) — l'unico che ha un tetto duro. Letto dal Runtime Log, non da una richiesta a sé: è la stessa osservabilità, non una seconda copia."
+      >
+        {lastStateSave === undefined ? <p className="note">Lettura…</p> : lastStateSave === null ? (
+          <p className="note">Nessun salvataggio recente nel Runtime Log (48h). Modifica qualcosa nell'app: il prossimo salvataggio comparirà qui.</p>
+        ) : (
+          <Rows rows={[
+            ['LAST SAVE', new Date(lastStateSave.timestamp).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })],
+            ['STATUS', <Status
+              label={lastStateSave.eventType === 'STATE_REMOTE_SAVE_OK' ? 'HEALTHY' : lastStateSave.eventType === 'STATE_REMOTE_SAVE_ERROR' && lastStateSave.statusCode === 413 ? 'TOO LARGE' : lastStateSave.eventType === 'STATE_REMOTE_SAVE_ERROR' ? 'FAILED' : 'IN CORSO'}
+              ok={lastStateSave.eventType === 'STATE_REMOTE_SAVE_OK'}
+            />],
+            ['PAYLOAD', lastStateSave.payloadBytes != null ? formatBytes(lastStateSave.payloadBytes) : '—'],
+            ['LIMIT', lastStateSave.limitBytes != null ? formatBytes(lastStateSave.limitBytes) : '—'],
+            ...(lastStateSave.error ? [['REASON', lastStateSave.error] as [string, string]] : []),
+          ]} />
+        )}
+      </Section>
+
+      <Section title="BROWSER SHARED STORAGE" note={`Quota dell'intera origine — localStorage + IndexedDB + il resto insieme, MAI il limite specifico di localStorage (navigator.storage.estimate) — ${browser ? MEASUREMENT_LABEL[browser.kind] : 'lettura…'}. Non è inventata: se il browser non la dà, resta NOT AVAILABLE.`}>
+        <AsciiBar percent={percentUsed} />
+        <Rows rows={[
+          ['USED', browser?.usageBytes != null ? formatBytes(browser.usageBytes) : '—'],
+          ['QUOTA', browser?.quotaBytes != null ? formatBytes(browser.quotaBytes) : '—'],
+          ['REMAINING', browser?.usageBytes != null && browser?.quotaBytes != null ? formatBytes(Math.max(0, browser.quotaBytes - browser.usageBytes)) : '—'],
+          ['PERCENT USED', percentUsed !== null ? `${percentUsed.toFixed(1)}%` : '—'],
+          ['MEASUREMENT', browser ? MEASUREMENT_LABEL[browser.kind] : '…'],
+          ['STATUS', <Status label={sharedStatus} ok={STATUS_OK[sharedStatus]} />],
+        ]} />
+      </Section>
+
+      <Section
+        title="INDEXEDDB / ASSETS"
+        note="Immagini dei .mon e delle prove del duello — misurate leggendo la dimensione reale di ogni Blob, mai il contenuto."
+      >
+        {!idb ? <p className="note">Lettura…</p> : idb.kind === 'unavailable' ? <p className="note">IndexedDB non disponibile in questo browser.</p> : <>
+          <p className="mono storage-total">{formatBytes(idb.totalBytes)} · {idb.entries.length} record</p>
+          {browser?.quotaBytes && <p className="note storage-shared">SHARED BROWSER QUOTA — stessa quota di LOCAL STORAGE, non una separata</p>}
+          {idbCats.map((cat) => (
+            <CategoryRow key={cat.category} label={`${INDEXEDDB_CATEGORY_LABEL[cat.category]} · ${cat.count}`} bytes={cat.bytes} total={idb.totalBytes} />
+          ))}
+        </>}
+      </Section>
+
+      <Section
+        title="SERVER-BACKED DATA"
+        note="Quello che VINZ.MON tiene su Netlify, non nel browser. Non condivide la quota qui sopra: è un'altra macchina."
+      >
+        {serverFailed && !server ? <p className="note">Non disponibile: manca il token o il server non risponde.</p> : !server ? <p className="note">Lettura…</p> : (
+          <Rows rows={server.map((bucket) => [bucket.label, `${bucket.detail} · ${bucket.sizeLabel}`])} />
+        )}
+      </Section>
+
+      <Section
+        title="MEM0"
+        note="Servizio di memoria a lungo termine, esterno: non è localStorage e non ne condivide la quota."
+      >
+        <Rows rows={[
+          ['SERVICE', 'mem0'],
+          ['MEMORIES', mem0?.memories != null ? String(mem0.memories) : 'SIZE UNKNOWN'],
+          ['NOTE', mem0?.note ?? '…'],
+        ]} />
+      </Section>
+
+      <Section title="STORAGE INSPECTOR" note="Ogni chiave di LOCAL STORAGE, classificata per capire cosa succede se sparisce.">
+        <Btn onClick={() => setShowInspector((v) => !v)}>{showInspector ? 'NASCONDI LISTA' : `MOSTRA ${local?.keys.length ?? 0} KEYS`}</Btn>
+        {showInspector && local && (
+          <div className="storage-inspector-list">
+            {local.keys.map((item) => (
+              <div className="storage-key-row" key={item.key}>
+                <span className="storage-key-row__key mono">{item.key}</span>
+                <span className="storage-key-row__cat">{CATEGORY_LABEL[item.category]}</span>
+                <span className="storage-key-row__size mono">{formatBytes(item.bytes)}</span>
+                <span className="storage-key-row__size mono">{local.totalBytes > 0 ? `${((item.bytes / local.totalBytes) * 100).toFixed(1)}%` : '—'}</span>
+                <span className={`storage-key-row__class storage-key-row__class--${item.classification.toLowerCase().replace(/\s+/g, '-')}`}>
+                  {item.classification}
+                  <span className="storage-key-row__class-note"> · {CLASSIFICATION_NOTE[item.classification]}</span>
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {fields && fields.length > 0 && (
+          <>
+            <p className="note" style={{ marginTop: 14 }}>Drill-down di <code>vinzmon.prototype.v4</code> — dimensione per campo, mai il contenuto.</p>
+            {fields.map((field) => (
+              <div key={field.field}>
+                <div
+                  className="storage-field-row"
+                  role={field.children ? 'button' : undefined}
+                  onClick={field.children ? () => setExpandedField((v) => (v === field.field ? null : field.field)) : undefined}
+                >
+                  <span className="mono">{field.children ? (expandedField === field.field ? '▾ ' : '▸ ') : '  '}{field.field}</span>
+                  <span className="mono">{formatBytes(field.bytes)}</span>
+                </div>
+                {field.children && expandedField === field.field && (
+                  <div className="storage-field-children">
+                    {field.children.slice(0, 12).map((child) => (
+                      <div className="storage-field-row storage-field-row--child" key={child.field}>
+                        <span className="mono">{child.field}</span>
+                        <span className="mono">{formatBytes(child.bytes)}</span>
+                      </div>
+                    ))}
+                    {field.children.length > 12 && <p className="note">+{field.children.length - 12} altri</p>}
+                  </div>
+                )}
+              </div>
+            ))}
+          </>
+        )}
+      </Section>
+    </section>
+  );
 }
 
 /* ============================================================================
@@ -1080,6 +2091,121 @@ function Shortcuts() {
         ) : (
           <p className="note">nessuna chiamata ancora.</p>
         )}
+      </Section>
+    </section>
+  );
+}
+
+/* ============================================================================
+   LEGACY — LO STATO DELLA CONSOLIDAZIONE
+
+   🔷 «LAB INFORMATION ARCHITECTURE CLEANUP — do not preserve a panel merely
+   because code exists for it… List only tools genuinely not yet ported.»
+
+   🔒 CREATURE NON C'È PIÙ COME DESTINAZIONE, E NON PERCHÉ SIA SPARITA:
+   LESSONS, ASSET e STATE vivono adesso dentro CREATION.LAB — stesse azioni
+   dello store, un solo posto per «la creatura attuale» invece di due.
+   ASSISTENTE, SOUL.LAB e DESIGN.LAB sono rimossi del tutto dal prodotto
+   (esperimenti falliti o non più utili) — non sono in questa lista perché
+   non sono «da portare», sono chiusi.
+
+   🔷 CREATION LAB FIX + UI CLEANUP — RESOLVER è tornato ad essere SOLO qui
+   sotto (`dev/ResolverSection.tsx`): come tab a parte in CREATION.LAB
+   confondeva senza aggiungere niente che FLOW → passo 05 non dicesse già.
+   FAMILY come tab a parte è sparita del tutto: lo stesso ACCESO/SPENTO
+   viveva già dentro FLOW → passo 04 (`StepTuning`) — una duplicazione vera,
+   non solo percepita. Quello che resta qui sotto è codice vero, ancora
+   raggiungibile solo da DEV://VINZ.MON.
+   ========================================================================= */
+
+const LEGACY_REMAINING: { titolo: string; dove: string; perche: string }[] = [
+  {
+    titolo: 'RESOLVER — il prompt AI',
+    dove: 'DEV → CREATURA → RESOLVER',
+    perche: 'Come tab a parte in CREATION.LAB (\'RESOLVER\') non era chiaro né utile — rimosso da lì. Il motore che chiamava (resolveWithAi/mon.resolution) resta vero e chiamabile da qui.',
+  },
+  {
+    titolo: 'MONDO',
+    dove: 'DEV → CREATURA → MONDO',
+    perche: 'Canone e registro narrativo del world attivo — si tocca raramente, non nel flusso di ogni giorno.',
+  },
+  {
+    titolo: 'RARITÀ — soglie',
+    dove: 'DEV → CREATURA → RARITÀ',
+    perche: 'Taratura delle bande di rarità: uno strumento da chi bilancia il motore, non da chi gioca.',
+  },
+  {
+    titolo: 'CATALOGHI — assi diversi da Family',
+    dove: 'DEV → CREATURA → CATALOGHI',
+    perche: 'CREATION → FLOW → passo 04 copre già l\'asse Family (stesso ACCESO/SPENTO); affinity/role/fashion/mood/appearance/design/size restano qui.',
+  },
+  {
+    titolo: 'PROMPT IMMAGINI — anteprima/riscrittura',
+    dove: 'DEV → CREATURA → PROMPT IMMAGINI',
+    perche: 'CREATION → ASSETS forgia le immagini vere; questa resta la vista sul prompt grezzo, per chi lo sta mettendo a punto.',
+  },
+  {
+    titolo: 'PROVE — protocollo designer §12',
+    dove: 'DEV → CREATURA → PROVE',
+    perche: 'Il protocollo con cui un designer approva o scarta un\'immagine — non uno strumento del prototipo di tutti i giorni.',
+  },
+  {
+    titolo: 'GENERAZIONE BATCH',
+    dove: 'DEV → CREATURA → GENERA',
+    perche: 'Mille generazioni per controllare le distribuzioni statistiche — diagnostica del motore, non creazione.',
+  },
+  {
+    titolo: 'MINDLINE — forzature di eleggibilità',
+    dove: 'DEV → CREATURA → MINDLINE',
+    perche: 'SIMULATION → NEXT MINDLINE EVENT copre l\'uso normale; le forzature per raggiungere condizioni rare restano qui.',
+  },
+  {
+    titolo: 'STRUMENTI — avvio a mano',
+    dove: 'DEV → VOCE → STRUMENTI',
+    perche: 'Far partire un tool (promemoria, pagine, ricerca web) a mano per provarlo — diagnostica, non un controllo di persona.',
+  },
+  {
+    titolo: 'SHORTCUT API — setup guidato',
+    dove: 'DEV → TEMPO → SHORTCUT API',
+    perche: 'LAB → SYSTEM → SHORTCUTS copre lo stato operativo (coda, ultimo invio); il modulo di configurazione iniziale resta in DEV.',
+  },
+];
+
+function Legacy() {
+  return (
+    <section className="page active">
+      <PageHead
+        kicker="VINZ.LAB / SYSTEM"
+        title="LEGACY"
+        lead="CREATURE non esiste più: LESSONS, ASSET e STATE sono in CREATION.LAB. RESOLVER e FAMILY come tab a parte sono rimossi (duplicavano FLOW). ASSISTENTE, SOUL.LAB e DESIGN.LAB sono rimossi dal prodotto. Quello che resta è codice vero, ancora raggiungibile solo da DEV."
+      />
+
+      <Notice title="✅ IL FLUSSO PRINCIPALE È NATIVO">
+        SAVE, CREATION (Flow con Archetipi/Lessons/Asset/State), PERSONA (Voice/Mood/Opinions),
+        SIMULATION (Tempo/+1 giorno/SYNC) e AI sono componenti di LAB, non finestre su DEV:
+        chiamano le stesse azioni dello store, disegnate coi mattoni del laboratorio.
+      </Notice>
+
+      <Section
+        title="ANCORA SOLO IN DEV"
+        note="Ognuna con la ragione per cui non è (ancora) qui: taratura, diagnostica del motore, o setup una tantum — non il flusso quotidiano."
+      >
+        {LEGACY_REMAINING.map((r) => (
+          <div key={r.titolo} style={{ padding: '9px 0', borderBottom: '1px solid var(--line)' }}>
+            <p className="note" style={{ margin: 0 }}><strong>{r.titolo}</strong> — {r.dove}</p>
+            <p className="note">{r.perche}</p>
+          </div>
+        ))}
+      </Section>
+
+      <Section title="APRI DEV DIRETTAMENTE">
+        <p className="note">
+          Per queste voci: il pulsante DEV nell'app vera apre lo stesso pannello, con lo stesso
+          stato — non una seconda copia.
+        </p>
+        <Grid>
+          <Btn onClick={() => window.location.assign('/')}>TORNA ALL'APP</Btn>
+        </Grid>
       </Section>
     </section>
   );

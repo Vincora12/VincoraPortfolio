@@ -13,11 +13,12 @@ await page.route('**/api/**', async (route) => {
   if (url.pathname === '/api/user-data') {
     const key = url.searchParams.get('key');
     if (['PUT', 'DELETE'].includes(request.method())) {
-      if (request.headers()['if-match'] !== (revisions.get(key) ?? 'vinzmon-new')) { await route.fulfill({status:409, contentType:'application/json', body:'{"code":"STORAGE_CONFLICT"}'}); return; }
+      const h = request.headers();
+      if ((h['if-match'] && h['if-match'] !== revisions.get(key)) || (h['x-only-if-new'] && data.has(key))) { await route.fulfill({status:409, contentType:'application/json', body:JSON.stringify({value:data.get(key) ?? null, etag:revisions.get(key) ?? null})}); return; }
       if (request.method() === 'PUT') data.set(key, request.postData()); else data.delete(key);
       revisions.set(key, crypto.randomUUID());
     }
-    body = { value: data.get(key) ?? null, revision: revisions.get(key) ?? null };
+    body = { value: data.get(key) ?? null, etag: revisions.get(key) ?? null };
   }
   if (url.pathname === '/api/state') body = { day: 0, savedAt: null, state: null, revision: null };
   if (url.pathname === '/api/ingest') body = { days: [] };

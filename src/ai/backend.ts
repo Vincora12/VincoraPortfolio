@@ -25,6 +25,7 @@
 
 /** Cosa si può chiedere. Gli stessi nomi che il backend conosce. */
 import type { Lesson } from '../engine/types';
+import type { V2Issue } from './v2Issues';
 
 export type Capability = 'character-voice' | 'vision-quick' | 'text-cheap' | 'image' | 'prompt-compile';
 
@@ -85,6 +86,15 @@ export interface AskRequest {
    * di un modello inventato non lo fa chiamare — fa tornare al predefinito.
    */
   voiceModel?: string | null;
+  /* 🔷 LAB INFORMATION ARCHITECTURE CLEANUP — «Cost per Mon… use an
+     existing correlation identifier if possible, else implement the
+     smallest safe correlation metadata for future runs.» Non esisteva
+     nessun id di correlazione: né sul client né sul server. Questo campo
+     è quel minimo — il nome del .mon per cui questa chiamata lavora,
+     quando lo sappiamo — e il server lo scrive nell'evento di spesa solo
+     se presente. Gli eventi vecchi restano senza, ed è onesto che sia
+     così. */
+  monName?: string;
 }
 
 /**
@@ -138,6 +148,16 @@ export interface BackendResult<T> {
    * l'unico che si può confrontare col tetto della piattaforma.
    */
   ms?: number;
+  /** Il codice HTTP vero, quando una risposta è arrivata. Assente per
+      `no-token`/`offline`/`timeout`, dove non c'è mai stata una risposta da
+      leggere. Serve a distinguere un 413 da un errore generico senza dover
+      indovinare dal testo di `detail`. */
+  status?: number;
+  /** Presenti solo per `/api/state`: il server li manda sia sul salvataggio
+      riuscito sia sul 413, sempre dallo stesso `MAX_BYTES` — mai un secondo
+      numero calcolato qui. */
+  payloadBytes?: number;
+  limitBytes?: number;
 }
 
 export interface VoiceData {
@@ -172,6 +192,8 @@ export interface UsageEvent {
   outputTokens: number;
   images: number;
   estimatedCostUsd: number;
+  /** Assente sugli eventi registrati prima di questo campo — onesto, non si inventa. */
+  monName?: string;
 }
 
 export interface UsageDashboard {
@@ -303,7 +325,7 @@ async function post<T>(
   }
 
   if (response.status === 401)
-    return { data: null, failure: 'unauthorized', ms: Date.now() - startedAt };
+    return { data: null, failure: 'unauthorized', ms: Date.now() - startedAt, status: response.status };
 
   if (response.status === 402) {
     /* Il tetto. Si legge il corpo per sapere quanto è stato speso: è
@@ -350,9 +372,18 @@ async function post<T>(
        not found» è una cosa, «organization must be verified» è un'altra — e
        chi guarda l'app vedeva solo «error». Due problemi diversi, due rimedi
        diversi, un messaggio solo. */
-    const reason = (payload as { reason?: string } | null)?.reason;
+    const errorBody = payload as { reason?: string; payloadBytes?: number; limitBytes?: number } | null;
+    const reason = errorBody?.reason;
     console.warn('[backend] risposta non utilizzabile', response.status, reason ?? '');
-    return { data: null, failure: 'error', detail: reason, ms: Date.now() - startedAt };
+    return {
+      data: null,
+      failure: 'error',
+      detail: reason,
+      ms: Date.now() - startedAt,
+      status: response.status,
+      payloadBytes: errorBody?.payloadBytes,
+      limitBytes: errorBody?.limitBytes,
+    };
   }
 
   noteBudget(payload.warning, payload.remainingUsd);
@@ -393,10 +424,33 @@ export interface RuntimeEvent {
   id: string; timestamp: string; eventType: string; status: 'START' | 'PASS' | 'FAIL'; scope: string;
   action?: string; requestId?: string; conversationId?: string; messageId?: string; monId?: string; worldId?: string;
   capability?: string; provider?: string; model?: string; durationMs?: number; error?: string;
+  errorName?: string; payloadBytes?: number; statusCode?: number; limitBytes?: number;
   metadata?: Record<string, string | number | boolean>;
 }
 export function loadRuntimeLog(token: string | null): Promise<BackendResult<{ events: RuntimeEvent[] }>> {
   return post<{ events: RuntimeEvent[] }>('/api/runtime-log', token, undefined, 'GET');
+}
+
+/** V2 ISSUES — conoscenza di prodotto per la ricostruzione pulita, non
+ * osservabilità tecnica. Vedi docs/PROTOTYPE_V1_STATUS.md e
+ * netlify/functions/v2-issues.ts: unica fonte di verità server-side,
+ * mai Mem0/localStorage/Runtime Log. */
+export function loadV2Issues(token: string | null): Promise<BackendResult<{ issues: V2Issue[] }>> {
+  return post<{ issues: V2Issue[] }>('/api/v2-issues', token, undefined, 'GET');
+}
+
+export function createV2Issue(
+  token: string | null,
+  input: {
+    title: string;
+    area: V2Issue['area'];
+    type: V2Issue['type'];
+    observation: string;
+    expectedBehavior?: string;
+    finalRequirement?: string;
+  },
+): Promise<BackendResult<{ issue: V2Issue; merged: boolean }>> {
+  return post<{ issue: V2Issue; merged: boolean }>('/api/v2-issues', token, input, 'POST');
 }
 
 /** Una richiesta di testo o immagine allo strato AI. */
@@ -405,6 +459,50 @@ export function ask<T = VoiceData>(
   request: AskRequest,
 ): Promise<BackendResult<T>> {
   return post<T>('/api/ai', token, request);
+}
+
+/** 🔷 AGENT.LAB V1 — una domanda all'inspector tecnico del progetto.
+ *  Il server esegue da solo il giro lettura-strumenti-risposta
+ *  (`netlify/functions/agent-lab.ts`): qui non c'è nessun ciclo da orchestrare,
+ *  solo una richiesta e una risposta, come per qualunque altra chiamata AI. */
+export interface AgentLabRequest {
+  message: string;
+  messages: { role: 'user' | 'assistant'; text: string }[];
+  context?: { stepId?: string; stepLabel?: string; stepDetail?: string; stepPhase?: string } | null;
+}
+
+export interface AgentLabResponse {
+  text: string;
+  toolTrace: { name: string; ok: boolean }[];
+  model: string;
+  costUsd: number;
+  warning?: boolean;
+  /* TXT export — `export_report` gira server-side (dove vive il progetto),
+     quindi non può scaricare un file da solo: torna il contenuto qui, e
+     `AgentLabChat.tsx` fa il download vero nel browser di chi guarda. */
+  exportFile?: { filename: string; content: string };
+}
+
+export function askAgentLab(token: string | null, request: AgentLabRequest): Promise<BackendResult<AgentLabResponse>> {
+  return post<AgentLabResponse>('/api/agent-lab', token, request);
+}
+
+export interface PersonalMemorySearchResult {
+  memories: Array<{ id?: string; text: string; score?: number }>;
+}
+
+/**
+ * Ricerca di memoria personale rilevante per un testo, senza sapere quale
+ * backend (ME Model o Mem0) la serva — lo decide il server (Core memory
+ * boundary, `netlify/functions/_shared/core/memory.ts`). Usata per portare
+ * contesto rilevante dentro un'interpretazione, non per leggere l'intera
+ * memoria.
+ */
+export function searchPersonalMemory(
+  token: string | null,
+  query: string,
+): Promise<BackendResult<PersonalMemorySearchResult>> {
+  return post<PersonalMemorySearchResult>('/api/me-memory', token, { query }, 'POST');
 }
 
 export function askImage(
@@ -443,6 +541,8 @@ export function askImage(
    * porta e non cambia il prodotto.
    */
   quality?: 'low' | 'medium' | 'high',
+  /** Per chi sta costando: vedi `AskRequest.monName`. */
+  monName?: string,
 ): Promise<BackendResult<ImageData>> {
   return post<ImageData>('/api/ai', token, {
     capability: 'image',
@@ -450,6 +550,7 @@ export function askImage(
     voiceModel: imageModel,
     ...(reference ? { reference } : {}),
     ...(quality ? { quality } : {}),
+    ...(monName ? { monName } : {}),
     size,
   });
 }
@@ -754,9 +855,9 @@ export function saveRemote(
   token: string | null,
   day: number,
   state: unknown,
-  baseRevision: string | null,
-): Promise<BackendResult<{ ok: boolean; day: number; savedAt: string; revision: string }>> {
-  return post('/api/state', token, { day, state, baseRevision }, 'PUT');
+  opts: { reset?: boolean; baseRevision: string | null },
+): Promise<BackendResult<{ ok: boolean; day: number; savedAt: string; revision: string; payloadBytes: number; limitBytes: number; reset?: boolean }>> {
+  return post('/api/state', token, { day, state, ...opts }, 'PUT');
 }
 
 /* --- Dati dalle Shortcut ----------------------------------------------------- */

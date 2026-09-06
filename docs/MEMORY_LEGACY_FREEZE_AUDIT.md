@@ -273,3 +273,5 @@ Do not delete the following because the future integration will reuse them or th
 # NEXT IMPLEMENTATION TASK
 
 Implemented in `netlify/functions/_shared/memoryWriter.ts`: `/api/me-chat-capture` now reaches chat memory through one provider-neutral boundary. `custom` (default) delegates unchanged to `captureChatMemory`; `frozen` returns the compatible non-updated result without reading or writing the ME Blob. The mode is selected by `VINZMON_MEMORY_WRITER_MODE`; unknown modes fail before mutation. A future `mem0` adapter can be added beside these modes without changing the endpoint, `Memoria aggiornata`, Trace or Memory UI contracts.
+
+**Superseded 2026-09-04 (CORE EXTRACTION PHASE 1):** `memoryWriter.ts` is gone. Its job — and the equivalent decision that `me-memory.ts` and `machines.ts` were each making independently, `machines.ts` incorrectly always assuming Mem0 — now lives in one place, `netlify/functions/_shared/core/memory.ts`. See `docs/CORE_EXTRACTION_PHASE1_2026-09-04.md`. The endpoint/result contracts named above are unchanged.

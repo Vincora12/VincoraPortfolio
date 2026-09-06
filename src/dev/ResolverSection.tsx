@@ -379,7 +379,7 @@ export function ResolverSection() {
               soprattutto la strada a mano perderebbe proprio la ricerca
               (grammatiche di moda, taglio, decolorazione, Size) che era il
               pezzo mancante. */}
-          <CopyButton text={RESOLVER_MEMORY} label="1 · COPIA LA MEMORIA" />
+          <CopyButton text={RESOLVER_MEMORY} label="1 · COPIA LA MEMORIA RESOLVER" />
           <CopyButton
             text={`${RESOLVER_CONTRACT}\n\n${tasteBrief(mon, formeGiaViste(Object.values(useApp.getState().mons), mon.data.name))}`}
             label="2 · COPIA CONTRATTO E GUSTO"

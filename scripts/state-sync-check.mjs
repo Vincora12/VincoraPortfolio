@@ -44,7 +44,7 @@ assert.equal((await m.handler(request({ day: 5, state: { day: 5 }, baseRevision:
 globalThis.__syncTest.writeFailure = true;
 assert.equal((await m.handler(request({ day: 12, state: {}, baseRevision: current.revision }))).status, 503, 'unconfirmed SDK modified is not success');
 globalThis.__syncTest.writeFailure = false;
-assert.equal((await m.handler(request({ day: 1, state: { day: 1, resetAt: '2099-01-01T00:00:00Z' }, baseRevision: current.revision }))).status, 200, 'explicit known-baseline reset still works');
+assert.equal((await m.handler(request({ day: 1, reset: true, state: { day: 1, resetAt: '2099-01-01T00:00:00Z' }, baseRevision: current.revision }))).status, 200, 'explicit known-baseline reset still works');
 assert.ok(globalThis.__syncTest.records.has('day-12'), 'old daily backup retained');
 
 const baseline = { localHash: 'old', remoteHash: 'new', receipt: { revision: 'r1', hash: 'old' }, localDay: 12, remoteDay: 12, remoteRevision: 'r2' };

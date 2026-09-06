@@ -169,12 +169,26 @@ export interface UsageEvent {
   imageQuality?: 'low' | 'medium' | 'high';
   webSearches: number;
   estimatedCostUsd: number;
+  /* 🔷 LAB INFORMATION ARCHITECTURE CLEANUP — «prefer a run/creation id if
+     available; if none exists, implement the smallest safe correlation
+     metadata for FUTURE runs; do not fabricate historical totals.»
+
+     🔒 NESSUNA CORRELAZIONE ESISTEVA PRIMA DI QUESTO CAMPO — verificato: né
+     `UsageEvent` né `SpendEventMeta` portavano un id di run o il nome del
+     .mon. Gli eventi VECCHI restano senza `monName` per sempre — ed è
+     onesto che sia così, non si inventa un raggruppamento che non c'era. Da
+     adesso in poi, ogni chiamata che sa per quale creatura sta lavorando
+     (resolver, bio, immagini) lo dichiara qui: basta a raggruppare il
+     costo dell'ULTIMA creatura forgiata, senza una tabella di correlazione
+     a parte. */
+  monName?: string;
 }
 
 export interface SpendEventMeta {
   action?: string;
   subsystem?: string;
   provider?: string;
+  monName?: string;
 }
 
 const store = () => getStore('vinzmon-spend');
@@ -359,6 +373,7 @@ export async function recordSpend(
     ...(usage.imageQuality ? { imageQuality: usage.imageQuality } : {}),
     webSearches: usage.webSearches ?? 0,
     estimatedCostUsd: cost,
+    ...(meta.monName ? { monName: meta.monName } : {}),
   });
 
   await store().setJSON(ledger.month, ledger);
