@@ -426,8 +426,16 @@ export async function replyWithLocalTools(
       ? 'registra_allenamento'
     : explicitWrite;
 
+  /* Un audit reale spesso ha bisogno di raccogliere prove in PIÙ passaggi:
+     cerca, legge un file, magari ne legge un altro o continua uno troncato,
+     e solo allora sintetizza (ed eventualmente esporta). Il tetto di 4 round
+     di ogni altra richiesta lascerebbe l'ultimo round senza strumenti
+     (`round < maxRounds - 1`) troppo presto per un audit con export —
+     esteso SOLO per l'audit, invariato per il resto della chat. */
+  const maxRounds = isAudit ? 6 : 4;
+
   try {
-    for (let round = 0; round < 4; round++) {
+    for (let round = 0; round < maxRounds; round++) {
       clock.mark(`ROUND ${round + 1}`, `POST /api/ai · ${availableTools.length} strumenti disponibili`);
       const response = await fetch('/api/ai', {
         method: 'POST',
@@ -442,7 +450,7 @@ export async function replyWithLocalTools(
           ...(round === 0 && images.length ? { images } : {}),
           ...(round === 0 && files.length ? { files } : {}),
           ...(userBlocks ? { userBlocks } : {}),
-          tools: round < 3 ? availableTools : [],
+          tools: round < maxRounds - 1 ? availableTools : [],
           ...(round === 0 && forcedWrite ? { toolChoice: forcedWrite } : {}),
           webSearch: true,
           effort: 'none',

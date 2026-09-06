@@ -12,6 +12,13 @@
       senza rete.
    4. Il confine HTTP dei tre endpoint `/v1/*` — auth, metodo, corpo — MAI una
       vera chiamata a un fornitore (nessuna chiave, nessun costo).
+   5. FOLLOW-UP 2026-09-06 — "risultati degli strumenti troppo lunghi": il
+      budget combinato di un turno (`budgetToolResults`, chat E Agent.lab) e
+      la lettura per range di `code_read`/`read_file` (`readProjectFile`).
+      Riproduce la combinazione reale che ha fatto fallire il test online
+      (due letture piene nello stesso turno) e verifica che ora resti sotto
+      il tetto vero del server (`ai.ts`'s `LIMITS.userChars`), MAI in
+      silenzio.
 
    Uso:  node scripts/audit-unification-check.mjs
    ========================================================================= */
@@ -204,6 +211,101 @@ console.log('\n═══ 4 — confine HTTP di /v1/models, /v1/chat/completions,
   // questo punto qui bloccherebbe la verifica invece di provare qualcosa in
   // più: TEST F/G (l'ingresso arriva davvero al Core, non a un runtime
   // finto) vanno rifatti online con VINZMON_TOKEN reale — vedi il report.
+}
+
+/* ============================================================================
+   5 — FOLLOW-UP 2026-09-06: "risultati degli strumenti troppo lunghi"
+   ========================================================================= */
+console.log('\n═══ 5 — budget combinato dei tool result + lettura per range ═══\n');
+{
+  const m = await bundle(
+    'budget-tools',
+    `export { budgetToolResults, resultBlocks } from '${cwd}/src/ai/tools.ts';`,
+  );
+
+  // REGRESSIONE REALE — la combinazione esatta che ha fatto fallire il test
+  // online: due code_read pieni (6000 caratteri l'uno, il tetto per-file di
+  // agentLabFiles.ts) nello stesso turno. PRIMA di questa correzione, la
+  // somma (12000+) superava il tetto del server (`ai.ts`'s LIMITS.userChars
+  // = 12000) e l'intero turno falliva con "risultati degli strumenti troppo
+  // lunghi" — un errore che non diceva al modello cosa fare diversamente.
+  const twoFullFileReads = [
+    { id: 't1', content: 'A'.repeat(6000) },
+    { id: 't2', content: 'B'.repeat(6000) },
+  ];
+  const budgeted = m.budgetToolResults(twoFullFileReads);
+  const totalAfter = budgeted.reduce((n, r) => n + r.content.length, 0);
+  check(totalAfter < 9_500, 'REGRESSIONE — due code_read pieni nello stesso turno restano sotto il budget combinato (9000 + il testo dell\'avviso esplicito)');
+  check(budgeted[1].content.includes('ACCORCIATO') || budgeted[1].content.includes('RIMANDATO'), 'il secondo risultato accorciato/rimandato lo dice esplicitamente — mai un troncamento muto');
+  check(budgeted[0].content === 'A'.repeat(6000), 'il PRIMO risultato non viene toccato se rientra nel budget (nessuna perdita di qualità quando non serve tagliare)');
+
+  // La stessa combinazione, mandata al server VERO tramite resultBlocks —
+  // deve stare sotto il tetto reale di ai.ts (LIMITS.userChars = 12000),
+  // non solo sotto il budget "a occhio" di questo file.
+  const blocks = m.resultBlocks(twoFullFileReads);
+  const serverSideLength = JSON.stringify(blocks).length;
+  check(serverSideLength < 12_000, `REGRESSIONE (limite server reale) — JSON.stringify(userBlocks) = ${serverSideLength} caratteri, resta sotto i 12000 di ai.ts's LIMITS.userChars`);
+
+  // Un turno "normale" (risultati piccoli) non deve MAI essere toccato dal
+  // budget — questo NON è un abbassamento generale della qualità.
+  const smallResults = [{ id: 't1', content: 'Pasto registrato in ME.' }, { id: 't2', content: 'ok' }];
+  const untouched = m.budgetToolResults(smallResults);
+  check(untouched[0].content === smallResults[0].content && untouched[1].content === smallResults[1].content, 'risultati piccoli (il caso comune) escono IDENTICI — il budget non degrada la chat normale');
+
+  // Tre letture piene (18000 raw) — il budget deve accorciare/rimandare, MAI
+  // lanciare un'eccezione o produrre un turno comunque troppo grande.
+  const threeFullFileReads = [
+    { id: 't1', content: 'A'.repeat(6000) },
+    { id: 't2', content: 'B'.repeat(6000) },
+    { id: 't3', content: 'C'.repeat(6000) },
+  ];
+  const threeBudgeted = m.budgetToolResults(threeFullFileReads);
+  const threeTotal = threeBudgeted.reduce((n, r) => n + r.content.length, 0);
+  check(threeTotal < 10_000, 'tre code_read pieni nello stesso turno restano comunque ben sotto il tetto vero del server (12000)');
+  check(threeBudgeted[2].content.includes('RIMANDATO'), 'il terzo risultato, oltre il budget già esaurito dai primi due, viene rimandato esplicitamente al turno successivo');
+}
+{
+  // La stessa correzione, lato Agent.lab (server-side) — implementazione
+  // duplicata di proposito (questo file non importa mai codice client), ma
+  // stesso comportamento.
+  const m = await bundle(
+    'budget-tools-agentlab',
+    `export { budgetToolResults } from '${cwd}/netlify/functions/agent-lab.ts';`,
+  );
+  const twoFullFileReads = [
+    { id: 't1', content: 'A'.repeat(6000), isError: false },
+    { id: 't2', content: 'B'.repeat(6000), isError: false },
+  ];
+  const budgeted = m.budgetToolResults(twoFullFileReads);
+  const total = budgeted.reduce((n, r) => n + r.content.length, 0);
+  check(total < 9_500, 'Agent.lab — stessa combinazione, stesso budget rispettato server-side');
+  check(budgeted[1].content.includes('ACCORCIATO') || budgeted[1].content.includes('RIMANDATO'), 'Agent.lab — avviso esplicito, non un troncamento muto');
+}
+{
+  // LETTURA PER RANGE — il modello deve poter chiedere solo la sezione che
+  // gli serve invece di ricevere sempre l'intero file dall'inizio: verifica
+  // contro il filesystem REALE di questo repository (stesso file usato dai
+  // controlli G3/G7 di verify:tool-layer).
+  const m = await bundle(
+    'read-range',
+    `export { readProjectFile } from '${cwd}/netlify/functions/_shared/agentLabFiles.ts';`,
+  );
+  const full = m.readProjectFile('src/engine/progression.ts');
+  check(full.ok, 'lettura senza range: comportamento invariato, nessun errore');
+  if (full.ok) {
+    check(typeof full.totalLines === 'number' && full.totalLines > 0, 'il risultato dichiara sempre il numero totale di righe del file');
+    check(typeof full.startLine === 'number' && full.startLine === 1, 'senza range, parte dalla riga 1 come sempre');
+  }
+  const ranged = m.readProjectFile('src/engine/progression.ts', { startLine: 2, endLine: 5 });
+  check(ranged.ok, 'lettura per range: nessun errore su un range valido');
+  if (ranged.ok && full.ok) {
+    check(ranged.startLine === 2 && ranged.endLine === 5, 'il range richiesto è rispettato esattamente');
+    check(ranged.text.split('\n').length <= 4, 'il testo tornato contiene solo le righe richieste, non il file intero');
+    check(ranged.totalLines === full.totalLines, 'il totale righe è coerente fra lettura intera e lettura per range (stesso file)');
+    check(ranged.truncated === true || ranged.endLine >= full.totalLines, 'una lettura per range che non arriva alla fine del file lo dichiara esplicitamente (truncated), mai in silenzio');
+  }
+  const beyond = m.readProjectFile('src/engine/progression.ts', { startLine: 999999 });
+  check(!beyond.ok, 'chiedere una riga oltre la fine del file torna un errore leggibile, non un crash o un contenuto vuoto scambiato per successo');
 }
 
 console.log(`\n${failures === 0 ? 'Tutto coerente.' : `${failures} controllo/i falliti.`}\n`);

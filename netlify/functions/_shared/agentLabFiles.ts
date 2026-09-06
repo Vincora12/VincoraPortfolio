@@ -161,8 +161,34 @@ export function listProjectFiles(requestedPath?: string): { ok: true; path: stri
 
 const MAX_FILE_CHARS = 6000;
 
-/** Legge un file di testo consentito, troncato se enorme. */
-export function readProjectFile(requestedPath: string): { ok: true; path: string; text: string; truncated: boolean } | FileAccessError {
+export interface ReadFileOptions {
+  /** Riga di inizio, 1-based inclusiva. Assente = dall'inizio del file. */
+  startLine?: number;
+  /** Riga di fine, 1-based inclusiva. Assente = fino al tetto di caratteri. */
+  endLine?: number;
+}
+
+export interface ReadFileResult {
+  ok: true;
+  path: string;
+  text: string;
+  /** C'è altro contenuto oltre a `text` (per il tetto di caratteri o perché
+      il range richiesto non copre tutto il file) — MAI un troncamento muto:
+      chi chiama deve poter dire al modello che può chiedere il resto. */
+  truncated: boolean;
+  totalLines: number;
+  startLine: number;
+  endLine: number;
+}
+
+/**
+ * Legge un file di testo consentito. Senza `options`, legge dall'inizio fino
+ * al tetto di caratteri — comportamento IDENTICO a prima di AUDIT &
+ * UNIFICATION FOLLOW-UP. Con `startLine`/`endLine`, legge solo quell'intervallo
+ * di righe: la lettura mirata che evita di dover ributtare un intero file
+ * enorme nel context solo per vederne una sezione.
+ */
+export function readProjectFile(requestedPath: string, options: ReadFileOptions = {}): ReadFileResult | FileAccessError {
   const resolved = resolveAllowedPath(requestedPath);
   if ('error' in resolved) return resolved;
   const ext = resolved.rel.slice(resolved.rel.lastIndexOf('.'));
@@ -182,8 +208,23 @@ export function readProjectFile(requestedPath: string): { ok: true; path: string
   } catch {
     return { ok: false, error: 'file non leggibile' };
   }
-  const truncated = raw.length > MAX_FILE_CHARS;
-  return { ok: true, path: resolved.rel, text: truncated ? raw.slice(0, MAX_FILE_CHARS) : raw, truncated };
+
+  const lines = raw.split('\n');
+  const totalLines = lines.length;
+  const startLine = options.startLine && Number.isFinite(options.startLine) && options.startLine > 1
+    ? Math.floor(options.startLine)
+    : 1;
+  if (startLine > totalLines) return { ok: false, error: `il file ha solo ${totalLines} righe — da_riga oltre la fine` };
+  const requestedEnd = options.endLine && Number.isFinite(options.endLine) && options.endLine >= startLine
+    ? Math.floor(options.endLine)
+    : totalLines;
+  const endLine = Math.min(requestedEnd, totalLines);
+
+  const slice = lines.slice(startLine - 1, endLine).join('\n');
+  const charCapped = slice.length > MAX_FILE_CHARS;
+  const text = charCapped ? slice.slice(0, MAX_FILE_CHARS) : slice;
+  const truncated = charCapped || endLine < totalLines;
+  return { ok: true, path: resolved.rel, text, truncated, totalLines, startLine, endLine };
 }
 
 export interface SearchMatch {

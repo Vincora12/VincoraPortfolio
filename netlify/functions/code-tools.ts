@@ -39,6 +39,8 @@ interface SearchRequest {
 interface ReadRequest {
   op: 'read';
   path?: unknown;
+  startLine?: unknown;
+  endLine?: unknown;
 }
 
 function isSearch(body: unknown): body is SearchRequest {
@@ -81,7 +83,9 @@ export default async function handler(request: Request): Promise<Response> {
 
   if (isRead(body)) {
     const path = typeof body.path === 'string' ? body.path.slice(0, MAX_PATH_CHARS) : '';
-    const result = readProjectFile(path);
+    const startLine = typeof body.startLine === 'number' ? body.startLine : undefined;
+    const endLine = typeof body.endLine === 'number' ? body.endLine : undefined;
+    const result = readProjectFile(path, { startLine, endLine });
     void appendRuntimeEvent({
       eventType: 'TOOL_LAYER_CODE_READ',
       status: result.ok ? 'PASS' : 'FAIL',
@@ -94,7 +98,15 @@ export default async function handler(request: Request): Promise<Response> {
       },
     });
     if (!result.ok) return json({ ok: false, error: result.error }, 200);
-    return json({ ok: true, path: result.path, text: result.text, truncated: result.truncated });
+    return json({
+      ok: true,
+      path: result.path,
+      text: result.text,
+      truncated: result.truncated,
+      totalLines: result.totalLines,
+      startLine: result.startLine,
+      endLine: result.endLine,
+    });
   }
 
   return json({ error: 'operazione non valida — usa "search" o "read"' }, 400);

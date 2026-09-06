@@ -60,11 +60,13 @@ export const CODE_TOOL_DEFS: ToolDef[] = [
   {
     name: CODE_READ_TOOL_NAME,
     description:
-      'Legge il contenuto reale di un file del repository VINZ.MON, dato il suo percorso relativo (es. "src/engine/progression.ts"). Usalo dopo code_search per vedere davvero come funziona qualcosa, prima di spiegarlo. Se il percorso non è valido o il file non esiste, lo strumento lo dice: non inventare mai un contenuto.',
+      'Legge il contenuto reale di un file del repository VINZ.MON, dato il suo percorso relativo (es. "src/engine/progression.ts"). Usalo dopo code_search per vedere davvero come funziona qualcosa, prima di spiegarlo. Senza da_riga/a_riga legge dall\'inizio fino al tetto di caratteri — per un file lungo, usa da_riga/a_riga per leggere una sezione mirata invece di sperare che stia tutta nelle prime righe. Il risultato dice sempre quante righe ha il file in totale e se c\'è altro da leggere: se dice troncato, richiama code_read con un altro da_riga per continuare. Se il percorso non è valido o il file non esiste, lo strumento lo dice: non inventare mai un contenuto.',
     schema: {
       type: 'object',
       properties: {
         percorso: { type: 'string', description: 'Percorso relativo al repository, es. "src/engine/progression.ts".' },
+        da_riga: { type: 'integer', description: 'Riga di inizio (1-based). Opzionale — assente = dall\'inizio del file.' },
+        a_riga: { type: 'integer', description: 'Riga di fine (1-based, inclusiva). Opzionale — assente = fino al tetto di caratteri.' },
       },
       required: ['percorso'],
     },
@@ -139,20 +141,25 @@ type SearchResponse =
   | { ok: true; matches: SearchMatch[]; filesScanned: number; truncated: boolean }
   | { ok: false; error: string };
 type ReadResponse =
-  | { ok: true; path: string; text: string; truncated: boolean }
+  | { ok: true; path: string; text: string; truncated: boolean; totalLines: number; startLine: number; endLine: number }
   | { ok: false; error: string };
 
 function formatSearchResult(res: SearchResponse): ToolResult['content'] {
   if (!res.ok) return `ISPEZIONE FALLITA — ${res.error}`;
   if (res.matches.length === 0) return 'Nessun risultato reale trovato nel repository per questa ricerca. Non è un file che manca di essere letto: è che il termine non compare (o non con queste lettere).';
   const lines = res.matches.map((m) => `${m.path}:${m.line} — ${m.text}`);
-  const note = res.truncated ? '\n\n(risultati troncati: la ricerca ha trovato più di quanto mostrato qui)' : '';
+  const note = res.truncated ? '\n\n(risultati troncati: la ricerca ha trovato più di quanto mostrato qui — restringi a una cartella o a un termine più specifico)' : '';
   return `${res.matches.length} risultato/i reali nel repository:\n\n${lines.join('\n')}${note}`;
 }
 
+/* Il modello deve SAPERE quando ha visto solo una parte di un file — mai un
+   troncamento muto che gli lascia credere di aver letto tutto. */
 function formatReadResult(res: ReadResponse): ToolResult['content'] {
   if (!res.ok) return `ISPEZIONE FALLITA — ${res.error}`;
-  const note = res.truncated ? '\n\n[CONTENUTO TRONCATO — il file continua oltre questo punto]' : '';
+  const range = `righe ${res.startLine}-${res.endLine} di ${res.totalLines} totali`;
+  const note = res.truncated
+    ? `\n\n[PARZIALE — ${range}, il file continua oltre questo punto. Richiama code_read con da_riga=${res.endLine + 1} per continuare, o con da_riga/a_riga per una sezione precisa.]`
+    : res.totalLines > 1 ? `\n\n[completo — ${range}]` : '';
   return `FILE: ${res.path}\n\n${res.text}${note}`;
 }
 
@@ -196,7 +203,9 @@ export async function runToolLayerTool(use: ToolUse): Promise<ToolResult | undef
     if (use.name === CODE_READ_TOOL_NAME) {
       const path = typeof args.percorso === 'string' ? args.percorso : '';
       if (!path.trim()) return { id: use.id, content: 'ISPEZIONE FALLITA — manca il percorso del file.', isError: true };
-      const response = await postCodeTool({ op: 'read', path });
+      const startLine = typeof args.da_riga === 'number' ? args.da_riga : undefined;
+      const endLine = typeof args.a_riga === 'number' ? args.a_riga : undefined;
+      const response = await postCodeTool({ op: 'read', path, startLine, endLine });
       if (!response.ok) return { id: use.id, content: `ISPEZIONE FALLITA — il servizio di lettura non ha risposto (${response.status}).`, isError: true };
       const body = await response.json() as ReadResponse;
       return { id: use.id, content: formatReadResult(body), ...(body.ok ? {} : { isError: true }) };

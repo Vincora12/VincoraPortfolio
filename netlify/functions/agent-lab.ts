@@ -62,8 +62,16 @@ const TOOLS: ToolDef[] = [
   },
   {
     name: 'read_file',
-    description: 'Legge il contenuto testuale di un file del progetto (ts, tsx, css, md, json, toml). Usalo dopo list_files o search_files, non a indovinare i percorsi.',
-    schema: { type: 'object', properties: { path: { type: 'string', description: 'Percorso relativo alla radice del progetto, es. "src/engine/progression.ts".' } }, required: ['path'] },
+    description: 'Legge il contenuto testuale di un file del progetto (ts, tsx, css, md, json, toml). Usalo dopo list_files o search_files, non a indovinare i percorsi. Senza start_line/end_line legge dall\'inizio fino al tetto di caratteri — per un file lungo, usa start_line/end_line per una sezione mirata invece di leggere tutto il file in un colpo solo. Il risultato dice sempre righe totali e se c\'è altro da leggere.',
+    schema: {
+      type: 'object',
+      properties: {
+        path: { type: 'string', description: 'Percorso relativo alla radice del progetto, es. "src/engine/progression.ts".' },
+        start_line: { type: 'integer', description: 'Riga di inizio (1-based). Opzionale.' },
+        end_line: { type: 'integer', description: 'Riga di fine (1-based, inclusiva). Opzionale.' },
+      },
+      required: ['path'],
+    },
   },
   {
     name: 'search_files',
@@ -154,6 +162,42 @@ function resultBlock(id: string, content: string, isError?: boolean): Record<str
   return { type: 'tool_result', tool_use_id: id, content, ...(isError ? { is_error: true } : {}) };
 }
 
+/* AUDIT & UNIFICATION FOLLOW-UP — stessa correzione di `src/ai/tools.ts`'s
+   `budgetToolResults` (root cause: "risultati degli strumenti troppo
+   lunghi" nella chat normale), duplicata qui di proposito — questo file non
+   importa mai codice client (vedi la nota in testa sul perché il loop vive
+   qui e non in `/api/ai` + strumenti lato browser). Ogni singolo strumento
+   ha già il proprio tetto (`MAX_FILE_CHARS`, `MAX_MATCHES`), ma nessuno
+   budgettava la SOMMA di un turno che legge più file insieme. */
+const TOOL_ROUND_BUDGET_CHARS = 9_000;
+
+/** Esportata per `scripts/audit-unification-check.mjs`: verifica il budget
+    combinato senza dover montare un round agentico intero. */
+export function budgetToolResults(
+  results: readonly { id: string; content: string; isError: boolean }[],
+  budgetChars = TOOL_ROUND_BUDGET_CHARS,
+): { id: string; content: string; isError: boolean }[] {
+  let remaining = budgetChars;
+  return results.map((result) => {
+    if (remaining <= 0) {
+      return {
+        ...result,
+        content: 'RISULTATO RIMANDATO — il budget combinato di questo turno è già esaurito dai risultati precedenti. Richiedi di nuovo questo strumento nel prossimo turno, con un ambito più stretto.',
+      };
+    }
+    if (result.content.length <= remaining) {
+      remaining -= result.content.length;
+      return result;
+    }
+    const kept = result.content.slice(0, remaining);
+    remaining = 0;
+    return {
+      ...result,
+      content: `${kept}\n\n[RISULTATO ACCORCIATO A ${kept.length} CARATTERI — supera il budget combinato di questo turno, non il limite del singolo strumento. Chiedi una lettura più mirata (start_line/end_line, una cartella più stretta, o un file alla volta) in un turno successivo.]`,
+    };
+  });
+}
+
 /** Nome file sicuro — stessa logica di `src/ai/toolLayer.ts`, duplicata qui
     di proposito: questa funzione non importa mai codice client (vedi la nota
     in testa al file su "loop qui e non /api/ai + strumenti lato browser"). */
@@ -192,11 +236,17 @@ export function executeTool(use: ToolUse): { id: string; content: string; isErro
     if (use.name === 'read_file') {
       const path = typeof input.path === 'string' ? input.path : '';
       if (!path) return { id: use.id, content: 'manca "path"', isError: true };
-      const result = readProjectFile(path);
+      const startLine = typeof input.start_line === 'number' ? input.start_line : undefined;
+      const endLine = typeof input.end_line === 'number' ? input.end_line : undefined;
+      const result = readProjectFile(path, { startLine, endLine });
       if (!result.ok) return { id: use.id, content: result.error, isError: true };
+      const range = `righe ${result.startLine}-${result.endLine} di ${result.totalLines} totali`;
+      const note = result.truncated
+        ? ` (PARZIALE — ${range}, continua oltre questo punto: richiama read_file con start_line=${result.endLine + 1} per proseguire)`
+        : result.totalLines > 1 ? ` (completo — ${range})` : '';
       return {
         id: use.id,
-        content: `${result.path}${result.truncated ? ' (troncato, file più lungo)' : ''}:\n${result.text}`,
+        content: `${result.path}${note}:\n${result.text}`,
         isError: false,
       };
     }
@@ -325,7 +375,7 @@ export default async function handler(request: Request): Promise<Response> {
       if (outcome.exportFile) exportFile = outcome.exportFile;
       return outcome;
     });
-    userBlocks = results.map((r) => resultBlock(r.id, r.content, r.isError));
+    userBlocks = budgetToolResults(results).map((r) => resultBlock(r.id, r.content, r.isError));
     currentUser = '';
   }
 

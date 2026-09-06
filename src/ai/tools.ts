@@ -675,8 +675,60 @@ export function assistantTurn(text: string, uses: readonly ToolUse[]): Record<st
   return { role: 'assistant', content };
 }
 
+/* AUDIT & UNIFICATION FOLLOW-UP — "risultati degli strumenti troppo lunghi"
+   (TEST B/C reale online, 2026-09-06). Root cause: il server (`ai.ts`)
+   rifiuta un turno se la SOMMA dei tool_result supera 12.000 caratteri di
+   JSON (`LIMITS.userChars`) — ma ogni strumento budgetta solo SÉ STESSO
+   (`code_read` fino a 6000 caratteri, `code_search` fino a ~30 risultati):
+   nessuno budgetta la somma di UN TURNO. Un audit che chiama code_search e
+   poi legge due file nello stesso giro (comportamento perfettamente
+   ragionevole per un modello che vuole raccogliere evidenze) supera quel
+   tetto anche se ogni singolo strumento è entro il proprio limite — e il
+   turno intero falliva con un errore che non diceva nulla di utile su COSA
+   fare diversamente.
+
+   La correzione NON abbassa i limiti dei singoli strumenti (stessa qualità
+   di lettura per chiamata) e non tocca il tetto del server (che protegge il
+   budget, giustamente). Applica invece un budget alla SOMMA di un turno,
+   qui — l'unico punto che vede tutti i risultati di un turno insieme, prima
+   che partano verso il server — e MAI in silenzio: un risultato accorciato
+   lo dice esplicitamente, in modo che il modello sappia di dover chiedere
+   una lettura più mirata (range di righe, cartella più stretta) invece di
+   credere di aver visto tutto. */
+const TOOL_ROUND_BUDGET_CHARS = 9_000;
+
+/**
+ * Applica un budget di caratteri alla SOMMA dei risultati di un turno.
+ * Esportata per essere testata direttamente (nessun round agentico serve a
+ * verificare che tronchi al punto giusto).
+ */
+export function budgetToolResults(
+  results: readonly ToolResult[],
+  budgetChars = TOOL_ROUND_BUDGET_CHARS,
+): ToolResult[] {
+  let remaining = budgetChars;
+  return results.map((result) => {
+    if (remaining <= 0) {
+      return {
+        ...result,
+        content: 'RISULTATO RIMANDATO — il budget combinato di questo turno è già esaurito dai risultati precedenti (non è un errore del tuo strumento: è la somma di più risultati nello stesso turno). Richiedi di nuovo questo strumento nel prossimo turno, magari con un ambito più stretto (un file alla volta, un intervallo di righe, una cartella più precisa).',
+      };
+    }
+    if (result.content.length <= remaining) {
+      remaining -= result.content.length;
+      return result;
+    }
+    const kept = result.content.slice(0, remaining);
+    remaining = 0;
+    return {
+      ...result,
+      content: `${kept}\n\n[RISULTATO ACCORCIATO A ${kept.length} CARATTERI — supera il budget combinato di questo turno (la somma di più risultati insieme), non il limite del singolo strumento. Non hai visto tutto il contenuto: chiedi una lettura più mirata (un intervallo di righe, una cartella più stretta, o un file alla volta) in un turno successivo.]`,
+    };
+  });
+}
+
 export function resultBlocks(results: readonly ToolResult[]): Record<string, unknown>[] {
-  return results.map((r) => ({
+  return budgetToolResults(results).map((r) => ({
     type: 'tool_result',
     tool_use_id: r.id,
     content: r.content,

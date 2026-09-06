@@ -410,13 +410,119 @@ Nel campo "OpenAI-compatible base URL" di OpenClicky:
 | Test | Esito | Nota |
 |---|---|---|
 | A — Agent.lab pagina intera | **PASS** | misurato: corpo chat >55% altezza pagina (prima: tetto fisso 62vh dentro una pagina più grande) |
-| B — audit del Tool Layer con evidenze | **PASS** (offline) | intento riconosciuto, pool corretto attivato, verificato con le frasi esatte del task; la chiamata reale al modello richiede il token di produzione (non recuperato in questa sessione, stessa scelta di sicurezza delle fasi precedenti) |
-| C — audit completo + TXT per Astra | **PASS** (offline) | `isAuditIntent`+`isExportIntent` attivano il pool con `esporta_report`; verifica end-to-end reale (token di produzione) non eseguita in questa sessione — vedi item 26 |
+| B — audit del Tool Layer con evidenze | **FAIL poi corretto** — vedi ADDENDUM | il primo test online reale (con token di produzione, eseguito da Vincenzo) ha rotto il round-trip con "risultati degli strumenti troppo lunghi": l'intento veniva riconosciuto correttamente, ma il turno falliva quando il modello leggeva più file nello stesso giro. Root cause e correzione nell'ADDENDUM subito sotto item 22. |
+| C — audit completo + TXT per Astra | **FAIL poi corretto** — vedi ADDENDUM | stessa causa di TEST B (il turno che raccoglie le evidenze per il TXT è lo stesso che ha rotto B) |
 | D — audit del runtime agentico da Agent.lab | **PASS** | Agent.lab aveva già il grounding necessario (system prompt impone di leggere il codice); non richiedeva un fix per essere vero, solo per essere comodo da leggere (TEST A) |
 | E — stessa identità/Persona/ME/memoria/runtime fra Main Chat e Agent.lab | **PASS con nota** | STESSO Core/routing/auth/provider; Persona/voce sono DIVERSE per progetto (Agent.lab è deliberatamente "Project Inspector", non il .mon — documentato da AGENT.LAB V1); la memoria/ME restano quelle del .mon, non lette da Agent.lab (limite dichiarato, non un difetto nuovo) |
 | F — endpoint OpenAI-compatibile risponde dal runtime vero | **PASS strutturale** | `runIngress` chiama LO STESSO `callProvider`/`resolveRoute` di `ai.ts`/`agent-lab.ts` — nessun secondo adattatore; verifica end-to-end con chiave di produzione non eseguita in questa sessione |
 | G — richiesta che richiede uno strumento autorizzato | **PASS** | dimostrato da `verify:tool-layer`/`verify:agent-lab` (già esistenti) più i nuovi test dell'export tool: decide → esegue → valuta → risponde, reale |
 | H — verifica del deploy online | **PASS meccanico, non autenticato** | vedi item 23 |
+
+---
+
+## ADDENDUM — 2026-09-06 (POST-DEPLOY): "risultati degli strumenti troppo lunghi"
+
+**Come è stato trovato**: Vincenzo ha eseguito online, con il token di produzione, esattamente
+"Fammi un audit del tuo Tool Layer. Controlla realmente il sistema, cita file e funzioni che hai
+verificato e dammi anche un file TXT completo del report." — la prova che questo report, sopra,
+non aveva ancora fatto (limite dichiarato all'item 23/26 nella prima stesura). VINZ.MON ha risposto
+con l'errore **"risultati degli strumenti troppo lunghi"**. Questo addendum documenta diagnosi e
+correzione, con la stessa disciplina FATTO/INFERENZA/RACCOMANDAZIONE del resto del report.
+
+### Diagnosi (FATTO, verificato leggendo il codice reale)
+
+1. **Dove scatta l'errore**: `netlify/functions/ai.ts:354-356` —
+   `if (JSON.stringify(userBlocks).length > LIMITS.userChars) return json({ error: 'risultati degli
+   strumenti troppo lunghi' }, 413);`, con `LIMITS.userChars = 12_000`. `userBlocks` è la somma dei
+   `tool_result` di UN SOLO turno (round) del loop strumenti — non l'intera conversazione.
+2. **Quale combinazione di strumenti la produce**: né `code_search` né `code_read` da soli.
+   `code_read` è già limitato a `MAX_FILE_CHARS = 6000` caratteri per chiamata
+   (`_shared/agentLabFiles.ts`); `code_search` a `MAX_MATCHES = 30` risultati (~7-9.000 caratteri
+   nel caso peggiore). Il problema è la SOMMA: un audit del Tool Layer porta il modello a leggere
+   più file rilevanti (`src/ai/toolLayer.ts`, `src/ai/tools.ts`, `netlify/functions/code-tools.ts`,
+   `src/brain/stream.ts`...) — è perfettamente ragionevole che ne legga due nello stesso turno. Due
+   `code_read` pieni fanno 12.000+ caratteri raw, oltre il tetto del server anche se OGNI singola
+   chiamata rispetta il proprio limite.
+3. **Dimensione reale**: riprodotta nel nuovo test di regressione
+   (`scripts/audit-unification-check.mjs`, sezione 5) — due letture da 6000 caratteri ciascuna,
+   nessun budget di turno: 12.000 caratteri raw di contenuto, oltre 12.000 una volta dentro
+   `JSON.stringify(userBlocks)` con l'overhead di struttura/escaping.
+4. **`code_search`/`code_read` restituiscono troppo, singolarmente?** No — verificato: entrambi
+   sono già limitati individualmente. Il gap è l'assenza di un budget sulla SOMMA di un turno.
+5. **Più risultati concatenati senza budget?** Sì — questa era la lacuna esatta:
+   `src/ai/tools.ts`'s `resultBlocks()` (usata sia da `stream.ts` che da `ai/client.ts`)
+   concatenava i risultati di un turno senza nessun controllo sulla somma.
+6. **Il loop agentico aveva già troncamento/paginazione?** Per-strumento sì (`MAX_FILE_CHARS`,
+   `MAX_MATCHES`); per-TURNO no — questo è il gap chiuso da questo addendum.
+7. **Il modello leggeva file interi quando bastava un estratto?** Sì, strutturalmente: `code_read`
+   non aveva MAI avuto un modo di leggere una sezione — sempre dall'inizio del file fino al tetto
+   di caratteri. Per un file più lungo di 6000 caratteri, il modello non poteva chiedere "il resto":
+   otteneva un pezzo fisso dall'inizio e basta.
+8. **Prima o dopo il reinserimento nel modello?** PRIMA: l'errore scatta quando il CLIENT rimanda i
+   `tool_result` al server per il turno successivo (`POST /api/ai` con `userBlocks`) — il modello
+   non arriva mai a vedere quei risultati, il turno fallisce all'ingresso del server.
+
+### Perché l'audit precedente non l'aveva trovato (onestà, non giustificazione)
+
+Il test offline (`scripts/audit-unification-check.mjs`, sezioni 1-4) verificava che l'intento
+venisse riconosciuto e che il pool di strumenti corretto si attivasse — MAI una vera sequenza di
+tool-call con risultati di dimensione realistica, perché non chiama un modello vero (per non
+spendere/non richiedere una chiave). Questo è il limite reale di un test "offline": prova la
+LOGICA di instradamento, non il VOLUME di un turno reale. La sezione 5, aggiunta ora, chiude
+esattamente questo buco riproducendo la combinazione reale con dati sintetici, senza bisogno di
+un modello vero.
+
+### Soluzione implementata (minima, senza abbassare qualità o grounding)
+
+1. **Budget combinato per turno** — `budgetToolResults()` (nuova, `src/ai/tools.ts`, usata
+   internamente da `resultBlocks()` così TUTTI i chiamanti la ereditano gratis; implementazione
+   gemella in `netlify/functions/agent-lab.ts` per lo stesso motivo per cui altro codice è
+   duplicato lì — quel file non importa mai `src/`). Budget = 9.000 caratteri raw per turno,
+   scelto con margine sotto i 12.000 veri del server per l'overhead di escaping JSON (verificato:
+   due letture piene restano a 9.434 caratteri di `JSON.stringify`, contro un tetto di 12.000).
+   - Un risultato che rientra nel budget residuo esce IDENTICO — zero perdita di qualità quando
+     non serve tagliare (il caso comune).
+   - Un risultato che sfora viene accorciato con un avviso ESPLICITO in coda
+     (`[RISULTATO ACCORCIATO A N CARATTERI — ...]`), mai un troncamento muto.
+   - Un risultato che arriva quando il budget è già a zero viene rimandato esplicitamente
+     (`RISULTATO RIMANDATO — ...`) al turno successivo, invece di essere tagliato a zero caratteri.
+2. **Lettura per range in `code_read`/`read_file`** — `readProjectFile()`
+   (`_shared/agentLabFiles.ts`, condivisa da Main Chat e Agent.lab) accetta ora `startLine`/
+   `endLine` opzionali. Il risultato dichiara SEMPRE `totalLines`/`startLine`/`endLine` e se c'è
+   altro da leggere (`truncated`), con l'istruzione esplicita di richiamare lo strumento con
+   `da_riga`/`start_line` avanzato per continuare. Questo permette la strategia progressiva
+   richiesta — cerca → leggi mirato → eventualmente continua — invece di "tutto o niente" dall'
+   inizio del file.
+3. **Più round per un audit** — `replyWithLocalTools` estende il tetto di round da 4 a 6 SOLO
+   quando `isAudit` è vero (invariato per il resto della chat): un audit con export ha bisogno di
+   cercare, leggere (eventualmente in più passaggi), e solo poi sintetizzare/esportare.
+
+### Cosa NON è stato fatto (per scelta, coerente con i vincoli del task)
+
+- Non sono stati alzati i tetti del server (`LIMITS.userChars` in `ai.ts` resta 12.000) — quello
+  protegge il budget reale, non andava toccato.
+- Non sono stati abbassati `MAX_FILE_CHARS`/`MAX_MATCHES` (nessuna perdita di qualità per singola
+  chiamata).
+- Nessun nuovo runtime, nessun secondo loop agentico: la correzione vive nello stesso punto in cui
+  i risultati di un turno vengono assemblati, in entrambe le superfici esistenti.
+
+### Test di regressione aggiunto
+
+`scripts/audit-unification-check.mjs`, sezione 5: riproduce la combinazione esatta (due/tre
+`code_read` pieni nello stesso turno), verifica che il budget li accorci/rimandi con un avviso
+esplicito, verifica il numero VERO (`JSON.stringify` < 12.000, il controllo reale di `ai.ts`),
+verifica che risultati piccoli escano identici (nessuna regressione sulla chat normale), e verifica
+la lettura per range contro il filesystem reale di questo repository.
+
+### Verifica online dopo la correzione
+
+Vedi item 26 aggiornato — la stessa identica richiesta che ha fatto scoprire il problema va
+ripetuta online con il token di produzione dopo il deploy di questa correzione. Questa sessione ha
+verificato meccanicamente (via l'API di Netlify, stesso metodo dell'item 23) che il deploy con
+questa correzione è online; non ha eseguito la chiamata autenticata reale (nessun token di
+produzione in questa sessione, stessa scelta di sicurezza di tutte le fasi precedenti).
+
+---
 
 ## 23 — CAPACITÀ ANCORA MANCANTI / NON VERIFICATE ONLINE
 
@@ -478,6 +584,15 @@ Nel campo "OpenAI-compatible base URL" di OpenClicky:
 
 ## 26 — PROSSIMI PASSI CONSIGLIATI
 
+0. **PRIORITÀ — ripetere online, con il token di produzione, esattamente la
+   richiesta che ha fatto scoprire il problema dell'ADDENDUM**: "Fammi un
+   audit del tuo Tool Layer. Controlla realmente il sistema, cita file e
+   funzioni che hai verificato e dammi anche un file TXT completo del
+   report." PASS solo se: non compare più "risultati degli strumenti troppo
+   lunghi"; vengono usati tool reali; vengono citati file/funzioni verificati
+   davvero; l'audit si completa; il TXT viene prodotto e scaricato; il report
+   non inventa evidenze; la chat normale (messaggi brevi, pasti, allenamenti)
+   non è regredita.
 1. Il deploy è già online (verificato meccanicamente, item 23). Resta da
    fare, con il token di produzione in mano: aprire Main Chat online e
    mandare esattamente le frasi di TEST B/C/D; aprire Agent.lab online
