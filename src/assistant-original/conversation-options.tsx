@@ -92,7 +92,7 @@ export function ConversationTabs() {
   const visible = regular.slice(0, 5);
   const active = regular.find((item) => item.id === current);
   if (active && !visible.includes(active)) visible.push(active);
-  return <nav className="vinz-conversation-tabs" aria-label="Conversazioni">
+  return <nav className="vinz-conversation-tabs me-health__tabs" aria-label="Conversazioni">
     {!active && <button type="button" aria-current="page">NUOVA CHAT</button>}
     {visible.map((item) => <button type="button" key={item.id} aria-current={current === item.id ? 'page' : undefined}
       title={item.title || 'Chat'} onClick={() => { if (current !== item.id) { requestManualRoomEntry(item.id); void aui.threads.switchToThread(item.id); } }}>
