@@ -233,9 +233,17 @@ body[data-scroll-locked] {
   outline-offset: 0;
 }
 
-.vinz-chat-model,
-.vinz-chat-menu {
+.vinz-chat-model {
   top: calc(env(safe-area-inset-top, 0px) + 0.5rem);
+}
+
+.vinz-chat-menu {
+  top: calc(50% - 1rem);
+}
+
+.vinz-chat-menu {
+  left: .5rem !important;
+  transform: translateY(-50%);
 }
 
 .vinz-chat-menu button,
