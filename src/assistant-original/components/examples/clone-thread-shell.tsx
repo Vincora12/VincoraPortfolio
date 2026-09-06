@@ -15,7 +15,7 @@ import {
 } from "@/assistant-original/components/ui/tooltip";
 import { cn } from "@/assistant-original/lib/utils";
 import { useAuiState } from "@assistant-ui/react";
-import { MenuIcon, PanelLeftIcon, XIcon } from "lucide-react";
+import { PanelLeftIcon } from "lucide-react";
 import { useEffect, useRef, useState, type CSSProperties, type FC, type MouseEvent, type ReactNode } from "react";
 
 type CloneThreadShellProps = {
@@ -239,17 +239,6 @@ export const CloneThreadShell: FC<CloneThreadShellProps> = ({
         </ThreadListRoot>}
       </aside>
 
-      {!mobileOpen && (
-        <button
-          type="button"
-          className="vinz-project-menu md:hidden"
-          aria-label="Apri menu progetti"
-          onClick={() => setMobileOpen(true)}
-        >
-          <MenuIcon aria-hidden="true" />
-        </button>
-      )}
-
       {mobileOpen && (
         <section
           className="vinz-project-page md:hidden"
@@ -258,12 +247,7 @@ export const CloneThreadShell: FC<CloneThreadShellProps> = ({
           style={drawerDrag !== null ? { '--vinz-project-page-progress': `${drawerDrag}px` } as CSSProperties : undefined}
         >
           <header className="vinz-project-page__header">
-            <h2>
-            {sheetTitle ?? "VINZ.MON"}
-            </h2>
-            <button type="button" aria-label="Chiudi menu progetti" onClick={() => setMobileOpen(false)}>
-              <XIcon aria-hidden="true" />
-            </button>
+            <h2>{sheetTitle ?? "VINZ.MON"}</h2>
           </header>
           <div
             className="vinz-project-page__body"

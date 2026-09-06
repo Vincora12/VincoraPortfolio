@@ -1,6 +1,7 @@
 import { useAui, useAuiState } from '@assistant-ui/react';
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { useShallow } from 'zustand/shallow';
+import { ArrowLeftIcon, ArrowRightIcon, BotIcon, CalendarDaysIcon, FileTextIcon, FolderIcon, PackageIcon, XIcon } from 'lucide-react';
 import { ReminderPanel } from '../projects/ReminderPanel';
 import { ProjectWorkspace } from '../projects/ProjectWorkspace';
 import { artifactHref } from '../engine/projects';
@@ -31,11 +32,10 @@ function ProjectChatSidebar({
   onModel: (model: string) => void;
   openWorkspace: () => void;
 }) {
-  const aui = useAui();
-  const threadItems = useAuiState((s) => s.threads.threadItems);
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [project, setProject] = useState<Project | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState<'home' | 'projects' | 'materials'>('home');
   useEffect(() => {
     let live = true;
     void listProjects(token).then((items) => { if (live) setProjects(items); }).catch((e: unknown) => { if (live) setError(e instanceof Error ? e.message : 'Progetti non disponibili.'); });
@@ -47,36 +47,56 @@ function ProjectChatSidebar({
     void loadProject(token, value.projectId).then((item) => { if (live) setProject(item); }).catch(() => { if (live) setProject(null); });
     return () => { live = false; };
   }, [token, value.projectId]);
-  const projectChats = threadItems.filter((item) => item.status === 'regular' && item.custom?.projectId === value.projectId);
+  const back = (label: string) => <button type="button" className="vinz-project-sidebar__back" onClick={() => setPage('home')}><ArrowLeftIcon aria-hidden="true" />{label}</button>;
+  const selectProject = (next: ProjectSummary | null) => {
+    onProject(next);
+    setPage('home');
+  };
+  const row = (icon: ReactNode, label: string, detail: string, action: () => void) => <button type="button" className="vinz-project-sidebar__destination" onClick={action}><span className="vinz-project-sidebar__destination-icon">{icon}</span><span><b>{label}</b><small>{detail}</small></span><ArrowRightIcon aria-hidden="true" /></button>;
+
   return <section className="vinz-project-sidebar" aria-label="Spazio di lavoro del progetto">
-    <div className="vinz-project-sidebar__active">
-      <span className="vinz-project-sidebar__label"><i aria-hidden="true" />PROGETTO ATTIVO</span>
-      <div className="vinz-project-sidebar__project-line">
+    {page === 'home' && <>
+      <div className="vinz-project-sidebar__active">
+        <span className="vinz-project-sidebar__label"><i aria-hidden="true" />PROGETTO ATTIVO</span>
         <strong>{value.projectTitle || 'GLOBAL'}</strong>
-        <button type="button" className="vinz-project-sidebar__manage" onClick={openWorkspace} data-open-workspace>GESTISCI</button>
+        {scopeLocked && <small>CONTESTO BLOCCATO DA QUESTA CHAT</small>}
       </div>
-      {scopeLocked && <small>CONTESTO BLOCCATO DA QUESTA CHAT</small>}
-    </div>
-    <div className="vinz-project-sidebar__section">
-      <div className="vinz-project-sidebar__section-head"><span className="vinz-project-sidebar__label">CHAT</span><span>{projectChats.length} CHAT</span></div>
-      {projectChats.length ? projectChats.map((item) => <button type="button" className="vinz-project-sidebar__row" key={item.id} onClick={() => void aui.threads.switchToThread(item.id)}><span>{item.title || 'Chat senza titolo'}</span><small>APRI</small></button>) : <span className="vinz-project-sidebar__empty">Nessuna chat in questo progetto.</span>}
-    </div>
-    <div className="vinz-project-sidebar__section">
-      <span className="vinz-project-sidebar__label">MATERIALI</span>
-      <button type="button" className="vinz-project-sidebar__row vinz-project-sidebar__material" onClick={openWorkspace} data-open-workspace><span><b>FILE</b><small>{project?.context ? 'FONTI SALVATE NEL CONTESTO' : 'NESSUN FILE CARICATO'}</small></span><em>APRI</em></button>
-      {project?.artifacts.length ? project.artifacts.map((artifact) => <a className="vinz-project-sidebar__row vinz-project-sidebar__material" key={artifact.slug} href={artifactHref(project.id, artifact.slug)}><span><b>{artifact.title}</b><small>ARTEFATTO · V{artifact.revision}</small></span><em>APRI</em></a>) : <button type="button" className="vinz-project-sidebar__row vinz-project-sidebar__material" onClick={openWorkspace} data-open-workspace><span><b>ARTEFATTI</b><small>NESSUN FILE CREATO</small></span><em>APRI</em></button>}
-    </div>
-    <details className="vinz-project-sidebar__controls">
-      <summary>GESTISCI PROGETTO</summary>
-      <div className="vinz-project-sidebar__controls-body">
-        <span className="vinz-project-sidebar__label">CAMBIA PROGETTO</span>
-        <button type="button" className={`vinz-project-sidebar__row ${value.projectId === null ? 'is-selected' : ''}`} disabled={scopeLocked} onClick={() => onProject(null)}>GLOBAL<small>CHAT</small></button>
-        {error ? <span className="vinz-project-sidebar__empty">{error}</span> : projects.length ? projects.map((item) => <button type="button" className={`vinz-project-sidebar__row ${item.id === value.projectId ? 'is-selected' : ''}`} key={item.id} disabled={scopeLocked} onClick={() => onProject(item)}>{item.title}<small>{item.artifactCount} FILE</small></button>) : <span className="vinz-project-sidebar__empty">Nessun progetto salvato.</span>}
-        <button type="button" className="vinz-project-sidebar__outline" onClick={openWorkspace}>GESTISCI PROGETTI E FILE</button>
-        <button type="button" className="vinz-project-sidebar__row" onClick={onAutomations}>AUTOMAZIONI E PROMEMORIA</button>
-        <label className="vinz-project-sidebar__model"><span className="vinz-project-sidebar__label">MODELLO</span><select value={value.model} onChange={(event) => onModel(event.target.value)}><option value="auto">AUTO · routing VINZ.MON</option>{MODELS.map((model) => <option key={model.id} value={model.id}>{model.name}</option>)}</select></label>
+      <div className="vinz-project-sidebar__destinations">
+        {row(<FolderIcon aria-hidden="true" />, 'PROGETTO', 'CAMBIA O GESTISCI', () => setPage('projects'))}
+        {row(<FileTextIcon aria-hidden="true" />, 'FILE E FONTI', project?.context ? 'FONTI SALVATE NEL CONTESTO' : 'NESSUN FILE CARICATO', () => setPage('materials'))}
+        {row(<PackageIcon aria-hidden="true" />, 'ARTEFATTI', `${project?.artifacts.length ?? 0} CREATI`, () => setPage('materials'))}
+        {row(<CalendarDaysIcon aria-hidden="true" />, 'AUTOMAZIONI', 'PROMEMORIA E CALENDARIO', onAutomations)}
       </div>
-    </details>
+      <details className="vinz-project-sidebar__controls">
+        <summary>ALTRE IMPOSTAZIONI</summary>
+        <div className="vinz-project-sidebar__controls-body">
+          <button type="button" className="vinz-project-sidebar__outline" onClick={openWorkspace}>GESTISCI PROGETTI E FILE</button>
+          <label className="vinz-project-sidebar__model"><span className="vinz-project-sidebar__label"><BotIcon aria-hidden="true" />MODELLO</span><select value={value.model} onChange={(event) => onModel(event.target.value)}><option value="auto">AUTO · routing VINZ.MON</option>{MODELS.map((model) => <option key={model.id} value={model.id}>{model.name}</option>)}</select></label>
+        </div>
+      </details>
+    </>}
+    {page === 'projects' && <>
+      {back('SPAZIO DI LAVORO')}
+      <div className="vinz-project-sidebar__page-title"><h3>PROGETTI</h3><p>Scegli il contesto della prossima chat.</p></div>
+      <div className="vinz-project-sidebar__project-list">
+        <button type="button" className={`vinz-project-sidebar__destination ${value.projectId === null ? 'is-selected' : ''}`} disabled={scopeLocked} onClick={() => selectProject(null)}><span className="vinz-project-sidebar__destination-icon"><FolderIcon aria-hidden="true" /></span><span><b>GLOBAL</b><small>SPAZIO PERSONALE</small></span><ArrowRightIcon aria-hidden="true" /></button>
+        {error ? <span className="vinz-project-sidebar__empty">{error}</span> : projects.length ? projects.map((item) => <button type="button" className={`vinz-project-sidebar__destination ${item.id === value.projectId ? 'is-selected' : ''}`} key={item.id} disabled={scopeLocked} onClick={() => selectProject(item)}><span className="vinz-project-sidebar__destination-icon"><PackageIcon aria-hidden="true" /></span><span><b>{item.title}</b><small>{item.artifactCount} ARTEFATTI</small></span><ArrowRightIcon aria-hidden="true" /></button>) : <span className="vinz-project-sidebar__empty">Nessun progetto salvato.</span>}
+      </div>
+      <button type="button" className="vinz-project-sidebar__outline vinz-project-sidebar__new-project" onClick={openWorkspace}>+ NUOVO PROGETTO</button>
+    </>}
+    {page === 'materials' && <>
+      {back('SPAZIO DI LAVORO')}
+      <div className="vinz-project-sidebar__page-title"><h3>{value.projectTitle || 'GLOBAL'}</h3><p>File, fonti e artefatti del progetto.</p></div>
+      <div className="vinz-project-sidebar__section">
+        <span className="vinz-project-sidebar__label">FILE E FONTI</span>
+        <button type="button" className="vinz-project-sidebar__destination" onClick={openWorkspace} data-open-workspace><span className="vinz-project-sidebar__destination-icon"><FileTextIcon aria-hidden="true" /></span><span><b>CONTESTO DEL PROGETTO</b><small>{project?.context ? 'APRI LE FONTI SALVATE' : 'NESSUN FILE CARICATO'}</small></span><ArrowRightIcon aria-hidden="true" /></button>
+      </div>
+      <div className="vinz-project-sidebar__section">
+        <span className="vinz-project-sidebar__label">ARTEFATTI</span>
+        {project?.artifacts.length ? project.artifacts.map((artifact) => <a className="vinz-project-sidebar__destination" key={artifact.slug} href={artifactHref(project.id, artifact.slug)}><span className="vinz-project-sidebar__destination-icon"><PackageIcon aria-hidden="true" /></span><span><b>{artifact.title}</b><small>ARTEFATTO · V{artifact.revision}</small></span><ArrowRightIcon aria-hidden="true" /></a>) : <span className="vinz-project-sidebar__empty">Nessun artefatto creato.</span>}
+      </div>
+      <button type="button" className="vinz-project-sidebar__outline vinz-project-sidebar__new-project" onClick={openWorkspace} data-open-workspace>GESTISCI FILE E ARTEFATTI</button>
+    </>}
   </section>;
 }
 
@@ -99,12 +119,22 @@ export function ConversationTabs({ scope, onNewThread }: { scope: ConversationSc
     if (left < tabs.scrollLeft) tabs.scrollTo({ left, behavior: 'smooth' });
     else if (right > tabs.scrollLeft + tabs.clientWidth) tabs.scrollTo({ left: right - tabs.clientWidth, behavior: 'smooth' });
   }, [current]);
+  const closeActiveTab = (threadId: string) => {
+    const next = regular.find((item) => item.id !== threadId);
+    if (next) {
+      requestManualRoomEntry(next.id);
+      void aui.threads.switchToThread(next.id);
+    }
+    void aui.threads.item({ id: threadId }).archive();
+  };
   return <nav ref={tabsRef} className="vinz-conversation-tabs me-health__tabs" aria-label="Conversazioni">
     {!active && <button type="button" aria-current="page">NUOVA CHAT</button>}
-    {visible.map((item) => <button type="button" key={item.id} aria-current={current === item.id ? 'page' : undefined}
-      title={item.title || 'Chat'} onClick={() => { if (current !== item.id) { requestManualRoomEntry(item.id); void aui.threads.switchToThread(item.id); } }}>
-      <span className="vinz-conversation-tab__label">{item.title || 'Chat'}</span>
-    </button>)}
+    {visible.map((item) => <div key={item.id} className={`vinz-conversation-tab ${current === item.id ? 'is-active' : ''}`} aria-current={current === item.id ? 'page' : undefined}>
+      <button type="button" className="vinz-conversation-tab__select" title={item.title || 'Chat'} onClick={() => { if (current !== item.id) { requestManualRoomEntry(item.id); void aui.threads.switchToThread(item.id); } }}>
+        <span className="vinz-conversation-tab__label">{item.title || 'Chat'}</span>
+      </button>
+      {current === item.id && <button type="button" className="vinz-conversation-tab__close" aria-label={`Chiudi ${item.title || 'chat'}`} onClick={() => closeActiveTab(item.id)}><XIcon aria-hidden="true" /></button>}
+    </div>)}
     <ThreadListNew className="vinz-conversation-new" labelClassName="sr-only" onCreated={onNewThread} />
   </nav>;
 }
