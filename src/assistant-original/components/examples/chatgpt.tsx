@@ -230,7 +230,7 @@ const useFirstArrivalReveal = (arrivalId: unknown) => {
 
 export const ChatGPT: FC<{ sidebarContent?: React.ReactNode }> = ({ sidebarContent }) => {
   return (
-    <CloneThreadShell sidebarContent={sidebarContent}>
+    <CloneThreadShell sidebarContent={sidebarContent} showThreadList={false}>
       <ChatCostTotal />
       <LogCelebration />
       <ReactionMessageDispatcher />

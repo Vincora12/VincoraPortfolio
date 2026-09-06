@@ -7,5 +7,34 @@
 .vinz-chat-options{padding:12px 0;border-bottom:1px solid #777;display:grid;gap:12px;color:inherit;font:11px 'IBM Plex Mono',monospace}
 .vinz-chat-options button,.vinz-chat-options select{color:inherit;background:transparent;border:1px solid #777;min-height:44px;padding:9px;width:100%;text-align:left;font:inherit}.vinz-chat-options select{display:block;margin-top:8px;max-width:100%}.vinz-chat-options option{color:#111;background:white}.vinz-chat-options small{font-size:10px;line-height:1.5;color:#999}
 .vinz-chat-storage-status{padding:6px;background:#252525;color:white;font-size:11px}.vinz-chat-storage-status button{text-decoration:underline;padding:6px}
-.vinz-project-overlay{position:fixed;inset:0;z-index:20000;overflow:auto;background:white;color:#111}
+.vinz-project-overlay{position:fixed;inset:0;z-index:20000;overflow:auto;background:#090909;color:#f2f2f2}
+.vinz-project-sidebar{display:flex;min-height:0;flex:1;flex-direction:column;overflow-y:auto;padding:0 0 1rem;color:#f2f2f2;font:11px 'IBM Plex Mono',monospace;scrollbar-width:thin;scrollbar-color:#444 transparent}
+.vinz-project-sidebar__active{display:grid;gap:7px;padding:1rem 0 1.15rem;border-bottom:1px solid #383838}
+.vinz-project-sidebar__active strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:600 18px 'IBM Plex Mono',monospace;letter-spacing:.02em}
+.vinz-project-sidebar__active small,.vinz-project-sidebar__hint{color:#969696;font-size:9px;line-height:1.45}
+.vinz-project-sidebar__label{display:block;color:#a8a8a8;font-size:10px;letter-spacing:.12em}
+.vinz-project-sidebar__section{display:grid;gap:7px;padding:1rem 0;border-bottom:1px solid #292929}
+.vinz-project-sidebar__row,.vinz-project-sidebar__outline{display:flex;min-height:36px;align-items:center;justify-content:space-between;gap:10px;border:1px solid transparent;padding:8px 9px;background:#161616;color:#f2f2f2;text-align:left;font:11px 'IBM Plex Mono',monospace;text-decoration:none}
+.vinz-project-sidebar__row:hover,.vinz-project-sidebar__row:focus-visible,.vinz-project-sidebar__row.is-selected{border-color:#777;background:#202020}
+.vinz-project-sidebar__row:disabled{cursor:not-allowed;opacity:.45}
+.vinz-project-sidebar__row small{flex:0 0 auto;color:#929292;font-size:9px}
+.vinz-project-sidebar__empty{color:#8d8d8d;font-size:10px;line-height:1.5}
+.vinz-project-sidebar__outline{justify-content:center;border-color:#666;background:transparent;font-size:10px}
+.vinz-project-sidebar__outline:hover,.vinz-project-sidebar__outline:focus-visible{border-color:#f2f2f2}
+.vinz-project-sidebar__bottom{padding-bottom:0;border-bottom:0}
+.vinz-project-sidebar__model{display:grid;gap:7px;margin-top:4px}
+.vinz-project-sidebar__model select{width:100%;min-height:40px;border:1px solid #666;background:#111;color:#f2f2f2;padding:8px;font:11px 'IBM Plex Mono',monospace}
+.vinz-chat-workspace-bridge{padding:2rem;color:#f2f2f2;font:12px 'IBM Plex Mono',monospace}
+.vinz-chat-workspace-bridge button{border:1px solid #777;padding:10px 14px;background:transparent;color:inherit;font:inherit}
+.vinz-project-overlay .project-workspace{min-height:100%;background:#090909;color:#f2f2f2;padding:calc(1rem + env(safe-area-inset-top)) clamp(1rem,4vw,2.5rem) calc(2rem + env(safe-area-inset-bottom));font-family:'IBM Plex Mono',monospace}
+.vinz-project-overlay .project-workspace__head{border-bottom-color:#383838;padding-bottom:1rem}
+.vinz-project-overlay .project-workspace h1{font:600 clamp(24px,6vw,42px) 'IBM Plex Mono',monospace;letter-spacing:.02em}
+.vinz-project-overlay .project-workspace h2,.vinz-project-overlay .project-workspace label{font-family:'IBM Plex Mono',monospace;letter-spacing:.08em}
+.vinz-project-overlay .project-workspace p,.vinz-project-overlay .project-workspace__muted{color:#aaa}
+.vinz-project-overlay .project-workspace button,.vinz-project-overlay .project-workspace input,.vinz-project-overlay .project-workspace textarea{border-color:#666;border-radius:0;background:#111;color:#f2f2f2}
+.vinz-project-overlay .project-workspace button:hover{background:#202020}
+.vinz-project-overlay .project-workspace button.is-active{border-color:#f2f2f2;background:#f2f2f2;color:#090909}
+.vinz-project-overlay .project-workspace__artifact-row,.vinz-project-overlay .project-workspace details{border-color:#383838}
+.vinz-project-overlay .project-workspace a{color:#f2f2f2}
+@media(min-width:768px){.vinz-project-sidebar{padding-inline:0}.vinz-project-sidebar__section,.vinz-project-sidebar__active{padding-inline:.25rem}}
 @media(min-width:768px){.vinz-chat-top-controls{left:58px;top:8px}}

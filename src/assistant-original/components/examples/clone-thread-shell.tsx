@@ -37,6 +37,7 @@ type CloneThreadShellProps = {
   sheetTitle?: ReactNode | undefined;
   showSearch?: boolean | undefined;
   wrapNewThreadTooltip?: boolean | undefined;
+  showThreadList?: boolean | undefined;
 };
 
 export const CloneThreadShell: FC<CloneThreadShellProps> = ({
@@ -51,6 +52,7 @@ export const CloneThreadShell: FC<CloneThreadShellProps> = ({
   sheetTitle,
   showSearch = true,
   wrapNewThreadTooltip = false,
+  showThreadList = true,
 }) => {
   const [internalCollapsed, setInternalCollapsed] = useState(true);
   const [internalMobileOpen, setInternalMobileOpen] = useState(false);
@@ -131,7 +133,7 @@ export const CloneThreadShell: FC<CloneThreadShellProps> = ({
               )}
         </div>
         {!sidebarCollapsed && sidebarContent}
-        <ThreadListRoot
+        {showThreadList && <ThreadListRoot
           className={cn(
             "relative flex-1 transition-[padding,width] duration-200",
             sidebarCollapsed
@@ -174,7 +176,7 @@ export const CloneThreadShell: FC<CloneThreadShellProps> = ({
                 : "translate-x-0 opacity-100",
             )}
           />
-        </ThreadListRoot>
+        </ThreadListRoot>}
       </aside>
 
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
@@ -203,13 +205,15 @@ export const CloneThreadShell: FC<CloneThreadShellProps> = ({
             onClick={closeMobileSidebarAfterNavigation}
           >
             {sidebarContent}
-            {hasThreads && (
+            {showThreadList && hasThreads && (
               <ThreadListSearch value={search} onValueChange={setSearch} />
             )}
-            <div className="vinz-thread-drawer__section">Recenti</div>
-            <ThreadListRoot className="min-h-0 flex-1 overflow-y-auto pb-4">
-              <ThreadListItems searchQuery={hasThreads ? search : ""} />
-            </ThreadListRoot>
+            {showThreadList && <>
+              <div className="vinz-thread-drawer__section">Recenti</div>
+              <ThreadListRoot className="min-h-0 flex-1 overflow-y-auto pb-4">
+                <ThreadListItems searchQuery={hasThreads ? search : ""} />
+              </ThreadListRoot>
+            </>}
           </div>
           <div className="vinz-thread-drawer__footer shrink-0 px-4">
             <ThreadListNew className="vinz-thread-drawer__new h-12 w-full justify-center rounded-full text-base font-semibold" />

@@ -1,8 +1,11 @@
 import { useAui, useAuiState } from '@assistant-ui/react';
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { useShallow } from 'zustand/shallow';
-import { ProjectWorkspace } from '../projects/ProjectWorkspace';
 import { ReminderPanel } from '../projects/ReminderPanel';
+import { ProjectWorkspace } from '../projects/ProjectWorkspace';
+import { artifactHref } from '../engine/projects';
+import type { Project, ProjectSummary } from '../engine/projects';
+import { listProjects, loadProject } from '../projects/client';
 import { useApp, syncWithServer, resolveStateSyncConflict } from '../state/store';
 import { getStateSyncStatus, subscribeStateSync } from '../system/stateSync';
 import { MODELS } from './models';
@@ -10,6 +13,77 @@ import { requestManualRoomEntry } from './chat-room-presence';
 import { ThreadListNew } from './components/assistant-ui/thread-list';
 import { retryStorageSync, storageSyncFailures, subscribeStorageSync } from '../system/serverStorage';
 import './conversation-options.css';
+
+function ProjectChatSidebar({
+  token,
+  value,
+  scopeLocked,
+  onProject,
+  onAutomations,
+  onModel,
+  openWorkspace,
+}: {
+  token: string | null;
+  value: { model: string; projectId: string | null; projectTitle: string };
+  scopeLocked: boolean;
+  onProject: (project: ProjectSummary) => void;
+  onAutomations: () => void;
+  onModel: (model: string) => void;
+  openWorkspace: () => void;
+}) {
+  const aui = useAui();
+  const threadItems = useAuiState((s) => s.threads.threadItems);
+  const [projects, setProjects] = useState<ProjectSummary[]>([]);
+  const [project, setProject] = useState<Project | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    void listProjects(token).then((items) => { if (live) setProjects(items); }).catch((e: unknown) => { if (live) setError(e instanceof Error ? e.message : 'Progetti non disponibili.'); });
+    return () => { live = false; };
+  }, [token]);
+  useEffect(() => {
+    let live = true;
+    if (!value.projectId) { setProject(null); return () => { live = false; }; }
+    void loadProject(token, value.projectId).then((item) => { if (live) setProject(item); }).catch(() => { if (live) setProject(null); });
+    return () => { live = false; };
+  }, [token, value.projectId]);
+  const projectChats = threadItems.filter((item) => item.status === 'regular' && item.custom?.projectId === value.projectId);
+  return <section className="vinz-project-sidebar" aria-label="Spazio di lavoro del progetto">
+    <div className="vinz-project-sidebar__active">
+      <span className="vinz-project-sidebar__label">PROGETTO SELEZIONATO</span>
+      <strong>{value.projectTitle || 'NESSUN PROGETTO'}</strong>
+      {scopeLocked && <small>CONTESTO BLOCCATO DA QUESTA CHAT</small>}
+    </div>
+    <div className="vinz-project-sidebar__section">
+      <span className="vinz-project-sidebar__label">CHAT DEL PROGETTO</span>
+      {projectChats.length ? projectChats.map((item) => <button type="button" className="vinz-project-sidebar__row" key={item.id} onClick={() => void aui.threads.switchToThread(item.id)}>{item.title || 'Chat senza titolo'}</button>) : <span className="vinz-project-sidebar__empty">Nessuna chat in questo progetto.</span>}
+    </div>
+    <div className="vinz-project-sidebar__section">
+      <span className="vinz-project-sidebar__label">FILE CARICATI</span>
+      <span className="vinz-project-sidebar__empty">{project?.context ? 'Fonti testuali salvate nel contesto.' : 'Nessun file caricato.'}</span>
+    </div>
+    <div className="vinz-project-sidebar__section">
+      <span className="vinz-project-sidebar__label">FILE CREATI DA VINZ.MON</span>
+      {project?.artifacts.length ? project.artifacts.map((artifact) => <a className="vinz-project-sidebar__row" key={artifact.slug} href={artifactHref(project.id, artifact.slug)}>{artifact.title}<small>V{artifact.revision}</small></a>) : <span className="vinz-project-sidebar__empty">Nessun file creato.</span>}
+    </div>
+    <div className="vinz-project-sidebar__section">
+      <span className="vinz-project-sidebar__label">COLLEGAMENTI ESTERNI</span>
+      <span className="vinz-project-sidebar__empty">Nessun collegamento configurato.</span>
+      <span className="vinz-project-sidebar__hint">Netlify · Git · Social saranno disponibili quando collegati.</span>
+    </div>
+    <div className="vinz-project-sidebar__section">
+      <span className="vinz-project-sidebar__label">CAMBIA PROGETTO</span>
+      {error ? <span className="vinz-project-sidebar__empty">{error}</span> : projects.length ? projects.map((item) => <button type="button" className={`vinz-project-sidebar__row ${item.id === value.projectId ? 'is-selected' : ''}`} key={item.id} disabled={scopeLocked} onClick={() => onProject(item)}>{item.title}<small>{item.artifactCount} FILE</small></button>) : <span className="vinz-project-sidebar__empty">Nessun progetto salvato.</span>}
+      <button type="button" className="vinz-project-sidebar__outline" onClick={openWorkspace}>GESTISCI PROGETTI E FILE</button>
+    </div>
+    <div className="vinz-project-sidebar__section vinz-project-sidebar__bottom">
+      <span className="vinz-project-sidebar__label">AUTOMAZIONI</span>
+      <button type="button" className="vinz-project-sidebar__row" onClick={onAutomations}>+ CREA AUTOMAZIONE / PROMEMORIA</button>
+      <span className="vinz-project-sidebar__hint">Esempio: ogni giorno cerca notizie su questo.</span>
+      <label className="vinz-project-sidebar__model"><span className="vinz-project-sidebar__label">MODELLO</span><select value={value.model} onChange={(event) => onModel(event.target.value)}><option value="auto">AUTO · routing VINZ.MON</option>{MODELS.map((model) => <option key={model.id} value={model.id}>{model.name}</option>)}</select></label>
+    </div>
+  </section>;
+}
 
 export function ConversationTabs() {
   const aui = useAui();
@@ -50,16 +124,7 @@ export function useConversationOptions() {
       void aui.threads.item('main').updateCustom({ ...custom, model: value.model, projectId: value.projectId, projectTitle: value.projectTitle });
     }
   }, [aui, id, draft.id, remoteId, value.model, value.projectId, value.projectTitle, custom]);
-  const controls = <section className="vinz-chat-options" aria-label="Strumenti conversazione">
-    <button type="button" data-open-workspace onClick={() => setOpen(true)}>PROJECTS / FILES / ARTIFACTS</button>
-    <button type="button" data-open-workspace onClick={() => setRemindersOpen(true)}>PROMEMORIA</button>
-    <label>MODELLO PER QUESTA CHAT<select value={value.model} onChange={(e) => setDraft({ ...value, model: e.target.value })}>
-      <option value="auto">AUTO · routing VINZ.MON</option>{MODELS.map((model) => <option key={model.id} value={model.id}>{model.name}</option>)}
-    </select></label>
-    {value.projectId && <p>Progetto: {value.projectTitle} <button type="button" disabled={scopeLocked} onClick={() => setDraft({ ...value, projectId: null, projectTitle: '' })}>Esci dal contesto</button></p>}
-    {scopeLocked && <small>Per cambiare contesto progetto, apri una nuova chat. La cronologia di questa resta nel suo contesto.</small>}
-    <small>Solo gli strumenti collegati sono disponibili. Nessun accesso automatico a mail, desktop o social.</small>
-  </section>;
+  const controls = <ProjectChatSidebar token={token} value={value} scopeLocked={scopeLocked} onProject={(project) => { setDraft({ ...value, projectId: project.id, projectTitle: project.title }); }} onAutomations={() => setRemindersOpen(true)} onModel={(model) => setDraft({ ...value, model })} openWorkspace={() => setOpen(true)} />;
   const workspace = remindersOpen ? <div className="vinz-project-overlay" role="dialog" aria-modal="true" aria-label="Promemoria">
     <ReminderPanel token={token} onClose={() => { setRemindersOpen(false); if (location.hash === '#reminders') history.replaceState(null, '', location.pathname); }} />
   </div> : open ? <div className="vinz-project-overlay" role="dialog" aria-modal="true" aria-label="Projects">
