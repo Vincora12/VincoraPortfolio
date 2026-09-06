@@ -21,14 +21,15 @@ export default async function handler(request: Request): Promise<Response> {
       // Creation's count guard is not a transaction across records. A rare pair
       // of concurrent creates may cross it; never silently hide those records.
       if (blobs.length > 500) return json({ error: 'Archivio troppo grande per questa vista. Nessun progetto eliminato.' }, 413);
+      const trash = new URL(request.url).searchParams.get('trash') === 'true';
       const projects = await Promise.all(blobs.map(async ({ key }) => {
         const p = await store.get(key, { type: 'json' }) as Project | null;
-        return p ? projectSummary(p) : null;
+        return p && !!p.trashedAt === trash ? projectSummary(p) : null;
       }));
       return json({ projects: projects.filter((p) => p !== null).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)) });
     }
     const raw = await request.text();
-    if (raw.length > 100_000) return json({ error: 'Richiesta troppo grande.' }, 413);
+    if (raw.length > 7_500_000) return json({ error: 'Richiesta troppo grande.' }, 413);
     let input: ProjectMutation;
     try { input = JSON.parse(raw) as ProjectMutation; } catch { return json({ error: 'JSON non valido.' }, 400); }
     const problem = mutationProblem(input);

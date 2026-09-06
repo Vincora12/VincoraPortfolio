@@ -13,8 +13,8 @@ async function request<T>(token: string | null, query = '', body?: ProjectMutati
   if (!response.ok || !data) throw new Error(response.status === 401 ? 'Non autorizzato: verifica il token.' : data?.error ?? 'Archivio progetti non raggiungibile.');
   return data;
 }
-export async function listProjects(token: string | null): Promise<ProjectSummary[]> {
-  return (await request<{ projects: ProjectSummary[] }>(token)).projects;
+export async function listProjects(token: string | null, trash = false): Promise<ProjectSummary[]> {
+  return (await request<{ projects: ProjectSummary[] }>(token, trash ? '?trash=true' : '')).projects;
 }
 export async function loadProject(token: string | null, id: string): Promise<Project> {
   return (await request<{ project: Project }>(token, `?projectId=${encodeURIComponent(id)}`)).project;

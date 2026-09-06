@@ -76,6 +76,11 @@ export const CloneThreadShell: FC<CloneThreadShellProps> = ({
     if (!mobileControlled) setInternalMobileOpen(open);
     onMobileSidebarOpenChange?.(open);
   };
+  useEffect(() => {
+    const close = () => setMobileOpen(false);
+    window.addEventListener('vinz-workspace-close', close);
+    return () => window.removeEventListener('vinz-workspace-close', close);
+  }, [mobileControlled, onMobileSidebarOpenChange]);
 
   useEffect(() => {
     const surface = gestureSurface.current;
@@ -264,7 +269,7 @@ export const CloneThreadShell: FC<CloneThreadShellProps> = ({
               </ThreadListRoot>
             </>}
           </div>
-          <div className="vinz-project-page__footer">
+          {showThreadList && <div className="vinz-project-page__footer">
             <ThreadListNew
               className="vinz-project-page__new h-12 w-full justify-center rounded-none text-base font-semibold"
               onCreated={(threadId) => {
@@ -272,7 +277,7 @@ export const CloneThreadShell: FC<CloneThreadShellProps> = ({
                 setMobileOpen(false);
               }}
             />
-          </div>
+          </div>}
         </section>
       )}
 

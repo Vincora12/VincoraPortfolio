@@ -1,0 +1,14 @@
+.workspace-panel{color:#f2f2f2;font:14px/1.5 var(--font-mono);padding:0 0 24px;overflow-wrap:anywhere}
+.workspace-panel h2{font:700 clamp(28px,7vw,44px)/1.1 var(--font-display);margin:16px 0;letter-spacing:-.03em}
+.workspace-panel p{color:#b5b5b5;margin:12px 0}.workspace-panel__status:empty{display:none}
+.workspace-panel button{min-height:44px;border:1px solid #555;border-radius:0;background:transparent;color:inherit;padding:10px 12px;font:inherit;text-align:left;cursor:pointer}
+.workspace-panel button:disabled{opacity:.5;cursor:wait}.workspace-panel button:hover{background:#181818}.workspace-panel button:focus-visible{outline:2px solid var(--char-accent-on-dark,#fff);outline-offset:2px}
+.workspace-panel button.workspace-panel__row{display:flex;align-items:center;gap:12px;width:100%;border:0;border-bottom:1px solid #333;padding:16px 0;min-height:72px}
+.workspace-panel__row>svg{width:20px;height:20px;flex-shrink:0}.workspace-panel__row>span{flex:1;min-width:0}.workspace-panel small{display:block;font-size:12px;color:#b5b5b5;margin-top:4px}
+.workspace-panel button.workspace-panel__back{display:flex;gap:8px;align-items:center;border:0;padding-inline:0;font-size:12px}.workspace-panel__back svg{width:16px}
+.workspace-panel__item,.workspace-panel__actions{display:flex;gap:12px;align-items:center}.workspace-panel__actions{flex-wrap:wrap;margin:16px 0}.workspace-panel__item>input{width:22px;height:22px;accent-color:var(--char-accent-on-dark,#fff)}
+.workspace-panel input:not([type=checkbox]):not([type=file]){display:block;box-sizing:border-box;width:100%;min-height:44px;border:1px solid #666;background:#111;color:#fff;padding:10px;font:16px var(--font-mono)}
+.workspace-panel select{max-width:100%;min-height:44px;background:#111;color:#fff;border:1px solid #666;border-radius:0;padding:8px;font:16px var(--font-mono)}
+.workspace-panel button.workspace-panel__primary{background:var(--char-accent-on-dark,#fff);color:var(--char-on-accent-dark,#090909)}
+.workspace-panel__hint{font-size:12px}.workspace-panel pre{white-space:pre-wrap;overflow-wrap:anywhere}.workspace-panel__artifact{padding-bottom:16px;border-bottom:1px solid #333}.workspace-panel__artifact>button:last-child{font-size:12px;margin-top:8px}
+.workspace-panel .project-workspace{background:transparent;color:inherit;padding:0;min-height:0;font:inherit}.workspace-panel .project-workspace__head{display:none}.workspace-panel .project-workspace p{color:#b5b5b5}.workspace-panel .project-workspace__artifact-row{display:block}

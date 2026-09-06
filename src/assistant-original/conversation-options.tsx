@@ -1,104 +1,18 @@
 import { useAui, useAuiState } from '@assistant-ui/react';
-import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useShallow } from 'zustand/shallow';
-import { ArrowLeftIcon, ArrowRightIcon, BotIcon, CalendarDaysIcon, FileTextIcon, FolderIcon, PackageIcon, XIcon } from 'lucide-react';
+import { XIcon } from 'lucide-react';
 import { ReminderPanel } from '../projects/ReminderPanel';
 import { ProjectWorkspace } from '../projects/ProjectWorkspace';
-import { artifactHref } from '../engine/projects';
-import type { Project, ProjectSummary } from '../engine/projects';
-import { listProjects, loadProject } from '../projects/client';
+import type { Project } from '../engine/projects';
+import { WorkspacePanel, type WorkspaceIntent } from '../projects/WorkspacePanel';
+import { discardLocalSession } from './conversation-lifecycle-adapter';
 import { useApp, syncWithServer, resolveStateSyncConflict } from '../state/store';
 import { getStateSyncStatus, subscribeStateSync } from '../system/stateSync';
-import { MODELS } from './models';
 import { requestManualRoomEntry } from './chat-room-presence';
 import { ThreadListNew } from './components/assistant-ui/thread-list';
 import { retryStorageSync, storageSyncFailures, subscribeStorageSync } from '../system/serverStorage';
 import './conversation-options.css';
-
-function ProjectChatSidebar({
-  token,
-  value,
-  scopeLocked,
-  onProject,
-  onAutomations,
-  onModel,
-  openWorkspace,
-}: {
-  token: string | null;
-  value: { model: string; projectId: string | null; projectTitle: string };
-  scopeLocked: boolean;
-  onProject: (project: ProjectSummary | null) => void;
-  onAutomations: () => void;
-  onModel: (model: string) => void;
-  openWorkspace: () => void;
-}) {
-  const [projects, setProjects] = useState<ProjectSummary[]>([]);
-  const [project, setProject] = useState<Project | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [page, setPage] = useState<'home' | 'projects' | 'materials'>('home');
-  useEffect(() => {
-    let live = true;
-    void listProjects(token).then((items) => { if (live) setProjects(items); }).catch((e: unknown) => { if (live) setError(e instanceof Error ? e.message : 'Progetti non disponibili.'); });
-    return () => { live = false; };
-  }, [token]);
-  useEffect(() => {
-    let live = true;
-    if (!value.projectId) { setProject(null); return () => { live = false; }; }
-    void loadProject(token, value.projectId).then((item) => { if (live) setProject(item); }).catch(() => { if (live) setProject(null); });
-    return () => { live = false; };
-  }, [token, value.projectId]);
-  const back = (label: string) => <button type="button" className="vinz-project-sidebar__back" onClick={() => setPage('home')}><ArrowLeftIcon aria-hidden="true" />{label}</button>;
-  const selectProject = (next: ProjectSummary | null) => {
-    onProject(next);
-    setPage('home');
-  };
-  const row = (icon: ReactNode, label: string, detail: string, action: () => void) => <button type="button" className="vinz-project-sidebar__destination" onClick={action}><span className="vinz-project-sidebar__destination-icon">{icon}</span><span><b>{label}</b><small>{detail}</small></span><ArrowRightIcon aria-hidden="true" /></button>;
-
-  return <section className="vinz-project-sidebar" aria-label="Spazio di lavoro del progetto">
-    {page === 'home' && <>
-      <div className="vinz-project-sidebar__active">
-        <span className="vinz-project-sidebar__label"><i aria-hidden="true" />PROGETTO ATTIVO</span>
-        <strong>{value.projectTitle || 'GLOBAL'}</strong>
-        {scopeLocked && <small>CONTESTO BLOCCATO DA QUESTA CHAT</small>}
-      </div>
-      <div className="vinz-project-sidebar__destinations">
-        {row(<FolderIcon aria-hidden="true" />, 'PROGETTO', 'CAMBIA O GESTISCI', () => setPage('projects'))}
-        {row(<FileTextIcon aria-hidden="true" />, 'FILE E FONTI', project?.context ? 'FONTI SALVATE NEL CONTESTO' : 'NESSUN FILE CARICATO', () => setPage('materials'))}
-        {row(<PackageIcon aria-hidden="true" />, 'ARTEFATTI', `${project?.artifacts.length ?? 0} CREATI`, () => setPage('materials'))}
-        {row(<CalendarDaysIcon aria-hidden="true" />, 'AUTOMAZIONI', 'PROMEMORIA E CALENDARIO', onAutomations)}
-      </div>
-      <details className="vinz-project-sidebar__controls">
-        <summary>ALTRE IMPOSTAZIONI</summary>
-        <div className="vinz-project-sidebar__controls-body">
-          <button type="button" className="vinz-project-sidebar__outline" onClick={openWorkspace}>GESTISCI PROGETTI E FILE</button>
-          <label className="vinz-project-sidebar__model"><span className="vinz-project-sidebar__label"><BotIcon aria-hidden="true" />MODELLO</span><select value={value.model} onChange={(event) => onModel(event.target.value)}><option value="auto">AUTO · routing VINZ.MON</option>{MODELS.map((model) => <option key={model.id} value={model.id}>{model.name}</option>)}</select></label>
-        </div>
-      </details>
-    </>}
-    {page === 'projects' && <>
-      {back('SPAZIO DI LAVORO')}
-      <div className="vinz-project-sidebar__page-title"><h3>PROGETTI</h3><p>Scegli il contesto della prossima chat.</p></div>
-      <div className="vinz-project-sidebar__project-list">
-        <button type="button" className={`vinz-project-sidebar__destination ${value.projectId === null ? 'is-selected' : ''}`} disabled={scopeLocked} onClick={() => selectProject(null)}><span className="vinz-project-sidebar__destination-icon"><FolderIcon aria-hidden="true" /></span><span><b>GLOBAL</b><small>SPAZIO PERSONALE</small></span><ArrowRightIcon aria-hidden="true" /></button>
-        {error ? <span className="vinz-project-sidebar__empty">{error}</span> : projects.length ? projects.map((item) => <button type="button" className={`vinz-project-sidebar__destination ${item.id === value.projectId ? 'is-selected' : ''}`} key={item.id} disabled={scopeLocked} onClick={() => selectProject(item)}><span className="vinz-project-sidebar__destination-icon"><PackageIcon aria-hidden="true" /></span><span><b>{item.title}</b><small>{item.artifactCount} ARTEFATTI</small></span><ArrowRightIcon aria-hidden="true" /></button>) : <span className="vinz-project-sidebar__empty">Nessun progetto salvato.</span>}
-      </div>
-      <button type="button" className="vinz-project-sidebar__outline vinz-project-sidebar__new-project" onClick={openWorkspace}>+ NUOVO PROGETTO</button>
-    </>}
-    {page === 'materials' && <>
-      {back('SPAZIO DI LAVORO')}
-      <div className="vinz-project-sidebar__page-title"><h3>{value.projectTitle || 'GLOBAL'}</h3><p>File, fonti e artefatti del progetto.</p></div>
-      <div className="vinz-project-sidebar__section">
-        <span className="vinz-project-sidebar__label">FILE E FONTI</span>
-        <button type="button" className="vinz-project-sidebar__destination" onClick={openWorkspace} data-open-workspace><span className="vinz-project-sidebar__destination-icon"><FileTextIcon aria-hidden="true" /></span><span><b>CONTESTO DEL PROGETTO</b><small>{project?.context ? 'APRI LE FONTI SALVATE' : 'NESSUN FILE CARICATO'}</small></span><ArrowRightIcon aria-hidden="true" /></button>
-      </div>
-      <div className="vinz-project-sidebar__section">
-        <span className="vinz-project-sidebar__label">ARTEFATTI</span>
-        {project?.artifacts.length ? project.artifacts.map((artifact) => <a className="vinz-project-sidebar__destination" key={artifact.slug} href={artifactHref(project.id, artifact.slug)}><span className="vinz-project-sidebar__destination-icon"><PackageIcon aria-hidden="true" /></span><span><b>{artifact.title}</b><small>ARTEFATTO · V{artifact.revision}</small></span><ArrowRightIcon aria-hidden="true" /></a>) : <span className="vinz-project-sidebar__empty">Nessun artefatto creato.</span>}
-      </div>
-      <button type="button" className="vinz-project-sidebar__outline vinz-project-sidebar__new-project" onClick={openWorkspace} data-open-workspace>GESTISCI FILE E ARTEFATTI</button>
-    </>}
-  </section>;
-}
 
 type ConversationScope = { projectId: string | null; projectTitle: string };
 
@@ -146,6 +60,7 @@ export function useConversationOptions() {
   const aui = useAui();
   const { id, remoteId, custom } = useAuiState(useShallow((s) => ({ id: s.threads.mainThreadId, remoteId: s.threadListItem.remoteId, custom: s.threadListItem.custom })));
   const [draft, setDraft] = useState<{ id: string; model: string; projectId: string | null; projectTitle: string }>({ id: '', model: 'auto', projectId: null, projectTitle: '' });
+  const [pendingPrompt, setPendingPrompt] = useState<{ id: string; text: string } | null>(null);
   const [open, setOpen] = useState(false);
   const [remindersOpen, setRemindersOpen] = useState(location.hash === '#reminders');
   const token = useApp((s) => s.token);
@@ -166,7 +81,24 @@ export function useConversationOptions() {
   const inheritScope = (threadId: string) => {
     setDraft({ id: threadId, model: 'auto', projectId: value.projectId, projectTitle: value.projectTitle });
   };
-  const controls = <ProjectChatSidebar token={token} value={value} scopeLocked={scopeLocked} onProject={(project) => { setDraft({ ...value, projectId: project?.id ?? null, projectTitle: project?.title ?? '' }); }} onAutomations={() => setRemindersOpen(true)} onModel={(model) => setDraft({ ...value, model })} openWorkspace={() => setOpen(true)} />;
+  useEffect(() => {
+    if (pendingPrompt?.id !== id || draft.id !== id) return;
+    aui.thread.composer().setText(pendingPrompt.text);
+    setPendingPrompt(null);
+    window.dispatchEvent(new Event('vinz-workspace-close'));
+  }, [pendingPrompt, id, draft.id, aui]);
+  const beginWorkspaceChat = async (project: Project | null, intent: WorkspaceIntent) => {
+    await aui.threads.switchToNewThread();
+    const newId = aui.threads.item('main').getState().id;
+    discardLocalSession(newId);
+    aui.thread.reset();
+    setDraft({ id: newId, model: 'auto', projectId: project?.id ?? null, projectTitle: project?.title ?? '' });
+    setPendingPrompt({ id: newId, text: intent === 'artifact'
+      ? 'Aiutami a creare un artefatto in questo progetto. Chiedimi cosa voglio ottenere, poi lavoriamo insieme e salva il risultato come artefatto con il suo link. Vorrei creare: '
+      : 'Aiutami a creare un promemoria. Chiedimi cosa ricordare e quando, poi riepiloga e chiedimi conferma prima di attivarlo. Vorrei: ' });
+    setRemindersOpen(false);
+  };
+  const controls = <WorkspacePanel token={token} projectId={value.projectId} onBeginChat={beginWorkspaceChat} model={value.model} onModel={model => setDraft({ ...value, model })} />;
   const workspace = remindersOpen ? <div className="vinz-project-overlay" role="dialog" aria-modal="true" aria-label="Promemoria">
     <ReminderPanel token={token} onClose={() => { setRemindersOpen(false); if (location.hash === '#reminders') history.replaceState(null, '', location.pathname); }} />
   </div> : open ? <div className="vinz-project-overlay" role="dialog" aria-modal="true" aria-label="Projects">

@@ -24,7 +24,7 @@ function deliveryLabel(event: CalendarEvent): string {
 }
 
 /** Same CalendarEvent owner/API as ME Calendar. This view is not a second scheduler. */
-export function ReminderPanel({ token, onClose }: { token: string | null; onClose: () => void }) {
+export function ReminderPanel({ token, onClose, onCreate }: { token: string | null; onClose: () => void; onCreate?: () => void }) {
   const [rows, setRows] = useState<Row[]>([]);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState('');
@@ -48,8 +48,8 @@ export function ReminderPanel({ token, onClose }: { token: string | null; onClos
   const reminders = rows.filter(({event}) => !!event.reminderAt).sort((a,b) => a.event.reminderAt!.localeCompare(b.event.reminderAt!));
   return <section className="project-workspace project-workspace--reader" aria-label="Promemoria">
     <header className="project-workspace__head"><h1>PROMEMORIA</h1><button onClick={onClose}>CHIUDI ×</button></header>
-    <p className="project-workspace__muted">Una sola volta, sul calendario server VINZ.MON. Il controllo avviene circa ogni 5 minuti, anche ad app chiusa. La push richiede notifiche già abilitate; la consegna non è garantita.</p>
-    <p className="project-workspace__muted">I vecchi promemoria basati sui giorni di gioco non sono timer reali e non vengono convertiti automaticamente.</p>
+    {onCreate && <><h2>Automazioni</h2><button onClick={onCreate}>Crea con l’AI</button></>}
+    <p className="project-workspace__muted">Promemoria con data e ora. Per crearne uno, descrivi in chat cosa vuoi ricordare e quando. Al momento sono disponibili promemoria singoli.</p>
     <button disabled={busy} onClick={() => void run(refresh)}>AGGIORNA</button>
     {error && <p role="alert">{error}</p>}
     <p role="status">{busy ? 'Operazione in corso…' : notice}</p>
@@ -64,7 +64,7 @@ export function ReminderPanel({ token, onClose }: { token: string | null; onClos
         }}>DISATTIVA</button>
       </div>
     </article>)}
-    <form onSubmit={(event) => { event.preventDefault(); void run(async () => {
+    {(!onCreate || editing) && <form onSubmit={(event) => { event.preventDefault(); void run(async () => {
       const reminderAt = new Date(when).toISOString();
       if (Date.parse(reminderAt) <= Date.now()) throw new Error('Scegli una data futura.');
       const input: CalendarEventInput = editing ? { ...editing.event, title, reminderAt } : { title, start: reminderAt, reminderAt, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, category: 'task', notes: '', status: 'planned' };
@@ -79,6 +79,6 @@ export function ReminderPanel({ token, onClose }: { token: string | null; onClos
       <p className="project-workspace__muted">Il salvataggio conferma questa richiesta. Nessuna AI, nessun invio a calendari esterni, nessuna ripetizione automatica.</p>
       <button disabled={!title.trim() || !when} type="submit">CONFERMA PROMEMORIA</button>{editing && <button type="button" onClick={() => {setEditing(null);setTitle('');setWhen('');}}>ANNULLA MODIFICA</button>}
       </fieldset>
-    </form>
+    </form>}
   </section>;
 }
