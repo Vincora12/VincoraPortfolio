@@ -267,7 +267,7 @@ export const CloneThreadShell: FC<CloneThreadShellProps> = ({
             </>}
           </div>
           <div className="vinz-thread-drawer__footer shrink-0 px-4">
-            <ThreadListNew className="vinz-thread-drawer__new h-12 w-full justify-center rounded-full text-base font-semibold" onCreated={onNewThread} />
+            <ThreadListNew className="vinz-thread-drawer__new h-12 w-full justify-center rounded-none text-base font-semibold" onCreated={onNewThread} />
           </div>
         </SheetContent>
       </Sheet>

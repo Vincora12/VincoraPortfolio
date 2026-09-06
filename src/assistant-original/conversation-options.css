@@ -15,22 +15,29 @@
 .vinz-chat-options button,.vinz-chat-options select{color:inherit;background:transparent;border:1px solid #777;min-height:44px;padding:9px;width:100%;text-align:left;font:inherit}.vinz-chat-options select{display:block;margin-top:8px;max-width:100%}.vinz-chat-options option{color:#111;background:white}.vinz-chat-options small{font-size:10px;line-height:1.5;color:#999}
 .vinz-chat-storage-status{padding:6px;background:#252525;color:white;font-size:11px}.vinz-chat-storage-status button{text-decoration:underline;padding:6px}
 .vinz-project-overlay{position:fixed;inset:0;z-index:20000;overflow:auto;background:#090909;color:#f2f2f2}
-.vinz-project-sidebar{display:flex;min-height:0;flex:1;flex-direction:column;overflow-y:auto;padding:0 0 1rem;color:#f2f2f2;font:11px 'IBM Plex Mono',monospace;scrollbar-width:thin;scrollbar-color:#444 transparent}
-.vinz-project-sidebar__active{display:grid;gap:7px;padding:1rem 0 1.15rem;border-bottom:1px solid #383838}
-.vinz-project-sidebar__active strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:600 18px 'IBM Plex Mono',monospace;letter-spacing:.02em}
+.vinz-project-sidebar{display:flex;min-height:0;flex:1;flex-direction:column;overflow-y:auto;padding:0 0 1rem;color:#f2f2f2;font:11px var(--font-mono);scrollbar-width:thin;scrollbar-color:#444 transparent}
+.vinz-project-sidebar__active{display:grid;gap:12px;padding:1.25rem 0 1.5rem;border-bottom:1px solid #383838}
+.vinz-project-sidebar__project-line{display:flex;align-items:end;justify-content:space-between;gap:16px}
+.vinz-project-sidebar__active strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:800 clamp(40px,12vw,58px)/.84 var(--font-display);letter-spacing:-.045em}
 .vinz-project-sidebar__active small,.vinz-project-sidebar__hint{color:#969696;font-size:9px;line-height:1.45}
-.vinz-project-sidebar__label{display:block;color:#a8a8a8;font-size:10px;letter-spacing:.12em}
-.vinz-project-sidebar__section{display:grid;gap:7px;padding:1rem 0;border-bottom:1px solid #292929}
-.vinz-project-sidebar__row,.vinz-project-sidebar__outline{display:flex;min-height:36px;align-items:center;justify-content:space-between;gap:10px;border:1px solid transparent;padding:8px 9px;background:#161616;color:#f2f2f2;text-align:left;font:11px 'IBM Plex Mono',monospace;text-decoration:none}
-.vinz-project-sidebar__row:hover,.vinz-project-sidebar__row:focus-visible,.vinz-project-sidebar__row.is-selected{border-color:#777;background:#202020}
+.vinz-project-sidebar__label{display:flex;align-items:center;gap:9px;color:#a8a8a8;font:600 10px/1 var(--font-mono);letter-spacing:.12em}
+.vinz-project-sidebar__label i{width:8px;height:8px;flex:0 0 8px;background:var(--char-accent-on-dark,#f2f2f2);border-radius:50%}
+.vinz-project-sidebar__manage{border:0;padding:0;background:transparent;color:var(--char-accent-on-dark,#f2f2f2);font:600 10px/1 var(--font-mono);letter-spacing:.08em}
+.vinz-project-sidebar__section{display:grid;gap:8px;padding:1.25rem 0;border-bottom:1px solid #292929}
+.vinz-project-sidebar__section-head{display:flex;align-items:center;justify-content:space-between;color:#8d8d8d;font:600 9px/1 var(--font-mono);letter-spacing:.1em}
+.vinz-project-sidebar__row,.vinz-project-sidebar__outline{display:flex;min-height:52px;align-items:center;justify-content:space-between;gap:12px;border:1px solid #383838;border-radius:0;padding:11px 12px;background:#111;color:#f2f2f2;text-align:left;font:500 13px/1.2 var(--font-mono);text-decoration:none;transition:border-color 160ms ease,background-color 160ms ease}
+.vinz-project-sidebar__row:hover,.vinz-project-sidebar__row:focus-visible,.vinz-project-sidebar__row.is-selected{border-color:var(--char-accent-on-dark,#f2f2f2);background:#181818}
 .vinz-project-sidebar__row:disabled{cursor:not-allowed;opacity:.45}
-.vinz-project-sidebar__row small{flex:0 0 auto;color:#929292;font-size:9px}
+.vinz-project-sidebar__row small{flex:0 0 auto;color:#929292;font:600 9px/1 var(--font-mono);letter-spacing:.08em}
 .vinz-project-sidebar__empty{color:#8d8d8d;font-size:10px;line-height:1.5}
+.vinz-project-sidebar__material span{display:grid;gap:5px;min-width:0}.vinz-project-sidebar__material b{font:600 12px/1 var(--font-mono);letter-spacing:.06em}.vinz-project-sidebar__material small{color:#929292;white-space:normal}.vinz-project-sidebar__material em{flex:0 0 auto;color:var(--char-accent-on-dark,#f2f2f2);font:600 9px/1 var(--font-mono);font-style:normal;letter-spacing:.08em}
 .vinz-project-sidebar__outline{justify-content:center;border-color:#666;background:transparent;font-size:10px}
 .vinz-project-sidebar__outline:hover,.vinz-project-sidebar__outline:focus-visible{border-color:#f2f2f2}
-.vinz-project-sidebar__bottom{padding-bottom:0;border-bottom:0}
-.vinz-project-sidebar__model{display:grid;gap:7px;margin-top:4px}
-.vinz-project-sidebar__model select{width:100%;min-height:40px;border:1px solid #666;background:#111;color:#f2f2f2;padding:8px;font:11px 'IBM Plex Mono',monospace}
+.vinz-project-sidebar__controls{margin-top:1.25rem;border:1px solid #383838;border-radius:0;background:#111}
+.vinz-project-sidebar__controls summary{display:flex;align-items:center;min-height:52px;padding:0 12px;cursor:pointer;list-style:none;color:#f2f2f2;font:600 10px/1 var(--font-mono);letter-spacing:.1em}.vinz-project-sidebar__controls summary::-webkit-details-marker{display:none}
+.vinz-project-sidebar__controls[open] summary{border-bottom:1px solid #383838;color:var(--char-accent-on-dark,#f2f2f2)}
+.vinz-project-sidebar__controls-body{display:grid;gap:8px;padding:12px}
+.vinz-project-sidebar__model{display:grid;gap:7px;margin-top:4px}.vinz-project-sidebar__model select{width:100%;min-height:40px;border:1px solid #666;border-radius:0;background:#111;color:#f2f2f2;padding:8px;font:11px var(--font-mono)}
 .vinz-chat-workspace-bridge{padding:2rem;color:#f2f2f2;font:12px 'IBM Plex Mono',monospace}
 .vinz-chat-workspace-bridge button{border:1px solid #777;padding:10px 14px;background:transparent;color:inherit;font:inherit}
 .vinz-project-overlay .project-workspace{min-height:100%;background:#090909;color:#f2f2f2;padding:calc(1rem + env(safe-area-inset-top)) clamp(1rem,4vw,2.5rem) calc(2rem + env(safe-area-inset-bottom));font-family:'IBM Plex Mono',monospace}
