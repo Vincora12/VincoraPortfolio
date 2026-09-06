@@ -740,6 +740,7 @@ export function syncLessons(
 /* --- Salvataggio ------------------------------------------------------------ */
 
 export interface RemoteSave {
+  revision?: string | null;
   day: number;
   savedAt: string | null;
   state: unknown;
@@ -753,8 +754,9 @@ export function saveRemote(
   token: string | null,
   day: number,
   state: unknown,
-): Promise<BackendResult<{ ok: boolean; day: number; savedAt: string }>> {
-  return post('/api/state', token, { day, state }, 'PUT');
+  baseRevision: string | null,
+): Promise<BackendResult<{ ok: boolean; day: number; savedAt: string; revision: string }>> {
+  return post('/api/state', token, { day, state, baseRevision }, 'PUT');
 }
 
 /* --- Dati dalle Shortcut ----------------------------------------------------- */

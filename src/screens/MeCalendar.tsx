@@ -4,7 +4,7 @@ import { it } from 'react-day-picker/locale';
 import 'react-day-picker/style.css';
 import type { HealthJournal } from '../engine/healthJournal';
 
-type Mode = 'diet' | 'sport';
+type Mode = 'diet' | 'sport' | 'all';
 export const calendarDateKey = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 const dateFromKey = (key: string) => { const [year, month, day] = key.split('-').map(Number); return new Date(year!, month! - 1, day); };
 
@@ -12,7 +12,7 @@ export function MeCalendar({ journal, mode, selectedDate, onSelect }: { journal:
   const foodDays = useMemo(() => new Set(journal.meals.map((item) => calendarDateKey(new Date(item.at)))), [journal.meals]);
   const workoutDays = useMemo(() => new Set(journal.workouts.map((item) => calendarDateKey(new Date(item.at)))), [journal.workouts]);
   const [month, setMonth] = useState(() => new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1));
-  return <section className="me-health__calendar" aria-label={mode === 'diet' ? 'Calendario alimentare' : 'Calendario allenamenti'}>
+  return <section className="me-health__calendar" aria-label={mode === 'all' ? 'Calendario personale' : mode === 'diet' ? 'Calendario alimentare' : 'Calendario allenamenti'}>
     <DayPicker
       mode="single" month={month} selected={selectedDate}
       onSelect={(date) => { if (date) { onSelect(date); setMonth(new Date(date.getFullYear(), date.getMonth(), 1)); } }}

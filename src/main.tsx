@@ -72,6 +72,11 @@ async function boot() {
   } else if (entry.kind === 'lab') {
     const { LabApp } = await import('./lab/LabApp');
     content = <LabApp initialLab={entry.lab} />;
+  } else if (/^#\/artifact\/[a-zA-Z0-9_-]+\/[a-z0-9-]+$/.test(location.hash)) {
+    const [, , projectId, slug] = location.hash.split('/');
+    const { ProjectArtifactReader } = await import('./projects/ProjectWorkspace');
+    const { useApp } = await import('./state/store');
+    content = <ProjectArtifactReader token={useApp.getState().token} projectId={projectId!} slug={slug!} onClose={() => location.assign('/')} />;
   } else {
     const { App } = await import('./App');
     content = <App />;

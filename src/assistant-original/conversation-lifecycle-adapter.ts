@@ -1,7 +1,6 @@
 import type {
   ExportedMessageRepository,
   RemoteThreadListAdapter,
-  ThreadMessage,
 } from "@assistant-ui/react";
 import { generateVinzChatTitle } from "./chat-title-generator";
 import { postRuntimeEvent } from "@/system/runtimeLog";
@@ -17,7 +16,6 @@ type LocalSession = {
 
 const sessions = new Map<string, LocalSession>();
 const initialized = new Map<string, RemoteThreadInitializeResponse>();
-const handoffs = new Map<string, ExportedMessageRepository>();
 let persistentAdapter: RemoteThreadListAdapter | null = null;
 let persistSnapshot: ((remoteId: string, repository: ExportedMessageRepository) => Promise<void>) | null = null;
 
@@ -66,66 +64,39 @@ export const promoteLocalSession = async (
     const roles = repository.messages.map(({ message }) => message.role).join('/');
     postRuntimeEvent({ eventType: 'CHAT_PROMOTION_TIMELINE_BEFORE', status: 'START', scope: 'chat', metadata: { messageCount: repository.messages.length, roleSequence: roles, threadId: threadId.slice(0, 100), local: true, remoteId: threadId.slice(0, 100) } });
     postRuntimeEvent({ eventType: 'CHAT_THREAD_PROMOTE_START', status: 'START', scope: 'chat', metadata: { threadId: threadId.slice(0, 100), local: true, initialized: false } });
-    // The local-storage adapter uses the local id as its persistent id. Start
-    // its metadata mutation, but do not put that storage/network work in front
-    // of assistant-ui's first model run.
-    const initializePersistent = persistentAdapter.initialize(threadId);
-    const result: RemoteThreadInitializeResponse = { remoteId: threadId };
-    session.promoting = Promise.resolve(result).then((ready) => {
-      // Resolve assistant-ui's initialization barrier as soon as ownership is
-      // established. Persistence/title work must not sit in front of model.run.
-      handoffs.set(ready.remoteId, repository);
+    const adapter = persistentAdapter;
+    const save = persistSnapshot;
+    // createLocalStorageAdapter's documented implementation uses threadId as
+    // remoteId. Seed its repository BEFORE publishing thread metadata. Pending
+    // history appends and model.run remain behind the same initialize barrier;
+    // no later snapshot can overwrite an assistant response.
+    session.promoting = (async () => {
+      await save(threadId, repository);
+      const ready = await adapter.initialize(threadId);
+      if (ready.remoteId !== threadId) throw new Error('Unexpected conversation storage identity');
       initialized.set(threadId, ready);
       session.resolve(ready);
       sessions.delete(threadId);
       postRuntimeEvent({ eventType: 'CHAT_THREAD_INITIALIZE_RESOLVED', status: 'PASS', scope: 'chat', metadata: { threadId: threadId.slice(0, 100), local: false, initialized: true } });
       postRuntimeEvent({ eventType: 'CHAT_THREAD_PROMOTE_OK', status: 'PASS', scope: 'chat', metadata: { threadId: threadId.slice(0, 100), local: false, initialized: true } });
-      void initializePersistent.then(() => persistSnapshot!(ready.remoteId, repository)).then(async () => {
+      void Promise.resolve().then(async () => {
         postRuntimeEvent({ eventType: 'CHAT_PROMOTION_TIMELINE_PERSISTED', status: 'PASS', scope: 'chat', metadata: { messageCount: repository.messages.length, roleSequence: roles, threadId: threadId.slice(0, 100), local: false, remoteId: ready.remoteId.slice(0, 100) } });
         // Title generation is intentionally done only after promotion. The
         // assistant-ui automatic trigger can run on the Mon greeting before a
         // user message exists and would permanently save the empty fallback.
         const titleMessages = repository.messages.map((item) => item.message);
-        await persistentAdapter!.rename(ready.remoteId, generateVinzChatTitle(titleMessages));
+        await adapter.rename(ready.remoteId, generateVinzChatTitle(titleMessages));
       }).catch((error: unknown) => {
         console.warn('[VINZ chat] persistenza post-promozione non riuscita', error instanceof Error ? error.message : 'errore sconosciuto');
       });
       postRuntimeEvent({ eventType: 'CHAT_PROMOTION_TIMELINE_AFTER', status: 'PASS', scope: 'chat', metadata: { messageCount: repository.messages.length, roleSequence: roles, threadId: threadId.slice(0, 100), local: false, remoteId: ready.remoteId.slice(0, 100) } });
       return ready;
+    })().catch((error: unknown) => {
+      session.promoting = null;
+      throw error;
     });
   }
   return session.promoting;
-};
-
-export const repositoryWithPendingUser = (
-  repository: ExportedMessageRepository,
-  text: string,
-): { repository: ExportedMessageRepository; userId: string } => {
-  const random = typeof crypto !== 'undefined' && 'randomUUID' in crypto
-    ? crypto.randomUUID()
-    : `${Date.now()}_${Math.random().toString(36).slice(2)}`;
-  const userId = `msg_${random}`;
-  const parentId = repository.messages.at(-1)?.message.id ?? null;
-  const message: ThreadMessage = {
-    id: userId,
-    createdAt: new Date(),
-    role: 'user',
-    content: [{ type: 'text', text }],
-    attachments: [],
-    metadata: { custom: {} },
-  };
-  return {
-    userId,
-    repository: { ...repository, headId: userId, messages: [...repository.messages, { parentId, message }] },
-  };
-};
-
-export const consumePromotedRepository = (
-  remoteId: string,
-): ExportedMessageRepository | null => {
-  const repository = handoffs.get(remoteId) ?? null;
-  if (repository) handoffs.delete(remoteId);
-  return repository;
 };
 
 export const discardLocalSession = (threadId: string): void => {

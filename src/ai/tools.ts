@@ -44,6 +44,8 @@ import type { Page, NewPage } from '../engine/pages';
 import { pagesDigest } from '../engine/pages';
 import { MANOPOLE } from '../engine/skin';
 import { PEZZI } from '../engine/layout';
+import type { EnergyProfile } from '../engine/dailyEnergy';
+import type { CalendarEvent, CalendarEventInput } from '../engine/calendarEvents';
 
 /* --- La forma di uno strumento ---------------------------------------------- */
 
@@ -102,8 +104,10 @@ export interface ToolContext {
   readMe: (section: 'today' | 'diet' | 'sport' | 'progress' | 'all') => string;
   logMeal: (input: { slot: 'colazione' | 'spuntino' | 'pranzo' | 'merenda' | 'cena' | 'extra'; description: string; kcal: number; protein: number; carbs: number; fat: number }) => void;
   updateMeal: (slot: 'colazione' | 'spuntino' | 'pranzo' | 'merenda' | 'cena' | 'extra', patch: Partial<{ slot: 'colazione' | 'spuntino' | 'pranzo' | 'merenda' | 'cena' | 'extra'; description: string; kcal: number; protein: number; carbs: number; fat: number }>) => boolean;
-  logWorkout: (input: { title: string; details: string; minutes: number }) => void;
-  updateWorkout: (patch: Partial<{ title: string; details: string; minutes: number }>) => boolean;
+  logWorkout: (input: { title: string; details: string; minutes: number; burnedKcal?: number; energySource?: 'measured' | 'estimated' }) => void;
+  updateWorkout: (patch: Partial<{ title: string; details: string; minutes: number; burnedKcal: number; energySource: 'measured' | 'estimated' }>) => boolean;
+  /** Deterministic energy calculation over the existing health journal. */
+  readEnergy?: (profile?: EnergyProfile) => string;
   logWeight: (kg: number) => void;
   updateWeight: (kg: number) => boolean;
   saveDiet: (title: string, text: string) => void;
@@ -122,6 +126,19 @@ export interface ToolContext {
    ========================================================================= */
 
 export const TOOLS: ToolDef[] = [
+  {
+    name: 'programma_promemoria',
+    description: 'Promemoria reali server-side, una sola volta. Azioni list/create/update/cancel. Solo su richiesta esplicita dell’utente; prima di modificare/annullare leggi list per id/versione. Create/update richiedono data ISO con offset/Z e fuso IANA esplicito; chiedi chiarimento se manca una data certa. Non inventare orari. Controllo circa ogni5min, push solo se abilitata; mai promettere consegna. Cancel disattiva il promemoria ma conserva l’evento calendario.',
+    schema: { type: 'object', properties: { azione: { type: 'string', enum: ['list', 'create', 'update', 'cancel'] }, id: { type: 'string' }, versione: { type: 'string' }, titolo: { type: 'string', maxLength: 160 }, quando: { type: 'string', description: 'Data ISO8601 completa con Z/offset esplicito.' }, fuso: { type: 'string', description: 'Fuso IANA, es. Europe/Rome.' } }, required: ['azione'] },
+  },
+  {
+    name: 'calcola_energia_giornaliera',
+    description: 'Calcolo deterministico dai registri ME di oggi: calorie alimentari, allenamenti, recorded net (NON deficit). BMR/TDEE solo con età adulta, altezza, peso, sesso per formula e fattore attività extra-allenamento realmente forniti. Non inventare input mancanti, non trattare stime come misure.',
+    schema: { type: 'object', properties: {
+      ageYears: { type: 'number' }, heightCm: { type: 'number' }, weightKg: { type: 'number' },
+      formulaSex: { type: 'string', enum: ['male', 'female'] }, nonWorkoutActivityFactor: { type: 'number' },
+    } },
+  },
   {
     name: 'leggi_i_miei_dati',
     description:
@@ -169,13 +186,13 @@ export const TOOLS: ToolDef[] = [
   },
   {
     name: 'registra_allenamento',
-    description: 'Registra nella sezione ME un allenamento già confermato dall’utente.',
-    schema: { type: 'object', properties: { titolo: { type: 'string' }, dettagli: { type: 'string' }, minuti: { type: 'number' } }, required: ['titolo', 'dettagli', 'minuti'] },
+    description: 'Registra nella sezione ME un allenamento già confermato dall’utente. kcal_bruciate è opzionale: solo se noto o stimato esplicitamente; fonte_energia measured solo per misurazione dichiarata, estimated per stima. Non inventare zero per dato mancante.',
+    schema: { type: 'object', properties: { titolo: { type: 'string' }, dettagli: { type: 'string' }, minuti: { type: 'number' }, kcal_bruciate: { type: 'number' }, fonte_energia: { type: 'string', enum: ['measured', 'estimated'] } }, required: ['titolo', 'dettagli', 'minuti'] },
   },
   {
     name: 'correggi_ultimo_allenamento',
     description: 'Corregge l’ultimo allenamento registrato in ME. Leggi prima ME e cambia soltanto i campi richiesti.',
-    schema: { type: 'object', properties: { titolo: { type: 'string' }, dettagli: { type: 'string' }, minuti: { type: 'number' } } },
+    schema: { type: 'object', properties: { titolo: { type: 'string' }, dettagli: { type: 'string' }, minuti: { type: 'number' }, kcal_bruciate: { type: 'number' }, fonte_energia: { type: 'string', enum: ['measured', 'estimated'] } } },
   },
   {
     name: 'registra_peso',
@@ -208,6 +225,26 @@ export const TOOLS: ToolDef[] = [
     name: 'gestisci_me',
     description: 'Controlla ME con blocchi sicuri: crea, aggiorna, elimina o riordina calendari, liste, note e metriche in OGGI, DIETA o SPORT. Per i calendari usa un elemento per appuntamento nel formato "Lunedì 08:00-09:00 · Titolo · Dettagli": così sarà visibile e cliccabile nel calendario. Prima di update/delete/move usa leggi_me per trovare l’id reale.',
     schema: { type: 'object', properties: { azione: { type: 'string', enum: ['create', 'update', 'delete', 'move'] }, id: { type: 'string' }, sezione: { type: 'string', enum: ['today', 'diet', 'sport'] }, tipo: { type: 'string', enum: ['text', 'list', 'calendar', 'metric'] }, titolo: { type: 'string' }, contenuto: { type: 'string' }, elementi: { type: 'array', items: { type: 'string' } }, posizione: { type: 'integer' } }, required: ['azione'] },
+  },
+  {
+    name: 'crea_file_testo',
+    description: 'Prepara un vero documento scaricabile .txt/.md usando le Pagine esistenti o il progetto selezionato. Il risultato contiene il link reale con pulsante download: NON affermare che il download è già avvenuto. Richiede una richiesta esplicita di documento/file.',
+    schema: { type: 'object', properties: { titolo: { type: 'string', maxLength: 60 }, testo: { type: 'string', maxLength: 40000 } }, required: ['titolo', 'testo'] },
+  },
+  {
+    name: 'leggi_progetto',
+    description: 'Legge istruzioni, contesto e indice documenti SOLO del progetto selezionato dall’utente per questa chat. Non accede a progetti diversi o memoria personale. Se nessun progetto è selezionato restituisce non disponibile.',
+    schema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'leggi_sorgente_progetto',
+    description: 'Legge/cerca testo nel contesto importato del progetto selezionato o in un suo documento salvato (nome). Restituisce path tecnico e righe. NON è accesso filesystem, repository GitHub o ricerca web: il codice va prima importato nel contesto del progetto. Ricerca letterale, massimo 80 righe.',
+    schema: { type: 'object', properties: { nome: { type: 'string', description: 'Slug artifact, ometti per contesto progetto.' }, cerca: { type: 'string', maxLength: 200 }, riga: { type: 'integer', minimum: 1 }, righe: { type: 'integer', minimum: 1, maximum: 80 } } },
+  },
+  {
+    name: 'scrivi_artifact_progetto',
+    description: 'Crea o aggiorna un documento Markdown privato nel progetto selezionato. Per aggiornare leggi prima il documento e fornisci nome e revisione_progetto letta. Non pubblica su internet, non deploya VINZ.MON, non modifica altre fonti. Restituisce URL stabile solo dopo conferma server e verifica.',
+    schema: { type: 'object', properties: { titolo: { type: 'string', maxLength: 60 }, markdown: { type: 'string', maxLength: 40000 }, nome: { type: 'string' }, revisione_progetto: { type: 'integer' } }, required: ['titolo', 'markdown'] },
   },
   {
     name: 'elenca_le_pagine',
@@ -341,7 +378,7 @@ export const TOOLS: ToolDef[] = [
   {
     name: 'ricorda_di',
     description:
-      'Metti un promemoria che ti farai tornare in mente tu, nel giorno giusto. Usalo quando te lo chiede, o quando concordate una cosa che ha una data.',
+      'LEGACY: promemoria interno basato sui giorni di gioco, non su orari reali e senza timer server. Per una data/orario reale usa programma_promemoria. Non promettere notifiche puntuali con questo strumento.',
     schema: {
       type: 'object',
       properties: {
@@ -430,6 +467,13 @@ const str = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
  * legge e si corregge da solo — che è la differenza fra «l'app si è rotta» e
  * «ha detto che quella pagina non c'era».
  */
+function workoutEnergyInput(args: Record<string, unknown>): { burnedKcal?: number; energySource?: 'measured' | 'estimated' } | string {
+  if (args.kcal_bruciate === undefined) return args.fonte_energia === undefined ? {} : 'La fonte energia richiede anche il valore kcal_bruciate.';
+  if (typeof args.kcal_bruciate !== 'number' || !Number.isFinite(args.kcal_bruciate) || args.kcal_bruciate < 0 || args.kcal_bruciate > 100000) return 'Calorie bruciate non valide.';
+  if (args.fonte_energia !== 'measured' && args.fonte_energia !== 'estimated') return 'Specifica fonte_energia: measured per misura dichiarata, estimated per stima.';
+  return { burnedKcal: args.kcal_bruciate, energySource: args.fonte_energia };
+}
+
 export function runTool(use: ToolUse, ctx: ToolContext): ToolResult {
   const args = (use.input ?? {}) as Record<string, unknown>;
   const fail = (msg: string): ToolResult => ({ id: use.id, content: msg, isError: true });
@@ -437,6 +481,20 @@ export function runTool(use: ToolUse, ctx: ToolContext): ToolResult {
 
   try {
     switch (use.name) {
+      case 'calcola_energia_giornaliera': {
+        if (!ctx.readEnergy) return fail('Calcolo energia non disponibile in questo runtime. Non stimare input mancanti.');
+        const profile: EnergyProfile = {};
+        for (const key of ['ageYears', 'heightCm', 'weightKg', 'nonWorkoutActivityFactor'] as const) {
+          if (args[key] === undefined) continue;
+          if (typeof args[key] !== 'number' || !Number.isFinite(args[key])) return fail('Input energetico non valido.');
+          profile[key] = args[key];
+        }
+        if (args.formulaSex !== undefined) {
+          if (args.formulaSex !== 'male' && args.formulaSex !== 'female') return fail('Sesso per formula non valido.');
+          profile.formulaSex = args.formulaSex;
+        }
+        return ok(ctx.readEnergy(profile));
+      }
       case 'leggi_me': {
         const section = str(args.sezione) as 'today' | 'diet' | 'sport' | 'progress' | 'all';
         if (!['today', 'diet', 'sport', 'progress', 'all'].includes(section)) return fail('Sezione ME non valida.');
@@ -474,11 +532,16 @@ export function runTool(use: ToolUse, ctx: ToolContext): ToolResult {
       case 'registra_allenamento': {
         const minutes = Number(args.minuti);
         if (!Number.isFinite(minutes) || minutes < 0) return fail('La durata non è valida.');
-        ctx.logWorkout({ title: str(args.titolo), details: str(args.dettagli), minutes });
+        const energy = workoutEnergyInput(args);
+        if (typeof energy === 'string') return fail(energy);
+        ctx.logWorkout({ title: str(args.titolo), details: str(args.dettagli), minutes, ...energy });
         return ok('Allenamento registrato in ME.');
       }
       case 'correggi_ultimo_allenamento': {
-        const patch: Partial<{ title: string; details: string; minutes: number }> = {};
+        const patch: Partial<{ title: string; details: string; minutes: number; burnedKcal: number; energySource: 'measured' | 'estimated' }> = {};
+        const energy = workoutEnergyInput(args);
+        if (typeof energy === 'string') return fail(energy);
+        Object.assign(patch, energy);
         if (typeof args.titolo === 'string' && args.titolo.trim()) patch.title = args.titolo.trim();
         if (typeof args.dettagli === 'string' && args.dettagli.trim()) patch.details = args.dettagli.trim();
         if (args.minuti !== undefined) {
@@ -559,13 +622,17 @@ export function runTool(use: ToolUse, ctx: ToolContext): ToolResult {
         return ok(`# ${page.title}\n\n${page.markdown}`);
       }
 
+      case 'crea_file_testo':
       case 'scrivi_una_pagina': {
+        const markdown = use.name === 'crea_file_testo' ? (typeof args.testo === 'string' ? args.testo : '') : typeof args.markdown === 'string' ? args.markdown : '';
+        if (use.name === 'crea_file_testo' && (!markdown.trim() || markdown.length > 40000 || /data:(?:image|application)\/[^;]+;base64,/i.test(markdown))) return fail('File vuoto, troppo lungo o contenente dati binari. Nessun documento creato.');
         const res = ctx.writePage({
           title: str(args.titolo),
-          markdown: typeof args.markdown === 'string' ? args.markdown : '',
+          markdown,
           pinned: args.appuntala === true,
         });
-        if (!res.ok) return fail(res.error ?? 'La pagina non è stata scritta.');
+        if (!res.ok || !res.slug) return fail(res.error ?? 'La pagina non è stata scritta.');
+        if (use.name === 'crea_file_testo') return ok(`Documento preparato nelle Pagine. Link reale: #/p/${res.slug}. La pagina offre SCARICA .TXT e SCARICA .MD; l'utente deve premere il pulsante. Non è stato avviato un download automatico o un invio esterno.`);
         return ok(
           `Fatto. La pagina esiste e lui la trova in ME, oppure all’indirizzo #/p/${res.slug}. Diglielo con parole tue: non incollargli il contenuto, ce l’ha già.`,
         );
@@ -675,11 +742,140 @@ export function assistantTurn(text: string, uses: readonly ToolUse[]): Record<st
   return { role: 'assistant', content };
 }
 
-export function resultBlocks(results: readonly ToolResult[]): Record<string, unknown>[] {
-  return results.map((r) => ({
+const TOOL_RESULT_BUDGET_BYTES = 10000;
+const encoder = new TextEncoder();
+const bytes = (text: string) => encoder.encode(text).byteLength;
+const resultBlock = (r: ToolResult) => ({
     type: 'tool_result',
     tool_use_id: r.id,
     content: r.content,
     ...(r.isError ? { is_error: true } : {}),
-  }));
+});
+const contentCost = (text: string) => bytes(JSON.stringify(text)) - 2;
+function safePrefix(text: string, length: number): string {
+  // Never introduce a dangling UTF-16 surrogate while shortening Unicode output.
+  const end = text.charCodeAt(length - 1);
+  const next = text.charCodeAt(length);
+  return text.slice(0, end >= 0xd800 && end <= 0xdbff && next >= 0xdc00 && next <= 0xdfff ? length - 1 : length);
+}
+function fitContent(text: string, budget: number): string {
+  if (contentCost(text) <= budget) return text;
+  const marker = '\n[TRUNCATED: aggregate tool-result budget]';
+  const suffix = contentCost(marker) <= budget ? marker : '[TRUNCATED]';
+  if (contentCost(suffix) > budget) throw new RangeError('Tool result identifiers leave no room for a truthful truncation marker.');
+  let low = 0;
+  let high = text.length;
+  while (low < high) {
+    const middle = Math.ceil((low + high) / 2);
+    if (contentCost(safePrefix(text, middle) + suffix) <= budget) low = middle;
+    else high = middle - 1;
+  }
+  return safePrefix(text, low) + suffix;
+}
+/** One aggregate wire budget, including JSON escaping/IDs, not a per-tool cap. */
+export function budgetToolResults(results: readonly ToolResult[], maxBytes = TOOL_RESULT_BUDGET_BYTES): ToolResult[] {
+  const original = results.map(resultBlock);
+  if (bytes(JSON.stringify(original)) <= maxBytes) return results.map((r) => ({ ...r }));
+  const overhead = bytes(JSON.stringify(results.map((r) => resultBlock({ ...r, content: '' }))));
+  let remaining = maxBytes - overhead;
+  if (remaining < results.length * contentCost('[TRUNCATED]')) throw new RangeError('Tool-result identifiers exceed the aggregate budget.');
+  return results.map((r, index) => {
+    const allocation = Math.floor(remaining / (results.length - index));
+    const content = fitContent(r.content, allocation);
+    remaining -= contentCost(content);
+    return { ...r, content };
+  });
+}
+export function resultBlocks(results: readonly ToolResult[]): Record<string, unknown>[] {
+  return budgetToolResults(results).map(resultBlock);
+}
+
+async function executeReminderTool(use: ToolUse, token: string | null): Promise<ToolResult> {
+  const fail = (content: string): ToolResult => ({ id: use.id, content, isError: true });
+  if (!token) return fail('Token mancante: promemoria non disponibile.');
+  const args = (use.input && typeof use.input === 'object' ? use.input : {}) as Record<string, unknown>;
+  const action = str(args.azione);
+  if (!['list', 'create', 'update', 'cancel'].includes(action)) return fail('Azione promemoria non valida.');
+  type Row = { event: CalendarEvent; version: string };
+  const headers = { authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+  const read = async (): Promise<Row[]> => {
+    const response = await fetch('/api/calendar', { headers });
+    if (!response.ok) throw new Error('CALENDAR_READ_FAILED');
+    return ((await response.json()) as { events: Row[] }).events;
+  };
+  const rows = await read();
+  if (action === 'list') return { id: use.id, content: JSON.stringify({ source: 'canonical-calendar', reminders: rows.filter((row) => row.event.reminderAt).map(({event,version}) => ({ id: event.id, version, title: event.title, when: event.reminderAt, timezone: event.timezone, status: event.status, notification: event.reminderDelivery ?? 'not attempted' })) }) };
+  const row = action !== 'create' ? rows.find(({event}) => event.id === str(args.id)) : null;
+  if (action !== 'create' && (!row || row.version !== str(args.versione))) return fail('Id/versione promemoria mancante o obsoleta. Usa list prima di modificarlo. Nessuna scrittura.');
+  let input: CalendarEventInput;
+  let id: string;
+  if (action === 'cancel') {
+    input = { ...row!.event, reminderAt: null };
+    id = row!.event.id;
+  } else {
+    const title = str(args.titolo); const when = str(args.quando); const timezone = str(args.fuso);
+    if (!title || title.length > 160 || !/^\d{4}-\d{2}-\d{2}T.*(?:Z|[+-]\d{2}:\d{2})$/.test(when) || !Number.isFinite(Date.parse(when)) || Date.parse(when) <= Date.now()) return fail('Servono titolo e data futura ISO completa di offset/Z, confermati dall’utente. Non scegliere un orario arbitrario.');
+    try { if (!timezone) throw new Error(); new Intl.DateTimeFormat('it', { timeZone: timezone }); } catch { return fail('Serve un fuso orario IANA esplicito e valido.'); }
+    const reminderAt = new Date(when).toISOString();
+    input = row ? { ...row.event, title, reminderAt, timezone } : { title, start: reminderAt, reminderAt, timezone, category: 'task', notes: '', status: 'planned' };
+    if (row && row.event.status !== 'planned') return fail('L’evento è annullato/completato: non viene riattivato implicitamente.');
+    // Stable technical key makes an exact repeated request idempotent without another store.
+    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify([title, reminderAt, timezone])));
+    id = row?.event.id ?? `reminder_${Array.from(new Uint8Array(digest)).slice(0, 16).map((n) => n.toString(16).padStart(2, '0')).join('')}`;
+    const existing = !row && rows.find(({event}) => event.id === id);
+    if (existing) return { id: use.id, content: JSON.stringify({ status: 'already-exists', id, when: existing.event.reminderAt ?? null, eventStatus: existing.event.status, note: 'Nessun duplicato creato. Se disattivato, aggiorna esplicitamente usando id/versione.' }) };
+  }
+  const response = await fetch('/api/calendar', { method: row ? 'PUT' : 'POST', headers, body: JSON.stringify({ id, ...(row ? { version: row.version } : {}), event: input }) });
+  if (!response.ok) return fail(response.status === 409 ? 'Conflitto: rileggi i promemoria. Nessun successo confermato.' : 'Salvataggio promemoria non confermato. Non promettere la notifica.');
+  const verified = (await read()).find(({event}) => event.id === id);
+  const consistent = verified && (action === 'cancel' ? !verified.event.reminderAt : verified.event.reminderAt === input.reminderAt && verified.event.title === input.title);
+  if (!consistent) return fail('Salvataggio accettato ma rilettura non coerente: controlla il calendario prima di ripetere.');
+  return { id: use.id, content: JSON.stringify({ status: action === 'cancel' ? 'reminder-disabled-event-preserved' : 'saved-and-read-back', id, when: verified.event.reminderAt ?? null, timezone: verified.event.timezone, notification: 'Server check approximately every 5 minutes. Push requires existing permission/subscription; user delivery is not confirmed.', url: '#reminders' }) };
+}
+
+/** Same catalog; only server-owned project operations need asynchronous execution. */
+export async function executeRuntimeTool(
+  use: ToolUse,
+  localRun: (use: ToolUse) => ToolResult | Promise<ToolResult>,
+  scope: { token: string | null; projectId?: string | null },
+): Promise<ToolResult> {
+  const fail = (content: string): ToolResult => ({ id: use.id, content, isError: true });
+  const ok = (content: string): ToolResult => ({ id: use.id, content });
+  try {
+    if (use.name === 'programma_promemoria') return await executeReminderTool(use, scope.token);
+    const isProjectTool = ['leggi_progetto', 'leggi_sorgente_progetto', 'scrivi_artifact_progetto'].includes(use.name);
+    const projectFile = use.name === 'crea_file_testo' && !!scope.projectId;
+    if (!isProjectTool && !projectFile) return await localRun(use);
+    if (!scope.projectId) return fail('Nessun progetto selezionato per questa chat. Chiedi all’utente di selezionarlo da Projects. Nessun altro progetto è stato letto.');
+    if (!scope.token) return fail('Archivio progetti non autorizzato: token mancante.');
+    const { loadProject, mutateProject } = await import('../projects/client');
+    const { artifactHref, buildProjectContext } = await import('../engine/projects');
+    const project = await loadProject(scope.token, scope.projectId);
+    const args = (use.input && typeof use.input === 'object' ? use.input : {}) as Record<string, unknown>;
+    if (use.name === 'leggi_progetto') return ok(JSON.stringify({ projectId: project.id, revision: project.revision, source: 'authenticated-project-store', context: buildProjectContext(project), artifacts: project.artifacts.map((p) => ({ slug: p.slug, title: p.title, revision: p.revision, url: artifactHref(project.id, p.slug) })) }));
+    if (use.name === 'leggi_sorgente_progetto') {
+      const slug = str(args.nome);
+      const artifact = slug ? project.artifacts.find((p) => p.slug === slug) : null;
+      if (slug && !artifact) return fail('Documento non trovato nel progetto selezionato.');
+      const source = artifact?.markdown ?? project.context;
+      const lines = source.split('\n');
+      const query = str(args.cerca).slice(0, 200);
+      const start = Math.max(1, Math.min(lines.length || 1, Math.floor(Number(args.riga) || 1)));
+      const count = Math.max(1, Math.min(80, Math.floor(Number(args.righe) || 40)));
+      const matching = lines.map((text, i) => ({ line: i + 1, text })).filter((line) => query ? line.text.toLocaleLowerCase().includes(query.toLocaleLowerCase()) : line.line >= start);
+      return ok(JSON.stringify({ projectId: project.id, projectRevision: project.revision, source: `project:${project.id}/${artifact ? `artifacts/${artifact.slug}` : 'context'}`, scope: 'imported project text only; not filesystem/GitHub/web access', totalLines: lines.length, matchCount: query ? matching.length : undefined, truncated: matching.length > count, lines: matching.slice(0, count) }));
+    }
+    const slug = str(args.nome);
+    if (slug && args.revisione_progetto !== project.revision) return fail(`Revisione progetto richiesta o obsoleta. Leggi il documento attuale prima di aggiornare. Revisione corrente: ${project.revision}. Nessuna modifica applicata.`);
+    const markdown = projectFile ? (typeof args.testo === 'string' ? args.testo : '') : typeof args.markdown === 'string' ? args.markdown : '';
+    const saved = await mutateProject(scope.token, { action: 'save-artifact', projectId: project.id, revision: project.revision, ...(slug ? { slug } : {}), title: str(args.titolo), markdown });
+    const artifact = slug ? saved.artifacts.find((p) => p.slug === slug) : saved.artifacts[saved.artifacts.length - 1];
+    if (!artifact) return fail('Il server ha risposto ma non ha restituito il documento. Non dichiarare il salvataggio verificato.');
+    const checked = await loadProject(scope.token, project.id);
+    const persisted = checked.artifacts.find((p) => p.slug === artifact.slug);
+    if (!persisted || persisted.markdown !== markdown || persisted.revision !== artifact.revision) return fail('Salvataggio accettato ma rilettura non coerente: non ripetere automaticamente la creazione, rileggi il progetto.');
+    return ok(JSON.stringify({ status: 'saved-and-read-back', projectId: project.id, projectRevision: checked.revision, slug: artifact.slug, artifactRevision: artifact.revision, url: artifactHref(project.id, artifact.slug), access: 'private/authenticated', download: 'TXT and Markdown download buttons on the real artifact page; not downloaded automatically', published: false }));
+  } catch {
+    return fail('Strumento non completato o verifica non disponibile. Non affermare che il risultato esiste, è stato pubblicato o consegnato. Verifica lo stato prima di ripetere una scrittura.');
+  }
 }

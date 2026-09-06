@@ -2,14 +2,18 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { Overlay } from '../App';
 import { useApp } from '../state/store';
 import { Icon } from '../system/Icon';
-import { HEALTH_JOURNAL_EVENT, addWorkout, readHealthJournal, removeHealthEntry, type HealthJournal } from '../engine/healthJournal';
+import { HEALTH_JOURNAL_EVENT, addWorkout, readHealthJournal, type HealthJournal } from '../engine/healthJournal';
 import { dateForDay } from '../engine/progression';
-import { MeCalendar, calendarDateKey } from './MeCalendar';
-import { MEALS, TodayChecklistScreen, workoutIcon } from './TodayChecklist';
+import { MeCalendar } from './MeCalendar';
+import { TodayChecklistScreen } from './TodayChecklist';
 import { savedToken } from '../brain/stream';
+import { calculateDailyEnergy } from '../engine/dailyEnergy';
+import { PersonalCalendarEvents } from './PersonalCalendarEvents';
+import { MemoryInspector, type PersonalMemoryProjection } from './MemoryInspector';
+import './me-energy.css';
 
-type View = 'today' | 'diet' | 'sport' | 'memory';
-const visibleView = (view: HealthJournal['display']['focus']): View => view === 'progress' ? 'today' : view;
+type View = 'today' | 'calendar' | 'memory';
+const visibleView = (view: HealthJournal['display']['focus']): View => view === 'diet' || view === 'sport' ? 'calendar' : 'today';
 const localDay = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 
 export function MeOverviewScreen({ onGo: _onGo }: { onGo: (o: Overlay) => void }) {
@@ -19,9 +23,9 @@ export function MeOverviewScreen({ onGo: _onGo }: { onGo: (o: Overlay) => void }
   const [view, setView] = useState<View>(() => visibleView(readHealthJournal().display.focus));
   const [selectedDate, setSelectedDate] = useState(() => dateForDay(day, startedAt));
   const [timerOpen, setTimerOpen] = useState(false);
-  const [memory, setMemory] = useState<any>(null);
-  const [memoryError, setMemoryError] = useState(false);
-  const loadMemory = () => { setMemoryError(false); fetch('/api/me-memory', { headers: { authorization: `Bearer ${savedToken()}` }, cache: 'no-store' }).then((r) => { if (!r.ok) throw new Error(); return r.json(); }).then(setMemory).catch(() => setMemoryError(true)); };
+  const [memory, setMemory] = useState<PersonalMemoryProjection | null>(null);
+  const [memoryError, setMemoryError] = useState('');
+  const loadMemory = () => { setMemoryError(''); fetch('/api/me-memory', { headers: { authorization: `Bearer ${savedToken()}` }, cache: 'no-store' }).then((r) => { if (!r.ok) throw new Error(r.status === 401 ? 'Accesso richiesto. Controlla il token in LAB.' : 'Memoria non disponibile.'); return r.json(); }).then(setMemory).catch((error) => setMemoryError(error instanceof Error ? error.message : 'Memoria non disponibile.')); };
   useEffect(() => { if (view === 'memory' && !memory) loadMemory(); }, [view]);
   const configuredFocus = useRef(journal.display.focus);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -31,29 +35,31 @@ export function MeOverviewScreen({ onGo: _onGo }: { onGo: (o: Overlay) => void }
   // la stessa chiave, altrimenti un giorno simulato/recuperato appare vuoto
   // pur avendo i pasti correttamente persistiti nel journal.
   const gameDay = localDay(dateForDay(day, startedAt));
-  const selectedDay = calendarDateKey(selectedDate);
-  const selectedMeals = journal.meals.filter((x) => localDay(new Date(x.at)) === selectedDay);
-  const selectedWorkouts = journal.workouts.filter((x) => localDay(new Date(x.at)) === selectedDay);
   const meals = journal.meals.filter((x) => localDay(new Date(x.at)) === gameDay);
   const total = meals.reduce((s, x) => ({ kcal: s.kcal + x.kcal, protein: s.protein + x.protein, carbs: s.carbs + x.carbs, fat: s.fat + x.fat }), { kcal: 0, protein: 0, carbs: 0, fat: 0 });
   const askAi = (prompt: string) => window.dispatchEvent(new CustomEvent('vinzmon-open-chat', { detail: { prompt } }));
-  const remove = (kind: 'meal' | 'workout' | 'weight', id: string) => {
-    if (window.confirm('Eliminare questa registrazione?')) removeHealthEntry(kind, id);
-  };
   return <div className="screen me-health">
-    <nav className="me-health__tabs">{([['today', 'OGGI'], ['diet', 'DIETA'], ['sport', 'SPORT'], ['memory', 'MEMORY']] as const).map(([id, label]) => <button type="button" key={id} aria-current={view === id ? 'page' : undefined} onClick={() => setView(id)}>{label}</button>)}</nav>
+    <nav className="me-health__tabs">{([['today', 'OGGI'], ['calendar', 'CALENDARIO'], ['memory', 'MEMORY']] as const).map(([id, label]) => <button type="button" key={id} aria-current={view === id ? 'page' : undefined} onClick={() => setView(id)}>{label}</button>)}</nav>
     <div className="me-health__scroll" ref={scrollRef}>
-      {view === 'today' && <TodayRecap journal={journal} total={total} />}
-      {view === 'diet' && <><MeCalendar journal={journal} mode="diet" selectedDate={selectedDate} onSelect={setSelectedDate} /><Section title="PIANO ALIMENTARE">{journal.dietPlan ? <article className="me-health__plan"><h2>{journal.dietPlan.title}</h2><p>{journal.dietPlan.text}</p><small>Aggiornato {new Date(journal.dietPlan.updatedAt).toLocaleDateString('it-IT')}</small></article> : <Empty text="Allega la dieta in chat: VINZ.MON la leggerà e la salverà qui." />}</Section><Section title="STORICO PASTI">{selectedMeals.length ? <div className="me-health__history-tasks">{[...selectedMeals].reverse().map(x => <HistoryRow key={x.id} done title={MEALS.find((meal) => meal.slot === x.slot)?.label ?? x.slot.toUpperCase()} text={x.description} meta={`${x.kcal} kcal${x.source === 'chat' ? ' · DALLA CHAT' : ''}`} remove={() => remove('meal', x.id)} />)}</div> : <Empty text="Nessun pasto registrato in questo giorno." />}</Section></>}
-      {view === 'sport' && <><button type="button" className="me-health__start-timer" onClick={() => setTimerOpen(true)}><Icon name="workout" /><span><strong>ALLENAMENTO GUIDATO</strong><small>Timer esercizio, recupero e serie</small></span><b>AVVIA</b></button><MeCalendar journal={journal} mode="sport" selectedDate={selectedDate} onSelect={setSelectedDate} /><Section title="PIANO ALLENAMENTO" action={journal.workoutPlan ? 'MODIFICA CON AI' : 'SCRIVI CON AI'} click={() => askAi(journal.workoutPlan ? 'Modifica il mio piano di allenamento attuale: ' : 'Creami un nuovo piano di allenamento. Prima fammi le domande necessarie: ')}>{journal.workoutPlan ? <article className="me-health__plan"><h2>{journal.workoutPlan.title}</h2><p>{journal.workoutPlan.text}</p><small>Aggiornato {new Date(journal.workoutPlan.updatedAt).toLocaleDateString('it-IT')}</small></article> : <Empty text="Crea il tuo piano con la chat: giorni, esercizi, serie, recuperi e progressione resteranno qui." />}</Section><Section title="ALLENAMENTI SVOLTI" action="REGISTRA CON AI" click={() => askAi('Registra questo allenamento svolto: ')}>{selectedWorkouts.length ? <div className="me-health__history-tasks">{[...selectedWorkouts].reverse().map(x => <HistoryRow key={x.id} done icon={workoutIcon(x)} title={x.title} text={x.details} meta={`${x.minutes} minuti${x.source === 'chat' ? ' · DALLA CHAT' : ''}`} remove={() => remove('workout', x.id)} />)}</div> : <Empty text="Nessun allenamento registrato in questo giorno." />}</Section></>}
-      {view === 'memory' && <MemoryView memory={memory} error={memoryError} retry={loadMemory} />}
+      {view === 'today' && <TodayRecap journal={journal} total={total} date={dateForDay(day, startedAt)} />}
+      {view === 'calendar' && <>
+        <MeCalendar journal={journal} mode="all" selectedDate={selectedDate} onSelect={setSelectedDate} />
+        <PersonalCalendarEvents date={selectedDate} />
+        <Section title={`REGISTRAZIONI · ${selectedDate.toLocaleDateString('it-IT')}`}>
+          <DailyEnergy journal={journal} date={selectedDate} />
+          <TodayChecklistScreen key={localDay(selectedDate)} embedded selectedDate={selectedDate} defaultDetailsOpen />
+        </Section>
+        <details className="me-health__plans"><summary>PIANI ALIMENTARI E ALLENAMENTO</summary>
+          <Section title="PIANO ALIMENTARE">{journal.dietPlan ? <article className="me-health__plan"><h2>{journal.dietPlan.title}</h2><p>{journal.dietPlan.text}</p></article> : <Empty text="Allega la dieta in chat: VINZ.MON la leggerà e la salverà qui." />}</Section>
+          <Section title="PIANO ALLENAMENTO" action={journal.workoutPlan ? 'MODIFICA CON AI' : 'SCRIVI CON AI'} click={() => askAi(journal.workoutPlan ? 'Modifica il mio piano di allenamento attuale: ' : 'Creami un nuovo piano di allenamento. Prima fammi le domande necessarie: ')}>{journal.workoutPlan ? <article className="me-health__plan"><h2>{journal.workoutPlan.title}</h2><p>{journal.workoutPlan.text}</p></article> : <Empty text="Crea il tuo piano con la chat: giorni, esercizi, serie, recuperi e progressione resteranno qui." />}</Section>
+        </details>
+        <button type="button" className="me-health__start-timer" onClick={() => setTimerOpen(true)}><Icon name="workout" /><span><strong>ALLENAMENTO GUIDATO</strong><small>Registra oggi, non nella data selezionata</small></span><b>AVVIA</b></button>
+      </>}
+      {view === 'memory' && <MemoryInspector memory={memory} error={memoryError} retry={loadMemory} />}
     </div>
     {timerOpen && <WorkoutTimer onClose={() => setTimerOpen(false)} />}
   </div>;
 }
-
-function displayMemoryText(text: string): string { const clean = text.replace(/^On \d{4}-\d{2}-\d{2} the User (?:expressed|said|stated) that /i, '').replace(/^The User /i, '').trim(); return clean.length > 180 ? `${clean.slice(0, 177)}…` : clean; }
-function MemoryView({ memory, error, retry }: { memory: any; error: boolean; retry: () => void }) { if (error) return <section className="me-health__section"><h2>MEMORY</h2><Empty text="Memoria non disponibile." /><button type="button" onClick={retry}>RIPROVA</button></section>; if (!memory) return <section className="me-health__section"><h2>MEMORY</h2><Empty text="Caricamento…" /></section>; if (Array.isArray(memory.memories)) { if (!memory.memories.length) return <section className="me-health__section"><h2>MEMORY</h2><Empty text="La memoria è ancora vuota. VINZ.MON inizierà a costruirla mentre parlate." /></section>; return <div className="me-memory"><header><h2>MEMORY</h2><p>{memory.memories.length} {memory.memories.length === 1 ? 'memoria' : 'memorie'}</p></header><Section title="CONOSCENZE">{memory.memories.map((item: any, i: number) => <details className="me-memory__relation" key={item.id ?? i}><summary><strong>{displayMemoryText(String(item.text ?? ''))}</strong></summary><p>{String(item.text ?? '')}</p>{item.createdAt && <small>{new Date(item.createdAt).toLocaleDateString('it-IT')}</small>}</details>)}</Section></div>; } if (!memory.counts.knowledge && !memory.counts.entities && !memory.counts.episodes) return <section className="me-health__section"><h2>MEMORY</h2><Empty text="La memoria è ancora vuota. VINZ.MON inizierà a costruirla mentre parlate." /></section>; return <div className="me-memory"><header><h2>MEMORY</h2><p>{memory.counts.knowledge} conoscenze · {memory.counts.entities} entità · {memory.counts.episodes} episodi</p></header><Section title={memory.user}>{memory.relations.map((r: any, i: number) => <article className="me-memory__relation" key={i}><strong>{r.object || r.value}</strong><small>{r.predicateLabel}</small></article>)}</Section></div>; }
 
 type TimerPreset = { label: string; work: number; rest: number; rounds: number };
 const TIMER_PRESETS: TimerPreset[] = [
@@ -110,16 +116,23 @@ function WorkoutTimer({ onClose }: { onClose: () => void }) {
   </section>;
 }
 
-function TodayRecap({ journal, total }: { journal: HealthJournal; total: HealthJournal['targets'] }) {
+function TodayRecap({ journal, total, date }: { journal: HealthJournal; total: HealthJournal['targets']; date: Date }) {
   const [detailsOpen, setDetailsOpen] = useState(false);
   return <section className="me-health__today-recap" data-expanded={detailsOpen}>
     <Nutrition total={total} targets={journal.targets} />
+    <DailyEnergy journal={journal} date={date} />
     <TodayChecklistScreen embedded defaultDetailsOpen={false} onDetailsChange={setDetailsOpen} />
   </section>;
 }
 
 function Nutrition({ total, targets }: { total: HealthJournal['targets']; targets: HealthJournal['targets'] }) { const pct = Math.min(100, Math.round(total.kcal / targets.kcal * 100)); return <section className="me-health__nutrition"><div className="me-health__calories"><div><small>ENERGIA</small><strong>{total.kcal.toLocaleString('it-IT')}</strong><span>/ {targets.kcal.toLocaleString('it-IT')} KCAL</span><Segments value={pct} count={14} /></div></div><div className="me-health__macros">{(['protein', 'carbs', 'fat'] as const).map(k => { const value = Math.min(100, total[k] / targets[k] * 100); return <div key={k}><span>{k === 'protein' ? 'PRO' : k === 'carbs' ? 'CARB' : 'FAT'}</span><strong>{total[k]}<small>g</small></strong><Segments value={value} count={8} /></div>; })}</div></section>; }
 function Section({ title, action, click, children }: { title: string; action?: string; click?: () => void; children: ReactNode }) { return <section className="me-health__section"><header><h2>{title}</h2>{action && <button type="button" onClick={click}><Icon name="plus" />{action}</button>}</header>{children}</section>; }
-function HistoryRow({ done, icon, title, text, meta, remove }: { done: boolean; icon?: import('../system/Icon').IconName; title: string; text: string; meta: string; remove: () => void }) { return <article className="me-health__history-row" data-done={done}><span aria-hidden="true">{icon && <Icon name={icon} />}</span><div><strong>{title}</strong><small>{text}</small><em>{meta}</em></div><button type="button" className="sync-check__remove" aria-label={`Elimina ${title}`} onClick={remove}><Icon name="close" /></button></article>; }
+function DailyEnergy({ journal, date }: { journal: HealthJournal; date: Date }) {
+  const energy = calculateDailyEnergy(journal, date);
+  return <section className="me-daily-energy" aria-label="Energia registrata">
+    <dl><div><dt>FOOD KCAL</dt><dd>{energy.foodKcal}</dd></div><div><dt>WORKOUT KCAL</dt><dd>{energy.workoutKcal}</dd><small>{energy.workoutCount ? energy.workoutReliability === 'MEASURED' ? 'MEASURED' : 'ESTIMATE' : 'NESSUN DATO'}</small></div><div><dt>RECORDED NET</dt><dd>{energy.recordedNetKcal}</dd></div></dl>
+    <p>Cibo − allenamenti registrati. Non è il deficit calorico.{energy.unknownWorkoutCount > 0 && ` ${energy.unknownWorkoutCount} attività senza calorie registrate.`}</p>
+  </section>;
+}
 function Empty({ text }: { text: string }) { return <p className="me-health__empty">{text}</p>; }
 function Segments({ value, count }: { value: number; count: number }) { const filled = Math.round(value / 100 * count); return <i className="me-health__segments" aria-label={`${Math.round(value)}%`}>{Array.from({ length: count }, (_, i) => <b key={i} className={i < filled ? 'is-filled' : ''} />)}</i>; }

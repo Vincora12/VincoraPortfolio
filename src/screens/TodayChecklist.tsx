@@ -9,6 +9,7 @@ import { useApp } from '../state/store';
 import { useAssetUrl } from '../system/AssetSlot';
 import { Icon, type IconName } from '../system/Icon';
 import { SyncDial } from '../system/SyncDial';
+import { workoutEnergyLabel } from '../engine/dailyEnergy';
 
 export const MEALS: Array<{ slot: Exclude<MealLog['slot'], 'extra'>; label: string; icon: IconName }> = [
   { slot: 'colazione', label: 'COLAZIONE', icon: 'mealBreakfast' },
@@ -33,7 +34,7 @@ export function workoutIcon(workout: WorkoutLog): IconName {
   return 'workout';
 }
 
-export function TodayChecklistScreen({ embedded = false, defaultDetailsOpen = false, onDetailsChange }: { embedded?: boolean; defaultDetailsOpen?: boolean; onDetailsChange?: (open: boolean) => void } = {}) {
+export function TodayChecklistScreen({ embedded = false, defaultDetailsOpen = false, onDetailsChange, selectedDate }: { embedded?: boolean; defaultDetailsOpen?: boolean; onDetailsChange?: (open: boolean) => void; selectedDate?: Date } = {}) {
   const [journal, setJournal] = useState(readHealthJournal);
   const [wishOpen, setWishOpen] = useState(false);
   const [wishText, setWishText] = useState('');
@@ -61,14 +62,14 @@ export function TodayChecklistScreen({ embedded = false, defaultDetailsOpen = fa
      ferma a zero mentre il gioco andava avanti altrove. */
   const day = useApp((state) => state.day);
   const startedAt = useApp((state) => state.startedAt);
-  const gameToday = dateForDay(day, startedAt);
+  const gameToday = selectedDate ?? dateForDay(day, startedAt);
 
   useEffect(() => {
     const update = () => setJournal(readHealthJournal());
     window.addEventListener(HEALTH_JOURNAL_EVENT, update);
-    setJournal(alignTodayLogsToGameDay(dateForDay(day, startedAt)));
+    setJournal(selectedDate ? readHealthJournal() : alignTodayLogsToGameDay(dateForDay(day, startedAt)));
     return () => window.removeEventListener(HEALTH_JOURNAL_EVENT, update);
-  }, [day, startedAt]);
+  }, [day, startedAt, selectedDate]);
 
   const today = dayKey(gameToday);
   const todayMeals = journal.meals.filter((item) => dayKey(new Date(item.at)) === today);
@@ -82,6 +83,7 @@ export function TodayChecklistScreen({ embedded = false, defaultDetailsOpen = fa
   const month = syncRewardProgress('wish', streak);
 
   useEffect(() => {
+    if (selectedDate) return;
     if (completionState.current === null) {
       completionState.current = completeToday;
       return;
@@ -92,7 +94,7 @@ export function TodayChecklistScreen({ embedded = false, defaultDetailsOpen = fa
     setSyncCompleteVisible(true);
     if (completionTimer.current !== null) window.clearTimeout(completionTimer.current);
     completionTimer.current = window.setTimeout(() => setSyncCompleteVisible(false), 2100);
-  }, [completeToday]);
+  }, [completeToday, selectedDate]);
 
   useEffect(() => () => {
     if (completionTimer.current !== null) window.clearTimeout(completionTimer.current);
@@ -166,7 +168,7 @@ export function TodayChecklistScreen({ embedded = false, defaultDetailsOpen = fa
         if (editTarget.entry) updateMealById(editTarget.entry.id, meal);
         else addMeal({ slot: editTarget.slot, ...meal }, 'manual', dateOnGameDay());
       } else {
-        const workout = estimate as WorkoutEstimate;
+        const workout = { ...estimate as WorkoutEstimate, energySource: 'estimated' as const };
         if (editTarget.entry) updateWorkoutById(editTarget.entry.id, workout);
         else addWorkout(workout, 'manual', dateOnGameDay());
       }
@@ -213,7 +215,7 @@ export function TodayChecklistScreen({ embedded = false, defaultDetailsOpen = fa
     </section>}
 
     <button type="button" className="sync-check__details-toggle" aria-expanded={detailsOpen} aria-controls={detailsId} onClick={() => setDetailsOpen((open) => { const next = !open; onDetailsChange?.(next); return next; })}>
-      {detailsOpen ? 'CHIUDI' : 'VEDI OGGI'} <span aria-hidden="true">{detailsOpen ? '↑' : '↓'}</span>
+      {detailsOpen ? 'CHIUDI' : selectedDate ? 'VEDI REGISTRAZIONI' : 'VEDI OGGI'} <span aria-hidden="true">{detailsOpen ? '↑' : '↓'}</span>
     </button>
 
     {detailsOpen && <section id={detailsId} className="today-check__tasks sync-check__details" aria-label="Resoconto completo di oggi">
@@ -224,7 +226,7 @@ export function TodayChecklistScreen({ embedded = false, defaultDetailsOpen = fa
       {todayMeals.filter((meal) => meal.slot === 'extra').map((meal, index) => <LongPressRow key={meal.id} done label={`Extra ${index + 1}. Tieni premuto per completare o correggere.`} onLongPress={() => openEditor({ kind: 'meal', slot: 'extra', label: `EXTRA ${index + 1}`, entry: meal })} onRemove={() => removeEntry('meal', meal.id, `extra ${index + 1}`)}><span aria-hidden="true" /><div><strong>EXTRA {index + 1}</strong><small>{meal.description}</small></div></LongPressRow>)}
       {todayWorkouts.length === 0
         ? <LongPressRow done={false} label="Allenamento. Tieni premuto per registrare." onLongPress={() => openEditor({ kind: 'workout', label: 'ALLENAMENTO' })}><span aria-hidden="true" /><div><strong>ALLENAMENTO</strong><small>DA REGISTRARE</small></div></LongPressRow>
-        : todayWorkouts.map((workout, index) => <LongPressRow key={workout.id} done className="sync-check__workout-row" label={`Allenamento ${index + 1}. Tieni premuto per completare o correggere.`} onLongPress={() => openEditor({ kind: 'workout', label: `ALLENAMENTO ${todayWorkouts.length > 1 ? index + 1 : ''}`.trim(), entry: workout })} onRemove={() => removeEntry('workout', workout.id, `allenamento ${todayWorkouts.length > 1 ? index + 1 : ''}`.trim())}><span aria-hidden="true" /><div><strong>ALLENAMENTO {todayWorkouts.length > 1 ? index + 1 : ''}</strong><small>{workout.title}</small></div></LongPressRow>)}
+        : todayWorkouts.map((workout, index) => <LongPressRow key={workout.id} done className="sync-check__workout-row" label={`Allenamento ${index + 1}. Tieni premuto per completare o correggere.`} onLongPress={() => openEditor({ kind: 'workout', label: `ALLENAMENTO ${todayWorkouts.length > 1 ? index + 1 : ''}`.trim(), entry: workout })} onRemove={() => removeEntry('workout', workout.id, `allenamento ${todayWorkouts.length > 1 ? index + 1 : ''}`.trim())}><span aria-hidden="true" /><div><strong>ALLENAMENTO {todayWorkouts.length > 1 ? index + 1 : ''}</strong><small>{workout.title} · {workout.minutes} min</small><small>{workoutEnergyLabel(workout)}</small></div></LongPressRow>)}
       {embedded && <div className="sync-check__additions">
         <button type="button" onClick={() => openEditor({ kind: 'meal', slot: 'extra', label: 'PASTO EXTRA' })}><Icon name="plus" /> PASTO EXTRA</button>
         <button type="button" onClick={() => openEditor({ kind: 'workout', label: 'ALLENAMENTO' })}><Icon name="plus" /> ALLENAMENTO</button>

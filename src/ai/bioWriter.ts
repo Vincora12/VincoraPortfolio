@@ -39,6 +39,7 @@ import type { BackendFailure } from './backend';
 import type { BioFile, Memory, MonRecord } from '../engine/types';
 import { displayName } from '../engine/types';
 import { voiceCard, voiceCardBlock } from '../engine/voiceCard';
+import { bioTasteSeeds, generateCharacterBio, hasPhysicalBioDescription } from '../engine/characterBio';
 
 /* --- Le regole, in cache --------------------------------------------------- */
 
@@ -78,13 +79,13 @@ export const BIO_RULES = [
   'Una bio riuscita è organizzata intorno a UNA idea su te stesso. Qualcosa',
   'tipo «faccio il sicuro, ma prima guardo dove si mettono gli altri».',
   'Poi tiri dentro solo quello che appartiene davvero a quel pensiero: forse',
-  'una contraddizione, forse un dettaglio del corpo, forse un modo di stare.',
+  'un gusto culturale preciso, una contraddizione o un’antipatia coerente.',
   'Il resto resta fuori, anche se è vero.',
   '',
   'COSA NON PUOI FARE',
   '- NON puoi cambiare un fatto, né inventarne di nuovi.',
   '- NON puoi inventare episodi, persone, luoghi o oggetti che non ti sono stati dati.',
-  '- I RICORDI REALI DI CHI TI HA FATTO NASCERE valgono più del catalogo del tuo corpo.',
+  '- I RICORDI REALI DI CHI TI HA FATTO NASCERE sono contesto, non un referto psicologico.',
   '  Se ci sono, scegline uno e fallo diventare parte del modo in cui racconti la tua nascita.',
   '  Puoi ricordare soltanto ciò che compare nel blocco RICORDI REALI: mai completare i vuoti.',
   '',
@@ -99,7 +100,11 @@ export const BIO_RULES = [
   '- Non usare mai i nomi di catalogo come parole tue: nessuno dice «sono un ANGEL',
   '  MESSENGER di affinità MACHINE». Quelle etichette descrivono come sei fatto,',
   '  non come parli.',
-  '- Non descrivere occhiali, vestiti, anatomia o palette come una scheda prodotto.',
+  '- NON descrivere MAI aspetto fisico: occhi, capelli, vestiti indossati, anatomia, corpo, sagoma o silhouette.',
+  '- Racconta chi sei attraverso 1–3 gusti e prese di posizione: ami, apprezzi, sei curioso, non sopporti.',
+  '- CULTURAL TASTE è una sensibilità della forma, NON una preferenza accertata dell’utente.',
+  '- Trasforma le sensibilità in un ritratto compatto: musica, scene, arte, giochi, design o rituali.',
+  '- Non ripetere i nomi delle reference; niente lista di tag, oroscopo o diagnosi psicologica.',
   '- Scrivi come una persona vera: diretto, personale, anche colloquiale. Una parolaccia è',
   '  ammessa soltanto se nasce naturalmente dalla voce e dal ricordo, mai come decorazione.',
   '- Prima di consegnare, rileggiti una volta: ogni frase deve seguire dalla precedente e',
@@ -119,8 +124,8 @@ export const BIO_RULES = [
   '  "annotations": ["2-4 appunti a margine, come scritti di fretta e per te, non per lui.",',
   '                  "Ammissioni, dubbi, piccole antipatie, cose che ti danno fastidio.",',
   '                  "Spontanei. NON altri tratti del catalogo detti più corti."],',
-  '  "rememberedDetails": ["2-3 dettagli CONCRETI che ti fanno riconoscere da lontano:",',
-  '                        "un’abitudine visibile, un gesto, un segno. Qui puoi essere",',
+  '  "rememberedDetails": ["2-3 dettagli CONCRETI di gusto o atteggiamento:",',
+  '                        "un interesse, un’antipatia, una continuità realmente fornita. Qui puoi essere",',
   '                        "asciutto e fattuale: non devono essere poetici."]',
   '}',
   '',
@@ -186,7 +191,7 @@ export interface BioMemoryContext {
   world?: string;
 }
 
-function factsOf(record: MonRecord, context?: BioMemoryContext): string {
+export function bioFactsOf(record: MonRecord, context?: BioMemoryContext): string {
   const d = record.data;
   const dna = d.character_dna;
   const { length } = voiceCard(record);
@@ -195,7 +200,6 @@ function factsOf(record: MonRecord, context?: BioMemoryContext): string {
     '',
     `IL TUO NOME: ${displayName(d.name)}`,
     `IL GIORNO IN CUI SEI ARRIVATO: ${d.generated_at_day}`,
-    `RADICE DEL CORPO (non pronunciare queste etichette): ${d.family} / ${d.family_archetype}; affinità ${d.affinity}; taglia ${d.size}`,
     `IMPULSO DEL RUOLO (non pronunciare l'etichetta): ${d.role}`,
     /* 🔷 VINZMON_NARRATIVE_ROLE_IMPLEMENTATION_BRIEF §9 — «The Bio Writer
        should consume Narrative DNA rather than inventing a complete
@@ -219,21 +223,22 @@ function factsOf(record: MonRecord, context?: BioMemoryContext): string {
     `LE TUE CONTRADDIZIONI: ${dna.contradictions.map((c) => `${c.a} contro ${c.b}`).join(' · ')}`,
     `QUELLO CHE VUOI: ${dna.drives.join(' · ')}`,
     `COME SEI: ${dna.traits.join(' · ')}`,
-    `QUANDO NON SAI CHE FARE: ${dna.body_language}`,
+    'CULTURAL TASTE — interpretazioni narrative della sensibilità della forma, non esperienze o fatti sull’utente:',
+    ...bioTasteSeeds(d).map((taste) => `- ATTRAZIONE: ${taste.likes}; AVVERSIONE: ${taste.dislikes}`),
     '',
     d.heritage_traits.length > 0
       ? `TI ARRIVA DA PRIMA DI TE: ${d.heritage_traits
-          .map((h) => `${h.transformed} (da ${displayName(h.from_mon)})`)
+          .map((h) => `continuità con ${displayName(h.from_mon)}`)
           .join(' · ')}`
       : 'PRIMA DI TE NON C’ERA NESSUNO: sei il primo nodo.',
     '',
-    'I SEGNALI CHE ERANO IN CAMPO QUEL GIORNO, come li ha visti chi ti ha fatto nascere:',
-    record.bio.story,
+    'RITRATTO DETERMINISTICO — gusti interpretati, non nuovi eventi:',
+    generateCharacterBio(d).story,
     '',
     'RICORDI REALI DI CHI TI HA FATTO NASCERE — sono parole/eventi realmente salvati.',
     'Usane al massimo UNO, solo se rende la presentazione più personale. Non inventare raccordi fattuali.',
     ...(context?.memories.length
-      ? context.memories.map((m) => `- GIORNO ${m.day} · ${m.title}: ${m.text}`)
+      ? context.memories.slice(-3).map((m) => `- GIORNO ${m.day} · ${m.title.slice(0, 120)}: ${m.text.slice(0, 1200)}`)
       : ['- Nessun ricordo personale disponibile: non fingere di ricordare.']),
     '',
     /* 🔒 In fondo e non in cima: è come SCRIVI, non cosa scrivi. Messo fra i
@@ -264,7 +269,7 @@ export async function writeBioWithAi(
     capability: 'prompt-compile',
     voiceModel: compilerModel,
     system: [{ text: BIO_RULES, cache: true }],
-    user: factsOf(record, context),
+    user: bioFactsOf(record, context),
     /* 🔶 Era `thinking: true`, cioè `medium`. La bio è un testo corto e i
        controlli deterministici che la giudicano non sono cambiati: `low`
        basta, e quello che non basta lo BOCCIA il validatore, non il prezzo. */
@@ -278,6 +283,7 @@ export async function writeBioWithAi(
   if (!parsed) return { bio: null, failure: null, rejected: 'risposta non leggibile come JSON' };
 
   const blob = [parsed.story, ...parsed.annotations, ...parsed.rememberedDetails].join(' ');
+  if (hasPhysicalBioDescription(blob)) return { bio: null, failure: null, rejected: 'descrizione fisica non ammessa nella bio' };
   const missing = survivingFacts(record).filter((f) => !blob.includes(f));
   if (missing.length > 0) {
     return { bio: null, failure: null, rejected: `fatti persi: ${missing.join(', ')}` };
@@ -335,6 +341,7 @@ function parseBio(raw: string): { story: string; annotations: string[]; remember
   const annotations = lines(o.annotations);
   const rememberedDetails = lines(o.rememberedDetails);
 
-  if (story.trim().length < 40 || annotations.length === 0) return null;
+  if (story.trim().length < 40 || story.length > 3000 || annotations.length === 0 || annotations.length > 6 || rememberedDetails.length > 6
+    || [...annotations, ...rememberedDetails].some((line) => line.length > 800)) return null;
   return { story, annotations, rememberedDetails };
 }

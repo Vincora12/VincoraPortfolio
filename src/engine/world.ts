@@ -10,11 +10,11 @@
    tutta la struttura di questo file: «A World belongs to the MON's history,
    not only to the current form.»
 
-   Cioè: quando VINZ.MON cambia forma — evoluzione, mega, branch — il mondo NON
-   riparte. Cambia, si stratifica, rivela pezzi che non si vedevano; ma è lo
-   stesso posto, e gli eventi di tre forme fa restano veri. Un mondo per forma
-   sarebbe un mondo che si dimentica ogni ventotto giorni, cioè un mondo di cui
-   non varrebbe la pena ricordarsi niente.
+   MASTER COMPLETION aggiorna il confine: TUNE mantiene lo stesso World,
+   RISE apre un nuovo World e archivia quello precedente con il suo ledger.
+   `worldTransition.ts` applica questa distinzione alla rivelazione completata.
+   Non c'è un World per ogni forma: più TUNE possono vivere nello stesso luogo.
+   Il canone dei World precedenti rimane intatto nell'archivio.
    ════════════════════════════════════════════════════════════════════════════
 
    🔒 QUATTRO CATEGORIE EPISTEMICHE, E NON SONO PEDANTERIA (§15.1). Un'app che

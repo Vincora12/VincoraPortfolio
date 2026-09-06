@@ -1,0 +1,41 @@
+import assert from 'node:assert/strict';
+import { build } from 'esbuild';
+
+async function moduleFrom(path) {
+  const { outputFiles } = await build({ entryPoints: [path], bundle: true, format: 'esm', platform: 'node', write: false });
+  return import(`data:text/javascript;base64,${Buffer.from(outputFiles[0].text).toString('base64')}`);
+}
+const { calculateDailyEnergy, workoutEnergyLabel } = await moduleFrom('src/engine/dailyEnergy.ts');
+const { validCalendarEventInput } = await moduleFrom('src/engine/calendarEvents.ts');
+const date = new Date(2026, 8, 6, 18);
+const at = new Date(2026, 8, 6, 12).toISOString();
+const journal = { meals: [{ at, kcal: 1500 }], workouts: [{ at, burnedKcal: 300 }], weights: [] };
+const basic = calculateDailyEnergy(journal, date);
+assert.equal(basic.recordedNetKcal, 1200);
+assert.equal(basic.restingKcal, null);
+assert.equal(basic.tdeeKcal, null);
+assert.equal(basic.missing.length, 5);
+assert.equal(basic.workoutReliability, 'ESTIMATED');
+assert.match(workoutEnergyLabel({ burnedKcal: 300 }), /ESTIMATE/);
+assert.match(workoutEnergyLabel({}), /NON REGISTRATE/);
+assert.match(workoutEnergyLabel({ burnedKcal: 300, energySource: 'measured' }), /MEASURED/);
+const profile = { ageYears: 30, heightCm: 180, weightKg: 80, formulaSex: 'male', nonWorkoutActivityFactor: 1.2 };
+const full = calculateDailyEnergy(journal, date, profile);
+assert.equal(full.restingKcal, 1780);
+assert.equal(full.tdeeKcal, 2436);
+assert.equal(full.missing.length, 0);
+assert.equal(calculateDailyEnergy(journal, date, { ...profile, formulaSex: 'female' }).restingKcal, 1614);
+assert.equal(calculateDailyEnergy(journal, date, { ...profile, ageYears: 14 }).restingKcal, null);
+assert.equal(calculateDailyEnergy(journal, date, { ...profile, weightKg: NaN }).restingKcal, null);
+assert.equal(calculateDailyEnergy({ ...journal, workouts: [{ at }] }, date, profile).tdeeKcal, null);
+assert.equal(calculateDailyEnergy(journal, new Date(2026, 8, 7), profile).recordedNetKcal, 0);
+assert.equal(calculateDailyEnergy({ ...journal, weights: [{ at, kg: 70 }] }, date, { ...profile, weightKg: undefined }).weightSource, 'health-journal');
+assert.equal(calculateDailyEnergy({ ...journal, weights: [{ at: new Date(2026, 8, 8).toISOString(), kg: 70 }] }, date, { ...profile, weightKg: undefined }).restingKcal, null);
+const event = { title: 'Test appointment', start: at, timezone: 'Europe/Rome', category: 'appointment', status: 'planned', notes: '' };
+assert.equal(validCalendarEventInput(event), true);
+assert.equal(validCalendarEventInput({ ...event, start: 'invalid' }), false);
+assert.equal(validCalendarEventInput({ ...event, end: new Date(2026, 8, 5).toISOString() }), false);
+assert.equal(validCalendarEventInput({ ...event, timezone: 'not/a-zone' }), false);
+assert.equal(validCalendarEventInput({ ...event, title: ' ' }), false);
+assert.equal(validCalendarEventInput({ ...event, category: 'unknown' }), false);
+console.log('PASS: Daily Energy arithmetic, missing inputs, estimates/provenance, date isolation, no future weight, calendar validation.');

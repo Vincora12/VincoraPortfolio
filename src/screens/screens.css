@@ -5607,13 +5607,14 @@
 .me-health__calendar .rdp-nav { gap: 4px; }
 .me-health__calendar .rdp-button_previous, .me-health__calendar .rdp-button_next { width: 38px; height: 34px; border: 1px solid #44474f; border-radius: 0; color: #f3f3f3; }
 .me-health__calendar .rdp-button_previous:hover:not([disabled]), .me-health__calendar .rdp-button_next:hover:not([disabled]) { background: #1b1c20; }
+.me-health__calendar .rdp-chevron { fill: currentColor; }
 .me-health__calendar .rdp-weekdays { color: #777a83; font-size: 9px; letter-spacing: .08em; }
 .me-health__calendar .rdp-weekday { height: 28px; font-weight: 700; }
 .me-health__calendar .rdp-day { position: relative; height: 42px; padding: 0; }
 .me-health__calendar .rdp-day_button { width: 34px; height: 34px; margin: 0 auto; border: 1px solid transparent; border-radius: 0; color: #e8e9ec; font: 600 11px/1 var(--font-mono); }
 .me-health__calendar .rdp-day_button:hover:not([disabled]) { background: #191a1e; }
-.me-health__calendar .rdp-day.me-calendar__selected .rdp-day_button { border-color: var(--mh-accent); background: transparent; color: #fff; }
-.me-health__calendar .rdp-day.me-calendar__today .rdp-day_button { color: var(--mh-accent); }
+.me-health__calendar .rdp-day.me-calendar__selected .rdp-day_button { border-color: #9a9da6; background: transparent; color: #fff; }
+.me-health__calendar .rdp-day.me-calendar__today .rdp-day_button { color: #f3f3f3; text-decoration: underline; text-underline-offset: 4px; }
 .me-health__calendar .rdp-day.me-calendar__outside .rdp-day_button { color: #686b73; }
 .me-health__calendar .rdp-day.me-calendar__has-food::after, .me-health__calendar .rdp-day.me-calendar__has-workout::after { position: absolute; bottom: 1px; left: 50%; width: 4px; height: 4px; border-radius: 50%; background: var(--mh-accent); content: ''; transform: translateX(-50%); }
 .me-health__calendar .rdp-day.me-calendar__has-workout::after { background: #42c8e8; }

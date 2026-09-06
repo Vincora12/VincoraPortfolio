@@ -1,0 +1,21 @@
+.me-daily-energy { border-bottom: 1px solid var(--mh-line, #75777f); padding: 16px 0; }
+.me-daily-energy dl { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 0; }
+.me-daily-energy dl > div { min-width: 0; padding: 0 8px; }
+.me-daily-energy dl > div + div { border-left: 1px dashed var(--mh-line, #75777f); }
+.me-daily-energy dt, .me-daily-energy small { font: 10px/1.5 var(--font-mono); }
+.me-daily-energy dd { font: 700 clamp(20px, 5vw, 30px)/1.3 var(--font-mono); margin: 8px 0 0; }
+.me-daily-energy p { color: #999ba3; font-size: 11px; line-height: 1.5; margin: 12px 8px 0; }
+.me-health__plans > summary { padding: 20px 0; font: 12px/1.5 var(--font-mono); cursor: pointer; }
+.me-personal-calendar__event { display: flex; border-bottom: 1px solid var(--mh-line, #75777f); }
+.me-personal-calendar > header > button { min-height: 44px; color: #e7e7eb; }
+.me-personal-calendar__event > button { min-height: 48px; background: transparent; color: inherit; border: 0; text-align: left; padding: 14px 8px; }
+.me-personal-calendar__event > button:first-child { flex: 1; min-width: 0; display: grid; gap: 8px; }
+.me-personal-calendar__event > button:last-child:not(:first-child) { flex: 0 0 44px; font-size: 24px; }
+.me-personal-calendar__event small { font: 10px/1.5 var(--font-mono); color: #999ba3; }
+.me-personal-calendar__event strong, .me-personal-calendar__event span { overflow-wrap: anywhere; }
+.me-calendar-editor input, .me-calendar-editor select { width: 100%; min-width: 0; min-height: 44px; padding: 10px; background: #101014; color: #fff; border: 1px solid #75777f; font: 16px/1.4 var(--font-mono); }
+.me-calendar-editor form { overflow-y: auto; max-height: 85dvh; }
+.me-calendar-editor label { display: grid; gap: 8px; }
+.me-memory-inspector > label { display: grid; gap: 12px; padding: 16px 0; font: 11px/1.5 var(--font-mono); }
+.me-memory-inspector input { width: 100%; min-height: 44px; padding: 10px; border: 1px solid #75777f; color: inherit; background: transparent; font-size: 16px; }
+.me-memory-inspector summary { overflow-wrap: anywhere; min-height: 44px; }

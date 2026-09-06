@@ -20,6 +20,7 @@ import { useApp } from '../state/store';
 import { Markdown } from '../system/Markdown';
 import { Button, IconButton, SystemLabel } from '../system/components';
 import { MonName } from '../system/MonName';
+import { downloadArtifact } from '../projects/client';
 
 export function PageReader({ slug, onClose }: { slug: string; onClose: () => void }) {
   const page = useApp((s) => s.pages.find((p) => p.slug === slug) ?? null);
@@ -73,6 +74,8 @@ export function PageReader({ slug, onClose }: { slug: string; onClose: () => voi
             leggerla, non per gestirla. In cima ci sarebbero solo pulsanti da
             scavalcare ogni volta. */}
         <div className="pagereader__actions">
+          <Button variant="secondary" onClick={() => downloadArtifact(page, 'txt')}>Scarica .TXT</Button>
+          <Button variant="secondary" onClick={() => downloadArtifact(page, 'md')}>Scarica .MD</Button>
           <Button variant="secondary" onClick={() => pinPage(page.slug, !page.pinned)}>
             {page.pinned ? 'Togli dalla cima' : 'Tienila in cima'}
           </Button>

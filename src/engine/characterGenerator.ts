@@ -76,7 +76,8 @@ import type {
   TraceCandidate,
   TraceStep,
 } from './types';
-import { STAT_KEYS, displayName, isKnown } from './types';
+import { STAT_KEYS, displayName } from './types';
+import { generateCharacterBio } from './characterBio';
 
 /* --- Contesto -------------------------------------------------------------- */
 
@@ -1151,70 +1152,9 @@ function generateCharacterDna(
    §2.4 — tutto al maschile: è lui che scrive.
    ========================================================================= */
 
-/** Come si dice, in italiano vivo, che una stat era alta o bassa quel giorno. */
-const STAT_STORY: Record<string, { high: string; low: string }> = {
-  FORM: { high: 'il tuo corpo teneva', low: 'il tuo corpo era una domanda aperta' },
-  ATK: { high: 'avevi forza da buttare via', low: 'la forza non era la tua priorità' },
-  SPD: { high: 'non stavi mai fermo', low: 'ti muovevi poco e lento' },
-  DEF: { high: 'stavi dritto', low: 'eri tutto storto' },
-  REC: { high: 'avevi dormito bene, forse troppo', low: 'non stavi recuperando niente' },
-  CARE: { high: 'ti stavi trattando bene', low: 'non ti stavi trattando bene' },
-};
-
 function generateBio(data: CharacterData, ctx: GenerationContext): BioFile {
-  const { contradictions, drives, traits } = data.character_dna;
-  const c = contradictions[0];
-  const day = ctx.input.day;
-
-  const known = STAT_KEYS.filter((k) => isKnown(ctx.input.health.stats[k].value));
-  const val = (k: (typeof STAT_KEYS)[number]) => ctx.input.health.stats[k].value as number;
-
-  /* Da dove vengo: il segnale più alto e il più basso di quel giorno, detti
-     come li direbbe uno che c'era. È la parte che l'utente deve riconoscere —
-     «sono nato perché avevo dormito troppo» — quindi cita cose vere. */
-  let origin: string;
-  if (known.length === 0) {
-    origin = 'Non sapevi ancora dirmi niente di te, e sono venuto fuori lo stesso.';
-  } else {
-    const best = known.reduce((a, b) => (val(a) >= val(b) ? a : b));
-    const worst = known.reduce((a, b) => (val(a) <= val(b) ? a : b));
-    origin =
-      best === worst
-        ? `${STAT_STORY[best]!.high.replace(/^./, (m) => m.toUpperCase())}, ed era l’unica cosa che sapevo di te.`
-        : `${STAT_STORY[best]!.high.replace(/^./, (m) => m.toUpperCase())} e ${STAT_STORY[worst]!.low}. Io sono venuto fuori da lì in mezzo.`;
-  }
-
-  const story = [
-    `Sono arrivato il giorno ${day}.`,
-    origin,
-    c
-      ? `Non ho scelto fra ${c.a} e ${c.b}. Me le porto dietro tutte e due, e non ho intenzione di risolverlo.`
-      : 'Tengo insieme cose che non stanno insieme. Funziona.',
-    `Quello che voglio davvero, se me lo chiedi, è ${drives[0]}.`,
-    data.heritage_traits.length > 0
-      ? `Qualcosa di me viene da prima: ${data.heritage_traits[0]!.transformed}. Non ricordo dove l’ho preso.`
-      : 'Prima di me non c’era nessuno. Sono il primo nodo.',
-  ].join(' ');
-
-  return {
-    story,
-    /* Annotazioni: righe brevi, come appunti a margine. Sempre sue. */
-    annotations: [
-      `Sono ${traits[0]} più di quanto ammetta.`,
-      data.eyewear
-        ? `Sugli occhi, sempre: ${data.eyewear.description}.`
-        : 'Niente lenti. Guardo diretto e a volte dà fastidio.',
-      `Nel corpo mi porto ${data.character_dna.anatomical_gimmick}.`,
-      `Quando non so cosa fare, ${data.character_dna.body_language}.`,
-    ],
-    rememberedDetails: [
-      `La mia sagoma: ${data.character_dna.silhouette_quirk}`,
-      data.heritage_traits.length > 0
-        ? `Vengo anche da ${displayName(data.heritage_traits[0]!.from_mon)}`
-        : 'Primo nodo, nessun prima',
-    ],
-    tags: [`#${data.family}`, `#${data.affinity}`, `#${data.role}`, `#${displayName(data.name)}`],
-  };
+  // Presentation-only consumer: no RNG calls and no mutation of CharacterData.
+  return generateCharacterBio(data, ctx.input.day);
 }
 
 /**

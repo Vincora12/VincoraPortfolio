@@ -4,6 +4,7 @@ import { useApp } from '../state/store';
 import { buildVoiceSystemPrompt } from '../ai/voicePrompt';
 import { persistChatTrace, recordChatTrace, systemPromptComposition, traceClock, type ChatTrace } from '../ai/chatTrace';
 import { voiceCard } from '../engine/voiceCard';
+import { resolveChatContext } from '../ai/chatContext';
 
 /* ============================================================================
    🔷 «Riporta la chat a prima.» — e dentro, il problema vero.
@@ -69,6 +70,9 @@ function traceContext(): string[] {
 
 /** Legge soltanto il token tecnico già salvato dall'app principale. */
 export function savedToken(): string | null {
+  // An authenticated running app must not depend on a successful cache write.
+  const activeToken = useApp.getState().token;
+  if (activeToken) return activeToken;
   try {
     const raw = localStorage.getItem('vinzmon.prototype.v4');
     const parsed = raw ? (JSON.parse(raw) as { state?: { token?: unknown } }) : null;
@@ -215,6 +219,7 @@ export function isWorkoutPlanIntent(text: string): boolean {
 }
 
 export function isMealLogIntent(text: string): boolean {
+  if (isMealCorrectionIntent(text)) return false;
   if (/^\s*(?:cosa|che cosa|quanto|quanti|quante)\b.*\b(?:mangiat\w*|bevut\w*)/i.test(text)) return false;
   if (/\bnon\s+ho\s+(?:mangiato|bevuto)\b/i.test(text)) return false;
   return /\b(?:ho\s+(?:mangiato|bevuto|cenato|pranzato|fatto\s+(?:colazione|merenda|uno\s+spuntino))|(?:mangio|bevo)\b|pasto|colazione|pranzo|cena|spuntino|merenda|snack|registra(?:mi)?\s+(?:questo\s+)?pasto)\b/i.test(text);
@@ -229,17 +234,36 @@ export function isWorkoutLogIntent(text: string): boolean {
 
 /** Usa il loop strumenti solo quando la richiesta riguarda dati o azioni locali. */
 export function shouldUseLocalTools(text: string): boolean {
-  return TOOL_INTENT.test(text);
+  return TOOL_INTENT.test(text) || isDailyEnergyIntent(text) || /\b(file|txt|markdown|documento|artifact|progett\w*|sorgent\w*|codice|bmr|tdee|deficit|energia)\b/i.test(text);
+}
+
+const CORRECTION_INTENT = /\b(?:corregg\w*|rettific\w*|modific\w*|anzi)\b/i;
+function isMealCorrectionIntent(text: string): boolean {
+  return CORRECTION_INTENT.test(text) && /\b(?:pasto|colazione|pranzo|merenda|cena|spuntino)\b/i.test(text)
+    && !/\b(?:piano|programma|dieta|obiettiv\w*)\b/i.test(text);
+}
+
+export function isDailyEnergyIntent(text: string): boolean {
+  return /\b(?:energia|energy|bmr|tdee|deficit|surplus|netto|bilancio)\b/i.test(text)
+    || /\b(?:quante|quanto)\b[^.!?]*\bcalori\w*\b[^.!?]*\b(?:restano|rimangono|resta|rimane|posso)\b/i.test(text)
+    || /\bquanto\b[^.!?]*\b(?:dovrei|devo|posso)\b[^.!?]*\bmangiare\b/i.test(text);
 }
 
 /** Le registrazioni esplicite non devono dipendere dalla buona volontà del modello. */
 export function requiredWriteTool(text: string): string | undefined {
+  // A correction must not append another record or enter the new-meal confirmation gate.
+  if (CORRECTION_INTENT.test(text)) {
+    if (/\b(?:peso|kg)\b/i.test(text)) return 'correggi_ultimo_peso';
+    if (isMealCorrectionIntent(text)) return 'correggi_ultimo_pasto';
+    if (/\b(?:allenament\w*|corsa|workout|palestra|camminata|nuoto)\b/i.test(text) && !isWorkoutPlanIntent(text)) return 'correggi_ultimo_allenamento';
+  }
   if (isWorkoutPlanIntent(text)
     || /\b(?:crea|scrivi|prepara|imposta|fammi|salva|aggiorna)\w*\b[^.!?]*\b(?:piano|programma|scheda)\b[^.!?]*\b(?:allenamento|allenamenti|palestra|workout)\b/i.test(text)
     || /\b(?:piano|programma|scheda)\b[^.!?]*\b(?:allenamento|allenamenti|palestra|workout)\b[^.!?]*\b(?:crea|scrivi|prepara|imposta|fammi|salva|aggiorna)\w*\b/i.test(text)) {
     return 'imposta_piano_allenamento';
   }
   if (/\b(?:peso|sono)\s*(?:oggi\s*)?(?:circa\s*)?\d+(?:[.,]\d+)?\s*kg\b/i.test(text)) {
+    if (/\bnon\s+(?:peso|sono)\b/i.test(text)) return undefined;
     return 'registra_peso';
   }
   if (/\b(?:crea|aggiung\w*|inserisc\w*|modific\w*|spost\w*|elimin\w*|rimuov\w*)\b[^.!?]*\b(?:calendario|agenda|lista|riepilogo|sezione|blocco)\b/i.test(text)) return 'gestisci_me';
@@ -251,19 +275,20 @@ export async function replyWithLocalTools(
   user: string,
   signal: AbortSignal,
   onChunk: (chunk: string) => void,
-  run: (use: ToolUse) => ToolResult,
+  run: (use: ToolUse) => ToolResult | Promise<ToolResult>,
   voiceModel?: string | null,
   images: { mediaType: string; data: string }[] = [],
   mealConfirmation?: MealConfirmation,
   workoutConfirmation?: WorkoutConfirmation,
   files: ChatFileInput[] = [],
+  shared?: { systemPrompt: string; requestId: string; projectId?: string },
 ): Promise<ChatCost> {
   const token = savedToken();
   if (!token) throw new Error('Prima attiva VINZ.MON: manca il token.');
 
   const clock = traceClock();
   const workoutPlanContext = isWorkoutPlanIntent(user)
-    ? run({ id: 'read-workout-plan', name: 'leggi_me', input: { sezione: 'sport' } }).content
+    ? (await run({ id: 'read-workout-plan', name: 'leggi_me', input: { sezione: 'sport' } })).content
     : '';
   /* 🔷 Due blocchi, non uno: il primo dice CHI risponde (il personaggio vero,
      se c'è — `characterVoiceBlock()`; altrimenti la stessa riga neutra di
@@ -271,7 +296,7 @@ export async function replyWithLocalTools(
      usare gli strumenti — regole operative valide a prescindere da chi
      risponde, e per questo restano qui invece di finire dentro
      `buildVoiceSystemPrompt`, che non sa niente di pasti o conferme. */
-  const character = characterVoiceBlock();
+  const character = { text: shared?.systemPrompt ?? await resolveChatContext(token, user, true, signal) };
   const system = [
     character ?? { text: 'You are VINZ.MON, a neutral high-quality personal AI assistant. Answer in the user language.' },
     {
@@ -326,22 +351,34 @@ export async function replyWithLocalTools(
     'leggi_i_miei_dati', 'leggi_me', 'registra_pasto', 'correggi_ultimo_pasto',
     'registra_allenamento', 'correggi_ultimo_allenamento', 'registra_peso',
     'correggi_ultimo_peso', 'imposta_dieta', 'imposta_piano_allenamento', 'imposta_obiettivi_nutrizionali', 'gestisci_me',
+    'calcola_energia_giornaliera',
   ]);
   const explicitWrite = requiredWriteTool(user);
-  const isHealthRequest = Boolean(explicitWrite)
+  const energyRequest = isDailyEnergyIntent(user);
+  const isHealthRequest = Boolean(explicitWrite) || energyRequest
     || /\b(me|salute|pasto|mangiat\w*|bevut\w*|colazione|spuntino|pranzo|merenda|cena|extra|calori\w*|protein\w*|carbo\w*|grass\w*|macro|diet\w*|allenament\w*|allenat\w*|palestra|workout|corsa|camminata|peso|kg|obiettiv\w*)\b/i.test(user)
     || Boolean(mealConfirmation || workoutConfirmation);
-  const toolPool = isHealthRequest
-    ? TOOLS.filter((tool) => healthToolNames.has(tool.name))
-    : TOOLS.filter((tool) => !healthToolNames.has(tool.name) || tool.name === 'leggi_i_miei_dati');
-  const availableTools = toolPool.slice(0, 12).filter((tool) => {
+  const projectTools = new Set(['leggi_progetto', 'leggi_sorgente_progetto', 'scrivi_artifact_progetto']);
+  const reminderRequest = /\b(promemori\w*|ricordami|ricorda|reminder|domani)\b/i.test(user);
+  const toolPool = TOOLS.filter((tool) => (reminderRequest && tool.name === 'programma_promemoria')
+    || (shared?.projectId && projectTools.has(tool.name))
+    || (isHealthRequest ? healthToolNames.has(tool.name) : !healthToolNames.has(tool.name) || tool.name === 'leggi_i_miei_dati'));
+  const availableTools = toolPool.filter((tool) => shared?.projectId || !projectTools.has(tool.name))
+    .sort((a, b) => {
+      const priority = (name: string) => name === explicitWrite
+        || (name === 'registra_pasto' && mealConfirmation?.status === 'confirmed')
+        || (name === 'registra_allenamento' && workoutConfirmation?.status === 'confirmed') ? 4
+        : energyRequest && name === 'calcola_energia_giornaliera' ? 3
+        : reminderRequest && name === 'programma_promemoria' ? 3 : shared?.projectId && projectTools.has(name) ? 2 : 0;
+      return priority(b.name) - priority(a.name);
+    }).filter((tool) => {
     if (tool.name === 'registra_pasto') return mealConfirmation?.status === 'confirmed';
     if (tool.name === 'registra_allenamento') return workoutConfirmation?.status === 'confirmed';
     if (tool.name === 'gestisci_me' && mealConfirmation) return false;
     if (tool.name === 'correggi_ultimo_pasto' && mealConfirmation?.status === 'needs-confirmation') return false;
     if (tool.name === 'correggi_ultimo_allenamento' && workoutConfirmation?.status === 'needs-confirmation') return false;
     return true;
-  });
+  }).slice(0, 12);
   const forcedWrite = mealConfirmation?.status === 'confirmed'
     ? 'registra_pasto'
     : workoutConfirmation?.status === 'confirmed'
@@ -349,7 +386,9 @@ export async function replyWithLocalTools(
     : explicitWrite;
 
   try {
+    const completed = new Map<string, ToolResult>();
     for (let round = 0; round < 4; round++) {
+      signal.throwIfAborted();
       clock.mark(`ROUND ${round + 1}`, `POST /api/ai · ${availableTools.length} strumenti disponibili`);
       const response = await fetch('/api/ai', {
         method: 'POST',
@@ -357,6 +396,7 @@ export async function replyWithLocalTools(
         headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
         body: JSON.stringify({
           capability: 'character-voice',
+          requestId: shared?.requestId,
           voiceModel,
           system,
           turns: history,
@@ -365,7 +405,7 @@ export async function replyWithLocalTools(
           ...(round === 0 && files.length ? { files } : {}),
           ...(userBlocks ? { userBlocks } : {}),
           tools: round < 3 ? availableTools : [],
-          ...(round === 0 && forcedWrite ? { toolChoice: forcedWrite } : {}),
+          ...(round === 0 && (forcedWrite || energyRequest) ? { toolChoice: forcedWrite ?? 'calcola_energia_giornaliera' } : {}),
           webSearch: true,
           effort: 'none',
           maxTokens: 2000,
@@ -418,11 +458,23 @@ export async function replyWithLocalTools(
         history.push({ role: 'user', content: userBlocks });
       }
       history.push(assistantTurn(body.text ?? '', uses) as { role: 'assistant'; content: unknown });
-      const toolResults = uses.map((use) => {
-        if (use.name !== 'registra_pasto' || mealConfirmation?.status !== 'confirmed') return run(use);
-        const input = typeof use.input === 'object' && use.input ? use.input as Record<string, unknown> : {};
-        return run({ ...use, input: { ...input, pasto: mealConfirmation.slot } });
-      });
+      const toolResults: ToolResult[] = [];
+      for (const use of uses) {
+        signal.throwIfAborted();
+        if (!availableTools.some((tool) => tool.name === use.name) || round === 3) {
+          toolResults.push({ id: use.id, isError: true, content: 'Tool not available or not authorized in this turn. No action performed.' });
+          continue;
+        }
+        let result = completed.get(use.id);
+        if (!result) {
+          const input = typeof use.input === 'object' && use.input ? use.input as Record<string, unknown> : {};
+          try { result = await run(use.name === 'registra_pasto' && mealConfirmation?.status === 'confirmed'
+            ? { ...use, input: { ...input, pasto: mealConfirmation.slot } } : use); }
+          catch { result = { id: use.id, isError: true, content: 'Tool failed. Success is not confirmed; do not repeat a write automatically.' }; }
+          completed.set(use.id, result);
+        }
+        toolResults.push(result);
+      }
 
       /* Una scrittura imposta e riuscita è già la verità finale. Prima la
          rimandavamo al provider per farla riformulare: quel secondo giro poteva
@@ -436,6 +488,9 @@ export async function replyWithLocalTools(
           registra_pasto: 'Pasto registrato in ME.',
           registra_allenamento: 'Allenamento registrato in ME.',
           registra_peso: 'Peso aggiornato in ME.',
+          correggi_ultimo_pasto: 'Pasto corretto in ME.',
+          correggi_ultimo_allenamento: 'Allenamento corretto in ME.',
+          correggi_ultimo_peso: 'Peso corretto in ME.',
           imposta_dieta: 'Piano alimentare aggiornato in ME.',
           imposta_piano_allenamento: 'Piano di allenamento aggiornato in ME.',
           imposta_obiettivi_nutrizionali: 'Obiettivi nutrizionali aggiornati in ME.',

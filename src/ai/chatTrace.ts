@@ -107,7 +107,7 @@ export async function persistChatTrace(trace: ChatTrace): Promise<string | null>
   try {
     const response = await fetch(`/api/user-data?key=${encodeURIComponent(`chat-trace:${id}`)}`, {
       method: 'PUT',
-      headers: { ...headers, 'content-type': 'application/json' },
+      headers: { ...headers, 'content-type': 'application/json', 'if-match': 'vinzmon-new' },
       body: JSON.stringify(trace),
     });
     return response.ok ? id : null;

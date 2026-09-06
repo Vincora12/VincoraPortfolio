@@ -246,7 +246,7 @@ body[data-scroll-locked] {
 }
 
 .vinz-chat-cost {
-  top: calc(env(safe-area-inset-top, 0px) + 0.75rem);
+  top: calc(env(safe-area-inset-top, 0px) + 3.15rem);
 }
 
 .vinz-chat-thread-viewport {

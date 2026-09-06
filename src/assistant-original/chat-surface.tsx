@@ -1,7 +1,6 @@
 import { type CSSProperties, type FC } from "react";
 import { ChatGPT } from "./components/examples/chatgpt";
-import { ModelSelector } from "./components/assistant-ui/model-selector";
-import { DEFAULT_MODEL_ID, MODELS } from "./models";
+import { ChatStorageStatus, ConversationTabs, useConversationOptions } from './conversation-options';
 
 type ChatSurfaceProps = {
   model?: string | null;
@@ -17,28 +16,17 @@ type ChatSurfaceProps = {
 };
 
 /** La superficie approvata resta identica sia nell'esempio sia dentro VINZ.MON. */
-export const ChatSurface: FC<ChatSurfaceProps> = ({ model, onModelChange, embedded = false, themeStyle }) => {
-  const picker = (
-    <ModelSelector
-      models={MODELS}
-      value={model && MODELS.some((item) => item.id === model) ? model : undefined}
-      defaultValue={DEFAULT_MODEL_ID}
-      onValueChange={onModelChange}
-      defaultEffort="medium"
-      variant="ghost"
-      size="sm"
-      align="end"
-      className={embedded ? "rounded-full bg-[#f4f4f4]" : "rounded-full bg-white/80 dark:bg-[#212121]/90"}
-    />
-  );
+export const ChatSurface: FC<ChatSurfaceProps> = ({ embedded = false, themeStyle }) => {
+  const { controls, workspace } = useConversationOptions();
 
   if (embedded) {
     return (
       <main style={themeStyle} className="assistant-clone relative flex h-full min-h-0 flex-col overflow-hidden bg-white text-[#0d0d0d]">
-        <div className="flex justify-end px-3 pt-2">{picker}</div>
+        <ConversationTabs /><ChatStorageStatus />
         <div className="min-h-0 flex-1">
-          <ChatGPT />
+          <ChatGPT sidebarContent={controls} />
         </div>
+        {workspace}
       </main>
     );
   }
@@ -49,8 +37,9 @@ export const ChatSurface: FC<ChatSurfaceProps> = ({ model, onModelChange, embedd
         aria-hidden="true"
         className="vinz-chat-top-fade pointer-events-none absolute inset-x-0 top-0 z-10 md:hidden"
       />
-      <div className="vinz-chat-model absolute right-3 z-30">{picker}</div>
-      <ChatGPT />
+      <div className="vinz-chat-top-controls"><ConversationTabs /><ChatStorageStatus /></div>
+      <ChatGPT sidebarContent={controls} />
+      {workspace}
     </main>
   );
 };

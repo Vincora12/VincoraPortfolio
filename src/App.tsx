@@ -318,6 +318,7 @@ export function App() {
      ========================================================================= */
   useEffect(() => {
     const open = () => {
+      if (/^#\/artifact\//.test(window.location.hash)) { window.location.reload(); return; }
       const m = /^#\/p\/([a-z0-9-]{2,32})$/.exec(window.location.hash);
       if (m) setOverlay(`page:${m[1]}`);
     };

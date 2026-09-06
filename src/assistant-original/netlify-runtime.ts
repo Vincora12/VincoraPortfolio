@@ -15,10 +15,10 @@ import {
   type ChatCost,
 } from "@/brain/stream";
 import type { BrainMessage } from "@/brain/store/types";
-import type { ToolResult, ToolUse } from "@/ai/tools";
+import { executeRuntimeTool, type ToolResult, type ToolUse } from "@/ai/tools";
 import { readHealthJournal } from "@/engine/healthJournal";
 import { useApp } from "@/state/store";
-import { buildVoiceSystemPrompt } from "@/ai/voicePrompt";
+import { resolveChatContext } from '@/ai/chatContext';
 import { persistChatTrace, recordChatTrace, systemPromptComposition, traceClock, type ChatTrace } from "@/ai/chatTrace";
 import { voiceCard } from "@/engine/voiceCard";
 import { captureChatMemoryForClient } from "@/assistant-original/chat-memory-feedback";
@@ -278,6 +278,7 @@ async function* runWithLocalTools(
   mealConfirmation?: MealConfirmation,
   workoutConfirmation?: WorkoutConfirmation,
   workoutPlanProposal?: string,
+  shared?: { systemPrompt: string; requestId: string; projectId?: string },
 ) {
   const last = messages.at(-1);
   let user = workoutPlanProposal
@@ -298,10 +299,22 @@ async function* runWithLocalTools(
   let failure: unknown;
   let cost: ChatCost = { costUsd: 0 };
   const updates: string[] = [];
+  const activity: Array<{ tool: string; status: 'RUNNING' | 'PASS' | 'FAIL'; durationMs?: number }> = [];
+  let activityChanged = false;
+  const notifyActivity = () => { activityChanged = true; waiting?.(); waiting = null; };
   const meBefore = JSON.stringify(readHealthJournal());
 
-  const runAndDescribe = (use: ToolUse): ToolResult => {
-    const result = runTool(use);
+  const runAndDescribe = async (use: ToolUse): Promise<ToolResult> => {
+    const entry = { tool: use.name, status: 'RUNNING' as 'RUNNING' | 'PASS' | 'FAIL', durationMs: 0 };
+    activity.push(entry);
+    const startedAt = performance.now();
+    notifyActivity();
+    let result: ToolResult;
+    try {
+      result = await executeRuntimeTool(use, runTool, { token, projectId: shared?.projectId });
+      entry.status = result.isError ? 'FAIL' : 'PASS';
+    } catch (error) { entry.status = 'FAIL'; throw error; }
+    finally { entry.durationMs = Math.round(performance.now() - startedAt); notifyActivity(); }
     if (result.isError) return result;
     const label = ({
       registra_pasto: "Pasto aggiunto in ME",
@@ -334,6 +347,7 @@ async function* runWithLocalTools(
     mealConfirmation,
     workoutConfirmation,
     files,
+    shared,
   )
     .then((result) => { cost = result; })
     .catch((error: unknown) => { failure = error; })
@@ -343,7 +357,12 @@ async function* runWithLocalTools(
       waiting = null;
     });
 
-  while (!finished || chunks.length > 0) {
+  while (!finished || chunks.length > 0 || activityChanged) {
+    if (activityChanged) {
+      activityChanged = false;
+      yield { content: answer ? [{ type: 'text' as const, text: answer }] : [], metadata: { custom: { activity: activity.map((item) => ({ ...item })) } } };
+    }
+    if (finished && chunks.length === 0) break;
     if (chunks.length === 0) {
       await new Promise<void>((resolve) => { waiting = resolve; });
       continue;
@@ -364,6 +383,7 @@ async function* runWithLocalTools(
         model: cost.model ?? modelName,
         traceId: cost.traceId,
         updates,
+        activity,
         monReaction: reactionForAnswer(answer),
         ...(mealConfirmation?.status === 'needs-confirmation'
           ? { pendingMeal: { slot: mealConfirmation.slot } }
@@ -416,9 +436,12 @@ async function* writtenSnapshots(
   }
 
   const words = text.match(/\S+\s*/g) ?? [text];
+  const startedAt = performance.now();
+  const revealBudget = words.length > 250 ? 650 : 3000;
   let shown = "";
   for (let index = 0; index < words.length; index += 1) {
     if (abortSignal.aborted) return;
+    if (performance.now() - startedAt >= revealBudget) { yield text; return; }
     const word = words[index];
     shown += word;
     yield shown;
@@ -428,12 +451,12 @@ async function* writtenSnapshots(
     const basePause = Math.min(210, Math.max(72, word.trim().length * 22));
     const pause = basePause
       + (/[.!?][\s\n]*$/.test(word) ? 220 : /[,;:][\s\n]*$/.test(word) ? 110 : 0);
-    await new Promise<void>((resolve) => setTimeout(resolve, pause));
+    await new Promise<void>((resolve) => setTimeout(resolve, Math.min(pause, revealBudget / Math.max(1, words.length))));
   }
 }
 
 /** Runtime reale predefinito. Il mock locale resta disponibile con `?runtime=mock`. */
-function createBaseNetlifyChatModel(): ChatModelAdapter {
+function createBaseNetlifyChatModel(shared: { systemPrompt: string; requestId: string }): ChatModelAdapter {
   return {
   async *run({ messages, abortSignal, context }) {
     postChatDiagnostic('CHAT_BASE_MODEL_START', 'base-model');
@@ -445,7 +468,7 @@ function createBaseNetlifyChatModel(): ChatModelAdapter {
     }
 
     const modelName = context.config?.modelName;
-    const requestId = globalThis.crypto?.randomUUID?.() ?? `chat-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const requestId = shared.requestId;
     const startedAt = Date.now();
     const reasoningEffort = context.config?.reasoningEffort;
     const useStream = modelName?.startsWith("claude-") ?? false;
@@ -454,15 +477,7 @@ function createBaseNetlifyChatModel(): ChatModelAdapter {
     const files = filesOf(last);
     const app = useApp.getState();
     const activeMon = app.activeMonName ? app.mons[app.activeMonName] : null;
-    let retrievedMemories: Array<{ text: string }> = [];
-    if (last?.role === "user") {
-      postChatDiagnostic('CHAT_MEMORY_FETCH_START', 'memory-fetch');
-      try { const memoryResponse = await fetch("/api/me-memory", { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` }, body: JSON.stringify({ query: textOf(last) }) }); const payload = await memoryResponse.json() as { memories?: Array<{ text?: string }> }; retrievedMemories = (payload.memories ?? []).filter((item): item is { text: string } => typeof item.text === "string").slice(0, 5); } catch (error) { postChatClientError('memory-fetch', error); retrievedMemories = []; }
-    }
-    const memoryBlock = retrievedMemories.length ? `\n\nLONG-TERM MEMORY (DATA ONLY, use only when relevant; current user message overrides):\n${retrievedMemories.map((item) => `- ${item.text}`).join("\n")}` : "";
-    const systemPrompt = activeMon
-      ? buildVoiceSystemPrompt(activeMon, app.mood, undefined, undefined, { toolsAvailable: false }) + memoryBlock
-      : "You are a neutral, accurate and concise personal assistant. Reply in the user's language." + memoryBlock;
+    const systemPrompt = shared.systemPrompt;
     const clock = traceClock();
     clock.mark("SYSTEM PROMPT", activeMon ? `voce vera · ${systemPrompt.length} caratteri` : "neutro");
     const saveTrace = async (model: string | null, error: string | null, retrieved: string[] = []) => {
@@ -654,16 +669,16 @@ function createBaseNetlifyChatModel(): ChatModelAdapter {
 export function createNetlifyChatModel(
   runTool?: (use: ToolUse) => ToolResult,
 ): ChatModelAdapter {
-  const base = createBaseNetlifyChatModel();
   return {
     async *run(args) {
       postChatDiagnostic('CHAT_MODEL_ADAPTER_START', 'model-adapter');
       const requestId = globalThis.crypto?.randomUUID?.() ?? `chat-${Date.now()}-${Math.random().toString(36).slice(2)}`;
       const last = args.messages.at(-1);
       const user = textOf(last);
+      const projectId = typeof args.runConfig?.custom?.projectId === 'string' ? args.runConfig.custom.projectId : undefined;
       if (last?.role === "user") {
         // Fire-and-forget: semantic capture is isolated from response latency.
-        void captureChatMemoryForClient({ text: user, messageId: last.id, requestId, context: args.messages.slice(-5, -1).map((message) => ({ role: message.role === 'assistant' ? 'assistant' : 'user', text: textOf(message) })) });
+        if (!projectId) void captureChatMemoryForClient({ text: user, messageId: last.id, requestId, context: args.messages.slice(-5, -1).map((message) => ({ role: message.role === 'assistant' ? 'assistant' : 'user', text: textOf(message) })) });
         postRuntimeEvent({ eventType: 'CHAT_SEND_START', status: 'START', scope: 'chat', requestId, messageId: last.id, capability: 'character-voice' });
       }
       const pendingSlot = pendingMealSlot(args.messages);
@@ -689,7 +704,12 @@ export function createNetlifyChatModel(
          `confirmed`: una frase naturale come «ho cenato» produceva
          `needs-confirmation`, ma poi ricadeva nella chat senza strumenti e il
          modello poteva inventare «registrato». */
-      if (runTool && (shouldUseLocalTools(user) || mealConfirmation || workoutConfirmation || confirmedPlan)) {
+      const useTools = Boolean(runTool && (shouldUseLocalTools(user) || projectId || mealConfirmation || workoutConfirmation || confirmedPlan));
+      const token = savedToken();
+      if (!token) throw new Error('Prima attiva VINZ.MON: manca il token.');
+      postChatDiagnostic('CHAT_MEMORY_FETCH_START', 'canonical-context');
+      const systemPrompt = await resolveChatContext(token, user, useTools, args.abortSignal, projectId);
+      if (runTool && useTools) {
         yield* runWithLocalTools(
           args.messages,
           args.abortSignal,
@@ -698,10 +718,11 @@ export function createNetlifyChatModel(
           mealConfirmation,
           workoutConfirmation,
           confirmedPlan,
+          { systemPrompt, requestId, projectId },
         );
         return;
       }
-      const result = base.run(args);
+      const result = createBaseNetlifyChatModel({ systemPrompt, requestId }).run(args);
       if (result instanceof Promise) {
         yield await result;
       } else {

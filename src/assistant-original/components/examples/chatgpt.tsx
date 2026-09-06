@@ -14,7 +14,7 @@ import {
   useAuiState,
 } from "@assistant-ui/react";
 import { postChatDiagnostic } from "@/system/runtimeLog";
-import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type FC } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type FC, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useMessageError } from "@assistant-ui/core/react";
 import { TooltipIconButton } from "@/assistant-original/components/assistant-ui/tooltip-icon-button";
@@ -24,10 +24,8 @@ import RecordPlugin from "wavesurfer.js/dist/plugins/record.esm.js";
 import { savedToken } from "@/brain/stream";
 import { memoryTrace } from "@/assistant-original/chat-memory-feedback";
 import {
-  consumePromotedRepository,
   isLocalUnsavedSession,
   promoteLocalSession,
-  repositoryWithPendingUser,
 } from "@/assistant-original/conversation-lifecycle-adapter";
 import {
   ActivityIcon,
@@ -90,9 +88,9 @@ const useFirstArrivalReveal = (arrivalId: unknown) => {
   return animate;
 };
 
-export const ChatGPT: FC = () => {
+export const ChatGPT: FC<{ sidebarContent?: ReactNode }> = ({ sidebarContent }) => {
   return (
-    <CloneThreadShell>
+    <CloneThreadShell sidebarContent={sidebarContent}>
       <ChatCostTotal />
       <LogCelebration />
       <ReactionMessageDispatcher />
@@ -158,36 +156,13 @@ const ConversationMemory: FC = () => {
 
 const ConversationLifecycle: FC = () => {
   const aui = useAui();
-  const { threadId, remoteId, readyToPromote } = useAuiState(
+  const { threadId, readyToPromote } = useAuiState(
     useShallow((state) => ({
       threadId: state.threads.mainThreadId,
-      remoteId: state.threadListItem.remoteId,
-      readyToPromote: (() => {
-        const messages = state.thread.messages;
-        let lastUserIndex = -1;
-        for (let index = messages.length - 1; index >= 0; index -= 1) {
-          if (messages[index]?.role === "user") { lastUserIndex = index; break; }
-        }
-        if (lastUserIndex < 0) return false;
-        return messages.slice(lastUserIndex + 1).some(
-          (message) => message.role === "assistant" && message.status.type !== "running",
-        );
-      })(),
+      readyToPromote: state.thread.messages.some((message) => message.role === 'user'
+        && (message.attachments.length > 0 || message.content.some((part) => part.type === 'text' && part.text.trim().length > 0))),
     })),
   );
-  useEffect(() => {
-    if (!remoteId) return;
-    const repository = consumePromotedRepository(remoteId);
-    if (repository) {
-      aui.thread.import(repository);
-      const firstUserMessage = [...repository.messages]
-        .reverse()
-        .find((item) => item.message.role === "user");
-      if (firstUserMessage) {
-        aui.thread.startRun({ parentId: firstUserMessage.message.id });
-      }
-    }
-  }, [aui, remoteId]);
   useEffect(() => {
     if (!readyToPromote || !isLocalUnsavedSession(threadId)) return;
     void promoteLocalSession(threadId, aui.thread.export()).catch((error: unknown) => {
@@ -361,7 +336,6 @@ const SystemEventMessage: FC = () => {
 
 const Composer: FC<{ placeholder: string }> = ({ placeholder }) => {
   const aui = useAui();
-  const threadId = useAuiState((state) => state.threads.mainThreadId);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const waveRef = useRef<HTMLDivElement>(null);
   const waveSurferRef = useRef<WaveSurfer | null>(null);
@@ -418,24 +392,20 @@ const Composer: FC<{ placeholder: string }> = ({ placeholder }) => {
     return body.text;
   };
 
-  const promoteBeforeSend = async (): Promise<string | null> => {
-    if (!isLocalUnsavedSession(threadId)) return null;
+  const send = () => {
     const composer = aui.thread.composer();
-    const pending = repositoryWithPendingUser(aui.thread.export(), composer.getState().text.trim());
-    aui.thread.import(pending.repository);
-    await promoteLocalSession(threadId, pending.repository);
-    composer.setText("");
-    composer.clearAttachments();
-    return pending.userId;
+    if (composer.getState().isEmpty || aui.thread.getState().isRunning) return;
+    postChatDiagnostic('CHAT_UI_SUBMIT', 'ui-submit');
+    // assistant-ui creates the real user message (including attachments and
+    // parent branch), then the single lifecycle effect releases initialize.
+    composer.send();
   };
 
   const insertAndSend = async (text: string) => {
     const composer = aui.thread.composer();
     const current = composer.getState().text.trim();
     composer.setText(current ? `${current} ${text}` : text);
-    const userId = await promoteBeforeSend();
-    if (userId) aui.thread.startRun({ parentId: userId });
-    else composer.send();
+    send();
   };
 
   useEffect(() => {
@@ -616,17 +586,18 @@ const Composer: FC<{ placeholder: string }> = ({ placeholder }) => {
           placeholder={placeholder}
           rows={1}
           submitMode="none"
+          onKeyDown={(event) => {
+            if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing || event.keyCode === 229) return;
+            event.preventDefault();
+            send();
+          }}
           className="vinz-composer-input box-border max-h-52 min-h-9 w-full min-w-0 flex-1 resize-none bg-transparent py-1.5 pr-2 pl-1 text-base text-[#0d0d0d] outline-none placeholder:text-[#8e8e8e] dark:text-[#ececec] dark:placeholder:text-[#8e8e8e]"
         />
 
         <div className="flex shrink-0 items-center gap-1">
           <ComposerPrimaryAction
             onDictate={startDictation}
-            onBeforeSend={promoteBeforeSend}
-            onSend={(userId) => {
-              if (userId) aui.thread.startRun({ parentId: userId });
-              else aui.thread.composer().send();
-            }}
+            onSend={send}
           />
         </div>
       </div>
@@ -642,9 +613,8 @@ const Composer: FC<{ placeholder: string }> = ({ placeholder }) => {
 
 const ComposerPrimaryAction: FC<{
   onDictate: () => void;
-  onBeforeSend: () => Promise<string | null>;
-  onSend: (userId: string | null) => void;
-}> = ({ onDictate, onBeforeSend, onSend }) => {
+  onSend: () => void;
+}> = ({ onDictate, onSend }) => {
   return (
     <div className="flex items-center gap-1">
       <AuiIf condition={(s) => s.thread.isRunning}>
@@ -665,15 +635,8 @@ const ComposerPrimaryAction: FC<{
             if (event.pointerType === "touch") event.preventDefault();
           }}
           onClick={(event) => {
-            postChatDiagnostic('CHAT_UI_SUBMIT', 'ui-submit');
             event.preventDefault();
-            void (async () => {
-              const userId = await onBeforeSend();
-              postChatDiagnostic('CHAT_RUN_START', 'composer-send');
-              onSend(userId);
-            })().catch((error: unknown) => {
-              console.warn('[VINZ chat] invio non riuscito', error);
-            });
+            onSend();
           }}
         >
           <ArrowUpIcon className="size-6" />
@@ -1381,12 +1344,17 @@ const MessageCost: FC = () => {
 
 const MessageUpdates: FC = () => {
   const value = useAuiState((s) => s.message.metadata.custom.updates);
+  const rawActivity = useAuiState((s) => s.message.metadata.custom.activity);
+  const activity = Array.isArray(rawActivity) ? rawActivity.filter((item): item is {tool: string; status: string; durationMs?: number} => !!item && typeof item.tool === 'string' && ['RUNNING', 'PASS', 'FAIL'].includes(item.status)) : [];
   const updates = Array.isArray(value)
     ? value.filter((item): item is string => typeof item === "string")
     : [];
-  if (updates.length === 0) return null;
+  if (updates.length === 0 && activity.length === 0) return null;
   return (
     <div className="vinz-message-updates mt-1 flex flex-col gap-1" aria-live="polite">
+      {activity.length > 0 && <details className="text-[11px] leading-5 text-[#a8a8a8]"><summary className="cursor-pointer py-2">Attività · {activity.length} operazioni</summary>
+        {activity.map((item, index) => <div key={index}>{item.tool.replaceAll('_', ' ')} · {item.status}{typeof item.durationMs === 'number' && item.status !== 'RUNNING' ? ` · ${item.durationMs} ms` : ''}</div>)}
+      </details>}
       {updates.map((update) => (
         <small
           key={update}

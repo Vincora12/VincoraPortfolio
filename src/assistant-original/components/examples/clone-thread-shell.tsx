@@ -27,6 +27,7 @@ import { useState, type FC, type MouseEvent, type ReactNode } from "react";
 
 type CloneThreadShellProps = {
   children: ReactNode;
+  sidebarContent?: ReactNode;
   railClassName?: string | undefined;
   collapsed?: boolean | undefined;
   onCollapsedChange?: ((value: boolean) => void) | undefined;
@@ -40,6 +41,7 @@ type CloneThreadShellProps = {
 
 export const CloneThreadShell: FC<CloneThreadShellProps> = ({
   children,
+  sidebarContent,
   railClassName,
   collapsed,
   onCollapsedChange,
@@ -78,7 +80,7 @@ export const CloneThreadShell: FC<CloneThreadShellProps> = ({
     if (!(event.target instanceof Element)) return;
     if (
       event.target.closest(
-        '[data-slot="aui_thread-list-item-trigger"], [data-slot="aui_thread-list-new"]',
+        '[data-slot="aui_thread-list-item-trigger"], [data-slot="aui_thread-list-new"], [data-open-workspace]',
       )
     ) {
       setMobileOpen(false);
@@ -128,7 +130,7 @@ export const CloneThreadShell: FC<CloneThreadShellProps> = ({
                 <span className="ml-2 truncate text-sm font-medium">Chats</span>
               )}
         </div>
-
+        {!sidebarCollapsed && sidebarContent}
         <ThreadListRoot
           className={cn(
             "relative flex-1 transition-[padding,width] duration-200",
@@ -200,6 +202,7 @@ export const CloneThreadShell: FC<CloneThreadShellProps> = ({
             className="vinz-thread-drawer__body relative flex min-h-0 flex-1 flex-col overflow-hidden px-4"
             onClick={closeMobileSidebarAfterNavigation}
           >
+            {sidebarContent}
             {hasThreads && (
               <ThreadListSearch value={search} onValueChange={setSearch} />
             )}

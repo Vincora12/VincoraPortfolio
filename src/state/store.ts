@@ -11,7 +11,8 @@
 
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
-import { setLocalStorageItem, setLocalStorageItemBestEffort } from '../system/localStorageDiagnostics';
+import { setLocalStorageItemBestEffort } from '../system/localStorageDiagnostics';
+import { getStateSyncStatus, readSyncReceipt, rememberSyncReceipt, reportStateSync, snapshotHash, syncComparable, syncDecision } from '../system/stateSync';
 
 const appPersistStorage = createJSONStorage(() => ({
   getItem: (name: string) => localStorage.getItem(name),
@@ -97,6 +98,8 @@ import {
   type Reminder,
 } from './pagesSlice';
 import { runTool, TOOLS, type ToolContext, type ToolResult, type ToolUse } from '../ai/tools';
+import { calculateDailyEnergy } from '../engine/dailyEnergy';
+import { configureStorageTokenReader } from '../system/serverStorage';
 import {
   addMeal,
   addWeight,
@@ -161,6 +164,7 @@ import {
   type StoryLedger,
   type World,
 } from '../engine/world';
+import { completeWorldTransition, type ArchivedWorld } from '../engine/worldTransition';
 import { deservesThinking, extractFromMessage, extractionLabels } from '../engine/chatExtract';
 import { eggReply } from '../engine/eggVoice';
 import { typingRhythmFor } from '../engine/typingRhythm';
@@ -444,6 +448,8 @@ interface AppState {
    * fuori dal primo passaggio sicuro.
    */
   world: World | null;
+  /** RISE archives the completed World and its ledger; absent in legacy saves. */
+  worldHistory?: ArchivedWorld[];
   /** 🔷 v4 §10.2 — cosa è stato piantato, cosa raccolto, cosa non ripetere. */
   ledger: StoryLedger;
   /**
@@ -965,6 +971,7 @@ const INITIAL = {
   eggs: [] as MonRecord[],
   world: null as World | null,
   ledger: emptyLedger(),
+  worldHistory: [] as ArchivedWorld[],
   protocol: EMPTY_PROTOCOL as Protocol,
   moodHistory: [] as MoodDayEntry[],
   cultural: {} as CulturalAffinities,
@@ -2093,35 +2100,22 @@ export const useApp = create<AppState>()(
         const previous = job.previousName ? current.mons[job.previousName] : null;
         const record = current.mons[job.candidateName];
         if (!previous || !record) return;
+        if (current.nodes.some((node) => node.monName === record.data.name)) return;
+        const journey = completeWorldTransition({ kind: job.kind, world: current.world, ledger: current.ledger, worldHistory: current.worldHistory, previous, record, day: current.day });
         set({
           phase: 'new-encounter',
-          mons: { ...current.mons, [previous.data.name]: { ...previous, retiredOnDay: current.day } },
+          mons: { ...current.mons, [previous.data.name]: { ...journey.previous, retiredOnDay: current.day }, [record.data.name]: journey.record },
           activeMonName: record.data.name,
           formsDiscovered: current.formsDiscovered + 1,
           nodes: [...current.nodes, createNode({ index: current.nodes.length, kind: 'branch', monName: record.data.name, parentId: previous.data.mindline_node, day: current.day, chapter: nextChapter(current.nodes, 'branch'), label: job.kind === 'mega-evolution' ? 'MEGA EVOLUZIONE' : 'EVOLUZIONE' })],
           mood: touchMood(current, record.data.mood_primary, []),
           chat: [...current.chat, openingMessage(record, current.day, current.token !== null)].slice(-60),
           progression: { ...current.progression, sync: { ...current.progression.sync, inForm: 0, sinceGrowth: 0 } },
-          /* 🔷 v4 §13 — «Evolution may change parts of the same World. Mega
-             Evolution may reveal deeper layers.»
-
-             🔒 IL MONDO NON RIPARTE, SI STRATIFICA. Il canone vecchio resta
-             intatto e questa riga si aggiunge in fondo: è la differenza fra
-             un posto che ha una storia e un posto che ricomincia da capo a
-             ogni forma nuova. */
-          world: current.world
-            ? withCanon(current.world, {
-                id: `canon_${job.kind}_${record.data.mindline_node}`,
-                day: current.day,
-                kind: job.kind === 'mega-evolution' ? 'mega-evolution' : 'evolution',
-                epistemic: 'WORLD_CANON',
-                text:
-                  job.kind === 'mega-evolution'
-                    ? `${displayName(previous.data.name)} è diventato ${displayName(record.data.name)}: il corpo è un altro, e qui si è aperto uno strato che prima non si vedeva.`
-                    : `${displayName(previous.data.name)} è diventato ${displayName(record.data.name)}. Il posto è lo stesso, ma non risponde più allo stesso modo.`,
-                monName: record.data.name,
-              })
-            : current.world,
+          // MASTER completion canon: TUNE stays; RISE opens a distinct World.
+          // Publish form+World+archive together, only when the reveal completes.
+          world: journey.world,
+          ledger: journey.ledger,
+          worldHistory: journey.worldHistory,
         });
         requestIntroduction(set, get, record);
       },
@@ -3217,6 +3211,7 @@ export const useApp = create<AppState>()(
             return { ok: e.ok, error: e.error };
           },
           readMe: (section) => healthJournalReport(section),
+          readEnergy: (profile) => JSON.stringify(calculateDailyEnergy(readHealthJournal(), dateForDay(get().day, get().startedAt), profile)),
           /* La schermata SYNC legge il giorno di gioco. In una partita portata
              avanti dal DEV, `new Date()` e quel giorno possono divergere:
              datare qui i log col telefono li salva davvero, ma li rende
@@ -3662,6 +3657,8 @@ export const useApp = create<AppState>()(
   ),
 );
 
+configureStorageTokenReader(() => useApp.getState().token);
+
 export function applyRuntimeConfigToStore(config = runtimeConfig()): void {
   useApp.setState({
     voiceModel: config.voiceModel,
@@ -3959,6 +3956,8 @@ const SAVE_DEBOUNCE_MS = 4000;
 
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
 let lastSavedSignature = '';
+let remoteSaveRunning = false;
+let syncRunning: Promise<'locale' | 'scaricato' | 'niente'> | null = null;
 
 /** Lo stato da mandare: tutto tranne le cose che non hanno senso altrove. */
 function snapshotFor(state: AppState): unknown {
@@ -3983,7 +3982,7 @@ function snapshotFor(state: AppState): unknown {
     ...rest
   } = state as AppState & Record<string, unknown>;
   let healthJournal: unknown = null;
-  try { healthJournal = JSON.parse(localStorage.getItem('vinzmon.health.journal.v1') ?? 'null'); } catch { /* dato locale corrotto: non sovrascriverlo sul server */ }
+  try { healthJournal = JSON.parse(localStorage.getItem('vinzmon.health.journal.v1') ?? 'null'); } catch { throw new Error('Health cache unreadable: remote save withheld to preserve canonical health data'); }
   return { ...rest, __healthJournal: healthJournal };
 }
 
@@ -3992,29 +3991,44 @@ export function scheduleRemoteSave(): void {
   if (!s.token) return;
 
   if (saveTimer) clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => {
+  saveTimer = setTimeout(() => { void (async () => {
+    if (remoteSaveRunning || syncRunning) { scheduleRemoteSave(); return; }
+    if (getStateSyncStatus().status === 'conflict') return;
+    if (!readSyncReceipt()) {
+      await syncWithServer();
+      if (!readSyncReceipt() || getStateSyncStatus().status === 'conflict') return;
+    }
     const now = useApp.getState();
     if (!now.token) return;
 
     const snapshot = snapshotFor(now);
-    const signature = JSON.stringify(snapshot);
+    const signature = JSON.stringify(syncComparable(snapshot));
     /* Niente da salvare: succede spesso, perché zustand notifica anche
        cambiamenti che non toccano niente di persistito (l'indicatore «sta
        scrivendo», per dire, cambia decine di volte per messaggio). */
     if (signature === lastSavedSignature) return;
 
-    void import('../ai/backend').then(async ({ saveRemote }) => {
-      const { failure } = await saveRemote(now.token, now.day, snapshot);
-      if (!failure) {
+    remoteSaveRunning = true;
+    reportStateSync({ status: 'syncing' });
+    try {
+      const { saveRemote } = await import('../ai/backend');
+      const hash = await snapshotHash(snapshot);
+      const { data, failure, detail } = await saveRemote(now.token, now.day, snapshot, readSyncReceipt()!.revision);
+      if (!failure && data) {
         lastSavedSignature = signature;
+        rememberSyncReceipt({ revision: data.revision, hash });
+        const changed = JSON.stringify(syncComparable(snapshotFor(useApp.getState()))) !== signature;
+        reportStateSync({ status: changed ? 'pending' : 'synced' });
+        if (changed) scheduleRemoteSave();
         return;
       }
       /* Un salvataggio fallito non si annuncia e non si ritenta a raffica: la
          copia locale c'è, e il prossimo cambiamento riproverà da solo. Se la
          rete è giù, insistere non la riaccende. */
       console.warn('[sync] salvataggio non riuscito:', failure);
-    });
-  }, SAVE_DEBOUNCE_MS);
+      reportStateSync({ status: detail === 'STATE_CONFLICT' ? 'conflict' : 'error', message: detail === 'STATE_CONFLICT' ? 'Le copie locale e server sono diverse. Nessuna è stata sovrascritta.' : 'Salvataggio server non confermato. I dati locali restano disponibili.' });
+    } finally { remoteSaveRunning = false; }
+  })().catch(() => reportStateSync({ status: 'error', message: 'Sincronizzazione non disponibile; copia locale preservata.' })); }, SAVE_DEBOUNCE_MS);
 }
 
 /* La migrazione vera sta in `migrateSteps.ts`, senza import, per poterla
@@ -4152,11 +4166,14 @@ export interface LocalSave {
   day: number;
   /** Quando hai ricominciato da capo, o `null`. */
   resetAt: string | null;
+  dirty?: boolean;
+  revision?: string | null;
 }
 
 export interface ServerSave {
   day: number;
   savedAt: string | null;
+  revision?: string | null;
 }
 
 /**
@@ -4176,6 +4193,7 @@ export interface ServerSave {
  * ci scrive sopra.
  */
 export function shouldDownload(local: LocalSave, server: ServerSave): boolean {
+  if (local.dirty === true) return false;
   if (local.resetAt && server.savedAt && server.savedAt <= local.resetAt) return false;
   /* 🔴 «Come se non aggiungesse le altre forme... come se non stesse
      salvando, e anche i personaggi della teca.» — Era `>=`: a PARITÀ di
@@ -4189,7 +4207,7 @@ export function shouldDownload(local: LocalSave, server: ServerSave): boolean {
      aspettare che arrivasse. A parità di giorno vince chi è già in mano:
      il locale. Lo diceva già un test in batch-check.mjs, rimasto rosso da
      prima di questa sessione: «a parità di giorno non si scarica niente». */
-  return server.day > local.day;
+  return server.day > local.day || (server.day === local.day && local.dirty === false && typeof server.revision === 'string' && local.revision !== server.revision);
 }
 
 /**
@@ -4198,12 +4216,14 @@ export function shouldDownload(local: LocalSave, server: ServerSave): boolean {
  * (manuale, da DEV → SERVER): il MODO in cui una copia scaricata diventa lo
  * stato del gioco è uno solo, cambia solo CHI decide che vada applicata.
  */
-function applyRemoteSave(local: AppState, data: RemoteSave): void {
+function applyRemoteSave(local: AppState, data: RemoteSave): boolean {
   /* Il token NON si sovrascrive: è di questo browser, non del salvataggio. */
   const remote = data.state as Partial<AppState> & { __healthJournal?: unknown };
   const { __healthJournal, ...appState } = remote;
   if (__healthJournal) {
-    setLocalStorageItem('state/store remote health journal', 'vinzmon.health.journal.v1', JSON.stringify(__healthJournal));
+    try {
+      if (!setLocalStorageItemBestEffort('state/store remote health journal', 'vinzmon.health.journal.v1', JSON.stringify(__healthJournal))) return false;
+    } catch { return false; }
     window.dispatchEvent(new Event('vinzmon-health-journal'));
   }
   useApp.setState({
@@ -4233,7 +4253,8 @@ function applyRemoteSave(local: AppState, data: RemoteSave): void {
   });
   /* I salvataggi creati prima del diario server non hanno ancora questo
      campo: lasciando la firma vuota, il debounce li migra subito. */
-  lastSavedSignature = __healthJournal === undefined ? '' : JSON.stringify(snapshotFor(useApp.getState()));
+  lastSavedSignature = __healthJournal === undefined ? '' : JSON.stringify(syncComparable(snapshotFor(useApp.getState())));
+  return true;
 }
 
 /**
@@ -4242,20 +4263,70 @@ function applyRemoteSave(local: AppState, data: RemoteSave): void {
  * Va chiamata DOPO che zustand ha reidratato dal `localStorage`, altrimenti
  * confronterebbe il server con uno stato vuoto e scaricherebbe sempre.
  */
-export async function syncWithServer(): Promise<'locale' | 'scaricato' | 'niente'> {
-  const local = useApp.getState();
-  if (!local.token) return 'niente';
+export function syncWithServer(): Promise<'locale' | 'scaricato' | 'niente'> {
+  if (syncRunning) return syncRunning;
+  syncRunning = (async () => {
+    const local = useApp.getState();
+    if (!local.token) return 'niente' as const;
+    if (remoteSaveRunning) return 'locale' as const;
+    reportStateSync({ status: 'syncing' });
+    const before = JSON.stringify(syncComparable(snapshotFor(local)));
+    const { loadRemote } = await import('../ai/backend');
+    const { data, failure } = await loadRemote(local.token);
+    if (failure || !data) { reportStateSync({ status: 'error', message: 'Server non raggiungibile; copia locale preservata.' }); return 'niente' as const; }
+    if (JSON.stringify(syncComparable(snapshotFor(useApp.getState()))) !== before) {
+      reportStateSync({ status: 'pending', message: 'Modifiche locali durante la lettura; nessun dato sostituito.' });
+      return 'locale' as const;
+    }
+    const localHash = await snapshotHash(snapshotFor(local));
+    if (data.state == null) {
+      rememberSyncReceipt({ revision: null, hash: '' });
+      reportStateSync({ status: 'pending' }); scheduleRemoteSave(); return 'locale' as const;
+    }
+    const remoteHash = await snapshotHash(data.state);
+    // Also protect edits occurring during hashing, immediately before any apply.
+    if (JSON.stringify(syncComparable(snapshotFor(useApp.getState()))) !== before) {
+      reportStateSync({ status: 'pending' }); return 'locale' as const;
+    }
+    const journal = readHealthJournal();
+    const emptyLocal = !local.activeMonName && !Object.keys(local.mons).length && !local.nodes.length && !local.memories.length && !local.chat.length && !local.firstSync && !journal.meals.length && !journal.workouts.length && !journal.weights.length && !journal.dietPlan && !journal.workoutPlan && !journal.blocks.length;
+    const decision = syncDecision({ localHash, remoteHash, receipt: readSyncReceipt(), localDay: local.day, remoteDay: data.day, remoteRevision: data.revision ?? null, emptyLocal, explicitReset: Boolean(local.resetAt && data.savedAt && data.savedAt <= local.resetAt) });
+    if (decision === 'download') {
+      if (!applyRemoteSave(useApp.getState(), data)) { reportStateSync({ status: 'error', message: 'Cache salute non scrivibile; copia server intatta, nessuna sostituzione locale.' }); return 'locale' as const; }
+      rememberSyncReceipt({ revision: data.revision ?? null, hash: await snapshotHash(snapshotFor(useApp.getState())) });
+      reportStateSync({ status: 'synced' }); return 'scaricato' as const;
+    }
+    if (decision === 'equal') {
+      rememberSyncReceipt({ revision: data.revision ?? null, hash: localHash });
+      lastSavedSignature = before;
+      reportStateSync({ status: 'synced' }); return 'locale' as const;
+    }
+    if (decision === 'upload') { reportStateSync({ status: 'pending' }); scheduleRemoteSave(); return 'locale' as const; }
+    reportStateSync({ status: 'conflict', message: 'Copie divergenti: scegli esplicitamente quale conservare. Nessuna copia è stata modificata.' });
+    return 'locale' as const;
+  })().catch(() => { reportStateSync({ status: 'error', message: 'Sincronizzazione non disponibile; dati preservati.' }); return 'niente' as const; }).finally(() => { syncRunning = null; });
+  return syncRunning;
+}
 
+/** Explicit UI decision only; never called by the automatic synchronizer. */
+export async function resolveStateSyncConflict(choice: 'keep-local' | 'use-server'): Promise<void> {
+  if (remoteSaveRunning || syncRunning) return;
+  const local = useApp.getState();
+  if (!local.token) return;
+  const before = JSON.stringify(syncComparable(snapshotFor(local)));
   const { loadRemote } = await import('../ai/backend');
   const { data, failure } = await loadRemote(local.token);
-  if (failure || !data || data.state == null) return 'niente';
-
-  if (!shouldDownload({ day: local.day, resetAt: local.resetAt }, data)) return 'locale';
-
-  /* Il server ha più storia: quella locale era indietro (telefono nuovo,
-     dati del browser cancellati, o semplicemente un altro dispositivo). */
-  applyRemoteSave(local, data);
-  return 'scaricato';
+  if (failure || !data) { reportStateSync({ status: 'error', message: 'Impossibile verificare la copia server.' }); return; }
+  if (before !== JSON.stringify(syncComparable(snapshotFor(useApp.getState())))) { reportStateSync({ status: 'conflict', message: 'Dati locali cambiati durante la verifica; ripeti la scelta.' }); return; }
+  if (choice === 'use-server') {
+    if (!data.state || data.day < local.day || !applyRemoteSave(local, data)) { reportStateSync({ status: 'conflict', message: 'Ripristino non applicato: non si arretra il giorno e non si scartano dati se la cache non è scrivibile.' }); return; }
+    rememberSyncReceipt({ revision: data.revision ?? null, hash: await snapshotHash(snapshotFor(useApp.getState())) });
+    reportStateSync({ status: 'synced' });
+  } else {
+    rememberSyncReceipt({ revision: data.revision ?? null, hash: data.state == null ? '' : await snapshotHash(data.state) });
+    lastSavedSignature = '';
+    reportStateSync({ status: 'pending' }); scheduleRemoteSave();
+  }
 }
 
 /**
@@ -4276,7 +4347,9 @@ export async function restoreFromServer(): Promise<RemoteSave | null> {
   const { data, failure } = await loadRemote(local.token);
   if (failure || !data || data.state == null) return null;
 
-  applyRemoteSave(local, data);
+  if (!applyRemoteSave(local, data)) return null;
+  rememberSyncReceipt({ revision: data.revision ?? null, hash: await snapshotHash(snapshotFor(useApp.getState())) });
+  reportStateSync({ status: 'synced' });
   return data;
 }
 
