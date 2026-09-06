@@ -82,6 +82,26 @@ export function useConversationOptions() {
   const inheritScope = (threadId: string) => {
     setDraft({ id: threadId, model: 'auto', projectId: value.projectId, projectTitle: value.projectTitle });
   };
+  const selectWorkspaceProject = async (project: Project) => {
+    const projectId = project.id === GLOBAL_PROJECT_ID ? null : project.id;
+    if (projectId === value.projectId) return;
+    // Navigate to the group's conversation; never reassign the current chat.
+    const target = aui.threads.getState().threadItems.find(item => item.status === 'regular'
+      && (typeof item.custom?.projectId === 'string' ? item.custom.projectId : null) === projectId);
+    discardLocalSession(aui.threads.item('main').getState().id);
+    setPendingPrompt(null);
+    if (target) {
+      requestManualRoomEntry(target.id);
+      await aui.threads.switchToThread(target.id);
+    } else {
+      await aui.threads.switchToNewThread();
+      discardLocalSession(aui.threads.item('main').getState().id);
+      aui.thread.reset();
+    }
+    setDraft({ id: aui.threads.item('main').getState().id,
+      model: typeof target?.custom?.model === 'string' ? target.custom.model : 'auto',
+      projectId, projectTitle: projectId ? project.title : '' });
+  };
   useEffect(() => {
     if (pendingPrompt?.id !== id || draft.id !== id) return;
     aui.thread.composer().setText(pendingPrompt.text);
@@ -102,7 +122,7 @@ export function useConversationOptions() {
       : 'Aiutami a creare un promemoria. Chiedimi cosa ricordare e quando, poi riepiloga e chiedimi conferma prima di attivarlo. Vorrei: ' });
     setRemindersOpen(false);
   };
-  const controls = <WorkspacePanel token={token} projectId={value.projectId} onBeginChat={beginWorkspaceChat} model={value.model} onModel={model => setDraft({ ...value, model })} />;
+  const controls = <WorkspacePanel token={token} projectId={value.projectId} onSelectProject={selectWorkspaceProject} onBeginChat={beginWorkspaceChat} model={value.model} onModel={model => setDraft({ ...value, model })} />;
   const workspace = remindersOpen ? <div className="vinz-project-overlay" role="dialog" aria-modal="true" aria-label="Promemoria">
     <ReminderPanel token={token} onClose={() => { setRemindersOpen(false); if (location.hash === '#reminders') history.replaceState(null, '', location.pathname); }} />
   </div> : open ? <div className="vinz-project-overlay" role="dialog" aria-modal="true" aria-label="Projects">

@@ -8,8 +8,9 @@ import './workspace-panel.css';
 import { MODELS } from '../assistant-original/models';
 
 export type WorkspaceIntent = 'artifact' | 'automation';
-export function WorkspacePanel({ token, projectId, onBeginChat, model, onModel }: {
+export function WorkspacePanel({ token, projectId, onSelectProject, onBeginChat, model, onModel }: {
   token: string | null; projectId: string | null;
+  onSelectProject: (project: Project) => Promise<void>;
   onBeginChat: (project: Project | null, intent: WorkspaceIntent) => Promise<void>;
   model: string; onModel: (model: string) => void;
 }) {
@@ -48,6 +49,11 @@ export function WorkspacePanel({ token, projectId, onBeginChat, model, onModel }
     finally { busyRef.current = false; setBusy(false); }
   }
   function toggle(id: string) { setSelected(ids => ids.includes(id) ? ids.filter(i => i !== id) : [...ids, id]); }
+  async function chooseProject(next: Project) {
+    await onSelectProject(next);
+    setProject(next);
+    navigate('home');
+  }
   async function begin(intent: WorkspaceIntent) {
     if (!project) throw new Error('Lo spazio non è ancora disponibile. Premi Ricarica.');
     await onBeginChat(project, intent);
@@ -92,15 +98,15 @@ export function WorkspacePanel({ token, projectId, onBeginChat, model, onModel }
       <p>{page === 'trash' ? 'Ripristina un gruppo con tutti i suoi file e artefatti.' : 'Scegli dove lavorare. File, artefatti e automazioni seguono il progetto.'}</p>
       {page === 'projects' && <>
         <div className="workspace-panel__actions"><button disabled={busy} onClick={() => setCreating(!creating)}>Nuovo gruppo</button><button onClick={() => { setSelecting(!selecting); setSelected([]); }}>{selecting ? 'Annulla' : 'Seleziona'}</button></div>
-        {creating && <form onSubmit={e => { e.preventDefault(); void run(async () => { const saved = await mutateProject(token, { action: 'create', title: name.trim() }); setProject(saved); await refresh(); setName(''); setCreating(false); navigate('home'); }); }}><label>Nome del gruppo<input required maxLength={PROJECT_LIMITS.title} value={name} onChange={e => setName(e.target.value)} /></label><button disabled={busy || !name.trim()}>Crea gruppo</button></form>}
-        {!selecting && <button disabled={busy} className="workspace-panel__row" onClick={() => void run(async () => { setProject(await loadProject(token, GLOBAL_PROJECT_ID)); navigate('home'); })}><FolderIcon /><span>GLOBAL<small>Spazio personale</small></span><ArrowRightIcon /></button>}
+        {creating && <form onSubmit={e => { e.preventDefault(); void run(async () => { const saved = await mutateProject(token, { action: 'create', title: name.trim() }); await refresh(); setName(''); setCreating(false); await chooseProject(saved); }); }}><label>Nome del gruppo<input required maxLength={PROJECT_LIMITS.title} value={name} onChange={e => setName(e.target.value)} /></label><button disabled={busy || !name.trim()}>Crea gruppo</button></form>}
+        {!selecting && <button disabled={busy} className="workspace-panel__row" onClick={() => void run(async () => { await chooseProject(await loadProject(token, GLOBAL_PROJECT_ID)); })}><FolderIcon /><span>GLOBAL<small>Spazio personale</small></span><ArrowRightIcon /></button>}
       </>}
       {(page === 'trash' ? trash : projects).map(item => <div key={item.id} className="workspace-panel__item">
         {selecting && <input type="checkbox" aria-label={`Seleziona ${item.title}`} checked={selected.includes(item.id)} onChange={() => toggle(item.id)} />}
         <button disabled={busy} className="workspace-panel__row" onClick={() => void run(async () => {
           if (selecting) { toggle(item.id); return; }
           if (page === 'trash') { await mutateProject(token, { action: 'restore', projectId: item.id, revision: item.revision }); await refresh(); setNotice('Gruppo ripristinato.'); }
-          else { setProject(await loadProject(token, item.id)); navigate('home'); }
+          else { await chooseProject(await loadProject(token, item.id)); }
         })}><FolderIcon /><span>{item.title}<small>{item.fileCount ?? 0} file · {item.artifactCount} artefatti</small></span>{page === 'trash' ? 'Ripristina' : <ArrowRightIcon />}</button>
       </div>)}
       {page === 'trash' && !trash.length && !busy && <p>Il cestino è vuoto.</p>}
@@ -108,7 +114,7 @@ export function WorkspacePanel({ token, projectId, onBeginChat, model, onModel }
         const targets = projects.filter(p => selected.includes(p.id));
         if (!confirm(`Spostare nel cestino ${targets.length} gruppi con ${targets.reduce((n,p) => n+(p.fileCount ?? 0),0)} file e ${targets.reduce((n,p) => n+p.artifactCount,0)} artefatti? Puoi ripristinarli. Le chat restano conservate.`)) return;
         void run(async () => {
-          for (const item of targets) { await mutateProject(token, { action: 'trash', projectId: item.id, revision: item.revision }); if (item.id === project?.id) setProject(await loadProject(token, GLOBAL_PROJECT_ID)); setSelected(ids => ids.filter(id => id !== item.id)); }
+          for (const item of targets) { await mutateProject(token, { action: 'trash', projectId: item.id, revision: item.revision }); if (item.id === project?.id) await chooseProject(await loadProject(token, GLOBAL_PROJECT_ID)); setSelected(ids => ids.filter(id => id !== item.id)); }
           await refresh(); setSelecting(false); setNotice('Gruppi spostati nel cestino.');
         });
       }}>Sposta nel cestino ({selected.length})</button>}
