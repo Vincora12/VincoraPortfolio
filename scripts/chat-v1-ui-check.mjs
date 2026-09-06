@@ -52,6 +52,37 @@ async function mount() {
 const threads = () => JSON.parse(data.get('assistant-ui-official-chatgpt:threads') ?? '[]');
 try {
   await mount();
+  const chatTabTypography = await page.locator('.vinz-conversation-tabs > button:not(.vinz-conversation-new)').first().evaluate((element) => {
+    const style = getComputedStyle(element);
+    return {
+      fontFamily: style.fontFamily,
+      fontSize: style.fontSize,
+      fontWeight: style.fontWeight,
+      lineHeight: style.lineHeight,
+      letterSpacing: style.letterSpacing,
+      textTransform: style.textTransform,
+    };
+  });
+  const meTabTypography = await page.evaluate(() => {
+    const nav = document.createElement('nav');
+    nav.className = 'me-health__tabs';
+    const button = document.createElement('button');
+    button.textContent = 'OGGI';
+    nav.append(button);
+    document.body.append(nav);
+    const style = getComputedStyle(button);
+    const result = {
+      fontFamily: style.fontFamily,
+      fontSize: style.fontSize,
+      fontWeight: style.fontWeight,
+      lineHeight: style.lineHeight,
+      letterSpacing: style.letterSpacing,
+      textTransform: style.textTransform,
+    };
+    nav.remove();
+    return result;
+  });
+  assert.deepEqual(chatTabTypography, meTabTypography, 'Chat tabs use the exact computed typography of ME tabs');
   assert.equal(threads().length, 0, 'cold load has no empty persisted thread');
   const cdp = await page.context().newCDPSession(page);
   const touch = async (from, to) => {

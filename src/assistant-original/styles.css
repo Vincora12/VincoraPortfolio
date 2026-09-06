@@ -178,17 +178,6 @@
 }
 
 .assistant-clone button,
-.assistant-clone input,
-.assistant-clone textarea,
-.assistant-clone select,
-[data-slot="popover-content"] button,
-[data-slot="popover-content"] input,
-[data-slot="sheet-content"] button,
-[data-slot="sheet-content"] input {
-  font: inherit;
-}
-
-.assistant-clone button,
 [data-slot="popover-content"] button,
 [data-slot="sheet-content"] button {
   cursor: pointer;
@@ -214,6 +203,7 @@ body[data-scroll-locked] {
 .assistant-clone {
   --mh-line: #747780;
   --mh-bg: #000;
+  font-family: var(--font-ui);
   width: 100%;
   max-width: 100%;
   min-width: 0;
