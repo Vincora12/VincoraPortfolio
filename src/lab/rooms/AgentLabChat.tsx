@@ -30,7 +30,29 @@ import { useEffect, useRef, useState } from 'react';
 import { ArrowUpIcon } from 'lucide-react';
 import { useApp } from '../../state/store';
 import { askAgentLab, type AgentLabRequest } from '../../ai/backend';
-import { Notice } from './parts';
+import { CopyBtn, Notice } from './parts';
+
+/** Stesso idioma di download già in uso altrove nel progetto
+    (`src/dev/MemoryView.tsx`'s `scarica()`): Blob → object URL → <a download>
+    sintetico → revoke ritardato. `export_report` gira SERVER-SIDE (il
+    progetto vive lì, non nel browser di chi guarda) — il file vero può
+    scaricarlo solo qui, quando la risposta lo porta con sé. */
+function downloadTxt(filename: string, content: string): void {
+  try {
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  } catch {
+    /* Browser che rifiuta i download sintetici: l'utente ha comunque il
+       testo completo in chat, copiabile a mano — nessuna perdita silenziosa. */
+  }
+}
 
 export interface AgentLabStepContext {
   stepId?: string;
@@ -133,6 +155,7 @@ export function AgentLabChat({ context, persistKey }: { context?: AgentLabStepCo
       return;
     }
     setHistory([...withUser, { role: 'assistant', text: result.data.text, toolTrace: result.data.toolTrace }]);
+    if (result.data.exportFile) downloadTxt(result.data.exportFile.filename, result.data.exportFile.content);
   };
 
   const canSend = !busy && draft.trim().length > 0;
@@ -162,7 +185,10 @@ export function AgentLabChat({ context, persistKey }: { context?: AgentLabStepCo
               ) : (
                 <div className="agentlab-row agentlab-row--assistant" key={i}>
                   <div className="agentlab-copy">
-                    <span className="agentlab-copy__who mono">AGENT.LAB</span>
+                    <div className="agentlab-copy__head">
+                      <span className="agentlab-copy__who mono">AGENT.LAB</span>
+                      <CopyBtn text={entry.text} label="COPIA" />
+                    </div>
                     {renderWithTags(entry.text)}
                     {entry.toolTrace && entry.toolTrace.length > 0 && (
                       <div className="agentlab-msg__trace mono">

@@ -21,6 +21,41 @@
 
 .agentlab-chat { margin-top: 4px; display: flex; flex-direction: column; gap: 10px }
 
+/* ---- AUDIT & UNIFICATION (TEST A) — pagina intera, non un riquadro --------
+   `.agentlab-page`/`.agentlab-main`/`.agentlab-fullpage` esistono SOLO per
+   questa stanza (caricati da `AgentLab.tsx`, mai da `system.css` condiviso):
+   nessun'altra stanza del laboratorio cambia aspetto per questa regola. */
+.agentlab-page { display: flex; flex-direction: column; height: 100dvh; min-height: 0; overflow: hidden }
+.agentlab-main {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 10px 14px 10px;
+}
+.agentlab-page .page.agentlab-fullpage.active {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.agentlab-toolbar { flex: 0 0 auto; display: flex; align-items: flex-start; justify-content: space-between; gap: 10px }
+.agentlab-toolbar__title h1 { margin: 2px 0 0 }
+.agentlab-info-toggle {
+  flex: 0 0 auto;
+  border: 1px solid var(--line);
+  background: #fff;
+  min-height: 30px;
+  padding: 0 10px;
+  font-size: 9px;
+  letter-spacing: .04em;
+}
+.agentlab-drawer { flex: 0 0 auto; display: flex; flex-direction: column; gap: 8px; padding-bottom: 4px }
+
+.agentlab-page .agentlab-chat { flex: 1 1 auto; min-height: 0 }
+
 /* ---- il corpo della chat: stessi valori del tema scuro della chat vera --- */
 
 .agentlab-thread {
@@ -33,6 +68,7 @@
   min-height: 320px;
   max-height: 62vh;
 }
+.agentlab-page .agentlab-thread { max-height: none; flex: 1 1 auto; min-height: 0 }
 
 .agentlab-viewport {
   flex: 1 1 auto;
@@ -82,12 +118,31 @@
   line-height: 1.6;
 }
 
+.agentlab-copy__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
 .agentlab-copy__who {
   display: block;
   font-size: 9px;
   letter-spacing: .08em;
   color: #8e8e8e;
-  margin-bottom: 4px;
+}
+
+/* Il pulsante COPIA riusa `<Btn>`/`.btn` di system.css (sfondo bianco, bordo
+   scuro) — su un corpo di chat nero serve un travestimento minimo, non un
+   componente nuovo: stessa logica di clipboard, altro solo aspetto. */
+.agentlab-copy__head .btn {
+  min-height: 0;
+  padding: 3px 8px;
+  font-size: 8px;
+  background: transparent;
+  border-color: rgb(255 255 255 / 25%);
+  color: #b4b4b4;
 }
 
 .agentlab-copy--thinking { color: #8e8e8e; font-size: 13px }

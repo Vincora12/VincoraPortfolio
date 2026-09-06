@@ -1,6 +1,6 @@
 import type { BrainMessage } from './store/types';
 import { TOOLS, assistantTurn, resultBlocks, type ToolResult, type ToolUse } from '../ai/tools';
-import { CODE_TOOL_DEFS } from '../ai/toolLayer';
+import { CODE_TOOL_DEFS, EXPORT_REPORT_TOOL_DEF } from '../ai/toolLayer';
 import { useApp } from '../state/store';
 import { buildVoiceSystemPrompt } from '../ai/voicePrompt';
 import { persistChatTrace, recordChatTrace, systemPromptComposition, traceClock, type ChatTrace } from '../ai/chatTrace';
@@ -203,6 +203,35 @@ export function isCodeInspectionIntent(text: string): boolean {
   return CODE_INSPECTION_INTENT.test(text);
 }
 
+/* VINZ.MON AUDIT & UNIFICATION — root cause del "non posso": `TOOL_INTENT` e
+   `CODE_INSPECTION_INTENT` sopra non conoscono il vocabolario dell'AUDIT
+   ("audit", "tool layer", "runtime agentico", "diagnosi", "cosa manca per
+   essere un vero agent", "un report da passare ad Astra"...). Una domanda
+   come «Fammi un audit del Tool Layer. Controlla realmente il sistema e cita
+   le evidenze.» non tocca né dati personali né la sintassi tecnica di
+   CODE_INSPECTION_INTENT ("quale file", "dove viene gestito") — cadeva
+   quindi nel percorso BASE, senza NESSUNO strumento disponibile: da lì il
+   "non posso", non da una vera assenza di capacità. */
+const AUDIT_INTENT = /\b(audit\w*|diagnosi|diagnostic\w*|tool\s*layer|runtime\s*agentico|agent\s*loop|cosa\s+manca\s+per\s+essere\s+un\s+vero\s+agent\w*|report\b[^.!?]{0,40}\bastra\b|astra\b[^.!?]{0,40}\breport\b|controll\w*\s+(?:se\s+)?(?:il\s+|la\s+|lo\s+|i\s+)?(?:tuo\s+|tua\s+)?sistema|verific\w*\s+se\s+il\s+runtime|persona\s+viene\s+caricat\w*|narratore|\bnarrator\b)\b/i;
+
+/** Usa il pool di strumenti dell'AUDIT (codice + dati/ME in sola lettura +
+    export) quando la domanda chiede esplicitamente un audit/diagnosi del
+    sistema stesso — indipendente da CODE_INSPECTION_INTENT/TOOL_INTENT,
+    perché un audit vero spesso ha bisogno di ENTRAMBI insieme. */
+export function isAuditIntent(text: string): boolean {
+  return AUDIT_INTENT.test(text);
+}
+
+/** "Esporta questo audit in TXT" può arrivare come turno successivo, senza
+    ripetere vocabolario di audit: un rilevatore separato, più permissivo solo
+    sul verbo di esportazione, evita di dover tenere l'intero pool aperto per
+    ogni turno della conversazione. */
+const EXPORT_INTENT = /\b(esport\w*\s+.{0,30}\btxt\b|\btxt\b.{0,30}esport\w*|scaric\w*\s+.{0,20}(?:report|audit|file)|(?:dammi|fammi)\s+.{0,30}\b(?:file|txt)\b|report\s+come\s+file)\b/i;
+
+export function isExportIntent(text: string): boolean {
+  return EXPORT_INTENT.test(text);
+}
+
 export type ChatMealSlot = 'colazione' | 'spuntino' | 'pranzo' | 'merenda' | 'cena' | 'extra';
 export type MealConfirmation = {
   status: 'needs-confirmation' | 'confirmed';
@@ -244,7 +273,7 @@ export function isWorkoutLogIntent(text: string): boolean {
 
 /** Usa il loop strumenti solo quando la richiesta riguarda dati o azioni locali. */
 export function shouldUseLocalTools(text: string): boolean {
-  return TOOL_INTENT.test(text) || CODE_INSPECTION_INTENT.test(text);
+  return TOOL_INTENT.test(text) || CODE_INSPECTION_INTENT.test(text) || AUDIT_INTENT.test(text) || EXPORT_INTENT.test(text);
 }
 
 /** Le registrazioni esplicite non devono dipendere dalla buona volontà del modello. */
@@ -287,6 +316,11 @@ export async function replyWithLocalTools(
      risponde, e per questo restano qui invece di finire dentro
      `buildVoiceSystemPrompt`, che non sa niente di pasti o conferme. */
   const character = characterVoiceBlock();
+  /* Calcolati qui (non più sotto, insieme al resto del pool) perché il
+     system prompt sotto ne ha bisogno prima ancora di sapere quali
+     strumenti saranno disponibili. */
+  const isAudit = isAuditIntent(user) && !requiredWriteTool(user) && !mealConfirmation && !workoutConfirmation;
+  const wantsExport = (isExportIntent(user) || isAudit) && !requiredWriteTool(user) && !mealConfirmation && !workoutConfirmation;
   const system = [
     character ?? { text: 'You are VINZ.MON, a neutral high-quality personal AI assistant. Answer in the user language.' },
     {
@@ -319,6 +353,12 @@ export async function replyWithLocalTools(
           : '',
         isCodeInspectionIntent(user)
           ? 'The user is asking a technical question about your own real source code/repository. Use code_search to find real files and code_read to actually read them before answering — never claim a file path, function name or implementation detail you have not actually retrieved through these tools. If a search returns no results or a read fails, say inspection found nothing or failed — never invent evidence.'
+          : '',
+        isAudit
+          ? 'The user is asking for a real AUDIT of yourself (a subsystem or your whole system: tool layer, memory, persona, agent loop, ME...). This must be a grounded audit, never a generic or invented answer, and never "I cannot" when you have the tools to check. Use code_search/code_read to inspect the real repository for the subsystem in question (e.g. tool layer: src/ai/tools.ts, src/ai/toolLayer.ts, netlify/functions/code-tools.ts, src/brain/stream.ts; memory/ME: src/state/store.ts and its ME/journal fields; agent loop: src/brain/stream.ts replyWithLocalTools, netlify/functions/agent-lab.ts). Use leggi_me/leggi_i_miei_dati when the audit is about live ME/personal data, not source code. Structure the answer as TITLE / SCOPE / EXECUTIVE SUMMARY / CAPABILITY MATRIX (capability, status EXISTS or PARTIAL or MISSING or BROKEN, evidence with real file/path, risk, recommended action) / DETAILED FINDINGS / ROOT CAUSES / RECOMMENDED NEXT STEPS. Clearly separate FACT (verified via a tool) from INFERENCE (your reasoning) from RECOMMENDATION. If a capability genuinely does not exist, say so plainly — never claim it does.'
+          : '',
+        wantsExport
+          ? 'The user wants this audit/report as a real downloadable file (a ".txt", "a file", "something to pass to Astra"...). After writing the full report in chat, call esporta_report with the COMPLETE report text as "contenuto" (not a shortened summary) and a short "titolo". The exported text must be self-sufficient: readable and usable without depending on this conversation.'
           : '',
       ].join(' '),
     },
@@ -355,12 +395,23 @@ export async function replyWithLocalTools(
      mescolato agli altri, per restare "on demand" e non gonfiare ogni
      richiesta con strumenti irrilevanti). La salute vince in caso di
      ambiguità reale (un messaggio che parla anche di dati personali). */
-  const isCodeInspection = isCodeInspectionIntent(user) && !isHealthRequest;
-  const toolPool = isCodeInspection
-    ? CODE_TOOL_DEFS
-    : isHealthRequest
-      ? TOOLS.filter((tool) => healthToolNames.has(tool.name))
-      : TOOLS.filter((tool) => !healthToolNames.has(tool.name) || tool.name === 'leggi_i_miei_dati');
+  /* AUDIT & UNIFICATION — un audit vero ("audit del tool layer", "controlla
+     il sistema", "audit del ME") ha spesso bisogno di ENTRAMBI i mondi
+     insieme: codice sorgente (code_search/code_read) e dati/ME reali
+     (leggi_me/leggi_i_miei_dati) nello stesso turno — per questo è il suo
+     proprio quarto caso, non un sottoinsieme di isCodeInspection/isHealthRequest.
+     Resta subordinato a una scrittura esplicita o a una conferma pasto/
+     allenamento in corso: quei flussi restano quello che erano. */
+  const isCodeInspection = isCodeInspectionIntent(user) && !isHealthRequest && !isAudit;
+  const auditReadTools = TOOLS.filter((tool) => tool.name === 'leggi_me' || tool.name === 'leggi_i_miei_dati');
+  const basePool = isAudit
+    ? [...CODE_TOOL_DEFS, ...auditReadTools]
+    : isCodeInspection
+      ? CODE_TOOL_DEFS
+      : isHealthRequest
+        ? TOOLS.filter((tool) => healthToolNames.has(tool.name))
+        : TOOLS.filter((tool) => !healthToolNames.has(tool.name) || tool.name === 'leggi_i_miei_dati');
+  const toolPool = wantsExport ? [...basePool, EXPORT_REPORT_TOOL_DEF] : basePool;
   const availableTools = toolPool.slice(0, 12).filter((tool) => {
     if (tool.name === 'registra_pasto') return mealConfirmation?.status === 'confirmed';
     if (tool.name === 'registra_allenamento') return workoutConfirmation?.status === 'confirmed';

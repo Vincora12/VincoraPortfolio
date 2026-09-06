@@ -1,7 +1,7 @@
 import { getStore } from '@netlify/blobs';
 
 export type RuntimeStatus = 'START' | 'PASS' | 'FAIL';
-export type RuntimeScope = 'chat' | 'ai' | 'memory' | 'progression' | 'system' | 'agent-lab';
+export type RuntimeScope = 'chat' | 'ai' | 'memory' | 'progression' | 'system' | 'agent-lab' | 'openai-ingress';
 export interface RuntimeEvent {
   id: string;
   timestamp: string;
@@ -72,7 +72,7 @@ export function sanitizeRuntimeEvent(input: Partial<RuntimeEvent>): RuntimeEvent
      silenziosamente, da `sanitizeRuntimeEvent` che tornava `null`. Trovato
      mentre si aggiungeva l'osservabilità di questo task — corretto perché è
      la stessa funzione che questo task usa, non un problema estraneo. */
-  if (!['START', 'PASS', 'FAIL'].includes(status ?? '') || !['chat', 'ai', 'memory', 'progression', 'system', 'agent-lab'].includes(scope ?? '')) return null;
+  if (!['START', 'PASS', 'FAIL'].includes(status ?? '') || !['chat', 'ai', 'memory', 'progression', 'system', 'agent-lab', 'openai-ingress'].includes(scope ?? '')) return null;
   const metadata = input.metadata && typeof input.metadata === 'object'
     ? Object.fromEntries(Object.entries(input.metadata).filter(([key, value]) => ALLOWED_META.has(key) && (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean')).map(([key, value]) => [key, typeof value === 'string' ? cleanText(value, 120) : value]).filter(([, value]) => value !== undefined))
     : undefined;

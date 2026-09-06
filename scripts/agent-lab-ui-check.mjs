@@ -58,16 +58,35 @@ try {
   // ── La stanza AGENT.LAB si apre e mostra il confine ────────────────────
   await page.goto(`${BASE}/lab/agent`, { waitUntil: 'networkidle' });
   await page.waitForSelector('h1', { timeout: 5000 });
-  const room = await page.evaluate(() => ({
+  const before = await page.evaluate(() => ({
     h1: document.querySelector('h1')?.textContent ?? '',
     kicker: document.querySelector('.kicker')?.textContent ?? '',
+    threadFillsPage: (() => {
+      const thread = document.querySelector('.agentlab-thread');
+      const page = document.querySelector('.agentlab-page');
+      if (!thread || !page) return false;
+      const t = thread.getBoundingClientRect();
+      const p = page.getBoundingClientRect();
+      // TEST A — "pagina intera, non un riquadro": il corpo della chat deve
+      // riempire la maggior parte dell'altezza della stanza, non un tetto fisso.
+      return t.height > p.height * 0.55;
+    })(),
+  }));
+  check(before.h1 === 'AGENT.LAB', 'la stanza si apre e mostra il titolo AGENT.LAB');
+  check(before.kicker.includes('PROJECT INSPECTOR'), 'il kicker identifica AGENT.LAB come ambiente tecnico ("PROJECT INSPECTOR")');
+  check(before.threadFillsPage, 'TEST A — il corpo della chat riempie la pagina (non più un tetto fisso di 62vh)');
+
+  // AUDIT & UNIFICATION — il confine READ/WRITE non è sparito: è dietro un
+  // cassetto richiudibile (INFO), chiuso di default per lasciare spazio alla
+  // chat. Deve restare raggiungibile con un click, non solo nel codice.
+  await page.click('.agentlab-info-toggle');
+  const room = await page.evaluate(() => ({
     hasBoundaryNotice: [...document.querySelectorAll('.notice')].some((n) => n.textContent?.includes('READ ACCESS') && n.textContent?.includes('WRITE ACCESS')),
     hasComposer: document.querySelector('.agentlab-composer textarea') !== null,
     hasSendButton: document.querySelector('.agentlab-send') !== null,
   }));
-  check(room.h1 === 'AGENT.LAB', 'la stanza si apre e mostra il titolo AGENT.LAB');
-  check(room.kicker.includes('PROJECT INSPECTOR'), 'il kicker identifica AGENT.LAB come ambiente tecnico ("PROJECT INSPECTOR")');
-  check(room.hasBoundaryNotice, 'il confine READ ACCESS / WRITE ACCESS è dichiarato in chiaro nella stanza, non solo nel codice');
+  check(room.hasBoundaryNotice, 'il confine READ ACCESS / WRITE ACCESS è dichiarato in chiaro nella stanza (dietro INFO), non solo nel codice');
+  await page.click('.agentlab-info-toggle');
   check(room.hasComposer, 'il composer della chat è presente');
   check(room.hasSendButton, 'il pulsante di invio è presente');
 

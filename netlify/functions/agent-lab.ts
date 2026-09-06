@@ -78,6 +78,19 @@ const TOOLS: ToolDef[] = [
     },
   },
   {
+    name: 'export_report',
+    description:
+      'Prepara un report per essere scaricato come file .txt REALE nel browser di chi sta usando Agent.lab (es. un audit da passare ad Astra). Chiamalo quando l\'utente chiede un file/TXT/report scaricabile. "contenuto" deve essere il report COMPLETO che hai già scritto in chat — titolo, scope, executive summary, capability matrix, findings, evidenze, root cause, raccomandazioni — mai un riassunto più corto.',
+    schema: {
+      type: 'object',
+      properties: {
+        titolo: { type: 'string', description: 'Titolo del report, usato anche per nominare il file.' },
+        contenuto: { type: 'string', description: 'Il testo COMPLETO del report, autosufficiente e leggibile senza dipendere da questa conversazione.' },
+      },
+      required: ['titolo', 'contenuto'],
+    },
+  },
+  {
     name: 'propose_ui_change',
     description:
       'Presenta una modifica SOLO presentazionale (CSS, className, JSX di layout) come patch pronta. Chiamalo SOLO dopo aver letto il file reale con read_file, e SOLO se la richiesta non tocca logica, dati, stato applicativo, chiamate di rete o backend. Il server verifica meccanicamente il confine: se la patch tocca qualcos\'altro, la chiamata torna un errore che spiega perché, e in quel caso NON hai una patch da mostrare — spiega invece cosa cambierebbe funzionalmente e fermati, non inventare un\'altra versione.',
@@ -109,6 +122,9 @@ const BOUNDARY_RULES = [
   '[NON DETERMINABILE] — quando il codice non permette di stabilirlo con certezza. Usa questa etichetta piuttosto che indovinare: non inventare una causalità che il codice non dimostra.',
   '',
   'STILE: rispondi in italiano, diretto, tecnico. Cita percorsi di file reali quando li hai letti. Non hardcodare spiegazioni teoriche di uno step solo perché ne conosci il nome — leggi il codice vero anche quando arrivi già con un contesto.',
+  '',
+  'AUDIT — quando ti viene chiesto un audit/diagnosi di un sottosistema o dell\'intero VINZ.MON, struttura la risposta come: TITOLO / SCOPE / EXECUTIVE SUMMARY / CAPABILITY MATRIX (capacità, stato EXISTS o PARTIAL o MISSING o BROKEN, evidenza con percorso file reale, rischio, azione consigliata) / DETAILED FINDINGS / ROOT CAUSES / RECOMMENDED NEXT STEPS. Distingui sempre FATTO (verificato con uno strumento) da INFERENZA da RACCOMANDAZIONE. Se una capacità non esiste davvero, dillo chiaramente — non fingere che esista.',
+  'EXPORT — se l\'utente chiede il report come file/TXT/qualcosa da passare ad un\'altra AI, dopo aver scritto il report completo in chat chiama export_report con "contenuto" uguale al report COMPLETO (non un riassunto) e un "titolo" breve.',
 ].join('\n');
 
 /** Esportato solo per `scripts/agent-lab-check.mjs`: verifica offline che il contesto del FLOW arrivi davvero nel prompt, senza dover chiamare il modello. */
@@ -138,11 +154,36 @@ function resultBlock(id: string, content: string, isError?: boolean): Record<str
   return { type: 'tool_result', tool_use_id: id, content, ...(isError ? { is_error: true } : {}) };
 }
 
+/** Nome file sicuro — stessa logica di `src/ai/toolLayer.ts`, duplicata qui
+    di proposito: questa funzione non importa mai codice client (vedi la nota
+    in testa al file su "loop qui e non /api/ai + strumenti lato browser"). */
+function safeFileName(titolo: string): string {
+  const base = titolo
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-zA-Z0-9\s-]/g, '')
+    .trim()
+    .replace(/\s+/g, '-')
+    .toLowerCase();
+  return `${base || 'report'}.txt`;
+}
+
 /** Esegue UN solo strumento — sempre lato server, mai nel browser: qui i dati sono file del progetto, non dati personali.
  *  Esportata anche per `scripts/agent-lab-check.mjs`: verifica il confine di lettura/scrittura senza passare dal modello. */
-export function executeTool(use: ToolUse): { id: string; content: string; isError: boolean } {
+export function executeTool(use: ToolUse): { id: string; content: string; isError: boolean; exportFile?: { filename: string; content: string } } {
   const input = typeof use.input === 'object' && use.input ? (use.input as Record<string, unknown>) : {};
   try {
+    if (use.name === 'export_report') {
+      const titolo = typeof input.titolo === 'string' && input.titolo.trim() ? input.titolo.trim() : 'report';
+      const contenuto = typeof input.contenuto === 'string' ? input.contenuto : '';
+      if (!contenuto.trim()) return { id: use.id, content: 'EXPORT FALLITO — il contenuto del report è vuoto: niente file preparato.', isError: true };
+      const filename = safeFileName(titolo);
+      return {
+        id: use.id,
+        content: `File "${filename}" pronto per il download nel browser (${contenuto.length} caratteri reali, non un riassunto).`,
+        isError: false,
+        exportFile: { filename, content: contenuto },
+      };
+    }
     if (use.name === 'list_files') {
       const result = listProjectFiles(typeof input.path === 'string' ? input.path : undefined);
       if (!result.ok) return { id: use.id, content: result.error, isError: true };
@@ -242,6 +283,7 @@ export default async function handler(request: Request): Promise<Response> {
   let lastModel = route.model;
   const toolTrace: { name: string; ok: boolean }[] = [];
   let finalText: string | null = null;
+  let exportFile: { filename: string; content: string } | undefined;
 
   for (let round = 0; round < MAX_ROUNDS; round++) {
     const userContent: TurnContent | undefined = userBlocks?.length ? userBlocks : undefined;
@@ -280,6 +322,7 @@ export default async function handler(request: Request): Promise<Response> {
     const results = uses.map((use) => {
       const outcome = executeTool(use);
       toolTrace.push({ name: use.name, ok: !outcome.isError });
+      if (outcome.exportFile) exportFile = outcome.exportFile;
       return outcome;
     });
     userBlocks = results.map((r) => resultBlock(r.id, r.content, r.isError));
@@ -299,6 +342,7 @@ export default async function handler(request: Request): Promise<Response> {
     model: lastModel,
     costUsd: totalCostUsd,
     warning: cap.warning,
+    ...(exportFile ? { exportFile } : {}),
   });
 }
 

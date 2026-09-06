@@ -477,6 +477,10 @@ export interface AgentLabResponse {
   model: string;
   costUsd: number;
   warning?: boolean;
+  /* TXT export — `export_report` gira server-side (dove vive il progetto),
+     quindi non può scaricare un file da solo: torna il contenuto qui, e
+     `AgentLabChat.tsx` fa il download vero nel browser di chi guarda. */
+  exportFile?: { filename: string; content: string };
 }
 
 export function askAgentLab(token: string | null, request: AgentLabRequest): Promise<BackendResult<AgentLabResponse>> {
