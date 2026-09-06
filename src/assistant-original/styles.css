@@ -417,103 +417,170 @@ body[data-scroll-locked] {
   color: var(--char-on-accent-dark, #0d0d0d) !important;
 }
 
-/* Drawer mobile: una vera libreria di conversazioni, non un form tecnico. */
-.vinz-thread-drawer {
-  width: min(88vw, 390px) !important;
-  border: 0 !important;
-  background: #090909 !important;
-  color: #f2f2f2 !important;
-  box-shadow: 22px 0 55px rgb(0 0 0 / 58%);
+/* Menu progetti mobile: una schermata intera, non un drawer sovrapposto. */
+.vinz-project-menu,
+.vinz-project-page {
+  display: none;
 }
 
-.vinz-thread-drawer[data-dragging] {
-  transform: translateX(calc(-100% + var(--vinz-drawer-drag))) !important;
-  transition: none !important;
-}
+@media (max-width: 767px) {
+  .vinz-project-menu {
+    position: absolute;
+    z-index: 25;
+    top: max(calc(env(safe-area-inset-top) + .7rem), .7rem);
+    right: .8rem;
+    display: grid;
+    width: 2.5rem;
+    height: 2.5rem;
+    place-items: center;
+    border: 1px solid rgb(242 242 242 / 20%);
+    border-radius: 0;
+    background: #090909;
+    color: #f2f2f2;
+  }
 
-.vinz-thread-drawer__title {
-  min-height: 4.5rem;
-  padding-top: .25rem;
-  color: #f2f2f2 !important;
-}
+  .vinz-project-menu svg,
+  .vinz-project-page__header button svg {
+    width: 1.15rem;
+    height: 1.15rem;
+  }
 
-.vinz-thread-drawer__body [data-slot="aui_thread-list-search"] {
-  padding: 0;
-  margin-bottom: 1.15rem;
-}
+  .vinz-project-page {
+    position: absolute;
+    inset: 0;
+    z-index: 30;
+    display: flex;
+    min-height: 100%;
+    flex-direction: column;
+    overflow: hidden;
+    background: #090909;
+    color: #f2f2f2;
+    transform: translateX(calc(-100% + var(--vinz-project-page-progress, 100%)));
+    transition: transform 220ms ease-out;
+  }
 
-.vinz-thread-drawer__body [data-slot="aui_thread-list-search"] input {
-  height: 2.85rem;
-  border: 0;
-  border-radius: 14px;
-  background: #202020;
-  color: #f2f2f2;
-  font-size: 1rem;
-  padding-left: 2.8rem;
-}
+  .vinz-project-page[data-dragging] {
+    transition: none;
+  }
 
-.vinz-thread-drawer__body [data-slot="aui_thread-list-search-icon"] {
-  left: .9rem;
-  width: 1.15rem;
-  height: 1.15rem;
-  color: #b7b7b7;
-}
+  .vinz-project-page__header {
+    display: flex;
+    min-height: 4.5rem;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: space-between;
+    padding: max(env(safe-area-inset-top), .25rem) 1.25rem .25rem;
+    border-bottom: 1px solid rgb(242 242 242 / 14%);
+  }
 
-.vinz-thread-drawer__section {
-  padding: .4rem .75rem .65rem;
-  color: #f2f2f2;
-  font-size: 1rem;
-  font-weight: 650;
-}
+  .vinz-project-page__header h2 {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: 1.4rem;
+    font-weight: 700;
+    letter-spacing: -.03em;
+  }
 
-.vinz-thread-drawer [data-slot="aui_thread-list-group-label"] {
-  padding: 1rem .75rem .35rem;
-  color: #858585;
-  font-size: .72rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: .08em;
-}
+  .vinz-project-page__header button {
+    display: grid;
+    width: 2.5rem;
+    height: 2.5rem;
+    place-items: center;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: inherit;
+  }
 
-.vinz-thread-drawer [data-slot="aui_thread-list-item"] {
-  min-height: 3rem;
-  height: auto;
-  padding-right: 2.7rem;
-  border-radius: 13px;
-}
+  .vinz-project-page__body {
+    min-height: 0;
+    flex: 1 1 auto;
+    overflow-y: auto;
+    padding: 0 1rem;
+  }
 
-.vinz-thread-drawer [data-slot="aui_thread-list-item"]:hover,
-.vinz-thread-drawer [data-slot="aui_thread-list-item"][data-active] {
-  background: #202020;
-}
+  .vinz-project-page .vinz-project-sidebar {
+    flex: none;
+    overflow: visible;
+  }
 
-.vinz-thread-drawer [data-slot="aui_thread-list-item-trigger"] {
-  min-height: 3rem;
-  padding-inline: .75rem .25rem;
-  font-size: 1rem;
-}
+  .vinz-project-page [data-slot="aui_thread-list-search"] {
+    margin: 1.15rem 0;
+    padding: 0;
+  }
 
-.vinz-thread-drawer [data-slot="aui_thread-list-item-title"] {
-  display: block;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+  .vinz-project-page [data-slot="aui_thread-list-search"] input {
+    height: 2.85rem;
+    border: 1px solid rgb(242 242 242 / 18%);
+    border-radius: 0;
+    background: #141414;
+    color: #f2f2f2;
+    font-family: var(--font-mono);
+    font-size: .9rem;
+    padding-left: 2.8rem;
+  }
 
-.vinz-thread-drawer .aui-thread-icon {
-  color: var(--char-accent-on-dark, #b7b7b7);
-}
+  .vinz-project-page [data-slot="aui_thread-list-search-icon"] {
+    left: .9rem;
+    width: 1.05rem;
+    height: 1.05rem;
+    color: #a6a6a6;
+  }
 
-.vinz-thread-drawer__footer {
-  padding-top: .75rem;
-  padding-bottom: calc(max(env(safe-area-inset-bottom), .9rem) + .25rem);
-  background: linear-gradient(to top, #090909 72%, rgb(9 9 9 / 0%));
-}
+  .vinz-project-page__section,
+  .vinz-project-page [data-slot="aui_thread-list-group-label"] {
+    padding: 1rem 0 .5rem;
+    color: #9b9b9b;
+    font-family: var(--font-mono);
+    font-size: .72rem;
+    font-weight: 500;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+  }
 
-.vinz-thread-drawer__new {
-  background: var(--char-accent-on-dark, #f2f2f2) !important;
-  color: var(--char-on-accent-dark, #090909) !important;
+  .vinz-project-page [data-slot="aui_thread-list-item"] {
+    min-height: 3.25rem;
+    height: auto;
+    padding-right: 2.7rem;
+    border-bottom: 1px solid rgb(242 242 242 / 12%);
+    border-radius: 0;
+  }
+
+  .vinz-project-page [data-slot="aui_thread-list-item"]:hover,
+  .vinz-project-page [data-slot="aui_thread-list-item"][data-active] {
+    background: #171717;
+  }
+
+  .vinz-project-page [data-slot="aui_thread-list-item-trigger"] {
+    min-height: 3.25rem;
+    padding-inline: .1rem .25rem;
+    font-family: var(--font-mono);
+    font-size: .9rem;
+  }
+
+  .vinz-project-page [data-slot="aui_thread-list-item-title"] {
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .vinz-project-page .aui-thread-icon {
+    color: var(--char-accent-on-dark, #b7b7b7);
+  }
+
+  .vinz-project-page__footer {
+    flex: 0 0 auto;
+    padding: .8rem 1rem calc(max(env(safe-area-inset-bottom), .9rem) + .25rem);
+    border-top: 1px solid rgb(242 242 242 / 14%);
+    background: #090909;
+  }
+
+  .vinz-project-page__new {
+    background: var(--char-accent-on-dark, #f2f2f2) !important;
+    color: var(--char-on-accent-dark, #090909) !important;
+  }
 }
 
 /* Il campo resta nero: il colore appartiene alla conversazione. Il balloon
