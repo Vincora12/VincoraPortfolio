@@ -7,7 +7,6 @@ import {
   ThreadListSearch,
 } from "@/assistant-original/components/assistant-ui/thread-list";
 import { TooltipIconButton } from "@/assistant-original/components/assistant-ui/tooltip-icon-button";
-import { Button } from "@/assistant-original/components/ui/button";
 import {
   Sheet,
   SheetContent,
@@ -22,8 +21,8 @@ import {
 } from "@/assistant-original/components/ui/tooltip";
 import { cn } from "@/assistant-original/lib/utils";
 import { useAuiState } from "@assistant-ui/react";
-import { MenuIcon, PanelLeftIcon } from "lucide-react";
-import { useState, type FC, type MouseEvent, type ReactNode } from "react";
+import { PanelLeftIcon } from "lucide-react";
+import { useRef, useState, type FC, type MouseEvent, type ReactNode, type TouchEvent } from "react";
 
 type CloneThreadShellProps = {
   children: ReactNode;
@@ -57,6 +56,7 @@ export const CloneThreadShell: FC<CloneThreadShellProps> = ({
   const [internalCollapsed, setInternalCollapsed] = useState(true);
   const [internalMobileOpen, setInternalMobileOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const touchStart = useRef<{ x: number; y: number; target: EventTarget | null } | null>(null);
   const hasThreads = useAuiState((s) => s.threads.threadIds.length > 0);
 
   // A controlled value means the caller renders the chrome that drives it, so
@@ -74,6 +74,22 @@ export const CloneThreadShell: FC<CloneThreadShellProps> = ({
   const setMobileOpen = (open: boolean) => {
     if (!mobileControlled) setInternalMobileOpen(open);
     onMobileSidebarOpenChange?.(open);
+  };
+
+  const onTouchStart = (event: TouchEvent<HTMLDivElement>) => {
+    const touch = event.touches[0];
+    touchStart.current = touch ? { x: touch.clientX, y: touch.clientY, target: event.target } : null;
+  };
+  const onTouchEnd = (event: TouchEvent<HTMLDivElement>) => {
+    const start = touchStart.current;
+    touchStart.current = null;
+    if (!start || mobileOpen || !(window.matchMedia?.('(max-width: 767px)').matches ?? true)) return;
+    if (start.target instanceof Element && start.target.closest('.vinz-conversation-tabs')) return;
+    const touch = event.changedTouches[0];
+    if (!touch) return;
+    const dx = touch.clientX - start.x;
+    const dy = touch.clientY - start.y;
+    if (dx >= 56 && Math.abs(dx) > Math.abs(dy) * 1.25) setMobileOpen(true);
   };
 
   const closeMobileSidebarAfterNavigation = (
@@ -105,7 +121,7 @@ export const CloneThreadShell: FC<CloneThreadShellProps> = ({
   );
 
   return (
-    <div className="relative flex h-full w-full overflow-hidden">
+    <div className="relative flex h-full w-full overflow-hidden" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
       <aside
         className={cn(
           "bg-muted/30 hidden h-full shrink-0 flex-col overflow-hidden border-r transition-[width] duration-200 md:flex",
@@ -180,22 +196,7 @@ export const CloneThreadShell: FC<CloneThreadShellProps> = ({
       </aside>
 
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-        {!mobileControlled && (
-          <div className="vinz-chat-menu absolute left-2 z-20 md:hidden">
-            <SheetTrigger
-              render={
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="bg-background/70 size-8"
-                >
-                  <MenuIcon className="size-4" />
-                  <span className="sr-only">Open chat history</span>
-                </Button>
-              }
-            />
-          </div>
-        )}
+        {!mobileControlled && <SheetTrigger className="sr-only">Apri progetti</SheetTrigger>}
         <SheetContent side="left" className="vinz-thread-drawer flex flex-col gap-0 p-0">
           <SheetTitle className="vinz-thread-drawer__title flex shrink-0 items-center px-5 text-2xl font-semibold">
             {sheetTitle ?? "VINZ.MON"}

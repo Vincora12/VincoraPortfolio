@@ -2,7 +2,8 @@
 .vinz-conversation-tabs{display:flex;align-items:stretch;overflow-x:auto;min-width:0;max-width:100%;padding-right:8px;scrollbar-width:none}
 .vinz-conversation-tabs>button{flex:0 0 auto;min-height:34px;max-width:145px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:10px 14px;background:var(--mh-line,#75767d);color:#fff;font:600 clamp(10px,2.8vw,12px)/1 var(--font-mono,'IBM Plex Mono',monospace);letter-spacing:.035em;text-transform:uppercase;clip-path:polygon(11px 0,calc(100% - 11px) 0,100% 100%,0 100%);border:0}
 .vinz-conversation-tabs>button+button{margin-left:-11px;padding-left:14px}.vinz-conversation-tabs>button:first-child{clip-path:polygon(0 0,calc(100% - 11px) 0,100% 100%,0 100%)}
-.vinz-conversation-tabs>button:last-of-type{clip-path:polygon(0 100%,11px 0,100% 0,100% 100%)}
+.vinz-conversation-tabs>button:nth-last-child(2){clip-path:polygon(0 100%,11px 0,100% 0,100% 100%)}
+.vinz-conversation-tabs>button.vinz-conversation-new{clip-path:none;background:transparent;color:inherit}
 .vinz-conversation-tabs>button[aria-current=page]{position:relative;z-index:2;background:var(--mh-bg,#000);color:#f8f8fa;filter:drop-shadow(1px 0 0 var(--mh-line,#292c33)) drop-shadow(-1px 0 0 var(--mh-line,#292c33))}.vinz-conversation-tabs>button:focus-visible{outline:2px solid currentColor;outline-offset:-4px}
 .vinz-conversation-tabs .vinz-conversation-new{max-width:50px;min-width:44px;padding:10px 15px;justify-content:center}
 .vinz-chat-options{padding:12px 0;border-bottom:1px solid #777;display:grid;gap:12px;color:inherit;font:11px 'IBM Plex Mono',monospace}
