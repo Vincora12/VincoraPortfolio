@@ -1,0 +1,393 @@
+/* Vinz.mon_v2 — solo la chat. Tutto il resto (MON, ME, SYNC, barra) usa i
+   fogli della Current, perché sono letteralmente le stesse schermate. */
+
+.v2app__chat {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+}
+
+.v2app__chat--hidden {
+  display: none;
+}
+
+.v2gate {
+  flex: 1;
+  display: grid;
+  align-content: center;
+  gap: var(--u3);
+  padding: var(--u6);
+}
+
+.v2gate__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--type-display-m);
+  font-weight: 700;
+}
+
+.v2gate__text {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--muted-strong);
+}
+
+/* --- Chat ---------------------------------------------------------------- */
+
+.v2chat {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--white);
+}
+
+.v2chat__bar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: stretch;
+  gap: var(--u2);
+  padding: calc(env(safe-area-inset-top) + var(--u2)) var(--u3) var(--u2);
+  border-bottom: 1px solid var(--hairline);
+}
+
+.v2chat__barbtn {
+  min-height: 32px;
+  padding: 0 var(--u3);
+  border: 1px solid var(--ink);
+  border-radius: var(--radius-soft);
+  background: var(--white);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.v2chat__barbtn:first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.v2chat__barbtn--ghost {
+  flex: 0 0 auto;
+  border-color: var(--hairline);
+  color: var(--muted-strong);
+}
+
+.v2chat__list {
+  flex: 0 0 auto;
+  max-height: 40%;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-bottom: 1px solid var(--hairline);
+  background: var(--paper);
+}
+
+.v2chat__listitem {
+  display: flex;
+  align-items: stretch;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.v2chat__listbtn {
+  flex: 1;
+  min-width: 0;
+  min-height: 40px;
+  padding: 0 var(--u3);
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.v2chat__del {
+  flex: 0 0 auto;
+  width: 40px;
+  border: 0;
+  border-left: 1px solid var(--hairline);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.v2chat__empty,
+.v2chat__hint {
+  margin: 0;
+  padding: var(--u4);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.v2chat__scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--u3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--u3);
+}
+
+.v2msg {
+  display: flex;
+  flex-direction: column;
+  gap: var(--u2);
+  max-width: 92%;
+}
+
+.v2msg--user {
+  align-self: flex-end;
+  align-items: flex-end;
+}
+
+.v2msg--user .v2msg__body {
+  padding: var(--u2) var(--u3);
+  background: var(--ink);
+  color: var(--white);
+  border-radius: var(--radius-soft);
+}
+
+.v2msg__body {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 14px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.v2msg--failed .v2msg__body {
+  color: var(--signal-alert);
+}
+
+/* --- Attività ------------------------------------------------------------ */
+
+.v2act {
+  border-left: 2px solid var(--hairline);
+  padding-left: var(--u2);
+}
+
+.v2act__row {
+  display: flex;
+  align-items: center;
+  gap: var(--u);
+  min-height: 24px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted-strong);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+}
+
+.v2act__caret {
+  display: inline-block;
+  transition: transform 120ms ease;
+}
+
+.v2act__caret--open {
+  transform: rotate(90deg);
+}
+
+.v2act__time {
+  color: var(--muted);
+}
+
+.v2act__list {
+  margin: var(--u2) 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--u2);
+}
+
+.v2act__item {
+  display: flex;
+  gap: var(--u2);
+}
+
+.v2act__status--ok {
+  color: var(--muted-strong);
+}
+
+.v2act__status--error {
+  color: var(--signal-alert);
+}
+
+.v2act__body {
+  min-width: 0;
+}
+
+.v2act__name {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink);
+}
+
+.v2act__error {
+  margin: 2px 0 0;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  color: var(--signal-alert);
+}
+
+.v2act__result {
+  margin: 2px 0 0;
+  padding: var(--u2);
+  max-height: 180px;
+  overflow: auto;
+  background: var(--paper);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.v2act__meta {
+  margin: var(--u2) 0 0;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--muted);
+}
+
+/* --- Motore -------------------------------------------------------------- */
+
+.v2engine {
+  flex: 0 0 auto;
+  padding: var(--u2) var(--u3);
+  border-bottom: 1px solid var(--hairline);
+}
+
+.v2engine__pills {
+  display: flex;
+  gap: var(--u2);
+}
+
+.v2engine__pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--u);
+  min-height: 24px;
+  padding: 0 var(--u2);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-soft);
+  background: transparent;
+  color: var(--muted-strong);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+}
+
+.v2engine__pill--on {
+  border-color: var(--ink);
+  color: var(--ink);
+}
+
+.v2engine__pill:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.v2engine__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+
+.v2engine__dot--online {
+  background: var(--signal-positive);
+}
+
+.v2engine__dot--offline {
+  background: var(--signal-alert);
+}
+
+.v2engine__dot--unconfigured {
+  background: var(--signal-warning);
+}
+
+.v2engine__msg {
+  margin: var(--u2) 0 0;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--muted-strong);
+}
+
+/* --- Composer ------------------------------------------------------------ */
+
+.v2chat__composer {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: flex-end;
+  gap: var(--u2);
+  padding: var(--u2) var(--u3);
+  border-top: 1px solid var(--hairline);
+  background: var(--white);
+}
+
+.v2chat__input {
+  flex: 1;
+  min-width: 0;
+  min-height: 40px;
+  max-height: 120px;
+  padding: var(--u2);
+  border: 1px solid var(--ink);
+  border-radius: var(--radius-soft);
+  background: var(--white);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  /* 16px: sotto questa misura iOS ingrandisce la pagina al focus. */
+  font-size: 16px;
+  line-height: 1.4;
+  resize: none;
+}
+
+.v2chat__input:disabled {
+  background: var(--paper);
+  color: var(--muted);
+}
+
+.v2chat__send {
+  flex: 0 0 auto;
+  min-height: 40px;
+  padding: 0 var(--u3);
+  border: 1px solid var(--ink);
+  border-radius: var(--radius-soft);
+  background: var(--ink);
+  color: var(--white);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+}
+
+.v2chat__send:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}

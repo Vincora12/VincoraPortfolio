@@ -285,7 +285,7 @@ export function App() {
         if (!insight) return;
         await fetch('/api/machines', { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify({ machine: 'open_insight', insightId }) });
         window.dispatchEvent(new Event('vinzmon-insight-seen'));
-        window.history.replaceState({}, '', window.location.pathname);
+        window.history.replaceState({}, '', `${window.location.pathname}#/current`);
         setVisibleInsight({ ...insight, status: 'opened' });
       } catch { /* notification click remains harmless if the session is unavailable */ }
     })();
@@ -354,7 +354,12 @@ export function App() {
      prendono la pagina giusta invece della radice. */
   useEffect(() => {
     const slug = pageSlugOf(overlay);
-    const wanted = slug ? `#/p/${slug}` : '';
+    /* 🔷 DUE VERSIONI, UN DOMINIO. A riposo l'indirizzo della versione attuale
+       è `#/current` e non più la radice nuda: la radice adesso è il selettore
+       fra VINZ.MON e Vinz.mon_v2 (`version/entry.ts`), e lasciarla qui vorrebbe
+       dire che ogni refresh dentro l'app riporta alla scelta. Le pagine del
+       .mon restano `#/p/<slug>`, che il selettore riconosce come Current. */
+    const wanted = slug ? `#/p/${slug}` : '#/current';
     if (window.location.hash !== wanted) {
       // `replaceState` e non `hash =`: cambiare l'hash impilerebbe una voce
       // nella cronologia a ogni apertura, e il tasto indietro diventerebbe un
@@ -419,7 +424,7 @@ export function App() {
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get('aspetto') !== 'reset') return;
     useApp.getState().resetSkin();
-    window.history.replaceState(null, '', window.location.pathname);
+    window.history.replaceState(null, '', `${window.location.pathname}#/current`);
   }, []);
 
   /* Il sigillo corrente resta nella scheda del browser. L’icona installata
@@ -1064,7 +1069,7 @@ export function MeTab({
 
 /* --- Overlay --------------------------------------------------------------- */
 
-function OverlayScreen({
+export function OverlayScreen({
   overlay,
   onClose,
   onGo,

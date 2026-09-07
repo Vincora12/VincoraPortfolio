@@ -37,6 +37,7 @@ import v1ChatCompletions from '../netlify/functions/v1-chat-completions';
 import v1Models from '../netlify/functions/v1-models';
 import v1Responses from '../netlify/functions/v1-responses';
 import v2Issues from '../netlify/functions/v2-issues';
+import v2Lobehub from '../netlify/functions/v2-lobehub';
 import { closeLocalStore, localDatabasePath } from '../netlify/functions/_shared/localStore';
 
 type Handler = (request: Request, platform?: { waitUntil(promise: Promise<unknown>): void }) => Promise<Response>;
@@ -68,7 +69,7 @@ const handlers: Record<string, Handler> = {
   '/api/ping': ping, '/api/projects': projects, '/api/push': push, '/api/runtime-log': runtimeLog,
   '/api/setup': setup, '/api/shortcut': shortcut, '/api/shortcut-status': shortcutStatus,
   '/api/state': state, '/api/transcribe': transcribe, '/api/usage': usage,
-  '/api/user-data': userData, '/api/v2-issues': v2Issues,
+  '/api/user-data': userData, '/api/v2-issues': v2Issues, '/api/v2-lobehub': v2Lobehub,
   '/v1/chat/completions': v1ChatCompletions, '/v1/models': v1Models, '/v1/responses': v1Responses,
 };
 

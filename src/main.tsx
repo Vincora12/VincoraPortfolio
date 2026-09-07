@@ -27,6 +27,8 @@ import { ErrorBoundary } from './system/ErrorBoundary';
 
 async function boot() {
   const entry = readEntrypoint();
+  const { readVersionEntry } = await import('./version/entry');
+  const version = readVersionEntry();
   const { pullRuntimeConfig, runtimeConfig: localRuntimeConfig } = await import('./system/runtimeConfig');
   let runtimeConfigTimer = 0;
   const runtimeConfig = await Promise.race([
@@ -60,6 +62,21 @@ async function boot() {
   if (entry.kind === 'lab') {
     const { LabApp } = await import('./lab/LabApp');
     content = <LabApp initialLab={entry.lab} />;
+  } else if (version.kind === 'selector') {
+    /* 🔷 DUE VERSIONI, UN DOMINIO. La radice nuda chiede quale VINZ.MON
+       aprire; qualunque altro frammento entra dove entrava prima. Vedi
+       `version/entry.ts`. */
+    const { VersionSelector } = await import('./version/VersionSelector');
+    content = <VersionSelector />;
+  } else if (version.version === 'v2') {
+    const { VinzV2App } = await import('./v2/VinzV2App');
+    const { VersionSwitch } = await import('./version/VersionSwitch');
+    content = (
+      <>
+        <VinzV2App />
+        <VersionSwitch version="v2" />
+      </>
+    );
   } else if (/^#\/artifact\/[a-zA-Z0-9_-]+\/[a-z0-9-]+$/.test(location.hash)) {
     const [, , projectId, slug] = location.hash.split('/');
     const { ProjectArtifactReader } = await import('./projects/ProjectWorkspace');
@@ -67,7 +84,15 @@ async function boot() {
     content = <ProjectArtifactReader token={useApp.getState().token} projectId={projectId!} slug={slug!} onClose={() => location.assign('/')} />;
   } else {
     const { App } = await import('./App');
-    content = <App />;
+    const { VersionSwitch } = await import('./version/VersionSwitch');
+    content = (
+      <>
+        <App />
+        {/* Fratello di `App`, non figlio: la versione attuale torna al
+            selettore senza che la sua barra di navigazione cambi. */}
+        <VersionSwitch version="current" />
+      </>
+    );
   }
 
   const { applyRuntimeConfigToStore } = await import('./state/store');

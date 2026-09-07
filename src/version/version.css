@@ -1,0 +1,162 @@
+/* Selettore di versione + il ritorno discreto al selettore. */
+
+.vsel {
+  min-height: 100dvh;
+  background: var(--paper);
+  color: var(--ink);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--u8);
+  padding: calc(env(safe-area-inset-top) + var(--u8)) var(--u5)
+    calc(env(safe-area-inset-bottom) + var(--u8));
+}
+
+.vsel__head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--u2);
+}
+
+.vsel__eyebrow {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  color: var(--muted-strong);
+}
+
+.vsel__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--type-display-l);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.vsel__cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--u4);
+}
+
+.vsel__card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--u2);
+  width: 100%;
+  min-height: 44px;
+  padding: var(--u5);
+  text-align: left;
+  background: var(--white);
+  color: var(--ink);
+  border: var(--border) solid var(--ink);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-hard);
+  cursor: pointer;
+}
+
+.vsel__card:active {
+  transform: translate(2px, 2px);
+  box-shadow: var(--shadow-hard-sm);
+}
+
+.vsel__cardhead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--u3);
+}
+
+.vsel__name {
+  font-family: var(--font-display);
+  font-size: var(--type-display-m);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.vsel__last {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  padding: 2px var(--u2);
+  border: 1px solid var(--ink);
+  border-radius: var(--radius-soft);
+}
+
+.vsel__role {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted-strong);
+}
+
+.vsel__note {
+  font-family: var(--font-ui);
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--muted-strong);
+}
+
+.vsel__foot {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+/* --- Il ritorno al selettore ---------------------------------------------
+   ⚠️ SUL BORDO DESTRO A METÀ ALTEZZA, non in alto a destra: lassù copriva
+   «Nuova chat» nella Current e «NUOVA» in V2. Il bordo a metà è l'unica fascia
+   libera in tutte e due. `right` segue il telaio: su desktop la scheda è
+   centrata e larga `--frame-w`, quindi la linguetta resta attaccata a lei e
+   non al bordo della finestra. */
+
+.vswitch {
+  position: fixed;
+  top: 50%;
+  right: max(0px, calc((100vw - var(--frame-w)) / 2));
+  transform: translateY(-50%);
+  z-index: 90;
+  border: 1px solid var(--hairline);
+  border-right: 0;
+  border-radius: var(--radius-soft) 0 0 var(--radius-soft);
+  background: color-mix(in srgb, var(--paper) 82%, transparent);
+  backdrop-filter: blur(6px);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  letter-spacing: 0.1em;
+  cursor: pointer;
+}
+
+.vswitch--tab {
+  width: 18px;
+  min-height: 34px;
+  padding: 0;
+  font-size: 9px;
+  opacity: 0.55;
+}
+
+.vswitch--open {
+  display: flex;
+  align-items: stretch;
+}
+
+.vswitch__go,
+.vswitch__hide {
+  min-height: 30px;
+  padding: 0 var(--u2);
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  cursor: pointer;
+}
+
+.vswitch__hide {
+  border-left: 1px solid var(--hairline);
+}
