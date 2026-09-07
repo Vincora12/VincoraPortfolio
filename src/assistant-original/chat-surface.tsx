@@ -31,14 +31,19 @@ export const ChatSurface: FC<ChatSurfaceProps> = ({ embedded = false, themeStyle
     );
   }
 
+  /* 🔷 UNA SOLA RELAZIONE CONTINUA. La superficie quotidiana non mostra più le
+     schede delle conversazioni, «Nuova chat» né il pannello Projects: aprendo
+     VINZ si torna sempre allo stesso filo. I thread, i progetti e gli artefatti
+     restano nel runtime e sul server — sparisce l'accesso quotidiano, non il
+     dato. Vedi `docs/VINZ_CURRENT_SIMPLIFICATION.md`.
+
+     ⚠️ `useConversationOptions` resta chiamato: è lui a registrare il modello e
+     lo scope della chat nel runtime. Si scartano `controls` (il pannello
+     Projects) e le schede, non la logica. */
   return (
     <main style={themeStyle} className="assistant-clone dark relative h-full min-h-0 overflow-hidden bg-black text-[#ececec]">
-      <div
-        aria-hidden="true"
-        className="vinz-chat-top-fade pointer-events-none absolute inset-x-0 top-0 z-10 md:hidden"
-      />
-      <div className="vinz-chat-top-controls"><ConversationTabs scope={scope} onNewThread={inheritScope} /><ChatStorageStatus /></div>
-      <ChatGPT sidebarContent={controls} newThreadScope={scope} onNewThread={inheritScope} />
+      <div className="vinz-chat-top-controls"><ChatStorageStatus /></div>
+      <ChatGPT newThreadScope={scope} onNewThread={inheritScope} />
       {workspace}
     </main>
   );

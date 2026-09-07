@@ -105,12 +105,45 @@ export async function persistChatTrace(trace: ChatTrace): Promise<string | null>
     ? crypto.randomUUID()
     : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   try {
+    /* ⚠️ ERA `if-match: vinzmon-new`, E FALLIVA SEMPRE. `user-data` legge
+       `If-Match` come un etag da confrontare: su una chiave che non esiste
+       ancora nessun confronto può riuscire, quindi ogni salvataggio tornava
+       409 e il trace non è mai stato scritto da quando il runtime è passato al
+       Local Core. «Scrivi solo se non c'è» si chiede con `X-Only-If-New`. */
     const response = await fetch(`/api/user-data?key=${encodeURIComponent(`chat-trace:${id}`)}`, {
       method: 'PUT',
-      headers: { ...headers, 'content-type': 'application/json', 'if-match': 'vinzmon-new' },
+      headers: { ...headers, 'content-type': 'application/json', 'x-only-if-new': '1' },
       body: JSON.stringify(trace),
     });
-    return response.ok ? id : null;
+    if (!response.ok) return null;
+    /* 🔷 TRACE → LAB. Il LAB è un DOCUMENTO a parte (`lab/index.html`), quindi
+       non vede `last`, che vive nella memoria della pagina della chat. Questo
+       puntatore è l'unico modo perché TRACE.LAB mostri lo scambio vero appena
+       avvenuto in chat invece di una pagina sempre vuota. Scrittura
+       incondizionata: è un puntatore, l'ultimo che scrive ha ragione. */
+    void fetch(`/api/user-data?key=${encodeURIComponent('chat-trace:last')}`, {
+      method: 'PUT',
+      headers: { ...headers, 'content-type': 'text/plain' },
+      body: id,
+    }).catch(() => null);
+    return id;
+  } catch {
+    return null;
+  }
+}
+
+/** L'ultimo trace salvato sul server, per chi non condivide la pagina della chat. */
+export async function loadLastPersistedTrace(): Promise<ChatTrace | null> {
+  const headers = auth();
+  if (!headers) return null;
+  try {
+    const pointer = await fetch(`/api/user-data?key=${encodeURIComponent('chat-trace:last')}`, {
+      headers,
+      cache: 'no-store',
+    });
+    if (!pointer.ok) return null;
+    const body = (await pointer.json()) as { value?: string | null };
+    return typeof body.value === 'string' && body.value ? loadChatTrace(body.value) : null;
   } catch {
     return null;
   }

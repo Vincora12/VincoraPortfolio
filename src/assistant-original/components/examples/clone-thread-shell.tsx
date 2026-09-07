@@ -60,6 +60,11 @@ export const CloneThreadShell: FC<CloneThreadShellProps> = ({
   const [drawerDrag, setDrawerDrag] = useState<number | null>(null);
   const hasThreads = useAuiState((s) => s.threads.threadIds.length > 0);
 
+  // VINZ: with no sidebar content and no thread list there is nothing to put in
+  // the rail or the drawer, so neither is rendered. The daily surface asks for
+  // exactly that; the embedded lab surface still passes content and keeps both.
+  const hasRail = sidebarContent != null || showThreadList;
+
   // A controlled value means the caller renders the chrome that drives it, so
   // the shell omits its own toggle / trigger and forwards changes instead.
   const collapsedControlled = collapsed !== undefined;
@@ -171,7 +176,7 @@ export const CloneThreadShell: FC<CloneThreadShellProps> = ({
       data-project-scope={newThreadScope?.projectId ?? 'global'}
       data-drawer-open={mobileOpen || undefined}
     >
-      <aside
+      {hasRail && <aside
         className={cn(
           "vinz-chat-rail bg-muted/30 hidden h-full shrink-0 flex-col overflow-hidden border-r transition-[width] duration-200 md:flex",
           railClassName,
@@ -242,9 +247,9 @@ export const CloneThreadShell: FC<CloneThreadShellProps> = ({
             )}
           />
         </ThreadListRoot>}
-      </aside>
+      </aside>}
 
-      {mobileOpen && (
+      {hasRail && mobileOpen && (
         <section
           className="vinz-project-page md:hidden"
           aria-label="Menu progetti"

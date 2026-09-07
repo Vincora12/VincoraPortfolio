@@ -29,6 +29,7 @@ import runtimeLog from '../netlify/functions/runtime-log';
 import setup from '../netlify/functions/setup';
 import shortcut from '../netlify/functions/shortcut';
 import shortcutStatus from '../netlify/functions/shortcut-status';
+import skills from '../netlify/functions/skills';
 import state from '../netlify/functions/state';
 import transcribe from '../netlify/functions/transcribe';
 import usage from '../netlify/functions/usage';
@@ -68,7 +69,7 @@ const handlers: Record<string, Handler> = {
   '/api/me-chat-capture': meChatCapture, '/api/me-memory': meMemory, '/api/me-seed': meSeed,
   '/api/ping': ping, '/api/projects': projects, '/api/push': push, '/api/runtime-log': runtimeLog,
   '/api/setup': setup, '/api/shortcut': shortcut, '/api/shortcut-status': shortcutStatus,
-  '/api/state': state, '/api/transcribe': transcribe, '/api/usage': usage,
+  '/api/skills': skills, '/api/state': state, '/api/transcribe': transcribe, '/api/usage': usage,
   '/api/user-data': userData, '/api/v2-issues': v2Issues, '/api/v2-lobehub': v2Lobehub,
   '/v1/chat/completions': v1ChatCompletions, '/v1/models': v1Models, '/v1/responses': v1Responses,
 };

@@ -28,6 +28,8 @@ import atrioCss from './skin/atrio.css?inline';
 const CreationLab = lazy(() => import('./rooms/CreationLab').then((m) => ({ default: m.CreationLab })));
 const SystemLab = lazy(() => import('./rooms/SystemLab').then((m) => ({ default: m.SystemLab })));
 const AgentLab = lazy(() => import('./rooms/AgentLab').then((m) => ({ default: m.AgentLab })));
+const TraceLab = lazy(() => import('./rooms/TraceLab').then((m) => ({ default: m.TraceLab })));
+const SkillsLab = lazy(() => import('./rooms/SkillsLab').then((m) => ({ default: m.SkillsLab })));
 
 /* 🔷 LAB INFORMATION ARCHITECTURE CLEANUP — «una sala controllo, non un
    museo di ogni esperimento.» SOUL.LAB e DESIGN.LAB non aiutavano più a
@@ -60,6 +62,18 @@ const PORTE: { id: LabId; nome: string; desc: string; tags: string[] }[] = [
     nome: '🕵️ AGENT.LAB',
     desc: 'Chiedi al progetto come funziona davvero — legge tutto il codice, scrive solo presentazione, mai da solo.',
     tags: ['PROJECT INSPECTOR', 'READ-ONLY BY DEFAULT'],
+  },
+  {
+    id: 'trace',
+    nome: '🔎 TRACE.LAB',
+    desc: 'Il percorso dell’ultima risposta, la composizione del system, i passi e lo stato vivo del thread.',
+    tags: ['OSSERVABILITÀ', 'NON È PRODOTTO QUOTIDIANO'],
+  },
+  {
+    id: 'skills',
+    nome: '🧩 SKILLS.LAB',
+    desc: 'Le capacità installabili di VINZ: quelle installate e la banca da cui si installano, con ispezione prima.',
+    tags: ['INSTALLED + STORE', 'ISPEZIONA PRIMA DI INSTALLARE'],
   },
 ];
 
@@ -109,7 +123,7 @@ export function LabApp({ initialLab }: { initialLab: LabId | null }) {
 
   useEffect(() => {
     const sync = () => {
-      const m = /^#\/lab(?:\/(creation|soul|design|system|agent))?\/?$/.exec(window.location.hash);
+      const m = /^#\/lab(?:\/(creation|soul|design|system|agent|trace|skills))?\/?$/.exec(window.location.hash);
       setActive((m?.[1] as LabId | undefined) ?? null);
     };
     window.addEventListener('hashchange', sync);
@@ -132,6 +146,8 @@ export function LabApp({ initialLab }: { initialLab: LabId | null }) {
           {active === 'creation' && <CreationLab onBack={indietro} />}
           {active === 'system' && <SystemLab onBack={indietro} />}
           {active === 'agent' && <AgentLab onBack={indietro} />}
+          {active === 'trace' && <TraceLab onBack={indietro} />}
+          {active === 'skills' && <SkillsLab onBack={indietro} />}
         </Suspense>
       </>
     );
@@ -145,8 +161,9 @@ export function LabApp({ initialLab }: { initialLab: LabId | null }) {
         <div className="kicker mono">VINZ.MON / INTERNAL TOOLS</div>
         <h1>VINZ.LAB</h1>
         <p className="intro">
-          Tre laboratori, tre responsabilità: 🧬 <strong>come nasce ed è fatta la creatura</strong>,{' '}
-          ⚙️ <strong>come gira il sistema</strong>, 🕵️ <strong>chiedilo al progetto stesso</strong>.
+          Cinque laboratori, cinque responsabilità: 🧬 <strong>come nasce ed è fatta la creatura</strong>,{' '}
+          ⚙️ <strong>come gira il sistema</strong>, 🕵️ <strong>chiedilo al progetto stesso</strong>,{' '}
+          🔎 <strong>cosa è successo davvero</strong>, 🧩 <strong>cosa sa fare</strong>.
         </p>
 
         <TaxonomyVersionControl />

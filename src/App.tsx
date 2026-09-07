@@ -59,6 +59,7 @@ import { DevPanel } from './dev/DevPanel';
 import { PageReader } from './screens/PageReader';
 import type { ToolResult, ToolUse } from './ai/tools';
 import { runToolLayerTool } from './ai/toolLayer';
+import { DailySurface } from './daily/DailySurface';
 const IntegratedChat = lazy(() => import('./assistant-original/IntegratedChat').then((module) => ({ default: module.IntegratedChat })));
 /* Il cassetto di VINZ.LAB (§14-19) — `LabEmbed` monta i componenti nativi
    del lab in uno shadow root; caricato solo quando il cassetto viene
@@ -637,12 +638,17 @@ export function App() {
                 mancante. Ferma qui: non si ricambia più senza una prova
                 diretta che qualcosa non torna. */}
             <div className={`live-chat ${tab === 'chat' ? '' : 'live-chat--hidden'}`}>
-              <LazyChat
-                runTool={runChatTool}
-                voiceModel={voiceModel}
-                onModelChange={setVoiceModel}
-                onReady={handleChatReady}
-              />
+              {/* 🔷 «Apro VINZ e parlo.» La superficie quotidiana ha tre
+                  sezioni — CHAT, ACT, FILES — e la chat resta montata sotto
+                  tutte e tre. Vedi `daily/DailySurface.tsx`. */}
+              <DailySurface token={token}>
+                <LazyChat
+                  runTool={runChatTool}
+                  voiceModel={voiceModel}
+                  onModelChange={setVoiceModel}
+                  onReady={handleChatReady}
+                />
+              </DailySurface>
             </div>
             {tab !== 'chat' && (
               <PhaseScreen

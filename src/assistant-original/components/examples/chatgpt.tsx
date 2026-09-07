@@ -22,14 +22,12 @@ import {
 } from "@/system/chatLiveDebug";
 import { shortId, useChatLiveDebug, type DetectorResult, type ChatLiveDebugState, type ChatIncident } from "@/system/useChatLiveDebug";
 import { useContext, useEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type FC } from "react";
-import { createPortal } from "react-dom";
 import { useMessageError } from "@assistant-ui/core/react";
 import { TooltipIconButton } from "@/assistant-original/components/assistant-ui/tooltip-icon-button";
 import { useShallow } from "zustand/shallow";
 import WaveSurfer from "wavesurfer.js";
 import RecordPlugin from "wavesurfer.js/dist/plugins/record.esm.js";
 import { savedToken } from "@/brain/stream";
-import { memoryTrace } from "@/assistant-original/chat-memory-feedback";
 import {
   acquireRunOwnership,
   consumePromotedRepository,
@@ -44,7 +42,6 @@ import {
 } from "@/assistant-original/conversation-lifecycle-adapter";
 import type { ThreadMessage } from "@assistant-ui/react";
 import {
-  ActivityIcon,
   ArrowUpIcon,
   CheckIcon,
   ChevronDownIcon,
@@ -68,7 +65,6 @@ import { useApp } from "@/state/store";
 import { voiceCard } from "@/engine/voiceCard";
 import { useAssetUrl } from "@/system/AssetSlot";
 import { EXPRESSION_SPEC, EXPRESSIONS } from "@/engine/assets";
-import { loadChatTrace, type ChatTrace } from "@/ai/chatTrace";
 import { memoryFeedbackFor, subscribeMemoryFeedback } from "@/assistant-original/chat-memory-feedback";
 import {
   buildOpening,
@@ -1461,23 +1457,13 @@ const OpeningComposedText: FC<{ text: string; active: boolean; delayMs: number }
 };
 
 const AssistantMessage: FC = () => {
-  const [traceOpen, setTraceOpen] = useState(false);
-  const record = useApp((state) =>
-    state.activeMonName ? state.mons[state.activeMonName] ?? null : null,
-  );
-  const { staScrivendo, haTesto, soloSticker, traceId, responseCost, chatCost, hasChatCost, openingRevealDelay, openingRevealArrivalId } = useAuiState(
+  const { staScrivendo, haTesto, soloSticker, chatCost, hasChatCost, openingRevealDelay, openingRevealArrivalId } = useAuiState(
     useShallow((s) => ({
       staScrivendo: s.message.status?.type === "running",
       haTesto: (s.message.content ?? []).some(
         (part) => part.type === "text" && part.text.trim().length > 0,
       ),
       soloSticker: s.message.metadata.custom.monReactionOnly === true,
-      traceId: typeof s.message.metadata.custom.traceId === "string"
-        ? s.message.metadata.custom.traceId
-        : null,
-      responseCost: typeof s.message.metadata.custom.costUsd === 'number'
-        ? s.message.metadata.custom.costUsd
-        : null,
       chatCost: s.thread.messages.reduce((sum, message) => {
         const cost = message.metadata.custom.costUsd;
         return sum + (typeof cost === 'number' ? cost : 0);
@@ -1599,13 +1585,10 @@ const AssistantMessage: FC = () => {
                   Export as Markdown
                 </ActionBarMorePrimitive.Item>
               </ActionBarPrimitive.ExportMarkdown>
-              <ActionBarMorePrimitive.Item
-                onSelect={() => setTraceOpen(true)}
-                className="flex cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-white outline-none select-none focus:bg-white/15"
-              >
-                <ActivityIcon className="size-5" />
-                NERD TERMINAL
-              </ActionBarMorePrimitive.Item>
+              {/* 🔷 TRACE → LAB. Il NERD TERMINAL era osservabilità dentro il
+                  prodotto quotidiano: adesso vive in `#/lab/trace`, che legge
+                  lo stesso trace da `chat-trace:last`. Qui sparisce l'accesso,
+                  non la registrazione: `saveTrace` continua a scrivere. */}
               {hasChatCost && (
                 <ActionBarMorePrimitive.Item disabled className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-white/65 outline-none select-none">
                   Costo chat {formatCost(chatCost)}
@@ -1618,7 +1601,6 @@ const AssistantMessage: FC = () => {
       </div>
 
       <MessageUpdates />
-      {traceOpen ? <NerdTerminalPanel traceId={traceId} responseCost={responseCost} personality={record ? `${record.data.voice_preset} · ${record.data.family}/${record.data.affinity}` : 'Assistente neutro'} onClose={() => setTraceOpen(false)} /> : null}
 
       <div className="vinz-assistant-meta mt-1 flex flex-wrap items-center gap-1 text-xs text-[#8e8e8e]">
         <MessagePrimitive.Parts>
@@ -1634,82 +1616,6 @@ const AssistantMessage: FC = () => {
   );
 };
 
-const NerdTerminalPanel: FC<{ traceId: string | null; responseCost: number | null; personality: string; onClose: () => void }> = ({ traceId, responseCost, personality, onClose }) => {
-  const [trace, setTrace] = useState<ChatTrace | null>(null);
-  const [loaded, setLoaded] = useState(!traceId);
-
-  useEffect(() => {
-    if (!traceId) { setLoaded(true); return; }
-    let current = true;
-    void loadChatTrace(traceId).then((value) => {
-      if (current) {
-        setTrace(value);
-        setLoaded(true);
-      }
-    });
-    return () => { current = false; };
-  }, [traceId]);
-
-  return createPortal(
-    <div className="fixed inset-0 z-[100] flex items-end bg-black/65 p-3 sm:items-center sm:justify-center" role="dialog" aria-modal="true" aria-label="Nerd Terminal">
-      <section className="max-h-[85vh] w-full max-w-xl overflow-y-auto rounded-2xl border border-white/20 bg-black p-5 text-white shadow-2xl">
-        <div className="mb-5 flex items-center justify-between">
-          <h2 className="text-base font-semibold">NERD TERMINAL</h2>
-          <button type="button" onClick={onClose} aria-label="Chiudi Nerd Terminal" className="rounded-full p-2 text-white hover:bg-white/15">
-            <XIcon className="size-5" />
-          </button>
-        </div>
-        <div className="space-y-4 text-sm leading-5">
-          {responseCost !== null ? <TraceField label="Costo risposta" value={formatCost(responseCost)} /> : null}
-          <TraceField label="Personalità" value={personality} />
-          {!loaded ? <p className="text-sm text-white/60">Caricamento trace…</p> : trace ? (
-            <>
-            <TraceField label="Modello" value={trace.model} />
-            <TraceField label="Percorso" value={trace.path} />
-            <TraceField label="Writing fingerprint" value={trace.personality?.writingFingerprint} />
-            <TraceField label="Reazioni" value={trace.personality?.reactions} />
-            {trace.systemPromptComposition?.length ? (
-              <TraceList
-                label="System prompt composition"
-                values={trace.systemPromptComposition.map((block) => `${block.name} · ${block.chars} caratteri`)}
-              />
-            ) : null}
-            {trace.context?.length ? (
-              <TraceList
-                label={trace.contextKind === "voice-notes"
-                  ? "Voice notes"
-                  : trace.contextKind === "sources"
-                    ? "Sources"
-                    : trace.contextKind === "retrieved-memories"
-                      ? "Retrieved memories"
-                      : "Contesto"}
-                values={trace.context}
-              />
-            ) : null}
-            <TraceList label="Strumenti" values={trace.toolRounds.flat()} empty="Nessuno" />
-            <TraceField label="Timing" value={`${trace.totalMs} ms`} />
-            {trace.steps.length ? <TraceList label="Tappe" values={trace.steps.map((step) => `${step.ms} ms · ${step.label}: ${step.detail}`)} /> : null}
-            <TraceField label="Errori" value={trace.error ?? "Nessuno"} />
-            {trace.originatingUserMessageId && memoryTrace(trace.originatingUserMessageId) ? <TraceList label="Memory" values={Object.entries(memoryTrace(trace.originatingUserMessageId)).map(([key, value]) => `${key}: ${String(value)}`)} /> : <TraceField label="Memory" value="Non disponibile per il messaggio origine" />}
-            </>
-          ) : null}
-        </div>
-      </section>
-    </div>,
-    document.body,
-  );
-};
-
-const TraceField: FC<{ label: string; value?: string | null }> = ({ label, value }) => value ? (
-  <div><div className="text-xs font-medium tracking-wide text-white/50 uppercase">{label}</div><div className="mt-1 break-words">{value}</div></div>
-) : null;
-
-const TraceList: FC<{ label: string; values: string[]; empty?: string }> = ({ label, values, empty }) => (
-  <div>
-    <div className="text-xs font-medium tracking-wide text-white/50 uppercase">{label}</div>
-    <div className="mt-1 space-y-1 break-words">{values.length ? values.map((value, index) => <div key={`${value}-${index}`}>{value}</div>) : empty}</div>
-  </div>
-);
 
 /**
  * Il modello sceglie la reaction insieme alla risposta, ma assistant-ui produce
