@@ -25,6 +25,7 @@ import {
   callProvider,
   generateImage,
   streamAnthropic,
+  streamOpenAiResponses,
   type SystemBlock,
   type ToolDef,
   type Turn,
@@ -410,28 +411,34 @@ export default async function handler(request: Request): Promise<Response> {
   }
 
   /* Streaming della chat V1. Il contesto neutrale è ammesso, mentre strumenti,
-     risultati di strumenti e immagini seguiranno il loop orchestrato. */
+     risultati di strumenti e immagini seguiranno il loop orchestrato.
+
+     🔷 «Non solo Claude, tutti i ragionamenti, anche OpenAI.» Prima questa
+     strada rifiutava chiunque non fosse Anthropic — non per una scelta, era
+     l'unico fornitore che avesse una funzione di streaming scritta. Ora ne ha
+     due, stesso protocollo di eventi in uscita: al chiamante non cambia
+     niente, cambia solo quale funzione risponde alla stessa domanda. */
   if (payload.stream) {
-    if (route.provider !== 'anthropic') {
+    if (route.provider !== 'anthropic' && route.provider !== 'openai') {
       return json({ error: 'streaming non disponibile per questo modello' }, 400);
     }
     if (tools.length || userBlocks.length || images.length) {
       return json({ error: 'lo streaming accetta testo e contesto' }, 400);
     }
 
-    const streamed = await streamAnthropic(
-      {
-        model: route.model,
-        system,
-        turns,
-        user,
-        webSearch,
-        thinking: Boolean(payload.thinking),
-        ...(selectedEffort ? { effort: selectedEffort } : {}),
-        maxTokens: Math.min(payload.maxTokens ?? 2000, LIMITS.maxTokens),
-      },
-      request.signal,
-    );
+    const streamRequest = {
+      model: route.model,
+      system,
+      turns,
+      user,
+      webSearch,
+      thinking: Boolean(payload.thinking),
+      ...(selectedEffort ? { effort: selectedEffort } : {}),
+      maxTokens: Math.min(payload.maxTokens ?? 2000, LIMITS.maxTokens),
+    };
+    const streamed = route.provider === 'anthropic'
+      ? await streamAnthropic(streamRequest, request.signal)
+      : await streamOpenAiResponses(streamRequest, request.signal);
     if (!streamed.ok) return json({ error: 'stream non disponibile', reason: streamed.error }, 502);
 
     void streamed.completed.then(async ({ model, usage }) => {

@@ -526,6 +526,154 @@ export async function streamAnthropic(
   return { ok: true, body, completed };
 }
 
+/* --- OpenAI, in streaming -----------------------------------------------------
+   🔷 «Non solo Claude, tutti i ragionamenti, anche OpenAI.»
+
+   🔴 QUI NON C'È UN TRASCRITTO DA MOSTRARE, COME PER CLAUDE. Verificato contro
+   l'API vera (questa chiave È configurata, a differenza di quella Anthropic):
+   `/v1/chat/completions` — la strada che questa stessa app usa per la
+   chiacchierata normale — non restituisce MAI il ragionamento, nemmeno a
+   consuntivo: è un limite del protocollo, non di questo codice. Solo
+   `/v1/responses`, con `reasoning.summary`, lo espone — e quello che espone è
+   un RIASSUNTO scritto dal modello sul proprio ragionamento, non i suoi token
+   grezzi come in Claude. Diverso nella grana, vero nella sostanza: non è una
+   frase scelta da una tabella, cambia davvero a seconda di cosa il modello ha
+   dovuto considerare.
+
+   🔒 STESSO PROTOCOLLO DI `streamAnthropic`, stessi eventi (`thinking_delta`,
+   `answer_started`/`answer_delta`, `answer_completed`): al client non deve
+   interessare quale fornitore ha risposto, solo cosa sta succedendo. */
+export async function streamOpenAiResponses(
+  req: ProviderRequest,
+  signal?: AbortSignal,
+): Promise<StreamResult> {
+  const key = process.env.OPENAI_API_KEY;
+  if (!key) return { ok: false, error: 'OPENAI_API_KEY mancante' };
+
+  let response: Response;
+  try {
+    response = await fetch('https://api.openai.com/v1/responses', {
+      method: 'POST',
+      signal,
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` },
+      body: JSON.stringify({
+        model: req.model,
+        instructions: req.system.map((block) => block.text).join('\n\n'),
+        input: openaiResponseInput(req),
+        max_output_tokens: req.maxTokens,
+        stream: true,
+        store: false,
+        /* Il riassunto di ragionamento è un costo a parte solo quando lo si
+           chiede: `req.thinking` decide, esattamente come per Claude. */
+        ...(req.thinking ? { reasoning: { effort: req.effort ?? 'medium', summary: 'auto' } } : {}),
+        ...(req.webSearch ? { tools: [{ type: 'web_search' }], include: ['web_search_call.action.sources'] } : {}),
+      }),
+    });
+  } catch (error) {
+    return { ok: false, error: String(error) };
+  }
+
+  if (!response.ok || !response.body) {
+    return { ok: false, error: `openai ${response.status}: ${await response.text()}` };
+  }
+
+  let finish!: (value: { model: string; usage: Usage }) => void;
+  const completed = new Promise<{ model: string; usage: Usage }>((resolve) => { finish = resolve; });
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let model = req.model;
+  const usage: Usage = {};
+  const foundSources: Source[] = [];
+  const foundUrls = new Set<string>();
+  let answerStarted = false;
+  let webSearches = 0;
+
+  const encode = (event: AiStreamEvent) =>
+    new TextEncoder().encode(`data: ${JSON.stringify(event)}\n\n`);
+
+  const pushSource = (controller: ReadableStreamDefaultController<Uint8Array>, value: unknown) => {
+    const source = asSource(value as { url?: string; title?: string });
+    if (!source || foundUrls.has(source.url)) return;
+    foundUrls.add(source.url);
+    foundSources.push(source);
+    controller.enqueue(encode({ type: 'source_found', source }));
+  };
+
+  const body = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      try {
+        while (true) {
+          const { value, done } = await reader.read();
+          buffer += decoder.decode(value, { stream: !done });
+          const events = buffer.split('\n\n');
+          buffer = events.pop() ?? '';
+
+          for (const event of events) {
+            const data = event.split('\n').find((line) => line.startsWith('data: '))?.slice(6);
+            if (!data) continue;
+            const parsed = JSON.parse(data) as {
+              type?: string;
+              delta?: string;
+              response?: { model?: string; usage?: Record<string, unknown> };
+              item?: { type?: string; action?: { sources?: unknown[] } };
+            };
+
+            if (parsed.type === 'response.reasoning_summary_text.delta' && parsed.delta) {
+              controller.enqueue(encode({ type: 'thinking_delta', delta: parsed.delta }));
+            }
+
+            if (parsed.type === 'response.output_text.delta' && parsed.delta) {
+              if (!answerStarted) {
+                answerStarted = true;
+                controller.enqueue(encode({ type: 'answer_started' }));
+              }
+              controller.enqueue(encode({ type: 'answer_delta', delta: parsed.delta }));
+            }
+
+            if (parsed.type === 'response.output_item.done' && parsed.item?.type === 'web_search_call') {
+              webSearches += 1;
+              for (const found of parsed.item.action?.sources ?? []) pushSource(controller, found);
+            }
+
+            if (parsed.type === 'response.completed' && parsed.response) {
+              model = parsed.response.model ?? model;
+              const rawUsage = parsed.response.usage as
+                | { input_tokens?: number; output_tokens?: number; input_tokens_details?: { cached_tokens?: number } }
+                | undefined;
+              const cached = rawUsage?.input_tokens_details?.cached_tokens ?? 0;
+              usage.inputTokens = Math.max(0, (rawUsage?.input_tokens ?? 0) - cached);
+              usage.cacheReadTokens = cached;
+              usage.outputTokens = rawUsage?.output_tokens ?? 0;
+              usage.webSearches = webSearches;
+            }
+          }
+          if (done) break;
+        }
+        controller.enqueue(encode({
+          type: 'answer_completed',
+          model,
+          usage,
+          costUsd: costOf(model, usage),
+          sources: foundSources,
+        }));
+        finish({ model, usage });
+        controller.close();
+      } catch (error) {
+        finish({ model, usage });
+        controller.enqueue(encode({ type: 'error', message: String(error) }));
+        controller.close();
+      }
+    },
+    cancel() {
+      void reader.cancel();
+      finish({ model, usage });
+    },
+  });
+
+  return { ok: true, body, completed };
+}
+
 /* --- Google -----------------------------------------------------------------
    Serve solo la lettura delle foto. I blocchi di sistema qui diventano una
    sola istruzione: Gemini non ha il concetto di più blocchi con cache, e

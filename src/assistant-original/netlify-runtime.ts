@@ -674,7 +674,11 @@ function createBaseNetlifyChatModel(shared: { systemPrompt: string; requestId: s
     const requestId = shared.requestId;
     const startedAt = Date.now();
     const reasoningEffort = context.config?.reasoningEffort;
-    const useStream = modelName?.startsWith("claude-") ?? false;
+    /* 🔷 «Non solo Claude, tutti i ragionamenti, anche OpenAI.» Il server sa
+       rispondere in streaming a entrambe le famiglie ora (vedi
+       `streamOpenAiResponses` in providers.ts); qui basta non chiudere la
+       porta a chi comincia per "gpt-". */
+    const useStream = (modelName?.startsWith("claude-") || modelName?.startsWith("gpt-")) ?? false;
     const last = messages.at(-1);
     const images = imagesForRun(messages);
     const files = filesOf(last);
