@@ -43,7 +43,11 @@
    operativo possa fidarsene.
    ========================================================================= */
 
-export type LabId = 'creation' | 'system' | 'agent' | 'trace' | 'skills';
+/* 🔴 «SKILLS va tolto dal Lab.» Aggiungere una skill è ora un pop up dentro
+   MIND (`daily/SkillStore.tsx`); questa stanza non esiste più qui. Un
+   vecchio segnalibro `/lab/skills` cade su `null` (la home del Lab), non su
+   un errore. */
+export type LabId = 'creation' | 'system' | 'agent' | 'trace';
 
 export type Entrypoint =
   | { kind: 'app' }
@@ -52,7 +56,7 @@ export type Entrypoint =
 export function readEntrypoint(): Entrypoint {
   /* ⚠️ L'ancora `^…$` non è un dettaglio: senza, `/lab` matcherebbe dentro
      `/labirinto` e una pagina scritta dal .mon aprirebbe il laboratorio. */
-  const pathMatch = /^\/lab(?:\/(creation|system|agent|trace|skills))?\/?$/.exec(window.location.pathname);
+  const pathMatch = /^\/lab(?:\/(creation|system|agent|trace))?\/?$/.exec(window.location.pathname);
 
   if (pathMatch) {
     return { kind: 'lab', lab: (pathMatch[1] as LabId | undefined) ?? null };
@@ -61,7 +65,7 @@ export function readEntrypoint(): Entrypoint {
   /* Lo stesso controllo sul frammento, tenuto per compatibilità: un
      segnalibro `#/lab` aggiunto prima di oggi continua a funzionare, e dentro
      il lab la navigazione fra le stanze passa ancora di qui. */
-  const hashMatch = /^#\/lab(?:\/(creation|system|agent|trace|skills))?\/?$/.exec(window.location.hash);
+  const hashMatch = /^#\/lab(?:\/(creation|system|agent|trace))?\/?$/.exec(window.location.hash);
 
   if (hashMatch) {
     return { kind: 'lab', lab: (hashMatch[1] as LabId | undefined) ?? null };

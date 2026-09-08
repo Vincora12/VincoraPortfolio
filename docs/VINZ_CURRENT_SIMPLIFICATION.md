@@ -308,9 +308,13 @@ quando il runtime è passato al Local Core. Adesso usa `X-Only-If-New`, e in pi�
 salva un puntatore `chat-trace:last`: serve perché il LAB è un documento a parte
 e non condivide la memoria della pagina della chat.
 
-### SKILLS (`/lab/skills`)
+### SKILLS (dentro MIND, non nel LAB)
 
-Due viste: **INSTALLED** e **STORE**.
+Non è più una stanza di LAB. Le skill installate — accenderle, spegnerle —
+vivono in MIND, nella stessa lista di THINK e ACT; aggiungerne una apre
+`SkillStore` (`src/daily/SkillStore.tsx`), un pop up nativo con **solo lo
+store**: cerca, ispeziona, installa. Nessuna scheda INSTALLED da capire prima,
+nessuna navigazione di LAB intorno.
 
 - **Sorgente reale:** `anthropics/skills` su GitHub, formato SKILL.md. Il
   registro è un elenco (`SOURCES` in `netlify/functions/skills.ts`): aggiungere
@@ -337,7 +341,7 @@ Due viste: **INSTALLED** e **STORE**.
 - L'endpoint richiede il token VINZ come ogni altra rotta; senza, 401.
 
 **Limite dichiarato:** una skill installata e accesa **non entra ancora nel
-prompt della chat**. SKILLS.LAB oggi le porta sul Mac e le governa; il
+prompt della chat**. Oggi la si porta sul Mac e la si governa; il
 collegamento al runtime è il passo successivo, e finché non c'è, «attiva»
 significa «marcata come attiva», non «in uso».
 

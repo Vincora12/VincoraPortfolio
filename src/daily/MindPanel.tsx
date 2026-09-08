@@ -27,26 +27,26 @@
    esistono e non vengono inventati.
    ========================================================================= */
 
-import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import type { CalendarEvent } from '@/engine/calendarEvents';
 import { EyeIcon, PuzzleIcon, SparklesIcon, UserIcon } from 'lucide-react';
 
 import type { PushStatus } from '@/system/pushNotifications';
 import { TopicIcon } from '@/system/topicIcon';
+import { SkillStore } from './SkillStore';
 
 import './daily.css';
 
-/* 🔷 «Dentro MIND metti anche Skill, con le skill attive e la possibilità di
-   inserirne di nuove — una cosa che è in LAB, ma mettiamo qui.»
+/* 🔷 «Lo store delle skill non mi piace, non è intuitivo — e va tolto dal
+   Lab: un pop up con solo lo store, che si apre da "Aggiungi una skill".»
 
-   🔒 STESSO COMPONENTE, NON UNA COPIA. `LabEmbed` esiste apposta per questo:
-   monta `LabApp` — lo stesso React tree di `/lab`, stesso `useApp`, stesso
-   store — dentro uno shadow root, così il CSS del Lab (che possiede `:root`e
-   `body` come se fosse un documento a sé) non tocca l'app vera. Aprirlo qui
-   con `initialLab="skills"` porta dritti alla stanza giusta, senza duplicare
-   la logica di installazione, ispezione e store che vive già in `SkillsLab`. */
-const LabEmbed = lazy(() => import('@/lab/embed/LabEmbed').then((module) => ({ default: module.LabEmbed })));
+   🔴 PRIMA ERA `LabEmbed` con `initialLab="skills"`: portava dentro l'intera
+   navigazione di LAB — due schede da capire, un ritorno alla home del Lab —
+   per un gesto che doveva essere una cosa sola. Ora è `SkillStore`, nativo di
+   questa superficie: cerca, ispeziona, installa. Nient'altro. Le skill già
+   installate restano dove sono, poche righe più sopra, nella stessa lista di
+   THINK e ACT. */
 
 interface InstalledSkillSummary {
   id: string;
@@ -537,14 +537,11 @@ export function MindPanel({ token }: { token: string | null }) {
       )}
 
       {skillsOpen && (
-        <div className="daily-skills-overlay" role="dialog" aria-modal="true" aria-label="Skills">
-          <button type="button" className="daily-skills-overlay__close" onClick={() => { setSkillsOpen(false); void load(); }}>
-            CHIUDI ✕
-          </button>
-          <Suspense fallback={null}>
-            <LabEmbed initialLab="skills" />
-          </Suspense>
-        </div>
+        <SkillStore
+          token={token}
+          onClose={() => setSkillsOpen(false)}
+          onInstalled={() => { setSkillsOpen(false); void load(); }}
+        />
       )}
     </section>
   );

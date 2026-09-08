@@ -337,24 +337,22 @@
   display: none;
 }
 
-/* --- SKILLS, dentro MIND ma presa in prestito da LAB ----------------------
-   🔷 «Metti anche Skill... una cosa che è in LAB, ma mettiamo qui.»
+/* --- AGGIUNGI UNA SKILL — pop up nativo, solo store ------------------------
+   🔷 «Lo store non è intuitivo, e va tolto dal Lab: un pop up con solo lo
+   store, che si apre da "Aggiungi una skill".»
 
-   🔒 `LabEmbed` porta lo stesso `SkillsLab` di `/lab` dentro uno shadow root:
-   il suo CSS possiede `:root`/`body` come se fosse un documento a parte, ed
-   è tarato su un fondo chiaro (le schermate MON/ME). L'overlay gli dà lo
-   stesso fondo bianco che avrebbe nel drawer di LAB (vedi `.lab-underlayer`
-   in `styles/base.css`) — non il nero di questa superficie, che qui
-   sfonderebbe la sua tipografia pensata per l'altro contesto. */
+   🔒 NON È PIÙ UN PRESTITO DA LAB. `SkillStore` (`daily/SkillStore.tsx`) è
+   nativo di questa superficie — stesso nero, stessi `.daily-row`/`.daily-row__action`
+   di THINK e ACT — quindi l'overlay porta gli stessi colori, non più il
+   fondo bianco che serviva solo a ospitare la tipografia presa in prestito
+   dal Lab. */
 .daily-skills-overlay {
   position: fixed;
   inset: 0;
   z-index: 60;
-  background: #fff;
-}
-
-.daily-skills-overlay :where(.lab-embed-host) {
-  height: 100%;
+  overflow-y: auto;
+  background: #000;
+  color: #ececec;
 }
 
 .daily-skills-overlay__close {
@@ -364,13 +362,92 @@
   z-index: 1;
   min-height: 36px;
   padding: 0 12px;
-  border: 1px solid rgba(0, 0, 0, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: 8px;
-  background: #fff;
-  color: #0d0d0d;
+  background: rgba(255, 255, 255, 0.04);
+  color: #ececec;
   font-family: var(--font-mono, ui-monospace, monospace);
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.1em;
   cursor: pointer;
+}
+
+.skillstore {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: calc(env(safe-area-inset-top) + 56px) 16px calc(env(safe-area-inset-bottom) + 24px);
+}
+
+.skillstore__title {
+  margin: 0 0 6px;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.skillstore__lead {
+  margin: 0 0 18px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #a8a8a8;
+}
+
+.skillstore__search {
+  width: 100%;
+  min-height: 44px;
+  margin-bottom: 8px;
+  padding: 0 14px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  color: #ececec;
+  font-size: 15px;
+}
+
+.skillstore__search::placeholder {
+  color: #6f6f6f;
+}
+
+.skillstore__list {
+  margin-top: 4px;
+}
+
+.skillstore__back {
+  margin-bottom: 12px;
+}
+
+.skillstore__manifest {
+  margin: 14px 0;
+}
+
+.skillstore__manifest summary {
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  color: #ececec;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.skillstore__manifest pre {
+  margin: 8px 0 0;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  color: #c9c9c9;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+
+.skillstore__actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 18px;
 }

@@ -29,7 +29,6 @@ const CreationLab = lazy(() => import('./rooms/CreationLab').then((m) => ({ defa
 const SystemLab = lazy(() => import('./rooms/SystemLab').then((m) => ({ default: m.SystemLab })));
 const AgentLab = lazy(() => import('./rooms/AgentLab').then((m) => ({ default: m.AgentLab })));
 const TraceLab = lazy(() => import('./rooms/TraceLab').then((m) => ({ default: m.TraceLab })));
-const SkillsLab = lazy(() => import('./rooms/SkillsLab').then((m) => ({ default: m.SkillsLab })));
 
 /* 🔷 LAB INFORMATION ARCHITECTURE CLEANUP — «una sala controllo, non un
    museo di ogni esperimento.» SOUL.LAB e DESIGN.LAB non aiutavano più a
@@ -68,12 +67,6 @@ const PORTE: { id: LabId; nome: string; desc: string; tags: string[] }[] = [
     nome: '🔎 TRACE.LAB',
     desc: 'Il percorso dell’ultima risposta, la composizione del system, i passi e lo stato vivo del thread.',
     tags: ['OSSERVABILITÀ', 'NON È PRODOTTO QUOTIDIANO'],
-  },
-  {
-    id: 'skills',
-    nome: '🧩 SKILLS.LAB',
-    desc: 'Le capacità installabili di VINZ: quelle installate e la banca da cui si installano, con ispezione prima.',
-    tags: ['INSTALLED + STORE', 'ISPEZIONA PRIMA DI INSTALLARE'],
   },
 ];
 
@@ -147,7 +140,6 @@ export function LabApp({ initialLab }: { initialLab: LabId | null }) {
           {active === 'system' && <SystemLab onBack={indietro} />}
           {active === 'agent' && <AgentLab onBack={indietro} />}
           {active === 'trace' && <TraceLab onBack={indietro} />}
-          {active === 'skills' && <SkillsLab onBack={indietro} />}
         </Suspense>
       </>
     );
