@@ -200,6 +200,14 @@ Limiti del backend, non inventati qui: 5 MB per file, 40 file, 20 MB in tutto.
 Elenco, caricamento (multiplo), eliminazione, tipo e peso. Niente cartelle,
 niente Drive, niente dashboard.
 
+**«Progetto» non è più vocabolario quotidiano.** Sotto FILES c'è ancora lo spazio
+GLOBAL, ma è impianto: la parola non deve affiorare. Due punti dove affiorava e
+non affiora più — la riga «✓» di `crea_file_testo`, che ora dice «File aggiunto
+in FILES» quando non c'è uno scope di progetto, e l'errore «Archivio progetti non
+raggiungibile» che arriva da `projects/client.ts`, riscritto in «File non
+raggiungibili». Dentro il LAB, dove i Projects esistono ancora, la parola resta
+giusta e resta.
+
 **Limite dichiarato:** i file caricati **non** sono ancora leggibili dalla chat.
 `buildProjectContext` porta al modello istruzioni e contesto del progetto, non i
 file, e gli strumenti `leggi_progetto` / `leggi_sorgente_progetto` leggono il

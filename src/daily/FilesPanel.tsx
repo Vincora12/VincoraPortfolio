@@ -29,6 +29,16 @@ function kindLabel(name: string): string {
   return extension;
 }
 
+/* ⚠️ «Archivio progetti» non deve affiorare qui. Sotto FILES c'è ancora lo
+   spazio GLOBAL — è impianto, e va bene — ma il messaggio d'errore arriva da
+   `projects/client.ts`, che quella parola la usa giustamente nel LAB. Qui la
+   sostituiamo con quella della sezione in cui l'utente si trova davvero;
+   tutto il resto del messaggio (token mancante, 401) passa intatto, perché
+   quelli dicono cosa fare. */
+function inFilesWords(message: string): string {
+  return message.replace(/Archivio progetti non raggiungibile\./i, 'File non raggiungibili.');
+}
+
 async function encode(file: File): Promise<ProjectFile> {
   const buffer = new Uint8Array(await file.arrayBuffer());
   let binary = '';
@@ -56,7 +66,7 @@ export function FilesPanel({ token }: { token: string | null }) {
     try {
       setProject(await loadProject(token, GLOBAL_PROJECT_ID));
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'File non disponibili.');
+      setError(cause instanceof Error ? inFilesWords(cause.message) : 'File non disponibili.');
     } finally {
       setBusy(false);
     }
@@ -84,7 +94,7 @@ export function FilesPanel({ token }: { token: string | null }) {
         }),
       );
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Caricamento non riuscito.');
+      setError(cause instanceof Error ? inFilesWords(cause.message) : 'Caricamento non riuscito.');
     } finally {
       setBusy(false);
       if (input.current) input.current.value = '';
@@ -106,7 +116,7 @@ export function FilesPanel({ token }: { token: string | null }) {
         }),
       );
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Eliminazione non riuscita.');
+      setError(cause instanceof Error ? inFilesWords(cause.message) : 'Eliminazione non riuscita.');
     } finally {
       setBusy(false);
     }

@@ -374,7 +374,7 @@ async function foodBarcodeContext(text: string, token: string, signal: AbortSign
    aggiorna e annulla), quindi l'etichetta guarda anche l'input: «Promemoria
    creato» e «Promemoria disattivato» non sono la stessa notizia, e `list` non
    è una notizia affatto. */
-function updateLabel(use: ToolUse): string | null {
+function updateLabel(use: ToolUse, projectId?: string | null): string | null {
   const args = (use.input && typeof use.input === 'object' ? use.input : {}) as Record<string, unknown>;
   const action = typeof args.azione === 'string' ? args.azione : '';
 
@@ -405,8 +405,14 @@ function updateLabel(use: ToolUse): string | null {
     case 'crea_automazione': return 'Automazione creata';
     case 'ricorda_di': return 'Promemoria interno segnato';
 
-    /* --- Documenti --- */
-    case 'crea_file_testo': return 'File creato';
+    /* --- Documenti ---
+       ⚠️ «Progetto» non è vocabolario della superficie quotidiana: là quella
+       parola è stata tolta, e FILES è il posto dove il materiale sta. Sotto
+       resta lo spazio GLOBAL, ma è impianto, non una cosa da nominare. Con uno
+       scope di progetto attivo — cioè dentro il LAB, dove i Projects esistono
+       ancora — la parola torna giusta, quindi l'etichetta segue lo scope
+       invece di sceglierne una e sbagliarla metà delle volte. */
+    case 'crea_file_testo': return projectId ? 'File aggiunto al progetto' : 'File aggiunto in FILES';
     case 'scrivi_artifact_progetto': return 'Documento salvato nel progetto';
     case 'scrivi_una_pagina': return 'Pagina creata';
     case 'aggiorna_una_pagina': return 'Pagina aggiornata';
@@ -473,7 +479,7 @@ async function* runWithLocalTools(
     } catch (error) { entry.status = 'FAIL'; throw error; }
     finally { entry.durationMs = Math.round(performance.now() - startedAt); notifyActivity(); }
     if (result.isError) return result;
-    const label = updateLabel(use);
+    const label = updateLabel(use, shared?.projectId);
     if (label && !updates.includes(label)) updates.push(label);
     return result;
   };
