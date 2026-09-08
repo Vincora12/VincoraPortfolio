@@ -1,7 +1,6 @@
 import { type CSSProperties, type FC } from "react";
 import { ChatGPT } from "./components/examples/chatgpt";
 import { ChatStorageStatus, ConversationTabs, useConversationOptions } from './conversation-options';
-import { TopicChips } from './TopicChips';
 
 type ChatSurfaceProps = {
   model?: string | null;
@@ -42,10 +41,9 @@ export const ChatSurface: FC<ChatSurfaceProps> = ({ embedded = false, themeStyle
      lo scope della chat nel runtime. Si scartano `controls` (il pannello
      Projects) e le schede, non la logica. */
   return (
-    <main style={themeStyle} className="assistant-clone dark relative flex h-full min-h-0 flex-col overflow-hidden bg-black text-[#ececec]">
+    <main style={themeStyle} className="assistant-clone dark relative h-full min-h-0 overflow-hidden bg-black text-[#ececec]">
       <div className="vinz-chat-top-controls"><ChatStorageStatus /></div>
-      <TopicChips />
-      <div className="min-h-0 flex-1"><ChatGPT newThreadScope={scope} onNewThread={inheritScope} /></div>
+      <ChatGPT newThreadScope={scope} onNewThread={inheritScope} />
       {workspace}
     </main>
   );

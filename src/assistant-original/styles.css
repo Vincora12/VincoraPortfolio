@@ -923,14 +923,18 @@ body[data-scroll-locked] {
   }
 }
 
-/* --- I pulsantini dei topic, sopra la chat ------------------------------
+/* --- I pulsantini dei topic, sopra la barra di scrittura -----------------
+   🔷 «Devono essere sopra la barra in cui scrivo.» Stavano in cima, lontani dal
+   pollice e in mezzo alla conversazione; qui sono dove la mano è già, e
+   scorrono via con il piede della chat invece di rubare spazio al filo.
+
    Piccoli per scelta: sono un indice, non una navigazione. Una riga sola che
    scorre di lato, senza barra di scorrimento visibile e senza sfondi pieni. */
 .vinz-topic-chips {
   flex: 0 0 auto;
   display: flex;
   gap: 6px;
-  padding: calc(env(safe-area-inset-top) + 6px) 12px 6px;
+  padding: 0 4px 6px;
   overflow-x: auto;
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;

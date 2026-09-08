@@ -99,7 +99,7 @@ Serve a tre cose insieme, ed è il motivo per cui vale la pena:
 |---|---|
 | **Contesto** | i tratti chiusi arrivano al modello come riassunti invece di essere buttati |
 | **Ricerca** | «quando abbiamo parlato di X» cerca fra titoli e riassunti (`cerca_conversazione`) |
-| **Navigazione** | le pastiglie sopra la chat: toccane una per riprendere quel discorso |
+| **Navigazione** | le pastiglie **sopra la barra di scrittura**: toccane una per riprendere quel discorso |
 
 **Quando si chiude, e perché così.** Un tratto si chiude a 16 messaggi oppure
 dopo 3 ore di silenzio. La decisione è deterministica e **gratis**: nessuna
@@ -114,6 +114,11 @@ viaggiava per essere buttato — banda sprecata all'andata, amnesia all'arrivo.
 Adesso si mandano i messaggi del tratto ancora aperto più i riassunti di quelli
 chiusi. Sullo stesso filo: **da 82 turni a 2**, e alla domanda «quanto pesavo»
 risponde ancora 79,4 kg, che stava solo nei riassunti.
+
+**Dove stanno le pastiglie.** Sopra il campo di scrittura, dentro il piede
+appiccicato in fondo alla chat — non in cima. In cima erano lontane dal pollice
+e rubavano spazio al filo; lì sono dove la mano è già e scorrono via insieme al
+composer.
 
 **Senza segnalibro non cambia niente.** Prima accensione, riassunto non riuscito,
 id non più trovato: si manda tutto, come prima. Un indice assente non deve

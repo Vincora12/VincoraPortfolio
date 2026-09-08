@@ -61,6 +61,7 @@ import { MarkdownText } from "@/assistant-original/components/assistant-ui/markd
 import { ToolFallback } from "@/assistant-original/components/assistant-ui/tool-fallback";
 import { Sources } from "@/assistant-original/components/assistant-ui/sources";
 import { CloneThreadShell } from "./clone-thread-shell";
+import { TopicChips } from "@/assistant-original/TopicChips";
 import { useApp } from "@/state/store";
 import { voiceCard } from "@/engine/voiceCard";
 import { useAssetUrl } from "@/system/AssetSlot";
@@ -269,6 +270,7 @@ export const ChatGPT: FC<{
 
             <ThreadPrimitive.ViewportFooter className="sticky bottom-0 mx-auto flex w-full max-w-3xl flex-col gap-2 overflow-visible rounded-t-3xl bg-white pb-2 dark:bg-black">
               <ThreadScrollToBottom />
+              <TopicChips />
               <Composer placeholder="Ask anything" />
             </ThreadPrimitive.ViewportFooter>
           </ThreadPrimitive.Viewport>
@@ -786,6 +788,7 @@ const EmptyState: FC = () => {
     <div className="flex grow flex-col px-4">
       <div className="grow" aria-hidden="true" />
       <div className="mx-auto flex w-full max-w-3xl flex-col items-stretch pb-2">
+        <TopicChips />
         <Composer placeholder="Ask anything" />
       </div>
     </div>
