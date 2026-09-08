@@ -85,14 +85,18 @@ const LIMITS = {
   /* Gli strumenti sono pochi e li scrive l'app, non l'utente: il tetto serve
      solo a fermare un ciclo che li duplica.
 
-     ⚠️ NON È UN TETTO DI COSTO, ed è per questo che il numero non è sacro:
-     misurato oggi, il pool salute pieno sta a ~6.000 caratteri su 12 strumenti.
-     Chi aggiunge uno strumento grosso lo sfonda — e prima l'unica traccia era
-     «strumenti troppo lunghi» in chat, senza dire quali né quanto. Adesso
-     l'errore porta i numeri: alzare il tetto o accorciare la descrizione
-     diventa una decisione, non un indovinello. */
+     ⚠️ NON È UN TETTO DI COSTO, ed è per questo che il numero non è sacro.
+     Misurato: il pool salute pieno sta a ~6.000 caratteri, quello non-salute a
+     ~8.300 con `leggi_file` dentro — cioè un insieme del tutto legittimo
+     sfondava gli 8.000 di prima. Alzato a 16.000, che resta il doppio del
+     massimo reale e continua a fare il suo mestiere: un ciclo che duplica gli
+     strumenti li moltiplica, non li allunga di qualche centinaio di caratteri.
+     `tools: 12` non si tocca — quello è il vero freno al numero.
+
+     L'errore porta i numeri e la lista: sfondarlo di nuovo è una decisione,
+     non un indovinello. */
   tools: 12,
-  toolChars: 8_000,
+  toolChars: 16_000,
 };
 
 interface Payload {

@@ -316,7 +316,16 @@ export function isWorkoutPlanIntent(text: string): boolean {
   return mentionsPlan || schedulesDay || schedulesNamedActivity;
 }
 
+/* 🔴 LEGGERE UN FILE NON È REGISTRARE. «Leggi il csv degli allenamenti e dimmi
+   in che settimana ho corso di più» contiene «ho corso», quindi passava per un
+   allenamento da registrare e VINZ offriva il pulsante REGISTRA ALLENAMENTO su
+   una domanda che parlava di un CSV. È la stessa regola di sempre — parlare non
+   è registrare — applicata a una forma che prima non esisteva. */
+const READ_FILE_INTENT =
+  /\b(?:leggi|legg\w*|apri|analizz\w*|guard\w*|controll\w*|riassum\w*)\b[^.!?]*\b(?:file|csv|txt|markdown|pdf|documento|allegat\w*)\b/i;
+
 export function isMealLogIntent(text: string): boolean {
+  if (READ_FILE_INTENT.test(text)) return false;
   if (isMealCorrectionIntent(text)) return false;
   if (/^\s*(?:cosa|che cosa|quanto|quanti|quante)\b.*\b(?:mangiat\w*|bevut\w*)/i.test(text)) return false;
   if (/\bnon\s+ho\s+(?:mangiato|bevuto)\b/i.test(text)) return false;
@@ -324,6 +333,7 @@ export function isMealLogIntent(text: string): boolean {
 }
 
 export function isWorkoutLogIntent(text: string): boolean {
+  if (READ_FILE_INTENT.test(text)) return false;
   if (isWorkoutPlanIntent(text)) return false;
   if (/^\s*(?:cosa|che cosa|quanto|quanti|quante)\b.*\b(?:allenat\w*|cors\w*|camminat\w*)/i.test(text)) return false;
   if (/\bnon\s+(?:mi\s+sono\s+allenat\w*|ho\s+fatto\s+(?:allenamento|sport))\b/i.test(text)) return false;
@@ -332,7 +342,7 @@ export function isWorkoutLogIntent(text: string): boolean {
 
 /** Usa il loop strumenti solo quando la richiesta riguarda dati o azioni locali. */
 export function shouldUseLocalTools(text: string): boolean {
-  return TOOL_INTENT.test(text) || CODE_INSPECTION_INTENT.test(text) || AUDIT_INTENT.test(text) || EXPORT_INTENT.test(text) || isDailyEnergyIntent(text) || /\b(file|txt|markdown|documento|artifact|progett\w*|sorgent\w*|codice|bmr|tdee|deficit|energia)\b/i.test(text);
+  return TOOL_INTENT.test(text) || CODE_INSPECTION_INTENT.test(text) || AUDIT_INTENT.test(text) || EXPORT_INTENT.test(text) || isDailyEnergyIntent(text) || /\b(file|txt|markdown|csv|pdf|allegat\w*|caricat\w*|documento|artifact|progett\w*|sorgent\w*|codice|bmr|tdee|deficit|energia)\b/i.test(text);
 }
 
 const CORRECTION_INTENT = /\b(?:corregg\w*|rettific\w*|modific\w*|anzi)\b/i;
@@ -485,8 +495,16 @@ export async function replyWithLocalTools(
     || Boolean(mealConfirmation || workoutConfirmation || actionConfirmation);
   const projectTools = new Set(['leggi_progetto', 'leggi_sorgente_progetto', 'scrivi_artifact_progetto']);
   const reminderRequest = /\b(promemori\w*|ricordami|ricorda|reminder|domani)\b/i.test(user);
+  /* Il pool si taglia a 12: senza una priorità, `leggi_file` può restare fuori
+     proprio nel turno in cui l'utente chiede di un file. */
+  const fileRequest = /\b(file|allegat\w*|caricat\w*|csv|txt|markdown|pdf|documento)\b/i.test(user);
   const basePool = isAudit ? [...CODE_TOOL_DEFS, ...TOOLS.filter(tool => tool.name === 'leggi_me' || tool.name === 'leggi_i_miei_dati')]
     : isCodeInspectionIntent(user) && !isHealthRequest ? CODE_TOOL_DEFS : TOOLS.filter((tool) => (reminderRequest && tool.name === 'programma_promemoria')
+    /* ⚠️ I FILE NON SONO UN ARGOMENTO «SALUTE» O «NON SALUTE». Chiedere «leggi
+       il csv degli allenamenti» finisce nel ramo salute per via della parola
+       allenamenti, e lì `leggi_file` non c'è: la risposta diventava «non riesco
+       a leggere quel CSV». Attraversa la divisione, come il promemoria. */
+    || (fileRequest && tool.name === 'leggi_file')
     /* ⚠️ IL SÌ NON CONTIENE PIÙ LA PAROLA CHIAVE. «Vai, crea» non fa scattare
        `reminderRequest`, quindi al giro della conferma lo strumento sarebbe
        sparito dal pool e il modello avrebbe risposto «non posso» dopo che
@@ -504,7 +522,8 @@ export async function replyWithLocalTools(
         || (name === 'registra_allenamento' && workoutConfirmation?.status === 'confirmed')
         || (actionConfirmation?.status === 'confirmed' && name === CONFIRMABLE_ACTIONS[actionConfirmation.action].tool) ? 4
         : energyRequest && name === 'calcola_energia_giornaliera' ? 3
-        : reminderRequest && name === 'programma_promemoria' ? 3 : shared?.projectId && projectTools.has(name) ? 2 : 0;
+        : reminderRequest && name === 'programma_promemoria' ? 3
+        : fileRequest && name === 'leggi_file' ? 3 : shared?.projectId && projectTools.has(name) ? 2 : 0;
       return priority(b.name) - priority(a.name);
     }).filter((tool) => {
     if (tool.name === 'registra_pasto') return mealConfirmation?.status === 'confirmed';

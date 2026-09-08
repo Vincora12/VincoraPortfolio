@@ -208,11 +208,29 @@ raggiungibile» che arriva da `projects/client.ts`, riscritto in «File non
 raggiungibili». Dentro il LAB, dove i Projects esistono ancora, la parola resta
 giusta e resta.
 
-**Limite dichiarato:** i file caricati **non** sono ancora leggibili dalla chat.
-`buildProjectContext` porta al modello istruzioni e contesto del progetto, non i
-file, e gli strumenti `leggi_progetto` / `leggi_sorgente_progetto` leggono il
-testo importato e gli artefatti, non gli allegati. FILES oggi è il posto dove il
-materiale sta e persiste; il collegamento alla chat è il passo successivo.
+**Il cerchio è chiuso: la chat legge i file.** Lo strumento è `leggi_file`,
+con due azioni — `elenca` per sapere cosa c'è, `leggi` per aprirne uno.
+«Leggi il csv degli allenamenti e dimmi in che settimana ho corso di più»
+funziona sui dati veri del file.
+
+- **Solo testo, e detto chiaro:** txt, md, csv, tsv, json, log, yml, ini. Il
+  decoder è `fatal: true` apposta: se i byte non sono UTF-8 valido lo strumento
+  lo dichiara invece di restituire caratteri a caso. PDF e immagini restano
+  conservati ma non si leggono da qui, e VINZ lo dice invece di inventare.
+- **Tetto sul risultato:** 8.000 caratteri, poi tronca e lo scrive. Un file più
+  lungo farebbe superare `LIMITS.userChars` (12.000) e il turno fallirebbe
+  in blocco — meglio troncare e dirlo.
+- **Attraversa la divisione salute / non-salute.** «Leggi il csv degli
+  allenamenti» finisce nel ramo salute per via della parola *allenamenti*, dove
+  `leggi_file` non ci sarebbe: come il promemoria, lo strumento resta nel pool
+  quando la frase parla di file.
+- **Leggere non è registrare.** «…dimmi in che settimana **ho corso** di più»
+  contiene una forma che `isWorkoutLogIntent` legge come allenamento da
+  registrare: VINZ offriva `REGISTRA ALLENAMENTO` su una domanda che parlava di
+  un CSV. Un intento di lettura file ora esclude il log del pasto e
+  dell'allenamento.
+
+Scrivere funzionava già: `crea_file_testo` mette un file in FILES dalla chat.
 
 ## LAB
 
@@ -293,7 +311,8 @@ LAB esistente, architettura Netlify.
 
 1. Le automazioni non si modificano a voce dopo la creazione: pausa o elimina da
    ACT e ricrea. Manca anche la cadenza mensile.
-2. I file di FILES non sono ancora leggibili dalla chat.
+2. Di FILES si leggono solo i testuali: PDF e immagini restano conservati ma
+   non leggibili dalla chat.
 3. Le skill installate non sono ancora collegate al prompt.
 4. `isWorkoutLogIntent` è sensibile alla forma della frase: «Mi sono allenato
    oggi: 45 minuti di arrampicata» apre la conferma e registra; «Allenamento

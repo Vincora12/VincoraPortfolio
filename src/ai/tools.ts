@@ -243,6 +243,14 @@ export const TOOLS: ToolDef[] = [
     schema: { type: 'object', properties: { azione: { type: 'string', enum: ['create', 'update', 'delete', 'move'] }, id: { type: 'string' }, sezione: { type: 'string', enum: ['today', 'diet', 'sport'] }, tipo: { type: 'string', enum: ['text', 'list', 'calendar', 'metric'] }, titolo: { type: 'string' }, contenuto: { type: 'string' }, elementi: { type: 'array', items: { type: 'string' } }, posizione: { type: 'integer' } }, required: ['azione'] },
   },
   {
+    name: 'leggi_file',
+    description: 'I file che l\u2019utente ha caricato in FILES. azione=elenca per sapere quali ci sono; azione=leggi con il nome per leggerne uno. Legge solo testo (txt, md, csv, json, log): PDF e immagini restano conservati ma non si leggono da qui. Non inventare il contenuto: se non l\u2019hai letto, dillo.',
+    schema: { type: 'object', properties: {
+      azione: { type: 'string', enum: ['elenca', 'leggi'] },
+      nome: { type: 'string', description: 'Nome del file, anche parziale.' },
+    }, required: ['azione'] },
+  },
+  {
     name: 'crea_file_testo',
     description: 'Prepara un vero documento scaricabile .txt/.md usando le Pagine esistenti o il progetto selezionato. Il risultato contiene il link reale con pulsante download: NON affermare che il download è già avvenuto. Richiede una richiesta esplicita di documento/file.',
     schema: { type: 'object', properties: { titolo: { type: 'string', maxLength: 60 }, testo: { type: 'string', maxLength: 40000 } }, required: ['titolo', 'testo'] },
@@ -810,6 +818,78 @@ export function resultBlocks(results: readonly ToolResult[]): Record<string, unk
   return budgetToolResults(results).map(resultBlock);
 }
 
+/* ============================================================================
+   LEGGERE I FILE DI FILES
+
+   🔒 SOLO TESTO, E DETTO CHIARO. Un PDF o una foto restano conservati ma non si
+   leggono da qui: fingere di averli letti sarebbe il peggior modo di chiudere
+   questo cerchio. Il decoder è `fatal: true` apposta — se i byte non sono UTF-8
+   valido lo strumento lo dichiara invece di restituire caratteri a caso.
+
+   ⚠️ Il risultato rientra nel prompt, quindi ha un tetto: `LIMITS.userChars` è
+   12.000 e un file più lungo verrebbe rifiutato in blocco. Meglio troncare e
+   dirlo che far fallire il turno. */
+const READABLE_TEXT = /\.(txt|md|markdown|csv|tsv|json|log|yml|yaml|ini|conf)$/i;
+const MAX_FILE_CHARS = 8_000;
+
+async function executeFileTool(use: ToolUse, token: string | null, projectId: string | null): Promise<ToolResult> {
+  const fail = (content: string): ToolResult => ({ id: use.id, content, isError: true });
+  if (!token) return fail('Token mancante: file non disponibili.');
+  const args = (use.input && typeof use.input === 'object' ? use.input : {}) as Record<string, unknown>;
+
+  const { loadProject } = await import('../projects/client');
+  const { GLOBAL_PROJECT_ID } = await import('../engine/projects');
+  const project = await loadProject(token, projectId ?? GLOBAL_PROJECT_ID);
+  const files = project.files ?? [];
+
+  if (str(args.azione) === 'elenca') {
+    return {
+      id: use.id,
+      content: JSON.stringify({
+        source: 'FILES',
+        files: files.map((file) => ({
+          nome: file.name,
+          byte: file.size,
+          leggibile: READABLE_TEXT.test(file.name),
+        })),
+      }),
+    };
+  }
+
+  const wanted = str(args.nome).trim().toLowerCase();
+  if (!wanted) return fail('Serve il nome del file da leggere.');
+  const matches = files.filter((file) => file.name.toLowerCase().includes(wanted));
+  if (!matches.length) return fail(`Nessun file con questo nome in FILES: ${wanted}`);
+  if (matches.length > 1) {
+    return fail(`Più file corrispondono a «${wanted}»: ${matches.map((file) => file.name).join(', ')}. Chiedi quale.`);
+  }
+
+  const file = matches[0];
+  if (!READABLE_TEXT.test(file.name)) {
+    return fail(`«${file.name}» non è un file di testo: è conservato in FILES ma da qui non si legge. Non descriverne il contenuto.`);
+  }
+
+  let text: string;
+  try {
+    const binary = atob(file.data);
+    const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+    text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+  } catch {
+    return fail(`«${file.name}» non si legge come testo UTF-8. Non descriverne il contenuto.`);
+  }
+
+  const truncated = text.length > MAX_FILE_CHARS;
+  return {
+    id: use.id,
+    content: JSON.stringify({
+      source: `FILES/${file.name}`,
+      byte: file.size,
+      troncato: truncated,
+      testo: truncated ? `${text.slice(0, MAX_FILE_CHARS)}\n…[troncato]` : text,
+    }),
+  };
+}
+
 async function executeAutomationTool(use: ToolUse, token: string | null): Promise<ToolResult> {
   const fail = (content: string): ToolResult => ({ id: use.id, content, isError: true });
   if (!token) return fail('Token mancante: automazioni non disponibili.');
@@ -907,6 +987,7 @@ export async function executeRuntimeTool(
   try {
     if (use.name === 'programma_promemoria') return await executeReminderTool(use, scope.token, scope.projectId ?? null);
     if (use.name === 'crea_automazione') return await executeAutomationTool(use, scope.token);
+    if (use.name === 'leggi_file') return await executeFileTool(use, scope.token, scope.projectId ?? null);
     const isProjectTool = ['leggi_progetto', 'leggi_sorgente_progetto', 'scrivi_artifact_progetto'].includes(use.name);
     const projectFile = use.name === 'crea_file_testo';
     if (!isProjectTool && !projectFile) return await localRun(use);
