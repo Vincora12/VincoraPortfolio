@@ -488,7 +488,14 @@ console.log('\n═══ 6 — FIX 3: capacità reali, non "web.run e basta" ═
   // test puramente funzionale non potrebbe cogliere (import mai usato).
   const { readFileSync } = await import('node:fs');
   const baseSrc = readFileSync(new URL('../src/assistant-original/netlify-runtime.ts', import.meta.url), 'utf8');
-  check(/const systemPrompt = \(await resolveChatContext\([^)]*\)\) \+ buildCapabilitySummary\(true\)/.test(baseSrc), 'FIX 3 — netlify-runtime.ts chiama davvero buildCapabilitySummary sull\'UNICO punto in cui il system prompt è risolto (condiviso da BASE e loop strumenti)');
+  // Robusto alla forma esatta della riga (più volte cambiata da lavoro
+  // concorrente sullo stesso file): basta che, nel corpo della funzione che
+  // risolve il system prompt condiviso, `buildCapabilitySummary(true)` sia
+  // chiamata DOPO `resolveChatContext`, non che sia scritta in un modo preciso.
+  const createModelBody = baseSrc.slice(baseSrc.indexOf('export function createNetlifyChatModel'));
+  const resolveIdx = createModelBody.indexOf('await resolveChatContext(');
+  const capabilityIdx = createModelBody.indexOf('buildCapabilitySummary(true)');
+  check(resolveIdx > -1 && capabilityIdx > resolveIdx, 'FIX 3 — netlify-runtime.ts chiama davvero buildCapabilitySummary sull\'UNICO punto in cui il system prompt è risolto (condiviso da BASE e loop strumenti)');
   const toolLoopSrc = readFileSync(new URL('../src/brain/stream.ts', import.meta.url), 'utf8');
   check(/shared\?\.systemPrompt \?\? \(await resolveChatContext\([^)]*\)\) \+ buildCapabilitySummary\(true\)/.test(toolLoopSrc), 'FIX 3 — il chiamante legacy senza `shared` (brain/stream.ts, replyWithLocalTools) ottiene comunque buildCapabilitySummary dal proprio fallback, senza duplicarlo quando `shared` la porta già');
 

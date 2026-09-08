@@ -422,7 +422,7 @@ export async function runMachine(machine: MachineId, preferredModel?: string | n
         })
         : (Array.isArray(parsed.observations) ? parsed.observations : []).flatMap((item) => {
           const value = item as Record<string, unknown>;
-          return typeof value.statement === 'string' && typeof value.type === 'string' && typeof value.confidence === 'number' && value.confidence >= 0 && value.confidence <= 1 && Array.isArray(value.sourceIds) ? [{ type: value.type, statement: value.statement.slice(0, 500), confidence: value.confidence, sourceIds: value.sourceIds.filter((id): id is string => typeof id === 'string'), timestamp: at() }] : [];
+          return typeof value.statement === 'string' && typeof value.type === 'string' && typeof value.confidence === 'number' && value.confidence >= 0 && value.confidence <= 1 && Array.isArray(value.sourceIds) ? [{ type: value.type, statement: value.statement.slice(0, 500), question: undefined as string | undefined, confidence: value.confidence, sourceIds: value.sourceIds.filter((id): id is string => typeof id === 'string'), timestamp: at() }] : [];
         });
       /* 🔴 SI È INVENTATA UNA FONTE. Al primo giro Me.mon ha citato «TRACCIA
          APERTA», che non è una delle etichette che ha davanti: un riferimento
