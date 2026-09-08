@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, type CSSProperties, type FC, type PropsWithChildren } from "react";
+import { useCallback, useEffect, useMemo, useRef, type CSSProperties, type FC, type PropsWithChildren } from "react";
 import {
   AssistantRuntimeProvider,
   CompositeAttachmentAdapter,
@@ -23,6 +23,7 @@ import { createOwnershipGatedHistoryAdapter, GateMarkLiveContext, withLocalUnsav
 import { claimSessionRoomEntry } from "./chat-room-presence";
 import { isLocalUnsavedSession } from "./conversation-lifecycle-adapter";
 import { savedToken } from "@/brain/stream";
+import { announce } from "@/system/announcements";
 import { maybeCloseTopic, setActiveThreadId, type TopicCandidate } from "./conversation-topics";
 
 export const persistentThreadAdapter = createLocalStorageAdapter({
@@ -287,15 +288,29 @@ const ResumeLastThread: FC = () => {
    ⚠️ Su un thread ancora non promosso (nuovo, senza un tuo messaggio) la
    consegna aspetta: l'append resterebbe appeso alla barriera di
    inizializzazione. Riprova al giro successivo. */
-const AUTOMATION_POLL_MS = 60_000;
+/* ⚠️ 15 SECONDI, NON 60. Il primo tentativo cade quasi sempre a vuoto — il
+   thread ripreso non è ancora promosso — e con un minuto di attesa il risultato
+   compariva un minuto DOPO che avevi aperto l'app. La richiesta è una GET che
+   quasi sempre torna una lista vuota: costa niente, e l'annuncio arriva mentre
+   stai ancora guardando lo schermo. */
+const AUTOMATION_POLL_MS = 15_000;
 
 interface AutomationResult {
   id: string;
   title: string;
+  lead: string;
   text: string;
   at: string;
 }
 
+/* 🔷 «Vorrei che ogni automazione avesse questa estetica.» Il risultato non
+   scivola più dentro la chat come un messaggio qualunque: lo annuncia il .mon
+   nel suo fumetto, con una riga sola. Il contenuto intero va comunque in chat —
+   quello è il posto dove si legge e si scorre.
+
+   🔒 CHIUDERE NON PERDE NIENTE. Che tu tocchi LEGGI o la X, il testo completo
+   viene comunque appeso alla conversazione: il fumetto è l'annuncio, non
+   l'unica copia. */
 const AutomationInbox: FC = () => {
   const aui = useAui();
   /* Il thread nell'elenco delle dipendenze non è un dettaglio: al primo giro
@@ -305,6 +320,18 @@ const AutomationInbox: FC = () => {
   const loading = useAuiState((state) => state.threads.isLoading);
   const threadId = useAuiState((state) => state.threads.mainThreadId);
   const busy = useRef(false);
+
+  const appendResult = useCallback(
+    (result: AutomationResult) => {
+      aui.thread.append({
+        role: "assistant",
+        content: [{ type: "text", text: `**${result.title}**\n\n${result.text}` }],
+        metadata: { custom: { automationResult: true, automationTitle: result.title } },
+        startRun: false,
+      } as Parameters<typeof aui.thread.append>[0]);
+    },
+    [aui],
+  );
 
   useEffect(() => {
     if (loading) return;
@@ -329,12 +356,15 @@ const AutomationInbox: FC = () => {
 
         for (const result of results ?? []) {
           if (!live) return;
-          aui.thread.append({
-            role: "assistant",
-            content: [{ type: "text", text: `**${result.title}**\n\n${result.text}` }],
-            metadata: { custom: { automationResult: true, automationTitle: result.title } },
-            startRun: false,
-          } as Parameters<typeof aui.thread.append>[0]);
+          appendResult(result);
+          /* Il fumetto annuncia solo il più recente: tre nuvolette in fila
+             sarebbero una coda da smaltire, non una notizia. Lo mostra `App`,
+             fuori da questo sottoalbero, che al cambio thread si rimonta. */
+          announce({
+            kicker: `${result.title.toLocaleUpperCase('it')} · HO GUARDATO`,
+            statement: result.lead,
+            actionLabel: 'LEGGI',
+          });
           await fetch("/api/automations", {
             method: "POST",
             headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
@@ -354,7 +384,7 @@ const AutomationInbox: FC = () => {
       live = false;
       window.clearInterval(timer);
     };
-  }, [aui, loading, threadId]);
+  }, [aui, loading, threadId, appendResult]);
 
   return null;
 };

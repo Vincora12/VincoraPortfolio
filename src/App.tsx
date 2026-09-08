@@ -10,7 +10,7 @@
    §26 — i controlli DEV non compaiono mai senza dev mode attiva.
    ========================================================================= */
 
-import { lazy, Suspense, useCallback, useEffect, useRef, useState, type ComponentProps, type ReactNode } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState, type ComponentProps, type ReactNode, useSyncExternalStore } from 'react';
 import {
   useApp,
   type Phase,
@@ -32,8 +32,6 @@ import { haptic } from './system/haptics';
 import { PROGRESSION } from './engine/progression';
 import { applySigilFavicon } from './system/favicon';
 import { t } from './i18n/it';
-import { EXPRESSION_SPEC } from './engine/assets';
-import { useAssetUrlChain } from './system/AssetSlot';
 
 import { SplashScreen } from './screens/Splash';
 import { PersonalityScanScreen } from './screens/PersonalityScan';
@@ -60,6 +58,8 @@ import { PageReader } from './screens/PageReader';
 import type { ToolResult, ToolUse } from './ai/tools';
 import { runToolLayerTool } from './ai/toolLayer';
 import { DailySurface } from './daily/DailySurface';
+import { ThoughtBubble, ThoughtBalloon } from './system/ThoughtBalloon';
+import { currentAnnouncement, dismissAnnouncement, subscribeAnnouncements } from './system/announcements';
 const IntegratedChat = lazy(() => import('./assistant-original/IntegratedChat').then((module) => ({ default: module.IntegratedChat })));
 /* Il cassetto di VINZ.LAB (§14-19) — `LabEmbed` monta i componenti nativi
    del lab in uno shadow root; caricato solo quando il cassetto viene
@@ -690,8 +690,27 @@ export function App() {
         onClose={() => setVisibleInsight(null)}
         onDiscuss={() => discussInsight(visibleInsight)}
       />}
+      <AnnouncementBalloon />
       {!bootReady && <GlobalBootScreen />}
     </div>
+  );
+}
+
+/* Il fumetto di quello che VINZ ha fatto da solo. Sta qui e non dentro la chat
+   perché `App` non si rimonta quando la conversazione cambia thread — che è
+   esattamente il motivo per cui prima l'annuncio si perdeva. */
+function AnnouncementBalloon() {
+  const announcement = useSyncExternalStore(subscribeAnnouncements, currentAnnouncement, () => null);
+  if (!announcement) return null;
+  return (
+    <ThoughtBalloon
+      kicker={announcement.kicker}
+      statement={announcement.statement}
+      actionLabel={announcement.actionLabel}
+      onAction={dismissAnnouncement}
+      onClose={dismissAnnouncement}
+      titleId="announcement-title"
+    />
   );
 }
 
@@ -1410,24 +1429,17 @@ function MachineInsightThought({
   onDiscuss?: () => void;
 }) {
   const activeMonName = useApp((state) => state.activeMonName ?? 'VINZ.MON');
-  const art = useAssetUrlChain(activeMonName, ['reaction_pack', 'character_master']);
-  return <>
-    <div className="machine-insight-balloon__thought">
-      <span id={titleId}>UN PENSIERO DI {activeMonName.toLocaleUpperCase('it')}</span>
-      <p>{insight.statement}</p>
-      {onDiscuss ? <button type="button" className="machine-insight-balloon__discuss" onClick={onDiscuss}>PARLIAMONE</button> : null}
-    </div>
-    <div className="machine-insight-balloon__mon" aria-label={activeMonName}>
-      {art.url && art.resolvedType === 'reaction_pack' ? <span
-        aria-hidden="true"
-        style={{
-          backgroundImage: `url(${art.url})`,
-          backgroundSize: `${EXPRESSION_SPEC.columns * 100}% ${EXPRESSION_SPEC.rows * 100}%`,
-          backgroundPosition: `${100 / (EXPRESSION_SPEC.columns - 1)}% 0%`,
-        }}
-      /> : art.url ? <img src={art.url} alt="" /> : <strong>{activeMonName}</strong>}
-    </div>
-  </>;
+  /* 🔒 La forma sta in `system/ThoughtBalloon.tsx`: la usano anche i risultati
+     delle automazioni, e due copie divergerebbero alla prima modifica. */
+  return (
+    <ThoughtBubble
+      kicker={`UN PENSIERO DI ${activeMonName.toLocaleUpperCase('it')}`}
+      statement={insight.statement}
+      titleId={titleId}
+      actionLabel={onDiscuss ? 'PARLIAMONE' : undefined}
+      onAction={onDiscuss}
+    />
+  );
 }
 
 function MachineInsightBalloon({

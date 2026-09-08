@@ -61,6 +61,9 @@ export interface AutomationResult {
   id: string;
   automationId: string;
   title: string;
+  /** Una riga sola: è quella che entra nel fumetto. */
+  lead: string;
+  /** Il contenuto intero: quello va in chat, dove si legge e si scorre. */
   text: string;
   at: string;
 }
@@ -212,11 +215,28 @@ export async function ackResult(id: string): Promise<void> {
 
 const AUTOMATION_RULES = [
   'You are running an automation the user scheduled: they are not in front of you and cannot answer questions.',
-  'Answer the request directly and completely in one message. Never ask a question back.',
+  /* 🔴 «Terrò il riepilogo stretto: conflitti, politica, economia…» — una volta
+     ha DESCRITTO il digest invece di produrlo. Un'automazione che racconta cosa
+     farà è peggio di una che fallisce: sembra riuscita. */
+  'Do the work now and report what you actually found. Never describe what you will do, never promise a future digest: this run IS the digest.',
   'Use web search for anything time-sensitive and cite what you actually found. Never invent news, numbers or sources.',
+  'Answer in Italian, tight and scannable. No greeting, no preamble.',
   'This run is read-only: you cannot record meals, workouts, weight, plans or reminders, and must not claim that you did.',
-  'Keep it tight and scannable. No greeting, no "here is your digest" preamble.',
+  /* ⚠️ Il fumetto del .mon vuole UNA FRASE, non un documento: la prima riga è
+     l'annuncio, il resto è il contenuto e vive in chat. */
+  'Format: the first line must be exactly "SOMMARIO: <one Italian sentence, max 90 characters, saying WHAT YOU FOUND — not what you intend to do>". Then an empty line. Then the findings themselves, in full.',
 ].join(' ');
+
+function splitLead(text: string): { lead: string; body: string } {
+  const match = /^\s*SOMMARIO:\s*(.+?)\s*(?:\n([\s\S]*))?$/i.exec(text);
+  if (!match) {
+    /* Se il modello non ha rispettato la forma non si inventa un sommario: si
+       prende la prima riga vera, che è comunque quello che direbbe per primo. */
+    const firstLine = text.split(/\n/).find((line) => line.trim())?.trim() ?? text.trim();
+    return { lead: firstLine.slice(0, 120), body: text.trim() };
+  }
+  return { lead: match[1].slice(0, 120), body: (match[2] ?? '').trim() || match[1].trim() };
+}
 
 async function runOne(automation: Automation, now: Date): Promise<AutomationResult> {
   const route = resolveRoute('character-voice');
@@ -246,11 +266,13 @@ async function runOne(automation: Automation, now: Date): Promise<AutomationResu
     throw new Error(result.error || 'Il modello non ha risposto.');
   }
 
+  const { lead, body } = splitLead(result.text.trim());
   return {
     id: `${automation.id}-${now.getTime().toString(36)}`,
     automationId: automation.id,
     title: automation.title,
-    text: result.text.trim(),
+    lead,
+    text: body,
     at: now.toISOString(),
   };
 }
@@ -296,7 +318,7 @@ export async function processAutomations(now = new Date()): Promise<{ due: numbe
       try {
         await sendPushNotification({
           title: automation.title,
-          body: produced.text.slice(0, 140),
+          body: produced.lead.slice(0, 140),
           url: '/#/current',
           tag: `vinzmon-automation-${automation.id}`,
         });
