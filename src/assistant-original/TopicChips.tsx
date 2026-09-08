@@ -17,6 +17,7 @@
 import { useAui } from '@assistant-ui/react';
 import { useEffect, useState, type FC } from 'react';
 
+import { TopicIcon } from '@/system/topicIcon';
 import { listTopics, requestTopicContext, type ConversationTopic } from './conversation-topics';
 
 export const TopicChips: FC = () => {
@@ -51,7 +52,8 @@ export const TopicChips: FC = () => {
     <nav className="vinz-topic-chips" aria-label="Argomenti di cui abbiamo parlato">
       {topics.map((topic) => (
         <button key={topic.id} type="button" title={topic.summary} onClick={() => resume(topic)}>
-          {topic.title}
+          <TopicIcon text={`${topic.title} ${topic.summary}`} />
+          <span>{topic.title}</span>
         </button>
       ))}
     </nav>

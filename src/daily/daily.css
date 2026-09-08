@@ -146,10 +146,22 @@
 }
 
 .daily-row__title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
   margin: 0;
   font-size: 15px;
   line-height: 1.35;
   overflow-wrap: anywhere;
+}
+
+/* Piccola e dello stesso grigio del testo: dice di cosa parla la riga a colpo
+   d'occhio, senza diventare la cosa che guardi per prima. */
+.daily-row__icon {
+  flex: 0 0 auto;
+  width: 15px;
+  height: 15px;
+  opacity: 0.75;
 }
 
 .daily-row__meta {

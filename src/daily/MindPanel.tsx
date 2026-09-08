@@ -30,6 +30,9 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import type { CalendarEvent } from '@/engine/calendarEvents';
+import { EyeIcon, UserIcon } from 'lucide-react';
+
+import { TopicIcon } from '@/system/topicIcon';
 
 import './daily.css';
 
@@ -56,6 +59,11 @@ interface MachineView {
    REFLECTION la sera, quando la giornata è finita e c'è qualcosa da notare;
    ME di notte, perché non ti disturba (consegna `lab_only`). */
 const DEFAULT_HOUR: Record<string, number> = { reflection: 21, me: 3 };
+
+/* Le macchine sono due e hanno un nome: l'icona non serve a distinguerle, serve
+   a non lasciare THINK spoglio accanto ad ACT, che le icone ce le ha. Una
+   guarda (REFLECTION), l'altra tiene il ritratto di te (ME). */
+const MACHINE_ICONS: Record<string, typeof EyeIcon> = { reflection: EyeIcon, me: UserIcon };
 
 interface Automation {
   id: string;
@@ -211,11 +219,20 @@ export function MindPanel({ token }: { token: string | null }) {
     if (!token || runningMachine) return;
     setRunningMachine(id);
     try {
-      await fetch('/api/machines', {
+      const response = await fetch('/api/machines', {
         method: 'POST',
         headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
         body: JSON.stringify({ machine: id }),
       });
+      /* 🔴 IL PENSIERO NON USCIVA. Far girare la macchina da qui produceva
+         l'insight e poi non lo mostrava a nessuno: il fumetto lo apriva solo la
+         pastiglia dentro il vano tecnico. Chi la lancia sta guardando adesso, e
+         adesso vuole sapere se ha trovato qualcosa. */
+      const body = (await response.json().catch(() => null)) as
+        | { state?: { pendingInsights?: { id: string; statement: string }[] } }
+        | null;
+      const fresh = body?.state?.pendingInsights?.[0];
+      if (fresh) window.dispatchEvent(new CustomEvent('vinzmon-show-insight', { detail: fresh }));
       await load();
     } catch {
       setError('Esecuzione non riuscita.');
@@ -296,7 +313,13 @@ export function MindPanel({ token }: { token: string | null }) {
         {machines.map((machine) => (
           <li key={machine.id} className="daily-row">
             <div className="daily-row__main">
-              <p className="daily-row__title">{machine.name.replace(/\s*MACHINE$/i, '')}</p>
+              <p className="daily-row__title">
+                {(() => {
+                  const Icon = MACHINE_ICONS[machine.id] ?? EyeIcon;
+                  return <Icon className="daily-row__icon" aria-hidden="true" />;
+                })()}
+                {machine.name.replace(/\s*MACHINE$/i, '')}
+              </p>
               <p className="daily-row__meta">{machine.purpose}</p>
               <p className="daily-row__meta">
                 {machine.state.autoDaily
@@ -338,7 +361,10 @@ export function MindPanel({ token }: { token: string | null }) {
         {automations.map((automation) => (
           <li key={automation.id} className="daily-row">
             <div className="daily-row__main">
-              <p className="daily-row__title">{automation.title}</p>
+              <p className="daily-row__title">
+                <TopicIcon text={`${automation.title} ${automation.prompt}`} className="daily-row__icon" />
+                {automation.title}
+              </p>
               <p className="daily-row__meta">
                 {cadenceLabel(automation.schedule)} · {automation.enabled ? 'Attiva' : 'In pausa'}
               </p>
@@ -379,7 +405,10 @@ export function MindPanel({ token }: { token: string | null }) {
         {reminders.map((row) => (
           <li key={row.event.id} className="daily-row">
             <div className="daily-row__main">
-              <p className="daily-row__title">{row.event.title}</p>
+              <p className="daily-row__title">
+                <TopicIcon text={row.event.title} className="daily-row__icon" />
+                {row.event.title}
+              </p>
               <p className="daily-row__meta">
                 {whenLabel(row.event.reminderAt!)} · {reminderState(row.event)}
               </p>

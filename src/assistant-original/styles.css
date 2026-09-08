@@ -945,6 +945,9 @@ body[data-scroll-locked] {
 }
 
 .vinz-topic-chips > button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   flex: 0 0 auto;
   max-width: 46vw;
   min-height: 26px;
@@ -959,6 +962,18 @@ body[data-scroll-locked] {
   overflow: hidden;
   text-overflow: ellipsis;
   cursor: pointer;
+}
+
+.vinz-topic-chips > button svg {
+  width: 13px;
+  height: 13px;
+  flex: 0 0 auto;
+  opacity: 0.8;
+}
+
+.vinz-topic-chips > button span {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .vinz-topic-chips > button:active {

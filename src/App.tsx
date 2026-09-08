@@ -292,6 +292,24 @@ export function App() {
     })();
   }, [token]);
 
+  /* Un pensiero appena nato si mostra da sé: lo chiede chi ha appena premuto
+     «Fai girare», e vale anche per la macchina che gira di notte, perché la
+     pastiglia rilegge l'elenco a ogni ritorno sull'app. */
+  useEffect(() => {
+    const onShow = (event: Event) => {
+      const insight = (event as CustomEvent<InsightView>).detail;
+      if (!insight?.id) return;
+      if (token) void fetch('/api/machines', {
+        method: 'POST',
+        headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+        body: JSON.stringify({ machine: 'open_insight', insightId: insight.id }),
+      }).then(() => window.dispatchEvent(new Event('vinzmon-insight-seen')));
+      setVisibleInsight({ ...insight, status: 'opened' });
+    };
+    window.addEventListener('vinzmon-show-insight', onShow);
+    return () => window.removeEventListener('vinzmon-show-insight', onShow);
+  }, [token]);
+
   const discussInsight = (insight: InsightView) => {
     setVisibleInsight(null);
     if (token) void fetch('/api/machines', {
@@ -1300,6 +1318,7 @@ function MeMachineStatus() {
 
 function MachineInsightChip({ onOpen }: { onOpen: (insight: InsightView) => void }) {
   const token = useApp((s) => s.token);
+  const autoShown = useRef<Set<string>>(new Set());
   const [insights, setInsights] = useState<InsightView[]>([]);
   const [notificationState, setNotificationState] = useState<'idle' | 'running' | 'active' | 'failed'>('idle');
   useEffect(() => {
@@ -1310,7 +1329,16 @@ function MachineInsightChip({ onOpen }: { onOpen: (insight: InsightView) => void
         const response = await fetch('/api/machines', { headers: { authorization: `Bearer ${token}` } });
         if (!response.ok) return;
         const body = await response.json() as { pendingInsights?: InsightView[] };
-        if (!cancelled) setInsights(body.pendingInsights?.filter((item) => item.status === 'pending') ?? []);
+        const pending = body.pendingInsights?.filter((item) => item.status === 'pending') ?? [];
+        if (cancelled) return;
+        setInsights(pending);
+        /* ⚠️ Una volta sola per pensiero, non a ogni rilettura: l'apertura lo
+           segna `opened`, quindi il giro dopo non è più fra i `pending` e il
+           fumetto non torna a saltare in faccia. */
+        if (pending[0] && !autoShown.current.has(pending[0].id)) {
+          autoShown.current.add(pending[0].id);
+          window.dispatchEvent(new CustomEvent('vinzmon-show-insight', { detail: pending[0] }));
+        }
       } catch { /* in-app notification is best effort */ }
     };
     void load();
