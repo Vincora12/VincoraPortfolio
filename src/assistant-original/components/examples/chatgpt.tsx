@@ -1518,7 +1518,7 @@ const AssistantMessage: FC = () => {
         </MessagePrimitive.Error>
       </div>
 
-      <WorkoutConfirmationButton />
+      <ConfirmActionButton />
 
       <div className="flex items-center pt-1">
         <ActionBarPrimitive.Root hideWhenRunning className="flex items-center">
@@ -1668,7 +1668,39 @@ const ReactionMessageDispatcher: FC = () => {
 };
 
 /** La proposta resta conversazionale, ma la conferma è un'azione inequivocabile. */
-const WorkoutConfirmationButton: FC = () => {
+/* ============================================================================
+   I PULSANTI DI CONFERMA
+
+   🔒 FUNZIONANO PERCHÉ LA DOMANDA LA SCRIVE L'APP, NON IL MODELLO. La frase di
+   conferma è aggiunta in coda da `brain/stream.ts` quando esiste uno stato «in
+   attesa» tipizzato (`mealConfirmation`, `workoutConfirmation`): è quindi
+   letterale e prevedibile, e agganciarci un bottone non è indovinare la prosa.
+
+   ⚠️ NON AGGIUNGERE UNA VOCE QUI PER UN'AZIONE CHE NON HA IL SUO STATO IN
+   ATTESA. Senza quello la frase la scriverebbe il modello, con le parole che
+   gli girano quel giorno, e il bottone comparirebbe a caso — o peggio, non
+   comparirebbe proprio quando serve.
+
+   Il tocco manda la conferma come messaggio utente: la stessa strada delle
+   parole scritte a mano, che `confirms()` riconosce già. Nessun percorso
+   parallelo, nessuna scrittura che salti il giro degli strumenti. */
+const CONFIRM_ACTIONS: { test: RegExp; label: string; busy: string; reply: string }[] = [
+  {
+    // Stessa forma letta da `pendingMealSlot` in netlify-runtime.ts.
+    test: /Confermi che lo registro come \*\*(?:colazione|spuntino|pranzo|merenda|cena|extra)(?:\s*\/[^*]+)?\*\*\?/i,
+    label: "REGISTRA PASTO",
+    busy: "REGISTRAZIONE…",
+    reply: "Vai, registra",
+  },
+  {
+    test: /Confermi che registro questo \*\*allenamento\*\* in ME\?/i,
+    label: "REGISTRA ALLENAMENTO",
+    busy: "REGISTRAZIONE…",
+    reply: "Vai, registra",
+  },
+];
+
+const ConfirmActionButton: FC = () => {
   const aui = useAui();
   const [submitted, setSubmitted] = useState(false);
   const { text, isLast, running } = useAuiState(
@@ -1681,13 +1713,13 @@ const WorkoutConfirmationButton: FC = () => {
       running: state.thread.isRunning,
     })),
   );
-  const asksForWorkoutConfirmation = /Confermi che registro questo \*\*allenamento\*\* in ME\?/i.test(text);
-  if (!asksForWorkoutConfirmation || !isLast) return null;
+  const action = CONFIRM_ACTIONS.find((candidate) => candidate.test.test(text));
+  if (!action || !isLast) return null;
 
   const confirm = () => {
     if (submitted || running) return;
     setSubmitted(true);
-    aui.thread.append("Vai, registra");
+    aui.thread.append(action.reply);
   };
 
   return (
@@ -1697,7 +1729,7 @@ const WorkoutConfirmationButton: FC = () => {
       onClick={confirm}
       disabled={submitted || running}
     >
-      {submitted ? "REGISTRAZIONE…" : "REGISTRA ALLENAMENTO"}
+      {submitted ? action.busy : action.label}
     </button>
   );
 };
