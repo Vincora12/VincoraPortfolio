@@ -421,6 +421,22 @@ export function saveMonthlyCap(
 }
 
 /**
+ * «Un tasto che ricominci facendo cancellare anche i ricordi.» Cancella la
+ * memoria personale, le osservazioni di THINK e i topic — vedi
+ * `memory-reset.ts` per cosa NON tocca (il gioco, la cronologia della chat).
+ */
+export function resetMemory(
+  token: string | null,
+): Promise<BackendResult<{ ok: boolean; memory: unknown; topics: unknown; machines: unknown }>> {
+  return post<{ ok: boolean; memory: unknown; topics: unknown; machines: unknown }>(
+    '/api/memory-reset',
+    token,
+    undefined,
+    'POST',
+  );
+}
+
+/**
  * Scrive una chiave API sul server — `.env` e il processo vivo insieme, vedi
  * `_shared/secrets.ts`. Mai una risposta che contenga la chiave: solo se è
  * stata accettata.

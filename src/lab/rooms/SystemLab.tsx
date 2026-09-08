@@ -28,7 +28,7 @@ import type { StatKey } from '../../engine/types';
 import { DAILY_SIGNALS, DAILY_SIGNAL_LABELS, dateForDay } from '../../engine/progression';
 import { completeDayStreak, syncBalance, syncRewardProgress } from '../../engine/syncRewards';
 import { readHealthJournal, HEALTH_JOURNAL_EVENT } from '../../engine/healthJournal';
-import { loadPing, loadSetup, loadShortcutStatus, loadUsage, saveMonthlyCap, saveSecret, loadRuntimeLog, loadV2Issues, loadRemote, type ShortcutStatus, type UsageDashboard, type UsageEvent, type RuntimeEvent, type SetupVar } from '../../ai/backend';
+import { loadPing, loadSetup, loadShortcutStatus, loadUsage, saveMonthlyCap, saveSecret, resetMemory, loadRuntimeLog, loadV2Issues, loadRemote, type ShortcutStatus, type UsageDashboard, type UsageEvent, type RuntimeEvent, type SetupVar } from '../../ai/backend';
 import type { V2Issue } from '../../ai/v2Issues';
 import { lastRuns } from '../../ai/telemetry';
 import { freshSecret } from '../../engine/secret';
@@ -465,10 +465,11 @@ function Save() {
 
   const [server, setServer] = useState<SavePeek | null | 'loading' | 'error'>('loading');
   const [local, setLocal] = useState<SavePeek | null>(null);
-  const [busy, setBusy] = useState<'save' | 'restore' | 'new' | null>(null);
+  const [busy, setBusy] = useState<'save' | 'restore' | 'new' | 'newForget' | null>(null);
   const [outcome, setOutcome] = useState<string | null>(null);
   const [confirmRestore, setConfirmRestore] = useState(false);
   const [confirmNew, setConfirmNew] = useState(false);
+  const [confirmForget, setConfirmForget] = useState(false);
 
   const guarda = useCallback(() => {
     if (!token) {
@@ -688,6 +689,56 @@ function Save() {
                   disabled={busy !== null}
                 >
                   Nuova partita
+                </Btn>
+              </Grid>
+            </>
+          )}
+
+          {/* 🔷 «Ho ricominciato il gioco perché vedo i topic vecchi sotto?»
+              «Ah, c'è bisogno di un tasto che ricominci facendo cancellare
+              anche i ricordi.» NUOVA PARTITA sopra resta invariata — la
+              relazione sopravvive di proposito a una rinascita. Questa è
+              un'azione diversa e più pesante, non un'opzione della prima. */}
+          {!confirmForget ? (
+            <Grid>
+              <Btn onClick={() => setConfirmForget(true)} disabled={busy !== null} variant="danger">
+                NUOVA PARTITA + CANCELLA I RICORDI
+              </Btn>
+            </Grid>
+          ) : (
+            <>
+              <p className="note">
+                Fa tutto quello che fa NUOVA PARTITA, e in più cancella la memoria personale, le
+                osservazioni di THINK (Reflection, ME, Me.mon) e i topic — VINZ riparte senza
+                sapere niente di te. La cronologia della chat NON viene toccata: i messaggi restano
+                dove sono, solo VINZ smette di ricordarsene. Non si torna indietro da qui.
+              </p>
+              <Grid>
+                <Btn onClick={() => setConfirmForget(false)} disabled={busy !== null}>
+                  Lascia stare
+                </Btn>
+                <Btn
+                  variant="danger"
+                  onClick={() => {
+                    setBusy('newForget');
+                    setOutcome(null);
+                    void startNewGame().then(async (r) => {
+                      const { data, failure } = await resetMemory(token);
+                      setBusy(null);
+                      setConfirmForget(false);
+                      const gameNote = r.ok
+                        ? `giorno ${r.day}, scritta sul server`
+                        : `reset fatto su questo telefono ma NON arrivato al server: ${r.failure ?? 'errore sconosciuto'}`;
+                      const memoryNote = failure || !data?.ok
+                        ? `la memoria NON è stata cancellata: ${failure ?? 'errore sconosciuto'}`
+                        : `memoria cancellata (${JSON.stringify(data.memory)}, ${JSON.stringify(data.topics)})`;
+                      setOutcome(`Nuova partita — ${gameNote}. ${memoryNote}.`);
+                      guarda();
+                    });
+                  }}
+                  disabled={busy !== null}
+                >
+                  {busy === 'newForget' ? 'Sto cancellando…' : 'Nuova partita e cancella i ricordi'}
                 </Btn>
               </Grid>
             </>

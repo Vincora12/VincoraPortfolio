@@ -58,7 +58,9 @@ export function Btn({
 }: {
   children: ReactNode;
   onClick?: () => void;
-  variant?: 'dark' | 'on';
+  /* `danger` esiste già in `system.css` (`.btn.danger{border-style:dashed}`)
+     da prima — nessuno lo passava mai attraverso questo componente. */
+  variant?: 'dark' | 'on' | 'danger';
   disabled?: boolean;
 }) {
   return (

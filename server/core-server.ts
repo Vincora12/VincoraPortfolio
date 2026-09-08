@@ -44,6 +44,7 @@ import v2Lobehub from '../netlify/functions/v2-lobehub';
 import { processAutomations } from '../netlify/functions/_shared/automations';
 import { processDueMachines } from '../netlify/functions/_shared/machines';
 import { closeLocalStore, localDatabasePath } from '../netlify/functions/_shared/localStore';
+import memoryReset from '../netlify/functions/memory-reset';
 
 type Handler = (request: Request, platform?: { waitUntil(promise: Promise<unknown>): void }) => Promise<Response>;
 const APP = 'VINZ.MON';
@@ -77,6 +78,10 @@ const handlers: Record<string, Handler> = {
   '/api/user-data': userData, '/api/v2-issues': v2Issues, '/api/v2-lobehub': v2Lobehub,
   '/v1/chat/completions': v1ChatCompletions, '/v1/models': v1Models, '/v1/responses': v1Responses,
 };
+/* Riga a parte apposta: `server/core-server.ts` è condiviso con lavoro
+   concorrente sullo stesso oggetto `handlers` — aggiungerla qui invece che
+   dentro la lista evita di intrecciare due modifiche sulla stessa riga. */
+handlers['/api/memory-reset'] = memoryReset;
 
 const background: Record<string, (request: Request) => Promise<void>> = {
   '/api/evolution-background': evolutionBackground,

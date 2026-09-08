@@ -12,3 +12,35 @@ export async function searchMem0(query: string, limit = 5): Promise<Array<{ id?:
   const rows = Array.isArray(raw?.results) ? raw.results : Array.isArray(raw) ? raw : [];
   return rows.flatMap((row: any) => typeof row?.memory === 'string' ? [{ id: row.id, text: row.memory, score: row.score, metadata: row.metadata }] : typeof row?.text === 'string' ? [{ id: row.id, text: row.text, score: row.score, metadata: row.metadata }] : []);
 }
+
+/* 🔷 «Un tasto che ricominci facendo cancellare anche i ricordi.»
+
+   🔒 UNA RIGA ALLA VOLTA, NON UN RESET DELLA LIBRERIA. `Memory.reset()`
+   esiste nell'SDK ma cancella la collezione intera del vector store —
+   comodo, ma non verificato qui contro dati veri, e non distingue fra righe.
+   Questa funzione riusa solo `/memory/list` e `/memory/delete`, gli stessi
+   due endpoint già provati in questa sessione, riga per riga: più lenta, ma
+   niente di cui non si sia già visto il comportamento reale. */
+export async function deleteFromMem0(id: string): Promise<void> {
+  await call('/memory/delete', { method: 'POST', body: JSON.stringify({ memoryId: id }) });
+}
+
+export async function wipeMem0(): Promise<{ deleted: number; failed: number }> {
+  const raw = await listMem0(2000);
+  const rows = Array.isArray((raw as { results?: unknown[] })?.results)
+    ? (raw as { results: unknown[] }).results
+    : Array.isArray(raw) ? raw : [];
+  let deleted = 0;
+  let failed = 0;
+  for (const row of rows) {
+    const id = (row as { id?: string })?.id;
+    if (!id) continue;
+    try {
+      await deleteFromMem0(id);
+      deleted += 1;
+    } catch {
+      failed += 1;
+    }
+  }
+  return { deleted, failed };
+}
