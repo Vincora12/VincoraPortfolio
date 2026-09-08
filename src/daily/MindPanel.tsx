@@ -27,15 +27,34 @@
    esistono e non vengono inventati.
    ========================================================================= */
 
-import { useCallback, useEffect, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 
 import type { CalendarEvent } from '@/engine/calendarEvents';
-import { EyeIcon, SparklesIcon, UserIcon } from 'lucide-react';
+import { EyeIcon, PuzzleIcon, SparklesIcon, UserIcon } from 'lucide-react';
 
 import type { PushStatus } from '@/system/pushNotifications';
 import { TopicIcon } from '@/system/topicIcon';
 
 import './daily.css';
+
+/* 🔷 «Dentro MIND metti anche Skill, con le skill attive e la possibilità di
+   inserirne di nuove — una cosa che è in LAB, ma mettiamo qui.»
+
+   🔒 STESSO COMPONENTE, NON UNA COPIA. `LabEmbed` esiste apposta per questo:
+   monta `LabApp` — lo stesso React tree di `/lab`, stesso `useApp`, stesso
+   store — dentro uno shadow root, così il CSS del Lab (che possiede `:root`e
+   `body` come se fosse un documento a sé) non tocca l'app vera. Aprirlo qui
+   con `initialLab="skills"` porta dritti alla stanza giusta, senza duplicare
+   la logica di installazione, ispezione e store che vive già in `SkillsLab`. */
+const LabEmbed = lazy(() => import('@/lab/embed/LabEmbed').then((module) => ({ default: module.LabEmbed })));
+
+interface InstalledSkillSummary {
+  id: string;
+  sourceId: string;
+  name: string;
+  description: string;
+  enabled: boolean;
+}
 
 type Row = { event: CalendarEvent; version: string };
 
@@ -134,6 +153,8 @@ export function MindPanel({ token }: { token: string | null }) {
      tacerlo sarebbe peggio. */
   const [notifications, setNotifications] = useState<PushStatus | 'unknown'>('unknown');
   const [rows, setRows] = useState<Row[]>([]);
+  const [skills, setSkills] = useState<InstalledSkillSummary[]>([]);
+  const [skillsOpen, setSkillsOpen] = useState(false);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState('');
 
@@ -147,10 +168,11 @@ export function MindPanel({ token }: { token: string | null }) {
     setError('');
     const headers = { authorization: `Bearer ${token}` };
     try {
-      const [autoResponse, calendarResponse, machinesResponse] = await Promise.all([
+      const [autoResponse, calendarResponse, machinesResponse, skillsResponse] = await Promise.all([
         fetch('/api/automations', { headers, cache: 'no-store' }),
         fetch('/api/calendar', { headers, cache: 'no-store' }),
         fetch('/api/machines', { headers, cache: 'no-store' }),
+        fetch('/api/skills?op=installed', { headers, cache: 'no-store' }),
       ]);
       const autoBody = (await autoResponse.json()) as { automations?: Automation[]; error?: string };
       const calendarBody = (await calendarResponse.json()) as { events?: Row[]; error?: string };
@@ -166,12 +188,38 @@ export function MindPanel({ token }: { token: string | null }) {
         setMachines(machinesBody.machines ?? []);
         setPendingInsights((machinesBody.pendingInsights ?? []).length);
       }
+      /* Le skill sono un extra, non un requisito: se il catalogo non
+         risponde, il resto di MIND resta comunque utilizzabile. */
+      if (skillsResponse.ok) {
+        const skillsBody = (await skillsResponse.json()) as { skills?: InstalledSkillSummary[] };
+        setSkills(skillsBody.skills ?? []);
+      }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'ACT non disponibile.');
     } finally {
       setBusy(false);
     }
   }, [token]);
+
+  async function toggleSkill(skill: InstalledSkillSummary) {
+    if (!token) return;
+    setBusy(true);
+    try {
+      const response = await fetch('/api/skills', {
+        method: 'POST',
+        headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+        body: JSON.stringify({ action: skill.enabled ? 'disable' : 'enable', id: skill.id, sourceId: skill.sourceId }),
+      });
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(payload?.error ?? 'Operazione non riuscita.');
+      }
+      await load();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Operazione non riuscita.');
+      setBusy(false);
+    }
+  }
 
   useEffect(() => {
     void load();
@@ -275,8 +323,13 @@ export function MindPanel({ token }: { token: string | null }) {
     }
   }
 
+  /* 🔴 «Perché c'è sempre questo ACT Synthetic?» Un promemoria di test,
+     rimasto cancellato per giorni sotto un pulsante «Disattiva» permanentemente
+     grigio: la riga restava per sempre perché niente qui la toglieva mai. «Una
+     volta sola» vale anche per la lista — un promemoria annullato o già andato
+     non ha più niente da fare qui dentro. */
   const reminders = rows
-    .filter((row) => row.event.reminderAt)
+    .filter((row) => row.event.reminderAt && row.event.status === 'planned')
     .sort((a, b) => a.event.reminderAt!.localeCompare(b.event.reminderAt!));
 
   return (
@@ -300,7 +353,12 @@ export function MindPanel({ token }: { token: string | null }) {
         </p>
       )}
 
-      {!!machines.length && <p className="daily-group">THINK · cosa ha notato di te</p>}
+      {/* 🔷 «Facciamo una distinzione più netta tra THINK e ACT.» Non sono due
+          etichette sullo stesso elenco: sono due famiglie — una si fa
+          un'opinione, l'altra fa una commissione — e la forma del distintivo
+          lo dice prima ancora del testo. Tondo per THINK, come un pensiero;
+          squadrato per ACT, come un compito spuntato. */}
+      {!!machines.length && <p className="daily-group daily-group--think">THINK · cosa ha notato di te</p>}
       <ul className="daily-list">
         {machines.map((machine) => (
           <li key={machine.id} className="daily-row">
@@ -309,10 +367,9 @@ export function MindPanel({ token }: { token: string | null }) {
                 {(() => {
                   const Icon = MACHINE_ICONS[machine.id] ?? EyeIcon;
                   return (
-                    <Icon
-                      className={`daily-row__icon${machine.state.autoDaily ? ' daily-row__icon--live' : ''}`}
-                      aria-hidden="true"
-                    />
+                    <span className={`daily-row__badge daily-row__badge--think${machine.state.autoDaily ? ' daily-row__badge--live' : ''}`}>
+                      <Icon className="daily-row__icon" aria-hidden="true" />
+                    </span>
                   );
                 })()}
                 {machine.name.replace(/\s*MACHINE$/i, '')}
@@ -355,17 +412,19 @@ export function MindPanel({ token }: { token: string | null }) {
         ))}
       </ul>
 
-      {!!automations.length && <p className="daily-group">ACT · cosa fa per te</p>}
+      {!!automations.length && <p className="daily-group daily-group--act">ACT · cosa fa per te</p>}
       <ul className="daily-list">
         {automations.map((automation) => (
           <li key={automation.id} className="daily-row">
             <div className="daily-row__main">
               <p className="daily-row__title">
-                <TopicIcon
-                  text={`${automation.title} ${automation.prompt}`}
-                  icon={automation.icon}
-                  className={`daily-row__icon${automation.enabled ? ' daily-row__icon--live' : ''}`}
-                />
+                <span className={`daily-row__badge daily-row__badge--act${automation.enabled ? ' daily-row__badge--live' : ''}`}>
+                  <TopicIcon
+                    text={`${automation.title} ${automation.prompt}`}
+                    icon={automation.icon}
+                    className="daily-row__icon"
+                  />
+                </span>
                 {automation.title}
               </p>
               <p className="daily-row__meta">
@@ -403,16 +462,15 @@ export function MindPanel({ token }: { token: string | null }) {
 
       {/* Un promemoria è l'ACT più piccolo che esista — «a quest'ora dammi una
           gomitata» — non una terza categoria da imparare. L'etichetta lo dice. */}
-      {!!reminders.length && <p className="daily-group">ACT · una volta sola</p>}
+      {!!reminders.length && <p className="daily-group daily-group--act">ACT · una volta sola</p>}
       <ul className="daily-list">
         {reminders.map((row) => (
           <li key={row.event.id} className="daily-row">
             <div className="daily-row__main">
               <p className="daily-row__title">
-                <TopicIcon
-                  text={row.event.title}
-                  className={`daily-row__icon${row.event.status === 'planned' ? ' daily-row__icon--live' : ''}`}
-                />
+                <span className="daily-row__badge daily-row__badge--act daily-row__badge--live">
+                  <TopicIcon text={row.event.title} className="daily-row__icon" />
+                </span>
                 {row.event.title}
               </p>
               <p className="daily-row__meta">
@@ -431,11 +489,62 @@ export function MindPanel({ token }: { token: string | null }) {
         ))}
       </ul>
 
+      {/* 🔷 «Metti anche Skill, con le skill attive e la possibilità di
+          inserirne di nuove.» Una skill è una procedura installata, non
+          un'opinione (THINK) né una commissione ricorrente (ACT) — ma governarla
+          resta un gesto della stessa famiglia di «Pausa»/«Riprendi»: qui la
+          si vede e la si accende o spegne; installarne di nuove apre la
+          stessa stanza che già sa farlo, invece di reinventarla. */}
+      {/* 🔒 SENZA CONDIZIONE, A DIFFERENZA DI ACT E REMINDER. Un'automazione
+         assente non ha niente da mostrare; zero skill installate è invece
+         esattamente il momento in cui «la possibilità di inserirne di nuove»
+         conta di più — l'intestazione e il pulsante restano visibili anche
+         a lista vuota. */}
+      <p className="daily-group daily-group--act">SKILLS · le tue capacità</p>
+      <ul className="daily-list">
+        {skills.map((skill) => (
+          <li key={`${skill.sourceId}/${skill.id}`} className="daily-row">
+            <div className="daily-row__main">
+              <p className="daily-row__title">
+                <span className={`daily-row__badge daily-row__badge--act${skill.enabled ? ' daily-row__badge--live' : ''}`}>
+                  <PuzzleIcon className="daily-row__icon" aria-hidden="true" />
+                </span>
+                {skill.name}
+              </p>
+              <p className="daily-row__meta">{skill.enabled ? 'Attiva' : 'Installata, spenta'}</p>
+              {skill.description && <p className="daily-row__meta">{skill.description}</p>}
+            </div>
+            <button
+              type="button"
+              className="daily-row__action"
+              disabled={busy}
+              onClick={() => void toggleSkill(skill)}
+            >
+              {skill.enabled ? 'Disattiva' : 'Attiva'}
+            </button>
+          </li>
+        ))}
+      </ul>
+      <button type="button" className="daily-panel__ghost" onClick={() => setSkillsOpen(true)}>
+        + Aggiungi una skill
+      </button>
+
       {busy && <p className="daily-panel__meta">Aggiorno…</p>}
       {!busy && (
         <button type="button" className="daily-panel__ghost" onClick={() => void load()}>
           Aggiorna
         </button>
+      )}
+
+      {skillsOpen && (
+        <div className="daily-skills-overlay" role="dialog" aria-modal="true" aria-label="Skills">
+          <button type="button" className="daily-skills-overlay__close" onClick={() => { setSkillsOpen(false); void load(); }}>
+            CHIUDI ✕
+          </button>
+          <Suspense fallback={null}>
+            <LabEmbed initialLab="skills" />
+          </Suspense>
+        </div>
       )}
     </section>
   );

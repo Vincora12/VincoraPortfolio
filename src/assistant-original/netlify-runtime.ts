@@ -42,6 +42,7 @@ type Usage = {
 type StreamEvent =
   | { type: "search_started" }
   | { type: "source_found"; source: Source }
+  | { type: "thinking_delta"; delta: string }
   | { type: "answer_started" }
   | { type: "answer_delta"; delta: string }
   | {
@@ -703,6 +704,15 @@ function createBaseNetlifyChatModel(shared: { systemPrompt: string; requestId: s
         capability: "character-voice",
         config: { modelName, reasoningEffort },
         stream: useStream,
+        /* 🔷 «Manca uno streaming di pensiero veritiero — il processo mentale,
+           sempre diverso a seconda della richiesta.» Prima dell'ora `StatoDelPensiero`
+           sceglieva una frase da una tabella, sempre finta, sempre uguale a
+           parità di tono. Qui il modello ragiona per davvero e lo stream lo
+           lascia passare; a sforzo basso (il predefinito) il pensiero è breve
+           o assente, e in quel caso la tabella resta il ripiego onesto — non
+           sparisce, diventa quello che era sempre dovuta essere: un'ultima
+           risorsa, non la prima. */
+        thinking: useStream,
         webSearch: true,
         system: [
           {
@@ -791,6 +801,7 @@ function createBaseNetlifyChatModel(shared: { systemPrompt: string; requestId: s
     const decoder = new TextDecoder();
     let buffer = "";
     let answer = "";
+    let thinking = "";
     let searching = false;
     let costUsd = 0;
     let answeredBy = modelName;
@@ -814,6 +825,7 @@ function createBaseNetlifyChatModel(shared: { systemPrompt: string; requestId: s
         const event = JSON.parse(line.slice(6)) as StreamEvent;
         if (event.type === "search_started") searching = true;
         if (event.type === "source_found") sources.set(event.source.url, event.source);
+        if (event.type === "thinking_delta") thinking += event.delta;
         if (event.type === "answer_delta") answer += event.delta;
         if (event.type === "answer_completed") {
           searching = false;
@@ -827,7 +839,11 @@ function createBaseNetlifyChatModel(shared: { systemPrompt: string; requestId: s
           await saveTrace(answeredBy ?? null, event.message);
           throw new Error(event.message);
         }
-        yield { content: snapshot() };
+        /* 🔷 Il pensiero viaggia come metadato, non come testo del messaggio:
+           non è la risposta, è quello che il modello fa PRIMA di scriverla.
+           `StatoDelPensiero` lo legge da qui finché non arriva la prima
+           parola vera — poi non serve più, il testo stesso è il segnale. */
+        yield { content: snapshot(), metadata: { custom: { thinkingText: thinking } } };
       }
       if (done) break;
     }

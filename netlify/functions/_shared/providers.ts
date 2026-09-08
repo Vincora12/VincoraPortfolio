@@ -350,6 +350,11 @@ export type StreamResult =
 export type AiStreamEvent =
   | { type: 'search_started' }
   | { type: 'source_found'; source: Source }
+  /* 🔷 «Manca uno streaming di pensiero veritiero — il processo mentale, che è
+     sempre diverso a seconda della richiesta.» Non è un'altra frase scelta da
+     una tabella: è il ragionamento vero del modello, mandato in chiaro mentre
+     lo produce. Diverso perché lo È, non perché lo abbiamo variato noi. */
+  | { type: 'thinking_delta'; delta: string }
   | { type: 'answer_started' }
   | { type: 'answer_delta'; delta: string }
   | { type: 'answer_completed'; model: string; usage: Usage; costUsd: number; sources: Source[] }
@@ -380,7 +385,12 @@ export async function streamAnthropic(
         stream: true,
         fallbacks: 'default',
         output_config: { effort: req.effort ?? 'low' },
-        thinking: { type: 'disabled' },
+        /* 🔴 ERA SEMPRE SPENTO, ANCHE QUANDO IL CHIAMANTE LO CHIEDEVA — l'unica
+           strada che il client vede scorrere parola per parola non lasciava mai
+           passare un pensiero vero, e chi aspettava una risposta lunga guardava
+           una riga generica presa da una tabella. Stessa regola della strada
+           non in streaming: lo decide `req.thinking`, non questo file. */
+        ...(req.thinking ? {} : { thinking: { type: 'disabled' } }),
         ...(req.webSearch
           ? { tools: [{ type: 'web_search_20260209', name: 'web_search' }] }
           : {}),
@@ -440,7 +450,7 @@ export async function streamAnthropic(
               type?: string;
               message?: { model?: string; usage?: Record<string, number> };
               content_block?: AnthropicContentBlock;
-              delta?: { type?: string; text?: string; citation?: AnthropicCitation };
+              delta?: { type?: string; text?: string; thinking?: string; citation?: AnthropicCitation };
               usage?: Record<string, number> & {
                 server_tool_use?: { web_search_requests?: number };
               };
@@ -476,6 +486,10 @@ export async function streamAnthropic(
               ) {
                 pushSource(controller, citation);
               }
+            }
+
+            if (parsed.type === 'content_block_delta' && parsed.delta?.type === 'thinking_delta' && parsed.delta.thinking) {
+              controller.enqueue(encode({ type: 'thinking_delta', delta: parsed.delta.thinking }));
             }
 
             if (parsed.type === 'content_block_delta' && parsed.delta?.type === 'text_delta' && parsed.delta.text) {

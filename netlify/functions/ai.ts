@@ -426,6 +426,7 @@ export default async function handler(request: Request): Promise<Response> {
         turns,
         user,
         webSearch,
+        thinking: Boolean(payload.thinking),
         ...(selectedEffort ? { effort: selectedEffort } : {}),
         maxTokens: Math.min(payload.maxTokens ?? 2000, LIMITS.maxTokens),
       },

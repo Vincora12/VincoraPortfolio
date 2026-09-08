@@ -18,50 +18,87 @@
   color: #ececec;
 }
 
-/* --- Le tre sezioni ------------------------------------------------------ */
+/* --- Le tre sezioni ------------------------------------------------------
+   🔷 «Le tab CHAT/MIND devono avere questa estetica» — lo screenshot mostra
+   OGGI/CALENDARIO/MEMORY di ME: un nastro di chevron che si incastrano,
+   quello attivo che si ritaglia nero mentre gli altri restano un'unica
+   banda grigia. È `.me-health__tabs` in `screens/screens.css`, ripreso
+   esatto: stesso taglio, stesso incastro a margine negativo, stessa idea che
+   «attivo» significa «bucato fino al nero della pagina sotto», non un bordo
+   né una sottolineatura.
 
+   🔒 STESSO MECCANISMO, TINTE LETTERALI. `--mh-line`/`--mh-bg` sono token di
+   ME, scoped a quello schermo; questa superficie scrive già i suoi colori in
+   chiaro per lo stesso motivo (vedi l'intestazione del file) — qui il grigio
+   e il nero sono direttamente i valori della loro variante scura. */
 .daily-tabs {
   flex: 0 0 auto;
   display: flex;
-  gap: 20px;
-  padding: calc(env(safe-area-inset-top) + 10px) 16px 0;
-  background: #000;
+  align-items: stretch;
+  /* 🔴 «Non hanno la stessa altezza di quelle nelle altre sezioni.» Avevo
+     tenuto i 40px che questo file usava già per sé (il commento sotto, sulla
+     versione precedente, lo giustificava con «i primi tre bersagli
+     dell'app»), invece di copiare la misura vera di `.me-health__tabs`: 34px.
+     Stessa forma, stessa altezza — non solo la stessa idea. */
+  min-height: calc(34px + env(safe-area-inset-top));
+  padding-top: env(safe-area-inset-top);
+  background: #56585f;
+  isolation: isolate;
 }
 
 .daily-tabs__item {
-  position: relative;
-  /* 40px, non 32: sono i primi tre bersagli dell'app e si toccano col pollice. */
-  min-height: 40px;
-  padding: 0 0 8px;
+  flex: 1;
+  min-width: 0;
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
   border: 0;
-  background: transparent;
-  color: #6f6f6f;
+  background: #56585f;
+  color: #fff;
   font-family: var(--font-mono, ui-monospace, monospace);
   font-size: 11px;
-  letter-spacing: 0.16em;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  white-space: nowrap;
   cursor: pointer;
-  transition: color 120ms ease;
+  transition: background-color 120ms ease, color 120ms ease;
 }
 
-.daily-tabs__item[aria-current='page'] {
-  color: #ececec;
+/* Il nastro di chevron: il primo taglia solo a destra, l'ultimo solo a
+   sinistra, quello in mezzo su entrambi i lati — incastrati col margine
+   negativo, così il taglio dell'uno chiude esatto nel taglio dell'altro. */
+.daily-tabs__item:first-child {
+  clip-path: polygon(0 0, calc(100% - 11px) 0, 100% 100%, 0 100%);
+}
+
+.daily-tabs__item:nth-child(2) {
+  clip-path: polygon(0 100%, 11px 0, calc(100% - 11px) 0, 100% 100%);
+}
+
+.daily-tabs__item:last-child {
+  clip-path: polygon(0 100%, 11px 0, 100% 0, 100% 100%);
+}
+
+.daily-tabs__item + .daily-tabs__item {
+  margin-left: -11px;
+  padding-left: 4px;
 }
 
 /* 🔷 I COLORI DEL .MON, MA CON UN SIGNIFICATO. `--char-accent-on-dark` è la
    tinta della creatura attiva, già applicata a tutto il documento da
    `applyPaletteDna`. Qui vale una regola sola: l'accento dice VIVO — la sezione
    dove sei, un'automazione accesa, un pensiero da leggere. Se colorasse tutto
-   non direbbe più niente, e cambiare .mon smetterebbe di significare qualcosa. */
-
-/* L'indicatore è un filetto, non una pillola: dice dove sei senza pesare. */
-.daily-tabs__item[aria-current='page']::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 1px;
-  background: var(--char-accent-on-dark, #ececec);
+   non direbbe più niente, e cambiare .mon smetterebbe di significare qualcosa.
+   Sulla tab attiva non serve un secondo segno: il ritaglio nero già dice
+   «sei qui», l'accento sul testo dice in più «ed è vivo». */
+.daily-tabs__item[aria-current='page'] {
+  position: relative;
+  z-index: 2;
+  background: #000;
+  color: var(--char-accent-on-dark, #f8f8fa);
+  filter: drop-shadow(1px 0 0 #56585f) drop-shadow(-1px 0 0 #56585f);
 }
 
 .daily__section {
@@ -109,16 +146,29 @@
   cursor: pointer;
 }
 
+/* 🔷 «Facciamo una distinzione più netta tra THINK e ACT.» Prima le due
+   famiglie erano due etichette identiche sopra due liste identiche: la riga
+   di confine c'era nel testo, non nell'occhio. Ora ogni sezione porta il
+   proprio filetto sopra — la stessa riga che già separa le righe della lista,
+   una misura più severa — e si stacca dalla precedente invece di seguirla a
+   ruota. THINK e ACT restano lo stesso grigio: la differenza sta nella forma
+   della sezione, non in un secondo colore che confonderebbe l'unico che
+   significa qualcosa qui, l'accento del .mon. */
 .daily-group {
-  margin: 18px 0 2px;
+  margin: 28px 0 10px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
   font-family: var(--font-mono, ui-monospace, monospace);
   font-size: 10px;
-  letter-spacing: 0.16em;
-  color: #6f6f6f;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  color: #9a9a9a;
 }
 
 .daily-group:first-of-type {
   margin-top: 4px;
+  padding-top: 0;
+  border-top: 0;
 }
 
 .daily-row__meta--bad {
@@ -130,6 +180,7 @@
   display: flex;
   flex-direction: column;
   align-items: flex-end;
+  gap: 6px;
 }
 
 .daily-list {
@@ -165,16 +216,42 @@
    d'occhio, senza diventare la cosa che guardi per prima. */
 .daily-row__icon {
   flex: 0 0 auto;
-  width: 15px;
-  height: 15px;
-  opacity: 0.55;
+  width: 13px;
+  height: 13px;
 }
 
-/* Accesa: prende la tinta della creatura. In pausa resta grigia — la differenza
-   fra «sta girando» e «è ferma» si vede senza leggere. */
-.daily-row__icon--live {
+/* 🔷 IL DISTINTIVO: tondo per THINK, squadrato per ACT. Non è decorazione — è
+   la stessa differenza che il file dichiara in testa («si fa un'opinione» /
+   «fa una commissione») resa in una forma che si legge prima ancora del nome.
+   Il fondo resta un filetto di luce, non un riquadro: la legge di questa
+   superficie («niente card, niente bordi pesanti») vale anche qui. */
+.daily-row__badge {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  background: rgba(255, 255, 255, 0.05);
+  color: #9a9a9a;
+}
+
+.daily-row__badge--think {
+  border-radius: 50%;
+}
+
+.daily-row__badge--act {
+  border-radius: 7px;
+}
+
+/* Acceso: prende la tinta della creatura, come sfondo e come icona. In pausa
+   resta grigio — la differenza fra «sta girando» e «è ferma» si vede senza
+   leggere, com'era prima, solo ora sul distintivo intero e non sulla sola
+   linea dell'icona. */
+.daily-row__badge--live {
+  background: rgba(255, 255, 255, 0.14);
+  background: color-mix(in srgb, var(--char-accent-on-dark, #ececec) 18%, transparent);
   color: var(--char-accent-on-dark, #ececec);
-  opacity: 1;
 }
 
 .daily-row__meta--live {
@@ -188,20 +265,40 @@
   color: #8a8a8a;
 }
 
+/* 🔷 «I bottoni in MIND non sembrano bottoni.» Erano testo grigio su niente:
+   la stessa tinta e lo stesso peso del testo descrittivo accanto, senza un
+   bordo o un fondo che dicesse «questo si tocca». Restano un filetto, non una
+   scheda — la legge di questa superficie non cambia — ma un filetto CHIUSO
+   intorno all'etichetta, non una riga persa nello sfondo. */
 .daily-row__action {
   flex: 0 0 auto;
   /* Distrugge qualcosa: deve essere comodo da centrare, non da sfiorare. */
   min-height: 40px;
-  padding: 0 12px;
-  border: 0;
-  background: transparent;
-  color: #8a8a8a;
+  padding: 0 14px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  color: #ececec;
   font-size: 12px;
+  font-weight: 500;
   cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+
+.daily-row__action:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.09);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.daily-row__action:active:not(:disabled) {
+  background: rgba(255, 255, 255, 0.14);
 }
 
 .daily-row__action:disabled {
-  opacity: 0.35;
+  border-color: rgba(255, 255, 255, 0.08);
+  background: transparent;
+  color: #6f6f6f;
+  opacity: 1;
   cursor: not-allowed;
 }
 
@@ -238,4 +335,42 @@
 
 .daily-panel__file {
   display: none;
+}
+
+/* --- SKILLS, dentro MIND ma presa in prestito da LAB ----------------------
+   🔷 «Metti anche Skill... una cosa che è in LAB, ma mettiamo qui.»
+
+   🔒 `LabEmbed` porta lo stesso `SkillsLab` di `/lab` dentro uno shadow root:
+   il suo CSS possiede `:root`/`body` come se fosse un documento a parte, ed
+   è tarato su un fondo chiaro (le schermate MON/ME). L'overlay gli dà lo
+   stesso fondo bianco che avrebbe nel drawer di LAB (vedi `.lab-underlayer`
+   in `styles/base.css`) — non il nero di questa superficie, che qui
+   sfonderebbe la sua tipografia pensata per l'altro contesto. */
+.daily-skills-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: #fff;
+}
+
+.daily-skills-overlay :where(.lab-embed-host) {
+  height: 100%;
+}
+
+.daily-skills-overlay__close {
+  position: absolute;
+  top: calc(env(safe-area-inset-top) + 10px);
+  right: 14px;
+  z-index: 1;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid rgba(0, 0, 0, 0.16);
+  border-radius: 8px;
+  background: #fff;
+  color: #0d0d0d;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  cursor: pointer;
 }

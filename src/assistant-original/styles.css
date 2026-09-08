@@ -276,12 +276,190 @@ body[data-scroll-locked] {
   }
 }
 
+/* ============================================================================
+   LA FORMATTAZIONE DELLE RISPOSTE
+
+   🔷 «La formattazione è brutta quando diventa tanto lunga. Interlinea, ma
+   anche pesi diversi.»
+
+   🔴 QUI NON C'ERA NIENTE DA GUASTARE: non c'era formattazione da correggere,
+   perché non ne esisteva nessuna. `@assistant-ui/react-markdown` porta un solo
+   foglio di stile (`dot.css`) e disegna soltanto il puntino che pulsa mentre
+   il testo arriva — titoli, elenchi, citazioni, codice restano l'elemento
+   HTML grezzo, con qualunque stile il browser gli dia di default. La bolla
+   dell'utente accanto, invece, ha sempre avuto un'interlinea scelta apposta
+   (`leading-6`, cioè 1.5): la risposta lunga del modello — quella con più
+   titoli, più elenchi, più occasioni di perdersi — girava con `line-height:
+   normal`, il valore più stretto che esiste, mai deciso da nessuno.
+
+   Non è un'unica correzione: sono i criteri, applicati elemento per elemento.
+   - INTERLINEA: mai «normal». Il corpo prende 1.6 — la colonna qui è più
+     larga della bolla utente, quindi si merita più aria, non la stessa.
+   - PESO: un titolo pesa quanto un **grassetto** (700) ma è più grande — la
+     differenza è la taglia, il grassetto in mezzo al corpo resta un'enfasi,
+     non un secondo titolo.
+   - RITMO: più spazio SOPRA un titolo che sotto — un titolo apre la sezione
+     che segue, non chiude quella prima. Un margine simmetrico lo fa sembrare
+     sospeso fra le due.
+   - CODICE: unica cosa che deve MISURARSI diversa dal corpo, non solo
+     colorarsi — un fondo e uno spazio proprio, altrimenti in mezzo a una
+     risposta lunga sparisce nel testo attorno.
+   - CITAZIONE: un filetto laterale sottile, non un secondo paragrafo uguale.
+   ========================================================================= */
+
+.aui-md {
+  font-size: 16px;
+  line-height: 1.6;
+}
+
 .aui-md p {
-  margin-block: 0 0.75rem;
+  margin-block: 0 0.9em;
 }
 
 .aui-md p:last-child {
   margin-bottom: 0;
+}
+
+.aui-md h1,
+.aui-md h2,
+.aui-md h3,
+.aui-md h4 {
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.aui-md h1 {
+  margin: 1.7em 0 0.5em;
+  font-size: 1.375em;
+}
+
+.aui-md h2 {
+  margin: 1.6em 0 0.5em;
+  font-size: 1.2em;
+}
+
+.aui-md h3 {
+  margin: 1.4em 0 0.4em;
+  font-size: 1.0625em;
+}
+
+.aui-md h4 {
+  margin: 1.2em 0 0.4em;
+  font-size: 1em;
+}
+
+.aui-md :is(h1, h2, h3, h4):first-child {
+  margin-top: 0;
+}
+
+.aui-md ul,
+.aui-md ol {
+  margin-block: 0 0.9em;
+  padding-left: 1.375em;
+}
+
+.aui-md li {
+  margin-block: 0.3em;
+}
+
+.aui-md li > p {
+  margin-block: 0 0.3em;
+}
+
+.aui-md li::marker {
+  color: #8e8e8e;
+}
+
+.dark .aui-md li::marker {
+  color: #737373;
+}
+
+.aui-md code {
+  padding: 0.15em 0.4em;
+  border-radius: 5px;
+  background: rgba(0, 0, 0, 0.055);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.875em;
+}
+
+.dark .aui-md code {
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.aui-md pre {
+  margin-block: 0 0.9em;
+  padding: 0.85em 1em;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.045);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.dark .aui-md pre {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.aui-md pre code {
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  font-size: 0.8125em;
+  line-height: 1.55;
+  white-space: pre;
+}
+
+.aui-md blockquote {
+  margin-block: 0 0.9em;
+  padding-left: 0.9em;
+  border-left: 2px solid rgba(0, 0, 0, 0.16);
+  color: #5d5d5d;
+  font-style: normal;
+}
+
+.dark .aui-md blockquote {
+  border-left-color: rgba(255, 255, 255, 0.22);
+  color: #b4b4b4;
+}
+
+.aui-md hr {
+  margin: 1.4em 0;
+  border: 0;
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.dark .aui-md hr {
+  border-top-color: rgba(255, 255, 255, 0.14);
+}
+
+.aui-md table {
+  margin-block: 0 0.9em;
+  border-collapse: collapse;
+  font-size: 0.9375em;
+}
+
+.aui-md th,
+.aui-md td {
+  padding: 0.45em 0.8em;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  text-align: left;
+}
+
+.dark .aui-md :is(th, td) {
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+.aui-md th {
+  font-weight: 700;
+}
+
+.aui-md a {
+  color: inherit;
+  text-decoration-color: rgba(0, 0, 0, 0.35);
+  text-underline-offset: 2px;
+}
+
+.dark .aui-md a {
+  text-decoration-color: rgba(255, 255, 255, 0.4);
 }
 
 .vinz-assistant-meta [data-slot="tool-fallback-root"] {
@@ -363,8 +541,10 @@ body[data-scroll-locked] {
    ogni cambio di frase, così si legge che è cambiato senza doverlo
    rileggere. */
 .vinz-pensiero__punto {
+  flex: none;
   width: 0.5rem;
   height: 0.5rem;
+  margin-top: 0.4em;
   border-radius: 50%;
   background: var(--char-accent, currentColor);
   animation: vinz-pensiero-punto 1.4s ease-in-out infinite;
@@ -376,6 +556,17 @@ body[data-scroll-locked] {
 
 .vinz-pensiero__testo {
   animation: vinz-pensiero-testo 0.4s ease-out;
+}
+
+/* Il pensiero vero è un ragionamento, non una didascalia: può arrivare su più
+   righe. Restano al massimo tre — oltre, la riga di stato diventerebbe un
+   secondo messaggio invece di un segnale che qualcosa di vero sta accadendo. */
+.vinz-pensiero--vero .vinz-pensiero__testo {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  line-height: 1.5;
 }
 
 @keyframes vinz-pensiero-punto {

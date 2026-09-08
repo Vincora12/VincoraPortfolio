@@ -1460,7 +1460,7 @@ const OpeningComposedText: FC<{ text: string; active: boolean; delayMs: number }
 };
 
 const AssistantMessage: FC = () => {
-  const { staScrivendo, haTesto, soloSticker, chatCost, hasChatCost, openingRevealDelay, openingRevealArrivalId } = useAuiState(
+  const { staScrivendo, haTesto, soloSticker, chatCost, hasChatCost, model, openingRevealDelay, openingRevealArrivalId } = useAuiState(
     useShallow((s) => ({
       staScrivendo: s.message.status?.type === "running",
       haTesto: (s.message.content ?? []).some(
@@ -1472,6 +1472,7 @@ const AssistantMessage: FC = () => {
         return sum + (typeof cost === 'number' ? cost : 0);
       }, 0),
       hasChatCost: s.thread.messages.some((message) => typeof message.metadata.custom.costUsd === 'number'),
+      model: typeof s.message.metadata.custom.model === 'string' ? s.message.metadata.custom.model : null,
       openingRevealDelay: typeof s.message.metadata.custom.revealDelayMs === "number"
         ? s.message.metadata.custom.revealDelayMs
         : 0,
@@ -1597,6 +1598,21 @@ const AssistantMessage: FC = () => {
                   Costo chat {formatCost(chatCost)}
                 </ActionBarMorePrimitive.Item>
               )}
+              {/* 🔷 «Nei tre puntini vorrei leggere anche che AI ha usato.» Il
+                  modello che ha risposto era già scritto in
+                  `metadata.custom.model` — arrivava da ogni strada (diretta,
+                  a strumenti, in streaming) e non lo leggeva nessuno. */}
+              {model && (
+                <ActionBarMorePrimitive.Item disabled className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-white/65 outline-none select-none">
+                  Modello {model}
+                </ActionBarMorePrimitive.Item>
+              )}
+              {/* 🔷 «Attività nascondi dentro i tre puntini, aggiungendo non
+                  togliendo altro.» Prima stava sotto ogni risposta con
+                  strumenti, sempre aperta a un clic: un log tecnico in mezzo a
+                  una conversazione. Il contenuto è lo stesso — nome dello
+                  strumento, esito, durata — solo il posto è cambiato. */}
+              <AssistantActivityMenu />
             </ActionBarMorePrimitive.Content>
           </ActionBarMorePrimitive.Root>
         </ActionBarPrimitive.Root>
@@ -1884,19 +1900,28 @@ const MonReactionMessage: FC = () => {
    COSA STA FACENDO, MENTRE LO FA
 
    🔷 «Quando sta caricando il messaggio vorrei vedere dei testi di feedback
-      per sapere cosa sta facendo l'AI. Tipo "sto cercando soluzioni al tuo
-      problema" o genericamente "sto ragionando".»
+      per sapere cosa sta facendo l'AI.» — e poi, più avanti: «manca uno
+      streaming di pensiero VERITIERO, che mostri il processo mentale, sempre
+      diverso a seconda della richiesta.»
 
-   🔒 QUANDO SAPPIAMO DAVVERO COSA FA, LO DICIAMO; ALTRIMENTI NON LO INVENTIAMO.
-   Il runtime emette parti `tool-call` vere — la ricerca sul web, gli strumenti
-   che leggono il .mon — e quelle hanno un nome. Se ce n'è una in corso, la
-   riga dice QUELLA cosa. Se non c'è, restano le frasi generiche, che sono
-   vere qualunque cosa stia succedendo: sta pensando.
+   🔒 TRE LIVELLI, IN ORDINE DI VERITÀ, NON DI PREFERENZA. Si mostra il più
+   vero fra quelli disponibili in questo momento:
+     1. IL PENSIERO VERO — `thinkingText`, il ragionamento che Claude produce
+        davvero prima di scrivere, mandato in streaming da `providers.ts`. Non
+        è mai lo stesso due volte perché non è mai la stessa richiesta.
+     2. LO STRUMENTO VERO — un `tool-call` in corso ha un nome, e quello resta
+        vero anche quando il pensiero non c'è (i turni con strumenti non
+        passano da questa strada, o il modello non ha pensato ad alta voce).
+     3. LE FRASI GENERICHE — vere in un senso più debole ma mai false: qualunque
+        cosa stia succedendo, «sta pensando» lo è sempre. Sono il ripiego,
+        non il piano A: entrano in scena solo quando né 1 né 2 hanno niente
+        da dire.
 
    ⚠️ Scrivere «sto cercando soluzioni al tuo problema» mentre il modello non
    sta cercando niente sarebbe un'animazione che racconta una storia: la volta
    che la ricerca non parte davvero, quella riga direbbe una bugia con l'aria
-   di essere una diagnosi.
+   di essere una diagnosi. Lo stesso vale al contrario: mostrare il pensiero
+   vero non è la messa in scena di un pensiero, è il pensiero.
 
    La riga sparisce da sola appena arriva la prima parola: da lì in poi il
    testo che compare È il feedback. */
@@ -1904,7 +1929,7 @@ const StatoDelPensiero: FC = () => {
   const record = useApp((state) =>
     state.activeMonName ? state.mons[state.activeMonName] ?? null : null,
   );
-  const { inCorso, testoGiaArrivato, strumento, azioneCompletata, richiesta, messageId } = useAuiState(
+  const { inCorso, testoGiaArrivato, pensieroVero, strumento, azioneCompletata, richiesta, messageId } = useAuiState(
     useShallow((s) => {
       const parts = s.message.content ?? [];
       const running = s.message.status?.type === 'running';
@@ -1920,9 +1945,11 @@ const StatoDelPensiero: FC = () => {
         .filter((part) => part.type === 'text')
         .map((part) => part.type === 'text' ? part.text : '')
         .join(' ') ?? '';
+      const pensiero = s.message.metadata.custom.thinkingText;
       return {
         inCorso: running,
         testoGiaArrivato: conTesto,
+        pensieroVero: typeof pensiero === 'string' ? pensiero.trim() : '',
         strumento: attivo && attivo.type === 'tool-call' ? attivo.toolName : null,
         azioneCompletata: parts.some((part) => part.type === 'tool-call' && part.result !== undefined),
         richiesta: testoUtente,
@@ -1936,6 +1963,13 @@ const StatoDelPensiero: FC = () => {
   const card = record ? voiceCard(record) : null;
   const tone = toneFor(record?.data.voice_preset ?? null, card?.fingerprint ?? '');
   const kind = thoughtKind(strumento, richiesta, azioneCompletata && !strumento ? 'after-action' : undefined);
+  /* 🔒 SI VEDE LA CODA, NON TUTTO IL FIUME. Il pensiero vero può allungarsi per
+     paragrafi — è un ragionamento, non una didascalia — e non è un trascritto
+     da leggere per intero: è un segno che qualcosa di vero sta succedendo. Si
+     mostra la parte più recente, quella che dice cosa sta pensando ORA, non
+     l'inizio di un pensiero che nel frattempo è andato avanti. */
+  const pensieroVisibile = pensieroVero.length > 240 ? `…${pensieroVero.slice(-240)}` : pensieroVero;
+  const haPensieroVero = pensieroVero.length > 0;
   const frase = buildThoughtStatus({
     preset: record?.data.voice_preset ?? null,
     fingerprint: card?.fingerprint ?? '',
@@ -1946,28 +1980,32 @@ const StatoDelPensiero: FC = () => {
   });
 
   /* Il ciclo delle frasi generiche parte solo quando servono davvero: montare
-     un timer che gira anche a chat ferma sarebbe lavoro per niente. */
+     un timer che gira anche a chat ferma, o mentre un pensiero vero sta già
+     scorrendo, sarebbe lavoro per niente. */
   useEffect(() => {
-    if (!inCorso || testoGiaArrivato || strumento) return;
+    if (!inCorso || testoGiaArrivato || strumento || haPensieroVero) return;
     const t = setInterval(() => setGiro((n) => n + 1), 2600);
     return () => clearInterval(t);
-  }, [inCorso, testoGiaArrivato, strumento]);
+  }, [inCorso, testoGiaArrivato, strumento, haPensieroVero]);
 
   useEffect(() => {
-    if (!inCorso || testoGiaArrivato || (giro > 0 && !strumento)) return;
+    if (!inCorso || testoGiaArrivato || haPensieroVero || (giro > 0 && !strumento)) return;
     recenti.current = [...recenti.current.filter((item) => item !== frase), frase].slice(-6);
     rememberThoughtStatus(frase);
-  }, [frase, giro, inCorso, strumento, testoGiaArrivato]);
+  }, [frase, giro, inCorso, strumento, testoGiaArrivato, haPensieroVero]);
 
   if (!inCorso || testoGiaArrivato) return null;
 
   return (
     <div
-      className="vinz-pensiero flex items-center gap-2 text-[#5d5d5d] dark:text-[#b4b4b4]"
+      className={cn(
+        'vinz-pensiero flex items-start gap-2 text-[#5d5d5d] dark:text-[#b4b4b4]',
+        haPensieroVero && 'vinz-pensiero--vero',
+      )}
       aria-live="polite"
     >
       <span className="vinz-pensiero__punto" aria-hidden="true" />
-      <span className="vinz-pensiero__testo text-sm">{frase}</span>
+      <span className="vinz-pensiero__testo text-sm">{haPensieroVero ? pensieroVisibile : frase}</span>
     </div>
   );
 };
@@ -1979,17 +2017,33 @@ function formatCost(value: number): string {
   return `$${value.toFixed(2)}`;
 }
 
-const MessageUpdates: FC = () => {
+/** L'elenco degli strumenti usati per questa risposta, dentro il menu «···». */
+const AssistantActivityMenu: FC = () => {
   const activityValue = useAuiState((s) => s.message.metadata.custom.activity);
   const activity = Array.isArray(activityValue) ? activityValue as Array<{tool: string; status: string; durationMs?: number}> : [];
+  if (activity.length === 0) return null;
+  return (
+    <>
+      <ActionBarMorePrimitive.Item disabled className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-white/65 outline-none select-none">
+        Attività · {activity.length}
+      </ActionBarMorePrimitive.Item>
+      {activity.map((entry, index) => (
+        <ActionBarMorePrimitive.Item key={index} disabled className="flex items-center gap-2.5 rounded-lg py-1 pr-3 pl-6 text-xs text-white/50 outline-none select-none">
+          {entry.tool} · {entry.status}{entry.durationMs !== undefined ? ` · ${entry.durationMs} ms` : ''}
+        </ActionBarMorePrimitive.Item>
+      ))}
+    </>
+  );
+};
+
+const MessageUpdates: FC = () => {
   const value = useAuiState((s) => s.message.metadata.custom.updates);
   const updates = Array.isArray(value)
     ? value.filter((item): item is string => typeof item === "string")
     : [];
-  if (updates.length === 0 && activity.length === 0) return null;
+  if (updates.length === 0) return null;
   return (
     <div className="vinz-message-updates mt-1 flex flex-col gap-1" aria-live="polite">
-      {activity.length > 0 && <details className="vinz-tool-activity"><summary>Attività · {activity.length}</summary>{activity.map((entry, index) => <small key={index}>{entry.tool} · {entry.status}{entry.durationMs !== undefined ? ` · ${entry.durationMs} ms` : ''}</small>)}</details>}
       {updates.map((update) => (
         <small
           key={update}
