@@ -69,6 +69,7 @@ interface Automation {
   id: string;
   title: string;
   prompt: string;
+  icon?: string;
   schedule: Schedule;
   enabled: boolean;
   nextRunAt: string;
@@ -316,7 +317,12 @@ export function MindPanel({ token }: { token: string | null }) {
               <p className="daily-row__title">
                 {(() => {
                   const Icon = MACHINE_ICONS[machine.id] ?? EyeIcon;
-                  return <Icon className="daily-row__icon" aria-hidden="true" />;
+                  return (
+                    <Icon
+                      className={`daily-row__icon${machine.state.autoDaily ? ' daily-row__icon--live' : ''}`}
+                      aria-hidden="true"
+                    />
+                  );
                 })()}
                 {machine.name.replace(/\s*MACHINE$/i, '')}
               </p>
@@ -329,10 +335,12 @@ export function MindPanel({ token }: { token: string | null }) {
               </p>
               <p className="daily-row__meta">
                 {machine.state.lastRun ? `Ultima · ${whenLabel(machine.state.lastRun)}` : 'Mai eseguita'}
-                {machine.id === 'reflection' && pendingInsights > 0
-                  ? ` · ${pendingInsights} pensiero${pendingInsights > 1 ? 'i' : ''} da leggere`
-                  : ''}
               </p>
+              {machine.id === 'reflection' && pendingInsights > 0 && (
+                <p className="daily-row__meta daily-row__meta--live">
+                  {pendingInsights} pensiero{pendingInsights > 1 ? 'i' : ''} da leggere
+                </p>
+              )}
             </div>
             <div className="daily-row__stack">
               <button
@@ -362,7 +370,11 @@ export function MindPanel({ token }: { token: string | null }) {
           <li key={automation.id} className="daily-row">
             <div className="daily-row__main">
               <p className="daily-row__title">
-                <TopicIcon text={`${automation.title} ${automation.prompt}`} className="daily-row__icon" />
+                <TopicIcon
+                  text={`${automation.title} ${automation.prompt}`}
+                  icon={automation.icon}
+                  className={`daily-row__icon${automation.enabled ? ' daily-row__icon--live' : ''}`}
+                />
                 {automation.title}
               </p>
               <p className="daily-row__meta">
@@ -406,7 +418,10 @@ export function MindPanel({ token }: { token: string | null }) {
           <li key={row.event.id} className="daily-row">
             <div className="daily-row__main">
               <p className="daily-row__title">
-                <TopicIcon text={row.event.title} className="daily-row__icon" />
+                <TopicIcon
+                  text={row.event.title}
+                  className={`daily-row__icon${row.event.status === 'planned' ? ' daily-row__icon--live' : ''}`}
+                />
                 {row.event.title}
               </p>
               <p className="daily-row__meta">

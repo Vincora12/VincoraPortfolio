@@ -48,6 +48,9 @@ export interface Automation {
   id: string;
   title: string;
   prompt: string;
+  /* Scelta dal modello alla creazione, da un elenco chiuso. Se manca o non è
+     dell'elenco, il client ricade sulla tabella di parole. */
+  icon?: string;
   schedule: AutomationSchedule;
   enabled: boolean;
   createdAt: string;

@@ -145,7 +145,8 @@ export const TOOLS: ToolDef[] = [
       dalle_ore: { type: 'integer', minimum: 0, maximum: 23 },
       alle_ore: { type: 'integer', minimum: 0, maximum: 23 },
       fuso: { type: 'string', description: 'IANA, es. Europe/Rome' },
-    }, required: ['titolo', 'descrizione', 'cadenza'] },
+      icona: { type: 'string', enum: ['notizie','meteo','peso','cibo','sport','salute','promemoria','soldi','viaggio','lavoro','documenti','studio','idee','ricerca','generico'], description: 'Quella che descrive meglio il contenuto.' },
+    }, required: ['titolo', 'descrizione', 'cadenza', 'icona'] },
   },
   {
     name: 'calcola_energia_giornaliera',
@@ -941,6 +942,7 @@ async function executeAutomationTool(use: ToolUse, token: string | null): Promis
     title: str(args.titolo),
     prompt: str(args.descrizione),
     timezone: str(args.fuso) || Intl.DateTimeFormat().resolvedOptions().timeZone,
+    icon: str(args.icona),
   };
   if (cadence === 'ogni_intervallo') {
     payload.cadence = 'interval';

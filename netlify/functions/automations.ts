@@ -38,7 +38,14 @@ interface Payload {
   everyMinutes?: number;
   fromHour?: number;
   toHour?: number;
+  icon?: string;
 }
+
+/** Deve restare allineato a `ICON_NAMES` in `src/system/topicIcon.tsx`. */
+const ICONS = new Set([
+  'notizie', 'meteo', 'peso', 'cibo', 'sport', 'salute', 'promemoria',
+  'soldi', 'viaggio', 'lavoro', 'documenti', 'studio', 'idee', 'ricerca', 'generico',
+]);
 
 function validTimezone(value: unknown): value is string {
   if (typeof value !== 'string' || !value) return false;
@@ -138,6 +145,7 @@ export default async function handler(request: Request): Promise<Response> {
         id: newId(),
         title,
         prompt,
+        ...(typeof body.icon === 'string' && ICONS.has(body.icon) ? { icon: body.icon } : {}),
         schedule: read.schedule,
         enabled: true,
         createdAt: new Date().toISOString(),

@@ -30,6 +30,7 @@ import {
   NewspaperIcon,
   PlaneIcon,
   ScaleIcon,
+  SearchIcon,
   UtensilsIcon,
   WalletIcon,
   type LucideIcon,
@@ -54,12 +55,53 @@ const RULES: { icon: LucideIcon; test: RegExp }[] = [
   { icon: LightbulbIcon, test: /\b(ide[ae]|design|creativ\w*|progettazion\w*|ispirazion\w*)\b/i },
 ];
 
-/** L'icona per un titolo (e, se c'è, il testo che lo accompagna). */
-export function topicIcon(text: string): LucideIcon {
+/* ============================================================================
+   L'ELENCO CHIUSO
+
+   🔷 «Ci sono le icone per ogni tipo possibile?» No: una tabella di parole
+   copre quello che qualcuno ha previsto, e basta. Per le automazioni la sceglie
+   il MODELLO, da questo elenco, nello stesso turno in cui la crea — quindi
+   copre anche «controlla se il mio dominio è ancora libero», e costa zero
+   chiamate in più.
+
+   🔒 ELENCO CHIUSO, NON UN NOME LIBERO. Se il modello potesse scrivere il nome
+   che vuole, metà delle automazioni finirebbe con un'icona che non esiste. Un
+   nome fuori elenco cade sul segnalino neutro, come una parola non riconosciuta. */
+export const ICON_NAMES = {
+  notizie: NewspaperIcon,
+  meteo: CloudSunIcon,
+  peso: ScaleIcon,
+  cibo: UtensilsIcon,
+  sport: DumbbellIcon,
+  salute: HeartPulseIcon,
+  promemoria: BellIcon,
+  soldi: WalletIcon,
+  viaggio: PlaneIcon,
+  lavoro: BriefcaseBusinessIcon,
+  documenti: FileTextIcon,
+  studio: BookOpenIcon,
+  idee: LightbulbIcon,
+  ricerca: SearchIcon,
+  generico: CircleDashedIcon,
+} as const;
+
+export type IconName = keyof typeof ICON_NAMES;
+
+/** L'icona per un titolo, o quella già scelta e salvata se c'è. */
+export function topicIcon(text: string, saved?: string | null): LucideIcon {
+  if (saved && saved in ICON_NAMES) return ICON_NAMES[saved as IconName];
   return RULES.find((rule) => rule.test.test(text))?.icon ?? CircleDashedIcon;
 }
 
-export function TopicIcon({ text, className }: { text: string; className?: string }) {
-  const Icon = topicIcon(text);
+export function TopicIcon({
+  text,
+  icon,
+  className,
+}: {
+  text: string;
+  icon?: string | null;
+  className?: string;
+}) {
+  const Icon = topicIcon(text, icon);
   return <Icon className={className} aria-hidden="true" />;
 }

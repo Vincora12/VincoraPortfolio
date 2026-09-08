@@ -47,6 +47,12 @@
   color: #ececec;
 }
 
+/* 🔷 I COLORI DEL .MON, MA CON UN SIGNIFICATO. `--char-accent-on-dark` è la
+   tinta della creatura attiva, già applicata a tutto il documento da
+   `applyPaletteDna`. Qui vale una regola sola: l'accento dice VIVO — la sezione
+   dove sei, un'automazione accesa, un pensiero da leggere. Se colorasse tutto
+   non direbbe più niente, e cambiare .mon smetterebbe di significare qualcosa. */
+
 /* L'indicatore è un filetto, non una pillola: dice dove sei senza pesare. */
 .daily-tabs__item[aria-current='page']::after {
   content: '';
@@ -55,7 +61,7 @@
   right: 0;
   bottom: 0;
   height: 1px;
-  background: #ececec;
+  background: var(--char-accent-on-dark, #ececec);
 }
 
 .daily__section {
@@ -161,7 +167,18 @@
   flex: 0 0 auto;
   width: 15px;
   height: 15px;
-  opacity: 0.75;
+  opacity: 0.55;
+}
+
+/* Accesa: prende la tinta della creatura. In pausa resta grigia — la differenza
+   fra «sta girando» e «è ferma» si vede senza leggere. */
+.daily-row__icon--live {
+  color: var(--char-accent-on-dark, #ececec);
+  opacity: 1;
+}
+
+.daily-row__meta--live {
+  color: var(--char-accent-on-dark, #ececec);
 }
 
 .daily-row__meta {
