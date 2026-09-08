@@ -67,6 +67,26 @@ Tre cose che sembrano dettagli e non lo sono:
 Verificato: mandato un messaggio, ricaricata la pagina, la stessa conversazione
 riapre con quel messaggio e la sua risposta.
 
+### La riga «✓ fatto» sotto la risposta
+
+Ogni azione che **cambia qualcosa** lascia una riga con la spunta sotto il
+messaggio: «Pasto aggiunto in ME», «Promemoria creato», «Automazione creata»,
+«Pagina aggiornata», «Aspetto cambiato». L'etichetta la decide `updateLabel`
+(`assistant-original/netlify-runtime.ts`).
+
+Due regole che tengono la riga utile invece che rumorosa:
+
+- **Solo ciò che cambia qualcosa.** Le letture non producono niente. Se ogni
+  `leggi_me` lasciasse una spunta, sotto una risposta normale ci sarebbe un muro
+  di righe e nessuna direbbe più niente. Chi vuole vedere anche le letture ha già
+  «Attività · N», che le conta tutte ed è richiudibile.
+- **Solo se è andata bene.** Il risultato in errore viene scartato prima:
+  una spunta su una scrittura fallita sarebbe una bugia con l'icona giusta.
+
+Gli strumenti che fanno più cose guardano anche l'input: `programma_promemoria`
+dice «Promemoria creato», «aggiornato» o «disattivato», e su `list` non dice
+niente perché elencare non è una notizia.
+
 ### I pulsanti di conferma
 
 Quando VINZ sta per scrivere qualcosa nel registro, la domanda finale la scrive

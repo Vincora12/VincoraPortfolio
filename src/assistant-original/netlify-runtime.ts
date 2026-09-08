@@ -358,6 +358,74 @@ async function foodBarcodeContext(text: string, token: string, signal: AbortSign
     : `\n\n[BARCODE ${barcode}: prodotto non trovato nel database]`;
 }
 
+/* ============================================================================
+   «PASTO AGGIUNTO IN ME» — ma per OGNI azione, non solo per i pasti
+
+   🔒 SOLO CIÒ CHE CAMBIA QUALCOSA. Le letture non producono niente: se ogni
+   `leggi_me` lasciasse una riga, sotto una risposta normale ci sarebbe un muro
+   di spunte e nessuna direbbe più niente. Chi vuole vedere anche le letture ha
+   già «Attività · N», che le conta tutte ed è richiudibile.
+
+   🔒 SOLO SE È ANDATA BENE. Chi chiama questa funzione lo fa dopo aver
+   scartato i risultati in errore: una spunta su una scrittura fallita sarebbe
+   una bugia con l'icona giusta.
+
+   ⚠️ Alcuni strumenti fanno più cose (`programma_promemoria` elenca, crea,
+   aggiorna e annulla), quindi l'etichetta guarda anche l'input: «Promemoria
+   creato» e «Promemoria disattivato» non sono la stessa notizia, e `list` non
+   è una notizia affatto. */
+function updateLabel(use: ToolUse): string | null {
+  const args = (use.input && typeof use.input === 'object' ? use.input : {}) as Record<string, unknown>;
+  const action = typeof args.azione === 'string' ? args.azione : '';
+
+  switch (use.name) {
+    /* --- Salute e ME --- */
+    case 'registra_pasto': return 'Pasto aggiunto in ME';
+    case 'correggi_ultimo_pasto': return 'Pasto corretto in ME';
+    case 'registra_allenamento': return 'Allenamento aggiunto in ME';
+    case 'correggi_ultimo_allenamento': return 'Allenamento corretto in ME';
+    case 'registra_peso': return 'Peso aggiornato in ME';
+    case 'correggi_ultimo_peso': return 'Peso corretto in ME';
+    case 'imposta_dieta': return 'Piano alimentare aggiornato in ME';
+    case 'imposta_piano_allenamento': return 'Piano allenamento aggiornato in ME';
+    case 'imposta_obiettivi_nutrizionali': return 'Obiettivi nutrizionali aggiornati in ME';
+    case 'gestisci_me':
+      return action === 'create' ? 'Blocco aggiunto in ME'
+        : action === 'update' ? 'Blocco aggiornato in ME'
+        : action === 'delete' ? 'Blocco eliminato da ME'
+        : action === 'move' ? 'Blocchi riordinati in ME'
+        : 'Schermata ME aggiornata';
+
+    /* --- Tempo --- */
+    case 'programma_promemoria':
+      return action === 'create' ? 'Promemoria creato'
+        : action === 'update' ? 'Promemoria aggiornato'
+        : action === 'cancel' ? 'Promemoria disattivato'
+        : null;
+    case 'crea_automazione': return 'Automazione creata';
+    case 'ricorda_di': return 'Promemoria interno segnato';
+
+    /* --- Documenti --- */
+    case 'crea_file_testo': return 'File creato';
+    case 'scrivi_artifact_progetto': return 'Documento salvato nel progetto';
+    case 'scrivi_una_pagina': return 'Pagina creata';
+    case 'aggiorna_una_pagina': return 'Pagina aggiornata';
+
+    /* --- Interfaccia --- */
+    case 'cambia_aspetto':
+      return typeof args.cosa === 'string' && args.cosa.toLowerCase() === 'reset'
+        ? 'Aspetto ripristinato'
+        : 'Aspetto cambiato';
+    case 'cambia_schermata':
+      return action === 'nascondi' ? 'Elemento nascosto'
+        : action === 'mostra' ? 'Elemento mostrato'
+        : 'Schermata cambiata';
+
+    /* Letture e ricerche: nessuna riga, per scelta. */
+    default: return null;
+  }
+}
+
 async function* runWithLocalTools(
   messages: readonly ThreadMessage[],
   abortSignal: AbortSignal,
@@ -405,18 +473,7 @@ async function* runWithLocalTools(
     } catch (error) { entry.status = 'FAIL'; throw error; }
     finally { entry.durationMs = Math.round(performance.now() - startedAt); notifyActivity(); }
     if (result.isError) return result;
-    const label = ({
-      registra_pasto: "Pasto aggiunto in ME",
-      correggi_ultimo_pasto: "Pasto corretto in ME",
-      registra_allenamento: "Allenamento aggiunto in ME",
-      correggi_ultimo_allenamento: "Allenamento corretto in ME",
-      registra_peso: "Peso aggiornato in ME",
-      correggi_ultimo_peso: "Peso corretto in ME",
-      imposta_dieta: "Piano alimentare aggiornato in ME",
-      imposta_piano_allenamento: "Piano allenamento aggiornato in ME",
-      imposta_obiettivi_nutrizionali: "Obiettivi nutrizionali aggiornati in ME",
-      gestisci_me: "Schermata ME aggiornata",
-    } as Record<string, string>)[use.name];
+    const label = updateLabel(use);
     if (label && !updates.includes(label)) updates.push(label);
     return result;
   };

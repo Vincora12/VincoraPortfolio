@@ -643,6 +643,11 @@ export async function replyWithLocalTools(
           imposta_piano_allenamento: 'Piano di allenamento aggiornato in ME.',
           imposta_obiettivi_nutrizionali: 'Obiettivi nutrizionali aggiornati in ME.',
           gestisci_me: 'ME aggiornato.',
+          /* Un'automazione e un promemoria non stanno in ME: senza queste due
+             righe il fallback avrebbe risposto «ME aggiornato» a una cosa che
+             ME non l'ha toccato. */
+          crea_automazione: 'Automazione creata.',
+          programma_promemoria: 'Promemoria aggiornato.',
         } as Record<string, string>)[forcedWrite] ?? 'ME aggiornato.';
         onChunk(confirmation);
         outcome = { costUsd: totalCostUsd, model: lastModel };
