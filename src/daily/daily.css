@@ -82,6 +82,27 @@
   -webkit-overflow-scrolling: touch;
 }
 
+/* Non un allarme: una riga che dice cosa manca e come si rimedia, lì dove la
+   mancanza si sente. */
+.daily-notice {
+  margin: 4px 0 8px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #c9c9c9;
+}
+
+.daily-notice button {
+  min-height: 32px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #ececec;
+  font-size: 12px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
 .daily-group {
   margin: 18px 0 2px;
   font-family: var(--font-mono, ui-monospace, monospace);

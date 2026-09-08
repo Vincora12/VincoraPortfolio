@@ -1,9 +1,21 @@
 /* ============================================================================
-   ACT — quello che VINZ continua a fare nel tempo
+   MIND — quello che VINZ fa quando non lo guardi
+
+   Due famiglie, e la differenza è vera, non cosmetica:
+
+   THINK  si fa un'OPINIONE su di te. Legge la tua memoria e scrive tesi sulla
+          tua vita — che possono sbagliarsi, e per questo portano l'evidenza da
+          cui nascono, una confidenza e una chiave per non ripetersi.
+   ACT    fa una COMMISSIONE e riferisce. Non afferma niente su di te: cerca,
+          guarda, torna con quello che ha trovato.
+
+   🔒 NON SI FONDONO. Un'automazione che potesse affermare cose sul tuo conto
+   senza evidenza sarebbe un sistema che si inventa opinioni su di te mentre
+   dormi. L'evidenza esiste per impedirlo, e vive solo di là.
 
    Due cose diverse, e la differenza conta:
 
-   AUTOMAZIONI  girano da sole alla cadenza che hai concordato — tutti i giorni,
+   AUTOMAZIONI (ACT)  girano da sole alla cadenza che hai concordato — tutti i giorni,
                 certi giorni della settimana, o ogni N minuti — FANNO il lavoro
                 (cercano sul web con la voce di VINZ) e il risultato arriva in
                 chat. Ricorrenti.
@@ -27,6 +39,13 @@ type Schedule =
   | { kind: 'daily'; hour: number; minute: number; timezone: string }
   | { kind: 'weekly'; days: number[]; hour: number; minute: number; timezone: string }
   | { kind: 'interval'; everyMinutes: number; timezone: string; fromHour?: number; toHour?: number };
+
+interface MachineView {
+  id: string;
+  name: string;
+  purpose: string;
+  state: { status: string; lastRun: string | null };
+}
 
 interface Automation {
   id: string;
@@ -82,8 +101,16 @@ function reminderState(event: CalendarEvent): string {
   return Date.parse(event.reminderAt!) <= Date.now() ? 'In attesa' : 'Attivo';
 }
 
-export function ActPanel({ token }: { token: string | null }) {
+export function MindPanel({ token }: { token: string | null }) {
+  const [machines, setMachines] = useState<MachineView[]>([]);
+  const [pendingInsights, setPendingInsights] = useState(0);
+  const [runningMachine, setRunningMachine] = useState<string | null>(null);
   const [automations, setAutomations] = useState<Automation[]>([]);
+  /* 🔴 SENZA PUSH, ACT È UN POSTO DOVE VAI A GUARDARE. L'interruttore esisteva
+     solo dentro il vano tecnico a scomparsa, chiamato «ATTIVA INSIGHT»: cioè la
+     cosa da cui dipendono automazioni e promemoria era nascosta e aveva il nome
+     di un'altra funzione. Qui è dove il suo valore si vede. */
+  const [notifications, setNotifications] = useState<'unknown' | 'off' | 'on' | 'busy'>('unknown');
   const [rows, setRows] = useState<Row[]>([]);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState('');
@@ -98,9 +125,10 @@ export function ActPanel({ token }: { token: string | null }) {
     setError('');
     const headers = { authorization: `Bearer ${token}` };
     try {
-      const [autoResponse, calendarResponse] = await Promise.all([
+      const [autoResponse, calendarResponse, machinesResponse] = await Promise.all([
         fetch('/api/automations', { headers, cache: 'no-store' }),
         fetch('/api/calendar', { headers, cache: 'no-store' }),
+        fetch('/api/machines', { headers, cache: 'no-store' }),
       ]);
       const autoBody = (await autoResponse.json()) as { automations?: Automation[]; error?: string };
       const calendarBody = (await calendarResponse.json()) as { events?: Row[]; error?: string };
@@ -108,6 +136,14 @@ export function ActPanel({ token }: { token: string | null }) {
       if (!calendarResponse.ok) throw new Error(calendarBody.error ?? 'Promemoria non disponibili.');
       setAutomations(autoBody.automations ?? []);
       setRows(calendarBody.events ?? []);
+      if (machinesResponse.ok) {
+        const machinesBody = (await machinesResponse.json()) as {
+          machines?: MachineView[];
+          pendingInsights?: unknown[];
+        };
+        setMachines(machinesBody.machines ?? []);
+        setPendingInsights((machinesBody.pendingInsights ?? []).length);
+      }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'ACT non disponibile.');
     } finally {
@@ -118,6 +154,25 @@ export function ActPanel({ token }: { token: string | null }) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (!token || typeof window === 'undefined' || !('Notification' in window)) return;
+    void import('@/system/pushNotifications')
+      .then(({ machineNotificationsEnabled }) => machineNotificationsEnabled())
+      .then((enabled) => setNotifications(enabled ? 'on' : 'off'))
+      .catch(() => setNotifications('off'));
+  }, [token]);
+
+  async function enableNotifications() {
+    if (!token) return;
+    setNotifications('busy');
+    try {
+      const { enableMachineNotifications } = await import('@/system/pushNotifications');
+      setNotifications((await enableMachineNotifications(token)) ? 'on' : 'off');
+    } catch {
+      setNotifications('off');
+    }
+  }
 
   async function act(body: Record<string, unknown>, confirmText?: string) {
     if (!token) return;
@@ -137,6 +192,25 @@ export function ActPanel({ token }: { token: string | null }) {
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Operazione non riuscita.');
       setBusy(false);
+    }
+  }
+
+  /* Far girare una macchina a mano resta possibile: era l'unico modo prima, e
+     serve ancora quando vuoi vedere subito se ha qualcosa da dirti. */
+  async function runMachine(id: string) {
+    if (!token || runningMachine) return;
+    setRunningMachine(id);
+    try {
+      await fetch('/api/machines', {
+        method: 'POST',
+        headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+        body: JSON.stringify({ machine: id }),
+      });
+      await load();
+    } catch {
+      setError('Esecuzione non riuscita.');
+    } finally {
+      setRunningMachine(null);
     }
   }
 
@@ -163,7 +237,7 @@ export function ActPanel({ token }: { token: string | null }) {
     .sort((a, b) => a.event.reminderAt!.localeCompare(b.event.reminderAt!));
 
   return (
-    <section className="daily-panel" aria-label="ACT">
+    <section className="daily-panel" aria-label="MIND">
       {error && (
         <p className="daily-panel__error" role="alert">
           {error}
@@ -176,7 +250,41 @@ export function ActPanel({ token }: { token: string | null }) {
         </p>
       )}
 
-      {!!automations.length && <p className="daily-group">AUTOMAZIONI</p>}
+      {notifications === 'off' && !!automations.length && (
+        <p className="daily-notice">
+          Le automazioni girano, ma non possono avvisarti.{' '}
+          <button type="button" onClick={() => void enableNotifications()}>Attiva le notifiche</button>
+        </p>
+      )}
+      {notifications === 'busy' && <p className="daily-panel__meta">Attivo le notifiche…</p>}
+
+      {!!machines.length && <p className="daily-group">THINK · cosa ha notato di te</p>}
+      <ul className="daily-list">
+        {machines.map((machine) => (
+          <li key={machine.id} className="daily-row">
+            <div className="daily-row__main">
+              <p className="daily-row__title">{machine.name.replace(/\s*MACHINE$/i, '')}</p>
+              <p className="daily-row__meta">{machine.purpose}</p>
+              <p className="daily-row__meta">
+                {machine.state.lastRun ? `Ultima · ${whenLabel(machine.state.lastRun)}` : 'Mai eseguita'}
+                {machine.id === 'reflection' && pendingInsights > 0
+                  ? ` · ${pendingInsights} pensiero${pendingInsights > 1 ? 'i' : ''} da leggere`
+                  : ''}
+              </p>
+            </div>
+            <button
+              type="button"
+              className="daily-row__action"
+              disabled={busy || runningMachine !== null}
+              onClick={() => void runMachine(machine.id)}
+            >
+              {runningMachine === machine.id ? 'Pensa…' : 'Fai girare'}
+            </button>
+          </li>
+        ))}
+      </ul>
+
+      {!!automations.length && <p className="daily-group">ACT · cosa fa per te</p>}
       <ul className="daily-list">
         {automations.map((automation) => (
           <li key={automation.id} className="daily-row">
@@ -215,7 +323,9 @@ export function ActPanel({ token }: { token: string | null }) {
         ))}
       </ul>
 
-      {!!reminders.length && <p className="daily-group">PROMEMORIA</p>}
+      {/* Un promemoria è l'ACT più piccolo che esista — «a quest'ora dammi una
+          gomitata» — non una terza categoria da imparare. L'etichetta lo dice. */}
+      {!!reminders.length && <p className="daily-group">ACT · una volta sola</p>}
       <ul className="daily-list">
         {reminders.map((row) => (
           <li key={row.event.id} className="daily-row">

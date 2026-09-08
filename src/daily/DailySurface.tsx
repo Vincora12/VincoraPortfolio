@@ -4,7 +4,8 @@
    «Apro VINZ e parlo.» Tre sezioni, non di più:
 
      CHAT   parlo con VINZ
-     ACT    quello che VINZ continua a fare nel tempo
+     MIND   quello che VINZ fa quando non lo guardo: THINK (cosa ha notato di
+            me) e ACT (cosa fa per me)
      FILES  il materiale che gli ho dato
 
    🔒 LA CHAT NON SI SMONTA MAI. Cambiare sezione la nasconde e basta: il
@@ -18,15 +19,15 @@
 
 import { useState, type ReactNode } from 'react';
 
-import { ActPanel } from './ActPanel';
+import { MindPanel } from './MindPanel';
 import { FilesPanel } from './FilesPanel';
 import './daily.css';
 
-type Section = 'chat' | 'act' | 'files';
+type Section = 'chat' | 'mind' | 'files';
 
 const SECTIONS: { id: Section; label: string }[] = [
   { id: 'chat', label: 'CHAT' },
-  { id: 'act', label: 'ACT' },
+  { id: 'mind', label: 'MIND' },
   { id: 'files', label: 'FILES' },
 ];
 
@@ -50,7 +51,7 @@ export function DailySurface({ token, children }: { token: string | null; childr
       </nav>
 
       <div className={`daily__section ${section === 'chat' ? '' : 'daily__section--hidden'}`}>{children}</div>
-      {section === 'act' && <ActPanel token={token} />}
+      {section === 'mind' && <MindPanel token={token} />}
       {section === 'files' && <FilesPanel token={token} />}
     </div>
   );
