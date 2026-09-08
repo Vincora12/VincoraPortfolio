@@ -4,6 +4,7 @@ import {
   CompositeAttachmentAdapter,
   RuntimeAdapterProvider,
   SimpleTextAttachmentAdapter,
+  useAui,
   useAuiState,
   useLocalRuntime,
   useRemoteThreadListRuntime,
@@ -19,11 +20,31 @@ import { migrateStoragePrefix, serverBackedStorage } from "@/system/serverStorag
 import { useApp } from "@/state/store";
 import { ensureContrastOnBlack, ensureContrastOnWhite, readableOn } from "@/engine/colorDna";
 import { createOwnershipGatedHistoryAdapter, GateMarkLiveContext, withLocalUnsavedSession } from "./conversation-lifecycle-adapter";
+import { claimSessionRoomEntry } from "./chat-room-presence";
 
 export const persistentThreadAdapter = createLocalStorageAdapter({
   storage: serverBackedStorage,
   prefix: "assistant-ui-official-chatgpt:",
 });
+
+const ACTIVE_THREAD_KEY = "assistant-ui-official-chatgpt:active-thread";
+
+/* ⚠️ SI LEGGE ALL'IMPORT, PRIMA CHE IL RUNTIME MONTI. Appena il runtime parte
+   crea un thread nuovo e `onThreadIdChange` sovrascrive questo puntatore con
+   l'id di quello vuoto: leggerlo dopo vorrebbe dire rileggere sempre e solo la
+   conversazione appena nata. `serverBackedStorage` rispecchia le sue chiavi in
+   `localStorage`, quindi qui basta una lettura sincrona; la promessa serve al
+   primo avvio su un dispositivo nuovo, dove la copia locale non c'è ancora. */
+const previousActiveThreadSync = (() => {
+  try {
+    return localStorage.getItem(ACTIVE_THREAD_KEY);
+  } catch {
+    return null;
+  }
+})();
+const previousActiveThreadRemote = previousActiveThreadSync
+  ? Promise.resolve(previousActiveThreadSync)
+  : serverBackedStorage.getItem(ACTIVE_THREAD_KEY).catch(() => null);
 
 /* FIRST TURN — STALE HISTORY RACE FIX. `unstable_Provider` is remounted
    fresh per thread id by assistant-ui itself (`_OuterActiveThreadProvider`
@@ -161,6 +182,7 @@ const IntegratedChatRuntime: FC<IntegratedChatProps & {
   return (
     <AssistantRuntimeProvider runtime={runtime}>
       <ChatRuntimeReady onReady={onReady} />
+      <ResumeLastThread />
       <ChatSurface
         model={voiceModel}
         onModelChange={onModelChange}
@@ -169,6 +191,77 @@ const IntegratedChatRuntime: FC<IntegratedChatProps & {
       />
     </AssistantRuntimeProvider>
   );
+};
+
+/* ============================================================================
+   RIPRENDERE LA STESSA CONVERSAZIONE
+
+   🔴 «La chat non resta, se torno non vedo lo storico.»
+
+   ⚠️ IL PUNTATORE SI SCRIVEVA E NON SI RILEGGEVA MAI. `onThreadIdChange` qui
+   sopra salva da sempre `active-thread`, ma nessuno lo usava per rientrare:
+   ogni apertura dell'app partiva da un thread NUOVO. Finché in cima c'erano le
+   schede delle conversazioni il difetto era invisibile — la chat di ieri stava
+   lì a un tocco di distanza — ma erano 18 fili separati, uno per avvio, non una
+   relazione continua. Tolte le schede, lo storico è diventato irraggiungibile.
+
+   🔒 NON RUBA IL POSTO A NIENTE. Riprende solo se il thread su cui si è aperti
+   è ancora vuoto: se stai già scrivendo, o se il runtime ti ha già messo dove
+   volevi, questo componente non fa niente. E lo fa una volta sola per mount.
+   ========================================================================= */
+let resumeAttempted = false;
+
+const ResumeLastThread: FC = () => {
+  const aui = useAui();
+  const loading = useAuiState((state) => state.threads.isLoading);
+
+  useEffect(() => {
+    /* ⚠️ UNA VOLTA PER CARICAMENTO PAGINA, NON PER MOUNT. Cambiare thread fa
+       rimontare tutto il sottoalbero del runtime — questo componente compreso —
+       quindi un `useRef` si azzererebbe e la ripresa ripartirebbe in cerchio,
+       creando un thread vuoto nuovo a ogni giro. Il flag sta nel modulo. */
+    if (resumeAttempted || loading) return;
+    resumeAttempted = true;
+
+    void (async () => {
+      const saved = previousActiveThreadSync ?? (await previousActiveThreadRemote);
+      if (!saved) return;
+
+      const threads = aui.threads.getState();
+      if (threads.mainThreadId === saved) return;
+
+      /* Il valore salvato è l'id con cui il runtime conosce il thread, che nei
+         salvataggi esistenti compare come `remoteId`: si accettano entrambi. */
+      const target = threads.threadItems.find(
+        (item) => item.status === "regular" && (item.id === saved || item.remoteId === saved),
+      );
+      if (!target || target.id === threads.mainThreadId) return;
+
+      /* Se la conversazione aperta ha già qualcosa dentro, è quella che vuoi. */
+      if (aui.thread.getState().messages.length > 0) return;
+
+      /* 🔴 QUI STAVA IL DIFETTO VERO, ed è più sottile di «non switcha».
+         Sul thread ripreso la riga di presenza («è entrato nella chat») viene
+         INSERITA IMPORTANDO il repository esportato in quel momento: se
+         l'ingresso scatta prima che `load()` abbia applicato lo storico, quel
+         repository è vuoto, l'import lo sovrascrive con il solo saluto e il
+         gate viene marcato `live` — così le 11 righe già lette dal disco
+         vengono buttate. Da fuori sembra «la chat non resta».
+
+         🔒 Riprendere NON è entrare in una stanza. Consumando qui l'ingresso
+         di sessione, la presenza non appende niente sul thread ripreso e lo
+         storico arriva intero. Il saluto resta dove ha senso: quando una
+         conversazione si apre davvero nuova. */
+      claimSessionRoomEntry();
+      try {
+        await aui.threads.switchToThread(target.id);
+      } catch (error) {
+        console.warn("[VINZ chat] non sono riuscito a riprendere l'ultima conversazione", error);
+      }
+    })();
+  }, [aui, loading]);
+
+  return null;
 };
 
 const CHAT_READY_FALLBACK_MS = 5_000;

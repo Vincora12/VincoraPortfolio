@@ -34,7 +34,38 @@ contesto.
 I thread continuano a esistere nel runtime e sul server: nessuna conversazione
 è stata cancellata, solo non c'è più un modo quotidiano per saltare da una
 all'altra. La superficie completa (schede + Projects) resta montata nella
-variante `embedded` della chat, quella che vive dentro il LAB.
+variante `embedded` della chat, quella che vive dentro il LAB: le conversazioni
+vecchie si raggiungono da lì.
+
+### La continuità mancava davvero, e non per colpa delle schede
+
+🔴 «La chat non resta, se torno non vedo lo storico.»
+
+`onThreadIdChange` salvava da sempre `active-thread`, ma **nessuno lo rileggeva**:
+ogni apertura dell'app partiva da un thread NUOVO. Sul dispositivo di prova se ne
+sono contati **18**, uno per avvio. Finché in cima c'erano le schede il difetto
+era invisibile — la chat di ieri stava lì a un tocco — ma non era una relazione
+continua: erano diciotto fili separati. Tolte le schede è venuto a galla.
+
+`ResumeLastThread` (in `IntegratedChat.tsx`) riapre l'ultima conversazione.
+Tre cose che sembrano dettagli e non lo sono:
+
+1. **Il puntatore si legge all'import**, prima che il runtime monti: appena parte
+   crea un thread nuovo e sovrascrive `active-thread`, quindi leggerlo dopo
+   vorrebbe dire rileggere sempre la conversazione appena nata.
+2. **Il flag «già fatto» sta nel modulo, non in un `useRef`**: cambiare thread fa
+   rimontare tutto il sottoalbero del runtime, e un ref si azzererebbe — la
+   ripresa ripartiva in cerchio creando un thread vuoto a ogni giro.
+3. **Riprendere non è entrare in una stanza.** La riga «è entrato nella chat»
+   viene inserita *importando* il repository esportato in quel momento: se scatta
+   prima che `load()` abbia applicato lo storico, quel repository è vuoto,
+   l'import lo sovrascrive e il gate viene marcato `live` — la cronologia già
+   letta dal disco finisce buttata. La ripresa consuma l'ingresso di sessione
+   (`claimSessionRoomEntry`) così la presenza non appende niente e lo storico
+   arriva intero.
+
+Verificato: mandato un messaggio, ricaricata la pagina, la stessa conversazione
+riapre con quel messaggio e la sua risposta.
 
 ## ACT — cosa è vero e cosa no
 
@@ -153,7 +184,10 @@ LAB esistente, architettura Netlify.
    oggi: 45 minuti di arrampicata» apre la conferma e registra; «Allenamento
    oggi: 45 minuti di arrampicata. Registralo.» no. È comportamento
    preesistente, non introdotto qui.
-5. La radice del dominio mostra il selettore di versione introdotto con
+5. Le conversazioni nate prima di questa correzione restano diciotto fili
+   separati: la superficie quotidiana ne riapre uno, gli altri si raggiungono
+   dalla chat del LAB, che ha ancora le schede. Da qui in avanti il filo è uno.
+6. La radice del dominio mostra il selettore di versione introdotto con
    Vinz.mon_v2: VINZ.MON current si apre da `#/current`. Se la priorità diventa
    «apro e parlo» senza passaggi, la radice va riportata su current lasciando V2
    su `#/v2` — una riga in `src/version/entry.ts`.
