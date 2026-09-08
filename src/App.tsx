@@ -200,6 +200,16 @@ export function App() {
     if ('serviceWorker' in navigator) void navigator.serviceWorker.register('/sw.js');
   }, []);
 
+  /* 🔷 «Notifiche push sempre attive.» Non c'è più niente da accendere: a ogni
+     apertura la sottoscrizione si ricrea e torna al server. Sta qui, in `App`,
+     perché deve valere per tutta l'app e non per la schermata di turno. */
+  useEffect(() => {
+    if (!token) return;
+    let stop = () => {};
+    void import('./system/pushNotifications').then((push) => { stop = push.keepPushAlive(token); });
+    return () => stop();
+  }, [token]);
+
   /* 🔷 «Se non porto avanti io i giorni dal DEV, deve andare avanti da solo
      perché è passata una vera giornata.» Una volta per apertura: se erano
      passati giorni veri mentre l'app era chiusa, il numero recupera —
@@ -1320,7 +1330,6 @@ function MachineInsightChip({ onOpen }: { onOpen: (insight: InsightView) => void
   const token = useApp((s) => s.token);
   const autoShown = useRef<Set<string>>(new Set());
   const [insights, setInsights] = useState<InsightView[]>([]);
-  const [notificationState, setNotificationState] = useState<'idle' | 'running' | 'active' | 'failed'>('idle');
   useEffect(() => {
     if (!token) { setInsights([]); return; }
     let cancelled = false;
@@ -1352,31 +1361,12 @@ function MachineInsightChip({ onOpen }: { onOpen: (insight: InsightView) => void
       window.removeEventListener('vinzmon-insight-seen', onSeen);
     };
   }, [token]);
-  useEffect(() => {
-    if (!token || typeof window === 'undefined' || !('Notification' in window)) { setNotificationState('idle'); return; }
-    let cancelled = false;
-    void import('./system/pushNotifications').then(({ machineNotificationsEnabled }) => machineNotificationsEnabled()).then((enabled) => {
-      if (!cancelled) setNotificationState(enabled ? 'active' : 'idle');
-    }).catch(() => { if (!cancelled) setNotificationState('idle'); });
-    return () => { cancelled = true; };
-  }, [token]);
-  const canAsk = typeof window !== 'undefined' && 'Notification' in window && Notification.permission !== 'denied';
-  const enable = async () => {
-    if (!token) return;
-    setNotificationState('running');
-    const { enableMachineNotifications } = await import('./system/pushNotifications');
-    const enabled = await enableMachineNotifications(token).catch(() => false);
-    setNotificationState(enabled ? 'active' : 'failed');
-  };
-  const activation = canAsk ? <button
-    type="button"
-    className="machine-insight-chip"
-    onClick={() => void enable()}
-    disabled={notificationState === 'running' || notificationState === 'active'}
-    aria-label="Attiva notifiche insight"
-  >{notificationState === 'running' ? 'RUNNING…' : notificationState === 'active' ? 'INSIGHT ATTIVI' : notificationState === 'failed' ? 'RIPROVA INSIGHT' : 'ATTIVA INSIGHT'}</button> : null;
+  /* 🔒 QUI NON SI ACCENDE PIÙ NIENTE. La pastiglia dice solo quanti pensieri ci
+     sono; le notifiche se le tiene `keepPushAlive` in `App`. Prima questo posto
+     ospitava «ATTIVA INSIGHT», cioè l'interruttore di tutte le notifiche con il
+     nome di una funzione sola. */
   const insight = insights[0];
-  if (!insight) return activation;
+  if (!insight) return null;
   const open = async () => {
     const response = await fetch('/api/machines', { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify({ machine: 'open_insight', insightId: insight.id }) }).catch(() => null);
     if (response?.ok) {
@@ -1385,10 +1375,7 @@ function MachineInsightChip({ onOpen }: { onOpen: (insight: InsightView) => void
     }
     onOpen({ ...insight, status: response?.ok ? 'opened' : insight.status });
   };
-  return <>
-    <button type="button" className="machine-insight-chip" onClick={() => void open()} aria-label="Apri insight di VINZ.MON">INSIGHT · {insights.length}</button>
-    {activation}
-  </>;
+  return <button type="button" className="machine-insight-chip" onClick={() => void open()} aria-label="Apri insight di VINZ.MON">INSIGHT · {insights.length}</button>;
 }
 
 function MachineInsightArchive({ onDiscuss }: { onDiscuss?: (insight: InsightView) => void }) {

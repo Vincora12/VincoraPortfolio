@@ -32,6 +32,7 @@ import { useCallback, useEffect, useState } from 'react';
 import type { CalendarEvent } from '@/engine/calendarEvents';
 import { EyeIcon, UserIcon } from 'lucide-react';
 
+import type { PushStatus } from '@/system/pushNotifications';
 import { TopicIcon } from '@/system/topicIcon';
 
 import './daily.css';
@@ -125,11 +126,12 @@ export function MindPanel({ token }: { token: string | null }) {
   const [pendingInsights, setPendingInsights] = useState(0);
   const [runningMachine, setRunningMachine] = useState<string | null>(null);
   const [automations, setAutomations] = useState<Automation[]>([]);
-  /* 🔴 SENZA PUSH, ACT È UN POSTO DOVE VAI A GUARDARE. L'interruttore esisteva
-     solo dentro il vano tecnico a scomparsa, chiamato «ATTIVA INSIGHT»: cioè la
-     cosa da cui dipendono automazioni e promemoria era nascosta e aveva il nome
-     di un'altra funzione. Qui è dove il suo valore si vede. */
-  const [notifications, setNotifications] = useState<'unknown' | 'off' | 'on' | 'busy'>('unknown');
+  /* 🔒 UNA DIAGNOSI, NON UN INTERRUTTORE. Le notifiche si tengono da sole
+     (`keepPushAlive`); qui interessa un caso solo, e grave: se il telefono le
+     ha bloccate, tutto quello che vedi in questa schermata gira a vuoto. Non lo
+     possiamo riaccendere da qui — si sblocca dalle impostazioni di sistema — ma
+     tacerlo sarebbe peggio. */
+  const [notifications, setNotifications] = useState<PushStatus | 'unknown'>('unknown');
   const [rows, setRows] = useState<Row[]>([]);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState('');
@@ -175,23 +177,12 @@ export function MindPanel({ token }: { token: string | null }) {
   }, [load]);
 
   useEffect(() => {
-    if (!token || typeof window === 'undefined' || !('Notification' in window)) return;
+    if (!token || typeof window === 'undefined') return;
     void import('@/system/pushNotifications')
-      .then(({ machineNotificationsEnabled }) => machineNotificationsEnabled())
-      .then((enabled) => setNotifications(enabled ? 'on' : 'off'))
-      .catch(() => setNotifications('off'));
+      .then(({ pushStatus }) => pushStatus())
+      .then(setNotifications)
+      .catch(() => setNotifications('unknown'));
   }, [token]);
-
-  async function enableNotifications() {
-    if (!token) return;
-    setNotifications('busy');
-    try {
-      const { enableMachineNotifications } = await import('@/system/pushNotifications');
-      setNotifications((await enableMachineNotifications(token)) ? 'on' : 'off');
-    } catch {
-      setNotifications('off');
-    }
-  }
 
   async function act(body: Record<string, unknown>, confirmText?: string) {
     if (!token) return;
@@ -301,13 +292,12 @@ export function MindPanel({ token }: { token: string | null }) {
         </p>
       )}
 
-      {notifications === 'off' && !!automations.length && (
+      {notifications === 'blocked' && (
         <p className="daily-notice">
-          Le automazioni girano, ma non possono avvisarti.{' '}
-          <button type="button" onClick={() => void enableNotifications()}>Attiva le notifiche</button>
+          Le notifiche sono bloccate su questo dispositivo: tutto qui sotto gira, ma non ti avvisa.
+          Si riattivano dalle impostazioni del telefono, alla voce VINZ.MON.
         </p>
       )}
-      {notifications === 'busy' && <p className="daily-panel__meta">Attivo le notifiche…</p>}
 
       {!!machines.length && <p className="daily-group">THINK · cosa ha notato di te</p>}
       <ul className="daily-list">
