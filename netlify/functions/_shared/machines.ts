@@ -4,6 +4,7 @@ import { resolveRoute } from './routing';
 import { recordSpend } from './spend';
 import { listPersonalMemory, searchPersonalMemory } from './core/memory';
 import { machineInsightPayload, sendPushNotification } from './pushDelivery';
+import { nextRun } from './automations';
 
 export type MachineStatus = 'ACTIVE' | 'SLEEPING' | 'RUNNING' | 'DISABLED';
 export type MachineId = 'reflection' | 'me';
@@ -48,6 +49,11 @@ export interface MachineState {
   meSummary: { version: 1; summary: string; generatedAt: string; basedOn: string[] } | null;
   pendingInsights: PendingInsight[];
   reflectionContext?: { recent: number; older: number; previousReflections: number; total: number };
+  /* 🔷 «Vorrei altre macchine così.» Il primo passo non è scriverne altre: è
+     dare a queste una gamba che non hanno mai avuto. Il trigger dichiarato dice
+     «esecuzione esplicita o batch futuro» — il batch futuro è questo. */
+  autoDaily?: { hour: number; timezone: string } | null;
+  nextRunAt?: string | null;
 }
 
 const STORE = 'vinzmon-machines';
@@ -61,8 +67,8 @@ export const MACHINE_DEFINITIONS: MachineDefinition[] = [
 
 function emptyState(): Record<MachineId, MachineState> {
   return {
-    reflection: { status: 'SLEEPING', lastRun: null, lastOutput: null, usage: null, observations: [], meSummary: null, pendingInsights: [] },
-    me: { status: 'SLEEPING', lastRun: null, lastOutput: null, usage: null, observations: [], meSummary: null, pendingInsights: [] },
+    reflection: { status: 'SLEEPING', lastRun: null, lastOutput: null, usage: null, observations: [], meSummary: null, pendingInsights: [], autoDaily: null, nextRunAt: null },
+    me: { status: 'SLEEPING', lastRun: null, lastOutput: null, usage: null, observations: [], meSummary: null, pendingInsights: [], autoDaily: null, nextRunAt: null },
   };
 }
 
@@ -226,4 +232,60 @@ export async function runMachine(machine: MachineId, preferredModel?: string | n
     await store.setJSON(KEY, state);
     throw error;
   }
+}
+
+
+/* ============================================================================
+   LE MACCHINE CHE GIRANO DA SOLE
+
+   🔒 UNA CADENZA SOLA, E BASTA. Una macchina che si fa un'opinione su di te non
+   deve poter girare ogni dieci minuti: penserebbe più di quanto tu viva. Una
+   volta al giorno, a un'ora che scegli tu, è il ritmo giusto per qualcosa che
+   cerca pattern «nel tempo».
+
+   ⚠️ L'orario si sposta PRIMA di eseguire, come per le automazioni: se il giro
+   fallisce o il processo muore a metà, la macchina non riparte in ciclo per il
+   resto della giornata.
+   ========================================================================= */
+
+export async function setMachineSchedule(
+  machine: MachineId,
+  schedule: { hour: number; timezone: string } | null,
+): Promise<MachineState> {
+  const { store, state } = await readState();
+  state[machine].autoDaily = schedule;
+  state[machine].nextRunAt = schedule
+    ? nextRun({ kind: 'daily', hour: schedule.hour, minute: 0, timezone: schedule.timezone })
+    : null;
+  await store.setJSON(KEY, state);
+  return state[machine];
+}
+
+export async function processDueMachines(now = new Date()): Promise<{ due: number; ok: number }> {
+  const { store, state } = await readState();
+  const due = (Object.keys(state) as MachineId[]).filter((id) => {
+    const machine = state[id];
+    return machine.autoDaily && machine.nextRunAt && Date.parse(machine.nextRunAt) <= now.getTime();
+  });
+  if (!due.length) return { due: 0, ok: 0 };
+
+  for (const id of due) {
+    const schedule = state[id].autoDaily!;
+    state[id].nextRunAt = nextRun(
+      { kind: 'daily', hour: schedule.hour, minute: 0, timezone: schedule.timezone },
+      now,
+    );
+  }
+  await store.setJSON(KEY, state);
+
+  let ok = 0;
+  for (const id of due) {
+    try {
+      await runMachine(id);
+      ok += 1;
+    } catch {
+      /* Una macchina che non gira non deve fermare l'altra né lo scheduler. */
+    }
+  }
+  return { due: due.length, ok };
 }

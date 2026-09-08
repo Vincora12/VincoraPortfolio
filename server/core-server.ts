@@ -42,6 +42,7 @@ import v1Responses from '../netlify/functions/v1-responses';
 import v2Issues from '../netlify/functions/v2-issues';
 import v2Lobehub from '../netlify/functions/v2-lobehub';
 import { processAutomations } from '../netlify/functions/_shared/automations';
+import { processDueMachines } from '../netlify/functions/_shared/machines';
 import { closeLocalStore, localDatabasePath } from '../netlify/functions/_shared/localStore';
 
 type Handler = (request: Request, platform?: { waitUntil(promise: Promise<unknown>): void }) => Promise<Response>;
@@ -186,6 +187,10 @@ async function runScheduler(): Promise<void> {
        quindi l'errore muore qui dentro. */
     try { await processAutomations(); }
     catch (error) { console.warn('[automations] esecuzione non riuscita', error); }
+    /* Le macchine di THINK sullo stesso battito: il loro trigger dichiarato
+       diceva «esecuzione esplicita o batch futuro», e questo è il batch. */
+    try { await processDueMachines(); }
+    catch (error) { console.warn('[machines] esecuzione non riuscita', error); }
     schedulerStatus = 'ready';
   }
   catch { schedulerStatus = 'error'; }

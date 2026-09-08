@@ -44,8 +44,18 @@ interface MachineView {
   id: string;
   name: string;
   purpose: string;
-  state: { status: string; lastRun: string | null };
+  state: {
+    status: string;
+    lastRun: string | null;
+    autoDaily?: { hour: number; timezone: string } | null;
+    nextRunAt?: string | null;
+  };
 }
+
+/* Un'ora sola, scelta per la macchina, invece di un modulo da compilare.
+   REFLECTION la sera, quando la giornata è finita e c'è qualcosa da notare;
+   ME di notte, perché non ti disturba (consegna `lab_only`). */
+const DEFAULT_HOUR: Record<string, number> = { reflection: 21, me: 3 };
 
 interface Automation {
   id: string;
@@ -214,6 +224,29 @@ export function MindPanel({ token }: { token: string | null }) {
     }
   }
 
+  async function toggleMachineSchedule(machine: MachineView) {
+    if (!token) return;
+    const on = Boolean(machine.state.autoDaily);
+    setBusy(true);
+    try {
+      await fetch('/api/machines', {
+        method: 'POST',
+        headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+        body: JSON.stringify({
+          machine: 'schedule',
+          id: machine.id,
+          auto: !on,
+          hour: DEFAULT_HOUR[machine.id] ?? 21,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        }),
+      });
+      await load();
+    } catch {
+      setError('Non sono riuscito a cambiare la cadenza.');
+      setBusy(false);
+    }
+  }
+
   async function deactivateReminder(row: Row) {
     if (!token) return;
     if (!window.confirm('Disattivare questo promemoria? L’evento resta nel calendario.')) return;
@@ -266,20 +299,36 @@ export function MindPanel({ token }: { token: string | null }) {
               <p className="daily-row__title">{machine.name.replace(/\s*MACHINE$/i, '')}</p>
               <p className="daily-row__meta">{machine.purpose}</p>
               <p className="daily-row__meta">
+                {machine.state.autoDaily
+                  ? `Ogni giorno alle ${two(machine.state.autoDaily.hour)}:00`
+                  : 'Solo se la lanci tu'}
+                {machine.state.nextRunAt ? ` · Prossima · ${whenLabel(machine.state.nextRunAt)}` : ''}
+              </p>
+              <p className="daily-row__meta">
                 {machine.state.lastRun ? `Ultima · ${whenLabel(machine.state.lastRun)}` : 'Mai eseguita'}
                 {machine.id === 'reflection' && pendingInsights > 0
                   ? ` · ${pendingInsights} pensiero${pendingInsights > 1 ? 'i' : ''} da leggere`
                   : ''}
               </p>
             </div>
-            <button
-              type="button"
-              className="daily-row__action"
-              disabled={busy || runningMachine !== null}
-              onClick={() => void runMachine(machine.id)}
-            >
-              {runningMachine === machine.id ? 'Pensa…' : 'Fai girare'}
-            </button>
+            <div className="daily-row__stack">
+              <button
+                type="button"
+                className="daily-row__action"
+                disabled={busy}
+                onClick={() => void toggleMachineSchedule(machine)}
+              >
+                {machine.state.autoDaily ? 'Non da sola' : 'Da sola'}
+              </button>
+              <button
+                type="button"
+                className="daily-row__action"
+                disabled={busy || runningMachine !== null}
+                onClick={() => void runMachine(machine.id)}
+              >
+                {runningMachine === machine.id ? 'Pensa…' : 'Fai girare'}
+              </button>
+            </div>
           </li>
         ))}
       </ul>
