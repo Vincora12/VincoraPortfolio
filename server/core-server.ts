@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import agentLab from '../netlify/functions/agent-lab';
 import ai from '../netlify/functions/ai';
 import assets from '../netlify/functions/assets';
+import automations from '../netlify/functions/automations';
 import brain from '../netlify/functions/brain';
 import calendar from '../netlify/functions/calendar';
 import codeTools from '../netlify/functions/code-tools';
@@ -39,6 +40,7 @@ import v1Models from '../netlify/functions/v1-models';
 import v1Responses from '../netlify/functions/v1-responses';
 import v2Issues from '../netlify/functions/v2-issues';
 import v2Lobehub from '../netlify/functions/v2-lobehub';
+import { processAutomations } from '../netlify/functions/_shared/automations';
 import { closeLocalStore, localDatabasePath } from '../netlify/functions/_shared/localStore';
 
 type Handler = (request: Request, platform?: { waitUntil(promise: Promise<unknown>): void }) => Promise<Response>;
@@ -63,7 +65,7 @@ loadEnv();
 
 const handlers: Record<string, Handler> = {
   '/api/agent-lab': agentLab, '/api/ai': ai, '/api/assets': assets, '/api/brain': brain,
-  '/api/calendar': calendar, '/api/code-tools': codeTools, '/api/core-context': coreContext,
+  '/api/automations': automations, '/api/calendar': calendar, '/api/code-tools': codeTools, '/api/core-context': coreContext,
   '/api/evolution-job': evolutionJob, '/api/food': food, '/api/ingest': ingest,
   '/api/lab-duel-job': labDuelJob, '/api/lessons': lessons, '/api/machines': machines,
   '/api/me-chat-capture': meChatCapture, '/api/me-memory': meMemory, '/api/me-seed': meSeed,
@@ -175,7 +177,16 @@ async function startLocalMem0(): Promise<void> {
 
 let schedulerStatus = 'starting';
 async function runScheduler(): Promise<void> {
-  try { await reminderTick(); schedulerStatus = 'ready'; }
+  try {
+    await reminderTick();
+    /* 🔷 LE AUTOMAZIONI GIRANO SULLO STESSO BATTITO. Nessun secondo timer da
+       tenere vivo: il tick che c'era già per i promemoria ora raccoglie anche
+       le automazioni scadute. Se una fallisce non deve spegnere lo scheduler,
+       quindi l'errore muore qui dentro. */
+    try { await processAutomations(); }
+    catch (error) { console.warn('[automations] esecuzione non riuscita', error); }
+    schedulerStatus = 'ready';
+  }
   catch { schedulerStatus = 'error'; }
 }
 

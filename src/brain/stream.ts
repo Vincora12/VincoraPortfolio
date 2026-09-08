@@ -256,7 +256,7 @@ export type WorkoutConfirmation = { status: 'needs-confirmation' | 'confirmed' }
    ⚠️ Queste quattro scrivono nel registro di ME: peso, promemoria, piano e
    dieta. Le CORREZIONI restano fuori apposta — sono già una richiesta
    esplicita, e chiedere conferma a una conferma è solo attrito. */
-export type ConfirmableAction = 'peso' | 'promemoria' | 'piano' | 'dieta';
+export type ConfirmableAction = 'peso' | 'promemoria' | 'automazione' | 'piano' | 'dieta';
 export type ActionConfirmation = { action: ConfirmableAction; status: 'needs-confirmation' | 'confirmed' };
 
 export const CONFIRMABLE_ACTIONS: Record<ConfirmableAction, {
@@ -276,6 +276,12 @@ export const CONFIRMABLE_ACTIONS: Record<ConfirmableAction, {
     question: 'Confermi che creo questo **promemoria**?',
     hold: 'Restate the reminder you understood — what, which date and which time, with the timezone — but DO NOT call programma_promemoria and do not ask the final confirmation question. The app will ask it. Nothing is scheduled yet: never say or imply that the reminder exists. If the date or time is not certain, ask for it instead of guessing.',
     go: 'The user has just confirmed the reminder. Call programma_promemoria now with the date and time you restated.',
+  },
+  automazione: {
+    tool: 'crea_automazione',
+    question: 'Confermi che creo questa **automazione**?',
+    hold: 'Restate the automation you understood — what it will do and at which time, with the timezone — but DO NOT call crea_automazione and do not ask the final confirmation question. The app will ask it. Nothing is scheduled yet: never say or imply that the automation exists. If the time is not certain, ask for it instead of guessing. Say plainly that an automation is read-only: it searches and reports, it cannot record anything in ME.',
+    go: 'The user has just confirmed the automation. Call crea_automazione now with the title, description and time you restated.',
   },
   piano: {
     tool: 'imposta_piano_allenamento',

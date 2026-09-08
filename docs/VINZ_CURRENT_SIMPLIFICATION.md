@@ -80,6 +80,7 @@ aggancia una frase letterale, non la prosa del giorno.
 | REGISTRA ALLENAMENTO | `registra_allenamento` | «Confermi che registro questo **allenamento** in ME?» |
 | REGISTRA PESO | `registra_peso` | «Confermi che registro questo **peso** in ME?» |
 | CREA PROMEMORIA | `programma_promemoria` | «Confermi che creo questo **promemoria**?» |
+| CREA AUTOMAZIONE | `crea_automazione` | «Confermi che creo questa **automazione**?» |
 | AGGIORNA PIANO | `imposta_piano_allenamento` | «Confermi che aggiorno il **piano di allenamento**?» |
 | AGGIORNA DIETA | `imposta_dieta` | «Confermi che aggiorno la **dieta**?» |
 
@@ -108,24 +109,59 @@ già una richiesta esplicita), la memoria (`ricorda_di`, la cattura è ambiental
 artefatti e pagine (fuori dalla superficie quotidiana), aspetto e cambio
 schermata (istantanei, reversibili, non scrivono nel registro).
 
-## ACT — cosa è vero e cosa no
+## ACT — automazioni e promemoria
 
-**È vero:** VINZ ha un solo tipo di attività programmata reale, il promemoria
-del calendario. Lo scheduler del Local Core lo controlla ogni cinque minuti
-(`reminder-tick`), lo consegna via push e ne registra l'esito. ACT mostra quelli:
-titolo, quando, stato reale (Attivo / In attesa / Notifica inviata / Notifica non
-inviata / Completato / Annullato) e la disattivazione, che spegne il promemoria
-lasciando l'evento nel calendario.
+Due cose diverse, e la differenza è tutta qui:
 
-**Non è vero, e infatti non c'è:** non esiste un motore di ricorrenze. Non
-esistono «Daily», «Next run», cadenze o azioni che si ripetono da sole. Sono
-informazioni che il backend non ha, quindi ACT non le mostra e non le inventa.
+| | Cosa fa | Ricorre? | Esegue? |
+|---|---|---|---|
+| **Automazione** | cerca sul web con la voce di VINZ e ti manda il risultato in chat | sì, ogni giorno a un'ora fissa | **sì** |
+| **Promemoria** | ti dà una gomitata | no, una volta sola | no |
 
-**Creazione dalla chat:** funziona, ed è reale — lo strumento
-`programma_promemoria` (list/create/update/cancel) esiste già nel tool layer.
-«Ricordami di controllare il preventivo domani alle 10» crea un ACT che compare
-nell'elenco. Un ACT ricorrente («ogni mattina controlla…») **non** è
-realizzabile oggi: servirebbe prima un motore di ricorrenze.
+### Le automazioni (nuove)
+
+Prima non esistevano, ed è per questo che «ogni mattina mandami le notizie» non
+poteva funzionare: il promemoria del calendario è **monouso** (appena consegnato
+scrive `reminderDelivery` e non scatta più) e non **esegue** niente — manda una
+push generica, «Hai un promemoria da consultare», che non contiene nemmeno il
+suo testo. Mancavano due cose diverse: la ricorrenza e l'esecuzione.
+
+- **Motore:** `netlify/functions/_shared/automations.ts`. Gira sul battito che
+  il Core aveva già per i promemoria (`runScheduler`, ogni 60 s): nessun secondo
+  timer da tenere vivo.
+- **Esecuzione:** `callProvider` con `webSearch: true` e il system prompt
+  canonico (`loadCoreContext`), quindi l'automazione parla con l'identità e la
+  persona vere, non con una voce neutra. La spesa passa da `checkCap` e
+  `recordSpend` come tutto il resto — un'automazione quotidiana che sfonda il
+  budget non se ne accorgerebbe da sola.
+- **Consegna:** il runner lascia il risultato in una casella; è il **client**
+  (`AutomationInbox` in `IntegratedChat.tsx`) a portarlo in chat come messaggio
+  di VINZ, dalla stessa porta di tutti, `aui.thread.append`. Scriverlo dal server
+  vorrebbe dire combattere con il gate dello storico e con la copia viva del
+  repository che tiene il browser. L'ack arriva **dopo** l'append: se la pagina
+  muore a metà il risultato resta in casella e arriva al giro dopo — meglio due
+  volte che perso.
+- **Creazione parlando:** «Ogni mattina alle 8 mandami le notizie importanti sul
+  mondo» → VINZ riepiloga cosa farà e a che ora → pulsante `CREA AUTOMAZIONE` →
+  compare in ACT. Lo strumento è `crea_automazione`.
+- **La riga «Ogni giorno / Ultima / Prossima» adesso è vera**, perché il record
+  la tiene davvero. Sui promemoria non compare: lì quei dati non esistono.
+
+**Sola lettura, per scelta.** Un'automazione cerca e riferisce. Non registra
+pasti, allenamenti, peso, piani o promemoria, e il prompt glielo dice. La
+conferma esplicita che protegge quelle scritture non si aggira facendola fare a
+un timer mentre dormi.
+
+**Limiti dichiarati:** una sola cadenza (tutti i giorni a un'ora fissa), massimo
+20 automazioni, 3 per tick. Sul cambio dell'ora legale una singola esecuzione
+può slittare di un'ora — niente libreria di fusi, si lavora sullo scarto che
+`Intl` dichiara. Su un thread ancora non promosso la consegna aspetta il giro
+successivo, perché l'append resterebbe appeso alla barriera di inizializzazione.
+
+### I promemoria
+
+Restano quelli di prima: `programma_promemoria`, una data, una push. Ora passano
+dalla conferma come tutto il resto.
 
 ## FILES
 
@@ -218,7 +254,8 @@ LAB esistente, architettura Netlify.
 
 ## Limiti reali, in una lista
 
-1. ACT non ha ricorrenze: solo attività a data fissa.
+1. Le automazioni hanno una sola cadenza: tutti i giorni a un'ora fissa. Niente
+   «ogni lunedì», niente «ogni due ore».
 2. I file di FILES non sono ancora leggibili dalla chat.
 3. Le skill installate non sono ancora collegate al prompt.
 4. `isWorkoutLogIntent` è sensibile alla forma della frase: «Mi sono allenato

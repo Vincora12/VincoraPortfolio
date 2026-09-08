@@ -1712,6 +1712,12 @@ const CONFIRM_ACTIONS: { test: RegExp; label: string; busy: string; reply: strin
     reply: "Vai, crea",
   },
   {
+    test: /Confermi che creo questa \*\*automazione\*\*\?/i,
+    label: "CREA AUTOMAZIONE",
+    busy: "CREAZIONE…",
+    reply: "Vai, crea",
+  },
+  {
     test: /Confermi che aggiorno il \*\*piano di allenamento\*\*\?/i,
     label: "AGGIORNA PIANO",
     busy: "AGGIORNAMENTO…",

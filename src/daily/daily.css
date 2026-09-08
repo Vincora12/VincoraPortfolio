@@ -82,6 +82,29 @@
   -webkit-overflow-scrolling: touch;
 }
 
+.daily-group {
+  margin: 18px 0 2px;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  color: #6f6f6f;
+}
+
+.daily-group:first-of-type {
+  margin-top: 4px;
+}
+
+.daily-row__meta--bad {
+  color: #ff8b84;
+}
+
+.daily-row__stack {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
 .daily-list {
   margin: 0;
   padding: 0;

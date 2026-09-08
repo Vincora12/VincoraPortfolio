@@ -132,6 +132,17 @@ export const TOOLS: ToolDef[] = [
     schema: { type: 'object', properties: { azione: { type: 'string', enum: ['list', 'create', 'update', 'cancel'] }, id: { type: 'string' }, versione: { type: 'string' }, titolo: { type: 'string', maxLength: 160 }, quando: { type: 'string', description: 'Data ISO8601 completa con Z/offset esplicito.' }, fuso: { type: 'string', description: 'Fuso IANA, es. Europe/Rome.' } }, required: ['azione'] },
   },
   {
+    name: 'crea_automazione',
+    description: 'Crea un\u2019automazione ricorrente: VINZ fa da solo una cosa ogni giorno a un\u2019ora fissa e ti manda il risultato in chat. Usalo per richieste del tipo \u00abogni mattina mandami\u2026\u00bb. Le automazioni sono SOLA LETTURA: cercano sul web e riferiscono, non registrano pasti, allenamenti, peso, piani n\u00e9 promemoria. Per una cosa da fare UNA volta sola usa programma_promemoria. Chiedi l\u2019ora se non \u00e8 chiara: non inventarla.',
+    schema: { type: 'object', properties: {
+      titolo: { type: 'string', maxLength: 60, description: 'Nome breve, per esempio \u00abNotizie dal mondo\u00bb.' },
+      descrizione: { type: 'string', maxLength: 2000, description: 'Cosa deve fare VINZ, scritto come lo diresti a lui.' },
+      ora: { type: 'integer', minimum: 0, maximum: 23 },
+      minuti: { type: 'integer', minimum: 0, maximum: 59 },
+      fuso: { type: 'string', description: 'Fuso IANA, per esempio Europe/Rome.' },
+    }, required: ['titolo', 'descrizione', 'ora'] },
+  },
+  {
     name: 'calcola_energia_giornaliera',
     description: 'Calcolo deterministico dai registri ME di oggi: calorie alimentari, allenamenti, recorded net (NON deficit). BMR/TDEE solo con età adulta, altezza, peso, sesso per formula e fattore attività extra-allenamento realmente forniti. Non inventare input mancanti, non trattare stime come misure.',
     schema: { type: 'object', properties: {
@@ -794,6 +805,35 @@ export function resultBlocks(results: readonly ToolResult[]): Record<string, unk
   return budgetToolResults(results).map(resultBlock);
 }
 
+async function executeAutomationTool(use: ToolUse, token: string | null): Promise<ToolResult> {
+  const fail = (content: string): ToolResult => ({ id: use.id, content, isError: true });
+  if (!token) return fail('Token mancante: automazioni non disponibili.');
+  const args = (use.input && typeof use.input === 'object' ? use.input : {}) as Record<string, unknown>;
+  const response = await fetch('/api/automations', {
+    method: 'POST',
+    headers: { authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      action: 'create',
+      title: str(args.titolo),
+      prompt: str(args.descrizione),
+      hour: Number(args.ora),
+      minute: args.minuti === undefined ? 0 : Number(args.minuti),
+      timezone: str(args.fuso) || Intl.DateTimeFormat().resolvedOptions().timeZone,
+    }),
+  });
+  const body = (await response.json().catch(() => null)) as { automation?: { title: string; nextRunAt: string }; error?: string } | null;
+  if (!response.ok || !body?.automation) return fail(body?.error ?? 'Creazione automazione non riuscita.');
+  return {
+    id: use.id,
+    content: JSON.stringify({
+      created: true,
+      title: body.automation.title,
+      firstRunAt: body.automation.nextRunAt,
+      note: 'Read-only automation: it searches and reports, it cannot write to ME.',
+    }),
+  };
+}
+
 async function executeReminderTool(use: ToolUse, token: string | null, projectId: string | null = null): Promise<ToolResult> {
   const fail = (content: string): ToolResult => ({ id: use.id, content, isError: true });
   if (!token) return fail('Token mancante: promemoria non disponibile.');
@@ -847,6 +887,7 @@ export async function executeRuntimeTool(
   const ok = (content: string): ToolResult => ({ id: use.id, content });
   try {
     if (use.name === 'programma_promemoria') return await executeReminderTool(use, scope.token, scope.projectId ?? null);
+    if (use.name === 'crea_automazione') return await executeAutomationTool(use, scope.token);
     const isProjectTool = ['leggi_progetto', 'leggi_sorgente_progetto', 'scrivi_artifact_progetto'].includes(use.name);
     const projectFile = use.name === 'crea_file_testo';
     if (!isProjectTool && !projectFile) return await localRun(use);

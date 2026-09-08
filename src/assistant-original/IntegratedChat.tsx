@@ -21,6 +21,8 @@ import { useApp } from "@/state/store";
 import { ensureContrastOnBlack, ensureContrastOnWhite, readableOn } from "@/engine/colorDna";
 import { createOwnershipGatedHistoryAdapter, GateMarkLiveContext, withLocalUnsavedSession } from "./conversation-lifecycle-adapter";
 import { claimSessionRoomEntry } from "./chat-room-presence";
+import { isLocalUnsavedSession } from "./conversation-lifecycle-adapter";
+import { savedToken } from "@/brain/stream";
 
 export const persistentThreadAdapter = createLocalStorageAdapter({
   storage: serverBackedStorage,
@@ -183,6 +185,7 @@ const IntegratedChatRuntime: FC<IntegratedChatProps & {
     <AssistantRuntimeProvider runtime={runtime}>
       <ChatRuntimeReady onReady={onReady} />
       <ResumeLastThread />
+      <AutomationInbox />
       <ChatSurface
         model={voiceModel}
         onModelChange={onModelChange}
@@ -260,6 +263,96 @@ const ResumeLastThread: FC = () => {
       }
     })();
   }, [aui, loading]);
+
+  return null;
+};
+
+/* ============================================================================
+   LE AUTOMAZIONI ARRIVANO IN CHAT
+
+   Il runner sul Mac produce il risultato e lo lascia in una casella; è questo
+   componente a portarlo dentro la conversazione, come un messaggio di VINZ.
+
+   🔒 LO CONSEGNA IL CLIENT, NON IL SERVER. Il repository dei messaggi vive nel
+   browser, dietro il gate dello storico: scriverci dal server vorrebbe dire
+   combattere con la copia viva e con `load()`, che è esattamente il difetto da
+   cui usciamo con `ResumeLastThread`. Qui si passa dalla stessa porta di tutti,
+   `aui.thread.append`.
+
+   ⚠️ SI ACK SOLO DOPO L'APPEND. Se la pagina muore a metà, il risultato resta
+   in casella e arriva al giro dopo: meglio riceverlo due volte che perderlo.
+
+   ⚠️ Su un thread ancora non promosso (nuovo, senza un tuo messaggio) la
+   consegna aspetta: l'append resterebbe appeso alla barriera di
+   inizializzazione. Riprova al giro successivo. */
+const AUTOMATION_POLL_MS = 60_000;
+
+interface AutomationResult {
+  id: string;
+  title: string;
+  text: string;
+  at: string;
+}
+
+const AutomationInbox: FC = () => {
+  const aui = useAui();
+  /* Il thread nell'elenco delle dipendenze non è un dettaglio: al primo giro
+     `ResumeLastThread` non ha ancora cambiato conversazione, quindi la consegna
+     cadrebbe sul thread nuovo e non promosso e aspetterebbe un minuto intero.
+     Cambiando thread l'effetto riparte e il risultato arriva subito. */
+  const loading = useAuiState((state) => state.threads.isLoading);
+  const threadId = useAuiState((state) => state.threads.mainThreadId);
+  const busy = useRef(false);
+
+  useEffect(() => {
+    if (loading) return;
+    let live = true;
+
+    const deliver = async () => {
+      if (busy.current || !live) return;
+      const threadId = aui.threads.item("main").getState().id;
+      if (isLocalUnsavedSession(threadId)) return;
+      if (aui.thread.getState().isRunning) return;
+
+      busy.current = true;
+      try {
+        const token = savedToken();
+        if (!token) return;
+        const response = await fetch("/api/automations?op=inbox", {
+          headers: { authorization: `Bearer ${token}` },
+          cache: "no-store",
+        });
+        if (!response.ok) return;
+        const { results } = (await response.json()) as { results?: AutomationResult[] };
+
+        for (const result of results ?? []) {
+          if (!live) return;
+          aui.thread.append({
+            role: "assistant",
+            content: [{ type: "text", text: `**${result.title}**\n\n${result.text}` }],
+            metadata: { custom: { automationResult: true, automationTitle: result.title } },
+            startRun: false,
+          } as Parameters<typeof aui.thread.append>[0]);
+          await fetch("/api/automations", {
+            method: "POST",
+            headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+            body: JSON.stringify({ action: "ack", id: result.id }),
+          });
+        }
+      } catch {
+        /* Rete assente o Core fermo: il risultato resta in casella. */
+      } finally {
+        busy.current = false;
+      }
+    };
+
+    void deliver();
+    const timer = window.setInterval(() => void deliver(), AUTOMATION_POLL_MS);
+    return () => {
+      live = false;
+      window.clearInterval(timer);
+    };
+  }, [aui, loading, threadId]);
 
   return null;
 };

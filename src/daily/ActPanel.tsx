@@ -1,14 +1,16 @@
 /* ============================================================================
    ACT — quello che VINZ continua a fare nel tempo
 
-   🔒 NIENTE DI INVENTATO. La sola attività programmata che esiste davvero in
-   VINZ.MON è il promemoria del calendario: un'azione a data fissa, consegnata
-   dallo scheduler del Local Core ogni cinque minuti. Non c'è (ancora) un motore
-   di ricorrenze, quindi qui non compaiono «Daily», «Next run» o cadenze: sono
-   informazioni che il backend non ha, e scriverle sarebbe finzione.
+   Due cose diverse, e la differenza conta:
 
-   Gli ACT si creano parlando in CHAT — lo strumento `programma_promemoria`
-   esiste già ed è reale. Questa è la vista, non un secondo scheduler.
+   AUTOMAZIONI  girano da sole a un'ora fissa, FANNO il lavoro (cercano sul web
+                con la voce di VINZ) e il risultato arriva in chat. Ricorrenti.
+   PROMEMORIA   scadono una volta sola e ti danno una gomitata. Non eseguono
+                niente: è il calendario, non un agente.
+
+   🔒 «Ogni giorno», «Ultima» e «Prossima» compaiono SOLO sulle automazioni,
+   perché solo lì sono dati veri: il record li tiene davvero. Sui promemoria non
+   esistono e non vengono inventati.
    ========================================================================= */
 
 import { useCallback, useEffect, useState } from 'react';
@@ -19,8 +21,31 @@ import './daily.css';
 
 type Row = { event: CalendarEvent; version: string };
 
-/** Lo stesso stato che il pannello promemoria già racconta, in una riga sola. */
-function stateOf(event: CalendarEvent): string {
+interface Automation {
+  id: string;
+  title: string;
+  prompt: string;
+  schedule: { kind: 'daily'; hour: number; minute: number; timezone: string };
+  enabled: boolean;
+  nextRunAt: string;
+  lastRunAt: string | null;
+  lastStatus: 'ok' | 'error' | null;
+  lastError: string | null;
+}
+
+const two = (value: number) => String(value).padStart(2, '0');
+
+function whenLabel(iso: string): string {
+  return new Date(iso).toLocaleString('it-IT', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function reminderState(event: CalendarEvent): string {
   if (event.status === 'cancelled') return 'Annullato';
   if (event.status === 'completed') return 'Completato';
   const delivery = event.reminderDelivery?.status;
@@ -30,17 +55,8 @@ function stateOf(event: CalendarEvent): string {
   return Date.parse(event.reminderAt!) <= Date.now() ? 'In attesa' : 'Attivo';
 }
 
-function when(event: CalendarEvent): string {
-  return new Date(event.reminderAt!).toLocaleString('it-IT', {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
-
 export function ActPanel({ token }: { token: string | null }) {
+  const [automations, setAutomations] = useState<Automation[]>([]);
   const [rows, setRows] = useState<Row[]>([]);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState('');
@@ -53,16 +69,20 @@ export function ActPanel({ token }: { token: string | null }) {
     }
     setBusy(true);
     setError('');
+    const headers = { authorization: `Bearer ${token}` };
     try {
-      const response = await fetch('/api/calendar', {
-        headers: { authorization: `Bearer ${token}` },
-        cache: 'no-store',
-      });
-      const data = (await response.json()) as { events?: Row[]; error?: string };
-      if (!response.ok) throw new Error(data.error ?? 'Attività non disponibili.');
-      setRows(data.events ?? []);
+      const [autoResponse, calendarResponse] = await Promise.all([
+        fetch('/api/automations', { headers, cache: 'no-store' }),
+        fetch('/api/calendar', { headers, cache: 'no-store' }),
+      ]);
+      const autoBody = (await autoResponse.json()) as { automations?: Automation[]; error?: string };
+      const calendarBody = (await calendarResponse.json()) as { events?: Row[]; error?: string };
+      if (!autoResponse.ok) throw new Error(autoBody.error ?? 'Automazioni non disponibili.');
+      if (!calendarResponse.ok) throw new Error(calendarBody.error ?? 'Promemoria non disponibili.');
+      setAutomations(autoBody.automations ?? []);
+      setRows(calendarBody.events ?? []);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Attività non disponibili.');
+      setError(cause instanceof Error ? cause.message : 'ACT non disponibile.');
     } finally {
       setBusy(false);
     }
@@ -72,9 +92,30 @@ export function ActPanel({ token }: { token: string | null }) {
     void load();
   }, [load]);
 
-  async function deactivate(row: Row) {
+  async function act(body: Record<string, unknown>, confirmText?: string) {
     if (!token) return;
-    if (!window.confirm('Disattivare questa attività? L’evento resta nel calendario.')) return;
+    if (confirmText && !window.confirm(confirmText)) return;
+    setBusy(true);
+    try {
+      const response = await fetch('/api/automations', {
+        method: 'POST',
+        headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(payload?.error ?? 'Operazione non riuscita.');
+      }
+      await load();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Operazione non riuscita.');
+      setBusy(false);
+    }
+  }
+
+  async function deactivateReminder(row: Row) {
+    if (!token) return;
+    if (!window.confirm('Disattivare questo promemoria? L’evento resta nel calendario.')) return;
     setBusy(true);
     try {
       const response = await fetch('/api/calendar', {
@@ -90,7 +131,7 @@ export function ActPanel({ token }: { token: string | null }) {
     }
   }
 
-  const acts = rows
+  const reminders = rows
     .filter((row) => row.event.reminderAt)
     .sort((a, b) => a.event.reminderAt!.localeCompare(b.event.reminderAt!));
 
@@ -102,26 +143,67 @@ export function ActPanel({ token }: { token: string | null }) {
         </p>
       )}
 
-      {!error && !busy && acts.length === 0 && (
+      {!error && !busy && !automations.length && !reminders.length && (
         <p className="daily-panel__empty">
-          Niente di programmato. Chiedimelo in chat — «ricordami di controllare il preventivo domani alle 10».
+          Niente in corso. Chiedimelo in chat — «ogni mattina alle 7 mandami le notizie più importanti».
         </p>
       )}
 
+      {!!automations.length && <p className="daily-group">AUTOMAZIONI</p>}
       <ul className="daily-list">
-        {acts.map((row) => (
+        {automations.map((automation) => (
+          <li key={automation.id} className="daily-row">
+            <div className="daily-row__main">
+              <p className="daily-row__title">{automation.title}</p>
+              <p className="daily-row__meta">
+                Ogni giorno alle {two(automation.schedule.hour)}:{two(automation.schedule.minute)} ·{' '}
+                {automation.enabled ? 'Attiva' : 'In pausa'}
+              </p>
+              <p className="daily-row__meta">
+                {automation.lastRunAt ? `Ultima · ${whenLabel(automation.lastRunAt)}` : 'Mai eseguita'}
+                {automation.enabled ? ` · Prossima · ${whenLabel(automation.nextRunAt)}` : ''}
+              </p>
+              {automation.lastStatus === 'error' && automation.lastError && (
+                <p className="daily-row__meta daily-row__meta--bad">Ultimo errore: {automation.lastError}</p>
+              )}
+            </div>
+            <div className="daily-row__stack">
+              <button
+                type="button"
+                className="daily-row__action"
+                disabled={busy}
+                onClick={() => void act({ action: 'toggle', id: automation.id, enabled: !automation.enabled })}
+              >
+                {automation.enabled ? 'Pausa' : 'Riprendi'}
+              </button>
+              <button
+                type="button"
+                className="daily-row__action"
+                disabled={busy}
+                onClick={() => void act({ action: 'delete', id: automation.id }, `Eliminare «${automation.title}»?`)}
+              >
+                Elimina
+              </button>
+            </div>
+          </li>
+        ))}
+      </ul>
+
+      {!!reminders.length && <p className="daily-group">PROMEMORIA</p>}
+      <ul className="daily-list">
+        {reminders.map((row) => (
           <li key={row.event.id} className="daily-row">
             <div className="daily-row__main">
               <p className="daily-row__title">{row.event.title}</p>
               <p className="daily-row__meta">
-                {when(row.event)} · {stateOf(row.event)}
+                {whenLabel(row.event.reminderAt!)} · {reminderState(row.event)}
               </p>
             </div>
             <button
               type="button"
               className="daily-row__action"
               disabled={busy || row.event.status !== 'planned'}
-              onClick={() => void deactivate(row)}
+              onClick={() => void deactivateReminder(row)}
             >
               Disattiva
             </button>

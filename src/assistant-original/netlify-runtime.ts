@@ -288,12 +288,17 @@ const ACTION_BY_TOOL: Record<string, ConfirmableAction> = {
 
 /** «Ricordami…» sì, «ricorda che…» no: il secondo è memoria, non un promemoria. */
 const REMINDER_INTENT = /\b(?:ricordami|promemoria|reminder)\b/i;
+/* ⚠️ VA PROVATA PRIMA DEL PROMEMORIA. «Ogni mattina ricordami le notizie»
+   contiene «ricordami», ma non è un promemoria: quello scade una volta e ti dà
+   una gomitata, questa si ripete e FA il lavoro. Chi arriva primo decide. */
+const AUTOMATION_INTENT = /\b(?:ogni\s+(?:mattina|giorno|sera|pomeriggio|notte)|tutti\s+i\s+giorni|quotidianamente)\b/i;
 const DIET_INTENT =
   /\b(?:impost\w*|aggiorn\w*|cambi\w*|modific\w*|salv\w*|cre\w*|scriv\w*)\b[^.!?]*\b(?:dieta|piano\s+alimentare|regime\s+alimentare)\b|\b(?:dieta|piano\s+alimentare|regime\s+alimentare)\b[^.!?]*\b(?:impost\w*|aggiorn\w*|cambi\w*|modific\w*|salv\w*|cre\w*|scriv\w*)\b/i;
 
 function proposedAction(text: string): ConfirmableAction | undefined {
   const tool = requiredWriteTool(text);
   if (tool && ACTION_BY_TOOL[tool]) return ACTION_BY_TOOL[tool];
+  if (AUTOMATION_INTENT.test(text)) return 'automazione';
   if (REMINDER_INTENT.test(text)) return 'promemoria';
   if (DIET_INTENT.test(text)) return 'dieta';
   return undefined;
