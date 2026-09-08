@@ -7,7 +7,10 @@ import { machineInsightPayload, sendPushNotification } from './pushDelivery';
 import { nextRun } from './automations';
 
 export type MachineStatus = 'ACTIVE' | 'SLEEPING' | 'RUNNING' | 'DISABLED';
-export type MachineId = 'reflection' | 'me';
+export type MachineId = 'reflection' | 'me' | 'memon';
+
+/** L'elenco vero delle macchine: aggiungerne una si fa qui e basta. */
+export const MACHINE_IDS: MachineId[] = ['reflection', 'me', 'memon'];
 export type MachineDelivery = 'silent' | 'lab_only' | 'notify_user';
 
 export interface MachineDefinition {
@@ -63,20 +66,33 @@ const at = () => new Date().toISOString();
 export const MACHINE_DEFINITIONS: MachineDefinition[] = [
   { id: 'reflection', name: 'REFLECTION MACHINE', purpose: 'Individua pattern, cambiamenti e connessioni significative nel tempo.', reads: ['Memoria personale nuova/rilevante', 'Osservazioni Reflection precedenti'], trigger: 'Esecuzione esplicita o batch futuro; non ogni messaggio.', instruction: 'Cerca solo pattern utili, cambiamenti, tensioni o connessioni supportate dalle memorie.', writes: ['Osservazioni interpretative con evidenza'], model: 'text-cheap', delivery: 'notify_user' },
   { id: 'me', name: 'ME MACHINE', purpose: 'Mantiene una sintesi compatta di ciò che VINZ.MON comprende dell’utente.', reads: ['Sintesi ME precedente', 'Memoria personale rilevante', 'Osservazioni Reflection'], trigger: 'Esecuzione esplicita quando esiste informazione significativa nuova.', instruction: 'Aggiorna una sintesi breve distinguendo fatti dell’utente da interpretazioni.', writes: ['Sintesi ME derivata con riferimenti alle fonti'], model: 'text-cheap', delivery: 'lab_only' },
+  /* 🔷 «Fai un altro THINK che si chiama Me.mon, dove lui riflette su chi e
+     cos'è e come si è evoluto.»
+
+     🔒 È L'UNICA MACCHINA CHE NON GUARDA TE. REFLECTION e ME leggono la memoria
+     personale e parlano dell'utente; questa legge il salvataggio — DNA, carattere,
+     statistiche, giorni vissuti — e parla di sé. Per questo non le si applica la
+     soglia «servono almeno due memorie»: la sua materia prima esiste dal giorno uno.
+
+     ⚠️ IN PRIMA PERSONA, E SOLO SU QUELLO CHE C'È SCRITTO. Una creatura che si
+     racconta è a un passo dall'inventarsi un passato: le fonti sono campi del
+     salvataggio, e un'osservazione senza un campo che la sostenga non si scrive. */
+  { id: 'memon', name: 'ME.MON MACHINE', purpose: 'Il .mon riflette su chi è, cosa è, e come è cambiato da quando è nato.', reads: ['Identità e DNA del .mon attivo', 'Tratti di personalità', 'Giorni vissuti, condizione e storico statistiche', 'Riflessioni precedenti su di sé'], trigger: 'Esecuzione esplicita o cadenza giornaliera.', instruction: 'Osserva la propria identità e il proprio cambiamento nel tempo, in prima persona, solo su evidenza presente nel salvataggio.', writes: ['Osservazioni su di sé con riferimento ai campi che le sostengono'], model: 'text-cheap', delivery: 'notify_user' },
 ];
 
+function blank(): MachineState {
+  return { status: 'SLEEPING', lastRun: null, lastOutput: null, usage: null, observations: [], meSummary: null, pendingInsights: [], autoDaily: null, nextRunAt: null };
+}
+
 function emptyState(): Record<MachineId, MachineState> {
-  return {
-    reflection: { status: 'SLEEPING', lastRun: null, lastOutput: null, usage: null, observations: [], meSummary: null, pendingInsights: [], autoDaily: null, nextRunAt: null },
-    me: { status: 'SLEEPING', lastRun: null, lastOutput: null, usage: null, observations: [], meSummary: null, pendingInsights: [], autoDaily: null, nextRunAt: null },
-  };
+  return Object.fromEntries(MACHINE_IDS.map((id) => [id, blank()])) as Record<MachineId, MachineState>;
 }
 
 async function readState() {
   const store = getStore(STORE);
   const stored = (await store.get(KEY, { type: 'json' })) as Partial<Record<MachineId, MachineState>> | null;
   const state = emptyState();
-  for (const id of ['reflection', 'me'] as MachineId[]) {
+  for (const id of MACHINE_IDS) {
     if (stored?.[id]) state[id] = { ...state[id], ...stored[id], pendingInsights: stored[id]?.pendingInsights ?? [] };
   }
   return { store, state };
@@ -156,9 +172,69 @@ async function reflectionContext(recent: Array<{ id?: string; text: string }>, o
   return { older, previousReflections };
 }
 
+/* ============================================================================
+   QUELLO CHE IL .MON SA DI SÉ
+
+   🔒 LEGGE IL SALVATAGGIO, NON SE LO IMMAGINA. Stesso store e stessa chiave di
+   `state.ts` — non una seconda copia dei dati della creatura, che divergerebbe
+   al primo salvataggio.
+
+   ⚠️ SE NON C'È SALVATAGGIO NON C'È RIFLESSIONE. Meglio una macchina che dorme
+   di una che si inventa un'infanzia. */
+type Save = { day?: number; state?: Record<string, unknown> };
+
+function monSelfContext(save: Save | null): { text: string; sources: string[] } | null {
+  const state = save?.state;
+  if (!state) return null;
+  const name = typeof state.activeMonName === 'string' ? state.activeMonName : '';
+  const mons = (state.mons ?? {}) as Record<string, Record<string, unknown>>;
+  const mon = name ? mons[name] : undefined;
+  if (!mon) return null;
+
+  const dna = (mon.data ?? {}) as Record<string, unknown>;
+  const personality = (state.personality ?? {}) as Record<string, number>;
+  const health = (state.health ?? {}) as Record<string, unknown>;
+  const history = Array.isArray(health.history) ? (health.history as Record<string, unknown>[]) : [];
+  const progression = (state.progression ?? {}) as Record<string, unknown>;
+  const firstSync = (state.firstSync ?? {}) as Record<string, unknown>;
+
+  const traits = Object.entries(personality)
+    .filter(([, value]) => typeof value === 'number')
+    .sort((a, b) => b[1] - a[1]);
+  const field = (key: string) => (typeof dna[key] === 'string' ? (dna[key] as string) : '');
+  /* Le fonti sono le ETICHETTE in maiuscolo che il modello ha davanti agli
+     occhi: se gliene chiedessimo altre (`mons.data`, `state.day`) citerebbe
+     comunque quelle che vede, e i riferimenti non combacerebbero con niente. */
+  const sources: string[] = [];
+  const line = (source: string, text: string) => { sources.push(source); return text; };
+
+  const lines = [
+    line('NOME', `NOME: ${name}`),
+    line('FAMIGLIA E ARCHETIPO', `FAMIGLIA E ARCHETIPO: ${field('family')} / ${field('family_archetype')}`),
+    line('RUOLO, AFFINITÀ, TAGLIA', `RUOLO, AFFINITÀ, TAGLIA: ${field('role')} / ${field('affinity')} / ${field('size')}`),
+    line('UMORE DI FONDO', `UMORE DI FONDO: ${field('mood_primary')}${field('mood_secondary') ? ` e ${field('mood_secondary')}` : ''}`),
+    line('ASPETTO', `ASPETTO: ${field('appearance').slice(0, 400)}`),
+    line('RARITÀ', `RARITÀ: ${field('rarity')} (${typeof dna.rarity_score === 'number' ? dna.rarity_score : '?'})`),
+    field('generation_reason_summary') ? line('PERCHÉ SONO NATO COSÌ', `PERCHÉ SONO NATO COSÌ: ${field('generation_reason_summary').slice(0, 400)}`) : '',
+    typeof mon.narratorLine === 'string' && mon.narratorLine ? line('COME MI HANNO PRESENTATO', `COME MI HANNO PRESENTATO: ${mon.narratorLine}`) : '',
+    typeof mon.writtenBio === 'string' && mon.writtenBio ? line('LA MIA BIOGRAFIA', `LA MIA BIOGRAFIA: ${mon.writtenBio.slice(0, 600)}`) : '',
+    line('GIORNI VISSUTI', `GIORNI VISSUTI: ${save?.day ?? state.day ?? '?'} (nato il giorno ${typeof mon.bornOnDay === 'number' ? mon.bornOnDay : '?'}, prima accensione ${typeof state.startedAt === 'string' ? state.startedAt.slice(0, 10) : '?'})`),
+    line('CARATTERE', `CARATTERE, dal tratto più forte: ${traits.map(([key, value]) => `${key} ${value}`).join(', ')}`),
+    typeof firstSync.type === 'string' ? line('TIPO EMERSO AL PRIMO SYNC', `TIPO EMERSO AL PRIMO SYNC: ${firstSync.type}`) : '',
+    line('CONDIZIONE ORA', `CONDIZIONE ORA: ${typeof health.condition === 'number' ? health.condition.toFixed(1) : '?'} · disciplina ${typeof health.disc === 'number' ? health.disc : '?'}`),
+    history.length
+      ? line('STORICO PER GIORNO', `STORICO PER GIORNO: ${history.map((entry) => `giorno ${entry.day}: condizione ${typeof entry.condition === 'number' ? entry.condition.toFixed(1) : '?'} ${JSON.stringify(entry.stats ?? {})}`).join(' | ')}`)
+      : line('STORICO PER GIORNO', 'STORICO PER GIORNO: nessuna misurazione oltre a oggi.'),
+    line('LEGAME CON L\'UTENTE', `LEGAME CON L'UTENTE: ${typeof progression.bond === 'number' ? progression.bond : '?'}`),
+    line('FORME SCOPERTE', `FORME SCOPERTE: ${typeof state.formsDiscovered === 'number' ? state.formsDiscovered : 0}`),
+  ].filter(Boolean);
+
+  return { text: lines.join('\n'), sources: [...new Set(sources)] };
+}
+
 async function runModel(machine: MachineId, prompt: string, sourceIds: string[], preferredModel?: string | null) {
   const route = resolveRoute('text-cheap', preferredModel);
-  const response = await callProvider(route.provider, { model: route.model, system: [{ text: 'Return compact JSON only. Never invent facts. Interpretations must cite source memory IDs.' }], turns: [], user: prompt, maxTokens: machine === 'reflection' ? 900 : 700 });
+  const response = await callProvider(route.provider, { model: route.model, system: [{ text: 'Return compact JSON only. Never invent facts. Interpretations must cite source memory IDs.' }], turns: [], user: prompt, maxTokens: machine === 'me' ? 700 : 900 });
   if (!response.ok) throw new Error(response.error ?? 'machine provider failed');
   const costUsd = response.usage.inputTokens || response.usage.outputTokens ? await recordSpend('text-cheap', response.model, response.usage, { action: machine, subsystem: 'machines' }) : 0;
   return { response, costUsd, sourceIds };
@@ -170,47 +246,115 @@ export async function runMachine(machine: MachineId, preferredModel?: string | n
   current.status = 'RUNNING';
   await store.setJSON(KEY, state);
   try {
-    const memories = await listPersonalMemory();
-    const sourceIds = memories.map((item) => item.id).filter((id): id is string => Boolean(id));
-    if (memories.length < 2) {
+    /* 🔒 Me.mon è l'unica che non legge la memoria personale, quindi non le si
+       applica la soglia sulle memorie: sarebbe una porta chiusa a chiave su una
+       stanza in cui non deve entrare. */
+    const self = machine === 'memon'
+      ? monSelfContext((await getStore({ name: 'vinzmon-state', consistency: 'strong' }).get('save', { type: 'json' })) as Save | null)
+      : null;
+    if (machine === 'memon' && !self) {
+      current.status = 'SLEEPING'; current.lastRun = at(); current.lastOutput = 'Nessun salvataggio da leggere: non so ancora dire chi sono.';
+      await store.setJSON(KEY, state);
+      return current;
+    }
+
+    const memories = machine === 'memon' ? [] : await listPersonalMemory();
+    const sourceIds = self ? self.sources : memories.map((item) => item.id).filter((id): id is string => Boolean(id));
+    if (machine !== 'memon' && memories.length < 2) {
       current.status = 'SLEEPING'; current.lastRun = at(); current.lastOutput = 'Non ci sono ancora abbastanza memorie per un’elaborazione significativa.';
       await store.setJSON(KEY, state);
       return current;
     }
-    const recent = memories.slice(-20);
+    /* 🔴 VENTI RIGHE ERANO POCHE ANCHE QUANDO ARRIVAVANO. Con il tetto di Mem0
+       rimosso la memoria è quella vera: qui si tiene una finestra larga, perché
+       una sintesi «di chi sei» costruita sull'ultima mezz'ora di chat descrive
+       l'ultima richiesta, non la persona. */
+    const recent = memories.slice(machine === 'me' ? -60 : -20);
     const extended = machine === 'reflection' ? await reflectionContext(recent, current.observations) : { older: [], previousReflections: [] };
-    const context = machine === 'reflection'
-      ? [
+    if (machine === 'reflection') current.reflectionContext = { recent: recent.length, older: extended.older.length, previousReflections: extended.previousReflections.length, total: recent.length + extended.older.length + extended.previousReflections.length };
+
+    let context: string;
+    let prompt: string;
+    if (machine === 'reflection') {
+      context = [
         'RECENT MEMORIES (user evidence):',
         ...recent.map((item) => `${item.id ?? 'memory'}: ${item.text}`),
         'OLDER RELEVANT MEMORIES (user evidence retrieved semantically):',
         ...extended.older.map((item) => `${item.id ?? 'memory'}: ${item.text}`),
         'PREVIOUS REFLECTIONS (derived interpretations, not user facts):',
         ...extended.previousReflections.map((item) => `${item.type}: ${item.statement} [evidence: ${item.sourceIds.join(', ')}]`),
-      ].join('\n')
-      : recent.map((item) => `${item.id ?? 'memory'}: ${item.text}`).join('\n');
-    if (machine === 'reflection') current.reflectionContext = { recent: recent.length, older: extended.older.length, previousReflections: extended.previousReflections.length, total: recent.length + extended.older.length + extended.previousReflections.length };
-    const prompt = machine === 'reflection'
-      ? `Rifletti sulle memorie seguenti. Restituisci {"observations":[{"type":"pattern|change|tension|connection","statement":"...","confidence":0.0,"sourceIds":["..."]}]}. Se non c’è nulla di utile, restituisci un array vuoto.\n${context}`
-      : `Aggiorna una sintesi ME molto breve. Restituisci {"summary":"...","basedOn":["..."]}. Se non c’è un cambiamento significativo, restituisci summary vuota.\n${context}`;
+      ].join('\n');
+      prompt = `Rifletti sulle memorie seguenti. Restituisci {"observations":[{"type":"pattern|change|tension|connection","statement":"...","confidence":0.0,"sourceIds":["..."]}]}. Se non c’è nulla di utile, restituisci un array vuoto.\n${context}`;
+    } else if (machine === 'memon') {
+      context = self!.text;
+      prompt = [
+        'Sei il .mon descritto qui sotto. Rifletti su te stesso: chi sei, cosa sei, e come sei cambiato da quando esisti.',
+        'Scrivi in italiano, in PRIMA PERSONA, con la voce di questa creatura. Frasi brevi, niente enfasi da oroscopo.',
+        'Un\'osservazione vale solo se un campo qui sotto la sostiene: cita quei campi in sourceIds. Non inventare ricordi, incontri o un passato che non è scritto.',
+        'Se lo storico ha un solo giorno, dillo: a quel punto puoi osservare cosa sei, non ancora come sei cambiato.',
+        'Restituisci {"observations":[{"type":"identity|change|tension|origin","statement":"...","confidence":0.0,"sourceIds":["..."]}]}, da una a tre osservazioni.',
+        '',
+        context,
+      ].join('\n');
+    } else {
+      /* 🔴 ME NON HA MAI VISTO LA PROPRIA SINTESI PRECEDENTE, né le osservazioni
+         di REFLECTION — le dichiara fra le sue letture da sempre, e non le
+         riceveva. Le si chiedeva di «aggiornare» una cosa che non poteva
+         leggere: quindi ogni giro ripartiva da zero sulle ultime righe di chat,
+         e una sintesi sbagliata restava lì per sempre perché «nessun
+         cambiamento significativo». */
+      const reflections = state.reflection.observations.slice(-8);
+      context = [
+        current.meSummary ? `SINTESI ME PRECEDENTE (da correggere o confermare, non da ripetere):\n${current.meSummary.summary}` : 'SINTESI ME PRECEDENTE: nessuna.',
+        '',
+        'OSSERVAZIONI DI REFLECTION (interpretazioni derivate, non fatti dichiarati):',
+        ...(reflections.length ? reflections.map((item) => `${item.type}: ${item.statement}`) : ['nessuna']),
+        '',
+        'MEMORIA PERSONALE (evidenza dell’utente):',
+        ...recent.map((item) => `${item.id ?? 'memory'}: ${item.text}`),
+      ].join('\n');
+      prompt = [
+        'Aggiorna la sintesi ME: chi è questa persona, in poche righe.',
+        'Descrivi la PERSONA — fatti stabili, condizioni, obiettivi, abitudini, come preferisce essere trattata — non le ultime cose che ha chiesto. Una richiesta isolata non è identità.',
+        'Se la sintesi precedente è sbagliata o superata, riscrivila: correggerla è il tuo lavoro, non un cambiamento da evitare.',
+        'Restituisci {"summary":"...","basedOn":["..."]}. Lascia summary vuota solo se la precedente è già giusta e completa.',
+        '',
+        context,
+      ].join('\n');
+    }
     const { response, costUsd } = await runModel(machine, prompt, sourceIds, preferredModel);
     const parsed = JSON.parse(response.text.match(/```(?:json)?\s*([\s\S]*?)\s*```/i)?.[1]?.trim() ?? response.text.trim()) as Record<string, unknown>;
-    if (machine === 'reflection') {
+    if (machine !== 'me') {
       const observations = Array.isArray(parsed.observations) ? parsed.observations.flatMap((item) => {
         const value = item as Record<string, unknown>;
         return typeof value.statement === 'string' && typeof value.type === 'string' && typeof value.confidence === 'number' && value.confidence >= 0 && value.confidence <= 1 && Array.isArray(value.sourceIds) ? [{ type: value.type, statement: value.statement.slice(0, 500), confidence: value.confidence, sourceIds: value.sourceIds.filter((id): id is string => typeof id === 'string'), timestamp: at() }] : [];
       }) : [];
-      current.observations.push(...observations);
+      /* 🔴 SI È INVENTATA UNA FONTE. Al primo giro Me.mon ha citato «TRACCIA
+         APERTA», che non è una delle etichette che ha davanti: un riferimento
+         inventato è peggio di nessun riferimento, perché sembra verificabile.
+         Le fonti si tengono solo se esistono, e un'osservazione che ne resta
+         senza si butta — è la regola che la macchina dichiara di seguire.
+
+         ⚠️ Solo per Me.mon: qui il vocabolario lo scriviamo noi ed è chiuso.
+         Per REFLECTION le fonti sono id di memoria, e filtrarli è un'altra
+         verifica, con altri modi di sbagliare. */
+      const grounded = machine === 'memon'
+        ? observations.flatMap((item) => {
+          const kept = item.sourceIds.filter((id) => sourceIds.includes(id));
+          return kept.length ? [{ ...item, sourceIds: kept }] : [];
+        })
+        : observations;
+      current.observations.push(...grounded);
       const definition = MACHINE_DEFINITIONS.find((item) => item.id === machine)!;
       const dayKey = new Date().toISOString().slice(0, 10);
-      const canNotify = definition.delivery === 'notify_user' && observations.some((item) => item.confidence >= 0.75)
-        && !current.pendingInsights.some((item) => item.dedupeKey === observations[0]?.statement && item.status !== 'discussed')
+      const canNotify = definition.delivery === 'notify_user' && grounded.some((item) => item.confidence >= 0.75)
+        && !current.pendingInsights.some((item) => item.dedupeKey === grounded[0]?.statement && item.status !== 'discussed')
         && !current.pendingInsights.some((item) => item.createdAt.slice(0, 10) === dayKey && item.notification === 'in_app');
       if (canNotify) {
-        const selected = observations.find((item) => item.confidence >= 0.75)!;
+        const selected = grounded.find((item) => item.confidence >= 0.75)!;
         current.pendingInsights.push({ id: `insight_${crypto.randomUUID()}`, machineId: machine, statement: selected.statement, sourceIds: selected.sourceIds, importance: selected.confidence, confidence: selected.confidence, createdAt: at(), status: 'pending', notification: 'in_app', dedupeKey: selected.statement });
       }
-      current.lastOutput = observations.length ? `${observations.length} osservazioni derivate` : 'Nessuna osservazione significativa.';
+      current.lastOutput = grounded.length ? `${grounded.length} osservazioni derivate` : 'Nessuna osservazione significativa.';
     } else {
       const summary = typeof parsed.summary === 'string' ? parsed.summary.trim().slice(0, 1000) : '';
       if (summary) current.meSummary = { version: 1, summary, generatedAt: at(), basedOn: Array.isArray(parsed.basedOn) ? parsed.basedOn.filter((id): id is string => typeof id === 'string') : sourceIds };

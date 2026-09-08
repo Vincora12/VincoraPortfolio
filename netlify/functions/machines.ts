@@ -1,5 +1,5 @@
 import { authorize, denied, json } from './_shared/auth';
-import { discussPendingInsight, machineSnapshot, openAllPendingInsights, openPendingInsight, runMachine, setMachineSchedule, type MachineId } from './_shared/machines';
+import { discussPendingInsight, MACHINE_IDS, machineSnapshot, openAllPendingInsights, openPendingInsight, runMachine, setMachineSchedule, type MachineId } from './_shared/machines';
 import { pushStatus } from './_shared/pushDelivery';
 
 export default async function handler(request: Request): Promise<Response> {
@@ -17,16 +17,16 @@ export default async function handler(request: Request): Promise<Response> {
   }
   if (body.machine === 'schedule') {
     const id = body.id;
-    if (id !== 'reflection' && id !== 'me') return json({ error: 'machine non valida' }, 400);
-    if (body.auto === false) return json({ state: await setMachineSchedule(id, null) });
+    if (!MACHINE_IDS.includes(id as MachineId)) return json({ error: 'machine non valida' }, 400);
+    if (body.auto === false) return json({ state: await setMachineSchedule(id as MachineId, null) });
     const hour = Number(body.hour);
     if (!Number.isInteger(hour) || hour < 0 || hour > 23) return json({ error: 'Ora non valida.' }, 400);
     let timezone = String(body.timezone ?? '');
     try { new Intl.DateTimeFormat('en-US', { timeZone: timezone }); } catch { timezone = ''; }
     if (!timezone) return json({ error: 'Fuso orario non valido.' }, 400);
-    return json({ state: await setMachineSchedule(id, { hour, timezone }) });
+    return json({ state: await setMachineSchedule(id as MachineId, { hour, timezone }) });
   }
-  if (body.machine !== 'reflection' && body.machine !== 'me') return json({ error: 'machine non valida' }, 400);
+  if (!MACHINE_IDS.includes(body.machine as MachineId)) return json({ error: 'machine non valida' }, 400);
   try { return json({ machine: body.machine, state: await runMachine(body.machine as MachineId, body.preferredModel) }); } catch { return json({ error: 'esecuzione machine non riuscita' }, 503); }
 }
 

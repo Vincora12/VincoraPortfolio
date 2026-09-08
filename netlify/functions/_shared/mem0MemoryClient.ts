@@ -3,7 +3,10 @@ const userId = 'vinzmon-user';
 function config() { const url = process.env.VINZMON_MEMORY_SERVICE_URL || 'http://127.0.0.1:8788'; const secret = process.env.VINZMON_MEMORY_SERVICE_SECRET || process.env.VINZMON_TOKEN; if (!secret) throw new Error('Mem0 service is not configured'); return { url: url.replace(/\/$/, ''), secret }; }
 async function call(path: string, init: RequestInit = {}) { const c = config(); const response = await fetch(`${c.url}${path}`, { ...init, headers: { authorization: `Bearer ${c.secret}`, 'content-type': 'application/json', ...(init.headers || {}) } }); if (!response.ok) throw new Error(`Mem0 service returned ${response.status}`); return response.json() as Promise<any>; }
 export async function addToMem0(input: { text: string; conversationId?: string; messageId?: string }): Promise<Mem0Result> { const raw = await call('/memory/add', { method: 'POST', body: JSON.stringify({ userId, text: input.text, infer: true, metadata: { source: 'chat', conversationId: input.conversationId, messageId: input.messageId } }) }); const stored = Array.isArray(raw?.results) ? raw.results.length : Array.isArray(raw) ? raw.length : raw?.memory ? 1 : 0; return { updated: stored > 0, stored, raw }; }
-export async function listMem0(): Promise<unknown> { return call(`/memory/list?userId=${encodeURIComponent(userId)}`); }
+/* 🔴 `getAll` DI MEM0 HA UN `topK = 20` DI DEFAULT, e nessuno gliene passava
+   uno: le macchine hanno sempre visto al massimo venti righe, cioè quasi niente
+   e per giunta le sbagliate. Il limite si chiede esplicito. */
+export async function listMem0(limit = 500): Promise<unknown> { return call(`/memory/list?userId=${encodeURIComponent(userId)}&limit=${limit}`); }
 export async function searchMem0(query: string, limit = 5): Promise<Array<{ id?: string; text: string; score?: number; metadata?: Record<string, unknown> }>> {
   const raw = await call('/memory/search', { method: 'POST', body: JSON.stringify({ userId, query, limit }) });
   const rows = Array.isArray(raw?.results) ? raw.results : Array.isArray(raw) ? raw : [];

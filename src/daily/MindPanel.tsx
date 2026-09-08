@@ -30,7 +30,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import type { CalendarEvent } from '@/engine/calendarEvents';
-import { EyeIcon, UserIcon } from 'lucide-react';
+import { EyeIcon, SparklesIcon, UserIcon } from 'lucide-react';
 
 import type { PushStatus } from '@/system/pushNotifications';
 import { TopicIcon } from '@/system/topicIcon';
@@ -58,13 +58,14 @@ interface MachineView {
 
 /* Un'ora sola, scelta per la macchina, invece di un modulo da compilare.
    REFLECTION la sera, quando la giornata è finita e c'è qualcosa da notare;
-   ME di notte, perché non ti disturba (consegna `lab_only`). */
-const DEFAULT_HOUR: Record<string, number> = { reflection: 21, me: 3 };
+   ME di notte, perché non ti disturba (consegna `lab_only`); ME.MON all'alba,
+   così il suo pensiero su di sé è la prima cosa che trovi. */
+const DEFAULT_HOUR: Record<string, number> = { reflection: 21, me: 3, memon: 7 };
 
-/* Le macchine sono due e hanno un nome: l'icona non serve a distinguerle, serve
-   a non lasciare THINK spoglio accanto ad ACT, che le icone ce le ha. Una
-   guarda (REFLECTION), l'altra tiene il ritratto di te (ME). */
-const MACHINE_ICONS: Record<string, typeof EyeIcon> = { reflection: EyeIcon, me: UserIcon };
+/* L'icona non serve a distinguerle — hanno un nome — serve a non lasciare THINK
+   spoglio accanto ad ACT, che le icone ce le ha. Una guarda (REFLECTION), una
+   tiene il ritratto di te (ME), una guarda sé stessa: uno specchio. */
+const MACHINE_ICONS: Record<string, typeof EyeIcon> = { reflection: EyeIcon, me: UserIcon, memon: SparklesIcon };
 
 interface Automation {
   id: string;

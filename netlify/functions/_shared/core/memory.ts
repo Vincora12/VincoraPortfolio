@@ -100,10 +100,21 @@ export function flattenMeModelDocument(doc: MeModelDocument): PersonalMemoryItem
 }
 
 /** Mem0's `/memory/list` and `/memory/search` both resolve to this same row shape. */
+/* 🔴 MEM0 RESTITUISCE ANCHE I NODI DEL SUO GRAFO, NON SOLO I RICORDI. Accanto a
+   una memoria vera salva le entità che ci ha trovato dentro, come righe della
+   stessa lista: «Vincenzo», «Italian», «HTML», «Link», «user requested», «page
+   that includes a». Erano diciassette su venti — le macchine leggevano quasi
+   solo schegge di frase e ne ricavavano quello che si poteva ricavare, cioè
+   niente. Un'entità si riconosce dal suo `entityType`: quelle si scartano. */
+function isEntityNode(metadata: Record<string, unknown> | undefined): boolean {
+  return typeof metadata?.entityType === 'string';
+}
+
 export function mem0RowsToItems(raw: unknown): PersonalMemoryItem[] {
   const rows = Array.isArray((raw as { results?: unknown[] })?.results) ? (raw as { results: unknown[] }).results : Array.isArray(raw) ? raw : [];
   return rows.flatMap((row) => {
     const item = row as { id?: string; memory?: unknown; text?: unknown; score?: number; metadata?: Record<string, unknown> };
+    if (isEntityNode(item.metadata)) return [];
     const text = typeof item.memory === 'string' ? item.memory : typeof item.text === 'string' ? item.text : '';
     return text ? [{ id: item.id, text, score: item.score, metadata: item.metadata }] : [];
   });
