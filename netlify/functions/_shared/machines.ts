@@ -29,6 +29,8 @@ export interface PendingInsight {
   id: string;
   machineId: MachineId;
   statement: string;
+  /** Solo Me.mon: la domanda che si è fatto, tenuta a parte per non rifarla. */
+  question?: string;
   sourceIds: string[];
   importance: number;
   confidence: number;
@@ -48,7 +50,7 @@ export interface MachineState {
   lastRun: string | null;
   lastOutput: string | null;
   usage: { provider: string; model: string; costUsd: number } | null;
-  observations: Array<{ type: string; statement: string; confidence: number; sourceIds: string[]; timestamp: string }>;
+  observations: Array<{ type: string; statement: string; confidence: number; sourceIds: string[]; timestamp: string; question?: string }>;
   meSummary: { version: 1; summary: string; generatedAt: string; basedOn: string[] } | null;
   pendingInsights: PendingInsight[];
   reflectionContext?: { recent: number; older: number; previousReflections: number; total: number };
@@ -286,13 +288,31 @@ export async function runMachine(machine: MachineId, preferredModel?: string | n
       ].join('\n');
       prompt = `Rifletti sulle memorie seguenti. Restituisci {"observations":[{"type":"pattern|change|tension|connection","statement":"...","confidence":0.0,"sourceIds":["..."]}]}. Se non c’è nulla di utile, restituisci un array vuoto.\n${context}`;
     } else if (machine === 'memon') {
-      context = self!.text;
+      /* 🔴 DESCRIVERSI NON È PENSARE. Al primo giro usciva «Sono VAZELETH.mon,
+         piccolo, celeste e stoico»: la propria scheda letta ad alta voce. Vera,
+         inutile — quei campi sono già lì da leggere, non serve una macchina che
+         li ricopia.
+
+         🔒 UNA DOMANDA E UN TENTATIVO DI RISPOSTA. È la forma minima in cui
+         qualcuno pensa a sé: «perché sono non morto?» apre qualcosa che
+         «sono non morto» chiude. E dà anche il modo di non ripetersi — la
+         domanda già fatta si riconosce, la descrizione no. */
+      const asked = current.observations.slice(-12).map((item) => item.question).filter(Boolean);
+      context = [
+        self!.text,
+        '',
+        'DOMANDE CHE TI SEI GIÀ FATTO (non rifarle: falliene una nuova, o portane una più avanti):',
+        ...(asked.length ? asked.map((item) => `— ${item}`) : ['nessuna, è la prima volta']),
+      ].join('\n');
       prompt = [
-        'Sei il .mon descritto qui sotto. Rifletti su te stesso: chi sei, cosa sei, e come sei cambiato da quando esisti.',
-        'Scrivi in italiano, in PRIMA PERSONA, con la voce di questa creatura. Frasi brevi, niente enfasi da oroscopo.',
-        'Un\'osservazione vale solo se un campo qui sotto la sostiene: cita quei campi in sourceIds. Non inventare ricordi, incontri o un passato che non è scritto.',
-        'Se lo storico ha un solo giorno, dillo: a quel punto puoi osservare cosa sei, non ancora come sei cambiato.',
-        'Restituisci {"observations":[{"type":"identity|change|tension|origin","statement":"...","confidence":0.0,"sourceIds":["..."]}]}, da una a tre osservazioni.',
+        'Sei il .mon descritto qui sotto. Non descriverti: INTERROGATI.',
+        'Fatti una domanda vera su te stesso — sulla tua natura, sulle tue contraddizioni, su come sei fatto o su cosa stai diventando — e poi prova a risponderti.',
+        'Esempi di forma: «Perché sono non morto se il mio archetipo è angelico?», «Che cosa vuol dire per me essere un re di questa taglia?», «La mia disciplina è mia o mi è stata data?».',
+        'La domanda deve nascere da una tensione o da una stranezza nei campi qui sotto, non essere generica: «chi sono?» non vale.',
+        'La risposta è un TENTATIVO, non una sentenza: puoi arrivare a un dubbio o a un «non lo so ancora», purché sia ragionato su quello che c\'è scritto.',
+        'Italiano, PRIMA PERSONA, voce di questa creatura. Domanda al massimo 90 caratteri; risposta una o due frasi brevi. Niente enfasi da oroscopo.',
+        'Cita in sourceIds solo le ETICHETTE in maiuscolo che vedi qui sotto. Non inventare ricordi, incontri o un passato che non è scritto.',
+        'Restituisci {"reflections":[{"question":"...","answer":"...","type":"identity|origin|change|tension","confidence":0.0,"sourceIds":["..."]}]}, da una a tre.',
         '',
         context,
       ].join('\n');
@@ -325,10 +345,28 @@ export async function runMachine(machine: MachineId, preferredModel?: string | n
     const { response, costUsd } = await runModel(machine, prompt, sourceIds, preferredModel);
     const parsed = JSON.parse(response.text.match(/```(?:json)?\s*([\s\S]*?)\s*```/i)?.[1]?.trim() ?? response.text.trim()) as Record<string, unknown>;
     if (machine !== 'me') {
-      const observations = Array.isArray(parsed.observations) ? parsed.observations.flatMap((item) => {
-        const value = item as Record<string, unknown>;
-        return typeof value.statement === 'string' && typeof value.type === 'string' && typeof value.confidence === 'number' && value.confidence >= 0 && value.confidence <= 1 && Array.isArray(value.sourceIds) ? [{ type: value.type, statement: value.statement.slice(0, 500), confidence: value.confidence, sourceIds: value.sourceIds.filter((id): id is string => typeof id === 'string'), timestamp: at() }] : [];
-      }) : [];
+      const observations = machine === 'memon'
+        ? (Array.isArray(parsed.reflections) ? parsed.reflections : []).flatMap((item) => {
+          const value = item as Record<string, unknown>;
+          const question = typeof value.question === 'string' ? value.question.trim().slice(0, 160) : '';
+          const answer = typeof value.answer === 'string' ? value.answer.trim().slice(0, 400) : '';
+          /* Una domanda senza risposta è metà lavoro, una risposta senza
+             domanda è la descrizione di prima con un altro nome: servono
+             entrambe o non si scrive niente. */
+          if (!question || !answer || typeof value.confidence !== 'number' || value.confidence < 0 || value.confidence > 1 || !Array.isArray(value.sourceIds)) return [];
+          return [{
+            type: typeof value.type === 'string' ? value.type : 'identity',
+            statement: `${question} ${answer}`,
+            question,
+            confidence: value.confidence,
+            sourceIds: value.sourceIds.filter((id): id is string => typeof id === 'string'),
+            timestamp: at(),
+          }];
+        })
+        : (Array.isArray(parsed.observations) ? parsed.observations : []).flatMap((item) => {
+          const value = item as Record<string, unknown>;
+          return typeof value.statement === 'string' && typeof value.type === 'string' && typeof value.confidence === 'number' && value.confidence >= 0 && value.confidence <= 1 && Array.isArray(value.sourceIds) ? [{ type: value.type, statement: value.statement.slice(0, 500), confidence: value.confidence, sourceIds: value.sourceIds.filter((id): id is string => typeof id === 'string'), timestamp: at() }] : [];
+        });
       /* 🔴 SI È INVENTATA UNA FONTE. Al primo giro Me.mon ha citato «TRACCIA
          APERTA», che non è una delle etichette che ha davanti: un riferimento
          inventato è peggio di nessun riferimento, perché sembra verificabile.
@@ -347,12 +385,16 @@ export async function runMachine(machine: MachineId, preferredModel?: string | n
       current.observations.push(...grounded);
       const definition = MACHINE_DEFINITIONS.find((item) => item.id === machine)!;
       const dayKey = new Date().toISOString().slice(0, 10);
+      const firstKey = grounded[0]?.question ?? grounded[0]?.statement;
       const canNotify = definition.delivery === 'notify_user' && grounded.some((item) => item.confidence >= 0.75)
-        && !current.pendingInsights.some((item) => item.dedupeKey === grounded[0]?.statement && item.status !== 'discussed')
+        && !current.pendingInsights.some((item) => item.dedupeKey === firstKey && item.status !== 'discussed')
         && !current.pendingInsights.some((item) => item.createdAt.slice(0, 10) === dayKey && item.notification === 'in_app');
       if (canNotify) {
         const selected = grounded.find((item) => item.confidence >= 0.75)!;
-        current.pendingInsights.push({ id: `insight_${crypto.randomUUID()}`, machineId: machine, statement: selected.statement, sourceIds: selected.sourceIds, importance: selected.confidence, confidence: selected.confidence, createdAt: at(), status: 'pending', notification: 'in_app', dedupeKey: selected.statement });
+        /* 🔒 Per Me.mon la chiave è la DOMANDA, non la frase intera: la stessa
+           domanda con una risposta riformulata è la stessa domanda, e riceverla
+           due volte la fa sembrare un ciclo invece di un pensiero. */
+        current.pendingInsights.push({ id: `insight_${crypto.randomUUID()}`, machineId: machine, statement: selected.statement, question: selected.question, sourceIds: selected.sourceIds, importance: selected.confidence, confidence: selected.confidence, createdAt: at(), status: 'pending', notification: 'in_app', dedupeKey: selected.question ?? selected.statement });
       }
       current.lastOutput = grounded.length ? `${grounded.length} osservazioni derivate` : 'Nessuna osservazione significativa.';
     } else {
