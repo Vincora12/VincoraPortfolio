@@ -62,6 +62,7 @@ import { ToolFallback } from "@/assistant-original/components/assistant-ui/tool-
 import { Sources } from "@/assistant-original/components/assistant-ui/sources";
 import { CloneThreadShell } from "./clone-thread-shell";
 import { TopicChips } from "@/assistant-original/TopicChips";
+import { ProjectPill, type ProjectRef } from "@/assistant-original/ProjectPill";
 import { useApp } from "@/state/store";
 import { voiceCard } from "@/engine/voiceCard";
 import { useAssetUrl } from "@/system/AssetSlot";
@@ -229,7 +230,11 @@ export const ChatGPT: FC<{
   sidebarContent?: React.ReactNode;
   newThreadScope?: { projectId: string | null; projectTitle: string };
   onNewThread?: (threadId: string) => void;
-}> = ({ sidebarContent, newThreadScope, onNewThread }) => {
+  /* 🔷 La pillola del progetto compare solo dove qualcuno sa cosa farne di una
+     scelta: la superficie quotidiana la passa (vedi `chat-surface.tsx`), il
+     ramo `embedded` no — ha già il suo pannello Progetti, non un secondo. */
+  onProjectChange?: (project: ProjectRef | null) => void;
+}> = ({ sidebarContent, newThreadScope, onNewThread, onProjectChange }) => {
   return (
     <CloneThreadShell sidebarContent={sidebarContent} showThreadList={false} newThreadScope={newThreadScope} onNewThread={onNewThread}>
       <LogCelebration />
@@ -240,7 +245,7 @@ export const ChatGPT: FC<{
       <MonPresenceEvents />
       <ThreadPrimitive.Root className="flex h-full flex-col items-stretch bg-white px-4 text-[#0d0d0d] dark:bg-black dark:text-[#ececec]">
         <AuiIf condition={(s) => s.thread.isEmpty}>
-          <EmptyState />
+          <EmptyState scope={newThreadScope} onProjectChange={onProjectChange} />
         </AuiIf>
 
         <AuiIf condition={(s) => !s.thread.isEmpty}>
@@ -270,7 +275,10 @@ export const ChatGPT: FC<{
 
             <ThreadPrimitive.ViewportFooter className="sticky bottom-0 mx-auto flex w-full max-w-3xl flex-col gap-2 overflow-visible rounded-t-3xl bg-white pb-2 dark:bg-black">
               <ThreadScrollToBottom />
-              <TopicChips />
+              <div className="vinz-chips-row flex items-center gap-2">
+                <ProjectPill scope={newThreadScope ?? { projectId: null, projectTitle: '' }} onChange={onProjectChange} />
+                <div className="min-w-0 flex-1"><TopicChips /></div>
+              </div>
               <Composer placeholder="Ask anything" />
             </ThreadPrimitive.ViewportFooter>
           </ThreadPrimitive.Viewport>
@@ -783,12 +791,18 @@ const ChatIncidentView: FC<{
    `pb-[16vh]`) e poi, al primo messaggio, saltava giù in fondo: due posti
    diversi per lo stesso comando. Adesso il saluto galleggia nello spazio
    sopra e il campo sta in fondo, dove sta sempre. */
-const EmptyState: FC = () => {
+const EmptyState: FC<{
+  scope?: { projectId: string | null; projectTitle: string };
+  onProjectChange?: (project: ProjectRef | null) => void;
+}> = ({ scope, onProjectChange }) => {
   return (
     <div className="flex grow flex-col px-4">
       <div className="grow" aria-hidden="true" />
       <div className="mx-auto flex w-full max-w-3xl flex-col items-stretch pb-2">
-        <TopicChips />
+        <div className="vinz-chips-row flex items-center gap-2">
+          <ProjectPill scope={scope ?? { projectId: null, projectTitle: '' }} onChange={onProjectChange} />
+          <div className="min-w-0 flex-1"><TopicChips /></div>
+        </div>
         <Composer placeholder="Ask anything" />
       </div>
     </div>

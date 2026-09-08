@@ -82,6 +82,17 @@ export function useConversationOptions() {
   const inheritScope = (threadId: string) => {
     setDraft({ id: threadId, model: 'auto', projectId: value.projectId, projectTitle: value.projectTitle });
   };
+  /* 🔷 «La chat non si cancella, ma da quel momento sa che stiamo parlando di
+     quel progetto.» `selectWorkspaceProject`, sotto, esiste da prima e fa
+     l'opposto apposta: cambia thread, perché nasce per il vecchio modello «una
+     conversazione per progetto». Qui il filo resta lo stesso — stesso `id` nel
+     draft — solo il progetto che gli è cucito sopra cambia. Passa dallo stesso
+     `draft`/effetto di sopra (riga 76), quindi si persiste sul thread e
+     sopravvive a un riavvio esattamente come il resto dello scope. */
+  const setProjectScope = (project: { id: string; title: string } | null) => {
+    const projectId = project && project.id !== GLOBAL_PROJECT_ID ? project.id : null;
+    setDraft({ id, model: value.model, projectId, projectTitle: projectId ? project!.title : '' });
+  };
   const selectWorkspaceProject = async (project: Project) => {
     const projectId = project.id === GLOBAL_PROJECT_ID ? null : project.id;
     if (projectId === value.projectId) return;
@@ -128,7 +139,7 @@ export function useConversationOptions() {
   </div> : open ? <div className="vinz-project-overlay" role="dialog" aria-modal="true" aria-label="Projects">
     <ProjectWorkspace token={token} onClose={() => setOpen(false)} onSelectProject={scopeLocked ? undefined : (project) => { setDraft({ ...value, projectId: project.id, projectTitle: project.title }); setOpen(false); }} />
   </div> : null;
-  return { controls, workspace, scope: { projectId: value.projectId, projectTitle: value.projectTitle }, inheritScope };
+  return { controls, workspace, scope: { projectId: value.projectId, projectTitle: value.projectTitle }, inheritScope, setProjectScope };
 }
 
 export function ChatStorageStatus() {
