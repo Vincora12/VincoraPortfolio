@@ -428,7 +428,7 @@ export async function replyWithLocalTools(
      chi risponde, e per questo restano qui invece di finire dentro
      `buildCoreSystemPrompt`, che non sa niente di pasti o conferme.
 
-     FIX 3 (2026-09-06) — `buildCapabilitySummary(true)` va DENTRO questo
+     FIX 3 (2026-09-06) — la sintesi delle capacità reali va DENTRO questo
      `character.text`, mai anche nel blocco sotto: quando arriva `shared`
      (il percorso vero di netlify-runtime.ts) lo porta già — calcolato una
      sola volta e condiviso con `createBaseNetlifyChatModel` — e aggiungerlo

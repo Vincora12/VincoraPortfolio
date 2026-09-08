@@ -488,9 +488,19 @@ console.log('\n═══ 6 — FIX 3: capacità reali, non "web.run e basta" ═
   // test puramente funzionale non potrebbe cogliere (import mai usato).
   const { readFileSync } = await import('node:fs');
   const baseSrc = readFileSync(new URL('../src/assistant-original/netlify-runtime.ts', import.meta.url), 'utf8');
-  check(/buildCapabilitySummary/.test(baseSrc) && /systemPrompt\s*=.*capabilitySummary|capabilitySummary/.test(baseSrc), 'FIX 3 — il percorso BASE (netlify-runtime.ts) chiama davvero buildCapabilitySummary e la usa nel system prompt');
+  check(/const systemPrompt = \(await resolveChatContext\([^)]*\)\) \+ buildCapabilitySummary\(true\)/.test(baseSrc), 'FIX 3 — netlify-runtime.ts chiama davvero buildCapabilitySummary sull\'UNICO punto in cui il system prompt è risolto (condiviso da BASE e loop strumenti)');
   const toolLoopSrc = readFileSync(new URL('../src/brain/stream.ts', import.meta.url), 'utf8');
-  check(/buildCapabilitySummary\(true\)/.test(toolLoopSrc), 'FIX 3 — il percorso col loop strumenti (brain/stream.ts) chiama davvero buildCapabilitySummary, non solo per l\'export/audit ma SEMPRE');
+  check(/shared\?\.systemPrompt \?\? \(await resolveChatContext\([^)]*\)\) \+ buildCapabilitySummary\(true\)/.test(toolLoopSrc), 'FIX 3 — il chiamante legacy senza `shared` (brain/stream.ts, replyWithLocalTools) ottiene comunque buildCapabilitySummary dal proprio fallback, senza duplicarlo quando `shared` la porta già');
+
+  // ⚠️ ANTI-DUPLICAZIONE — regressione reale incontrata in questa stessa
+  // sessione durante il merge con il lavoro concorrente su resolveChatContext:
+  // quando `shared.systemPrompt` arriva già con `buildCapabilitySummary`
+  // dentro (calcolato una sola volta in netlify-runtime.ts e condiviso da
+  // BASE e loop strumenti), il blocco istruzioni di `replyWithLocalTools`
+  // NON deve richiamarla una seconda volta — altrimenti il modello riceve
+  // lo stesso elenco di capacità due volte nello stesso prompt.
+  const capabilityCallSites = (toolLoopSrc.match(/buildCapabilitySummary\(true\)/g) ?? []).length;
+  check(capabilityCallSites === 1, `FIX 3 — buildCapabilitySummary compare UNA sola volta in brain/stream.ts (solo nel fallback senza \`shared\`), non duplicata nel blocco istruzioni`, `${capabilityCallSites} occorrenze trovate`);
 }
 
 console.log(`\n${failures === 0 ? 'Tutto coerente.' : `${failures} controllo/i falliti.`}\n`);
