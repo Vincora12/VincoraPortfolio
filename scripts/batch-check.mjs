@@ -59,7 +59,7 @@ export { eggReply, allEggSounds } from '${cwd}/src/engine/eggVoice.ts';
 export { idleMotionFor, motionCoverage } from '${cwd}/src/engine/idleMotion.ts';
 export { compilePrompt } from '${cwd}/src/assets-pipeline/compiler.ts';
 export { buildVoiceSystemPrompt } from '${cwd}/src/ai/voicePrompt.ts';
-export { typingRhythmFor, rhythmDurationMs } from '${cwd}/src/engine/typingRhythm.ts';
+export { typingRhythmFor, rhythmDurationMs, liveRevealDurationMs } from '${cwd}/src/engine/typingRhythm.ts';
 export { sigilSvg } from '${cwd}/src/system/favicon.ts';
 export { buildSigil, sigilGeometry, sigilCoverage } from '${cwd}/src/engine/sigil.ts';
 export { unpromptedFor } from '${cwd}/src/engine/unprompted.ts';
@@ -2517,6 +2517,72 @@ for (const [name, rhythm] of Object.entries(R)) {
 
 check(m.splitFirstSentence('Una frase sola senza seguito') === null, 'una frase sola non si spezza');
 check(m.planReveal('', R.word).steps.length === 1, 'una risposta vuota non manda in errore il piano');
+
+console.log('\n═══ PRODUCT FIX — chat viva: le risposte lunghe compaiono in fretta ═══\n');
+
+/* `liveRevealDurationMs` è la curva che governa SOLO `writtenSnapshots` nella
+   chat viva (netlify-runtime.ts), non `planReveal`/`reveal.ts` sopra — quindi
+   qui si verificano proprietà diverse: non "il testo torna intero" (non
+   produce testo, produce un numero), ma che il numero sia sempre limitato,
+   sempre crescente, e che il carattere smetta di pesare quando la lunghezza
+   prende il sopravvento, esattamente come chiesto dal principio di prodotto. */
+const LIVE_PROFILES = {
+  'lento/stoico': { thinkMs: 2200, reveal: 'word', paceMs: 150, hesitates: false, splitReply: false, from: [] },
+  neutro: { thinkMs: 1300, reveal: 'word', paceMs: 100, hesitates: false, splitReply: false, from: [] },
+  'impulsivo/veloce': { thinkMs: 500, reveal: 'burst', paceMs: 55, hesitates: true, splitReply: true, from: [] },
+};
+const WORD_COUNTS = [10, 30, 80, 200, 500, 1000];
+
+for (const [name, rhythm] of Object.entries(LIVE_PROFILES)) {
+  const durations = WORD_COUNTS.map((w) => m.liveRevealDurationMs(rhythm, w));
+  check(
+    durations.every((d, i) => i === 0 || d >= durations[i - 1]),
+    `${name}: la durata non torna mai indietro all'aumentare delle parole`,
+    durations.map((d) => Math.round(d)).join(' → '),
+  );
+  check(
+    durations.every((d) => d <= 20 * rhythm.paceMs + 1800 + 1),
+    `${name}: nessuna lunghezza sfonda "carattere delle prime 20 + tetto del resto"`,
+    `max osservato ${Math.round(Math.max(...durations))}ms`,
+  );
+  const d10 = m.liveRevealDurationMs(rhythm, 10);
+  check(Math.abs(d10 - 10 * rhythm.paceMs) < 1, `${name}: 10 parole restano al ritmo pieno del carattere`, `${Math.round(d10)}ms`);
+  const d500 = m.liveRevealDurationMs(rhythm, 500);
+  const d1000 = m.liveRevealDurationMs(rhythm, 1000);
+  check(
+    d1000 - d500 < 200,
+    `${name}: fra 500 e 1000 parole la durata cambia appena — "quasi immediato"`,
+    `${Math.round(d500)}ms → ${Math.round(d1000)}ms`,
+  );
+  const d80 = m.liveRevealDurationMs(rhythm, 80);
+  check(d80 < 20 * rhythm.paceMs + 1800, `${name}: 80 parole restano sotto il tetto del resto`, `${Math.round(d80)}ms`);
+}
+
+// Il carattere resta distinguibile sui messaggi corti: lo stoico più lento
+// dell'impulsivo, sulle stesse 10 parole — la lunghezza non ha ancora
+// scavalcato nessuno a quel punto.
+check(
+  m.liveRevealDurationMs(LIVE_PROFILES['lento/stoico'], 10) > m.liveRevealDurationMs(LIVE_PROFILES['impulsivo/veloce'], 10),
+  'a 10 parole i personaggi restano distinguibili: il lento impiega più dell\'impulsivo',
+);
+
+// Sulle risposte molto lunghe la lunghezza deve schiacciare la differenza fra
+// personaggi diversi (principio 2C: "la lunghezza domina sempre di più").
+{
+  const slow1000 = m.liveRevealDurationMs(LIVE_PROFILES['lento/stoico'], 1000);
+  const fast1000 = m.liveRevealDurationMs(LIVE_PROFILES['impulsivo/veloce'], 1000);
+  const slow10 = m.liveRevealDurationMs(LIVE_PROFILES['lento/stoico'], 10);
+  const fast10 = m.liveRevealDurationMs(LIVE_PROFILES['impulsivo/veloce'], 10);
+  check(
+    (slow1000 - fast1000) < (slow10 - fast10) * 20,
+    'sulle risposte lunghissime la differenza di carattere pesa molto meno che su un messaggio corto',
+    `corto: Δ${Math.round(slow10 - fast10)}ms · lunghissimo: Δ${Math.round(slow1000 - fast1000)}ms`,
+  );
+}
+
+// `block` non spezza mai: comparsa immediata, coerente con `revealDurationMs`.
+check(m.liveRevealDurationMs(R.block, 500) === 0, 'un ritmo a blocco non ha una durata di comparsa incrementale');
+check(m.liveRevealDurationMs(LIVE_PROFILES.neutro, 0) === 0, 'zero parole non produce una durata');
 
 console.log('\n═══ §10.6 — L\'UMORE CHE RESTA ═══\n');
 

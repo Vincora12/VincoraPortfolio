@@ -175,3 +175,60 @@ export function revealDurationMs(rhythm: TypingRhythm, words: number): number {
   if (rhythm.reveal === 'block') return 0;
   return Math.min(words * rhythm.paceMs, MAX_REVEAL_MS);
 }
+
+/* ============================================================================
+   PRODUCT FIX — «le risposte lunghe devono comparire molto più in fretta»
+   (2026-09-06). `revealDurationMs` sopra resta invariata (la usa
+   `reveal.ts`'s `planReveal`, per il .mon che parla per primo — narrativa,
+   non si tocca): un tetto FISSO a `MAX_REVEAL_MS` funziona per quel caso, ma
+   non basta da solo alla chat viva, dove le risposte possono essere molto
+   più lunghe di quelle di quel flusso.
+
+   🔷 Il carattere deve dominare le risposte corte, la lunghezza deve dominare
+   sempre di più le risposte lunghe: le prime ~20 parole raccontano CHI sta
+   scrivendo (`paceMs`, il ritmo vero del Voice DNA — invariato, stesso tetto
+   di sempre) e da lì in poi non è più il carattere a decidere quanto dura,
+   perché a quel punto il messaggio ha già detto chi sta scrivendo: quello che
+   resta si comprime verso un tetto basso e FISSO, indipendente da quanto è
+   lento quel .mon — un .mon lentissimo che risponde con 500 parole non deve
+   mai trasformarsi in un minuto di attesa finta.
+
+   ⚠️ QUESTA FUNZIONE NON SOSTITUISCE NIENTE: è nuova, usata solo dal reveal
+   della chat viva (`netlify-runtime.ts`'s `writtenSnapshots`), non da
+   `reveal.ts`. Zero rischio per il .mon che parla per primo. */
+const FULL_RHYTHM_WORDS = 20;
+/** A quante parole "extra" (oltre le prime 20) si è già a metà del tetto —
+    la costante che dà forma alla curva di rientro, non un'altra soglia. */
+const EXTRA_HALF_LIFE_WORDS = 60;
+/** Il tempo per TUTTE le parole oltre le prime 20 non supera mai questo,
+    quale che sia la lunghezza: è il "quasi immediato" del principio di
+    prodotto — un asintoto, mai un salto. */
+const EXTRA_HARD_CAP_MS = 1800;
+
+/**
+ * Quanto deve durare, in tutto, la comparsa di una risposta nella CHAT VIVA
+ * (non nel .mon che parla per primo): il carattere pesa per intero solo
+ * sulle prime ~20 parole (`words * paceMs`, lo stesso ritmo di sempre); da lì
+ * la lunghezza domina e il tempo per le parole restanti sale verso
+ * `EXTRA_HARD_CAP_MS` senza mai superarlo, indipendentemente da `paceMs` —
+ * la lunghezza non incontra più il carattere, lo scavalca.
+ *
+ * Funzione pura e deterministica, monotona in `words` — la UI non ricalcola
+ * mai da sola quanto deve durare una comparsa, esattamente come
+ * `revealDurationMs` sopra.
+ */
+export function liveRevealDurationMs(rhythm: TypingRhythm, words: number): number {
+  if (rhythm.reveal === 'block' || words <= 0) return 0;
+  const base = rhythm.paceMs;
+  const characterWords = Math.min(FULL_RHYTHM_WORDS, words);
+  const characterMs = characterWords * base;
+
+  const extraWords = words - FULL_RHYTHM_WORDS;
+  if (extraWords <= 0) return characterMs;
+
+  // Curva a saturazione: cresce in fretta all'inizio, poi sempre più piano,
+  // e non tocca mai il tetto — 500 parole e 5000 finiscono a un pelo l'una
+  // dall'altra, esattamente il "quasi immediato" del principio di prodotto.
+  const extraMs = EXTRA_HARD_CAP_MS * (1 - EXTRA_HALF_LIFE_WORDS / (EXTRA_HALF_LIFE_WORDS + extraWords));
+  return characterMs + extraMs;
+}
