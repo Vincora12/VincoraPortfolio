@@ -243,6 +243,54 @@ export type MealConfirmation = {
 };
 export type WorkoutConfirmation = { status: 'needs-confirmation' | 'confirmed' };
 
+/* ============================================================================
+   LE ALTRE AZIONI CHE PASSANO DA UNA CONFERMA
+
+   🔒 STESSA FORMA DI PASTO E ALLENAMENTO, NON UNA SECONDA. La domanda la scrive
+   l'app (in coda alla risposta), non il modello: è quello che rende il pulsante
+   in chat affidabile invece che un indovinello sulla prosa. Chi aggiunge una
+   voce qui deve aggiungere anche la riga corrispondente in `CONFIRM_ACTIONS`
+   (components/examples/chatgpt.tsx), altrimenti la domanda compare e il
+   pulsante no.
+
+   ⚠️ Queste quattro scrivono nel registro di ME: peso, promemoria, piano e
+   dieta. Le CORREZIONI restano fuori apposta — sono già una richiesta
+   esplicita, e chiedere conferma a una conferma è solo attrito. */
+export type ConfirmableAction = 'peso' | 'promemoria' | 'piano' | 'dieta';
+export type ActionConfirmation = { action: ConfirmableAction; status: 'needs-confirmation' | 'confirmed' };
+
+export const CONFIRMABLE_ACTIONS: Record<ConfirmableAction, {
+  tool: string;
+  question: string;
+  hold: string;
+  go: string;
+}> = {
+  peso: {
+    tool: 'registra_peso',
+    question: 'Confermi che registro questo **peso** in ME?',
+    hold: 'Read the weight the user stated and comment on it if useful, but DO NOT call registra_peso and do not ask the final confirmation question. The app will ask it. The weight is NOT stored yet: never say or imply that it was saved. The write tool is intentionally withheld until confirmation: never claim it is unavailable.',
+    go: 'The user has just confirmed the weight. Call registra_peso now.',
+  },
+  promemoria: {
+    tool: 'programma_promemoria',
+    question: 'Confermi che creo questo **promemoria**?',
+    hold: 'Restate the reminder you understood — what, which date and which time, with the timezone — but DO NOT call programma_promemoria and do not ask the final confirmation question. The app will ask it. Nothing is scheduled yet: never say or imply that the reminder exists. If the date or time is not certain, ask for it instead of guessing.',
+    go: 'The user has just confirmed the reminder. Call programma_promemoria now with the date and time you restated.',
+  },
+  piano: {
+    tool: 'imposta_piano_allenamento',
+    question: 'Confermi che aggiorno il **piano di allenamento**?',
+    hold: 'Show the workout plan exactly as it would become, preserving every day not explicitly changed, but DO NOT call imposta_piano_allenamento and do not ask the final confirmation question. The app will ask it. The plan is NOT updated yet: never say or imply that it was saved.',
+    go: 'The user has just confirmed the workout plan change. Call imposta_piano_allenamento now with the plan you showed.',
+  },
+  dieta: {
+    tool: 'imposta_dieta',
+    question: 'Confermi che aggiorno la **dieta**?',
+    hold: 'Show the diet exactly as it would become, but DO NOT call imposta_dieta and do not ask the final confirmation question. The app will ask it. The diet is NOT updated yet: never say or imply that it was saved.',
+    go: 'The user has just confirmed the diet change. Call imposta_dieta now with the diet you showed.',
+  },
+};
+
 const WEEKDAY = String.raw`(?:lune(?:di)?|martedi|mercoledi|giovedi|venerdi|sabato|domenica)`;
 const WORKOUT_ACTIVITY = String.raw`(?:allenament\w*|palestra|workout|hip\s*hop|danza|yoga|pilates|cors\w*|nuoto|calcio|tennis|padel|boxe|crossfit)`;
 
@@ -324,6 +372,7 @@ export async function replyWithLocalTools(
   images: { mediaType: string; data: string }[] = [],
   mealConfirmation?: MealConfirmation,
   workoutConfirmation?: WorkoutConfirmation,
+  actionConfirmation?: ActionConfirmation,
   files: ChatFileInput[] = [],
   shared?: { systemPrompt: string; requestId: string; projectId?: string },
 ): Promise<ChatCost> {
@@ -344,8 +393,8 @@ export async function replyWithLocalTools(
   /* Calcolati qui (non più sotto, insieme al resto del pool) perché il
      system prompt sotto ne ha bisogno prima ancora di sapere quali
      strumenti saranno disponibili. */
-  const isAudit = isAuditIntent(user) && !requiredWriteTool(user) && !mealConfirmation && !workoutConfirmation;
-  const wantsExport = (isExportIntent(user) || isAudit) && !requiredWriteTool(user) && !mealConfirmation && !workoutConfirmation;
+  const isAudit = isAuditIntent(user) && !requiredWriteTool(user) && !mealConfirmation && !workoutConfirmation && !actionConfirmation;
+  const wantsExport = (isExportIntent(user) || isAudit) && !requiredWriteTool(user) && !mealConfirmation && !workoutConfirmation && !actionConfirmation;
   const system = [
     character ?? { text: 'You are VINZ.MON, a neutral high-quality personal AI assistant. Answer in the user language.' },
     {
@@ -371,6 +420,12 @@ export async function replyWithLocalTools(
           : '',
         workoutConfirmation?.status === 'confirmed'
           ? 'The user has just confirmed the workout. Call registra_allenamento now.'
+          : '',
+        actionConfirmation?.status === 'needs-confirmation'
+          ? CONFIRMABLE_ACTIONS[actionConfirmation.action].hold
+          : '',
+        actionConfirmation?.status === 'confirmed'
+          ? CONFIRMABLE_ACTIONS[actionConfirmation.action].go
           : '',
         'The AI may read and update every ME journal field through its dedicated tools: diet, nutrition targets, meals, completed workouts, workout plan, weight and period goal. It may also create, update, remove and reorder safe ME blocks with gestisci_me, including calendars, lists, notes and metrics. Calendar entries must use one item per event formatted as "Lunedì 08:00-09:00 · Title · Details", and belong in DIET or SPORT. Use gestisci_me when the request does not fit a fixed field. Never directly invent or edit VINZ.MON game stats; they are deterministic.',
         workoutPlanContext
@@ -411,15 +466,28 @@ export async function replyWithLocalTools(
     'correggi_ultimo_peso', 'imposta_dieta', 'imposta_piano_allenamento', 'imposta_obiettivi_nutrizionali', 'gestisci_me',
     'calcola_energia_giornaliera',
   ]);
-  const explicitWrite = requiredWriteTool(user);
+  /* ⚠️ UNA CONFERMA IN ATTESA BATTE LA SCRITTURA FORZATA. `requiredWriteTool`
+     esiste per portare dritti allo strumento giusto; se però quella stessa
+     azione sta aspettando un sì, forzarla adesso scriverebbe prima che tu abbia
+     confermato — esattamente ciò che il pulsante serve a evitare. */
+  const explicitWrite = actionConfirmation?.status === 'needs-confirmation'
+    ? undefined
+    : requiredWriteTool(user);
   const energyRequest = isDailyEnergyIntent(user);
   const isHealthRequest = Boolean(explicitWrite) || energyRequest
     || /\b(me|salute|pasto|mangiat\w*|bevut\w*|colazione|spuntino|pranzo|merenda|cena|extra|calori\w*|protein\w*|carbo\w*|grass\w*|macro|diet\w*|allenament\w*|allenat\w*|palestra|workout|corsa|camminata|peso|kg|obiettiv\w*)\b/i.test(user)
-    || Boolean(mealConfirmation || workoutConfirmation);
+    || Boolean(mealConfirmation || workoutConfirmation || actionConfirmation);
   const projectTools = new Set(['leggi_progetto', 'leggi_sorgente_progetto', 'scrivi_artifact_progetto']);
   const reminderRequest = /\b(promemori\w*|ricordami|ricorda|reminder|domani)\b/i.test(user);
   const basePool = isAudit ? [...CODE_TOOL_DEFS, ...TOOLS.filter(tool => tool.name === 'leggi_me' || tool.name === 'leggi_i_miei_dati')]
     : isCodeInspectionIntent(user) && !isHealthRequest ? CODE_TOOL_DEFS : TOOLS.filter((tool) => (reminderRequest && tool.name === 'programma_promemoria')
+    /* ⚠️ IL SÌ NON CONTIENE PIÙ LA PAROLA CHIAVE. «Vai, crea» non fa scattare
+       `reminderRequest`, quindi al giro della conferma lo strumento sarebbe
+       sparito dal pool e il modello avrebbe risposto «non posso» dopo che
+       l'utente aveva appena detto di sì. Finché una conferma è in corso, il suo
+       strumento resta disponibile: a trattenerlo prima del sì ci pensa il
+       filtro qui sotto, non l'assenza dal pool. */
+    || (actionConfirmation && tool.name === CONFIRMABLE_ACTIONS[actionConfirmation.action].tool)
     || (shared?.projectId && projectTools.has(tool.name))
     || (isHealthRequest ? healthToolNames.has(tool.name) : !healthToolNames.has(tool.name) || tool.name === 'leggi_i_miei_dati'));
   const toolPool = wantsExport ? [...basePool, EXPORT_REPORT_TOOL_DEF] : basePool;
@@ -427,7 +495,8 @@ export async function replyWithLocalTools(
     .sort((a, b) => {
       const priority = (name: string) => name === explicitWrite
         || (name === 'registra_pasto' && mealConfirmation?.status === 'confirmed')
-        || (name === 'registra_allenamento' && workoutConfirmation?.status === 'confirmed') ? 4
+        || (name === 'registra_allenamento' && workoutConfirmation?.status === 'confirmed')
+        || (actionConfirmation?.status === 'confirmed' && name === CONFIRMABLE_ACTIONS[actionConfirmation.action].tool) ? 4
         : energyRequest && name === 'calcola_energia_giornaliera' ? 3
         : reminderRequest && name === 'programma_promemoria' ? 3 : shared?.projectId && projectTools.has(name) ? 2 : 0;
       return priority(b.name) - priority(a.name);
@@ -435,6 +504,9 @@ export async function replyWithLocalTools(
     if (tool.name === 'registra_pasto') return mealConfirmation?.status === 'confirmed';
     if (tool.name === 'registra_allenamento') return workoutConfirmation?.status === 'confirmed';
     if (tool.name === 'gestisci_me' && mealConfirmation) return false;
+    if (actionConfirmation && tool.name === CONFIRMABLE_ACTIONS[actionConfirmation.action].tool) {
+      return actionConfirmation.status === 'confirmed';
+    }
     if (tool.name === 'correggi_ultimo_pasto' && mealConfirmation?.status === 'needs-confirmation') return false;
     if (tool.name === 'correggi_ultimo_allenamento' && workoutConfirmation?.status === 'needs-confirmation') return false;
     return true;
@@ -505,6 +577,8 @@ export async function replyWithLocalTools(
           ? `\n\nConfermi che lo registro come **${mealConfirmation.slot === 'extra' ? 'extra / spuntino aggiuntivo' : mealConfirmation.slot}**?`
           : workoutConfirmation?.status === 'needs-confirmation'
             ? '\n\nConfermi che registro questo **allenamento** in ME?'
+          : actionConfirmation?.status === 'needs-confirmation'
+            ? `\n\n${CONFIRMABLE_ACTIONS[actionConfirmation.action].question}`
           : '';
         onChunk(`${safeText}${confirmation}`);
         outcome = { costUsd: totalCostUsd, model: lastModel };

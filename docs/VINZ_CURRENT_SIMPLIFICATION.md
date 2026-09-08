@@ -67,6 +67,47 @@ Tre cose che sembrano dettagli e non lo sono:
 Verificato: mandato un messaggio, ricaricata la pagina, la stessa conversazione
 riapre con quel messaggio e la sua risposta.
 
+### I pulsanti di conferma
+
+Quando VINZ sta per scrivere qualcosa nel registro, la domanda finale la scrive
+**l'app**, non il modello (`brain/stream.ts` la aggiunge in coda quando esiste
+uno stato «in attesa» tipizzato). È questo che rende affidabile il pulsante:
+aggancia una frase letterale, non la prosa del giorno.
+
+| Pulsante | Strumento | Domanda aggiunta dall'app |
+|---|---|---|
+| REGISTRA PASTO | `registra_pasto` | «Confermi che lo registro come **pranzo**?» |
+| REGISTRA ALLENAMENTO | `registra_allenamento` | «Confermi che registro questo **allenamento** in ME?» |
+| REGISTRA PESO | `registra_peso` | «Confermi che registro questo **peso** in ME?» |
+| CREA PROMEMORIA | `programma_promemoria` | «Confermi che creo questo **promemoria**?» |
+| AGGIORNA PIANO | `imposta_piano_allenamento` | «Confermi che aggiorno il **piano di allenamento**?» |
+| AGGIORNA DIETA | `imposta_dieta` | «Confermi che aggiorno la **dieta**?» |
+
+Il tocco manda la conferma come messaggio utente, la stessa strada delle parole
+scritte a mano che `confirms()` riconosce già: nessun percorso parallelo, nessuna
+scrittura che salti il giro degli strumenti. Finché il sì non arriva, lo
+strumento è **trattenuto** dal pool e il modello sa che non deve dire «fatto».
+
+Due cose che sembrano dettagli e non lo sono:
+
+- **Il promemoria prima si creava subito.** Adesso passa dalla conferma: un tocco
+  in più, ma niente finisce in ACT senza che tu l'abbia visto.
+- **«Imposta la dieta: colazione leggera, pranzo proteico…» finiva in «Confermi
+  che lo registro come colazione?»**: `isMealLogIntent` vede i nomi dei pasti e
+  non sa che la frase parla del piano. Un intento esplicito di dieta o di piano
+  ora vince sul log del singolo pasto — la stessa precedenza che
+  `isWorkoutLogIntent` applica già rispetto a `isWorkoutPlanIntent`.
+
+Chi vuole aggiungerne un altro deve aggiungere **due** righe: la voce in
+`CONFIRMABLE_ACTIONS` (`brain/stream.ts`) e quella in `CONFIRM_ACTIONS`
+(`components/examples/chatgpt.tsx`). Senza stato in attesa niente pulsante: la
+frase la scriverebbe il modello e il bottone comparirebbe a caso.
+
+Restano **senza** pulsante, e apposta: le correzioni (`correggi_ultimo_*`, sono
+già una richiesta esplicita), la memoria (`ricorda_di`, la cattura è ambientale),
+artefatti e pagine (fuori dalla superficie quotidiana), aspetto e cambio
+schermata (istantanei, reversibili, non scrivono nel registro).
+
 ## ACT — cosa è vero e cosa no
 
 **È vero:** VINZ ha un solo tipo di attività programmata reale, il promemoria

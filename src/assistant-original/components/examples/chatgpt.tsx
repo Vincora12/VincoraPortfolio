@@ -1698,6 +1698,31 @@ const CONFIRM_ACTIONS: { test: RegExp; label: string; busy: string; reply: strin
     busy: "REGISTRAZIONE…",
     reply: "Vai, registra",
   },
+  // Le quattro qui sotto rispondono a `CONFIRMABLE_ACTIONS` in brain/stream.ts.
+  {
+    test: /Confermi che registro questo \*\*peso\*\* in ME\?/i,
+    label: "REGISTRA PESO",
+    busy: "REGISTRAZIONE…",
+    reply: "Vai, registra",
+  },
+  {
+    test: /Confermi che creo questo \*\*promemoria\*\*\?/i,
+    label: "CREA PROMEMORIA",
+    busy: "CREAZIONE…",
+    reply: "Vai, crea",
+  },
+  {
+    test: /Confermi che aggiorno il \*\*piano di allenamento\*\*\?/i,
+    label: "AGGIORNA PIANO",
+    busy: "AGGIORNAMENTO…",
+    reply: "Vai, aggiorna",
+  },
+  {
+    test: /Confermi che aggiorno la \*\*dieta\*\*\?/i,
+    label: "AGGIORNA DIETA",
+    busy: "AGGIORNAMENTO…",
+    reply: "Vai, aggiorna",
+  },
 ];
 
 const ConfirmActionButton: FC = () => {

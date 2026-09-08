@@ -12,6 +12,10 @@ import {
   type ChatMealSlot,
   type MealConfirmation,
   type WorkoutConfirmation,
+  type ActionConfirmation,
+  type ConfirmableAction,
+  CONFIRMABLE_ACTIONS,
+  requiredWriteTool,
   type ChatCost,
 } from "@/brain/stream";
 import type { BrainMessage } from "@/brain/store/types";
@@ -270,6 +274,40 @@ function pendingWorkoutPlanProposal(messages: readonly ThreadMessage[]): string 
   return asksToAdd && hasDay && hasActivity ? proposal : undefined;
 }
 
+/* ============================================================================
+   LE AZIONI CHE ASPETTANO UN SÌ
+
+   Stesso disegno di pasto e allenamento: la domanda in coda alla risposta
+   precedente È lo stato. Non c'è una seconda memoria da tenere allineata, e il
+   pulsante in chat aggancia la stessa frase letterale.
+   ========================================================================= */
+const ACTION_BY_TOOL: Record<string, ConfirmableAction> = {
+  registra_peso: 'peso',
+  imposta_piano_allenamento: 'piano',
+};
+
+/** «Ricordami…» sì, «ricorda che…» no: il secondo è memoria, non un promemoria. */
+const REMINDER_INTENT = /\b(?:ricordami|promemoria|reminder)\b/i;
+const DIET_INTENT =
+  /\b(?:impost\w*|aggiorn\w*|cambi\w*|modific\w*|salv\w*|cre\w*|scriv\w*)\b[^.!?]*\b(?:dieta|piano\s+alimentare|regime\s+alimentare)\b|\b(?:dieta|piano\s+alimentare|regime\s+alimentare)\b[^.!?]*\b(?:impost\w*|aggiorn\w*|cambi\w*|modific\w*|salv\w*|cre\w*|scriv\w*)\b/i;
+
+function proposedAction(text: string): ConfirmableAction | undefined {
+  const tool = requiredWriteTool(text);
+  if (tool && ACTION_BY_TOOL[tool]) return ACTION_BY_TOOL[tool];
+  if (REMINDER_INTENT.test(text)) return 'promemoria';
+  if (DIET_INTENT.test(text)) return 'dieta';
+  return undefined;
+}
+
+function pendingAction(messages: readonly ThreadMessage[]): ConfirmableAction | undefined {
+  const previous = precedingConversationAssistant(messages);
+  if (!previous) return undefined;
+  const text = textOf(previous);
+  return (Object.keys(CONFIRMABLE_ACTIONS) as ConfirmableAction[]).find(
+    (action) => text.includes(CONFIRMABLE_ACTIONS[action].question),
+  );
+}
+
 function toBrainMessages(messages: readonly ThreadMessage[]): BrainMessage[] {
   return messages.flatMap((message) => {
     if (message.role !== "user" && message.role !== "assistant") return [];
@@ -303,6 +341,7 @@ async function* runWithLocalTools(
   modelName?: string,
   mealConfirmation?: MealConfirmation,
   workoutConfirmation?: WorkoutConfirmation,
+  actionConfirmation?: ActionConfirmation,
   workoutPlanProposal?: string,
   shared?: { systemPrompt: string; requestId: string; projectId?: string },
 ) {
@@ -372,6 +411,7 @@ async function* runWithLocalTools(
     images,
     mealConfirmation,
     workoutConfirmation,
+    actionConfirmation,
     files,
     shared,
   )
@@ -710,17 +750,38 @@ export function createNetlifyChatModel(
       const pendingSlot = pendingMealSlot(args.messages);
       const pendingWorkout = hasPendingWorkout(args.messages);
       const pendingPlan = pendingWorkoutPlanProposal(args.messages);
+      const waitingAction = pendingAction(args.messages);
+      /* 🔴 «Imposta la dieta: colazione leggera, pranzo proteico…» finiva in
+         «Confermi che lo registro come colazione?». `isMealLogIntent` vede i
+         nomi dei pasti e non sa che la frase parla del PIANO. Un intento
+         esplicito di dieta o di piano vince quindi sul log del singolo pasto —
+         la stessa precedenza che `isWorkoutLogIntent` applica già rispetto a
+         `isWorkoutPlanIntent`. */
+      const proposed = !pendingSlot && !pendingWorkout && !waitingAction
+        ? proposedAction(user)
+        : undefined;
+      const planLike = proposed === 'dieta' || proposed === 'piano';
+
       const mealConfirmation: MealConfirmation | undefined = pendingSlot && confirms(user)
         ? { status: 'confirmed', slot: pendingSlot }
-        : isMealLogIntent(user)
+        : !planLike && isMealLogIntent(user)
           ? { status: 'needs-confirmation', slot: proposedMealSlot(user) }
           : undefined;
       const workoutConfirmation: WorkoutConfirmation | undefined = pendingWorkout && confirms(user)
         ? { status: 'confirmed' }
-        : isWorkoutLogIntent(user)
+        : !planLike && isWorkoutLogIntent(user)
           ? { status: 'needs-confirmation' }
           : undefined;
-      const confirmedPlan = pendingPlan && confirms(user) ? pendingPlan : undefined;
+      const actionConfirmation: ActionConfirmation | undefined = waitingAction && confirms(user)
+        ? { action: waitingAction, status: 'confirmed' }
+        : proposed
+          ? { action: proposed, status: 'needs-confirmation' }
+          : undefined;
+      /* Il vecchio percorso «proposta di piano riconosciuta dalla prosa» resta
+         per le frasi che non passano dalla domanda dell'app; quando invece la
+         conferma esplicita c'è, comanda quella — due strade insieme
+         scriverebbero il piano due volte. */
+      const confirmedPlan = !actionConfirmation && pendingPlan && confirms(user) ? pendingPlan : undefined;
       if (isV2IssueIntent(user)) {
         yield* runV2IssueCapture(user);
         return;
@@ -734,7 +795,7 @@ export function createNetlifyChatModel(
          `confirmed`: una frase naturale come «ho cenato» produceva
          `needs-confirmation`, ma poi ricadeva nella chat senza strumenti e il
          modello poteva inventare «registrato». */
-      const useTools = Boolean(runTool && (shouldUseLocalTools(user) || projectId || mealConfirmation || workoutConfirmation || confirmedPlan));
+      const useTools = Boolean(runTool && (shouldUseLocalTools(user) || projectId || mealConfirmation || workoutConfirmation || actionConfirmation || confirmedPlan));
       const token = savedToken();
       if (!token) throw new Error('Prima attiva VINZ.MON: manca il token.');
       postChatDiagnostic('CHAT_MEMORY_FETCH_START', 'canonical-context');
@@ -747,6 +808,7 @@ export function createNetlifyChatModel(
           args.context.config?.modelName,
           mealConfirmation,
           workoutConfirmation,
+          actionConfirmation,
           confirmedPlan,
           { systemPrompt, requestId, projectId },
         );
