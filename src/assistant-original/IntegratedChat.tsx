@@ -23,6 +23,7 @@ import { createOwnershipGatedHistoryAdapter, GateMarkLiveContext, withLocalUnsav
 import { claimSessionRoomEntry } from "./chat-room-presence";
 import { isLocalUnsavedSession } from "./conversation-lifecycle-adapter";
 import { savedToken } from "@/brain/stream";
+import { maybeCloseTopic, setActiveThreadId, type TopicCandidate } from "./conversation-topics";
 
 export const persistentThreadAdapter = createLocalStorageAdapter({
   storage: serverBackedStorage,
@@ -186,6 +187,7 @@ const IntegratedChatRuntime: FC<IntegratedChatProps & {
       <ChatRuntimeReady onReady={onReady} />
       <ResumeLastThread />
       <AutomationInbox />
+      <TopicKeeper />
       <ChatSurface
         model={voiceModel}
         onModelChange={onModelChange}
@@ -353,6 +355,61 @@ const AutomationInbox: FC = () => {
       window.clearInterval(timer);
     };
   }, [aui, loading, threadId]);
+
+  return null;
+};
+
+/* ============================================================================
+   CHIUDE I TRATTI DI CONVERSAZIONE
+
+   Guarda quando un turno finisce e, se il tratto aperto ha superato la soglia
+   o è rimasto fermo abbastanza, lo fa chiudere e riassumere. Vedi
+   `conversation-topics.ts` per il perché delle due soglie.
+
+   🔒 MAI MENTRE STA RISPONDENDO. Riassumere a metà di un turno significherebbe
+   indicizzare una frase tagliata; e la chiusura non deve rubare banda alla
+   risposta che l'utente sta leggendo. */
+const TopicKeeper: FC = () => {
+  const aui = useAui();
+  const running = useAuiState((state) => state.thread.isRunning);
+  const count = useAuiState((state) => state.thread.messages.length);
+  const busy = useRef(false);
+
+  useEffect(() => {
+    const threadId = aui.threads.item("main").getState().id;
+    /* Si pubblica PRIMA dei controlli: il runtime della chat ha bisogno di
+       sapere su che filo sta parlando fin dal primo messaggio, non solo quando
+       è ora di chiudere un tratto. */
+    if (threadId) setActiveThreadId(threadId);
+    if (running || busy.current || count < 4 || !threadId) return;
+
+    busy.current = true;
+    void (async () => {
+      try {
+        const candidates: TopicCandidate[] = aui.thread
+          .getState()
+          .messages.flatMap((message) => {
+            if (message.role !== "user" && message.role !== "assistant") return [];
+            const text = (message.content ?? [])
+              .flatMap((part) => (part.type === "text" ? [part.text] : []))
+              .join("\n")
+              .trim();
+            if (!text) return [];
+            return [{
+              id: message.id,
+              role: message.role === "assistant" ? ("assistant" as const) : ("user" as const),
+              text,
+              at: message.createdAt.toISOString(),
+            }];
+          });
+        await maybeCloseTopic(threadId, candidates);
+      } catch {
+        /* Un indice mancato non deve disturbare la conversazione. */
+      } finally {
+        busy.current = false;
+      }
+    })();
+  }, [aui, running, count]);
 
   return null;
 };

@@ -922,3 +922,42 @@ body[data-scroll-locked] {
     animation: none;
   }
 }
+
+/* --- I pulsantini dei topic, sopra la chat ------------------------------
+   Piccoli per scelta: sono un indice, non una navigazione. Una riga sola che
+   scorre di lato, senza barra di scorrimento visibile e senza sfondi pieni. */
+.vinz-topic-chips {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 6px;
+  padding: calc(env(safe-area-inset-top) + 6px) 12px 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.vinz-topic-chips::-webkit-scrollbar {
+  display: none;
+}
+
+.vinz-topic-chips > button {
+  flex: 0 0 auto;
+  max-width: 46vw;
+  min-height: 26px;
+  padding: 0 9px;
+  border: 1px solid rgb(255 255 255 / 14%);
+  border-radius: 13px;
+  background: transparent;
+  color: #9a9a9a;
+  font-size: 11px;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.vinz-topic-chips > button:active {
+  color: #ececec;
+  border-color: rgb(255 255 255 / 32%);
+}

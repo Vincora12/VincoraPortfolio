@@ -243,6 +243,13 @@ export const TOOLS: ToolDef[] = [
     schema: { type: 'object', properties: { azione: { type: 'string', enum: ['create', 'update', 'delete', 'move'] }, id: { type: 'string' }, sezione: { type: 'string', enum: ['today', 'diet', 'sport'] }, tipo: { type: 'string', enum: ['text', 'list', 'calendar', 'metric'] }, titolo: { type: 'string' }, contenuto: { type: 'string' }, elementi: { type: 'array', items: { type: 'string' } }, posizione: { type: 'integer' } }, required: ['azione'] },
   },
   {
+    name: 'cerca_conversazione',
+    description: 'Cerca fra i tratti di conversazione già chiusi e riassunti. Per «quando abbiamo parlato di X», «cosa ci eravamo detti su Y». Ricerca letterale su titoli e riassunti, non semantica: se non trova, dillo invece di ricostruire a memoria.',
+    schema: { type: 'object', properties: {
+      cerca: { type: 'string', maxLength: 200 },
+    }, required: ['cerca'] },
+  },
+  {
     name: 'leggi_file',
     description: 'I file che l\u2019utente ha caricato in FILES. azione=elenca per sapere quali ci sono; azione=leggi con il nome per leggerne uno. Legge solo testo (txt, md, csv, json, log): PDF e immagini restano conservati ma non si leggono da qui. Non inventare il contenuto: se non l\u2019hai letto, dillo.',
     schema: { type: 'object', properties: {
@@ -832,6 +839,40 @@ export function resultBlocks(results: readonly ToolResult[]): Record<string, unk
 const READABLE_TEXT = /\.(txt|md|markdown|csv|tsv|json|log|yml|yaml|ini|conf)$/i;
 const MAX_FILE_CHARS = 8_000;
 
+async function executeTopicSearchTool(use: ToolUse, token: string | null): Promise<ToolResult> {
+  const fail = (content: string): ToolResult => ({ id: use.id, content, isError: true });
+  if (!token) return fail('Token mancante: ricerca non disponibile.');
+  const args = (use.input && typeof use.input === 'object' ? use.input : {}) as Record<string, unknown>;
+  const query = str(args.cerca).trim();
+  if (!query) return fail('Serve qualcosa da cercare.');
+
+  const response = await fetch('/api/topics', {
+    method: 'POST',
+    headers: { authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'search', query }),
+  });
+  if (!response.ok) return fail('Ricerca non riuscita.');
+  const body = (await response.json()) as { topics?: { title: string; summary: string; startedAt: string; endedAt: string; messageCount: number }[] };
+  const topics = body.topics ?? [];
+
+  return {
+    id: use.id,
+    content: JSON.stringify({
+      source: 'topic-index',
+      query,
+      trovati: topics.length,
+      note: topics.length ? undefined : 'Nessun tratto corrisponde. Dillo: non ricostruire a memoria.',
+      topics: topics.map((topic) => ({
+        titolo: topic.title,
+        riassunto: topic.summary,
+        dal: topic.startedAt,
+        al: topic.endedAt,
+        messaggi: topic.messageCount,
+      })),
+    }),
+  };
+}
+
 async function executeFileTool(use: ToolUse, token: string | null, projectId: string | null): Promise<ToolResult> {
   const fail = (content: string): ToolResult => ({ id: use.id, content, isError: true });
   if (!token) return fail('Token mancante: file non disponibili.');
@@ -988,6 +1029,7 @@ export async function executeRuntimeTool(
     if (use.name === 'programma_promemoria') return await executeReminderTool(use, scope.token, scope.projectId ?? null);
     if (use.name === 'crea_automazione') return await executeAutomationTool(use, scope.token);
     if (use.name === 'leggi_file') return await executeFileTool(use, scope.token, scope.projectId ?? null);
+    if (use.name === 'cerca_conversazione') return await executeTopicSearchTool(use, scope.token);
     const isProjectTool = ['leggi_progetto', 'leggi_sorgente_progetto', 'scrivi_artifact_progetto'].includes(use.name);
     const projectFile = use.name === 'crea_file_testo';
     if (!isProjectTool && !projectFile) return await localRun(use);

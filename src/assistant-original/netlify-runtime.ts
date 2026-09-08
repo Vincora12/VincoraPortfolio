@@ -28,6 +28,7 @@ import { voiceCard } from "@/engine/voiceCard";
 import { captureChatMemoryForClient } from "@/assistant-original/chat-memory-feedback";
 import { postChatClientError, postChatDiagnostic, postRuntimeEvent } from "@/system/runtimeLog";
 import { createV2Issue } from "@/ai/backend";
+import { activeThreadId, consumeTopicContext, readWatermark, topicArchive } from "./conversation-topics";
 import { classifyV2Issue, isV2IssueIntent, v2IssueConfirmationText } from "@/ai/v2Issues";
 
 type Source = { title: string; url: string; domain?: string };
@@ -332,6 +333,29 @@ function pendingAction(messages: readonly ThreadMessage[]): ConfirmableAction | 
   );
 }
 
+/* ============================================================================
+   IL CONTESTO CHE SI MANDA DAVVERO
+
+   🔴 PRIMA: il client spediva TUTTA la cronologia a ogni messaggio e il server
+   ne teneva gli ultimi 24 turni (`LIMITS.turns`). Il resto viaggiava per essere
+   buttato — banda sprecata all'andata e amnesia all'arrivo: di quello che c'era
+   prima non restava una riga.
+
+   🔷 ADESSO: si mandano i messaggi del tratto ANCORA APERTO, e i tratti chiusi
+   arrivano come riassunti dentro il prompt di sistema. Meno byte e più memoria
+   insieme: è la ragione per cui i topic valgono la pena.
+
+   🔒 SENZA SEGNALIBRO NON CAMBIA NIENTE. Prima accensione, riassunto mai
+   riuscito, id non più trovato: si manda tutto, come prima. Un indice assente
+   non deve accorciare la conversazione. */
+let topicWatermark: string | null = null;
+
+function topicAwareHistory(conversation: BrainMessage[]): BrainMessage[] {
+  if (!topicWatermark) return conversation;
+  const index = conversation.findIndex((message) => message.id === topicWatermark);
+  return index === -1 ? conversation : conversation.slice(index + 1);
+}
+
 function toBrainMessages(messages: readonly ThreadMessage[]): BrainMessage[] {
   return messages.flatMap((message) => {
     if (message.role !== "user" && message.role !== "assistant") return [];
@@ -454,7 +478,7 @@ async function* runWithLocalTools(
     mealConfirmation?.status === 'confirmed' || workoutConfirmation?.status === 'confirmed',
   );
   const files = filesOf(last);
-  const history = toBrainMessages(messages.slice(0, -1));
+  const history = topicAwareHistory(toBrainMessages(messages.slice(0, -1)));
   let answer = "";
   const chunks: string[] = [];
   let waiting: (() => void) | null = null;
@@ -685,13 +709,22 @@ function createBaseNetlifyChatModel(shared: { systemPrompt: string; requestId: s
             text: systemPrompt,
           },
         ],
-        turns: messages
-          .slice(0, -1)
-          .filter((message) => message.role === "user" || message.role === "assistant")
-          .map((message) => ({
-            role: message.role,
-            content: textOf(message),
-          })),
+        /* ⚠️ ANCHE QUI, NON SOLO NEL GIRO CON GLI STRUMENTI. Questa è la strada
+           della chiacchierata normale — cioè la maggior parte dei turni — e
+           senza lo stesso taglio spediva tutta la cronologia mentre l'altra la
+           accorciava: i topic avrebbero abbassato il contesto solo quando VINZ
+           usava uno strumento, cioè quasi mai. */
+        turns: topicAwareHistory(
+          messages
+            .slice(0, -1)
+            .filter((message) => message.role === "user" || message.role === "assistant")
+            .map((message) => ({
+              id: message.id,
+              ts: message.createdAt.toISOString(),
+              role: message.role as 'user' | 'assistant',
+              content: textOf(message),
+            })),
+        ).map(({ role, content }) => ({ role, content })),
         user: textOf(last),
         ...(images.length ? { images } : {}),
         ...(files.length ? { files } : {}),
@@ -886,7 +919,24 @@ export function createNetlifyChatModel(
       const token = savedToken();
       if (!token) throw new Error('Prima attiva VINZ.MON: manca il token.');
       postChatDiagnostic('CHAT_MEMORY_FETCH_START', 'canonical-context');
-      const systemPrompt = await resolveChatContext(token, user, useTools, args.abortSignal, projectId);
+      let systemPrompt = await resolveChatContext(token, user, useTools, args.abortSignal, projectId);
+
+      /* Segnalibro e archivio si leggono qui, dove il prompt di sistema viene
+         composto: così valgono sia per il giro con gli strumenti sia per la
+         risposta diretta, senza due strade da tenere allineate. */
+      topicWatermark = await readWatermark(activeThreadId()).catch(() => null);
+      if (topicWatermark) {
+        const archive = await topicArchive().catch(() => '');
+        if (archive) systemPrompt += archive;
+      }
+
+      /* 🔷 «Continuiamo a parlare di questa cosa.» Il riassunto del topic
+         ripreso entra nel contesto di QUESTO turno, dichiarato come materiale
+         d'archivio: è roba già detta, non un fatto nuovo. */
+      const resumed = consumeTopicContext();
+      if (resumed) {
+        systemPrompt += `\n\nCONVERSAZIONE PRECEDENTE RIPRESA DALL'UTENTE — «${resumed.title}»\n${resumed.summary}\nEND. È il riassunto di uno scambio passato: usalo per riprendere il filo, non trattarlo come qualcosa detto adesso.`;
+      }
       if (runTool && useTools) {
         yield* runWithLocalTools(
           args.messages,

@@ -87,6 +87,55 @@ Gli strumenti che fanno più cose guardano anche l'input: `programma_promemoria`
 dice «Promemoria creato», «aggiornato» o «disattivato», e su `list` non dice
 niente perché elencare non è una notizia.
 
+### I topic: la conversazione si indicizza da sola
+
+Più il filo va avanti, più VINZ chiude da solo tratti di conversazione in
+**topic** riassunti. Non spezza niente: la chat resta una sola e continua a
+scorrere. Il topic è metadato *sopra* la timeline, non un taglio dentro.
+
+Serve a tre cose insieme, ed è il motivo per cui vale la pena:
+
+| | |
+|---|---|
+| **Contesto** | i tratti chiusi arrivano al modello come riassunti invece di essere buttati |
+| **Ricerca** | «quando abbiamo parlato di X» cerca fra titoli e riassunti (`cerca_conversazione`) |
+| **Navigazione** | le pastiglie sopra la chat: toccane una per riprendere quel discorso |
+
+**Quando si chiude, e perché così.** Un tratto si chiude a 16 messaggi oppure
+dopo 3 ore di silenzio. La decisione è deterministica e **gratis**: nessuna
+chiamata al modello per capire se hai cambiato argomento. Il modello si paga una
+volta sola, con `text-cheap`, per dare al tratto un nome e un riassunto. La
+pausa non è un ripiego: le persone cambiano discorso quando tornano, non a metà
+di uno scambio.
+
+**Il guadagno, misurato.** Prima il client spediva tutta la cronologia a ogni
+messaggio e il server ne teneva gli ultimi 24 turni (`LIMITS.turns`): il resto
+viaggiava per essere buttato — banda sprecata all'andata, amnesia all'arrivo.
+Adesso si mandano i messaggi del tratto ancora aperto più i riassunti di quelli
+chiusi. Sullo stesso filo: **da 82 turni a 2**, e alla domanda «quanto pesavo»
+risponde ancora 79,4 kg, che stava solo nei riassunti.
+
+**Senza segnalibro non cambia niente.** Prima accensione, riassunto non riuscito,
+id non più trovato: si manda tutto, come prima. Un indice assente non deve
+accorciare la conversazione.
+
+**L'arretrato rientra a blocchi.** Alla prima accensione il tratto aperto è
+l'intera cronologia: riassumerla in un topic solo darebbe una riga per mesi di
+conversazione. Si chiude un blocco da 16 alla volta.
+
+**Due falsi positivi corretti mentre lo costruivo**, entrambi della stessa
+famiglia già nota: riprendere un topic intitolato «Registrazione allenamento,
+pasto e peso» faceva comparire `REGISTRA PASTO`, e chiedere «cosa avevamo
+detto» valeva come intento di log. *Ricordare non è registrare*: le frasi di
+richiamo ora escludono il log del pasto e dell'allenamento, come già facevano
+quelle di lettura file.
+
+**Limiti dichiarati:** la ricerca è **letterale**, non semantica — trova le
+parole scritte in titoli e riassunti. In pratica pesca bene, perché il riassunto
+è già una compressione fatta dal modello, ma «di cosa parlammo quella volta che
+ero giù» non è una domanda a cui sa rispondere. I topic non si rinominano né si
+uniscono a mano.
+
 ### I pulsanti di conferma
 
 Quando VINZ sta per scrivere qualcosa nel registro, la domanda finale la scrive
