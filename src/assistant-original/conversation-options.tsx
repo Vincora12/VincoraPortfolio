@@ -67,12 +67,26 @@ export function useConversationOptions() {
   const token = useApp((s) => s.token);
   const scopeLocked = useAuiState((s) => s.thread.messages.some((message) => message.role === 'user'));
   const value = draft.id === id ? draft : { id, model: typeof custom?.model === 'string' ? custom.model : 'auto', projectId: typeof custom?.projectId === 'string' ? custom.projectId : null, projectTitle: typeof custom?.projectTitle === 'string' ? custom.projectTitle : '' };
+  /* 🔴 «La scelta non torna rispetto alle AI che vengono usate.» LAB → SYSTEM →
+     AI → VOCE scrive in `stepModels.voice`, e la chat quotidiana non lo ha mai
+     letto: `value.model` restava sempre "auto", e "auto" diventava
+     `modelName: undefined` — che il server risolve col SUO predefinito
+     (`ROUTING['character-voice']`), un terzo modello ancora diverso da quello
+     che LAB mostrava come «attivo». Tre tabelle, tre risposte alla stessa
+     domanda, e cambiare la scelta in LAB non toccava la chat di nessuno.
+
+     🔒 "AUTO" RESTA IL SENTINEL PERSISTITO, SOLO LA RISOLUZIONE CAMBIA. Non
+     scrivo il modello concreto su `custom.model` — resterebbe congelato alla
+     preferenza di oggi anche il giorno che la cambi in LAB. "auto" continua a
+     voler dire «segui la preferenza corrente», e quella preferenza si legge
+     qui, al momento della richiesta, non prima. */
+  const globalVoiceModel = useApp((s) => s.stepModels.voice) ?? undefined;
   useEffect(() => {
     const check = () => { if (location.hash === '#reminders') setRemindersOpen(true); };
     window.addEventListener('hashchange', check);
     return () => window.removeEventListener('hashchange', check);
   }, []);
-  useEffect(() => aui.modelContext.register({ getModelContext: () => ({ config: { modelName: value.model === 'auto' ? undefined : value.model } }) }), [aui, value.model]);
+  useEffect(() => aui.modelContext.register({ getModelContext: () => ({ config: { modelName: value.model === 'auto' ? globalVoiceModel : value.model } }) }), [aui, value.model, globalVoiceModel]);
   useEffect(() => {
     aui.thread.composer().setRunConfig({ custom: { projectId: value.projectId } });
     if (draft.id === id && remoteId && (custom?.model !== value.model || (custom?.projectId ?? null) !== value.projectId)) {

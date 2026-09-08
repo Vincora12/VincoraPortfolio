@@ -38,6 +38,7 @@ import {
   VOICE_CHOICES,
   type Provider,
 } from './_shared/routing';
+import { isSettableVar, setSecret } from './_shared/secrets';
 
 /** I fornitori che questo progetto sa chiamare. */
 const PROVIDERS: Provider[] = ['anthropic', 'google', 'openai', 'moonshot', 'xai'];
@@ -89,8 +90,35 @@ const VARS = [
   },
 ] as const;
 
+/* 🔷 «Devo poter mettere le API key sul lab.» Stessa autorizzazione di ogni
+   altra rotta scrivente, stesso elenco chiuso di `SETTABLE_VARS`: qui si
+   scrive una chiave, non la si legge mai indietro. */
+async function handlePost(request: Request): Promise<Response> {
+  const auth = authorize(request);
+  if (!auth.ok) {
+    console.warn('[setup] scrittura rifiutata:', auth.reason);
+    return denied();
+  }
+  let body: { name?: string; value?: string };
+  try {
+    body = (await request.json()) as typeof body;
+  } catch {
+    return json({ error: 'body non leggibile' }, 400);
+  }
+  const name = body.name ?? '';
+  const value = body.value ?? '';
+  if (!isSettableVar(name)) return json({ error: 'variabile non consentita' }, 400);
+  /* ⚠️ Una riga sola, o `.env` smette di essere un file di variabili: un
+     valore con un a-capo potrebbe iniettarne una seconda, arbitraria. */
+  if (/[\r\n]/.test(value)) return json({ error: 'il valore non può contenere un a capo' }, 400);
+  if (value.length > 4000) return json({ error: 'valore troppo lungo' }, 413);
+  setSecret(name, value);
+  return json({ ok: true, name, present: value.length > 0 });
+}
+
 export default async function handler(request: Request): Promise<Response> {
-  if (request.method !== 'GET') return json({ error: 'solo GET' }, 405);
+  if (request.method === 'POST') return handlePost(request);
+  if (request.method !== 'GET') return json({ error: 'solo GET o POST' }, 405);
 
   const expected = process.env.VINZMON_TOKEN;
 

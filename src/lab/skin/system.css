@@ -81,6 +81,7 @@ h1{font-size:44px;line-height:.89;margin:0 0 14px;font-weight:900;font-style:ita
 .aihead{display:flex;justify-content:space-between;gap:10px;align-items:start}
 .aihead strong{font-size:12px}.aihead small{font-size:8px;border:1px solid var(--line);padding:3px 5px}
 .aidesc{font-size:10px;line-height:1.45;color:var(--muted);margin:6px 0 9px}
+.airow__automode{display:inline-flex;align-items:center;gap:6px;font-size:10px;font-weight:900;letter-spacing:.05em;cursor:pointer}
 .choices{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none}.choices::-webkit-scrollbar{display:none}
 .choice{border:1px solid var(--line);background:#fff;padding:8px;font-size:9px;white-space:nowrap}
 .choice.on{background:#111;color:#fff;border-color:#111}
@@ -89,6 +90,15 @@ h1{font-size:44px;line-height:.89;margin:0 0 14px;font-weight:900;font-style:ita
    DEV → AI/MODELLI. */
 .aicards{display:flex;flex-direction:column;gap:6px}
 .aicard{white-space:normal;text-align:left;display:flex;flex-direction:column;gap:4px;width:100%}
+.aicard__active{font-size:9px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
+/* «Devo poter mettere le API key sul lab.» Stessi token della pagina —
+   `--line`, `--muted`, `.mono`, `.btn` — non un secondo linguaggio visivo. */
+.keyfield{border-bottom:1px solid var(--line);padding:12px 0}
+.keyfield:last-child{border-bottom:0}
+.keyfield__head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.keyfield__row{display:flex;gap:8px;margin-top:6px}
+.keyfield__row input{flex:1;min-width:0;border:1px solid var(--line);background:#fff;padding:9px 10px;font-size:12px;color:var(--ink)}
+.keyfield__row .btn{flex:0 0 auto;min-height:auto;padding:0 14px}
 .aicard__price{font-size:9px;opacity:.8}
 .aicard.on .aicard__price{opacity:1}
 .aicard__why{font-size:9px;line-height:1.45;opacity:.7}

@@ -28,7 +28,7 @@ import type { StatKey } from '../../engine/types';
 import { DAILY_SIGNALS, DAILY_SIGNAL_LABELS, dateForDay } from '../../engine/progression';
 import { completeDayStreak, syncBalance, syncRewardProgress } from '../../engine/syncRewards';
 import { readHealthJournal, HEALTH_JOURNAL_EVENT } from '../../engine/healthJournal';
-import { loadPing, loadSetup, loadShortcutStatus, loadUsage, saveMonthlyCap, loadRuntimeLog, loadV2Issues, loadRemote, type ShortcutStatus, type UsageDashboard, type UsageEvent, type RuntimeEvent } from '../../ai/backend';
+import { loadPing, loadSetup, loadShortcutStatus, loadUsage, saveMonthlyCap, saveSecret, loadRuntimeLog, loadV2Issues, loadRemote, type ShortcutStatus, type UsageDashboard, type UsageEvent, type RuntimeEvent, type SetupVar } from '../../ai/backend';
 import type { V2Issue } from '../../ai/v2Issues';
 import { lastRuns } from '../../ai/telemetry';
 import { freshSecret } from '../../engine/secret';
@@ -38,7 +38,6 @@ import {
   AI_STEPS,
   AI_STEP_ORDER,
   choicesFor,
-  modelForStep,
   recommendedModel,
 } from '../../../netlify/functions/_shared/routing';
 import { Btn, Grid, LabTop, Notice, PageHead, Range, Rows, Section, Status } from './parts';
@@ -717,6 +716,62 @@ function Save() {
    alternativa e il perché — non solo il nome. Stessa fonte di verità nei
    due posti, non due copie da tenere allineate a mano.
    ========================================================================= */
+/**
+ * Una riga di CHIAVI: nome, a cosa serve, dove trovarla, un campo per
+ * incollarla. Non mostra mai se una chiave presente è quella giusta — solo
+ * che c'è. Sbagliarla si scopre alla prima chiamata, come per `.env`.
+ */
+function KeyField({ v, token, onSaved }: { v: SetupVar; token: string | null; onSaved: () => void }) {
+  const [value, setValue] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [justSaved, setJustSaved] = useState(false);
+
+  async function save() {
+    if (!value.trim()) return;
+    setBusy(true);
+    setError('');
+    try {
+      const { data, failure } = await saveSecret(token, v.name, value.trim());
+      if (failure || !data?.ok) throw new Error('Salvataggio non riuscito.');
+      setValue('');
+      setJustSaved(true);
+      onSaved();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Salvataggio non riuscito.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="keyfield">
+      <div className="keyfield__head">
+        <strong className="mono">{v.name}</strong>
+        <Status label={v.present ? 'CONFIGURATA' : 'MANCANTE'} ok={v.present} />
+      </div>
+      <p className="note">{v.what}{!v.required ? '' : ' · obbligatoria'}</p>
+      <p className="note">Si trova qui: {v.where}</p>
+      <div className="keyfield__row">
+        <input
+          type="password"
+          className="mono"
+          value={value}
+          onChange={(event) => { setValue(event.target.value); setJustSaved(false); }}
+          placeholder={v.present ? 'sostituisci la chiave…' : 'incolla la chiave…'}
+          aria-label={`Chiave per ${v.name}`}
+          disabled={busy}
+        />
+        <Btn onClick={() => void save()} disabled={busy || !value.trim()}>
+          {busy ? 'SALVO…' : 'SALVA'}
+        </Btn>
+      </div>
+      {justSaved && <p className="note">Salvata. Vale da subito, nessun riavvio.</p>}
+      {error && <Notice title="ERRORE">{error}</Notice>}
+    </div>
+  );
+}
+
 function Ai() {
   const stepModels = useApp((s) => s.stepModels);
   const setStepModel = useApp((s) => s.setStepModel);
@@ -727,16 +782,20 @@ function Ai() {
      domanda di sempre — `/api/setup` la sa già per fornitore, non solo per
      voce/compilatore/immagini. */
   const [providerReady, setProviderReady] = useState<Record<string, boolean>>({});
+  const [vars, setVars] = useState<SetupVar[]>([]);
+  const [reloadTick, setReloadTick] = useState(0);
   useEffect(() => {
     if (!token) return;
     let cancelled = false;
     void loadSetup(token).then(({ data }) => {
-      if (!cancelled && data?.providerReady) setProviderReady(data.providerReady);
+      if (cancelled) return;
+      if (data?.providerReady) setProviderReady(data.providerReady);
+      if (data?.vars) setVars(data.vars);
     });
     return () => {
       cancelled = true;
     };
-  }, [token]);
+  }, [token, reloadTick]);
 
   /* 🔷 «In alto con quelle scelte metti una media mensile di spesa,
      pensando che io lo uso ogni giorno e faccio evoluzioni ogni 2 giorni.»
@@ -761,13 +820,45 @@ function Ai() {
         ragionevoli non misurati, senza cache — tende ad essere un filo alta, non bassa.
       </Notice>
 
+      {/* 🔷 «Devo poter mettere le API key sul lab.» Prima l'unico modo era
+          aprire `.env` a mano sul Mac; `/api/setup` sapeva solo DIRE quale
+          chiave manca. Qui la si scrive per davvero — stesso elenco che
+          `/api/setup` già dichiara, non una copia. */}
+      <Section title="CHIAVI" note="Una chiave resta sul server: non torna mai indietro, nemmeno qui. Salvarla vale subito, senza riavviare niente.">
+        {vars.map((v) => (
+          <KeyField key={v.name} v={v} token={token} onSaved={() => setReloadTick((n) => n + 1)} />
+        ))}
+      </Section>
+
       <div style={{ marginTop: 12 }}>
         {AI_STEP_ORDER.map((id) => {
           const step = AI_STEPS[id];
-          const attivo = modelForStep(id, stepModels[id]);
           const pool = choicesFor(step.capability);
           const consiglio = recommendedModel(id);
           const run = runs[id];
+
+          /* 🔴 «La scelta non torna rispetto alle AI che vengono usate — è
+             segnata una modalità automatica che qui non si vede.» Prima
+             `modelForStep(id, stepModels[id])` chiamava sempre con peso
+             "full", quindi in automatico questa scheda mostrava SEMPRE
+             `step.fallback` come attivo — anche per VOCE, dove la chat vera,
+             in automatico, risponde con `step.everyday` sulla maggior parte
+             dei messaggi e usa `step.fallback` solo quando il turno «merita
+             di pensare» (vedi `modelForStep` in routing.ts). Un'unica scheda
+             evidenziata stava mentendo per metà del tempo.
+
+             🔒 QUI SI MOSTRA LA VERITÀ INTERA, NON UNA MEDIA. Se sei in
+             automatico e i due pesi vanno su modelli diversi, si accendono
+             DUE schede, ciascuna con scritto quando tocca a lei — non una
+             sola scelta a caso fra le due vere. */
+          const chosen = stepModels[id] ?? null;
+          const hasSplit = typeof step.everyday === 'string' && step.everyday !== step.fallback;
+          const autoNote: Record<string, string> = chosen
+            ? {}
+            : hasSplit
+              ? { [step.everyday!]: 'AUTOMATICO · messaggi normali', [step.fallback]: 'AUTOMATICO · quando pensa' }
+              : { [step.fallback]: 'AUTOMATICO' };
+
           return (
             <div className="airow" key={id}>
               <div className="aihead">
@@ -782,6 +873,30 @@ function Ai() {
                 CONSIGLIO: <strong>{consiglio.model}</strong> — {consiglio.why}
               </p>
 
+              {/* 🔷 «C'è un tag che dice AUTOMODE, oppure lo spengo e scelgo
+                  io.» Prima l'unico modo di tornare automatici era
+                  ri-cliccare per caso proprio la scheda del fallback — un
+                  interruttore che non si vedeva. Ora è un interruttore vero:
+                  ACCESO lascia decidere il resolver (e lo dice, riga sotto),
+                  SPENTO congela quello che stava girando in quel momento,
+                  così spegnerlo non cambia risposta finché non tocchi una
+                  scheda. */}
+              <label className="airow__automode">
+                <input
+                  type="checkbox"
+                  checked={!chosen}
+                  onChange={() => setStepModel(id, chosen ? null : step.fallback)}
+                />
+                AUTOMODE
+              </label>
+              <p className="aidesc">
+                {!chosen
+                  ? (hasSplit
+                    ? `Acceso: ${step.everyday} per i messaggi normali, ${step.fallback} quando il turno merita di pensare.`
+                    : `Acceso: risponde sempre ${step.fallback}.`)
+                  : `Spento: hai scelto tu, sempre ${chosen}.`}
+              </p>
+
               {pool.length > 1 ? (
                 <div className="aicards">
                   {pool.map((c) => {
@@ -790,7 +905,9 @@ function Ai() {
                       price?: { input: number; output: number };
                       perImage?: number;
                     };
-                    const isActive = c.model === attivo;
+                    const pinned = chosen === c.model;
+                    const note = autoNote[c.model];
+                    const isActive = pinned || Boolean(note);
                     const isRecommended = c.model === consiglio.model && !isActive;
                     const prezzo =
                       typeof rich.perImage === 'number'
@@ -804,9 +921,12 @@ function Ai() {
                         type="button"
                         key={c.model}
                         className={`choice aicard ${isActive ? 'on' : ''}`}
-                        onClick={() => setStepModel(id, c.model === step.fallback ? null : c.model)}
+                        onClick={() => setStepModel(id, pinned ? null : c.model)}
                       >
                         <strong>{c.label}{isRecommended ? ' ★' : ''}</strong>
+                        {(pinned || note) && (
+                          <span className="aicard__active">{pinned ? 'SCELTA TUA · clic per tornare automatico' : note}</span>
+                        )}
                         <span className="aicard__price">{prezzo}</span>
                         {rich.it && <span className="aicard__why">{rich.it}</span>}
                         {/* In fondo alla scheda, com'era in DEV → VOCE. */}
@@ -822,7 +942,7 @@ function Ai() {
                   })}
                 </div>
               ) : (
-                <p className="note">{attivo} — non ci sono alternative.</p>
+                <p className="note">{pool[0]?.model ?? step.fallback} — non ci sono alternative.</p>
               )}
               <p className="note">
                 {run ? `last run ${(run.ms / 1000).toFixed(1)}s · ${run.ok ? 'OK' : 'FAILED'}` : 'no run yet'}

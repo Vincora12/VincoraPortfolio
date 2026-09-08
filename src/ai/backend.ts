@@ -420,6 +420,24 @@ export function saveMonthlyCap(
   );
 }
 
+/**
+ * Scrive una chiave API sul server — `.env` e il processo vivo insieme, vedi
+ * `_shared/secrets.ts`. Mai una risposta che contenga la chiave: solo se è
+ * stata accettata.
+ */
+export function saveSecret(
+  token: string | null,
+  name: string,
+  value: string,
+): Promise<BackendResult<{ ok: boolean; name: string; present: boolean }>> {
+  return post<{ ok: boolean; name: string; present: boolean }>(
+    '/api/setup',
+    token,
+    { name, value },
+    'POST',
+  );
+}
+
 export interface RuntimeEvent {
   id: string; timestamp: string; eventType: string; status: 'START' | 'PASS' | 'FAIL'; scope: string;
   action?: string; requestId?: string; conversationId?: string; messageId?: string; monId?: string; worldId?: string;
