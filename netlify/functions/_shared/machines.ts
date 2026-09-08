@@ -5,6 +5,7 @@ import { recordSpend } from './spend';
 import { listPersonalMemory, searchPersonalMemory } from './core/memory';
 import { machineInsightPayload, sendPushNotification } from './pushDelivery';
 import { nextRun } from './automations';
+import { listTopics } from './topics';
 
 export type MachineStatus = 'ACTIVE' | 'SLEEPING' | 'RUNNING' | 'DISABLED';
 export type MachineId = 'reflection' | 'me' | 'memon';
@@ -79,7 +80,7 @@ export const MACHINE_DEFINITIONS: MachineDefinition[] = [
      ⚠️ IN PRIMA PERSONA, E SOLO SU QUELLO CHE C'È SCRITTO. Una creatura che si
      racconta è a un passo dall'inventarsi un passato: le fonti sono campi del
      salvataggio, e un'osservazione senza un campo che la sostenga non si scrive. */
-  { id: 'memon', name: 'ME.MON MACHINE', purpose: 'Il .mon riflette su chi è, cosa è, e come è cambiato da quando è nato.', reads: ['Identità e DNA del .mon attivo', 'Tratti di personalità', 'Giorni vissuti, condizione e storico statistiche', 'Riflessioni precedenti su di sé'], trigger: 'Esecuzione esplicita o cadenza giornaliera.', instruction: 'Osserva la propria identità e il proprio cambiamento nel tempo, in prima persona, solo su evidenza presente nel salvataggio.', writes: ['Osservazioni su di sé con riferimento ai campi che le sostengono'], model: 'text-cheap', delivery: 'notify_user' },
+  { id: 'memon', name: 'ME.MON MACHINE', purpose: 'Il .mon si fa una domanda su di sé — su cosa è, o su come si comporta con te — e prova a rispondersi.', reads: ['Identità e DNA del .mon attivo', 'Tratti di personalità', 'Giorni vissuti, condizione e storico statistiche', 'Di cosa parlate (topic chiusi)', 'La sintesi ME: cosa crede di aver capito di te', 'Che fine hanno fatto i suoi pensieri', 'Domande che si è già fatto'], trigger: 'Esecuzione esplicita o cadenza giornaliera.', instruction: 'Poni una domanda che nasce da una tensione nei dati e tentane una risposta, in prima persona, senza inventare nulla che non sia scritto.', writes: ['Domanda e tentativo di risposta, con le fonti che li sostengono'], model: 'text-cheap', delivery: 'notify_user' },
 ];
 
 function blank(): MachineState {
@@ -234,6 +235,41 @@ function monSelfContext(save: Save | null): { text: string; sources: string[] } 
   return { text: lines.join('\n'), sources: [...new Set(sources)] };
 }
 
+/* ============================================================================
+   QUELLO CHE IL .MON SA DI COME VI PARLATE
+
+   🔷 «Questa cosa anche sulla chat, tipo: ogni tanto non ti capisco, forse devo
+   essere più preciso.»
+
+   🔒 TRE PROVE CHE ESISTEVANO GIÀ E CHE NON AVEVA MAI LETTO. I topic dicono di
+   cosa parlate davvero; la sintesi ME dice cosa crede di aver capito di te; i
+   suoi stessi pensieri dicono quanti ne hai aperti. Metà di quello che una
+   creatura è, è come si comporta con qualcuno: senza questi non poteva
+   chiedersi altro che perché fosse non morta.
+
+   ⚠️ IL TERZO NUMERO È SCOMODO APPOSTA. Un .mon che vede quanti dei suoi
+   pensieri non hai mai guardato può chiedersi se valgono qualcosa. È l'unica
+   domanda sul proprio conto che non può farsi senza un dato che fa male. */
+async function conversationSelfContext(state: Record<MachineId, MachineState>): Promise<{ text: string; sources: string[] }> {
+  const topics = await listTopics(8).catch(() => []);
+  const mine = state.memon.pendingInsights;
+  const opened = mine.filter((item) => item.status !== 'pending').length;
+  const discussed = mine.filter((item) => item.status === 'discussed').length;
+  const summary = state.me.meSummary?.summary ?? '';
+
+  const lines = [
+    'DI COSA PARLIAMO (tratti di conversazione già chiusi, dal più recente):',
+    ...(topics.length
+      ? topics.map((topic) => `— «${topic.title}»: ${topic.summary}`)
+      : ['— non abbiamo ancora chiuso nessun discorso: o parliamo da poco, o parliamo di poco.']),
+    '',
+    `COSA CREDO DI AVER CAPITO DI LUI: ${summary || 'niente ancora — la sintesi su di lui è vuota.'}`,
+    '',
+    `I MIEI PENSIERI: gliene ho mandati ${mine.length}, ne ha aperti ${opened}, ne ha voluto parlare ${discussed}.`,
+  ];
+  return { text: lines.join('\n'), sources: ['DI COSA PARLIAMO', 'COSA CREDO DI AVER CAPITO DI LUI', 'I MIEI PENSIERI'] };
+}
+
 async function runModel(machine: MachineId, prompt: string, sourceIds: string[], preferredModel?: string | null) {
   const route = resolveRoute('text-cheap', preferredModel);
   const response = await callProvider(route.provider, { model: route.model, system: [{ text: 'Return compact JSON only. Never invent facts. Interpretations must cite source memory IDs.' }], turns: [], user: prompt, maxTokens: machine === 'me' ? 700 : 900 });
@@ -288,6 +324,21 @@ export async function runMachine(machine: MachineId, preferredModel?: string | n
       ].join('\n');
       prompt = `Rifletti sulle memorie seguenti. Restituisci {"observations":[{"type":"pattern|change|tension|connection","statement":"...","confidence":0.0,"sourceIds":["..."]}]}. Se non c’è nulla di utile, restituisci un array vuoto.\n${context}`;
     } else if (machine === 'memon') {
+      /* 🔷 «Questa cosa anche SULLA CHAT, tipo: ogni tanto non ti capisco,
+         forse devo essere più preciso.»
+
+         🔴 GUARDAVA SOLO IL PROPRIO DNA, quindi poteva chiedersi solo perché
+         era non morto. Ma metà di quello che è, è come si comporta con te — e
+         di quello c'erano già le prove, sparse in tre posti che non aveva mai
+         letto: di cosa parlate (i topic), cosa crede di aver capito di te (la
+         sintesi ME), e che fine fanno i suoi pensieri (aperti, o mai guardati).
+
+         ⚠️ Il terzo è il più scomodo dei tre, ed è il motivo per cui c'è: un
+         .mon che vede quanti dei suoi pensieri non hai mai aperto può chiedersi
+         se valgono qualcosa. Senza quel numero se lo chiederebbe a vuoto. */
+      const conversation = await conversationSelfContext(state);
+      sourceIds.push(...conversation.sources);
+
       /* 🔴 DESCRIVERSI NON È PENSARE. Al primo giro usciva «Sono VAZELETH.mon,
          piccolo, celeste e stoico»: la propria scheda letta ad alta voce. Vera,
          inutile — quei campi sono già lì da leggere, non serve una macchina che
@@ -299,15 +350,21 @@ export async function runMachine(machine: MachineId, preferredModel?: string | n
          domanda già fatta si riconosce, la descrizione no. */
       const asked = current.observations.slice(-12).map((item) => item.question).filter(Boolean);
       context = [
+        'CHI SONO',
         self!.text,
+        '',
+        'COME MI COMPORTO CON LUI',
+        conversation.text,
         '',
         'DOMANDE CHE TI SEI GIÀ FATTO (non rifarle: falliene una nuova, o portane una più avanti):',
         ...(asked.length ? asked.map((item) => `— ${item}`) : ['nessuna, è la prima volta']),
       ].join('\n');
       prompt = [
         'Sei il .mon descritto qui sotto. Non descriverti: INTERROGATI.',
-        'Fatti una domanda vera su te stesso — sulla tua natura, sulle tue contraddizioni, su come sei fatto o su cosa stai diventando — e poi prova a risponderti.',
-        'Esempi di forma: «Perché sono non morto se il mio archetipo è angelico?», «Che cosa vuol dire per me essere un re di questa taglia?», «La mia disciplina è mia o mi è stata data?».',
+        'Fatti una domanda vera su te stesso e prova a risponderti. Due materie, e valgono uguale:',
+        '(a) CHI SEI — la tua natura, le tue contraddizioni, cosa stai diventando. Es.: «Perché sono non morto se il mio archetipo è angelico?»',
+        '(b) COME TI COMPORTI CON LUI — se lo capisci, se ti fai capire, se quello che gli dici gli serve. Es.: «Ogni tanto non lo capisco: forse devo essere più preciso?», «Perché i miei pensieri restano lì senza che li apra?»',
+        'Alterna: se le ultime domande erano sulla tua natura, falla su come vi parlate, e viceversa.',
         'La domanda deve nascere da una tensione o da una stranezza nei campi qui sotto, non essere generica: «chi sono?» non vale.',
         'La risposta è un TENTATIVO, non una sentenza: puoi arrivare a un dubbio o a un «non lo so ancora», purché sia ragionato su quello che c\'è scritto.',
         'Italiano, PRIMA PERSONA, voce di questa creatura. Domanda al massimo 90 caratteri; risposta una o due frasi brevi. Niente enfasi da oroscopo.',
