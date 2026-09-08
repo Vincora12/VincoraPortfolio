@@ -18,7 +18,10 @@ import {
   processAutomations,
   readAutomation,
   saveAutomation,
+  MAX_INTERVAL_MINUTES,
+  MIN_INTERVAL_MINUTES,
   type Automation,
+  type AutomationSchedule,
 } from './_shared/automations';
 
 interface Payload {
@@ -30,6 +33,11 @@ interface Payload {
   minute?: number;
   timezone?: string;
   enabled?: boolean;
+  cadence?: string;
+  days?: unknown;
+  everyMinutes?: number;
+  fromHour?: number;
+  toHour?: number;
 }
 
 function validTimezone(value: unknown): value is string {
@@ -40,6 +48,50 @@ function validTimezone(value: unknown): value is string {
   } catch {
     return false;
   }
+}
+
+const wholeIn = (value: unknown, min: number, max: number): boolean =>
+  Number.isInteger(Number(value)) && Number(value) >= min && Number(value) <= max;
+
+/** Ricontrolla tutto: quello che arriva dal client non è mai la verità. */
+function readSchedule(body: Payload): { schedule: AutomationSchedule } | { error: string } {
+  const timezone = body.timezone;
+  if (!validTimezone(timezone)) return { error: 'Fuso orario non valido.' };
+  const cadence = body.cadence ?? 'daily';
+
+  if (cadence === 'interval') {
+    const everyMinutes = Number(body.everyMinutes);
+    if (!wholeIn(everyMinutes, MIN_INTERVAL_MINUTES, MAX_INTERVAL_MINUTES)) {
+      return { error: `L'intervallo deve stare fra ${MIN_INTERVAL_MINUTES} minuti e 24 ore.` };
+    }
+    const hasWindow = body.fromHour !== undefined || body.toHour !== undefined;
+    if (hasWindow && (!wholeIn(body.fromHour, 0, 23) || !wholeIn(body.toHour, 0, 23))) {
+      return { error: 'Finestra oraria non valida.' };
+    }
+    return {
+      schedule: {
+        kind: 'interval',
+        everyMinutes,
+        timezone,
+        ...(hasWindow ? { fromHour: Number(body.fromHour), toHour: Number(body.toHour) } : {}),
+      },
+    };
+  }
+
+  const hour = Number(body.hour);
+  const minute = Number(body.minute ?? 0);
+  if (!wholeIn(hour, 0, 23)) return { error: 'Ora non valida.' };
+  if (!wholeIn(minute, 0, 59)) return { error: 'Minuti non validi.' };
+
+  if (cadence === 'weekly') {
+    const raw = Array.isArray(body.days) ? body.days : [];
+    const days = [...new Set(raw.map(Number))].filter((day) => wholeIn(day, 1, 7)).sort();
+    if (!days.length) return { error: 'Scegli almeno un giorno della settimana.' };
+    return { schedule: { kind: 'weekly', days, hour, minute, timezone } };
+  }
+
+  if (cadence !== 'daily') return { error: 'Cadenza non disponibile.' };
+  return { schedule: { kind: 'daily', hour, minute, timezone } };
 }
 
 function newId(): string {
@@ -74,27 +126,22 @@ export default async function handler(request: Request): Promise<Response> {
     if (body.action === 'create') {
       const title = String(body.title ?? '').trim();
       const prompt = String(body.prompt ?? '').trim();
-      const hour = Number(body.hour);
-      const minute = Number(body.minute ?? 0);
-      const timezone = body.timezone;
       if (!title || title.length > 60) return json({ error: 'Titolo mancante o troppo lungo.' }, 400);
       if (!prompt || prompt.length > 2000) return json({ error: 'Descrizione mancante o troppo lunga.' }, 400);
-      if (!Number.isInteger(hour) || hour < 0 || hour > 23) return json({ error: 'Ora non valida.' }, 400);
-      if (!Number.isInteger(minute) || minute < 0 || minute > 59) return json({ error: 'Minuti non validi.' }, 400);
-      if (!validTimezone(timezone)) return json({ error: 'Fuso orario non valido.' }, 400);
+      const read = readSchedule(body);
+      if ('error' in read) return json({ error: read.error }, 400);
       if ((await countAutomations()) >= automationLimit) {
         return json({ error: `Massimo ${automationLimit} automazioni.` }, 409);
       }
 
-      const schedule = { kind: 'daily' as const, hour, minute, timezone };
       const automation: Automation = {
         id: newId(),
         title,
         prompt,
-        schedule,
+        schedule: read.schedule,
         enabled: true,
         createdAt: new Date().toISOString(),
-        nextRunAt: nextRun(schedule),
+        nextRunAt: nextRun(read.schedule),
         lastRunAt: null,
         lastStatus: null,
         lastError: null,

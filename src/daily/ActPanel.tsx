@@ -3,12 +3,14 @@
 
    Due cose diverse, e la differenza conta:
 
-   AUTOMAZIONI  girano da sole a un'ora fissa, FANNO il lavoro (cercano sul web
-                con la voce di VINZ) e il risultato arriva in chat. Ricorrenti.
+   AUTOMAZIONI  girano da sole alla cadenza che hai concordato — tutti i giorni,
+                certi giorni della settimana, o ogni N minuti — FANNO il lavoro
+                (cercano sul web con la voce di VINZ) e il risultato arriva in
+                chat. Ricorrenti.
    PROMEMORIA   scadono una volta sola e ti danno una gomitata. Non eseguono
                 niente: è il calendario, non un agente.
 
-   🔒 «Ogni giorno», «Ultima» e «Prossima» compaiono SOLO sulle automazioni,
+   🔒 La cadenza, «Ultima» e «Prossima» compaiono SOLO sulle automazioni,
    perché solo lì sono dati veri: il record li tiene davvero. Sui promemoria non
    esistono e non vengono inventati.
    ========================================================================= */
@@ -21,11 +23,16 @@ import './daily.css';
 
 type Row = { event: CalendarEvent; version: string };
 
+type Schedule =
+  | { kind: 'daily'; hour: number; minute: number; timezone: string }
+  | { kind: 'weekly'; days: number[]; hour: number; minute: number; timezone: string }
+  | { kind: 'interval'; everyMinutes: number; timezone: string; fromHour?: number; toHour?: number };
+
 interface Automation {
   id: string;
   title: string;
   prompt: string;
-  schedule: { kind: 'daily'; hour: number; minute: number; timezone: string };
+  schedule: Schedule;
   enabled: boolean;
   nextRunAt: string;
   lastRunAt: string | null;
@@ -34,6 +41,26 @@ interface Automation {
 }
 
 const two = (value: number) => String(value).padStart(2, '0');
+
+const DAY_NAMES = ['', 'lun', 'mar', 'mer', 'gio', 'ven', 'sab', 'dom'];
+
+/* La cadenza si legge in italiano, non in campi. Chi apre ACT deve capire
+   quando succede senza ricostruirlo da `everyMinutes`. */
+function cadenceLabel(schedule: Schedule): string {
+  if (schedule.kind === 'interval') {
+    const hours = schedule.everyMinutes / 60;
+    const every = schedule.everyMinutes % 60 === 0
+      ? hours === 1 ? 'Ogni ora' : `Ogni ${hours} ore`
+      : `Ogni ${schedule.everyMinutes} minuti`;
+    return schedule.fromHour !== undefined && schedule.toHour !== undefined
+      ? `${every} · dalle ${two(schedule.fromHour)} alle ${two(schedule.toHour)}`
+      : every;
+  }
+  const at = `alle ${two(schedule.hour)}:${two(schedule.minute)}`;
+  if (schedule.kind === 'daily') return `Ogni giorno ${at}`;
+  if (schedule.days.length === 7) return `Ogni giorno ${at}`;
+  return `Ogni ${schedule.days.map((day) => DAY_NAMES[day]).join(', ')} ${at}`;
+}
 
 function whenLabel(iso: string): string {
   return new Date(iso).toLocaleString('it-IT', {
@@ -156,8 +183,7 @@ export function ActPanel({ token }: { token: string | null }) {
             <div className="daily-row__main">
               <p className="daily-row__title">{automation.title}</p>
               <p className="daily-row__meta">
-                Ogni giorno alle {two(automation.schedule.hour)}:{two(automation.schedule.minute)} ·{' '}
-                {automation.enabled ? 'Attiva' : 'In pausa'}
+                {cadenceLabel(automation.schedule)} · {automation.enabled ? 'Attiva' : 'In pausa'}
               </p>
               <p className="daily-row__meta">
                 {automation.lastRunAt ? `Ultima · ${whenLabel(automation.lastRunAt)}` : 'Mai eseguita'}

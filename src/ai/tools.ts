@@ -133,14 +133,19 @@ export const TOOLS: ToolDef[] = [
   },
   {
     name: 'crea_automazione',
-    description: 'Crea un\u2019automazione ricorrente: VINZ fa da solo una cosa ogni giorno a un\u2019ora fissa e ti manda il risultato in chat. Usalo per richieste del tipo \u00abogni mattina mandami\u2026\u00bb. Le automazioni sono SOLA LETTURA: cercano sul web e riferiscono, non registrano pasti, allenamenti, peso, piani n\u00e9 promemoria. Per una cosa da fare UNA volta sola usa programma_promemoria. Chiedi l\u2019ora se non \u00e8 chiara: non inventarla.',
+    description: 'Automazione ricorrente: VINZ fa una cosa da solo e manda il risultato in chat. Per \u00abogni mattina\u2026\u00bb, \u00abogni luned\u00ec\u2026\u00bb, \u00abogni due ore\u2026\u00bb. SOLA LETTURA: cerca e riferisce, non registra niente in ME. Per una cosa sola usa programma_promemoria. Non inventare orari: chiedi.',
     schema: { type: 'object', properties: {
-      titolo: { type: 'string', maxLength: 60, description: 'Nome breve, per esempio \u00abNotizie dal mondo\u00bb.' },
-      descrizione: { type: 'string', maxLength: 2000, description: 'Cosa deve fare VINZ, scritto come lo diresti a lui.' },
+      titolo: { type: 'string', maxLength: 60 },
+      descrizione: { type: 'string', maxLength: 2000, description: 'Cosa deve fare.' },
+      cadenza: { type: 'string', enum: ['ogni_giorno', 'giorni_settimana', 'ogni_intervallo'] },
       ora: { type: 'integer', minimum: 0, maximum: 23 },
       minuti: { type: 'integer', minimum: 0, maximum: 59 },
-      fuso: { type: 'string', description: 'Fuso IANA, per esempio Europe/Rome.' },
-    }, required: ['titolo', 'descrizione', 'ora'] },
+      giorni: { type: 'array', items: { type: 'integer', minimum: 1, maximum: 7 }, description: '1=luned\u00ec..7=domenica' },
+      ogni_minuti: { type: 'integer', minimum: 30, maximum: 1440, description: 'due ore = 120' },
+      dalle_ore: { type: 'integer', minimum: 0, maximum: 23 },
+      alle_ore: { type: 'integer', minimum: 0, maximum: 23 },
+      fuso: { type: 'string', description: 'IANA, es. Europe/Rome' },
+    }, required: ['titolo', 'descrizione', 'cadenza'] },
   },
   {
     name: 'calcola_energia_giornaliera',
@@ -809,17 +814,31 @@ async function executeAutomationTool(use: ToolUse, token: string | null): Promis
   const fail = (content: string): ToolResult => ({ id: use.id, content, isError: true });
   if (!token) return fail('Token mancante: automazioni non disponibili.');
   const args = (use.input && typeof use.input === 'object' ? use.input : {}) as Record<string, unknown>;
+  const cadence = str(args.cadenza);
+  const payload: Record<string, unknown> = {
+    action: 'create',
+    title: str(args.titolo),
+    prompt: str(args.descrizione),
+    timezone: str(args.fuso) || Intl.DateTimeFormat().resolvedOptions().timeZone,
+  };
+  if (cadence === 'ogni_intervallo') {
+    payload.cadence = 'interval';
+    payload.everyMinutes = Number(args.ogni_minuti);
+    if (args.dalle_ore !== undefined) payload.fromHour = Number(args.dalle_ore);
+    if (args.alle_ore !== undefined) payload.toHour = Number(args.alle_ore);
+  } else {
+    payload.cadence = cadence === 'giorni_settimana' ? 'weekly' : 'daily';
+    payload.hour = Number(args.ora);
+    payload.minute = args.minuti === undefined ? 0 : Number(args.minuti);
+    if (payload.cadence === 'weekly') {
+      payload.days = Array.isArray(args.giorni) ? args.giorni.map(Number) : [];
+    }
+  }
+
   const response = await fetch('/api/automations', {
     method: 'POST',
     headers: { authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      action: 'create',
-      title: str(args.titolo),
-      prompt: str(args.descrizione),
-      hour: Number(args.ora),
-      minute: args.minuti === undefined ? 0 : Number(args.minuti),
-      timezone: str(args.fuso) || Intl.DateTimeFormat().resolvedOptions().timeZone,
-    }),
+    body: JSON.stringify(payload),
   });
   const body = (await response.json().catch(() => null)) as { automation?: { title: string; nextRunAt: string }; error?: string } | null;
   if (!response.ok || !body?.automation) return fail(body?.error ?? 'Creazione automazione non riuscita.');

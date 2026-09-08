@@ -141,8 +141,16 @@ suo testo. Mancavano due cose diverse: la ricorrenza e l'esecuzione.
   repository che tiene il browser. L'ack arriva **dopo** l'append: se la pagina
   muore a metà il risultato resta in casella e arriva al giro dopo — meglio due
   volte che perso.
-- **Creazione parlando:** «Ogni mattina alle 8 mandami le notizie importanti sul
-  mondo» → VINZ riepiloga cosa farà e a che ora → pulsante `CREA AUTOMAZIONE` →
+- **Cadenza concordata a voce.** Tre forme, campi tipizzati e non una stringa
+  cron (nessuno vuole dedurre da cinque campi separati da spazi a che ora gli
+  arriva la sveglia):
+  - `ogni_giorno` — tutti i giorni a un'ora fissa;
+  - `giorni_settimana` — «ogni lunedì e giovedì alle 9:30»;
+  - `ogni_intervallo` — «ogni due ore», con **finestra oraria** opzionale
+    («dalle 8 alle 20»). La finestra non è un lusso: senza, «ogni due ore»
+    significa anche alle 3 di notte. Minimo 30 minuti.
+- **Creazione parlando:** «Ogni due ore dalle 8 alle 20 controlla le novità» →
+  VINZ riepiloga cadenza, finestra e fuso → pulsante `CREA AUTOMAZIONE` →
   compare in ACT. Lo strumento è `crea_automazione`.
 - **La riga «Ogni giorno / Ultima / Prossima» adesso è vera**, perché il record
   la tiene davvero. Sui promemoria non compare: lì quei dati non esistono.
@@ -152,8 +160,9 @@ pasti, allenamenti, peso, piani o promemoria, e il prompt glielo dice. La
 conferma esplicita che protegge quelle scritture non si aggira facendola fare a
 un timer mentre dormi.
 
-**Limiti dichiarati:** una sola cadenza (tutti i giorni a un'ora fissa), massimo
-20 automazioni, 3 per tick. Sul cambio dell'ora legale una singola esecuzione
+**Limiti dichiarati:** massimo 20 automazioni, 3 per tick, intervallo minimo 30
+minuti. Non c'è il mensile («il primo del mese») e non si modifica un'automazione
+esistente a voce: si mette in pausa o si elimina da ACT e si ricrea. Sul cambio dell'ora legale una singola esecuzione
 può slittare di un'ora — niente libreria di fusi, si lavora sullo scarto che
 `Intl` dichiara. Su un thread ancora non promosso la consegna aspetta il giro
 successivo, perché l'append resterebbe appeso alla barriera di inizializzazione.
@@ -254,8 +263,8 @@ LAB esistente, architettura Netlify.
 
 ## Limiti reali, in una lista
 
-1. Le automazioni hanno una sola cadenza: tutti i giorni a un'ora fissa. Niente
-   «ogni lunedì», niente «ogni due ore».
+1. Le automazioni non si modificano a voce dopo la creazione: pausa o elimina da
+   ACT e ricrea. Manca anche la cadenza mensile.
 2. I file di FILES non sono ancora leggibili dalla chat.
 3. Le skill installate non sono ancora collegate al prompt.
 4. `isWorkoutLogIntent` è sensibile alla forma della frase: «Mi sono allenato

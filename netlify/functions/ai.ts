@@ -83,7 +83,14 @@ const LIMITS = {
   maxTokens: 4000,
   compilerTokens: 8000,
   /* Gli strumenti sono pochi e li scrive l'app, non l'utente: il tetto serve
-     solo a fermare un ciclo che li duplica. */
+     solo a fermare un ciclo che li duplica.
+
+     ⚠️ NON È UN TETTO DI COSTO, ed è per questo che il numero non è sacro:
+     misurato oggi, il pool salute pieno sta a ~6.000 caratteri su 12 strumenti.
+     Chi aggiunge uno strumento grosso lo sfonda — e prima l'unica traccia era
+     «strumenti troppo lunghi» in chat, senza dire quali né quanto. Adesso
+     l'errore porta i numeri: alzare il tetto o accorciare la descrizione
+     diventa una decisione, non un indovinello. */
   tools: 12,
   toolChars: 8_000,
 };
@@ -356,9 +363,15 @@ export default async function handler(request: Request): Promise<Response> {
   }
 
   const tools = payload.tools ?? [];
-  if (tools.length > LIMITS.tools) return json({ error: 'troppi strumenti' }, 413);
-  if (JSON.stringify(tools).length > LIMITS.toolChars) {
-    return json({ error: 'strumenti troppo lunghi' }, 413);
+  if (tools.length > LIMITS.tools) {
+    return json({ error: `troppi strumenti: ${tools.length} su un massimo di ${LIMITS.tools}` }, 413);
+  }
+  const toolChars = JSON.stringify(tools).length;
+  if (toolChars > LIMITS.toolChars) {
+    return json({
+      error: `strumenti troppo lunghi: ${toolChars} caratteri su un tetto di ${LIMITS.toolChars}`,
+      tools: tools.map((tool) => ({ name: tool.name, chars: JSON.stringify(tool).length })),
+    }, 413);
   }
   const toolChoice =
     typeof payload.toolChoice === 'string' && tools.some((tool) => tool.name === payload.toolChoice)

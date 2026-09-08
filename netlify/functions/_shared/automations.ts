@@ -25,13 +25,24 @@ import { resolveRoute } from './routing';
 import { checkCap, recordSpend } from './spend';
 import { loadCoreContext } from './coreContext';
 
-export interface AutomationSchedule {
-  /** Una sola cadenza per ora: tutti i giorni a un'ora fissa. */
-  kind: 'daily';
-  hour: number;
-  minute: number;
-  timezone: string;
-}
+/* ============================================================================
+   LA CADENZA
+
+   Tre forme, non una stringa cron: il modello riempie campi tipizzati, il
+   server li ricontrolla e la UI li rilegge in italiano. Una stringa cron
+   sarebbe più potente e molto meno verificabile — e nessuno vuole dedurre da
+   cinque campi separati da spazi a che ora gli arriva la sveglia.
+
+   ⚠️ `interval` accetta una finestra. Senza, «ogni due ore» significa anche
+   alle 3 di notte: la finestra è ciò che separa un'automazione utile da una
+   che ti fa disattivare le notifiche.
+   ========================================================================= */
+
+export type AutomationSchedule =
+  | { kind: 'daily'; hour: number; minute: number; timezone: string }
+  /** `days`: giorni ISO, 1 = lunedì … 7 = domenica. */
+  | { kind: 'weekly'; days: number[]; hour: number; minute: number; timezone: string }
+  | { kind: 'interval'; everyMinutes: number; timezone: string; fromHour?: number; toHour?: number };
 
 export interface Automation {
   id: string;
@@ -56,6 +67,8 @@ export interface AutomationResult {
 
 const MAX_AUTOMATIONS = 20;
 const MAX_PER_TICK = 3;
+export const MIN_INTERVAL_MINUTES = 30;
+export const MAX_INTERVAL_MINUTES = 24 * 60;
 
 function store() {
   return getStore({ name: 'vinzmon-automations', consistency: 'strong' });
@@ -64,9 +77,21 @@ function store() {
 /* --- Orario ---------------------------------------------------------------
    ⚠️ Niente libreria di fusi orari: si chiede a `Intl` che ore sono davvero in
    quel fuso e si lavora sullo scarto. Sul cambio dell'ora legale una singola
-   esecuzione può slittare di un'ora — accettabile per un digest del mattino, e
-   scritto qui perché nessuno lo scopra dal comportamento. */
-function offsetMinutes(date: Date, timeZone: string): number {
+   esecuzione può slittare di un'ora — accettabile qui, e scritto perché nessuno
+   lo scopra dal comportamento. */
+interface LocalParts {
+  year: number;
+  month: number;
+  day: number;
+  hour: number;
+  minute: number;
+  second: number;
+  /** ISO: 1 = lunedì … 7 = domenica. */
+  weekday: number;
+  offsetMinutes: number;
+}
+
+function localParts(date: Date, timeZone: string): LocalParts {
   const parts = Object.fromEntries(
     new Intl.DateTimeFormat('en-US', {
       timeZone,
@@ -81,29 +106,61 @@ function offsetMinutes(date: Date, timeZone: string): number {
       .formatToParts(date)
       .map((part) => [part.type, part.value]),
   ) as Record<string, string>;
-  const asUtc = Date.UTC(
-    Number(parts.year),
-    Number(parts.month) - 1,
-    Number(parts.day),
-    Number(parts.hour) % 24,
-    Number(parts.minute),
-    Number(parts.second),
-  );
-  return (asUtc - date.getTime()) / 60_000;
+
+  const year = Number(parts.year);
+  const month = Number(parts.month);
+  const day = Number(parts.day);
+  const hour = Number(parts.hour) % 24;
+  const minute = Number(parts.minute);
+  const second = Number(parts.second);
+  const asUtc = Date.UTC(year, month - 1, day, hour, minute, second);
+  const sunday0 = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+
+  return {
+    year,
+    month,
+    day,
+    hour,
+    minute,
+    second,
+    weekday: sunday0 === 0 ? 7 : sunday0,
+    offsetMinutes: (asUtc - date.getTime()) / 60_000,
+  };
+}
+
+/** L'istante UTC di un'ora locale in un giorno locale preciso. */
+function atLocalTime(parts: LocalParts, hour: number, minute: number): number {
+  return Date.UTC(parts.year, parts.month - 1, parts.day, hour, minute) - parts.offsetMinutes * 60_000;
 }
 
 export function nextRun(schedule: AutomationSchedule, from = new Date()): string {
-  for (let ahead = 0; ahead <= 2; ahead++) {
+  if (schedule.kind === 'interval') {
+    const step = Math.max(MIN_INTERVAL_MINUTES, Math.min(MAX_INTERVAL_MINUTES, schedule.everyMinutes));
+    let candidate = new Date(from.getTime() + step * 60_000);
+
+    const { fromHour, toHour } = schedule;
+    if (fromHour !== undefined && toHour !== undefined) {
+      /* Fuori finestra si salta all'apertura: un giro perso vale meno di una
+         notifica alle quattro del mattino. */
+      for (let guard = 0; guard < 3; guard++) {
+        const parts = localParts(candidate, schedule.timezone);
+        const inside = fromHour <= toHour
+          ? parts.hour >= fromHour && parts.hour < toHour
+          : parts.hour >= fromHour || parts.hour < toHour;
+        if (inside) break;
+        const openToday = atLocalTime(parts, fromHour, 0);
+        candidate = new Date(openToday > candidate.getTime() ? openToday : openToday + 86_400_000);
+      }
+    }
+    return candidate.toISOString();
+  }
+
+  const days = schedule.kind === 'weekly' ? schedule.days : null;
+  for (let ahead = 0; ahead <= 8; ahead++) {
     const probe = new Date(from.getTime() + ahead * 86_400_000);
-    const offset = offsetMinutes(probe, schedule.timezone);
-    const local = new Date(probe.getTime() + offset * 60_000);
-    const target = Date.UTC(
-      local.getUTCFullYear(),
-      local.getUTCMonth(),
-      local.getUTCDate(),
-      schedule.hour,
-      schedule.minute,
-    ) - offset * 60_000;
+    const parts = localParts(probe, schedule.timezone);
+    if (days && !days.includes(parts.weekday)) continue;
+    const target = atLocalTime(parts, schedule.hour, schedule.minute);
     if (target > from.getTime()) return new Date(target).toISOString();
   }
   return new Date(from.getTime() + 86_400_000).toISOString();

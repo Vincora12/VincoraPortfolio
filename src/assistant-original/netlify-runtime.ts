@@ -288,17 +288,36 @@ const ACTION_BY_TOOL: Record<string, ConfirmableAction> = {
 
 /** «Ricordami…» sì, «ricorda che…» no: il secondo è memoria, non un promemoria. */
 const REMINDER_INTENT = /\b(?:ricordami|promemoria|reminder)\b/i;
-/* ⚠️ VA PROVATA PRIMA DEL PROMEMORIA. «Ogni mattina ricordami le notizie»
+/* ⚠️ VA PROVATA PRIMA DEL PROMEMORIA. «Ogni lunedì ricordami le uscite»
    contiene «ricordami», ma non è un promemoria: quello scade una volta e ti dà
-   una gomitata, questa si ripete e FA il lavoro. Chi arriva primo decide. */
-const AUTOMATION_INTENT = /\b(?:ogni\s+(?:mattina|giorno|sera|pomeriggio|notte)|tutti\s+i\s+giorni|quotidianamente)\b/i;
+   una gomitata, questa si ripete e FA il lavoro. Chi arriva primo decide.
+
+   ⚠️ E DEVE COPRIRE TUTTE LE CADENZE, non solo «ogni mattina». La prima
+   versione conosceva solo i momenti del giorno, quindi «ogni lunedì» e «ogni
+   due ore» cadevano fuori e non diventavano automazioni. */
+/* 🔴 E GLI ACCENTI VANNO TOLTI PRIMA DI CONFRONTARE. In JavaScript `\b` è
+   ASCII: dopo la «ì» di «lunedì» non esiste confine di parola, quindi
+   `luned[ìi]\b` non aggancia mai «Ogni lunedì e giovedì…». È lo stesso motivo
+   per cui `isWorkoutPlanIntent` normalizza prima di guardare — qui si fa
+   uguale invece di inventare una seconda strada. */
+const WEEKDAY_WORD = '(?:lunedi|martedi|mercoledi|giovedi|venerdi|sabato|domenica)';
+const COUNT_WORD = '(?:\\d+|due|tre|quattro|cinque|sei|otto|dieci|dodici|mezz)';
+const AUTOMATION_INTENT = new RegExp(
+  String.raw`\bogni\s+(?:mattina|giorno|sera|pomeriggio|notte|settimana|${COUNT_WORD}\s*(?:minut\w*|or[ae]|giorn\w*)|${WEEKDAY_WORD})\b`
+    + String.raw`|\btutti\s+i\s+(?:giorni|${WEEKDAY_WORD})\b`
+    + String.raw`|\bquotidianament\w*\b`,
+  'i',
+);
+
+const withoutAccents = (text: string) => text.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
 const DIET_INTENT =
   /\b(?:impost\w*|aggiorn\w*|cambi\w*|modific\w*|salv\w*|cre\w*|scriv\w*)\b[^.!?]*\b(?:dieta|piano\s+alimentare|regime\s+alimentare)\b|\b(?:dieta|piano\s+alimentare|regime\s+alimentare)\b[^.!?]*\b(?:impost\w*|aggiorn\w*|cambi\w*|modific\w*|salv\w*|cre\w*|scriv\w*)\b/i;
 
 function proposedAction(text: string): ConfirmableAction | undefined {
   const tool = requiredWriteTool(text);
   if (tool && ACTION_BY_TOOL[tool]) return ACTION_BY_TOOL[tool];
-  if (AUTOMATION_INTENT.test(text)) return 'automazione';
+  if (AUTOMATION_INTENT.test(withoutAccents(text))) return 'automazione';
   if (REMINDER_INTENT.test(text)) return 'promemoria';
   if (DIET_INTENT.test(text)) return 'dieta';
   return undefined;
