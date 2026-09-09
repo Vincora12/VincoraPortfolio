@@ -1,3 +1,4 @@
+/// <reference path="./fileSystemAccess.d.ts" />
 import { loadVaultHandle, saveVaultHandle, clearVaultHandle } from './idbHandle';
 import { loadObsidianConfig, saveObsidianConfig } from './store';
 

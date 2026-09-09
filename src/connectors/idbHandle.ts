@@ -1,3 +1,4 @@
+/// <reference path="./fileSystemAccess.d.ts" />
 /* Un FileSystemDirectoryHandle non è JSON: non può vivere in `localStorage`
    come il resto della config dei connettori. IndexedDB sa clonare handle
    nativi — è l'unico posto dove il permesso alla cartella del vault

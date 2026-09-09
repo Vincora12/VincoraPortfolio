@@ -1,3 +1,4 @@
+/// <reference path="./googleIdentity.d.ts" />
 import { GOOGLE_CALENDAR_SCOPE } from './types';
 import { loadGoogleConfig, saveGoogleConfig } from './store';
 
