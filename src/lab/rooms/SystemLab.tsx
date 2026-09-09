@@ -25,7 +25,7 @@ import { useApp, useActiveMon } from '../../state/store';
 import { useElapsed, waitingText } from '../../dev/useElapsed';
 import { STAT_KEYS, UNKNOWN, isKnown } from '../../engine/types';
 import type { StatKey } from '../../engine/types';
-import { DAILY_SIGNALS, DAILY_SIGNAL_LABELS, dateForDay } from '../../engine/progression';
+import { DAILY_SIGNALS, DAILY_SIGNAL_LABELS, dateForDay, realDayAt, dayBoundaryTimeForStart } from '../../engine/progression';
 import { completeDayStreak, syncBalance, syncRewardProgress } from '../../engine/syncRewards';
 import { readHealthJournal, HEALTH_JOURNAL_EVENT } from '../../engine/healthJournal';
 import { loadPing, loadSetup, loadShortcutStatus, loadUsage, saveMonthlyCap, saveSecret, resetMemory, loadRuntimeLog, loadV2Issues, loadRemote, type ShortcutStatus, type UsageDashboard, type UsageEvent, type RuntimeEvent, type SetupVar } from '../../ai/backend';
@@ -1194,11 +1194,17 @@ function Simulation({ onOpenUsage }: { onOpenUsage: () => void }) {
      giorno. Non è una seconda implementazione: è la stessa, adesso in un
      punto solo. */
   const simulateSyncedDays = useApp((s) => s.simulateSyncedDays);
+  const rewindToRealDay = useApp((s) => s.rewindToRealDay);
+  const startedAt = useApp((s) => s.startedAt);
+  const dayBoundaryTime = useApp((s) => s.dayBoundaryTime);
   const openShift = useApp((s) => s.openShift);
   const setBias = useApp((s) => s.setBias);
   const setSignal = useApp((s) => s.setSignal);
   const setDev = useApp((s) => s.setDev);
   const setDailySignal = useApp((s) => s.setDailySignal);
+
+  const realDay = realDayAt(startedAt, dayBoundaryTime ?? dayBoundaryTimeForStart(startedAt));
+  const daysAhead = day - realDay;
 
   const valore = (k: StatKey) => {
     const v = health.stats[k].value;
@@ -1238,6 +1244,7 @@ function Simulation({ onOpenUsage }: { onOpenUsage: () => void }) {
         <Rows
           rows={[
             ['CURRENT DAY', String(day)],
+            ['REAL CALENDAR DAY', daysAhead > 0 ? `${realDay} (${daysAhead} avanti)` : String(realDay)],
             ['SYNC TOTAL', String(progression.sync.lifetime)],
             ['IN CURRENT FORM', String(progression.sync.inForm)],
             ['SINCE GROWTH', String(progression.sync.sinceGrowth)],
@@ -1248,6 +1255,9 @@ function Simulation({ onOpenUsage }: { onOpenUsage: () => void }) {
           <Btn variant="dark" onClick={() => simulateSyncedDays(1)}>RUN 1 COMPLETE DAY</Btn>
           <Btn onClick={() => simulateSyncedDays(7)}>RUN 7 COMPLETE DAYS</Btn>
           <Btn onClick={openShift}>NEXT MINDLINE EVENT</Btn>
+          {daysAhead > 0 && (
+            <Btn onClick={rewindToRealDay}>TORNA A OGGI (−{daysAhead})</Btn>
+          )}
         </Grid>
       </Section>
 

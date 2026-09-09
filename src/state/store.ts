@@ -735,6 +735,8 @@ interface AppState {
    * lo dà ancora e solo `syncDay()`.
    */
   catchUpToRealDay: () => void;
+  /** Simmetrico a `catchUpToRealDay`, ma all'indietro: solo per il DEV. */
+  rewindToRealDay: () => void;
   endWeek: () => void;
   hatch: () => void;
   enterLive: () => void;
@@ -1684,6 +1686,25 @@ export const useApp = create<AppState>()(
           advanced += 1;
         }
         set({ realDayCursor: cursor + advanced });
+      },
+
+      /* 🔷 «Un click nella simulazione per riportare i giorni a calendario al
+         giorno attuale.» SIMULATION fa avanzare `day` oltre il vero giorno di
+         calendario per testare — questa è l'unica via indietro, e per questo
+         vive solo qui, non in un posto che il gioco normale possa toccare.
+
+         🔒 SOLO SE `day` È DAVANTI AL CALENDARIO. Non tocca `days`, `memories`
+         o `progression`: quei giorni sono stati vissuti (hanno riempito il
+         diario, mosso SYNC) e restano. Si sposta solo il cursore — lo stesso
+         numero che `catchUpToRealDay` userebbe per non ripetere il recupero. */
+      rewindToRealDay: () => {
+        const s = get();
+        const target = realDayAt(
+          s.startedAt,
+          s.dayBoundaryTime ?? dayBoundaryTimeForStart(s.startedAt),
+        );
+        if (s.day <= target) return;
+        set({ day: target, realDayCursor: target });
       },
 
       setDayBoundaryTime: (time) => {
