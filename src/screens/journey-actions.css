@@ -1,0 +1,37 @@
+/* Event sheet: reuses the existing SYNC/WISH surface and house tokens. */
+.journey-dialog {
+  --tc-accent: var(--char-accent-on-dark);
+  width: 100%; max-width: none; height: 100%; max-height: none;
+  margin: 0; padding: 0; border: 0; border-radius: var(--radius);
+  background: transparent; color: #fff;
+}
+.journey-dialog:not([open]) { display: none; }
+.journey-dialog::backdrop { background: rgba(0,0,0,.76); backdrop-filter: blur(8px); }
+.journey-dialog__body {
+  width: 100%; max-width: 620px; max-height: 92dvh; margin-inline: auto;
+  box-sizing: border-box; overflow-y: auto; overscroll-behavior: contain;
+  display: grid; gap: var(--u4); scrollbar-color: var(--hairline) transparent;
+}
+.journey-dialog.sync-wish h2 { margin: 0; padding-right: var(--u6); }
+.journey-dialog h3 { margin: 0; font: italic 900 var(--type-title)/1.2 var(--font-display); }
+.journey-dialog.sync-wish p { margin: 0; color: #fff; font: 400 var(--type-body)/1.5 var(--font-ui); letter-spacing: normal; }
+.journey-dialog.sync-wish .journey-dialog__balance { font: 500 var(--type-small)/1.4 var(--font-mono); font-variant-numeric: tabular-nums; }
+.journey-dialog .journey-actions { margin: 0; gap: 0; }
+.journey-dialog .journey-actions button { padding: var(--u4); text-align: left; font-size: var(--type-meta); }
+.journey-dialog .journey-actions small { display: block; margin-top: var(--u2); font-size: var(--type-meta); font-variant-numeric: tabular-nums; }
+.journey-dialog fieldset { border: 1px solid var(--muted-strong); padding: var(--u3); margin: 0; display: grid; gap: var(--u3); }
+.journey-dialog legend, .journey-dialog label { font: 400 var(--type-small)/1.5 var(--font-ui); }
+.journey-dialog input { margin-right: var(--u2); accent-color: var(--tc-accent); }
+.journey-dialog textarea { box-sizing: border-box; margin-top: var(--u2); caret-color: var(--tc-accent); }
+.journey-dialog button { cursor: pointer; }
+.journey-dialog button:disabled { cursor: not-allowed; }
+.journey-dialog :focus-visible { outline: 2px solid var(--tc-accent); outline-offset: 3px; }
+.journey-dialog ::selection { background: var(--tc-accent); color: var(--char-on-accent-dark); }
+.journey-dialog small { font: 400 var(--type-small)/1.4 var(--font-ui); }
+.journey-dialog [role=alert] { color: var(--signal-warning); }
+.breed-parents { display: grid; gap: var(--u2); max-height: 180px; overflow: auto; }
+.breed-parents label { min-height: 44px; display: flex; align-items: center; gap: var(--u2); }
+.breed-parents__portrait { flex: 0 0 auto; width: 36px; height: 36px; border-radius: 50%; overflow: hidden; }
+.breed-parents__portrait .assetslot__img { width: 100%; height: 100%; }
+.breed-status { position: fixed; right: var(--u4); bottom: 90px; z-index: 70; border: var(--border) solid var(--ink); background: var(--white); color: var(--ink); padding: var(--u3) var(--u4); border-radius: var(--radius); font: 700 var(--type-meta)/1.2 var(--font-mono); font-variant-numeric: tabular-nums; }
+.journey-animation{position:fixed;inset:0;background:var(--ink-deep);color:var(--white);z-index:2000;display:grid;place-content:center;gap:24px;text-align:center;pointer-events:none}.breed-pair{display:flex;gap:30px;width:320px}.breed-pair>*{width:145px;height:180px;animation:breed-pose 2s steps(4)}.breed-censor{position:absolute;top:40%;left:15%;width:70%;height:120px;background:repeating-conic-gradient(#666 0% 25%,#222 0% 50%) 0/28px 28px;font-size:40px;display:grid;place-items:center;animation:censor-off 2.6s forwards}.tune-waves{overflow:visible;color:var(--char-accent-on-dark)}.tune-waves path{fill:none;stroke:currentColor;stroke-width:3}.tune-waves path:first-child{animation:tune 2.4s ease-in-out}.tune-waves path:last-child{animation:tune 2.4s ease-in-out reverse}.rise-shape{width:240px;height:280px;filter:brightness(0) invert(1);animation:rise 2.4s}.rise-shape img{object-fit:contain;max-width:100%;max-height:100%}@keyframes tune{0%{transform:translateX(-60px)}80%,100%{transform:translateX(0)}}@keyframes rise{0%{transform:scale(.7,1.1);border-radius:50%}30%{transform:scale(1.2,.7) skew(8deg)}65%{transform:scale(.8,1.3) skew(-8deg)}100%{transform:scale(1)}}@keyframes breed-pose{20%{transform:rotate(-15deg)}40%{transform:translateY(-20px) rotate(20deg)}65%{transform:scale(.8,1.2)}80%{transform:rotate(-20deg)}100%{transform:none}}@keyframes censor-off{0%,80%{opacity:1}100%{opacity:0}}@media(prefers-reduced-motion:reduce){.journey-animation *{animation:none!important}.breed-censor{opacity:1}}

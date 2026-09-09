@@ -194,6 +194,15 @@ export function dateForDay(day: number, startISO: string | null): Date {
   return d;
 }
 
+/** Inversa di `dateForDay`: dalla data di calendario al numero di giorno di gioco. */
+export function dayForDate(date: Date, startISO: string | null): number {
+  const start = startISO ? new Date(startISO) : new Date();
+  start.setHours(0, 0, 0, 0);
+  const target = new Date(date);
+  target.setHours(0, 0, 0, 0);
+  return Math.round((target.getTime() - start.getTime()) / 86_400_000) + 1;
+}
+
 export const DEFAULT_DAY_BOUNDARY_TIME = '00:00';
 
 /** Mantiene il confine giornaliero in una forma unica e sicura per lo store. */

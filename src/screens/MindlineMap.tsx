@@ -224,7 +224,8 @@ export function MindlineMapScreen({ onGo }: { onGo: (o: Overlay) => void }) {
 
               const a = pos(from.column, from.depth);
               const b = pos(to.column, to.depth);
-              const transition = transitions.get(to.node.id);
+              const isBreed = e.kind === 'breed';
+              const transition = isBreed ? undefined : transitions.get(to.node.id);
               const changesColumn = from.column !== to.column;
               const changesNature = transition?.branches ?? false;
               const isMega = transition?.reasons.includes('MEGA') ?? false;
@@ -233,10 +234,10 @@ export function MindlineMapScreen({ onGo }: { onGo: (o: Overlay) => void }) {
               // Deviazione disegnata come in un diagramma della metro: si
               // scende in verticale, si stacca a 45°, si riprende in verticale.
               const dx = b.x - a.x;
-              const chamfer = Math.min(Math.abs(dx), (b.y - a.y) / 3);
+              const chamfer = Math.min(Math.abs(dx), Math.max(1, b.y - a.y) / 3);
               const dir = Math.sign(dx);
 
-              const d = changesColumn
+              const d = changesColumn || isBreed
                 ? [
                     `M${a.x} ${a.y}`,
                     `L${a.x} ${b.y - chamfer * 2}`,
@@ -247,15 +248,26 @@ export function MindlineMapScreen({ onGo }: { onGo: (o: Overlay) => void }) {
                 : `M${a.x} ${a.y} L${b.x} ${b.y}`;
 
               return (
-                <g key={`${e.from}-${e.to}`}>
+                <g key={`${e.from}-${e.to}-${e.kind ?? 'lineage'}`}>
                   <path
                     d={d}
                     fill="none"
-                    stroke={isBranch ? 'var(--char-accent)' : 'var(--ink)'}
-                    strokeWidth={changesColumn ? 3 : 2}
+                    stroke={isBreed ? 'var(--char-accent)' : isBranch ? 'var(--char-accent)' : 'var(--ink)'}
+                    strokeWidth={isBreed ? 2 : changesColumn ? 3 : 2}
                     strokeLinejoin="miter"
-                    strokeDasharray={isMega ? '7 5' : undefined}
+                    strokeDasharray={isBreed ? '2 4' : isMega ? '7 5' : undefined}
+                    opacity={isBreed ? 0.7 : 1}
                   />
+                  {isBreed && (
+                    <text
+                      x={(a.x + b.x) / 2 + 10}
+                      y={(a.y + b.y) / 2 - 7}
+                      className="mindline__branchlabel"
+                      fill="var(--char-accent)"
+                    >
+                      BREED
+                    </text>
+                  )}
                   {transition?.branches && transition.reasons.length > 0 && (
                     <text
                       x={changesColumn ? (a.x + b.x) / 2 + 10 : a.x + 12}

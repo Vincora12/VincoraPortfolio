@@ -50,7 +50,13 @@ export function TodayChecklistScreen({ embedded = false, defaultDetailsOpen = fa
   const fileRef = useRef<HTMLInputElement>(null);
   const completionState = useRef<boolean | null>(null);
   const completionTimer = useRef<number | null>(null);
-  const openFormEvolution = useApp((state) => state.openFormEvolution);
+  const beginEvolution = useApp(state=>state.beginFormEvolution);
+  const openFormEvolution = useApp(state=>state.openFormEvolution);
+  const running = useApp(state=>Boolean(state.evolutionJob));
+  const breedJob = useApp(state=>state.breedJob);
+  const skipBreedWait = useApp(state=>state.dev.skipBreedWait);
+  const [now,setNow]=useState(Date.now());
+  useEffect(()=>{if(!breedJob)return;const id=setInterval(()=>setNow(Date.now()),1000);return()=>clearInterval(id);},[breedJob]);
   const setDailySignal = useApp((state) => state.setDailySignal);
   const token = useApp((state) => state.token);
   const activeMon = useApp((state) => state.activeMonName ? state.mons[state.activeMonName] ?? null : null);
@@ -101,16 +107,13 @@ export function TodayChecklistScreen({ embedded = false, defaultDetailsOpen = fa
     if (completionTimer.current !== null) window.clearTimeout(completionTimer.current);
   }, []);
 
-  const chooseReward = (kind: 'evolution' | 'mega-evolution') => {
-    if (syncRewardProgress(kind, streak).ready) openFormEvolution();
-  };
   const submitWish = () => {
     const text = wishText.trim();
     if (!text || !month.ready) return;
     if (wishKind === 'evolution' && wishNeedsMega(text) && !wishWarning) { setWishWarning(true); return; }
     saveEvolutionWish({ text, kind: wishWarning ? 'mega-evolution' : wishKind });
     setWishOpen(false);
-    openFormEvolution();
+    beginEvolution(wishWarning ? 'mega-evolution' : wishKind);
   };
 
   const openEditor = (target: EditTarget) => {
@@ -207,6 +210,17 @@ export function TodayChecklistScreen({ embedded = false, defaultDetailsOpen = fa
     }
   };
 
+  /* «Devo poter segnare riposo.» Prima l'unica strada era scrivere un testo
+     e sperare che la stima AI lo classificasse come riposo — un giro di
+     chiamata per una cosa che l'utente sa già di voler dire. Stesso segnale
+     che quel ramo di saveEstimate accende (WORKOUT → NOT_APPLICABLE), ma
+     diretto: nessuna stima da attendere, nessuna classificazione da sbagliare. */
+  const markRest = () => {
+    setDailySignal('WORKOUT', 'NOT_APPLICABLE', editText.trim() || 'riposo dichiarato');
+    setEditStatus('saved');
+    window.setTimeout(() => setEditTarget(null), 650);
+  };
+
   const detailsId = embedded ? 'me-today-details' : 'sync-today-details';
 
   return <main className={`today-check sync-check${embedded ? ' sync-check--embedded' : ''}`} aria-label={embedded ? 'Registro di oggi' : 'SYNC di oggi'}>
@@ -214,15 +228,19 @@ export function TodayChecklistScreen({ embedded = false, defaultDetailsOpen = fa
     {!embedded && <header className="sync-check__hero">
       <SyncDial
         balance={balance}
-        evolutionReady={evolution.ready}
-        megaReady={mega.ready}
-        wishReady={month.ready}
-        onEvolve={() => chooseReward('evolution')}
-        onMega={() => chooseReward('mega-evolution')}
+        evolutionReady={evolution.ready && !running}
+        megaReady={mega.ready && !running}
+        wishReady={month.ready && !running}
+        onEvolve={() => openFormEvolution('evolution')}
+        onMega={() => openFormEvolution('mega-evolution')}
+        breedReady={syncRewardProgress('breed').ready && !running && !breedJob}
+        onBreed={() => openFormEvolution('breed')}
         onWish={() => month.ready && setWishOpen(true)}
       />
     </header>}
 
+    {!embedded && <p className="sync-action-hint">Tieni premuto: TUNE · 2 / RISE · 7 / BREED · 15<br/>WISH · 30 — tocca per scrivere</p>}
+    {!embedded && breedJob && <p className="sync-action-hint" role="status">{!skipBreedWait && now<breedJob.readyAt ? `BREED in corso · pronto il ${new Date(breedJob.readyAt).toLocaleString('it-IT')}` : <button onClick={()=>useApp.getState().revealBreed()}>Incontra il BABY in NUL</button>}</p>}
     {!embedded && <section className="sync-check__signals" aria-label="Completamento di oggi">
       <div aria-label={`${MEALS.filter(({ slot }) => slots.has(slot)).length} pasti su 5 registrati`}>{MEALS.map(({ slot, label }) => <span key={slot} data-on={slots.has(slot)} title={label} />)}</div>
       <div className="sync-check__workouts" aria-label={`${todayWorkouts.length} allenamenti registrati`}>{Array.from({ length: Math.max(1, todayWorkouts.length) }, (_, index) => <span key={index} data-on={index < todayWorkouts.length} />)}</div>
@@ -276,6 +294,7 @@ export function TodayChecklistScreen({ embedded = false, defaultDetailsOpen = fa
         <input ref={fileRef} type="file" accept="image/*" capture="environment" className="sr-only" onChange={(event) => void pickPhoto(event.target.files?.[0])} />
         {editPhoto ? <div className="sync-entry__photo"><img src={editPhoto.dataUrl} alt="Foto da analizzare" /><span>{editPhoto.name}</span><button type="button" onClick={() => setEditPhoto(null)}>TOGLI</button></div> : <button type="button" className="sync-entry__camera" onClick={() => fileRef.current?.click()}><Icon name="camera" /> AGGIUNGI FOTO</button>}
         {editError && <p className="sync-entry__error" role="alert">{editError}</p>}
+        {editTarget.kind === 'workout' && <button type="button" className="sync-entry__rest" disabled={editStatus === 'loading'} onClick={markRest}>SEGNA RIPOSO</button>}
         <button type="submit" className="sync-entry__submit" disabled={editStatus === 'loading' || (!editTarget.entry && !editText.trim() && !editPhoto)}>{editStatus === 'loading' ? 'CALCOLO…' : editStatus === 'saved' ? 'SALVATO' : 'CALCOLA E SALVA'}</button>
         <small>Calorie e macro sono stime AI. Le calorie bruciate non sono una misura da wearable.</small>
       </form>
@@ -285,9 +304,9 @@ export function TodayChecklistScreen({ embedded = false, defaultDetailsOpen = fa
       <button type="button" className="sync-wish__backdrop" onClick={() => setWishOpen(false)} aria-label="Chiudi desiderio" />
       <form onSubmit={(event) => { event.preventDefault(); submitWish(); }}>
         <button type="button" className="sync-wish__close" onClick={() => setWishOpen(false)} aria-label="Chiudi"><Icon name="close" /></button>
-        <span>30 GIORNI COMPLETI</span><h2 id="sync-wish-title">ESPRIMI UN DESIDERIO</h2>
+        <span>30 SYNC</span><h2 id="sync-wish-title">ESPRIMI UN DESIDERIO</h2>
         <div className="sync-wish__kind"><button type="button" aria-pressed={wishKind === 'evolution'} onClick={() => { setWishKind('evolution'); setWishWarning(false); }}>EVOLUZIONE</button><button type="button" aria-pressed={wishKind === 'mega-evolution'} onClick={() => { setWishKind('mega-evolution'); setWishWarning(false); }}>MEGAEVOLUZIONE</button></div>
-        <textarea value={wishText} onChange={(event) => { setWishText(event.target.value); setWishWarning(false); }} placeholder="Vorrei che la prossima forma fosse…" maxLength={280} autoFocus />
+        <textarea value={wishText} onChange={(event) => { setWishText(event.target.value); setWishWarning(false); }} placeholder="Vorrei che il mio viaggio, il luogo o la prossima forma…" maxLength={280} autoFocus />
         {wishWarning && <p>CAMBIARE FAMIGLIA È UNA MEGAEVOLUZIONE. VUOI CONTINUARE COSÌ?</p>}
         <button type="submit" className="sync-wish__submit" disabled={!wishText.trim()}>{wishWarning ? 'SÌ, MEGAEVOLVI' : 'USA IL DESIDERIO'}</button>
       </form>

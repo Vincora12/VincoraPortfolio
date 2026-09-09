@@ -28,80 +28,34 @@
    il quadrante si limita a disegnare il numero che riceve.
    ========================================================================= */
 
-import type { CSSProperties } from 'react';
-
-const DIAL_TICKS = 30;
-
-export function SyncDial({
-  balance,
-  evolutionReady,
-  megaReady,
-  wishReady,
-  onEvolve,
-  onMega,
-  onWish,
-}: {
-  /** La riserva SPENDIBILE (`syncBalance`), non lo streak grezzo: scende
-   *  quando si usa un traguardo, sale solo avanzando nei giorni. */
-  balance: number;
-  evolutionReady: boolean;
-  megaReady: boolean;
-  wishReady: boolean;
-  /** Omessi in DEV: il quadrante diventa uno stato da leggere, non un comando. */
-  onEvolve?: () => void;
-  onMega?: () => void;
-  onWish?: () => void;
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { Icon, type IconName } from './Icon';
+export function SyncDial({balance,evolutionReady,megaReady,wishReady,breedReady=false,onEvolve,onMega,onWish,onBreed}: {
+  balance:number; evolutionReady:boolean; megaReady:boolean; wishReady:boolean; breedReady?:boolean;
+  onEvolve?:()=>void; onMega?:()=>void; onWish?:()=>void; onBreed?:()=>void;
 }) {
-  const done = Math.min(balance, DIAL_TICKS);
-  return (
-    <div className="sync-check__dial">
-      <div className="sync-check__ticks" aria-hidden="true">
-        {Array.from({ length: DIAL_TICKS }, (_, index) => (
-          <i
-            key={index}
-            className={index < done ? 'is-done' : ''}
-            style={{ '--dial-index': index } as CSSProperties}
-          />
-        ))}
-      </div>
-      <strong>{balance}</strong>
-      <SyncCheckpoint value="2" ready={evolutionReady} className="sync-checkpoint--2" label="Evolvi" onClick={onEvolve} />
-      <SyncCheckpoint value="7" ready={megaReady} className="sync-checkpoint--7" label="Megaevolvi" onClick={onMega} />
-      <SyncCheckpoint value="30" ready={wishReady} className="sync-checkpoint--30" label="Esprimi un desiderio" onClick={onWish} />
-    </div>
-  );
+  return <div className="sync-check__dial">
+    <div className="sync-check__ticks" aria-hidden="true">{Array.from({length:30},(_,i)=><i key={i} className={i<Math.min(balance,30)?'is-done':''} style={{'--dial-index':i} as CSSProperties}/>)}</div>
+    <strong>{balance}</strong>
+    <SyncCheckpoint value="2" icon="dna" ready={evolutionReady} className="sync-checkpoint--2" label="TUNE" onClick={onEvolve}/>
+    <SyncCheckpoint value="7" icon="globe" ready={megaReady} className="sync-checkpoint--7" label="RISE" onClick={onMega}/>
+    <SyncCheckpoint value="15" icon="branch" ready={breedReady} className="sync-checkpoint--15" label="BREED" onClick={onBreed}/>
+    <SyncCheckpoint value="30" icon="sparkle" ready={wishReady} className="sync-checkpoint--30" label="WISH" onClick={onWish} tap/>
+  </div>;
 }
-
-function SyncCheckpoint({
-  value,
-  ready,
-  className,
-  label,
-  onClick,
-}: {
-  value: string;
-  ready: boolean;
-  className: string;
-  label: string;
-  onClick?: () => void;
-}) {
-  if (!onClick) {
-    return (
-      <span className={`sync-checkpoint ${className}`} data-ready={ready} aria-label={`${label} al giorno ${value}`}>
-        {value}
-      </span>
-    );
-  }
-  return (
-    <button
-      type="button"
-      className={`sync-checkpoint ${className}`}
-      data-ready={ready}
-      onClick={onClick}
-      disabled={!ready}
-      aria-label={`${label} al giorno ${value}`}
-    >
-      {value}
-    </button>
-  );
+function SyncCheckpoint({value,icon,ready,className,label,onClick,tap=false}:{value:string;icon:IconName;ready:boolean;className:string;label:string;onClick?:()=>void;tap?:boolean}) {
+  const timer=useRef<ReturnType<typeof setTimeout>|null>(null);
+  const [holding,setHolding]=useState(false);
+  const latest=useRef(onClick);latest.current=onClick;
+  const cancel=()=>{if(timer.current!==null)clearTimeout(timer.current);timer.current=null;setHolding(false);};
+  useEffect(()=>{if(!ready)cancel();return cancel;},[ready]);
+  const start=()=>{if(!ready||tap||timer.current!==null)return;setHolding(true);timer.current=setTimeout(()=>{timer.current=null;setHolding(false);latest.current?.();},900);};
+  const description=`${label} · ${value} SYNC${tap?'':' · tieni premuto'}`;
+  if(!onClick)return <span className={`sync-checkpoint ${className}`} data-ready={ready} aria-label={description}><Icon name={icon}/></span>;
+  return <button type="button" className={`sync-checkpoint ${className}`} data-ready={ready} data-holding={holding} disabled={!ready} aria-label={description} title={description}
+    onPointerDown={e=>{if(e.button===0)start();}} onPointerUp={cancel} onPointerLeave={cancel} onPointerCancel={cancel} onBlur={cancel}
+    onKeyDown={e=>{if((e.key===' '||e.key==='Enter')&&!tap){e.preventDefault();if(!e.repeat)start();}}}
+    onKeyUp={e=>{if(!tap&&(e.key===' '||e.key==='Enter')){e.preventDefault();cancel();}}}
+    onClick={e=>{if(tap)onClick();else if(e.detail===0&&!holding&&timer.current===null)onClick();}}
+    onContextMenu={e=>e.preventDefault()}><Icon name={icon}/><svg className="sync-hold" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="22"/></svg></button>;
 }

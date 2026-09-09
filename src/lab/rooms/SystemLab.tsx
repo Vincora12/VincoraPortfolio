@@ -1352,6 +1352,9 @@ function Simulation({ onOpenUsage }: { onOpenUsage: () => void }) {
           <Btn variant={dev.unlockAll ? 'on' : undefined} onClick={() => setDev({ unlockAll: !dev.unlockAll })}>
             {dev.unlockAll ? 'ON' : 'OFF'} · UNLOCK RARITY
           </Btn>
+          <Btn variant={dev.skipBreedWait ? 'on' : undefined} onClick={() => setDev({ skipBreedWait: !dev.skipBreedWait })}>
+            {dev.skipBreedWait ? 'ON' : 'OFF'} · SKIP BREED WAIT
+          </Btn>
         </Grid>
         <Rows
           rows={[

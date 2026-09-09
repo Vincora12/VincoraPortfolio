@@ -201,6 +201,9 @@ export interface EvolutionState {
    ========================================================================= */
 
 export interface CharacterData {
+  formNameOrigin?: import('./culturalNaming').FormNameOrigin;
+  /** Canon v4: absent on historical forms; no retroactive redesign. */
+  lifeStage?: 'BABY' | 'FORM';
   /** Richiesta personale espressa nello sblocco SYNC mensile. */
   user_wish?: string;
   /** §24 step 17 — inizia per V, contiene Z, finisce in `.mon`, unico in lineage. */
@@ -328,7 +331,15 @@ export type { SigilSeed };
 
 /* --- BIO / PERSONAL FILE ---------------------------------------------------- */
 
+export interface CulturalPreference {
+  subject: string;
+  stance: 'love' | 'hate' | 'mixed' | 'curious';
+  reason: string;
+  tension: string;
+}
 export interface BioFile {
+  /** Persistent fictional preferences; the public bio is only their synthesis. */
+  culturalPortrait?: CulturalPreference[];
   story: string;
   annotations: string[];
   rememberedDetails: string[];
@@ -388,6 +399,8 @@ export interface MindlineNode {
   kind: NodeKind;
   monName: string;
   parentId: string | null;
+  /** Solo per un BABY da BREED: il secondo genitore. La mappa disegna due linee, non una. */
+  secondParentId?: string | null;
   day: number;
   chapter: number;
   label: string;
@@ -396,6 +409,11 @@ export interface MindlineNode {
 /* --- RECORD COMPLETO --------------------------------------------------------- */
 
 export interface MonRecord {
+  /** Stable provenance, using existing MindMap node ids and Heritage. */
+  transition?: { kind: 'BABY' | 'TUNE' | 'RISE' | 'BREED'; parentNodeIds: string[]; previousWorldId?: string; wish?: string };
+  narratorVersion?: number;
+  /** Sourced cultural discovery from this transition; separate from visual DNA. */
+  culturalDiscovery?: import('./culturalDiscovery').CulturalDiscovery;
   data: CharacterData;
   /** World in cui questa forma è nata/vissuta. Opzionale per i salvataggi legacy. */
   worldId?: string;

@@ -133,6 +133,8 @@ export function createNode(params: {
   kind: NodeKind;
   monName: string;
   parentId: string | null;
+  /** Solo per un BABY da BREED: il secondo genitore. */
+  secondParentId?: string | null;
   day: number;
   chapter: number;
   label: string;
@@ -142,6 +144,7 @@ export function createNode(params: {
     kind: params.kind,
     monName: params.monName,
     parentId: params.parentId,
+    secondParentId: params.secondParentId ?? null,
     day: params.day,
     chapter: params.chapter,
     label: params.label,
@@ -191,7 +194,8 @@ export interface LayoutNode {
 
 export interface MindlineLayout {
   nodes: LayoutNode[];
-  edges: { from: string; to: string }[];
+  /** `kind: 'breed'` è il secondo genitore: una traccia in più sullo stesso nodo, non un ramo dell'albero. */
+  edges: { from: string; to: string; kind?: 'breed' }[];
   columns: number;
   depth: number;
 }
@@ -201,7 +205,7 @@ export function layoutMindline(
   laneShiftFor: (from: MindlineNode, to: MindlineNode) => 0 | 1 | 2 = () => 0,
 ): MindlineLayout {
   const out: LayoutNode[] = [];
-  const edges: { from: string; to: string }[] = [];
+  const edges: { from: string; to: string; kind?: 'breed' }[] = [];
 
   const roots = nodes.filter((n) => n.parentId === null);
   let minColumn = 0;
@@ -245,6 +249,16 @@ export function layoutMindline(
     if (index > 0) nextSide = nextSide === 1 ? -1 : 1;
     walk(root, rootColumn, 0);
   });
+
+  // Un BABY da BREED ha già la sua traccia verso il genitore primario (sopra,
+  // dal walk dell'albero): questa è la seconda, verso l'altro genitore. Non
+  // sposta colonna/profondità di nessuno — è solo una traccia in più.
+  const presentIds = new Set(nodes.map((n) => n.id));
+  for (const node of nodes) {
+    if (node.secondParentId && presentIds.has(node.secondParentId)) {
+      edges.push({ from: node.secondParentId, to: node.id, kind: 'breed' });
+    }
+  }
 
   // Le coordinate pubbliche restano non-negative anche se il bilanciamento
   // interno usa corsie a sinistra dello zero.

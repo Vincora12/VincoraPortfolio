@@ -1,3 +1,6 @@
+import { rookieData } from '../engine/rookie';
+import { prepareBreed, breedReady, type BreedJob } from '../engine/breed';
+import { configureRestDayCheck, configureSyncWallet, rememberEarnedSync, type SyncWallet } from '../engine/syncRewards';
 /* ============================================================================
    STATO DELL'APPLICAZIONE
 
@@ -33,6 +36,7 @@ import {
   canCloseDay,
   dayBoundaryTimeForStart,
   dateForDay,
+  dayForDate,
   dayStatus,
   emptyDay,
   emptySync,
@@ -49,7 +53,7 @@ import {
   type DailySync,
   type SignalStatus,
 } from '../engine/progression';
-import { evolveMon, generateFirstMon, generateMon } from '../engine/characterGenerator';
+import { generateFirstMon, generateMon } from '../engine/characterGenerator';
 import type { BackendFailure, RemoteSave } from '../ai/backend';
 import type { CreativeResolution } from '../assets-pipeline/resolver/vendor/types';
 import { migratedStepModels, type VecchieScelte } from './migrateSteps';
@@ -167,8 +171,8 @@ import {
 } from '../engine/world';
 import { deservesThinking, extractFromMessage, extractionLabels } from '../engine/chatExtract';
 import { eggReply } from '../engine/eggVoice';
-import { projectJourneyState, resolveActiveMon } from '../engine/journey';
-import { buildNarrativeContext } from '../engine/narrativeContext';
+import { resolveActiveMon } from '../engine/journey';
+import { buildNarrativeContext, type NarrativeContext } from '../engine/narrativeContext';
 import { typingRhythmFor } from '../engine/typingRhythm';
 import { unpromptedFor, type UnpromptedKind } from '../engine/unprompted';
 import { buildMemoryBlock, recentTurns } from '../engine/memoryContext';
@@ -182,7 +186,6 @@ import {
 import {
   addOpinion,
   contradictOpinion,
-  inheritOpinions,
   opinionsBlock,
   type Opinion,
 } from '../engine/opinions';
@@ -268,6 +271,8 @@ export type Phase =
   | 'new-encounter';
 
 export type EvolutionKind = 'evolution' | 'mega-evolution';
+/** Cosa mostrare per prima quando si apre il dialogo — le stesse quattro scelte di NewBranchScreen. */
+export type EvolutionDialogChoice = EvolutionKind | 'breed' | 'wish';
 const ANGEL_ARCHETYPES_BY_STAGE: readonly (readonly string[])[] = [
   ['PUTTO', 'MESSENGER', 'GUARDIAN'],
   ['WARRIOR', 'VIRTUE'],
@@ -281,6 +286,8 @@ function angelArchetypesForStage(stage: number): readonly string[] {
 }
 
 export interface EvolutionJob {
+  events?: { at:string; text:string }[];
+  lastCheckedAt?: string;
   kind: EvolutionKind | 'hatch';
   status: 'running' | 'ready' | 'error';
   previousName: string | null;
@@ -316,6 +323,8 @@ export interface DevFlags {
   forceBranch: boolean;
   /** §25 DEV://UNLOCK_ALL — solo test, §29 lo vieta in produzione. */
   unlockAll: boolean;
+  /** BREED aspetta 24 ore vere apposta — non aggirabili con SIMULATION +1 GIORNO, che muove solo `day`. Questo flag serve solo a provarlo senza aspettare per davvero. */
+  skipBreedWait: boolean;
   /** §20.1 — soglie di rarità tarate a mano. `null` = quelle del config. */
   rarityThresholds: RarityThresholds | null;
   /** Solo DEV: forza il temperamento di nascita dei prossimi MON. */
@@ -479,6 +488,10 @@ interface AppState {
    * ha mai fatto una RISE, compresi tutti quelli legacy.
    */
   worldHistory: World[];
+  syncWallet: SyncWallet | null;
+  breedJob: BreedJob | null;
+  startBreed: (first: string, second: string) => string | null;
+  revealBreed: () => void;
   /** 🔷 v4 §10.2 — cosa è stato piantato, cosa raccolto, cosa non ripetere. */
   ledger: StoryLedger;
   /**
@@ -744,7 +757,11 @@ interface AppState {
   /** Micro-growth: stessa forma, un dettaglio matura (ogni 7 SYNC). */
   doMicroGrowth: () => void;
   /** Prepara l'offerta di Form Evolution mostrando cosa sopravvive. */
-  openFormEvolution: () => void;
+  evolutionDialogOpen: boolean;
+  /** Quale scheda mostrare per prima aprendo il dialogo — tenere premuto RISE lo apre già su RISE, non sempre su TUNE. */
+  pendingEvolutionChoice: EvolutionDialogChoice | null;
+  openFormEvolution: (choice?: EvolutionDialogChoice) => void;
+  closeEvolutionDialog: () => void;
   /** Accetta la trasformazione. È sempre una scelta: si può rimandare. */
   confirmFormEvolution: () => void;
   /** Avvia una trasformazione leggera o radicale senza bloccare l'app. */
@@ -1002,6 +1019,10 @@ const INITIAL = {
   eggs: [] as MonRecord[],
   world: null as World | null,
   worldHistory: [] as World[],
+  syncWallet: null,
+  breedJob: null,
+  evolutionDialogOpen: false,
+  pendingEvolutionChoice: null as EvolutionDialogChoice | null,
   ledger: emptyLedger(),
   protocol: EMPTY_PROTOCOL as Protocol,
   moodHistory: [] as MoodDayEntry[],
@@ -1047,6 +1068,7 @@ const INITIAL = {
     forceContinue: false,
     forceBranch: false,
     unlockAll: false,
+    skipBreedWait: false,
     /* §20.1 — soglie di rarità tarate a mano. `null` = quelle del config.
        Vive nello stato per sopravvivere a un ricaricamento: si tara in più
        sedute, non in una. */
@@ -1102,7 +1124,7 @@ const runningEvolutionJobs = new Set<string>();
  * stesso ruolo di `runningEvolutionJobs`, un guardiano leggero, non un lock
  * vero.
  */
-const worldIdentityRequested = new Set<string>();
+const worldIdentityRequested = new Map<string, Promise<World | null>>();
 
 /**
  * Risolve il World da mostrare a bio/narratore per il candidato di un
@@ -1112,7 +1134,7 @@ const worldIdentityRequested = new Set<string>();
  * chiave — e nel frattempo torna comunque il World deterministico che
  * `riseWorld()` ha già scritto, perché quello esiste sempre.
  */
-async function resolveWorldIdentity(
+async function resolveWorldIdentityOnce(
   set: (p: Partial<AppState> | ((s: AppState) => Partial<AppState>)) => void,
   get: () => AppState,
   candidateName: string,
@@ -1124,8 +1146,6 @@ async function resolveWorldIdentity(
   }
   const pendingWorld = job.pendingWorld;
   if (!s.token) return pendingWorld;
-  if (worldIdentityRequested.has(candidateName)) return get().evolutionJob?.pendingWorld ?? pendingWorld;
-  worldIdentityRequested.add(candidateName);
 
   const record = s.mons[candidateName];
   const previousWorld = s.world;
@@ -1147,6 +1167,79 @@ async function resolveWorldIdentity(
         : current.evolutionJob,
   }));
   return enriched;
+}
+
+const narrativePreparationJobs = new Map<string, Promise<void>>();
+function prepareEvolutionNarrative(get: () => AppState, name: string): Promise<void> {
+  const existing = narrativePreparationJobs.get(name);
+  if (existing) return existing;
+  const task = Promise.allSettled([get().writeBio(name), get().writeNarrator(name)]).then(() => undefined);
+  narrativePreparationJobs.set(name, task);
+  void task.finally(() => narrativePreparationJobs.delete(name));
+  return task;
+}
+const narrativeContextJobs = new Map<string, Promise<NarrativeContext>>();
+async function transitionNarrativeContext(set: (p: Partial<AppState> | ((s: AppState) => Partial<AppState>)) => void, get: () => AppState, name: string): Promise<NarrativeContext> {
+  const state=get(), record=state.mons[name]!;
+  const key=`${record.data.mindline_node}:${name}`;
+  const existing=narrativeContextJobs.get(key); if(existing) return existing;
+  const task=(async()=>{
+    const job=state.evolutionJob;
+    const isRise=job?.candidateName===name&&job.kind==='mega-evolution';
+    const world=isRise?await resolveWorldIdentity(set,get,name):(state.world?.id===record.worldId?state.world:[...state.worldHistory].reverse().find(w=>w.id===record.worldId)??state.world);
+    const previousMon=Object.values(state.mons).find(m=>m.data.mindline_node===record.data.origin_node);
+    const material: NonNullable<NarrativeContext['material']>=[];
+    if(state.token && record.transition?.kind!=='BABY') {
+      try {
+        const response=await fetch('/api/narrative-material',{method:'POST',headers:{Authorization:`Bearer ${state.token}`,'Content-Type':'application/json'},signal:AbortSignal.timeout(15000),body:JSON.stringify({query:[previousMon?.writtenBio?.culturalPortrait?.map(p=>p.subject).join(' '),record.data.user_wish,world?.name,world?.canon.slice(-3).map(e=>e.text).join(' ')].filter(Boolean).join(' ').slice(0,1000)})});
+        if(response.ok) {const data=await response.json(); if(Array.isArray(data.material)) material.push(...data.material.slice(0,6));}
+      } catch { /* persisted local narrative remains available */ }
+    }
+    material.push(...state.memories.filter(m=>m.day<=record.data.generated_at_day).slice(-3).map(m=>({id:m.id,text:m.text,epistemic:m.kind==='milestone'?'WORLD_CANON' as const:'FACT' as const,source:'memoria registrata'})));
+    return buildNarrativeContext({currentMon:record,previousMon,world,previousWorld:isRise?state.world:undefined,ledger:state.ledger,
+      transitionType:record.transition?.kind??(isRise?'RISE':job?.kind==='evolution'?'TUNE':undefined),wish:record.data.user_wish,material});
+  })();
+  narrativeContextJobs.set(key,task);
+  if(narrativeContextJobs.size>32) narrativeContextJobs.delete(narrativeContextJobs.keys().next().value!);
+  return task;
+}
+const culturalResearchJobs = new Map<string, Promise<void>>();
+async function ensureCulturalDiscovery(
+  set: (p: Partial<AppState> | ((s: AppState) => Partial<AppState>)) => void,
+  get: () => AppState,
+  monName: string,
+): Promise<void> {
+  const state = get(); const record = state.mons[monName];
+  if (!record || !record.data.origin_node || record.culturalDiscovery || !state.token) return;
+  const researchKey = `${record.data.mindline_node}:${monName}`;
+  const existing = culturalResearchJobs.get(researchKey);
+  if (existing) return existing;
+  const task = (async () => {
+    const { researchCulturalDiscovery } = await import('../ai/culturalDiscovery');
+    const previous = Object.values(state.mons).find(mon => mon.data.mindline_node === record.data.origin_node);
+    const discovery = await researchCulturalDiscovery(state.token!, record, previous?.culturalDiscovery?.title, stepModel('reflection'));
+    set(current => {
+      const now = current.mons[monName];
+      if (!now || now.data.seed !== record.data.seed) return {};
+      return { mons: { ...current.mons, [monName]: { ...now, culturalDiscovery: discovery } } };
+    });
+  })();
+  culturalResearchJobs.set(researchKey, task);
+  try { await task; } finally { culturalResearchJobs.delete(researchKey); }
+}
+async function resolveWorldIdentity(
+  set: (p: Partial<AppState> | ((s: AppState) => Partial<AppState>)) => void,
+  get: () => AppState,
+  candidateName: string,
+): Promise<World | null> {
+  const job = get().evolutionJob;
+  if (job?.candidateName !== candidateName || job.kind !== 'mega-evolution') return get().world;
+  let pending = worldIdentityRequested.get(candidateName);
+  if (!pending) {
+    pending = resolveWorldIdentityOnce(set, get, candidateName);
+    worldIdentityRequested.set(candidateName, pending);
+  }
+  return pending;
 }
 
 async function notifyEvolutionReady(monName: string): Promise<void> {
@@ -1500,6 +1593,7 @@ export const useApp = create<AppState>()(
               label: 'ROOT',
             }),
           ],
+          memories: [...s.memories, {id:`birth_${record.data.mindline_node}`,day:s.day,kind:'milestone',title:'Primo incontro a NUL',text:`${displayName(record.data.name)} nasce BABY a NUL e incontra l’utente.`,monName:record.data.name}],
           chat: [openingMessage(record, s.day, s.token !== null)],
           evolutionJob: {
             kind: 'hatch',
@@ -1737,7 +1831,10 @@ export const useApp = create<AppState>()(
           allowedArchetypes: angelArchetypesForStage(0),
         });
 
+        const world = seedWorld(record, s.day);
+        record.worldId = world.id;
         set({
+          world,
           /* Come una trasformazione: l'app resta utilizzabile mentre il
              server prepara CEL, Toy, doodle e reaction. */
           phase: 'live',
@@ -1755,6 +1852,7 @@ export const useApp = create<AppState>()(
             }),
           ],
           lastTrace: trace,
+          memories: [...s.memories, {id:`birth_${record.data.mindline_node}`,day:s.day,kind:'milestone',title:'Primo incontro a NUL',text:`${displayName(record.data.name)} nasce BABY a NUL e incontra l’utente.`,monName:record.data.name}],
           chat: [openingMessage(record, s.day, s.token !== null)],
           evolutionJob: {
             kind: 'hatch',
@@ -1794,88 +1892,18 @@ export const useApp = create<AppState>()(
 
       /* --- MICRO-GROWTH: stessa forma, un dettaglio che matura --- */
 
-      doMicroGrowth: () => {
-        const s = get();
-        const rec = activeRecord(s);
-        if (!rec) return;
-        if (!s.dev.forceContinue && s.progression.sync.sinceGrowth < PROGRESSION.microGrowthEvery) {
-          return;
-        }
+      // Growth uses the same confirmed TUNE path and retains backups.
+      doMicroGrowth: () => { set({phase:'live'}); get().openFormEvolution(); },
 
-        const nodeId = makeNodeId(s.nodes.length);
-
-        const { record, trace } = evolveMon(
-          rec,
-          {
-            input: generatorInput(s),
-            mindlineNodeId: nodeId,
-            originNodeId: rec.data.mindline_node,
-            heritageOrigins: [],
-            lineageNames: Object.keys(s.mons),
-            previous: rec,
-            seed: randomSeed(),
-          },
-          nodeId,
-        );
-        const recordWithWorld = s.world ? { ...record, worldId: s.world.id } : record;
-
-        set({
-          phase: 'evolution',
-          mons: { ...s.mons, [recordWithWorld.data.name]: recordWithWorld },
-          nodes: [
-            ...s.nodes,
-            createNode({
-              index: s.nodes.length,
-              kind: 'evolution',
-              monName: recordWithWorld.data.name,
-              parentId: rec.data.mindline_node,
-              day: s.day,
-              chapter: nextChapter(s.nodes, 'evolution'),
-              label: record.data.evolution_state?.label ?? 'BASIC FORM',
-            }),
-          ],
-          // Il contatore del micro-growth riparte; quello verso la forma no:
-          // «Missing days delay the evolution; they do not erase progress.»
-          progression: {
-            ...s.progression,
-            sync: { ...s.progression.sync, sinceGrowth: 0 },
-          },
-          memories: [
-            ...s.memories,
-            makeMemory({
-              id: `mem_evo_${s.day}_${s.nodes.length}`,
-              day: s.day,
-              event: {
-                kind: 'milestone',
-                title: `${record.data.evolution_state?.label ?? 'NUOVA FORMA'} sbloccata`,
-                text: 'Stessa forma, un dettaglio in più risolto.',
-                memorable: true,
-              },
-              monName: record.data.name,
-            }),
-          ],
-          lastTrace: trace,
-          mood: touchMood(s, record.data.mood_primary, ['EVOLUTO']),
-          // §16.3 — passa solo quello che era radicato, e con un grado di
-          // certezza in meno. La forma nuova non è la vecchia con più roba
-          // addosso: ha dimenticato qualcosa, ed è quello che la rende nuova.
-          opinions: inheritOpinions(s.opinions, record.data.name),
-          dev: { ...s.dev, forceContinue: false },
-        });
-
-        void preloadMonAssets(record.data.name);
-      },
-
-      /* --- FORM EVOLUTION: la stessa entità si trasforma --- */
-
-      openFormEvolution: () => {
+      closeEvolutionDialog: () => { clearEvolutionWish(); set({evolutionDialogOpen:false, pendingEvolutionChoice:null, ...(get().phase === 'form-evolution' ? {phase:'live' as const}: {})}); },
+      openFormEvolution: (choice) => {
         const s = get();
         const rec = activeRecord(s);
         if (!rec) return;
 
         const streak = gameDayStreak(s);
         const anyRewardReady = syncRewardProgress('evolution', streak).ready || syncRewardProgress('mega-evolution', streak).ready || syncRewardProgress('wish', streak).ready;
-        if (!s.dev.forceBranch && !anyRewardReady) return;
+        void anyRewardReady;
 
         // L'ancora si estrae qui, non alla conferma: la schermata deve poter
         // dire cosa resta *prima* che l'utente decida, altrimenti la scelta è
@@ -1884,111 +1912,60 @@ export const useApp = create<AppState>()(
         const plan = planContinuity(rng);
 
         set({
-          phase: 'form-evolution',
+          evolutionDialogOpen: true,
+          pendingEvolutionChoice: choice ?? 'evolution',
           pendingHeritage: selectHeritageOrigins(rng, rec),
           pendingPlan: plan,
         });
       },
 
-      confirmFormEvolution: () => {
+      confirmFormEvolution: () => { get().beginFormEvolution('evolution'); },
+
+      startBreed: (first, second) => {
         const s = get();
-        const previous = activeRecord(s);
-        if (!previous || s.phase !== 'form-evolution') return;
-
-        const nodeId = makeNodeId(s.nodes.length);
-        const { record, trace } = generateMon({
-          input: generatorInput(s),
-          mindlineNodeId: nodeId,
-          originNodeId: previous.data.mindline_node,
-          heritageOrigins: s.pendingHeritage,
-          lineageNames: Object.keys(s.mons),
-          previous,
-          continuity: s.pendingPlan?.keeps,
-          seed: randomSeed(),
-          devUnlockAll: s.dev.unlockAll,
-          devForcedMood: s.dev.forcedMood,
-          hiddenEvent: hiddenEventFor({
-            day: s.day,
-            formNumber: s.nodes.length + 1,
-            activeDays: s.progression.sync.lifetime,
-          }),
+        if (s.breedJob) return 'Un BREED è già in corso.';
+        if (s.evolutionJob?.status === 'running') return 'Attendi la trasformazione in corso.';
+        const a=s.mons[first], b=s.mons[second];
+        if (!a || !b || first===second || !s.nodes.some(n=>n.monName===first) || !s.nodes.some(n=>n.monName===second)) return 'Scegli due backup diversi dalla MindMap.';
+        if (!syncRewardProgress('breed').ready) return 'Servono 15 SYNC.';
+        const nodeId = `node_breed_${crypto.randomUUID()}`;
+        const job = prepareBreed(a,b,{input:generatorInput(s),mindlineNodeId:nodeId,originNodeId:a.data.mindline_node,heritageOrigins:[],lineageNames:Object.keys(s.mons),previous:a,seed:randomSeed()},Date.now());
+        if (!claimSyncReward('breed')) return 'SYNC non disponibile.';
+        set({breedJob:job});
+        scheduleRemoteSave();
+        return null;
+      },
+      revealBreed: () => {
+        const s=get(), job=s.breedJob;
+        if (!job || !(breedReady(job) || s.dev.skipBreedWait) || s.evolutionJob?.status==='running' || s.mons[job.candidate.data.name]) return;
+        let world=seedWorld(job.candidate,s.day);
+        const known=s.world?.id===world.id?s.world:[...s.worldHistory].reverse().find(w=>w.id===world.id);
+        if (known) world=withCanon(known,world.canon[0]!);
+        const record={...job.candidate,bornOnDay:s.day,data:{...job.candidate.data,generated_at_day:s.day},worldId:world.id};
+        const node=createNode({index:s.nodes.length,kind:'branch',monName:record.data.name,parentId:record.data.origin_node,secondParentId:s.mons[job.parentNames[1]]?.data.mindline_node??null,day:s.day,chapter:nextChapter(s.nodes,'branch'),label:'BREED · BABY'});
+        node.id=record.data.mindline_node;
+        set({breedJob:null,mons:{...s.mons,[record.data.name]:record},activeMonName:record.data.name,world,
+          worldHistory:s.world && s.world.id!==world.id?[...s.worldHistory,s.world]:s.worldHistory,
+          nodes:[...s.nodes,node],formsDiscovered:s.formsDiscovered+1,phase:'live',lastTrace:job.trace,
+          mood:applyMoodEvent(initialMood(record.data.mood_primary,s.day),'NATO',record.data.mood_primary,s.day),
+          evolutionJob:{kind:'hatch',status:'running',previousName:null,candidateName:record.data.name,done:0,total:generationOrder().length,label:'BABY IN NUL',error:null,serverJobId:null},
         });
-        const recordWithWorld = s.world ? { ...record, worldId: s.world.id } : record;
-
-        /* 🔶 QUI NASCEVANO I POST DELLA STANZA, e con loro il riconoscimento
-           che alzava l'appiglio della forma nuova (`MI_HANNO_RICONOSCIUTO`).
-           MIND.SOCIAL è uscita: l'evento d'umore resta nel catalogo, perché
-           toglierlo cambierebbe come si comportano gli umori, ma adesso non lo
-           scatena più nessuno. Quando la stanza torna, torna anche lui. */
-
-        // 🔶 Niente `carryMemoriesThroughBranch`: la memoria non si filtra più.
-        // VINZ.MON è una entità sola e le memorie sono sue, non della forma —
-        // la forma è solo un metadato sul ricordo.
-
-        set({
-          phase: 'new-encounter',
-          mons: {
-            ...s.mons,
-            [previous.data.name]: { ...previous, retiredOnDay: s.day },
-            [recordWithWorld.data.name]: recordWithWorld,
-          },
-          activeMonName: recordWithWorld.data.name,
-          formsDiscovered: s.formsDiscovered + 1,
-          nodes: [
-            ...s.nodes,
-            createNode({
-              index: s.nodes.length,
-              kind: 'branch',
-              monName: record.data.name,
-              parentId: previous.data.mindline_node,
-              day: s.day,
-              chapter: nextChapter(s.nodes, 'branch'),
-              label: 'BASIC FORM',
-            }),
-          ],
-          memories: s.memories,
-          mood: touchMood(s, record.data.mood_primary, []),
-          chat: [...s.chat, openingMessage(record, s.day, s.token !== null)].slice(-60),
-          pendingHeritage: [],
-          pendingPlan: null,
-          // Il bond NON si azzera: è la stessa relazione. Riparte solo il
-          // conteggio dei giorni dentro la forma.
-          progression: {
-            ...s.progression,
-            sync: { ...s.progression.sync, inForm: 0, sinceGrowth: 0 },
-          },
-          lastTrace: trace,
-          dev: { ...s.dev, forceBranch: false },
-        });
-
-        void preloadMonAssets(record.data.name);
-        /* 🔒 §22.4 — le facce partono da sole e NON si aspettano: la creatura è
-           già nata e già visibile, il sigillo fa da faccia finché il ritratto
-           non arriva. Non si tocca per il micro-growth: quella resta la stessa
-           creatura, e le sue immagini pure. */
-        /* 🔶 Qui partiva il ritratto da solo. Adesso non parte niente, e non è
-           una regressione: le immagini le chiede la schermata di incontro, una
-           per una, e le fa passare dal COMPILATORE — cosa che questa chiamata
-           non faceva. Generava dal prompt concatenato, cioè proprio quello che
-           produce le creature deformi.
-
-           🔒 Una porta sola. Se restasse anche questa, il ritratto esisterebbe
-           già quando la sequenza arriva al suo turno: sarebbe l'unico dei sei
-           mai approvato, e per giunta nato prima del master, quindi senza il
-           riferimento di consistenza che gli altri cinque hanno. */
-        requestIntroduction(set, get, record);
+        void get().resumeFormEvolution();
+        scheduleRemoteSave();
       },
 
       beginFormEvolution: (kind) => {
         const s = get();
         const previous = activeRecord(s);
-        if (!previous || s.phase !== 'form-evolution' || s.evolutionJob?.status === 'running') return;
+        if (!previous || (!s.evolutionDialogOpen && s.phase !== 'form-evolution') || s.evolutionJob?.status === 'running') return;
 
         const streak = gameDayStreak(s);
         const wish = readEvolutionWish();
         const usingWish = wish?.kind === kind && syncRewardProgress('wish', streak).ready;
         if (!s.dev.forceBranch && !usingWish && !syncRewardProgress(kind, streak).ready) return;
-        if (!s.dev.forceBranch) claimSyncReward(usingWish ? 'wish' : kind, streak);
+        if (!s.dev.forceBranch && !claimSyncReward(usingWish ? 'wish' : kind, streak)) return;
+
+        set({evolutionDialogOpen:false});
 
         /* Evoluzione conserva quasi tutto e cambia l'affinità visiva.
            Mega Evoluzione conserva soltanto il temperamento: è sempre la
@@ -1997,14 +1974,15 @@ export const useApp = create<AppState>()(
           ? ['family', 'size', 'role', 'fashion', 'mood_primary']
           : ['mood_primary'];
         const previousStage = previous.data.evolution_state?.stage ?? 0;
-        const nextStage = kind === 'evolution' ? previousStage + 1 : 0;
+        const young = previous.data.lifeStage === 'BABY' || previous.data.evolution_state?.label === 'ROOKIE';
+        const nextStage = kind === 'evolution' ? (young ? 1 : previousStage + 1) : 0;
         const nodeId = makeNodeId(s.nodes.length);
         const { record, trace } = generateMon({
           input: generatorInput(s),
           mindlineNodeId: nodeId,
           originNodeId: previous.data.mindline_node,
           heritageOrigins: s.pendingHeritage,
-          lineageNames: Object.keys(s.mons),
+          lineageNames: [...Object.keys(s.mons), ...(s.breedJob ? [s.breedJob.candidate.data.name] : [])],
           previous,
           continuity,
           seed: randomSeed(),
@@ -2013,6 +1991,8 @@ export const useApp = create<AppState>()(
           hiddenEvent: hiddenEventFor({ day: s.day, formNumber: s.nodes.length + 1, activeDays: s.progression.sync.lifetime }),
           allowedArchetypes: angelArchetypesForStage(nextStage),
         });
+        record.data.lifeStage = 'FORM';
+        record.transition = { kind: kind === 'evolution' ? 'TUNE' : 'RISE', parentNodeIds: [previous.data.mindline_node], previousWorldId: s.world?.id, wish: usingWish ? wish?.text : undefined };
         if (usingWish && wish) record.data.user_wish = wish.text;
         clearEvolutionWish();
 
@@ -2021,8 +2001,8 @@ export const useApp = create<AppState>()(
            visiva così diventa una conseguenza del percorso, non del caso. */
         record.data.evolution_state = kind === 'evolution'
           ? {
-              label: ['BASIC FORM', 'POWER FORM', 'HYPER FORM', 'OVERDRIVE FORM', 'TERMINAL FORM'][Math.min(previousStage + 1, 4)]!,
-              stage: previousStage + 1,
+              label: young ? 'ROOKIE' : ['BASIC FORM', 'POWER FORM', 'HYPER FORM', 'OVERDRIVE FORM', 'TERMINAL FORM'][Math.min(Math.max(0, ['BASIC FORM', 'POWER FORM', 'HYPER FORM', 'OVERDRIVE FORM', 'TERMINAL FORM'].indexOf(previous.data.evolution_state?.label ?? 'BASIC FORM') + 1), 4)]!,
+              stage: nextStage,
               previous_labels: [
                 ...(previous.data.evolution_state?.previous_labels ?? []),
                 previous.data.evolution_state?.label ?? 'BASIC FORM',
@@ -2033,6 +2013,7 @@ export const useApp = create<AppState>()(
               stage: 0,
               previous_labels: [],
             };
+        record.data = rookieData(record.data);
         /* 🔷 Narrative System Phase 2 — decisione canonica: RISE apre un World
            nuovo, TUNE resta in quello di adesso. Il World candidato nasce QUI,
            deterministico (`riseWorld`, stessa garanzia di `seedWorld`: esiste
@@ -2049,6 +2030,13 @@ export const useApp = create<AppState>()(
             ? { ...record, worldId: s.world.id }
             : record;
 
+        recordWithWorld.bio = { ...recordWithWorld.bio,
+          rememberedDetails: [
+            `${kind === 'evolution' ? 'TUNE' : 'RISE'}: continuo il percorso di ${displayName(previous.data.name)} a ${(pendingWorld ?? s.world)?.name ?? 'un nuovo luogo'}. La memoria è condivisa.`,
+            ...(record.data.user_wish ? [`Il desiderio dichiarato per questo passaggio: «${record.data.user_wish}».`] : []),
+            ...recordWithWorld.bio.rememberedDetails,
+          ],
+        };
         set({
           phase: 'live',
           mons: { ...s.mons, [recordWithWorld.data.name]: recordWithWorld },
@@ -2094,7 +2082,7 @@ export const useApp = create<AppState>()(
            fallback: se la chiamata non parte, resta quella deterministica del
            motore, che è già scritta e già mostrata. Il narratore no — senza
            questa riga non avrebbe nessun testo da nessuna parte. */
-        void get().writeNarrator(job.candidateName);
+        const narrativeReady = prepareEvolutionNarrative(get, job.candidateName);
 
         /* 🔴 UN LAVORO CHE NON PUÒ PARTIRE NON DEVE RESTARE «IN CORSO».
 
@@ -2135,7 +2123,7 @@ export const useApp = create<AppState>()(
            quando la rivelazione arriva — o resta quella di sempre se la
            chiamata fallisce, perché `writeBio` non tocca `writtenBio` in
            quel caso. */
-        void get().writeBio(job.candidateName);
+        // Bio and Narrator share the same event-scoped preparation above.
 
         void import('../assets-pipeline/remoteGeneration').then(async ({ queueRemoteGeneration, pollRemoteGeneration }) => {
           let serverJobId = job.serverJobId;
@@ -2158,7 +2146,7 @@ export const useApp = create<AppState>()(
             }
 
             const result = await pollRemoteGeneration(initial.token as string, serverJobId, record, (progress) => {
-              set((current) => ({ evolutionJob: current.evolutionJob?.candidateName === job.candidateName ? { ...current.evolutionJob, done: progress.done, total: progress.total, label: progress.label, error: progress.error } : current.evolutionJob }));
+              set((current) => ({ evolutionJob: current.evolutionJob?.candidateName === job.candidateName ? { ...current.evolutionJob, done: progress.done, total: progress.total, label: progress.label, error: progress.error, events: progress.events, lastCheckedAt: new Date().toISOString() } : current.evolutionJob }));
             });
             markAssetsMade(set, get, record.data.name, result.made);
             if (result.error) {
@@ -2166,13 +2154,16 @@ export const useApp = create<AppState>()(
               return;
             }
 
+            set(current=>({evolutionJob:current.evolutionJob?.candidateName===job.candidateName?{...current.evolutionJob,label:'COMPLETAMENTO BIO E NARRATORE',events:[...(current.evolutionJob.events??[]),{at:new Date().toISOString(),text:'Immagini importate. Attendo il completamento di bio e narratore.'}]}:current.evolutionJob}));
+            await narrativeReady;
             const current = get();
+            if (current.evolutionJob?.candidateName !== job.candidateName) return;
             const finished = current.mons[job.candidateName] ?? record;
             if (job.kind === 'hatch') {
               set({
                 mons: { ...current.mons, [record.data.name]: finished },
                 activeMonName: record.data.name,
-                evolutionJob: { ...job, serverJobId, status: 'ready', done: result.made.length, total: result.made.length, label: 'PRIMO MON PRONTO', error: null },
+                evolutionJob: { ...(current.evolutionJob ?? job), serverJobId, status: 'ready', done: result.made.length, total: result.made.length, label: 'PRIMO MON PRONTO', error: null },
               });
               void preloadMonAssets(record.data.name);
               void notifyEvolutionReady(record.data.name);
@@ -2184,7 +2175,7 @@ export const useApp = create<AppState>()(
                tocca il banner e apre la rivelazione. */
             set({
               mons: { ...current.mons, [record.data.name]: finished },
-              evolutionJob: { ...job, serverJobId, status: 'ready', done: result.made.length, total: result.made.length, label: 'NUOVO MON PRONTO', error: null },
+              evolutionJob: { ...(current.evolutionJob ?? job), serverJobId, status: 'ready', done: result.made.length, total: result.made.length, label: 'NUOVO MON PRONTO', error: null },
             });
             void preloadMonAssets(record.data.name);
             void notifyEvolutionReady(record.data.name);
@@ -2233,7 +2224,7 @@ export const useApp = create<AppState>()(
         const isRiseTransition = job.kind === 'mega-evolution' && Boolean(job.pendingWorld) && Boolean(current.world);
         const worldTransition = isRiseTransition
           ? {
-              world: job.pendingWorld!,
+              world: { ...job.pendingWorld!, currentStoryFunction: record.data.narrativeDNA?.function },
               worldHistory: [
                 ...current.worldHistory,
                 withCanon(current.world!, {
@@ -2258,7 +2249,7 @@ export const useApp = create<AppState>()(
                  (caso di bordo legacy). Non vale più per una RISE vera: vedi
                  il ramo sopra. */
               world: current.world
-                ? withCanon(current.world, {
+                ? withCanon({ ...current.world, currentStoryFunction: record.data.narrativeDNA?.function }, {
                     id: `canon_${job.kind}_${record.data.mindline_node}`,
                     day: current.day,
                     kind: job.kind === 'mega-evolution' ? 'mega-evolution' : 'evolution',
@@ -2266,7 +2257,7 @@ export const useApp = create<AppState>()(
                     text:
                       job.kind === 'mega-evolution'
                         ? `${displayName(previous.data.name)} è diventato ${displayName(record.data.name)}: il corpo è un altro, e qui si è aperto uno strato che prima non si vedeva.`
-                        : `${displayName(previous.data.name)} è diventato ${displayName(record.data.name)}. Il posto è lo stesso, ma non risponde più allo stesso modo.`,
+                        : `${displayName(previous.data.name)} è diventato ${displayName(record.data.name)}. Il World resta lo stesso; la memoria continua nella nuova forma.`,
                     monName: record.data.name,
                   })
                 : current.world,
@@ -2739,6 +2730,7 @@ export const useApp = create<AppState>()(
       /* §8.1 — la bio la riscrive un modello, con la stessa disciplina dei
          prompt: i fatti devono sopravvivere, e si scrive una volta sola. */
       writeBio: async (monName) => {
+        await ensureCulturalDiscovery(set, get, monName);
         const s = get();
         const rec = s.mons[monName];
         if (!rec) return 'nessuna creatura con questo nome';
@@ -2762,10 +2754,8 @@ export const useApp = create<AppState>()(
            World corrente via `journey.ts`, la stessa relazione Mon/World che
            ogni altro consumatore legge). Non un secondo contesto: la stessa
            risoluzione, letta due volte. */
-        const isRiseCandidate = s.evolutionJob?.candidateName === monName && s.evolutionJob.kind === 'mega-evolution' && Boolean(s.evolutionJob.pendingWorld);
-        const world = isRiseCandidate
-          ? await resolveWorldIdentity(set, get, monName)
-          : projectJourneyState({ mons: s.mons, activeMonName: s.activeMonName, world: s.world, ledger: s.ledger }).world;
+        const narrativeContext = await transitionNarrativeContext(set, get, monName);
+        const world = narrativeContext.world;
         /* 🔷 v4 §9 — «The Bio Writer should consume Narrative DNA. It should
            not invent an unrelated personality from scratch.» La spina arriva
            già dal `narrativeDNA` sul record; qui si aggiungono le altre due
@@ -2776,6 +2766,7 @@ export const useApp = create<AppState>()(
           (model) =>
             writeBioWithAi(s.token, rec, model, {
               memories: birthMemories,
+              narrative: narrativeContext,
               lens: s.firstSync ? lensLine(s.firstSync) : undefined,
               world: world ? worldBlock(world) : undefined,
             }),
@@ -2798,12 +2789,13 @@ export const useApp = create<AppState>()(
          deterministico: il narratore deve parlare «tutte le volte che nasce
          un mon», non solo quando la chiave funziona. */
       writeNarrator: async (monName) => {
+        await ensureCulturalDiscovery(set, get, monName);
         const s = get();
         const rec = s.mons[monName];
         if (!rec) return 'nessuna creatura con questo nome';
         if (rec.narratorLine) return null;
 
-        const { writeNarratorWithAi, narratorFallbackLine } = await import('../ai/narratorPrompt');
+        const { writeNarratorWithAi, narratorFallbackLine, NARRATOR_VERSION } = await import('../ai/narratorPrompt');
 
         /* 🔷 Narrative System Phase 2 — GOAL 4: Core Journey projection →
            NarrativeContext → Narrator, per davvero, non solo nei tipi.
@@ -2813,23 +2805,7 @@ export const useApp = create<AppState>()(
            candidato stesso non è ancora l'attivo. Le due fonti restano
            distinte di proposito: `journey.ts` non deve fingere di conoscere
            uno stato che non è ancora vero. */
-        const job = s.evolutionJob;
-        const isRiseCandidate = job?.candidateName === monName && job.kind === 'mega-evolution' && Boolean(job.pendingWorld);
-        const isTune = job?.candidateName === monName && job.kind === 'evolution';
-        const previousMon = job?.previousName ? s.mons[job.previousName] : undefined;
-        const world = isRiseCandidate
-          ? await resolveWorldIdentity(set, get, monName)
-          : projectJourneyState({ mons: s.mons, activeMonName: s.activeMonName, world: s.world, ledger: s.ledger }).world;
-
-        const narrativeContext = buildNarrativeContext({
-          currentMon: rec,
-          previousMon,
-          world,
-          previousWorld: isRiseCandidate ? s.world : undefined,
-          ledger: s.ledger,
-          transitionType: isRiseCandidate ? 'RISE' : isTune ? 'TUNE' : undefined,
-          wish: rec.data.user_wish,
-        });
+        const narrativeContext = await transitionNarrativeContext(set, get, monName);
 
         const { line, failure, rejected } = await runStep(
           'narrator',
@@ -2841,17 +2817,17 @@ export const useApp = create<AppState>()(
                non ricostruisce la transizione da sola, la legge da
                `narrativeContext.world` (vedi `worldBlock`, che mostra anche
                l'evento world-change già scritto in testa al suo canone). */
-            writeNarratorWithAi(s.token, rec, model, { world: narrativeContext.world ?? null, ledger: narrativeContext.ledger ?? s.ledger }),
+            writeNarratorWithAi(s.token, rec, model, narrativeContext),
           (out) => ({ ok: out.line !== null, why: out.rejected ?? out.failure ?? undefined }),
         );
 
-        const finalLine = line ?? narratorFallbackLine(rec);
+        const finalLine = line ?? narratorFallbackLine(rec, narrativeContext);
 
         set((cur) => {
           const now = cur.mons[monName];
           if (!now) return {};
           return {
-            mons: { ...cur.mons, [monName]: { ...now, narratorLine: finalLine } },
+            mons: { ...cur.mons, [monName]: { ...now, narratorLine: finalLine, narratorVersion: NARRATOR_VERSION } },
             /* 🔷 v4 §10.2 — quello che ha appena raccontato entra fra le cose
                da non rifare. È il meccanismo che rende il registro vero invece
                che un campo che qualcuno riempirà a mano: si alimenta da solo,
@@ -3558,10 +3534,14 @@ export const useApp = create<AppState>()(
         const rec = s.mons[node.monName];
         if (!rec) return;
 
+        const destination = rec.worldId === s.world?.id ? s.world : [...s.worldHistory].reverse().find(w => w.id === rec.worldId);
+        const returnedWorld = destination ? withCanon(destination, {id:`return_${node.id}_${Date.now()}`,day:s.day,kind:'return',epistemic:'WORLD_CANON',text:`${displayName(rec.data.name)} riattiva questo percorso con la memoria di oggi.`,monName:rec.data.name}) : s.world;
         set({
+          world: returnedWorld,
+          worldHistory: s.world && returnedWorld && s.world.id !== returnedWorld.id ? [...s.worldHistory,s.world] : s.worldHistory,
           activeMonName: node.monName,
           phase: 'live',
-          mons: { ...s.mons, [node.monName]: { ...rec, retiredOnDay: null } },
+          mons: { ...s.mons, [node.monName]: { ...rec, worldId: returnedWorld?.id ?? rec.worldId, retiredOnDay: null } },
           chat: [openingMessage(rec, s.day, s.token !== null)],
         });
 
@@ -3579,7 +3559,7 @@ export const useApp = create<AppState>()(
           mindlineNodeId: nodeId,
           originNodeId: rec.data.mindline_node,
           heritageOrigins: [],
-          lineageNames: Object.keys(s.mons),
+          lineageNames: [...Object.keys(s.mons), ...(s.breedJob ? [s.breedJob.candidate.data.name] : [])],
           previous: rec,
           seed: randomSeed(),
           devUnlockAll: s.dev.unlockAll,
@@ -3886,6 +3866,16 @@ export const useApp = create<AppState>()(
 );
 
 configureStorageTokenReader(() => useApp.getState().token);
+configureSyncWallet(() => useApp.getState().syncWallet, value => useApp.setState({ syncWallet:value }));
+/* «Segno riposo e non mi fa fare il SYNC» — vedi il commento in syncRewards.ts:
+   isCompleteHealthDay legge solo HealthJournal, un riposo dichiarato vive
+   invece nel segnale WORKOUT di DailySync, qui nello store principale. */
+configureRestDayCheck((date) => {
+  const s = useApp.getState();
+  const day = s.days[dayForDate(date, s.startedAt)];
+  return day?.signals.WORKOUT.status === 'NOT_APPLICABLE';
+});
+if (typeof window !== 'undefined') window.addEventListener('vinzmon-health-journal', rememberEarnedSync);
 
 export function applyRuntimeConfigToStore(config = runtimeConfig()): void {
   useApp.setState({

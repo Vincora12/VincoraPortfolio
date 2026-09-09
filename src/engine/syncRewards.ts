@@ -11,16 +11,34 @@ import { setLocalStorageItem } from '../system/localStorageDiagnostics';
 const REWARDS_KEY = 'vinzmon.sync.rewards.v2';
 const WISH_KEY = 'vinzmon.sync.wish.v1';
 
-export type SyncRewardKind = 'evolution' | 'mega-evolution' | 'wish';
-export type EvolutionWish = { text: string; kind: Exclude<SyncRewardKind, 'wish'> };
+export type SyncRewardKind = 'evolution' | 'mega-evolution' | 'breed' | 'wish';
+export type EvolutionWish = { text: string; kind: 'evolution' | 'mega-evolution' };
 
 const localDay = (date: Date) => `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
 const previousDay = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate() - 1);
 
+/* 🔷 «Segno riposo e comunque non mi fa fare il SYNC.» Dichiarare un giorno di
+   riposo passa il segnale WORKOUT a NOT_APPLICABLE (`DailySync.signals`, in
+   `state/store.ts`) — quello che `canCloseDay` in `engine/progression.ts`
+   tratta già come «noto quanto un dato vero». Ma questa funzione non guarda
+   `DailySync`: guarda solo `HealthJournal` (pasti e allenamenti veri, un
+   registro separato), dove un riposo dichiarato non lascia mai una riga —
+   giusto così, un riposo non è un allenamento inventato. Risultato: lo
+   stesso giorno risultava «noto» per canCloseDay e «senza allenamento» qui,
+   cioè per il SYNC dial — la stessa domanda con due risposte diverse.
+
+   🔒 INIEZIONE, NON IMPORT DIRETTO DI `state/store.ts` — store.ts importa
+   già da questo file (`configureSyncWallet` usa lo stesso schema): un import
+   nella direzione opposta sarebbe circolare. */
+let restDayReader: ((date: Date) => boolean) | undefined;
+export function configureRestDayCheck(read: (date: Date) => boolean): void {
+  restDayReader = read;
+}
+
 export function isCompleteHealthDay(journal: HealthJournal, date: Date): boolean {
   const key = localDay(date);
   const slots = new Set(journal.meals.filter((item) => localDay(new Date(item.at)) === key).map((item) => item.slot));
-  const trained = journal.workouts.some((item) => localDay(new Date(item.at)) === key);
+  const trained = journal.workouts.some((item) => localDay(new Date(item.at)) === key) || Boolean(restDayReader?.(date));
   return MEAL_SLOTS.every((slot) => slots.has(slot)) && trained;
 }
 
@@ -47,7 +65,7 @@ export function completeDayStreak(journal = readHealthJournal(), referenceDate =
   return streak;
 }
 
-export const SYNC_REWARD_DAYS: Record<SyncRewardKind, number> = { evolution: 2, 'mega-evolution': 7, wish: 30 };
+export const SYNC_REWARD_DAYS: Record<SyncRewardKind, number> = { evolution: 2, 'mega-evolution': 7, breed: 15, wish: 30 };
 
 /* 🔷 «Se uso il due, il sette o il trenta, il SYNC deve fare meno due, meno
    sette, meno trenta — e si ricarica solo andando avanti coi giorni.»
@@ -58,31 +76,44 @@ export const SYNC_REWARD_DAYS: Record<SyncRewardKind, number> = { evolution: 2, 
    restava piena anche subito dopo averla usata. Adesso c'è un'unica riserva
    spendibile, `streak - speso`: usarne una parte la abbassa per TUTTI i
    traguardi, ed è quello che il quadrante disegna. */
-function readSpent(streak: number): number {
-  try {
-    const raw = JSON.parse(localStorage.getItem(REWARDS_KEY) ?? '0');
-    const spent = typeof raw === 'number' && raw >= 0 ? raw : 0;
-    // Se la serie si è interrotta e ricominciata, una spesa vecchia non può
-    // restare per sempre più alta della serie nuova: risucchierebbe ogni
-    // giorno futuro finché lo streak non la raggiunge di nuovo da capo.
-    return spent <= streak ? spent : 0;
-  } catch { return 0; }
+export interface SyncWallet { earnedDates: string[]; spent: number }
+let walletReader: (() => SyncWallet | null) | undefined;
+let walletWriter: ((value: SyncWallet) => void) | undefined;
+export function configureSyncWallet(read: () => SyncWallet | null, write: (value: SyncWallet) => void): void {
+  walletReader = read; walletWriter = write;
 }
-
-/** Quanto SYNC è davvero spendibile ORA: lo streak meno quanto già usato. */
-export function syncBalance(streak = completeDayStreak()): number {
-  return Math.max(0, streak - readSpent(streak));
+function completeDates(): string[] {
+  const journal = readHealthJournal();
+  const dates = [...new Set(journal.meals.map(m => localDay(new Date(m.at))))];
+  return dates.filter(key => {
+    const [year, month, day] = key.split('-').map(Number);
+    return isCompleteHealthDay(journal, new Date(year!, month!, day!));
+  });
 }
-
-export function syncRewardProgress(kind: SyncRewardKind, streak = completeDayStreak()) {
-  const need = SYNC_REWARD_DAYS[kind];
-  const balance = syncBalance(streak);
+/** Existing server-synced save owns the wallet. Historical complete days remain
+ * earned across gaps, entry edits and reloads. The old local counter is imported once. */
+export function currentSyncWallet(): SyncWallet {
+  const saved = walletReader?.();
+  let legacySpent = 0;
+  if (!saved) { try { const v = JSON.parse(localStorage.getItem(REWARDS_KEY) ?? '0'); if (typeof v === 'number' && v >= 0) legacySpent = v; } catch { /* no legacy balance */ } }
+  return { earnedDates: [...new Set([...(saved?.earnedDates ?? []), ...completeDates()])], spent: saved?.spent ?? legacySpent };
+}
+export function rememberEarnedSync(): void {
+  const next = currentSyncWallet(); const before = walletReader?.();
+  if (walletWriter && JSON.stringify(before) !== JSON.stringify(next)) walletWriter(next);
+}
+export function syncBalance(_streak?: number): number {
+  const wallet = currentSyncWallet();
+  return Math.max(0, wallet.earnedDates.length - wallet.spent);
+}
+export function syncRewardProgress(kind: SyncRewardKind, _streak?: number) {
+  const need = SYNC_REWARD_DAYS[kind], balance = syncBalance();
   return { have: Math.min(need, balance), need, ready: balance >= need };
 }
-
-export function claimSyncReward(kind: SyncRewardKind, streak = completeDayStreak()): boolean {
-  if (!syncRewardProgress(kind, streak).ready) return false;
-  setLocalStorageItem('engine/syncRewards', REWARDS_KEY, JSON.stringify(readSpent(streak) + SYNC_REWARD_DAYS[kind]));
+export function claimSyncReward(kind: SyncRewardKind, _streak?: number): boolean {
+  const wallet = currentSyncWallet();
+  if (wallet.earnedDates.length - wallet.spent < SYNC_REWARD_DAYS[kind] || !walletWriter) return false;
+  walletWriter({ ...wallet, spent: wallet.spent + SYNC_REWARD_DAYS[kind] });
   return true;
 }
 
@@ -94,4 +125,4 @@ export function readEvolutionWish(): EvolutionWish | null {
     return value?.text && (value.kind === 'evolution' || value.kind === 'mega-evolution') ? value : null;
   } catch { return null; }
 }
-export function wishNeedsMega(text: string): boolean { return /cambi(?:a|are).*famigli|altra famiglia|nuova famiglia|famiglia diversa/i.test(text); }
+export function wishNeedsMega(text: string): boolean { return /cambi(?:a|are).*famigli|altra famiglia|nuova famiglia|famiglia diversa|(?:nuovo|altro|cambiare) (?:mondo|world|luogo|posto)|andare in un posto|attraversare|voglio partire/i.test(text); }
