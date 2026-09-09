@@ -535,8 +535,11 @@ export async function replyWithLocalTools(
      taglia via proprio nel turno in cui servirebbero. */
   const calendarRequest = /\b(calendari\w*|agenda|impegn\w*|appuntament\w*)\b/i.test(user);
   const vaultRequest = /\b(secondo cervello|second brain|obsidian|vault)\b/i.test(user);
+  const icloudRequest = /\bicloud\b/i.test(user);
   const connectorRequest = /\b(connettor\w*|integrazion\w*)\b/i.test(user);
   const skillRequest = /\bskill\w*\b/i.test(user);
+  const driveRequest = /\b(drive|documento\w*|foglio di calcolo|presentazione|slide)\b/i.test(user);
+  const emailRequest = /\b(email|e-mail|mail|gmail|posta)\b/i.test(user);
   const basePool = isAudit ? [...CODE_TOOL_DEFS, ...TOOLS.filter(tool => tool.name === 'leggi_me' || tool.name === 'leggi_i_miei_dati')]
     : isCodeInspectionIntent(user) && !isHealthRequest ? CODE_TOOL_DEFS : TOOLS.filter((tool) => (reminderRequest && tool.name === 'programma_promemoria')
     /* ⚠️ I FILE NON SONO UN ARGOMENTO «SALUTE» O «NON SALUTE». Chiedere «leggi
@@ -548,8 +551,11 @@ export async function replyWithLocalTools(
     || (recallRequest && tool.name === 'cerca_conversazione')
     || (calendarRequest && tool.name === 'leggi_calendario_google')
     || (vaultRequest && tool.name === 'cerca_secondo_cervello')
+    || (icloudRequest && tool.name === 'cerca_icloud')
     || (connectorRequest && tool.name === 'chiama_connettore_personalizzato')
     || (skillRequest && tool.name === 'leggi_skill')
+    || (driveRequest && (tool.name === 'cerca_drive' || tool.name === 'leggi_file_drive'))
+    || (emailRequest && tool.name === 'cerca_email')
     /* ⚠️ IL SÌ NON CONTIENE PIÙ LA PAROLA CHIAVE. «Vai, crea» non fa scattare
        `reminderRequest`, quindi al giro della conferma lo strumento sarebbe
        sparito dal pool e il modello avrebbe risposto «non posso» dopo che
@@ -572,8 +578,11 @@ export async function replyWithLocalTools(
         : recallRequest && name === 'cerca_conversazione' ? 3
         : calendarRequest && name === 'leggi_calendario_google' ? 3
         : vaultRequest && name === 'cerca_secondo_cervello' ? 3
+        : icloudRequest && name === 'cerca_icloud' ? 3
         : connectorRequest && name === 'chiama_connettore_personalizzato' ? 3
         : skillRequest && name === 'leggi_skill' ? 3
+        : driveRequest && (name === 'cerca_drive' || name === 'leggi_file_drive') ? 3
+        : emailRequest && name === 'cerca_email' ? 3
         : shared?.projectId && projectTools.has(name) ? 2 : 0;
       return priority(b.name) - priority(a.name);
     }).filter((tool) => {

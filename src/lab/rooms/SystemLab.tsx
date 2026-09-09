@@ -37,6 +37,7 @@ import { estimateMonthlyCost } from '../../engine/costEstimate';
 import {
   AI_STEPS,
   AI_STEP_ORDER,
+  TEXT_CHEAP_CHOICES,
   choicesFor,
   recommendedModel,
 } from '../../../netlify/functions/_shared/routing';
@@ -73,7 +74,6 @@ import {
 } from '../storageInspector';
 import { lastStorageOperation } from '../../system/localStorageDiagnostics';
 import { LiveDebug } from './liveDebug';
-import { Connectors } from './ConnectorsLab';
 
 const TABS = [
   { id: 'setup', label: 'SETUP' },
@@ -88,12 +88,6 @@ const TABS = [
      vivono ora dentro CREATION.LAB, dove c'era già FLOW/STATE/HISTORY —
      un solo posto per «chi è / come nasce» il .mon, non due. */
   { id: 'ai', label: 'AI' },
-  /* 🔷 «Google, second brain e connettori custom a cui lui può attingere
-     informazioni.» Vive accanto ad AI perché è la stessa domanda — «con
-     quali credenziali parla il mondo fuori da VINZ.MON» — ma sono chiavi che
-     restano nel browser (vedi `connectors/types.ts`), mai in `.env`: due
-     schede vicine, non la stessa scheda. */
-  { id: 'connectors', label: 'CONNETTORI' },
   { id: 'simulation', label: 'SIMULATION' },
   /* 🔷 Era «MEMORY», ed era il nome sbagliato: qui dentro non c'è mai stata
      una memoria personale, sono MOOD/OPINIONS/BUILD MODE — lo strato di
@@ -138,7 +132,6 @@ export function SystemLab({ onBack }: { onBack: () => void }) {
         {tab === 'setup' && <Setup />}
         {tab === 'save' && <Save />}
         {tab === 'ai' && <Ai />}
-        {tab === 'connectors' && <Connectors />}
         {tab === 'simulation' && <Simulation onOpenUsage={() => setTab('usage')} />}
         {tab === 'memory' && <Memory />}
         {tab === 'machines' && <Machines />}
@@ -209,12 +202,8 @@ function Machines() {
     <PageHead kicker="SYSTEM.LAB / MACHINE MASTER" title="MACHINES" lead="Macchine indipendenti: lavorano solo quando vengono attivate, mai prima di una risposta in chat." />
     {error && <Notice title="MACHINE STATE NON DISPONIBILE">Il server non risponde oppure manca il token.</Notice>}
     {!machines && !error && <p className="note">Lettura dello stato…</p>}
-    <Notice title="MODELLO — DA DOVE VIENE">
-      Ogni macchina qui sotto usa lo stesso modello scelto in AI → RIFLESSIONE (`preferredModel`):
-      non sono due sistemi separati. Se lì non hai scelto niente, la macchina non cade sul
-      predefinito Claude che AI → RIFLESSIONE mostra: cade sul predefinito del server per questa
-      capacità, che oggi è OpenAI gpt-5.6-luna. La riga USAGE qui sotto, dopo un run, dice sempre
-      il modello VERO — non questa nota.
+    <Notice title="MODELLO">
+      Usa quello scelto in AI → RIFLESSIONE, o il predefinito del server se non hai scelto nulla. USAGE qui sotto mostra sempre il modello vero.
     </Notice>
     {machines?.map((machine) => <Section key={machine.id} title={machine.name}>
       <Rows rows={[
@@ -299,7 +288,7 @@ function Setup() {
 
       <Section
         title="SYSTEM STATUS"
-        note="Configurato e funzionante sono due cose diverse: questa tabella chiama /api/setup e /api/ping insieme, e mostra il primo anello che non regge."
+        note="Chiama /api/setup e /api/ping insieme: mostra il primo anello che non regge."
       >
         <Rows
           rows={[
@@ -327,7 +316,7 @@ function Setup() {
           pezzo: solo sì e no. */}
       <Section
         title="PROVIDERS"
-        note="Chiedere l'elenco dei modelli non costa niente e non consuma token: se questa riga è rossa, il problema è dalla parte del fornitore, non del codice."
+        note="Non costa niente: se questa riga è rossa, il problema è del fornitore, non del codice."
       >
         {!ping?.data ? (
           <p className="note">Premi RUN SYSTEM CHECK per interrogare i fornitori.</p>
@@ -355,7 +344,7 @@ function Setup() {
 
       <Section
         title="DAY START TIME"
-        note="Il confine ricorrente del giorno VINZ.MON. Cambiarlo non riscrive la storia: il tempo reale può solo recuperare un giorno rimasto indietro."
+        note="Cambiarlo non riscrive la storia: recupera solo un giorno rimasto indietro."
       >
         <div className="day-boundary-control">
           <label htmlFor="day-boundary-time">INIZIO GIORNO</label>
@@ -517,8 +506,7 @@ function Save() {
 
       {!token && (
         <Notice title="NESSUN TOKEN">
-          Senza segreto non c'è niente da chiedere: vai in SETUP e incolla il segreto già su
-          Netlify.
+          Vai in SETUP e incolla il segreto già su Netlify.
         </Notice>
       )}
 
@@ -542,28 +530,22 @@ function Save() {
             <>
               {verdetto === 'allineati' && (
                 <Notice title="🟢 ALLINEATI">
-                  Quello che vedi qui è anche quello che c'è sul server. Se chiudi tutto adesso,
-                  non perdi niente.
+                  Nessun rischio a chiudere.
                 </Notice>
               )}
               {verdetto === 'server-indietro' && (
                 <Notice title="🔴 IL SERVER È INDIETRO">
-                  Qualcosa che hai qui non è ancora arrivato sul server. Il salvataggio parte
-                  quattro secondi dopo l'ultima cosa che fai — se resta indietro a lungo, usa
-                  SALVA QUESTO STATO SUL SERVER qui sotto.
+                  Si allinea da solo in pochi secondi. Se resta indietro, usa SALVA QUESTO STATO SUL SERVER.
                 </Notice>
               )}
               {verdetto === 'server-avanti' && (
                 <Notice title="🟡 IL SERVER HA PIÙ ROBA">
-                  Se non hai fatto NUOVA PARTITA, si scarica da sola al prossimo avvio. Se hai
-                  resettato di proposito o per sbaglio, quel salvataggio resta bloccato apposta:
-                  usa RIPRENDI DAL SERVER per tornare a quella copia.
+                  Arriva da sola al prossimo avvio, a meno che tu non abbia resettato di proposito — allora usa RIPRENDI DAL SERVER.
                 </Notice>
               )}
               {verdetto === 'divergenti' && (
-                <Notice title="🟠 LE DUE COPIE SONO DIVERSE IN DUE DIREZIONI">
-                  Ognuna ha qualcosa che l'altra non ha — succede con due dispositivi in
-                  parallelo. Guarda i numeri prima di scegliere un'azione.
+                <Notice title="🟠 LE DUE COPIE SONO DIVERSE">
+                  Guarda i numeri prima di scegliere un'azione.
                 </Notice>
               )}
 
@@ -838,20 +820,12 @@ function KeyField({ v, token, onSaved }: { v: SetupVar; token: string | null; on
  * modelli diventano scelte vere per MEMORY/INSEGNA/eccetera, con lo stesso
  * meccanismo AUTOMODE già in questa pagina — non serve altro qui.
  */
-function LocalLlm({ token }: { token: string | null }) {
-  const [state, setState] = useState<{ online: boolean; installed: string[]; recommended: { model: string; label: string; it: string }[] } | null>(null);
+interface LocalLlmState { online: boolean; installed: string[]; recommended: { model: string; label: string; it: string }[] }
+
+function LocalLlm({ token, state, reload }: { token: string | null; state: LocalLlmState | null; reload: () => void }) {
   const [pulling, setPulling] = useState<string | null>(null);
   const [error, setError] = useState('');
-
-  const reload = useCallback(() => {
-    if (!token) return;
-    void fetch('/api/local-llm', { headers: { authorization: `Bearer ${token}` } })
-      .then((response) => response.json())
-      .then(setState)
-      .catch(() => setState(null));
-  }, [token]);
-
-  useEffect(() => { reload(); }, [reload]);
+  const [customModel, setCustomModel] = useState('');
 
   async function pull(model: string) {
     setPulling(model);
@@ -865,6 +839,7 @@ function LocalLlm({ token }: { token: string | null }) {
       const data = (await response.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
       if (!response.ok || !data?.ok) throw new Error(data?.error ?? 'Download non riuscito.');
       reload();
+      setCustomModel('');
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Download non riuscito.');
     } finally {
@@ -872,16 +847,14 @@ function LocalLlm({ token }: { token: string | null }) {
     }
   }
 
+  const extraInstalled = state?.installed.filter((m) => !state.recommended.some((r) => r.model === m)) ?? [];
+
   return (
-    <Section
-      title="LLM LOCALE"
-      note="Gratis, gira sul Mac, niente esce da qui. Adatto a giudizi brevi (MEMORY, INSEGNA), non alla riflessione settimanale, che legge mesi di storia in un colpo solo."
-    >
+    <Section title="LLM LOCALE" note="Gratis, gira sul Mac. Bene per giudizi brevi, non per la riflessione che legge mesi di storia.">
       {!state && <p className="note">Verifico se Ollama è acceso…</p>}
       {state && !state.online && (
         <Notice title="OLLAMA NON RAGGIUNGIBILE">
-          Installalo da ollama.com, aprilo una volta — resta nella barra dei menu — poi torna qui: questa
-          pagina lo vede da sola appena risponde su localhost.
+          Installalo da ollama.com e aprilo — questa pagina lo vede da sola.
         </Notice>
       )}
       {state?.online && state.recommended.map((m) => {
@@ -892,15 +865,42 @@ function LocalLlm({ token }: { token: string | null }) {
               <strong className="mono">{m.label}</strong>
               <Status label={has ? 'SCARICATO' : 'NON SCARICATO'} ok={has} />
             </div>
-            <p className="note">{m.it}</p>
             {!has && (
               <Btn onClick={() => void pull(m.model)} disabled={pulling !== null}>
-                {pulling === m.model ? 'STO SCARICANDO… (qualche minuto)' : 'SCARICA'}
+                {pulling === m.model ? 'STO SCARICANDO…' : 'SCARICA'}
               </Btn>
             )}
           </div>
         );
       })}
+      {state?.online && extraInstalled.map((m) => (
+        <div key={m} className="keyfield">
+          <div className="keyfield__head">
+            <strong className="mono">{m}</strong>
+            <Status label="SCARICATO" ok />
+          </div>
+        </div>
+      ))}
+      {state?.online && (
+        <div className="keyfield">
+          <div className="keyfield__head"><strong className="mono">ALTRO MODELLO</strong></div>
+          <p className="note">Nome esatto come su ollama.com/library, es. "mistral" o "codellama:7b".</p>
+          <div className="keyfield__row">
+            <input
+              type="text"
+              className="mono"
+              value={customModel}
+              onChange={(e) => setCustomModel(e.target.value)}
+              placeholder="nome-modello:tag"
+              aria-label="Nome modello Ollama"
+              disabled={pulling !== null}
+            />
+            <Btn onClick={() => void pull(customModel.trim())} disabled={pulling !== null || !customModel.trim()}>
+              {pulling === customModel.trim() ? 'STO SCARICANDO…' : 'SCARICA'}
+            </Btn>
+          </div>
+        </div>
+      )}
       {error && <Notice title="ERRORE">{error}</Notice>}
     </Section>
   );
@@ -911,6 +911,20 @@ function Ai() {
   const setStepModel = useApp((s) => s.setStepModel);
   const token = useApp((s) => s.token);
   const runs = Object.fromEntries(lastRuns());
+
+  /* Sollevato da LocalLlm: un modello scaricato a mano (fuori dai 5
+     suggeriti) deve poter comparire come opzione negli step qui sotto, non
+     solo nella sua scheda — un solo posto che sa "cosa è scaricato", non
+     due stati separati che possono disallinearsi. */
+  const [localLlm, setLocalLlm] = useState<LocalLlmState | null>(null);
+  const reloadLocalLlm = useCallback(() => {
+    if (!token) return;
+    void fetch('/api/local-llm', { headers: { authorization: `Bearer ${token}` } })
+      .then((response) => response.json())
+      .then(setLocalLlm)
+      .catch(() => setLocalLlm(null));
+  }, [token]);
+  useEffect(() => { reloadLocalLlm(); }, [reloadLocalLlm]);
 
   /* «Metti anche stato per vedere se sono online, com'era nel DEV.» Stessa
      domanda di sempre — `/api/setup` la sa già per fornitore, non solo per
@@ -948,10 +962,7 @@ function Ai() {
       <Notice title={`STIMA MENSILE: $${stima.totalUsd.toFixed(2)}`}>
         {stima.byCategory.map((c) => `${c.label} · $${c.usd.toFixed(2)}`).join(' — ')}
         <br />
-        Premesse: {Math.round(stima.assunzioni.evoluzioniAlMese)} evoluzioni al mese (una ogni 2
-        giorni) · {stima.assunzioni.messaggiAlGiorno} messaggi al giorno (assunto, non dichiarato)
-        · uno su cinque merita il modello pieno. Stima, non contatore: token per chiamata
-        ragionevoli non misurati, senza cache — tende ad essere un filo alta, non bassa.
+        Stima approssimativa, non un contatore — tende ad essere alta piuttosto che bassa.
       </Notice>
 
       {/* 🔷 «Devo poter mettere le API key sul lab.» Prima l'unico modo era
@@ -964,12 +975,24 @@ function Ai() {
         ))}
       </Section>
 
-      <LocalLlm token={token} />
+      <LocalLlm token={token} state={localLlm} reload={reloadLocalLlm} />
 
       <div style={{ marginTop: 12 }}>
         {AI_STEP_ORDER.map((id) => {
           const step = AI_STEPS[id];
-          const pool = choicesFor(step.capability);
+          /* Un modello Ollama scaricato a mano (fuori dai 5 suggeriti) diventa
+             scelta qui da solo — nessun secondo posto dove "registrarlo". */
+          const knownModels = new Set(TEXT_CHEAP_CHOICES.map((c) => c.model));
+          const extraLocal = step.capability === 'text-cheap'
+            ? (localLlm?.installed ?? []).filter((m) => !knownModels.has(m)).map((m) => ({
+                provider: 'ollama' as const,
+                model: m,
+                label: `${m} (locale)`,
+                price: { input: 0, output: 0 },
+                it: 'Locale, scaricato a mano.',
+              }))
+            : [];
+          const pool = [...choicesFor(step.capability), ...extraLocal];
           const consiglio = recommendedModel(id);
           const run = runs[id];
 
@@ -1241,9 +1264,7 @@ function Simulation({ onOpenUsage }: { onOpenUsage: () => void }) {
           ed è falsa qui. Una promessa giusta in una stanza diventa una bugia
           nella stanza accanto se nessuno dice dove finisce. */}
       <Notice title="⚠️ QUESTA PAGINA CAMBIA LA CREATURA VERA">
-        Non è una simulazione a parte: è lo stesso stato di VINZ.MON. I giorni
-        che fai passare qui sono passati davvero, e con la chiave attiva
-        finiscono anche sul server.
+        I giorni che fai passare qui sono passati davvero, anche sul server.
       </Notice>
 
       <Tempo day={day} onAdvance={() => simulateSyncedDays(1)} onOpenUsage={onOpenUsage} />
@@ -1388,13 +1409,12 @@ function Memory() {
       />
 
       <Notice title="⚠️ ANCHE QUI SI SCRIVE">
-        La modalità operativa qui sotto è quella vera: accesa, il .mon smette di essere
-        un personaggio anche nella chat normale, finché non la rispegni.
+        Accesa, resta attiva anche nella chat normale finché non la spegni.
       </Notice>
 
       <Section
         title="ARCHIVE"
-        note="La memoria CONVERSAZIONALE del .mon — non Mem0, non memoria personale: è l'archivio che alimenta la voce, come lo era già in DEV → VOCE → MEMORIA."
+        note="Memoria conversazionale del .mon — non Mem0, non memoria personale."
       >
         <Rows
           rows={[
@@ -1665,11 +1685,8 @@ function Usage() {
             spesa (per un Mon tipico, la maggioranza dei centesimi sono
             immagini). Non è un errore da correggere: è cosa dice davvero
             il numero. */}
-        <Notice title="ACCURATEZZA — TESTO ATTUALE, IMMAGINI STIMATE">
-          Il costo del TESTO viene dai token veri restituiti dal fornitore. Il costo delle
-          IMMAGINI è una stima — prezzo per immagine dal listino × fattore di qualità — non la
-          fattura reale, che questa app non riceve. Il totale sotto è quindi MISTO: preciso sul
-          testo, stimato sulle immagini (di solito la voce più grande).
+        <Notice title="ACCURATEZZA">
+          Testo: costo vero. Immagini: stimato dal listino, non la fattura reale.
         </Notice>
         {/* 🔷 «Il LAB mostra i costi ma non il limite interno che può bloccare
             l'AI.» Prima riga della pagina, prima di ogni dettaglio: quanto ho
@@ -1771,9 +1788,7 @@ function LastMonCost({ events }: { events: UsageEvent[] }) {
     return (
       <Section title="COSTO PER MON — ULTIMA CREAZIONE">
         <Notice title="NESSUNA CORRELAZIONE ANCORA">
-          Prima di questo aggiornamento nessuna chiamata portava il nome del .mon nel registro di
-          spesa: non si può ricostruire il costo di creazioni passate senza inventarlo. Da adesso
-          in poi, ogni immagine forgiata lo dichiara — la prossima forgia comparirà qui.
+          Le creazioni passate non sono nel registro spese. Da ora, ogni immagine forgiata ci sarà.
         </Notice>
       </Section>
     );
@@ -1789,7 +1804,7 @@ function LastMonCost({ events }: { events: UsageEvent[] }) {
   return (
     <Section
       title="COSTO PER MON — ULTIMA CREAZIONE"
-      note="Solo le chiamate che portano il nome del .mon (oggi: le immagini). Resolver e Bio non sono ancora etichettati — non contati qui, non inventati."
+      note="Solo le chiamate che portano il nome del .mon (oggi: le immagini)."
     >
       <Rows
         rows={[
@@ -2122,7 +2137,7 @@ function StorageInspector() {
 
       <Section
         title="LOCAL STORAGE"
-        note="Tutte le chiavi del dominio, misurate byte per byte (UTF-16, come le tiene davvero il motore) — non è una stima. Nessun browser espone il tetto specifico di localStorage: LIMIT lo dice invece di indovinarlo, e STATUS viene solo da un QuotaExceededError reale o da una soglia prudenziale dichiarata come tale."
+        note="Tutte le chiavi del dominio, misurate byte per byte — non una stima."
       >
         {!local || !localStatus ? <p className="note">Lettura…</p> : <>
           <Rows rows={[
@@ -2144,7 +2159,7 @@ function StorageInspector() {
 
       <Section
         title="SERVER STATE"
-        note="Il salvataggio della partita (`/api/state`, store vinzmon-state) — l'unico che ha un tetto duro. Letto dal Runtime Log, non da una richiesta a sé: è la stessa osservabilità, non una seconda copia."
+        note="Il salvataggio della partita — l'unico con un tetto duro."
       >
         {lastStateSave === undefined ? <p className="note">Lettura…</p> : lastStateSave === null ? (
           <p className="note">Nessun salvataggio recente nel Runtime Log (48h). Modifica qualcosa nell'app: il prossimo salvataggio comparirà qui.</p>
@@ -2450,14 +2465,12 @@ function Legacy() {
       />
 
       <Notice title="✅ IL FLUSSO PRINCIPALE È NATIVO">
-        SAVE, CREATION (Flow con Archetipi/Lessons/Asset/State), PERSONA (Voice/Mood/Opinions),
-        SIMULATION (Tempo/+1 giorno/SYNC) e AI sono componenti di LAB, non finestre su DEV:
-        chiamano le stesse azioni dello store, disegnate coi mattoni del laboratorio.
+        SAVE, CREATION, PERSONA, SIMULATION e AI sono già native in LAB, non finestre su DEV.
       </Notice>
 
       <Section
         title="ANCORA SOLO IN DEV"
-        note="Ognuna con la ragione per cui non è (ancora) qui: taratura, diagnostica del motore, o setup una tantum — non il flusso quotidiano."
+        note="La ragione per cui ognuna non è ancora qui."
       >
         {LEGACY_REMAINING.map((r) => (
           <div key={r.titolo} style={{ padding: '9px 0', borderBottom: '1px solid var(--line)' }}>

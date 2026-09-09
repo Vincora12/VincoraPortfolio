@@ -17,7 +17,7 @@
    non solo cosa è già acceso.
    ========================================================================= */
 
-export type ShortcutActionId = 'meal' | 'workout' | 'checkin' | 'weight' | 'memory' | 'goal';
+export type ShortcutActionId = 'meal' | 'workout' | 'checkin' | 'weight' | 'location' | 'nowplaying' | 'focus' | 'battery' | 'memory' | 'goal';
 
 export interface ShortcutActionDef {
   id: ShortcutActionId;
@@ -67,6 +67,38 @@ export const SHORTCUT_ACTIONS: Record<ShortcutActionId, ShortcutActionDef> = {
     aiPolicy: 'usually',
     enabled: true,
   },
+  location: {
+    id: 'location',
+    label: 'POSIZIONE',
+    it: 'Dove sei adesso (indirizzo, non tracciato nel tempo): sostituisce la precedente, non si accumula.',
+    input: 'text',
+    aiPolicy: 'never',
+    enabled: true,
+  },
+  nowplaying: {
+    id: 'nowplaying',
+    label: 'ORA IN ASCOLTO',
+    it: 'Cosa stai ascoltando adesso: sostituisce la precedente, non si accumula.',
+    input: 'text',
+    aiPolicy: 'never',
+    enabled: true,
+  },
+  focus: {
+    id: 'focus',
+    label: 'FOCUS',
+    it: 'La modalità Focus/Non disturbare attiva adesso: sostituisce la precedente, non si accumula.',
+    input: 'text',
+    aiPolicy: 'never',
+    enabled: true,
+  },
+  battery: {
+    id: 'battery',
+    label: 'BATTERIA',
+    it: 'Percentuale di batteria adesso: sostituisce la precedente, non si accumula.',
+    input: 'number',
+    aiPolicy: 'never',
+    enabled: true,
+  },
   memory: {
     id: 'memory',
     label: 'RICORDO',
@@ -85,7 +117,7 @@ export const SHORTCUT_ACTIONS: Record<ShortcutActionId, ShortcutActionDef> = {
   },
 };
 
-export const SHORTCUT_ACTION_ORDER: ShortcutActionId[] = ['weight', 'checkin', 'workout', 'meal', 'memory', 'goal'];
+export const SHORTCUT_ACTION_ORDER: ShortcutActionId[] = ['weight', 'checkin', 'workout', 'meal', 'location', 'nowplaying', 'focus', 'battery', 'memory', 'goal'];
 
 export function isShortcutAction(value: unknown): value is ShortcutActionId {
   return typeof value === 'string' && value in SHORTCUT_ACTIONS;

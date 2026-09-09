@@ -72,6 +72,10 @@ export interface PendingAction {
   workout?: { title: string; details: string; minutes: number };
   checkin?: { text: string };
   weight?: { kg: number };
+  location?: { text: string };
+  nowplaying?: { text: string };
+  focus?: { text: string };
+  battery?: { percent: number };
 }
 
 async function enqueue(entry: PendingAction): Promise<void> {
@@ -250,6 +254,31 @@ export default async function handler(request: Request): Promise<Response> {
        «i passi dicono» (vietato, §21) e «hai scritto tu» (già permesso). */
     await enqueue({ id: genId('checkin'), action: 'checkin', at: at.toISOString(), checkin: { text } });
     return ok({ message: 'Come stai, registrato', summary: text.length > 80 ? `${text.slice(0, 80)}…` : text });
+  }
+
+  if (actionId === 'location') {
+    if (!text) return fail('testo mancante');
+    await enqueue({ id: genId('location'), action: 'location', at: at.toISOString(), location: { text } });
+    return ok({ message: 'Posizione registrata', summary: text.length > 80 ? `${text.slice(0, 80)}…` : text });
+  }
+
+  if (actionId === 'nowplaying') {
+    if (!text) return fail('testo mancante');
+    await enqueue({ id: genId('nowplaying'), action: 'nowplaying', at: at.toISOString(), nowplaying: { text } });
+    return ok({ message: 'Ascolto registrato', summary: text.length > 80 ? `${text.slice(0, 80)}…` : text });
+  }
+
+  if (actionId === 'focus') {
+    if (!text) return fail('testo mancante');
+    await enqueue({ id: genId('focus'), action: 'focus', at: at.toISOString(), focus: { text } });
+    return ok({ message: 'Focus registrato', summary: text });
+  }
+
+  if (actionId === 'battery') {
+    const percent = sane(body.number, 0, 100);
+    if (percent === null) return fail('percentuale non valida — atteso un numero fra 0 e 100');
+    await enqueue({ id: genId('battery'), action: 'battery', at: at.toISOString(), battery: { percent } });
+    return ok({ message: 'Batteria registrata', summary: `${percent}%` });
   }
 
   if (actionId === 'workout') {

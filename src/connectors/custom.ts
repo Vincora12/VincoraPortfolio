@@ -31,7 +31,7 @@ export async function callCustomConnector(
   path: string,
 ): Promise<{ ok: true; body: string } | { ok: false; error: string }> {
   const connector = loadCustomConnectors().find((c) => c.id === id);
-  if (!connector) return { ok: false, error: `Nessun connettore custom con id "${id}". Controlla LAB → CONNETTORI.` };
+  if (!connector) return { ok: false, error: `Nessun connettore custom con id "${id}". Controlla FILES.` };
 
   let url: URL;
   try {

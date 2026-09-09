@@ -166,10 +166,14 @@ Risposta:
 
 Le azioni oggi accese sono `weight` (un numero in `"number"`, zero AI),
 `checkin` (le tue parole in `"text"`, salvate così come sono — è COME STO),
-`workout` (`"text"` libero, più `"number"` di minuti se lo sai) e `meal`
-(`"text"`; la foto è una fase successiva). `DEV → SHORTCUT API` nell'app
-mostra la stessa tabella con un esempio pronto da copiare e le ultime
-chiamate davvero fatte.
+`workout` (`"text"` libero, più `"number"` di minuti se lo sai), `meal`
+(`"text"`; la foto è una fase successiva), `location` (`"text"` con
+l'indirizzo/luogo attuale), `nowplaying` (`"text"` con cosa stai
+ascoltando), `focus` (`"text"` con la modalità Focus attiva) e `battery`
+(un numero 0-100 in `"number"`). Le ultime quattro sono zero AI e
+sostituiscono sempre il valore precedente — non si accumula uno storico.
+`DEV → SHORTCUT API` nell'app mostra la stessa tabella con un esempio
+pronto da copiare e le ultime chiamate davvero fatte.
 
 > 🔷 Il .mon non applica il risultato all'istante: lo mette in una coda, come
 > fa già `/api/ingest`, e lo scrive nella partita **con le stesse funzioni di

@@ -918,7 +918,7 @@ export type ShortcutMealSlot = 'colazione' | 'spuntino' | 'pranzo' | 'merenda' |
 
 export interface PendingShortcutAction {
   id: string;
-  action: 'meal' | 'workout' | 'checkin' | 'weight';
+  action: 'meal' | 'workout' | 'checkin' | 'weight' | 'location' | 'nowplaying' | 'focus' | 'battery';
   at: string;
   meal?: {
     slot: ShortcutMealSlot;
@@ -932,6 +932,10 @@ export interface PendingShortcutAction {
   workout?: { title: string; details: string; minutes: number };
   checkin?: { text: string };
   weight?: { kg: number };
+  location?: { text: string };
+  nowplaying?: { text: string };
+  focus?: { text: string };
+  battery?: { percent: number };
 }
 
 /** Svuota la coda: come `loadIngested`, il .mon la chiede quando è pronto e il

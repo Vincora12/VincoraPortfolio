@@ -20,6 +20,7 @@ import {
 } from "@/brain/stream";
 import type { BrainMessage } from "@/brain/store/types";
 import { executeRuntimeTool, loadEnabledSkillsSummary, type ToolResult, type ToolUse } from "@/ai/tools";
+import { connectorsSummaryForProject } from "@/connectors/summary";
 import { readHealthJournal } from "@/engine/healthJournal";
 import { useApp } from "@/state/store";
 import type { ContextDecision } from '@/ai/contextSelection';
@@ -997,6 +998,7 @@ export function createNetlifyChatModel(
       // registri veri dei tool, mai una lista scritta a mano scollegata.
       systemPrompt += buildCapabilitySummary(true);
       systemPrompt += await loadEnabledSkillsSummary(token);
+      systemPrompt += connectorsSummaryForProject(projectId ?? null);
       if (runTool && useTools) {
         yield* runWithLocalTools(
           args.messages,

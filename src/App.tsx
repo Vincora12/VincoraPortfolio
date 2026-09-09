@@ -65,14 +65,6 @@ const IntegratedChat = lazy(() => import('./assistant-original/IntegratedChat').
    del lab in uno shadow root; caricato solo quando il cassetto viene
    davvero aperto la prima volta, non al boot dell'app. */
 const LabEmbed = lazy(() => import('./lab/embed/LabEmbed').then((module) => ({ default: module.LabEmbed })));
-/* CREATION LAB FIX + UI CLEANUP §16 — il DEBUG che viveva dentro la Chat
-   (invisibile da MON/SYNC/ME perché quel sottoalbero resta CSS-hidden
-   fuori dal tab CHAT) si sposta qui: stesso componente, stesso runtime,
-   solo montato dal vano tecnico globale invece che da dentro la Chat.
-   Lazy: `chatgpt.tsx` porta con sé tutto assistant-ui, che oggi carica
-   solo quando la Chat stessa viene aperta — restare lazy anche qui evita
-   di anticiparlo nel bundle principale. */
-const ChatDebugTrigger = lazy(() => import('./assistant-original/components/examples/chatgpt').then((module) => ({ default: module.ChatDebugTrigger })));
 
 /* TOOL LAYER PHASE 1 — le capacità tecniche condivise (code_search/code_read,
    `src/ai/toolLayer.ts`) vengono provate PRIMA del catalogo legato allo
@@ -1283,7 +1275,6 @@ function SystemControls({
     <ActivateChip onClick={onActivate} />
     <MachineInsightChip onOpen={onOpenInsight} />
     <MeMachineStatus />
-    <Suspense fallback={null}><ChatDebugTrigger /></Suspense>
     {showDev && <button type="button" className="devtrigger" onClick={onOpenDev} aria-label="Apri il pannello sviluppatore">DEV</button>}
     <button type="button" className="labtrigger" onClick={onOpenLab} aria-label="Apri VINZ.LAB">LAB</button>
   </>;

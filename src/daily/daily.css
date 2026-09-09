@@ -337,6 +337,62 @@
   display: none;
 }
 
+/* --- COLLEGAMENTI — a quale progetto vale un connettore già collegato ----- */
+.daily-panel__section {
+  margin-top: 8px;
+}
+
+.daily-scope {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 6px;
+}
+
+.daily-scope__btn {
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  background: transparent;
+  color: #9a9a9a;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+}
+
+.daily-scope__btn[aria-pressed='true'] {
+  border-color: currentColor;
+  background: #ececec;
+  color: #111;
+}
+
+.daily-row--connector {
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.daily-row--nested {
+  padding-left: 16px;
+  border-bottom: 0;
+}
+
+.daily-input {
+  width: 100%;
+  min-height: 40px;
+  margin: 8px 0 0;
+  padding: 0 12px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  color: #ececec;
+  font-size: 13px;
+}
+
+.daily-input::placeholder {
+  color: #6f6f6f;
+}
+
 /* --- AGGIUNGI UNA SKILL — pop up nativo, solo store ------------------------
    🔷 «Lo store non è intuitivo, e va tolto dal Lab: un pop up con solo lo
    store, che si apre da "Aggiungi una skill".»

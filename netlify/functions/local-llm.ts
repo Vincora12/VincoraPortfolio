@@ -7,14 +7,14 @@
    di `openAiProtocol`, vedi `providers.ts`) e sa scaricare i modelli da sé.
    Questo endpoint non sostituisce Ollama — lo installa l'utente da
    ollama.com, come per una chiave API — gli fa solo da porta: dice se è
-   acceso, cosa è già scaricato, e scarica un modello dell'elenco chiuso.
+   acceso, cosa è già scaricato, e scarica qualunque modello della libreria
+   Ollama tu scelga (ollama.com/library) — non solo i 5 suggeriti.
 
-   🔒 ELENCO CHIUSO ANCHE QUI, STESSA LOGICA DI `secrets.ts`. Non si passa un
-   nome di modello a piacere: significherebbe che chi ha il token può far
-   scaricare al Mac dell'utente un file arbitrario di qualunque dimensione da
-   qualunque origine Ollama sappia raggiungere. I nomi ammessi sono gli stessi
-   di `TEXT_CHEAP_CHOICES` in routing.ts — non una seconda lista da tenere
-   allineata a mano.
+   🔒 VALIDAZIONE DI FORMA, NON PIÙ UN ELENCO CHIUSO. «Voglio collegare i vari
+   modelli e scaricarli io se voglio» — quindi `model` non è più ristretto ai
+   nomi di `TEXT_CHEAP_CHOICES`: basta che assomigli davvero a un tag Ollama
+   (`SAFE_MODEL_NAME`). Resta comunque un download verso Ollama stesso, mai
+   verso un URL arbitrario: la richiesta va sempre e solo a `${base()}/api/pull`.
 
    ⚠️ NIENTE TIMEOUT DA RISPETTARE. Scaricare un modello da 2-4 GB richiede
    minuti, non secondi — su una vera funzione Netlify sarebbe stato ucciso a
@@ -30,6 +30,9 @@ function base(): string {
 }
 
 const RECOMMENDED = TEXT_CHEAP_CHOICES.filter((c) => c.provider === 'ollama');
+
+/** Tag Ollama valido: `nome`, `nome:tag`, o `namespace/nome:tag`. Niente URL, niente percorsi. */
+const SAFE_MODEL_NAME = /^[a-z0-9]([a-z0-9._-]*[a-z0-9])?(\/[a-z0-9]([a-z0-9._-]*[a-z0-9])?)?(:[a-z0-9]([a-z0-9._-]*[a-z0-9])?)?$/i;
 
 async function handleGet(request: Request): Promise<Response> {
   const auth = authorize(request);
@@ -69,8 +72,8 @@ async function handlePost(request: Request): Promise<Response> {
     return json({ error: 'body non leggibile' }, 400);
   }
   if (body.action !== 'pull') return json({ error: 'azione non supportata' }, 400);
-  const model = body.model ?? '';
-  if (!RECOMMENDED.some((c) => c.model === model)) return json({ error: 'modello non consentito' }, 400);
+  const model = (body.model ?? '').trim();
+  if (!model || model.length > 100 || !SAFE_MODEL_NAME.test(model)) return json({ error: 'nome modello non valido' }, 400);
 
   try {
     const response = await fetch(`${base()}/api/pull`, {

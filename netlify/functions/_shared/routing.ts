@@ -583,6 +583,27 @@ export const TEXT_CHEAP_CHOICES: CheapChoice[] = [
     price: { input: 0, output: 0 },
     it: 'Stessa taglia di Llama 3.2, un\'altra azienda: utile per confrontare le due risposte sullo stesso compito piccolo prima di fidarsi.',
   },
+  {
+    provider: 'ollama',
+    model: 'phi3.5:3.8b',
+    label: 'Phi-3.5 3.8B (locale)',
+    price: { input: 0, output: 0 },
+    it: 'Gratis, locale. Microsoft, taglia simile agli altri due.',
+  },
+  {
+    provider: 'ollama',
+    model: 'gemma2:2b',
+    label: 'Gemma 2 2B (locale)',
+    price: { input: 0, output: 0 },
+    it: 'Gratis, locale. Il più leggero: più veloce, meno capace.',
+  },
+  {
+    provider: 'ollama',
+    model: 'qwen2.5:1.5b-instruct',
+    label: 'Qwen2.5 1.5B (locale)',
+    price: { input: 0, output: 0 },
+    it: 'Gratis, locale. Ancora più leggero della versione 3B.',
+  },
 ];
 
 export const VISION_QUICK_CHOICES: CheapChoice[] = [

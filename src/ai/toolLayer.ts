@@ -291,9 +291,9 @@ export function buildCapabilitySummary(webSearchAvailable: boolean): string {
     lines.push('Posso cercare informazioni sul web quando serve.');
   }
   if (hasAllToolNames(['leggi_calendario_google'], registry)) {
-    lines.push('Posso leggere il tuo Google Calendar, le note di un vault Obsidian, o un servizio custom — solo se li hai collegati tu in LAB → CONNETTORI.');
+    lines.push('Posso leggere il tuo Google Calendar, Google Drive, Gmail, le note di un vault Obsidian, una cartella iCloud Drive, o un servizio custom — solo se li hai collegati tu in FILES.');
   }
-  lines.push('Non ho accesso al tuo computer, al filesystem del tuo dispositivo, a Gmail, o ad altri servizi non elencati qui e non collegati da te in LAB → CONNETTORI: se me li chiedi, dillo chiaramente invece di far finta di poterlo fare.');
+  lines.push('Non ho accesso al tuo computer, al filesystem del tuo dispositivo, a Gmail, o ad altri servizi non elencati qui e non collegati da te in FILES: se me li chiedi, dillo chiaramente invece di far finta di poterlo fare.');
 
   return [
     '',

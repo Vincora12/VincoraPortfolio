@@ -4143,6 +4143,30 @@ export async function pullShortcutQueue(): Promise<number> {
         applied++;
       }
     }
+
+    if (item.action === 'location' && item.location) {
+      const { saveLocation } = await import('../engine/locationSignal');
+      saveLocation(item.location.text, item.at);
+      applied++;
+    }
+
+    if (item.action === 'nowplaying' && item.nowplaying) {
+      const { saveNowPlaying } = await import('../engine/deviceSignals');
+      saveNowPlaying(item.nowplaying.text, item.at);
+      applied++;
+    }
+
+    if (item.action === 'focus' && item.focus) {
+      const { saveFocus } = await import('../engine/deviceSignals');
+      saveFocus(item.focus.text, item.at);
+      applied++;
+    }
+
+    if (item.action === 'battery' && item.battery) {
+      const { saveBattery } = await import('../engine/deviceSignals');
+      saveBattery(item.battery.percent, item.at);
+      applied++;
+    }
   }
 
   if (applied > 0) useApp.setState({ days });

@@ -11,6 +11,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { GLOBAL_PROJECT_ID, type Project, type ProjectFile } from '@/engine/projects';
 import { loadProject, mutateProject } from '@/projects/client';
+import { ProjectPill, type ProjectRef } from '@/assistant-original/ProjectPill';
+import { ConnectorsScope } from './ConnectorsScope';
 
 import './daily.css';
 
@@ -50,6 +52,7 @@ async function encode(file: File): Promise<ProjectFile> {
 }
 
 export function FilesPanel({ token }: { token: string | null }) {
+  const [scope, setScope] = useState<{ projectId: string | null; projectTitle: string }>({ projectId: null, projectTitle: 'Generale' });
   const [project, setProject] = useState<Project | null>(null);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState('');
@@ -64,17 +67,21 @@ export function FilesPanel({ token }: { token: string | null }) {
     setBusy(true);
     setError('');
     try {
-      setProject(await loadProject(token, GLOBAL_PROJECT_ID));
+      setProject(await loadProject(token, scope.projectId ?? GLOBAL_PROJECT_ID));
     } catch (cause) {
       setError(cause instanceof Error ? inFilesWords(cause.message) : 'File non disponibili.');
     } finally {
       setBusy(false);
     }
-  }, [token]);
+  }, [token, scope.projectId]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  function onProjectChange(next: ProjectRef | null) {
+    setScope({ projectId: next?.id ?? null, projectTitle: next?.title ?? 'Generale' });
+  }
 
   async function add(list: FileList | null) {
     if (!list?.length || !project || !token) return;
@@ -126,6 +133,8 @@ export function FilesPanel({ token }: { token: string | null }) {
 
   return (
     <section className="daily-panel" aria-label="FILES">
+      <ProjectPill scope={scope} onChange={onProjectChange} />
+
       <input
         ref={input}
         type="file"
@@ -169,6 +178,8 @@ export function FilesPanel({ token }: { token: string | null }) {
       </ul>
 
       {busy && <p className="daily-panel__meta">Un momento…</p>}
+
+      <ConnectorsScope projectId={scope.projectId} projectTitle={scope.projectTitle} />
     </section>
   );
 }

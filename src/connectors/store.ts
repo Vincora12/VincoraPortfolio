@@ -1,9 +1,10 @@
-import type { CustomConnector, GoogleConnectorConfig, ObsidianConnectorConfig } from './types';
+import type { CustomConnector, GoogleConnectorConfig, ICloudConnectorConfig, ObsidianConnectorConfig } from './types';
 
 const KEYS = {
   google: 'vinzmon.connectors.google',
   obsidian: 'vinzmon.connectors.obsidian',
   custom: 'vinzmon.connectors.custom',
+  icloud: 'vinzmon.connectors.icloud',
 } as const;
 
 function read<T>(key: string, fallback: T): T {
@@ -24,7 +25,7 @@ function write<T>(key: string, value: T): void {
 }
 
 export function loadGoogleConfig(): GoogleConnectorConfig {
-  return read<GoogleConnectorConfig>(KEYS.google, { clientId: '', scopes: [], accessToken: null, expiresAt: null });
+  return read<GoogleConnectorConfig>(KEYS.google, { clientId: '', scopes: [], accessToken: null, expiresAt: null, calendars: [] });
 }
 
 export function saveGoogleConfig(config: GoogleConnectorConfig): void {
@@ -32,11 +33,19 @@ export function saveGoogleConfig(config: GoogleConnectorConfig): void {
 }
 
 export function loadObsidianConfig(): ObsidianConnectorConfig {
-  return read<ObsidianConnectorConfig>(KEYS.obsidian, { vaultLabel: null });
+  return read<ObsidianConnectorConfig>(KEYS.obsidian, { vaultLabel: null, projectId: null });
 }
 
 export function saveObsidianConfig(config: ObsidianConnectorConfig): void {
   write(KEYS.obsidian, config);
+}
+
+export function loadICloudConfig(): ICloudConnectorConfig {
+  return read<ICloudConnectorConfig>(KEYS.icloud, { folderLabel: null, projectId: null });
+}
+
+export function saveICloudConfig(config: ICloudConnectorConfig): void {
+  write(KEYS.icloud, config);
 }
 
 export function loadCustomConnectors(): CustomConnector[] {

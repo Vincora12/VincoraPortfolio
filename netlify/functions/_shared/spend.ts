@@ -85,6 +85,8 @@ const PRICES: Record<string, Price> = {
   'llama3.2:3b': { input: 0, output: 0 },
   'qwen2.5:3b-instruct': { input: 0, output: 0 },
   'phi3.5:3.8b': { input: 0, output: 0 },
+  'gemma2:2b': { input: 0, output: 0 },
+  'qwen2.5:1.5b-instruct': { input: 0, output: 0 },
 };
 
 /**

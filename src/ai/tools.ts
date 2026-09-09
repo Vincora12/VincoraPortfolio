@@ -46,6 +46,8 @@ import { MANOPOLE } from '../engine/skin';
 import { PEZZI } from '../engine/layout';
 import type { EnergyProfile } from '../engine/dailyEnergy';
 import type { CalendarEvent, CalendarEventInput } from '../engine/calendarEvents';
+import { loadLocation } from '../engine/locationSignal';
+import { loadDeviceSignals } from '../engine/deviceSignals';
 
 /* --- La forma di uno strumento ---------------------------------------------- */
 
@@ -165,9 +167,9 @@ export const TOOLS: ToolDef[] = [
       properties: {
         cosa: {
           type: 'string',
-          enum: ['salute', 'protocollo', 'giornate', 'ricordi'],
+          enum: ['salute', 'protocollo', 'giornate', 'ricordi', 'posizione', 'dispositivo'],
           description:
-            'salute = le sei statistiche e i loro andamenti; protocollo = la dieta e gli allenamenti dichiarati; giornate = cosa ha registrato negli ultimi giorni; ricordi = cosa vi siete detti.',
+            'salute = le sei statistiche e i loro andamenti; protocollo = la dieta e gli allenamenti dichiarati; giornate = cosa ha registrato negli ultimi giorni; ricordi = cosa vi siete detti; posizione = dove ha detto di essere l\'ultima volta; dispositivo = cosa sta ascoltando, la modalità Focus e la batteria, l\'ultima volta dichiarate (mai uno storico).',
         },
         giorni: {
           type: 'integer',
@@ -426,7 +428,7 @@ export const TOOLS: ToolDef[] = [
   },
   {
     name: 'leggi_calendario_google',
-    description: 'Legge gli eventi del Google Calendar personale dell’utente, se collegato in LAB → CONNETTORI. Sola lettura: non crea, sposta o cancella eventi (per quello vedi programma_promemoria, che è il calendario interno di VINZ). Se non è collegato, dillo invece di inventare impegni.',
+    description: 'Legge gli eventi del Google Calendar personale dell’utente, se collegato in FILES. Sola lettura: non crea, sposta o cancella eventi (per quello vedi programma_promemoria, che è il calendario interno di VINZ). Se non è collegato, dillo invece di inventare impegni.',
     schema: { type: 'object', properties: {
       da: { type: 'string', description: 'Inizio intervallo, ISO 8601 con offset/Z. Default: adesso.' },
       a: { type: 'string', description: 'Fine intervallo, ISO 8601 con offset/Z. Default: fra 7 giorni.' },
@@ -434,8 +436,39 @@ export const TOOLS: ToolDef[] = [
     } },
   },
   {
+    name: 'cerca_drive',
+    description: 'Cerca file per nome in Google Drive dell’utente, se collegato in FILES (stesso account di Google Calendar). Sola lettura: nessuna scrittura o creazione file. Torna id, nome, tipo e link — usa leggi_file_drive per leggerne il contenuto.',
+    schema: { type: 'object', properties: {
+      cerca: { type: 'string', maxLength: 200 },
+      massimo: { type: 'integer', minimum: 1, maximum: 30 },
+    }, required: ['cerca'] },
+  },
+  {
+    name: 'leggi_file_drive',
+    description: 'Legge il contenuto testuale di un file Google Drive dato il suo id (da cerca_drive). Google Docs/Sheets/Slides si leggono come testo semplice; PDF, immagini e altri formati binari restano un link, non un tentativo di lettura che inventerebbe il contenuto.',
+    schema: { type: 'object', properties: {
+      id_file: { type: 'string' },
+    }, required: ['id_file'] },
+  },
+  {
+    name: 'cerca_email',
+    description: 'Cerca email in Gmail dell’utente, se collegato in FILES (stesso account Google). Sintassi di ricerca uguale alla barra di Gmail (es. "from:ffuoco", "is:unread", "subject:recap"). Sola lettura: non invia, non cancella, non modifica email. Torna oggetto, mittente, data e un estratto breve — non il corpo intero.',
+    schema: { type: 'object', properties: {
+      cerca: { type: 'string', maxLength: 200 },
+      massimo: { type: 'integer', minimum: 1, maximum: 20 },
+    }, required: ['cerca'] },
+  },
+  {
     name: 'cerca_secondo_cervello',
-    description: 'Cerca nelle note del vault Obsidian che l’utente ha collegato in LAB → CONNETTORI (sola lettura sui file .md locali). Se nessun vault è collegato, dillo invece di inventare cosa contiene.',
+    description: 'Cerca nelle note del vault Obsidian che l’utente ha collegato in FILES (sola lettura sui file .md locali). Se nessun vault è collegato, dillo invece di inventare cosa contiene.',
+    schema: { type: 'object', properties: {
+      cerca: { type: 'string', maxLength: 200 },
+      massimo: { type: 'integer', minimum: 1, maximum: 20 },
+    }, required: ['cerca'] },
+  },
+  {
+    name: 'cerca_icloud',
+    description: 'Cerca fra i documenti di testo nella cartella iCloud Drive che l’utente ha collegato in FILES (sola lettura, solo formati testuali: md/txt/csv/json/log/rtf/yaml — non PDF o immagini). Se nessuna cartella è collegata, dillo invece di inventare cosa contiene.',
     schema: { type: 'object', properties: {
       cerca: { type: 'string', maxLength: 200 },
       massimo: { type: 'integer', minimum: 1, maximum: 20 },
@@ -443,7 +476,7 @@ export const TOOLS: ToolDef[] = [
   },
   {
     name: 'chiama_connettore_personalizzato',
-    description: 'Fa una richiesta GET a un connettore custom che l’utente ha configurato in LAB → CONNETTORI (nome, indirizzo, chiave). Usa id_connettore esattamente come mostrato lì. Nessuna scrittura: solo lettura di quello che quel servizio espone su quel percorso.',
+    description: 'Fa una richiesta GET a un connettore custom che l’utente ha configurato in FILES (nome, indirizzo, chiave). Usa id_connettore esattamente come mostrato lì. Nessuna scrittura: solo lettura di quello che quel servizio espone su quel percorso.',
     schema: { type: 'object', properties: {
       id_connettore: { type: 'string' },
       percorso: { type: 'string', description: 'Percorso relativo alla base del connettore, es. "eventi" o "status".' },
@@ -674,7 +707,21 @@ export function runTool(use: ToolUse, ctx: ToolContext): ToolResult {
         }
         if (what === 'giornate') return ok(daysReport(ctx.days, ctx.day, back));
         if (what === 'ricordi') return ok(memoriesReport(ctx.memories, ctx.day, back));
-        return fail('Non so cosa guardare: usa salute, protocollo, giornate o ricordi.');
+        if (what === 'posizione') {
+          const loc = loadLocation();
+          if (!loc) return ok('Non lo so: non ha ancora mandato una posizione.');
+          return ok(`${loc.text} (dichiarata il ${new Date(loc.at).toLocaleString('it-IT')})`);
+        }
+        if (what === 'dispositivo') {
+          const dev = loadDeviceSignals();
+          const parts: string[] = [];
+          if (dev.nowPlaying) parts.push(`in ascolto: ${dev.nowPlaying.text} (${new Date(dev.nowPlaying.at).toLocaleString('it-IT')})`);
+          if (dev.focus) parts.push(`focus: ${dev.focus.text} (${new Date(dev.focus.at).toLocaleString('it-IT')})`);
+          if (dev.battery) parts.push(`batteria: ${dev.battery.percent}% (${new Date(dev.battery.at).toLocaleString('it-IT')})`);
+          if (parts.length === 0) return ok('Non lo so: non ha ancora mandato nessun dato dal telefono.');
+          return ok(parts.join('\n'));
+        }
+        return fail('Non so cosa guardare: usa salute, protocollo, giornate, ricordi, posizione o dispositivo.');
       }
 
       case 'elenca_le_pagine':
@@ -878,20 +925,54 @@ const MAX_FILE_CHARS = 8_000;
 
    🔒 STESSO PATTO DI PRIVACY DEL RESTO DI QUESTO FILE: girano nel browser,
    leggono con le credenziali che l'utente stesso ha collegato in
-   LAB → CONNETTORI (`src/connectors/*`), e il server non li vede mai
+   FILES (`src/connectors/*`), e il server non li vede mai
    passare — vedi `src/connectors/types.ts` per il perché. */
 
-async function executeGoogleCalendarTool(use: ToolUse): Promise<ToolResult> {
+async function executeGoogleCalendarTool(use: ToolUse, projectId: string | null): Promise<ToolResult> {
   const fail = (content: string): ToolResult => ({ id: use.id, content, isError: true });
   const args = (use.input && typeof use.input === 'object' ? use.input : {}) as Record<string, unknown>;
-  const { searchCalendarEvents } = await import('../connectors/google');
+  const { searchCalendarEvents, resolveCalendarIdForProject } = await import('../connectors/google');
   const now = Date.now();
   const da = str(args.da) || new Date(now).toISOString();
   const a = str(args.a) || new Date(now + 7 * 86_400_000).toISOString();
   if (!Number.isFinite(Date.parse(da)) || !Number.isFinite(Date.parse(a))) return fail('Date non valide: servono ISO 8601 con offset/Z.');
-  const result = await searchCalendarEvents(da, a, typeof args.massimo === 'number' ? args.massimo : 10);
+  const calendarId = resolveCalendarIdForProject(projectId);
+  const result = await searchCalendarEvents(da, a, typeof args.massimo === 'number' ? args.massimo : 10, calendarId);
   if (!result.ok) return fail(result.error);
-  return { id: use.id, content: JSON.stringify({ source: 'google-calendar', da, a, eventi: result.events }) };
+  return { id: use.id, content: JSON.stringify({ source: 'google-calendar', calendario: calendarId, da, a, eventi: result.events }) };
+}
+
+async function executeDriveSearchTool(use: ToolUse): Promise<ToolResult> {
+  const fail = (content: string): ToolResult => ({ id: use.id, content, isError: true });
+  const args = (use.input && typeof use.input === 'object' ? use.input : {}) as Record<string, unknown>;
+  const query = str(args.cerca);
+  if (!query) return fail('Serve qualcosa da cercare.');
+  const { searchDriveFiles } = await import('../connectors/google');
+  const result = await searchDriveFiles(query, typeof args.massimo === 'number' ? args.massimo : 10);
+  if (!result.ok) return fail(result.error);
+  return { id: use.id, content: JSON.stringify({ source: 'google-drive', query, trovati: result.files.length, file: result.files }) };
+}
+
+async function executeDriveReadTool(use: ToolUse): Promise<ToolResult> {
+  const fail = (content: string): ToolResult => ({ id: use.id, content, isError: true });
+  const args = (use.input && typeof use.input === 'object' ? use.input : {}) as Record<string, unknown>;
+  const fileId = str(args.id_file);
+  if (!fileId) return fail('Serve id_file.');
+  const { readDriveFile } = await import('../connectors/google');
+  const result = await readDriveFile(fileId);
+  if (!result.ok) return fail(result.error);
+  return { id: use.id, content: JSON.stringify({ source: 'google-drive', nome: result.name, testo: result.text }) };
+}
+
+async function executeGmailSearchTool(use: ToolUse): Promise<ToolResult> {
+  const fail = (content: string): ToolResult => ({ id: use.id, content, isError: true });
+  const args = (use.input && typeof use.input === 'object' ? use.input : {}) as Record<string, unknown>;
+  const query = str(args.cerca);
+  if (!query) return fail('Serve qualcosa da cercare.');
+  const { searchGmail } = await import('../connectors/google');
+  const result = await searchGmail(query, typeof args.massimo === 'number' ? args.massimo : 10);
+  if (!result.ok) return fail(result.error);
+  return { id: use.id, content: JSON.stringify({ source: 'gmail', query, trovate: result.messages.length, email: result.messages }) };
 }
 
 async function executeVaultSearchTool(use: ToolUse): Promise<ToolResult> {
@@ -904,6 +985,18 @@ async function executeVaultSearchTool(use: ToolUse): Promise<ToolResult> {
   if (!result.ok) return fail(result.error);
   if (result.matches.length === 0) return { id: use.id, content: JSON.stringify({ source: 'obsidian-vault', query, trovati: 0, note: 'Nessuna nota corrisponde. Dillo: non ricostruire a memoria.' }) };
   return { id: use.id, content: JSON.stringify({ source: 'obsidian-vault', query, trovati: result.matches.length, risultati: result.matches.map((m) => ({ percorso: m.path, estratto: m.excerpt })) }) };
+}
+
+async function executeICloudSearchTool(use: ToolUse): Promise<ToolResult> {
+  const fail = (content: string): ToolResult => ({ id: use.id, content, isError: true });
+  const args = (use.input && typeof use.input === 'object' ? use.input : {}) as Record<string, unknown>;
+  const query = str(args.cerca);
+  if (!query) return fail('Serve qualcosa da cercare.');
+  const { searchICloudFolder } = await import('../connectors/icloud');
+  const result = await searchICloudFolder(query, typeof args.massimo === 'number' ? args.massimo : 8);
+  if (!result.ok) return fail(result.error);
+  if (result.matches.length === 0) return { id: use.id, content: JSON.stringify({ source: 'icloud-drive', query, trovati: 0, note: 'Nessun documento corrisponde. Dillo: non ricostruire a memoria.' }) };
+  return { id: use.id, content: JSON.stringify({ source: 'icloud-drive', query, trovati: result.matches.length, risultati: result.matches.map((m) => ({ percorso: m.path, estratto: m.excerpt })) }) };
 }
 
 async function executeCustomConnectorTool(use: ToolUse): Promise<ToolResult> {
@@ -1147,8 +1240,12 @@ export async function executeRuntimeTool(
     if (use.name === 'crea_automazione') return await executeAutomationTool(use, scope.token);
     if (use.name === 'leggi_file') return await executeFileTool(use, scope.token, scope.projectId ?? null);
     if (use.name === 'cerca_conversazione') return await executeTopicSearchTool(use, scope.token);
-    if (use.name === 'leggi_calendario_google') return await executeGoogleCalendarTool(use);
+    if (use.name === 'leggi_calendario_google') return await executeGoogleCalendarTool(use, scope.projectId ?? null);
+    if (use.name === 'cerca_drive') return await executeDriveSearchTool(use);
+    if (use.name === 'leggi_file_drive') return await executeDriveReadTool(use);
+    if (use.name === 'cerca_email') return await executeGmailSearchTool(use);
     if (use.name === 'cerca_secondo_cervello') return await executeVaultSearchTool(use);
+    if (use.name === 'cerca_icloud') return await executeICloudSearchTool(use);
     if (use.name === 'chiama_connettore_personalizzato') return await executeCustomConnectorTool(use);
     if (use.name === 'leggi_skill') return await executeSkillTool(use, scope.token);
     const isProjectTool = ['leggi_progetto', 'leggi_sorgente_progetto', 'scrivi_artifact_progetto'].includes(use.name);
