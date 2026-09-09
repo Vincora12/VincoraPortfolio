@@ -24,6 +24,7 @@ type Job = {
   error: string | null;
   assets: { type: string; assetId: string }[];
   updatedAt: string;
+  events?: { at: string; text: string }[];
 };
 
 const ALLOWED_ASSETS = new Set(['master_01', 'toy_01', 'doodle_01', 'reactions_01']);
@@ -67,9 +68,10 @@ function effectivePrompt(item: AssetItem): string {
   ].join('\n\n');
 }
 
-async function generateWithRetry(routeModel: string, item: AssetItem, reference: string | null, quality?: ImageQuality) {
+async function generateWithRetry(routeModel: string, item: AssetItem, reference: string | null, quality?: ImageQuality, report?: (text:string)=>Promise<void>) {
   const prompt = effectivePrompt(item);
   const background = item.type === 'character_toy' ? 'opaque' : 'transparent';
+  await report?.(`Richiesta inviata a ${routeModel} · ${item.assetId}. In attesa della risposta.`);
   let result = await generateImage(routeModel, prompt, item.size, reference, background, quality);
   for (let retry = 1; !result.ok && retry <= 3; retry += 1) {
     /* Credenziali e tetto di spesa non cambiano ripetendo la stessa chiamata. */
@@ -78,8 +80,10 @@ async function generateWithRetry(routeModel: string, item: AssetItem, reference:
       ? saferPrompt(prompt)
       : prompt;
     await new Promise((resolve) => setTimeout(resolve, retry * 1000));
+    await report?.(`Tentativo ${retry + 1}/4 · ${routeModel} · ${item.assetId}. Il precedente non è riuscito.`);
     result = await generateImage(routeModel, retryPrompt, item.size, reference, background, quality);
   }
+  await report?.(result.ok ? `Risposta ricevuta · ${item.assetId}.` : `Richiesta terminata con errore · ${item.assetId}.`);
   return result;
 }
 
@@ -131,6 +135,9 @@ export default async function evolutionBackground(request: Request): Promise<voi
     updatedAt: new Date().toISOString(),
   };
 
+  const report=async(text:string)=>{job.events=[...(job.events??[]),{at:new Date().toISOString(),text}].slice(-40);await save(job);};
+  await report('Lavoro ricevuto dal server. Controllo delle immagini già disponibili.');
+
   /* Un retry riparte dal primo asset mancante. Gli asset già conclusi sono
      permanenti e non vanno né rigenerati né ripagati. */
   let master: string | null = null;
@@ -179,6 +186,7 @@ export default async function evolutionBackground(request: Request): Promise<voi
       item,
       item.type === 'character_master' ? null : master,
       quality ?? itemQuality,
+      report,
     );
     if (!result.ok || !result.data) {
       job.status = 'error';
@@ -188,6 +196,7 @@ export default async function evolutionBackground(request: Request): Promise<voi
     }
 
     if (item.type === 'character_master') master = result.data;
+    await report(`Salvataggio immagine · ${item.assetId}.`);
     const imageBytes = bytes(result.data);
     const imageBuffer = imageBytes.buffer.slice(
       imageBytes.byteOffset,
@@ -205,7 +214,7 @@ export default async function evolutionBackground(request: Request): Promise<voi
     await recordSpend('image', route.model, result.usage, { action: 'image_generation', subsystem: 'evolution' });
     job.assets.push({ type: item.type, assetId: item.assetId });
     job.done += 1;
-    await save(job);
+    await report(`Immagine salvata · ${item.assetId} · ${job.done}/${job.total}.`);
   }
 
   job.status = 'ready';

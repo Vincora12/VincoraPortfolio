@@ -1,3 +1,4 @@
+import { culturalBackground, culturalDiscoveryBlock } from '../engine/culturalDiscovery';
 /* ============================================================================
    L'IDENTITÀ DEL WORLD DOPO UNA RISE (Narrative System Phase 2)
 
@@ -37,7 +38,9 @@ export interface WorldIdentityOutcome {
 
 const WORLD_IDENTITY_RULES = [
   'Dai un nome e un\'identità a un posto narrativo nuovo — un World nel senso di VINZ.MON: un territorio',
-  'mentale/emotivo/tematico che la creatura sta esplorando, non una mappa fisica o un pianeta.',
+  'concreto che la creatura sta esplorando: architettura, atmosfera, oggetti e una regola del luogo.',
+  'Traduci il Cultural DNA e l’eventuale scoperta in una geografia originale; nessun collage di citazioni.',
+  'La scoperta documentata è un fatto pubblico; il World che ne nasce è invenzione narrativa, non un fatto sull’utente.',
   '',
   'COSA NON PUOI FARE',
   '- Non descrivere il corpo, l\'aspetto o l\'anatomia della creatura: questo è il luogo, non lei.',
@@ -61,6 +64,10 @@ function factsOf(ctx: { world: World; previousWorld: World; record: MonRecord; w
     `LA CREATURA CHE APRE QUESTO POSTO: ${displayName(record.data.name)}, affinità ${record.data.affinity}.`,
     `IL POSTO CHE SI LASCIA DIETRO: ${previousWorld.name} — ${previousWorld.description}`,
     `RIFERIMENTI CULTURALI DEL NUOVO POSTO (tono, non aspetto fisico): ${(world.worldCulturalDna ?? []).join(', ') || 'nessuno assegnato'}`,
+    `CULTURAL DNA DEL MON — sensibilità da tradurre in luoghi, oggetti e rituali: ${culturalBackground(record.data.cultural_dna)}`,
+    culturalDiscoveryBlock(record),
+    ...previousWorld.canon.slice(-5).map(e => `[${e.epistemic}] ${e.text.slice(0,500)}`),
+    `DIREZIONE NARRATIVA (non etichette in prosa): ${record.data.narrativeDNA?.drive ?? ''}; ${record.data.narrativeDNA?.contradiction ?? ''}`,
     `NOME PROVVISORIO GIÀ ASSEGNATO (puoi sostituirlo): ${world.name}`,
     wish ? `UN DESIDERIO ESPRESSO PER QUESTA TRASFORMAZIONE: ${wish}` : '',
   ].filter(Boolean).join('\n');

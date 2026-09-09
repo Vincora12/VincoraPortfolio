@@ -1,14 +1,16 @@
 import { processCalendarReminders } from './_shared/calendarReminders';
+import { processDueMachines } from './_shared/machines';
 
 /** Netlify scheduled invocation only; this is not a public reminder-write endpoint. */
 export default async function handler(): Promise<Response> {
-  try {
-    const result = await processCalendarReminders();
-    console.info('[calendar-reminders]', result);
-    return new Response(null, { status: 204 });
-  } catch {
-    console.warn('[calendar-reminders] scheduler operation unavailable');
-    return new Response(null, { status: 503 });
-  }
+  const [calendar, machines] = await Promise.allSettled([
+    processCalendarReminders(),
+    processDueMachines(),
+  ]);
+  if (calendar.status === 'fulfilled') console.info('[calendar-reminders]', calendar.value);
+  else console.warn('[calendar-reminders] scheduler operation unavailable');
+  if (machines.status === 'fulfilled') console.info('[identity-machines]', machines.value);
+  else console.warn('[identity-machines] scheduler operation unavailable');
+  return new Response(null, { status: calendar.status === 'rejected' || machines.status === 'rejected' ? 503 : 204 });
 }
 export const config = { schedule: '*/5 * * * *' };

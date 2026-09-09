@@ -30,7 +30,7 @@ import { useState } from 'react';
 import { useApp } from '../state/store';
 import { Button, SystemLabel } from '../system/components';
 import { haptic } from '../system/haptics';
-import { EggVessel } from '../system/EggVessel';
+import { Sigil } from '../system/AssetSlot';
 
 export function EggChoiceScreen() {
   const eggs = useApp((s) => s.eggs);
@@ -70,7 +70,7 @@ export function EggChoiceScreen() {
                 setPicked(i);
               }}
             >
-              <span className="t-meta eggchoice__slot">[ UOVO {String(i + 1).padStart(2, '0')} ]</span>
+              <span className="t-meta eggchoice__slot">[ BABY {String(i + 1).padStart(2, '0')} ]</span>
               {/* 🔷 «Un vero uovo dove si percepiscono i colori che saranno
                   del mon.» Il guscio resta lo stesso di sempre (§4 vieta
                   sagoma e arte finale) — solo la massa dentro prende il
@@ -80,11 +80,11 @@ export function EggChoiceScreen() {
                 aria-hidden="true"
                 style={{ color: egg.data.palette_dna.accent }}
               >
-                <EggVessel days={0} total={7} progress={0.55} size={56} lively />
+                <Sigil seed={egg.sigil} size={56} />
               </span>
               <span className="eggchoice__facts">
                 <span className="t-meta eggchoice__fact">{egg.data.family}</span>
-                <span className="t-micro eggchoice__fact eggchoice__fact--sub">{egg.data.affinity}</span>
+                <span className="t-micro eggchoice__fact eggchoice__fact--sub">{'NUL · primo stadio'}</span>
               </span>
               <span className="eggchoice__mark" aria-hidden="true">
                 {on ? '■' : '□'}

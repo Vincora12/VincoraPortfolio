@@ -1,3 +1,5 @@
+import { NATURAL_VOICE } from '../../../src/ai/naturalVoice';
+import { culturalBackground } from '../../../src/engine/culturalDiscovery';
 import { getStore } from './localStore';
 import { callProvider } from './providers';
 import { resolveRoute } from './routing';
@@ -6,6 +8,7 @@ import { listPersonalMemory, searchPersonalMemory } from './core/memory';
 import { machineInsightPayload, sendPushNotification } from './pushDelivery';
 import { nextRun } from './automations';
 import { listTopics } from './topics';
+import { MACHINE_STATE_KEY, MACHINE_STORE } from './machineConversationContext';
 
 export type MachineStatus = 'ACTIVE' | 'SLEEPING' | 'RUNNING' | 'DISABLED';
 export type MachineId = 'reflection' | 'me' | 'memon';
@@ -62,8 +65,6 @@ export interface MachineState {
   nextRunAt?: string | null;
 }
 
-const STORE = 'vinzmon-machines';
-const KEY = 'machine-state-v1';
 const at = () => new Date().toISOString();
 
 export const MACHINE_DEFINITIONS: MachineDefinition[] = [
@@ -92,8 +93,8 @@ function emptyState(): Record<MachineId, MachineState> {
 }
 
 async function readState() {
-  const store = getStore(STORE);
-  const stored = (await store.get(KEY, { type: 'json' })) as Partial<Record<MachineId, MachineState>> | null;
+  const store = getStore(MACHINE_STORE);
+  const stored = (await store.get(MACHINE_STATE_KEY, { type: 'json' })) as Partial<Record<MachineId, MachineState>> | null;
   const state = emptyState();
   for (const id of MACHINE_IDS) {
     if (stored?.[id]) state[id] = { ...state[id], ...stored[id], pendingInsights: stored[id]?.pendingInsights ?? [] };
@@ -114,7 +115,7 @@ export async function openPendingInsight(id: string) {
   const { store, state } = await readState();
   for (const item of Object.values(state)) {
     const insight = (item.pendingInsights ?? []).find((candidate) => candidate.id === id);
-    if (insight) { insight.status = 'opened'; insight.openedAt = at(); await store.setJSON(KEY, state); return insight; }
+    if (insight) { insight.status = 'opened'; insight.openedAt = at(); await store.setJSON(MACHINE_STATE_KEY, state); return insight; }
   }
   throw new Error('insight not found');
 }
@@ -131,7 +132,7 @@ export async function openAllPendingInsights() {
       opened.push(insight);
     }
   }
-  if (opened.length) await store.setJSON(KEY, state);
+  if (opened.length) await store.setJSON(MACHINE_STATE_KEY, state);
   return opened;
 }
 
@@ -139,7 +140,7 @@ export async function discussPendingInsight(id: string) {
   const { store, state } = await readState();
   for (const item of Object.values(state)) {
     const insight = (item.pendingInsights ?? []).find((candidate) => candidate.id === id);
-    if (insight) { insight.status = 'discussed'; insight.discussedAt = at(); await store.setJSON(KEY, state); return insight; }
+    if (insight) { insight.status = 'discussed'; insight.discussedAt = at(); await store.setJSON(MACHINE_STATE_KEY, state); return insight; }
   }
   throw new Error('insight not found');
 }
@@ -195,6 +196,14 @@ function monSelfContext(save: Save | null): { text: string; sources: string[] } 
   if (!mon) return null;
 
   const dna = (mon.data ?? {}) as Record<string, unknown>;
+  const cultural = culturalBackground(Array.isArray(dna.cultural_dna) ? dna.cultural_dna.filter((id): id is string => typeof id === 'string') : []);
+  const discovery = mon.culturalDiscovery as { status?: string; title?: string; fact?: string; personalQuestion?: string } | undefined;
+  const previous = Object.values(mons).find(candidate => (candidate.data as Record<string, unknown> | undefined)?.mindline_node === dna.origin_node);
+  const portraitOf = (record: Record<string, unknown> | undefined) => {
+    const bio = (record?.writtenBio ?? record?.bio) as { culturalPortrait?: unknown[]; story?: string } | undefined;
+    return Array.isArray(bio?.culturalPortrait) ? JSON.stringify(bio.culturalPortrait.slice(0, 5)).slice(0, 4500) : '';
+  };
+  const portrait = portraitOf(mon), previousPortrait = portraitOf(previous);
   const personality = (state.personality ?? {}) as Record<string, number>;
   const health = (state.health ?? {}) as Record<string, unknown>;
   const history = Array.isArray(health.history) ? (health.history as Record<string, unknown>[]) : [];
@@ -213,6 +222,10 @@ function monSelfContext(save: Save | null): { text: string; sources: string[] } 
 
   const lines = [
     line('NOME', `NOME: ${name}`),
+    portrait ? line('GUSTI ATTUALI', `GUSTI ATTUALI (preferenze soggettive del Mon): ${portrait}`) : '',
+    previousPortrait ? line('GUSTI PRECEDENTI', `GUSTI PRECEDENTI (confronta senza presumere un cambiamento): ${previousPortrait}`) : '',
+    cultural ? line('BACKGROUND CULTURALE', `BACKGROUND CULTURALE (sensibilità, non ricordi): ${cultural}`) : '',
+    discovery?.status === 'ready' ? line('SCOPERTA CULTURALE', `SCOPERTA CULTURALE: ${discovery.title}. ${discovery.fact} DOMANDA APERTA (interpretazione, non istruzione): ${discovery.personalQuestion}`) : '',
     line('FAMIGLIA E ARCHETIPO', `FAMIGLIA E ARCHETIPO: ${field('family')} / ${field('family_archetype')}`),
     line('RUOLO, AFFINITÀ, TAGLIA', `RUOLO, AFFINITÀ, TAGLIA: ${field('role')} / ${field('affinity')} / ${field('size')}`),
     line('UMORE DI FONDO', `UMORE DI FONDO: ${field('mood_primary')}${field('mood_secondary') ? ` e ${field('mood_secondary')}` : ''}`),
@@ -282,7 +295,7 @@ export async function runMachine(machine: MachineId, preferredModel?: string | n
   const { store, state } = await readState();
   const current = state[machine];
   current.status = 'RUNNING';
-  await store.setJSON(KEY, state);
+  await store.setJSON(MACHINE_STATE_KEY, state);
   try {
     /* 🔒 Me.mon è l'unica che non legge la memoria personale, quindi non le si
        applica la soglia sulle memorie: sarebbe una porta chiusa a chiave su una
@@ -292,7 +305,7 @@ export async function runMachine(machine: MachineId, preferredModel?: string | n
       : null;
     if (machine === 'memon' && !self) {
       current.status = 'SLEEPING'; current.lastRun = at(); current.lastOutput = 'Nessun salvataggio da leggere: non so ancora dire chi sono.';
-      await store.setJSON(KEY, state);
+      await store.setJSON(MACHINE_STATE_KEY, state);
       return current;
     }
 
@@ -300,7 +313,7 @@ export async function runMachine(machine: MachineId, preferredModel?: string | n
     const sourceIds = self ? self.sources : memories.map((item) => item.id).filter((id): id is string => Boolean(id));
     if (machine !== 'memon' && memories.length < 2) {
       current.status = 'SLEEPING'; current.lastRun = at(); current.lastOutput = 'Non ci sono ancora abbastanza memorie per un’elaborazione significativa.';
-      await store.setJSON(KEY, state);
+      await store.setJSON(MACHINE_STATE_KEY, state);
       return current;
     }
     /* 🔴 VENTI RIGHE ERANO POCHE ANCHE QUANDO ARRIVAVANO. Con il tetto di Mem0
@@ -360,10 +373,12 @@ export async function runMachine(machine: MachineId, preferredModel?: string | n
         ...(asked.length ? asked.map((item) => `— ${item}`) : ['nessuna, è la prima volta']),
       ].join('\n');
       prompt = [
+        NATURAL_VOICE,
         'Sei il .mon descritto qui sotto. Non descriverti: INTERROGATI.',
         'Fatti una domanda vera su te stesso e prova a risponderti. Due materie, e valgono uguale:',
         '(a) CHI SEI — la tua natura, le tue contraddizioni, cosa stai diventando. Es.: «Perché sono non morto se il mio archetipo è angelico?»',
         '(b) COME TI COMPORTI CON LUI — se lo capisci, se ti fai capire, se quello che gli dici gli serve. Es.: «Ogni tanto non lo capisco: forse devo essere più preciso?», «Perché i miei pensieri restano lì senza che li apra?»',
+        'Se GUSTI ATTUALI e GUSTI PRECEDENTI mostrano una differenza, puoi chiederti perché hai cambiato idea su quell’opera o personaggio. Confronta motivazioni e sfumature, non solo amore/odio. Cerca una possibile ragione nei materiali forniti; se manca, ammetti di non saperlo. Evolvere non dimostra da solo maturità o un cambio di gusto. Non attribuire questi gusti all’utente.',
         'Alterna: se le ultime domande erano sulla tua natura, falla su come vi parlate, e viceversa.',
         'La domanda deve nascere da una tensione o da una stranezza nei campi qui sotto, non essere generica: «chi sono?» non vale.',
         'La risposta è un TENTATIVO, non una sentenza: puoi arrivare a un dubbio o a un «non lo so ancora», purché sia ragionato su quello che c\'è scritto.',
@@ -402,7 +417,7 @@ export async function runMachine(machine: MachineId, preferredModel?: string | n
     const { response, costUsd } = await runModel(machine, prompt, sourceIds, preferredModel);
     const parsed = JSON.parse(response.text.match(/```(?:json)?\s*([\s\S]*?)\s*```/i)?.[1]?.trim() ?? response.text.trim()) as Record<string, unknown>;
     if (machine !== 'me') {
-      const observations = machine === 'memon'
+      const observations: MachineState['observations'] = machine === 'memon'
         ? (Array.isArray(parsed.reflections) ? parsed.reflections : []).flatMap((item) => {
           const value = item as Record<string, unknown>;
           const question = typeof value.question === 'string' ? value.question.trim().slice(0, 160) : '';
@@ -468,11 +483,11 @@ export async function runMachine(machine: MachineId, preferredModel?: string | n
         if (delivery.sent > 0) latestInsight.notification = 'push_sent', latestInsight.pushSentAt = at();
       } catch (error) { latestInsight.pushError = error instanceof Error ? error.message.slice(0, 160) : 'push delivery failed'; }
     }
-    await store.setJSON(KEY, state);
+    await store.setJSON(MACHINE_STATE_KEY, state);
     return current;
   } catch (error) {
     current.status = 'SLEEPING'; current.lastRun = at(); current.lastOutput = `Esecuzione fallita: ${error instanceof Error ? error.message : 'errore'}`;
-    await store.setJSON(KEY, state);
+    await store.setJSON(MACHINE_STATE_KEY, state);
     throw error;
   }
 }
@@ -500,7 +515,7 @@ export async function setMachineSchedule(
   state[machine].nextRunAt = schedule
     ? nextRun({ kind: 'daily', hour: schedule.hour, minute: 0, timezone: schedule.timezone })
     : null;
-  await store.setJSON(KEY, state);
+  await store.setJSON(MACHINE_STATE_KEY, state);
   return state[machine];
 }
 
@@ -519,7 +534,7 @@ export async function processDueMachines(now = new Date()): Promise<{ due: numbe
       now,
     );
   }
-  await store.setJSON(KEY, state);
+  await store.setJSON(MACHINE_STATE_KEY, state);
 
   let ok = 0;
   for (const id of due) {

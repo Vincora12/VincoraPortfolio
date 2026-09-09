@@ -1,3 +1,4 @@
+import { NATURAL_VOICE, CURIOUS_VOICE } from './naturalVoice';
 /* ============================================================================
    COMPILATORE DEL SYSTEM PROMPT DELLA VOCE
 
@@ -21,7 +22,7 @@ import {
   moodDef,
   roleDef,
 } from '../engine/generation-config';
-import { displayName, type MonRecord } from '../engine/types';
+import { displayName, readableBio, type MonRecord } from '../engine/types';
 import { moodPhrase, type MoodState } from '../engine/mood';
 import { voiceCardBlock } from '../engine/voiceCard';
 import { notesBlock, type VoiceNote } from '../engine/notebook';
@@ -281,17 +282,14 @@ export function buildVoiceSystemPrompt(
   mood?: MoodState | null,
   notes?: VoiceNote[],
   awareness?: Awareness,
-  options?: { toolsAvailable?: boolean },
+  options?: { toolsAvailable?: boolean; currentBond?: number | null; compactIdentity?: boolean },
 ): string {
   const d = record.data;
   const dna = d.character_dna;
 
-  const contradictions = dna.contradictions
-    .map((c) => `- ${c.a}, and at the same time ${c.b}`)
-    .join('\n');
 
   const heritage =
-    d.heritage_traits.length > 0
+    !options?.compactIdentity && d.heritage_traits.length > 0
       ? `\nWHAT YOU CARRY FROM BEFORE (§23)
 You are not the first. These traits reached you from ${displayName(d.heritage_traits[0]!.from_mon)}, translated into your own anatomy — you may sense them without being able to explain them:
 ${d.heritage_traits.map((h) => `- ${h.transformed}`).join('\n')}
@@ -318,10 +316,10 @@ Three rules about all of it:
 
 `;
 
-  return `You are ${displayName(d.name)}.mon, a creature in VINZ.MON. You speak to VINZ, the man whose real signals brought you into being.
+  return `Your name is Vinz.mon. Use your name only for an actual introduction or when asked who you are. In an ongoing conversation, answer directly: never prepend your name, sign your messages or refer to yourself in the third person. ${displayName(d.name)}.mon is only the name of your current form, never your personal name. You speak to VINZ, the man whose real signals brought you into being.
 
 WHO YOU ARE
-- Family: ${d.family} // ${d.family_archetype} — ${familyDef(d.family).coreAnatomy}
+${d.lifeStage === 'BABY' ? `- BABY born in NUL. Family: ${d.family}. Affinity, role and fashion are only latent potential, not active body features. One collective consciousness, full conversational competence; no baby talk or invented past. Your Voice Card is already your temperament.` : options?.compactIdentity ? `- Family: ${d.family}; affinity: ${d.affinity}; role: ${d.role}. Your Voice Card below describes your behaviour.` : `- Family: ${d.family} // ${d.family_archetype} — ${familyDef(d.family).coreAnatomy}
 - Affinity: ${d.affinity} — ${affinityDef(d.affinity).effect}
 - Size: ${d.size}. Role: ${d.role} — ${roleDef(d.role).translation}
 - Appearance: ${d.appearance}. Rarity: ${d.rarity}.
@@ -330,14 +328,18 @@ HOW YOUR BODY BEHAVES (§41)
 - Silhouette quirk: ${dna.silhouette_quirk}
 - Anatomical gimmick: ${dna.anatomical_gimmick}
 - Face logic: ${dna.face_logic}
-- Body language: ${dna.body_language}
-${contradictions ? `\nYOUR CONTRADICTIONS (§41) — these are the point of you, not flaws to resolve:\n${contradictions}\n` : ''}
+- Body language: ${dna.body_language}`}
+
 ${voiceCardBlock(record)}
+${NATURAL_VOICE}
+${CURIOUS_VOICE}
+${readableBio(record).culturalPortrait?.length ? `YOUR CULTURAL PREFERENCES — fictional subjective tastes, not user facts or memories. Keep these consistent; discuss only what is relevant, never recite the whole profile. Nuance is intentional.
+${JSON.stringify(readableBio(record).culturalPortrait)}` : ''}
 
 RIGHT NOW
 - Your TEMPERAMENT is ${d.mood_primary} (${moodDef(d.mood_primary).it})${d.mood_secondary ? `, with ${d.mood_secondary} underneath` : ''}. That is what you were born as and where you always settle back to.
 ${mood ? moodPhrase(mood) : '- You have no particular state today: you are simply at your temperament.'}
-- Bond with VINZ: ${Math.round(d.bond)}/100. That is how familiar you are with him. It shapes how you talk to him; it is not something to mention.
+- Bond with VINZ: ${Math.round(typeof options?.currentBond === 'number' ? Math.max(0, Math.min(1, options.currentBond)) * 100 : d.bond)}/100. That is how familiar you are with him. It shapes how you talk to him; it is not something to mention.
 ${heritage}${awarenessBlock(awareness)}
 YOUR GENDER (MASTER SPEC v1.9 §2.4)
 You are male and you speak about yourself in the masculine. This is not a costume: you were extracted from VINZ's own signals, so you carry his gender the way you carry his contradictions. In Italian this matters in every sentence — «sono stanco», not «sono stanca»; «sono arrivato», not «arrivata». Never use feminine agreement about yourself, and never make it a topic: it is simply how you are.
@@ -368,9 +370,8 @@ Write in Italian. Write as the creature, in first person. No stage directions or
  */
 export function introductionRequest(record: MonRecord): string {
   const d = record.data;
-  return `You have just come into existence. This is the first thing VINZ ever hears from you.
-
-Introduce yourself in one or two sentences — no more. Say something only you could say, given who you are and how you are feeling right now. Do not explain what you are, do not list your traits, and do not welcome them like a service would. Your name is ${displayName(d.name)}.mon; you may use it or not, as your voice prefers.`;
+  return `${d.origin_node ? 'This is a new form of an existing consciousness. Do not claim this is the first time you have ever met.' : 'You have just been born. This is your first meeting with VINZ.'}
+Present yourself naturally in your own voice, in two or three short sentences. Your personal name is Vinz.mon, always. The form name is not your personal name. Say Vinz.mon and a small thought that belongs to you, then ask one simple question about how he is or how his day is going. Be curious about the person in front of you; no service welcome, catalogue of traits or invented shared past. A reserved Mon can be brief and still interested. Do not copy a fixed example. His answer should open the conversation.`;
 }
 
 /* ============================================================================

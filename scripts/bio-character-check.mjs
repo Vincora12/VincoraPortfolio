@@ -21,7 +21,7 @@ const input = { day: 12, health: after.initialHealthState(), personality: after.
 let record;
 for (let seed = 1; seed <= 40; seed++) {
   const ctx = { input, mindlineNodeId: 'node_test', originNodeId: null, lineageNames: [], seed };
-  const oldResult = before.generateFirstMon(ctx); const newResult = after.generateFirstMon(ctx);
+  const oldResult = before.generateFirstMon(ctx); const newResult = after.generateMon({...ctx,heritageOrigins:[],previous:null,allowedArchetypes:['PUTTO','MESSENGER','GUARDIAN']});
   const { bio: oldBio, ...oldRecord } = oldResult.record;
   const { bio, ...newRecord } = newResult.record;
   assert.deepEqual(newRecord, oldRecord, `visual/voice/sigil/reactions data unchanged for seed ${seed}`);
@@ -39,4 +39,4 @@ assert.equal(after.bioFactsOf(poisoned).includes('PHYSICAL_SENTINEL'), false, 'n
 assert.equal(after.hasPhysicalBioDescription('Ho gli occhi verdi e capelli blu.'), true);
 assert.equal(after.hasPhysicalBioDescription('Mi piacciono la musica elettronica e il design industriale.'), false);
 assert.match(after.BIO_RULES, /NON descrivere MAI aspetto fisico/);
-console.log('PASS: 40 seeds identical visual CharacterData/voice/sigil/reactions/trace; only Bio changes. Nonphysical fallback, legacy data, writer physical-input exclusion and output guard. No AI call.');
+console.log('PASS: 40 mature-form seeds identical visual CharacterData/voice/sigil/reactions/trace; only Bio changes. Nonphysical fallback, legacy data, writer physical-input exclusion and output guard. No AI call.');

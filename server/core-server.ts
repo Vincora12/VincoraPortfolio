@@ -1,3 +1,4 @@
+import narrativeMaterial from '../netlify/functions/narrative-material';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { createReadStream, existsSync, mkdirSync, readFileSync, statSync, writeFileSync, unlinkSync } from 'node:fs';
 import { extname, join, normalize, resolve } from 'node:path';
@@ -10,6 +11,7 @@ import automations from '../netlify/functions/automations';
 import brain from '../netlify/functions/brain';
 import calendar from '../netlify/functions/calendar';
 import codeTools from '../netlify/functions/code-tools';
+import culturalDiscovery from '../netlify/functions/cultural-discovery';
 import coreContext from '../netlify/functions/core-context';
 import evolutionBackground from '../netlify/functions/evolution-background';
 import evolutionJob from '../netlify/functions/evolution-job';
@@ -70,7 +72,7 @@ loadEnv();
 const handlers: Record<string, Handler> = {
   '/api/agent-lab': agentLab, '/api/ai': ai, '/api/assets': assets, '/api/brain': brain,
   '/api/automations': automations, '/api/calendar': calendar, '/api/code-tools': codeTools, '/api/core-context': coreContext,
-  '/api/evolution-job': evolutionJob, '/api/food': food, '/api/ingest': ingest,
+  '/api/narrative-material': narrativeMaterial, '/api/cultural-discovery': culturalDiscovery, '/api/evolution-job': evolutionJob, '/api/food': food, '/api/ingest': ingest,
   '/api/lab-duel-job': labDuelJob, '/api/lessons': lessons, '/api/machines': machines,
   '/api/me-chat-capture': meChatCapture, '/api/me-memory': meMemory, '/api/me-seed': meSeed,
   '/api/ping': ping, '/api/projects': projects, '/api/push': push, '/api/runtime-log': runtimeLog,

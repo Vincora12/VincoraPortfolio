@@ -18,7 +18,7 @@ export interface PaletteDNA {
 }
 
 export interface VinzIdentityInput {
-  hairMode: "FULL BLEACH" | "PARTIAL BLEACH";
+  hairMode: "FULL BLEACH" | "PARTIAL BLEACH" | "NONE";
   eyewearCategory: string;
   eyewearSolution?: string;
 }

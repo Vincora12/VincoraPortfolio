@@ -101,11 +101,11 @@ ${resolved.roleBehavior.map(x => `- ${x}`).join("\n")}
 ${resolved.roleStructuralMotif ? `DOMINANT ROLE-DERIVED STRUCTURAL MOTIF:\n${resolved.roleStructuralMotif}` : "No additional role-derived prop/system."}
 
 VINZ IDENTITY — HAIR:
-Natural hair color is DARK BLOND.
+${data.vinzIdentity.hairMode === "NONE" ? "No hair, mane, fringe or anatomical hair substitute." : `Natural hair color is DARK BLOND.
 Bleach mode: ${data.vinzIdentity.hairMode}.
 ${resolved.hairConstruction}
 Never default to black hair.
-If literal hair is impossible, translate it into native anatomy.
+If literal hair is impossible, translate it into native anatomy.`}
 
 VINZ IDENTITY — EYEWEAR:
 Category: ${data.vinzIdentity.eyewearCategory}

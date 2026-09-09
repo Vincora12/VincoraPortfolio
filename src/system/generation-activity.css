@@ -1,0 +1,6 @@
+.generation-activity { width:100%; max-width:460px; margin:12px auto 0; text-align:left; color:var(--ink); font:11px/1.5 var(--font-mono); }
+.generation-activity summary { cursor:pointer; padding:12px 0; min-height:44px; }
+.generation-activity p { font:inherit; margin:8px 0; }
+.generation-activity ol { max-height:180px; overflow:auto; list-style:none; padding:0; margin:8px 0; border-top:1px solid var(--hairline); }
+.generation-activity li { display:grid; grid-template-columns:64px minmax(0,1fr); gap:8px; padding:6px 0; border-bottom:1px solid var(--hairline); overflow-wrap:anywhere; }
+.generation-activity summary:focus-visible { outline:2px solid currentColor; outline-offset:2px; }

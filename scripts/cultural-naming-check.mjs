@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import {build} from 'esbuild';
+const built=await build({stdin:{contents:"export {culturalFormName} from './src/engine/culturalNaming';export {isValidMonName} from './src/engine/naming';",resolveDir:process.cwd(),loader:'ts'},bundle:true,write:false,platform:'node',format:'esm'});
+const m=await import('data:text/javascript;base64,'+Buffer.from(built.outputFiles[0].text).toString('base64'));
+const input={family:'ANGEL',culturalIds:['FF_KH'],seed:17,lineageNames:[]};
+const first=m.culturalFormName(input);assert.equal(first.name,'VESERAF.mon');assert.match(first.origin.sourceUrl,/scholar/);assert.ok(m.isValidMonName(first.name));
+const previous={family:'ANGEL',formNameOrigin:first.origin};
+const second=m.culturalFormName({...input,previous,lineageNames:[first.name.toLowerCase()]});assert.notEqual(first.name,second.name);assert.equal(first.origin.root,second.origin.root);
+assert.equal(m.culturalFormName({...input,family:'DEMON',culturalIds:['SACRED_ANATOMY']}).name,'VELZEBUBZ.mon');
+const fallback=m.culturalFormName({...input,family:'PLANT',culturalIds:['Y2K']});assert.equal(fallback.origin.sourceUrl,undefined);assert.match(fallback.origin.reason,/non è il nome/);assert.ok(m.isValidMonName(fallback.name));
+assert.deepEqual(m.culturalFormName(input),first);assert.equal(previous.formNameOrigin,first.origin);
+console.log('PASS verified roots, cultural fallback provenance, inherited root, deterministic and case-insensitive unique names.');

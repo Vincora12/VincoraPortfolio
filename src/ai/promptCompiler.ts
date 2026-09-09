@@ -1,3 +1,4 @@
+import { babyGrammar } from '../engine/baby';
 /* ============================================================================
    IL COMPILATORE DI PROMPT (MASTER v1.2 §10)
 
@@ -115,10 +116,10 @@ export function survivingConstraints(record: MonRecord): string[] {
   return [
     d.family,
     d.family_archetype,
-    d.affinity,
+    d.lifeStage === 'BABY' ? 'BABY' : d.affinity,
     d.size,
-    d.role,
-    d.fashion,
+    d.lifeStage === 'BABY' ? '' : d.role,
+    d.lifeStage === 'BABY' ? '' : d.fashion,
     d.mood_primary,
     d.appearance,
     String(d.humanoidity ?? 3),
@@ -150,7 +151,7 @@ export async function compileWithAi(
   const { data, failure, detail } = await ask<{ text: string }>(token, {
     capability: 'prompt-compile',
     voiceModel: compilerModel,
-    system: [{ text: COMPILER_RULES, cache: true }],
+    system: [{ text: COMPILER_RULES, cache: true }, ...(record.data.lifeStage === 'BABY' ? [{text:babyGrammar(record)}] : [])],
     user: [
       `ASSET TYPE: ${assetType}`,
       '',

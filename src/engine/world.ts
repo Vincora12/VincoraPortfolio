@@ -103,6 +103,7 @@ export interface World {
   emergedWith: string;
   /** Identità narrativa stabile del luogo. Assente nei World legacy. */
   identity?: string;
+  currentStoryFunction?: string;
   /** Riferimenti culturali del luogo, distinti dal Cultural DNA del Mon. */
   worldCulturalDna?: string[];
   /**
@@ -320,7 +321,7 @@ export function returnBlock(ctx: ReturnContext): string {
       ? `L’ULTIMA COSA SUCCESSA QUI risale al giorno ${last.day}: ${last.text}`
       : 'Non è ancora successo niente qui dentro.',
     ctx.elapsedDays > 0
-      ? `SONO PASSATI ${ctx.elapsedDays} GIORNI. Il posto è andato avanti senza di voi: non è come l’avete lasciato, e non è un’altra cosa.`
+      ? `SONO PASSATI ${ctx.elapsedDays} GIORNI. Il tempo trascorso non dimostra che il luogo sia cambiato: descrivi soltanto eventi registrati.`
       : 'Il tempo passato è poco: il posto è quasi come lo avete lasciato.',
     '',
     ledgerBlock(ctx.ledger),
@@ -339,6 +340,13 @@ export function returnBlock(ctx: ReturnContext): string {
  */
 export function seedWorld(record: MonRecord, day: number): World {
   const d = record.data;
+  if (d.lifeStage === 'BABY') return {
+    id: 'world_NUL', name: 'NUL',
+    description: 'Una spiaggia-soglia: sabbia chiara, mare, un cielo aperto e un orizzonte ampio. Pochissimi elementi. Nessuna direzione è ancora obbligata.',
+    identity: 'Il luogo comune di origine dei BABY. Sabbia, mare e cielo prima che il viaggio prenda una direzione; nessun tema psicologico imposto.',
+    worldCulturalDna: [], currentStoryFunction: 'ORIGIN', emergedOnDay: day, emergedWith: d.name,
+    canon: [{ id: `canon_origin_${d.mindline_node}`, day, kind: 'origin', epistemic: 'WORLD_CANON', text: `${displayName(d.name)} nasce BABY a NUL.`, monName: d.name }],
+  };
   const affinity = d.affinity.toLowerCase();
   const id = `world_${d.mindline_node}`;
   const worldCulturalDna = resolveWorldCulturalDna(record, day);
@@ -393,14 +401,24 @@ export function seedWorld(record: MonRecord, day: number): World {
  */
 export function riseWorld(previous: World, record: MonRecord, day: number): World {
   const d = record.data;
-  const affinity = d.affinity.toLowerCase();
   const id = `world_${d.mindline_node}`;
   const worldCulturalDna = resolveWorldCulturalDna(record, day);
+  const places = [
+    {name:'VETRAVIA', description:'Un porto di vetro opaco attraversato da passerelle basse. Piccole lampade segnano gli approdi; ogni porta si apre soltanto dal lato del mare.'},
+    {name:'CARTAVENTO', description:'Case di carta pressata attorno a una stazione senza binari. Il vento sposta le insegne; qui gli indirizzi si riconoscono dai suoni.'},
+    {name:'FERRALUCE', description:'Un quartiere di scale in ferro e cortili tiepidi. Le insegne restano accese anche a mezzogiorno; gli oggetti riparati portano il segno della riparazione.'},
+  ];
+  const wish = d.user_wish?.toLowerCase() ?? '';
+  const place = /(?:tutto|desider).*realizzat|euphoria/.test(wish)
+    ? {name:'EUPHORIA',description:'Una discoteca infinita senza orologi né finestre. La musica e le luci restano sempre al massimo; non c’è un segnale che dica quando uscire.'}
+    : /hellsire/.test(wish) ? {name:'HELLSIRE',description:'Un luogo caldo, verticale e industriale, pieno di promesse e segnali. Ogni insegna del desiderio indica un piano più in alto.'}
+    : places[Math.abs(d.seed ?? day) % places.length]!;
   return {
     id,
-    name: `SOGLIA ${d.affinity}`,
-    description: `Un posto che si è aperto quando ${displayName(d.name)} ha lasciato ${previous.name} — uno strato che quel posto non arrivava a mostrare, segnato dall'affinità ${affinity}. Nessuno lo ha ancora attraversato fino in fondo.`,
-    identity: `Una soglia aperta da una RISE, dopo ${previous.name}: segnata da ${worldCulturalDna.join(', ')}.`,
+    name: place.name === previous.name ? `${place.name} EST` : place.name,
+    description: place.description,
+    identity: place.description,
+    currentStoryFunction: d.narrativeDNA?.function,
     worldCulturalDna,
     emergedOnDay: day,
     emergedWith: d.name,

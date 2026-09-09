@@ -387,7 +387,7 @@ export function EncounterScreen({ variant }: { variant: 'first' | 'new' }) {
 
         <div className="encounter__tags">
           <SystemLabel tone="character">RANGO {d.rarity}</SystemLabel>
-          <SystemLabel>{d.affinity}</SystemLabel>
+          {d.lifeStage !== 'BABY' && <SystemLabel>{d.affinity}</SystemLabel>}
           <SystemLabel>{d.family}</SystemLabel>
           <SystemLabel>{d.appearance}</SystemLabel>
         </div>

@@ -2,9 +2,11 @@
   "name": "vinz-verce-prototype",
   "private": true,
   "version": "1.2.0",
-  "engines": { "node": ">=22.13.0" },
+  "engines": {
+    "node": ">=22.13.0"
+  },
   "type": "module",
-  "description": "VINZ.MON — prototipo v1 secondo MASTER SPEC v1.2",
+  "description": "VINZ.MON \u2014 prototipo v1 secondo MASTER SPEC v1.2",
   "scripts": {
     "postinstall": "npm --prefix services/mem0 install",
     "build": "tsc --noEmit && tsc --noEmit -p netlify/functions/tsconfig.json && vite build && npm run build:server && npm run build:mem0",
@@ -57,7 +59,10 @@
     "verify:core-ingress": "node scripts/core-ingress-check.mjs",
     "verify:mem0-local": "npm run build:mem0 && node scripts/mem0-local-check.mjs",
     "icons": "node scripts/make-icon.mjs",
-    "icons:lab": "node scripts/make-lab-icon.mjs"
+    "icons:lab": "node scripts/make-lab-icon.mjs",
+    "verify:canon-v4": "node scripts/canon-v4-check.mjs && node scripts/narrative-v4-check.mjs",
+    "verify:context-selection": "node scripts/context-selection-check.mjs",
+    "verify:cultural-discovery": "node scripts/cultural-discovery-check.mjs"
   },
   "dependencies": {
     "@assistant-ui/react": "^0.15.16",

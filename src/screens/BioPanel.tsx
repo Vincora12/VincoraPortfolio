@@ -22,6 +22,8 @@
    perché ti fa cercare la funzione.
    ========================================================================= */
 
+import { useApp } from '../state/store';
+import { MonCharacterPanel } from './MonCharacterPanel';
 import type { ReactNode } from 'react';
 import { AssetSlot } from '../system/AssetSlot';
 import { SpeciesName } from '../system/MonName';
@@ -47,6 +49,8 @@ export function BioPanel({
   assetMonName?: string;
   sticker?: ReactNode;
 }) {
+  const activeName = useApp(state => state.activeMonName);
+  const mood = useApp(state => state.mood);
   const d = mon.data;
   const short = displayName(d.name);
   const bio = readableBio(mon);
@@ -103,12 +107,13 @@ export function BioPanel({
         <span className="bionote__tag">
           <SpeciesName />
         </span>
-        {bio.tags.map((tag) => (
+        {bio.tags.filter(tag => d.lifeStage !== 'BABY' || ![d.affinity, d.role, d.fashion].some(value => tag === `#${value}`)).map((tag) => (
           <span key={tag} className="bionote__tag">
             {tag}
           </span>
         ))}
       </div>
+      <MonCharacterPanel mon={mon} mood={mood} active={!assetMonName && activeName === d.name} />
     </div>
   );
 }

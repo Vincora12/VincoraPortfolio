@@ -1,0 +1,75 @@
+.mon-character {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  color: var(--ink);
+  text-align: left;
+}
+.mon-character__part { min-width: 0; }
+.mon-character .mon-character__eyebrow {
+  margin: 0 0 28px;
+  line-height: 28px;
+}
+.mon-character h3 {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: var(--type-body);
+  font-weight: 600;
+  line-height: 28px;
+}
+.mon-character p {
+  margin: 0;
+  font-size: var(--type-small);
+  line-height: 28px;
+  overflow-wrap: anywhere;
+}
+.mon-character .mon-character__caption { color: var(--muted-strong); }
+.mon-character .mon-character__mood { font-size: var(--type-body); }
+.mon-character details { margin: 0; }
+.mon-character summary {
+  min-height: 56px;
+  padding: 14px 0;
+  font-size: var(--type-small);
+  line-height: 28px;
+  cursor: pointer;
+}
+.mon-character summary::marker { color: var(--char-accent); }
+.mon-character summary:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
+.mon-character ul { padding-left: var(--u4); margin: 0; }
+.mon-character li { padding-left: var(--u); font-size: var(--type-small); line-height: 28px; overflow-wrap: anywhere; }
+.mon-character li::marker { color: var(--char-accent); }
+.mon-character a { color: inherit; text-decoration: underline; text-underline-offset: 3px; overflow-wrap: anywhere; }
+
+/* Marginal notes share the Bio's paper and ruled rhythm. */
+.culture-notes { display: flex; flex-direction: column; gap: 28px; margin-bottom: 28px; }
+.culture-note { display: grid; grid-template-columns: 88px minmax(0, 1fr); column-gap: var(--u3); }
+.culture-note__margin {
+  align-self: start;
+  padding-top: 4px;
+  color: var(--ink);
+  font: 500 var(--type-micro)/20px var(--font-mono);
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+  text-decoration: underline;
+  text-decoration-color: var(--char-accent, currentColor);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 5px;
+}
+.culture-note__body { min-width: 0; }
+.culture-note__body h4 {
+  margin: 0 0 14px;
+  font: italic 750 22px/28px var(--font-display);
+  overflow-wrap: anywhere;
+}
+.mon-character .culture-note__aside {
+  margin-top: 14px;
+  padding-left: var(--u3);
+  border-left: 1px solid var(--char-accent, currentColor);
+  font-style: italic;
+  color: var(--muted-strong);
+}
+@media (max-width: 480px) {
+  .culture-note { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+  .culture-note__margin { justify-self: start; }
+  .culture-note__body { padding-left: var(--u3); }
+}

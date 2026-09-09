@@ -1,3 +1,4 @@
+import { rookieGrammar } from '../engine/rookie';
 /* ============================================================================
    IL PRIMO STADIO, CHIESTO A UN MODELLO
 
@@ -48,6 +49,7 @@
 import { askLong } from './backend';
 import type { BackendFailure } from './backend';
 import type { Lesson, MonRecord } from '../engine/types';
+import { babyGrammar } from '../engine/baby';
 import { characterDataFor } from '../assets-pipeline/resolver/adapter';
 import { numericGrammarFor } from '../assets-pipeline/resolver/vendor/rules';
 import { buildCreativeResolverPrompt } from '../assets-pipeline/resolver/vendor/resolver';
@@ -128,6 +130,8 @@ export async function resolveWithAi(
 ): Promise<ResolveOutcome> {
   const input = characterDataFor(record);
   const numeric = numericGrammarFor(input);
+  if (rookieGrammar(record)) Object.assign(numeric, {headScale:1.4,torsoLength:0.6,silhouetteLandmarkCount:[2,3],clothingMassCount:[0,1],accessorySystemCount:[0,1],hairMassCount:[0,3]});
+  if (record.data.lifeStage === 'BABY') Object.assign(numeric, {silhouetteLandmarkCount:[1,2],clothingMassCount:[0,0],accessorySystemCount:[0,0],hairMassCount:[0,0],eyewearFaceOccupancyPercent:[0,0]});
 
   /* 🔒 Il prompt è quello del pacchetto, parola per parola. Non viene diviso
      fra sistema e utente per guadagnare la cache: spezzarlo vorrebbe dire
@@ -172,6 +176,7 @@ export async function resolveWithAi(
            🔒 Statico come la memoria e subito dopo di lei: il prefisso resta
            identico a ogni chiamata, quindi la cache regge lo stesso. */
         { text: RESOLVER_CONTRACT },
+        ...(record.data.lifeStage === 'BABY' ? [{ text: babyGrammar(record) }] : []),
         /* ⚠️ IL GUSTO, RIATTACCATO — e non è nel prefisso in cache di
            proposito: cambia a ogni creatura, perché contiene la grammatica
            DELLE SUE etichette e cosa hanno già fatto le forme di prima.
@@ -197,6 +202,7 @@ export async function resolveWithAi(
            memoria restano lo stesso, perché quello è il registro di cosa gli
            hai insegnato e quando. */
         ...(lessons.length > 0 ? [{ text: vincoliDa(lessons) }] : []),
+        ...(rookieGrammar(record) ? [{text:rookieGrammar(record)}] : []),
       ],
       /* 🔒 Il prompt del pacchetto, parola per parola, come messaggio utente.
          La memoria non lo spezza: è un blocco separato, prima e sopra. */
@@ -227,6 +233,10 @@ export async function resolveWithAi(
   }
 
   const { resolution, problems, repaired } = parseResolution(text);
+  if (resolution && rookieGrammar(record) && (resolution.fashionMasses.length > 1 || resolution.familySystems.length > 2 || resolution.affinityZones.length > 1 || resolution.silhouetteLandmarks.length > 3)) return {resolution:null,failure:null,problems:['ROOKIE: risoluzione troppo complessa per lo stadio'],repaired,usedLessons:lessons.length,ms};
+  if (resolution && record.data.lifeStage === 'BABY' && (resolution.affinityZones.length > 0 || resolution.fashionMasses.length > 0 || resolution.silhouetteLandmarks.length > 2 || resolution.familySystems.length > 2)) {
+    return {resolution:null,failure:null,problems:['BABY: risoluzione troppo complessa o con Affinity/Fashion attive'],repaired,usedLessons:lessons.length,ms};
+  }
   return {
     resolution,
     failure: null,

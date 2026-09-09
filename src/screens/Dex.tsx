@@ -130,7 +130,7 @@ export function DexScreen({ onGo: _onGo, onOpenMon }: { onGo: (o: Overlay) => vo
           <div className="tecapreview__facts t-meta">
             <span>{d.rarity}</span>
             <span>{d.family} / {d.family_archetype}</span>
-            <span>{d.affinity}</span>
+            {d.lifeStage !== 'BABY' && <span>{d.affinity}</span>}
             <span>{d.evolution_state?.label ?? 'BASIC FORM'}</span>
           </div>
           <div className="tecapreview__tabs" role="tablist" aria-label="Scheda del MON conservato">
@@ -161,7 +161,7 @@ export function DexScreen({ onGo: _onGo, onOpenMon }: { onGo: (o: Overlay) => vo
                 ['RARITÀ', d.rarity],
                 ['STATO', d.evolution_state?.label ?? 'BASIC FORM'],
                 ['NATO IL GIORNO', String(selectedKept.record.bornOnDay)],
-              ].map(([label, value]) => (
+              ].filter(([label]) => d.lifeStage !== 'BABY' || !['AFFINITY', 'ROLE', 'FASHION'].includes(label!)).map(([label, value]) => (
                 <div key={label} className="tecapreview__row">
                   <span>{label}</span><strong>{value}</strong>
                 </div>

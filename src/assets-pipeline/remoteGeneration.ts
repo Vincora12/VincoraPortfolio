@@ -4,6 +4,8 @@ import { promptFor } from './promptFor';
 import { importAssetFile } from './assetStore';
 
 export type RemoteEvolutionStatus = {
+  events?: { at:string; text:string }[];
+  updatedAt?: string;
   id: string;
   status: 'running' | 'ready' | 'error';
   done: number;
@@ -57,6 +59,7 @@ export async function pollRemoteGeneration(
     if (job.status === 'ready') {
       const made: AssetType[] = [];
       for (const asset of job.assets) {
+        onProgress({...job,label:`DOWNLOAD ${asset.assetId}`,events:[...(job.events??[]),{at:new Date().toISOString(),text:`Scaricamento e importazione locale · ${asset.assetId}.`}]});
         const image = await fetch(`/api/evolution-job?jobId=${encodeURIComponent(jobId)}&assetId=${encodeURIComponent(asset.assetId)}`, {
           headers: { authorization: `Bearer ${token}` },
           cache: 'no-store',

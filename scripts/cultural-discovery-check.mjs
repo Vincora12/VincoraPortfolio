@@ -1,0 +1,34 @@
+import assert from 'node:assert/strict';
+import {build} from 'esbuild';
+const fixture={calls:0,records:new Map(),mode:'ready',requests:[]};globalThis.cultureFixture=fixture;
+const compiled=await build({stdin:{contents:`export {generateFirstMon,evolveMon} from './src/engine/characterGenerator'; export {neutralPersonality,EMPTY_NOVELTY} from './src/engine/signals'; export {initialHealthState} from './src/engine/health'; export {default as handler} from './netlify/functions/cultural-discovery'; export {parseCulturalDiscovery,culturalBackground,culturalDiscoveryBlock} from './src/engine/culturalDiscovery';`,resolveDir:process.cwd(),loader:'ts'},bundle:true,platform:'node',format:'esm',write:false,logLevel:'error',plugins:[{name:'synthetic-io',setup(b){
+ b.onLoad({filter:/_shared\/auth\.ts$/},()=>({contents:`export const authorize=r=>({ok:r.headers.get('authorization')==='Bearer fixture'});export const denied=()=>Response.json({error:'unauthorized'},{status:401});export const json=(data,status=200)=>Response.json(data,{status});`}));
+ b.onLoad({filter:/_shared\/localStore\.ts$/},()=>({contents:`export const getStore=()=>({get:async key=>globalThis.cultureFixture.records.get(key)??null,setJSON:async(key,value,opts={})=>{if(opts.onlyIfNew&&globalThis.cultureFixture.records.has(key))return {modified:false};globalThis.cultureFixture.records.set(key,value);return {modified:true};}});`}));
+ b.onLoad({filter:/functions\/ai\.ts$/},()=>({contents:`export default async request=>{const f=globalThis.cultureFixture;f.calls++;f.requests.push(await request.json());await new Promise(r=>setTimeout(r,10));if(f.mode==='error')return Response.json({error:'capped'},{status:402});return Response.json({text:JSON.stringify({title:'Riparare senza nascondere la frattura',fact:'Una pratica culturale documentata nella fonte.',background:'Può diventare una sensibilità verso ciò che conserva tracce.',worldIdea:'Un cortile dove ogni riparazione resta visibile.',personalQuestion:'Posso cambiare senza cancellare ciò che ero?',sourceUrls:[f.mode==='fake-url'?'https://invented.invalid':'https://museum.example/collection']}),webSearchOn:true,usage:{webSearches:1},sources:[{title:'Museum archive',url:'https://museum.example/collection'}]});};`}));
+}}]});
+const m=await import('data:text/javascript;base64,'+Buffer.from(compiled.outputFiles[0].text).toString('base64'));
+const req=(transition,auth=true,ids=['YOKAI','OBSOLETE_TECH'])=>new Request('http://fixture/api/cultural-discovery',{method:'POST',headers:{authorization:auth?'Bearer fixture':'','content-type':'application/json'},body:JSON.stringify({transition,culturalIds:ids})});
+assert.equal((await m.handler(req('a',false))).status,401);assert.equal(fixture.calls,0);
+assert.equal((await m.handler(req('bad transition'))).status,400);assert.equal(fixture.calls,0);
+let response=await m.handler(req('empty',true,['UNKNOWN']));assert.equal((await response.json()).status,'unavailable');assert.equal(fixture.calls,0);
+const first=m.handler(req('transition-a'));const concurrent=await m.handler(req('transition-a'));assert.equal(concurrent.status,202);
+const ready=await (await first).json();assert.equal(ready.status,'ready');assert.equal(ready.sources.length,1);assert.equal(fixture.calls,1);
+assert.deepEqual(await (await m.handler(req('transition-a'))).json(),ready);assert.equal(fixture.calls,1);
+assert.equal(fixture.requests[0].webSearch,true);assert.ok(fixture.requests[0].user.includes('yokai'));assert.ok(!fixture.requests[0].user.includes('memories'));
+fixture.mode='fake-url';response=await m.handler(req('transition-b'));assert.equal((await response.json()).status,'unavailable');
+fixture.mode='error';response=await m.handler(req('transition-c'));assert.equal((await response.json()).reason,'provider-402');const count=fixture.calls;await m.handler(req('transition-c'));assert.equal(fixture.calls,count);
+assert.equal(m.parseCulturalDiscovery({text:'{}',webSearchOn:true,usage:{webSearches:1}},['YOKAI']),null);
+assert.equal(m.parseCulturalDiscovery({text:'{}',webSearchOn:false,usage:{webSearches:0}},['YOKAI']),null);
+assert.equal(m.culturalBackground(['UNKNOWN']), '');
+const block=m.culturalDiscoveryBlock({culturalDiscovery:ready});assert.ok(block.includes('creative interpretation'));assert.ok(block.includes('never an event in the user'));
+assert.ok(block.includes(ready.sources[0].url));
+console.log('PASS cultural research: auth, catalog validation, one call per transition, concurrent/reload reuse, verified provider URLs only, no-search rejection, persisted cap/failure fallback, epistemic labels. Synthetic provider/storage; no live searches.');
+
+const input={day:12,health:m.initialHealthState(),personality:m.neutralPersonality(),moodHistory:[],cultural:{},novelty:m.EMPTY_NOVELTY,mindlineDepth:0,bond:10,dataConfidence:0,activeDays:1,branchCount:0};
+const ctx={input,mindlineNodeId:'first',originNodeId:null,lineageNames:[],seed:17};
+const prior={...m.generateFirstMon(ctx).record,culturalDiscovery:ready};
+const evolved=m.evolveMon(prior,{...ctx,seed:18},'second').record;
+assert.equal(evolved.culturalDiscovery,undefined,'micro-growth must request a fresh discovery');
+assert.equal(prior.culturalDiscovery,ready,'previous record is unchanged');
+assert.equal(evolved.data.origin_node,'first');
+console.log('PASS micro-growth opens a new discovery without mutating the previous record.');

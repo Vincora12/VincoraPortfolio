@@ -62,6 +62,7 @@ import { generateReactions, generateVoiceDna } from './voiceDna';
 import { buildPersonalityCard } from './voiceCard';
 import { rollRarity, type UnlockContext } from './rarity';
 import { generateMonName } from './naming';
+import { culturalFormName } from './culturalNaming';
 import { countChangedAxes, translateHeritage, type HeritageOrigin } from './heritage';
 import { AXIS_LABELS, type ContinuityAxis } from './progression';
 import { emptyAssetStatus } from './assets';
@@ -78,6 +79,7 @@ import type {
 } from './types';
 import { STAT_KEYS, displayName } from './types';
 import { generateCharacterBio } from './characterBio';
+import { asBaby } from './baby';
 
 /* --- Contesto -------------------------------------------------------------- */
 
@@ -396,11 +398,21 @@ export function generateMon(ctx: GenerationContext): GenerationResult {
       : 'estratto fra i designer accesi nel catalogo',
   });
 
+  /* 🔷 «Nelle note devi segnare cosa si è aggiunto e cosa è rimasto.» La
+     riga sopra dice QUALI riferimenti sono usciti, ma non se sono nuovi o
+     ereditati dalla forma precedente — per saperlo bisognava confrontare a
+     mano il cultural_dna di due mon. Il confronto lo fa la nota stessa. */
+  const previousCulturalDna = ctx.previous?.data.cultural_dna ?? [];
+  const newCulturalRefs = culturalDna.filter((id) => !previousCulturalDna.includes(id));
+  const keptCulturalRefs = culturalDna.filter((id) => previousCulturalDna.includes(id));
+  const culturalDiffNote = ctx.previous
+    ? `nuovi: ${newCulturalRefs.length > 0 ? newCulturalRefs.map((id) => culturalReference(id)?.it ?? id).join(', ') : 'nessuno'} · confermati dalla forma precedente: ${keptCulturalRefs.length > 0 ? keptCulturalRefs.map((id) => culturalReference(id)?.it ?? id).join(', ') : 'nessuno'}`
+    : 'prima generazione, nessuna forma precedente da confrontare';
   steps.push({
     step: 11.7,
     stage: 'CULTURAL DNA',
     outcome: culturalDna.map((id) => culturalReference(id)?.it ?? id).join(' + '),
-    note: `${culturalDna.length} riferimenti, uno per cluster: il master li vuole distanti`,
+    note: `${culturalDna.length} riferimenti, uno per cluster: il master li vuole distanti — ${culturalDiffNote}`,
   });
 
   /* 12 — HERITAGE (§23) */
@@ -417,7 +429,10 @@ export function generateMon(ctx: GenerationContext): GenerationResult {
   steps.push({ step: 13, stage: 'CHARACTER DNA', outcome: characterDna.silhouette_quirk });
 
   /* 14 — VOICE DNA (§13/§14) */
-  const { preset: voicePreset, voice } = generateVoiceDna(rng, characterDna, moodPrimary);
+  const drawnVoice = generateVoiceDna(rng, characterDna, moodPrimary);
+  // A new body does not reroll the continuing person's voice.
+  const voicePreset = ctx.previous?.data.voice_preset ?? drawnVoice.preset;
+  const voice = ctx.previous ? { ...ctx.previous.data.voice_dna, deviations: [...(ctx.previous.data.voice_dna.deviations ?? [])] } as typeof drawnVoice.voice : drawnVoice.voice;
   steps.push({
     step: 14,
     stage: 'VOICE DNA',
@@ -475,12 +490,15 @@ export function generateMon(ctx: GenerationContext): GenerationResult {
   });
 
   /* 17 — NOME (§24 step 17) */
-  const name = generateMonName(rng, ctx.lineageNames);
+  generateMonName(rng, ctx.lineageNames); // Preserve the existing RNG sequence for downstream visual data.
+  const named = culturalFormName({family:family.id,culturalIds:culturalDna,seed:ctx.seed,lineageNames:ctx.lineageNames,previous:ctx.previous?.data});
+  const name = named.name;
   steps.push({ step: 17, stage: 'NAME', outcome: name });
 
   /* 18 — CHARACTER_DATA.json, senza che serva alcuna immagine */
   const data: CharacterData = {
     name,
+    formNameOrigin: named.origin,
     family: family.id,
     family_archetype: archetype,
     affinity,
@@ -550,7 +568,7 @@ export function generateMon(ctx: GenerationContext): GenerationResult {
   return {
     record: {
       data,
-      personalityCard: buildPersonalityCard(data),
+      personalityCard: { ...buildPersonalityCard(data), ...(ctx.previous?.personalityCard?.writingStyle ? {writingStyle:{...ctx.previous.personalityCard.writingStyle}} : {}) },
       bio: generateBio(data, ctx),
       sigil: generateSigil(data, ctx.previous),
       reactions: generateReactions(rng, moodPrimary),
@@ -577,7 +595,7 @@ export function generateMon(ctx: GenerationContext): GenerationResult {
 export function generateFirstMon(
   ctx: Omit<GenerationContext, 'heritageOrigins' | 'previous'>,
 ): GenerationResult {
-  return generateMon({
+  const result = generateMon({
     ...ctx,
     heritageOrigins: [],
     previous: null,
@@ -585,6 +603,7 @@ export function generateFirstMon(
     // altre Family il filtro non trova questi id e lascia intatto il catalogo.
     allowedArchetypes: ctx.allowedArchetypes ?? ['PUTTO', 'MESSENGER', 'GUARDIAN'],
   });
+  return { ...result, record: asBaby(result.record) };
 }
 
 /* ============================================================================
@@ -1236,6 +1255,7 @@ export function evolveMon(
 
   const data: CharacterData = {
     ...prev,
+    lifeStage: 'FORM',
     mood_primary: primary,
     mood_secondary: secondary,
     palette_dna: generatePaletteDna(rng, prev.family, prev.affinity, primary),
@@ -1264,6 +1284,8 @@ export function evolveMon(
     record: {
       ...record,
       data,
+      // Each new node researches its own discovery, including micro-growth.
+      culturalDiscovery: undefined,
       bio: {
         ...record.bio,
         annotations: [

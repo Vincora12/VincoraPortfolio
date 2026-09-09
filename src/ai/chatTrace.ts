@@ -23,6 +23,7 @@ export interface ChatTracePromptBlock {
 }
 
 export interface ChatTrace {
+  contextSelection?: import('./contextSelection').ContextDecision[];
   originatingUserMessageId?: string;
   /** `strumenti` = replyWithLocalTools, `diretto` = streamReply. */
   path: 'strumenti' | 'diretto';

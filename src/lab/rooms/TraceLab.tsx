@@ -67,6 +67,11 @@ function ExchangeTrace() {
         </Section>
       )}
 
+      {trace.contextSelection?.length ? (
+        <Section title="SELEZIONE DEL CONTESTO">
+          <Rows rows={trace.contextSelection.map(item => [`${item.source} · ${item.id}`, `${item.reason} · ${item.chars} caratteri`])} />
+        </Section>
+      ) : null}
       {trace.systemPromptComposition?.length ? (
         <Section title="COMPOSIZIONE DEL SYSTEM" note="Quanto pesa ogni blocco. Il testo non viene conservato né mostrato.">
           <Rows rows={trace.systemPromptComposition.map((block) => [block.name, `${block.chars} caratteri`])} />

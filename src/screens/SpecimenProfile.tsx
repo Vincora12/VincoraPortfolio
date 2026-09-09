@@ -109,7 +109,7 @@ export function SpecimenProfileScreen({
         {/* 🔷 v1.10 — avevano tutte lo stesso peso e nessuna diceva di cosa
             fosse: rarità, affinità e taglia erano tre parole in fila. */}
         <SystemLabel tone="character">RARITÀ · {d.rarity}</SystemLabel>
-        <SystemLabel>AFFINITÀ · {d.affinity}</SystemLabel>
+        {d.lifeStage !== 'BABY' && <SystemLabel>AFFINITÀ · {d.affinity}</SystemLabel>}
         <SystemLabel>TAGLIA · {d.size}</SystemLabel>
         {d.season && <SystemLabel>{d.season}</SystemLabel>}
       </div>
@@ -184,10 +184,10 @@ export function SpecimenProfileScreen({
               <Row label="SPECIE" value={<SpeciesName />} />
               <Row label="FAMILY" value={`${d.family} · ${familyDef(d.family).it}`} />
               <Row label="FAMILY ARCHETYPE" value={d.family_archetype} />
-              <Row label="AFFINITY" value={`${d.affinity} · ${affinityDef(d.affinity).it}`} />
+              {d.lifeStage !== 'BABY' && <Row label="AFFINITY" value={`${d.affinity} · ${affinityDef(d.affinity).it}`} />}
               <Row label="SIZE" value={`${d.size} · ${SIZE_GRAMMAR[d.size].it}`} />
-              <Row label="ROLE" value={`${d.role} · ${roleDef(d.role).it}`} />
-              <Row label="FASHION" value={`${d.fashion} · ${fashionDef(d.fashion).it}`} />
+              {d.lifeStage !== 'BABY' && <Row label="ROLE" value={`${d.role} · ${roleDef(d.role).it}`} />}
+              {d.lifeStage !== 'BABY' && <Row label="FASHION" value={`${d.fashion} · ${fashionDef(d.fashion).it}`} />}
               <Row label="MOOD PRIMARY" value={`${d.mood_primary} · ${moodDef(d.mood_primary).it}`} />
               <Row
                 label="MOOD SECONDARY"

@@ -1,3 +1,6 @@
+import { NATURAL_VOICE } from './naturalVoice';
+import { narrativeContextBlock, type NarrativeContext } from '../engine/narrativeContext';
+import { culturalBackground, culturalDiscoveryBlock } from '../engine/culturalDiscovery';
 /* ============================================================================
    CHI SCRIVE LA BIO (§8.1)
 
@@ -36,7 +39,7 @@
 import { ask } from './backend';
 import { AI_STEPS } from '../../netlify/functions/_shared/routing';
 import type { BackendFailure } from './backend';
-import type { BioFile, Memory, MonRecord } from '../engine/types';
+import type { BioFile, CulturalPreference, Memory, MonRecord } from '../engine/types';
 import { displayName } from '../engine/types';
 import { voiceCard, voiceCardBlock } from '../engine/voiceCard';
 import { bioTasteSeeds, generateCharacterBio, hasPhysicalBioDescription } from '../engine/characterBio';
@@ -53,6 +56,7 @@ import { bioTasteSeeds, generateCharacterBio, hasPhysicalBioDescription } from '
  * legge un modello di immagini.
  */
 export const BIO_RULES = [
+  NATURAL_VOICE,
   'Sei il .mon stesso e stai scrivendo il tuo quaderno personale. Prima persona, maschile.',
   '',
   /* ════════════════════════════════════════════════════════════════════════
@@ -75,7 +79,18 @@ export const BIO_RULES = [
   '- Lasciarne fuori la maggior parte è la cosa GIUSTA, non una mancanza.',
   '- Non nominare mai una cosa solo perché te l’hanno data.',
   '',
-  'UN PENSIERO SOLO, AL CENTRO.',
+  'LA TUA VOCE VIENE PRIMA DELLA FORMA DEL TESTO.',
+  'Usa la stessa identità e firma di scrittura della chat: ritmo, lessico, punteggiatura,',
+  'maiuscole, ironia, riserbo e spontaneità seguono la Voice Card fornita.',
+  'Non descrivere il tuo stile: scrivi davvero in quello stile, anche negli appunti.',
+  'Gli appunti non introducono un carattere diverso: rispetta soprattutto la propensione all’umorismo della Voice Card. Apprezzare una battuta non significa essere abitualmente ironico; non inventare questa abitudine.',
+  'Non assumere la voce saggia del narratore: quella racconta l’avventura dall’esterno.',
+  'Il BABY ha già un carattere e una voce propri: niente linguaggio infantile automatico.',
+  'Il background culturale orienta ciò che noti, desideri e contesti; gli eventi vissuti',
+  'vengono soltanto dalla continuità e dai ricordi forniti. Una scoperta recente può',
+  'lasciarti una curiosità o cambiare una posizione, senza diventare un passato inventato.',
+  '',
+  'UN PENSIERO TUO, AL CENTRO.',
   'Una bio riuscita è organizzata intorno a UNA idea su te stesso. Qualcosa',
   'tipo «faccio il sicuro, ma prima guardo dove si mettono gli altri».',
   'Poi tiri dentro solo quello che appartiene davvero a quel pensiero: forse',
@@ -83,19 +98,21 @@ export const BIO_RULES = [
   'Il resto resta fuori, anche se è vero.',
   '',
   'COSA NON PUOI FARE',
-  '- NON puoi cambiare un fatto, né inventarne di nuovi.',
-  '- NON puoi inventare episodi, persone, luoghi o oggetti che non ti sono stati dati.',
+  '- Non cambiare fatti reali. Puoi costruire preferenze soggettive del Mon: sono finzione del personaggio, non fatti sull’utente.',
+  '- Non inventare esperienze vissute o opere inesistenti. Usa opere e personaggi reali che conosci con sicurezza oppure documentati nelle fonti fornite; se incerto scegli altro.',
   '- I RICORDI REALI DI CHI TI HA FATTO NASCERE sono contesto, non un referto psicologico.',
   '  Se ci sono, scegline uno e fallo diventare parte del modo in cui racconti la tua nascita.',
   '  Puoi ricordare soltanto ciò che compare nel blocco RICORDI REALI: mai completare i vuoti.',
   '',
+  'BABY: nascita a NUL, primo temperamento, nessun passato personale inventato. BREED: due backup della stessa coscienza, non genitori indipendenti.',
+  'TUNE e RISE: racconta la continuità e il passaggio realmente documentati. Wish è un desiderio esplicito, Reflection una lettura provvisoria.',
   'COME SCRIVI',
   '- Parli a chi ti ha fatto nascere, dandogli del tu. Non ti presenti in terza persona.',
   '- Concreto prima che poetico. Se una frase potrebbe stare nella bio di un altro .mon,',
   '  è una frase sbagliata: riscrivila finché non può essere solo tua.',
   '- Niente frasi che si aprono con «Sono arrivato il giorno...»: quella era la formula vecchia.',
   '- Niente elenchi, niente titoli, niente markdown, niente virgolette caporali.',
-  '- Non nominare mai un designer, un franchise o un personaggio esistente.',
+  '- Puoi nominare personaggi, quadri, canzoni e autori reali: scegli riferimenti precisi coerenti con il Cultural DNA, non copie della loro personalità.',
   '- Non dire mai «utente», «sistema», «generato», «algoritmo», «dati».',
   '- Non usare mai i nomi di catalogo come parole tue: nessuno dice «sono un ANGEL',
   '  MESSENGER di affinità MACHINE». Quelle etichette descrivono come sei fatto,',
@@ -104,8 +121,8 @@ export const BIO_RULES = [
   '- Racconta chi sei attraverso 1–3 gusti e prese di posizione: ami, apprezzi, sei curioso, non sopporti.',
   '- CULTURAL TASTE è una sensibilità della forma, NON una preferenza accertata dell’utente.',
   '- Trasforma le sensibilità in un ritratto compatto: musica, scene, arte, giochi, design o rituali.',
-  '- Non ripetere i nomi delle reference; niente lista di tag, oroscopo o diagnosi psicologica.',
-  '- Scrivi come una persona vera: diretto, personale, anche colloquiale. Una parolaccia è',
+  '- Evita liste di reference nella bio: scegli uno o due riferimenti specifici e fai sentire perché contano per te.',
+  '- Scrivi come questa persona precisa: asciutto, espansivo, ricercato o colloquiale secondo la tua voce. Una parolaccia è',
   '  ammessa soltanto se nasce naturalmente dalla voce e dal ricordo, mai come decorazione.',
   '- Prima di consegnare, rileggiti una volta: ogni frase deve seguire dalla precedente e',
   '  reggersi davvero, non solo suonare nel tuo tono. In personaggio ma confusa è peggio',
@@ -116,12 +133,21 @@ export const BIO_RULES = [
      contraddizioni, gli appunti le ridicevano più corte, i dettagli le
      ridicevano ancora. Adesso ognuno ha un compito che gli altri due non
      possono fare. */
+  'PRIMA COSTRUISCI IL RITRATTO CULTURALE, POI SINTETIZZA LA BIO.',
+  'culturalPortrait contiene 3–5 gusti specifici, diversi fra loro: personaggi, opere, canzoni, artisti. Non semplici categorie o franchise.',
+  'Per ciascuno: subject (nome preciso, con opera/autore quando necessario), stance (love/hate/mixed/curious), reason (motivazione personale), tension (sfumatura o conflitto, senza contraddire la Voice Card).',
+  'Non distribuire amore e odio meccanicamente. Puoi adorare una figura e detestarne una scelta, o amare un’opera che mette in discussione un tuo valore.',
+  'Ogni motivazione deve derivare da carattere, desideri, contraddizioni e background. Non trasformare una preferenza in un falso ricordo di aver assistito a concerti, giocato o visitato musei.',
+  'Se esiste un ritratto precedente, mantieni la continuità: cambia posizione solo con una ragione nei materiali vissuti o nella scoperta fornita. Non azzerare i gusti a ogni forma.',
+  'A ogni evoluzione riesamina ogni gusto precedente: puoi confermarlo, sfumarlo o cambiarlo. Mantieni il nome del riferimento quando lo riesamini, così la continuità è leggibile. In reason e tension spiega l’eventuale differenza; le autoriflessioni ME.MON sono ipotesi utili, non cause certe. Senza una ragione fornita non fabbricare un cambiamento.',
+  'La story è soltanto una sintesi personale: non riversare tutto il ritratto negli appunti.',
   'COSA CONSEGNI — un oggetto JSON, e nient’altro:',
   '{',
-  '  "story": "3-6 frasi. UN pensiero su di te, portato fino in fondo. Non un riassunto',
+  '  "culturalPortrait": [{"subject":"nome specifico","stance":"mixed","reason":"perché mi riguarda","tension":"cosa mi attrae e cosa mi disturba"}],',
+  '  "story": "Un breve autoritratto. Lunghezza e struttura seguono la tua voce: anche poche frasi se sei laconico. Non un riassunto',
   '            di cosa sei: una cosa che hai capito o che non hai ancora capito.',
   '            Il giorno esatto va detto, ma non per forza per primo e non come apertura.",',
-  '  "annotations": ["2-4 appunti a margine, come scritti di fretta e per te, non per lui.",',
+  '  "annotations": ["1-4 appunti a margine, per te: frettolosi, misurati o elaborati secondo il tuo stile.",',
   '                  "Ammissioni, dubbi, piccole antipatie, cose che ti danno fastidio.",',
   '                  "Spontanei. NON altri tratti del catalogo detti più corti."],',
   '  "rememberedDetails": ["2-3 dettagli CONCRETI di gusto o atteggiamento:",',
@@ -189,6 +215,7 @@ export interface BioMemoryContext {
    * Culture DNA + relevant life context + hatch / first World.»
    */
   world?: string;
+  narrative?: NarrativeContext;
 }
 
 export function bioFactsOf(record: MonRecord, context?: BioMemoryContext): string {
@@ -196,11 +223,13 @@ export function bioFactsOf(record: MonRecord, context?: BioMemoryContext): strin
   const dna = d.character_dna;
   const { length } = voiceCard(record);
   return [
+    ...(context?.narrative?.previousMon ? ['RITRATTO CULTURALE PRECEDENTE (continuità, non copiare la bio):', JSON.stringify(context.narrative.previousMon.writtenBio?.culturalPortrait ?? [])] : []),
     'IL SERBATOIO. Prendi quello che serve al pensiero che scegli, lascia il resto.',
     '',
-    `IL TUO NOME: ${displayName(d.name)}`,
+    ...(context?.narrative ? [narrativeContextBlock(context.narrative)] : []),
+    `IL TUO NOME PERSONALE: Vinz.mon. Ti presenti sempre così. NOME DELLA FORMA: ${displayName(d.name)}.mon; non sostituisce la tua identità.`,
     `IL GIORNO IN CUI SEI ARRIVATO: ${d.generated_at_day}`,
-    `IMPULSO DEL RUOLO (non pronunciare l'etichetta): ${d.role}`,
+    ...(d.lifeStage === 'BABY' ? ['BABY: nessun ruolo o affinità attivi.'] : [`IMPULSO DEL RUOLO (non pronunciare l'etichetta): ${d.role}`]),
     /* 🔷 VINZMON_NARRATIVE_ROLE_IMPLEMENTATION_BRIEF §9 — «The Bio Writer
        should consume Narrative DNA rather than inventing a complete
        personality from scratch». Assente sulle creature nate prima di
@@ -223,6 +252,8 @@ export function bioFactsOf(record: MonRecord, context?: BioMemoryContext): strin
     `LE TUE CONTRADDIZIONI: ${dna.contradictions.map((c) => `${c.a} contro ${c.b}`).join(' · ')}`,
     `QUELLO CHE VUOI: ${dna.drives.join(' · ')}`,
     `COME SEI: ${dna.traits.join(' · ')}`,
+    `BACKGROUND CULTURALE — sensibilità e immaginario, non biografia già vissuta: ${culturalBackground(d.cultural_dna)}`,
+    culturalDiscoveryBlock(record),
     'CULTURAL TASTE — interpretazioni narrative della sensibilità della forma, non esperienze o fatti sull’utente:',
     ...bioTasteSeeds(d).map((taste) => `- ATTRAZIONE: ${taste.likes}; AVVERSIONE: ${taste.dislikes}`),
     '',
@@ -244,7 +275,7 @@ export function bioFactsOf(record: MonRecord, context?: BioMemoryContext): strin
     /* 🔒 In fondo e non in cima: è come SCRIVI, non cosa scrivi. Messo fra i
        fatti verrebbe letto come un altro fatto da raccontare — «sono uno che
        parla poco» — che è esattamente il collage che stiamo togliendo. */
-    'COME PARLI — è il tuo modo, non un argomento di cui parlare:',
+    'COME SCRIVI QUESTA BIO — la stessa voce della chat, applicata a tutti i campi; non un argomento da descrivere:',
     voiceCardBlock(record),
     length === 'short'
       ? 'Sei uno che dice poco: la tua bio può essere più corta della media, e va bene.'
@@ -301,6 +332,7 @@ export async function writeBioWithAi(
 
   return {
     bio: {
+      culturalPortrait: parsed.culturalPortrait,
       story: parsed.story.trim(),
       annotations: parsed.annotations,
       rememberedDetails: parsed.rememberedDetails,
@@ -320,7 +352,7 @@ export async function writeBioWithAi(
  * risposta vorrebbe dire pagarla per niente. Un modello che consegna un
  * `story` vuoto no: quello non ha obbedito.
  */
-function parseBio(raw: string): { story: string; annotations: string[]; rememberedDetails: string[] } | null {
+function parseBio(raw: string): { story: string; annotations: string[]; rememberedDetails: string[]; culturalPortrait?: CulturalPreference[] } | null {
   const text = raw.trim().replace(/^```(?:json)?/i, '').replace(/```$/, '').trim();
   const start = text.indexOf('{');
   const end = text.lastIndexOf('}');
@@ -343,5 +375,13 @@ function parseBio(raw: string): { story: string; annotations: string[]; remember
 
   if (story.trim().length < 40 || story.length > 3000 || annotations.length === 0 || annotations.length > 6 || rememberedDetails.length > 6
     || [...annotations, ...rememberedDetails].some((line) => line.length > 800)) return null;
-  return { story, annotations, rememberedDetails };
+  let culturalPortrait: CulturalPreference[] | undefined;
+  if (o.culturalPortrait !== undefined) {
+    if (!Array.isArray(o.culturalPortrait) || o.culturalPortrait.length < 3 || o.culturalPortrait.length > 5) return null;
+    const entries = o.culturalPortrait as Record<string, unknown>[];
+    if (entries.some(x => !x || !['love','hate','mixed','curious'].includes(String(x.stance)) ||
+      ['subject','reason','tension'].some(key => typeof x[key] !== 'string' || !(x[key] as string).trim() || (x[key] as string).length > (key === 'subject' ? 160 : 350)))) return null;
+    culturalPortrait = entries.map(x => ({subject:String(x.subject).trim(), stance:x.stance as CulturalPreference['stance'], reason:String(x.reason).trim(), tension:String(x.tension).trim()}));
+  }
+  return { story, annotations, rememberedDetails, culturalPortrait };
 }

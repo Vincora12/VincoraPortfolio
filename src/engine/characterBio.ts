@@ -39,7 +39,7 @@ export function generateCharacterBio(data: CharacterData, day = data.generated_a
   const second = tastes[1];
   const origins = [...new Set((data.heritage_traits ?? []).map((item) => displayName(item.from_mon)))].slice(0, 2);
   return {
-    story: [`Mi piacciono ${first.likes}.`, second ? `Mi incuriosiscono anche ${second.likes}.` : 'Preferisco capire cosa mi attira prima di decidere come chiamarlo.',
+    story: [data.lifeStage === 'BABY' ? 'Nasco a NUL, fra sabbia, mare e cielo. Il percorso di questa forma comincia qui.' : '', `Mi piacciono ${first.likes}.`, second ? `Mi incuriosiscono anche ${second.likes}.` : 'Preferisco capire cosa mi attira prima di decidere come chiamarlo.',
       `Non sopporto ${first.dislikes}.`, `Dal giorno ${day} questa è la mia maniera di scegliere cosa merita attenzione.`].join(' '),
     annotations: [`Da tenere vicino: ${first.likes}.`, `Da evitare: ${first.dislikes}.`],
     rememberedDetails: origins.length ? [`Continuo il percorso di ${origins.join(' e ')}: stessa coscienza, un’altra prospettiva.`] : ['Prima forma del percorso; nessun ricordo precedente inventato.'],

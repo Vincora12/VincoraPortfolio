@@ -1,3 +1,4 @@
+import { rookieGrammar } from '../../engine/rookie';
 /* ============================================================================
    DAI NOSTRI FATTI A QUELLI CHE IL SUO COMPILATORE LEGGE
 
@@ -27,6 +28,7 @@
    tradotto: il pacchetto dice che ogni Forma è una manifestazione fresca.
    ========================================================================= */
 
+import { babyGrammar } from '../../engine/baby';
 import type { MonRecord } from '../../engine/types';
 import { CULTURAL_REFERENCES, DESIGN_DNA } from '../../engine/generation-config';
 import type { CharacterData } from './vendor/types';
@@ -49,17 +51,17 @@ export function characterDataFor(record: MonRecord): CharacterData {
     rarity: d.rarity as CharacterData['rarity'],
     family: d.family,
     archetype: d.family_archetype,
-    affinity: d.affinity,
+    affinity: d.lifeStage === 'BABY' ? 'LATENT — no active contamination' : d.affinity,
     size: d.size as CharacterData['size'],
     humanoidity: d.humanoidity as CharacterData['humanoidity'],
-    role: d.role,
-    fashion: d.fashion,
+    role: d.lifeStage === 'BABY' ? 'NONE — BABY' : d.role,
+    fashion: d.lifeStage === 'BABY' ? 'NONE — BABY' : d.fashion,
     mood: [d.mood_primary, d.mood_secondary].filter((x): x is string => Boolean(x)),
     characterDesignDNA: d.character_design_dna as CharacterData['characterDesignDNA'],
     /* La densità è del DESIGNER: è lui che decide quanto sopravvive. Il suo
        `validateCharacterData` la confronta con la propria `detailRange` e
        avvisa se non torna — quell'avviso è utile e va lasciato suonare. */
-    detailDensity: designer?.density ?? 3,
+    detailDensity: d.lifeStage === 'BABY' ? 1 : rookieGrammar(record) ? 2 : designer?.density ?? 3,
     appearance: d.appearance as CharacterData['appearance'],
     palette: {
       dominantBase: colour(roles.base),
@@ -69,7 +71,7 @@ export function characterDataFor(record: MonRecord): CharacterData {
       neutrals: [colour(roles.neutralLight), colour(roles.neutralDark)],
     },
     vinzIdentity: {
-      hairMode: (d.hair_state ?? 'FULL BLEACH') as CharacterData['vinzIdentity']['hairMode'],
+      hairMode: (d.lifeStage === 'BABY' ? 'NONE' : d.hair_state ?? 'FULL BLEACH') as CharacterData['vinzIdentity']['hairMode'],
       eyewearCategory: d.eyewear?.category ?? 'NONE',
       eyewearSolution: d.eyewear?.description,
     },
@@ -80,7 +82,7 @@ export function characterDataFor(record: MonRecord): CharacterData {
     ),
     characterDNA: {
       silhouetteQuirk: d.character_dna.silhouette_quirk,
-      anatomicalGimmick: d.character_dna.anatomical_gimmick,
+      anatomicalGimmick: d.lifeStage === 'BABY' ? babyGrammar(record) : rookieGrammar(record) || d.character_dna.anatomical_gimmick,
       faceEyeLogic: d.character_dna.face_logic,
       bodyLanguageDefault: d.character_dna.body_language,
       contradictions: d.character_dna.contradictions.map((c) => `${c.a} / ${c.b}`),

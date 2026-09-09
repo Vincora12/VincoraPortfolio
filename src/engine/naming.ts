@@ -28,7 +28,7 @@ export function isValidMonName(canonical: string): boolean {
   const stem = canonical.slice(0, -SUFFIX.length);
   if (stem.length < 3) return false;
   if (!stem.startsWith('V')) return false;
-  if (!stem.includes('Z')) return false;
+  // Cultural roots may preserve their sound without an obligatory Z.
   return /^[A-Z]+$/.test(stem);
 }
 

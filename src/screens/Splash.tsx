@@ -1,3 +1,4 @@
+import { GenerationActivity } from '../system/GenerationActivity';
 /* ============================================================================
    00 — INGRESSO (MASTER SPEC §13.1, riscritta in v1.10 §13.7)
 
@@ -106,6 +107,7 @@ export function SplashScreen({ onEnter, previewMonName }: { onEnter: () => void;
               </Button>
             </>
           )}
+          <GenerationActivity job={firstHatchJob}/>
         </div>
       </div>
     );
@@ -113,6 +115,7 @@ export function SplashScreen({ onEnter, previewMonName }: { onEnter: () => void;
 
   return (
     <div className="splash">
+      {!previewMonName && !incubating && evolutionJob && <GenerationActivity job={evolutionJob}/>}
       {!previewMonName && !incubating && evolutionJob?.status === 'ready' ? (
         <HoldButton className="splash__evolution-hold" onComplete={revealFormEvolution}>
           {evolutionJob.kind === 'hatch' ? 'PRIMO MON PRONTO' : 'NUOVO MON PRONTO'}
@@ -342,10 +345,10 @@ function MonDossier({ health, mon }: { health: Parameters<typeof birthStatsFor>[
         <p className="t-meta dossier__label">{t.splash.identity}</p>
         <div className="rowlist">
           <Row label="FAMILY" value={`${d.family} // ${d.family_archetype}`} />
-          <Row label="AFFINITY" value={d.affinity} />
+          {d.lifeStage !== 'BABY' && <Row label="AFFINITY" value={d.affinity} />}
           <Row label="SIZE" value={d.size} />
-          <Row label="ROLE" value={d.role} />
-          <Row label="FASHION" value={d.fashion} />
+          {d.lifeStage !== 'BABY' && <Row label="ROLE" value={d.role} />}
+          {d.lifeStage !== 'BABY' && <Row label="FASHION" value={d.fashion} />}
           <Row label="RARITÀ" value={d.rarity} />
           <Row label="TEMPERAMENTO" value={d.mood_secondary ? `${d.mood_primary} · ${d.mood_secondary}` : d.mood_primary} />
         </div>
@@ -353,7 +356,7 @@ function MonDossier({ health, mon }: { health: Parameters<typeof birthStatsFor>[
             fondo al blocco «la sua storia», che è uscito, e non è una cosa
             che si butta con la scatola: è l'unica riga dell'app che collega
             questi assi ai giorni che li hanno prodotti. */}
-        <p className="t-micro dossier__note">{d.generation_reason_summary}</p>
+        <p className="t-micro dossier__note">{d.lifeStage === 'BABY' ? `${d.family} · BABY · affinità, ruolo e fashion non ancora attivi` : d.generation_reason_summary}</p>
       </section>
 
       {/* 🔒 IL SIGILLO STA DA SOLO IN MEZZO A UNA RIGA VUOTA: è l'ultimo

@@ -1,3 +1,5 @@
+import { ROOKIE_GRAMMAR } from '../engine/rookie';
+import { babyGrammar } from '../engine/baby';
 /* ============================================================================
    PROMPT COMPILER (§30, §46, §47, §48)
 
@@ -191,7 +193,7 @@ function selectFragmentIds(data: CharacterData, assetType: AssetType): string[] 
 
 export function compilePrompt(record: MonRecord, assetType: AssetType): CompiledPrompt {
   const data = record.data;
-  const ids = selectFragmentIds(data, assetType);
+  const ids = selectFragmentIds(data, assetType).filter(id => data.lifeStage !== 'BABY' || (!/^(affinity|role|fashion|marker)\./.test(id) && id !== 'global.vinz_hair_identity'));
 
   const raw = ids.map(getFragment);
   const { fragments, resolved } = resolveConflicts(raw, data);
@@ -205,6 +207,7 @@ export function compilePrompt(record: MonRecord, assetType: AssetType): Compiled
 
   const blocks: string[] = [];
 
+  if (data.lifeStage === 'BABY') blocks.push(babyGrammar(record));
   blocks.push(`NAME: ${data.name}`);
   blocks.push(`RARITY: ${data.rarity}`);
   blocks.push('');
@@ -271,7 +274,7 @@ export function compilePrompt(record: MonRecord, assetType: AssetType): Compiled
 
   /* La complessità racconta la progressione. Una rarità alta può rendere
      memorabile una Basic Form, ma non può farla nascere già "final boss". */
-  blocks.push(formComplexityBlock(data));
+  blocks.push(data.lifeStage === 'BABY' ? babyGrammar(record) : formComplexityBlock(data));
   blocks.push('');
 
   blocks.push('FINAL RESOLVER:');
@@ -301,7 +304,10 @@ export function compilePrompt(record: MonRecord, assetType: AssetType): Compiled
 }
 
 function formComplexityBlock(data: CharacterData): string {
-  const stage = Math.max(0, data.evolution_state?.stage ?? 0);
+  if (data.evolution_state?.label === 'ROOKIE') return ROOKIE_GRAMMAR;
+  const labels = ['BASIC FORM', 'POWER FORM', 'HYPER FORM', 'OVERDRIVE FORM', 'TERMINAL FORM'];
+  const knownStage = labels.indexOf(data.evolution_state?.label ?? 'BASIC FORM');
+  const stage = knownStage >= 0 ? knownStage : Math.max(0, data.evolution_state?.stage ?? 0);
   if (stage === 0) {
     return [
       'FORM COMPLEXITY: BASIC FORM — SIMPLE, ICONIC, IMMEDIATELY MEMORABLE.',

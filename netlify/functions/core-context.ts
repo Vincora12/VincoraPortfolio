@@ -7,10 +7,10 @@ export default async function handler(request: Request): Promise<Response> {
   try {
     const raw = await request.text();
     if (raw.length > 8000) return json({ error: 'richiesta troppo grande' }, 413);
-    let input: { query?: unknown; toolsAvailable?: unknown };
+    let input: { query?: unknown; recentText?: unknown; toolsAvailable?: unknown };
     try { input = JSON.parse(raw); } catch { return json({ error: 'JSON non valido' }, 400); }
-    if (!input || typeof input !== 'object' || (input.query !== undefined && typeof input.query !== 'string')) return json({ error: 'richiesta non valida' }, 400);
-    return json(await loadCoreContext({ query: input.query as string | undefined, body: 'web', toolsAvailable: input.toolsAvailable === true }));
+    if (!input || typeof input !== 'object' || (input.query !== undefined && typeof input.query !== 'string') || (input.recentText !== undefined && typeof input.recentText !== 'string')) return json({ error: 'richiesta non valida' }, 400);
+    return json(await loadCoreContext({ query: input.query as string | undefined, recentText: typeof input.recentText === 'string' ? input.recentText.slice(-3000) : undefined, body: 'web', toolsAvailable: input.toolsAvailable === true }));
   } catch { return json({ error: 'contesto canonico non disponibile' }, 503); }
 }
 

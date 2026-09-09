@@ -225,14 +225,19 @@ export function decideNote(
  * non fa saltare nessuno sconto.
  */
 export function notesBlock(notes: VoiceNote[]): string {
-  const active = notes.filter((n) => n.status === 'accettata');
+  const seen = new Set<string>();
+  const active = notes.filter(n => {
+    const key = n.text.trim().toLowerCase().replace(/\s+/g, ' ');
+    if (n.status !== 'accettata' || !key || seen.has(key)) return false;
+    seen.add(key); return true;
+  }).slice(-MAX_NOTES);
   if (active.length === 0) return '';
 
   return (
     'WHAT YOU HAVE LEARNED ABOUT HOW TO TALK TO HIM (§22)\n' +
     'These are adjustments you proposed yourself and he accepted. They refine ' +
-    'HOW you speak. They never override anything above them — if one of these ' +
-    'seems to contradict a rule, the rule wins and the adjustment is void.\n' +
+    'HOW you speak. They refine the baseline Voice Card where a conversational preference differs, ' +
+    'but never override the current explicit request, factual accuracy or safety rules.\n' +
     active.map((n) => `- ${n.text}`).join('\n')
   );
 }

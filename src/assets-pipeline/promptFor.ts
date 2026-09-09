@@ -1,3 +1,4 @@
+import { rookieGrammar } from '../engine/rookie';
 /* ============================================================================
    QUAL È IL PROMPT DI QUESTO ASSET, ADESSO
 
@@ -34,6 +35,7 @@
    strada di sempre: prima il loro prompt riscritto, poi la concatenazione.
    ========================================================================= */
 
+import { babyGrammar } from '../engine/baby';
 import type { AssetType, MonRecord } from '../engine/types';
 import { compilePrompt } from './compiler';
 import { derivedPrompt } from './derived';
@@ -68,6 +70,8 @@ export function usaTemplateDerivati(record: MonRecord): boolean {
 /** La modalità binaria deve arrivare all'immagine qualunque sia la sorgente
  * del prompt del Character Master (resolver, riscrittura o fallback). */
 function withHumanoidBodyMode(record: MonRecord, text: string, assetType: AssetType): string {
+  if (rookieGrammar(record)) return `${rookieGrammar(record)}\n\n${text}\n\n${rookieGrammar(record)}`;
+  if (record.data.lifeStage === 'BABY') return `${babyGrammar(record)}\n\n${text}\n\n${babyGrammar(record)}`;
   if (assetType !== 'character_master') return text;
 
   const humanoid = record.data.humanoidity >= 5;

@@ -718,6 +718,7 @@ export function App() {
         onClose={() => setVisibleInsight(null)}
         onDiscuss={() => discussInsight(visibleInsight)}
       />}
+      {activeMonName && phase !== 'form-evolution' && <NewBranchScreen />}
       <AnnouncementBalloon />
       {!bootReady && <GlobalBootScreen />}
     </div>
