@@ -287,6 +287,22 @@ export default async function handler(request: Request): Promise<Response> {
         return json({ error: error instanceof Error ? error.message : 'Catalogo non raggiungibile.' }, 502);
       }
     }
+    /* 🔷 «Le skill installate non arrivano mai a VINZ quando risponde.» `inspect`
+       (sopra/sotto) legge il catalogo REMOTO, per guardare una skill prima di
+       installarla. Una volta installata ed accesa, lo strumento della chat
+       (`leggi_skill` in `ai/tools.ts`) deve leggere quella VERA, già scaricata
+       su disco — non rifare una chiamata a GitHub per un file che c'è già qui. */
+    if (op === 'content') {
+      const sourceId = url.searchParams.get('sourceId') ?? '';
+      const id = url.searchParams.get('id') ?? '';
+      if (!SAFE_ID.test(id)) return json({ error: 'Skill non valida.' }, 400);
+      const skill = installedList().find((item) => item.sourceId === sourceId && item.id === id);
+      if (!skill) return json({ error: 'Skill non installata.' }, 404);
+      if (!skill.enabled) return json({ error: 'Skill installata ma spenta.' }, 403);
+      const file = join(installedDirectory(keyOf(sourceId, id)), 'SKILL.md');
+      if (!existsSync(file)) return json({ error: 'SKILL.md non trovato per questa skill.' }, 404);
+      return json({ skill, manifest: readFileSync(file, 'utf8').slice(0, 20_000) });
+    }
     if (op === 'inspect') {
       const sourceId = url.searchParams.get('sourceId') ?? '';
       const id = url.searchParams.get('id') ?? '';

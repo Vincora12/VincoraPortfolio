@@ -290,7 +290,10 @@ export function buildCapabilitySummary(webSearchAvailable: boolean): string {
   if (webSearchAvailable) {
     lines.push('Posso cercare informazioni sul web quando serve.');
   }
-  lines.push('Non ho accesso al tuo computer, al filesystem del tuo dispositivo, a Gmail, a un calendario esterno o ad altri servizi non elencati qui in questa sessione: se me li chiedi, dillo chiaramente invece di far finta di poterlo fare.');
+  if (hasAllToolNames(['leggi_calendario_google'], registry)) {
+    lines.push('Posso leggere il tuo Google Calendar, le note di un vault Obsidian, o un servizio custom — solo se li hai collegati tu in LAB → CONNETTORI.');
+  }
+  lines.push('Non ho accesso al tuo computer, al filesystem del tuo dispositivo, a Gmail, o ad altri servizi non elencati qui e non collegati da te in LAB → CONNETTORI: se me li chiedi, dillo chiaramente invece di far finta di poterlo fare.');
 
   return [
     '',

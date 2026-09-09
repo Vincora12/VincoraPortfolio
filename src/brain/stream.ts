@@ -412,7 +412,7 @@ export async function replyWithLocalTools(
   workoutConfirmation?: WorkoutConfirmation,
   actionConfirmation?: ActionConfirmation,
   files: ChatFileInput[] = [],
-  shared?: { systemPrompt: string; requestId: string; projectId?: string },
+  shared?: { contextSelection?: import('../ai/contextSelection').ContextDecision[]; systemPrompt: string; requestId: string; projectId?: string },
 ): Promise<ChatCost> {
   const token = savedToken();
   if (!token) throw new Error('Prima attiva VINZ.MON: manca il token.');
@@ -536,6 +536,7 @@ export async function replyWithLocalTools(
   const calendarRequest = /\b(calendari\w*|agenda|impegn\w*|appuntament\w*)\b/i.test(user);
   const vaultRequest = /\b(secondo cervello|second brain|obsidian|vault)\b/i.test(user);
   const connectorRequest = /\b(connettor\w*|integrazion\w*)\b/i.test(user);
+  const skillRequest = /\bskill\w*\b/i.test(user);
   const basePool = isAudit ? [...CODE_TOOL_DEFS, ...TOOLS.filter(tool => tool.name === 'leggi_me' || tool.name === 'leggi_i_miei_dati')]
     : isCodeInspectionIntent(user) && !isHealthRequest ? CODE_TOOL_DEFS : TOOLS.filter((tool) => (reminderRequest && tool.name === 'programma_promemoria')
     /* ⚠️ I FILE NON SONO UN ARGOMENTO «SALUTE» O «NON SALUTE». Chiedere «leggi
@@ -548,6 +549,7 @@ export async function replyWithLocalTools(
     || (calendarRequest && tool.name === 'leggi_calendario_google')
     || (vaultRequest && tool.name === 'cerca_secondo_cervello')
     || (connectorRequest && tool.name === 'chiama_connettore_personalizzato')
+    || (skillRequest && tool.name === 'leggi_skill')
     /* ⚠️ IL SÌ NON CONTIENE PIÙ LA PAROLA CHIAVE. «Vai, crea» non fa scattare
        `reminderRequest`, quindi al giro della conferma lo strumento sarebbe
        sparito dal pool e il modello avrebbe risposto «non posso» dopo che
@@ -571,6 +573,7 @@ export async function replyWithLocalTools(
         : calendarRequest && name === 'leggi_calendario_google' ? 3
         : vaultRequest && name === 'cerca_secondo_cervello' ? 3
         : connectorRequest && name === 'chiama_connettore_personalizzato' ? 3
+        : skillRequest && name === 'leggi_skill' ? 3
         : shared?.projectId && projectTools.has(name) ? 2 : 0;
       return priority(b.name) - priority(a.name);
     }).filter((tool) => {
@@ -731,6 +734,7 @@ export async function replyWithLocalTools(
     throw e;
   } finally {
     const trace: ChatTrace = {
+      contextSelection: shared?.contextSelection,
       path: 'strumenti',
       characterVoice: Boolean(character),
       systemChars: system.reduce((n, b) => n + b.text.length, 0),

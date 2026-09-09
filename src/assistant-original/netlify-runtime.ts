@@ -19,9 +19,10 @@ import {
   type ChatCost,
 } from "@/brain/stream";
 import type { BrainMessage } from "@/brain/store/types";
-import { executeRuntimeTool, type ToolResult, type ToolUse } from "@/ai/tools";
+import { executeRuntimeTool, loadEnabledSkillsSummary, type ToolResult, type ToolUse } from "@/ai/tools";
 import { readHealthJournal } from "@/engine/healthJournal";
 import { useApp } from "@/state/store";
+import type { ContextDecision } from '@/ai/contextSelection';
 import { resolveChatContext } from '@/ai/chatContext';
 import { buildCapabilitySummary } from "@/ai/toolLayer";
 import { typingRhythmFor, liveRevealDurationMs, type TypingRhythm } from "@/engine/typingRhythm";
@@ -468,7 +469,7 @@ async function* runWithLocalTools(
   workoutConfirmation?: WorkoutConfirmation,
   actionConfirmation?: ActionConfirmation,
   workoutPlanProposal?: string,
-  shared?: { systemPrompt: string; requestId: string; projectId?: string },
+  shared?: { systemPrompt: string; requestId: string; projectId?: string; contextSelection?: ContextDecision[] },
 ) {
   const last = messages.at(-1);
   let user = workoutPlanProposal
@@ -659,7 +660,7 @@ async function* writtenSnapshots(
 }
 
 /** Runtime reale predefinito. Il mock locale resta disponibile con `?runtime=mock`. */
-function createBaseNetlifyChatModel(shared: { systemPrompt: string; requestId: string }): ChatModelAdapter {
+function createBaseNetlifyChatModel(shared: { systemPrompt: string; requestId: string; contextSelection?: ContextDecision[] }): ChatModelAdapter {
   return {
   async *run({ messages, abortSignal, context }) {
     postChatDiagnostic('CHAT_BASE_MODEL_START', 'base-model');
@@ -694,6 +695,7 @@ function createBaseNetlifyChatModel(shared: { systemPrompt: string; requestId: s
         path: "diretto",
         characterVoice: Boolean(activeMon),
         systemChars: systemPrompt.length,
+        contextSelection: shared.contextSelection,
         systemPromptComposition: systemPromptComposition([
           { name: activeMon ? "CHARACTER VOICE" : "NEUTRAL ASSISTANT", text: systemPrompt },
         ]),
@@ -965,7 +967,8 @@ export function createNetlifyChatModel(
       const token = savedToken();
       if (!token) throw new Error('Prima attiva VINZ.MON: manca il token.');
       postChatDiagnostic('CHAT_MEMORY_FETCH_START', 'canonical-context');
-      let systemPrompt = await resolveChatContext(token, user, useTools, args.abortSignal, projectId);
+      let contextSelection: ContextDecision[] = [];
+      let systemPrompt = await resolveChatContext(token, user, useTools, args.abortSignal, projectId, args.messages.slice(-5, -1).map(textOf).join('\n'), selection => { contextSelection = selection; });
 
       /* Segnalibro e archivio si leggono qui, dove il prompt di sistema viene
          composto: così valgono sia per il giro con gli strumenti sia per la
@@ -993,6 +996,7 @@ export function createNetlifyChatModel(
       // `buildCapabilitySummary` in `ai/toolLayer.ts` — proiettata dai
       // registri veri dei tool, mai una lista scritta a mano scollegata.
       systemPrompt += buildCapabilitySummary(true);
+      systemPrompt += await loadEnabledSkillsSummary(token);
       if (runTool && useTools) {
         yield* runWithLocalTools(
           args.messages,
@@ -1003,11 +1007,11 @@ export function createNetlifyChatModel(
           workoutConfirmation,
           actionConfirmation,
           confirmedPlan,
-          { systemPrompt, requestId, projectId },
+          { systemPrompt, requestId, projectId, contextSelection },
         );
         return;
       }
-      const result = createBaseNetlifyChatModel({ systemPrompt, requestId }).run(args);
+      const result = createBaseNetlifyChatModel({ systemPrompt, requestId, contextSelection }).run(args);
       if (result instanceof Promise) {
         yield await result;
       } else {

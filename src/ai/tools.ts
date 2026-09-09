@@ -449,6 +449,14 @@ export const TOOLS: ToolDef[] = [
       percorso: { type: 'string', description: 'Percorso relativo alla base del connettore, es. "eventi" o "status".' },
     }, required: ['id_connettore', 'percorso'] },
   },
+  {
+    name: 'leggi_skill',
+    description: 'Legge il contenuto intero di una skill attiva (elencata come nome + descrizione nelle tue capacità) — istruzioni su COME fare un compito, non dati personali. Usalo quando il compito richiesto corrisponde chiaramente alla descrizione di una skill attiva, prima di improvvisare una procedura tua.',
+    schema: { type: 'object', properties: {
+      sorgente: { type: 'string', description: 'sourceId della skill, com’è nell’elenco delle capacità.' },
+      id: { type: 'string', description: 'id della skill, com’è nell’elenco delle capacità.' },
+    }, required: ['sorgente', 'id'] },
+  },
 ];
 
 /** I nomi, per i controlli. */
@@ -910,6 +918,43 @@ async function executeCustomConnectorTool(use: ToolUse): Promise<ToolResult> {
   return { id: use.id, content: result.body };
 }
 
+async function executeSkillTool(use: ToolUse, token: string | null): Promise<ToolResult> {
+  const fail = (content: string): ToolResult => ({ id: use.id, content, isError: true });
+  if (!token) return fail('Token mancante: lettura skill non disponibile.');
+  const args = (use.input && typeof use.input === 'object' ? use.input : {}) as Record<string, unknown>;
+  const sourceId = str(args.sorgente);
+  const id = str(args.id);
+  if (!sourceId || !id) return fail('Servono sorgente e id della skill.');
+  const url = `/api/skills?op=content&sourceId=${encodeURIComponent(sourceId)}&id=${encodeURIComponent(id)}`;
+  const response = await fetch(url, { headers: { authorization: `Bearer ${token}` } });
+  const body = (await response.json().catch(() => null)) as { manifest?: string; error?: string } | null;
+  if (!response.ok || !body?.manifest) return fail(body?.error ?? 'Skill non leggibile.');
+  return { id: use.id, content: body.manifest };
+}
+
+/* 🔷 «Le skill non arrivano mai a VINZ quando risponde.» Il modello vede
+   sempre nome+descrizione delle skill ACCESE (poche righe): il contenuto
+   intero (fino a 33KB per skill, vedi data/skills/) arriva solo se poi
+   chiama `leggi_skill` — non a ogni turno, per ogni skill installata. */
+export async function loadEnabledSkillsSummary(token: string | null): Promise<string> {
+  if (!token) return '';
+  try {
+    const response = await fetch('/api/skills?op=installed', { headers: { authorization: `Bearer ${token}` } });
+    if (!response.ok) return '';
+    const body = (await response.json()) as { skills?: { id: string; sourceId: string; name: string; description: string; enabled: boolean }[] };
+    const active = (body.skills ?? []).filter((s) => s.enabled);
+    if (active.length === 0) return '';
+    return [
+      '',
+      '',
+      'SKILL ATTIVE — procedure installate su come fare un compito, non dati personali. Se il compito richiesto corrisponde chiaramente a una di queste, chiama leggi_skill(sorgente, id) prima di improvvisare:',
+      ...active.map((s) => `- ${s.name} (sorgente="${s.sourceId}", id="${s.id}")${s.description ? `: ${s.description}` : ''}`),
+    ].join('\n');
+  } catch {
+    return '';
+  }
+}
+
 async function executeTopicSearchTool(use: ToolUse, token: string | null): Promise<ToolResult> {
   const fail = (content: string): ToolResult => ({ id: use.id, content, isError: true });
   if (!token) return fail('Token mancante: ricerca non disponibile.');
@@ -1105,6 +1150,7 @@ export async function executeRuntimeTool(
     if (use.name === 'leggi_calendario_google') return await executeGoogleCalendarTool(use);
     if (use.name === 'cerca_secondo_cervello') return await executeVaultSearchTool(use);
     if (use.name === 'chiama_connettore_personalizzato') return await executeCustomConnectorTool(use);
+    if (use.name === 'leggi_skill') return await executeSkillTool(use, scope.token);
     const isProjectTool = ['leggi_progetto', 'leggi_sorgente_progetto', 'scrivi_artifact_progetto'].includes(use.name);
     const projectFile = use.name === 'crea_file_testo';
     if (!isProjectTool && !projectFile) return await localRun(use);
