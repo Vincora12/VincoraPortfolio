@@ -44,7 +44,7 @@ export type Capability =
    */
   | 'prompt-compile';
 
-export type Provider = 'anthropic' | 'google' | 'openai' | 'moonshot' | 'xai';
+export type Provider = 'anthropic' | 'google' | 'openai' | 'moonshot' | 'xai' | 'ollama';
 
 /** Cosa una capacità pretende da chi la serve. */
 export interface Needs {
@@ -105,6 +105,11 @@ const CAN: Record<Provider, Needs> = {
      modello supporta ragionamento; la ricerca xAI non è ancora collegata al
      nostro adattatore, quindi la scelta non la promette in LAB. */
   xai: { promptCache: true, vision: true, thinking: true, webSearch: false },
+  /* Nessuna delle capacità in più: un modello da 3 miliardi di parametri sul
+     Mac non ragiona in modo affidabile, non cerca sul web, non vede immagini
+     — dichiararlo capace di qualcosa che non regge sarebbe la stessa bugia
+     che questa tabella esiste per evitare sugli altri fornitori. */
+  ollama: {},
 };
 
 export interface Route {
@@ -556,6 +561,27 @@ export const TEXT_CHEAP_CHOICES: CheapChoice[] = [
     label: 'Kimi K2.6',
     price: { input: 0.95, output: 4 },
     it: 'Circa il prezzo di Haiku. Moonshot AI, azienda cinese: le condizioni sull’uso dei dati vanno lette prima di mandarci mesi della tua storia — qui non c’è la stessa garanzia degli altri due.',
+  },
+  /* 🔷 «Un LLM locale che aiuta nei lavori minimi e diminuisce la spesa.»
+     Zero dollari per davvero — gira sul Mac, niente lascia il Mac — ma è un
+     modello piccolo: va bene per un giudizio di due righe («questo messaggio
+     vale la pena ricordarlo?»), non per la riflessione che legge mesi della
+     tua storia in un colpo solo. Va scaricato prima da LAB → AI → LLM
+     LOCALE: appare qui a prescindere, ma finché non è scaricato la chiamata
+     fallisce come un fornitore offline. */
+  {
+    provider: 'ollama',
+    model: 'llama3.2:3b',
+    label: 'Llama 3.2 3B (locale)',
+    price: { input: 0, output: 0 },
+    it: 'Gratis, e i dati non escono dal Mac. Un modello piccolo: bene per note e giudizi brevi, non per leggere mesi di storia in un colpo solo. Va scaricato prima.',
+  },
+  {
+    provider: 'ollama',
+    model: 'qwen2.5:3b-instruct',
+    label: 'Qwen2.5 3B (locale)',
+    price: { input: 0, output: 0 },
+    it: 'Stessa taglia di Llama 3.2, un\'altra azienda: utile per confrontare le due risposte sullo stesso compito piccolo prima di fidarsi.',
   },
 ];
 
@@ -1099,9 +1125,22 @@ export function recommendedModel(stepId: AiStepId): StepRecommendation {
 
   const pool = choicesFor(step.capability);
   const isPersonal = PERSONAL.includes(step.capability);
-  const candidates = isPersonal
+  /* 🔴 UN MODELLO LOCALE COSTA ZERO, E «PIÙ ECONOMICO» QUI SIGNIFICA
+     «CONSIGLIATO». Appena Llama 3.2 3B è entrato nel catalogo di text-cheap,
+     è diventato il CONSIGLIO per RIFLESSIONE — esattamente il lavoro che
+     l'intestazione di questo file chiama «il posto peggiore dove
+     risparmiare», perché legge mesi di storia con un modello da tre miliardi
+     di parametri. Il prezzo a zero ha battuto ogni altro criterio perché
+     questa funzione non ne aveva altri.
+
+     🔒 RESTA SCEGLIBILE, NON RESTA CONSIGLIATO. Chi vuole un modello locale
+     per un lavoro minimo lo sceglie a mano dalla scheda — l'ha già davanti,
+     con scritto per cosa è adatto. Quello che questa funzione non deve fare
+     è proporlo da sola per un lavoro che non ha mai provato a reggere. */
+  const candidates = (isPersonal
     ? pool.filter((c) => !TRAINS_ON_API_DATA_BY_DEFAULT.includes(c.provider))
-    : pool;
+    : pool
+  ).filter((c) => c.provider !== 'ollama');
 
   /* `price` esiste solo sulle scelte di voce/compilatore; le altre capacità
      hanno un catalogo di una voce sola e quel prezzo non serve a scegliere. */

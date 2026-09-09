@@ -823,6 +823,81 @@ function KeyField({ v, token, onSaved }: { v: SetupVar; token: string | null; on
   );
 }
 
+/**
+ * «Un LLM locale che aiuta nei lavori minimi e diminuisce la spesa.» Ollama
+ * non lo installiamo noi — stessa legge delle chiavi API: si dice dove
+ * prenderlo, non lo si scarica al posto tuo. Una volta acceso sul Mac, i suoi
+ * modelli diventano scelte vere per MEMORY/INSEGNA/eccetera, con lo stesso
+ * meccanismo AUTOMODE già in questa pagina — non serve altro qui.
+ */
+function LocalLlm({ token }: { token: string | null }) {
+  const [state, setState] = useState<{ online: boolean; installed: string[]; recommended: { model: string; label: string; it: string }[] } | null>(null);
+  const [pulling, setPulling] = useState<string | null>(null);
+  const [error, setError] = useState('');
+
+  const reload = useCallback(() => {
+    if (!token) return;
+    void fetch('/api/local-llm', { headers: { authorization: `Bearer ${token}` } })
+      .then((response) => response.json())
+      .then(setState)
+      .catch(() => setState(null));
+  }, [token]);
+
+  useEffect(() => { reload(); }, [reload]);
+
+  async function pull(model: string) {
+    setPulling(model);
+    setError('');
+    try {
+      const response = await fetch('/api/local-llm', {
+        method: 'POST',
+        headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+        body: JSON.stringify({ action: 'pull', model }),
+      });
+      const data = (await response.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
+      if (!response.ok || !data?.ok) throw new Error(data?.error ?? 'Download non riuscito.');
+      reload();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Download non riuscito.');
+    } finally {
+      setPulling(null);
+    }
+  }
+
+  return (
+    <Section
+      title="LLM LOCALE"
+      note="Gratis, gira sul Mac, niente esce da qui. Adatto a giudizi brevi (MEMORY, INSEGNA), non alla riflessione settimanale, che legge mesi di storia in un colpo solo."
+    >
+      {!state && <p className="note">Verifico se Ollama è acceso…</p>}
+      {state && !state.online && (
+        <Notice title="OLLAMA NON RAGGIUNGIBILE">
+          Installalo da ollama.com, aprilo una volta — resta nella barra dei menu — poi torna qui: questa
+          pagina lo vede da sola appena risponde su localhost.
+        </Notice>
+      )}
+      {state?.online && state.recommended.map((m) => {
+        const has = state.installed.includes(m.model);
+        return (
+          <div key={m.model} className="keyfield">
+            <div className="keyfield__head">
+              <strong className="mono">{m.label}</strong>
+              <Status label={has ? 'SCARICATO' : 'NON SCARICATO'} ok={has} />
+            </div>
+            <p className="note">{m.it}</p>
+            {!has && (
+              <Btn onClick={() => void pull(m.model)} disabled={pulling !== null}>
+                {pulling === m.model ? 'STO SCARICANDO… (qualche minuto)' : 'SCARICA'}
+              </Btn>
+            )}
+          </div>
+        );
+      })}
+      {error && <Notice title="ERRORE">{error}</Notice>}
+    </Section>
+  );
+}
+
 function Ai() {
   const stepModels = useApp((s) => s.stepModels);
   const setStepModel = useApp((s) => s.setStepModel);
@@ -880,6 +955,8 @@ function Ai() {
           <KeyField key={v.name} v={v} token={token} onSaved={() => setReloadTick((n) => n + 1)} />
         ))}
       </Section>
+
+      <LocalLlm token={token} />
 
       <div style={{ marginTop: 12 }}>
         {AI_STEP_ORDER.map((id) => {

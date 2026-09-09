@@ -1164,6 +1164,26 @@ async function xai(req: ProviderRequest): Promise<ProviderResult> {
   });
 }
 
+/* --- Ollama, sul Mac ----------------------------------------------------
+   🔷 «Un LLM locale che aiuta nei lavori minimi e diminuisce la spesa.»
+
+   🔒 NIENTE CHIAVE, PERCHÉ NON C'È NESSUN FORNITORE. Ollama parla il
+   protocollo di OpenAI su `/v1/chat/completions` — stesso `openAiProtocol`
+   già usato da xAI e Moonshot, zero codice nuovo per la parte che conta — ma
+   gira sul Mac stesso, quindi la "chiave" è una stringa qualunque che Ollama
+   ignora, e l'unico modo in cui questa chiamata fallisce è che Ollama non
+   sia acceso o non abbia ancora scaricato quel modello: lo dice `fetch`
+   stesso, con l'errore di connessione o il 404 del modello mancante.
+
+   ⚠️ NIENTE RAGIONAMENTO DA CHIEDERE. Un modello da 3 miliardi di parametri
+   non ha una manopola di sforzo che significhi qualcosa — `openAiProtocol`
+   proverebbe comunque a mandare `reasoning_effort`, Ollama lo ignora come
+   ignora ogni campo che non riconosce, e la richiesta funziona lo stesso. */
+async function ollama(req: ProviderRequest): Promise<ProviderResult> {
+  const base = (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434').replace(/\/$/, '');
+  return openAiProtocol('ollama', `${base}/v1/chat/completions`, 'ollama-non-serve-chiave', req);
+}
+
 /**
  * 🔷 §10 — OpenAI serve anche del TESTO, da quando il prompt lo scrive un
  * modello. Le immagini continuano a passare da `generateImage`: hanno una
@@ -1353,6 +1373,7 @@ const ADAPTERS: Record<Provider, (r: ProviderRequest) => Promise<ProviderResult>
   google,
   moonshot,
   xai,
+  ollama,
   // Le immagini non passano da qui: hanno una forma di risposta diversa e
   // fingere che sia la stessa produrrebbe un tipo che mente.
   openai: openaiText,

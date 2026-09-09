@@ -41,7 +41,21 @@ import {
 import { isSettableVar, setSecret } from './_shared/secrets';
 
 /** I fornitori che questo progetto sa chiamare. */
-const PROVIDERS: Provider[] = ['anthropic', 'google', 'openai', 'moonshot', 'xai'];
+const PROVIDERS: Provider[] = ['anthropic', 'google', 'openai', 'moonshot', 'xai', 'ollama'];
+
+/* 🔷 «Un LLM locale che diminuisce la spesa.» Ollama non ha una chiave da
+   controllare in `process.env` — o è acceso sul Mac, o non lo è. Un ping
+   corto e silenzioso: se non risponde in mezzo secondo, è spento o non
+   installato, e la pagina non deve restare ferma ad aspettarlo. */
+async function ollamaReady(): Promise<boolean> {
+  const base = (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434').replace(/\/$/, '');
+  try {
+    const response = await fetch(`${base}/api/tags`, { signal: AbortSignal.timeout(500) });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
 
 /** Le variabili che l'app può usare, e a cosa servono in italiano. */
 const VARS = [
@@ -142,6 +156,8 @@ export default async function handler(request: Request): Promise<Response> {
   }
 
   const cap = await checkCap();
+  const ollamaOnline = await ollamaReady();
+  const providerReadyOf = (provider: Provider) => provider === 'ollama' ? ollamaOnline : Boolean(process.env[keyFor(provider)]);
 
   /* 🔷 «Metti anche il prezzo vicino, così mi ricordo quanto si spende per
      ognuno.» I prezzi erano già nei cataloghi e non uscivano di qui: la
@@ -152,21 +168,21 @@ export default async function handler(request: Request): Promise<Response> {
     label: c.label,
     price: c.price,
     it: c.it,
-    ready: Boolean(process.env[keyFor(c.provider)]),
+    ready: providerReadyOf(c.provider),
   }));
   const compilers = COMPILER_CHOICES.map((c) => ({
     model: c.model,
     label: c.label,
     price: c.price,
     it: c.it,
-    ready: Boolean(process.env[keyFor(c.provider)]),
+    ready: providerReadyOf(c.provider),
   }));
   const images = IMAGE_CHOICES.map((c) => ({
     model: c.model,
     label: c.label,
     perImage: c.perImage,
     it: c.it,
-    ready: Boolean(process.env[keyFor(c.provider)]),
+    ready: providerReadyOf(c.provider),
   }));
 
   return json({
@@ -187,7 +203,7 @@ export default async function handler(request: Request): Promise<Response> {
        questa risposta — una mappa sola, non quattro copie della stessa
        domanda. */
     providerReady: Object.fromEntries(
-      PROVIDERS.map((p) => [p, Boolean(process.env[keyFor(p)])]),
+      PROVIDERS.map((p) => [p, providerReadyOf(p)]),
     ) as Record<Provider, boolean>,
     vars: VARS.map((v) => ({ ...v, present: Boolean(process.env[v.name]) })),
     /* Quali scelte sono davvero utilizzabili adesso: una scelta il cui

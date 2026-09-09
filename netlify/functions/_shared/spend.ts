@@ -76,6 +76,15 @@ const PRICES: Record<string, Price> = {
      qualità media e i tre livelli hanno un moltiplicatore loro. */
   'gpt-image-2': { input: 0, output: 0, perImage: 0.06 },
   'gpt-image-1': { input: 0, output: 0, perImage: 0.04 },
+  /* 🔷 «Metti che si può scaricare un LLM locale che aiuta nei lavori minimi
+     e diminuisce la spesa.» Zero qui non è la bugia che il commento sopra
+     `UNKNOWN` mette in guardia — quella riguarda un modello che NON
+     conosciamo e a cui NON vogliamo dare zero per pigrizia. Questi li
+     conosciamo: girano sul Mac, non c'è una chiamata a un fornitore da
+     pagare. Zero è il prezzo vero, non una stima ottimistica. */
+  'llama3.2:3b': { input: 0, output: 0 },
+  'qwen2.5:3b-instruct': { input: 0, output: 0 },
+  'phi3.5:3.8b': { input: 0, output: 0 },
 };
 
 /**
