@@ -73,6 +73,7 @@ import {
 } from '../storageInspector';
 import { lastStorageOperation } from '../../system/localStorageDiagnostics';
 import { LiveDebug } from './liveDebug';
+import { Connectors } from './ConnectorsLab';
 
 const TABS = [
   { id: 'setup', label: 'SETUP' },
@@ -87,6 +88,12 @@ const TABS = [
      vivono ora dentro CREATION.LAB, dove c'era già FLOW/STATE/HISTORY —
      un solo posto per «chi è / come nasce» il .mon, non due. */
   { id: 'ai', label: 'AI' },
+  /* 🔷 «Google, second brain e connettori custom a cui lui può attingere
+     informazioni.» Vive accanto ad AI perché è la stessa domanda — «con
+     quali credenziali parla il mondo fuori da VINZ.MON» — ma sono chiavi che
+     restano nel browser (vedi `connectors/types.ts`), mai in `.env`: due
+     schede vicine, non la stessa scheda. */
+  { id: 'connectors', label: 'CONNETTORI' },
   { id: 'simulation', label: 'SIMULATION' },
   /* 🔷 Era «MEMORY», ed era il nome sbagliato: qui dentro non c'è mai stata
      una memoria personale, sono MOOD/OPINIONS/BUILD MODE — lo strato di
@@ -131,6 +138,7 @@ export function SystemLab({ onBack }: { onBack: () => void }) {
         {tab === 'setup' && <Setup />}
         {tab === 'save' && <Save />}
         {tab === 'ai' && <Ai />}
+        {tab === 'connectors' && <Connectors />}
         {tab === 'simulation' && <Simulation onOpenUsage={() => setTab('usage')} />}
         {tab === 'memory' && <Memory />}
         {tab === 'machines' && <Machines />}

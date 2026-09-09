@@ -530,6 +530,12 @@ export async function replyWithLocalTools(
      proprio nel turno in cui l'utente chiede di un file. */
   const fileRequest = /\b(file|allegat\w*|caricat\w*|csv|txt|markdown|pdf|documento)\b/i.test(user);
   const recallRequest = RECALL_INTENT.test(user);
+  /* Stessa ragione di fileRequest/recallRequest: senza una priorità propria
+     questi tre finiscono in coda al catalogo e lo slice(0,12) qui sotto li
+     taglia via proprio nel turno in cui servirebbero. */
+  const calendarRequest = /\b(calendari\w*|agenda|impegn\w*|appuntament\w*)\b/i.test(user);
+  const vaultRequest = /\b(secondo cervello|second brain|obsidian|vault)\b/i.test(user);
+  const connectorRequest = /\b(connettor\w*|integrazion\w*)\b/i.test(user);
   const basePool = isAudit ? [...CODE_TOOL_DEFS, ...TOOLS.filter(tool => tool.name === 'leggi_me' || tool.name === 'leggi_i_miei_dati')]
     : isCodeInspectionIntent(user) && !isHealthRequest ? CODE_TOOL_DEFS : TOOLS.filter((tool) => (reminderRequest && tool.name === 'programma_promemoria')
     /* ⚠️ I FILE NON SONO UN ARGOMENTO «SALUTE» O «NON SALUTE». Chiedere «leggi
@@ -539,6 +545,9 @@ export async function replyWithLocalTools(
     || (fileRequest && tool.name === 'leggi_file')
     /* Come i file: cercare nel passato non è un argomento «salute» o no. */
     || (recallRequest && tool.name === 'cerca_conversazione')
+    || (calendarRequest && tool.name === 'leggi_calendario_google')
+    || (vaultRequest && tool.name === 'cerca_secondo_cervello')
+    || (connectorRequest && tool.name === 'chiama_connettore_personalizzato')
     /* ⚠️ IL SÌ NON CONTIENE PIÙ LA PAROLA CHIAVE. «Vai, crea» non fa scattare
        `reminderRequest`, quindi al giro della conferma lo strumento sarebbe
        sparito dal pool e il modello avrebbe risposto «non posso» dopo che
@@ -558,7 +567,11 @@ export async function replyWithLocalTools(
         : energyRequest && name === 'calcola_energia_giornaliera' ? 3
         : reminderRequest && name === 'programma_promemoria' ? 3
         : fileRequest && name === 'leggi_file' ? 3
-        : recallRequest && name === 'cerca_conversazione' ? 3 : shared?.projectId && projectTools.has(name) ? 2 : 0;
+        : recallRequest && name === 'cerca_conversazione' ? 3
+        : calendarRequest && name === 'leggi_calendario_google' ? 3
+        : vaultRequest && name === 'cerca_secondo_cervello' ? 3
+        : connectorRequest && name === 'chiama_connettore_personalizzato' ? 3
+        : shared?.projectId && projectTools.has(name) ? 2 : 0;
       return priority(b.name) - priority(a.name);
     }).filter((tool) => {
     if (tool.name === 'registra_pasto') return mealConfirmation?.status === 'confirmed';

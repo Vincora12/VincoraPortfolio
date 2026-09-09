@@ -424,6 +424,31 @@ export const TOOLS: ToolDef[] = [
       required: ['cosa', 'fra_giorni'],
     },
   },
+  {
+    name: 'leggi_calendario_google',
+    description: 'Legge gli eventi del Google Calendar personale dell’utente, se collegato in LAB → CONNETTORI. Sola lettura: non crea, sposta o cancella eventi (per quello vedi programma_promemoria, che è il calendario interno di VINZ). Se non è collegato, dillo invece di inventare impegni.',
+    schema: { type: 'object', properties: {
+      da: { type: 'string', description: 'Inizio intervallo, ISO 8601 con offset/Z. Default: adesso.' },
+      a: { type: 'string', description: 'Fine intervallo, ISO 8601 con offset/Z. Default: fra 7 giorni.' },
+      massimo: { type: 'integer', minimum: 1, maximum: 50 },
+    } },
+  },
+  {
+    name: 'cerca_secondo_cervello',
+    description: 'Cerca nelle note del vault Obsidian che l’utente ha collegato in LAB → CONNETTORI (sola lettura sui file .md locali). Se nessun vault è collegato, dillo invece di inventare cosa contiene.',
+    schema: { type: 'object', properties: {
+      cerca: { type: 'string', maxLength: 200 },
+      massimo: { type: 'integer', minimum: 1, maximum: 20 },
+    }, required: ['cerca'] },
+  },
+  {
+    name: 'chiama_connettore_personalizzato',
+    description: 'Fa una richiesta GET a un connettore custom che l’utente ha configurato in LAB → CONNETTORI (nome, indirizzo, chiave). Usa id_connettore esattamente come mostrato lì. Nessuna scrittura: solo lettura di quello che quel servizio espone su quel percorso.',
+    schema: { type: 'object', properties: {
+      id_connettore: { type: 'string' },
+      percorso: { type: 'string', description: 'Percorso relativo alla base del connettore, es. "eventi" o "status".' },
+    }, required: ['id_connettore', 'percorso'] },
+  },
 ];
 
 /** I nomi, per i controlli. */
@@ -840,6 +865,51 @@ export function resultBlocks(results: readonly ToolResult[]): Record<string, unk
 const READABLE_TEXT = /\.(txt|md|markdown|csv|tsv|json|log|yml|yaml|ini|conf)$/i;
 const MAX_FILE_CHARS = 8_000;
 
+/* ============================================================================
+   CONNETTORI ESTERNI — Google Calendar, vault Obsidian, servizi custom.
+
+   🔒 STESSO PATTO DI PRIVACY DEL RESTO DI QUESTO FILE: girano nel browser,
+   leggono con le credenziali che l'utente stesso ha collegato in
+   LAB → CONNETTORI (`src/connectors/*`), e il server non li vede mai
+   passare — vedi `src/connectors/types.ts` per il perché. */
+
+async function executeGoogleCalendarTool(use: ToolUse): Promise<ToolResult> {
+  const fail = (content: string): ToolResult => ({ id: use.id, content, isError: true });
+  const args = (use.input && typeof use.input === 'object' ? use.input : {}) as Record<string, unknown>;
+  const { searchCalendarEvents } = await import('../connectors/google');
+  const now = Date.now();
+  const da = str(args.da) || new Date(now).toISOString();
+  const a = str(args.a) || new Date(now + 7 * 86_400_000).toISOString();
+  if (!Number.isFinite(Date.parse(da)) || !Number.isFinite(Date.parse(a))) return fail('Date non valide: servono ISO 8601 con offset/Z.');
+  const result = await searchCalendarEvents(da, a, typeof args.massimo === 'number' ? args.massimo : 10);
+  if (!result.ok) return fail(result.error);
+  return { id: use.id, content: JSON.stringify({ source: 'google-calendar', da, a, eventi: result.events }) };
+}
+
+async function executeVaultSearchTool(use: ToolUse): Promise<ToolResult> {
+  const fail = (content: string): ToolResult => ({ id: use.id, content, isError: true });
+  const args = (use.input && typeof use.input === 'object' ? use.input : {}) as Record<string, unknown>;
+  const query = str(args.cerca);
+  if (!query) return fail('Serve qualcosa da cercare.');
+  const { searchVault } = await import('../connectors/obsidian');
+  const result = await searchVault(query, typeof args.massimo === 'number' ? args.massimo : 8);
+  if (!result.ok) return fail(result.error);
+  if (result.matches.length === 0) return { id: use.id, content: JSON.stringify({ source: 'obsidian-vault', query, trovati: 0, note: 'Nessuna nota corrisponde. Dillo: non ricostruire a memoria.' }) };
+  return { id: use.id, content: JSON.stringify({ source: 'obsidian-vault', query, trovati: result.matches.length, risultati: result.matches.map((m) => ({ percorso: m.path, estratto: m.excerpt })) }) };
+}
+
+async function executeCustomConnectorTool(use: ToolUse): Promise<ToolResult> {
+  const fail = (content: string): ToolResult => ({ id: use.id, content, isError: true });
+  const args = (use.input && typeof use.input === 'object' ? use.input : {}) as Record<string, unknown>;
+  const id = str(args.id_connettore);
+  const path = str(args.percorso);
+  if (!id || !path) return fail('Servono id_connettore e percorso.');
+  const { callCustomConnector } = await import('../connectors/custom');
+  const result = await callCustomConnector(id, path);
+  if (!result.ok) return fail(result.error);
+  return { id: use.id, content: result.body };
+}
+
 async function executeTopicSearchTool(use: ToolUse, token: string | null): Promise<ToolResult> {
   const fail = (content: string): ToolResult => ({ id: use.id, content, isError: true });
   if (!token) return fail('Token mancante: ricerca non disponibile.');
@@ -1032,6 +1102,9 @@ export async function executeRuntimeTool(
     if (use.name === 'crea_automazione') return await executeAutomationTool(use, scope.token);
     if (use.name === 'leggi_file') return await executeFileTool(use, scope.token, scope.projectId ?? null);
     if (use.name === 'cerca_conversazione') return await executeTopicSearchTool(use, scope.token);
+    if (use.name === 'leggi_calendario_google') return await executeGoogleCalendarTool(use);
+    if (use.name === 'cerca_secondo_cervello') return await executeVaultSearchTool(use);
+    if (use.name === 'chiama_connettore_personalizzato') return await executeCustomConnectorTool(use);
     const isProjectTool = ['leggi_progetto', 'leggi_sorgente_progetto', 'scrivi_artifact_progetto'].includes(use.name);
     const projectFile = use.name === 'crea_file_testo';
     if (!isProjectTool && !projectFile) return await localRun(use);
