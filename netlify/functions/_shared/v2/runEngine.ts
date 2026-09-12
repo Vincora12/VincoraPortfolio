@@ -66,6 +66,8 @@ export async function executeRun(request: RunRequest, dependencies: RunDependenc
       windowTokens: request.contextWindow,
       toolDefinitionText,
       allowPersonal: !['lab', 'inspection', 'coding'].includes(request.profile),
+      allowProjects: !['lab', 'inspection', 'coding'].includes(request.profile),
+      ...(['lab', 'inspection', 'coding'].includes(request.profile) ? { identityOverride: 'VINZ.MON LOCAL CORE — server-owned run policy. This restricted technical profile has no personal-memory or ME access.' } : {}),
     });
   } catch (error) {
     const windowTokens = request.contextWindow ?? 16_000;

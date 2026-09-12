@@ -13,6 +13,8 @@ export interface AssembleContextInput {
   windowTokens?: ContextWindow;
   toolDefinitionText?: string;
   allowPersonal?: boolean;
+  identityOverride?: string;
+  allowProjects?: boolean;
 }
 
 type Candidate = {
@@ -74,8 +76,8 @@ export async function assembleContext(domains: ContextDomains, input: AssembleCo
   const windowTokens = input.windowTokens ?? 16_000;
   const reservedOutputTokens = windowTokens === 16_000 ? 4_000 : 6_000;
   const inputBudgetTokens = windowTokens - reservedOutputTokens;
-  const identity = await domains.identity();
-  const projects = await domains.listProjects();
+  const identity = input.identityOverride ?? await domains.identity();
+  const projects = input.allowProjects === false ? [] : await domains.listProjects();
   const named = namedProjects(input.query, projects);
   const projectIds = new Set<string>();
   if (input.projectId) projectIds.add(input.projectId);

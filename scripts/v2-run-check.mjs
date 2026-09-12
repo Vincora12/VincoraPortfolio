@@ -46,6 +46,16 @@ const caller = await m.executeRun({ profile: 'chat', input: 'Call it', toolMode:
 assert.equal(caller.status, 'completed');
 assert.equal(caller.rawToolUses[0].input.q, 1);
 
+const restricted = await m.executeRun({ profile: 'lab', input: 'Inspect code', modelPreference: 'fixture-cloud' }, {
+  persist: false,
+  domains: { ...domains, identity: async () => { throw new Error('personal identity must not load'); }, listProjects: async () => { throw new Error('personal projects must not load'); }, globalMemory: async () => { throw new Error('memory must not load'); }, me: async () => { throw new Error('ME must not load'); } },
+  provider: async (_provider, request) => {
+    assert(request.system.some((block) => block.text.includes('restricted technical profile')));
+    return { ok: true, text: 'restricted', usage: {}, model: 'fixture-model', toolUses: [], sources: [] };
+  },
+});
+assert.equal(restricted.status, 'completed');
+
 let exposed = null;
 await m.executeRun({ profile: 'chat', input: 'Do a write' }, {
   domains, persist: false,
