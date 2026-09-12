@@ -272,7 +272,7 @@ export function worldBlock(world: World | null): string {
   const recent = world.canon.slice(-10);
   return [
     `IL MONDO: ${world.name}`,
-    world.description,
+    world.description.slice(0, 1200),
     `Emerso il giorno ${world.emergedOnDay}, con ${displayName(world.emergedWith)}.`,
     /* 🔷 Narrative System Phase 2 — GOAL 5: il World Cultural DNA esisteva già
        (`resolveWorldCulturalDna`) ma nessun prompt lo leggeva mai. È tono e
@@ -284,7 +284,13 @@ export function worldBlock(world: World | null): string {
       : []),
     '',
     recent.length > 0 ? 'QUELLO CHE È GIÀ VERO QUI (non contraddirlo):' : 'Il canone è ancora vuoto.',
-    ...recent.map((e) => `- [${EPISTEMIC_LABEL[e.epistemic]}] giorno ${e.day}: ${e.text}`),
+    /* 🔒 Il testo di un evento del canone non aveva mai un tetto — su una
+       partita lunga (il canone cresce di giorno in giorno e non si accorcia
+       mai) dieci eventi senza limite potevano avvicinare il tetto di
+       caratteri della capacità che li legge. `narrativeContextBlock` (stesso
+       file di chiamata) limita già ogni pezzo che assembla allo stesso modo:
+       questa è la stessa protezione, qui. */
+    ...recent.map((e) => `- [${EPISTEMIC_LABEL[e.epistemic]}] giorno ${e.day}: ${e.text.slice(0, 400)}`),
   ].join('\n');
 }
 

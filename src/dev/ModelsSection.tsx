@@ -201,6 +201,9 @@ export function ModelsSection() {
                 {isAuto ? <SystemLabel>AUTO 🔒</SystemLabel> : <SystemLabel tone="warning">MANUALE</SystemLabel>}
                 {step.qualityCritical && <SystemLabel tone="character">QUALITÀ</SystemLabel>}
                 {step.background && <SystemLabel>IN BACKGROUND</SystemLabel>}
+                {isAuto && !step.qualityCritical && step.capability === 'text-cheap' && (
+                  <SystemLabel tone="character">PROVA PRIMA IL LOCALE</SystemLabel>
+                )}
                 {!isAuto && (
                   <>
                     {' '}
@@ -453,13 +456,31 @@ export function ControlRoomHeader({
 
   let autoCount = 0;
   let localCount = 0;
+  /* 🔷 AUTO LOCAL-FIRST (2026-09-12) — «mi aspettavo che auto mi abbinasse
+     llm locali dove serve»: `modelForStep` torna sempre il predefinito
+     CLOUD dello step, mai Ollama — era la lettura onesta di PRIMA di questa
+     modifica, ma ora `runStep` (state/store.ts) prova DAVVERO il locale per
+     primo su ogni step in AUTO, non critico, con un catalogo locale
+     (text-cheap). Contare solo `modelForStep` tornerebbe a mentire nel
+     verso opposto: "0 in locale" quando in realtà ci si prova sempre. Le
+     tre categorie sotto riflettono le tre cose vere che possono succedere
+     per uno step: locale scelto A MANO, AUTO che ci prova ogni volta, o
+     niente da provare (nessun locale per quella capacità, o protetto). */
+  let autoTriesLocalCount = 0;
   let premiumCount = 0;
   for (const id of AI_STEP_ORDER) {
     const step = AI_STEPS[id];
-    if (!stepModels[id]) autoCount += 1;
+    const isAuto = !stepModels[id];
+    if (isAuto) autoCount += 1;
     const attivo = modelForStep(id, stepModels[id]);
     const provider = providerFor(step.capability, attivo);
-    if (provider === 'ollama') localCount += 1; else premiumCount += 1;
+    if (provider === 'ollama') {
+      localCount += 1;
+    } else if (isAuto && !step.qualityCritical && step.capability === 'text-cheap') {
+      autoTriesLocalCount += 1;
+    } else {
+      premiumCount += 1;
+    }
   }
   const manualCount = AI_STEP_ORDER.length - autoCount;
 
@@ -477,7 +498,9 @@ export function ControlRoomHeader({
     <div className="dev__estimate">
       <p className="t-meta dev__label">AI CONTROL ROOM</p>
       <p className="t-micro dev__note">
-        {autoCount} step in AUTO · {manualCount} scelti a mano · {localCount} risolti in locale (Ollama, $0) · {premiumCount} su API a pagamento.
+        {autoCount} step in AUTO · {manualCount} scelti a mano · {localCount} su locale scelto a mano (Ollama, $0)
+        {autoTriesLocalCount > 0 && <> · {autoTriesLocalCount} in AUTO provano prima il locale, poi il cloud se serve</>}
+        {' · '}{premiumCount} solo su API a pagamento.
       </p>
 
       <label className="dev__check">

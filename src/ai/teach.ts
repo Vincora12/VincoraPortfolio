@@ -126,7 +126,10 @@ export async function teachResolver(
   compilerModel?: string | null,
 ): Promise<TeachOutcome> {
   const { data, failure, detail, ms } = await ask<{ text: string }>(token, {
-    capability: 'prompt-compile',
+    /* 🔶 Era 'prompt-compile' — spostato a 'text-cheap' insieme al passo
+       `AI_STEPS.teach` in routing.ts: stesso predefinito (gpt-5.6-luna),
+       ma ora con Ollama fra le scelte reali, non solo mostrate. */
+    capability: 'text-cheap',
     voiceModel: compilerModel,
     /* 🔒 La memoria in cache e per prima, ESATTAMENTE come nella risoluzione:
        è lo stesso prefisso, quindi le due strade si scambiano la cache invece

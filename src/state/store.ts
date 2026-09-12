@@ -65,6 +65,8 @@ import { formeGiaViste } from '../assets-pipeline/resolver/taste';
    prima, e lo farebbe in silenzio. */
 import {
   AI_STEPS,
+  LOCAL_CHEAP_ROUND_MODEL,
+  LOCAL_CHEAP_ROUND_SENTINEL,
   modelForStep,
   recommendedPreset,
   type AiStepId,
@@ -4335,22 +4337,60 @@ export function stepModel(
  * solo, i numeri di step diversi sono confrontabili. Misurato in otto posti,
  * ognuno finirebbe per contare pezzi leggermente diversi — ed è esattamente
  * come si costruisce una tabella che sembra dire qualcosa e non dice niente.
- */
+ *
+ * 🔷 AUTO LOCAL-FIRST (2026-09-12) — «mi aspettavo che la versione auto mi
+ * abbinasse llm locali dove serve per risparmiare»: prima AUTO era solo il
+ * predefinito CLOUD dello step, mai Ollama — la Control Room mostrava
+ * onestamente "11 step in AUTO, 0 risolti in locale" perché era la verità,
+ * non un bug di lettura. Ora, per uno step NON scelto a mano (`stepModels`
+ * vuoto per quello step) e NON critico per la qualità, il cui catalogo ha
+ * davvero un'alternativa locale (`capability === 'text-cheap'`), si prova
+ * PRIMA il modello locale — stesso sentinel già usato dai giri intermedi
+ * della chat (`LOCAL_CHEAP_ROUND_SENTINEL`, vedi routing.ts) — e si ricade
+ * sul predefinito cloud dello step solo se quel tentativo fallisce o il suo
+ * stesso controllo di esito dice che non va bene. Una scelta manuale
+ * (MANUALE, non AUTO) o uno step qualityCritical restano intoccati: non è
+ * mai un declassamento silenzioso di qualcosa che l'utente ha scelto o che
+ * il prodotto protegge di proposito. */
 export async function runStep<T>(
   step: AiStepId,
   job: (model: string) => Promise<T>,
   esito: (out: T) => { ok: boolean; why?: string },
 ): Promise<T> {
-  const model = stepModel(step);
+  const stepDef = AI_STEPS[step];
+  const isAuto = !useApp.getState().stepModels[step];
+  const canTryLocalFirst = isAuto && !stepDef.qualityCritical && stepDef.capability === 'text-cheap';
   const from = Date.now();
   const { noteRun } = await import('../ai/telemetry');
+
+  if (canTryLocalFirst) {
+    try {
+      const localOut = await job(LOCAL_CHEAP_ROUND_SENTINEL);
+      const { ok, why } = esito(localOut);
+      if (ok) {
+        noteRun(step, { model: LOCAL_CHEAP_ROUND_MODEL, ms: Date.now() - from, background: stepDef.background, ok: true });
+        return localOut;
+      }
+      /* Risposto ma non bene (giudizio del chiamante, es. JSON non valido):
+         si ricade sul cloud invece di tenere un risultato scadente solo
+         perché era gratis. `why` finisce nel log del TENTATIVO locale,
+         non in quello che segue — altrimenti sembrerebbe un fallimento del
+         modello scelto dall'utente, che non ha nemmeno girato ancora. */
+      noteRun(step, { model: LOCAL_CHEAP_ROUND_MODEL, ms: Date.now() - from, background: stepDef.background, ok: false, why: why ?? 'esito non valido dal locale' });
+    } catch (err) {
+      noteRun(step, { model: LOCAL_CHEAP_ROUND_MODEL, ms: Date.now() - from, background: stepDef.background, ok: false, why: String(err) });
+    }
+  }
+
+  const model = stepModel(step);
+  const cloudFrom = Date.now();
   try {
     const out = await job(model);
     const { ok, why } = esito(out);
     noteRun(step, {
       model,
-      ms: Date.now() - from,
-      background: AI_STEPS[step].background,
+      ms: Date.now() - cloudFrom,
+      background: stepDef.background,
       ok,
       ...(why ? { why } : {}),
     });
@@ -4358,8 +4398,8 @@ export async function runStep<T>(
   } catch (err) {
     noteRun(step, {
       model,
-      ms: Date.now() - from,
-      background: AI_STEPS[step].background,
+      ms: Date.now() - cloudFrom,
+      background: stepDef.background,
       ok: false,
       why: String(err),
     });

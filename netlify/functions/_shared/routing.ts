@@ -845,22 +845,37 @@ export const AI_STEPS: Record<AiStepId, AiStep> = {
     maxTokens: 8000,
     qualityCritical: true,
   },
+  /* 🔶 ERA `prompt-compile`, come CHARACTER MASTER — e non doveva esserlo:
+     «due frasi» non ha bisogno del `thinking: true` che quella capacità
+     pretende, e restarci fuori lo teneva fuori anche da TEXT_CHEAP_CHOICES,
+     l'unico catalogo con Ollama dentro. STESSA correzione già fatta per
+     `worldIdentity` più sotto, stessa ragione: non è mai critico per la
+     qualità, quindi non merita il catalogo del Character Master. Il
+     predefinito resta `gpt-5.6-luna` (è già una scelta valida di
+     TEXT_CHEAP_CHOICES): questo cambia SOLO cosa puoi scegliere in più, non
+     cosa gira di default. `src/ai/teach.ts` aggiornato in coppia — la
+     capacità che il browser DICHIARA e quella che manda alla rete devono
+     restare la stessa cosa, mai due copie che possono disallinearsi. */
   teach: {
     id: 'teach',
     label: 'INSEGNA',
     it: 'Ti risponde quando gli insegni qualcosa, e ne ricava la regola da tenere. Due frasi.',
-    capability: 'prompt-compile',
+    capability: 'text-cheap',
     fallback: 'gpt-5.6-luna',
     background: false,
     effort: 'none',
     maxTokens: 700,
     qualityCritical: false,
   },
+  /* 🔶 Stessa correzione di TEACH sopra: «testo corto», mai critico per la
+     qualità, non ha bisogno del `thinking` di `prompt-compile` — e restarci
+     lo teneva fuori da TEXT_CHEAP_CHOICES, l'unico catalogo con Ollama.
+     `src/ai/bioWriter.ts` aggiornato in coppia. */
   bio: {
     id: 'bio',
     label: 'BIO',
     it: 'Scrive la storia della creatura. Testo corto, e i controlli deterministici restano identici.',
-    capability: 'prompt-compile',
+    capability: 'text-cheap',
     fallback: 'gpt-5.6-luna',
     background: false,
     effort: 'low',
@@ -870,12 +885,16 @@ export const AI_STEPS: Record<AiStepId, AiStep> = {
   /* 🔷 VINZMON_NARRATIVE_ROLE_IMPLEMENTATION_BRIEF §10 — la voce con cui
      VINZ.MON racconta l'arrivo di una forma, quando fa da narratore/sistema.
      Stesso profilo di BIO: testo corto, si scrive una volta sola, non è
-     critico per la qualità come il Character Master. */
+     critico per la qualità come il Character Master.
+     🔶 Stessa correzione di TEACH/BIO sopra — spostato da `prompt-compile` a
+     `text-cheap` per la stessa ragione (mai critico, mai bisogno di
+     `thinking`, merita l'accesso a Ollama). `src/ai/narratorPrompt.ts`
+     aggiornato in coppia (entrambe le chiamate). */
   narrator: {
     id: 'narrator',
     label: 'NARRATORE',
     it: 'Il testo con cui VINZ.MON racconta l’arrivo della forma, voce terminale/sistema. Testo corto, una volta sola.',
-    capability: 'prompt-compile',
+    capability: 'text-cheap',
     fallback: 'gpt-5.6-luna',
     background: false,
     effort: 'low',
@@ -898,6 +917,16 @@ export const AI_STEPS: Record<AiStepId, AiStep> = {
     maxTokens: 400,
     qualityCritical: false,
   },
+  /* 🔶 RESTA su `prompt-compile`, a differenza di TEACH/BIO/NARRATORE sopra
+     — e non è una dimenticanza. `maxTokens: 8000` è lo STESSO tetto del
+     Character Master, non un numero a caso: se questo step finisse su
+     `text-cheap`, `LIMITS.maxTokens` (4000, in ai.ts) lo dimezzerebbe a metà
+     scrittura — lo stesso "JSON troncato" che il commento del Character
+     Master sopra descrive, qui su un prompt invece che su un JSON. Se un
+     giorno serve anche qui Ollama, la strada sicura è verificare prima
+     quanto è lungo davvero l'output di `compileWithAi` (promptCompiler.ts) e
+     alzare `LIMITS.maxTokens` di conseguenza — non spostare la capacità
+     senza controllare. */
   imagePrompt: {
     id: 'imagePrompt',
     label: 'PROMPT IMMAGINI',

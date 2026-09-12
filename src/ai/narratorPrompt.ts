@@ -51,7 +51,9 @@ function parseNarrator(raw: string): string[] | null {
 }
 export async function writeNarratorWithAi(token: string | null, record: MonRecord, compilerModel?: string | null, context?: WriterContext): Promise<NarratorOutcome> {
   const {data,failure,detail} = await ask<{text:string}>(token, {
-    capability:'prompt-compile', voiceModel:compilerModel, system:[{text:NARRATOR_RULES,cache:true}],
+    /* Era 'prompt-compile' — spostato a 'text-cheap' con `AI_STEPS.narrator`
+       in routing.ts: stesso predefinito, ora anche Ollama fra le scelte. */
+    capability:'text-cheap', voiceModel:compilerModel, system:[{text:NARRATOR_RULES,cache:true}],
     user:[narrativeContextBlock(contextFor(record,context)), culturalBackground(record.data.cultural_dna), culturalDiscoveryBlock(record)].join('\n'),
     effort:AI_STEPS.narrator.effort, maxTokens:AI_STEPS.narrator.maxTokens,
   });
@@ -65,7 +67,7 @@ export const RETURN_RULES = [NARRATOR_RULES,
   'Non affermare che il World si è consumato o trasformato durante l’assenza senza un evento che lo documenti. Il solo tempo passato non prova cambiamenti.',
 ].join('\n');
 export async function writeReturnWithAi(token:string|null, compilerModel:string|null|undefined, ctx:ReturnContext):Promise<NarratorOutcome> {
-  const {data,failure,detail}=await ask<{text:string}>(token,{capability:'prompt-compile',voiceModel:compilerModel,system:[{text:RETURN_RULES,cache:true}],user:returnBlock(ctx),effort:AI_STEPS.narrator.effort,maxTokens:AI_STEPS.narrator.maxTokens});
+  const {data,failure,detail}=await ask<{text:string}>(token,{capability:'text-cheap',voiceModel:compilerModel,system:[{text:RETURN_RULES,cache:true}],user:returnBlock(ctx),effort:AI_STEPS.narrator.effort,maxTokens:AI_STEPS.narrator.maxTokens});
   const lines=data?.text?parseNarrator(data.text):null;
   return {line:lines?.join('\n')??null,failure,rejected:lines?null:detail??'testo non valido'};
 }

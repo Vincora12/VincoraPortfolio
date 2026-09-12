@@ -297,7 +297,10 @@ export async function writeBioWithAi(
   context?: BioMemoryContext,
 ): Promise<BioOutcome> {
   const { data, failure, detail } = await ask<{ text: string }>(token, {
-    capability: 'prompt-compile',
+    /* 🔶 Era 'prompt-compile' — spostato a 'text-cheap' insieme al passo
+       `AI_STEPS.bio` in routing.ts: stesso predefinito, ma ora con Ollama
+       fra le scelte reali, non solo mostrate. */
+    capability: 'text-cheap',
     voiceModel: compilerModel,
     system: [{ text: BIO_RULES, cache: true }],
     user: bioFactsOf(record, context),
