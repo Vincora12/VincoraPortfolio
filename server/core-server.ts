@@ -49,6 +49,7 @@ import { closeLocalStore, localDatabasePath } from '../netlify/functions/_shared
 import memoryReset from '../netlify/functions/memory-reset';
 import localLlm from '../netlify/functions/local-llm';
 import repoOps from '../netlify/functions/repo-ops';
+import runs from '../netlify/functions/runs';
 import notificationPrefs from '../netlify/functions/notification-prefs';
 import vinzWorkspace from '../netlify/functions/vinz-workspace';
 
@@ -100,6 +101,7 @@ handlers['/api/local-llm'] = localLlm;
 handlers['/api/repo-ops'] = repoOps;
 handlers['/api/notification-prefs'] = notificationPrefs;
 handlers['/api/vinz-workspace'] = vinzWorkspace;
+handlers['/api/runs'] = runs;
 
 const background: Record<string, (request: Request) => Promise<void>> = {
   '/api/evolution-background': evolutionBackground,

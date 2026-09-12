@@ -31,13 +31,14 @@
    ========================================================================= */
 
 import { authorize, denied, json } from './_shared/auth';
-import { callProvider, type SystemBlock, type ToolDef, type ToolUse, type Turn, type TurnContent } from './_shared/providers';
+import { type ToolDef, type ToolUse, type Turn } from './_shared/providers';
 import { resolveRoute } from './_shared/routing';
-import { checkCap, recordSpend, looksLikeProviderQuota, INTERNAL_CAP_EXCEEDED, PROVIDER_QUOTA_EXCEEDED } from './_shared/spend';
+import { checkCap, looksLikeProviderQuota, INTERNAL_CAP_EXCEEDED, PROVIDER_QUOTA_EXCEEDED } from './_shared/spend';
 import { appendRuntimeEvent } from './_shared/runtimeLog';
 import { checkUiOnlyPatch, listProjectFiles, readProjectFile, searchProjectFiles } from './_shared/agentLabFiles';
+import { executeRun } from './_shared/v2/runEngine';
+import type { ServerTool } from './_shared/v2/contracts';
 
-const MAX_ROUNDS = 6;
 const MAX_MESSAGE_CHARS = 4000;
 const MAX_HISTORY = 20;
 
@@ -149,17 +150,6 @@ export function contextBlock(context?: FlowContext | null): string {
   ]
     .filter(Boolean)
     .join('\n');
-}
-
-function assistantTurn(text: string, uses: readonly ToolUse[]): Turn {
-  const content: Record<string, unknown>[] = [];
-  if (text.trim().length > 0) content.push({ type: 'text', text });
-  for (const u of uses) content.push({ type: 'tool_use', id: u.id, name: u.name, input: u.input });
-  return { role: 'assistant', content };
-}
-
-function resultBlock(id: string, content: string, isError?: boolean): Record<string, unknown> {
-  return { type: 'tool_result', tool_use_id: id, content, ...(isError ? { is_error: true } : {}) };
 }
 
 /* AUDIT & UNIFICATION FOLLOW-UP — stessa correzione di `src/ai/tools.ts`'s
@@ -334,73 +324,32 @@ export default async function handler(request: Request): Promise<Response> {
 
   const route = resolveRoute('prompt-compile');
   const context = contextBlock(payload.context);
-  const system: SystemBlock[] = [{ text: BOUNDARY_RULES, cache: true }, ...(context ? [{ text: context }] : [])];
-
   const history: Turn[] = priorMessages.map((m) => ({ role: m.role, content: m.text }));
-  let currentUser = message;
-  let userBlocks: Record<string, unknown>[] | undefined;
-  let totalCostUsd = 0;
-  let lastModel = route.model;
-  const toolTrace: { name: string; ok: boolean }[] = [];
-  let finalText: string | null = null;
   let exportFile: { filename: string; content: string } | undefined;
-
-  for (let round = 0; round < MAX_ROUNDS; round++) {
-    const userContent: TurnContent | undefined = userBlocks?.length ? userBlocks : undefined;
-    const result = await callProvider(route.provider, {
-      model: route.model,
-      system,
-      turns: history,
-      user: userContent ? '' : currentUser,
-      ...(userContent ? { userBlocks: userBlocks } : {}),
-      tools: round < MAX_ROUNDS - 1 ? TOOLS : [],
-      maxTokens: 1800,
-      effort: 'low',
-    });
-
-    if (result.usage.inputTokens || result.usage.outputTokens) {
-      totalCostUsd += await recordSpend('prompt-compile', result.model, result.usage, { action: 'agent-lab', subsystem: 'agent-lab' });
-    }
-    lastModel = result.model;
-
-    if (!result.ok) {
-      const providerQuota = looksLikeProviderQuota(result.error);
-      await appendRuntimeEvent({ eventType: providerQuota ? PROVIDER_QUOTA_EXCEEDED : 'AI_CALL_ERROR', status: 'FAIL', scope: 'agent-lab', capability: 'prompt-compile', provider: route.provider, model: result.model, error: result.error });
-      return json({ error: 'risposta non disponibile', reason: (result.error ?? '').slice(0, 300), ...(providerQuota ? { code: PROVIDER_QUOTA_EXCEEDED } : {}) }, 502);
-    }
-
-    const uses = result.toolUses ?? [];
-    if (uses.length === 0) {
-      finalText = result.text?.trim() ?? '';
-      break;
-    }
-
-    if (round === 0 && currentUser) history.push({ role: 'user', content: currentUser });
-    if (userBlocks?.length) history.push({ role: 'user', content: userBlocks });
-    history.push(assistantTurn(result.text ?? '', uses));
-
-    const results = uses.map((use) => {
+  const serverTools: ServerTool[] = TOOLS.map((definition) => ({
+    definition,
+    risk: 'read',
+    execute(use) {
       const outcome = executeTool(use);
-      toolTrace.push({ name: use.name, ok: !outcome.isError });
       if (outcome.exportFile) exportFile = outcome.exportFile;
       return outcome;
-    });
-    userBlocks = budgetToolResults(results).map((r) => resultBlock(r.id, r.content, r.isError));
-    currentUser = '';
+    },
+  }));
+  const result = await executeRun({ profile: 'lab', input: message, turns: history, system: [{ text: BOUNDARY_RULES, cache: true }, ...(context ? [{ text: context }] : [])], modelPreference: route.model, maxOutputTokens: 1800 }, { tools: serverTools });
+  if (result.status !== 'completed') {
+    const providerQuota = looksLikeProviderQuota(result.error);
+    await appendRuntimeEvent({ eventType: providerQuota ? PROVIDER_QUOTA_EXCEEDED : 'AI_CALL_ERROR', status: 'FAIL', scope: 'agent-lab', capability: 'prompt-compile', provider: route.provider, model: result.model, error: result.error });
+    return json({ error: 'risposta non disponibile', reason: (result.error ?? '').slice(0, 300), ...(providerQuota ? { code: PROVIDER_QUOTA_EXCEEDED } : {}) }, 502);
   }
-
-  if (finalText === null) {
-    return json({ error: 'la richiesta ha usato troppi passaggi di lettura — prova a restringerla' }, 502);
-  }
-  if (!finalText) {
+  if (!result.text) {
     return json({ error: 'la risposta è arrivata vuota' }, 502);
   }
 
   return json({
-    text: finalText,
-    toolTrace,
-    model: lastModel,
-    costUsd: totalCostUsd,
+    text: result.text,
+    toolTrace: result.toolUses,
+    model: result.model,
+    costUsd: result.usage.costUsd ?? 0,
     warning: cap.warning,
     ...(exportFile ? { exportFile } : {}),
   });

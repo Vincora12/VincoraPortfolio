@@ -35,12 +35,12 @@
    ========================================================================= */
 
 import { authorize, type AuthResult } from './auth';
-import { checkCap, recordSpend, looksLikeProviderQuota, INTERNAL_CAP_EXCEEDED, PROVIDER_QUOTA_EXCEEDED, type CapState } from './spend';
+import { checkCap, looksLikeProviderQuota, INTERNAL_CAP_EXCEEDED, PROVIDER_QUOTA_EXCEEDED, type CapState } from './spend';
 import { resolveRoute } from './routing';
-import { callProvider, type ProviderResult, type SystemBlock, type ToolDef, type Turn } from './providers';
+import { type ProviderResult, type SystemBlock, type ToolDef, type Turn } from './providers';
 import { appendRuntimeEvent } from './runtimeLog';
-import { loadCoreContext } from './coreContext';
 import captureHandler from '../me-chat-capture';
+import { executeRun } from './v2/runEngine';
 
 export const INGRESS_MODEL_ID = 'vinzmon-core';
 
@@ -195,25 +195,26 @@ export async function runIngress(
   }
 
   const route = resolveRoute('character-voice');
-  let systemPrompt: string;
-  try {
-    ({ systemPrompt } = await loadCoreContext({ query: mapped.user, body: 'external', toolsAvailable: Boolean(tools?.length) }));
-  } catch {
-    return { ok: false, response: jsonWithCors({ error: { message: 'Contesto canonico non disponibile.', type: 'server_error' } }, 503) };
-  }
-  const result = await callProvider(route.provider, {
-    model: route.model,
-    system: [...mapped.system, { text: systemPrompt }],
+  const run = await executeRun({
+    profile: 'chat',
+    input: mapped.user,
     turns: mapped.turns,
-    user: mapped.user,
+    system: mapped.system,
     tools,
-    maxTokens: 2000,
-    effort: 'low',
+    toolMode: 'caller',
+    maxOutputTokens: 2000,
+    modelPreference: route.model,
   });
-
-  if (result.usage.inputTokens || result.usage.outputTokens) {
-    await recordSpend('character-voice', result.model, result.usage, { action: 'openai-ingress', subsystem: 'openai-ingress' });
-  }
+  const result: ProviderResult = {
+    ok: run.status === 'completed',
+    text: run.text,
+    usage: run.usage,
+    model: run.model ?? INGRESS_MODEL_ID,
+    toolUses: run.rawToolUses ?? [],
+    sources: run.sources,
+    ...(run.rawToolUses?.length ? { stopReason: 'tool_use' } : {}),
+    ...(run.error ? { error: run.error } : {}),
+  };
 
   if (!result.ok) {
     const providerQuota = looksLikeProviderQuota(result.error);

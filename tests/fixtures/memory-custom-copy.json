@@ -1,0 +1,4 @@
+[
+  { "id": "custom-1", "text": "Vincenzo vive a Roma", "confidence": 0.9, "metadata": { "source": "fixture" } },
+  { "id": "custom-2", "text": "Preferisce risposte concise", "confidence": 0.8, "metadata": { "source": "fixture" } }
+]
