@@ -4352,6 +4352,32 @@ export function stepModel(
  * (MANUALE, non AUTO) o uno step qualityCritical restano intoccati: non è
  * mai un declassamento silenzioso di qualcosa che l'utente ha scelto o che
  * il prodotto protegge di proposito. */
+/* 🔴 «Ci mette molto a rispondere» — trovato lo stesso giorno in cui l'AUTO
+   local-first è arrivato, e non è un caso: `ask()`/`post()` (ai/backend.ts)
+   non hanno MAI avuto un tetto di tempo proprio, si affidavano al fatto che
+   Netlify uccide una funzione sincrona a dieci secondi. Il Local Core
+   Server (dove Ollama può davvero rispondere) non ha quel muro — è un
+   `node:http` semplice — quindi un tentativo locale lento non falliva mai
+   da solo: aspettava Ollama fino alla fine, POI (se falliva) si passava al
+   cloud, sommando i due tempi. Su un modello da 14 miliardi di parametri
+   senza una GPU dedicata, "fino alla fine" può essere molti secondi — ed è
+   esattamente il ritardo che si è visto su TEACH, che risponde dentro una
+   chat dal vivo. Questo tetto non annulla la richiesta locale (nessun
+   `AbortSignal` da qui: `job` è una funzione opaca, cambiarne la firma
+   avrebbe voluto dire toccare sei chiamanti diversi) — la lascia perdere e
+   passa al cloud, buttando via la risposta locale quando arriva. */
+const LOCAL_FIRST_TIMEOUT_MS = 8_000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`locale troppo lento (oltre ${ms / 1000}s)`)), ms);
+    promise.then(
+      (value) => { clearTimeout(timer); resolve(value); },
+      (err) => { clearTimeout(timer); reject(err); },
+    );
+  });
+}
+
 export async function runStep<T>(
   step: AiStepId,
   job: (model: string) => Promise<T>,
@@ -4365,7 +4391,7 @@ export async function runStep<T>(
 
   if (canTryLocalFirst) {
     try {
-      const localOut = await job(LOCAL_CHEAP_ROUND_SENTINEL);
+      const localOut = await withTimeout(job(LOCAL_CHEAP_ROUND_SENTINEL), LOCAL_FIRST_TIMEOUT_MS);
       const { ok, why } = esito(localOut);
       if (ok) {
         noteRun(step, { model: LOCAL_CHEAP_ROUND_MODEL, ms: Date.now() - from, background: stepDef.background, ok: true });
