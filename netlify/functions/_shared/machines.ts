@@ -6,6 +6,7 @@ import { resolveRoute } from './routing';
 import { recordSpend } from './spend';
 import { listPersonalMemory, searchPersonalMemory } from './core/memory';
 import { machineInsightPayload, sendPushNotification } from './pushDelivery';
+import { isNotificationEnabled } from './notificationPrefs';
 import { nextRun } from './automations';
 import { listTopics } from './topics';
 import { MACHINE_STATE_KEY, MACHINE_STORE } from './machineConversationContext';
@@ -479,8 +480,10 @@ export async function runMachine(machine: MachineId, preferredModel?: string | n
     if (latestInsight?.createdAt === current.lastRun || latestInsight?.machineId === machine && latestInsight.status === 'pending' && latestInsight.notification === 'in_app' && !latestInsight.pushAttemptedAt) {
       latestInsight.pushAttemptedAt = at();
       try {
-        const delivery = await sendPushNotification(machineInsightPayload(latestInsight));
-        if (delivery.sent > 0) latestInsight.notification = 'push_sent', latestInsight.pushSentAt = at();
+        if (await isNotificationEnabled('machine')) {
+          const delivery = await sendPushNotification(machineInsightPayload(latestInsight));
+          if (delivery.sent > 0) latestInsight.notification = 'push_sent', latestInsight.pushSentAt = at();
+        }
       } catch (error) { latestInsight.pushError = error instanceof Error ? error.message.slice(0, 160) : 'push delivery failed'; }
     }
     await store.setJSON(MACHINE_STATE_KEY, state);

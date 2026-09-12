@@ -21,7 +21,7 @@ import {
   currentRepositoryOperation,
 } from "@/system/chatLiveDebug";
 import { shortId, useChatLiveDebug, type DetectorResult, type ChatLiveDebugState, type ChatIncident } from "@/system/useChatLiveDebug";
-import { useContext, useEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type FC } from "react";
+import { useContext, useEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type DragEvent as ReactDragEvent, type FC, type PointerEvent as ReactPointerEvent } from "react";
 import { useMessageError } from "@assistant-ui/core/react";
 import { TooltipIconButton } from "@/assistant-original/components/assistant-ui/tooltip-icon-button";
 import { useShallow } from "zustand/shallow";
@@ -61,8 +61,7 @@ import { MarkdownText } from "@/assistant-original/components/assistant-ui/markd
 import { ToolFallback } from "@/assistant-original/components/assistant-ui/tool-fallback";
 import { Sources } from "@/assistant-original/components/assistant-ui/sources";
 import { CloneThreadShell } from "./clone-thread-shell";
-import { TopicChips } from "@/assistant-original/TopicChips";
-import { ProjectPill, type ProjectRef } from "@/assistant-original/ProjectPill";
+import { ModelEffortPill, type ModelChoice } from "@/assistant-original/ModelEffortPill";
 import { useApp } from "@/state/store";
 import { voiceCard } from "@/engine/voiceCard";
 import { useAssetUrl } from "@/system/AssetSlot";
@@ -226,15 +225,56 @@ const useFirstArrivalReveal = (arrivalId: unknown) => {
   return animate;
 };
 
+/* 🔷 «Lo uso anche dal computer, metti un drag e drop dei file quando li
+   trascino nella conversazione.» Su desktop trascinare un file sull'intera
+   area di chat (non solo sul bottoncino "+") è il gesto naturale — lo stesso
+   `addAttachment` che usa già `ComposerPrimitive.AddAttachment` fa passare il
+   file dagli stessi adapter (foto/PDF/testo), quindi arriva identico a
+   quello scelto a mano. `dragCounter` serve perché `dragenter`/`dragleave`
+   scattano anche sui figli mentre il mouse si sposta dentro l'area: senza
+   contarli l'overlay sparirebbe a scatti passando sopra un messaggio. */
+const useFileDropZone = () => {
+  const aui = useAui();
+  const [isDraggingFile, setIsDraggingFile] = useState(false);
+  const dragCounter = useRef(0);
+
+  const hasFiles = (event: ReactDragEvent) => Array.from(event.dataTransfer?.types ?? []).includes("Files");
+
+  return {
+    isDraggingFile,
+    onDragEnter: (event: ReactDragEvent) => {
+      if (!hasFiles(event)) return;
+      event.preventDefault();
+      dragCounter.current += 1;
+      setIsDraggingFile(true);
+    },
+    onDragOver: (event: ReactDragEvent) => {
+      if (!hasFiles(event)) return;
+      event.preventDefault();
+    },
+    onDragLeave: (event: ReactDragEvent) => {
+      if (!hasFiles(event)) return;
+      dragCounter.current = Math.max(0, dragCounter.current - 1);
+      if (dragCounter.current === 0) setIsDraggingFile(false);
+    },
+    onDrop: (event: ReactDragEvent) => {
+      if (!hasFiles(event)) return;
+      event.preventDefault();
+      dragCounter.current = 0;
+      setIsDraggingFile(false);
+      const files = Array.from(event.dataTransfer?.files ?? []);
+      for (const file of files) void aui.thread.composer().addAttachment(file);
+    },
+  };
+};
+
 export const ChatGPT: FC<{
   sidebarContent?: React.ReactNode;
   newThreadScope?: { projectId: string | null; projectTitle: string };
   onNewThread?: (threadId: string) => void;
-  /* 🔷 La pillola del progetto compare solo dove qualcuno sa cosa farne di una
-     scelta: la superficie quotidiana la passa (vedi `chat-surface.tsx`), il
-     ramo `embedded` no — ha già il suo pannello Progetti, non un secondo. */
-  onProjectChange?: (project: ProjectRef | null) => void;
-}> = ({ sidebarContent, newThreadScope, onNewThread, onProjectChange }) => {
+  modelChoice?: ModelChoice;
+}> = ({ sidebarContent, newThreadScope, onNewThread, modelChoice }) => {
+  const dropZone = useFileDropZone();
   return (
     <CloneThreadShell sidebarContent={sidebarContent} showThreadList={false} newThreadScope={newThreadScope} onNewThread={onNewThread}>
       <LogCelebration />
@@ -243,9 +283,20 @@ export const ChatGPT: FC<{
       <ConversationLifecycle />
       <ChatLiveDebugPublisher />
       <MonPresenceEvents />
-      <ThreadPrimitive.Root className="flex h-full flex-col items-stretch bg-white px-4 text-[#0d0d0d] dark:bg-black dark:text-[#ececec]">
+      <ThreadPrimitive.Root
+        className="relative flex h-full flex-col items-stretch bg-white px-4 text-[#0d0d0d] dark:bg-black dark:text-[#ececec]"
+        onDragEnter={dropZone.onDragEnter}
+        onDragOver={dropZone.onDragOver}
+        onDragLeave={dropZone.onDragLeave}
+        onDrop={dropZone.onDrop}
+      >
+        {dropZone.isDraggingFile && (
+          <div className="vinz-file-drop-overlay" aria-hidden="true">
+            <p>Rilascia qui per allegare</p>
+          </div>
+        )}
         <AuiIf condition={(s) => s.thread.isEmpty}>
-          <EmptyState scope={newThreadScope} onProjectChange={onProjectChange} />
+          <EmptyState modelChoice={modelChoice} />
         </AuiIf>
 
         <AuiIf condition={(s) => !s.thread.isEmpty}>
@@ -275,10 +326,11 @@ export const ChatGPT: FC<{
 
             <ThreadPrimitive.ViewportFooter className="sticky bottom-0 mx-auto flex w-full max-w-3xl flex-col gap-2 overflow-visible rounded-t-3xl bg-white pb-2 dark:bg-black">
               <ThreadScrollToBottom />
-              <div className="vinz-chips-row flex items-center gap-2">
-                <ProjectPill scope={newThreadScope ?? { projectId: null, projectTitle: '' }} onChange={onProjectChange} />
-                <div className="min-w-0 flex-1"><TopicChips /></div>
-              </div>
+              {modelChoice && (
+                <div className="vinz-chips-row flex items-center gap-2">
+                  <ModelEffortPill choice={modelChoice} />
+                </div>
+              )}
               <Composer placeholder="Ask anything" />
             </ThreadPrimitive.ViewportFooter>
           </ThreadPrimitive.Viewport>
@@ -791,18 +843,16 @@ const ChatIncidentView: FC<{
    `pb-[16vh]`) e poi, al primo messaggio, saltava giù in fondo: due posti
    diversi per lo stesso comando. Adesso il saluto galleggia nello spazio
    sopra e il campo sta in fondo, dove sta sempre. */
-const EmptyState: FC<{
-  scope?: { projectId: string | null; projectTitle: string };
-  onProjectChange?: (project: ProjectRef | null) => void;
-}> = ({ scope, onProjectChange }) => {
+const EmptyState: FC<{ modelChoice?: ModelChoice }> = ({ modelChoice }) => {
   return (
     <div className="flex grow flex-col px-4">
       <div className="grow" aria-hidden="true" />
       <div className="mx-auto flex w-full max-w-3xl flex-col items-stretch pb-2">
-        <div className="vinz-chips-row flex items-center gap-2">
-          <ProjectPill scope={scope ?? { projectId: null, projectTitle: '' }} onChange={onProjectChange} />
-          <div className="min-w-0 flex-1"><TopicChips /></div>
-        </div>
+        {modelChoice && (
+          <div className="vinz-chips-row flex items-center gap-2">
+            <ModelEffortPill choice={modelChoice} />
+          </div>
+        )}
         <Composer placeholder="Ask anything" />
       </div>
     </div>
@@ -1090,8 +1140,23 @@ const Composer: FC<{ placeholder: string }> = ({ placeholder }) => {
     setPendingTranscript(null);
   }, [mode, pendingTranscript]);
 
+  /* 🔷 «Come quando mando gli audio di WhatsApp»: tieni premuto per
+     registrare, rilascia per inviare — non più un tap per avviare e un
+     secondo tap per confermare. `holdReleasedRef` copre il caso in cui il
+     rilascio arriva PRIMA che `startDictation` (asincrono: permesso
+     microfono, WaveSurfer…) sia arrivato a "recording" — altrimenti quella
+     registrazione lampo resterebbe accesa per sempre, nessuno l'ha fermata. */
+  const holdReleasedRef = useRef(false);
+
   const startDictation = async () => {
     if (mode !== "idle") return;
+    holdReleasedRef.current = false;
+    /* 🔷 «Non voglio che scompaia il nav durante la dettatura.» Il nav si
+       nasconde quando qualcosa dentro il composer ha il focus
+       (`.vinz-composer:focus-within`, base.css) — giusto mentre scrivi, non
+       mentre parli. Il bottone del microfono può restare focused dopo il
+       tap: togliere il focus qui evita che la dettatura lo trascini con sé. */
+    (document.activeElement as HTMLElement | null)?.blur?.();
     setDictationError(null);
     setMode("starting");
     try {
@@ -1166,6 +1231,9 @@ const Composer: FC<{ placeholder: string }> = ({ placeholder }) => {
       });
       setSeconds(0);
       setMode("recording");
+      /* Il dito si è già alzato mentre il microfono si stava ancora
+         preparando: ferma subito, come se il rilascio arrivasse ora. */
+      if (holdReleasedRef.current) finishDictation(true);
     } catch (error) {
       recordRef.current?.stopMic();
       setDictationError(
@@ -1182,8 +1250,23 @@ const Composer: FC<{ placeholder: string }> = ({ placeholder }) => {
     if (recordRef.current?.isRecording()) recordRef.current.stopRecording();
   };
 
+  const beginHold = (event: ReactPointerEvent) => {
+    event.preventDefault();
+    holdReleasedRef.current = false;
+    void startDictation();
+  };
+  const endHold = (submit: boolean) => {
+    if (mode === "recording") { finishDictation(submit); return; }
+    /* Ancora in "starting": non c'è niente da fermare adesso, ma
+       `startDictation` lo controlla appena arriva a "recording". */
+    holdReleasedRef.current = true;
+  };
+
   return (
-    <ComposerPrimitive.Root className="vinz-composer group/composer box-border flex w-full min-w-0 flex-col rounded-[28px] border border-[#e5e5e5] bg-white px-2 py-2 focus-within:border-[#d0d0d0] dark:border-transparent dark:bg-[#212121] dark:focus-within:border-transparent">
+    <ComposerPrimitive.Root
+      className="vinz-composer group/composer box-border flex w-full min-w-0 flex-col rounded-[28px] border border-[#e5e5e5] bg-white px-2 py-2 focus-within:border-[#d0d0d0] dark:border-transparent dark:bg-[#212121] dark:focus-within:border-transparent"
+      data-recording={mode !== "idle" ? "true" : undefined}
+    >
       <AuiIf condition={(s) => s.composer.attachments.length > 0}>
         <div className="flex flex-row flex-wrap gap-2 px-1 pt-1 pb-2">
           <ComposerPrimitive.Attachments
@@ -1280,7 +1363,8 @@ const Composer: FC<{ placeholder: string }> = ({ placeholder }) => {
 
         <div className="flex shrink-0 items-center gap-1">
           <ComposerPrimaryAction
-            onDictate={startDictation}
+            onDictateHoldStart={beginHold}
+            onDictateHoldEnd={endHold}
             onBeforeSend={promoteBeforeSend}
             onSend={(userId) => {
               if (userId) startRunWithObservability(aui, 'ComposerPrimaryAction', userId);
@@ -1300,10 +1384,11 @@ const Composer: FC<{ placeholder: string }> = ({ placeholder }) => {
 };
 
 const ComposerPrimaryAction: FC<{
-  onDictate: () => void;
+  onDictateHoldStart: (event: ReactPointerEvent) => void;
+  onDictateHoldEnd: (submit: boolean) => void;
   onBeforeSend: () => Promise<string | null>;
   onSend: (userId: string | null) => void;
-}> = ({ onDictate, onBeforeSend, onSend }) => {
+}> = ({ onDictateHoldStart, onDictateHoldEnd, onBeforeSend, onSend }) => {
   return (
     <div className="flex items-center gap-1">
       <AuiIf condition={(s) => s.thread.isRunning}>
@@ -1347,13 +1432,23 @@ const ComposerPrimaryAction: FC<{
         {/* 🔷 «Il pulsante per parlare live all'inizio togliamolo, lasciamo
             solo l'icona del microfono funzionante.» I due bottoni chiamavano
             entrambi `onDictate`: non erano due funzioni, erano la stessa
-            mostrata due volte con un'icona diversa. */}
+            mostrata due volte con un'icona diversa.
+            🔷 «Come gli audio di WhatsApp»: tieni premuto per registrare,
+            rilascia per inviare — non più un tap per avviare, un secondo per
+            confermare. `onContextMenu`/`touchAction:none` evitano che una
+            pressione un po' lunga apra il menu contestuale del browser al
+            posto di registrare. */}
         <TooltipIconButton
           type="button"
           tooltip="Dictate"
           side="top"
           aria-label="Dictate"
-          onClick={onDictate}
+          onPointerDown={onDictateHoldStart}
+          onPointerUp={() => onDictateHoldEnd(true)}
+          onPointerLeave={() => onDictateHoldEnd(true)}
+          onPointerCancel={() => onDictateHoldEnd(false)}
+          onContextMenu={(event) => event.preventDefault()}
+          style={{ touchAction: "none" }}
           className="flex size-9 items-center justify-center rounded-full text-[#5d5d5d] transition-colors hover:bg-black/[0.07] hover:text-[#5d5d5d] dark:text-[#cdcdcd] dark:hover:bg-white/15 dark:hover:text-[#cdcdcd]"
         >
           <Mic className="size-5" />
@@ -1473,6 +1568,48 @@ const OpeningComposedText: FC<{ text: string; active: boolean; delayMs: number }
   return <span className={active && visible < text.length ? "vinz-opening-writing" : undefined}>{text.slice(0, visible)}</span>;
 };
 
+/* ============================================================================
+   UNA SUPERFICIE HTML, DENTRO IL MESSAGGIO
+
+   🔷 «Il buco è reale: algorithmic-art non ha un esecutore su Generale.»
+   `mostra_superficie_html` (ai/tools.ts) non salva niente da nessuna parte —
+   il contenuto vive solo per questo messaggio, letto qui direttamente dai
+   suoi metadata.
+
+   🔒 STESSO ISOLAMENTO DI `disegna_sezione_me` (MeProjectSection.tsx):
+   `sandbox="allow-scripts"` SENZA `allow-same-origin` — origine opaca, non
+   vede né tocca il resto dell'app, qualunque cosa scriva.
+
+   ⚠️ «Non devo scrollare per vederlo tutto.» Il riquadro ha una dimensione
+   FISSA (CSS, `.vinz-html-surface`) e `overflow:hidden` sia sul riquadro sia
+   dentro il documento dell'iframe: la responsabilità di riempire quello
+   spazio (100%×100%, mai px fissi) è del contenuto, non della cornice — la
+   cornice garantisce solo che non ecceda mai, mai che scorra. */
+function wrapHtmlSurface(bodyHtml: string): string {
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#050505;color:#f3f3f3;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace}
+  ::selection{background:#d4a532;color:#000}
+</style>
+</head><body>${bodyHtml}</body></html>`;
+}
+
+const HtmlSurface: FC = () => {
+  const value = useAuiState((s) => s.message.metadata.custom.htmlSurface);
+  const html = typeof value === "string" ? value : "";
+  if (!html) return null;
+  return (
+    <div className="vinz-html-surface">
+      <iframe
+        className="vinz-html-surface__frame"
+        title="Superficie interattiva"
+        sandbox="allow-scripts"
+        srcDoc={wrapHtmlSurface(html)}
+      />
+    </div>
+  );
+};
+
 const AssistantMessage: FC = () => {
   const { staScrivendo, haTesto, soloSticker, chatCost, hasChatCost, model, openingRevealDelay, openingRevealArrivalId } = useAuiState(
     useShallow((s) => ({
@@ -1535,6 +1672,8 @@ const AssistantMessage: FC = () => {
           <AssistantError />
         </MessagePrimitive.Error>
       </div>
+
+      <HtmlSurface />
 
       <ConfirmActionButton />
 
@@ -1761,6 +1900,12 @@ const CONFIRM_ACTIONS: { test: RegExp; label: string; busy: string; reply: strin
     label: "AGGIORNA DIETA",
     busy: "AGGIORNAMENTO…",
     reply: "Vai, aggiorna",
+  },
+  {
+    test: /Confermi che riavvio il servizio \*\*Local Core\*\* sul tuo Mac\?/i,
+    label: "RIAVVIA LOCAL CORE",
+    busy: "RIAVVIO…",
+    reply: "Vai, riavvia",
   },
 ];
 
@@ -2140,7 +2285,11 @@ const useAttachmentSrc = () => {
   const { file, src } = useAuiState(
     useShallow((s): { file?: File; src?: string } => {
       if (s.attachment.type !== "image") return {};
-      if (s.attachment.file) return { file: s.attachment.file };
+      /* `instanceof File`, non solo truthy: un allegato "complete" già
+         salvato può avere `file: {}` — un `File` sopravvissuto a un giro di
+         JSON.stringify/parse nella cronologia — che è truthy ma manda in
+         crash `URL.createObjectURL` in useFileSrc. */
+      if (s.attachment.file instanceof File) return { file: s.attachment.file };
       const src = s.attachment.content?.filter((c) => c.type === "image")[0]
         ?.image;
       if (!src) return {};

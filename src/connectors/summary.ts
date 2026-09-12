@@ -8,10 +8,14 @@ import { loadGoogleConfig, loadICloudConfig, loadObsidianConfig } from './store'
    attive: nome/riferimento sempre visibili, mai un elenco silenzioso che
    solo l'utente può leggere in FILES.
 
-   🔒 SINCRONO, NIENTE FETCH. A differenza delle skill (server-side), i
-   connettori vivono già in localStorage nello stesso browser che compone
-   il system prompt — leggerli è immediato, non serve un giro di rete. */
-export function connectorsSummaryForProject(projectId: string | null): string {
+   🔷 «Togli la possibilità di dare link ad altre cartelle, così non ci
+   confondiamo.» Le "Cartelle sul Mac" (percorsi arbitrari collegati a mano)
+   sono state tolte: la cartella di un progetto è solo quella di FILES/
+   cartella di lavoro (`vedi_cartella_lavoro` e affini in `ai/tools.ts`), che
+   non ha bisogno di un riepilogo qui — esiste sempre, non va "scoperta". La
+   funzione resta `async` per non toccare i chiamanti che già la aspettano,
+   anche se oggi non c'è più niente qui dentro che richieda davvero rete. */
+export async function connectorsSummaryForProject(projectId: string | null): Promise<string> {
   const lines: string[] = [];
 
   if (isGoogleConnected()) {

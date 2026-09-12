@@ -958,3 +958,17 @@
 .dev__estimate-total {
   margin: 0;
 }
+
+/* CONTROL ROOM — il flusso di una richiesta, una tappa per riga: niente
+   libreria di diagrammi, solo una lista numerata coerente con lo stile a
+   testo del resto della scheda. */
+.dev__flow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--u);
+  margin: 0;
+  padding-left: 1.4em;
+}
+.dev__flow li {
+  padding-left: var(--u);
+}

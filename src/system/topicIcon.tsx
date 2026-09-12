@@ -25,6 +25,7 @@ import {
   CloudSunIcon,
   DumbbellIcon,
   FileTextIcon,
+  FlameIcon,
   HeartPulseIcon,
   LightbulbIcon,
   NewspaperIcon,
@@ -35,6 +36,9 @@ import {
   WalletIcon,
   type LucideIcon,
 } from 'lucide-react';
+import type { IconName } from './iconNames';
+
+export type { IconName };
 
 /* L'ordine conta: vince la prima che aggancia, quindi le famiglie più precise
    stanno sopra a quelle generiche. «peso» prima di «salute», «notizie» prima
@@ -53,6 +57,7 @@ const RULES: { icon: LucideIcon; test: RegExp }[] = [
   { icon: FileTextIcon, test: /\b(file|document\w*|pdf|csv|not[ae]|testo|allegat\w*)\b/i },
   { icon: BookOpenIcon, test: /\b(studi\w*|libr\w*|lettur\w*|corso|impar\w*)\b/i },
   { icon: LightbulbIcon, test: /\b(ide[ae]|design|creativ\w*|progettazion\w*|ispirazion\w*)\b/i },
+  { icon: FlameIcon, test: /\b(fuoco|fiamm\w*|incendi\w*|ardent\w*)\b/i },
 ];
 
 /* ============================================================================
@@ -67,7 +72,7 @@ const RULES: { icon: LucideIcon; test: RegExp }[] = [
    🔒 ELENCO CHIUSO, NON UN NOME LIBERO. Se il modello potesse scrivere il nome
    che vuole, metà delle automazioni finirebbe con un'icona che non esiste. Un
    nome fuori elenco cade sul segnalino neutro, come una parola non riconosciuta. */
-export const ICON_NAMES = {
+export const ICON_NAMES: Record<IconName, LucideIcon> = {
   notizie: NewspaperIcon,
   meteo: CloudSunIcon,
   peso: ScaleIcon,
@@ -82,10 +87,9 @@ export const ICON_NAMES = {
   studio: BookOpenIcon,
   idee: LightbulbIcon,
   ricerca: SearchIcon,
+  fuoco: FlameIcon,
   generico: CircleDashedIcon,
-} as const;
-
-export type IconName = keyof typeof ICON_NAMES;
+};
 
 /** L'icona per un titolo, o quella già scelta e salvata se c'è. */
 export function topicIcon(text: string, saved?: string | null): LucideIcon {

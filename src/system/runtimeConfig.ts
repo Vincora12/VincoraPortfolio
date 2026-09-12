@@ -8,6 +8,8 @@ export type RuntimeConfig = {
   compilerModel: string | null;
   imageModel: string | null;
   stepModels: Partial<Record<AiStepId, string>>;
+  /** CONTROL ROOM — spento di default, vedi `state/store.ts`. */
+  finalResponseLocalFirst: boolean;
 };
 
 const KEY = 'vinzmon.runtimeConfig.v1';
@@ -20,6 +22,7 @@ function defaults(): RuntimeConfig {
     compilerModel: null,
     imageModel: null,
     stepModels: {},
+    finalResponseLocalFirst: false,
   };
 }
 
@@ -34,6 +37,7 @@ function parse(raw: string | null): RuntimeConfig {
       compilerModel: typeof value.compilerModel === 'string' ? value.compilerModel : null,
       imageModel: typeof value.imageModel === 'string' ? value.imageModel : null,
       stepModels: value.stepModels && typeof value.stepModels === 'object' ? value.stepModels : {},
+      finalResponseLocalFirst: typeof value.finalResponseLocalFirst === 'boolean' ? value.finalResponseLocalFirst : false,
     };
   } catch { return base; }
 }
@@ -42,6 +46,7 @@ export function runtimeConfig(): RuntimeConfig {
   if (typeof localStorage === 'undefined') return {
     taxonomyVersion: 'v1', voiceModel: null,
     compilerModel: null, imageModel: null, stepModels: {},
+    finalResponseLocalFirst: false,
   };
   return parse(localStorage.getItem(KEY));
 }

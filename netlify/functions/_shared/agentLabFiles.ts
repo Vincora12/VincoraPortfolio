@@ -38,8 +38,9 @@ const ALLOWED_ROOTS = ['src', 'netlify', 'docs'];
 /** File di root leggibili singolarmente, fuori dalle cartelle qui sopra. */
 const ALLOWED_ROOT_FILES = ['package.json', 'netlify.toml', 'AGENTS.md', 'README.md', 'vite.config.ts', 'tsconfig.json'];
 
-/** Estensioni di testo che ha senso leggere. Tutto il resto viene rifiutato. */
-const TEXT_EXTENSIONS = ['.ts', '.tsx', '.css', '.md', '.json', '.toml'];
+/** Estensioni di testo che ha senso leggere. Tutto il resto viene rifiutato.
+    Esportata per lo stesso motivo di `resolveAllowedPath` sopra. */
+export const TEXT_EXTENSIONS = ['.ts', '.tsx', '.css', '.md', '.json', '.toml'];
 
 /** Frammenti che, ovunque compaiano nel percorso, chiudono la porta. Difesa
  *  in profondità: questi percorsi non dovrebbero mai finire nel pacchetto. */
@@ -53,7 +54,7 @@ let cachedRoot: string | null = null;
  * cerca la cartella che ha sia `package.json` sia `src/`, la firma che
  * distingue davvero la radice del repo da qualunque altra cosa.
  */
-function resolveRepoRoot(): string {
+export function resolveRepoRoot(): string {
   if (cachedRoot) return cachedRoot;
   /* ⚠️ `__dirname` è CommonJS, e questo modulo (come ogni funzione Netlify in
      questo repo) è ESM: qui non esiste. `import.meta.url` è l'equivalente
@@ -88,8 +89,10 @@ function looksForbidden(relPath: string): string | null {
   return null;
 }
 
-/** Il percorso richiesto è dentro una radice consentita? Nessuna `..`, nessuna radice assoluta estranea. */
-function resolveAllowedPath(requested: string): { abs: string; rel: string } | FileAccessError {
+/** Il percorso richiesto è dentro una radice consentita? Nessuna `..`, nessuna radice assoluta estranea.
+    Esportata (oltre che usata qui dentro) perché `_shared/repoOps.ts` la riusa per scrittura/git: STESSA
+    validazione di percorso, non una seconda copia che nel tempo potrebbe divergere da questa. */
+export function resolveAllowedPath(requested: string): { abs: string; rel: string } | FileAccessError {
   const clean = normalize(requested).replace(/^[/\\]+/, '');
   if (clean.includes('..')) return { ok: false, error: 'percorso non valido (contiene "..")' };
 

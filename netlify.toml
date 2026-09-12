@@ -81,6 +81,22 @@
     "package.json",
   ]
 
+# 🔷 REPO OPS — git/npm/log/servizi. Su Netlify questo endpoint risponde 503
+# subito (isLocalCoreServer() è sempre falso lì) senza mai toccare i file
+# elencati qui sotto: questo blocco è solo per coerenza con gli altri due e
+# per evitare un cold-path rotto se quel controllo si spostasse in futuro —
+# non c'è mai un `.git` vero da leggere sul pacchetto Netlify comunque.
+[functions."repo-ops"]
+  included_files = [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "src/**/*.css",
+    "netlify/**/*.ts",
+    "docs/**/*.md",
+    "*.md",
+    "package.json",
+  ]
+
 [build.environment]
   # vite 8 e typescript 7 girano su Node 22, la stessa versione con cui il
   # prototipo è stato verificato. Senza questo Netlify sceglie il suo default.

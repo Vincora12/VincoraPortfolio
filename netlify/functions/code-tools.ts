@@ -25,7 +25,7 @@
 
 import { authorize, denied, json } from './_shared/auth';
 import { appendRuntimeEvent } from './_shared/runtimeLog';
-import { readProjectFile, searchProjectFiles } from './_shared/agentLabFiles';
+import { listProjectFiles, readProjectFile, searchProjectFiles } from './_shared/agentLabFiles';
 
 const MAX_QUERY_CHARS = 200;
 const MAX_PATH_CHARS = 300;
@@ -42,12 +42,22 @@ interface ReadRequest {
   startLine?: unknown;
   endLine?: unknown;
 }
+interface ListRequest {
+  op: 'list';
+  path?: unknown;
+}
 
 function isSearch(body: unknown): body is SearchRequest {
   return typeof body === 'object' && body !== null && (body as { op?: unknown }).op === 'search';
 }
 function isRead(body: unknown): body is ReadRequest {
   return typeof body === 'object' && body !== null && (body as { op?: unknown }).op === 'read';
+}
+/* 🔷 «repo_list, che agentLabFiles.ts non espone come tool.» `listProjectFiles`
+   esisteva già (usata dalla UI-only patch flow di Agent.lab) — mancava solo
+   un modo per il tool layer di chiamarla, come già succede per search/read. */
+function isList(body: unknown): body is ListRequest {
+  return typeof body === 'object' && body !== null && (body as { op?: unknown }).op === 'list';
 }
 
 export default async function handler(request: Request): Promise<Response> {
@@ -109,7 +119,22 @@ export default async function handler(request: Request): Promise<Response> {
     });
   }
 
-  return json({ error: 'operazione non valida — usa "search" o "read"' }, 400);
+  if (isList(body)) {
+    const path = typeof body.path === 'string' ? body.path.slice(0, MAX_PATH_CHARS) : undefined;
+    const result = listProjectFiles(path);
+    void appendRuntimeEvent({
+      eventType: 'TOOL_LAYER_CODE_LIST',
+      status: result.ok ? 'PASS' : 'FAIL',
+      scope: 'chat',
+      durationMs: Date.now() - started,
+      ...(result.ok ? {} : { error: result.error }),
+      metadata: { ...(path ? { source: path.slice(0, 100) } : {}), count: result.ok ? result.entries.length : 0 },
+    });
+    if (!result.ok) return json({ ok: false, error: result.error }, 200);
+    return json({ ok: true, path: result.path, entries: result.entries });
+  }
+
+  return json({ error: 'operazione non valida — usa "search", "read" o "list"' }, 400);
 }
 
 export const config = { path: '/api/code-tools' };

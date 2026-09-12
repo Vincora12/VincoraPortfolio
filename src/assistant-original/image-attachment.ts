@@ -3,6 +3,27 @@ import type {
   CompleteAttachment,
   PendingAttachment,
 } from "@assistant-ui/react";
+import { savedToken } from "../brain/stream";
+import { getCurrentProjectScope } from "../state/currentProject";
+import { uploadWorkspaceFile } from "../connectors/vinzWorkspace";
+import { GLOBAL_PROJECT_ID } from "../engine/projects";
+
+/* 🔷 «Quando gli mando foto e pdf bisogna che si carichino automaticamente
+   nella cartella del progetto.» Prima restavano solo nella chat — un
+   allegato del genere spariva quando il thread invecchiava, mentre la
+   cartella di lavoro (FILES/`vedi_cartella_lavoro`, la STESSA per Generale
+   con `GLOBAL_PROJECT_ID`) resta per sempre. Un salvataggio in più, non al
+   posto di quello in chat: se fallisce (rete assente, server non locale) il
+   messaggio parte comunque — non è mai motivo per bloccare l'invio. */
+function saveToProjectWorkspace(name: string, dataUrl: string): void {
+  const token = savedToken();
+  if (!token) return;
+  const scope = getCurrentProjectScope();
+  const workspaceId = scope.projectId ?? GLOBAL_PROJECT_ID;
+  const workspaceTitle = scope.projectId ? scope.projectTitle : "Generale";
+  const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
+  void uploadWorkspaceFile(token, workspaceId, workspaceTitle, name, base64).catch(() => {});
+}
 
 const dataUrlOf = (file: File): Promise<string> => new Promise((resolve, reject) => {
   const reader = new FileReader();
@@ -62,8 +83,14 @@ export class VinzImageAttachmentAdapter implements AttachmentAdapter {
     } catch {
       image = await dataUrlOf(attachment.file);
     }
+    /* Mai tenere il `File` nell'allegato "complete": non è serializzabile
+       (JSON.stringify lo riduce a `{}`), e quel `{}` sopravvive nella cronologia
+       salvata — al riavvio torna truthy e manda `URL.createObjectURL({})` a
+       schiantare tutta l'app in fase di render (vedi useAttachmentSrc). */
+    const { file: _file, ...rest } = attachment;
+    saveToProjectWorkspace(attachment.name, image);
     return {
-      ...attachment,
+      ...rest,
       contentType: image.slice(5, image.indexOf(";")) || attachment.contentType,
       status: { type: "complete" },
       content: [{ type: "image", image }],
@@ -91,8 +118,10 @@ export class VinzPdfAttachmentAdapter implements AttachmentAdapter {
 
   async send(attachment: PendingAttachment): Promise<CompleteAttachment> {
     const url = await dataUrlOf(attachment.file);
+    const { file: _file, ...rest } = attachment;
+    saveToProjectWorkspace(attachment.name, url);
     return {
-      ...attachment,
+      ...rest,
       status: { type: "complete" },
       content: [{
         type: "file",

@@ -33,6 +33,27 @@ const MAX_FILE_BYTES = 512 * 1024;
 const CATALOG_TTL_MS = 30 * 60 * 1000;
 const FETCH_TIMEOUT_MS = 20_000;
 
+/* 🔷 «Come facciamo in modo che lui possa caricare anche sulla cartella con
+   tutte le skill e che le skill valgano sempre per tutti i progetti?» Una
+   skill che VINZ scrive da solo, su richiesta, invece di finire in un file
+   di progetto (sola per quella chat) — stessa cartella, stesso interruttore
+   enable/disable di `MindPanel`, stessa lettura di `leggi_skill`: da qui in
+   poi vale ovunque, come le skill scaricate da GitHub.
+
+   🔒 NIENTE SCRIPT, MAI. A differenza di una skill scaricata, qui non c'è
+   nessun repository da ispezionare prima — solo testo che il modello ha
+   appena scritto in chat. Un solo file (`SKILL.md`, niente `scripts/`)
+   elimina in radice il rischio di codice non fidato che la nota in cima al
+   file descrive: non è che sia "già ispezionato", è che qui non esiste
+   proprio la categoria di rischio. Per questo nasce ACCESA (a differenza di
+   una skill da catalogo, che nasce spenta) — l'utente l'ha appena vista
+   scrivere in tempo reale, non sta installando codice di uno sconosciuto. */
+const LOCAL_SOURCE_ID = 'local';
+const MAX_SKILL_NAME = 120;
+const MAX_SKILL_DESCRIPTION = 600;
+const MAX_SKILL_MARKDOWN = 20_000;
+const MAX_LOCAL_SKILLS = 20;
+
 interface Source {
   id: string;
   label: string;
@@ -217,6 +238,98 @@ function writeMetadata(skill: InstalledSkill): void {
   writeFileSync(join(installedDirectory(keyOf(skill.sourceId, skill.id)), 'metadata.json'), JSON.stringify(skill, null, 2));
 }
 
+function slugifySkillName(name: string): string {
+  const slug = name
+    .trim()
+    .toLocaleLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '')
+    .slice(0, 48);
+  return slug || 'skill';
+}
+
+/** Il frontmatter lo scrive sempre questo endpoint, mai il modello: un nome o
+    una descrizione con virgolette o `:` dentro romperebbe uno YAML scritto a
+    mano, e non c'è motivo di fidarsi che venga sempre valido. */
+function skillMarkdown(name: string, description: string, body: string): string {
+  const escape = (value: string) => value.replace(/"/g, '\\"');
+  return `---\nname: "${escape(name)}"\ndescription: "${escape(description)}"\n---\n\n${body.trim()}\n`;
+}
+
+function bodyOf(markdown: string): string {
+  return markdown.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, '');
+}
+
+function createLocalSkill(name: string, description: string, markdown: string): InstalledSkill {
+  const trimmedName = name.trim();
+  const trimmedDescription = description.trim();
+  if (!trimmedName || trimmedName.length > MAX_SKILL_NAME) throw new Error('Nome mancante o troppo lungo.');
+  if (!trimmedDescription || trimmedDescription.length > MAX_SKILL_DESCRIPTION) throw new Error('Descrizione mancante o troppo lunga.');
+  if (!markdown.trim() || markdown.length > MAX_SKILL_MARKDOWN) throw new Error(`Contenuto mancante o oltre ${MAX_SKILL_MARKDOWN} caratteri.`);
+
+  const existing = installedList();
+  const localSkills = existing.filter((item) => item.sourceId === LOCAL_SOURCE_ID);
+  if (localSkills.length >= MAX_LOCAL_SKILLS) throw new Error(`Massimo ${MAX_LOCAL_SKILLS} skill create da VINZ: rimuovine una prima di aggiungerne un'altra.`);
+
+  const taken = new Set(localSkills.map((item) => item.id));
+  const base = slugifySkillName(trimmedName);
+  let id = base;
+  let n = 2;
+  while (taken.has(id)) id = `${base}-${n++}`;
+
+  const target = installedDirectory(keyOf(LOCAL_SOURCE_ID, id));
+  mkdirSync(target, { recursive: true, mode: 0o700 });
+  /* Il modello a volte scrive un proprio frontmatter in testa al contenuto,
+     anche se la descrizione del tool dice che lo aggiunge questo endpoint:
+     `bodyOf` lo toglie, così non finisce duplicato nel file. */
+  writeFileSync(join(target, 'SKILL.md'), skillMarkdown(trimmedName, trimmedDescription, bodyOf(markdown)));
+
+  const skill: InstalledSkill = {
+    id,
+    name: trimmedName,
+    description: trimmedDescription,
+    sourceId: LOCAL_SOURCE_ID,
+    sourceLabel: 'Creata da VINZ',
+    repo: '',
+    ref: '',
+    homepage: '',
+    installedAt: new Date().toISOString(),
+    /* Nasce accesa: vedi la nota sopra su perché qui il rischio "codice non
+       fidato" non esiste — una sola skill spenta di default sarebbe solo
+       attrito senza motivo. */
+    enabled: true,
+    files: ['SKILL.md'],
+    hasScripts: false,
+  };
+  writeMetadata(skill);
+  return skill;
+}
+
+function updateLocalSkill(id: string, name: string | undefined, description: string | undefined, markdown: string | undefined): InstalledSkill {
+  const current = installedList().find((item) => item.sourceId === LOCAL_SOURCE_ID && item.id === id);
+  if (!current) throw new Error('Skill non trovata.');
+
+  const nextName = name !== undefined ? name.trim() : current.name;
+  const nextDescription = description !== undefined ? description.trim() : current.description;
+  if (!nextName || nextName.length > MAX_SKILL_NAME) throw new Error('Nome mancante o troppo lungo.');
+  if (!nextDescription || nextDescription.length > MAX_SKILL_DESCRIPTION) throw new Error('Descrizione mancante o troppo lunga.');
+
+  const file = join(installedDirectory(keyOf(LOCAL_SOURCE_ID, id)), 'SKILL.md');
+  if (markdown !== undefined) {
+    if (!markdown.trim() || markdown.length > MAX_SKILL_MARKDOWN) throw new Error(`Contenuto mancante o oltre ${MAX_SKILL_MARKDOWN} caratteri.`);
+    writeFileSync(file, skillMarkdown(nextName, nextDescription, markdown));
+  } else if (name !== undefined || description !== undefined) {
+    const previousBody = existsSync(file) ? bodyOf(readFileSync(file, 'utf8')) : '';
+    writeFileSync(file, skillMarkdown(nextName, nextDescription, previousBody));
+  }
+
+  const skill: InstalledSkill = { ...current, name: nextName, description: nextDescription };
+  writeMetadata(skill);
+  return skill;
+}
+
 async function install(sourceId: string, id: string): Promise<InstalledSkill> {
   const source = SOURCES.find((item) => item.id === sourceId);
   if (!source) throw new Error('Sorgente sconosciuta.');
@@ -323,22 +436,46 @@ export default async function handler(request: Request): Promise<Response> {
 
   if (request.method !== 'POST') return json({ error: 'solo GET e POST' }, 405);
 
-  let body: { action?: string; id?: string; sourceId?: string };
+  let body: { action?: string; id?: string; sourceId?: string; name?: string; description?: string; markdown?: string };
   try {
     body = (await request.json()) as typeof body;
   } catch {
     return json({ error: 'body non leggibile' }, 400);
   }
 
+  if (body.action === 'create') {
+    try {
+      return json({ skill: createLocalSkill(String(body.name ?? ''), String(body.description ?? ''), String(body.markdown ?? '')) });
+    } catch (error) {
+      return json({ error: error instanceof Error ? error.message : 'Creazione non riuscita.' }, 400);
+    }
+  }
+
   const id = String(body.id ?? '');
   const sourceId = String(body.sourceId ?? '');
-  if (!SAFE_ID.test(id) || !SOURCES.some((item) => item.id === sourceId)) {
+
+  if (body.action === 'update') {
+    /* Solo le skill scritte qui si modificano così: quelle da catalogo si
+       aggiornano ri-scaricando (`install`), mai con testo passato a mano. */
+    if (sourceId !== LOCAL_SOURCE_ID) return json({ error: 'Solo le skill create da VINZ si possono modificare così.' }, 400);
+    if (!SAFE_ID.test(id)) return json({ error: 'Skill non valida.' }, 400);
+    try {
+      return json({ skill: updateLocalSkill(id, body.name, body.description, body.markdown) });
+    } catch (error) {
+      return json({ error: error instanceof Error ? error.message : 'Modifica non riuscita.' }, 400);
+    }
+  }
+
+  if (!SAFE_ID.test(id) || !(SOURCES.some((item) => item.id === sourceId) || sourceId === LOCAL_SOURCE_ID)) {
     return json({ error: 'Skill non valida.' }, 400);
   }
   const key = keyOf(sourceId, id);
 
   try {
-    if (body.action === 'install') return json({ skill: await install(sourceId, id) });
+    if (body.action === 'install') {
+      if (sourceId === LOCAL_SOURCE_ID) return json({ error: 'Le skill create da VINZ non si installano da un catalogo: usa "aggiorna".' }, 400);
+      return json({ skill: await install(sourceId, id) });
+    }
 
     const current = installedList().find((item) => item.sourceId === sourceId && item.id === id);
     if (!current) return json({ error: 'Skill non installata.' }, 404);

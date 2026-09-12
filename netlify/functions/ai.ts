@@ -20,11 +20,12 @@
    ========================================================================= */
 
 import { authorize, denied, json } from './_shared/auth';
-import { resolveRoute, type Capability } from './_shared/routing';
+import { resolveRoute, LOCAL_CHEAP_ROUND_MODEL, LOCAL_CHEAP_ROUND_SENTINEL, type Capability } from './_shared/routing';
 import {
   callProvider,
   generateImage,
   streamAnthropic,
+  streamOllama,
   streamOpenAiResponses,
   type SystemBlock,
   type ToolDef,
@@ -36,9 +37,11 @@ import {
 } from './_shared/providers';
 import {
   checkCap,
+  readLocalOnlyMode,
   recordSpend,
   looksLikeProviderQuota,
   INTERNAL_CAP_EXCEEDED,
+  LOCAL_ONLY_BLOCKED,
   PROVIDER_QUOTA_EXCEEDED,
 } from './_shared/spend';
 import { appendRuntimeEvent } from './_shared/runtimeLog';
@@ -240,8 +243,44 @@ export default async function handler(request: Request): Promise<Response> {
      tenerti all'oscuro di chi sta rispondendo sarebbe nascondere una cosa che
      hai deciso. Infatti la risposta lo dice, in fondo. */
   const preferences = assistantRequestPreferences(payload.config, payload.voiceModel, payload.effort);
-  const route = resolveRoute(capability, preferences.modelName);
+  /* 🔷 «Mettiamolo per i giri intermedi.» Un sentinel fisso, mai un nome di
+     modello libero dal client (vedi LOCAL_CHEAP_ROUND_SENTINEL in
+     routing.ts): solo `replyWithLocalTools` lo manda, per i giri che nessuno
+     legge. `resolveRoute` non lo vedrebbe comunque — Ollama non è, e non
+     deve essere, nel catalogo VOICE_CHOICES che l'utente sceglie. */
+  const route = preferences.modelName === LOCAL_CHEAP_ROUND_SENTINEL
+    ? { provider: 'ollama' as const, model: LOCAL_CHEAP_ROUND_MODEL }
+    : resolveRoute(capability, preferences.modelName);
   const selectedEffort = preferences.effort;
+
+  /* ════════════════════════════════════════════════════════════════════════
+     LOCAL ONLY MODE — blocca ogni chiamata cloud, MAI un ripiego silenzioso
+
+     🔒 Sta qui, subito dopo che `route` è risolta e PRIMA di qualunque altro
+     controllo/chiamata: nessun percorso sotto raggiunge un provider cloud
+     senza essere passato da questo `if`. Se attivo e la rotta non è Ollama,
+     si rifiuta con un errore che l'app deve mostrare in chiaro — mai una
+     riscrittura silenziosa verso un modello locale che l'utente non ha
+     scelto per quella capacità, e mai un fallback muto sul cloud. */
+  const localOnly = await readLocalOnlyMode();
+  if (localOnly.enabled && route.provider !== 'ollama') {
+    await appendRuntimeEvent({
+      eventType: LOCAL_ONLY_BLOCKED,
+      status: 'FAIL',
+      scope: 'ai',
+      error: `modalità solo-locale attiva: ${capability} avrebbe usato ${route.provider}/${route.model}`,
+    });
+    return json(
+      {
+        error: 'modalità solo-locale attiva — questa richiesta userebbe un modello cloud',
+        code: LOCAL_ONLY_BLOCKED,
+        capability,
+        wouldUseProvider: route.provider,
+        wouldUseModel: route.model,
+      },
+      403,
+    );
+  }
 
   /* ════════════════════════════════════════════════════════════════════════
      IL RITIRO DI UN LAVORO PARTITO PRIMA
@@ -410,20 +449,26 @@ export default async function handler(request: Request): Promise<Response> {
     if (Math.floor((file.data?.length ?? 0) * 0.75) > 10 * 1024 * 1024) return json({ error: 'documento troppo grande' }, 413);
   }
 
-  /* Streaming della chat V1. Il contesto neutrale è ammesso, mentre strumenti,
-     risultati di strumenti e immagini seguiranno il loop orchestrato.
+  /* Streaming della chat V1.
 
      🔷 «Non solo Claude, tutti i ragionamenti, anche OpenAI.» Prima questa
      strada rifiutava chiunque non fosse Anthropic — non per una scelta, era
      l'unico fornitore che avesse una funzione di streaming scritta. Ora ne ha
      due, stesso protocollo di eventi in uscita: al chiamante non cambia
-     niente, cambia solo quale funzione risponde alla stessa domanda. */
+     niente, cambia solo quale funzione risponde alla stessa domanda.
+
+     🔷 «Manca il pensiero vero mentre usa gli strumenti.» Prima QUI si
+     rifiutava esplicitamente strumenti/risultati/immagini insieme allo
+     streaming («lo streaming accetta testo e contesto») — per questo il
+     ciclo con gli strumenti (`replyWithLocalTools`) è sempre stato bloccante,
+     e il pensiero vero (che viaggia solo nello stream) non si vedeva mai in
+     quei turni, cioè quasi sempre. `streamAnthropic`/`streamOpenAiResponses`
+     ora sanno portare tutto questo (vedi `anthropicUserContent`/
+     `openaiResponseInput`, condivisi con la strada bloccante): il rifiuto
+     restava solo per inerzia, non perché mancasse davvero qualcosa sotto. */
   if (payload.stream) {
-    if (route.provider !== 'anthropic' && route.provider !== 'openai') {
+    if (route.provider !== 'anthropic' && route.provider !== 'openai' && route.provider !== 'ollama') {
       return json({ error: 'streaming non disponibile per questo modello' }, 400);
-    }
-    if (tools.length || userBlocks.length || images.length) {
-      return json({ error: 'lo streaming accetta testo e contesto' }, 400);
     }
 
     const streamRequest = {
@@ -431,6 +476,11 @@ export default async function handler(request: Request): Promise<Response> {
       system,
       turns,
       user,
+      userBlocks: userBlocks.length ? userBlocks : undefined,
+      images: images.length ? images : undefined,
+      files: files.length ? files : undefined,
+      tools: tools.length ? tools : undefined,
+      ...(toolChoice ? { toolChoice } : {}),
       webSearch,
       thinking: Boolean(payload.thinking),
       ...(selectedEffort ? { effort: selectedEffort } : {}),
@@ -438,11 +488,19 @@ export default async function handler(request: Request): Promise<Response> {
     };
     const streamed = route.provider === 'anthropic'
       ? await streamAnthropic(streamRequest, request.signal)
-      : await streamOpenAiResponses(streamRequest, request.signal);
+      : route.provider === 'ollama'
+        ? await streamOllama(streamRequest, request.signal)
+        : await streamOpenAiResponses(streamRequest, request.signal);
     if (!streamed.ok) return json({ error: 'stream non disponibile', reason: streamed.error }, 502);
 
     void streamed.completed.then(async ({ model, usage }) => {
-      if (usage.inputTokens || usage.outputTokens) await recordSpend(capability, model, usage, { action: capability, subsystem: capability });
+      /* 🔒 Locale, non a catalogo: `costOf` prezzerebbe un modello sconosciuto
+         come il più caro della tabella (`UNKNOWN`, pensato a protezione del
+         tetto, non per un giro che costa davvero zero) — registrarlo
+         gonfierebbe la spesa per qualcosa che non è mai stato pagato. */
+      if (route.provider !== 'ollama' && (usage.inputTokens || usage.outputTokens)) {
+        await recordSpend(capability, model, usage, { action: capability, subsystem: capability });
+      }
     }).catch((error) => console.warn('[ai] spesa dello stream non registrata:', error));
 
     return new Response(streamed.body, {

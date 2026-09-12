@@ -322,6 +322,15 @@ select {
   .proto-frame:has(.aui-composer__input:focus) .tabbar {
     display: none;
   }
+
+  /* 🔷 «Durante la dettatura non voglio che scompaia il nav — questo è
+     giusto solo quando scrivo.» Il microfono può restare focused dopo il
+     tap e trascinarsi dietro la regola qui sopra: `data-recording` lo
+     dichiara esplicitamente, e vince per ordine (stessa specificità della
+     regola che nasconde, dichiarata dopo). */
+  .proto-frame:has(.vinz-composer[data-recording="true"]) .tabbar {
+    display: flex;
+  }
 }
 
 .live-chat {

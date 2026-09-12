@@ -42,6 +42,11 @@ import {
   recommendedModel,
 } from '../../../netlify/functions/_shared/routing';
 import { Btn, Grid, LabTop, Notice, PageHead, Range, Rows, Section, Status } from './parts';
+/* 🔷 CONTROL ROOM — STESSA testata di DEV → AI/MODELLI (`src/dev/ModelsSection.tsx`),
+   non una seconda scritta a mano: conteggi AUTO/MANUALE/LOCALE/PREMIUM, LOCAL
+   ONLY, risposta finale locale-first e stato Local Core/Mem0/Ollama sono
+   un'unica sorgente di verità, visibile da entrambi gli ingressi. */
+import { ControlRoomHeader } from '../../dev/ModelsSection';
 /* 🔷 LAB CONSOLIDATION + SAVE CONTROL. Il confronto LOCALE·SERVER e il
    verdetto vivono in `state/saveComparison.ts` — le stesse funzioni che
    `dev/ServerSection.tsx` usa già, non una copia. Le tre azioni
@@ -160,6 +165,7 @@ function Machines() {
   const [machines, setMachines] = useState<MachineView[] | null>(null);
   const [pending, setPending] = useState<PendingInsightView[]>([]);
   const [push, setPush] = useState<{ configured: boolean; subscriptions: number } | null>(null);
+  const [notifPrefs, setNotifPrefs] = useState<Record<NotificationCategory, boolean> | null>(null);
   const [error, setError] = useState(false);
   const [running, setRunning] = useState<string | null>(null);
   const load = async () => {
@@ -172,8 +178,24 @@ function Machines() {
       setPending(body.pendingInsights ?? []);
       setPush(body.push ?? null);
     } catch { setError(true); }
+    try {
+      const response = await fetch('/api/notification-prefs', { headers: { authorization: `Bearer ${token}` } });
+      if (response.ok) setNotifPrefs(await response.json());
+    } catch { /* i toggle restano quelli caricati l'ultima volta, o i predefiniti */ }
   };
   useEffect(() => { void load(); }, [token]);
+  const toggleNotif = async (category: NotificationCategory) => {
+    if (!token || !notifPrefs) return;
+    const next = { ...notifPrefs, [category]: !notifPrefs[category] };
+    setNotifPrefs(next);
+    try {
+      await fetch('/api/notification-prefs', {
+        method: 'POST',
+        headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+        body: JSON.stringify({ [category]: next[category] }),
+      });
+    } catch { void load(); }
+  };
   const run = async (id: string) => {
     if (!token) return;
     setRunning(id);
@@ -230,11 +252,30 @@ function Machines() {
     <Section title="PENDING INSIGHTS">
       {pending.length ? <Rows rows={pending.map((item) => [`${item.machineId} · ${item.status}`, `${item.statement} · ${Math.round(item.confidence * 100)}% · ${item.notification}`])} /> : <p className="note">Nessun insight in attesa.</p>}
     </Section>
-    <Section title="PUSH DELIVERY">
+    <Section title="NOTIFICHE">
       <Rows rows={push ? [['VAPID', push.configured ? 'CONFIGURED' : 'NOT CONFIGURED'], ['SUBSCRIPTIONS', String(push.subscriptions)]] : [['STATUS', 'NOT AVAILABLE']]} />
+      {notifPrefs && (
+        <Grid>
+          {NOTIF_CATEGORIES.map(({ id, label }) => (
+            <Btn key={id} variant={notifPrefs[id] ? 'on' : undefined} onClick={() => void toggleNotif(id)}>
+              {notifPrefs[id] ? 'ON' : 'OFF'} · {label}
+            </Btn>
+          ))}
+        </Grid>
+      )}
     </Section>
   </section>;
 }
+
+type NotificationCategory = 'shortcut' | 'machine' | 'automation' | 'reminder' | 'evolution';
+
+const NOTIF_CATEGORIES: { id: NotificationCategory; label: string }[] = [
+  { id: 'shortcut', label: 'SHORTCUT' },
+  { id: 'machine', label: 'MACCHINE' },
+  { id: 'automation', label: 'AUTOMAZIONI' },
+  { id: 'reminder', label: 'PROMEMORIA CALENDARIO' },
+  { id: 'evolution', label: 'EVOLUZIONE' },
+];
 
 /* ============================================================================
    SETUP
@@ -910,6 +951,8 @@ function Ai() {
   const stepModels = useApp((s) => s.stepModels);
   const setStepModel = useApp((s) => s.setStepModel);
   const token = useApp((s) => s.token);
+  const finalResponseLocalFirst = useApp((s) => s.finalResponseLocalFirst);
+  const setFinalResponseLocalFirst = useApp((s) => s.setFinalResponseLocalFirst);
   const runs = Object.fromEntries(lastRuns());
 
   /* Sollevato da LocalLlm: un modello scaricato a mano (fuori dai 5
@@ -964,6 +1007,13 @@ function Ai() {
         <br />
         Stima approssimativa, non un contatore — tende ad essere alta piuttosto che bassa.
       </Notice>
+
+      <ControlRoomHeader
+        token={token}
+        stepModels={stepModels}
+        finalResponseLocalFirst={finalResponseLocalFirst}
+        setFinalResponseLocalFirst={setFinalResponseLocalFirst}
+      />
 
       {/* 🔷 «Devo poter mettere le API key sul lab.» Prima l'unico modo era
           aprire `.env` a mano sul Mac; `/api/setup` sapeva solo DIRE quale

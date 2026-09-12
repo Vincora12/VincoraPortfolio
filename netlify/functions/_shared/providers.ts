@@ -216,25 +216,54 @@ function fail(model: string, error: string): ProviderResult {
    secondo messaggio in poi costa un decimo.
    -------------------------------------------------------------------------- */
 
+/** Condiviso fra `anthropic()` (bloccante) e `streamAnthropic()`: prima lo
+    stream costruiva i messaggi a mano e ignorava userBlocks/immagini/file —
+    innocuo finché lo stream serviva solo alla chat senza strumenti, un
+    problema appena un giro con risultati di strumenti (`userBlocks`) prova
+    ad aprirne uno. */
+function anthropicUserContent(req: ProviderRequest): unknown[] {
+  const content: unknown[] = [];
+  /* 🔷 Prima immagini/file finivano SOLO nel ramo senza `userBlocks`: appena
+     un giro portava risultati di strumenti (`userBlocks` non vuoto), quelli
+     restavano fuori del tutto — anche se il chiamante li aveva rimandati
+     apposta per quel giro. Vanno sempre, a prescindere da cosa c'è dopo. */
+  for (const image of req.images?.length ? req.images : req.image ? [req.image] : []) {
+    content.push({
+      type: 'image',
+      source: { type: 'base64', media_type: image.mediaType, data: image.data },
+    });
+  }
+  for (const file of req.files ?? []) {
+    content.push({ type: 'document', source: { type: 'base64', media_type: file.mediaType, data: file.data }, title: file.filename });
+  }
+  if (req.userBlocks?.length) {
+    content.push(...req.userBlocks);
+  } else {
+    content.push({ type: 'text', text: req.user });
+  }
+  return content;
+}
+
+/** Stessa lista, bloccante o in streaming: la ricerca web è un tool anche lei
+    dal punto di vista di Anthropic, dichiarato solo quando serve. */
+function anthropicTools(req: ProviderRequest): Record<string, unknown>[] | undefined {
+  if (!req.tools?.length && !req.webSearch) return undefined;
+  return [
+    ...(req.tools ?? []).map((t) => ({ name: t.name, description: t.description, input_schema: t.schema })),
+    /* La ricerca gira dal fornitore: si dichiara e basta, i risultati
+       arrivano già dentro questa stessa risposta. La versione con la data è
+       quella che filtra i risultati prima che entrino nel contesto — su una
+       domanda tipo «quante proteine ha X» è la differenza fra tre righe e
+       tre pagine. */
+    ...(req.webSearch ? [{ type: 'web_search_20260209', name: 'web_search' }] : []),
+  ];
+}
+
 async function anthropic(req: ProviderRequest): Promise<ProviderResult> {
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) return fail(req.model, 'ANTHROPIC_API_KEY mancante');
 
-  const content: unknown[] = [];
-  if (req.userBlocks?.length) {
-    content.push(...req.userBlocks);
-  } else {
-    for (const image of req.images?.length ? req.images : req.image ? [req.image] : []) {
-      content.push({
-        type: 'image',
-        source: { type: 'base64', media_type: image.mediaType, data: image.data },
-      });
-    }
-    for (const file of req.files ?? []) {
-      content.push({ type: 'document', source: { type: 'base64', media_type: file.mediaType, data: file.data }, title: file.filename });
-    }
-    content.push({ type: 'text', text: req.user });
-  }
+  const content = anthropicUserContent(req);
 
   try {
     const res = await fetch('https://api.anthropic.com/v1/messages', {
@@ -261,23 +290,7 @@ async function anthropic(req: ProviderRequest): Promise<ProviderResult> {
         // personaggio non aggiunge niente e l'uscita si paga cinque volte
         // l'entrata. Lo decide chi chiama, non questo file.
         ...(req.thinking ? {} : { thinking: { type: 'disabled' } }),
-        ...(req.tools?.length || req.webSearch
-          ? {
-              tools: [
-                ...(req.tools ?? []).map((t) => ({
-                  name: t.name,
-                  description: t.description,
-                  input_schema: t.schema,
-                })),
-                /* La ricerca gira dal fornitore: si dichiara e basta, i
-                   risultati arrivano già dentro questa stessa risposta. La
-                   versione con la data è quella che filtra i risultati prima
-                   che entrino nel contesto — su una domanda tipo «quante
-                   proteine ha X» è la differenza fra tre righe e tre pagine. */
-                ...(req.webSearch ? [{ type: 'web_search_20260209', name: 'web_search' }] : []),
-              ],
-            }
-          : {}),
+        ...(anthropicTools(req) ? { tools: anthropicTools(req) } : {}),
         ...(req.toolChoice
           ? { tool_choice: { type: 'tool', name: req.toolChoice } }
           : {}),
@@ -357,7 +370,14 @@ export type AiStreamEvent =
   | { type: 'thinking_delta'; delta: string }
   | { type: 'answer_started' }
   | { type: 'answer_delta'; delta: string }
-  | { type: 'answer_completed'; model: string; usage: Usage; costUsd: number; sources: Source[] }
+  /* 🔷 «Il pensiero vero non arriva mai perché il giro con gli strumenti non
+     fa streaming.» Prima questo evento non portava mai strumenti: bastava,
+     perché lo streaming girava solo sulla strada SENZA strumenti. Ora che
+     anche il ciclo strumenti (`replyWithLocalTools`) apre uno stream, deve
+     poter chiudersi anche su «voglio chiamare questo strumento», non solo
+     su testo — altrimenti l'unico modo per saperlo resta il giro bloccante
+     di prima. */
+  | { type: 'answer_completed'; model: string; usage: Usage; costUsd: number; sources: Source[]; toolUses: ToolUse[] }
   | { type: 'error'; message: string };
 
 /** Stream testuale della Chat V1, con contesto neutrale e ricerca web. */
@@ -391,15 +411,14 @@ export async function streamAnthropic(
            una riga generica presa da una tabella. Stessa regola della strada
            non in streaming: lo decide `req.thinking`, non questo file. */
         ...(req.thinking ? {} : { thinking: { type: 'disabled' } }),
-        ...(req.webSearch
-          ? { tools: [{ type: 'web_search_20260209', name: 'web_search' }] }
-          : {}),
+        ...(anthropicTools(req) ? { tools: anthropicTools(req) } : {}),
+        ...(req.toolChoice ? { tool_choice: { type: 'tool', name: req.toolChoice } } : {}),
         system: req.system.map((block) => ({
           type: 'text',
           text: block.text,
           ...(block.cache ? { cache_control: { type: 'ephemeral' } } : {}),
         })),
-        messages: [...req.turns, { role: 'user', content: req.user }],
+        messages: [...req.turns, { role: 'user', content: anthropicUserContent(req) }],
       }),
     });
   } catch (error) {
@@ -421,6 +440,15 @@ export async function streamAnthropic(
   const foundSources: Source[] = [];
   const foundUrls = new Set<string>();
   let answerStarted = false;
+  /* 🔷 «Il pensiero vero non arriva mai perché il ciclo con gli strumenti
+     non fa streaming.» Un tool_use arriva a pezzi: `content_block_start` lo
+     apre (id, nome), una serie di `content_block_delta` con
+     `input_json_delta` ne accumula gli argomenti come JSON parziale,
+     `content_block_stop` lo chiude — solo lì il JSON è completo e si può
+     leggere. Indicizzato per `index`: più blocchi (testo, pensiero,
+     strumento) possono intrecciarsi nello stesso stream. */
+  const pendingToolUses = new Map<number, { id: string; name: string; json: string }>();
+  const toolUses: ToolUse[] = [];
 
   const encode = (event: AiStreamEvent) =>
     encoder.encode(`data: ${JSON.stringify(event)}\n\n`);
@@ -448,9 +476,10 @@ export async function streamAnthropic(
             if (!data) continue;
             const parsed = JSON.parse(data) as {
               type?: string;
+              index?: number;
               message?: { model?: string; usage?: Record<string, number> };
               content_block?: AnthropicContentBlock;
-              delta?: { type?: string; text?: string; thinking?: string; citation?: AnthropicCitation };
+              delta?: { type?: string; text?: string; thinking?: string; citation?: AnthropicCitation; partial_json?: string };
               usage?: Record<string, number> & {
                 server_tool_use?: { web_search_requests?: number };
               };
@@ -475,6 +504,22 @@ export async function streamAnthropic(
                 for (const result of block.content) {
                   if (result.type === 'web_search_result') pushSource(controller, result);
                 }
+              }
+              if (block?.type === 'tool_use' && typeof parsed.index === 'number') {
+                pendingToolUses.set(parsed.index, { id: block.id ?? '', name: block.name ?? '', json: '' });
+              }
+            }
+
+            if (parsed.type === 'content_block_delta' && parsed.delta?.type === 'input_json_delta' && typeof parsed.index === 'number') {
+              const pending = pendingToolUses.get(parsed.index);
+              if (pending) pending.json += parsed.delta.partial_json ?? '';
+            }
+
+            if (parsed.type === 'content_block_stop' && typeof parsed.index === 'number') {
+              const pending = pendingToolUses.get(parsed.index);
+              if (pending) {
+                toolUses.push({ id: pending.id, name: pending.name, input: safeJson(pending.json) });
+                pendingToolUses.delete(parsed.index);
               }
             }
 
@@ -508,6 +553,7 @@ export async function streamAnthropic(
           usage,
           costUsd: costOf(model, usage),
           sources: foundSources,
+          toolUses,
         }));
         finish({ model, usage });
         controller.close();
@@ -564,9 +610,14 @@ export async function streamOpenAiResponses(
         stream: true,
         store: false,
         /* Il riassunto di ragionamento è un costo a parte solo quando lo si
-           chiede: `req.thinking` decide, esattamente come per Claude. */
-        ...(req.thinking ? { reasoning: { effort: req.effort ?? 'medium', summary: 'auto' } } : {}),
-        ...(req.webSearch ? { tools: [{ type: 'web_search' }], include: ['web_search_call.action.sources'] } : {}),
+           chiede: `req.thinking` decide, esattamente come per Claude. Stessa
+           nota di `openAiResponses`: nessun 'none' forzato solo perché ci
+           sono strumenti — quella difesa era presa in prestito da un altro
+           endpoint (/v1/chat/completions) mai verificato per questo. */
+        reasoning: { effort: req.effort ?? (req.thinking ? 'medium' : 'none'), summary: 'auto' },
+        ...(openaiResponseTools(req).length ? { tools: openaiResponseTools(req) } : {}),
+        ...(req.toolChoice ? { tool_choice: { type: 'function', name: req.toolChoice } } : {}),
+        ...(req.webSearch ? { include: ['web_search_call.action.sources'] } : {}),
       }),
     });
   } catch (error) {
@@ -588,6 +639,11 @@ export async function streamOpenAiResponses(
   const foundUrls = new Set<string>();
   let answerStarted = false;
   let webSearches = 0;
+  /* 🔷 A differenza di Anthropic (che accumula gli argomenti a pezzi via
+     `input_json_delta`), qui basta `response.output_item.done`: arriva con
+     l'item già completo — `call_id`, `name`, `arguments` per intero — non
+     serve ricostruirlo da un flusso di delta separato. */
+  const toolUses: ToolUse[] = [];
 
   const encode = (event: AiStreamEvent) =>
     new TextEncoder().encode(`data: ${JSON.stringify(event)}\n\n`);
@@ -616,7 +672,7 @@ export async function streamOpenAiResponses(
               type?: string;
               delta?: string;
               response?: { model?: string; usage?: Record<string, unknown> };
-              item?: { type?: string; action?: { sources?: unknown[] } };
+              item?: { type?: string; action?: { sources?: unknown[] }; call_id?: string; name?: string; arguments?: string };
             };
 
             if (parsed.type === 'response.reasoning_summary_text.delta' && parsed.delta) {
@@ -634,6 +690,14 @@ export async function streamOpenAiResponses(
             if (parsed.type === 'response.output_item.done' && parsed.item?.type === 'web_search_call') {
               webSearches += 1;
               for (const found of parsed.item.action?.sources ?? []) pushSource(controller, found);
+            }
+
+            if (parsed.type === 'response.output_item.done' && parsed.item?.type === 'function_call') {
+              toolUses.push({
+                id: parsed.item.call_id ?? '',
+                name: parsed.item.name ?? '',
+                input: safeJson(parsed.item.arguments),
+              });
             }
 
             if (parsed.type === 'response.completed' && parsed.response) {
@@ -656,6 +720,7 @@ export async function streamOpenAiResponses(
           usage,
           costUsd: costOf(model, usage),
           sources: foundSources,
+          toolUses,
         }));
         finish({ model, usage });
         controller.close();
@@ -872,23 +937,24 @@ function openaiResponseInput(req: ProviderRequest): Record<string, unknown>[] {
     if (typeof turn.content === 'string') input.push({ role: turn.role, content: turn.content });
     else addBlocks(turn.content as Block[], turn.role);
   }
-  if (req.userBlocks?.length) {
-    addBlocks(req.userBlocks as Block[], 'user');
-  } else if (req.user || req.image || req.images?.length || req.files?.length) {
-    const content: Record<string, unknown>[] = [];
-    if (req.user) content.push({ type: 'input_text', text: req.user });
-    for (const image of req.images?.length ? req.images : req.image ? [req.image] : []) {
-      content.push({
-        type: 'input_image',
-        detail: 'auto',
-        image_url: `data:${image.mediaType};base64,${image.data}`,
-      });
-    }
-    for (const file of req.files ?? []) {
-      content.push({ type: 'input_file', filename: file.filename, file_data: `data:${file.mediaType};base64,${file.data}` });
-    }
-    input.push({ role: 'user', content });
+  /* 🔷 Stesso difetto di `anthropicUserContent`: immagini/file finivano SOLO
+     nel ramo `else if`, saltato appena c'erano `userBlocks` (risultati di
+     strumenti). Vanno sempre, indipendentemente da cosa segue. */
+  const content: Record<string, unknown>[] = [];
+  if (!req.userBlocks?.length && req.user) content.push({ type: 'input_text', text: req.user });
+  for (const image of req.images?.length ? req.images : req.image ? [req.image] : []) {
+    content.push({
+      type: 'input_image',
+      detail: 'auto',
+      image_url: `data:${image.mediaType};base64,${image.data}`,
+    });
   }
+  for (const file of req.files ?? []) {
+    content.push({ type: 'input_file', filename: file.filename, file_data: `data:${file.mediaType};base64,${file.data}` });
+  }
+  if (content.length) input.push({ role: 'user', content });
+
+  if (req.userBlocks?.length) addBlocks(req.userBlocks as Block[], 'user');
   return input;
 }
 
@@ -911,18 +977,26 @@ export function extractOpenAIResponseSources(output: readonly OpenAIResponseItem
   return uniqueSources(sources);
 }
 
+/** Stessa lista per la strada bloccante e per lo stream: la forma che vuole
+    `/v1/responses` per un tool è piatta (name/description/parameters in
+    testa), diversa da quella di `/v1/chat/completions` usata da
+    `openAiProtocol`. */
+function openaiResponseTools(req: ProviderRequest): Record<string, unknown>[] {
+  return [
+    ...(req.tools ?? []).map((tool) => ({
+      type: 'function',
+      name: tool.name,
+      description: tool.description,
+      parameters: tool.schema,
+      strict: false,
+    })),
+    ...(req.webSearch ? [{ type: 'web_search' }] : []),
+  ];
+}
+
 async function openAiResponses(key: string, req: ProviderRequest): Promise<ProviderResult> {
   try {
-    const tools: Record<string, unknown>[] = [
-      ...(req.tools ?? []).map((tool) => ({
-        type: 'function',
-        name: tool.name,
-        description: tool.description,
-        parameters: tool.schema,
-        strict: false,
-      })),
-      ...(req.webSearch ? [{ type: 'web_search' }] : []),
-    ];
+    const tools = openaiResponseTools(req);
     const response = await fetch('https://api.openai.com/v1/responses', {
       method: 'POST',
       headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` },
@@ -931,7 +1005,15 @@ async function openAiResponses(key: string, req: ProviderRequest): Promise<Provi
         instructions: req.system.map((block) => block.text).join('\n\n'),
         input: openaiResponseInput(req),
         max_output_tokens: req.maxTokens,
-        reasoning: { effort: req.tools?.length ? 'none' : (req.effort ?? 'none') },
+        /* 🔷 «Manca il pensiero vero mentre usa gli strumenti.» Prima qui
+           l'sforzo era SEMPRE 'none' con gli strumenti presenti — una difesa
+           copiata da `openAiProtocol` (`/v1/chat/completions`, che RIFIUTA
+           con 400 reasoning≠none insieme a funzioni, verificato contro
+           l'API vera) mai riconfermata per `/v1/responses`, un endpoint
+           diverso. Qui vince `req.thinking`/`req.effort` come ovunque; se
+           `/v1/responses` avesse davvero lo stesso limite lo direbbe un 400
+           vero, non un'assunzione presa in prestito. */
+        reasoning: { effort: req.effort ?? (req.thinking ? 'medium' : 'none') },
         store: false,
         ...(tools.length ? { tools } : {}),
         ...(req.toolChoice
@@ -969,10 +1051,17 @@ async function openAiResponses(key: string, req: ProviderRequest): Promise<Provi
         input: safeJson(item.arguments),
       }));
     const cached = body.usage?.input_tokens_details?.cached_tokens ?? 0;
+    /* 🔷 Trovato mentre testavo `mostra_superficie_html`: il modello a volte
+       chiude con un turno "completed" ma senza testo né function_call — non
+       un errore HTTP, un contenuto vuoto vero. Prima finiva silenzioso
+       (`result.error` restava `undefined`, il log diceva letteralmente
+       "risposta non utilizzabile: undefined"): ora si vede il motivo. */
+    const emptyCompletion = text.length === 0 && toolUses.length === 0;
     return {
-      ok: text.length > 0 || toolUses.length > 0,
+      ok: !emptyCompletion,
       text,
       toolUses,
+      ...(emptyCompletion ? { error: `completamento vuoto (status: ${body.status ?? 'sconosciuto'})` } : {}),
       sources: extractOpenAIResponseSources(output),
       stopReason: toolUses.length ? 'tool_use' : body.status,
       model: body.model ?? req.model,
@@ -1129,11 +1218,16 @@ async function openAiProtocol(
     }));
 
     const cached = out.usage?.prompt_tokens_details?.cached_tokens ?? 0;
+    /* Stesso caso di `openAiResponses`: un completamento vuoto non è un
+       errore HTTP, ma senza un `error` esplicito il log a monte mostrava
+       "risposta non utilizzabile: undefined" — niente da cui indagare. */
+    const emptyCompletion = text.length === 0 && toolUses.length === 0;
 
     return {
-      ok: text.length > 0 || toolUses.length > 0,
+      ok: !emptyCompletion,
       text,
       toolUses,
+      ...(emptyCompletion ? { error: `completamento vuoto (finish_reason: ${out.choices?.[0]?.finish_reason ?? 'sconosciuto'})` } : {}),
       sources: [],
       stopReason: out.choices?.[0]?.finish_reason,
       model: out.model ?? req.model,
@@ -1182,6 +1276,122 @@ async function xai(req: ProviderRequest): Promise<ProviderResult> {
 async function ollama(req: ProviderRequest): Promise<ProviderResult> {
   const base = (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434').replace(/\/$/, '');
   return openAiProtocol('ollama', `${base}/v1/chat/completions`, 'ollama-non-serve-chiave', req);
+}
+
+/** Stessa `base()`/chiave finta di `ollama()` sopra, ma in streaming per i
+    giri intermedi di `replyWithLocalTools` (vedi LOCAL_CHEAP_ROUND_SENTINEL
+    in routing.ts). Ollama parla lo stesso streaming di
+    `/v1/chat/completions` di OpenAI — `data: {...}` a pezzi, tool_calls
+    accumulati per indice — quindi stessa "lingua" di `streamAnthropic`/
+    `streamOpenAiResponses`, solo un fornitore diverso a emetterla. Nessun
+    `thinking_delta`: un modello locale di questa taglia non espone
+    ragionamento, e va bene così — quei giri non li legge nessuno. Costo
+    sempre $0: locale, non serve prezzarlo. */
+export async function streamOllama(req: ProviderRequest, signal?: AbortSignal): Promise<StreamResult> {
+  const base = (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434').replace(/\/$/, '');
+
+  let response: Response;
+  try {
+    response = await fetch(`${base}/v1/chat/completions`, {
+      method: 'POST',
+      signal,
+      headers: { 'content-type': 'application/json', authorization: 'Bearer ollama-non-serve-chiave' },
+      body: JSON.stringify({
+        model: req.model,
+        stream: true,
+        messages: openaiMessages(req),
+        max_tokens: req.maxTokens,
+        ...(req.tools?.length
+          ? {
+              tools: req.tools.map((t) => ({ type: 'function', function: { name: t.name, description: t.description, parameters: t.schema } })),
+              ...(req.toolChoice ? { tool_choice: { type: 'function', function: { name: req.toolChoice } } } : {}),
+            }
+          : {}),
+      }),
+    });
+  } catch (error) {
+    return { ok: false, error: String(error) };
+  }
+
+  if (!response.ok || !response.body) {
+    return { ok: false, error: `ollama ${response.status}: ${await response.text().catch(() => '')}` };
+  }
+
+  let finish!: (value: { model: string; usage: Usage }) => void;
+  const completed = new Promise<{ model: string; usage: Usage }>((resolve) => { finish = resolve; });
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  const encoder = new TextEncoder();
+  let buffer = '';
+  let model = req.model;
+  const usage: Usage = {};
+  let answerStarted = false;
+  const pendingToolUses = new Map<number, { id: string; name: string; json: string }>();
+
+  const encode = (event: AiStreamEvent) => encoder.encode(`data: ${JSON.stringify(event)}\n\n`);
+
+  const body = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      try {
+        while (true) {
+          const { value, done } = await reader.read();
+          buffer += decoder.decode(value, { stream: !done });
+          const chunks = buffer.split('\n\n');
+          buffer = chunks.pop() ?? '';
+          for (const chunk of chunks) {
+            const line = chunk.split('\n').find((l) => l.startsWith('data: '))?.slice(6);
+            if (!line || line === '[DONE]') continue;
+            const parsed = JSON.parse(line) as {
+              model?: string;
+              choices?: {
+                delta?: {
+                  content?: string;
+                  tool_calls?: { index?: number; id?: string; function?: { name?: string; arguments?: string } }[];
+                };
+              }[];
+              usage?: { prompt_tokens?: number; completion_tokens?: number };
+            };
+            if (parsed.model) model = parsed.model;
+            if (parsed.usage) {
+              usage.inputTokens = parsed.usage.prompt_tokens ?? 0;
+              usage.outputTokens = parsed.usage.completion_tokens ?? 0;
+            }
+            const delta = parsed.choices?.[0]?.delta;
+            if (delta?.content) {
+              if (!answerStarted) {
+                answerStarted = true;
+                controller.enqueue(encode({ type: 'answer_started' }));
+              }
+              controller.enqueue(encode({ type: 'answer_delta', delta: delta.content }));
+            }
+            for (const call of delta?.tool_calls ?? []) {
+              const index = call.index ?? 0;
+              const pending = pendingToolUses.get(index) ?? { id: call.id ?? '', name: call.function?.name ?? '', json: '' };
+              if (call.id) pending.id = call.id;
+              if (call.function?.name) pending.name = call.function.name;
+              if (call.function?.arguments) pending.json += call.function.arguments;
+              pendingToolUses.set(index, pending);
+            }
+          }
+          if (done) break;
+        }
+        const toolUses: ToolUse[] = [...pendingToolUses.values()].map((p) => ({ id: p.id, name: p.name, input: safeJson(p.json) }));
+        controller.enqueue(encode({ type: 'answer_completed', model, usage, costUsd: 0, sources: [], toolUses }));
+        finish({ model, usage });
+        controller.close();
+      } catch (error) {
+        finish({ model, usage });
+        controller.enqueue(encode({ type: 'error', message: String(error) }));
+        controller.close();
+      }
+    },
+    cancel() {
+      void reader.cancel();
+      finish({ model, usage });
+    },
+  });
+
+  return { ok: true, body, completed };
 }
 
 /**

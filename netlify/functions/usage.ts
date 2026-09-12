@@ -4,8 +4,10 @@ import {
   CAP_MAX_USD,
   CAP_MIN_USD,
   currentMonth,
+  readLocalOnlyMode,
   readMonthlyCap,
   validMonthlyCap,
+  writeLocalOnlyMode,
   writeMonthlyCap,
   type Ledger,
   type UsageEvent,
@@ -66,11 +68,18 @@ export default async function handler(request: Request): Promise<Response> {
      è un endpoint nuovo perché non è un'informazione nuova: è la stessa cosa
      che la GET già racconta, scritta invece che letta. */
   if (request.method === 'PUT') {
-    let body: { monthlyCapUsd?: unknown };
+    let body: { monthlyCapUsd?: unknown; localOnlyMode?: unknown };
     try {
-      body = (await request.json()) as { monthlyCapUsd?: unknown };
+      body = (await request.json()) as { monthlyCapUsd?: unknown; localOnlyMode?: unknown };
     } catch {
       return json({ error: 'body non leggibile' }, 400);
+    }
+    /* 🔷 CONTROL ROOM — l'interruttore LOCAL ONLY vive nello STESSO endpoint
+       del tetto mensile: stessa forma (config server-side, PUT per scrivere),
+       non un secondo endpoint per un secondo pezzo di configurazione. */
+    if (typeof body.localOnlyMode === 'boolean') {
+      const saved = await writeLocalOnlyMode(body.localOnlyMode);
+      return json({ localOnlyMode: saved.enabled, localOnlyModeUpdatedAt: saved.updatedAt });
     }
     const value = typeof body.monthlyCapUsd === 'number' ? body.monthlyCapUsd : Number.NaN;
     if (!validMonthlyCap(value)) {
@@ -106,8 +115,11 @@ export default async function handler(request: Request): Promise<Response> {
      costante, il LAB tornerebbe a mostrare un numero e il server ad
      applicarne un altro — che è esattamente il guasto da cui si parte. */
   const cap = await readMonthlyCap();
+  const localOnly = await readLocalOnlyMode();
   const spentUsd = total(inMonth).costUsd;
   return json({
+    localOnlyMode: localOnly.enabled,
+    ...(localOnly.updatedAt ? { localOnlyModeUpdatedAt: localOnly.updatedAt } : {}),
     today: total(inToday),
     last7Days: total(inWeek),
     month: total(inMonth),
@@ -126,6 +138,12 @@ export default async function handler(request: Request): Promise<Response> {
     daily: dailySpend(inMonth, month),
     byCapability: aggregate(inMonth, (event) => event.action),
     byModel: aggregate(inMonth, (event) => `${event.provider}/${event.model}`),
+    /* 🔷 «Vedi quanto sto lavorando ultimamente, così sarà ogni giorno.» La
+       STIMA MENSILE (`costEstimate.ts`) indovinava un ritmo d'uso invece di
+       guardare quello vero — sette giorni, non il mese a oggi (che all'inizio
+       del mese sarebbe un campione troppo corto), stessa chiave (`action`)
+       già usata per `byCapability` sopra. */
+    last7DaysByCapability: aggregate(inWeek, (event) => event.action),
     recentEvents: events.slice(0, 100),
   });
 }

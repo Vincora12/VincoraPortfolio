@@ -4496,6 +4496,11 @@
 .me-health__row small, .me-health__row time { color: #999; font: 9px/1.3 var(--font-mono); }
 .me-health__row > button { width: 44px; height: 44px; border: 0; background: transparent; color: #999; font-size: 18px; }
 .me-health__empty { margin: 0; padding: 24px 20px 28px; color: #888; font-size: 13px; line-height: 1.5; }
+.me-project-frame-wrap { position: relative; }
+.me-project-frame { display: block; width: 100%; min-height: calc(100dvh - 160px); border: 0; background: #000; }
+.me-project-version { position: absolute; top: 8px; right: 12px; z-index: 3; pointer-events: none; color: #666; font: 600 10px/1 var(--font-mono); letter-spacing: .05em; }
+.me-project-empty { display: flex; min-height: calc(100dvh - 160px); flex-direction: column; align-items: center; justify-content: center; gap: 16px; padding: 24px 20px; color: #888; font-size: 13px; line-height: 1.5; text-align: center; }
+.me-project-empty button { min-height: 44px; padding: 0 18px; border: 1px solid var(--mh-accent, #d4a532); border-radius: 22px; background: transparent; color: var(--mh-accent, #d4a532); font: 700 11px/1 var(--font-mono); letter-spacing: .08em; }
 .me-health__weight { display: flex; align-items: center; justify-content: space-between; min-height: 94px; padding: 18px 20px; }
 .me-health__weight div { display: flex; flex-direction: column; gap: 10px; }
 .me-health__weight span { font-size: 10px; letter-spacing: .1em; }

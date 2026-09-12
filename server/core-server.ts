@@ -48,6 +48,9 @@ import { processDueMachines } from '../netlify/functions/_shared/machines';
 import { closeLocalStore, localDatabasePath } from '../netlify/functions/_shared/localStore';
 import memoryReset from '../netlify/functions/memory-reset';
 import localLlm from '../netlify/functions/local-llm';
+import repoOps from '../netlify/functions/repo-ops';
+import notificationPrefs from '../netlify/functions/notification-prefs';
+import vinzWorkspace from '../netlify/functions/vinz-workspace';
 
 type Handler = (request: Request, platform?: { waitUntil(promise: Promise<unknown>): void }) => Promise<Response>;
 const APP = 'VINZ.MON';
@@ -68,6 +71,14 @@ function loadEnv(): void {
   }
 }
 loadEnv();
+/* 🔷 «Nella cartella del progetto ho caricato manualmente tutto.» La
+   cartella di lavoro (`_shared/vinzWorkspace.ts`) legge/scrive il filesystem
+   vero solo qui — su Netlify il processo non gira sul Mac dell'utente, e
+   leggerebbe il filesystem effimero del cloud provider. Questa riga è
+   l'unico posto che lo dichiara: `isLocalCoreServer()` la legge per
+   rifiutare la funzione con un errore chiaro altrove, invece di un
+   fallimento silenzioso o — peggio — un percorso letto dal posto sbagliato. */
+process.env.VINZMON_LOCAL_CORE = '1';
 
 const handlers: Record<string, Handler> = {
   '/api/agent-lab': agentLab, '/api/ai': ai, '/api/assets': assets, '/api/brain': brain,
@@ -86,6 +97,9 @@ const handlers: Record<string, Handler> = {
    dentro la lista evita di intrecciare due modifiche sulla stessa riga. */
 handlers['/api/memory-reset'] = memoryReset;
 handlers['/api/local-llm'] = localLlm;
+handlers['/api/repo-ops'] = repoOps;
+handlers['/api/notification-prefs'] = notificationPrefs;
+handlers['/api/vinz-workspace'] = vinzWorkspace;
 
 const background: Record<string, (request: Request) => Promise<void>> = {
   '/api/evolution-background': evolutionBackground,

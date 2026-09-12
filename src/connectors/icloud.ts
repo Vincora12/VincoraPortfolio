@@ -12,14 +12,26 @@
    note markdown. */
 
 import { loadHandle, saveHandle, clearHandle } from './idbHandle';
-import { ensureReadPermission, searchFolderFiles, type FolderMatch } from './localFolder';
+import { ensureReadPermission, searchFolderFiles, searchUploadedFiles, readUploadedTextFiles, type FolderMatch, type UploadedTextFile } from './localFolder';
 import { loadICloudConfig, saveICloudConfig } from './store';
 
 const HANDLE_KEY = 'icloud-drive';
+const UPLOAD_KEY = 'icloud-drive-files';
 const READABLE_EXT = /\.(md|markdown|txt|csv|json|log|rtf|yml|yaml)$/i;
 
 export function isFolderPickerSupported(): boolean {
   return typeof window !== 'undefined' && typeof window.showDirectoryPicker === 'function';
+}
+
+/** Su iOS/Safari nessun browser sa aprire una cartella (vedi `idbHandle.ts`):
+    il ripiego è scegliere i file uno a uno dall'app File (iCloud Drive
+    compreso), una volta invece di una cartella viva. */
+export async function uploadICloudFiles(fileList: FileList | File[]): Promise<{ ok: true; count: number } | { ok: false; error: string }> {
+  const result = await readUploadedTextFiles(fileList, READABLE_EXT);
+  if (!result.ok) return result;
+  await saveHandle<UploadedTextFile[]>(UPLOAD_KEY, result.files);
+  saveICloudConfig({ ...loadICloudConfig(), folderLabel: `${result.files.length} file caricati` });
+  return { ok: true, count: result.files.length };
 }
 
 export async function pickICloudFolder(): Promise<{ ok: true; label: string } | { ok: false; error: string }> {
@@ -39,6 +51,7 @@ export async function pickICloudFolder(): Promise<{ ok: true; label: string } | 
 
 export async function forgetICloudFolder(): Promise<void> {
   await clearHandle(HANDLE_KEY);
+  await clearHandle(UPLOAD_KEY);
   saveICloudConfig({ folderLabel: null, projectId: null });
 }
 
@@ -69,11 +82,15 @@ export async function searchICloudFolder(
   limit = 8,
 ): Promise<{ ok: true; matches: ICloudMatch[] } | { ok: false; error: string }> {
   const handle = await loadHandle(HANDLE_KEY);
-  if (!handle) return { ok: false, error: 'Nessuna cartella iCloud Drive collegata. Aprila prima da FILES.' };
-  if (!(await ensureReadPermission(handle))) return { ok: false, error: 'Permesso alla cartella non concesso.' };
-  try {
-    return { ok: true, matches: await searchFolderFiles(handle, query, limit, READABLE_EXT) };
-  } catch {
-    return { ok: false, error: 'Lettura della cartella interrotta.' };
+  if (handle) {
+    if (!(await ensureReadPermission(handle))) return { ok: false, error: 'Permesso alla cartella non concesso.' };
+    try {
+      return { ok: true, matches: await searchFolderFiles(handle, query, limit, READABLE_EXT) };
+    } catch {
+      return { ok: false, error: 'Lettura della cartella interrotta.' };
+    }
   }
+  const uploaded = await loadHandle<UploadedTextFile[]>(UPLOAD_KEY);
+  if (uploaded?.length) return { ok: true, matches: searchUploadedFiles(uploaded, query, limit) };
+  return { ok: false, error: 'Nessuna cartella iCloud Drive collegata. Aprila prima da FILES.' };
 }

@@ -287,6 +287,47 @@ export async function writeMonthlyCap(value: number): Promise<MonthlyCap> {
   return { usd: value, source: 'runtime', updatedAt };
 }
 
+/* ----------------------------------------------------------------------------
+   LOCAL ONLY MODE — STESSO store, STESSA verità server-side del tetto sopra.
+
+   🔒 Un interruttore che blocca il cloud deve vivere sul server per lo stesso
+   motivo del tetto: se stesse nel browser, chiunque lo riaggirerebbe (o
+   basterebbe un altro tab) e diventerebbe un blocco a fisarmonica. Letto e
+   applicato in un unico punto — `ai.ts`, subito dopo che `route` è risolto,
+   PRIMA di chiamare qualunque provider — mai un secondo posto da cui
+   potrebbe divergere.
+
+   ⚠️ MAI un fallback silenzioso al cloud. Se attivo e la rotta risolta non è
+   Ollama, la richiesta si rifiuta con un errore chiaro (vedi ai.ts): un
+   fallback muto sarebbe esattamente il comportamento che l'interruttore
+   dovrebbe escludere. -------------------------------------------------- */
+
+const LOCAL_ONLY_KEY = 'local-only-mode';
+
+export interface LocalOnlyMode {
+  enabled: boolean;
+  updatedAt?: string;
+}
+
+export async function readLocalOnlyMode(): Promise<LocalOnlyMode> {
+  try {
+    const raw = await configStore().get(LOCAL_ONLY_KEY, { type: 'json' }) as
+      { enabled?: unknown; updatedAt?: unknown } | null;
+    if (typeof raw?.enabled === 'boolean') {
+      return { enabled: raw.enabled, ...(typeof raw.updatedAt === 'string' ? { updatedAt: raw.updatedAt } : {}) };
+    }
+  } catch (error) {
+    console.warn('[spend] local-only-mode non leggibile, uso il default (spento):', error);
+  }
+  return { enabled: false };
+}
+
+export async function writeLocalOnlyMode(enabled: boolean): Promise<LocalOnlyMode> {
+  const updatedAt = new Date().toISOString();
+  await configStore().setJSON(LOCAL_ONLY_KEY, { enabled, updatedAt });
+  return { enabled, updatedAt };
+}
+
 export interface CapState {
   ledger: Ledger;
   /** Il tetto EFFETTIVO applicato a questa decisione, non il default. */
@@ -326,6 +367,8 @@ export async function checkCap(): Promise<CapState> {
 
 export const INTERNAL_CAP_EXCEEDED = 'INTERNAL_CAP_EXCEEDED';
 export const PROVIDER_QUOTA_EXCEEDED = 'PROVIDER_QUOTA_EXCEEDED';
+/** LOCAL ONLY MODE attivo e la rotta risolta non è Ollama — vedi `ai.ts`. */
+export const LOCAL_ONLY_BLOCKED = 'LOCAL_ONLY_BLOCKED';
 
 /**
  * Riconosce nella risposta del fornitore un esaurimento di credito o di

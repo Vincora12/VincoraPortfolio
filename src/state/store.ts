@@ -647,6 +647,19 @@ interface AppState {
   useQualityPreset: () => void;
 
   /**
+   * CONTROL ROOM — «FINAL RESPONSE = CLOUD» non è più un'assunzione fissa.
+   *
+   * 🔒 SPENTO DI DEFAULT: nessuno perde qualità nella risposta finale senza
+   * averlo scelto. Acceso, il giro 0 e il giro finale forzato (mai i giri
+   * intermedi, che hanno già la propria strada) provano prima il modello
+   * locale (Ollama) e passano al modello scelto dall'utente solo se quello
+   * fallisce — mai un silenzio, sempre un'escalation dichiarata (vedi
+   * `replyWithLocalTools` in brain/stream.ts).
+   */
+  finalResponseLocalFirst: boolean;
+  setFinalResponseLocalFirst: (value: boolean) => void;
+
+  /**
    * Quando hai ricominciato da capo l'ultima volta, o `null`.
    *
    * 🔒 È l'unica cosa che impedisce a una partita cancellata di tornare
@@ -1083,6 +1096,7 @@ const INITIAL = {
   compilerModel: null as string | null,
   imageModel: null as string | null,
   stepModels: {} as Partial<Record<AiStepId, string>>,
+  finalResponseLocalFirst: false,
   /* ⚠️ LE LEZIONI NON STANNO IN `INITIAL`, e per la stessa ragione della teca:
      quello che c'è in `INITIAL` è quello che un reset rimette a zero. Il
      mestiere imparato non è la partita. */
@@ -2695,6 +2709,7 @@ export const useApp = create<AppState>()(
       useCheapPreset: () => { const stepModels = recommendedPreset(); set({ stepModels }); updateRuntimeConfig({ stepModels }); },
 
       useQualityPreset: () => { set({ stepModels: {} }); updateRuntimeConfig({ stepModels: {} }); },
+      setFinalResponseLocalFirst: (value) => { set({ finalResponseLocalFirst: value }); updateRuntimeConfig({ finalResponseLocalFirst: value }); },
 
       compileAssetPrompt: async (monName, assetType) => {
         const s = get();
@@ -3883,6 +3898,7 @@ export function applyRuntimeConfigToStore(config = runtimeConfig()): void {
     compilerModel: config.compilerModel,
     imageModel: config.imageModel,
     stepModels: config.stepModels,
+    finalResponseLocalFirst: config.finalResponseLocalFirst,
   });
 }
 
@@ -4505,6 +4521,7 @@ function applyRemoteSave(local: AppState, data: RemoteSave): boolean {
     compilerModel: local.compilerModel,
     imageModel: local.imageModel,
     stepModels: local.stepModels,
+    finalResponseLocalFirst: local.finalResponseLocalFirst,
   });
   /* I salvataggi creati prima del diario server non hanno ancora questo
      campo: lasciando la firma vuota, il debounce li migra subito. */

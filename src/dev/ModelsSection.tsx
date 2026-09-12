@@ -16,7 +16,8 @@ import { useEffect, useState } from 'react';
 import { useApp } from '../state/store';
 import { Button, SystemLabel } from '../system/components';
 import { lastRuns, subscribeToRuns, type StepRun } from '../ai/telemetry';
-import { estimateMonthlyCost } from '../engine/costEstimate';
+import { estimateMonthlyCost, type RealUsageSnapshot } from '../engine/costEstimate';
+import type { LocalServicesStatus } from '../ai/backend';
 import {
   AI_STEPS,
   AI_STEP_ORDER,
@@ -82,6 +83,8 @@ export function ModelsSection() {
   const dev = useApp((s) => s.dev);
   const setDev = useApp((s) => s.setDev);
   const token = useApp((s) => s.token);
+  const finalResponseLocalFirst = useApp((s) => s.finalResponseLocalFirst);
+  const setFinalResponseLocalFirst = useApp((s) => s.setFinalResponseLocalFirst);
 
   /* La telemetria vive fuori da zustand: ci si abbona come al contatore
      della spesa. */
@@ -116,6 +119,13 @@ export function ModelsSection() {
         menu solo.
       </p>
 
+      <ControlRoomHeader
+        token={token}
+        stepModels={stepModels}
+        finalResponseLocalFirst={finalResponseLocalFirst}
+        setFinalResponseLocalFirst={setFinalResponseLocalFirst}
+      />
+
       {/* ⚠️ IL PRESET ECONOMICO NON TOCCA IL CHARACTER MASTER, ed è dichiarato
           sul pulsante invece che scoperto dopo. «Non voglio un pulsante
           economico che mi peggiora i character.» */}
@@ -133,7 +143,7 @@ export function ModelsSection() {
           giorni.» Ricalcolata a ogni render: cambia un modello qui sotto e
           il numero si muove — è il punto, non un totale fisso da leggere
           una volta. */}
-      <MonthlyEstimateBox stepModels={stepModels} />
+      <MonthlyEstimateBox stepModels={stepModels} token={token} />
 
       {/* ══════════════════════════════════════════════════════════════════
           🔷 LA LEVA VERA, e sta sopra l'elenco perché è quella che conta.
@@ -177,12 +187,28 @@ export function ModelsSection() {
           const costo = prezzo(step.capability, attivo);
           const consiglio = recommendedModel(id);
 
+          const isAuto = !stepModels[id];
+
           return (
             <li key={id} className="dev__step">
               <p className="t-meta">
                 {step.label}{' '}
+                {/* 🔷 CONTROL ROOM — AUTO 🔒 quando lo step segue il predefinito,
+                    MANUALE quando l'utente ha scelto un modello di persona: la
+                    STESSA differenza di sempre (`stepModels[id]` assente o no),
+                    solo resa esplicita invece che implicita nel confronto coi
+                    pulsanti sotto. */}
+                {isAuto ? <SystemLabel>AUTO 🔒</SystemLabel> : <SystemLabel tone="warning">MANUALE</SystemLabel>}
                 {step.qualityCritical && <SystemLabel tone="character">QUALITÀ</SystemLabel>}
                 {step.background && <SystemLabel>IN BACKGROUND</SystemLabel>}
+                {!isAuto && (
+                  <>
+                    {' '}
+                    <button type="button" className="dev__inlinebtn" onClick={() => setStepModel(id, null)}>
+                      RIPORTA AD AUTO
+                    </button>
+                  </>
+                )}
               </p>
               <p className="t-micro dev__note">{step.it}</p>
               {/* 🔷 Il consiglio è sempre visibile, anche quando coincide con
@@ -295,12 +321,27 @@ export function ModelsSection() {
 }
 
 /* ============================================================================
-   STIMA MENSILE — «pensando che io lo uso ogni giorno e faccio evoluzioni
-   ogni 2 giorni.» Vive fuori da `ModelsSection` per restare un componente
-   puro: riceve `stepModels`, non tocca lo store da solo.
+   STIMA MENSILE — «vedi quanto sto lavorando ultimamente, così sarà ogni
+   giorno.» Vive fuori da `ModelsSection` per restare quasi puro: riceve
+   `stepModels`, e recupera da solo l'unica cosa in più che gli serve — il
+   ritmo vero degli ultimi sette giorni da `/api/usage`, la stessa fonte già
+   mostrata in DEV → USAGE. Se non c'è ancora una settimana vera (app appena
+   attivata), resta la premessa dichiarata di prima — mai uno zero silenzioso.
    ========================================================================= */
-function MonthlyEstimateBox({ stepModels }: { stepModels: Partial<Record<AiStepId, string>> }) {
-  const stima = estimateMonthlyCost(stepModels);
+function MonthlyEstimateBox({ stepModels, token }: { stepModels: Partial<Record<AiStepId, string>>; token: string | null }) {
+  const [real, setReal] = useState<RealUsageSnapshot | undefined>(undefined);
+  useEffect(() => {
+    if (!token) return;
+    let live = true;
+    void import('../ai/backend').then(({ loadUsage }) =>
+      loadUsage(token).then(({ data }) => {
+        if (live && data?.last7DaysByCapability) setReal(data.last7DaysByCapability as RealUsageSnapshot);
+      }),
+    );
+    return () => { live = false; };
+  }, [token]);
+
+  const stima = estimateMonthlyCost(stepModels, real);
   return (
     <div className="dev__estimate">
       <p className="t-meta dev__label">STIMA MENSILE, CON QUESTE SCELTE</p>
@@ -312,16 +353,173 @@ function MonthlyEstimateBox({ stepModels }: { stepModels: Partial<Record<AiStepI
           </p>
         ))}
       </div>
+      {stima.usaDatiVeri ? (
+        <p className="t-micro dev__note">
+          Ritmo degli ultimi 7 giorni, proiettato su un mese — non più indovinato: cambia da solo
+          man mano che usi VINZ.MON diversamente. Il prezzo segue comunque il modello scelto qui
+          sopra.
+        </p>
+      ) : (
+        <p className="t-micro dev__note">
+          Premesse (nessuna settimana vera ancora nel registro spese): {Math.round(stima.assunzioni.evoluzioniAlMese)} evoluzioni al mese (una ogni 2
+          giorni, come detto) · {stima.assunzioni.messaggiAlGiorno} messaggi al giorno (non
+          dichiarato — assunto, cambia se il tuo uso è diverso) · un messaggio su cinque abbastanza
+          importante da meritare il modello pieno. Appena ci sono sette giorni veri, questa riga
+          sparisce da sola.
+        </p>
+      )}
       <p className="t-micro dev__note">
-        Premesse: {Math.round(stima.assunzioni.evoluzioniAlMese)} evoluzioni al mese (una ogni 2
-        giorni, come detto) · {stima.assunzioni.messaggiAlGiorno} messaggi al giorno (non
-        dichiarato — assunto, cambia se il tuo uso è diverso) · un messaggio su cinque abbastanza
-        importante da meritare il modello pieno.
+        🟡 Dove manca il ritmo vero, anche i token per chiamata sono numeri ragionevoli, non
+        misurati — tende a essere un filo più alto del vero, non più basso.
       </p>
+    </div>
+  );
+}
+
+/* ============================================================================
+   CONTROL ROOM — la stanza dei bottoni sopra l'elenco degli step
+
+   🔷 «Un pannello che mi faccia capire quale AI gira dove, e mi lasci
+   scegliere quando voglio il locale invece del cloud.» Nessuno stato nuovo
+   duplicato: i conteggi AUTO/MANUALE/LOCALE/PREMIUM sotto sono calcolati da
+   `AI_STEPS`/`stepModels`, la STESSA fonte che l'elenco sotto già legge —
+   se uno step cambia, questi numeri cambiano da soli, mai una seconda lista
+   scritta a mano da tenere allineata.
+
+   🔒 LOCAL ONLY e Mem0/Ollama/Local Core sono VERITÀ DI RETE, non un
+   indovinello: il primo legge/scrive `/api/usage` (stessa verità
+   server-side del tetto mensile), i secondi `/api/repo-ops` — che su
+   Netlify ospitato risponde onestamente "non disponibile qui" invece di
+   fingere un dato che non può avere.
+   ========================================================================= */
+
+function providerFor(capability: string, model: string): string | undefined {
+  return (choicesFor(capability as never).find((c) => c.model === model) as { provider?: string } | undefined)?.provider;
+}
+
+/** Esportato: `SystemLab.tsx` (SYSTEM.LAB → ROUTING) monta la STESSA testata
+    invece di una seconda scritta a mano — un'unica sorgente di verità per
+    conteggi/LOCAL ONLY/flusso/stato servizi, visibile da entrambi gli
+    ingressi (DEV → AI/MODELLI e SYSTEM.LAB → ROUTING). */
+export function ControlRoomHeader({
+  token,
+  stepModels,
+  finalResponseLocalFirst,
+  setFinalResponseLocalFirst,
+}: {
+  token: string | null;
+  stepModels: Partial<Record<AiStepId, string>>;
+  finalResponseLocalFirst: boolean;
+  setFinalResponseLocalFirst: (value: boolean) => void;
+}) {
+  const [localOnly, setLocalOnly] = useState<{ enabled: boolean; loading: boolean; saving: boolean }>({
+    enabled: false,
+    loading: true,
+    saving: false,
+  });
+  const [services, setServices] = useState<{ status: LocalServicesStatus | null; unavailable: boolean; loading: boolean }>({
+    status: null,
+    unavailable: false,
+    loading: true,
+  });
+
+  useEffect(() => {
+    if (!token) return;
+    let live = true;
+    void import('../ai/backend').then(({ loadUsage }) =>
+      loadUsage(token).then(({ data }) => {
+        if (live && data) setLocalOnly({ enabled: data.localOnlyMode, loading: false, saving: false });
+      }),
+    );
+    void import('../ai/backend').then(({ loadLocalServicesStatus }) =>
+      loadLocalServicesStatus(token).then((result) => {
+        if (!live) return;
+        if (result.status === 503 || result.failure) setServices({ status: null, unavailable: true, loading: false });
+        else setServices({ status: result.data, unavailable: false, loading: false });
+      }),
+    );
+    return () => { live = false; };
+  }, [token]);
+
+  const toggleLocalOnly = () => {
+    const next = !localOnly.enabled;
+    setLocalOnly((s) => ({ ...s, saving: true }));
+    void import('../ai/backend').then(({ saveLocalOnlyMode }) =>
+      saveLocalOnlyMode(token, next).then(({ data }) => {
+        setLocalOnly({ enabled: data?.localOnlyMode ?? next, loading: false, saving: false });
+      }),
+    );
+  };
+
+  let autoCount = 0;
+  let localCount = 0;
+  let premiumCount = 0;
+  for (const id of AI_STEP_ORDER) {
+    const step = AI_STEPS[id];
+    if (!stepModels[id]) autoCount += 1;
+    const attivo = modelForStep(id, stepModels[id]);
+    const provider = providerFor(step.capability, attivo);
+    if (provider === 'ollama') localCount += 1; else premiumCount += 1;
+  }
+  const manualCount = AI_STEP_ORDER.length - autoCount;
+
+  const FLOW = [
+    'MESSAGGIO UTENTE',
+    'CONTESTO (deterministico)',
+    'VOCE/RAGIONAMENTO — il modello scelto qui sotto',
+    'CHIAMATA STRUMENTI — locale quando può, cloud quando serve',
+    'RISULTATO STRUMENTI',
+    finalResponseLocalFirst ? 'RISPOSTA FINALE — prova locale, poi il modello scelto' : 'RISPOSTA FINALE — il modello scelto',
+    'ESTRAZIONE MEMORIA (Mem0, sola lettura qui sotto)',
+  ];
+
+  return (
+    <div className="dev__estimate">
+      <p className="t-meta dev__label">AI CONTROL ROOM</p>
       <p className="t-micro dev__note">
-        🟡 Stima, non contatore: i token per chiamata sono numeri ragionevoli, non misurati. Non
-        conta la cache — quindi tende a essere un filo più alta del vero, non più bassa.
+        {autoCount} step in AUTO · {manualCount} scelti a mano · {localCount} risolti in locale (Ollama, $0) · {premiumCount} su API a pagamento.
       </p>
+
+      <label className="dev__check">
+        <input type="checkbox" checked={localOnly.enabled} disabled={localOnly.loading || localOnly.saving} onChange={toggleLocalOnly} />
+        LOCAL ONLY — blocca ogni chiamata cloud (mai un ripiego silenzioso: una richiesta che servirebbe il cloud si rifiuta con un errore chiaro)
+      </label>
+
+      <label className="dev__check">
+        <input
+          type="checkbox"
+          checked={finalResponseLocalFirst}
+          onChange={(e) => setFinalResponseLocalFirst(e.target.checked)}
+        />
+        RISPOSTA FINALE — prova prima il modello locale (Ollama), passa al modello scelto solo se quello non risponde
+      </label>
+
+      <p className="t-meta dev__label">FLUSSO DI UNA RICHIESTA</p>
+      <ol className="dev__flow">
+        {FLOW.map((step) => (
+          <li key={step} className="t-micro dev__note">{step}</li>
+        ))}
+      </ol>
+
+      <p className="t-meta dev__label">SERVIZI LOCALI E MEMORIA</p>
+      {services.loading ? (
+        <p className="t-micro dev__note">Verifica in corso…</p>
+      ) : services.unavailable ? (
+        <p className="t-micro dev__note">Non disponibile da qui: questi stati esistono solo parlando al Local Core Server sul Mac, non sulla versione ospitata.</p>
+      ) : (
+        <>
+          <p className="t-micro dev__note">
+            Local Core: <SystemLabel tone={services.status?.core?.online ? 'character' : 'warning'}>{services.status?.core?.online ? 'ONLINE' : 'OFFLINE'}</SystemLabel>
+            {' · '}Ollama: <SystemLabel tone={services.status?.ollama?.online ? 'character' : 'warning'}>{services.status?.ollama?.online ? `ONLINE (${services.status.ollama.models.join(', ') || 'nessun modello'})` : 'OFFLINE'}</SystemLabel>
+          </p>
+          <p className="t-micro dev__note">
+            Mem0: <SystemLabel tone={services.status?.mem0?.online ? 'character' : 'warning'}>{services.status?.mem0?.online ? 'ONLINE' : 'OFFLINE'}</SystemLabel>
+            {services.status?.mem0?.online && (
+              <> {' — '}LLM estrazione: <strong>{services.status.mem0.llmModel ?? '?'}</strong>, embedder: <strong>{services.status.mem0.embedderModel ?? '?'}</strong> (dipendenze cloud, sola lettura)</>
+            )}
+          </p>
+        </>
+      )}
     </div>
   );
 }

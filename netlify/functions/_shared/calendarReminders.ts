@@ -1,6 +1,7 @@
 import { getStore } from './localStore';
 import type { CalendarEvent } from '../../../src/engine/calendarEvents';
 import { sendPushNotification } from './pushDelivery';
+import { isNotificationEnabled } from './notificationPrefs';
 
 /** Reuses the calendar record and canonical push transport. No AI, no new ledger. */
 export async function processCalendarReminders(now = new Date()): Promise<{ due: number; accepted: number; notSent: number }> {
@@ -29,8 +30,10 @@ export async function processCalendarReminders(now = new Date()): Promise<{ due:
   if (!active.length) return { due: 0, accepted: 0, notSent: 0 };
   let sent = 0;
   try {
-    const result = await sendPushNotification({ title: 'VINZ.MON', body: 'Hai un promemoria da consultare.', url: '/#reminders', tag: 'vinzmon-reminders' });
-    sent = result.sent;
+    if (await isNotificationEnabled('reminder')) {
+      const result = await sendPushNotification({ title: 'VINZ.MON', body: 'Hai un promemoria da consultare.', url: '/#reminders', tag: 'vinzmon-reminders' });
+      sent = result.sent;
+    }
   } catch { /* Due records stay visible in the app even when push is unavailable. */ }
   for (const claim of active) {
     const event: CalendarEvent = { ...claim.event, reminderDelivery: { attemptedAt: now.toISOString(), status: sent > 0 ? 'accepted' : 'not-sent', acceptedSubscriptions: sent } };

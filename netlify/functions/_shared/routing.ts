@@ -118,6 +118,24 @@ export interface Route {
 }
 
 /* ============================================================================
+   IL GIRO ECONOMICO LOCALE — «mettiamolo per i giri intermedi»
+
+   🔷 Il ciclo di strumenti (`replyWithLocalTools`) chiama il modello più
+   volte per turno: uno solo di quei giri produce il testo che l'utente
+   legge, gli altri decidono solo quale strumento chiamare — e quelli non li
+   legge nessuno. Un modello locale gratis (Ollama, `qwen2.5:14b`, scaricato
+   sul Mac) può bastarci, MA non finisce in `VOICE_CHOICES`: quel catalogo è
+   per la voce che l'utente sceglie di sentire, e `voiceChoiceProblems()`
+   esiste apposta per impedire che ci finisca un fornitore incapace di
+   `promptCache`/`thinking` come Ollama. Questo è un percorso diverso, interno
+   — un sentinel fisso che solo il client conosce, mai un nome di modello
+   libero: la stessa protezione del resto di questo file (nessuna scelta
+   arbitraria che scavalchi il tetto di spesa), qui non serve nemmeno perché
+   locale = sempre gratis. */
+export const LOCAL_CHEAP_ROUND_SENTINEL = 'local-cheap-round';
+export const LOCAL_CHEAP_ROUND_MODEL = 'qwen2.5:14b';
+
+/* ============================================================================
    LA TABELLA.
 
    Le scelte, e il perché — che conta più dei nomi:

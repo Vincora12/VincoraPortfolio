@@ -4,6 +4,7 @@ import { generateImage, IMAGE_SIZES, IMAGE_QUALITIES, type ImageSize, type Image
 import { resolveRoute } from './_shared/routing';
 import { checkCap, recordSpend } from './_shared/spend';
 import { sendPushNotification } from './_shared/pushDelivery';
+import { isNotificationEnabled } from './_shared/notificationPrefs';
 
 type AssetItem = {
   type: string;
@@ -94,6 +95,7 @@ async function save(job: Job): Promise<void> {
 
 async function sendReadyPush(candidateName: string): Promise<void> {
   try {
+    if (!(await isNotificationEnabled('evolution'))) return;
     await sendPushNotification({ title: 'VINZ.MON pronto', body: `${candidateName.replace(/\.mon$/i, '')} ha completato la trasformazione.`, tag: 'vinzmon-evolution-ready' });
   } catch (error) {
     console.warn('[evolution] notifica push non inviata:', error);

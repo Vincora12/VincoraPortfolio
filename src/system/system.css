@@ -554,9 +554,15 @@
   justify-content: center;
   gap: 5px;
   height: calc(54px + env(safe-area-inset-bottom));
-  padding: 6px 14px env(safe-area-inset-bottom);
+  padding: 6px 10px env(safe-area-inset-bottom);
   border-top: 0;
   background: #000;
+  /* 🔴 NON `overflow-x: hidden` qui: tagliare un asse solo fa sì che il
+     browser tratti anche l'altro come clip (regola CSS, non un bug del
+     motore) — e il menu della pillola progetto si apre VERSO L'ALTO, fuori
+     dal bordo superiore di questa barra apposta. Un `overflow-x` da solo lo
+     avrebbe tagliato. La larghezza si controlla a monte (pillola compatta,
+     solo icona), non qui. */
 }
 
 .tabbar__item {
@@ -622,6 +628,22 @@
 .proto-frame[data-field='paper'] .tabbar__item[aria-current='page'] {
   border-color: var(--ink);
   background: var(--white);
+  color: var(--char-accent);
+}
+
+/* La pillola progetto (App.tsx → TabBar) è nata scura, tarata sulla CHAT che
+   è sempre nera. Su un campo carta (MON, ME…) restava un cerchio nero in
+   mezzo a bottoni bianchi — la stessa incoerenza che le due regole sopra
+   correggono già per i quattro bottoni veri del tabbar, solo che a questa
+   nessuno l'aveva mai applicata. */
+.proto-frame[data-field='paper'] .vinz-project-pill__trigger--compact {
+  border-color: var(--hairline);
+  background: var(--white);
+  color: var(--ink);
+}
+
+.proto-frame[data-field='paper'] .vinz-project-pill__trigger--compact.vinz-project-pill__trigger--active {
+  border-color: var(--ink);
   color: var(--char-accent);
 }
 

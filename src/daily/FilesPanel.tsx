@@ -1,22 +1,24 @@
 /* ============================================================================
    FILES — il materiale che ho dato a VINZ
 
-   🔒 NESSUNA INFRASTRUTTURA NUOVA. I file stanno dove VINZ.MON già li mette: i
-   `ProjectFile` dello spazio GLOBAL, con le stesse mutazioni `upload-files` e
-   `remove-files` e gli stessi limiti del backend (5 MB per file, 40 file,
-   20 MB in tutto). Niente cartelle, niente Drive: una lista.
+   🔷 «Aggiungi file è già dentro questa cartella, no?» Sì — prima erano due
+   sistemi scollegati: un upload che finiva in un blob nel database (ovunque
+   raggiungibile ma con un tetto piccolo) e una cartella vera sul Mac che
+   VINZ organizzava da solo. Ora sono la stessa cosa: quello che carichi qui
+   e quello che VINZ crea vivono nella STESSA cartella reale
+   (`~/VinzMon/<progetto>/`, anche per Generale) — vedi
+   `netlify/functions/_shared/vinzWorkspace.ts` per la logica vera sul Mac.
    ========================================================================= */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { GLOBAL_PROJECT_ID, type Project, type ProjectFile } from '@/engine/projects';
-import { loadProject, mutateProject } from '@/projects/client';
+import { GLOBAL_PROJECT_ID } from '@/engine/projects';
 import { ProjectPill, type ProjectRef } from '@/assistant-original/ProjectPill';
+import { getCurrentProjectScope, subscribeProjectScope } from '@/state/currentProject';
+import { loadWorkspace, uploadWorkspaceFile, deleteWorkspaceEntry, type WorkspaceEntry } from '@/connectors/vinzWorkspace';
 import { ConnectorsScope } from './ConnectorsScope';
 
 import './daily.css';
-
-const MAX_FILE_BYTES = 5 * 1024 * 1024;
 
 function sizeLabel(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -31,32 +33,36 @@ function kindLabel(name: string): string {
   return extension;
 }
 
-/* ⚠️ «Archivio progetti» non deve affiorare qui. Sotto FILES c'è ancora lo
-   spazio GLOBAL — è impianto, e va bene — ma il messaggio d'errore arriva da
-   `projects/client.ts`, che quella parola la usa giustamente nel LAB. Qui la
-   sostituiamo con quella della sezione in cui l'utente si trova davvero;
-   tutto il resto del messaggio (token mancante, 401) passa intatto, perché
-   quelli dicono cosa fare. */
-function inFilesWords(message: string): string {
-  return message.replace(/Archivio progetti non raggiungibile\./i, 'File non raggiungibili.');
-}
-
-async function encode(file: File): Promise<ProjectFile> {
+async function encodeBase64(file: File): Promise<string> {
   const buffer = new Uint8Array(await file.arrayBuffer());
   let binary = '';
   /* A blocchi: `String.fromCharCode(...tutto)` sfonda lo stack sui file grandi. */
   for (let index = 0; index < buffer.length; index += 8192) {
     binary += String.fromCharCode(...buffer.subarray(index, index + 8192));
   }
-  return { id: crypto.randomUUID(), name: file.name, size: buffer.length, data: btoa(binary) };
+  return btoa(binary);
 }
 
 export function FilesPanel({ token }: { token: string | null }) {
-  const [scope, setScope] = useState<{ projectId: string | null; projectTitle: string }>({ projectId: null, projectTitle: 'Generale' });
-  const [project, setProject] = useState<Project | null>(null);
+  /* 🔷 «In FILES ci sono ancora i progetti sopra, sarà questo?» Sì: questo
+     pannello aveva un proprio selettore di progetto, scollegato da quello
+     che chat/ME/nav condividono da quando esiste `state/currentProject.ts`
+     — potevi collegare un connettore a "Generale" qui dentro mentre stavi
+     parlando con VINZ dentro un altro progetto, e lui non lo vedeva mai.
+     Stesso stato di tutta l'app, non un terzo pezzo separato. */
+  const [scope, setScope] = useState(getCurrentProjectScope);
+  useEffect(() => subscribeProjectScope(setScope), []);
+  const [root, setRoot] = useState('');
+  const [tree, setTree] = useState<WorkspaceEntry[] | null>(null);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState('');
   const input = useRef<HTMLInputElement>(null);
+
+  /* Generale non ha un progetto vero, ma ha comunque la sua cartella —
+     stessa chiave stabile (`GLOBAL_PROJECT_ID`) già usata altrove per
+     "il progetto quando non ce n'è uno selezionato". */
+  const workspaceId = scope.projectId ?? GLOBAL_PROJECT_ID;
+  const workspaceTitle = scope.projectId ? scope.projectTitle : 'Generale';
 
   const load = useCallback(async () => {
     if (!token) {
@@ -67,69 +73,64 @@ export function FilesPanel({ token }: { token: string | null }) {
     setBusy(true);
     setError('');
     try {
-      setProject(await loadProject(token, scope.projectId ?? GLOBAL_PROJECT_ID));
+      const result = await loadWorkspace(token, workspaceId, workspaceTitle);
+      setRoot(result.root);
+      setTree(result.tree);
     } catch (cause) {
-      setError(cause instanceof Error ? inFilesWords(cause.message) : 'File non disponibili.');
+      setError(cause instanceof Error ? cause.message : 'File non disponibili.');
     } finally {
       setBusy(false);
     }
-  }, [token, scope.projectId]);
+  }, [token, workspaceId, workspaceTitle]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
+  /* 🔷 Stesso evento di `TabBar` (App.tsx): cambiare progetto qui aggiorna
+     anche il thread della chat, non solo questo pannello — un solo stato,
+     letto da tre posti. A differenza del nav, qui NON si salta su CHAT: sei
+     già dove volevi essere. */
   function onProjectChange(next: ProjectRef | null) {
-    setScope({ projectId: next?.id ?? null, projectTitle: next?.title ?? 'Generale' });
+    window.dispatchEvent(new CustomEvent('vinz-select-project', { detail: next }));
   }
 
   async function add(list: FileList | null) {
-    if (!list?.length || !project || !token) return;
+    if (!list?.length || !token) return;
     setBusy(true);
     setError('');
     try {
-      const chosen = Array.from(list);
-      const tooBig = chosen.find((file) => file.size > MAX_FILE_BYTES);
-      if (tooBig) throw new Error(`«${tooBig.name}» supera 5 MB.`);
-      const files = await Promise.all(chosen.map(encode));
-      setProject(
-        await mutateProject(token, {
-          action: 'upload-files',
-          projectId: project.id,
-          revision: project.revision,
-          files,
-        }),
-      );
+      for (const file of Array.from(list)) {
+        const base64 = await encodeBase64(file);
+        const result = await uploadWorkspaceFile(token, workspaceId, workspaceTitle, file.name, base64);
+        if (!result.ok) throw new Error(result.error);
+      }
+      await load();
     } catch (cause) {
-      setError(cause instanceof Error ? inFilesWords(cause.message) : 'Caricamento non riuscito.');
+      setError(cause instanceof Error ? cause.message : 'Caricamento non riuscito.');
     } finally {
       setBusy(false);
       if (input.current) input.current.value = '';
     }
   }
 
-  async function remove(file: ProjectFile) {
-    if (!project || !token) return;
-    if (!window.confirm(`Eliminare «${file.name}»?`)) return;
+  async function remove(entry: WorkspaceEntry) {
+    if (!token) return;
+    if (!window.confirm(`Eliminare «${entry.path}»?`)) return;
     setBusy(true);
     setError('');
     try {
-      setProject(
-        await mutateProject(token, {
-          action: 'remove-files',
-          projectId: project.id,
-          revision: project.revision,
-          ids: [file.id],
-        }),
-      );
+      const result = await deleteWorkspaceEntry(token, workspaceId, workspaceTitle, entry.path);
+      if (!result.ok) throw new Error(result.error);
+      await load();
     } catch (cause) {
-      setError(cause instanceof Error ? inFilesWords(cause.message) : 'Eliminazione non riuscita.');
+      setError(cause instanceof Error ? cause.message : 'Eliminazione non riuscita.');
     } finally {
       setBusy(false);
     }
   }
 
-  const files = project?.files ?? [];
+  const files = (tree ?? []).filter((entry) => entry.type === 'file');
 
   return (
     <section className="daily-panel" aria-label="FILES">
@@ -145,11 +146,12 @@ export function FilesPanel({ token }: { token: string | null }) {
       <button
         type="button"
         className="daily-panel__ghost"
-        disabled={busy || !project}
+        disabled={busy || !token}
         onClick={() => input.current?.click()}
       >
         + Aggiungi file
       </button>
+      {root && <p className="daily-row__meta">{root}</p>}
 
       {error && (
         <p className="daily-panel__error" role="alert">
@@ -158,16 +160,16 @@ export function FilesPanel({ token }: { token: string | null }) {
       )}
 
       {!error && !busy && files.length === 0 && (
-        <p className="daily-panel__empty">Nessun file. Quello che carichi qui resta a disposizione di VINZ.</p>
+        <p className="daily-panel__empty">Nessun file. Quello che carichi qui — e quello che VINZ ci organizza da solo — resta lì.</p>
       )}
 
       <ul className="daily-list">
         {files.map((file) => (
-          <li key={file.id} className="daily-row">
+          <li key={file.path} className="daily-row">
             <div className="daily-row__main">
-              <p className="daily-row__title">{file.name}</p>
+              <p className="daily-row__title">{file.path}</p>
               <p className="daily-row__meta">
-                {kindLabel(file.name)} · {sizeLabel(file.size)}
+                {kindLabel(file.path)} · {sizeLabel(file.size ?? 0)}
               </p>
             </div>
             <button type="button" className="daily-row__action" disabled={busy} onClick={() => void remove(file)}>

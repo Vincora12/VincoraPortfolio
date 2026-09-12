@@ -76,6 +76,117 @@ export const CODE_TOOL_DEFS: ToolDef[] = [
 
 export const CODE_TOOL_NAMES = new Set(CODE_TOOL_DEFS.map((t) => t.name));
 
+/* ============================================================================
+   REPO OPS — mani in più sul Mac dove gira VINZ.MON, STESSO loop di sempre
+
+   🔒 STESSO CONFINE DI SOPRA: qui c'è solo nome/descrizione/schema (quello
+   che il modello vede) e una chiamata di rete a `/api/repo-ops` (git/npm/log/
+   servizi) o `/api/code-tools` (repo_list, che riusa `agentLabFiles.ts`).
+   L'esecuzione vera — validazione percorsi, argv mai una stringa di shell,
+   allowlist degli script npm — vive server-side in
+   `netlify/functions/_shared/repoOps.ts`, dietro `netlify/functions/repo-ops.ts`.
+
+   🔷 SOLO SUL LOCAL CORE. Ogni azione di questa sezione (tranne repo_list,
+   che legge la stessa istantanea di code_search/code_read) risponde onestamente
+   "non disponibile" quando il backend non è il Mac dove gira il vero
+   repository — mai una simulazione, mai un errore generico non spiegato.
+
+   🔒 RIAVVIO A PARTE. `riavvia_servizio_vinzmon` non è nell'elenco eseguibile
+   subito: passa dalla STESSA conferma di `registra_peso`/`programma_promemoria`
+   (`CONFIRMABLE_ACTIONS` in `brain/stream.ts`) — nome esportato qui perché
+   quel registro lo referenzia per nome, non lo duplica. */
+
+export const RESTART_SERVICE_TOOL_NAME = 'riavvia_servizio_vinzmon';
+
+const NPM_SCRIPT_TOOLS: { name: string; script: string; label: string }[] = [
+  { name: 'esegui_test', script: 'test', label: 'la suite di test' },
+  { name: 'esegui_build', script: 'build', label: 'la build completa (include il typecheck)' },
+  { name: 'esegui_typecheck', script: 'typecheck', label: 'il typecheck del frontend' },
+  { name: 'esegui_typecheck_funzioni', script: 'typecheck:functions', label: 'il typecheck delle funzioni Netlify' },
+];
+
+export const REPO_OPS_TOOL_DEFS: ToolDef[] = [
+  {
+    name: 'git_status',
+    description: 'Mostra lo stato reale del repository (branch corrente, file modificati/non tracciati) — solo quando parli col server sul Mac, mai sulla versione ospitata. Sola lettura.',
+    schema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'git_diff',
+    description: 'Mostra le modifiche non ancora committate. Senza percorso, un riepilogo di tutti i file cambiati; con percorso, il diff vero di quel file solo. Sola lettura, solo sul Mac.',
+    schema: { type: 'object', properties: {
+      percorso: { type: 'string', description: 'Percorso relativo al repository di un file, es. "src/brain/stream.ts". Opzionale.' },
+    } },
+  },
+  {
+    name: 'git_log',
+    description: 'Mostra gli ultimi commit reali (hash breve e oggetto), dal più recente. Sola lettura, solo sul Mac.',
+    schema: { type: 'object', properties: {
+      limite: { type: 'integer', minimum: 1, maximum: 50, description: 'Quanti commit mostrare. Default 10.' },
+    } },
+  },
+  {
+    name: 'git_branch',
+    description: 'Dice su quale branch git si trova adesso il repository. Sola lettura, solo sul Mac.',
+    schema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'git_show',
+    description: 'Mostra il riepilogo (file toccati) di un commit reale dato il suo riferimento (hash, HEAD, HEAD~1...). Sola lettura, solo sul Mac.',
+    schema: { type: 'object', properties: {
+      riferimento: { type: 'string', description: 'Un riferimento git valido, es. "HEAD", "HEAD~2", o un hash.' },
+    }, required: ['riferimento'] },
+  },
+  {
+    name: 'repo_list',
+    description: 'Elenca file e cartelle dentro una cartella consentita del repository (src/netlify/docs). Usalo prima di repo_write/repo_edit se non conosci già il percorso esatto. Funziona anche sulla versione ospitata (stessa istantanea di sola lettura di code_search/code_read).',
+    schema: { type: 'object', properties: {
+      percorso: { type: 'string', description: 'Cartella da elencare, es. "src/brain". Omesso = radici consentite.' },
+    } },
+  },
+  {
+    name: 'repo_write',
+    description: 'Crea o sovrascrive per intero un file di testo dentro le cartelle consentite del repository (src/netlify/docs) — solo sul Mac, mai sulla versione ospitata. Per una modifica mirata a un file che esiste già preferisci repo_edit: qui il contenuto precedente va perso.',
+    schema: { type: 'object', properties: {
+      percorso: { type: 'string', description: 'Percorso relativo al repository, es. "docs/note.md".' },
+      contenuto: { type: 'string', description: 'Contenuto completo del file.' },
+    }, required: ['percorso', 'contenuto'] },
+  },
+  {
+    name: 'repo_edit',
+    description: 'Sostituisce UNA porzione esatta e univoca di un file già esistente (come una vera modifica mirata, non una riscrittura). Leggi il file con code_read prima, per copiare il testo esatto da sostituire. Fallisce onestamente se il testo non è univoco. Solo sul Mac.',
+    schema: { type: 'object', properties: {
+      percorso: { type: 'string', description: 'Percorso relativo al repository del file da modificare.' },
+      testo_precedente: { type: 'string', description: 'Il testo esatto, copiato dal file vero, da sostituire — deve comparire una sola volta.' },
+      testo_nuovo: { type: 'string', description: 'Il testo che lo sostituisce.' },
+    }, required: ['percorso', 'testo_precedente', 'testo_nuovo'] },
+  },
+  ...NPM_SCRIPT_TOOLS.map((t): ToolDef => ({
+    name: t.name,
+    description: `Esegue davvero ${t.label} del progetto (npm run ${t.script}) e torna l'esito reale — uscito con successo o con errore, output incluso (troncato se lungo). Solo sul Mac: può richiedere fino a qualche minuto.`,
+    schema: { type: 'object', properties: {} },
+  })),
+  {
+    name: 'leggi_log_vinzmon',
+    description: 'Legge le ultime righe reali del log del Local Core Server (quello che gira sul Mac) — utile per capire perché qualcosa si è comportato in modo strano lato server. Solo i due log che il servizio scrive davvero, mai un file a scelta. Solo sul Mac.',
+    schema: { type: 'object', properties: {
+      quale: { type: 'string', enum: ['servizio', 'servizio-errori'], description: 'servizio = log normale; servizio-errori = solo gli errori.' },
+    }, required: ['quale'] },
+  },
+  {
+    name: 'stato_servizi_locali',
+    description: 'Controlla davvero se Local Core, Mem0 (memoria) e Ollama (modello locale) sono online sul Mac, ed elenca i modelli Ollama scaricati. Sola lettura, solo sul Mac.',
+    schema: { type: 'object', properties: {} },
+  },
+  {
+    name: RESTART_SERVICE_TOOL_NAME,
+    description: 'Riavvia il servizio Local Core sul Mac (mon.vinz.core). Richiede conferma esplicita dell\'utente prima di essere eseguibile — non chiamarlo finché l\'app non te lo permette. Dopo il riavvio, ricontrolla con stato_servizi_locali: la conferma "è di nuovo online" non è mai immediata.',
+    schema: { type: 'object', properties: {} },
+  },
+];
+
+export const REPO_OPS_TOOL_NAMES = new Set(REPO_OPS_TOOL_DEFS.map((t) => t.name));
+
 /* AUDIT & UNIFICATION — l'ultima capacità mancante che il TEST C richiede:
    "fammi un TXT da passare ad Astra" deve produrre un file VERO, scaricabile,
    non un riassunto in chat. Sta qui (non in `ai/tools.ts`) per lo stesso
@@ -97,7 +208,7 @@ export const EXPORT_REPORT_TOOL_DEF: ToolDef = {
   },
 };
 
-const ALL_TOOL_LAYER_NAMES = new Set<string>([...CODE_TOOL_NAMES, EXPORT_REPORT_TOOL_NAME]);
+const ALL_TOOL_LAYER_NAMES = new Set<string>([...CODE_TOOL_NAMES, EXPORT_REPORT_TOOL_NAME, ...REPO_OPS_TOOL_NAMES]);
 
 /** Nome file sicuro: niente separatori di percorso, niente caratteri che i
     filesystem/browser rifiutano — mai un titolo libero usato alla lettera. */
@@ -179,6 +290,41 @@ async function postCodeTool(body: Record<string, unknown>): Promise<Response> {
   });
 }
 
+async function postRepoOps(body: Record<string, unknown>): Promise<Response> {
+  const token = toolLayerToken();
+  if (!token) throw new Error('nessun token');
+  return fetch('/api/repo-ops', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+    body: JSON.stringify(body),
+  });
+}
+
+interface CommandResponse { ok: boolean; stdout: string; truncated: boolean; error?: string }
+interface WriteResponse { ok: boolean; error?: string }
+interface LogResponse { ok: boolean; text?: string; truncated?: boolean; error?: string }
+interface ServicesResponse { ok: boolean; core?: { online: boolean }; mem0?: { online: boolean; llmModel?: string; embedderModel?: string }; ollama?: { online: boolean; models: string[] } }
+interface ListResponse { ok: boolean; path?: string; entries?: { name: string; kind: 'file' | 'dir' }[]; error?: string }
+
+/** Il messaggio onesto quando il backend non è il Local Core — la STESSA
+    frase che `repo-ops.ts` torna già (503), qui solo per il caso in cui la
+    fetch stessa fallisca prima di leggere quel corpo. */
+const NOT_LOCAL_CORE = 'ISPEZIONE FALLITA — questi strumenti funzionano solo parlando al server locale sul tuo Mac, non sulla versione ospitata.';
+
+function formatCommandResult(res: CommandResponse, successLabel: string): string {
+  const note = res.truncated ? '\n\n[output troncato — più lungo del tetto]' : '';
+  if (res.ok) return `${successLabel}\n\n${res.stdout || '(nessun output)'}${note}`;
+  return `FALLITO — ${res.error ?? 'errore sconosciuto'}${res.stdout ? `\n\n${res.stdout}${note}` : ''}`;
+}
+
+async function callCommandTool(use: ToolUse, body: Record<string, unknown>, successLabel: string): Promise<ToolResult> {
+  const response = await postRepoOps(body);
+  if (response.status === 503) return { id: use.id, content: NOT_LOCAL_CORE, isError: true };
+  if (!response.ok) return { id: use.id, content: `ISPEZIONE FALLITA — il servizio non ha risposto (${response.status}).`, isError: true };
+  const res = (await response.json()) as CommandResponse;
+  return { id: use.id, content: formatCommandResult(res, successLabel), ...(res.ok ? {} : { isError: true }) };
+}
+
 /**
  * Esegue uno strumento del Tool Layer, se `use.name` gli appartiene.
  * Torna `undefined` per qualunque altro strumento — così chi chiama può
@@ -215,6 +361,93 @@ export async function runToolLayerTool(use: ToolUse): Promise<ToolResult | undef
       if (!response.ok) return { id: use.id, content: `ISPEZIONE FALLITA — il servizio di lettura non ha risposto (${response.status}).`, isError: true };
       const body = await response.json() as ReadResponse;
       return { id: use.id, content: formatReadResult(body), ...(body.ok ? {} : { isError: true }) };
+    }
+
+    if (use.name === 'git_status') return await callCommandTool(use, { action: 'git-status' }, 'STATO REPOSITORY');
+    if (use.name === 'git_diff') {
+      const percorso = typeof args.percorso === 'string' && args.percorso.trim() ? args.percorso.trim() : undefined;
+      return await callCommandTool(use, { action: 'git-diff', path: percorso }, percorso ? `DIFF — ${percorso}` : 'RIEPILOGO MODIFICHE');
+    }
+    if (use.name === 'git_log') {
+      const limite = typeof args.limite === 'number' ? args.limite : undefined;
+      return await callCommandTool(use, { action: 'git-log', limit: limite }, 'ULTIMI COMMIT');
+    }
+    if (use.name === 'git_branch') return await callCommandTool(use, { action: 'git-branch' }, 'BRANCH CORRENTE');
+    if (use.name === 'git_show') {
+      const riferimento = typeof args.riferimento === 'string' ? args.riferimento.trim() : '';
+      if (!riferimento) return { id: use.id, content: 'ISPEZIONE FALLITA — manca il riferimento git.', isError: true };
+      return await callCommandTool(use, { action: 'git-show', ref: riferimento }, `COMMIT ${riferimento}`);
+    }
+
+    if (use.name === 'repo_list') {
+      const percorso = typeof args.percorso === 'string' && args.percorso.trim() ? args.percorso.trim() : undefined;
+      const response = await postCodeTool({ op: 'list', path: percorso });
+      if (!response.ok) return { id: use.id, content: `ISPEZIONE FALLITA — il servizio non ha risposto (${response.status}).`, isError: true };
+      const body = (await response.json()) as ListResponse;
+      if (!body.ok) return { id: use.id, content: `ISPEZIONE FALLITA — ${body.error ?? 'errore sconosciuto'}`, isError: true };
+      const lines = (body.entries ?? []).map((e) => `${e.kind === 'dir' ? '📁' : '📄'} ${e.name}`);
+      return { id: use.id, content: `CARTELLA: ${body.path}\n\n${lines.length ? lines.join('\n') : '(vuota)'}` };
+    }
+
+    if (use.name === 'repo_write') {
+      const percorso = typeof args.percorso === 'string' ? args.percorso.trim() : '';
+      const contenuto = typeof args.contenuto === 'string' ? args.contenuto : '';
+      if (!percorso) return { id: use.id, content: 'ISPEZIONE FALLITA — manca il percorso del file.', isError: true };
+      const response = await postRepoOps({ action: 'repo-write', path: percorso, content: contenuto });
+      if (response.status === 503) return { id: use.id, content: NOT_LOCAL_CORE, isError: true };
+      if (!response.ok) return { id: use.id, content: `ISPEZIONE FALLITA — il servizio non ha risposto (${response.status}).`, isError: true };
+      const res = (await response.json()) as WriteResponse;
+      return res.ok
+        ? { id: use.id, content: `SCRITTO — ${percorso} (${contenuto.length} caratteri).` }
+        : { id: use.id, content: `FALLITO — ${res.error ?? 'errore sconosciuto'}`, isError: true };
+    }
+
+    if (use.name === 'repo_edit') {
+      const percorso = typeof args.percorso === 'string' ? args.percorso.trim() : '';
+      const oldStr = typeof args.testo_precedente === 'string' ? args.testo_precedente : '';
+      const newStr = typeof args.testo_nuovo === 'string' ? args.testo_nuovo : '';
+      if (!percorso || !oldStr) return { id: use.id, content: 'ISPEZIONE FALLITA — manca il percorso o il testo da sostituire.', isError: true };
+      const response = await postRepoOps({ action: 'repo-edit', path: percorso, oldStr, newStr });
+      if (response.status === 503) return { id: use.id, content: NOT_LOCAL_CORE, isError: true };
+      if (!response.ok) return { id: use.id, content: `ISPEZIONE FALLITA — il servizio non ha risposto (${response.status}).`, isError: true };
+      const res = (await response.json()) as WriteResponse;
+      return res.ok
+        ? { id: use.id, content: `MODIFICATO — ${percorso}.` }
+        : { id: use.id, content: `FALLITO — ${res.error ?? 'errore sconosciuto'}`, isError: true };
+    }
+
+    const npmTool = NPM_SCRIPT_TOOLS.find((t) => t.name === use.name);
+    if (npmTool) return await callCommandTool(use, { action: 'run-npm-script', name: npmTool.script }, `ESEGUITO — ${npmTool.label}`);
+
+    if (use.name === 'leggi_log_vinzmon') {
+      const quale = args.quale === 'servizio-errori' ? 'service-error' : 'service';
+      const response = await postRepoOps({ action: 'read-logs', which: quale });
+      if (response.status === 503) return { id: use.id, content: NOT_LOCAL_CORE, isError: true };
+      if (!response.ok) return { id: use.id, content: `ISPEZIONE FALLITA — il servizio non ha risposto (${response.status}).`, isError: true };
+      const res = (await response.json()) as LogResponse;
+      if (!res.ok) return { id: use.id, content: `ISPEZIONE FALLITA — ${res.error ?? 'errore sconosciuto'}`, isError: true };
+      return { id: use.id, content: `LOG (${quale === 'service' ? 'servizio' : 'solo errori'}):\n\n${res.text || '(vuoto)'}${res.truncated ? '\n\n[troncato — solo le ultime righe]' : ''}` };
+    }
+
+    if (use.name === 'stato_servizi_locali') {
+      const response = await postRepoOps({ action: 'inspect-services' });
+      if (response.status === 503) return { id: use.id, content: NOT_LOCAL_CORE, isError: true };
+      if (!response.ok) return { id: use.id, content: `ISPEZIONE FALLITA — il servizio non ha risposto (${response.status}).`, isError: true };
+      const res = (await response.json()) as ServicesResponse;
+      const lines = [
+        `Local Core: ${res.core?.online ? 'ONLINE' : 'OFFLINE'}`,
+        `Mem0 (memoria): ${res.mem0?.online ? `ONLINE — LLM: ${res.mem0.llmModel ?? '?'}, embedder: ${res.mem0.embedderModel ?? '?'}` : 'OFFLINE'}`,
+        `Ollama: ${res.ollama?.online ? `ONLINE — modelli: ${res.ollama.models.join(', ') || '(nessuno)'}` : 'OFFLINE'}`,
+      ];
+      return { id: use.id, content: lines.join('\n') };
+    }
+
+    if (use.name === RESTART_SERVICE_TOOL_NAME) {
+      const response = await postRepoOps({ action: 'restart-service' });
+      if (response.status === 503) return { id: use.id, content: NOT_LOCAL_CORE, isError: true };
+      if (!response.ok) return { id: use.id, content: `ISPEZIONE FALLITA — il servizio non ha risposto (${response.status}).`, isError: true };
+      const res = (await response.json()) as { ok: boolean; note?: string };
+      return { id: use.id, content: res.ok ? `RIAVVIO AVVIATO — ${res.note ?? 'ricontrolla fra qualche secondo con stato_servizi_locali.'}` : 'FALLITO — riavvio non avviato.', ...(res.ok ? {} : { isError: true }) };
     }
 
     return undefined;
@@ -286,6 +519,9 @@ export function buildCapabilitySummary(webSearchAvailable: boolean): string {
   }
   if (hasAllToolNames([EXPORT_REPORT_TOOL_NAME], registry)) {
     lines.push('Posso crearti un vero file .txt scaricabile con un testo, una risposta o un report che mi chiedi.');
+  }
+  if (hasAllToolNames([...REPO_OPS_TOOL_NAMES], registry)) {
+    lines.push('Quando sto girando sul tuo Mac (Local Core) posso anche controllare git, leggere/scrivere file del repository, eseguire test/build/typecheck, leggere i miei log di servizio, controllare se Local Core/Mem0/Ollama sono online, e riavviare il servizio Local Core (solo con la tua conferma esplicita) — sulla versione ospitata queste azioni non sono disponibili, e lo dico invece di far finta.');
   }
   if (webSearchAvailable) {
     lines.push('Posso cercare informazioni sul web quando serve.');

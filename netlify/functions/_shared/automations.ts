@@ -24,6 +24,7 @@ import { callProvider } from './providers';
 import { resolveRoute } from './routing';
 import { checkCap, recordSpend } from './spend';
 import { loadCoreContext } from './coreContext';
+import { isNotificationEnabled } from './notificationPrefs';
 
 /* ============================================================================
    LA CADENZA
@@ -319,12 +320,14 @@ export async function processAutomations(now = new Date()): Promise<{ due: numbe
       await saveAutomation({ ...rescheduled, lastRunAt: now.toISOString(), lastStatus: 'ok', lastError: null });
       ok += 1;
       try {
-        await sendPushNotification({
-          title: automation.title,
-          body: produced.lead.slice(0, 140),
-          url: '/#/current',
-          tag: `vinzmon-automation-${automation.id}`,
-        });
+        if (await isNotificationEnabled('automation')) {
+          await sendPushNotification({
+            title: automation.title,
+            body: produced.lead.slice(0, 140),
+            url: '/#/current',
+            tag: `vinzmon-automation-${automation.id}`,
+          });
+        }
       } catch {
         /* Il risultato resta in casella e arriva in chat lo stesso. */
       }

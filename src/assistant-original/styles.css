@@ -239,6 +239,34 @@ body[data-scroll-locked] {
   top: calc(env(safe-area-inset-top, 0px) + 0.5rem);
 }
 
+/* Trascinare un file da desktop sull'intera area di chat, non solo sul
+   bottoncino "+". Overlay semitrasparente sopra tutto (messaggi, composer)
+   così è chiaro dove il file sta per finire, senza spostare niente sotto. */
+.vinz-file-drop-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  background: rgba(255, 255, 255, 0.85);
+  border: 2px dashed #0d0d0d;
+  border-radius: 12px;
+  margin: 0.5rem;
+}
+
+.dark .vinz-file-drop-overlay {
+  background: rgba(0, 0, 0, 0.85);
+  border-color: #ececec;
+}
+
+.vinz-file-drop-overlay p {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: inherit;
+}
+
 .vinz-thread-drawer > [data-slot="sheet-close"] {
   border: 0 !important;
   background: transparent !important;
@@ -308,7 +336,7 @@ body[data-scroll-locked] {
    ========================================================================= */
 
 .aui-md {
-  font-size: 16px;
+  font-size: 14px;
   line-height: 1.6;
 }
 
@@ -431,8 +459,14 @@ body[data-scroll-locked] {
   border-top-color: rgba(255, 255, 255, 0.14);
 }
 
-.aui-md table {
+.aui-md-table-scroll {
+  overflow-x: auto;
   margin-block: 0 0.9em;
+  max-width: 100%;
+}
+
+.aui-md table {
+  margin-block: 0;
   border-collapse: collapse;
   font-size: 0.9375em;
 }
@@ -493,6 +527,31 @@ body[data-scroll-locked] {
   font-size: 0.6875rem;
   font-weight: 400;
   line-height: 1rem;
+}
+
+/* 🔒 Dimensione FISSA, non derivata dal contenuto: «non devo scrollare per
+   vederlo tutto» richiede che il riquadro sia già quello che sarà prima
+   ancora che l'iframe carichi — è il contenuto (guidato dalla descrizione
+   del tool) a doversi adattare a questo spazio, mai il contrario. */
+.vinz-html-surface {
+  margin-top: 10px;
+  width: 100%;
+  height: clamp(240px, 56dvh, 480px);
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: #050505;
+}
+
+.dark .vinz-html-surface {
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.vinz-html-surface__frame {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
 }
 
 .vinz-record__cancel,
@@ -1114,33 +1173,21 @@ body[data-scroll-locked] {
   }
 }
 
-/* --- I pulsantini dei topic, sopra la barra di scrittura -----------------
-   🔷 «Devono essere sopra la barra in cui scrivo.» Stavano in cima, lontani dal
-   pollice e in mezzo alla conversazione; qui sono dove la mano è già, e
-   scorrono via con il piede della chat invece di rubare spazio al filo.
-
-   Piccoli per scelta: sono un indice, non una navigazione. Una riga sola che
-   scorre di lato, senza barra di scorrimento visibile e senza sfondi pieni. */
-.vinz-topic-chips {
+/* --- La pillola modello + impegno, sopra la barra di scrittura -----------
+   🔷 «Togli i topic in alto, metti la possibilità con la stessa grandezza di
+   scegliere l'intelligenza artificiale e il tipo di impegno.» Stessa
+   posizione e stessa "grandezza" (26px, 11px, bordo sottile) di quella che
+   c'era prima — solo un indice minuscolo, non un cockpit — ma un solo
+   bottone che apre un menu invece di una riga che scorre. */
+.vinz-model-pill {
+  position: relative;
   flex: 0 0 auto;
-  display: flex;
-  gap: 6px;
-  padding: 0 4px 6px;
-  overflow-x: auto;
-  scrollbar-width: none;
-  -webkit-overflow-scrolling: touch;
 }
 
-.vinz-topic-chips::-webkit-scrollbar {
-  display: none;
-}
-
-.vinz-topic-chips > button {
+.vinz-model-pill > button {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  flex: 0 0 auto;
-  max-width: 46vw;
   min-height: 26px;
   padding: 0 9px;
   border: 1px solid rgb(255 255 255 / 14%);
@@ -1150,26 +1197,63 @@ body[data-scroll-locked] {
   font-size: 11px;
   line-height: 1.2;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
   cursor: pointer;
 }
 
-.vinz-topic-chips > button svg {
-  width: 13px;
-  height: 13px;
-  flex: 0 0 auto;
-  opacity: 0.8;
-}
-
-.vinz-topic-chips > button span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.vinz-topic-chips > button:active {
+.vinz-model-pill > button:active,
+.vinz-model-pill > button[aria-expanded="true"] {
   color: #ececec;
   border-color: rgb(255 255 255 / 32%);
+}
+
+.vinz-model-pill__menu {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  z-index: 20;
+  margin-bottom: 6px;
+  min-width: 168px;
+  padding: 8px;
+  border: 1px solid rgb(255 255 255 / 14%);
+  border-radius: 12px;
+  background: #161616;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 40%);
+}
+
+.vinz-model-pill__heading {
+  margin: 6px 4px 4px;
+  color: #6b6b6b;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+}
+
+.vinz-model-pill__heading:first-child {
+  margin-top: 2px;
+}
+
+.vinz-model-pill__options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.vinz-model-pill__options > button {
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: rgb(255 255 255 / 6%);
+  color: #d4d4d4;
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.vinz-model-pill__options > button[aria-current] {
+  border-color: rgb(255 255 255 / 32%);
+  background: rgb(255 255 255 / 12%);
+  color: #ececec;
+  font-weight: 600;
 }
 
 /* ============================================================================
@@ -1211,9 +1295,45 @@ body[data-scroll-locked] {
   opacity: 0.8;
 }
 
+.vinz-project-pill__emoji {
+  flex: 0 0 auto;
+  font-size: 13px;
+  line-height: 1;
+  font-style: normal;
+}
+
 .vinz-project-pill__trigger--active {
   border-color: color-mix(in srgb, var(--char-accent-on-dark, #ececec) 45%, transparent);
   color: var(--char-accent-on-dark, #ececec);
+}
+
+/* Nel nav (TabBar, App.tsx) accanto a CHAT · VINZ.MON · ME · SYNC: stessa
+   forma e stessa dimensione dei quattro bottoni del tabbar, solo icona —
+   niente testo che allarghi una barra già al limite dello schermo. */
+.vinz-project-pill__trigger--compact {
+  flex: 0 0 42px;
+  min-width: 42px;
+  max-width: 42px;
+  height: 42px;
+  min-height: 42px;
+  padding: 0;
+  justify-content: center;
+  border-radius: 21px;
+  border-color: #29292e;
+  background: #0b0b0c;
+}
+
+.vinz-project-pill__trigger--compact.vinz-project-pill__trigger--active {
+  border-color: var(--char-accent, color-mix(in srgb, var(--char-accent-on-dark, #ececec) 45%, transparent));
+}
+
+.vinz-project-pill__trigger--compact svg {
+  width: 16px;
+  height: 16px;
+}
+
+.vinz-project-pill__trigger--compact .vinz-project-pill__emoji {
+  font-size: 16px;
 }
 
 .vinz-project-pill__menu {
@@ -1234,6 +1354,9 @@ body[data-scroll-locked] {
 }
 
 .vinz-project-pill__menu button[role='menuitem'] {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   min-height: 34px;
   padding: 0 10px;
   border: 0;
@@ -1243,6 +1366,13 @@ body[data-scroll-locked] {
   font-size: 13px;
   text-align: left;
   cursor: pointer;
+}
+
+.vinz-project-pill__menu button[role='menuitem'] svg {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  opacity: 0.75;
 }
 
 .vinz-project-pill__menu button[role='menuitem']:hover {

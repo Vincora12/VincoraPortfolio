@@ -26,6 +26,7 @@ import {
   loadVaultProjectId,
   pickVault,
   setVaultProject,
+  uploadVaultFiles,
 } from '../connectors/obsidian';
 import {
   forgetICloudFolder,
@@ -34,6 +35,7 @@ import {
   loadICloudProjectId,
   pickICloudFolder,
   setICloudProject,
+  uploadICloudFiles,
 } from '../connectors/icloud';
 import { listCustomConnectors, removeCustomConnector, upsertCustomConnector } from '../connectors/custom';
 import type { CustomConnector } from '../connectors/types';
@@ -189,6 +191,15 @@ function ObsidianPopup({ projectId, projectTitle, onClose }: { projectId: string
     setScope(loadVaultProjectId());
   }
 
+  async function upload(files: FileList | null) {
+    if (!files?.length) return;
+    setError('');
+    const result = await uploadVaultFiles(files);
+    if (!result.ok) { setError(result.error); return; }
+    setLabel(loadVaultLabel());
+    setScope(loadVaultProjectId());
+  }
+
   async function disconnect() {
     await forgetVault();
     setLabel(null);
@@ -202,11 +213,30 @@ function ObsidianPopup({ projectId, projectTitle, onClose }: { projectId: string
       <p className="skillstore__lead">
         Nessun account, nessuna chiave: scegli la cartella del tuo vault e VINZ legge i file .md da lì, in locale. Il permesso resta su questo browser.
       </p>
-      {!supported && <p className="daily-panel__error">Serve Chrome, Edge o un browser Chromium per scegliere una cartella locale.</p>}
+      {!supported && !label && (
+        <>
+          {/* 🔒 Su iOS/iPadOS NESSUN browser sa aprire una cartella — non è
+              «serve Chrome»: Apple impone lo stesso motore (WebKit) a ogni
+              app-browser lì, «Chrome» per iOS compreso. Il ripiego è
+              scegliere i file .md una volta, non una cartella viva: da
+              aggiornare quando cambiano, non sincronizzata da sola. */}
+          <p className="daily-panel__error">Su questo dispositivo non si può scegliere una cartella intera (limite di iOS/Safari, non di questo browser). Puoi comunque caricare i file .md del vault uno per uno.</p>
+          <label className="daily-row__action" style={{ display: 'inline-block', cursor: 'pointer' }}>
+            CARICA FILE .MD
+            <input type="file" accept=".md,.markdown" multiple style={{ display: 'none' }} onChange={(e) => void upload(e.target.files)} />
+          </label>
+        </>
+      )}
       {supported && !label && <button type="button" className="daily-row__action" onClick={() => void connect()}>SCEGLI CARTELLA VAULT</button>}
-      {supported && label && (
+      {label && (
         <>
           <p className="daily-row__meta">Collegato · {label}</p>
+          {!supported && (
+            <label className="daily-row__action" style={{ display: 'inline-block', cursor: 'pointer', marginRight: 8 }}>
+              RICARICA FILE
+              <input type="file" accept=".md,.markdown" multiple style={{ display: 'none' }} onChange={(e) => void upload(e.target.files)} />
+            </label>
+          )}
           <button type="button" className="daily-row__action" onClick={() => void disconnect()}>SCOLLEGA</button>
         </>
       )}
@@ -242,6 +272,15 @@ function ICloudPopup({ projectId, projectTitle, onClose }: { projectId: string |
     setScope(loadICloudProjectId());
   }
 
+  async function upload(files: FileList | null) {
+    if (!files?.length) return;
+    setError('');
+    const result = await uploadICloudFiles(files);
+    if (!result.ok) { setError(result.error); return; }
+    setLabel(loadICloudFolderLabel());
+    setScope(loadICloudProjectId());
+  }
+
   async function disconnect() {
     await forgetICloudFolder();
     setLabel(null);
@@ -257,11 +296,29 @@ function ICloudPopup({ projectId, projectTitle, onClose }: { projectId: string |
         Ma iCloud Drive sincronizza già i file su questo Mac: scegli quella cartella (di solito "iCloud Drive" nel
         Finder) e VINZ legge i documenti di testo da lì, in locale. PDF, immagini e file binari restano fuori.
       </p>
-      {!supported && <p className="daily-panel__error">Serve Chrome, Edge o un browser Chromium per scegliere una cartella locale.</p>}
+      {!supported && !label && (
+        <>
+          {/* 🔒 Stesso limite di Obsidian: su iOS/iPadOS nessun browser sa
+              aprire una cartella, non è questione di quale app usi. Da Files
+              si possono comunque scegliere singoli file, iCloud Drive
+              compreso — è quello il ripiego, non una cartella live. */}
+          <p className="daily-panel__error">Su questo dispositivo non si può scegliere una cartella intera (limite di iOS/Safari, non di questo browser). Puoi comunque caricare i file uno per uno dall'app File.</p>
+          <label className="daily-row__action" style={{ display: 'inline-block', cursor: 'pointer' }}>
+            CARICA FILE
+            <input type="file" accept=".md,.markdown,.txt,.csv,.json,.log,.rtf,.yml,.yaml" multiple style={{ display: 'none' }} onChange={(e) => void upload(e.target.files)} />
+          </label>
+        </>
+      )}
       {supported && !label && <button type="button" className="daily-row__action" onClick={() => void connect()}>SCEGLI CARTELLA ICLOUD DRIVE</button>}
-      {supported && label && (
+      {label && (
         <>
           <p className="daily-row__meta">Collegato · {label}</p>
+          {!supported && (
+            <label className="daily-row__action" style={{ display: 'inline-block', cursor: 'pointer', marginRight: 8 }}>
+              RICARICA FILE
+              <input type="file" accept=".md,.markdown,.txt,.csv,.json,.log,.rtf,.yml,.yaml" multiple style={{ display: 'none' }} onChange={(e) => void upload(e.target.files)} />
+            </label>
+          )}
           <button type="button" className="daily-row__action" onClick={() => void disconnect()}>SCOLLEGA</button>
         </>
       )}

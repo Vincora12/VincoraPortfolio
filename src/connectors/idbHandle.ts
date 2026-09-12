@@ -21,23 +21,29 @@ function openDb(): Promise<IDBDatabase> {
   });
 }
 
-export async function saveHandle(key: string, handle: FileSystemDirectoryHandle): Promise<void> {
+/* 🔷 Generico da subito: non solo handle nativi. Su iOS/Safari non esiste
+   `showDirectoryPicker` (Apple obbliga ogni browser lì a usare WebKit sotto
+   il cofano — installare «Chrome» o «Edge» su iPhone non cambia motore), e
+   il ripiego per quel caso — file caricati una volta, non una cartella viva
+   — è comunque testo semplice: stesso magazzino, stessa chiave per
+   connettore, valore diverso. */
+export async function saveHandle<T = FileSystemDirectoryHandle>(key: string, value: T): Promise<void> {
   const db = await openDb();
   await new Promise<void>((resolve, reject) => {
     const tx = db.transaction(STORE, 'readwrite');
-    tx.objectStore(STORE).put(handle, key);
+    tx.objectStore(STORE).put(value, key);
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
   });
 }
 
-export async function loadHandle(key: string): Promise<FileSystemDirectoryHandle | null> {
+export async function loadHandle<T = FileSystemDirectoryHandle>(key: string): Promise<T | null> {
   try {
     const db = await openDb();
     return await new Promise((resolve, reject) => {
       const tx = db.transaction(STORE, 'readonly');
       const request = tx.objectStore(STORE).get(key);
-      request.onsuccess = () => resolve((request.result as FileSystemDirectoryHandle | undefined) ?? null);
+      request.onsuccess = () => resolve((request.result as T | undefined) ?? null);
       request.onerror = () => reject(request.error);
     });
   } catch {

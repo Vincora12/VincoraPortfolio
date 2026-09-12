@@ -218,7 +218,14 @@ export interface UsageDashboard {
   daily: { day: number; costUsd: number }[];
   byCapability: Record<string, UsageSummary>;
   byModel: Record<string, UsageSummary>;
+  /** Stessa chiave di `byCapability`, ma sugli ultimi 7 giorni invece del
+      mese a oggi — un campione stabile anche a inizio mese. Usata dalla
+      STIMA MENSILE per proiettare il ritmo vero invece di uno indovinato. */
+  last7DaysByCapability: Record<string, UsageSummary>;
   recentEvents: UsageEvent[];
+  /** CONTROL ROOM — verità server-side, mai un flag del solo browser. */
+  localOnlyMode: boolean;
+  localOnlyModeUpdatedAt?: string;
 }
 
 /* --- Lo stato del tetto, per la UI ------------------------------------------
@@ -401,6 +408,23 @@ export function loadUsage(token: string | null): Promise<BackendResult<UsageDash
   return post<UsageDashboard>('/api/usage', token, undefined, 'GET');
 }
 
+export interface LocalServicesStatus {
+  ok: boolean;
+  core?: { online: boolean };
+  mem0?: { online: boolean; llmModel?: string; embedderModel?: string };
+  ollama?: { online: boolean; models: string[] };
+}
+
+/**
+ * Stato reale di Local Core/Mem0/Ollama — per la Control Room, non per la
+ * chat (quella ha `stato_servizi_locali`, stesso endpoint sotto). Su
+ * Netlify ospitato risponde 503: la UI legge `result.status === 503` come
+ * "non disponibile qui", mai come un errore da segnalare.
+ */
+export function loadLocalServicesStatus(token: string | null): Promise<BackendResult<LocalServicesStatus>> {
+  return post<LocalServicesStatus>('/api/repo-ops', token, { action: 'inspect-services' }, 'POST');
+}
+
 /**
  * Scrive il tetto mensile.
  *
@@ -416,6 +440,23 @@ export function saveMonthlyCap(
     '/api/usage',
     token,
     { monthlyCapUsd },
+    'PUT',
+  );
+}
+
+/**
+ * Accende/spegne LOCAL ONLY MODE — STESSO endpoint del tetto, stessa verità
+ * server-side (vedi `_shared/spend.ts`): mai un interruttore che vive solo
+ * nel browser, altrimenti basterebbe un altro tab per aggirarlo.
+ */
+export function saveLocalOnlyMode(
+  token: string | null,
+  localOnlyMode: boolean,
+): Promise<BackendResult<{ localOnlyMode: boolean; localOnlyModeUpdatedAt?: string }>> {
+  return post<{ localOnlyMode: boolean; localOnlyModeUpdatedAt?: string }>(
+    '/api/usage',
+    token,
+    { localOnlyMode },
     'PUT',
   );
 }

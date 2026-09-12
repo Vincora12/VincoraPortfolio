@@ -47,6 +47,9 @@ import { resolveRoute } from './_shared/routing';
 import { callProvider } from './_shared/providers';
 import { checkCap, recordSpend, INTERNAL_CAP_EXCEEDED } from './_shared/spend';
 import { appendRuntimeEvent } from './_shared/runtimeLog';
+import { loadCoreContext } from './_shared/coreContext';
+import { sendPushNotification } from './_shared/pushDelivery';
+import { isNotificationEnabled } from './_shared/notificationPrefs';
 
 const QUEUE_KEY = 'pending';
 const MAX_TEXT = 2000;
@@ -178,6 +181,50 @@ async function estimateMeal(text: string): Promise<{ estimate: MealEstimate; cos
   return { estimate: parseMealJson(result.text), costUsd };
 }
 
+/* --- Il commento, dopo ogni azione riuscita --------------------------------
+   «Quando riceve uno Shortcut deve mandarmi una notifica scritta da lui, nel
+   suo tono, che commenta quello che gli è arrivato.» Non sostituisce la
+   risposta alla Shortcut (quella resta il conferma tecnico che legge Siri):
+   è un secondo messaggio, via push, con la voce vera del .mon — la stessa
+   capacità e lo stesso contesto (`character-voice`, `loadCoreContext`) già
+   usati dalle Automazioni per lo stesso motivo. Un commento mancato non deve
+   MAI far fallire l'azione: da qui in poi ogni errore è silenzioso. */
+async function notifyShortcutReceived(label: string, summary: string): Promise<void> {
+  try {
+    if (!(await isNotificationEnabled('shortcut'))) return;
+    const cap = await checkCap();
+    if (cap.blocked) return;
+
+    const { systemPrompt } = await loadCoreContext({ query: summary, toolsAvailable: false });
+    const route = resolveRoute('character-voice');
+    const result = await callProvider(route.provider, {
+      model: route.model,
+      system: [{ text: systemPrompt }],
+      turns: [],
+      user: `È appena arrivato questo da una Shortcut sul telefono — ${label}: «${summary}». Scrivi UN messaggio breve (una frase sola, meno di 140 caratteri: va dentro una notifica push) nel tuo tono, che commenta quello che hai appena saputo. Non è una conferma tecnica e non è un elenco: è un vero commento, come se lo notassi tu sul momento.`,
+      maxTokens: 200,
+      effort: 'low',
+    });
+
+    if (result.usage.inputTokens || result.usage.outputTokens) {
+      await recordSpend('character-voice', result.model, result.usage, { action: 'shortcut-comment', subsystem: 'shortcut' });
+    }
+    if (!result.ok || !result.text.trim()) return;
+
+    /* 🔒 NON "VINZ.MON" come titolo: iOS aggiunge da sé «from VINZ.MON» sotto
+       ogni notifica di una PWA installata — ripetere il nome qui lo mostra
+       due volte. Il titolo dice invece COSA l'ha fatto parlare. */
+    await sendPushNotification({
+      title: label,
+      body: result.text.trim().slice(0, 160),
+      url: '/#/current',
+      tag: 'vinzmon-shortcut-comment',
+    });
+  } catch {
+    /* silenzioso di proposito — vedi sopra */
+  }
+}
+
 /* --- L'endpoint ------------------------------------------------------------ */
 
 interface Incoming {
@@ -238,6 +285,9 @@ export default async function handler(request: Request): Promise<Response> {
   };
   const ok = async (payload: Record<string, unknown>, costUsd = 0) => {
     await recordShortcutCall({ action: actionId, at: at.toISOString(), ok: true, ms: Date.now() - startedAt, costUsd });
+    if (typeof payload.summary === 'string' && payload.summary) {
+      await notifyShortcutReceived(def.label, payload.summary);
+    }
     return json({ ok: true, ...payload });
   };
 

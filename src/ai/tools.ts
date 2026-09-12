@@ -47,6 +47,7 @@ import { PEZZI } from '../engine/layout';
 import type { EnergyProfile } from '../engine/dailyEnergy';
 import type { CalendarEvent, CalendarEventInput } from '../engine/calendarEvents';
 import { loadLocation } from '../engine/locationSignal';
+import { ICON_NAME_LIST } from '../system/iconNames';
 import { loadDeviceSignals } from '../engine/deviceSignals';
 
 /* --- La forma di uno strumento ---------------------------------------------- */
@@ -68,6 +69,13 @@ export interface ToolResult {
   /** Quello che il modello legge. Sempre testo: è la lingua che capisce. */
   content: string;
   isError?: boolean;
+  /** 🔷 «Se un file è già nella cartella, deve essere sempre consultabile.»
+      Un PDF o una foto non possono viaggiare dentro `content` (testo): questo
+      canale a parte porta il documento vero fino al giro corrente, dove
+      `replyWithLocalTools` (brain/stream.ts) lo allega davvero al messaggio —
+      esattamente come un allegato mandato in chat, non come un risultato di
+      strumento. Solo `leggi_documento_lavoro` lo popola oggi. */
+  attachment?: { mediaType: string; data: string; filename?: string };
 }
 
 /**
@@ -147,8 +155,39 @@ export const TOOLS: ToolDef[] = [
       dalle_ore: { type: 'integer', minimum: 0, maximum: 23 },
       alle_ore: { type: 'integer', minimum: 0, maximum: 23 },
       fuso: { type: 'string', description: 'IANA, es. Europe/Rome' },
-      icona: { type: 'string', enum: ['notizie','meteo','peso','cibo','sport','salute','promemoria','soldi','viaggio','lavoro','documenti','studio','idee','ricerca','generico'], description: 'Quella che descrive meglio il contenuto.' },
+      icona: { type: 'string', enum: [...ICON_NAME_LIST], description: 'Quella che descrive meglio il contenuto.' },
     }, required: ['titolo', 'descrizione', 'cadenza', 'icona'] },
+  },
+  {
+    name: 'cambia_icona_progetto',
+    description: 'Cambia l’icona del progetto a cui appartiene questa conversazione (Generale incluso). Usalo solo su richiesta esplicita, es. "non mi piace questa icona, mettine un\'altra" o "metti una fiamma". Non chiede il nome del progetto: è quello di questa chat.',
+    schema: { type: 'object', properties: {
+      icona: { type: 'string', maxLength: 8, description: 'Una sola emoji, quella che rappresenta meglio il progetto secondo te — scelta libera, non da un elenco chiuso. Es. 🔥, 💼, 🚀.' },
+    }, required: ['icona'] },
+  },
+  {
+    name: 'disegna_sezione_me',
+    description: 'Disegna o modifica una tab della sezione ME per il progetto di questa chat — MAI per Generale, che resta la schermata salute fissa. Libertà totale di HTML/CSS: non un elenco di widget, un vero disegno tuo, tipo "il business plan di questo progetto" o "una timeline degli obiettivi". Vive isolato (iframe), non vede i dati veri dell\'app: scrivi contenuto autosufficiente (statico, o con un <script> tuo per semplici interazioni locali), mai una fetch verso l\'app. Fondo nero, testo chiaro, un solo font mono o sans coerente — niente sfondi bianchi o colori sgargianti a caso: deve sembrare nato dentro VINZ.MON, non incollato. Usalo solo su richiesta esplicita ("disegnami...", "fammi una tab per...", "cambia questa tab").',
+    schema: { type: 'object', properties: {
+      azione: { type: 'string', enum: ['aggiungi', 'aggiorna', 'rimuovi'], description: 'aggiungi = nuova tab; aggiorna = cambia etichetta e/o contenuto di una tab esistente; rimuovi = elimina una tab.' },
+      tab_id: { type: 'string', description: 'Id della tab — richiesto per aggiornare o rimuovere. Leggi prima leggi_progetto se non lo conosci già.' },
+      etichetta: { type: 'string', maxLength: 24, description: 'Nome breve della tab, in maiuscolo come le altre (es. "PIANO", "BUDGET"). Richiesto per aggiungi.' },
+      html: { type: 'string', description: 'HTML e CSS completi del contenuto (uno <style> dentro va benissimo). Richiesto per aggiungi; opzionale per aggiorna se cambi solo l\'etichetta.' },
+    }, required: ['azione'] },
+  },
+  {
+    name: 'imposta_obiettivo_progetto',
+    description: 'Scrive o sostituisce le istruzioni permanenti di questo progetto — la "ricetta" che leggi SEMPRE, a ogni messaggio, prima di rispondere qui dentro (le vedi anche dentro il campo "context" di leggi_progetto). Usalo quando l\'utente ti dice come vuole che tu lavori su QUESTO progetto in generale, non per una richiesta singola — es. "il tuo obiettivo qui è: quando ti do una spesa, aggiorna business-plan.md nella cartella di lavoro e poi ridisegna la tab collegata". Sostituisce le istruzioni esistenti per intero: se l\'utente vuole aggiungerne una nuova senza perdere le altre, includile tutte (leggi prima leggi_progetto se non le conosci già). Mai per Generale.',
+    schema: { type: 'object', properties: {
+      istruzioni: { type: 'string', maxLength: 4000, description: 'Testo completo delle istruzioni permanenti del progetto, non solo la parte nuova.' },
+    }, required: ['istruzioni'] },
+  },
+  {
+    name: 'mostra_superficie_html',
+    description: 'Mostra una superficie HTML/CSS/JS interattiva direttamente in QUESTO messaggio della chat — arte generativa, una demo, una visualizzazione, un piccolo gioco: qualunque cosa vada vista/provata, non solo letta. A differenza di disegna_sezione_me (una tab fissa di un progetto), questa vale per un solo messaggio e funziona ovunque, anche su Generale. Libertà totale di HTML/CSS/JS. Vive isolata (iframe), non vede i dati veri dell\'app: contenuto autosufficiente, mai una fetch verso l\'app. IMPORTANTE per lo spazio: il riquadro ha una larghezza e un\'altezza fisse decise dalla chat, niente scroll — il tuo contenuto deve riempire esattamente il 100% di larghezza e 100% di altezza (unità relative o le dimensioni lette a runtime, es. window.innerWidth/innerHeight per un canvas), mai dimensioni fisse in pixel più grandi dello spazio disponibile. Fondo scuro coerente con la chat, niente sfondi bianchi a caso. Usala su richiesta esplicita, o quando segui una skill che genera chiaramente un output visivo/interattivo.',
+    schema: { type: 'object', properties: {
+      html: { type: 'string', description: 'HTML, CSS (in <style>) e JS (in <script>) completi e autosufficienti, pensati per riempire il 100% dello spazio disponibile senza mai richiedere scroll.' },
+    }, required: ['html'] },
   },
   {
     name: 'calcola_energia_giornaliera',
@@ -253,32 +292,19 @@ export const TOOLS: ToolDef[] = [
     }, required: ['cerca'] },
   },
   {
-    name: 'leggi_file',
-    description: 'I file che l\u2019utente ha caricato in FILES. azione=elenca per sapere quali ci sono; azione=leggi con il nome per leggerne uno. Legge solo testo (txt, md, csv, json, log): PDF e immagini restano conservati ma non si leggono da qui. Non inventare il contenuto: se non l\u2019hai letto, dillo.',
-    schema: { type: 'object', properties: {
-      azione: { type: 'string', enum: ['elenca', 'leggi'] },
-      nome: { type: 'string', description: 'Nome del file, anche parziale.' },
-    }, required: ['azione'] },
-  },
-  {
     name: 'crea_file_testo',
     description: 'Prepara un vero documento scaricabile .txt/.md usando le Pagine esistenti o il progetto selezionato. Il risultato contiene il link reale con pulsante download: NON affermare che il download è già avvenuto. Richiede una richiesta esplicita di documento/file.',
     schema: { type: 'object', properties: { titolo: { type: 'string', maxLength: 60 }, testo: { type: 'string', maxLength: 40000 } }, required: ['titolo', 'testo'] },
   },
   {
     name: 'leggi_progetto',
-    description: 'Legge istruzioni, contesto e indice documenti SOLO del progetto selezionato dall’utente per questa chat. Non accede a progetti diversi o memoria personale. Se nessun progetto è selezionato restituisce non disponibile.',
+    description: 'Legge istruzioni permanenti (impostale con imposta_obiettivo_progetto), contesto, gli export .txt/.md creati con crea_file_testo e le tab ME esistenti (con il loro id) SOLO del progetto selezionato dall’utente per questa chat. Non accede a progetti diversi o memoria personale. NON mostra i file di FILES — per quelli usa vedi_cartella_lavoro, una cosa diversa. Se nessun progetto è selezionato restituisce non disponibile.',
     schema: { type: 'object', properties: {} },
   },
   {
     name: 'leggi_sorgente_progetto',
-    description: 'Legge/cerca testo nel contesto importato del progetto selezionato o in un suo documento salvato (nome). Restituisce path tecnico e righe. NON è accesso filesystem, repository GitHub o ricerca web: il codice va prima importato nel contesto del progetto. Ricerca letterale, massimo 80 righe.',
-    schema: { type: 'object', properties: { nome: { type: 'string', description: 'Slug artifact, ometti per contesto progetto.' }, cerca: { type: 'string', maxLength: 200 }, riga: { type: 'integer', minimum: 1 }, righe: { type: 'integer', minimum: 1, maximum: 80 } } },
-  },
-  {
-    name: 'scrivi_artifact_progetto',
-    description: 'Crea o aggiorna un documento Markdown privato nel progetto selezionato. Per aggiornare leggi prima il documento e fornisci nome e revisione_progetto letta. Non pubblica su internet, non deploya VINZ.MON, non modifica altre fonti. Restituisce URL stabile solo dopo conferma server e verifica.',
-    schema: { type: 'object', properties: { titolo: { type: 'string', maxLength: 60 }, markdown: { type: 'string', maxLength: 40000 }, nome: { type: 'string' }, revisione_progetto: { type: 'integer' } }, required: ['titolo', 'markdown'] },
+    description: 'Legge/cerca testo nel contesto importato del progetto selezionato o in un documento esportato con crea_file_testo (nome). Restituisce path tecnico e righe. NON è accesso filesystem, repository GitHub o ricerca web: il codice va prima importato nel contesto del progetto. Ricerca letterale, massimo 80 righe.',
+    schema: { type: 'object', properties: { nome: { type: 'string', description: 'Slug del documento esportato, ometti per contesto progetto.' }, cerca: { type: 'string', maxLength: 200 }, riga: { type: 'integer', minimum: 1 }, righe: { type: 'integer', minimum: 1, maximum: 80 } } },
   },
   {
     name: 'elenca_le_pagine',
@@ -475,6 +501,40 @@ export const TOOLS: ToolDef[] = [
     }, required: ['cerca'] },
   },
   {
+    name: 'vedi_cartella_lavoro',
+    description: 'Mostra la struttura (file e cartelle) della cartella di questo progetto — È LA STESSA cosa che l\'utente vede in FILES, incluso tutto quello che carica lì con "Aggiungi file": non serve nessun collegamento, esiste già in automatico, una per progetto, sempre raggiungibile con questo strumento. Usala per sapere cosa c\'è già — sia caricato dall\'utente sia scritto da te — prima di scrivere o cancellare, o quando ti chiede di leggere "i file", "quello che ha caricato", "cosa c\'è nel progetto".',
+    schema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'leggi_file_lavoro',
+    description: 'Legge il contenuto testuale di un file dentro la cartella di questo progetto — compresi i file che l\'utente ha caricato da FILES con "Aggiungi file", non solo quelli scritti da te. Solo testo (md/txt/csv/json/log...): per PDF o immagini usa leggi_documento_lavoro. Se non conosci ancora il percorso esatto, chiama prima vedi_cartella_lavoro.',
+    schema: { type: 'object', properties: {
+      percorso: { type: 'string', description: 'Percorso relativo dentro la tua cartella, es. "note/idee.md".' },
+    }, required: ['percorso'] },
+  },
+  {
+    name: 'leggi_documento_lavoro',
+    description: 'Allega DAVVERO a questo messaggio un PDF o un\'immagine già presenti nella cartella di questo progetto — non solo il nome, il documento vero, leggibile/visibile come se l\'utente te lo avesse appena mandato in chat. Usalo ogni volta che devi consultare un file caricato in passato e non più recente nella conversazione: un file in questa cartella resta consultabile per sempre, non solo finché "se lo ricorda" la chat. Se non conosci il percorso, chiama prima vedi_cartella_lavoro.',
+    schema: { type: 'object', properties: {
+      percorso: { type: 'string', description: 'Percorso relativo dentro la tua cartella, es. "preventivo.pdf".' },
+    }, required: ['percorso'] },
+  },
+  {
+    name: 'scrivi_file_lavoro',
+    description: 'Crea o aggiorna un file di testo dentro la cartella di questo progetto — la stessa che l\'utente vede in FILES. Organizzala come vuoi, anche con sottocartelle nel percorso (si creano da sole). Mai fuori da questa cartella.',
+    schema: { type: 'object', properties: {
+      percorso: { type: 'string', description: 'Percorso relativo dentro la tua cartella, es. "ricerca/fonti.md".' },
+      contenuto: { type: 'string' },
+    }, required: ['percorso', 'contenuto'] },
+  },
+  {
+    name: 'cancella_file_lavoro',
+    description: 'Cancella un file o una cartella (con tutto il suo contenuto) dentro la cartella di questo progetto — compresi i file che l\'utente ci ha caricato, quindi chiedi conferma prima se non è ovvio che vada tolto. Funziona solo lì dentro.',
+    schema: { type: 'object', properties: {
+      percorso: { type: 'string' },
+    }, required: ['percorso'] },
+  },
+  {
     name: 'chiama_connettore_personalizzato',
     description: 'Fa una richiesta GET a un connettore custom che l’utente ha configurato in FILES (nome, indirizzo, chiave). Usa id_connettore esattamente come mostrato lì. Nessuna scrittura: solo lettura di quello che quel servizio espone su quel percorso.',
     schema: { type: 'object', properties: {
@@ -489,6 +549,17 @@ export const TOOLS: ToolDef[] = [
       sorgente: { type: 'string', description: 'sourceId della skill, com’è nell’elenco delle capacità.' },
       id: { type: 'string', description: 'id della skill, com’è nell’elenco delle capacità.' },
     }, required: ['sorgente', 'id'] },
+  },
+  {
+    name: 'gestisci_skill_locale',
+    description: 'Crea, aggiorna o rimuove una skill scritta da te — una procedura su come fare un compito. A differenza di un file di progetto, una skill così creata vale SEMPRE, in ogni progetto e su Generale, non solo in questa chat: nasce già accesa. Usala solo su richiesta esplicita ("creami una skill per...", "salva questa procedura come skill", "modifica/cancella quella skill"). Puoi modificare o rimuovere solo le skill create così, mai quelle scaricate da un catalogo (quelle si gestiscono solo da FILES).',
+    schema: { type: 'object', properties: {
+      azione: { type: 'string', enum: ['crea', 'aggiorna', 'rimuovi'], description: 'crea = nuova skill; aggiorna = cambia nome/descrizione/contenuto di una skill che hai creato tu; rimuovi = eliminala.' },
+      id: { type: 'string', description: 'Id della skill — richiesto per aggiornare o rimuovere, com’è nell’elenco delle capacità o nella risposta di "crea".' },
+      nome: { type: 'string', maxLength: 120, description: 'Nome breve, es. "Riepilogo spese settimanale". Richiesto per crea.' },
+      descrizione: { type: 'string', maxLength: 600, description: 'Una riga su quando usarla — decide se comparirà pertinente in una chat futura. Richiesto per crea.' },
+      contenuto: { type: 'string', description: 'Solo il corpo in Markdown della skill (titolo, passi, esempi) — NIENTE frontmatter "---": nome e descrizione li mette già questo strumento, dai campi sopra. Richiesto per crea; opzionale per aggiorna se cambi solo nome/descrizione.' },
+    }, required: ['azione'] },
   },
 ];
 
@@ -907,20 +978,6 @@ export function resultBlocks(results: readonly ToolResult[]): Record<string, unk
 }
 
 /* ============================================================================
-   LEGGERE I FILE DI FILES
-
-   🔒 SOLO TESTO, E DETTO CHIARO. Un PDF o una foto restano conservati ma non si
-   leggono da qui: fingere di averli letti sarebbe il peggior modo di chiudere
-   questo cerchio. Il decoder è `fatal: true` apposta — se i byte non sono UTF-8
-   valido lo strumento lo dichiara invece di restituire caratteri a caso.
-
-   ⚠️ Il risultato rientra nel prompt, quindi ha un tetto: `LIMITS.userChars` è
-   12.000 e un file più lungo verrebbe rifiutato in blocco. Meglio troncare e
-   dirlo che far fallire il turno. */
-const READABLE_TEXT = /\.(txt|md|markdown|csv|tsv|json|log|yml|yaml|ini|conf)$/i;
-const MAX_FILE_CHARS = 8_000;
-
-/* ============================================================================
    CONNETTORI ESTERNI — Google Calendar, vault Obsidian, servizi custom.
 
    🔒 STESSO PATTO DI PRIVACY DEL RESTO DI QUESTO FILE: girano nel browser,
@@ -999,6 +1056,95 @@ async function executeICloudSearchTool(use: ToolUse): Promise<ToolResult> {
   return { id: use.id, content: JSON.stringify({ source: 'icloud-drive', query, trovati: result.matches.length, risultati: result.matches.map((m) => ({ percorso: m.path, estratto: m.excerpt })) }) };
 }
 
+/** Anche Generale ha la sua cartella (stessa chiave stabile GLOBAL_PROJECT_ID
+    usata altrove per "il progetto quando non ce n'è uno selezionato"), con
+    "Generale" come titolo invece del titolo interno 'GLOBAL' del progetto. */
+async function projectForWorkspace(token: string | null, projectId: string | null): Promise<{ id: string; title: string } | null> {
+  if (!token) return null;
+  const { loadProject } = await import('../projects/client');
+  const { GLOBAL_PROJECT_ID } = await import('../engine/projects');
+  const project = await loadProject(token, projectId ?? GLOBAL_PROJECT_ID);
+  return { id: project.id, title: projectId ? project.title : 'Generale' };
+}
+
+const NO_WORKSPACE = 'Token mancante: cartella di lavoro non disponibile.';
+
+async function executeWorkspaceListTool(use: ToolUse, token: string | null, projectId: string | null): Promise<ToolResult> {
+  const fail = (content: string): ToolResult => ({ id: use.id, content, isError: true });
+  const project = await projectForWorkspace(token, projectId);
+  if (!project) return fail(NO_WORKSPACE);
+  const { loadWorkspace } = await import('../connectors/vinzWorkspace');
+  try {
+    const { root, tree } = await loadWorkspace(token, project.id, project.title);
+    return { id: use.id, content: JSON.stringify({ source: 'cartella-lavoro', cartella: root, voci: tree }) };
+  } catch (cause) {
+    return fail(cause instanceof Error ? cause.message : 'Server locale non raggiungibile.');
+  }
+}
+
+async function executeWorkspaceReadTool(use: ToolUse, token: string | null, projectId: string | null): Promise<ToolResult> {
+  const fail = (content: string): ToolResult => ({ id: use.id, content, isError: true });
+  const args = (use.input && typeof use.input === 'object' ? use.input : {}) as Record<string, unknown>;
+  const percorso = str(args.percorso);
+  if (!percorso) return fail('Serve un percorso.');
+  const project = await projectForWorkspace(token, projectId);
+  if (!project) return fail(NO_WORKSPACE);
+  const { readWorkspaceFile } = await import('../connectors/vinzWorkspace');
+  const result = await readWorkspaceFile(token, project.id, project.title, percorso);
+  if (!result.ok) return fail(result.error);
+  return { id: use.id, content: JSON.stringify({ percorso, contenuto: result.content }) };
+}
+
+/** 🔷 «Se un file è già nella sua cartella, deve essere sempre consultabile
+    — così non lo perde.» `leggi_file_lavoro` legge solo testo: un PDF o una
+    foto letti così arriverebbero corrotti. Questo strumento li allega DAVVERO
+    al messaggio (canale `attachment`, vedi ToolResult) invece di provare a
+    descriverli come testo — VINZ può richiamarlo in ogni momento della
+    conversazione, non solo quando il file è ancora "recente" in chat. */
+async function executeWorkspaceDocumentTool(use: ToolUse, token: string | null, projectId: string | null): Promise<ToolResult> {
+  const fail = (content: string): ToolResult => ({ id: use.id, content, isError: true });
+  const args = (use.input && typeof use.input === 'object' ? use.input : {}) as Record<string, unknown>;
+  const percorso = str(args.percorso);
+  if (!percorso) return fail('Serve un percorso.');
+  const project = await projectForWorkspace(token, projectId);
+  if (!project) return fail(NO_WORKSPACE);
+  const { readWorkspaceBinaryFile } = await import('../connectors/vinzWorkspace');
+  const result = await readWorkspaceBinaryFile(token, project.id, project.title, percorso);
+  if (!result.ok) return fail(result.error);
+  return {
+    id: use.id,
+    content: 'Documento allegato a questo messaggio: leggilo/guardalo direttamente qui sotto, non è più solo un nome di file.',
+    attachment: { mediaType: result.mediaType, data: result.base64, filename: percorso.split('/').pop() },
+  };
+}
+
+async function executeWorkspaceWriteTool(use: ToolUse, token: string | null, projectId: string | null): Promise<ToolResult> {
+  const fail = (content: string): ToolResult => ({ id: use.id, content, isError: true });
+  const args = (use.input && typeof use.input === 'object' ? use.input : {}) as Record<string, unknown>;
+  const percorso = str(args.percorso);
+  const contenuto = typeof args.contenuto === 'string' ? args.contenuto : '';
+  if (!percorso) return fail('Serve un percorso.');
+  const project = await projectForWorkspace(token, projectId);
+  if (!project) return fail(NO_WORKSPACE);
+  const { writeWorkspaceFile } = await import('../connectors/vinzWorkspace');
+  const result = await writeWorkspaceFile(token, project.id, project.title, percorso, contenuto);
+  if (!result.ok) return fail(result.error);
+  return { id: use.id, content: JSON.stringify({ scritto: true, percorso }) };
+}
+
+async function executeWorkspaceDeleteTool(use: ToolUse, token: string | null, projectId: string | null): Promise<ToolResult> {
+  const fail = (content: string): ToolResult => ({ id: use.id, content, isError: true });
+  const args = (use.input && typeof use.input === 'object' ? use.input : {}) as Record<string, unknown>;
+  const percorso = str(args.percorso);
+  if (!percorso) return fail('Serve un percorso.');
+  const project = await projectForWorkspace(token, projectId);
+  if (!project) return fail(NO_WORKSPACE);
+  const { deleteWorkspaceEntry } = await import('../connectors/vinzWorkspace');
+  const result = await deleteWorkspaceEntry(token, project.id, project.title, percorso);
+  if (!result.ok) return fail(result.error);
+  return { id: use.id, content: JSON.stringify({ cancellato: true, percorso }) };
+}
+
 async function executeCustomConnectorTool(use: ToolUse): Promise<ToolResult> {
   const fail = (content: string): ToolResult => ({ id: use.id, content, isError: true });
   const args = (use.input && typeof use.input === 'object' ? use.input : {}) as Record<string, unknown>;
@@ -1011,6 +1157,18 @@ async function executeCustomConnectorTool(use: ToolUse): Promise<ToolResult> {
   return { id: use.id, content: result.body };
 }
 
+/* 🔷 «Come "Aggiunto in ME", vorrei "Skill 'nome' usata".» L'etichetta sotto
+   il messaggio (`updateLabel` in netlify-runtime.ts) vede solo `use.input` —
+   per leggi_skill quello è {sorgente, id}, l'id tecnico (es.
+   "skill-creator"), mai il nome leggibile. Il nome vero arriva solo qui,
+   nella risposta di /api/skills — questa cache minuscola lo tiene pronto per
+   l'etichetta senza toccare `ToolResult.content`, che deve restare il
+   manifest vero e proprio per il modello, non un contenitore anche per la UI. */
+const lastReadSkillNames = new Map<string, string>();
+export function lastReadSkillName(sourceId: string, id: string): string | null {
+  return lastReadSkillNames.get(`${sourceId}/${id}`) ?? null;
+}
+
 async function executeSkillTool(use: ToolUse, token: string | null): Promise<ToolResult> {
   const fail = (content: string): ToolResult => ({ id: use.id, content, isError: true });
   if (!token) return fail('Token mancante: lettura skill non disponibile.');
@@ -1020,9 +1178,63 @@ async function executeSkillTool(use: ToolUse, token: string | null): Promise<Too
   if (!sourceId || !id) return fail('Servono sorgente e id della skill.');
   const url = `/api/skills?op=content&sourceId=${encodeURIComponent(sourceId)}&id=${encodeURIComponent(id)}`;
   const response = await fetch(url, { headers: { authorization: `Bearer ${token}` } });
-  const body = (await response.json().catch(() => null)) as { manifest?: string; error?: string } | null;
+  const body = (await response.json().catch(() => null)) as { skill?: { name?: string }; manifest?: string; error?: string } | null;
   if (!response.ok || !body?.manifest) return fail(body?.error ?? 'Skill non leggibile.');
+  if (body.skill?.name) lastReadSkillNames.set(`${sourceId}/${id}`, body.skill.name);
   return { id: use.id, content: body.manifest };
+}
+
+/** «Deve poter caricare sulla cartella con tutte le skill, che valgano per
+    tutti i progetti.» A differenza di `scrivi_artifact_progetto` (dentro il
+    progetto di questa chat), questo scrive in `data/skills/` — la stessa
+    cartella di `leggi_skill` — quindi vale ovunque, non solo qui. */
+async function executeManageSkillTool(use: ToolUse, token: string | null): Promise<ToolResult> {
+  const fail = (content: string): ToolResult => ({ id: use.id, content, isError: true });
+  if (!token) return fail('Token mancante: gestione skill non disponibile.');
+  const args = (use.input && typeof use.input === 'object' ? use.input : {}) as Record<string, unknown>;
+  const azione = str(args.azione);
+
+  const call = async (payload: Record<string, unknown>) => {
+    const response = await fetch('/api/skills', {
+      method: 'POST',
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const body = (await response.json().catch(() => null)) as { skill?: { id: string; name: string; enabled: boolean }; ok?: boolean; error?: string } | null;
+    return { ok: response.ok, body };
+  };
+
+  if (azione === 'crea') {
+    const nome = str(args.nome);
+    const descrizione = str(args.descrizione);
+    const contenuto = typeof args.contenuto === 'string' ? args.contenuto : '';
+    if (!nome || !descrizione || !contenuto.trim()) return fail('Servono nome, descrizione e contenuto della skill.');
+    const { ok, body } = await call({ action: 'create', name: nome, description: descrizione, markdown: contenuto });
+    if (!ok || !body?.skill) return fail(body?.error ?? 'Creazione non riuscita.');
+    return { id: use.id, content: JSON.stringify({ creata: true, id: body.skill.id, nome: body.skill.name, attiva: body.skill.enabled, nota: 'Vale per tutti i progetti e per Generale, non solo questa chat.' }) };
+  }
+
+  const skillId = str(args.id);
+  if (!skillId) return fail('Manca id: leggi_skill o le tue capacità per trovarlo, se non lo conosci.');
+
+  if (azione === 'aggiorna') {
+    const nome = str(args.nome);
+    const descrizione = str(args.descrizione);
+    const contenuto = typeof args.contenuto === 'string' ? args.contenuto : '';
+    if (!nome && !descrizione && !contenuto.trim()) return fail('Serve almeno un nuovo nome, descrizione o contenuto.');
+    const { ok, body } = await call({
+      action: 'update', sourceId: 'local', id: skillId,
+      ...(nome ? { name: nome } : {}), ...(descrizione ? { description: descrizione } : {}), ...(contenuto.trim() ? { markdown: contenuto } : {}),
+    });
+    if (!ok || !body?.skill) return fail(body?.error ?? 'Modifica non riuscita.');
+    return { id: use.id, content: JSON.stringify({ aggiornata: true, id: body.skill.id, nome: body.skill.name }) };
+  }
+  if (azione === 'rimuovi') {
+    const { ok, body } = await call({ action: 'uninstall', sourceId: 'local', id: skillId });
+    if (!ok) return fail(body?.error ?? 'Rimozione non riuscita.');
+    return { id: use.id, content: JSON.stringify({ rimossa: true, id: skillId }) };
+  }
+  return fail('Azione non riconosciuta: usa crea, aggiorna o rimuovi.');
 }
 
 /* 🔷 «Le skill non arrivano mai a VINZ quando risponde.» Il modello vede
@@ -1078,64 +1290,6 @@ async function executeTopicSearchTool(use: ToolUse, token: string | null): Promi
         al: topic.endedAt,
         messaggi: topic.messageCount,
       })),
-    }),
-  };
-}
-
-async function executeFileTool(use: ToolUse, token: string | null, projectId: string | null): Promise<ToolResult> {
-  const fail = (content: string): ToolResult => ({ id: use.id, content, isError: true });
-  if (!token) return fail('Token mancante: file non disponibili.');
-  const args = (use.input && typeof use.input === 'object' ? use.input : {}) as Record<string, unknown>;
-
-  const { loadProject } = await import('../projects/client');
-  const { GLOBAL_PROJECT_ID } = await import('../engine/projects');
-  const project = await loadProject(token, projectId ?? GLOBAL_PROJECT_ID);
-  const files = project.files ?? [];
-
-  if (str(args.azione) === 'elenca') {
-    return {
-      id: use.id,
-      content: JSON.stringify({
-        source: 'FILES',
-        files: files.map((file) => ({
-          nome: file.name,
-          byte: file.size,
-          leggibile: READABLE_TEXT.test(file.name),
-        })),
-      }),
-    };
-  }
-
-  const wanted = str(args.nome).trim().toLowerCase();
-  if (!wanted) return fail('Serve il nome del file da leggere.');
-  const matches = files.filter((file) => file.name.toLowerCase().includes(wanted));
-  if (!matches.length) return fail(`Nessun file con questo nome in FILES: ${wanted}`);
-  if (matches.length > 1) {
-    return fail(`Più file corrispondono a «${wanted}»: ${matches.map((file) => file.name).join(', ')}. Chiedi quale.`);
-  }
-
-  const file = matches[0];
-  if (!READABLE_TEXT.test(file.name)) {
-    return fail(`«${file.name}» non è un file di testo: è conservato in FILES ma da qui non si legge. Non descriverne il contenuto.`);
-  }
-
-  let text: string;
-  try {
-    const binary = atob(file.data);
-    const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
-    text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
-  } catch {
-    return fail(`«${file.name}» non si legge come testo UTF-8. Non descriverne il contenuto.`);
-  }
-
-  const truncated = text.length > MAX_FILE_CHARS;
-  return {
-    id: use.id,
-    content: JSON.stringify({
-      source: `FILES/${file.name}`,
-      byte: file.size,
-      troncato: truncated,
-      testo: truncated ? `${text.slice(0, MAX_FILE_CHARS)}\n…[troncato]` : text,
     }),
   };
 }
@@ -1227,6 +1381,100 @@ async function executeReminderTool(use: ToolUse, token: string | null, projectId
   return { id: use.id, content: JSON.stringify({ status: action === 'cancel' ? 'reminder-disabled-event-preserved' : 'saved-and-read-back', id, when: verified.event.reminderAt ?? null, timezone: verified.event.timezone, notification: 'Server check approximately every 5 minutes. Push requires existing permission/subscription; user delivery is not confirmed.', url: '#reminders' }) };
 }
 
+/** Cambia l'icona del progetto a cui è agganciata QUESTA chat — non chiede
+    il nome: lo scope della conversazione già lo dice, come `crea_file_testo`. */
+async function executeProjectIconTool(use: ToolUse, token: string | null, projectId: string | null): Promise<ToolResult> {
+  const fail = (content: string): ToolResult => ({ id: use.id, content, isError: true });
+  if (!token) return fail('Token mancante: progetti non disponibili.');
+  const args = (use.input && typeof use.input === 'object' ? use.input : {}) as Record<string, unknown>;
+  const icon = str(args.icona);
+  const { loadProject, mutateProject } = await import('../projects/client');
+  const { GLOBAL_PROJECT_ID, isValidProjectIcon } = await import('../engine/projects');
+  if (!isValidProjectIcon(icon)) return fail('Icona non valida: serve una sola emoji, non testo.');
+  const id = projectId ?? GLOBAL_PROJECT_ID;
+  const project = await loadProject(token, id);
+  await mutateProject(token, { action: 'set-icon', projectId: project.id, revision: project.revision, icon });
+  return { id: use.id, content: JSON.stringify({ changed: true, projectId: project.id, projectTitle: project.title, icon }) };
+}
+
+/** Disegna/modifica/rimuove una tab ME del progetto di QUESTA chat. Mai per
+    GLOBAL_PROJECT_ID: `updateProject` lo rifiuta comunque server-side, ma
+    dirlo subito qui evita un giro a vuoto quando lo scope è Generale. */
+const MAX_HTML_SURFACE_CHARS = 20_000;
+
+/** «Una superficie html in un box suo, sempre dentro la chat.» Niente da
+    salvare da nessuna parte: il contenuto vive solo per questo messaggio, lo
+    legge direttamente `netlify-runtime.ts` da `use.input.html` per metterlo
+    nei metadata del messaggio — questo esecutore serve solo a validarlo. */
+async function executeHtmlSurfaceTool(use: ToolUse): Promise<ToolResult> {
+  const fail = (content: string): ToolResult => ({ id: use.id, content, isError: true });
+  const args = (use.input && typeof use.input === 'object' ? use.input : {}) as Record<string, unknown>;
+  const html = typeof args.html === 'string' ? args.html.trim() : '';
+  if (!html) return fail('Manca il contenuto HTML.');
+  if (html.length > MAX_HTML_SURFACE_CHARS) return fail(`Contenuto troppo lungo (massimo ${MAX_HTML_SURFACE_CHARS} caratteri).`);
+  return { id: use.id, content: JSON.stringify({ mostrata: true }) };
+}
+
+/** 🔷 «Dobbiamo dargli sempre una sorta di obiettivo del progetto così sa
+    come lavorarci.» `project.instructions` esisteva già ed è già letta a
+    ogni messaggio di questo progetto (`buildProjectContext`, in
+    `resolveChatContext`) — mancava solo un modo per scriverla DALLA CHAT:
+    prima era raggiungibile solo da una schermata di impostazioni che
+    nell'uso reale non si apre mai (stesso destino di Artefatti). */
+async function executeProjectGoalTool(use: ToolUse, token: string | null, projectId: string | null): Promise<ToolResult> {
+  const fail = (content: string): ToolResult => ({ id: use.id, content, isError: true });
+  if (!token) return fail('Token mancante: progetti non disponibili.');
+  const { GLOBAL_PROJECT_ID } = await import('../engine/projects');
+  if (!projectId || projectId === GLOBAL_PROJECT_ID) return fail('Generale non ha istruzioni di progetto personalizzabili: servono un progetto selezionato.');
+  const args = (use.input && typeof use.input === 'object' ? use.input : {}) as Record<string, unknown>;
+  const istruzioni = typeof args.istruzioni === 'string' ? args.istruzioni.trim() : '';
+  if (!istruzioni) return fail('Servono le istruzioni da salvare.');
+  const { loadProject, mutateProject } = await import('../projects/client');
+  const project = await loadProject(token, projectId);
+  if (project.trashedAt) return fail('Questo gruppo è nel cestino. Ripristinalo prima di usarlo.');
+  const saved = await mutateProject(token, { action: 'update', projectId: project.id, revision: project.revision, title: project.title, instructions: istruzioni, context: project.context });
+  return { id: use.id, content: JSON.stringify({ saved: true, istruzioni: saved.instructions }) };
+}
+
+async function executeMeSectionTool(use: ToolUse, token: string | null, projectId: string | null): Promise<ToolResult> {
+  const fail = (content: string): ToolResult => ({ id: use.id, content, isError: true });
+  if (!token) return fail('Token mancante: progetti non disponibili.');
+  const { loadProject, mutateProject } = await import('../projects/client');
+  const { GLOBAL_PROJECT_ID, ME_TAB_LIMITS } = await import('../engine/projects');
+  if (!projectId || projectId === GLOBAL_PROJECT_ID) {
+    return fail('La sezione ME di Generale è la schermata salute e non si personalizza. Questo vale solo per gli altri progetti — chiedi di cambiare progetto prima.');
+  }
+  const args = (use.input && typeof use.input === 'object' ? use.input : {}) as Record<string, unknown>;
+  const azione = str(args.azione);
+  const project = await loadProject(token, projectId);
+  if (azione === 'aggiungi') {
+    const etichetta = str(args.etichetta);
+    const html = typeof args.html === 'string' ? args.html : '';
+    if (!etichetta) return fail('Manca l’etichetta della tab.');
+    if (!html.trim()) return fail('Manca il contenuto HTML della tab.');
+    if ((project.meTabs?.length ?? 0) >= ME_TAB_LIMITS.tabs) return fail(`Massimo ${ME_TAB_LIMITS.tabs} tab per progetto: rimuovine una prima di aggiungerne un’altra.`);
+    const saved = await mutateProject(token, { action: 'add-me-tab', projectId: project.id, revision: project.revision, label: etichetta, html });
+    const tab = saved.meTabs?.at(-1);
+    return { id: use.id, content: JSON.stringify({ created: true, tabId: tab?.id, label: tab?.label, revisione: tab?.revision, tabs: saved.meTabs?.map((t) => ({ id: t.id, label: t.label, revisione: t.revision })) }) };
+  }
+  const tabId = str(args.tab_id);
+  if (!tabId) return fail('Manca tab_id: leggi_progetto per vedere le tab esistenti e i loro id.');
+  if (!project.meTabs?.some((t) => t.id === tabId)) return fail('Tab non trovata su questo progetto.');
+  if (azione === 'rimuovi') {
+    await mutateProject(token, { action: 'remove-me-tab', projectId: project.id, revision: project.revision, tabId });
+    return { id: use.id, content: JSON.stringify({ removed: true, tabId }) };
+  }
+  if (azione === 'aggiorna') {
+    const etichetta = typeof args.etichetta === 'string' ? args.etichetta.trim() : undefined;
+    const html = typeof args.html === 'string' ? args.html : undefined;
+    if (!etichetta && !html) return fail('Serve almeno una nuova etichetta o un nuovo contenuto.');
+    const saved = await mutateProject(token, { action: 'update-me-tab', projectId: project.id, revision: project.revision, tabId, ...(etichetta ? { label: etichetta } : {}), ...(html ? { html } : {}) });
+    const tab = saved.meTabs?.find((t) => t.id === tabId);
+    return { id: use.id, content: JSON.stringify({ updated: true, tabId, label: tab?.label, revisione: tab?.revision }) };
+  }
+  return fail('Azione non riconosciuta: usa aggiungi, aggiorna o rimuovi.');
+}
+
 /** Same catalog; only server-owned project operations need asynchronous execution. */
 export async function executeRuntimeTool(
   use: ToolUse,
@@ -1238,7 +1486,10 @@ export async function executeRuntimeTool(
   try {
     if (use.name === 'programma_promemoria') return await executeReminderTool(use, scope.token, scope.projectId ?? null);
     if (use.name === 'crea_automazione') return await executeAutomationTool(use, scope.token);
-    if (use.name === 'leggi_file') return await executeFileTool(use, scope.token, scope.projectId ?? null);
+    if (use.name === 'cambia_icona_progetto') return await executeProjectIconTool(use, scope.token, scope.projectId ?? null);
+    if (use.name === 'disegna_sezione_me') return await executeMeSectionTool(use, scope.token, scope.projectId ?? null);
+    if (use.name === 'imposta_obiettivo_progetto') return await executeProjectGoalTool(use, scope.token, scope.projectId ?? null);
+    if (use.name === 'mostra_superficie_html') return await executeHtmlSurfaceTool(use);
     if (use.name === 'cerca_conversazione') return await executeTopicSearchTool(use, scope.token);
     if (use.name === 'leggi_calendario_google') return await executeGoogleCalendarTool(use, scope.projectId ?? null);
     if (use.name === 'cerca_drive') return await executeDriveSearchTool(use);
@@ -1246,9 +1497,15 @@ export async function executeRuntimeTool(
     if (use.name === 'cerca_email') return await executeGmailSearchTool(use);
     if (use.name === 'cerca_secondo_cervello') return await executeVaultSearchTool(use);
     if (use.name === 'cerca_icloud') return await executeICloudSearchTool(use);
+    if (use.name === 'vedi_cartella_lavoro') return await executeWorkspaceListTool(use, scope.token, scope.projectId ?? null);
+    if (use.name === 'leggi_file_lavoro') return await executeWorkspaceReadTool(use, scope.token, scope.projectId ?? null);
+    if (use.name === 'leggi_documento_lavoro') return await executeWorkspaceDocumentTool(use, scope.token, scope.projectId ?? null);
+    if (use.name === 'scrivi_file_lavoro') return await executeWorkspaceWriteTool(use, scope.token, scope.projectId ?? null);
+    if (use.name === 'cancella_file_lavoro') return await executeWorkspaceDeleteTool(use, scope.token, scope.projectId ?? null);
     if (use.name === 'chiama_connettore_personalizzato') return await executeCustomConnectorTool(use);
     if (use.name === 'leggi_skill') return await executeSkillTool(use, scope.token);
-    const isProjectTool = ['leggi_progetto', 'leggi_sorgente_progetto', 'scrivi_artifact_progetto'].includes(use.name);
+    if (use.name === 'gestisci_skill_locale') return await executeManageSkillTool(use, scope.token);
+    const isProjectTool = ['leggi_progetto', 'leggi_sorgente_progetto'].includes(use.name);
     const projectFile = use.name === 'crea_file_testo';
     if (!isProjectTool && !projectFile) return await localRun(use);
     if (!scope.token) return fail('Archivio progetti non autorizzato: token mancante.');
@@ -1257,7 +1514,15 @@ export async function executeRuntimeTool(
     const project = await loadProject(scope.token, scope.projectId ?? GLOBAL_PROJECT_ID);
     if (project.trashedAt) return fail('Questo gruppo è nel cestino. Ripristinalo prima di usarlo.');
     const args = (use.input && typeof use.input === 'object' ? use.input : {}) as Record<string, unknown>;
-    if (use.name === 'leggi_progetto') return ok(JSON.stringify({ projectId: project.id, revision: project.revision, source: 'authenticated-project-store', context: buildProjectContext(project), artifacts: project.artifacts.map((p) => ({ slug: p.slug, title: p.title, revision: p.revision, url: artifactHref(project.id, p.slug) })) }));
+    /* 🔷 «Non ha la possibilità di cancellare o modificare tab esistenti in
+       ME.» Non era che rifiutasse: `disegna_sezione_me` già gestisce
+       aggiorna/rimuovi, ma per farlo serve un `tab_id` — e l'unico posto
+       indicato per trovarlo ("leggi_progetto per vedere le tab esistenti e i
+       loro id", vedi lo schema di `disegna_sezione_me` e il messaggio di
+       errore sotto) non le includeva mai nella risposta. Senza id da
+       leggere, aggiorna/rimuovi non erano mai raggiungibili su una tab non
+       appena creata nello stesso turno. */
+    if (use.name === 'leggi_progetto') return ok(JSON.stringify({ projectId: project.id, revision: project.revision, source: 'authenticated-project-store', context: buildProjectContext(project), artifacts: project.artifacts.map((p) => ({ slug: p.slug, title: p.title, revision: p.revision, url: artifactHref(project.id, p.slug) })), meTabs: (project.meTabs ?? []).map((t) => ({ id: t.id, label: t.label, revisione: t.revision ?? 1 })) }));
     if (use.name === 'leggi_sorgente_progetto') {
       const slug = str(args.nome);
       const artifact = slug ? project.artifacts.find((p) => p.slug === slug) : null;
@@ -1270,11 +1535,13 @@ export async function executeRuntimeTool(
       const matching = lines.map((text, i) => ({ line: i + 1, text })).filter((line) => query ? line.text.toLocaleLowerCase().includes(query.toLocaleLowerCase()) : line.line >= start);
       return ok(JSON.stringify({ projectId: project.id, projectRevision: project.revision, source: `project:${project.id}/${artifact ? `artifacts/${artifact.slug}` : 'context'}`, scope: 'imported project text only; not filesystem/GitHub/web access', totalLines: lines.length, matchCount: query ? matching.length : undefined, truncated: matching.length > count, lines: matching.slice(0, count) }));
     }
-    const slug = str(args.nome);
-    if (slug && args.revisione_progetto !== project.revision) return fail(`Revisione progetto richiesta o obsoleta. Leggi il documento attuale prima di aggiornare. Revisione corrente: ${project.revision}. Nessuna modifica applicata.`);
-    const markdown = projectFile ? (typeof args.testo === 'string' ? args.testo : '') : typeof args.markdown === 'string' ? args.markdown : '';
-    const saved = await mutateProject(scope.token, { action: 'save-artifact', projectId: project.id, revision: project.revision, ...(slug ? { slug } : {}), title: str(args.titolo), markdown });
-    const artifact = slug ? saved.artifacts.find((p) => p.slug === slug) : saved.artifacts[saved.artifacts.length - 1];
+    /* 🔷 Con scrivi_artifact_progetto tolto, questo blocco serve solo più
+       crea_file_testo — che non ha mai avuto nome/revisione_progetto nel suo
+       schema, quindi crea sempre un nuovo export, mai un aggiornamento per
+       slug. */
+    const markdown = typeof args.testo === 'string' ? args.testo : '';
+    const saved = await mutateProject(scope.token, { action: 'save-artifact', projectId: project.id, revision: project.revision, title: str(args.titolo), markdown });
+    const artifact = saved.artifacts[saved.artifacts.length - 1];
     if (!artifact) return fail('Il server ha risposto ma non ha restituito il documento. Non dichiarare il salvataggio verificato.');
     const checked = await loadProject(scope.token, project.id);
     const persisted = checked.artifacts.find((p) => p.slug === artifact.slug);

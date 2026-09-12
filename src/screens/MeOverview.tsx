@@ -10,13 +10,25 @@ import { savedToken } from '../brain/stream';
 import { calculateDailyEnergy } from '../engine/dailyEnergy';
 import { PersonalCalendarEvents } from './PersonalCalendarEvents';
 import { MemoryInspector, type PersonalMemoryProjection } from './MemoryInspector';
+import { MeProjectSection } from './MeProjectSection';
+import { getCurrentProjectScope, subscribeProjectScope } from '../state/currentProject';
 import './me-energy.css';
 
 type View = 'today' | 'calendar' | 'memory';
 const visibleView = (view: HealthJournal['display']['focus']): View => view === 'diet' || view === 'sport' ? 'calendar' : 'today';
 const localDay = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 
+/* 🔷 «Se cambio progetto, un po' l'app cambia.» ME si smonta e rimonta a ogni
+   cambio scheda (a differenza della chat): legge subito l'ultimo scope noto
+   invece di aspettare un evento che potrebbe essere già passato. */
+function useProjectScope() {
+  const [scope, setScope] = useState(getCurrentProjectScope);
+  useEffect(() => subscribeProjectScope(setScope), []);
+  return scope;
+}
+
 export function MeOverviewScreen({ onGo: _onGo }: { onGo: (o: Overlay) => void }) {
+  const projectScope = useProjectScope();
   const day = useApp((s) => s.day);
   const startedAt = useApp((s) => s.startedAt);
   const [journal, setJournal] = useState(readHealthJournal);
@@ -45,6 +57,7 @@ export function MeOverviewScreen({ onGo: _onGo }: { onGo: (o: Overlay) => void }
      due numeri senza una base di calcolo comune sarebbe inventare
      precisione, non offrirla. */
   const askAi = (prompt: string) => window.dispatchEvent(new CustomEvent('vinzmon-open-chat', { detail: { prompt } }));
+  if (projectScope.projectId) return <MeProjectSection projectId={projectScope.projectId} projectTitle={projectScope.projectTitle} />;
   return <div className="screen me-health">
     <nav className="me-health__tabs">{([['today', 'OGGI'], ['calendar', 'CALENDARIO'], ['memory', 'MEMORY']] as const).map(([id, label]) => <button type="button" key={id} aria-current={view === id ? 'page' : undefined} onClick={() => setView(id)}>{label}</button>)}</nav>
     <div className="me-health__scroll" ref={scrollRef}>

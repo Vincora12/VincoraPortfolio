@@ -1,11 +1,12 @@
 import type { BrainMessage } from './store/types';
 import { TOOLS, assistantTurn, resultBlocks, type ToolResult, type ToolUse } from '../ai/tools';
-import { CODE_TOOL_DEFS, EXPORT_REPORT_TOOL_DEF, buildCapabilitySummary } from '../ai/toolLayer';
+import { CODE_TOOL_DEFS, EXPORT_REPORT_TOOL_DEF, REPO_OPS_TOOL_DEFS, RESTART_SERVICE_TOOL_NAME, buildCapabilitySummary } from '../ai/toolLayer';
 import { useApp } from '../state/store';
 import { buildVoiceSystemPrompt } from '../ai/voicePrompt';
 import { persistChatTrace, recordChatTrace, systemPromptComposition, traceClock, type ChatTrace } from '../ai/chatTrace';
 import { voiceCard } from '../engine/voiceCard';
 import { resolveChatContext } from '../ai/chatContext';
+import { LOCAL_CHEAP_ROUND_SENTINEL } from '../../netlify/functions/_shared/routing';
 
 /* ============================================================================
    🔷 «Riporta la chat a prima.» — e dentro, il problema vero.
@@ -226,6 +227,21 @@ export function isAuditIntent(text: string): boolean {
   return AUDIT_INTENT.test(text);
 }
 
+/* REPO OPS — «mani in più» sul Mac dove gira VINZ.MON: git, test/build/
+   typecheck, i log del servizio, lo stato di Local Core/Mem0/Ollama, il
+   riavvio. STESSO problema di CODE_INSPECTION_INTENT sopra: senza un
+   rilevatore dedicato, "fai girare i test" o "sei online sul mio Mac?" non
+   toccano nessun vocabolario esistente e cadono nel percorso senza
+   strumenti — da cui un "non posso" non vero. */
+const REPO_OPS_INTENT = /\b(git\b|commit\w*|branch\b|\blog\b.{0,20}(?:servizio|core)|servizio.{0,20}\blog\b|esegui\w*\s+.{0,20}\btest\b|lancia\w*\s+.{0,20}\btest\b|fai\w*\s+.{0,20}\btest\b|\bnpm\s+run\b|\btypecheck\b|\blint\b|\bbuild\b.{0,20}(?:progetto|repository|vinz)|(?:local\s*core|mem0|ollama)\b.{0,30}\b(?:online|acceso|spento|funziona|raggiungibile)|\b(?:stato|status)\b.{0,20}(?:servizi|local\s*core|mem0|ollama)|riavvia\w*\s+.{0,20}(?:servizio|local\s*core|vinz)|restart\w*\s+.{0,20}(?:service|local\s*core|vinz))\b/i;
+
+/** Usa il pool REPO OPS (git/npm/log/servizi, `REPO_OPS_TOOL_DEFS`) solo
+    quando la domanda riguarda davvero il repository/i servizi sul Mac — mai
+    per ogni conversazione tecnica generica (quella resta a CODE_INSPECTION). */
+export function isRepoOpsIntent(text: string): boolean {
+  return REPO_OPS_INTENT.test(text);
+}
+
 /** "Esporta questo audit in TXT" può arrivare come turno successivo, senza
     ripetere vocabolario di audit: un rilevatore separato, più permissivo solo
     sul verbo di esportazione, evita di dover tenere l'intero pool aperto per
@@ -269,7 +285,7 @@ export type WorkoutConfirmation = { status: 'needs-confirmation' | 'confirmed' }
    ⚠️ Queste quattro scrivono nel registro di ME: peso, promemoria, piano e
    dieta. Le CORREZIONI restano fuori apposta — sono già una richiesta
    esplicita, e chiedere conferma a una conferma è solo attrito. */
-export type ConfirmableAction = 'peso' | 'promemoria' | 'automazione' | 'piano' | 'dieta';
+export type ConfirmableAction = 'peso' | 'promemoria' | 'automazione' | 'piano' | 'dieta' | 'riavvio';
 export type ActionConfirmation = { action: ConfirmableAction; status: 'needs-confirmation' | 'confirmed' };
 
 export const CONFIRMABLE_ACTIONS: Record<ConfirmableAction, {
@@ -307,6 +323,12 @@ export const CONFIRMABLE_ACTIONS: Record<ConfirmableAction, {
     question: 'Confermi che aggiorno la **dieta**?',
     hold: 'Show the diet exactly as it would become, but DO NOT call imposta_dieta and do not ask the final confirmation question. The app will ask it. The diet is NOT updated yet: never say or imply that it was saved.',
     go: 'The user has just confirmed the diet change. Call imposta_dieta now with the diet you showed.',
+  },
+  riavvio: {
+    tool: RESTART_SERVICE_TOOL_NAME,
+    question: 'Confermi che riavvio il servizio **Local Core** sul tuo Mac?',
+    hold: 'The user is asking to restart the Local Core service. Explain what this does (a brief interruption of the local server, then it comes back), but DO NOT call the restart tool and do not ask the final confirmation question. The app will ask it. Nothing is restarted yet.',
+    go: 'The user has just confirmed the restart. Call the restart tool now. After it responds, do not claim the service is already back online — only inspect_local_services can confirm that, and only in a later turn.',
   },
 };
 
@@ -363,7 +385,7 @@ export function isWorkoutLogIntent(text: string): boolean {
 
 /** Usa il loop strumenti solo quando la richiesta riguarda dati o azioni locali. */
 export function shouldUseLocalTools(text: string): boolean {
-  return TOOL_INTENT.test(text) || CODE_INSPECTION_INTENT.test(text) || AUDIT_INTENT.test(text) || EXPORT_INTENT.test(text) || isDailyEnergyIntent(text) || /\b(file|txt|markdown|csv|pdf|allegat\w*|caricat\w*|documento|artifact|progett\w*|sorgent\w*|codice|bmr|tdee|deficit|energia)\b/i.test(text)
+  return TOOL_INTENT.test(text) || CODE_INSPECTION_INTENT.test(text) || AUDIT_INTENT.test(text) || EXPORT_INTENT.test(text) || REPO_OPS_INTENT.test(text) || isDailyEnergyIntent(text) || /\b(file|txt|markdown|csv|pdf|allegat\w*|caricat\w*|documento|artifact|progett\w*|sorgent\w*|codice|bmr|tdee|deficit|energia)\b/i.test(text)
     || RECALL_INTENT.test(text);
 }
 
@@ -413,6 +435,22 @@ export async function replyWithLocalTools(
   actionConfirmation?: ActionConfirmation,
   files: ChatFileInput[] = [],
   shared?: { contextSelection?: import('../ai/contextSelection').ContextDecision[]; systemPrompt: string; requestId: string; projectId?: string },
+  /* 🔷 «Manca il pensiero vero mentre usa gli strumenti.» Questo ciclo era
+     l'unica strada per cui NESSUN pensiero vero poteva mai arrivare: sempre
+     bloccante (`stream:false`), mai un tubo da cui farlo passare. Ora ogni
+     giro apre uno stream vero; `onThinking` porta il ragionamento fuori,
+     turno per turno, verso `StatoDelPensiero` — `onChunk` invece resta
+     invariato, chiamato una sola volta a fine giro come prima: il testo
+     finale passa ancora dalla sostituzione per la conferma pasto/allenamento
+     più sotto, che dovrebbe restare intatta. */
+  onThinking?: (delta: string) => void,
+  /* 🔷 CONTROL ROOM — «FINAL RESPONSE = CLOUD» non è più un'assunzione fissa:
+     spento di default (nessuno perde qualità senza averlo scelto), acceso
+     dal Control Room fa provare Ollama anche nel giro 0 e nel giro finale,
+     con la STESSA rete di sicurezza try/catch già usata per i giri
+     intermedi — mai un silenzio se il locale non risponde, sempre
+     un'escalation dichiarata al modello scelto dall'utente. */
+  finalResponseLocalFirst = false,
 ): Promise<ChatCost> {
   const token = savedToken();
   if (!token) throw new Error('Prima attiva VINZ.MON: manca il token.');
@@ -481,6 +519,9 @@ export async function replyWithLocalTools(
         isCodeInspectionIntent(user)
           ? 'The user is asking a technical question about your own real source code/repository. Use code_search to find real files and code_read to actually read them before answering — never claim a file path, function name or implementation detail you have not actually retrieved through these tools. If a search returns no results or a read fails, say inspection found nothing or failed — never invent evidence.'
           : '',
+        isRepoOpsIntent(user) || actionConfirmation?.action === 'riavvio'
+          ? 'The user is asking about the real git repository, running tests/build/typecheck, reading VINZ.MON\'s own service logs, or the status of Local Core/Mem0/Ollama on their Mac — or asking to restart the Local Core service. These tools (git_status, git_diff, git_log, git_branch, git_show, repo_list, repo_write, repo_edit, esegui_test, esegui_build, esegui_typecheck, esegui_typecheck_funzioni, leggi_log_vinzmon, stato_servizi_locali, and the restart tool) only work when you are actually running on the Local Core Server on the user\'s Mac — if a call reports it is not available there, say so plainly, never pretend it worked. Never claim a git status, a test result, a log line or a service state you have not actually retrieved through these tools. The restart tool requires the user\'s explicit confirmation first; after it responds "restart started" is not the same as "back online" — only stato_servizi_locali in a later turn can confirm that.'
+          : '',
         isAudit
           ? 'The user is asking for a real AUDIT of yourself (a subsystem or your whole system: tool layer, memory, persona, agent loop, ME...). This must be a grounded audit, never a generic or invented answer, and never "I cannot" when you have the tools to check. Use code_search/code_read to inspect the real repository for the subsystem in question (e.g. tool layer: src/ai/tools.ts, src/ai/toolLayer.ts, netlify/functions/code-tools.ts, src/brain/stream.ts; memory/ME: src/state/store.ts and its ME/journal fields; agent loop: src/brain/stream.ts replyWithLocalTools, netlify/functions/agent-lab.ts). Use leggi_me/leggi_i_miei_dati when the audit is about live ME/personal data, not source code. Structure the answer as TITLE / SCOPE / EXECUTIVE SUMMARY / CAPABILITY MATRIX (capability, status EXISTS or PARTIAL or MISSING or BROKEN, evidence with real file/path, risk, recommended action) / DETAILED FINDINGS / ROOT CAUSES / RECOMMENDED NEXT STEPS. Clearly separate FACT (verified via a tool) from INFERENCE (your reasoning) from RECOMMENDATION. If a capability genuinely does not exist, say so plainly — never claim it does.'
           : '',
@@ -524,10 +565,17 @@ export async function replyWithLocalTools(
   const isHealthRequest = Boolean(explicitWrite) || energyRequest
     || /\b(me|salute|pasto|mangiat\w*|bevut\w*|colazione|spuntino|pranzo|merenda|cena|extra|calori\w*|protein\w*|carbo\w*|grass\w*|macro|diet\w*|allenament\w*|allenat\w*|palestra|workout|corsa|camminata|peso|kg|obiettiv\w*)\b/i.test(user)
     || Boolean(mealConfirmation || workoutConfirmation || actionConfirmation);
-  const projectTools = new Set(['leggi_progetto', 'leggi_sorgente_progetto', 'scrivi_artifact_progetto']);
+  const projectTools = new Set(['leggi_progetto', 'leggi_sorgente_progetto', 'disegna_sezione_me', 'imposta_obiettivo_progetto']);
+  /* 🔷 A differenza di `projectTools` (mai su Generale — leggono/scrivono
+     istruzioni e contesto di un progetto vero), la cartella di lavoro esiste
+     anche su Generale (`~/VinzMon/generale/`): niente esclusione forzata sotto,
+     solo un'inclusione automatica quando c'è un progetto, più il trigger a
+     parole chiave (`fileRequest`/`workspaceRequest`) che la copre ovunque. */
+  const WORKSPACE_TOOL_NAMES = ['vedi_cartella_lavoro', 'leggi_file_lavoro', 'leggi_documento_lavoro', 'scrivi_file_lavoro', 'cancella_file_lavoro'];
   const reminderRequest = /\b(promemori\w*|ricordami|ricorda|reminder|domani)\b/i.test(user);
-  /* Il pool si taglia a 12: senza una priorità, `leggi_file` può restare fuori
-     proprio nel turno in cui l'utente chiede di un file. */
+  /* Il pool si taglia a 12: senza una priorità, gli strumenti della cartella
+     di lavoro possono restare fuori proprio nel turno in cui l'utente chiede
+     di un file. */
   const fileRequest = /\b(file|allegat\w*|caricat\w*|csv|txt|markdown|pdf|documento)\b/i.test(user);
   const recallRequest = RECALL_INTENT.test(user);
   /* Stessa ragione di fileRequest/recallRequest: senza una priorità propria
@@ -536,26 +584,54 @@ export async function replyWithLocalTools(
   const calendarRequest = /\b(calendari\w*|agenda|impegn\w*|appuntament\w*)\b/i.test(user);
   const vaultRequest = /\b(secondo cervello|second brain|obsidian|vault)\b/i.test(user);
   const icloudRequest = /\bicloud\b/i.test(user);
+  const workspaceRequest = /\b(tua cartella|cartella di lavoro|workspace|organizza\w*|salva (questo|nella tua cartella))\b/i.test(user);
   const connectorRequest = /\b(connettor\w*|integrazion\w*)\b/i.test(user);
-  const skillRequest = /\bskill\w*\b/i.test(user);
+  /* ⚠️ «Cancella anche "Test frontmatter"» non contiene «skill»: un giro
+     basato solo sul messaggio di adesso perde `gestisci_skill_locale` proprio
+     nel turno che chiude una skill appena creata/discussa — stesso guaio del
+     «sì» senza parola chiave sopra. Qui, a differenza di quei casi, non c'è
+     un `shared?.projectId` da appoggiarci: si guarda anche l'ultimo scambio
+     (non solo l'ultima frase) prima di arrendersi. */
+  const skillRequest = /\bskill\w*\b/i.test(`${turns.slice(-4).map((t) => t.content).join(' ')} ${user}`);
+  const htmlSurfaceRequest = /\b(canvas|sketch|animazion\w*|arte generativa|generative art|p5\.js|interattiv\w*|mini.?gioco|superficie html|disegn\w+ (qualcosa|un|una) (interattiv\w*|animazion\w*))\b/i.test(`${turns.slice(-4).map((t) => t.content).join(' ')} ${user}`);
   const driveRequest = /\b(drive|documento\w*|foglio di calcolo|presentazione|slide)\b/i.test(user);
   const emailRequest = /\b(email|e-mail|mail|gmail|posta)\b/i.test(user);
+  /* ⚠️ L'ELENCO ICONE CONDIVIDE PAROLE COL FILTRO SALUTE («salute», «peso»,
+     «sport»…): «cambia l'icona in salute» finirebbe scartato dal pool insieme
+     a tutto il resto non-salute proprio per la parola che nomina l'icona. */
+  const iconRequest = /\bicon[ae]\b/i.test(user);
+  /* 🔷 REPO OPS — git/npm/log/servizi (`REPO_OPS_TOOL_DEFS`, ai/toolLayer.ts).
+     Stesso posto di CODE_INSPECTION_INTENT: una richiesta tecnica sul Mac
+     sostituisce l'intero pool invece di infilarsi nel ramo salute/non-salute,
+     che di questo vocabolario non sa nulla. `restartConfirmationActive`
+     copre ANCHE il giro di conferma del riavvio: `actionConfirmation` reso
+     verità fa scattare `isHealthRequest` (riga sotto), quindi senza questo
+     ramo dedicato il pool salute vincerebbe e riavvia_servizio_vinzmon (che
+     vive qui, non in TOOLS) sparirebbe anche da confermato. */
+  const repoOpsRequest = isRepoOpsIntent(user);
+  const restartConfirmationActive = actionConfirmation?.action === 'riavvio';
   const basePool = isAudit ? [...CODE_TOOL_DEFS, ...TOOLS.filter(tool => tool.name === 'leggi_me' || tool.name === 'leggi_i_miei_dati')]
-    : isCodeInspectionIntent(user) && !isHealthRequest ? CODE_TOOL_DEFS : TOOLS.filter((tool) => (reminderRequest && tool.name === 'programma_promemoria')
+    : restartConfirmationActive ? REPO_OPS_TOOL_DEFS
+    : isCodeInspectionIntent(user) && !isHealthRequest ? CODE_TOOL_DEFS
+    : repoOpsRequest && !isHealthRequest ? REPO_OPS_TOOL_DEFS
+    : TOOLS.filter((tool) => (reminderRequest && tool.name === 'programma_promemoria')
     /* ⚠️ I FILE NON SONO UN ARGOMENTO «SALUTE» O «NON SALUTE». Chiedere «leggi
        il csv degli allenamenti» finisce nel ramo salute per via della parola
-       allenamenti, e lì `leggi_file` non c'è: la risposta diventava «non riesco
-       a leggere quel CSV». Attraversa la divisione, come il promemoria. */
-    || (fileRequest && tool.name === 'leggi_file')
+       allenamenti, e lì la cartella di lavoro non c'è: la risposta diventava
+       «non riesco a leggere quel CSV». Attraversa la divisione, come il
+       promemoria. */
+    || (fileRequest && WORKSPACE_TOOL_NAMES.includes(tool.name))
     /* Come i file: cercare nel passato non è un argomento «salute» o no. */
     || (recallRequest && tool.name === 'cerca_conversazione')
     || (calendarRequest && tool.name === 'leggi_calendario_google')
     || (vaultRequest && tool.name === 'cerca_secondo_cervello')
     || (icloudRequest && tool.name === 'cerca_icloud')
     || (connectorRequest && tool.name === 'chiama_connettore_personalizzato')
-    || (skillRequest && tool.name === 'leggi_skill')
+    || (skillRequest && (tool.name === 'leggi_skill' || tool.name === 'gestisci_skill_locale'))
     || (driveRequest && (tool.name === 'cerca_drive' || tool.name === 'leggi_file_drive'))
     || (emailRequest && tool.name === 'cerca_email')
+    || (iconRequest && tool.name === 'cambia_icona_progetto')
+    || (htmlSurfaceRequest && tool.name === 'mostra_superficie_html')
     /* ⚠️ IL SÌ NON CONTIENE PIÙ LA PAROLA CHIAVE. «Vai, crea» non fa scattare
        `reminderRequest`, quindi al giro della conferma lo strumento sarebbe
        sparito dal pool e il modello avrebbe risposto «non posso» dopo che
@@ -574,16 +650,29 @@ export async function replyWithLocalTools(
         || (actionConfirmation?.status === 'confirmed' && name === CONFIRMABLE_ACTIONS[actionConfirmation.action].tool) ? 4
         : energyRequest && name === 'calcola_energia_giornaliera' ? 3
         : reminderRequest && name === 'programma_promemoria' ? 3
-        : fileRequest && name === 'leggi_file' ? 3
+        : fileRequest && WORKSPACE_TOOL_NAMES.includes(name) ? 3
         : recallRequest && name === 'cerca_conversazione' ? 3
         : calendarRequest && name === 'leggi_calendario_google' ? 3
         : vaultRequest && name === 'cerca_secondo_cervello' ? 3
         : icloudRequest && name === 'cerca_icloud' ? 3
+        : workspaceRequest && WORKSPACE_TOOL_NAMES.includes(name) ? 3
         : connectorRequest && name === 'chiama_connettore_personalizzato' ? 3
-        : skillRequest && name === 'leggi_skill' ? 3
+        : skillRequest && (name === 'leggi_skill' || name === 'gestisci_skill_locale') ? 3
         : driveRequest && (name === 'cerca_drive' || name === 'leggi_file_drive') ? 3
         : emailRequest && name === 'cerca_email' ? 3
-        : shared?.projectId && projectTools.has(name) ? 2 : 0;
+        : iconRequest && name === 'cambia_icona_progetto' ? 3
+        : htmlSurfaceRequest && name === 'mostra_superficie_html' ? 3
+        /* 🔷 «È nella tua cartella, ma dove stai cercando tu?» — trovato dal
+           vivo: "aggiorna business plan" non contiene nessuna delle parole
+           chiave sopra (file/pdf/documento/cartella...), quindi
+           vedi_cartella_lavoro restava a priorità 0 mentre leggi_progetto/
+           scrivi_artifact_progetto (le "Pagine", un sistema tutto diverso)
+           avevano già la priorità 2 SOLO per essere dentro un progetto. Col
+           tetto di 12 strumenti, le Pagine vincevano sempre il posto e VINZ
+           finiva sempre lì — non per una descrizione sbagliata, per un pool
+           strutturalmente sbilanciato verso le Pagine. Stessa priorità di
+           base per entrambi: chi vince è la parola chiave, non la sorte. */
+        : shared?.projectId && (projectTools.has(name) || WORKSPACE_TOOL_NAMES.includes(name)) ? 2 : 0;
       return priority(b.name) - priority(a.name);
     }).filter((tool) => {
     if (tool.name === 'registra_pasto') return mealConfirmation?.status === 'confirmed';
@@ -606,58 +695,230 @@ export async function replyWithLocalTools(
      cerca, legge un file, magari ne legge un altro o continua uno troncato,
      e solo allora sintetizza (ed eventualmente esporta). Il tetto di 4 round
      di ogni altra richiesta lascerebbe l'ultimo round senza strumenti
-     (`round < maxRounds - 1`) troppo presto per un audit con export —
-     esteso SOLO per l'audit, invariato per il resto della chat. */
-  const maxRounds = isAudit ? 6 : 4;
+     (`round < maxRounds - 1`) troppo presto per un audit con export.
+
+     🔷 «Fai delle tab per vedere tutto il business plan» — trovato dal vivo:
+     leggi_progetto (round 1) + due disegna_sezione_me riuscite (round 2-3)
+     riempivano già tutti e 4 i round di un turno normale, lasciando l'ultimo
+     — quello SENZA strumenti, apposta — a dover dire onestamente "non ho più
+     il comando" per la terza tab richiesta. Non un'allucinazione: il turno
+     finiva i round prima di finire il lavoro. Il lavoro multi-passo di un
+     progetto (leggi, poi crea più cose) merita lo stesso spazio di un audit,
+     non meno. */
+  const maxRounds = isAudit || Boolean(shared?.projectId) ? 8 : 4;
+
+  /* 🔷 «Se un file è già nella cartella, deve essere sempre consultabile.»
+     `leggi_documento_lavoro` non risponde con testo (vedi ToolResult.attachment
+     in ai/tools.ts): il documento vero va allegato al giro SUCCESSIVO come se
+     l'utente lo avesse appena mandato in chat. `images`/`files` restano gli
+     allegati arrivati con il messaggio; queste copie mutabili si arricchiscono
+     quando un tool ne pesca uno nuovo dalla cartella di lavoro. */
+  let liveImages = images;
+  let liveFiles = files;
+
+  /* 🔷 «Risolviamo anche i giri intermedi: un modello economico invece del
+     modello scelto per ogni giro.» Nessuno LEGGE il testo dei giri che
+     decidono solo quale strumento chiamare — a leggerlo è solo la risposta
+     che chiude il turno.
+
+     🔷 «Mettiamolo per i giri intermedi» — il modello locale su Ollama
+     (`LOCAL_CHEAP_ROUND_SENTINEL`, vedi routing.ts: il nome vero del modello
+     resta deciso dal server, mai libero dal client) costa zero, non 1/25 di
+     Sol. Va usato SOLO per quei giri intermedi, mai per il primo (spesso
+     l'unico, e allora è già la risposta vera) né per l'ultimo forzato.
+
+     🔒 IL LOCALE PUÒ MANCARE — Ollama spento, modello non scaricato, Mac che
+     dorme — e un giro fallito non deve rompere l'intero turno: se il giro
+     economico locale fallisce (rete/errore), si ripete lo STESSO giro su
+     GPT-5.6 Luna (25 volte meno di Sol, ma sempre disponibile) prima di
+     arrendersi. Se anche un giro economico (locale o di riserva) decide di
+     chiudere senza altri strumenti, quel testo NON è la risposta finale
+     vera: si rifà la STESSA richiesta col modello scelto e `tools: []`, così
+     quello che l'utente legge resta sempre scritto dal modello che ha
+     scelto lui, mai da quello economico. */
+  const CHEAP_ROUND_FALLBACK_MODEL = 'gpt-5.6-luna';
+
+  const baseRoundBody = (modelOverride: string | null | undefined, toolsForRound: typeof availableTools, toolChoiceForRound?: string) => ({
+    capability: 'character-voice',
+    requestId: shared?.requestId,
+    voiceModel: modelOverride,
+    thinking: true,
+    system,
+    turns: history,
+    user: currentUser,
+    /* 🔷 «Mando un pdf e poi dice che non ce l'ha più.» Prima si
+       mandavano foto/pdf SOLO al round 0: appena il primo giro
+       chiamava uno strumento (comunissimo — VINZ usa tool per quasi
+       tutto), il round successivo perdeva il file per sempre, anche
+       se la richiesta è la STESSA identica del turno in corso. Costa
+       ripetere gli stessi byte a ogni giro, ma perdere il documento a
+       metà di un turno che lo sta ancora leggendo è peggio. */
+    ...(liveImages.length ? { images: liveImages } : {}),
+    ...(liveFiles.length ? { files: liveFiles } : {}),
+    ...(userBlocks ? { userBlocks } : {}),
+    tools: toolsForRound,
+    ...(toolChoiceForRound ? { toolChoice: toolChoiceForRound } : {}),
+    webSearch: true,
+    maxTokens: 2000,
+  });
+
+  /* 🔷 «Se lo streaming non è disponibile, semplicemente non lo vediamo.»
+     Grok e Kimi non sanno fare streaming (`ai.ts` li rifiuta con 400): prima
+     quel rifiuto tecnico finiva dritto in chat come testo rosso. Non è un
+     errore da mostrare, è solo un modo diverso di ottenere la stessa
+     risposta — si ripete lo STESSO giro in blocco (`stream:false`, la
+     stessa strada di sempre per chi non sa fare streaming) invece di
+     arrendersi. Il pensiero live sparisce per quel giro (il bloccante non
+     lo porta), il resto è identico. */
+  const runRoundBlocking = async (
+    modelOverride: string | null | undefined,
+    toolsForRound: typeof availableTools,
+    toolChoiceForRound?: string,
+  ): Promise<{ text: string; uses: ToolUse[]; roundCostUsd: number; roundModel?: string }> => {
+    const response = await fetch('/api/ai', {
+      method: 'POST',
+      signal,
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+      body: JSON.stringify({ ...baseRoundBody(modelOverride, toolsForRound, toolChoiceForRound), stream: false }),
+    });
+    const body = await response.json().catch(() => null) as {
+      text?: string; toolUses?: ToolUse[]; model?: string; costUsd?: number; error?: string; reason?: string;
+    } | null;
+    if (!response.ok || !body) {
+      throw new Error(body?.reason ?? body?.error ?? `Richiesta fallita (${response.status}).`);
+    }
+    return { text: body.text ?? '', uses: body.toolUses ?? [], roundCostUsd: body.costUsd ?? 0, roundModel: body.model };
+  };
+
+  const runRound = async (
+    modelOverride: string | null | undefined,
+    toolsForRound: typeof availableTools,
+    toolChoiceForRound?: string,
+  ): Promise<{ text: string; uses: ToolUse[]; roundCostUsd: number; roundModel?: string }> => {
+    const response = await fetch('/api/ai', {
+      method: 'POST',
+      signal,
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+      body: JSON.stringify({ ...baseRoundBody(modelOverride, toolsForRound, toolChoiceForRound), stream: true }),
+    });
+    if (!response.ok || !response.body) {
+      const detail = await response.json().catch(() => null) as { error?: string; reason?: string } | null;
+      if (detail?.error === 'streaming non disponibile per questo modello') {
+        return runRoundBlocking(modelOverride, toolsForRound, toolChoiceForRound);
+      }
+      throw new Error(detail?.reason ?? detail?.error ?? `Richiesta fallita (${response.status}).`);
+    }
+
+    /* Consuma lo stream di QUESTO giro: il testo non va a `onChunk` mano a
+       mano (sotto lo aspetta ancora la sostituzione per la conferma
+       pasto/allenamento, che ha bisogno del testo completo), solo il
+       pensiero è veramente live. */
+    let text = '';
+    let uses: ToolUse[] = [];
+    let roundCostUsd = 0;
+    let roundModel: string | undefined;
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    while (true) {
+      const { value, done } = await reader.read();
+      buffer += decoder.decode(value, { stream: !done });
+      const records = buffer.split('\n\n');
+      buffer = records.pop() ?? '';
+      for (const record of records) {
+        const line = record.split('\n').find((item) => item.startsWith('data: '));
+        if (!line) continue;
+        const event = JSON.parse(line.slice(6)) as {
+          type?: string;
+          delta?: string;
+          model?: string;
+          costUsd?: number;
+          toolUses?: ToolUse[];
+          message?: string;
+        };
+        if (event.type === 'thinking_delta' && event.delta) onThinking?.(event.delta);
+        if (event.type === 'answer_delta' && event.delta) text += event.delta;
+        if (event.type === 'answer_completed') {
+          roundModel = event.model;
+          roundCostUsd = event.costUsd ?? 0;
+          uses = event.toolUses ?? [];
+        }
+        if (event.type === 'error') throw new Error(event.message ?? 'Errore nello stream.');
+      }
+      if (done) break;
+    }
+    return { text, uses, roundCostUsd, roundModel };
+  };
 
   try {
     const completed = new Map<string, ToolResult>();
     for (let round = 0; round < maxRounds; round++) {
       signal.throwIfAborted();
-      clock.mark(`ROUND ${round + 1}`, `POST /api/ai · ${availableTools.length} strumenti disponibili`);
-      const response = await fetch('/api/ai', {
-        method: 'POST',
-        signal,
-        headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          capability: 'character-voice',
-          requestId: shared?.requestId,
-          voiceModel,
-          system,
-          turns: history,
-          user: currentUser,
-          ...(round === 0 && images.length ? { images } : {}),
-          ...(round === 0 && files.length ? { files } : {}),
-          ...(userBlocks ? { userBlocks } : {}),
-          tools: round < maxRounds - 1 ? availableTools : [],
-          ...(round === 0 && (forcedWrite || energyRequest) ? { toolChoice: forcedWrite ?? 'calcola_energia_giornaliera' } : {}),
-          webSearch: true,
-          effort: 'none',
-          maxTokens: 2000,
-        }),
-      });
-      const body = await response.json().catch(() => null) as {
-        text?: string;
-        toolUses?: ToolUse[];
-        error?: string;
-        reason?: string;
-        costUsd?: number;
-        model?: string;
-      } | null;
-      if (!response.ok || !body) {
-        throw new Error(body?.reason ?? body?.error ?? `Richiesta fallita (${response.status}).`);
-      }
-      totalCostUsd += body.costUsd ?? 0;
-      lastModel = body.model ?? lastModel;
+      const isForcedFinalRound = round === maxRounds - 1;
+      const useCheapModel = round > 0 && !isForcedFinalRound;
+      /* 🔷 LOCAL-FIRST — un modello locale (Ollama/Qwen) ragiona peggio su un
+         menu di 12 strumenti che su uno di 6: stesso elenco già ordinato per
+         priorità (il `.sort()` sopra), solo un tetto più stretto per i giri
+         che vanno lì. Il giro cloud (round 0, il finale forzato, e il
+         fallback su errore locale sopra) non è toccato. */
+      const toolsForRound = isForcedFinalRound ? [] : useCheapModel ? availableTools.slice(0, 6) : availableTools;
+      clock.mark(`ROUND ${round + 1}`, `POST /api/ai · ${toolsForRound.length} strumenti disponibili${useCheapModel ? ' · modello economico' : ''}`);
 
-      const uses = body.toolUses ?? [];
+      const toolChoiceForRound = round === 0 && (forcedWrite || energyRequest) ? (forcedWrite ?? 'calcola_energia_giornaliera') : undefined;
+      /* Solo i giri che altrimenti userebbero direttamente il modello scelto
+         (giro 0, giro finale forzato): i giri intermedi già provano il
+         locale via `useCheapModel` sopra, non serve una seconda strada. */
+      const wantsLocalFirstFinal = finalResponseLocalFirst && !useCheapModel;
+      let { text, uses, roundCostUsd, roundModel } = useCheapModel
+        ? await runRound(LOCAL_CHEAP_ROUND_SENTINEL, toolsForRound, toolChoiceForRound).catch(() => {
+            /* Il fallback torna al cloud: stesso tetto di 12 strumenti degli
+               altri giri cloud, non quello ristretto pensato per il locale. */
+            clock.mark(`ROUND ${round + 1} — LOCALE NON DISPONIBILE`, 'passo a GPT-5.6 Luna per questo giro');
+            return runRound(CHEAP_ROUND_FALLBACK_MODEL, availableTools, toolChoiceForRound);
+          })
+        : wantsLocalFirstFinal
+          ? await runRound(LOCAL_CHEAP_ROUND_SENTINEL, toolsForRound, toolChoiceForRound).catch(() => {
+              clock.mark(`ROUND ${round + 1} — LOCALE NON DISPONIBILE`, 'passo al modello scelto per questo giro');
+              return runRound(voiceModel, toolsForRound, toolChoiceForRound);
+            })
+          : await runRound(voiceModel, toolsForRound, toolChoiceForRound);
+      totalCostUsd += roundCostUsd;
+      lastModel = roundModel ?? lastModel;
+
+      if (uses.length === 0 && useCheapModel) {
+        clock.mark(`ROUND ${round + 1} — RIFATTO`, 'il modello economico ha chiuso: rifaccio col modello scelto');
+        const redo = await runRound(voiceModel, []);
+        totalCostUsd += redo.roundCostUsd;
+        lastModel = redo.roundModel ?? lastModel;
+        text = redo.text;
+        uses = redo.uses;
+      }
+
       if (uses.length === 0) {
         clock.mark(`ROUND ${round + 1} — TESTO`, lastModel ?? 'modello sconosciuto');
-        if (!body.text?.trim()) throw new Error('La risposta è arrivata vuota.');
+        /* 🔷 Trovato testando `mostra_superficie_html`: il giro di CHIUSURA,
+           quello dopo che uno strumento ha già fatto il suo lavoro vero,
+           qualche volta torna vuoto (pochi token, né testo né altro
+           strumento) — non il primo giro, quello che chiama lo strumento,
+           che infatti funzionava. Buttare via l'intero turno con un errore
+           a questo punto perderebbe anche il lavoro già riuscito (compresa
+           la superficie html appena generata, che vive solo nei metadata di
+           QUESTO turno): meglio un «Fatto.» onesto — non finto, il lavoro è
+           davvero successo — che un errore che lo nasconde. Solo qui, non al
+           primo giro: lì un vuoto resta un vuoto vero, senza niente da
+           salvare. */
+        if (!text.trim()) {
+          if (toolRounds.length > 0) {
+            onChunk('Fatto.');
+            outcome = { costUsd: totalCostUsd, model: lastModel };
+            return outcome;
+          }
+          throw new Error('La risposta è arrivata vuota.');
+        }
         const safeText = mealConfirmation?.status === 'needs-confirmation'
-          && /\b(?:segnat|registrat|salvat|aggiunt)\w*/i.test(body.text)
+          && /\b(?:segnat|registrat|salvat|aggiunt)\w*/i.test(text)
           ? 'Ho capito cosa hai mangiato. Non è ancora registrato.'
-          : body.text.trim();
+          : text.trim();
         const confirmation = mealConfirmation?.status === 'needs-confirmation'
           ? `\n\nConfermi che lo registro come **${mealConfirmation.slot === 'extra' ? 'extra / spuntino aggiuntivo' : mealConfirmation.slot}**?`
           : workoutConfirmation?.status === 'needs-confirmation'
@@ -684,7 +945,7 @@ export async function replyWithLocalTools(
       if (userBlocks?.length) {
         history.push({ role: 'user', content: userBlocks });
       }
-      history.push(assistantTurn(body.text ?? '', uses) as { role: 'assistant'; content: unknown });
+      history.push(assistantTurn(text, uses) as { role: 'assistant'; content: unknown });
       const toolResults: ToolResult[] = [];
       for (const use of uses) {
         signal.throwIfAborted();
@@ -699,6 +960,13 @@ export async function replyWithLocalTools(
             ? { ...use, input: { ...input, pasto: mealConfirmation.slot } } : use); }
           catch { result = { id: use.id, isError: true, content: 'Tool failed. Success is not confirmed; do not repeat a write automatically.' }; }
           completed.set(use.id, result);
+        }
+        if (result.attachment) {
+          if (result.attachment.mediaType === 'application/pdf') {
+            liveFiles = [...liveFiles, { mediaType: result.attachment.mediaType, data: result.attachment.data, filename: result.attachment.filename ?? 'documento.pdf' }].slice(-2);
+          } else {
+            liveImages = [...liveImages, { mediaType: result.attachment.mediaType, data: result.attachment.data }].slice(-4);
+          }
         }
         toolResults.push(result);
       }

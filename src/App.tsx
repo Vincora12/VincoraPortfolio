@@ -60,6 +60,7 @@ import { runToolLayerTool } from './ai/toolLayer';
 import { DailySurface } from './daily/DailySurface';
 import { ThoughtBubble, ThoughtBalloon } from './system/ThoughtBalloon';
 import { currentAnnouncement, dismissAnnouncement, subscribeAnnouncements } from './system/announcements';
+import { ProjectPill, type ProjectRef } from './assistant-original/ProjectPill';
 const IntegratedChat = lazy(() => import('./assistant-original/IntegratedChat').then((module) => ({ default: module.IntegratedChat })));
 /* Il cassetto di VINZ.LAB (§14-19) — `LabEmbed` monta i componenti nativi
    del lab in uno shadow root; caricato solo quando il cassetto viene
@@ -1166,8 +1167,27 @@ export function TabBar({ tab, onChange }: { tab: Tab; onChange: (t: Tab) => void
     { id: 'today', label: 'Apri SYNC', activeLabel: 'SYNC', icon: 'clock' },
   ];
 
+  /* 🔷 «Progetti... è un pezzo del nav, a sinistra.» La chat vive in un
+     albero React tutto suo (`AssistantRuntimeProvider`, montato dentro
+     `DailySurface`), sibling di questo — nessun modo diretto di passargli
+     props. Stesso bus di `vinz-workspace-close`: `chat-surface.tsx` manda
+     lo scope attuale, qui lo si ascolta e basta; scegliere un progetto
+     manda l'evento opposto, e se non sei già in CHAT ci si passa — scegliere
+     un progetto vuol dire andare a parlarne. */
+  const [projectScope, setProjectScope] = useState<{ projectId: string | null; projectTitle: string }>({ projectId: null, projectTitle: '' });
+  useEffect(() => {
+    const onScope = (event: Event) => setProjectScope((event as CustomEvent<{ projectId: string | null; projectTitle: string }>).detail);
+    window.addEventListener('vinz-project-scope', onScope);
+    return () => window.removeEventListener('vinz-project-scope', onScope);
+  }, []);
+  const selectProject = (project: ProjectRef | null) => {
+    window.dispatchEvent(new CustomEvent('vinz-select-project', { detail: project }));
+    if (tab !== 'chat') onChange('chat');
+  };
+
   return (
     <nav className="tabbar" aria-label="Navigazione principale">
+      <ProjectPill scope={projectScope} onChange={selectProject} compact />
       {items.map((item) => (
         <button
           key={item.id}

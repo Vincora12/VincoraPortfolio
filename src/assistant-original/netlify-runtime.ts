@@ -19,7 +19,7 @@ import {
   type ChatCost,
 } from "@/brain/stream";
 import type { BrainMessage } from "@/brain/store/types";
-import { executeRuntimeTool, loadEnabledSkillsSummary, type ToolResult, type ToolUse } from "@/ai/tools";
+import { executeRuntimeTool, lastReadSkillName, loadEnabledSkillsSummary, type ToolResult, type ToolUse } from "@/ai/tools";
 import { connectorsSummaryForProject } from "@/connectors/summary";
 import { readHealthJournal } from "@/engine/healthJournal";
 import { useApp } from "@/state/store";
@@ -124,6 +124,35 @@ function filesOf(message: ThreadMessage | undefined): ChatFile[] {
   return parts.flatMap((part) => part.type === "file" && part.mimeType === "application/pdf"
     ? [{ mediaType: part.mimeType, data: part.data, filename: part.filename ?? "documento.pdf" }]
     : []).slice(0, 2);
+}
+
+/**
+ * Il PDF allegato resta il riferimento per tutto il compito ancora aperto,
+ * non solo per il messaggio subito dopo. Due difetti trovati dal vivo nella
+ * prima versione di questa funzione:
+ * 1. Serviva una parola chiave ("pdf", "documento"...) nel messaggio corrente
+ *    per anche solo PROVARE a recuperarlo — un follow-up come «quanti pezzi
+ *    per il modello X» non la contiene mai, quindi il file spariva subito.
+ * 2. La ricerca guardava solo 6 messaggi indietro — un compito reale fatto
+ *    di conferme, correzioni e domande («ci salviamo tutto», «il 24SA017
+ *    tienilo come 30») li supera via via che la conversazione continua.
+ * Ora si cerca all'indietro finché dura il TOPIC corrente (lo stesso confine
+ * di `topicAwareHistory`, `topicWatermark` qui sotto): un PDF resta
+ * raggiungibile per tutto il tempo in cui la conversazione intorno a lui
+ * resta visibile al modello, non un numero di messaggi arbitrario.
+ */
+function filesForRun(messages: readonly ThreadMessage[]): ChatFile[] {
+  const last = messages.at(-1);
+  const current = filesOf(last);
+  if (current.length) return current;
+  const boundary = topicWatermark ? messages.findIndex((m) => m.id === topicWatermark) : -1;
+  for (let index = messages.length - 2; index > boundary; index--) {
+    const previous = messages[index];
+    if (previous?.role !== "user") continue;
+    const files = filesOf(previous);
+    if (files.length) return files;
+  }
+  return [];
 }
 
 /**
@@ -320,9 +349,15 @@ const withoutAccents = (text: string) => text.normalize('NFD').replace(/[\u0300-
 const DIET_INTENT =
   /\b(?:impost\w*|aggiorn\w*|cambi\w*|modific\w*|salv\w*|cre\w*|scriv\w*)\b[^.!?]*\b(?:dieta|piano\s+alimentare|regime\s+alimentare)\b|\b(?:dieta|piano\s+alimentare|regime\s+alimentare)\b[^.!?]*\b(?:impost\w*|aggiorn\w*|cambi\w*|modific\w*|salv\w*|cre\w*|scriv\w*)\b/i;
 
+/* REPO OPS — riavvio del Local Core Server: STESSA forma di conferma di
+   peso/promemoria/dieta/piano (vedi CONFIRMABLE_ACTIONS.riavvio in
+   brain/stream.ts), qui solo il riconoscimento della richiesta iniziale. */
+const RESTART_INTENT = /\briavvia\w*\s+.{0,20}(?:servizio|local\s*core|vinz)|\brestart\w*\s+.{0,20}(?:service|local\s*core|vinz)/i;
+
 function proposedAction(text: string): ConfirmableAction | undefined {
   const tool = requiredWriteTool(text);
   if (tool && ACTION_BY_TOOL[tool]) return ACTION_BY_TOOL[tool];
+  if (RESTART_INTENT.test(text)) return 'riavvio';
   if (AUTOMATION_INTENT.test(withoutAccents(text))) return 'automazione';
   if (REMINDER_INTENT.test(text)) return 'promemoria';
   if (DIET_INTENT.test(text)) return 'dieta';
@@ -442,7 +477,7 @@ function updateLabel(use: ToolUse, projectId?: string | null): string | null {
        ancora — la parola torna giusta, quindi l'etichetta segue lo scope
        invece di sceglierne una e sbagliarla metà delle volte. */
     case 'crea_file_testo': return projectId ? 'File aggiunto al progetto' : 'File aggiunto in FILES';
-    case 'scrivi_artifact_progetto': return 'Documento salvato nel progetto';
+    case 'imposta_obiettivo_progetto': return 'Obiettivo del progetto aggiornato';
     case 'scrivi_una_pagina': return 'Pagina creata';
     case 'aggiorna_una_pagina': return 'Pagina aggiornata';
 
@@ -456,7 +491,27 @@ function updateLabel(use: ToolUse, projectId?: string | null): string | null {
         : action === 'mostra' ? 'Elemento mostrato'
         : 'Schermata cambiata';
 
-    /* Letture e ricerche: nessuna riga, per scelta. */
+    /* --- Skill ---
+       🔷 «Come "Aggiunto in ME", vorrei "Skill 'nome' usata".» Unica lettura
+       con una riga: le altre restano silenziose (sotto), ma seguire una
+       skill cambia visibilmente COME arriva la risposta — non è un dato
+       recuperato in background, è una procedura scelta al posto di
+       improvvisare la propria. */
+    case 'leggi_skill': {
+      const sourceId = typeof args.sorgente === 'string' ? args.sorgente : '';
+      const skillId = typeof args.id === 'string' ? args.id : '';
+      const name = sourceId && skillId ? lastReadSkillName(sourceId, skillId) : null;
+      return name ? `Skill "${name}" usata` : null;
+    }
+    case 'gestisci_skill_locale': {
+      const name = typeof args.nome === 'string' ? args.nome.trim() : '';
+      return action === 'crea' ? (name ? `Skill "${name}" creata` : 'Skill creata')
+        : action === 'aggiorna' ? (name ? `Skill "${name}" aggiornata` : 'Skill aggiornata')
+        : action === 'rimuovi' ? 'Skill rimossa'
+        : null;
+    }
+
+    /* Altre letture e ricerche: nessuna riga, per scelta. */
     default: return null;
   }
 }
@@ -482,7 +537,7 @@ async function* runWithLocalTools(
     messages,
     mealConfirmation?.status === 'confirmed' || workoutConfirmation?.status === 'confirmed',
   );
-  const files = filesOf(last);
+  const files = filesForRun(messages);
   const history = topicAwareHistory(toBrainMessages(messages.slice(0, -1)));
   let answer = "";
   const chunks: string[] = [];
@@ -495,6 +550,21 @@ async function* runWithLocalTools(
   let activityChanged = false;
   const notifyActivity = () => { activityChanged = true; waiting?.(); waiting = null; };
   const meBefore = JSON.stringify(readHealthJournal());
+  /* 🔷 «Manca il pensiero vero mentre usa gli strumenti.» `replyWithLocalTools`
+     ora apre uno stream vero per ogni giro e può portare fuori il pensiero
+     reale del modello (`onThinking`, in fondo alla sua firma) — qui lo si
+     raccoglie e si passa a `StatoDelPensiero` esattamente come `activity`,
+     con lo stesso meccanismo di risveglio (`waiting`). */
+  let thinking = '';
+  let thinkingChanged = false;
+  const notifyThinking = () => { thinkingChanged = true; waiting?.(); waiting = null; };
+  /* 🔷 «Una superficie html in un box suo, dentro il messaggio.» Il contenuto
+     lo scrive il modello, non un file da salvare da nessuna parte: basta
+     leggerlo da `use.input` (mostra_superficie_html lo valida e basta,
+     `ai/tools.ts`) e passarlo nei metadata del messaggio finale — la stessa
+     via di `updates`/`activity` qui sotto. Una sola per messaggio: l'ultima
+     vince, non ha senso impilarne più di una nello stesso box. */
+  let htmlSurface: string | null = null;
 
   const runAndDescribe = async (use: ToolUse): Promise<ToolResult> => {
     const entry = { tool: use.name, status: 'RUNNING' as 'RUNNING' | 'PASS' | 'FAIL', durationMs: 0 };
@@ -510,6 +580,10 @@ async function* runWithLocalTools(
     if (result.isError) return result;
     const label = updateLabel(use, shared?.projectId);
     if (label && !updates.includes(label)) updates.push(label);
+    if (use.name === 'mostra_superficie_html') {
+      const args = (use.input && typeof use.input === 'object' ? use.input : {}) as Record<string, unknown>;
+      if (typeof args.html === 'string' && args.html.trim()) htmlSurface = args.html;
+    }
     return result;
   };
 
@@ -530,6 +604,8 @@ async function* runWithLocalTools(
     actionConfirmation,
     files,
     shared,
+    (delta) => { thinking += delta; notifyThinking(); },
+    useApp.getState().finalResponseLocalFirst,
   )
     .then((result) => { cost = result; })
     .catch((error: unknown) => { failure = error; })
@@ -539,10 +615,14 @@ async function* runWithLocalTools(
       waiting = null;
     });
 
-  while (!finished || chunks.length > 0 || activityChanged) {
+  while (!finished || chunks.length > 0 || activityChanged || thinkingChanged) {
     if (activityChanged) {
       activityChanged = false;
       yield { content: answer ? [{ type: 'text' as const, text: answer }] : [], metadata: { custom: { activity: activity.map((item) => ({ ...item })) } } };
+    }
+    if (thinkingChanged) {
+      thinkingChanged = false;
+      yield { content: answer ? [{ type: 'text' as const, text: answer }] : [], metadata: { custom: { thinkingText: thinking } } };
     }
     if (finished && chunks.length === 0) break;
     if (chunks.length === 0) {
@@ -566,6 +646,7 @@ async function* runWithLocalTools(
         traceId: cost.traceId,
         updates,
         activity,
+        htmlSurface,
         monReaction: reactionForAnswer(answer),
         ...(mealConfirmation?.status === 'needs-confirmation'
           ? { pendingMeal: { slot: mealConfirmation.slot } }
@@ -683,7 +764,7 @@ function createBaseNetlifyChatModel(shared: { systemPrompt: string; requestId: s
     const useStream = (modelName?.startsWith("claude-") || modelName?.startsWith("gpt-")) ?? false;
     const last = messages.at(-1);
     const images = imagesForRun(messages);
-    const files = filesOf(last);
+    const files = filesForRun(messages);
     const app = useApp.getState();
     const activeMon = app.activeMonName ? app.mons[app.activeMonName] : null;
     const systemPrompt = shared.systemPrompt;
@@ -912,8 +993,15 @@ export function createNetlifyChatModel(
       const user = textOf(last);
       const projectId = typeof args.runConfig?.custom?.projectId === 'string' ? args.runConfig.custom.projectId : undefined;
       if (last?.role === "user") {
-        // Fire-and-forget: semantic capture is isolated from response latency.
-        if (!projectId) void captureChatMemoryForClient({ text: user, messageId: last.id, requestId, context: args.messages.slice(-5, -1).map((message) => ({ role: message.role === 'assistant' ? 'assistant' : 'user', text: textOf(message) })) });
+        /* 🔷 «Una cosa in un progetto tipo ricordalo, deve ricordarlo sempre.»
+           C'è UNA sola memoria personale, mai divisa per progetto: i progetti
+           sono solo un indizio di argomento per la chat ("sei dentro ffuoco,
+           quindi parliamo di quello"), non un recinto di memoria separato.
+           Prima questa riga si fermava dentro un progetto (`if (!projectId)`):
+           per questo, da quando l'utente vive quasi solo dentro progetti, non
+           vedeva più "Memoria aggiornata" sotto i messaggi.
+           Fire-and-forget: semantic capture is isolated from response latency. */
+        void captureChatMemoryForClient({ text: user, messageId: last.id, requestId, context: args.messages.slice(-5, -1).map((message) => ({ role: message.role === 'assistant' ? 'assistant' : 'user', text: textOf(message) })) });
         postRuntimeEvent({ eventType: 'CHAT_SEND_START', status: 'START', scope: 'chat', requestId, messageId: last.id, capability: 'character-voice' });
       }
       const pendingSlot = pendingMealSlot(args.messages);
@@ -998,7 +1086,7 @@ export function createNetlifyChatModel(
       // registri veri dei tool, mai una lista scritta a mano scollegata.
       systemPrompt += buildCapabilitySummary(true);
       systemPrompt += await loadEnabledSkillsSummary(token);
-      systemPrompt += connectorsSummaryForProject(projectId ?? null);
+      systemPrompt += await connectorsSummaryForProject(projectId ?? null);
       if (runTool && useTools) {
         yield* runWithLocalTools(
           args.messages,
