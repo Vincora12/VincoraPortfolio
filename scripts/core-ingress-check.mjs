@@ -15,8 +15,8 @@ const compiled = await build({
   bundle:true, write:false, platform:'node', format:'esm', logLevel:'silent',
   plugins:[{name:'fake-io',setup(b){
     b.onResolve({filter:/^@netlify\/blobs$|\/localStore$|^\.\/_shared\/localStore$/},()=>({path:'blobs',namespace:'fixture'}));
-    b.onLoad({filter:/.*/,namespace:'fixture'},()=>({contents:`export function getStore(){return {async get(key){if(globalThis.__coreTest.failStore)throw Error('offline');return key==='save'?globalThis.__coreTest.save:null;}}}`}));
-    b.onLoad({filter:/_shared\/providers\.ts$/},()=>({contents:`export async function callProvider(provider,input){globalThis.__coreTest.calls.push({provider,...input});return {ok:true,text:'contract response',model:'fixture',toolUses:[],usage:{inputTokens:11,outputTokens:3}};}`}));
+    b.onLoad({filter:/.*/,namespace:'fixture'},()=>({contents:`export function getStore(){return {async get(key){if(globalThis.__coreTest.failStore)throw Error('offline');return key==='save'?globalThis.__coreTest.save:null;},async list(){if(globalThis.__coreTest.failStore)throw Error('offline');return {blobs:[]};},async setJSON(){}}}`}));
+    b.onLoad({filter:/_shared\/providers\.ts$/},()=>({contents:`export async function callProvider(provider,input){globalThis.__coreTest.calls.push({provider,...input});return {ok:true,text:'contract response',model:'fixture',toolUses:[],sources:[],usage:{inputTokens:11,outputTokens:3}};}`}));
     b.onLoad({filter:/_shared\/spend\.ts$/},()=>({contents:`export const INTERNAL_CAP_EXCEEDED='cap',PROVIDER_QUOTA_EXCEEDED='quota';export const looksLikeProviderQuota=()=>false;export async function checkCap(){return {blocked:false,ledger:{usd:0},capUsd:35}};export async function recordSpend(){}`}));
     b.onLoad({filter:/_shared\/runtimeLog\.ts$/},()=>({contents:`export async function appendRuntimeEvent(){}`}));
     b.onLoad({filter:/_shared\/core\/memory\.ts$/},()=>({contents:`export async function searchPersonalMemory(){return [{text:'Bounded fixture memory'}];} export const shouldCapturePersonalMemory=()=>false; export async function writePersonalMemory(){throw Error('No fixture capture expected');}`}));
@@ -35,8 +35,9 @@ const response=await m.chat(req('/v1/chat/completions',input));
 assert.equal(response.status,200);
 assert.equal((await response.json()).choices[0].message.content,'contract response');
 const call=globalThis.__coreTest.calls.at(-1);
-assert.ok(call.system.at(-1).text.includes(mon.data.name.replace(/\.mon$/,'')));
-assert.ok(call.system.at(-1).text.includes('Bounded fixture memory'));
+const joinedSystem=call.system.map(block=>block.text).join('\n');
+assert.ok(joinedSystem.includes(mon.data.name.replace(/\.mon$/,'')));
+assert.ok(joinedSystem.includes('Bounded fixture memory'));
 const web=await (await m.context(req('/api/core-context',{query:'fixture'}))).json();
 assert.equal(web.context.monName,mon.data.name);assert.equal(web.context.worldId,'fixture-world');
 assert.ok((await (await m.chat(req('/v1/chat/completions',{...input,stream:true}))).text()).endsWith('data: [DONE]\n\n'));

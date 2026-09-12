@@ -215,6 +215,9 @@ export async function runIngress(
     ...(run.rawToolUses?.length ? { stopReason: 'tool_use' } : {}),
     ...(run.error ? { error: run.error } : {}),
   };
+  if (run.status === 'failed' && run.error?.startsWith('CONTEXT_UNAVAILABLE:')) {
+    return { ok: false, response: jsonWithCors({ error: { message: 'Contesto canonico non disponibile.', type: 'server_error' } }, 503) };
+  }
 
   if (!result.ok) {
     const providerQuota = looksLikeProviderQuota(result.error);

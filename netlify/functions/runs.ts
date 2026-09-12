@@ -2,6 +2,7 @@ import { authorize, denied, json } from './_shared/auth';
 import { cancelRun, executeRun } from './_shared/v2/runEngine';
 import { readRun } from './_shared/v2/runStore';
 import type { ContextWindow, RunProfile, RunRequest } from './_shared/v2/contracts';
+import { validProjectId } from '../../src/engine/projects';
 
 const PROFILES = new Set<RunProfile>(['chat', 'project-chat', 'lab', 'automation', 'inspection', 'coding']);
 
@@ -24,7 +25,7 @@ export default async function handler(request: Request): Promise<Response> {
   const input = typeof body.input === 'string' ? body.input.trim() : '';
   const profile = body.profile as RunProfile;
   if (!input || input.length > 12_000 || !PROFILES.has(profile)) return json({ error: 'Run non valido.' }, 400);
-  if (body.projectId !== undefined && body.projectId !== null && typeof body.projectId !== 'string') return json({ error: 'projectId non valido.' }, 400);
+  if (body.projectId !== undefined && body.projectId !== null && !validProjectId(body.projectId)) return json({ error: 'projectId non valido.' }, 400);
   const contextWindow: ContextWindow = body.contextWindow === 32_000 ? 32_000 : 16_000;
   const runRequest: RunRequest = {
     profile, input, contextWindow,

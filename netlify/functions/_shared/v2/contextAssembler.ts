@@ -82,6 +82,7 @@ export async function assembleContext(domains: ContextDomains, input: AssembleCo
   named.forEach((project) => projectIds.add(project.id));
   const loaded = new Map<string, ProjectEvidence>();
   await Promise.all([...projectIds].map(async (id) => { const project = await domains.project(id); if (project) loaded.set(id, project); }));
+  if (input.projectId && !loaded.has(input.projectId)) throw new Error(`Active project not found: ${input.projectId}`);
 
   const [memory, me] = input.allowPersonal === false ? [[], []] : await Promise.all([
     domains.globalMemory(input.query, windowTokens === 16_000 ? 6 : 12).catch(() => []),

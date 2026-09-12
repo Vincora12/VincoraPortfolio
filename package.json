@@ -67,6 +67,7 @@
     "verify:v2-context": "node scripts/v2-context-check.mjs",
     "verify:memory-reconciliation": "node scripts/memory-reconcile.mjs --custom tests/fixtures/memory-custom-copy.json --mem0 tests/fixtures/memory-mem0-copy.json",
     "verify:v2-run": "node scripts/v2-run-check.mjs",
+    "verify:v2-files": "node scripts/v2-file-migration-check.mjs",
     "verify:cultural-discovery": "node scripts/cultural-discovery-check.mjs"
   },
   "dependencies": {

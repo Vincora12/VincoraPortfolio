@@ -17,7 +17,7 @@ const compiled = await build({
 });
 const m = await import(`data:text/javascript;base64,${Buffer.from(compiled.outputFiles[0].text).toString('base64')}`);
 const domains = {
-  identity: async () => 'VINZ.MON identity', listProjects: async () => [], project: async () => null,
+  identity: async () => 'VINZ.MON identity', listProjects: async () => [], project: async (id) => ({ id, title: 'Fixture project' }),
   globalMemory: async () => [], me: async () => [],
 };
 const definition = { name: 'lookup', description: 'Read fixture evidence', schema: { type: 'object', properties: {} } };

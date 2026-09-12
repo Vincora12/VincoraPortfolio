@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import type { Project } from '../../../../src/engine/projects';
 
@@ -54,4 +54,17 @@ export async function applyProjectFileMigration(plan: ProjectFileMigrationPlan, 
     metadata.push(row);
   }
   return metadata;
+}
+
+/** Deletes only files named by a prior plan, under the same fixture marker gate. */
+export async function rollbackProjectFileMigration(plan: ProjectFileMigrationPlan, targetRoot: string): Promise<void> {
+  const root = resolve(targetRoot);
+  await readFile(join(root, '.vinzmon-v2-fixture'), 'utf8');
+  for (const file of plan.files) {
+    const destination = resolve(root, file.relativePath);
+    if (!destination.startsWith(`${root}/`)) throw new Error('Rollback path escaped target root.');
+    try { await unlink(destination); } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+    }
+  }
 }
