@@ -1746,9 +1746,20 @@ const AssistantMessage: FC = () => {
                   prodotto quotidiano: adesso vive in `#/lab/trace`, che legge
                   lo stesso trace da `chat-trace:last`. Qui sparisce l'accesso,
                   non la registrazione: `saveTrace` continua a scrivere. */}
+              {/* 🔴 «Perché dice che costa se il modello è free?» — trovato dal
+                  vivo: un utente vedeva "Costo chat $0.41" proprio accanto a
+                  "Modello qwen2.5:14b" (locale, gratis) e pensava che fosse
+                  QUELLA risposta a costare. `chatCost` qui sopra è la somma
+                  di OGNI messaggio di tutta la conversazione, non di questo
+                  soltanto — corretto (è la spesa totale della chat, quello
+                  che serve per «vedere quanto sto lavorando»), ma la parola
+                  "chat" da sola non lo diceva. "(totale)" è l'unica
+                  differenza: stessa cifra, stesso calcolo, solo la lettura
+                  giusta invece di quella che sembrava un prezzo per QUESTA
+                  risposta. */}
               {hasChatCost && (
                 <ActionBarMorePrimitive.Item disabled className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-white/65 outline-none select-none">
-                  Costo chat {formatCost(chatCost)}
+                  Costo chat (totale) {formatCost(chatCost)}
                 </ActionBarMorePrimitive.Item>
               )}
               {/* 🔷 «Nei tre puntini vorrei leggere anche che AI ha usato.» Il
