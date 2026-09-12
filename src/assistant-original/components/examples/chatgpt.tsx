@@ -1611,7 +1611,7 @@ const HtmlSurface: FC = () => {
 };
 
 const AssistantMessage: FC = () => {
-  const { staScrivendo, haTesto, soloSticker, chatCost, hasChatCost, model, openingRevealDelay, openingRevealArrivalId } = useAuiState(
+  const { staScrivendo, haTesto, soloSticker, chatCost, hasChatCost, messageCost, hasMessageCost, model, openingRevealDelay, openingRevealArrivalId } = useAuiState(
     useShallow((s) => ({
       staScrivendo: s.message.status?.type === "running",
       haTesto: (s.message.content ?? []).some(
@@ -1623,6 +1623,13 @@ const AssistantMessage: FC = () => {
         return sum + (typeof cost === 'number' ? cost : 0);
       }, 0),
       hasChatCost: s.thread.messages.some((message) => typeof message.metadata.custom.costUsd === 'number'),
+      /* 🔷 «Mettiamo Costo messaggio oltre a Costo chat.» Stesso campo di
+         `chatCost` sopra (`metadata.custom.costUsd`), ma di QUESTO messaggio
+         soltanto — non sommato al resto della conversazione. È il numero
+         che risponde alla domanda che ha fatto scattare la confusione:
+         «questa risposta, quella che vedo, quanto è costata davvero?» */
+      messageCost: typeof s.message.metadata.custom.costUsd === 'number' ? s.message.metadata.custom.costUsd : 0,
+      hasMessageCost: typeof s.message.metadata.custom.costUsd === 'number',
       model: typeof s.message.metadata.custom.model === 'string' ? s.message.metadata.custom.model : null,
       openingRevealDelay: typeof s.message.metadata.custom.revealDelayMs === "number"
         ? s.message.metadata.custom.revealDelayMs
@@ -1749,14 +1756,18 @@ const AssistantMessage: FC = () => {
               {/* 🔴 «Perché dice che costa se il modello è free?» — trovato dal
                   vivo: un utente vedeva "Costo chat $0.41" proprio accanto a
                   "Modello qwen2.5:14b" (locale, gratis) e pensava che fosse
-                  QUELLA risposta a costare. `chatCost` qui sopra è la somma
-                  di OGNI messaggio di tutta la conversazione, non di questo
-                  soltanto — corretto (è la spesa totale della chat, quello
-                  che serve per «vedere quanto sto lavorando»), ma la parola
-                  "chat" da sola non lo diceva. "(totale)" è l'unica
-                  differenza: stessa cifra, stesso calcolo, solo la lettura
-                  giusta invece di quella che sembrava un prezzo per QUESTA
-                  risposta. */}
+                  QUELLA risposta a costare. "Costo chat" era già corretto (la
+                  spesa TOTALE della conversazione, quello che serve per
+                  «vedere quanto sto lavorando») ma non lo diceva. Ora ci sono
+                  due righe invece di una: "Costo messaggio" è QUESTA
+                  risposta soltanto — con qwen sarà $0.0000, il numero che
+                  risponde davvero alla domanda — e "Costo chat (totale)"
+                  resta la somma di tutta la conversazione, per intero. */}
+              {hasMessageCost && (
+                <ActionBarMorePrimitive.Item disabled className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-white/65 outline-none select-none">
+                  Costo messaggio {formatCost(messageCost)}
+                </ActionBarMorePrimitive.Item>
+              )}
               {hasChatCost && (
                 <ActionBarMorePrimitive.Item disabled className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-white/65 outline-none select-none">
                   Costo chat (totale) {formatCost(chatCost)}
