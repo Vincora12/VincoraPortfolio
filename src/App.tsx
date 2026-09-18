@@ -376,11 +376,11 @@ export function App() {
      prendono la pagina giusta invece della radice. */
   useEffect(() => {
     const slug = pageSlugOf(overlay);
-    /* 🔷 DUE VERSIONI, UN DOMINIO. A riposo l'indirizzo della versione attuale
-       è `#/current` e non più la radice nuda: la radice adesso è il selettore
-       fra VINZ.MON e Vinz.mon_v2 (`version/entry.ts`), e lasciarla qui vorrebbe
-       dire che ogni refresh dentro l'app riporta alla scelta. Le pagine del
-       .mon restano `#/p/<slug>`, che il selettore riconosce come Current. */
+    /* A riposo l'indirizzo resta `#/current` (un residuo del selettore di
+       versione ormai rimosso — vedi `main.tsx`): non serve più a scegliere
+       niente, ma è innocuo lasciarlo, ed evita di toccare i link già
+       condivisi con questo frammento. Le pagine del .mon restano
+       `#/p/<slug>`. */
     const wanted = slug ? `#/p/${slug}` : '#/current';
     if (window.location.hash !== wanted) {
       // `replaceState` e non `hash =`: cambiare l'hash impilerebbe una voce

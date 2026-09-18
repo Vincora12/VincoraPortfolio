@@ -20,6 +20,15 @@ import { ErrorBoundary } from './system/ErrorBoundary';
    DESIGN.LAB. Con quella stanza rimossa (nessun altro la usava — verificato)
    sparisce anche questo ramo di boot.
 
+   🔷 SELETTORE DI VERSIONE RIMOSSO (2026-09-18) — Vinz.mon_v2 (LobeHub) era
+   un confronto in corso, non un prodotto da tenere in piedi indefinitamente:
+   il confronto è finito, resta solo VINZ.MON Current. `src/version/` e
+   `src/v2/` sono stati eliminati (nessun altro file li importava — verificato
+   prima di toccarli). Qualunque frammento diverso da `#/lab` o
+   `#/artifact/...` entra direttamente qui, quindi anche un vecchio `#/v2` o
+   un `vinzmon.version.last` salvato in localStorage non riaprono più niente:
+   il codice che li leggeva non esiste più.
+
    ⚠️ `App` resta un import dinamico anche sulla strada normale. Non è
    eleganza: è che così il bundle del laboratorio non trascina dentro l'app
    intera, e viceversa.
@@ -27,8 +36,6 @@ import { ErrorBoundary } from './system/ErrorBoundary';
 
 async function boot() {
   const entry = readEntrypoint();
-  const { readVersionEntry } = await import('./version/entry');
-  const version = readVersionEntry();
   const { pullRuntimeConfig, runtimeConfig: localRuntimeConfig } = await import('./system/runtimeConfig');
   let runtimeConfigTimer = 0;
   const runtimeConfig = await Promise.race([
@@ -62,21 +69,6 @@ async function boot() {
   if (entry.kind === 'lab') {
     const { LabApp } = await import('./lab/LabApp');
     content = <LabApp initialLab={entry.lab} />;
-  } else if (version.kind === 'selector') {
-    /* 🔷 DUE VERSIONI, UN DOMINIO. La radice nuda chiede quale VINZ.MON
-       aprire; qualunque altro frammento entra dove entrava prima. Vedi
-       `version/entry.ts`. */
-    const { VersionSelector } = await import('./version/VersionSelector');
-    content = <VersionSelector />;
-  } else if (version.version === 'v2') {
-    const { VinzV2App } = await import('./v2/VinzV2App');
-    const { VersionSwitch } = await import('./version/VersionSwitch');
-    content = (
-      <>
-        <VinzV2App />
-        <VersionSwitch version="v2" />
-      </>
-    );
   } else if (/^#\/artifact\/[a-zA-Z0-9_-]+\/[a-z0-9-]+$/.test(location.hash)) {
     const [, , projectId, slug] = location.hash.split('/');
     const { ProjectArtifactReader } = await import('./projects/ProjectWorkspace');
@@ -84,15 +76,7 @@ async function boot() {
     content = <ProjectArtifactReader token={useApp.getState().token} projectId={projectId!} slug={slug!} onClose={() => location.assign('/')} />;
   } else {
     const { App } = await import('./App');
-    const { VersionSwitch } = await import('./version/VersionSwitch');
-    content = (
-      <>
-        <App />
-        {/* Fratello di `App`, non figlio: la versione attuale torna al
-            selettore senza che la sua barra di navigazione cambi. */}
-        <VersionSwitch version="current" />
-      </>
-    );
+    content = <App />;
   }
 
   const { applyRuntimeConfigToStore } = await import('./state/store');
