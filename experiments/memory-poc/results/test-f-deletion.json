@@ -1,0 +1,29 @@
+{
+  "status": "PASS",
+  "memoryId": "2844de2e-4c5a-4b6a-975f-b162ae117290",
+  "presentBefore": true,
+  "presentAfterDelete": false,
+  "storicoDopoLaCancellazione": [
+    {
+      "id": 8,
+      "memory_id": "2844de2e-4c5a-4b6a-975f-b162ae117290",
+      "previous_value": "User's shoe size is 42.5",
+      "new_value": null,
+      "action": "DELETE",
+      "created_at": null,
+      "updated_at": null,
+      "is_deleted": 1
+    },
+    {
+      "id": 7,
+      "memory_id": "2844de2e-4c5a-4b6a-975f-b162ae117290",
+      "previous_value": null,
+      "new_value": "User's shoe size is 42.5",
+      "action": "ADD",
+      "created_at": "2026-09-17T09:43:05.732Z",
+      "updated_at": null,
+      "is_deleted": 0
+    }
+  ],
+  "nota": "m.history(id) rimane interrogabile dopo delete — è un registro di controllo separato dall'indice di ricerca attivo, non un secondo indice ricercabile per contenuto"
+}

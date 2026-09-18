@@ -1,0 +1,17 @@
+{
+  "status": "PASS",
+  "fileTrovatiECopiati": [
+    "mem0-history.sqlite",
+    "mem0-vectors.sqlite"
+  ],
+  "notaFileMultipli": "2 file separati costituiscono lo storage reale — copiarne uno solo avrebbe perso i ricordi o lo storico",
+  "verificaRipristino": {
+    "status": "PASS",
+    "storageUsato": {
+      "history": "/Users/ffuoco/Developer/VinzMon-v2/experiments/memory-poc/restored-data/mem0-history.sqlite",
+      "vectors": "/Users/ffuoco/Developer/VinzMon-v2/experiments/memory-poc/restored-data/mem0-vectors.sqlite"
+    },
+    "nota": "directory pulita, copie dei file, processo separato da quello di backup",
+    "found": true
+  }
+}

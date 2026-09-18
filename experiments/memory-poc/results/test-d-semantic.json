@@ -1,0 +1,13 @@
+{
+  "status": "PASS",
+  "nota": "zero parole in comune fra fatto e query italiana; se trovato, prova ricerca semantica reale via embedding, non keyword",
+  "addMs": 3788,
+  "searchMs": 179,
+  "righeNonEntita": [
+    {
+      "memory": "User prefers to avoid touristy bars",
+      "score": 0.3396304113485506
+    }
+  ],
+  "found": true
+}

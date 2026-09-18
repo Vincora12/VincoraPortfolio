@@ -1,0 +1,9 @@
+{
+  "status": "PASS",
+  "nota": "ricerca eseguita con MEM0_LLM_MODEL=gpt-oss:20b su ricordi scritti con qwen2.5:14b, stesso embedder (nomic-embed-text) e stesso storage isolato",
+  "precisazione": "la ricerca in mem0ai OSS non invoca mai il LLM di generazione: usa solo embedder + vector store. Questo test lo conferma su dati reali, non lo suppone dal codice sorgente da solo.",
+  "llmModelUsatoPerLaRicerca": "gpt-oss:20b",
+  "llmModelUsatoAllaScrittura": "qwen2.5:14b",
+  "searchMs": 537,
+  "found": true
+}

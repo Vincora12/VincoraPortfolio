@@ -1,0 +1,73 @@
+{
+  "status": "PASS",
+  "privateMemoryOwnMon": true,
+  "privateMemoryLeakedToOtherMon": false,
+  "scopingBehaviorVerificato": "una memoria salvata SENZA agentId (livello utente) NON viene restituita da una ricerca filtrata con un agent_id specifico — user_id e agent_id NON sono un OR, sono un AND implicito sui campi presenti nel payload",
+  "provaScoping": "la memoria \"Vincenzo/Roma\" esiste nello store (verificato con getAll su solo user_id) ma sharedOnA e sharedOnB sono entrambi vuoti perché il filtro agent_id la esclude",
+  "raw": {
+    "searchOnA": {
+      "results": [
+        {
+          "id": "da4bf0a4-31aa-4a9f-88af-aa1baaa02243",
+          "memory": "User is considering leaving their current job",
+          "hash": "501fca83ed4aa0fda276af68beb10fa5",
+          "createdAt": "2026-09-17T09:41:43.589Z",
+          "updatedAt": "2026-09-17T09:41:43.589Z",
+          "score": 0.4562338857972757,
+          "metadata": {},
+          "user_id": "vinz-poc",
+          "agent_id": "mon-a-private",
+          "attributedTo": "user"
+        },
+        {
+          "id": "bd7336ce-c9db-4af1-9f28-5aee26508059",
+          "memory": "is considering leaving their",
+          "score": 0.4296008319134345,
+          "metadata": {
+            "entityType": "TOPIC",
+            "linkedMemoryIds": [
+              "da4bf0a4-31aa-4a9f-88af-aa1baaa02243"
+            ]
+          },
+          "user_id": "vinz-poc",
+          "agent_id": "mon-a-private"
+        }
+      ]
+    },
+    "searchOnB": {
+      "results": []
+    },
+    "sharedOnA": {
+      "results": [
+        {
+          "id": "bd7336ce-c9db-4af1-9f28-5aee26508059",
+          "memory": "is considering leaving their",
+          "score": 0.4376967468141505,
+          "metadata": {
+            "entityType": "TOPIC",
+            "linkedMemoryIds": [
+              "da4bf0a4-31aa-4a9f-88af-aa1baaa02243"
+            ]
+          },
+          "user_id": "vinz-poc",
+          "agent_id": "mon-a-private"
+        },
+        {
+          "id": "da4bf0a4-31aa-4a9f-88af-aa1baaa02243",
+          "memory": "User is considering leaving their current job",
+          "hash": "501fca83ed4aa0fda276af68beb10fa5",
+          "createdAt": "2026-09-17T09:41:43.589Z",
+          "updatedAt": "2026-09-17T09:41:43.589Z",
+          "score": 0.4220246077164961,
+          "metadata": {},
+          "user_id": "vinz-poc",
+          "agent_id": "mon-a-private",
+          "attributedTo": "user"
+        }
+      ]
+    },
+    "sharedOnB": {
+      "results": []
+    }
+  }
+}

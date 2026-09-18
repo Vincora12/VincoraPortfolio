@@ -1,0 +1,41 @@
+{
+  "status": "PASS",
+  "nota": "stesso scenario del Test B, stavolta via upsertPersonalMemory invece di mem.add() diretto",
+  "primoUpsertAction": "ADD",
+  "secondoUpsertAction": "UPDATE",
+  "r1Ms": 47261,
+  "r2Ms": 7889,
+  "ricordiAttiviTrovati": 1,
+  "mentionsMonday": true,
+  "mentionsFriday": false,
+  "righeAttive": [
+    {
+      "memory": "User's project named Atlas was rescheduled to launch on Monday, September 21, 2026",
+      "score": 0.42225367182917806
+    }
+  ],
+  "dettaglioSecondoUpsert": {
+    "action": "UPDATE",
+    "outcomes": [
+      {
+        "action": "UPDATE",
+        "updatedId": "191d247f-3bc6-47f9-84ca-de4b03115adb",
+        "previousText": "User's project named Atlas is set to launch on Friday, September 18, 2026",
+        "newText": "User's project named Atlas was rescheduled to launch on Monday, September 21, 2026",
+        "removedDuplicateId": "fc91de69-279d-48f9-b9e5-206f3d03d5e2",
+        "candidateScore": 0.6226323605466366
+      }
+    ],
+    "addResult": {
+      "results": [
+        {
+          "id": "fc91de69-279d-48f9-b9e5-206f3d03d5e2",
+          "memory": "User's project named Atlas was rescheduled to launch on Monday, September 21, 2026",
+          "metadata": {
+            "event": "ADD"
+          }
+        }
+      ]
+    }
+  }
+}
