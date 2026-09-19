@@ -69,6 +69,7 @@ import { EXPRESSION_SPEC, EXPRESSIONS } from "@/engine/assets";
 import { memoryFeedbackFor, subscribeMemoryFeedback } from "@/assistant-original/chat-memory-feedback";
 import {
   buildBabyFirstOpening,
+  buildFirstEncounterReaction,
   buildOpening,
   buildThoughtStatus,
   localMicroMemory,
@@ -139,6 +140,32 @@ const importWithObservability = (
       reason,
     },
   });
+};
+
+/* LIFE SIMULATION V0 — stessa regola di sicurezza di `insertPresenceMessage`
+   (sotto, in `MonPresenceEvents`), fattorizzata perché serve anche a
+   `FirstEncounterBar` per la conferma di PRESENTATI: un thread ancora
+   locale/non promosso non sopporta `aui.thread.append()` (vedi il
+   commento "FIRST TURN — PARKED APPEND FIX" qui sotto), quindi si passa
+   da `import()` in quel solo caso. */
+const insertRuntimeMessage = (
+  aui: AuiHandle,
+  threadId: string,
+  markLive: (() => void) | null,
+  callerName: string,
+  message: ThreadMessage,
+  reason: string,
+): void => {
+  if (isLocalUnsavedSession(threadId)) {
+    importWithObservability(aui, callerName, reason, repositoryWithMessage(aui.thread.export(), message), markLive);
+    return;
+  }
+  aui.thread.append({
+    role: message.role,
+    content: message.content,
+    metadata: { custom: message.metadata.custom },
+    startRun: false,
+  } as Parameters<AuiHandle['thread']['append']>[0]);
 };
 
 /* FIRST TURN — SINGLE RUN OWNER. Il percorso di invio del composer
@@ -915,18 +942,8 @@ const MonPresenceEvents: FC = () => {
      parcheggiarsi e senza resetHead differito. Su un thread già
      persistente la barriera è già risolta e append resta la strada
      giusta: è anche ciò che lo persiste. */
-  const insertPresenceMessage = (message: ThreadMessage, reason: string) => {
-    if (isLocalUnsavedSession(threadId)) {
-      importWithObservability(aui, 'MonPresenceEvents', reason, repositoryWithMessage(aui.thread.export(), message), markLive);
-      return;
-    }
-    aui.thread.append({
-      role: message.role,
-      content: message.content,
-      metadata: { custom: message.metadata.custom },
-      startRun: false,
-    } as Parameters<AuiHandle['thread']['append']>[0]);
-  };
+  const insertPresenceMessage = (message: ThreadMessage, reason: string) =>
+    insertRuntimeMessage(aui, threadId, markLive, 'MonPresenceEvents', message, reason);
 
   const appendOpening = (monName: string, revealDelayMs: number) => {
     const sequence = ++openingSequence.current;
@@ -1045,11 +1062,18 @@ const SystemEventMessage: FC = () => {
       const custom = state.message.metadata.custom;
       const index = state.thread.messages.findIndex((message) => message.id === state.message.id);
       const previous = index > 0 ? state.thread.messages[index - 1] : null;
+      /* LIFE SIMULATION V0 — la stessa "pillola" di sistema già usata per le
+         presenze mostra anche la conseguenza confermata di una scelta del
+         primo incontro (Fase C: "la chat deve mostrare un seguito
+         comprensibile"). Non un nuovo tipo di messaggio, lo stesso. */
+      const isFirstEncounterConsequence = custom.firstEncounterConsequence === true;
+      const previousCustom = previous?.metadata.custom;
       return {
-        isPresenceEvent: custom.monPresenceEvent === "leave" || custom.monPresenceEvent === "enter",
+        isPresenceEvent: custom.monPresenceEvent === "leave" || custom.monPresenceEvent === "enter" || isFirstEncounterConsequence,
         followsPresenceEvent: previous?.role === "system"
-          && (previous.metadata.custom.monPresenceEvent === "leave"
-            || previous.metadata.custom.monPresenceEvent === "enter"),
+          && (previousCustom?.monPresenceEvent === "leave"
+            || previousCustom?.monPresenceEvent === "enter"
+            || previousCustom?.firstEncounterConsequence === true),
         revealDelayMs: typeof custom.revealDelayMs === "number" ? custom.revealDelayMs : 0,
         revealArrivalId: custom.revealArrivalId,
       };
@@ -1084,15 +1108,117 @@ const SystemEventMessage: FC = () => {
    nessun timer, nessuna promessa di salvataggio prima che sia vera.
    ========================================================================= */
 const FirstEncounterBar: FC = () => {
+  const aui = useAui();
+  const markLive = useContext(GateMarkLiveContext);
+  const threadId = useAuiState((state) => state.threads.mainThreadId);
+  /* Se l'utente si è già presentato prima di premere PRESENTATI, questo è
+     già scritto: la casella parte da lì invece di chiedere di ripeterlo
+     (Fase B — "non costringerlo a ripetere l'intero scambio"). */
+  const latestUserText = useAuiState((state) => {
+    const message = [...state.thread.messages].reverse().find((item) => item.role === 'user');
+    return message?.content
+      .filter((part) => part.type === 'text')
+      .map((part) => (part.type === 'text' ? part.text : ''))
+      .join(' ')
+      .trim() ?? '';
+  });
   const record = useApp((state) => state.activeMonName ? state.mons[state.activeMonName] ?? null : null);
   const chooseFirstEncounterIntent = useApp((state) => state.chooseFirstEncounterIntent);
+  const completeIntroduction = useApp((state) => state.completeIntroduction);
   const status = record?.firstEncounter?.status;
+  const [draft, setDraft] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (status === 'in-attesa-informazione') { if (draft === null) setDraft(latestUserText); return; }
+    if (draft !== null) setDraft(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status]);
+
+  /* Una riga visibile, distinta dal dialogo del Mon: la conseguenza appena
+     confermata (Fase C — "non basta aggiornare world.canon"). Riusa il
+     canale già esistente delle presenze/annunci di sistema, non ne inventa
+     uno nuovo. */
+  const insertConsequence = (text: string) => {
+    beginRepositoryOperation({ operation: 'APPEND_CONSEQUENCE', caller: 'FirstEncounterBar' });
+    insertRuntimeMessage(aui, threadId, markLive, 'FirstEncounterBar', {
+      id: newLocalMessageId(),
+      createdAt: new Date(),
+      role: 'system',
+      content: [{ type: 'text', text }],
+      metadata: { custom: { firstEncounterConsequence: true } },
+    } as ThreadMessage, 'FIRST_ENCOUNTER_CONSEQUENCE');
+  };
+
+  /* Una reazione breve e deterministica del Mon a ciò che è appena successo
+     — non un secondo narratore, non una chiamata AI: lo stesso principio di
+     `buildBabyFirstOpening`. Il prossimo turno vero resta quello del
+     modello, al prossimo messaggio dell'utente. */
+  const insertReaction = (choice: 'chiedere_del_mon' | 'esplorare_nul' | 'presentarsi') => {
+    if (!record) return;
+    const card = voiceCard(record);
+    const tone = toneFor(record.data.voice_preset ?? null, card.fingerprint ?? '');
+    const text = buildFirstEncounterReaction(tone, choice, record.data.name);
+    beginRepositoryOperation({ operation: 'APPEND_REACTION', caller: 'FirstEncounterBar' });
+    insertRuntimeMessage(aui, threadId, markLive, 'FirstEncounterBar', {
+      id: newLocalMessageId(),
+      createdAt: new Date(),
+      role: 'assistant',
+      content: [{ type: 'text', text }],
+      status: { type: 'complete', reason: 'unknown' },
+      metadata: { unstable_state: null, unstable_annotations: [], unstable_data: [], steps: [], custom: { monFirstEncounterReaction: true } },
+    } as ThreadMessage, 'FIRST_ENCOUNTER_REACTION');
+  };
+
+  const handleChoice = (intent: 'chiedere_del_mon' | 'esplorare_nul') => {
+    if (!chooseFirstEncounterIntent(intent) || !record) return;
+    const node = record.data.mindline_node;
+    const canonText = useApp.getState().world?.canon.find((e) => e.id === `canon_connection_${intent}_${node}`)?.text;
+    if (canonText) insertConsequence(canonText);
+    insertReaction(intent);
+  };
+
+  const handleSubmitIntroduction = () => {
+    const text = (draft ?? '').trim();
+    if (!text || !record) return;
+    const alreadySaid = text === latestUserText.trim();
+    if (!completeIntroduction(text)) return;
+    const node = record.data.mindline_node;
+    const canonText = useApp.getState().world?.canon.find((e) => e.id === `canon_connection_presentarsi_${node}`)?.text;
+    if (canonText) insertConsequence(canonText);
+    /* Se il testo era già lì (l'utente l'aveva già scritto prima di premere
+       PRESENTATI), il Mon gli ha già risposto per davvero in quel turno:
+       una seconda reazione qui sarebbe ridondante. Se è testo nuovo,
+       confermato solo in questo campo dedicato, questa reazione breve è
+       l'unica risposta che riceve — non un secondo narratore, lo stesso
+       principio di `insertReaction` per B/C. */
+    if (!alreadySaid) insertReaction('presentarsi');
+  };
 
   if (status === 'in-attesa-informazione') {
     return (
-      <p className="mx-auto w-full max-w-3xl px-1 text-xs text-black/50 dark:text-white/50">
-        In attesa che tu gli dica qualcosa di vero su di te.
-      </p>
+      <div className="mx-auto flex w-full max-w-3xl flex-col gap-1.5 px-1">
+        <p className="text-xs text-black/50 dark:text-white/50">
+          {latestUserText ? 'Confermi quello che gli hai già detto, o cambialo:' : 'Dimmi qualcosa di vero su di te — anche solo il tuo nome.'}
+        </p>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={draft ?? ''}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleSubmitIntroduction(); }}
+            placeholder="Es. Mi chiamo…"
+            className="min-w-0 flex-1 rounded-full border border-black/20 bg-transparent px-3 py-1.5 text-xs outline-none dark:border-white/20"
+          />
+          <button
+            type="button"
+            onClick={handleSubmitIntroduction}
+            disabled={!(draft ?? '').trim()}
+            className="shrink-0 rounded-full bg-[#0d0d0d] px-3 py-1.5 text-xs font-bold text-white disabled:opacity-40 dark:bg-white dark:text-black"
+          >
+            Conferma
+          </button>
+        </div>
+      </div>
     );
   }
 
@@ -1109,14 +1235,14 @@ const FirstEncounterBar: FC = () => {
       </button>
       <button
         type="button"
-        onClick={() => chooseFirstEncounterIntent('chiedere_del_mon')}
+        onClick={() => handleChoice('chiedere_del_mon')}
         className="rounded-full border border-[#0d0d0d] px-3 py-1.5 text-xs font-bold dark:border-white"
       >
         Chiedigli di sé
       </button>
       <button
         type="button"
-        onClick={() => chooseFirstEncounterIntent('esplorare_nul')}
+        onClick={() => handleChoice('esplorare_nul')}
         className="rounded-full border border-[#0d0d0d] px-3 py-1.5 text-xs font-bold dark:border-white"
       >
         Esplorate NUL insieme

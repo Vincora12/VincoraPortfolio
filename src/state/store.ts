@@ -716,7 +716,17 @@ interface AppState {
    * agisce solo se il BABY attivo è ancora `in-attesa-scelta`, quindi un
    * doppio tap o un retry non produce una seconda conseguenza.
    */
-  chooseFirstEncounterIntent: (intent: 'presentarsi' | 'chiedere_del_mon' | 'esplorare_nul') => void;
+  chooseFirstEncounterIntent: (intent: 'presentarsi' | 'chiedere_del_mon' | 'esplorare_nul') => boolean;
+
+  /**
+   * LIFE SIMULATION V0 — Fase B: percorso esplicito e affidabile per
+   * PRESENTARSI, che non dipende dalla decisione probabilistica del modello
+   * di chiamare `registra_scoperta`. L'utente conferma un testo vero nella
+   * UI; `text` vuoto o stato non in attesa non fanno nulla — mai inventato.
+   * Torna `true` se ha davvero applicato la conseguenza (per il feedback in
+   * UI: "salvato" solo dopo un successo reale).
+   */
+  completeIntroduction: (text: string) => boolean;
 
   /* --- 🔷 v4 §13/§14 — mondo, canone, ritorno --- */
 
@@ -1477,6 +1487,51 @@ function activeRecord(s: AppState): MonRecord | null {
   return resolveActiveMon(s.mons, s.activeMonName);
 }
 
+/**
+ * LIFE SIMULATION V0 — l'ultimo passo di PRESENTARSI: dato un record che ha
+ * GIÀ ricevuto il suo apprendimento vero (`recordCuriosityLearning`, con
+ * qualunque collegamento a domanda/area il chiamante avesse), chiude
+ * l'attesa e scrive la conseguenza nel canone. Pura, e non ripete la
+ * scrittura della Learning — chi chiama l'ha già fatta, con i SUOI
+ * parametri (questionId/kind/emergedQuestion inclusi se venivano da
+ * `registra_scoperta`): duplicarla qui perderebbe quei dettagli.
+ */
+function finalizePresentarsi(updatedRecord: MonRecord, world: World, day: number): { record: MonRecord; world: World } {
+  return {
+    record: { ...updatedRecord, firstEncounter: { status: 'completato', choice: 'presentarsi', day } },
+    world: withCanon(world, {
+      id: `canon_connection_presentarsi_${updatedRecord.data.mindline_node}`,
+      day,
+      kind: 'connection',
+      epistemic: 'WORLD_CANON',
+      text: `Tu ti sei presentato a ${displayName(updatedRecord.data.name)}, a NUL.`,
+      monName: updatedRecord.data.name,
+    }),
+  };
+}
+
+/**
+ * LIFE SIMULATION V0 — il percorso ESPLICITO e affidabile: l'utente conferma
+ * un testo vero nella UI (non il modello che decide se chiamare uno
+ * strumento). §5: «se clicca senza dare informazioni, non si inventa
+ * un'introduzione» — testo vuoto o stato non in attesa restituiscono null,
+ * niente viene inventato o applicato due volte.
+ */
+function completePresentarsiFromText(rec: MonRecord, world: World, text: string, day: number): { record: MonRecord; world: World } | null {
+  const clean = text.trim();
+  if (!clean) return null;
+  if (rec.firstEncounter?.status !== 'in-attesa-informazione' || rec.firstEncounter.choice !== 'presentarsi') return null;
+  const learned = recordCuriosityLearning(rec, {
+    kind: 'informazione',
+    about: 'utente',
+    text: clean,
+    source: { kind: 'conversazione', day },
+    day,
+  });
+  if (!learned.ok || !learned.record) return null;
+  return finalizePresentarsi(learned.record, world, day);
+}
+
 /** Costruisce l'input del generatore da tutto ciò che il prodotto misura. */
 /**
  * 🔶 Esportata da quando DEV → PROVE compone una forma a mano: quella
@@ -1674,7 +1729,7 @@ export const useApp = create<AppState>()(
       chooseFirstEncounterIntent: (intent) => {
         const s = get();
         const rec = activeRecord(s);
-        if (!rec || rec.firstEncounter?.status !== 'in-attesa-scelta') return;
+        if (!rec || rec.firstEncounter?.status !== 'in-attesa-scelta') return false;
 
         if (intent === 'presentarsi') {
           set({
@@ -1683,10 +1738,10 @@ export const useApp = create<AppState>()(
               [rec.data.name]: { ...rec, firstEncounter: { status: 'in-attesa-informazione', choice: 'presentarsi', day: s.day } },
             },
           });
-          return;
+          return true;
         }
 
-        if (!s.world) return;
+        if (!s.world) return false;
         const node = rec.data.mindline_node;
         const text = intent === 'chiedere_del_mon'
           ? `${displayName(rec.data.name)} lascia che tu gli chieda di sé, a NUL. Non c'è ancora una risposta definitiva.`
@@ -1705,6 +1760,20 @@ export const useApp = create<AppState>()(
             [rec.data.name]: { ...rec, firstEncounter: { status: 'completato', choice: intent, day: s.day } },
           },
         });
+        return true;
+      },
+
+      completeIntroduction: (text) => {
+        const s = get();
+        const rec = activeRecord(s);
+        if (!rec || !s.world) return false;
+        const completion = completePresentarsiFromText(rec, s.world, text, s.day);
+        if (!completion) return false;
+        set({
+          mons: { ...s.mons, [rec.data.name]: completion.record },
+          world: completion.world,
+        });
+        return true;
       },
 
       /* ========================================================================
@@ -3446,36 +3515,24 @@ export const useApp = create<AppState>()(
             });
             if (!result.ok || !result.record) return { ok: false, error: result.error };
 
-            /* LIFE SIMULATION V0 — PRESENTARSI si chiude qui, non al click.
-               Il bottone aveva solo aperto l'attesa (§5: «se clicca senza dare
-               informazioni, non si inventa un'introduzione»); questo è il
-               primo apprendimento reale, `about:'utente'`, che arriva DOPO —
-               quindi è la prima volta che c'è davvero qualcosa da registrare
-               come conseguenza. Nessun secondo sistema di strumenti: è lo
-               stesso `registra_scoperta` già validato per Curiosity First. */
+            /* LIFE SIMULATION V0 — se questa scoperta riguarda l'utente E
+               PRESENTARSI è in attesa, il modello ha appena fatto da solo
+               quello che il percorso esplicito fa su conferma (Fase B: non è
+               più l'UNICA strada, ma resta valida se capita davvero). Si
+               riusa `result.record` — la Learning che il modello ha appena
+               scritto, coi SUOI questionId/emergedQuestion — non se ne scrive
+               una seconda: `finalizePresentarsi` chiude solo l'attesa e il
+               canone sopra quello che c'è già. */
             const world = get().world;
-            const completesFirstEncounter =
+            const eligible =
               active.firstEncounter?.status === 'in-attesa-informazione' &&
               active.firstEncounter.choice === 'presentarsi' &&
               input.about === 'utente' &&
               world;
-            const record = completesFirstEncounter
-              ? { ...result.record, firstEncounter: { status: 'completato' as const, choice: 'presentarsi' as const, day: get().day } }
-              : result.record;
+            const completion = eligible ? finalizePresentarsi(result.record, world!, get().day) : null;
             set({
-              mons: { ...get().mons, [active.data.name]: record },
-              ...(completesFirstEncounter
-                ? {
-                    world: withCanon(world!, {
-                      id: `canon_connection_presentarsi_${active.data.mindline_node}`,
-                      day: get().day,
-                      kind: 'connection',
-                      epistemic: 'WORLD_CANON',
-                      text: `Tu ti sei presentato a ${displayName(active.data.name)}, a NUL.`,
-                      monName: active.data.name,
-                    }),
-                  }
-                : {}),
+              mons: { ...get().mons, [active.data.name]: completion ? completion.record : result.record },
+              ...(completion ? { world: completion.world } : {}),
             });
             return { ok: true };
           },

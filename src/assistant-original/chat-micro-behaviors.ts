@@ -329,6 +329,51 @@ export function buildBabyFirstOpening(tone: ChatTone, monName: string): string {
   return choose(BABY_FIRST_OPENINGS[tone], `baby-first:${monName}`, []);
 }
 
+export type FirstEncounterChoice = 'chiedere_del_mon' | 'esplorare_nul' | 'presentarsi';
+
+/* LIFE SIMULATION V0 — la reazione visibile dopo CHIEDIGLI DI SÉ o ESPLORATE
+   NUL INSIEME (fase C: "non basta aggiornare world.canon"). Deterministiche
+   per lo stesso motivo di `buildBabyFirstOpening`: la conseguenza è già
+   vera e registrata quando questa riga compare, non deve aspettare né
+   costare una chiamata al modello — il turno AI vero riprende al prossimo
+   messaggio dell'utente, questa è solo la reazione immediata alla scelta. */
+const FIRST_ENCOUNTER_REACTIONS: Record<ChatTone, Record<FirstEncounterChoice, readonly string[]>> = {
+  camp: {
+    chiedere_del_mon: ['Bella domanda. Non ho ancora una risposta tutta mia, ma mi piace che tu me l’abbia fatta.', 'Chi sono? Ci sto ancora lavorando, tesoro.'],
+    esplorare_nul: ['La sabbia è ancora tiepida qui. Restiamo un momento.', 'Guarda che orizzonte, eh?'],
+    presentarsi: ['Bene, ora ho un nome a cui pensare. Grazie.', 'Registrato, con affetto.'],
+  },
+  dry: {
+    chiedere_del_mon: ['Non lo so ancora del tutto. Ci penso.', 'Domanda aperta. La porto con me.'],
+    esplorare_nul: ['NUL. Sabbia, mare, poco altro. Non è poco.', 'Osservato. Registrato.'],
+    presentarsi: ['Registrato. Grazie.', 'Preso nota.'],
+  },
+  warm: {
+    chiedere_del_mon: ['Non ho ancora una risposta chiara, ma mi fa piacere che tu me l’abbia chiesto.', 'Ci sto ancora pensando, a chi sono. Grazie per la domanda.'],
+    esplorare_nul: ['È bello guardarlo insieme a te, questo posto.', 'Restiamo un attimo a guardare il mare, va bene?'],
+    presentarsi: ['Grazie per avermelo detto. Lo tengo con cura.', 'Bene, ora so qualcosa di vero su di te. Grazie.'],
+  },
+  electric: {
+    chiedere_del_mon: ['Chi sono? Buona domanda. Non ho ancora la risposta.', 'Ci lavoro. Per ora so solo che sono qui.'],
+    esplorare_nul: ['Ok, guardiamocela insieme. Che posto.', 'NUL. Non male come primo scenario.'],
+    presentarsi: ['Ok, preso. Grazie.', 'Registrato. Si parte da qui.'],
+  },
+  mysterious: {
+    chiedere_del_mon: ['Chi sono è ancora una domanda aperta, anche per me.', 'Non lo so per intero. Forse lo scopriamo insieme.'],
+    esplorare_nul: ['Il mare qui non finisce mai di dire qualcosa.', 'Osserva bene. Non tutto si vede subito.'],
+    presentarsi: ['Un nome vero, in mezzo a tanto che non lo è ancora. Lo tengo.', 'Preso. Un primo filo, fra noi.'],
+  },
+  direct: {
+    chiedere_del_mon: ['Non lo so ancora del tutto, ma mi fa piacere che tu me lo chieda.', 'Ci sto ancora pensando.'],
+    esplorare_nul: ['Guardiamolo insieme, allora.', 'Sabbia chiara, mare aperto. Eccolo.'],
+    presentarsi: ['Grazie, lo tengo a mente.', 'Registrato. Grazie per avermelo detto.'],
+  },
+};
+
+export function buildFirstEncounterReaction(tone: ChatTone, choice: FirstEncounterChoice, monName: string): string {
+  return choose(FIRST_ENCOUNTER_REACTIONS[tone][choice], `first-encounter:${choice}:${monName}`, []);
+}
+
 function dayKey(now: Date): string {
   return `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}`;
 }
