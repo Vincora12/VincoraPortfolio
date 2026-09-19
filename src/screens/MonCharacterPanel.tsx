@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { readableBio, type MonRecord } from '../engine/types';
 import type { MoodState } from '../engine/mood';
 import { moodSurface } from '../engine/mood';
@@ -5,7 +6,20 @@ import { voiceCard } from '../engine/voiceCard';
 import { bioTasteSeeds } from '../engine/characterBio';
 import { culturalReference } from '../engine/generation-config';
 import { moodDef } from '../engine/generation-config';
+import { FolderTabs } from '../system/components';
+import { MonCharacterDna } from './MonCharacterDna';
 import './mon-character.css';
+
+/* 🔷 AUDIT CARATTERI — SCHEDA 2.0 (2026-09-19). PROFILO resta il contenuto
+   discorsivo di sempre (migliorato con CHI È, mancante finora). DNA TECNICO è
+   una vista trasparente degli stessi dati — mai una seconda fonte di verità:
+   vedi `MonCharacterDna.tsx`. Il toggle vive DENTRO la parte CARATTERE
+   esistente, non altrove: niente nuova pagina, niente voce di navigazione. */
+type CharacterView = 'profilo' | 'dna';
+const VIEW_TABS = [
+  { id: 'profilo' as const, label: 'PROFILO' },
+  { id: 'dna' as const, label: 'DNA TECNICO' },
+];
 
 const DECISIONS: Record<string, string> = {
   'states disagreement early and plainly, then gives the reason': 'Se non è d’accordo, lo dice subito e spiega perché.',
@@ -22,7 +36,9 @@ const LENGTH = { short: 'Tende a dire poche cose, in modo diretto.', medium: 'Al
 
 /** A read-only view of the very same card used by conversation and Bio. */
 export function MonCharacterPanel({ mon, mood, active }: { mon: MonRecord; mood: MoodState | null; active: boolean }) {
+  const [view, setView] = useState<CharacterView>('profilo');
   const card = voiceCard(mon);
+  const dna = mon.data.character_dna;
   const humor = card.fingerprint.split('|').find(part => part.startsWith('humour:'))?.split(':')[1];
   const humorText = humor === 'low' ? 'Usa poco l’ironia; tende a esprimersi sul serio.' : humor === 'high' ? 'L’ironia entra spesso nel suo modo di esprimersi.' : 'Può usare l’ironia quando il momento lo invita, senza cercare sempre la battuta.';
   const discovery = mon.culturalDiscovery;
@@ -39,14 +55,24 @@ export function MonCharacterPanel({ mon, mood, active }: { mon: MonRecord; mood:
   return <section className="mon-character" aria-label="Carattere e umore del Mon">
     <div className="mon-character__part">
       <p className="t-meta bionote__label mon-character__eyebrow">CARATTERE</p>
-      <h3>{moodDef(mon.data.mood_primary).it}</h3>
-      <p className="mon-character__caption">Il suo modo di essere, che resta riconoscibile nel tempo.</p>
-      <p>{LENGTH[card.length]}</p>
-      <p>{humorText}</p>
-      <details>
-        <summary>Come si esprime</summary>
-        <ul>{Object.entries(card.decisions).map(([key, text]) => <li key={key}>{DECISIONS[text] ?? text}</li>)}</ul>
-      </details>
+      <div className="mchar-toggle">
+        <FolderTabs tabs={VIEW_TABS} active={view} onChange={setView} label="Vista del carattere" />
+      </div>
+      {view === 'profilo' ? <>
+        <h3>{moodDef(mon.data.mood_primary).it}</h3>
+        <p className="mon-character__caption">Il suo modo di essere, che resta riconoscibile nel tempo.</p>
+        <p className="t-meta bionote__label mon-character__eyebrow">CHI È</p>
+        <p>Tratti: {dna.traits.join(', ') || 'ancora da definire'}.</p>
+        <p>Lo muove: {dna.drives.join(', ') || 'ancora da definire'}.</p>
+        <p>Convive con: {dna.contradictions.map(c => `${c.a} / ${c.b}`).join(' · ') || 'ancora da definire'}.</p>
+        <p className="t-meta bionote__label mon-character__eyebrow">COME SI ESPRIME</p>
+        <p>{LENGTH[card.length]}</p>
+        <p>{humorText}</p>
+        <details>
+          <summary>Come si esprime</summary>
+          <ul>{Object.entries(card.decisions).map(([key, text]) => <li key={key}>{DECISIONS[text] ?? text}</li>)}</ul>
+        </details>
+      </> : <MonCharacterDna mon={mon} />}
     </div>
     <div className="mon-character__part">
       <p className="t-meta bionote__label mon-character__eyebrow">COME SI SENTE ADESSO</p>
