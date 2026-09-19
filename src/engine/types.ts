@@ -509,6 +509,23 @@ export interface MonRecord {
    * è il puntatore strutturato che lega una domanda a cosa ne è emerso.
    */
   learnings?: Learning[];
+  /**
+   * 🔷 LIFE SIMULATION V0 — il primo momento vissuto in chat, dopo il
+   * terminale di nascita. Assente = non esiste ancora (Mon legacy, o BABY
+   * nato prima di questa funzionalità: mai attribuito retroattivamente).
+   * `in-attesa-scelta` = il narratore ha appena finito, le tre intenzioni
+   * (PRESENTARSI/CHIEDERE DEL MON/ESPLORARE NUL) sono ancora tutte aperte.
+   * `in-attesa-informazione` = scelto PRESENTARSI ma senza informazioni
+   * ancora fornite: non si inventa un'introduzione, si aspetta.
+   * `completato` = una conseguenza è stata registrata (vedi `world.canon`).
+   * SI DECIDE UNA VOLTA SOLA PER FORMA e sopravvive a TUNE/RISE come tutto
+   * il resto del record: non si azzera a ogni evoluzione.
+   */
+  firstEncounter?: {
+    status: 'in-attesa-scelta' | 'in-attesa-informazione' | 'completato';
+    choice?: 'presentarsi' | 'chiedere_del_mon' | 'esplorare_nul';
+    day: number;
+  };
 }
 
 /* --- CURIOSITY FIRST ---------------------------------------------------------

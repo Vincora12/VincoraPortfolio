@@ -311,6 +311,24 @@ const OPENINGS: Record<ChatTone, Record<OpeningIntent, readonly string[]>> = {
   },
 };
 
+/* LIFE SIMULATION V0 — il terminale (Encounter.tsx) ha già raccontato
+   l'incontro a NUL: queste righe non lo ripetono, reagiscono a esserci
+   appena arrivate. Deterministiche e non generate, come il resto dei
+   ripieghi di questo file — nessuna chiamata di rete per la prima parola
+   di una creatura appena nata. */
+const BABY_FIRST_OPENINGS: Record<ChatTone, readonly string[]> = {
+  camp: ['Sono appena arrivato qui. Tu chi sei?', 'Ancora non so chi sei. Me lo dici?'],
+  dry: ['Sono appena arrivato. Tu chi sei?', 'Non so ancora chi sei.'],
+  warm: ['Sono appena arrivato, e non so ancora chi sei tu.', 'Ti ho appena incontrato. Mi dici chi sei?'],
+  electric: ['Sono appena arrivato. Tu chi sei?', 'Ok, sono qui. E tu chi sei?'],
+  mysterious: ['Sono appena emerso da NUL. Chi sei, per me?', 'Non so ancora chi sei.'],
+  direct: ['Sono appena arrivato. Tu chi sei?', 'Non so ancora chi sei tu.'],
+};
+
+export function buildBabyFirstOpening(tone: ChatTone, monName: string): string {
+  return choose(BABY_FIRST_OPENINGS[tone], `baby-first:${monName}`, []);
+}
+
 function dayKey(now: Date): string {
   return `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}`;
 }

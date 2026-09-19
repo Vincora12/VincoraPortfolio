@@ -710,6 +710,14 @@ interface AppState {
    */
   chooseEgg: (index: number) => void;
 
+  /**
+   * LIFE SIMULATION V0 — il giocatore sceglie una delle tre intenzioni del
+   * primo incontro (PRESENTARSI/CHIEDERE DEL MON/ESPLORARE NUL). Idempotente:
+   * agisce solo se il BABY attivo è ancora `in-attesa-scelta`, quindi un
+   * doppio tap o un retry non produce una seconda conseguenza.
+   */
+  chooseFirstEncounterIntent: (intent: 'presentarsi' | 'chiedere_del_mon' | 'esplorare_nul') => void;
+
   /* --- 🔷 v4 §13/§14 — mondo, canone, ritorno --- */
 
   /**
@@ -1594,7 +1602,17 @@ export const useApp = create<AppState>()(
         /* 🔒 LE ALTRE DUE NON VENGONO SALVATE DA NESSUNA PARTE. §4: «they do
            not enter Dex». `eggs: []` non è pulizia — è la regola. */
         const world = seedWorld(record, s.day);
-        const recordWithWorld = { ...record, worldId: world.id };
+        /* LIFE SIMULATION V0 — solo un BABY curiosity-first vive il primo
+           incontro in chat: un Mon legacy non ha domande da cui farlo partire,
+           e non se ne inventano qui. Si decide una volta sola, alla nascita:
+           vedi `firstEncounter` in engine/types.ts. */
+        const recordWithWorld = {
+          ...record,
+          worldId: world.id,
+          ...(record.identityMode === 'curiosity-first'
+            ? { firstEncounter: { status: 'in-attesa-scelta' as const, day: s.day } }
+            : {}),
+        };
 
         set({
           phase: 'live',
@@ -1638,6 +1656,55 @@ export const useApp = create<AppState>()(
         if (s.token) void import('../system/pushNotifications').then(({ enableEvolutionNotifications }) => enableEvolutionNotifications(s.token as string));
         void get().resumeFormEvolution();
         requestIntroduction(set, get, record);
+      },
+
+      /* ========================================================================
+         LIFE SIMULATION V0 — IL PRIMO INCONTRO IN CHAT
+
+         Tre intenzioni, tre conseguenze distinte e persistite, non tre testi
+         che convergono nello stesso posto. ESPLORARE NUL e CHIEDERE DEL MON
+         si chiudono subito: un evento di canone («connection», già esistente
+         in `CanonKind` — non se ne inventa uno nuovo), idempotente per id
+         come tutto il resto del canone. PRESENTARSI non si chiude qui: senza
+         un'informazione vera non si inventa un'introduzione (§5), quindi
+         resta `in-attesa-informazione` finché il giocatore non lo dice
+         davvero e il modello non lo registra con `registra_scoperta` — vedi
+         `ctx.recordCuriosityLearning` più sotto, in `runMonTool`.
+         ==================================================================== */
+      chooseFirstEncounterIntent: (intent) => {
+        const s = get();
+        const rec = activeRecord(s);
+        if (!rec || rec.firstEncounter?.status !== 'in-attesa-scelta') return;
+
+        if (intent === 'presentarsi') {
+          set({
+            mons: {
+              ...s.mons,
+              [rec.data.name]: { ...rec, firstEncounter: { status: 'in-attesa-informazione', choice: 'presentarsi', day: s.day } },
+            },
+          });
+          return;
+        }
+
+        if (!s.world) return;
+        const node = rec.data.mindline_node;
+        const text = intent === 'chiedere_del_mon'
+          ? `${displayName(rec.data.name)} lascia che tu gli chieda di sé, a NUL. Non c'è ancora una risposta definitiva.`
+          : `Tu e ${displayName(rec.data.name)} guardate insieme NUL, la prima volta: sabbia chiara, mare, l'orizzonte aperto.`;
+        set({
+          world: withCanon(s.world, {
+            id: `canon_connection_${intent}_${node}`,
+            day: s.day,
+            kind: 'connection',
+            epistemic: 'WORLD_CANON',
+            text,
+            monName: rec.data.name,
+          }),
+          mons: {
+            ...s.mons,
+            [rec.data.name]: { ...rec, firstEncounter: { status: 'completato', choice: intent, day: s.day } },
+          },
+        });
       },
 
       /* ========================================================================
@@ -3378,7 +3445,38 @@ export const useApp = create<AppState>()(
               day: get().day,
             });
             if (!result.ok || !result.record) return { ok: false, error: result.error };
-            set({ mons: { ...get().mons, [active.data.name]: result.record } });
+
+            /* LIFE SIMULATION V0 — PRESENTARSI si chiude qui, non al click.
+               Il bottone aveva solo aperto l'attesa (§5: «se clicca senza dare
+               informazioni, non si inventa un'introduzione»); questo è il
+               primo apprendimento reale, `about:'utente'`, che arriva DOPO —
+               quindi è la prima volta che c'è davvero qualcosa da registrare
+               come conseguenza. Nessun secondo sistema di strumenti: è lo
+               stesso `registra_scoperta` già validato per Curiosity First. */
+            const world = get().world;
+            const completesFirstEncounter =
+              active.firstEncounter?.status === 'in-attesa-informazione' &&
+              active.firstEncounter.choice === 'presentarsi' &&
+              input.about === 'utente' &&
+              world;
+            const record = completesFirstEncounter
+              ? { ...result.record, firstEncounter: { status: 'completato' as const, choice: 'presentarsi' as const, day: get().day } }
+              : result.record;
+            set({
+              mons: { ...get().mons, [active.data.name]: record },
+              ...(completesFirstEncounter
+                ? {
+                    world: withCanon(world!, {
+                      id: `canon_connection_presentarsi_${active.data.mindline_node}`,
+                      day: get().day,
+                      kind: 'connection',
+                      epistemic: 'WORLD_CANON',
+                      text: `Tu ti sei presentato a ${displayName(active.data.name)}, a NUL.`,
+                      monName: active.data.name,
+                    }),
+                  }
+                : {}),
+            });
             return { ok: true };
           },
           pages: s.pages,

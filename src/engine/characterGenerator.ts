@@ -701,6 +701,10 @@ export function generateMon(ctx: GenerationContext): GenerationResult {
       ...(identityMode ? { identityMode } : {}),
       ...(curiosityQuestions ? { curiosityQuestions } : {}),
       ...(ctx.previous?.learnings ? { learnings: ctx.previous.learnings } : {}),
+      /* LIFE SIMULATION V0 — stessa regola di `learnings`: il primo incontro
+         è dell'identità, non della forma. TUNE/RISE lo ereditano così com'è,
+         completato o no — non si azzera a ogni evoluzione (§9). */
+      ...(ctx.previous?.firstEncounter ? { firstEncounter: ctx.previous.firstEncounter } : {}),
     },
     trace,
   };

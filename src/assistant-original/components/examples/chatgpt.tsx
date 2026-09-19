@@ -68,6 +68,7 @@ import { useAssetUrl } from "@/system/AssetSlot";
 import { EXPRESSION_SPEC, EXPRESSIONS } from "@/engine/assets";
 import { memoryFeedbackFor, subscribeMemoryFeedback } from "@/assistant-original/chat-memory-feedback";
 import {
+  buildBabyFirstOpening,
   buildOpening,
   buildThoughtStatus,
   localMicroMemory,
@@ -326,6 +327,7 @@ export const ChatGPT: FC<{
 
             <ThreadPrimitive.ViewportFooter className="sticky bottom-0 mx-auto flex w-full max-w-3xl flex-col gap-2 overflow-visible rounded-t-3xl bg-white pb-2 dark:bg-black">
               <ThreadScrollToBottom />
+              <FirstEncounterBar />
               {modelChoice && (
                 <div className="vinz-chips-row flex items-center gap-2">
                   <ModelEffortPill choice={modelChoice} />
@@ -848,6 +850,7 @@ const EmptyState: FC<{ modelChoice?: ModelChoice }> = ({ modelChoice }) => {
     <div className="flex grow flex-col px-4">
       <div className="grow" aria-hidden="true" />
       <div className="mx-auto flex w-full max-w-3xl flex-col items-stretch pb-2">
+        <FirstEncounterBar />
         {modelChoice && (
           <div className="vinz-chips-row flex items-center gap-2">
             <ModelEffortPill choice={modelChoice} />
@@ -871,6 +874,14 @@ const MonPresenceEvents: FC = () => {
   const record = useApp((state) =>
     state.activeMonName ? state.mons[state.activeMonName] ?? null : null,
   );
+  /* LIFE SIMULATION V0 — `phase` diventa 'live' subito a `chooseEgg`, prima
+     ancora che il terminale di nascita (`EncounterScreen`) sia mai stato
+     mostrato: questo componente monta lo stesso, nascosto dietro il tab
+     forzato su MON. `evolutionJob.kind === 'hatch'` resta vero per tutta
+     quella finestra (lo pulisce solo `enterLive`, al tocco su ENTRA) — è il
+     segnale già esistente per non reclamare l'ingresso di sessione adesso,
+     e lasciare che sia il mount vero, dopo il terminale, a farlo. */
+  const hatchInFlight = useApp((state) => state.evolutionJob?.kind === 'hatch');
   const { loading, threadId, remoteId, custom } = useAuiState(
     useShallow((state) => ({
       loading: state.threads.isLoading,
@@ -922,7 +933,16 @@ const MonPresenceEvents: FC = () => {
     const entryRevision = currentRoomEntryRevision();
     const card = record ? voiceCard(record) : null;
     const tone = toneFor(record?.data.voice_preset ?? null, card?.fingerprint ?? "");
-    void buildOpening(tone, monName).then((greeting) => {
+    /* LIFE SIMULATION V0 — un BABY che deve ancora scegliere la sua prima
+       intenzione non ha mai parlato con nessuno prima d'ora: il catalogo dei
+       saluti da "bentornato" (`buildOpening`) non si applica, e il narratore
+       ha già raccontato l'incontro nel terminale — questa riga reagisce
+       all'esserci appena arrivata, non lo ripete. */
+    const isBabyFirstEncounter = record?.transition?.kind === 'BABY' && record?.firstEncounter?.status === 'in-attesa-scelta';
+    const openingPromise = isBabyFirstEncounter
+      ? Promise.resolve(buildBabyFirstOpening(tone, monName))
+      : buildOpening(tone, monName);
+    void openingPromise.then((greeting) => {
       if (openingSequence.current !== sequence) return;
       if (currentRoomEntryRevision() !== entryRevision) return;
       /* FIRST TURN — OPENING MUST NEVER RACE THE USER. Un saluto
@@ -977,6 +997,7 @@ const MonPresenceEvents: FC = () => {
       ?? activeMonKey
       ?? (typeof threadCustom.activeMonName === "string" ? threadCustom.activeMonName : null);
     if (loading || !activeMonName) return;
+    if (hatchInFlight) return;
     if (room.current.threadId !== threadId) {
       room.current = { threadId, monName: activeMonName };
       const manualEntry = consumeManualRoomEntry(threadId);
@@ -1013,7 +1034,7 @@ const MonPresenceEvents: FC = () => {
     }
     appendEnter(activeMonName, PRESENCE_STEP_MS);
     if (remoteId) void aui.threads.item("main").updateCustom({ ...threadCustom, activeMonName });
-  }, [activeMonKey, aui, custom, loading, record, remoteId, roomEntryRevision, threadId]);
+  }, [activeMonKey, aui, custom, hatchInFlight, loading, record, remoteId, roomEntryRevision, threadId]);
 
   return null;
 };
@@ -1049,6 +1070,58 @@ const SystemEventMessage: FC = () => {
         <MessagePrimitive.Parts />
       </div>
     </MessagePrimitive.Root>
+  );
+};
+
+/* ============================================================================
+   LIFE SIMULATION V0 — LE TRE INTENZIONI DEL PRIMO INCONTRO
+
+   Strumenti contestuali, non l'unico modo di parlare: chi preferisce scrivere
+   liberamente può farlo comunque, il campo sotto resta lo stesso. Un tap
+   produce una conseguenza persistita e verificabile in `world.canon` (vedi
+   `chooseFirstEncounterIntent`, state/store.ts) — non tre testi che
+   convergono. Sparisce da sola quando lo stato non è più `in-attesa-scelta`:
+   nessun timer, nessuna promessa di salvataggio prima che sia vera.
+   ========================================================================= */
+const FirstEncounterBar: FC = () => {
+  const record = useApp((state) => state.activeMonName ? state.mons[state.activeMonName] ?? null : null);
+  const chooseFirstEncounterIntent = useApp((state) => state.chooseFirstEncounterIntent);
+  const status = record?.firstEncounter?.status;
+
+  if (status === 'in-attesa-informazione') {
+    return (
+      <p className="mx-auto w-full max-w-3xl px-1 text-xs text-black/50 dark:text-white/50">
+        In attesa che tu gli dica qualcosa di vero su di te.
+      </p>
+    );
+  }
+
+  if (status !== 'in-attesa-scelta') return null;
+
+  return (
+    <div className="mx-auto flex w-full max-w-3xl flex-wrap gap-2 px-1" role="group" aria-label="Il tuo primo incontro">
+      <button
+        type="button"
+        onClick={() => chooseFirstEncounterIntent('presentarsi')}
+        className="rounded-full border border-[#0d0d0d] px-3 py-1.5 text-xs font-bold dark:border-white"
+      >
+        Presentati
+      </button>
+      <button
+        type="button"
+        onClick={() => chooseFirstEncounterIntent('chiedere_del_mon')}
+        className="rounded-full border border-[#0d0d0d] px-3 py-1.5 text-xs font-bold dark:border-white"
+      >
+        Chiedigli di sé
+      </button>
+      <button
+        type="button"
+        onClick={() => chooseFirstEncounterIntent('esplorare_nul')}
+        className="rounded-full border border-[#0d0d0d] px-3 py-1.5 text-xs font-bold dark:border-white"
+      >
+        Esplorate NUL insieme
+      </button>
+    </div>
   );
 };
 
