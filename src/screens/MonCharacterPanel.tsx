@@ -8,6 +8,7 @@ import { culturalReference } from '../engine/generation-config';
 import { moodDef } from '../engine/generation-config';
 import { FolderTabs } from '../system/components';
 import { MonCharacterDna } from './MonCharacterDna';
+import { MonCuriosityProfile } from './MonCuriosityProfile';
 import './mon-character.css';
 
 /* 🔷 AUDIT CARATTERI — SCHEDA 2.0 (2026-09-19). PROFILO resta il contenuto
@@ -42,8 +43,12 @@ export function MonCharacterPanel({ mon, mood, active }: { mon: MonRecord; mood:
   const humor = card.fingerprint.split('|').find(part => part.startsWith('humour:'))?.split(':')[1];
   const humorText = humor === 'low' ? 'Usa poco l’ironia; tende a esprimersi sul serio.' : humor === 'high' ? 'L’ironia entra spesso nel suo modo di esprimersi.' : 'Può usare l’ironia quando il momento lo invita, senza cercare sempre la battuta.';
   const discovery = mon.culturalDiscovery;
-  const tastes = bioTasteSeeds(mon.data);
-  const portrait = readableBio(mon).culturalPortrait;
+  /* 🔷 CURIOSITY FIRST — `bioTasteSeeds` legge il Cultural DNA (riferimento
+     visivo, §7) e lo scrive come gusto personale: esattamente la confusione
+     che il nuovo sistema vieta. Per questi Mon resta vuoto — vince lo stato
+     onesto già esistente più sotto ("Sta ancora scoprendo..."). */
+  const tastes = mon.identityMode === 'curiosity-first' ? [] : bioTasteSeeds(mon.data);
+  const portrait = mon.identityMode === 'curiosity-first' ? undefined : readableBio(mon).culturalPortrait;
   const stanceLabels = { love: 'Adora', hate: 'Detesta', mixed: 'Ha sentimenti contrastanti per', curious: 'Lo incuriosisce' };
   const references = [...new Set(mon.data.cultural_dna ?? [])].flatMap(id => {
     const ref = culturalReference(id);
@@ -58,21 +63,23 @@ export function MonCharacterPanel({ mon, mood, active }: { mon: MonRecord; mood:
       <div className="mchar-toggle">
         <FolderTabs tabs={VIEW_TABS} active={view} onChange={setView} label="Vista del carattere" />
       </div>
-      {view === 'profilo' ? <>
-        <h3>{moodDef(mon.data.mood_primary).it}</h3>
-        <p className="mon-character__caption">Il suo modo di essere, che resta riconoscibile nel tempo.</p>
-        <p className="t-meta bionote__label mon-character__eyebrow">CHI È</p>
-        <p>Tratti: {dna.traits.join(', ') || 'ancora da definire'}.</p>
-        <p>Lo muove: {dna.drives.join(', ') || 'ancora da definire'}.</p>
-        <p>Convive con: {dna.contradictions.map(c => `${c.a} / ${c.b}`).join(' · ') || 'ancora da definire'}.</p>
-        <p className="t-meta bionote__label mon-character__eyebrow">COME SI ESPRIME</p>
-        <p>{LENGTH[card.length]}</p>
-        <p>{humorText}</p>
-        <details>
-          <summary>Come si esprime</summary>
-          <ul>{Object.entries(card.decisions).map(([key, text]) => <li key={key}>{DECISIONS[text] ?? text}</li>)}</ul>
-        </details>
-      </> : <MonCharacterDna mon={mon} />}
+      {view === 'profilo'
+        ? (mon.identityMode === 'curiosity-first' ? <MonCuriosityProfile mon={mon} /> : <>
+            <h3>{moodDef(mon.data.mood_primary).it}</h3>
+            <p className="mon-character__caption">Il suo modo di essere, che resta riconoscibile nel tempo.</p>
+            <p className="t-meta bionote__label mon-character__eyebrow">CHI È</p>
+            <p>Tratti: {dna.traits.join(', ') || 'ancora da definire'}.</p>
+            <p>Lo muove: {dna.drives.join(', ') || 'ancora da definire'}.</p>
+            <p>Convive con: {dna.contradictions.map(c => `${c.a} / ${c.b}`).join(' · ') || 'ancora da definire'}.</p>
+            <p className="t-meta bionote__label mon-character__eyebrow">COME SI ESPRIME</p>
+            <p>{LENGTH[card.length]}</p>
+            <p>{humorText}</p>
+            <details>
+              <summary>Come si esprime</summary>
+              <ul>{Object.entries(card.decisions).map(([key, text]) => <li key={key}>{DECISIONS[text] ?? text}</li>)}</ul>
+            </details>
+          </>)
+        : <MonCharacterDna mon={mon} />}
     </div>
     <div className="mon-character__part">
       <p className="t-meta bionote__label mon-character__eyebrow">COME SI SENTE ADESSO</p>

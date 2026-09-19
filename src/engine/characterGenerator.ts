@@ -67,10 +67,12 @@ import { culturalFormName } from './culturalNaming';
 import { countChangedAxes, translateHeritage, type HeritageOrigin } from './heritage';
 import { AXIS_LABELS, type ContinuityAxis } from './progression';
 import { emptyAssetStatus } from './assets';
+import { generateCuriositySeed } from './curiosity';
 import type {
   BioFile,
   CharacterData,
   CharacterDna,
+  CuriosityQuestion,
   GenerationTrace,
   MonRecord,
   NarrativeDna,
@@ -113,6 +115,17 @@ export interface GenerationContext {
    * `state/store.ts`), mai dedotto qui.
    */
   preserveCharacterCore?: boolean;
+  /**
+   * 🔷 CURIOSITY FIRST (2026-09-19) — `'curiosity-first'` per una nascita che
+   * non riceve una personalità già scritta: niente traits/drives/
+   * contradictions, Voice DNA neutro, mood neutro, un Curiosity Seed al
+   * posto di tutto questo (vedi `engine/curiosity.ts`). Assente/`'legacy'` =
+   * comportamento di sempre, invariato — non tocca un solo Mon già nato.
+   * Si decide una volta sola, alla nascita: TUNE/RISE lo ereditano da
+   * `ctx.previous.identityMode` (mai da questo campo), BREED ne assegna uno
+   * nuovo a una nuova identità.
+   */
+  birthMode?: 'legacy' | 'curiosity-first';
   seed: number;
   /** §25 DEV://UNLOCK_ALL. */
   devUnlockAll?: boolean;
@@ -284,13 +297,25 @@ export function generateMon(ctx: GenerationContext): GenerationResult {
   });
 
   /* 10 — MOOD (§22) */
-  const { primary: drawnMood, secondary: moodSecondary } = resolveMood(rng, ctx, signals);
+  const { primary: drawnMood, secondary: drawnMoodSecondary } = resolveMood(rng, ctx, signals);
+  let moodSecondary = drawnMoodSecondary;
   // Il LAB è il perimetro esplicito delle nuove generazioni. La continuità
   // può conservare un temperamento soltanto finché quella voce è ancora
   // accesa: altrimenti un vecchio BRIGHT passava sopra la scelta del designer.
   let moodPrimary = anchored('mood_primary') && isEnabled('mood', prev!.mood_primary)
     ? prev!.mood_primary
     : drawnMood;
+  /* 🔷 CURIOSITY FIRST — nessun temperamento assegnato indipendentemente
+     dalla confidenza dei dati: qui non è "non abbiamo ancora abbastanza
+     dati per un mood forte" (quel ramo esiste già sopra, in `resolveMood`),
+     è "questo Mon non riceve un temperamento pre-scritto, punto". Sempre
+     dal sottoinsieme neutro (§22, `NEUTRAL_MOODS`) del catalogo acceso. */
+  if (!ctx.previous && ctx.birthMode === 'curiosity-first') {
+    const enabledMoods = keepEnabled('mood', MOODS, (m) => m.id).map((m) => m.id);
+    const neutralPool = enabledMoods.filter((id) => (NEUTRAL_MOODS as readonly string[]).includes(id));
+    moodPrimary = pick(rng, neutralPool.length > 0 ? neutralPool : enabledMoods);
+    moodSecondary = null;
+  }
   if (ctx.devForcedMood && MOODS.some((m) => m.id === ctx.devForcedMood)) {
     moodPrimary = ctx.devForcedMood;
   }
@@ -301,6 +326,8 @@ export function generateMon(ctx: GenerationContext): GenerationResult {
     note:
       ctx.devForcedMood
         ? 'forzato dal pannello DEV per questa generazione'
+        : !ctx.previous && ctx.birthMode === 'curiosity-first'
+          ? 'curiosity-first: temperamento neutro, non assegnato come tratto'
         : ctx.input.dataConfidence < MOOD_CONFIDENCE_FLOOR
         ? `confidence sotto ${MOOD_CONFIDENCE_FLOOR}: mood neutro invece di inventarne uno forte`
         : undefined,
@@ -446,6 +473,13 @@ export function generateMon(ctx: GenerationContext): GenerationResult {
      sequenza rng di tutto quello che segue (stessa ragione già documentata
      sopra per Family/taglia/designer quando un asse è fermo). */
   const drawnCharacterDna = generateCharacterDna(rng, family, archetype, affinity, narrativeDrive, narrativeContradiction);
+  /* 🔷 CURIOSITY FIRST — vera solo alla NASCITA (`!ctx.previous`): TUNE/RISE
+     di un Mon curiosity-first passano da `preserveCharacterCore`, non da
+     qui (il nucleo è già vuoto su entrambi i lati, preservarlo è un no-op).
+     BREED non imposta `preserveCharacterCore`, quindi una nuova nascita
+     curiosity-first prende comunque questo ramo: nessun tratto ereditato
+     da un genitore. */
+  const isCuriosityBirth = ctx.birthMode === 'curiosity-first' && !ctx.previous;
   const characterDna: CharacterDna = ctx.preserveCharacterCore && ctx.previous
     ? {
         ...drawnCharacterDna,
@@ -454,24 +488,41 @@ export function generateMon(ctx: GenerationContext): GenerationResult {
         drives: [...ctx.previous.data.character_dna.drives],
         contradictions: ctx.previous.data.character_dna.contradictions.map((c) => ({ ...c })),
       }
-    : drawnCharacterDna;
+    : isCuriosityBirth
+      /* Niente tratti, motivazioni o contraddizioni inventati: silhouette/
+         gimmick/face/body restano (§27 — sono anatomia, non psicologia). */
+      ? { ...drawnCharacterDna, traits: [], drives: [], contradictions: [] }
+      : drawnCharacterDna;
   const paletteDna = generatePaletteDna(rng, family.id, affinity, moodPrimary);
   steps.push({
     step: 13,
     stage: 'CHARACTER DNA',
     outcome: characterDna.silhouette_quirk,
     ...(ctx.preserveCharacterCore && ctx.previous ? { note: 'nucleo (traits/drives/contradictions) ereditato dalla forma precedente — non è una nuova rigenerazione' } : {}),
+    ...(isCuriosityBirth ? { note: 'curiosity-first: nessun tratto/motivazione/contraddizione assegnato alla nascita' } : {}),
   });
 
   /* 14 — VOICE DNA (§13/§14) */
   const drawnVoice = generateVoiceDna(rng, characterDna, moodPrimary);
+  /* 🔷 CURIOSITY FIRST — §9: il Voice DNA non deve reintrodurre di nascosto
+     una personalità attraverso il preset. Assi tutti neutri (50, nessuna
+     deviazione): il Mon può comunque parlare (i parametri restano validi e
+     dentro il range), ma nessun assio dice "sarcastico" o "teatrale" al suo
+     posto. Il preset resta quello estratto sopra — con assi piatti non
+     produce testo di carattere marcato, solo poche etichette tecniche. */
+  const neutralVoiceDna = isCuriosityBirth
+    ? (Object.fromEntries([...VOICE_AXES.map((a) => [a.id, 50]), ['deviations', []]]) as typeof drawnVoice.voice)
+    : null;
   // A new body does not reroll the continuing person's voice.
   const voicePreset = ctx.previous?.data.voice_preset ?? drawnVoice.preset;
-  const voice = ctx.previous ? { ...ctx.previous.data.voice_dna, deviations: [...(ctx.previous.data.voice_dna.deviations ?? [])] } as typeof drawnVoice.voice : drawnVoice.voice;
+  const voice = ctx.previous
+    ? { ...ctx.previous.data.voice_dna, deviations: [...(ctx.previous.data.voice_dna.deviations ?? [])] } as typeof drawnVoice.voice
+    : neutralVoiceDna ?? drawnVoice.voice;
   steps.push({
     step: 14,
     stage: 'VOICE DNA',
     outcome: `${voicePreset} · ${voice.deviations?.length ?? 0} assi in deviazione`,
+    ...(isCuriosityBirth ? { note: 'curiosity-first: 12 assi neutri (50), nessuna deviazione assegnata alla nascita' } : {}),
   });
 
   /* 03 + 15 + 16 — RARITÀ (§15/§16/§26) */
@@ -567,15 +618,23 @@ export function generateMon(ctx: GenerationContext): GenerationResult {
     seed: ctx.seed,
     generation_config_version: GENERATION_CONFIG_VERSION,
     generated_at_day: ctx.input.day,
-    narrativeDNA: {
-      archetype: narrativeArchetype,
-      function: narrativeFunction,
-      // Letti da characterDna, non dalle variabili estratte sopra: quando il
-      // nucleo è ereditato (preserveCharacterCore) devono restare la STESSA
-      // cosa vista da due posti, mai un valore vecchio e uno nuovo in disaccordo.
-      drive: characterDna.drives[0]!,
-      contradiction: `${characterDna.contradictions[0]!.a} / ${characterDna.contradictions[0]!.b}`,
-    } satisfies NarrativeDna,
+    /* 🔷 CURIOSITY FIRST — nessuna spina narrativa quando drives/contradictions
+       sono vuoti: `narrativeDNA` è già opzionale nel tipo apposta per i .mon
+       nati prima che esistesse (§27 commento originale), stessa disciplina
+       si applica qui. Niente `drive`/`contradiction` inventati per riempirla. */
+    ...(characterDna.drives.length > 0 && characterDna.contradictions.length > 0
+      ? {
+          narrativeDNA: {
+            archetype: narrativeArchetype,
+            function: narrativeFunction,
+            // Letti da characterDna, non dalle variabili estratte sopra: quando il
+            // nucleo è ereditato (preserveCharacterCore) devono restare la STESSA
+            // cosa vista da due posti, mai un valore vecchio e uno nuovo in disaccordo.
+            drive: characterDna.drives[0]!,
+            contradiction: `${characterDna.contradictions[0]!.a} / ${characterDna.contradictions[0]!.b}`,
+          } satisfies NarrativeDna,
+        }
+      : {}),
   };
 
   steps.push({ step: 18, stage: 'CHARACTER DATA', outcome: 'esportabile, nessuna immagine richiesta' });
@@ -607,13 +666,25 @@ export function generateMon(ctx: GenerationContext): GenerationResult {
     ...buildPersonalityCard(data),
     ...(ctx.previous?.personalityCard?.writingStyle ? { writingStyle: { ...ctx.previous.personalityCard.writingStyle } } : {}),
   };
+  /* 🔷 CURIOSITY FIRST — l'`identityMode` e il Curiosity Seed sono
+     dell'IDENTITÀ (una volta sola, alla nascita), non della forma: TUNE/RISE
+     li ereditano da `ctx.previous`, mai da `ctx.birthMode` (che riguarda
+     solo la nascita e non li ha per una forma successiva). BREED, senza
+     `previous.identityMode` da ereditare qui dentro (lo decide chi chiama,
+     passando `birthMode` esplicito), riceve un seed nuovo se richiesto. */
+  const identityMode: 'legacy' | 'curiosity-first' | undefined = ctx.previous
+    ? ctx.previous.identityMode
+    : ctx.birthMode === 'curiosity-first' ? 'curiosity-first' : undefined;
+  const curiosityQuestions: CuriosityQuestion[] | undefined = ctx.previous
+    ? ctx.previous.curiosityQuestions
+    : identityMode === 'curiosity-first' ? generateCuriositySeed(rng, ctx.input.day) : undefined;
   /* 🔷 AUDIT CARATTERI — controllo leggero e deterministico, nessuna
      chiamata AI: impedisce che un Mon nasca con un carattere incompleto.
      Sotto costruzione normale questo non scatta mai (il generatore riempie
      sempre questi campi) — è una rete di sicurezza contro una regressione
      futura o un record ereditato malformato, non un filtro sull'estroversione:
      un Mon calmo con dati completi la supera come uno espansivo. */
-  const validation = validateBabyCharacter(data, personalityCard);
+  const validation = validateBabyCharacter(data, personalityCard, { mode: identityMode, curiosityQuestions });
   if (!validation.valid) {
     throw new Error(`Carattere incompleto alla nascita: ${validation.problems.join('; ')}`);
   }
@@ -627,6 +698,9 @@ export function generateMon(ctx: GenerationContext): GenerationResult {
       reactions: generateReactions(rng, moodPrimary),
       bornOnDay: ctx.input.day,
       retiredOnDay: null,
+      ...(identityMode ? { identityMode } : {}),
+      ...(curiosityQuestions ? { curiosityQuestions } : {}),
+      ...(ctx.previous?.learnings ? { learnings: ctx.previous.learnings } : {}),
     },
     trace,
   };
@@ -649,12 +723,31 @@ export interface CharacterValidation {
   problems: string[];
 }
 
-export function validateBabyCharacter(data: CharacterData, personalityCard: PersonalityCard): CharacterValidation {
+export function validateBabyCharacter(
+  data: CharacterData,
+  personalityCard: PersonalityCard,
+  /* 🔷 CURIOSITY FIRST — «aggiorna i validatori affinché un Baby possa
+     essere valido senza tratti già consolidati». Non equipara la validità
+     all'estroversione (nessun controllo qui guarda quanto il Mon parla), e
+     nemmeno alla presenza di un carattere consolidato: un curiosity-first
+     con domande vere e nessun tratto/motivazione/contraddizione è VALIDO
+     quanto un legacy con quei campi pieni — sono due contratti diversi. */
+  identity?: { mode?: 'legacy' | 'curiosity-first'; curiosityQuestions?: CuriosityQuestion[] },
+): CharacterValidation {
   const problems: string[] = [];
   const dna = data.character_dna;
-  if (!dna || dna.traits.length === 0) problems.push('nessun trait definito');
-  if (!dna || dna.drives.length === 0) problems.push('nessuna motivazione (drives) definita');
-  if (!dna || dna.contradictions.length === 0) problems.push('nessuna contraddizione/tensione definita');
+  const curiosityFirst = identity?.mode === 'curiosity-first';
+  if (curiosityFirst) {
+    if (!dna) problems.push('character_dna assente');
+    if ((dna?.traits.length ?? 0) > 0) problems.push('curiosity-first non dovrebbe avere traits pre-assegnati');
+    if ((dna?.drives.length ?? 0) > 0) problems.push('curiosity-first non dovrebbe avere drives pre-assegnati');
+    if ((dna?.contradictions.length ?? 0) > 0) problems.push('curiosity-first non dovrebbe avere contradictions pre-assegnate');
+    if (!identity?.curiosityQuestions || identity.curiosityQuestions.length === 0) problems.push('nessuna domanda di Curiosity Seed');
+  } else {
+    if (!dna || dna.traits.length === 0) problems.push('nessun trait definito');
+    if (!dna || dna.drives.length === 0) problems.push('nessuna motivazione (drives) definita');
+    if (!dna || dna.contradictions.length === 0) problems.push('nessuna contraddizione/tensione definita');
+  }
   for (const axis of VOICE_AXES) {
     const v = data.voice_dna[axis.id];
     if (typeof v !== 'number' || Number.isNaN(v) || v < 0 || v > 100) problems.push(`voice_dna.${axis.id} non valido: ${String(v)}`);

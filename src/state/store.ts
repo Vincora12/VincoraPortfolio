@@ -104,6 +104,7 @@ import {
   type Reminder,
 } from './pagesSlice';
 import { runTool, TOOLS, type ToolContext, type ToolResult, type ToolUse } from '../ai/tools';
+import { isCuriosityArea, recordCuriosityLearning } from '../engine/curiosity';
 import { calculateDailyEnergy } from '../engine/dailyEnergy';
 import { configureStorageTokenReader } from '../system/serverStorage';
 import {
@@ -1560,6 +1561,9 @@ export const useApp = create<AppState>()(
             originNodeId: null,
             lineageNames: [],
             seed: randomSeed(),
+            // Ogni nuova nascita: nessuna personalità già scritta, solo un
+            // Curiosity Seed — vedi la nota su `birthMode` in characterGenerator.ts.
+            birthMode: 'curiosity-first',
             devUnlockAll: s.dev.unlockAll,
             devForcedMood: s.dev.forcedMood,
             hiddenEvent: hiddenEventFor({ day: s.day, formNumber: 1, activeDays: s.progression.sync.lifetime }),
@@ -1837,6 +1841,7 @@ export const useApp = create<AppState>()(
           originNodeId: null,
           lineageNames: [],
           seed: randomSeed(),
+          birthMode: 'curiosity-first',
           devUnlockAll: s.dev.unlockAll,
           devForcedMood: s.dev.forcedMood,
           hiddenEvent: hiddenEventFor({
@@ -2756,6 +2761,13 @@ export const useApp = create<AppState>()(
         const rec = s.mons[monName];
         if (!rec) return 'nessuna creatura con questo nome';
         if (rec.writtenBio) return null;
+        /* 🔷 CURIOSITY FIRST — bioWriter.ts scrive un `culturalPortrait` di
+           gusti fittizi e una bio in prima persona costruita da drives/
+           contradictions: esattamente la personalità inventata che questo
+           Mon non deve ricevere. Niente `writtenBio`: `readableBio()` (già
+           esistente) ricade sulla `bio` deterministica, che resta quella
+           costruita dai segnali reali — nessuna nuova biografia da scrivere. */
+        if (rec.identityMode === 'curiosity-first') return null;
 
         const { writeBioWithAi } = await import('../ai/bioWriter');
         const bornDay = rec.data.generated_at_day;
@@ -3349,6 +3361,26 @@ export const useApp = create<AppState>()(
           protocol: s.protocol,
           days: s.days,
           memories: s.memories,
+          curiosityQuestions: rec?.curiosityQuestions,
+          recordCuriosityLearning: (input) => {
+            const active = activeRecord(get());
+            if (!active) return { ok: false, error: 'Nessun Mon attivo.' };
+            const result = recordCuriosityLearning(active, {
+              questionId: input.questionId,
+              kind: input.kind,
+              about: input.about,
+              text: input.text,
+              questionStatus: input.questionStatus,
+              emergedQuestion: input.emergedQuestion && isCuriosityArea(input.emergedQuestion.area)
+                ? { area: input.emergedQuestion.area, text: input.emergedQuestion.text }
+                : undefined,
+              source: { kind: 'conversazione', day: get().day, toolCallId: input.toolCallId },
+              day: get().day,
+            });
+            if (!result.ok || !result.record) return { ok: false, error: result.error };
+            set({ mons: { ...get().mons, [active.data.name]: result.record } });
+            return { ok: true };
+          },
           pages: s.pages,
           monName: rec?.data.name ?? null,
 

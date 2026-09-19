@@ -16,12 +16,19 @@
    altro Mon, mai un valore inventato quando lo snapshot non c'è.
    ========================================================================= */
 
-import type { CharacterDna, MindlineNode, MonRecord } from '../engine/types';
+import type { CharacterDna, CuriosityQuestion, MindlineNode, MonRecord } from '../engine/types';
 import { VOICE_AXES } from '../engine/generation-config';
 import { voiceCardBlock } from '../engine/voiceCard';
+import { curiosityChatBlock } from '../engine/curiosity';
 import { useApp } from '../state/store';
 import { Row, SystemLabel } from '../system/components';
 import './mon-character-dna.css';
+
+const AREA_LABEL: Record<string, string> = {
+  'identità': 'identità', relazione: 'relazione', funzionamento: 'funzionamento', etica: 'etica', cultura: 'cultura', mondo: 'mondo',
+};
+const ABOUT_LABEL: Record<string, string> = { utente: 'utente', mon: 'sé stesso', mondo: 'il mondo' };
+const KIND_LABEL: Record<string, string> = { esperienza: 'esperienza', informazione: 'informazione', ipotesi: 'ipotesi' };
 
 function contradictionText(c: { a: string; b: string }): string {
   return `${c.a} / ${c.b}`;
@@ -144,24 +151,118 @@ function PersonalityCardSection({ mon }: { mon: MonRecord }) {
 }
 
 function ChatExpressionSection({ mon }: { mon: MonRecord }) {
+  const curiosityFirst = mon.identityMode === 'curiosity-first';
+  const block = curiosityFirst ? curiosityChatBlock(mon) : voiceCardBlock(mon);
   return (
     <section className="mchardna__section">
       <p className="t-meta mchardna__eyebrow">D · ESPRESSIONE IN CHAT</p>
+      {curiosityFirst ? (
+        <p className="mchardna__caption">
+          Blocco reale prodotto da <code className="mchardna__code">engine/curiosity.ts → curiosityChatBlock()</code>,
+          la stessa funzione che il prompt di chat usa al posto della Voice Card per un Mon Curiosity First. Non è
+          l'intero prompt: mancano regole di sicurezza, strumenti disponibili e memoria personale — omessi qui di
+          proposito, non recuperabili da questa scheda.
+        </p>
+      ) : (
+        <p className="mchardna__caption">
+          Blocco reale prodotto da <code className="mchardna__code">engine/voiceCard.ts → voiceCardBlock()</code>, la
+          stessa funzione che compila questa parte del system prompt nella chat vera. Non è l'intero prompt: mancano
+          regole di sicurezza, strumenti disponibili e memoria personale — omessi qui di proposito, non recuperabili
+          da questa scheda.
+        </p>
+      )}
+      {block ? <pre className="mchardna__block">{block}</pre> : <p className="mchardna__missing">Ancora nessun dato individuale da mostrare.</p>}
+      {curiosityFirst ? (
+        <p className="mchardna__note">
+          <strong>Istruzioni comuni a tutti i Mon</strong> (non da questo Mon): il metodo generale «sii curioso» vive
+          in <code className="mchardna__code">ai/naturalVoice.ts → CURIOUS_VOICE</code>, sempre presente nel prompt,
+          non ripetuto qui. <strong>Derivato da questo Mon</strong>: ogni riga di questo blocco — le domande che porta,
+          cosa ha davvero imparato, le sue eventuali ipotesi — viene dalle sezioni qui sotto.
+        </p>
+      ) : (
+        <p className="mchardna__note">
+          <strong>Istruzioni comuni a tutti i Mon</strong> (dal compilatore, non da questo Mon): le righe «EMOTIONAL
+          EXPRESSION», «Writing texture supports the thought…» e il paragrafo finale su come rispondere. <strong>Istruzioni
+          derivate da questo Mon</strong>: tutto il resto del blocco — Motivations, Disposition, Unresolved tensions,
+          «How he engages», Disagreement/Care/Uncertainty, Attention, Register, YOUR VOICE — deriva dai dati mostrati
+          nelle sezioni A/B/C qui sopra.
+        </p>
+      )}
+    </section>
+  );
+}
+
+function IdentitySection({ mon }: { mon: MonRecord }) {
+  const mode = mon.identityMode ?? 'legacy';
+  return (
+    <section className="mchardna__section">
+      <p className="t-meta mchardna__eyebrow">IDENTITÀ</p>
+      <div className="rowlist">
+        <Row label="identityMode" value={<SystemLabel tone={mode === 'curiosity-first' ? 'character' : 'default'}>{mode.toUpperCase()}</SystemLabel>} />
+      </div>
       <p className="mchardna__caption">
-        Blocco reale prodotto da <code className="mchardna__code">engine/voiceCard.ts → voiceCardBlock()</code>, la
-        stessa funzione che compila questa parte del system prompt nella chat vera. Non è l'intero prompt: mancano
-        regole di sicurezza, strumenti disponibili e memoria personale — omessi qui di proposito, non recuperabili
-        da questa scheda.
-      </p>
-      <pre className="mchardna__block">{voiceCardBlock(mon)}</pre>
-      <p className="mchardna__note">
-        <strong>Istruzioni comuni a tutti i Mon</strong> (dal compilatore, non da questo Mon): le righe «EMOTIONAL
-        EXPRESSION», «Writing texture supports the thought…» e il paragrafo finale su come rispondere. <strong>Istruzioni
-        derivate da questo Mon</strong>: tutto il resto del blocco — Motivations, Disposition, Unresolved tensions,
-        «How he engages», Disagreement/Care/Uncertainty, Attention, Register, YOUR VOICE — deriva dai dati mostrati
-        nelle sezioni A/B/C qui sopra.
+        {mode === 'curiosity-first'
+          ? 'Nato col nuovo metodo: nessun tratto assegnato alla nascita, solo un Curiosity Seed.'
+          : 'Nato col sistema precedente: Character DNA e Personality Card assegnati alla nascita, come da contratto §27.'}
       </p>
     </section>
+  );
+}
+
+function questionStatusTone(status: CuriosityQuestion['status']): 'positive' | 'warning' | 'default' {
+  if (status === 'chiusa' || status === 'approfondita') return 'positive';
+  if (status === 'parzialmente chiarita') return 'warning';
+  return 'default';
+}
+
+function CuriositySection({ mon }: { mon: MonRecord }) {
+  const questions = mon.curiosityQuestions ?? [];
+  const bornWith = questions.filter((q) => q.origin === 'nascita');
+  const emerged = questions.filter((q) => q.origin === 'emersa');
+  const learnings = mon.learnings ?? [];
+  return (
+    <>
+      <section className="mchardna__section">
+        <p className="t-meta mchardna__eyebrow">CURIOSITY SEED (nascita)</p>
+        <p className="mchardna__caption">Persistito in `curiosityQuestions`, `origin: 'nascita'` — congelato, mai riscritto da un'evoluzione.</p>
+        {bornWith.length === 0 ? <p className="mchardna__missing">Non disponibile.</p> : (
+          <div className="rowlist">
+            {bornWith.map((q) => <Row key={q.id} label={AREA_LABEL[q.area] ?? q.area} value={q.text} />)}
+          </div>
+        )}
+      </section>
+      <section className="mchardna__section">
+        <p className="t-meta mchardna__eyebrow">DOMANDE E STATI</p>
+        <p className="mchardna__caption">Tutte le domande — di nascita ed emerse — con lo stato reale persistito.</p>
+        {questions.length === 0 ? <p className="mchardna__missing">Non disponibile.</p> : (
+          <div className="rowlist">
+            {questions.map((q) => (
+              <Row
+                key={q.id}
+                label={`${q.text}${q.origin === 'emersa' ? ' (emersa)' : ''}`}
+                value={<SystemLabel tone={questionStatusTone(q.status)}>{q.status.toUpperCase()}</SystemLabel>}
+              />
+            ))}
+          </div>
+        )}
+        {emerged.length > 0 && <p className="mchardna__caption">{emerged.length} domanda/e emersa/e dopo la nascita.</p>}
+      </section>
+      <section className="mchardna__section">
+        <p className="t-meta mchardna__eyebrow">APPRENDIMENTI</p>
+        <p className="mchardna__caption">Persistiti in `learnings`, con provenienza — il testo integrale resta nella memoria personale, non duplicato qui.</p>
+        {learnings.length === 0 ? <p className="mchardna__missing">Non disponibile — nessun apprendimento ancora registrato.</p> : (
+          <div className="rowlist">
+            {learnings.map((l) => (
+              <Row
+                key={l.id}
+                label={`${KIND_LABEL[l.kind] ?? l.kind} · ${ABOUT_LABEL[l.about] ?? l.about} · giorno ${l.createdOnDay}`}
+                value={l.text}
+              />
+            ))}
+          </div>
+        )}
+      </section>
+    </>
   );
 }
 
@@ -197,6 +298,19 @@ function ContinuitySection({ mon }: { mon: MonRecord }) {
                   : <ContinuityStatus same={JSON.stringify(prev.personalityCard.writingStyle) === JSON.stringify(card.writingStyle)} />
               }
             />
+            {mon.identityMode === 'curiosity-first' && (
+              <>
+                <Row
+                  label="curiosity seed (nascita)"
+                  value={<ContinuityStatus same={arraysEqual(
+                    (prev.curiosityQuestions ?? []).filter((q) => q.origin === 'nascita').map((q) => q.id),
+                    (mon.curiosityQuestions ?? []).filter((q) => q.origin === 'nascita').map((q) => q.id),
+                  )} />}
+                />
+                <Row label="domande aperte sopravvissute" value={`${(mon.curiosityQuestions ?? []).filter((q) => q.status === 'aperta' || q.status === 'parzialmente chiarita').length} di ${(prev.curiosityQuestions ?? []).filter((q) => q.status === 'aperta' || q.status === 'parzialmente chiarita').length} precedenti`} />
+                <Row label="apprendimenti conservati" value={(mon.learnings ?? []).length >= (prev.learnings ?? []).length ? <SystemLabel tone="positive">SÌ — {(mon.learnings ?? []).length}</SystemLabel> : <SystemLabel tone="warning">RIDOTTI</SystemLabel>} />
+              </>
+            )}
           </div>
         </>
       )}
@@ -205,8 +319,11 @@ function ContinuitySection({ mon }: { mon: MonRecord }) {
 }
 
 export function MonCharacterDna({ mon }: { mon: MonRecord }) {
+  const curiosityFirst = mon.identityMode === 'curiosity-first';
   return (
     <div className="mchardna">
+      <IdentitySection mon={mon} />
+      {curiosityFirst && <CuriositySection mon={mon} />}
       <CharacterDnaSection dna={mon.data.character_dna} />
       <VoiceDnaSection mon={mon} />
       <PersonalityCardSection mon={mon} />

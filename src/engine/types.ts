@@ -484,6 +484,77 @@ export interface MonRecord {
    * fra un asset e l'altro produrrebbe sei disegni di sei personaggi.
    */
   resolution?: import('../assets-pipeline/resolver/vendor/types').CreativeResolution;
+  /**
+   * 🔷 CURIOSITY FIRST (2026-09-19) — assente = LEGACY: creatura nata col
+   * vecchio generatore, con Character DNA/Voice DNA/Personality Card già
+   * assegnati come identità consolidata. `'curiosity-first'` = nata col
+   * nuovo metodo: nessun tratto, motivazione o gusto inventato alla
+   * nascita — solo domande (vedi `curiosityQuestions`) e quello che impara
+   * davvero (vedi `learnings`). Non converte MAI un Mon legacy esistente:
+   * il valore si decide una sola volta, alla nascita, e non cambia più.
+   */
+  identityMode?: 'legacy' | 'curiosity-first';
+  /**
+   * Le domande — mai risposte — con cui è nato, più quelle emerse dopo.
+   * Vive qui e non in `data.character_dna` apposta: quel contratto (§27)
+   * resta quello dei .mon legacy, chiuso e non riaperto per questo. Assente
+   * per ogni Mon legacy e per un Mon curiosity-first non ancora generato
+   * con questo campo (nessuna domanda inventata a posteriori).
+   */
+  curiosityQuestions?: CuriosityQuestion[];
+  /**
+   * Quello che ha imparato per davvero — su di sé, sull'utente o sul
+   * mondo — con la provenienza. Non è una copia della memoria personale
+   * (Memory V1/ME Model restano l'unica fonte del testo integrale): questo
+   * è il puntatore strutturato che lega una domanda a cosa ne è emerso.
+   */
+  learnings?: Learning[];
+}
+
+/* --- CURIOSITY FIRST ---------------------------------------------------------
+   Nessuna tabella per ciascun concetto della specifica: la rappresentazione
+   minima che serve a chiudere il ciclo domanda → risposta → memoria → nuova
+   domanda, riusando `learnings[].questionId` per il collegamento invece di
+   un indice separato.
+   -------------------------------------------------------------------------- */
+
+export type CuriosityArea = 'identità' | 'relazione' | 'funzionamento' | 'etica' | 'cultura' | 'mondo';
+export type CuriosityStatus = 'aperta' | 'approfondita' | 'parzialmente chiarita' | 'chiusa';
+
+export interface CuriosityQuestion {
+  id: string;
+  area: CuriosityArea;
+  text: string;
+  status: CuriosityStatus;
+  /** `nascita` = faceva parte del Curiosity Seed originale; `emersa` = nata dopo, da una conversazione. */
+  origin: 'nascita' | 'emersa';
+  createdOnDay: number;
+  updatedOnDay?: number;
+}
+
+export type LearningKind = 'esperienza' | 'informazione' | 'ipotesi';
+/** Di chi parla questo apprendimento — mai confuso con chi lo racconta. */
+export type LearningAbout = 'utente' | 'mon' | 'mondo';
+
+export interface LearningSource {
+  kind: 'conversazione' | 'memoria';
+  day: number;
+  /** Riferimento tecnico alla chiamata che lo ha registrato, per audit — non un id di messaggio garantito stabile. */
+  toolCallId?: string;
+  /** Quando la fonte è la memoria personale (Memory V1/ME Model), l'id lì. */
+  memoryId?: string;
+}
+
+export interface Learning {
+  id: string;
+  /** La domanda a cui contribuisce, se c'è. Assente per un'osservazione senza una domanda dietro. */
+  questionId?: string;
+  kind: LearningKind;
+  about: LearningAbout;
+  /** Breve. Il testo integrale resta nella memoria personale, non qui. */
+  text: string;
+  source: LearningSource;
+  createdOnDay: number;
 }
 
 /* --- CONVERSAZIONE ----------------------------------------------------------- */
