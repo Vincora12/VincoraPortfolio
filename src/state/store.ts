@@ -2001,6 +2001,10 @@ export const useApp = create<AppState>()(
           lineageNames: [...Object.keys(s.mons), ...(s.breedJob ? [s.breedJob.candidate.data.name] : [])],
           previous,
           continuity,
+          // TUNE e RISE sono la stessa identità che cambia forma: il nucleo
+          // caratteriale (traits/drives/contradictions) non si ri-estrae a
+          // caso — vedi la nota su `preserveCharacterCore` in characterGenerator.ts.
+          preserveCharacterCore: true,
           seed: randomSeed(),
           devUnlockAll: s.dev.unlockAll,
           devForcedMood: s.dev.forcedMood,

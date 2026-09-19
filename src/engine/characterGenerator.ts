@@ -45,6 +45,7 @@ import {
   STORY_FUNCTIONS,
   STORY_FUNCTION_FIT,
   AFFINITIES,
+  VOICE_AXES,
   familyDef,
   type Appearance,
   type FamilyDef,
@@ -73,6 +74,7 @@ import type {
   GenerationTrace,
   MonRecord,
   NarrativeDna,
+  PersonalityCard,
   SigilSeed,
   TraceCandidate,
   TraceStep,
@@ -96,6 +98,21 @@ export interface GenerationContext {
    * da zero. Vale solo con `previous` valorizzato; per il primo nodo è vuota.
    */
   continuity?: readonly ContinuityAxis[];
+  /**
+   * 🔷 AUDIT CARATTERI (2026-09-19) — TUNE/RISE sono la STESSA identità che
+   * cambia forma, non una nuova nascita: `traits`/`drives`/`contradictions`
+   * del Character DNA non devono essere ri-estratti a caso solo perché la
+   * forma è nuova (l'audit ha trovato che oggi lo erano SEMPRE, anche con
+   * `continuity` che tiene ferma la Family). `silhouette_quirk` /
+   * `anatomical_gimmick` / `face_logic` / `body_language` restano quelli
+   * appena estratti: descrivono il corpo, che può legittimamente cambiare.
+   *
+   * ⚠️ NON impostarlo per BREED: una nuova nascita non eredita
+   * automaticamente il carattere di un genitore — vale solo con `previous`
+   * valorizzato, letto da chi chiama (`beginFormEvolution` in
+   * `state/store.ts`), mai dedotto qui.
+   */
+  preserveCharacterCore?: boolean;
   seed: number;
   /** §25 DEV://UNLOCK_ALL. */
   devUnlockAll?: boolean;
@@ -424,9 +441,27 @@ export function generateMon(ctx: GenerationContext): GenerationResult {
   });
 
   /* 13 — CHARACTER DNA (§40) */
-  const characterDna = generateCharacterDna(rng, family, archetype, affinity, narrativeDrive, narrativeContradiction);
+  /* 🔷 AUDIT CARATTERI — l'estrazione avviene SEMPRE, anche quando il nucleo
+     verrà poi sostituito da quello ereditato: saltarla sposterebbe la
+     sequenza rng di tutto quello che segue (stessa ragione già documentata
+     sopra per Family/taglia/designer quando un asse è fermo). */
+  const drawnCharacterDna = generateCharacterDna(rng, family, archetype, affinity, narrativeDrive, narrativeContradiction);
+  const characterDna: CharacterDna = ctx.preserveCharacterCore && ctx.previous
+    ? {
+        ...drawnCharacterDna,
+        // Il nucleo identitario: chi è, non come appare in questo corpo.
+        traits: [...ctx.previous.data.character_dna.traits],
+        drives: [...ctx.previous.data.character_dna.drives],
+        contradictions: ctx.previous.data.character_dna.contradictions.map((c) => ({ ...c })),
+      }
+    : drawnCharacterDna;
   const paletteDna = generatePaletteDna(rng, family.id, affinity, moodPrimary);
-  steps.push({ step: 13, stage: 'CHARACTER DNA', outcome: characterDna.silhouette_quirk });
+  steps.push({
+    step: 13,
+    stage: 'CHARACTER DNA',
+    outcome: characterDna.silhouette_quirk,
+    ...(ctx.preserveCharacterCore && ctx.previous ? { note: 'nucleo (traits/drives/contradictions) ereditato dalla forma precedente — non è una nuova rigenerazione' } : {}),
+  });
 
   /* 14 — VOICE DNA (§13/§14) */
   const drawnVoice = generateVoiceDna(rng, characterDna, moodPrimary);
@@ -535,8 +570,11 @@ export function generateMon(ctx: GenerationContext): GenerationResult {
     narrativeDNA: {
       archetype: narrativeArchetype,
       function: narrativeFunction,
-      drive: narrativeDrive,
-      contradiction: `${narrativeContradiction.a} / ${narrativeContradiction.b}`,
+      // Letti da characterDna, non dalle variabili estratte sopra: quando il
+      // nucleo è ereditato (preserveCharacterCore) devono restare la STESSA
+      // cosa vista da due posti, mai un valore vecchio e uno nuovo in disaccordo.
+      drive: characterDna.drives[0]!,
+      contradiction: `${characterDna.contradictions[0]!.a} / ${characterDna.contradictions[0]!.b}`,
     } satisfies NarrativeDna,
   };
 
@@ -565,10 +603,25 @@ export function generateMon(ctx: GenerationContext): GenerationResult {
     },
   };
 
+  const personalityCard: PersonalityCard = {
+    ...buildPersonalityCard(data),
+    ...(ctx.previous?.personalityCard?.writingStyle ? { writingStyle: { ...ctx.previous.personalityCard.writingStyle } } : {}),
+  };
+  /* 🔷 AUDIT CARATTERI — controllo leggero e deterministico, nessuna
+     chiamata AI: impedisce che un Mon nasca con un carattere incompleto.
+     Sotto costruzione normale questo non scatta mai (il generatore riempie
+     sempre questi campi) — è una rete di sicurezza contro una regressione
+     futura o un record ereditato malformato, non un filtro sull'estroversione:
+     un Mon calmo con dati completi la supera come uno espansivo. */
+  const validation = validateBabyCharacter(data, personalityCard);
+  if (!validation.valid) {
+    throw new Error(`Carattere incompleto alla nascita: ${validation.problems.join('; ')}`);
+  }
+
   return {
     record: {
       data,
-      personalityCard: { ...buildPersonalityCard(data), ...(ctx.previous?.personalityCard?.writingStyle ? {writingStyle:{...ctx.previous.personalityCard.writingStyle}} : {}) },
+      personalityCard,
       bio: generateBio(data, ctx),
       sigil: generateSigil(data, ctx.previous),
       reactions: generateReactions(rng, moodPrimary),
@@ -577,6 +630,41 @@ export function generateMon(ctx: GenerationContext): GenerationResult {
     },
     trace,
   };
+}
+
+/* ============================================================================
+   VALIDAZIONE ALLA NASCITA (audit caratteri, 2026-09-19)
+
+   Nessuna chiamata AI, nessuna unicità imposta fra Mon diversi: solo che
+   QUESTO Mon abbia un nucleo caratteriale completo — traits, almeno una
+   motivazione, almeno una tensione, Voice DNA nei 12 assi in [0,100], e una
+   Personality Card che ne è davvero la lettura (tendencies/decisions/
+   familyLens presenti). Un Mon calmo o taciturno con dati completi supera
+   il controllo esattamente come uno espansivo: qui non si guarda quanto
+   parla, si guarda se ha di cosa parlare.
+   ========================================================================= */
+
+export interface CharacterValidation {
+  valid: boolean;
+  problems: string[];
+}
+
+export function validateBabyCharacter(data: CharacterData, personalityCard: PersonalityCard): CharacterValidation {
+  const problems: string[] = [];
+  const dna = data.character_dna;
+  if (!dna || dna.traits.length === 0) problems.push('nessun trait definito');
+  if (!dna || dna.drives.length === 0) problems.push('nessuna motivazione (drives) definita');
+  if (!dna || dna.contradictions.length === 0) problems.push('nessuna contraddizione/tensione definita');
+  for (const axis of VOICE_AXES) {
+    const v = data.voice_dna[axis.id];
+    if (typeof v !== 'number' || Number.isNaN(v) || v < 0 || v > 100) problems.push(`voice_dna.${axis.id} non valido: ${String(v)}`);
+  }
+  if (!personalityCard.tendencies || personalityCard.tendencies.length === 0) problems.push('Personality Card priva di tendencies');
+  if (!personalityCard.decisions?.disagreement || !personalityCard.decisions?.care || !personalityCard.decisions?.uncertainty) {
+    problems.push('Personality Card priva di decisions coerenti');
+  }
+  if (!personalityCard.familyLens) problems.push('Personality Card priva di familyLens');
+  return { valid: problems.length === 0, problems };
 }
 
 /* ============================================================================
