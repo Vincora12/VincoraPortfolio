@@ -36,6 +36,9 @@ try {
         eggs: [], firstSync: null });
     });
     await page.waitForSelector('.vinz-composer', { timeout: 10000 });
+    await sleep(1500);
+    check(await page.getByText('Hai visto il riflesso?', { exact: true }).count() === 0, `${viewport.name}: Generale does not show the Life Cycle event`);
+    await page.evaluate(() => window.dispatchEvent(new CustomEvent('vinz-select-project', { detail: { id: 'vinzmon-world', title: 'Vinz.World' } })));
     await page.getByText('Hai visto il riflesso?', { exact: true }).waitFor({ timeout: 10000 });
     const geometry = await page.evaluate(() => {
       const composer = document.querySelector('.vinz-composer')?.getBoundingClientRect();
@@ -47,6 +50,7 @@ try {
     check(!geometry.overflow && geometry.composerVisible && geometry.eventVisible, `${viewport.name}: event and composer fit viewport`);
     await page.screenshot({ path: `/private/tmp/vinz-life-${viewport.name}.png`, fullPage: true });
     await page.reload({ waitUntil: 'networkidle' });
+    await page.evaluate(() => window.dispatchEvent(new CustomEvent('vinz-select-project', { detail: { id: 'vinzmon-world', title: 'Vinz.World' } })));
     await page.getByText('Hai visto il riflesso?', { exact: true }).waitFor({ timeout: 10000 });
     await sleep(1800);
     check(await page.getByText('Hai visto il riflesso?', { exact: true }).count() === 1, `${viewport.name}: open event survives reload without duplicate`);

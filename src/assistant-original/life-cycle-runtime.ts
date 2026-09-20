@@ -2,6 +2,7 @@ import { fetchLifePersonalFacts, proposeLifeConsequence, proposeLifeEvent } from
 import { acceptLifeConsequence, acceptLifeEvent, canStartLifeEvent, mightActInLife, safeLifeText, validateLifeConsequence, type LifeContext } from '../engine/lifeCycle';
 import { runStep, useApp } from '../state/store';
 import { postRuntimeEvent } from '../system/runtimeLog';
+import { WORLD_PROJECT_ID } from '../engine/projects';
 
 const LIFE_LOCAL_TIMEOUT_MS = 60_000;
 export type LifeStartResult = { status: 'open'; id: string } | { status: 'ineligible' | 'failed'; code: string };
@@ -80,7 +81,7 @@ export interface LifeTurnResult { intent: 'assistant_request' | 'narrative_comme
 
 /** Assistant requests keep their normal route. Only explicit scene actions can advance canon. */
 export async function processLifeTurn(messageId: string, userText: string, projectId: string | undefined, useTools: boolean): Promise<LifeTurnResult | null> {
-  if (projectId || useTools || !messageId || !userText || userText.length > 500 || !safeLifeText(userText) || !mightActInLife(userText)
+  if (projectId !== WORLD_PROJECT_ID || useTools || !messageId || !userText || userText.length > 500 || !safeLifeText(userText) || !mightActInLife(userText)
     || /\b(che ore|meteo|promemoria|calendario|cerca (online|sul web)|modifica (l'app|il codice)|what time|weather|reminder|calendar)\b/i.test(userText)) return null;
   const initial = useApp.getState();
   const event = initial.ledger.lifeEvent;

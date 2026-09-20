@@ -63,6 +63,7 @@ import { Sources } from "@/assistant-original/components/assistant-ui/sources";
 import { CloneThreadShell } from "./clone-thread-shell";
 import { ModelEffortPill, type ModelChoice } from "@/assistant-original/ModelEffortPill";
 import { useApp } from "@/state/store";
+import { WORLD_PROJECT_ID } from "@/engine/projects";
 import { reportLifeCycle, startLifeEventIfDue } from "@/assistant-original/life-cycle-runtime";
 import { voiceCard } from "@/engine/voiceCard";
 import { useAssetUrl } from "@/system/AssetSlot";
@@ -319,7 +320,7 @@ export const ChatGPT: FC<{
         onDragLeave={dropZone.onDragLeave}
         onDrop={dropZone.onDrop}
       >
-        <LifeCycleEvents enabled={!newThreadScope?.projectId} />
+        <LifeCycleEvents enabled={newThreadScope?.projectId === WORLD_PROJECT_ID} />
         {dropZone.isDraggingFile && (
           <div className="vinz-file-drop-overlay" aria-hidden="true">
             <p>Rilascia qui per allegare</p>

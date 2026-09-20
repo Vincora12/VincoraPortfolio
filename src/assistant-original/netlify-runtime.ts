@@ -24,6 +24,7 @@ import { connectorsSummaryForProject } from "@/connectors/summary";
 import { readHealthJournal } from "@/engine/healthJournal";
 import { useApp } from "@/state/store";
 import { processLifeTurn } from "./life-cycle-runtime";
+import { WORLD_PROJECT_ID } from "@/engine/projects";
 import type { ContextDecision } from '@/ai/contextSelection';
 import { resolveChatContext } from '@/ai/chatContext';
 import { buildCapabilitySummary } from "@/ai/toolLayer";
@@ -1053,7 +1054,7 @@ export function createNetlifyChatModel(
          `confirmed`: una frase naturale come «ho cenato» produceva
          `needs-confirmation`, ma poi ricadeva nella chat senza strumenti e il
          modello poteva inventare «registrato». */
-      const useTools = Boolean(runTool && (shouldUseLocalTools(user) || projectId || mealConfirmation || workoutConfirmation || actionConfirmation || confirmedPlan));
+      const useTools = Boolean(runTool && (shouldUseLocalTools(user) || (projectId && projectId !== WORLD_PROJECT_ID) || mealConfirmation || workoutConfirmation || actionConfirmation || confirmedPlan));
       const token = savedToken();
       if (!token) throw new Error('Prima attiva VINZ.MON: manca il token.');
       const lifeTurn = last?.role === 'user'
@@ -1061,7 +1062,7 @@ export function createNetlifyChatModel(
         : null;
       postChatDiagnostic('CHAT_MEMORY_FETCH_START', 'canonical-context');
       let contextSelection: ContextDecision[] = [];
-      let systemPrompt = await resolveChatContext(token, user, useTools, args.abortSignal, projectId, args.messages.slice(-5, -1).map(textOf).join('\n'), selection => { contextSelection = selection; });
+      let systemPrompt = await resolveChatContext(token, user, useTools, args.abortSignal, projectId === WORLD_PROJECT_ID ? undefined : projectId, args.messages.slice(-5, -1).map(textOf).join('\n'), selection => { contextSelection = selection; });
 
       /* Segnalibro e archivio si leggono qui, dove il prompt di sistema viene
          composto: così valgono sia per il giro con gli strumenti sia per la

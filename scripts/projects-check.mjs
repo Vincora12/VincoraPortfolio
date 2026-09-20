@@ -23,7 +23,7 @@ export function getStore() { return {
 try {
   await build({ entryPoints: ['netlify/functions/projects.ts', 'src/engine/projects.ts'], outdir: directory, outbase: '.', bundle: true, format: 'esm', platform: 'node', outExtension: { '.js': '.mjs' }, plugins: [{ name: 'isolated-blobs', setup(builder) { builder.onResolve({ filter: /^@netlify\/blobs$|\/localStore$|^\.\/_shared\/localStore$/ }, () => ({ path: 'mock-blobs', namespace: 'test' })); builder.onLoad({ filter: /.*/, namespace: 'test' }, () => ({ contents: blobMock, loader: 'js' })); } }] });
   const { default: handler } = await import(pathToFileURL(join(directory, 'netlify/functions/projects.mjs')));
-  const { buildProjectContext, mutationProblem, artifactHref, GLOBAL_PROJECT_ID } = await import(pathToFileURL(join(directory, 'src/engine/projects.mjs')));
+  const { buildProjectContext, mutationProblem, artifactHref, GLOBAL_PROJECT_ID, WORLD_PROJECT_ID, WORLD_PROJECT_TITLE } = await import(pathToFileURL(join(directory, 'src/engine/projects.mjs')));
   const token = 'synthetic-project-test-token-123456';
   const previous = process.env.VINZMON_TOKEN;
   process.env.VINZMON_TOKEN = token;
@@ -42,7 +42,11 @@ try {
     assert.equal(globalRead.artifacts[0].markdown, '# Only GLOBAL');
     assert.equal(globalRead.files[0].data, 'aGk=');
     assert.equal(globalRead.revision, globalDoc.revision);
-    assert.equal((await (await call(null)).json()).projects.length, 0, 'GLOBAL is not a duplicate selectable group');
+    const initialProjects = (await (await call(null)).json()).projects;
+    assert.equal(initialProjects.length, 1, 'Vinz.World is the only built-in selectable project');
+    assert.equal(initialProjects[0].id, WORLD_PROJECT_ID);
+    assert.equal(initialProjects[0].title, WORLD_PROJECT_TITLE);
+    assert.equal((await (await call(null, `?projectId=${WORLD_PROJECT_ID}`)).json()).project.id, WORLD_PROJECT_ID);
     assert.equal((await call({ action: 'create', title: 'x', context: 'data:image/png;base64,AAAA' })).status, 400);
     const created = await call({ action: 'create', title: 'Alpha synthetic', context: 'Alpha only fact', instructions: 'Use concise sections' });
     assert.equal(created.status, 201);
@@ -64,7 +68,7 @@ try {
     const { project: betaReloaded } = await (await call(null, `?projectId=${beta.id}`)).json();
     assert.equal(betaReloaded.artifacts.length, 0);
     const list = await (await call(null)).json();
-    assert.equal(list.projects.length, 2);
+    assert.equal(list.projects.length, 3);
     assert(!JSON.stringify(list).includes('Alpha only fact'));
     assert(!JSON.stringify(list).includes('Verified update'));
     const fixtureFile = { id: 'file-test-12345678', name: 'note.txt', size: 5, data: 'aGVsbG8=' };
@@ -73,7 +77,7 @@ try {
     assert.equal((await call({ action: 'upload-files', projectId: updated.id, revision: updated.revision, files: [fixtureFile] })).status, 409);
     assert.equal((await call({ action: 'upload-files', projectId: updated.id, revision: withFiles.revision, files: [{ ...fixtureFile, size: 4 }] })).status, 400);
     const { project: trashed } = await (await call({ action: 'trash', projectId: updated.id, revision: withFiles.revision })).json();
-    assert.equal((await (await call(null)).json()).projects.length, 1);
+    assert.equal((await (await call(null)).json()).projects.length, 2);
     const trashList = await (await call(null, '?trash=true')).json();
     assert.equal(trashList.projects[0].fileCount, 1);
     assert(!JSON.stringify(trashList).includes('aGVsbG8='));
@@ -91,7 +95,7 @@ try {
     const raced = await Promise.all([call({ action: 'create', title: 'Concurrent A' }), call({ action: 'create', title: 'Concurrent B' })]);
     assert(raced.every(response => response.status === 201));
     const visible = await (await call(null)).json();
-    assert.equal(visible.projects.length, 25, 'Do not hide records created concurrently across the count guard');
+    assert.equal(visible.projects.length, 26, 'Do not hide records created concurrently across the count guard');
     assert.equal((await call({ action: 'create', title: 'Over cap' })).status, 409);
     console.log('PASS projects: auth GET/POST, input bounds, binary rejection, scoped context, create/read/update, stable artifact URL, conflict protection, project isolation, summary privacy.');
   } finally { if (previous === undefined) delete process.env.VINZMON_TOKEN; else process.env.VINZMON_TOKEN = previous; }

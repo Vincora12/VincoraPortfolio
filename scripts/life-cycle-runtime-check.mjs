@@ -43,6 +43,8 @@ try {
     useApp.setState({ phase: 'live', token: 'synthetic-life-token', mons: { [record.data.name]: record }, activeMonName: record.data.name,
       world, ledger: emptyLedger(), eggs: [], firstSync: null });
   });
+  await page.waitForSelector('.vinz-composer', { timeout: 10000 });
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent('vinz-select-project', { detail: { id: 'vinzmon-world', title: 'Vinz.World' } })));
   await page.getByText('Hai visto il riflesso?', { exact: true }).waitFor({ timeout: 15000 });
   const opened = await page.evaluate(async () => {
     const { useApp } = await import('/src/state/store.ts');
@@ -51,9 +53,11 @@ try {
   });
   if (opened.event?.status !== 'open' || opened.canon?.at(-1)?.kind !== 'life-event') throw new Error('Generated event not canonically opened');
   const beforeRequest = aiCalls.length;
-  const ordinary = await page.evaluate(async () => (await import('/src/assistant-original/life-cycle-runtime.ts')).processLifeTurn('message-time', 'che ore sono?', undefined, false));
+  const ordinary = await page.evaluate(async () => (await import('/src/assistant-original/life-cycle-runtime.ts')).processLifeTurn('message-time', 'che ore sono?', 'vinzmon-world', false));
   if (ordinary !== null || aiCalls.length !== beforeRequest) throw new Error('Ordinary assistant request invoked Life Cycle classification');
-  const reacted = await page.evaluate(async () => (await import('/src/assistant-original/life-cycle-runtime.ts')).processLifeTurn('message-action', 'mi avvicino', undefined, false));
+  const general = await page.evaluate(async () => (await import('/src/assistant-original/life-cycle-runtime.ts')).processLifeTurn('message-general', 'mi avvicino', undefined, false));
+  if (general !== null || aiCalls.length !== beforeRequest) throw new Error('General chat invoked Life Cycle classification');
+  const reacted = await page.evaluate(async () => (await import('/src/assistant-original/life-cycle-runtime.ts')).processLifeTurn('message-action', 'mi avvicino', 'vinzmon-world', false));
   if (reacted?.intent !== 'narrative_action') throw new Error('Narrative action did not resolve');
   const resolved = await page.evaluate(async () => {
     const { useApp } = await import('/src/state/store.ts');
@@ -109,6 +113,8 @@ try {
     useApp.setState({ phase: 'live', token: 'synthetic-life-token', mons: { [record.data.name]: record }, activeMonName: record.data.name,
       world, ledger: emptyLedger(), eggs: [], firstSync: null });
   });
+  await failedPage.waitForSelector('.vinz-composer', { timeout: 10000 });
+  await failedPage.evaluate(() => window.dispatchEvent(new CustomEvent('vinz-select-project', { detail: { id: 'vinzmon-world', title: 'Vinz.World' } })));
   await failedPage.getByText('Life Cycle in attesa · backend-error').waitFor({ timeout: 15000 });
   const failedState = await failedPage.evaluate(async () => {
     const { useApp } = await import('/src/state/store.ts');
