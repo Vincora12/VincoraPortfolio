@@ -9,7 +9,13 @@ let starting: Promise<LifeStartResult> | null = null;
 
 /** Technical codes and counts only; no prompts, memory, names or chat text. */
 export function reportLifeCycle(phase: string, code: string, status: 'START' | 'PASS' | 'FAIL', metadata: Record<string, string | number | boolean> = {}): void {
-  postRuntimeEvent({ eventType: 'LIFE_CYCLE_EVENT', status, scope: 'chat', metadata: { phase, code, ...metadata } });
+  postRuntimeEvent({
+    eventType: 'LIFE_CYCLE_EVENT', status, scope: 'chat',
+    metadata: { phase, reason: metadata.validationCodes ? `${code}:${metadata.validationCodes}` : code,
+      ...(typeof metadata.selectedCount === 'number' ? { count: metadata.selectedCount } : {}) },
+    ...(typeof metadata.model === 'string' ? { model: metadata.model } : {}),
+    ...(typeof metadata.httpStatus === 'number' ? { statusCode: metadata.httpStatus } : {}),
+  });
 }
 
 /** One narrative opportunity on chat entry. No timers or background simulation. */
