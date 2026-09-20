@@ -63,6 +63,7 @@ import { Sources } from "@/assistant-original/components/assistant-ui/sources";
 import { CloneThreadShell } from "./clone-thread-shell";
 import { ModelEffortPill, type ModelChoice } from "@/assistant-original/ModelEffortPill";
 import { useApp } from "@/state/store";
+import { startLifeEventIfDue } from "@/assistant-original/life-cycle-runtime";
 import { voiceCard } from "@/engine/voiceCard";
 import { useAssetUrl } from "@/system/AssetSlot";
 import { EXPRESSION_SPEC, EXPRESSIONS } from "@/engine/assets";
@@ -311,6 +312,7 @@ export const ChatGPT: FC<{
       <ConversationLifecycle />
       <ChatLiveDebugPublisher />
       <MonPresenceEvents />
+      <LifeCycleEvents enabled={!newThreadScope?.projectId} />
       <ThreadPrimitive.Root
         className="relative flex h-full flex-col items-stretch bg-white px-4 text-[#0d0d0d] dark:bg-black dark:text-[#ececec]"
         onDragEnter={dropZone.onDragEnter}
@@ -1053,6 +1055,46 @@ const MonPresenceEvents: FC = () => {
     if (remoteId) void aui.threads.item("main").updateCustom({ ...threadCustom, activeMonName });
   }, [activeMonKey, aui, custom, hatchInFlight, loading, record, remoteId, roomEntryRevision, threadId]);
 
+  return null;
+};
+
+const deliveredLifeEvents = new Set<string>();
+/** The lived fact appears once as the Mon's own chat line, including after reload. */
+const LifeCycleEvents: FC<{ enabled: boolean }> = ({ enabled }) => {
+  const aui = useAui();
+  const markLive = useContext(GateMarkLiveContext);
+  const { loading, threadId } = useAuiState(useShallow((state) => ({ loading: state.threads.isLoading, threadId: state.threads.mainThreadId })));
+  const encounter = useApp((state) => state.activeMonName ? state.mons[state.activeMonName]?.firstEncounter?.status : undefined);
+  const eventId = useApp((state) => state.ledger.lifeEvent?.id);
+  const day = useApp((state) => state.day);
+  const hatchInFlight = useApp((state) => state.evolutionJob?.kind === 'hatch');
+
+  useEffect(() => {
+    if (!enabled || loading || hatchInFlight || encounter !== 'completato' || !threadId) return;
+    let cancelled = false;
+    // Let the existing greeting and first-encounter reaction finish before the new moment.
+    const timer = window.setTimeout(() => {
+      void startLifeEventIfDue().then(() => {
+        if (cancelled) return;
+        const event = useApp.getState().ledger.lifeEvent;
+        if (!event || event.status !== 'open') return;
+        const key = `${threadId}:${event.id}`;
+        if (deliveredLifeEvents.has(key)) return;
+        if (aui.thread.export().messages.some(item => item.message.metadata.custom?.lifeEventId === event.id)) return;
+        deliveredLifeEvents.add(key);
+        beginRepositoryOperation({ operation: 'APPEND_LIFE_EVENT', caller: 'LifeCycleEvents' });
+        insertRuntimeMessage(aui, threadId, markLive, 'LifeCycleEvents', {
+          id: `message_${event.id}`,
+          createdAt: new Date(),
+          role: 'assistant',
+          content: [{ type: 'text', text: event.openingLine }],
+          status: { type: 'complete', reason: 'unknown' },
+          metadata: { unstable_state: null, unstable_annotations: [], unstable_data: [], steps: [], custom: { lifeEventId: event.id } },
+        } as ThreadMessage, 'LIFE_EVENT_OPEN');
+      }).catch(() => {});
+    }, 1200);
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, [aui, day, enabled, encounter, eventId, hatchInFlight, loading, markLive, threadId]);
   return null;
 };
 

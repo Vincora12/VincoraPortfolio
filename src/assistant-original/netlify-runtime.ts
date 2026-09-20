@@ -23,6 +23,7 @@ import { executeRuntimeTool, lastReadSkillName, loadEnabledSkillsSummary, type T
 import { connectorsSummaryForProject } from "@/connectors/summary";
 import { readHealthJournal } from "@/engine/healthJournal";
 import { useApp } from "@/state/store";
+import { processLifeTurn } from "./life-cycle-runtime";
 import type { ContextDecision } from '@/ai/contextSelection';
 import { resolveChatContext } from '@/ai/chatContext';
 import { buildCapabilitySummary } from "@/ai/toolLayer";
@@ -1055,6 +1056,9 @@ export function createNetlifyChatModel(
       const useTools = Boolean(runTool && (shouldUseLocalTools(user) || projectId || mealConfirmation || workoutConfirmation || actionConfirmation || confirmedPlan));
       const token = savedToken();
       if (!token) throw new Error('Prima attiva VINZ.MON: manca il token.');
+      const lifeTurn = last?.role === 'user'
+        ? await processLifeTurn(last.id, user, projectId, useTools).catch(() => null)
+        : null;
       postChatDiagnostic('CHAT_MEMORY_FETCH_START', 'canonical-context');
       let contextSelection: ContextDecision[] = [];
       let systemPrompt = await resolveChatContext(token, user, useTools, args.abortSignal, projectId, args.messages.slice(-5, -1).map(textOf).join('\n'), selection => { contextSelection = selection; });
@@ -1085,6 +1089,7 @@ export function createNetlifyChatModel(
       // `buildCapabilitySummary` in `ai/toolLayer.ts` — proiettata dai
       // registri veri dei tool, mai una lista scritta a mano scollegata.
       systemPrompt += buildCapabilitySummary(true);
+      if (lifeTurn) systemPrompt += `\n\n${lifeTurn.prompt}`;
       systemPrompt += await loadEnabledSkillsSummary(token);
       systemPrompt += await connectorsSummaryForProject(projectId ?? null);
       if (runTool && useTools) {

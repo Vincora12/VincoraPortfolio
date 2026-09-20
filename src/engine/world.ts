@@ -76,7 +76,9 @@ export type CanonKind =
   | 'mega-evolution'
   | 'world-change'
   | 'return'
-  | 'connection';
+  | 'connection'
+  | 'life-event'
+  | 'life-consequence';
 
 export interface CanonEvent {
   id: string;
@@ -176,6 +178,24 @@ export interface StoryLedger {
   pastPayoffs: string[];
   /** Cose che il narratore ha già fatto e non deve rifare. */
   doNotRepeat: string[];
+  /** One lived situation. World canon keeps its observed fact and consequence. */
+  lifeEvent?: {
+    id: string;
+    worldId: string;
+    monNodeId: string;
+    day: number;
+    status: 'open' | 'resolved';
+    eventType: string;
+    observedFact: string;
+    openingLine: string;
+    possibleMonReaction: string;
+    openThreadRefs: string[];
+    memoryRefsUsed: string[];
+    consequence?: string;
+    resolvedByMessageId?: string;
+  };
+  /** Observed actions only, each linked to a canonical life event. */
+  lifeSignals?: Array<{ id: string; eventId: string; kind: string; evidence: string; day: number }>;
 }
 
 export function emptyLedger(): StoryLedger {
@@ -217,6 +237,8 @@ export function ledgerBlock(ledger: StoryLedger): string {
   if (ledger.pastPayoffs.length > 0) {
     lines.push(`GIÀ RACCOLTO, non richiuderlo di nuovo: ${ledger.pastPayoffs.slice(-5).join(' · ')}`);
   }
+  if (ledger.lifeEvent?.status === 'open') lines.push(`SITUAZIONE APERTA [${ledger.lifeEvent.id}]: ${ledger.lifeEvent.observedFact.slice(0, 300)}`);
+  if (ledger.lifeSignals?.length) lines.push('EVIDENZE VISSUTE (non tratti di personalità):', ...ledger.lifeSignals.slice(-6).map(s => `- [${s.eventId} · ${s.kind}] ${s.evidence.slice(0, 240)}`));
 
   return lines.length > 0
     ? lines.join('\n')
