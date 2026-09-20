@@ -63,7 +63,7 @@ import { Sources } from "@/assistant-original/components/assistant-ui/sources";
 import { CloneThreadShell } from "./clone-thread-shell";
 import { ModelEffortPill, type ModelChoice } from "@/assistant-original/ModelEffortPill";
 import { useApp } from "@/state/store";
-import { startLifeEventIfDue } from "@/assistant-original/life-cycle-runtime";
+import { reportLifeCycle, startLifeEventIfDue } from "@/assistant-original/life-cycle-runtime";
 import { voiceCard } from "@/engine/voiceCard";
 import { useAssetUrl } from "@/system/AssetSlot";
 import { EXPRESSION_SPEC, EXPRESSIONS } from "@/engine/assets";
@@ -312,7 +312,6 @@ export const ChatGPT: FC<{
       <ConversationLifecycle />
       <ChatLiveDebugPublisher />
       <MonPresenceEvents />
-      <LifeCycleEvents enabled={!newThreadScope?.projectId} />
       <ThreadPrimitive.Root
         className="relative flex h-full flex-col items-stretch bg-white px-4 text-[#0d0d0d] dark:bg-black dark:text-[#ececec]"
         onDragEnter={dropZone.onDragEnter}
@@ -320,6 +319,7 @@ export const ChatGPT: FC<{
         onDragLeave={dropZone.onDragLeave}
         onDrop={dropZone.onDrop}
       >
+        <LifeCycleEvents enabled={!newThreadScope?.projectId} />
         {dropZone.isDraggingFile && (
           <div className="vinz-file-drop-overlay" aria-hidden="true">
             <p>Rilascia qui per allegare</p>
@@ -1063,24 +1063,39 @@ const deliveredLifeEvents = new Set<string>();
 const LifeCycleEvents: FC<{ enabled: boolean }> = ({ enabled }) => {
   const aui = useAui();
   const markLive = useContext(GateMarkLiveContext);
-  const { loading, threadId } = useAuiState(useShallow((state) => ({ loading: state.threads.isLoading, threadId: state.threads.mainThreadId })));
+  const { loading, threadLoading, threadId } = useAuiState(useShallow((state) => ({ loading: state.threads.isLoading, threadLoading: state.thread.isLoading, threadId: state.threads.mainThreadId })));
   const encounter = useApp((state) => state.activeMonName ? state.mons[state.activeMonName]?.firstEncounter?.status : undefined);
-  const eventId = useApp((state) => state.ledger.lifeEvent?.id);
+  const event = useApp((state) => state.ledger.lifeEvent);
   const day = useApp((state) => state.day);
   const hatchInFlight = useApp((state) => state.evolutionJob?.kind === 'hatch');
+  const [failure, setFailure] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!enabled || loading || hatchInFlight || encounter !== 'completato' || !threadId) return;
+    if (!enabled || loading || threadLoading || hatchInFlight || encounter !== 'completato' || !threadId || event?.status === 'open'
+      || (event?.status === 'resolved' && event.day === day)) return;
     let cancelled = false;
-    // Let the existing greeting and first-encounter reaction finish before the new moment.
     const timer = window.setTimeout(() => {
-      void startLifeEventIfDue().then(() => {
+      void startLifeEventIfDue().then(result => {
         if (cancelled) return;
-        const event = useApp.getState().ledger.lifeEvent;
-        if (!event || event.status !== 'open') return;
+        setFailure(result.status === 'failed' ? result.code : null);
+      }).catch(() => {
+        if (!cancelled) setFailure('generation-exception');
+        reportLifeCycle('result', 'generation-exception', 'FAIL');
+      });
+    }, 1200);
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, [day, enabled, encounter, event?.day, event?.status, hatchInFlight, loading, threadId, threadLoading]);
+
+  useEffect(() => {
+    if (!enabled || loading || threadLoading || hatchInFlight || !threadId || event?.status !== 'open') return;
+    let cancelled = false;
+    // Wait for restored history and the existing greeting before appending.
+    const timer = window.setTimeout(() => {
+      if (cancelled) return;
+      try {
         const key = `${threadId}:${event.id}`;
+        if (aui.thread.export().messages.some(item => item.message.metadata.custom?.lifeEventId === event.id)) { deliveredLifeEvents.add(key); return; }
         if (deliveredLifeEvents.has(key)) return;
-        if (aui.thread.export().messages.some(item => item.message.metadata.custom?.lifeEventId === event.id)) return;
         deliveredLifeEvents.add(key);
         beginRepositoryOperation({ operation: 'APPEND_LIFE_EVENT', caller: 'LifeCycleEvents' });
         insertRuntimeMessage(aui, threadId, markLive, 'LifeCycleEvents', {
@@ -1091,11 +1106,17 @@ const LifeCycleEvents: FC<{ enabled: boolean }> = ({ enabled }) => {
           status: { type: 'complete', reason: 'unknown' },
           metadata: { unstable_state: null, unstable_annotations: [], unstable_data: [], steps: [], custom: { lifeEventId: event.id } },
         } as ThreadMessage, 'LIFE_EVENT_OPEN');
-      }).catch(() => {});
+        setFailure(null);
+        reportLifeCycle('chat', 'message-inserted', 'PASS');
+      } catch {
+        deliveredLifeEvents.delete(`${threadId}:${event.id}`);
+        setFailure('message-insert-failed');
+        reportLifeCycle('chat', 'message-insert-failed', 'FAIL');
+      }
     }, 1200);
     return () => { cancelled = true; window.clearTimeout(timer); };
-  }, [aui, day, enabled, encounter, eventId, hatchInFlight, loading, markLive, threadId]);
-  return null;
+  }, [aui, enabled, event, hatchInFlight, loading, markLive, threadId, threadLoading]);
+  return failure ? <div data-life-cycle-feedback={failure} className="pointer-events-none absolute inset-x-4 top-14 z-20 rounded-md border border-amber-500/35 bg-amber-950/90 px-3 py-2 text-xs text-amber-100" role="status">Life Cycle in attesa · {failure}</div> : null;
 };
 
 const SystemEventMessage: FC = () => {

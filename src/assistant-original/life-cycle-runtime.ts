@@ -1,37 +1,73 @@
 import { fetchLifePersonalFacts, proposeLifeConsequence, proposeLifeEvent } from '../ai/lifeEvent';
 import { acceptLifeConsequence, acceptLifeEvent, canStartLifeEvent, mightActInLife, safeLifeText, validateLifeConsequence, type LifeContext } from '../engine/lifeCycle';
 import { runStep, useApp } from '../state/store';
+import { postRuntimeEvent } from '../system/runtimeLog';
 
-let starting: Promise<string | null> | null = null;
+const LIFE_LOCAL_TIMEOUT_MS = 60_000;
+export type LifeStartResult = { status: 'open'; id: string } | { status: 'ineligible' | 'failed'; code: string };
+let starting: Promise<LifeStartResult> | null = null;
+
+/** Technical codes and counts only; no prompts, memory, names or chat text. */
+export function reportLifeCycle(phase: string, code: string, status: 'START' | 'PASS' | 'FAIL', metadata: Record<string, string | number | boolean> = {}): void {
+  postRuntimeEvent({ eventType: 'LIFE_CYCLE_EVENT', status, scope: 'chat', metadata: { phase, code, ...metadata } });
+}
 
 /** One narrative opportunity on chat entry. No timers or background simulation. */
-export function startLifeEventIfDue(): Promise<string | null> {
+export function startLifeEventIfDue(): Promise<LifeStartResult> {
   if (starting) return starting;
-  starting = (async () => {
+  starting = (async (): Promise<LifeStartResult> => {
     const initial = useApp.getState();
     const mon = initial.activeMonName ? initial.mons[initial.activeMonName] ?? null : null;
     const world = initial.world;
-    if (!initial.token || !mon || !world || !canStartLifeEvent(mon, world, initial.ledger, initial.day)) return null;
+    const gateCode = !initial.token ? 'missing-token' : !mon ? 'missing-mon' : !world ? 'missing-world'
+      : mon.firstEncounter?.status !== 'completato' ? 'first-encounter-incomplete'
+        : initial.ledger.lifeEvent?.status === 'open' ? 'event-open'
+          : initial.ledger.lifeEvent?.day === initial.day ? 'resolved-today' : null;
+    if (gateCode || !mon || !world || !canStartLifeEvent(mon, world, initial.ledger, initial.day)) {
+      const code = gateCode ?? 'not-eligible';
+      reportLifeCycle('gate', code, 'PASS', { day: initial.day });
+      return { status: 'ineligible', code };
+    }
+    reportLifeCycle('gate', 'eligible', 'START', { day: initial.day });
     const baseline = { worldId: world.id, canonLength: world.canon.length, monNodeId: mon.data.mindline_node, day: initial.day };
-    const personalFacts = await fetchLifePersonalFacts(initial.token, mon, world, initial.ledger);
+    const personalFacts = await fetchLifePersonalFacts(initial.token!, mon, world, initial.ledger,
+      result => reportLifeCycle('memory', result.code, result.code === 'memory-selected' ? 'PASS' : 'FAIL', { selectedCount: result.count ?? 0, ...(result.status ? { httpStatus: result.status } : {}) }));
     const ctx: LifeContext = { world, ledger: initial.ledger, mon, day: initial.day, personalFacts };
-    let proposal = await runStep('narrator', model => proposeLifeEvent(initial.token!, ctx, model), out => ({ ok: Boolean(out), why: out ? undefined : 'life-proposal-invalid' }));
-    if (!proposal) proposal = await runStep('narrator', model => proposeLifeEvent(initial.token!, ctx, model, 'schema, continuità o sicurezza'), out => ({ ok: Boolean(out), why: out ? undefined : 'life-proposal-invalid' }));
-    if (!proposal) return null;
+    let failureCode = 'proposal-unavailable';
+    let proposal;
+    try {
+      proposal = await runStep('narrator', model => {
+        reportLifeCycle('model', 'request-started', 'START', { model });
+        return proposeLifeEvent(initial.token!, ctx, model, '', result => {
+          failureCode = result.validationCodes?.length ? `validation-${result.validationCodes.join('-')}` : result.code;
+          reportLifeCycle('proposal', result.code, result.code === 'proposal-valid' ? 'PASS' : 'FAIL', {
+            model, ...(result.status ? { httpStatus: result.status } : {}),
+            ...(result.validationCodes?.length ? { validationCodes: result.validationCodes.join(',') } : {}),
+          });
+        });
+      }, out => ({ ok: Boolean(out), why: out ? undefined : failureCode }), { localTimeoutMs: LIFE_LOCAL_TIMEOUT_MS });
+    } catch {
+      failureCode = 'model-exception';
+    }
+    if (!proposal) { reportLifeCycle('result', failureCode, 'FAIL'); return { status: 'failed', code: failureCode }; }
     let acceptedId: string | null = null;
+    let acceptCode = 'state-changed';
     useApp.setState(current => {
       const currentMon = current.activeMonName ? current.mons[current.activeMonName] ?? null : null;
       if (!currentMon || !current.world || current.world.id !== baseline.worldId || current.world.canon.length !== baseline.canonLength
         || currentMon.data.mindline_node !== baseline.monNodeId || current.day !== baseline.day
         || !canStartLifeEvent(currentMon, current.world, current.ledger, current.day)) return {};
       const accepted = acceptLifeEvent({ world: current.world, ledger: current.ledger, mon: currentMon, day: current.day, personalFacts }, proposal!);
-      if (!accepted) return {};
+      if (!accepted) { acceptCode = 'validation-changed'; return {}; }
       acceptedId = accepted.id;
       return { world: accepted.world, ledger: accepted.ledger };
     });
-    return acceptedId;
+    const accepted = acceptedId as string | null;
+    if (!accepted) { reportLifeCycle('accept', acceptCode, 'FAIL'); return { status: 'failed', code: acceptCode }; }
+    reportLifeCycle('accept', 'event-open', 'PASS', { day: initial.day });
+    return { status: 'open', id: accepted };
   })().finally(() => { starting = null; });
-  return starting;
+  return starting!;
 }
 
 export interface LifeTurnResult { intent: 'assistant_request' | 'narrative_comment' | 'narrative_action'; prompt: string; }
@@ -48,7 +84,7 @@ export async function processLifeTurn(messageId: string, userText: string, proje
     if (out.intent !== 'narrative_action') return { ok: true };
     const errors = validateLifeConsequence(out, messageId, userText, initial.world!, initial.ledger);
     return { ok: errors.length === 0, why: errors.join(',') || undefined };
-  });
+  }, { localTimeoutMs: LIFE_LOCAL_TIMEOUT_MS });
   if (!outcome || outcome.intent === 'assistant_request') return null;
   if (outcome.intent === 'narrative_comment') return { intent: outcome.intent, prompt: `SITUAZIONE APERTA NELLA VITA DEL MON: ${event.observedFact.slice(0, 300)}. Rispondi al commento senza inventare una conseguenza.` };
   let consequence: string | null = null;

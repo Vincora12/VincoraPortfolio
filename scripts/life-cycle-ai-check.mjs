@@ -11,7 +11,7 @@ writeFileSync(entry, `export * from '${process.cwd()}/src/ai/lifeEvent.ts'; expo
 await build({ entryPoints: [entry], bundle: true, platform: 'node', format: 'esm', outfile: out, logLevel: 'silent', plugins: [{
   name: 'synthetic-ai', setup(plugin) {
     plugin.onResolve({ filter: /^\.\/backend$/ }, args => args.importer.endsWith('/src/ai/lifeEvent.ts') ? { path: 'mock-backend', namespace: 'mock' } : null);
-    plugin.onLoad({ filter: /.*/, namespace: 'mock' }, () => ({ contents: 'export async function ask(_token, req) { globalThis.__lifeRequests.push(req); return {data:{text:globalThis.__lifeResponse(req)},failure:null}; }', loader: 'js' }));
+    plugin.onLoad({ filter: /.*/, namespace: 'mock' }, () => ({ contents: 'export async function ask(_token, req) { globalThis.__lifeRequests.push(req); return globalThis.__lifeFailure ? {data:null,failure:globalThis.__lifeFailure,status:504} : {data:{text:globalThis.__lifeResponse(req)},failure:null}; }', loader: 'js' }));
   },
 }] });
 const ai = await import(`file://${out}`);
@@ -32,6 +32,18 @@ const p1 = await ai.proposeLifeEvent('synthetic-token', c1, 'local-cheap-round')
 const p2 = await ai.proposeLifeEvent('synthetic-token', c2, 'local-cheap-round');
 assert(p1?.observedFact.includes('pietre') && p2?.observedFact.includes('muschio'), 'B/C: distinct runtime contexts yield distinct model proposals');
 assert(globalThis.__lifeRequests.every(r => r.capability === 'text-cheap' && r.voiceModel === 'local-cheap-round'), 'existing local routing used');
+const diagnostics = [];
+globalThis.__lifeResponse = () => 'not-json';
+assert.equal(await ai.proposeLifeEvent('synthetic-token', c1, 'local-cheap-round', '', result => diagnostics.push(result)), null);
+assert.equal(diagnostics.at(-1).code, 'invalid-json', 'malformed proposal has a technical reason');
+globalThis.__lifeFailure = 'timeout';
+assert.equal(await ai.proposeLifeEvent('synthetic-token', c1, 'local-cheap-round', '', result => diagnostics.push(result)), null);
+assert.equal(diagnostics.at(-1).code, 'backend-timeout', 'timeout has a technical reason');
+globalThis.__lifeFailure = null;
+globalThis.__lifeResponse = req => {
+  const worldId = req.user.match(/WORLD ID: ([^\n.]+)/)?.[1] ?? '';
+  return JSON.stringify({ worldId, eventType: 'osservazione', observedFact: 'Una piccola ombra appare fra le pietre.', openingLine: 'Hai visto quella piccola ombra?', worldRelevance: 'fra le pietre', openThreadRefs: [], memoryRefsUsed: [], possibleMonReaction: 'si ferma', scale: 'small', novelty: 'prima ombra', continuityNotes: 'coerente' });
+};
 globalThis.fetch = async () => ({ ok: true, json: async () => ({ material: [
   { id: 'relevant', text: 'Costruisco un progetto tra pietre e materiali.', epistemic: 'FACT' },
   { id: 'unrelated', text: 'Ascolto musica jazz.', epistemic: 'FACT' },
@@ -48,4 +60,13 @@ const withEvent = { ...ledger, lifeEvent: { id: 'life_nul_1', worldId: 'nul', mo
 const consequence = await ai.proposeLifeConsequence('synthetic-token', nul, withEvent, 'mi avvicino', 'local-cheap-round');
 assert.equal(consequence?.signal, 'initiative', 'H: model proposes a structured consequence');
 assert(!globalThis.__lifeRequests.at(-1).user.includes('Ascolto musica jazz'), 'no unrelated memory in consequence request');
+const { outputFiles } = await build({ entryPoints: [`${process.cwd()}/netlify/functions/_shared/providers.ts`], bundle: true, platform: 'node', format: 'esm', write: false, logLevel: 'silent' });
+const providers = await import(`data:text/javascript;base64,${Buffer.from(outputFiles[0].text).toString('base64')}`);
+let localBody;
+globalThis.fetch = async (_url, options) => {
+  localBody = JSON.parse(options.body);
+  return new Response(JSON.stringify({ model: 'qwen2.5:14b', choices: [{ message: { content: '{"ok":true}' } }], usage: { prompt_tokens: 1, completion_tokens: 1 } }), { status: 200, headers: { 'content-type': 'application/json' } });
+};
+const routed = await providers.callProvider('ollama', { model: 'qwen2.5:14b', system: [], turns: [], user: 'synthetic', maxTokens: 100, effort: 'low' });
+assert(routed.ok && localBody.max_tokens === 100 && !('reasoning_effort' in localBody), 'Ollama request omits unsupported thinking and uses max_tokens');
 console.log('Life Cycle AI synthetic checks: PASS');

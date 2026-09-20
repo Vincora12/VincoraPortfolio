@@ -4573,6 +4573,7 @@ export async function runStep<T>(
   step: AiStepId,
   job: (model: string) => Promise<T>,
   esito: (out: T) => { ok: boolean; why?: string },
+  options?: { localTimeoutMs?: number },
 ): Promise<T> {
   const stepDef = AI_STEPS[step];
   const isAuto = !useApp.getState().stepModels[step];
@@ -4582,7 +4583,7 @@ export async function runStep<T>(
 
   if (canTryLocalFirst) {
     try {
-      const localOut = await withTimeout(job(LOCAL_CHEAP_ROUND_SENTINEL), LOCAL_FIRST_TIMEOUT_MS);
+      const localOut = await withTimeout(job(LOCAL_CHEAP_ROUND_SENTINEL), options?.localTimeoutMs ?? LOCAL_FIRST_TIMEOUT_MS);
       const { ok, why } = esito(localOut);
       if (ok) {
         noteRun(step, { model: LOCAL_CHEAP_ROUND_MODEL, ms: Date.now() - from, background: stepDef.background, ok: true });

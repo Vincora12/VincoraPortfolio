@@ -70,8 +70,53 @@ try {
     return { event: state.ledger.lifeEvent, count: state.world?.canon.filter(c => c.kind === 'life-event' || c.kind === 'life-consequence').length };
   });
   if (afterReload.event?.status !== 'resolved' || afterReload.count !== 2) throw new Error('Reload lost or duplicated Life Cycle state');
+  const timeout = await page.evaluate(async () => {
+    const { runStep } = await import('/src/state/store.ts');
+    const models = [];
+    const answer = await runStep('narrator', async model => {
+      models.push(model);
+      if (model === 'local-cheap-round') await new Promise(resolve => setTimeout(resolve, 60));
+      return model;
+    }, () => ({ ok: true }), { localTimeoutMs: 5 });
+    return { models, answer };
+  });
+  if (timeout.models[0] !== 'local-cheap-round' || timeout.models.length !== 2 || timeout.answer !== timeout.models[1]) throw new Error('Controlled local timeout did not use existing fallback');
   await context.close();
-  console.log('Life Cycle isolated runtime: PASS (generation, chat, action, consequence, signal, reload, local route)');
+
+  const failedContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const failedPage = await failedContext.newPage();
+  const failedCalls = [];
+  await failedPage.route('**/api/**', async route => {
+    const request = route.request();
+    const path = new URL(request.url()).pathname;
+    if (path === '/api/ai') {
+      failedCalls.push(request.postDataJSON().voiceModel);
+      return route.fulfill({ status: 502, contentType: 'application/json', body: JSON.stringify({ error: 'synthetic failure' }) });
+    }
+    if (path === '/api/narrative-material') return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ material: [] }) });
+    if (path === '/api/state') return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ day: 0, state: null, savedAt: null, revision: null }) });
+    return route.fulfill({ status: 404, contentType: 'application/json', body: '{}' });
+  });
+  await failedPage.goto(`http://localhost:${port}`, { waitUntil: 'networkidle' });
+  await failedPage.waitForSelector('.proto-sheet', { timeout: 10000 });
+  await failedPage.evaluate(async () => {
+    const { testMon } = await import('/src/lab/rooms/testMon.ts');
+    const { useApp } = await import('/src/state/store.ts');
+    const { seedWorld, emptyLedger } = await import('/src/engine/world.ts');
+    const base = await testMon();
+    const world = seedWorld(base, 1);
+    const record = { ...base, worldId: world.id, transition: { kind: 'BABY', parentNodeIds: [] }, firstEncounter: { status: 'completato', choice: 'esplorare_nul', day: 1 } };
+    useApp.setState({ phase: 'live', token: 'synthetic-life-token', mons: { [record.data.name]: record }, activeMonName: record.data.name,
+      world, ledger: emptyLedger(), eggs: [], firstSync: null });
+  });
+  await failedPage.getByText('Life Cycle in attesa · backend-error').waitFor({ timeout: 15000 });
+  const failedState = await failedPage.evaluate(async () => {
+    const { useApp } = await import('/src/state/store.ts');
+    return { event: useApp.getState().ledger.lifeEvent, canonCount: useApp.getState().world?.canon.length };
+  });
+  if (failedState.event || failedCalls.length !== 2) throw new Error('Failed generation changed canon or retried beyond one local/cloud round');
+  await failedContext.close();
+  console.log('Life Cycle isolated runtime: PASS (generation, chat, action, consequence, reload, mobile failure feedback, bounded fallback, timeout)');
 } finally {
   await browser.close();
   try { process.kill(-server.pid, 'SIGTERM'); } catch { server.kill('SIGTERM'); }

@@ -4,6 +4,8 @@ import { lifeContextBlock, safeLifeText, selectLifePersonalFacts, validateLifeEv
 import type { MonRecord } from '../engine/types';
 import type { StoryLedger, World } from '../engine/world';
 
+export type LifeAiDiagnostic = { code: string; count?: number; status?: number; validationCodes?: string[] };
+
 const EVENT_RULES = [
   'Sei la regia della stessa vita del Mon, non un personaggio aggiuntivo. Scrivi solo JSON valido.',
   'Proponi UN solo fatto nuovo, concreto, osservabile e piccolo, coerente con World e canone. Il contenuto nasce ora dalle fonti; nessun catalogo o trama prestabilita.',
@@ -30,25 +32,31 @@ function parseObject(text: string): Record<string, unknown> | null {
 }
 
 /** Uses the existing authenticated narrative-material endpoint; nothing is logged here. */
-export async function fetchLifePersonalFacts(token: string, mon: MonRecord, world: World, ledger: StoryLedger): Promise<LifeSource[]> {
+export async function fetchLifePersonalFacts(token: string, mon: MonRecord, world: World, ledger: StoryLedger, diagnose?: (result: LifeAiDiagnostic) => void): Promise<LifeSource[]> {
   const query = [world.name, safeLifeText(world.description) ? world.description.slice(0, 250) : '',
     ...ledger.openThreads.filter(safeLifeText).slice(-2), ...openQuestions(mon).filter(q => safeLifeText(q.text)).slice(0, 2).map(q => q.text)].join(' ').slice(0, 700);
   try {
     const response = await fetch('/api/narrative-material', { method: 'POST', signal: AbortSignal.timeout(12000), headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify({ query }) });
-    if (!response.ok) return [];
+    if (!response.ok) { diagnose?.({ code: 'memory-http', status: response.status }); return []; }
     const body = await response.json() as { material?: LifeSource[] };
-    return selectLifePersonalFacts(Array.isArray(body.material) ? body.material : [], world, ledger, mon);
-  } catch { return []; }
+    const selected = selectLifePersonalFacts(Array.isArray(body.material) ? body.material : [], world, ledger, mon);
+    diagnose?.({ code: 'memory-selected', count: selected.length });
+    return selected;
+  } catch { diagnose?.({ code: 'memory-unavailable' }); return []; }
 }
 
 /** The caller uses the existing narrator step, which tries local Ollama first in AUTO. */
-export async function proposeLifeEvent(token: string, ctx: LifeContext, model: string, rejection = ''): Promise<LifeEventProposal | null> {
+export async function proposeLifeEvent(token: string, ctx: LifeContext, model: string, rejection = '', diagnose?: (result: LifeAiDiagnostic) => void): Promise<LifeEventProposal | null> {
   const result = await ask<{ text: string }>(token, { capability: 'text-cheap', voiceModel: model, system: [{ text: EVENT_RULES, cache: true }],
     user: `${lifeContextBlock(ctx)}${rejection ? `\nPROPOSTA RIFIUTATA: ${rejection}. Genera un fatto diverso.` : ''}`, effort: 'low', maxTokens: 700 });
+  if (result.failure) { diagnose?.({ code: `backend-${result.failure}`, status: result.status }); return null; }
   const object = result.data?.text ? parseObject(result.data.text) : null;
-  if (!object) return null;
+  if (!object) { diagnose?.({ code: result.data?.text ? 'invalid-json' : 'empty-response' }); return null; }
   const proposal = object as unknown as LifeEventProposal;
-  return validateLifeEvent(proposal, ctx).length ? null : proposal;
+  const validationCodes = validateLifeEvent(proposal, ctx);
+  if (validationCodes.length) { diagnose?.({ code: 'validation-failed', validationCodes }); return null; }
+  diagnose?.({ code: 'proposal-valid' });
+  return proposal;
 }
 
 export async function proposeLifeConsequence(token: string, world: World, ledger: StoryLedger, userText: string, model: string): Promise<LifeConsequenceProposal | null> {

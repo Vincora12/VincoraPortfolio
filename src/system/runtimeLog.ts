@@ -69,7 +69,8 @@ export type RuntimeClientEvent = {
        tentativo di unione+ritentativo, 'FAIL' solo se anche l'ultimo
        tentativo consentito fallisce ancora — mai il contenuto della chat,
        solo la chiave (troncata) e il numero di tentativo. */
-    | 'CHAT_STORAGE_CONFLICT';
+    | 'CHAT_STORAGE_CONFLICT'
+    | 'LIFE_CYCLE_EVENT';
   status: 'START' | 'PASS' | 'FAIL';
   scope: 'system' | 'chat' | 'memory';
   requestId?: string;
