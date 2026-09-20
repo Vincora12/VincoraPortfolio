@@ -12,7 +12,7 @@ const EVENT_RULES = [
   'Non attribuire azioni, decisioni o emozioni al giocatore. Non decidere la conseguenza e non chiudere la scena.',
   'openingLine è una breve battuta naturale del Mon in chat: nota il fatto e lascia spazio al giocatore. Nessun registro di sistema o narratore esterno.',
   'USER FACT può ispirare il tema, non diventare fatto del World né diagnosi. memoryRefsUsed contiene solo ID delle fonti effettivamente usate.',
-  'Usa soltanto ID esistenti per openThreadRefs e memoryRefsUsed. scale deve essere "small".',
+  'openThreadRefs può contenere solo ID elencati in ID AMMESSI openThreadRefs; memoryRefsUsed solo ID elencati in ID AMMESSI memoryRefsUsed e davvero usati. Se la lista ammessa è [], restituisci []. Non usare ID di World Canon, Mon learning, Mon question o OPEN QUESTION come riferimenti. scale deve essere "small".',
   'Formato: {"worldId":"...","eventType":"...","observedFact":"...","openingLine":"...","worldRelevance":"...","openThreadRefs":[],"memoryRefsUsed":[],"possibleMonReaction":"...","scale":"small","novelty":"...","continuityNotes":"..."}.',
 ].join('\n');
 

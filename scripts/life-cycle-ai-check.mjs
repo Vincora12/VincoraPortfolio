@@ -32,7 +32,12 @@ const p1 = await ai.proposeLifeEvent('synthetic-token', c1, 'local-cheap-round')
 const p2 = await ai.proposeLifeEvent('synthetic-token', c2, 'local-cheap-round');
 assert(p1?.observedFact.includes('pietre') && p2?.observedFact.includes('muschio'), 'B/C: distinct runtime contexts yield distinct model proposals');
 assert(globalThis.__lifeRequests.every(r => r.capability === 'text-cheap' && r.voiceModel === 'local-cheap-round'), 'existing local routing used');
+assert(globalThis.__lifeRequests[0].user.includes('ID AMMESSI openThreadRefs (solo OPEN SETUP): [].')
+  && globalThis.__lifeRequests[0].user.includes('ID AMMESSI memoryRefsUsed (solo USER FACT effettivamente usati): [].'), 'real-state shape presents exactly empty eligible reference lists');
 const diagnostics = [];
+globalThis.__lifeResponse = req => JSON.stringify({ worldId: req.user.match(/WORLD ID: ([^\n.]+)/)?.[1] ?? '', eventType: 'osservazione', observedFact: 'Una luce appare fra le pietre.', openingLine: 'Hai visto la luce?', worldRelevance: 'fra le pietre', openThreadRefs: ['invented-setup'], memoryRefsUsed: ['invented-memory'], possibleMonReaction: 'si ferma', scale: 'small', novelty: 'una luce nuova', continuityNotes: 'coerente' });
+assert.equal(await ai.proposeLifeEvent('synthetic-token', c1, 'local-cheap-round', '', result => diagnostics.push(result)), null);
+assert.deepEqual(diagnostics.at(-1).validationCodes, ['unknown-ref'], 'invented references are rejected with a precise diagnostic');
 globalThis.__lifeResponse = () => 'not-json';
 assert.equal(await ai.proposeLifeEvent('synthetic-token', c1, 'local-cheap-round', '', result => diagnostics.push(result)), null);
 assert.equal(diagnostics.at(-1).code, 'invalid-json', 'malformed proposal has a technical reason');
