@@ -23,6 +23,10 @@ const fact = { id: 'mem:one', text: 'Costruisco un progetto tra pietre e materia
 const unrelated = { id: 'mem:two', text: 'Preferisco il jazz al cinema.', epistemic: 'FACT' };
 const selected = life.selectLifePersonalFacts([fact, unrelated], world(), life.emptyLedger(), mon());
 assert.deepEqual(selected.map(f => f.id), ['mem:one'], 'D/E: selected facts only');
+assert.equal(life.safeLifeText('La mia sessualità riguarda le pietre.'), false, 'sensitive inflection is excluded');
+assert.equal(life.safeLifeText('Un pensiero sul suicidio.'), false, 'sensitive health term is excluded');
+const sensitiveLore = { ...mon(), data: { ...mon().data, narrativeDNA: { drive: 'La mia sessualità riguarda le pietre.' } } };
+assert(!life.lifeContextBlock(context(world(), life.emptyLedger(), 1, sensitiveLore)).includes('sessualità'), 'sensitive Mon lore is excluded');
 const withFact = proposal(world()); withFact.memoryRefsUsed = ['mem:one'];
 const acceptedFact = life.acceptLifeEvent(context(world(), life.emptyLedger(), 1, mon(), selected), withFact);
 assert(acceptedFact && !acceptedFact.world.canon.some(c => c.text.includes('Costruisco')), 'D: user fact not copied into canon');

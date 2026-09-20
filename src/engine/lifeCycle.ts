@@ -40,7 +40,7 @@ export interface LifeContext {
 
 /** No sensitive personal material is sent by this feature, even if retrieval returns it. */
 export function safeLifeText(text: string): boolean {
-  return !/\b(salute|malattia|diagnos[ie]|terapia|farmac[io]|ospedal[ei]|depressione|suicid|sessual|orientamento sessuale|gravidanza|password|credenzial[ei]|token|api.?key|codice fiscale|iban|carta di credito|stipendio|debito|health|disease|diagnos[ei]|medication|hospital|sexual|pregnan|password|credential|secret|bank account|credit card|salary|debt)\b/i.test(text)
+  return !/\b(salut\w*|malatti\w*|diagnos\w*|terapi\w*|farmac\w*|ospedal\w*|depression\w*|suicid\w*|sessual\w*|gravidanz\w*|disabilit\w*|invalidit\w*|religion\w*|etni\w*|password\w*|credenzial\w*|token\w*|api.?key\w*|codice fiscale|iban|carta di credito|stipendi\w*|debit\w*|indirizz\w*|numero di telefono|health\w*|disease\w*|medicat\w*|hospital\w*|sexual\w*|pregnan\w*|disabilit\w*|religion\w*|ethnic\w*|credential\w*|secret\w*|bank account|credit card|salary|debt\w*|home address|phone number)\b/i.test(text)
     && !/[\w.+-]+@[\w.-]+\.[a-z]{2,}/i.test(text)
     && !/\b(?:\d[ -]?){13,19}\b/.test(text);
 }
@@ -68,7 +68,7 @@ export function lifeContextBlock(ctx: LifeContext): string {
     ...(ctx.ledger.lifeEvent?.status === 'resolved' && ctx.ledger.lifeEvent.consequence && safeLifeText(ctx.ledger.lifeEvent.consequence)
       ? [`ULTIMA CONSEGUENZA: ${ctx.ledger.lifeEvent.consequence.slice(0, 200)}`] : []),
     `MON: ${displayName(mon.data.name)}; forma ${mon.data.evolution_state?.label ?? mon.data.lifeStage}; fase ${mon.transition?.kind ?? 'BABY'}.`,
-    `LORE DEL MON: ${JSON.stringify(mon.data.narrativeDNA ?? {}).slice(0, 450)}.`,
+    ...(safeLifeText(JSON.stringify(mon.data.narrativeDNA ?? {})) ? [`LORE DEL MON: ${JSON.stringify(mon.data.narrativeDNA ?? {}).slice(0, 450)}.`] : []),
     ...(mon.learnings ?? []).filter(l => l.about !== 'utente' && l.kind !== 'ipotesi' && safeLifeText(l.text)).slice(-3).map(l => `[MON LEARNING ${l.id}] ${l.text.slice(0, 180)}`),
     ...openQuestions(mon).filter(q => safeLifeText(q.text)).slice(0, 2).map(q => `[MON QUESTION ${q.id}] ${q.text.slice(0, 150)}`),
     ...ctx.personalFacts.filter(f => safeLifeText(f.text)).slice(0, 2).map(f => `[USER FACT ${f.id}] ${f.text.slice(0, 200)}`),
