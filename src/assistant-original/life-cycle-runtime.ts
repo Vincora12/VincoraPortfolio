@@ -91,6 +91,13 @@ export async function processLifeTurn(messageId: string, userText: string, proje
     const errors = validateLifeConsequence(out, messageId, userText, initial.world!, initial.ledger);
     return { ok: errors.length === 0, why: errors.join(',') || undefined };
   }, { localTimeoutMs: LIFE_LOCAL_TIMEOUT_MS });
+  // If the model only returned a normal assistant request while a life event is open,
+  // force a narrative comment to keep the scene context active. This covers cases
+  // where a user asks a question about the scene (e.g. "In che senso?") but the model
+  // misclassifies it as assistant_request.
+  if (outcome && outcome.intent === 'assistant_request' && event.status === 'open') {
+    return { intent: 'narrative_comment', prompt: `SITUAZIONE APERTA NELLA VITA DEL MON: ${event.observedFact.slice(0, 300)}. Rispondi al commento senza inventare una conseguenza.` };
+  }
   if (!outcome || outcome.intent === 'assistant_request') return null;
   if (outcome.intent === 'narrative_comment') return { intent: outcome.intent, prompt: `SITUAZIONE APERTA NELLA VITA DEL MON: ${event.observedFact.slice(0, 300)}. Rispondi al commento senza inventare una conseguenza.` };
   let consequence: string | null = null;
