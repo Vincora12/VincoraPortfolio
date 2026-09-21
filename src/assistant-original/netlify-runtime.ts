@@ -1091,6 +1091,13 @@ export function createNetlifyChatModel(
       // registri veri dei tool, mai una lista scritta a mano scollegata.
       systemPrompt += buildCapabilitySummary(true);
       if (lifeTurn) systemPrompt += `\n\n${lifeTurn.prompt}`;
+      else if (projectId === WORLD_PROJECT_ID) {
+        const state = useApp.getState();
+        const event = state.ledger.lifeEvent;
+        if (event?.status === 'open' && state.world?.id === event.worldId) {
+          systemPrompt += `\n\nSITUAZIONE APERTA NELLA VITA DEL MON: ${event.observedFact.slice(0, 300)}\nULTIMA BATTUTA DEL MON SU QUESTA SITUAZIONE: ${event.openingLine.slice(0, 400)}\nIl messaggio dell'utente può riferirsi a questa situazione. Continua il dialogo senza dire che manca il contesto e senza inventare una conseguenza, un nuovo evento o un fatto permanente.`;
+        }
+      }
       systemPrompt += await loadEnabledSkillsSummary(token);
       systemPrompt += await connectorsSummaryForProject(projectId ?? null);
       if (runTool && useTools) {

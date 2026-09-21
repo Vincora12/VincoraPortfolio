@@ -13,6 +13,7 @@ try {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
   const page = await context.newPage();
   const aiCalls = [];
+  const chatSystemPrompts = [];
   await page.route('**/api/**', async route => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
@@ -28,6 +29,12 @@ try {
       return;
     }
     if (path === '/api/narrative-material') return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ material: [] }) });
+    if (path === '/api/ai-chat-background') {
+      const body = request.postDataJSON();
+      chatSystemPrompts.push((body.system ?? []).map(block => block.text ?? '').join('\n'));
+      return route.fulfill({ status: 202, contentType: 'application/json', body: JSON.stringify({ ok: true }) });
+    }
+    if (path === '/api/ai-chat-job') return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 'done', text: 'Guardiamole insieme.', model: 'qwen2.5:14b' }) });
     if (path === '/api/state') return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(request.method() === 'GET' ? { day: 0, state: null, savedAt: null, revision: null } : { ok: true, revision: 'synthetic' }) });
     return route.fulfill({ status: 404, contentType: 'application/json', body: '{}' });
   });
@@ -55,6 +62,15 @@ try {
   const beforeRequest = aiCalls.length;
   const ordinary = await page.evaluate(async () => (await import('/src/assistant-original/life-cycle-runtime.ts')).processLifeTurn('message-time', 'che ore sono?', 'vinzmon-world', false));
   if (ordinary !== null || aiCalls.length !== beforeRequest) throw new Error('Ordinary assistant request invoked Life Cycle classification');
+  await page.fill('.vinz-composer-input', 'E cosa sono?');
+  await page.press('.vinz-composer-input', 'Enter');
+  await page.getByText('Guardiamole insieme.', { exact: true }).waitFor({ timeout: 10000 });
+  if (!chatSystemPrompts.at(-1)?.includes('Un riflesso appare fra due pietre.')) throw new Error('Open Life Cycle event missing from World reply context');
+  const afterQuestion = await page.evaluate(async () => {
+    const { useApp } = await import('/src/state/store.ts');
+    return { status: useApp.getState().ledger.lifeEvent?.status, canonCount: useApp.getState().world?.canon.length };
+  });
+  if (afterQuestion.status !== 'open' || afterQuestion.canonCount !== opened.canon.length) throw new Error('Narrative question advanced the Life Cycle');
   const general = await page.evaluate(async () => (await import('/src/assistant-original/life-cycle-runtime.ts')).processLifeTurn('message-general', 'mi avvicino', undefined, false));
   if (general !== null || aiCalls.length !== beforeRequest) throw new Error('General chat invoked Life Cycle classification');
   const reacted = await page.evaluate(async () => (await import('/src/assistant-original/life-cycle-runtime.ts')).processLifeTurn('message-action', 'mi avvicino', 'vinzmon-world', false));
