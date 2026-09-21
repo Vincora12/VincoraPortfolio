@@ -7,8 +7,21 @@ import { NARRATOR_VOICE_RULES } from './narratorPrompt';
 
 export type LifeAiDiagnostic = { code: string; count?: number; status?: number; validationCodes?: string[] };
 
+/* Adattamento leggero di tecniche di scene craft e interactive storytelling:
+   desiderio/ostacolo/svolta, causalità fra beat, sottotesto e fail-forward.
+   World, canone e StoryLedger restano le sole fonti dei fatti. */
+const SCENE_CRAFT_RULES = [
+  'CAUSALITÀ DI SCENA: il nuovo fatto deve nascere da qualcosa che esiste già nel World, nel canone o in un filo aperto. Deve potersi collegare al beat precedente con “quindi” oppure “ma”, non con un semplice “e poi”.',
+  'PRESSIONE DRAMMATICA: costruisci una micro-scena con un desiderio osservabile del Mon, un ostacolo concreto e una svolta che lasci al giocatore una scelta reale. Non decidere quella scelta.',
+  'CAMBIAMENTO: il fatto deve modificare almeno una cosa percepibile — accesso, posizione, informazione, relazione, rischio, risorsa o regola locale — senza contraddire la lore.',
+  'Niente anomalie decorative intercambiabili: evita bagliori, echi, oggetti o presenze misteriose se non hanno un legame specifico con il World e una pressione immediata sulla scena.',
+  'VARIETÀ: non ripetere la stessa forma di evento recente. Alterna ambiente, incontro, traccia, relazione, risorsa, regola del luogo e conseguenza di un filo aperto in base a ciò che il canone permette.',
+  'SOTTOTESTO: la battuta del Mon non deve limitarsi a indicare ciò che è visibile. Deve rivelare cosa vuole ottenere, capire, proteggere o evitare in questo momento, con la sua voce.',
+].join('\n');
+
 const EVENT_RULES = [
   NARRATOR_VOICE_RULES,
+  SCENE_CRAFT_RULES,
   'Sei la regia della stessa vita del Mon, non un personaggio aggiuntivo. Scrivi solo JSON valido.',
   'Proponi UN solo fatto nuovo, concreto, osservabile e piccolo, coerente con World e canone. Il contenuto nasce ora dalle fonti; nessun catalogo o trama prestabilita.',
   'Non attribuire azioni, decisioni o emozioni al giocatore. Non decidere la conseguenza e non chiudere la scena.',
@@ -22,6 +35,8 @@ const CONSEQUENCE_RULES = [
   'Sei la regia della stessa vita del Mon. Classifica il messaggio corrente rispetto alla situazione aperta. Scrivi solo JSON.',
   'assistant_request: domanda o richiesta normale. narrative_comment: osservazione o domanda sulla scena senza azione. narrative_action: il giocatore sceglie o compie esplicitamente una piccola azione nella scena.',
   'Solo per narrative_action proponi UNA conseguenza osservabile, proporzionata e coerente. Non inventare azioni o emozioni del giocatore. playerActionQuote deve essere una sottostringa esatta del messaggio utente.',
+  'FAIL-FORWARD: la conseguenza deve far avanzare la scena. Un successo può rivelare un costo, un limite o una nuova pressione; un fallimento produce una complicazione utile. Evita esiti neutri che riportano tutto allo stato precedente.',
+  'CAUSALITÀ: observedConsequence deve derivare direttamente dall’azione citata e cambiare una cosa percepibile — accesso, posizione, informazione, relazione, rischio, risorsa o regola locale. Nessuna punizione arbitraria e nessuna modifica retroattiva della lore.',
   'signal indica un comportamento osservato, mai un tratto psicologico. newOpenThread solo se la conseguenza lascia davvero una domanda aperta. closedThreadRefs contiene solo ID di setup aperti realmente conclusi.',
   'Formato: {"intent":"assistant_request|narrative_comment|narrative_action","eventId":"...","worldId":"...","playerActionQuote":"...","observedConsequence":"...","signal":"curiosity|initiative|return|avoidance|bond|autonomy|patience|conflict|discovery|uncertainty|care|rupture","newOpenThread":"...","closedThreadRefs":[]}.',
 ].join('\n');

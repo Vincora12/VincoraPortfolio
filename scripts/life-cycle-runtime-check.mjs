@@ -13,6 +13,7 @@ try {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
   const page = await context.newPage();
   const aiCalls = [];
+  const lifeSystemPrompts = [];
   const chatSystemPrompts = [];
   await page.route('**/api/**', async route => {
     const request = route.request();
@@ -21,6 +22,7 @@ try {
       const body = request.postDataJSON();
       aiCalls.push({ capability: body.capability, voiceModel: body.voiceModel });
       const system = (body.system ?? []).map(block => block.text ?? '').join('\n');
+      lifeSystemPrompts.push(system);
       if (system.includes('{"before":"...","after":"..."}')) {
         return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ text: JSON.stringify({ before: 'Il riflesso vibra fra le pietre.', after: 'Il Mon resta immobile accanto al bagliore.' }), model: 'qwen2.5:14b', provider: 'ollama' }) });
       }
@@ -63,6 +65,7 @@ try {
     return { event: state.ledger.lifeEvent, canon: state.world?.canon };
   });
   if (opened.event?.status !== 'open' || opened.canon?.at(-1)?.kind !== 'life-event') throw new Error('Generated event not canonically opened');
+  if (!lifeSystemPrompts.some(prompt => prompt.includes('CAUSALITÀ DI SCENA') && prompt.includes('PRESSIONE DRAMMATICA'))) throw new Error('Scene craft rules missing from Life Event generation');
   const beforeRequest = aiCalls.length;
   const ordinary = await page.evaluate(async () => (await import('/src/assistant-original/life-cycle-runtime.ts')).processLifeTurn('message-time', 'che ore sono?', 'vinzmon-world', false));
   if (ordinary !== null || aiCalls.length !== beforeRequest) throw new Error('Ordinary assistant request invoked Life Cycle classification');
@@ -73,6 +76,7 @@ try {
   await page.getByText('Il Mon resta immobile accanto al bagliore.', { exact: true }).waitFor({ timeout: 10000 });
   if (await page.getByText(/Narratore\s*[—–-]/).count()) throw new Error('Visible narrator label was not removed');
   if (!chatSystemPrompts.at(-1)?.includes('Un riflesso appare fra due pietre.')) throw new Error('Open Life Cycle event missing from World reply context');
+  if (!chatSystemPrompts.at(-1)?.includes('REGIA DI SCENA IN VINZ.WORLD')) throw new Error('World scene direction missing from Mon reply context');
   const afterQuestion = await page.evaluate(async () => {
     const { useApp } = await import('/src/state/store.ts');
     return { status: useApp.getState().ledger.lifeEvent?.status, canonCount: useApp.getState().world?.canon.length };
@@ -83,6 +87,7 @@ try {
   if (general !== null || aiCalls.length !== afterQuestionCalls) throw new Error('General chat invoked Life Cycle classification');
   const reacted = await page.evaluate(async () => (await import('/src/assistant-original/life-cycle-runtime.ts')).processLifeTurn('message-action', 'mi avvicino', 'vinzmon-world', false));
   if (reacted?.intent !== 'narrative_action') throw new Error('Narrative action did not resolve');
+  if (!lifeSystemPrompts.some(prompt => prompt.includes('FAIL-FORWARD') && prompt.includes('Nessuna punizione arbitraria'))) throw new Error('Fail-forward rules missing from consequence generation');
   const resolved = await page.evaluate(async () => {
     const { useApp } = await import('/src/state/store.ts');
     const state = useApp.getState();

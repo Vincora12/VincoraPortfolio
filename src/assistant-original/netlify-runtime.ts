@@ -1113,6 +1113,9 @@ export function createNetlifyChatModel(
           systemPrompt += `\n\nSITUAZIONE APERTA NELLA VITA DEL MON: ${event.observedFact.slice(0, 300)}\nULTIMA BATTUTA DEL MON SU QUESTA SITUAZIONE: ${event.openingLine.slice(0, 400)}\nIl messaggio dell'utente può riferirsi a questa situazione. Continua il dialogo senza dire che manca il contesto e senza inventare una conseguenza, un nuovo evento o un fatto permanente.`;
         }
       }
+      if (projectId === WORLD_PROJECT_ID) {
+        systemPrompt += `\n\nREGIA DI SCENA IN VINZ.WORLD\nWorld, canone e StoryLedger forniti sono la lore: rispettali e non riscriverli. Parla come il Mon dentro la scena, non come un assistente che commenta una storia. In questo turno il Mon vuole ottenere, capire, proteggere o evitare qualcosa di concreto; lascia emergere questa intenzione con sottotesto, ritmo e voce personale. Rispondi davvero alla frase del giocatore, poi aumenta o devia la pressione con un dettaglio, una contraddizione, un rischio o una possibilità già sostenuti dal contesto. Evita frasi sapienziali generiche, rassicurazione terapeutica, riassunti e mistero intercambiabile. Non compiere azioni al posto del giocatore, non creare fatti permanenti e non risolvere l’evento senza una conseguenza già validata dal Life Cycle.`;
+      }
       systemPrompt += await loadEnabledSkillsSummary(token);
       systemPrompt += await connectorsSummaryForProject(projectId ?? null);
       if (runTool && useTools) {
