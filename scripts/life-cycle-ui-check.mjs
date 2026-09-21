@@ -27,7 +27,7 @@ try {
       const { seedWorld, withCanon, emptyLedger } = await import('/src/engine/world.ts');
       const base = await testMon();
       const world = seedWorld(base, 1);
-      const record = { ...base, worldId: world.id, transition: { kind: 'BABY', parentNodeIds: [] }, firstEncounter: { status: 'completato', choice: 'esplorare_nul', day: 1 } };
+      const record = { ...base, worldId: world.id, transition: { kind: 'BABY', parentNodeIds: [] }, firstEncounter: { status: 'completato', choice: 'esplorare_nul', day: 1 }, narratorLine: 'Il mare si ritira sulla sabbia di NUL. Il Mon si volta verso di te.', narratorVersion: 6 };
       const id = `life_${world.id}_${world.canon.length}`;
       const fact = 'Un riflesso appare fra due pietre.';
       useApp.setState({ phase: 'live', token: null, mons: { [record.data.name]: record }, activeMonName: record.data.name,
@@ -39,6 +39,7 @@ try {
     await sleep(1500);
     check(await page.getByText('Hai visto il riflesso?', { exact: true }).count() === 0, `${viewport.name}: Generale does not show the Life Cycle event`);
     await page.evaluate(() => window.dispatchEvent(new CustomEvent('vinz-select-project', { detail: { id: 'vinzmon-world', title: 'Vinz.World' } })));
+    await page.getByText(/Il mare si ritira sulla sabbia di NUL/).waitFor({ timeout: 10000 });
     await page.getByText('Hai visto il riflesso?', { exact: true }).waitFor({ timeout: 10000 });
     const geometry = await page.evaluate(() => {
       const composer = document.querySelector('.vinz-composer')?.getBoundingClientRect();
@@ -53,6 +54,7 @@ try {
     await page.evaluate(() => window.dispatchEvent(new CustomEvent('vinz-select-project', { detail: { id: 'vinzmon-world', title: 'Vinz.World' } })));
     await page.getByText('Hai visto il riflesso?', { exact: true }).waitFor({ timeout: 10000 });
     await sleep(1800);
+    check(await page.getByText(/Il mare si ritira sulla sabbia di NUL/).count() === 1, `${viewport.name}: birth narrator appears once in Vinz.World`);
     check(await page.getByText('Hai visto il riflesso?', { exact: true }).count() === 1, `${viewport.name}: open event survives reload without duplicate`);
     check(errors.length === 0, `${viewport.name}: no page errors`);
     await context.close();

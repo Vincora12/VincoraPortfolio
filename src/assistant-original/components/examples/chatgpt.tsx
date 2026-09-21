@@ -1060,16 +1060,45 @@ const MonPresenceEvents: FC = () => {
 };
 
 const deliveredLifeEvents = new Set<string>();
+const deliveredBirthNarrations = new Set<string>();
 /** The lived fact appears once as the Mon's own chat line, including after reload. */
 const LifeCycleEvents: FC<{ enabled: boolean }> = ({ enabled }) => {
   const aui = useAui();
   const markLive = useContext(GateMarkLiveContext);
   const { loading, threadLoading, threadId } = useAuiState(useShallow((state) => ({ loading: state.threads.isLoading, threadLoading: state.thread.isLoading, threadId: state.threads.mainThreadId })));
   const encounter = useApp((state) => state.activeMonName ? state.mons[state.activeMonName]?.firstEncounter?.status : undefined);
+  const record = useApp((state) => state.activeMonName ? state.mons[state.activeMonName] ?? null : null);
   const event = useApp((state) => state.ledger.lifeEvent);
   const day = useApp((state) => state.day);
   const hatchInFlight = useApp((state) => state.evolutionJob?.kind === 'hatch');
   const [failure, setFailure] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!enabled || loading || threadLoading || hatchInFlight || !threadId || !record?.narratorLine) return;
+    const narratorLine = record.narratorLine;
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      if (cancelled) return;
+      const key = `${threadId}:${record.data.name}:${record.narratorVersion ?? 0}`;
+      if (aui.thread.export().messages.some(item => item.message.metadata.custom?.worldBirthNarrator === record.data.name)) {
+        deliveredBirthNarrations.add(key);
+        return;
+      }
+      if (deliveredBirthNarrations.has(key)) return;
+      deliveredBirthNarrations.add(key);
+      const narration = narratorLine.replace(/[\r\n]+/g, ' ').trim();
+      beginRepositoryOperation({ operation: 'APPEND_WORLD_BIRTH_NARRATOR', caller: 'LifeCycleEvents' });
+      insertRuntimeMessage(aui, threadId, markLive, 'LifeCycleEvents', {
+        id: newLocalMessageId(),
+        createdAt: new Date(),
+        role: 'assistant',
+        content: [{ type: 'text', text: `*Narratore — ${narration}*` }],
+        status: { type: 'complete', reason: 'unknown' },
+        metadata: { unstable_state: null, unstable_annotations: [], unstable_data: [], steps: [], custom: { worldBirthNarrator: record.data.name } },
+      } as ThreadMessage, 'WORLD_BIRTH_NARRATOR');
+    }, 500);
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, [aui, enabled, hatchInFlight, loading, markLive, record, threadId, threadLoading]);
 
   useEffect(() => {
     if (!enabled || loading || threadLoading || hatchInFlight || encounter !== 'completato' || !threadId || event?.status === 'open'
@@ -1103,7 +1132,7 @@ const LifeCycleEvents: FC<{ enabled: boolean }> = ({ enabled }) => {
           id: `message_${event.id}`,
           createdAt: new Date(),
           role: 'assistant',
-          content: [{ type: 'text', text: event.openingLine }],
+          content: [{ type: 'text', text: `*Narratore — ${event.observedFact}*\n\n${event.openingLine}\n\n*Narratore — ${event.possibleMonReaction}*` }],
           status: { type: 'complete', reason: 'unknown' },
           metadata: { unstable_state: null, unstable_annotations: [], unstable_data: [], steps: [], custom: { lifeEventId: event.id } },
         } as ThreadMessage, 'LIFE_EVENT_OPEN');

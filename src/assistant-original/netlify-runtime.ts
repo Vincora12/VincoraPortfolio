@@ -22,7 +22,7 @@ import type { BrainMessage } from "@/brain/store/types";
 import { executeRuntimeTool, lastReadSkillName, loadEnabledSkillsSummary, type ToolResult, type ToolUse } from "@/ai/tools";
 import { connectorsSummaryForProject } from "@/connectors/summary";
 import { readHealthJournal } from "@/engine/healthJournal";
-import { useApp } from "@/state/store";
+import { runStep, useApp } from "@/state/store";
 import { processLifeTurn } from "./life-cycle-runtime";
 import { WORLD_PROJECT_ID } from "@/engine/projects";
 import type { ContextDecision } from '@/ai/contextSelection';
@@ -36,6 +36,7 @@ import { postChatClientError, postChatDiagnostic, postRuntimeEvent } from "@/sys
 import { createV2Issue } from "@/ai/backend";
 import { activeThreadId, consumeTopicContext, readWatermark, topicArchive } from "./conversation-topics";
 import { classifyV2Issue, isV2IssueIntent, v2IssueConfirmationText } from "@/ai/v2Issues";
+import { chatNarratorFallbackFrame, writeChatNarratorFrameWithAi } from "@/ai/narratorPrompt";
 
 type Source = { title: string; url: string; domain?: string };
 type Usage = {
@@ -744,7 +745,7 @@ async function* writtenSnapshots(
 }
 
 /** Runtime reale predefinito. Il mock locale resta disponibile con `?runtime=mock`. */
-function createBaseNetlifyChatModel(shared: { systemPrompt: string; requestId: string; contextSelection?: ContextDecision[] }): ChatModelAdapter {
+function createBaseNetlifyChatModel(shared: { systemPrompt: string; requestId: string; contextSelection?: ContextDecision[]; worldNarration?: boolean }): ChatModelAdapter {
   return {
   async *run({ messages, abortSignal, context }) {
     postChatDiagnostic('CHAT_BASE_MODEL_START', 'base-model');
@@ -802,6 +803,17 @@ function createBaseNetlifyChatModel(shared: { systemPrompt: string; requestId: s
       };
       recordChatTrace(trace);
       return persistChatTrace(trace);
+    };
+    const narratedAnswer = async (monReply: string): Promise<string> => {
+      if (!shared.worldNarration || !activeMon) return monReply;
+      const current = useApp.getState();
+      const frame = await runStep('narrator',
+        model => writeChatNarratorFrameWithAi(token, activeMon, textOf(last), monReply, model, { world: current.world, ledger: current.ledger }),
+        value => ({ ok: Boolean(value), why: value ? undefined : 'world-narrator-frame-invalid' }),
+        { localTimeoutMs: 60_000 }).catch(() => null)
+        ?? chatNarratorFallbackFrame(activeMon, { world: current.world, ledger: current.ledger });
+      const clean = (text: string) => text.replace(/[\r\n]+/g, ' ').replace(/[*_`]/g, '').trim();
+      return `*Narratore — ${clean(frame.before)}*\n\n${monReply}\n\n*Narratore — ${clean(frame.after)}*`;
     };
     clock.mark("RICHIESTA", "POST /api/ai · capability character-voice");
     postChatDiagnostic('CHAT_AI_FETCH_START', 'ai-fetch');
@@ -887,8 +899,9 @@ function createBaseNetlifyChatModel(shared: { systemPrompt: string; requestId: s
         await saveTrace(body.model ?? modelName ?? null, "La risposta è arrivata vuota.");
         throw new Error("La risposta è arrivata vuota.");
       }
+      const answer = await narratedAnswer(body.text);
       const liveRhythm = typingRhythmFor(activeMon ? activeMon.data.voice_dna : ({} as import("@/engine/types").VoiceDna));
-      for await (const shown of writtenSnapshots(body.text, abortSignal, liveRhythm)) {
+      for await (const shown of writtenSnapshots(answer, abortSignal, liveRhythm)) {
         yield { content: withText(parts, shown) };
       }
       clock.mark("RISPOSTA", body.model ?? modelName ?? "modello sconosciuto");
@@ -898,7 +911,7 @@ function createBaseNetlifyChatModel(shared: { systemPrompt: string; requestId: s
         (body.sources ?? []).map((source) => `${source.title} — ${source.url}`),
       );
       yield {
-        content: withText(parts, body.text),
+        content: withText(parts, answer),
         metadata: {
           custom: {
             costUsd: body.costUsd ?? 0,
@@ -974,8 +987,9 @@ function createBaseNetlifyChatModel(shared: { systemPrompt: string; requestId: s
       [...sources.values()].map((source) => `${source.title} — ${source.url}`),
     );
     postRuntimeEvent({ eventType: 'CHAT_RESPONSE_OK', status: 'PASS', scope: 'chat', requestId, messageId: last?.id, capability: 'character-voice', model: answeredBy, durationMs: Date.now() - startedAt });
+    const framedAnswer = await narratedAnswer(answer);
     yield {
-      content: withText(completeParts, answer),
+      content: withText(completeParts, framedAnswer),
       metadata: {
         custom: { costUsd, model: answeredBy, traceId: traceId ?? undefined, monReaction: reactionForAnswer(answer) },
       },
@@ -1114,7 +1128,7 @@ export function createNetlifyChatModel(
         );
         return;
       }
-      const result = createBaseNetlifyChatModel({ systemPrompt, requestId, contextSelection }).run(args);
+      const result = createBaseNetlifyChatModel({ systemPrompt, requestId, contextSelection, worldNarration: projectId === WORLD_PROJECT_ID }).run(args);
       if (result instanceof Promise) {
         yield await result;
       } else {

@@ -20,6 +20,10 @@ try {
     if (path === '/api/ai') {
       const body = request.postDataJSON();
       aiCalls.push({ capability: body.capability, voiceModel: body.voiceModel });
+      const system = (body.system ?? []).map(block => block.text ?? '').join('\n');
+      if (system.includes('{"before":"...","after":"..."}')) {
+        return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ text: JSON.stringify({ before: 'Il riflesso vibra fra le pietre.', after: 'Il Mon resta immobile accanto al bagliore.' }), model: 'qwen2.5:14b', provider: 'ollama' }) });
+      }
       const user = body.user ?? '';
       const eventId = user.match(/EVENTO APERTO:.*\[(life_[^\]]+)\]/)?.[1] ?? '';
       const text = user.includes('MESSAGGIO UTENTE:')
@@ -65,14 +69,17 @@ try {
   await page.fill('.vinz-composer-input', 'E cosa sono?');
   await page.press('.vinz-composer-input', 'Enter');
   await page.getByText('Guardiamole insieme.', { exact: true }).waitFor({ timeout: 10000 });
+  await page.getByText('Narratore — Il riflesso vibra fra le pietre.', { exact: true }).waitFor({ timeout: 10000 });
+  await page.getByText('Narratore — Il Mon resta immobile accanto al bagliore.', { exact: true }).waitFor({ timeout: 10000 });
   if (!chatSystemPrompts.at(-1)?.includes('Un riflesso appare fra due pietre.')) throw new Error('Open Life Cycle event missing from World reply context');
   const afterQuestion = await page.evaluate(async () => {
     const { useApp } = await import('/src/state/store.ts');
     return { status: useApp.getState().ledger.lifeEvent?.status, canonCount: useApp.getState().world?.canon.length };
   });
   if (afterQuestion.status !== 'open' || afterQuestion.canonCount !== opened.canon.length) throw new Error('Narrative question advanced the Life Cycle');
+  const afterQuestionCalls = aiCalls.length;
   const general = await page.evaluate(async () => (await import('/src/assistant-original/life-cycle-runtime.ts')).processLifeTurn('message-general', 'mi avvicino', undefined, false));
-  if (general !== null || aiCalls.length !== beforeRequest) throw new Error('General chat invoked Life Cycle classification');
+  if (general !== null || aiCalls.length !== afterQuestionCalls) throw new Error('General chat invoked Life Cycle classification');
   const reacted = await page.evaluate(async () => (await import('/src/assistant-original/life-cycle-runtime.ts')).processLifeTurn('message-action', 'mi avvicino', 'vinzmon-world', false));
   if (reacted?.intent !== 'narrative_action') throw new Error('Narrative action did not resolve');
   const resolved = await page.evaluate(async () => {

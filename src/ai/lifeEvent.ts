@@ -3,10 +3,12 @@ import { openQuestions } from '../engine/curiosity';
 import { lifeContextBlock, safeLifeText, selectLifePersonalFacts, validateLifeEvent, type LifeConsequenceProposal, type LifeContext, type LifeEventProposal, type LifeSource } from '../engine/lifeCycle';
 import type { MonRecord } from '../engine/types';
 import type { StoryLedger, World } from '../engine/world';
+import { NARRATOR_VOICE_RULES } from './narratorPrompt';
 
 export type LifeAiDiagnostic = { code: string; count?: number; status?: number; validationCodes?: string[] };
 
 const EVENT_RULES = [
+  NARRATOR_VOICE_RULES,
   'Sei la regia della stessa vita del Mon, non un personaggio aggiuntivo. Scrivi solo JSON valido.',
   'Proponi UN solo fatto nuovo, concreto, osservabile e piccolo, coerente con World e canone. Il contenuto nasce ora dalle fonti; nessun catalogo o trama prestabilita.',
   'Non attribuire azioni, decisioni o emozioni al giocatore. Non decidere la conseguenza e non chiudere la scena.',
