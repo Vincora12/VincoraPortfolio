@@ -1092,9 +1092,9 @@ const LifeCycleEvents: FC<{ enabled: boolean }> = ({ enabled }) => {
         id: newLocalMessageId(),
         createdAt: new Date(),
         role: 'assistant',
-        content: [{ type: 'text', text: `*Narratore — ${narration}*` }],
+        content: [{ type: 'text', text: `*${narration}*` }],
         status: { type: 'complete', reason: 'unknown' },
-        metadata: { unstable_state: null, unstable_annotations: [], unstable_data: [], steps: [], custom: { worldBirthNarrator: record.data.name } },
+        metadata: { unstable_state: null, unstable_annotations: [], unstable_data: [], steps: [], custom: { worldBirthNarrator: record.data.name, worldNarration: true } },
       } as ThreadMessage, 'WORLD_BIRTH_NARRATOR');
     }, 500);
     return () => { cancelled = true; window.clearTimeout(timer); };
@@ -1132,9 +1132,9 @@ const LifeCycleEvents: FC<{ enabled: boolean }> = ({ enabled }) => {
           id: `message_${event.id}`,
           createdAt: new Date(),
           role: 'assistant',
-          content: [{ type: 'text', text: `*Narratore — ${event.observedFact}*\n\n${event.openingLine}\n\n*Narratore — ${event.possibleMonReaction}*` }],
+          content: [{ type: 'text', text: `*${event.observedFact}*\n\n${event.openingLine}\n\n*${event.possibleMonReaction}*` }],
           status: { type: 'complete', reason: 'unknown' },
-          metadata: { unstable_state: null, unstable_annotations: [], unstable_data: [], steps: [], custom: { lifeEventId: event.id } },
+          metadata: { unstable_state: null, unstable_annotations: [], unstable_data: [], steps: [], custom: { lifeEventId: event.id, worldNarration: true } },
         } as ThreadMessage, 'LIFE_EVENT_OPEN');
         setFailure(null);
         reportLifeCycle('chat', 'message-inserted', 'PASS');
@@ -1902,14 +1902,20 @@ const HtmlSurface: FC = () => {
   );
 };
 
+const withoutNarratorLabel = (text: string): string => text.replace(/Narratore\s*[—–-]\s*/giu, "");
+
 const AssistantMessage: FC = () => {
-  const { staScrivendo, haTesto, soloSticker, chatCost, hasChatCost, messageCost, hasMessageCost, model, openingRevealDelay, openingRevealArrivalId } = useAuiState(
+  const { staScrivendo, haTesto, soloSticker, worldNarration, chatCost, hasChatCost, messageCost, hasMessageCost, model, openingRevealDelay, openingRevealArrivalId } = useAuiState(
     useShallow((s) => ({
       staScrivendo: s.message.status?.type === "running",
       haTesto: (s.message.content ?? []).some(
         (part) => part.type === "text" && part.text.trim().length > 0,
       ),
       soloSticker: s.message.metadata.custom.monReactionOnly === true,
+      worldNarration: s.message.metadata.custom.worldNarration === true
+        || typeof s.message.metadata.custom.worldBirthNarrator === "string"
+        || typeof s.message.metadata.custom.lifeEventId === "string"
+        || (s.message.content ?? []).some((part) => part.type === "text" && /Narratore\s*[—–-]/iu.test(part.text)),
       chatCost: s.thread.messages.reduce((sum, message) => {
         const cost = message.metadata.custom.costUsd;
         return sum + (typeof cost === 'number' ? cost : 0);
@@ -1945,6 +1951,7 @@ const AssistantMessage: FC = () => {
         className={cn(
           "vinz-assistant-copy text-[#0d0d0d] dark:text-[#ececec]",
           staScrivendo && haTesto && "is-writing",
+          worldNarration && "vinz-world-narration",
         )}
       >
         <MessagePrimitive.Parts>
@@ -1958,7 +1965,7 @@ const AssistantMessage: FC = () => {
               if (openingRevealArrivalId && part.text.length > 0) {
                 return <OpeningComposedText text={part.text} active={animateOpening} delayMs={openingRevealDelay} />;
               }
-              return part.text.length > 0 ? <MarkdownText /> : null;
+              return part.text.length > 0 ? <MarkdownText preprocess={worldNarration ? withoutNarratorLabel : undefined} /> : null;
             }
             if (part.type === "image") {
               return <img src={part.image} alt={part.filename ?? "Immagine generata"} className="mt-2 h-auto w-full max-w-lg rounded-2xl object-contain" />;

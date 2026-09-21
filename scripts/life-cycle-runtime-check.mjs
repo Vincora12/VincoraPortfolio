@@ -69,8 +69,9 @@ try {
   await page.fill('.vinz-composer-input', 'E cosa sono?');
   await page.press('.vinz-composer-input', 'Enter');
   await page.getByText('Guardiamole insieme.', { exact: true }).waitFor({ timeout: 10000 });
-  await page.getByText('Narratore — Il riflesso vibra fra le pietre.', { exact: true }).waitFor({ timeout: 10000 });
-  await page.getByText('Narratore — Il Mon resta immobile accanto al bagliore.', { exact: true }).waitFor({ timeout: 10000 });
+  await page.getByText('Il riflesso vibra fra le pietre.', { exact: true }).waitFor({ timeout: 10000 });
+  await page.getByText('Il Mon resta immobile accanto al bagliore.', { exact: true }).waitFor({ timeout: 10000 });
+  if (await page.getByText(/Narratore\s*[—–-]/).count()) throw new Error('Visible narrator label was not removed');
   if (!chatSystemPrompts.at(-1)?.includes('Un riflesso appare fra due pietre.')) throw new Error('Open Life Cycle event missing from World reply context');
   const afterQuestion = await page.evaluate(async () => {
     const { useApp } = await import('/src/state/store.ts');

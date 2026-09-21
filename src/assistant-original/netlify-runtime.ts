@@ -813,7 +813,7 @@ function createBaseNetlifyChatModel(shared: { systemPrompt: string; requestId: s
         { localTimeoutMs: 60_000 }).catch(() => null)
         ?? chatNarratorFallbackFrame(activeMon, { world: current.world, ledger: current.ledger });
       const clean = (text: string) => text.replace(/[\r\n]+/g, ' ').replace(/[*_`]/g, '').trim();
-      return `*Narratore — ${clean(frame.before)}*\n\n${monReply}\n\n*Narratore — ${clean(frame.after)}*`;
+      return `*${clean(frame.before)}*\n\n${monReply}\n\n*${clean(frame.after)}*`;
     };
     clock.mark("RICHIESTA", "POST /api/ai · capability character-voice");
     postChatDiagnostic('CHAT_AI_FETCH_START', 'ai-fetch');
@@ -918,6 +918,7 @@ function createBaseNetlifyChatModel(shared: { systemPrompt: string; requestId: s
             model: body.model ?? modelName,
             traceId: traceId ?? undefined,
             monReaction: reactionForAnswer(body.text),
+            ...(shared.worldNarration ? { worldNarration: true } : {}),
           },
         },
       };
@@ -991,7 +992,7 @@ function createBaseNetlifyChatModel(shared: { systemPrompt: string; requestId: s
     yield {
       content: withText(completeParts, framedAnswer),
       metadata: {
-        custom: { costUsd, model: answeredBy, traceId: traceId ?? undefined, monReaction: reactionForAnswer(answer) },
+        custom: { costUsd, model: answeredBy, traceId: traceId ?? undefined, monReaction: reactionForAnswer(answer), ...(shared.worldNarration ? { worldNarration: true } : {}) },
       },
     };
   },

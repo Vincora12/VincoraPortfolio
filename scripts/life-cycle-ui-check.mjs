@@ -39,7 +39,20 @@ try {
     await sleep(1500);
     check(await page.getByText('Hai visto il riflesso?', { exact: true }).count() === 0, `${viewport.name}: Generale does not show the Life Cycle event`);
     await page.evaluate(() => window.dispatchEvent(new CustomEvent('vinz-select-project', { detail: { id: 'vinzmon-world', title: 'Vinz.World' } })));
-    await page.getByText(/Il mare si ritira sulla sabbia di NUL/).waitFor({ timeout: 10000 });
+    const birthNarrator = page.getByText(/Il mare si ritira sulla sabbia di NUL/);
+    await birthNarrator.waitFor({ timeout: 10000 });
+    const narratorAppearance = await birthNarrator.evaluate((element) => {
+      const probe = document.createElement('span');
+      probe.style.color = 'var(--char-accent-on-dark)';
+      document.body.appendChild(probe);
+      const expectedColor = getComputedStyle(probe).color;
+      probe.remove();
+      const style = getComputedStyle(element);
+      return { color: style.color, expectedColor, fontStyle: style.fontStyle, text: element.textContent ?? '' };
+    });
+    check(narratorAppearance.fontStyle === 'italic', `${viewport.name}: birth narrator is italic`);
+    check(narratorAppearance.color === narratorAppearance.expectedColor, `${viewport.name}: birth narrator uses the active Mon color`);
+    check(!/Narratore\s*[—–-]/u.test(narratorAppearance.text), `${viewport.name}: narrator label is hidden`);
     await page.getByText('Hai visto il riflesso?', { exact: true }).waitFor({ timeout: 10000 });
     const geometry = await page.evaluate(() => {
       const composer = document.querySelector('.vinz-composer')?.getBoundingClientRect();
