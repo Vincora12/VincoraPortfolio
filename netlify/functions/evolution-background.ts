@@ -18,6 +18,7 @@ type AssetItem = {
 type Job = {
   id: string;
   candidateName: string;
+  assetOwnerId: string;
   status: 'running' | 'ready' | 'error';
   done: number;
   total: number;
@@ -105,7 +106,7 @@ async function sendReadyPush(candidateName: string): Promise<void> {
 export default async function evolutionBackground(request: Request): Promise<void> {
   if (!authorize(request).ok) return;
 
-  let body: { jobId?: string; candidateName?: string; imageModel?: string | null; quality?: string; items?: AssetItem[] };
+  let body: { jobId?: string; candidateName?: string; assetOwnerId?: string; imageModel?: string | null; quality?: string; items?: AssetItem[] };
   try {
     body = (await request.json()) as typeof body;
   } catch {
@@ -114,8 +115,9 @@ export default async function evolutionBackground(request: Request): Promise<voi
 
   const id = body.jobId?.trim() ?? '';
   const candidateName = body.candidateName?.trim() ?? '';
+  const assetOwnerId = body.assetOwnerId?.trim() || candidateName;
   const items = body.items ?? [];
-  if (!/^[a-zA-Z0-9-]{16,80}$/.test(id) || !candidateName || items.length < 1 || items.length > 4) return;
+  if (!/^[a-zA-Z0-9-]{16,80}$/.test(id) || !candidateName || !assetOwnerId || assetOwnerId.length > 160 || items.length < 1 || items.length > 4) return;
   if (items.some((item) => !ALLOWED_ASSETS.has(item.assetId) || !IMAGE_SIZES.includes(item.size) || !item.prompt || item.prompt.length > 200_000)) return;
 
   const route = resolveRoute('image', body.imageModel);
@@ -128,6 +130,7 @@ export default async function evolutionBackground(request: Request): Promise<voi
   const job: Job = {
     id,
     candidateName,
+    assetOwnerId,
     status: 'running',
     done: 0,
     total: items.length,
@@ -144,12 +147,12 @@ export default async function evolutionBackground(request: Request): Promise<voi
      permanenti e non vanno né rigenerati né ripagati. */
   let master: string | null = null;
   const savedMaster = await permanentStore().get(
-    permanentAssetKey(candidateName, 'master_01'),
+    permanentAssetKey(assetOwnerId, 'master_01'),
     { type: 'arrayBuffer' },
   );
   if (savedMaster) master = base64(savedMaster);
   for (const item of items) {
-    const key = permanentAssetKey(candidateName, item.assetId);
+    const key = permanentAssetKey(assetOwnerId, item.assetId);
     const metadata = await permanentStore().getMetadata(key);
     /* I vecchi toy potevano essere semplici CEL salvati nello slot giusto.
        Non li consideriamo conclusi: vengono rigenerati senza rifare il MON. */
@@ -206,7 +209,7 @@ export default async function evolutionBackground(request: Request): Promise<voi
     ) as ArrayBuffer;
     await store().set(assetKey(id, item.assetId), imageBuffer);
     await permanentStore().set(
-      permanentAssetKey(candidateName, item.assetId),
+      permanentAssetKey(assetOwnerId, item.assetId),
       imageBuffer,
       { metadata: {
         contentType: 'image/png',

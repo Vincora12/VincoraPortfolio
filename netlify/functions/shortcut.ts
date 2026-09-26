@@ -81,7 +81,7 @@ export interface PendingAction {
   battery?: { percent: number };
 }
 
-async function enqueue(entry: PendingAction): Promise<void> {
+export async function enqueuePendingAction(entry: PendingAction): Promise<void> {
   const existing = ((await store().get(QUEUE_KEY, { type: 'json' })) as PendingAction[] | null) ?? [];
   await store().setJSON(QUEUE_KEY, [...existing, entry].slice(-100));
 }
@@ -294,7 +294,7 @@ export default async function handler(request: Request): Promise<Response> {
   if (actionId === 'weight') {
     const kg = sane(body.number, 20, 400);
     if (kg === null) return fail('peso non valido — atteso un numero fra 20 e 400 kg');
-    await enqueue({ id: genId('weight'), action: 'weight', at: at.toISOString(), weight: { kg } });
+    await enqueuePendingAction({ id: genId('weight'), action: 'weight', at: at.toISOString(), weight: { kg } });
     return ok({ message: 'Peso registrato', summary: `${kg} kg` });
   }
 
@@ -302,39 +302,39 @@ export default async function handler(request: Request): Promise<Response> {
     if (!text) return fail('testo mancante');
     /* 🔒 Testo verbatim, nessuna estrazione: è la stessa distanza fra
        «i passi dicono» (vietato, §21) e «hai scritto tu» (già permesso). */
-    await enqueue({ id: genId('checkin'), action: 'checkin', at: at.toISOString(), checkin: { text } });
+    await enqueuePendingAction({ id: genId('checkin'), action: 'checkin', at: at.toISOString(), checkin: { text } });
     return ok({ message: 'Come stai, registrato', summary: text.length > 80 ? `${text.slice(0, 80)}…` : text });
   }
 
   if (actionId === 'location') {
     if (!text) return fail('testo mancante');
-    await enqueue({ id: genId('location'), action: 'location', at: at.toISOString(), location: { text } });
+    await enqueuePendingAction({ id: genId('location'), action: 'location', at: at.toISOString(), location: { text } });
     return ok({ message: 'Posizione registrata', summary: text.length > 80 ? `${text.slice(0, 80)}…` : text });
   }
 
   if (actionId === 'nowplaying') {
     if (!text) return fail('testo mancante');
-    await enqueue({ id: genId('nowplaying'), action: 'nowplaying', at: at.toISOString(), nowplaying: { text } });
+    await enqueuePendingAction({ id: genId('nowplaying'), action: 'nowplaying', at: at.toISOString(), nowplaying: { text } });
     return ok({ message: 'Ascolto registrato', summary: text.length > 80 ? `${text.slice(0, 80)}…` : text });
   }
 
   if (actionId === 'focus') {
     if (!text) return fail('testo mancante');
-    await enqueue({ id: genId('focus'), action: 'focus', at: at.toISOString(), focus: { text } });
+    await enqueuePendingAction({ id: genId('focus'), action: 'focus', at: at.toISOString(), focus: { text } });
     return ok({ message: 'Focus registrato', summary: text });
   }
 
   if (actionId === 'battery') {
     const percent = sane(body.number, 0, 100);
     if (percent === null) return fail('percentuale non valida — atteso un numero fra 0 e 100');
-    await enqueue({ id: genId('battery'), action: 'battery', at: at.toISOString(), battery: { percent } });
+    await enqueuePendingAction({ id: genId('battery'), action: 'battery', at: at.toISOString(), battery: { percent } });
     return ok({ message: 'Batteria registrata', summary: `${percent}%` });
   }
 
   if (actionId === 'workout') {
     if (!text) return fail('testo mancante');
     const minutes = sane(body.number, 0, 600) ?? 0;
-    await enqueue({
+    await enqueuePendingAction({
       id: genId('workout'),
       action: 'workout',
       at: at.toISOString(),
@@ -370,7 +370,7 @@ export default async function handler(request: Request): Promise<Response> {
       /* Non si inventa nessun numero: si mette in coda la descrizione grezza,
          a zero, con la confidenza dichiarata bassa — mai un numero con l'aria
          di una misura quando non lo è. */
-      await enqueue({
+      await enqueuePendingAction({
         id: genId('meal'),
         action: 'meal',
         at: at.toISOString(),
@@ -379,7 +379,7 @@ export default async function handler(request: Request): Promise<Response> {
       return ok({ message: 'Pasto registrato', summary: 'stima non riuscita — salvato solo il testo', confidence: 'low' }, costUsd);
     }
 
-    await enqueue({
+    await enqueuePendingAction({
       id: genId('meal'),
       action: 'meal',
       at: at.toISOString(),

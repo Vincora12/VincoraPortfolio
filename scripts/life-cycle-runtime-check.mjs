@@ -76,6 +76,8 @@ try {
   await page.getByText('Il Mon resta immobile accanto al bagliore.', { exact: true }).waitFor({ timeout: 10000 });
   if (await page.getByText(/Narratore\s*[—–-]/).count()) throw new Error('Visible narrator label was not removed');
   if (!chatSystemPrompts.at(-1)?.includes('Un riflesso appare fra due pietre.')) throw new Error('Open Life Cycle event missing from World reply context');
+  if (!chatSystemPrompts.at(-1)?.includes('Che cosa possiamo rendere possibile qui, prima di partire?')
+    || !chatSystemPrompts.at(-1)?.includes('nasce BABY a NUL')) throw new Error('Full World question and canon missing from World chat context');
   if (!chatSystemPrompts.at(-1)?.includes('REGIA DI SCENA IN VINZ.WORLD')) throw new Error('World scene direction missing from Mon reply context');
   const afterQuestion = await page.evaluate(async () => {
     const { useApp } = await import('/src/state/store.ts');

@@ -11,6 +11,7 @@ export interface AssembleContextInput {
   projectId?: string | null;
   recentTurns?: string;
   windowTokens?: ContextWindow;
+  inputBudgetTokens?: number;
   toolDefinitionText?: string;
   allowPersonal?: boolean;
   identityOverride?: string;
@@ -75,7 +76,10 @@ function decodeTextFile(file: NonNullable<ProjectEvidence['files']>[number]): st
 export async function assembleContext(domains: ContextDomains, input: AssembleContextInput): Promise<RunContext> {
   const windowTokens = input.windowTokens ?? 16_000;
   const reservedOutputTokens = windowTokens === 16_000 ? 4_000 : 6_000;
-  const inputBudgetTokens = windowTokens - reservedOutputTokens;
+  const inputBudgetTokens = Math.min(
+    windowTokens - reservedOutputTokens,
+    Math.max(1_000, input.inputBudgetTokens ?? windowTokens - reservedOutputTokens),
+  );
   const identity = input.identityOverride ?? await domains.identity();
   const projects = input.allowProjects === false ? [] : await domains.listProjects();
   const named = namedProjects(input.query, projects);

@@ -9,6 +9,7 @@ import {
   isMealLogIntent,
   isWorkoutLogIntent,
   shouldUseLocalTools,
+  isRepoOpsIntent,
   type ChatMealSlot,
   type MealConfirmation,
   type WorkoutConfirmation,
@@ -23,43 +24,24 @@ import { executeRuntimeTool, lastReadSkillName, loadEnabledSkillsSummary, type T
 import { connectorsSummaryForProject } from "@/connectors/summary";
 import { readHealthJournal } from "@/engine/healthJournal";
 import { runStep, useApp } from "@/state/store";
-import { processLifeTurn } from "./life-cycle-runtime";
-import { WORLD_PROJECT_ID } from "@/engine/projects";
 import type { ContextDecision } from '@/ai/contextSelection';
 import { resolveChatContext } from '@/ai/chatContext';
 import { buildCapabilitySummary } from "@/ai/toolLayer";
-import { typingRhythmFor, liveRevealDurationMs, type TypingRhythm } from "@/engine/typingRhythm";
 import { persistChatTrace, recordChatTrace, systemPromptComposition, traceClock, type ChatTrace } from "@/ai/chatTrace";
 import { voiceCard } from "@/engine/voiceCard";
 import { captureChatMemoryForClient } from "@/assistant-original/chat-memory-feedback";
 import { postChatClientError, postChatDiagnostic, postRuntimeEvent } from "@/system/runtimeLog";
 import { createV2Issue } from "@/ai/backend";
 import { activeThreadId, consumeTopicContext, readWatermark, topicArchive } from "./conversation-topics";
+import { openHermesProjectRun, readHermesProjectEvents, type ContextUsage, type HermesWorkspaceFile } from './hermes-project-runtime';
 import { classifyV2Issue, isV2IssueIntent, v2IssueConfirmationText } from "@/ai/v2Issues";
+import { browserUuid } from "@/system/browserUuid";
+import { processLifeTurn } from "./life-cycle-runtime";
+import { GLOBAL_PROJECT_ID, WORLD_PROJECT_ID } from "@/engine/projects";
+import { ledgerBlock, worldBlock } from "@/engine/world";
 import { chatNarratorFallbackFrame, writeChatNarratorFrameWithAi } from "@/ai/narratorPrompt";
 
 type Source = { title: string; url: string; domain?: string };
-type Usage = {
-  inputTokens?: number;
-  outputTokens?: number;
-  cacheReadTokens?: number;
-  cacheWriteTokens?: number;
-  webSearches?: number;
-};
-type StreamEvent =
-  | { type: "search_started" }
-  | { type: "source_found"; source: Source }
-  | { type: "thinking_delta"; delta: string }
-  | { type: "answer_started" }
-  | { type: "answer_delta"; delta: string }
-  | {
-      type: "answer_completed";
-      model: string;
-      usage: Usage;
-      costUsd: number;
-      sources: Source[];
-    }
-  | { type: "error"; message: string };
 
 function textOf(message: ThreadMessage | undefined): string {
   if (!message) return "";
@@ -124,7 +106,7 @@ function imagesOf(message: ThreadMessage | undefined): ChatImage[] {
 function filesOf(message: ThreadMessage | undefined): ChatFile[] {
   if (!message) return [];
   const parts = [...message.content, ...(message.attachments?.flatMap((item) => item.content ?? []) ?? [])];
-  return parts.flatMap((part) => part.type === "file" && part.mimeType === "application/pdf"
+  return parts.flatMap((part) => part.type === "file" && (part.mimeType === "application/pdf" || part.mimeType === "text/plain")
     ? [{ mediaType: part.mimeType, data: part.data, filename: part.filename ?? "documento.pdf" }]
     : []).slice(0, 2);
 }
@@ -374,6 +356,23 @@ function pendingAction(messages: readonly ThreadMessage[]): ConfirmableAction | 
   return (Object.keys(CONFIRMABLE_ACTIONS) as ConfirmableAction[]).find(
     (action) => text.includes(CONFIRMABLE_ACTIONS[action].question),
   );
+}
+
+/* Alcuni strumenti VINZ.MON vivono ancora nel browser perché usano sessioni,
+   autorizzazioni o UI già collegate lì. Finché non esiste un adapter Hermes
+   equivalente, queste richieste restano sul percorso storico: Hermes governa
+   la conversazione e l'esecuzione generica senza rompere capacità funzionanti. */
+const BROWSER_PRODUCT_TOOL_INTENT = /\b(?:calendari\w*|agenda|impegn\w*|appuntament\w*|secondo cervello|second brain|obsidian|vault|icloud|drive|gmail|e-?mail|posta|connettor\w*|integrazion\w*|promemori\w*|reminder|automazion\w*|aspetto|schermata|icon[ae]|superficie html|canvas)\b/i;
+
+function needsLegacyProductTool(
+  user: string,
+  actionConfirmation?: ActionConfirmation,
+  confirmedPlan?: string,
+): boolean {
+  if (confirmedPlan || (actionConfirmation && actionConfirmation.action !== 'peso')) return true;
+  const writeTool = requiredWriteTool(user);
+  if (writeTool && writeTool !== 'registra_peso') return true;
+  return BROWSER_PRODUCT_TOOL_INTENT.test(user) || isRepoOpsIntent(user);
 }
 
 /* ============================================================================
@@ -659,6 +658,136 @@ async function* runWithLocalTools(
   };
 }
 
+async function* runWithHermesProject(
+  messages: readonly ThreadMessage[],
+  abortSignal: AbortSignal,
+  token: string,
+  requestId: string,
+  projectId: string,
+  modelName?: string,
+  reasoningEffort?: string,
+  mealConfirmation?: MealConfirmation,
+  workoutConfirmation?: WorkoutConfirmation,
+  actionConfirmation?: ActionConfirmation,
+) {
+  const images = imagesForRun(messages);
+  const files = filesForRun(messages).filter((file) => file.mediaType === 'text/plain');
+  const activity: Array<{ tool: string; detail?: string; status: 'RUNNING' | 'PASS' | 'FAIL'; durationMs?: number }> = [];
+  let thinkingText = 'Hermes sta preparando il piano di lavoro…';
+  let imageEntry: (typeof activity)[number] | undefined;
+  const imageStartedAt = performance.now();
+  if (images.length) {
+    imageEntry = {
+      tool: 'Lettura immagine',
+      detail: images.length === 1 ? 'Sto leggendo localmente l’immagine allegata' : `Sto leggendo localmente ${images.length} immagini allegate`,
+      status: 'RUNNING',
+    };
+    activity.push(imageEntry);
+    thinkingText = `${imageEntry.detail}…`;
+    yield { content: [], metadata: { custom: { orchestrator: 'hermes', activity: activity.map((item) => ({ ...item })), thinkingText, costUsd: 0 } } };
+  }
+  const response = await openHermesProjectRun({
+    token,
+    requestId,
+    projectId,
+    conversationId: activeThreadId() || requestId,
+    user: textOf(messages.at(-1)) || (files.length ? 'Leggi il foglio di calcolo allegato e dimmi cosa contiene.' : ''),
+    turns: topicAwareHistory(toBrainMessages(messages.slice(0, -1))).slice(-6).map(({ role, content }) => ({ role, content })),
+    model: modelName,
+    effort: reasoningEffort,
+    images,
+    files,
+    ...(mealConfirmation ? { actionIntent: { action: 'meal' as const, status: mealConfirmation.status, slot: mealConfirmation.slot } }
+      : workoutConfirmation ? { actionIntent: { action: 'workout' as const, status: workoutConfirmation.status } }
+      : actionConfirmation?.action === 'peso' ? { actionIntent: { action: 'weight' as const, status: actionConfirmation.status } }
+      : {}),
+    signal: abortSignal,
+  });
+  if (!response) return false;
+
+  if (imageEntry) {
+    imageEntry.status = 'PASS';
+    imageEntry.durationMs = Math.round(performance.now() - imageStartedAt);
+    thinkingText = 'Immagine letta localmente. Passo il testo a Hermes…';
+    yield { content: [], metadata: { custom: { orchestrator: 'hermes', activity: activity.map((item) => ({ ...item })), thinkingText, costUsd: 0 } } };
+  }
+
+  let answer = '';
+  let model: string | undefined;
+  let costUsd = 0;
+  let timings: Record<string, number> | undefined;
+  let contextUsage: { hermes?: ContextUsage; vinz?: ContextUsage } | undefined;
+  let workspaceFiles: HermesWorkspaceFile[] | undefined;
+  const updates: string[] = [];
+  const toolDetail = (tool: string, preview?: string): string => {
+    const target = preview?.trim();
+    if (/^(?:read_file|read_many_files|get_file)/i.test(tool)) return target ? `Sto leggendo ${target}` : 'Sto leggendo un file';
+    if (/^(?:search_files|grep|find)/i.test(tool)) return target ? `Sto cercando nei file: ${target}` : 'Sto cercando i file pertinenti';
+    if (/^(?:list_files|list_directory)/i.test(tool)) return target ? `Sto esplorando ${target}` : 'Sto esplorando le cartelle del progetto';
+    if (/^(?:write_file|patch|edit)/i.test(tool)) return target ? `Sto aggiornando ${target}` : 'Sto preparando una modifica';
+    if (/^(?:terminal|execute)/i.test(tool)) return target ? `Sto eseguendo: ${target}` : 'Sto eseguendo un controllo nel progetto';
+    return target ? `${tool}: ${target}` : `Sto usando ${tool}`;
+  };
+  for await (const event of readHermesProjectEvents(response)) {
+    if (event.type === 'text_delta') answer += event.delta;
+    if (event.type === 'progress') thinkingText = event.message;
+    if (event.type === 'tool_started') {
+      const detail = toolDetail(event.tool, event.preview);
+      activity.push({ tool: event.tool, detail, status: 'RUNNING' });
+      thinkingText = `${detail}…`;
+    }
+    if (event.type === 'tool_progress') thinkingText = `${toolDetail(event.tool, event.preview)}…`;
+    if (event.type === 'tool_completed') {
+      const entry = [...activity].reverse().find((item) => item.tool === event.tool && item.status === 'RUNNING');
+      if (entry) {
+        entry.status = event.error ? 'FAIL' : 'PASS';
+        if (event.durationMs !== undefined) entry.durationMs = event.durationMs;
+      } else {
+        activity.push({ tool: event.tool, status: event.error ? 'FAIL' : 'PASS', ...(event.durationMs !== undefined ? { durationMs: event.durationMs } : {}) });
+      }
+      thinkingText = event.error ? `${entry?.detail || event.tool}: non riuscito` : `${entry?.detail || event.tool}: completato`;
+      if (!event.error && /vinz_registra_(?:pasto|allenamento|peso)$/.test(event.tool)) {
+        const { pullShortcutQueue } = await import('@/state/store');
+        const applied = await pullShortcutQueue();
+        if (applied > 0) {
+          const label = event.tool.endsWith('pasto') ? 'Pasto aggiunto in ME' : event.tool.endsWith('allenamento') ? 'Allenamento aggiunto in ME' : 'Peso aggiornato in ME';
+          if (!updates.includes(label)) updates.push(label);
+        }
+      }
+    }
+    if (event.type === 'approval_required') {
+      activity.push({ tool: 'Approvazione richiesta', status: 'FAIL' });
+      thinkingText = 'Operazione fermata: richiedeva approvazione.';
+    }
+    if (event.type === 'final') {
+      if (!answer) answer = event.text;
+      model = event.model;
+      costUsd = event.costUsd ?? 0;
+      timings = event.timings;
+      thinkingText = '';
+      if (event.files?.length) workspaceFiles = event.files;
+    }
+    if (event.type === 'context') contextUsage = { ...(event.hermes ? { hermes: event.hermes } : {}), ...(event.vinz ? { vinz: event.vinz } : {}) };
+    if (event.type === 'error') throw new Error(event.message);
+    yield {
+      content: answer ? [{ type: 'text' as const, text: answer }] : [],
+      metadata: { custom: { orchestrator: 'hermes', activity: activity.map((item) => ({ ...item })), updates, costUsd, ...(thinkingText ? { thinkingText } : {}), ...(model ? { model } : {}), ...(timings ? { hermesTimings: timings } : {}), ...(contextUsage ? { contextUsage } : {}), ...(workspaceFiles ? { workspaceFiles } : {}) } },
+    };
+  }
+  if (mealConfirmation?.status === 'needs-confirmation') {
+    answer = `${answer.replace(/\b(?:segnat|registrat|salvat|aggiunt)\w*[^.!?]*[.!?]?/gi, '').trim()}\n\nConfermi che lo registro come **${mealConfirmation.slot === 'extra' ? 'extra / spuntino aggiuntivo' : mealConfirmation.slot}**?`.trim();
+  } else if (workoutConfirmation?.status === 'needs-confirmation') {
+    answer = `${answer.trim()}\n\nConfermi che registro questo **allenamento** in ME?`.trim();
+  } else if (actionConfirmation?.action === 'peso' && actionConfirmation.status === 'needs-confirmation') {
+    answer = `${answer.trim()}\n\n${CONFIRMABLE_ACTIONS.peso.question}`.trim();
+  }
+  yield {
+    content: answer ? [{ type: 'text' as const, text: answer }] : [],
+    metadata: { custom: { orchestrator: 'hermes', activity, updates, costUsd, model, hermesTimings: timings, monReaction: reactionForAnswer(answer), ...(contextUsage ? { contextUsage } : {}), ...(workspaceFiles ? { workspaceFiles } : {}), ...(mealConfirmation?.status === 'needs-confirmation' ? { pendingMeal: { slot: mealConfirmation.slot } } : {}) } },
+  };
+  return true;
+}
+
 function sourcePart(source: Source): ThreadAssistantMessagePart {
   return {
     type: "source",
@@ -669,17 +798,6 @@ function sourcePart(source: Source): ThreadAssistantMessagePart {
   };
 }
 
-function searchPart(done: boolean): ThreadAssistantMessagePart {
-  return {
-    type: "tool-call",
-    toolName: done ? "Ricerca web completata" : "Ricerca web in corso",
-    toolCallId: "vinz-web-search",
-    args: {},
-    argsText: "{}",
-    ...(done ? { result: { completed: true } } : {}),
-  };
-}
-
 function withText(
   parts: ThreadAssistantMessagePart[],
   text: string,
@@ -687,65 +805,8 @@ function withText(
   return text ? [...parts, { type: "text", text }] : [...parts];
 }
 
-/** Anche i provider che restituiscono la risposta tutta insieme la mostrano
- * come scrittura, non come un blocco che compare di colpo. Il testo resta già
- * completo lato dati: questa funzione controlla soltanto la sua presentazione.
- *
- * PRODUCT FIX (2026-09-06) — «le risposte lunghe devono comparire molto più
- * in fretta»: le prime ~20 parole restano ESATTAMENTE come prima (il ritmo
- * percepibile che racconta il carattere); oltre, il tempo totale è vincolato
- * al budget di `liveRevealDurationMs` (centralizzato in typingRhythm.ts) e le
- * parole restanti si spartiscono quel poco che avanza — quale che sia la
- * lunghezza della risposta, l'utente non aspetta mai un testo già arrivato. */
-async function* writtenSnapshots(
-  text: string,
-  abortSignal: AbortSignal,
-  rhythm: TypingRhythm,
-): AsyncGenerator<string> {
-  const reducedMotion = typeof window !== "undefined"
-    && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  if (reducedMotion) {
-    yield text;
-    return;
-  }
-
-  const words = text.match(/\S+\s*/g) ?? [text];
-
-  const CHARACTER_WORDS = 20;
-  const characterWordCount = Math.min(CHARACTER_WORDS, words.length);
-  // Un ritmo percepibile anche su iPhone: la parola cresce con la propria
-  // lunghezza e la punteggiatura introduce vere micro-pause. Prima venivano
-  // mostrate tre parole ogni 24 ms, quindi l'effetto sembrava istantaneo.
-  const characterPause = (word: string) => {
-    const basePause = Math.min(210, Math.max(72, word.trim().length * 22));
-    return basePause
-      + (/[.!?][\s\n]*$/.test(word) ? 220 : /[,;:][\s\n]*$/.test(word) ? 110 : 0);
-  };
-  // Il budget per il "resto" viene dalla curva pura di typingRhythm.ts,
-  // confrontata con se stessa al confine delle 20 parole — non da una somma
-  // basata sulla lunghezza delle singole parole (quella sopra, che decide
-  // solo il ritmo delle prime 20): così il resto è sempre esattamente la
-  // quota che la curva dice, indipendentemente da quanto sono lunghe le
-  // parole vere del messaggio.
-  const remainingWords = words.length - characterWordCount;
-  const remainingBudgetMs = remainingWords > 0
-    ? liveRevealDurationMs(rhythm, words.length) - liveRevealDurationMs(rhythm, characterWordCount)
-    : 0;
-  const perWordRemainingMs = remainingWords > 0 ? remainingBudgetMs / remainingWords : 0;
-
-  let shown = "";
-  for (let index = 0; index < words.length; index += 1) {
-    if (abortSignal.aborted) return;
-    const word = words[index];
-    shown += word;
-    yield shown;
-    const pause = index < characterWordCount ? characterPause(word) : perWordRemainingMs;
-    if (pause > 0) await new Promise<void>((resolve) => setTimeout(resolve, pause));
-  }
-}
-
 /** Runtime reale predefinito. Il mock locale resta disponibile con `?runtime=mock`. */
-function createBaseNetlifyChatModel(shared: { systemPrompt: string; requestId: string; contextSelection?: ContextDecision[]; worldNarration?: boolean }): ChatModelAdapter {
+function createBaseNetlifyChatModel(shared: { systemPrompt: string; requestId: string; contextSelection?: ContextDecision[]; worldNarration?: boolean; questFrame?: { before: string; after: string } }): ChatModelAdapter {
   return {
   async *run({ messages, abortSignal, context }) {
     postChatDiagnostic('CHAT_BASE_MODEL_START', 'base-model');
@@ -760,11 +821,6 @@ function createBaseNetlifyChatModel(shared: { systemPrompt: string; requestId: s
     const requestId = shared.requestId;
     const startedAt = Date.now();
     const reasoningEffort = context.config?.reasoningEffort;
-    /* 🔷 «Non solo Claude, tutti i ragionamenti, anche OpenAI.» Il server sa
-       rispondere in streaming a entrambe le famiglie ora (vedi
-       `streamOpenAiResponses` in providers.ts); qui basta non chiudere la
-       porta a chi comincia per "gpt-". */
-    const useStream = (modelName?.startsWith("claude-") || modelName?.startsWith("gpt-")) ?? false;
     const last = messages.at(-1);
     const images = imagesForRun(messages);
     const files = filesForRun(messages);
@@ -804,69 +860,58 @@ function createBaseNetlifyChatModel(shared: { systemPrompt: string; requestId: s
       recordChatTrace(trace);
       return persistChatTrace(trace);
     };
-    const narratedAnswer = async (monReply: string): Promise<string> => {
-      if (!shared.worldNarration || !activeMon) return monReply;
-      const current = useApp.getState();
-      const frame = await runStep('narrator',
-        model => writeChatNarratorFrameWithAi(token, activeMon, textOf(last), monReply, model, { world: current.world, ledger: current.ledger }),
-        value => ({ ok: Boolean(value), why: value ? undefined : 'world-narrator-frame-invalid' }),
-        { localTimeoutMs: 60_000 }).catch(() => null)
-        ?? chatNarratorFallbackFrame(activeMon, { world: current.world, ledger: current.ledger });
-      const clean = (text: string) => text.replace(/[\r\n]+/g, ' ').replace(/[*_`]/g, '').trim();
-      return `*${clean(frame.before)}*\n\n${monReply}\n\n*${clean(frame.after)}*`;
-    };
-    clock.mark("RICHIESTA", "POST /api/ai · capability character-voice");
+    /* 🔷 «esco e riesco, mi fa spendere un botto» — prima questa era una
+       `fetch(..., {stream:true})` tenuta aperta per tutta la risposta: su
+       iOS, uscire dall'app la uccideva in pochi secondi e non c'era niente
+       da riprendere, bisognava ripartire da zero (e ripagare il giro).
+       Ora si parte e basta (`/api/ai-chat-background`, stesso schema di
+       `evolution-background.ts` per i mon): il lavoro vero continua da solo
+       sul server, e qui si chiede "sei pronto?" ogni tanto — ogni domanda è
+       una richiesta corta, che sopravvive al background perché non deve
+       restare aperta per interi minuti. Il prezzo: niente più scrittura
+       parola-per-parola, la risposta compare tutta insieme quando è pronta —
+       esattamente come per un .mon che si trasforma. */
+    clock.mark("RICHIESTA", "POST /api/ai-chat-background · capability character-voice");
     postChatDiagnostic('CHAT_AI_FETCH_START', 'ai-fetch');
-    let response: Response;
+    const jobId = browserUuid();
+    let started: Response;
     try {
-      response = await fetch("/api/ai", {
-      method: "POST",
-      signal: abortSignal,
-      headers: {
-        "content-type": "application/json",
-        authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        requestId,
-        capability: "character-voice",
-        config: { modelName, reasoningEffort },
-        stream: useStream,
-        /* 🔷 «Manca uno streaming di pensiero veritiero — il processo mentale,
-           sempre diverso a seconda della richiesta.» Prima dell'ora `StatoDelPensiero`
-           sceglieva una frase da una tabella, sempre finta, sempre uguale a
-           parità di tono. Qui il modello ragiona per davvero e lo stream lo
-           lascia passare; a sforzo basso (il predefinito) il pensiero è breve
-           o assente, e in quel caso la tabella resta il ripiego onesto — non
-           sparisce, diventa quello che era sempre dovuta essere: un'ultima
-           risorsa, non la prima. */
-        thinking: useStream,
-        webSearch: true,
-        system: [
-          {
-            text: systemPrompt,
-          },
-        ],
-        /* ⚠️ ANCHE QUI, NON SOLO NEL GIRO CON GLI STRUMENTI. Questa è la strada
-           della chiacchierata normale — cioè la maggior parte dei turni — e
-           senza lo stesso taglio spediva tutta la cronologia mentre l'altra la
-           accorciava: i topic avrebbero abbassato il contesto solo quando VINZ
-           usava uno strumento, cioè quasi mai. */
-        turns: topicAwareHistory(
-          messages
-            .slice(0, -1)
-            .filter((message) => message.role === "user" || message.role === "assistant")
-            .map((message) => ({
-              id: message.id,
-              ts: message.createdAt.toISOString(),
-              role: message.role as 'user' | 'assistant',
-              content: textOf(message),
-            })),
-        ).map(({ role, content }) => ({ role, content })),
-        user: textOf(last),
-        ...(images.length ? { images } : {}),
-        ...(files.length ? { files } : {}),
-        maxTokens: 2000,
-      }),
+      started = await fetch("/api/ai-chat-background", {
+        method: "POST",
+        signal: abortSignal,
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          jobId,
+          config: { modelName, reasoningEffort },
+          webSearch: !shared.questFrame,
+          system: [
+            {
+              text: systemPrompt,
+            },
+          ],
+          /* ⚠️ ANCHE QUI, NON SOLO NEL GIRO CON GLI STRUMENTI. Questa è la strada
+             della chiacchierata normale — cioè la maggior parte dei turni — e
+             senza lo stesso taglio spediva tutta la cronologia mentre l'altra la
+             accorciava: i topic avrebbero abbassato il contesto solo quando VINZ
+             usava uno strumento, cioè quasi mai. */
+          turns: topicAwareHistory(
+            (shared.questFrame ? messages.slice(-8, -1) : messages.slice(0, -1))
+              .filter((message) => message.role === "user" || message.role === "assistant")
+              .map((message) => ({
+                id: message.id,
+                ts: message.createdAt.toISOString(),
+                role: message.role as 'user' | 'assistant',
+                content: textOf(message),
+              })),
+          ).map(({ role, content }) => ({ role, content })),
+          user: textOf(last),
+          ...(images.length ? { images } : {}),
+          ...(files.length ? { files } : {}),
+          maxTokens: shared.questFrame ? 400 : 2000,
+        }),
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -875,124 +920,134 @@ function createBaseNetlifyChatModel(shared: { systemPrompt: string; requestId: s
       throw error;
     }
 
-    if (!response.ok) {
-      const problem = (await response.json().catch(() => null)) as
+    if (!started.ok) {
+      const problem = (await started.json().catch(() => null)) as
         | { error?: string; reason?: string }
         | null;
-      const message = problem?.reason ?? problem?.error ?? `Richiesta fallita (${response.status}).`;
-      postChatClientError(`ai-response-${response.status}`, new Error(message));
+      const message = problem?.reason ?? problem?.error ?? `Richiesta fallita (${started.status}).`;
+      postChatClientError(`ai-response-${started.status}`, new Error(message));
       postRuntimeEvent({ eventType: 'CHAT_RESPONSE_ERROR', status: 'FAIL', scope: 'chat', requestId, messageId: last?.id, capability: 'character-voice', durationMs: Date.now() - startedAt, error: message });
       await saveTrace(modelName ?? null, message);
       throw new Error(message);
     }
 
-    if (!useStream) {
-      const body = (await response.json()) as {
-        text?: string;
-        sources?: Source[];
-        costUsd?: number;
-        model?: string;
-      };
-      const parts = (body.sources ?? []).map(sourcePart);
-      if (!body.text) {
-        postRuntimeEvent({ eventType: 'CHAT_RESPONSE_ERROR', status: 'FAIL', scope: 'chat', requestId, messageId: last?.id, capability: 'character-voice', durationMs: Date.now() - startedAt, error: 'empty response' });
-        await saveTrace(body.model ?? modelName ?? null, "La risposta è arrivata vuota.");
-        throw new Error("La risposta è arrivata vuota.");
-      }
-      const answer = await narratedAnswer(body.text);
-      const liveRhythm = typingRhythmFor(activeMon ? activeMon.data.voice_dna : ({} as import("@/engine/types").VoiceDna));
-      for await (const shown of writtenSnapshots(answer, abortSignal, liveRhythm)) {
-        yield { content: withText(parts, shown) };
-      }
-      clock.mark("RISPOSTA", body.model ?? modelName ?? "modello sconosciuto");
-      const traceId = await saveTrace(
-        body.model ?? modelName ?? null,
-        null,
-        (body.sources ?? []).map((source) => `${source.title} — ${source.url}`),
-      );
-      yield {
-        content: withText(parts, answer),
-        metadata: {
-          custom: {
-            costUsd: body.costUsd ?? 0,
-            model: body.model ?? modelName,
-            traceId: traceId ?? undefined,
-            monReaction: reactionForAnswer(body.text),
-            ...(shared.worldNarration ? { worldNarration: true } : {}),
-          },
-        },
-      };
-      postRuntimeEvent({ eventType: 'CHAT_RESPONSE_OK', status: 'PASS', scope: 'chat', requestId, messageId: last?.id, capability: 'character-voice', model: body.model ?? modelName, durationMs: Date.now() - startedAt });
-      return;
-    }
+    yield { content: [], metadata: { custom: { thinkingText: "Sto pensando…" } } };
 
-    if (!response.body) throw new Error("Lo stream non è disponibile.");
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-    let answer = "";
-    let thinking = "";
-    let searching = false;
-    let costUsd = 0;
-    let answeredBy = modelName;
-    const sources = new Map<string, Source>();
-
-    const snapshot = () => {
-      const parts: ThreadAssistantMessagePart[] = [];
-      if (searching) parts.push(searchPart(false));
-      parts.push(...[...sources.values()].map(sourcePart));
-      return withText(parts, answer);
+    type ChatJobBody = {
+      status?: "running" | "ready" | "error";
+      text?: string;
+      sources?: Source[];
+      model?: string;
+      costUsd?: number;
+      error?: string;
     };
 
+    let job: ChatJobBody | null = null;
+    const pollStartedAt = Date.now();
+    const MAX_POLL_MS = 15 * 60_000;
+    /* 🔴 PRODUCT FIX (2026-09-16) — un utente ha visto questo ciclo martellare
+       il server all'infinito con "Sto pensando..." bloccato: il server aveva
+       rifiutato il token (401), e "riprova al giro dopo" non distingueva un
+       blip di rete (che si risolve da solo) da un rifiuto permanente (che
+       NON si risolve mai riprovando). Ora i due casi sono separati: 401/403
+       si arrende subito, qualunque altro fallimento ha un tetto di tentativi
+       consecutivi prima di arrendersi comunque — mai più un loop senza fine. */
+    let consecutiveFailures = 0;
+    const MAX_CONSECUTIVE_FAILURES = 8;
     while (true) {
-      const { value, done } = await reader.read();
-      buffer += decoder.decode(value, { stream: !done });
-      const records = buffer.split("\n\n");
-      buffer = records.pop() ?? "";
-      for (const record of records) {
-        const line = record.split("\n").find((item) => item.startsWith("data: "));
-        if (!line) continue;
-        const event = JSON.parse(line.slice(6)) as StreamEvent;
-        if (event.type === "search_started") searching = true;
-        if (event.type === "source_found") sources.set(event.source.url, event.source);
-        if (event.type === "thinking_delta") thinking += event.delta;
-        if (event.type === "answer_delta") answer += event.delta;
-        if (event.type === "answer_completed") {
-          searching = false;
-          costUsd = event.costUsd;
-          answeredBy = event.model;
-          for (const source of event.sources) sources.set(source.url, source);
-        }
-        if (event.type === "error") {
-          postChatClientError('ai-stream', new Error(event.message));
-          postRuntimeEvent({ eventType: 'CHAT_RESPONSE_ERROR', status: 'FAIL', scope: 'chat', requestId, messageId: last?.id, capability: 'character-voice', durationMs: Date.now() - startedAt, error: event.message });
-          await saveTrace(answeredBy ?? null, event.message);
-          throw new Error(event.message);
-        }
-        /* 🔷 Il pensiero viaggia come metadato, non come testo del messaggio:
-           non è la risposta, è quello che il modello fa PRIMA di scriverla.
-           `StatoDelPensiero` lo legge da qui finché non arriva la prima
-           parola vera — poi non serve più, il testo stesso è il segnale. */
-        yield { content: snapshot(), metadata: { custom: { thinkingText: thinking } } };
+      if (abortSignal.aborted) return;
+      await new Promise<void>((resolve) => setTimeout(resolve, 1500));
+      if (abortSignal.aborted) return;
+      if (Date.now() - pollStartedAt > MAX_POLL_MS) {
+        const message = "La risposta non è arrivata in tempo.";
+        postChatClientError('ai-chat-job-timeout', new Error(message));
+        postRuntimeEvent({ eventType: 'CHAT_RESPONSE_ERROR', status: 'FAIL', scope: 'chat', requestId, messageId: last?.id, capability: 'character-voice', durationMs: Date.now() - startedAt, error: message });
+        await saveTrace(modelName ?? null, message);
+        throw new Error(message);
       }
-      if (done) break;
+      const poll = await fetch(`/api/ai-chat-job?jobId=${encodeURIComponent(jobId)}`, {
+        signal: abortSignal,
+        headers: { authorization: `Bearer ${token}` },
+      }).catch(() => null);
+
+      if (poll && (poll.status === 401 || poll.status === 403)) {
+        const message = "Il server ha rifiutato il token. Riapri VINZ.MON e riprova.";
+        postChatClientError('ai-chat-job-auth', new Error(message));
+        postRuntimeEvent({ eventType: 'CHAT_RESPONSE_ERROR', status: 'FAIL', scope: 'chat', requestId, messageId: last?.id, capability: 'character-voice', durationMs: Date.now() - startedAt, error: message });
+        await saveTrace(modelName ?? null, message);
+        throw new Error(message);
+      }
+
+      if (!poll || !poll.ok) {
+        consecutiveFailures += 1;
+        if (consecutiveFailures > MAX_CONSECUTIVE_FAILURES) {
+          const message = "Non riesco a controllare se la risposta è pronta.";
+          postChatClientError('ai-chat-job-unreachable', new Error(message));
+          postRuntimeEvent({ eventType: 'CHAT_RESPONSE_ERROR', status: 'FAIL', scope: 'chat', requestId, messageId: last?.id, capability: 'character-voice', durationMs: Date.now() - startedAt, error: message });
+          await saveTrace(modelName ?? null, message);
+          throw new Error(message);
+        }
+        continue;
+      }
+      consecutiveFailures = 0;
+      job = (await poll.json().catch(() => null)) as ChatJobBody | null;
+      if (!job || job.status === "running") continue;
+      break;
     }
 
-    const completeParts: ThreadAssistantMessagePart[] = [];
-    if (sources.size > 0) completeParts.push(searchPart(true));
-    completeParts.push(...[...sources.values()].map(sourcePart));
-    clock.mark("RISPOSTA", answeredBy ?? "modello sconosciuto");
+    let fallbackError: string | null = null;
+    if (job.status === "error" || !job.text?.trim()) {
+      const message = job.error?.slice(0, 300) || "La risposta è arrivata vuota.";
+      const emptyCompletion = /^completamento vuoto\b/i.test(message) || (job.status !== "error" && !job.text?.trim());
+      if (shared.questFrame && emptyCompletion) {
+        // The game turn is already committed. Keep its narrator frame and let the Mon answer without another roll.
+        fallbackError = message;
+        const quest = useApp.getState().ledger.quest;
+        job.text = quest?.status === 'complete' ? 'Ce l’abbiamo fatta. Possiamo proseguire.'
+          : quest?.status === 'failed' ? 'Devo fermarmi. Torniamo quando sarò pronto.'
+          : quest?.status === 'investigate' ? 'Ci serve un altro indizio prima di affrontarlo.'
+          : 'È ancora davanti a noi. Sono pronto alla prossima mossa.';
+        postChatClientError('ai-chat-job-empty-fallback', new Error(message));
+      } else {
+        postChatClientError('ai-chat-job', new Error(message));
+        postRuntimeEvent({ eventType: 'CHAT_RESPONSE_ERROR', status: 'FAIL', scope: 'chat', requestId, messageId: last?.id, capability: 'character-voice', durationMs: Date.now() - startedAt, error: message });
+        await saveTrace(job.model ?? modelName ?? null, message);
+        throw new Error(message);
+      }
+    }
+
+    let answer = job.text;
+    if (shared.questFrame) {
+      answer = `${shared.questFrame.before}\n\n${job.text}\n\n*${shared.questFrame.after}*`;
+    } else if (shared.worldNarration && activeMon) {
+      const current = useApp.getState();
+      const frame = await runStep('narrator',
+        model => writeChatNarratorFrameWithAi(token, activeMon, textOf(last), job!.text!, model, { world: current.world, ledger: current.ledger }),
+        value => ({ ok: Boolean(value), why: value ? undefined : 'world-narrator-frame-invalid' }),
+        { localTimeoutMs: 60_000 }).catch(() => null)
+        ?? chatNarratorFallbackFrame(activeMon, { world: current.world, ledger: current.ledger });
+      const clean = (text: string) => text.replace(/[\r\n]+/g, ' ').replace(/[*_`]/g, '').trim();
+      answer = `*${clean(frame.before)}*\n\n${job.text}\n\n*${clean(frame.after)}*`;
+    }
+
+    const parts = (job.sources ?? []).map(sourcePart);
+    clock.mark("RISPOSTA", job.model ?? modelName ?? "modello sconosciuto");
     const traceId = await saveTrace(
-      answeredBy ?? null,
-      null,
-      [...sources.values()].map((source) => `${source.title} — ${source.url}`),
+      job.model ?? modelName ?? null,
+      fallbackError,
+      (job.sources ?? []).map((source) => `${source.title} — ${source.url}`),
     );
-    postRuntimeEvent({ eventType: 'CHAT_RESPONSE_OK', status: 'PASS', scope: 'chat', requestId, messageId: last?.id, capability: 'character-voice', model: answeredBy, durationMs: Date.now() - startedAt });
-    const framedAnswer = await narratedAnswer(answer);
+    postRuntimeEvent({ eventType: 'CHAT_RESPONSE_OK', status: 'PASS', scope: 'chat', requestId, messageId: last?.id, capability: 'character-voice', model: job.model ?? modelName, durationMs: Date.now() - startedAt });
     yield {
-      content: withText(completeParts, framedAnswer),
+      content: withText(parts, answer),
       metadata: {
-        custom: { costUsd, model: answeredBy, traceId: traceId ?? undefined, monReaction: reactionForAnswer(answer), ...(shared.worldNarration ? { worldNarration: true } : {}) },
+        custom: {
+          costUsd: job.costUsd ?? 0,
+          model: job.model ?? modelName,
+          traceId: traceId ?? undefined,
+          monReaction: reactionForAnswer(job.text),
+          ...(shared.worldNarration ? { worldNarration: true } : {}),
+        },
       },
     };
   },
@@ -1018,7 +1073,6 @@ export function createNetlifyChatModel(
            per questo, da quando l'utente vive quasi solo dentro progetti, non
            vedeva più "Memoria aggiornata" sotto i messaggi.
            Fire-and-forget: semantic capture is isolated from response latency. */
-        void captureChatMemoryForClient({ text: user, messageId: last.id, requestId, context: args.messages.slice(-5, -1).map((message) => ({ role: message.role === 'assistant' ? 'assistant' : 'user', text: textOf(message) })) });
         postRuntimeEvent({ eventType: 'CHAT_SEND_START', status: 'START', scope: 'chat', requestId, messageId: last.id, capability: 'character-voice' });
       }
       const pendingSlot = pendingMealSlot(args.messages);
@@ -1072,12 +1126,41 @@ export function createNetlifyChatModel(
       const useTools = Boolean(runTool && (shouldUseLocalTools(user) || (projectId && projectId !== WORLD_PROJECT_ID) || mealConfirmation || workoutConfirmation || actionConfirmation || confirmedPlan));
       const token = savedToken();
       if (!token) throw new Error('Prima attiva VINZ.MON: manca il token.');
+      if (projectId && projectId !== WORLD_PROJECT_ID && !needsLegacyProductTool(user, actionConfirmation, confirmedPlan)) {
+        const hermes = runWithHermesProject(
+          args.messages,
+          args.abortSignal,
+          token,
+          requestId,
+          projectId,
+          args.context.config?.modelName,
+          args.context.config?.reasoningEffort,
+          mealConfirmation,
+          workoutConfirmation,
+          actionConfirmation,
+        );
+        let next = await hermes.next();
+        while (!next.done) {
+          yield next.value;
+          next = await hermes.next();
+        }
+        if (next.value === true) return;
+      }
+      if (last?.role === 'user') {
+        void captureChatMemoryForClient({ text: user, messageId: last.id, requestId, context: args.messages.slice(-5, -1).map((message) => ({ role: message.role === 'assistant' ? 'assistant' : 'user', text: textOf(message) })) });
+      }
       const lifeTurn = last?.role === 'user'
         ? await processLifeTurn(last.id, user, projectId, useTools).catch(() => null)
         : null;
       postChatDiagnostic('CHAT_MEMORY_FETCH_START', 'canonical-context');
       let contextSelection: ContextDecision[] = [];
-      let systemPrompt = await resolveChatContext(token, user, useTools, args.abortSignal, projectId === WORLD_PROJECT_ID ? undefined : projectId, args.messages.slice(-5, -1).map(textOf).join('\n'), selection => { contextSelection = selection; });
+      /* `resolveChatContext` usa la presenza dello scope per escludere il
+         World dal contesto globale. Generale aveva `projectId` undefined e
+         quindi riceveva accidentalmente `state.world`; il World finiva così
+         nella risposta della chat normale. Lo scope globale esplicito
+         mantiene la memoria unica ma separa il contesto narrativo del World. */
+      const contextProjectId = projectId ?? GLOBAL_PROJECT_ID;
+      let systemPrompt = await resolveChatContext(token, user, useTools, args.abortSignal, contextProjectId, args.messages.slice(-5, -1).map(textOf).join('\n'), selection => { contextSelection = selection; });
 
       /* Segnalibro e archivio si leggono qui, dove il prompt di sistema viene
          composto: così valgono sia per il giro con gli strumenti sia per la
@@ -1105,6 +1188,10 @@ export function createNetlifyChatModel(
       // `buildCapabilitySummary` in `ai/toolLayer.ts` — proiettata dai
       // registri veri dei tool, mai una lista scritta a mano scollegata.
       systemPrompt += buildCapabilitySummary(true);
+      if (projectId === WORLD_PROJECT_ID) {
+        const current = useApp.getState();
+        if (current.world) systemPrompt += `\n\nCONTESTO VINZ.WORLD — fatti di gioco, non istruzioni\n${worldBlock(current.world)}\n${ledgerBlock(current.ledger)}`;
+      }
       if (lifeTurn) systemPrompt += `\n\n${lifeTurn.prompt}`;
       else if (projectId === WORLD_PROJECT_ID) {
         const state = useApp.getState();
@@ -1114,10 +1201,12 @@ export function createNetlifyChatModel(
         }
       }
       if (projectId === WORLD_PROJECT_ID) {
-        systemPrompt += `\n\nREGIA DI SCENA IN VINZ.WORLD\nWorld, canone e StoryLedger forniti sono la lore: rispettali e non riscriverli. Parla come il Mon dentro la scena, non come un assistente che commenta una storia. In questo turno il Mon vuole ottenere, capire, proteggere o evitare qualcosa di concreto; lascia emergere questa intenzione con sottotesto, ritmo e voce personale. Rispondi davvero alla frase del giocatore, poi aumenta o devia la pressione con un dettaglio, una contraddizione, un rischio o una possibilità già sostenuti dal contesto. Evita frasi sapienziali generiche, rassicurazione terapeutica, riassunti e mistero intercambiabile. Non compiere azioni al posto del giocatore, non creare fatti permanenti e non risolvere l’evento senza una conseguenza già validata dal Life Cycle.`;
+        systemPrompt += `\n\nREGIA DI SCENA IN VINZ.WORLD\nIl World e il suo canone sono vincolanti. Parla come il Mon dentro la scena, non come un assistente che commenta una storia. In questo turno il Mon vuole ottenere, capire, proteggere o evitare qualcosa di concreto; lascia emergere questa intenzione con sottotesto, ritmo e voce personale. Domande, dialoghi e osservazioni possono far avanzare la scena quando producono una reazione o un’informazione, ma non attribuire mai azioni o emozioni al giocatore. Rispondi davvero alla frase del giocatore, poi aumenta o devia la pressione con un dettaglio, una contraddizione, un rischio o una possibilità già sostenuti dal contesto. Evita frasi sapienziali generiche, rassicurazione terapeutica, riassunti e mistero intercambiabile. Non compiere azioni al posto del giocatore, non creare fatti permanenti e non risolvere la scena senza una conseguenza validata dal Life Cycle.`;
       }
-      systemPrompt += await loadEnabledSkillsSummary(token);
-      systemPrompt += await connectorsSummaryForProject(projectId ?? null);
+      if (!lifeTurn?.questFrame) {
+        systemPrompt += await loadEnabledSkillsSummary(token);
+        systemPrompt += await connectorsSummaryForProject(projectId ?? null);
+      }
       if (runTool && useTools) {
         yield* runWithLocalTools(
           args.messages,
@@ -1132,11 +1221,18 @@ export function createNetlifyChatModel(
         );
         return;
       }
-      const result = createBaseNetlifyChatModel({ systemPrompt, requestId, contextSelection, worldNarration: projectId === WORLD_PROJECT_ID }).run(args);
+      const result = createBaseNetlifyChatModel({ systemPrompt, requestId, contextSelection, worldNarration: projectId === WORLD_PROJECT_ID, questFrame: lifeTurn?.questFrame }).run(args);
       if (result instanceof Promise) {
         yield await result;
       } else {
         yield* result;
+      }
+      if (lifeTurn?.questFrame && last?.role === 'user') {
+        useApp.setState(current => {
+          const quest = current.ledger.quest;
+          if (quest?.status !== 'complete' || quest.lastMessageId !== last.id || !quest.completionReplyPending) return {};
+          return { ledger: { ...current.ledger, quest: { ...quest, completionReplyPending: false } } };
+        });
       }
     },
   };

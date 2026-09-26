@@ -6,6 +6,8 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import agentLab from '../netlify/functions/agent-lab';
 import ai from '../netlify/functions/ai';
+import aiChatBackground from '../netlify/functions/ai-chat-background';
+import aiChatJob from '../netlify/functions/ai-chat-job';
 import assets from '../netlify/functions/assets';
 import automations from '../netlify/functions/automations';
 import brain from '../netlify/functions/brain';
@@ -51,6 +53,7 @@ import memoryReset from '../netlify/functions/memory-reset';
 import localLlm from '../netlify/functions/local-llm';
 import repoOps from '../netlify/functions/repo-ops';
 import runs from '../netlify/functions/runs';
+import hermesTools from '../netlify/functions/hermes-tools';
 import notificationPrefs from '../netlify/functions/notification-prefs';
 import vinzWorkspace from '../netlify/functions/vinz-workspace';
 
@@ -83,7 +86,7 @@ loadEnv();
 process.env.VINZMON_LOCAL_CORE = '1';
 
 const handlers: Record<string, Handler> = {
-  '/api/agent-lab': agentLab, '/api/ai': ai, '/api/assets': assets, '/api/brain': brain,
+  '/api/agent-lab': agentLab, '/api/ai': ai, '/api/ai-chat-job': aiChatJob, '/api/assets': assets, '/api/brain': brain,
   '/api/automations': automations, '/api/calendar': calendar, '/api/code-tools': codeTools, '/api/core-context': coreContext,
   '/api/narrative-material': narrativeMaterial, '/api/cultural-discovery': culturalDiscovery, '/api/evolution-job': evolutionJob, '/api/food': food, '/api/ingest': ingest,
   '/api/lab-duel-job': labDuelJob, '/api/lessons': lessons, '/api/machines': machines,
@@ -103,10 +106,12 @@ handlers['/api/repo-ops'] = repoOps;
 handlers['/api/notification-prefs'] = notificationPrefs;
 handlers['/api/vinz-workspace'] = vinzWorkspace;
 handlers['/api/runs'] = runs;
+handlers['/api/hermes-tools'] = hermesTools;
 
 const background: Record<string, (request: Request) => Promise<void>> = {
   '/api/evolution-background': evolutionBackground,
   '/api/lab-duel-background': labDuelBackground,
+  '/api/ai-chat-background': aiChatBackground,
 };
 
 const contentTypes: Record<string, string> = {
@@ -143,12 +148,32 @@ async function sendResponse(response: Response, res: ServerResponse): Promise<vo
   response.headers.forEach((value, key) => res.setHeader(key, value));
   if (!response.body) return void res.end();
   const reader = response.body.getReader();
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    if (!res.write(Buffer.from(value))) await new Promise<void>((done) => res.once('drain', done));
+  let disconnected = false;
+  const cancel = () => {
+    disconnected = true;
+    void reader.cancel('client disconnected').catch(() => undefined);
+  };
+  res.once('close', cancel);
+  try {
+    while (!disconnected) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      if (!res.write(Buffer.from(value))) {
+        await new Promise<void>((done) => {
+          const finish = () => {
+            res.off('drain', finish);
+            res.off('close', finish);
+            done();
+          };
+          res.once('drain', finish);
+          res.once('close', finish);
+        });
+      }
+    }
+  } finally {
+    res.off('close', cancel);
   }
-  res.end();
+  if (!disconnected) res.end();
 }
 
 function serveStatic(pathname: string, res: ServerResponse): void {

@@ -14,7 +14,7 @@ import {
 import { ChatSurface } from "./chat-surface";
 import { mockChatModel } from "./mock-runtime";
 import { netlifyChatModel } from "./netlify-runtime";
-import { VinzImageAttachmentAdapter, VinzPdfAttachmentAdapter } from "./image-attachment";
+import { VinzImageAttachmentAdapter, VinzPdfAttachmentAdapter, VinzSpreadsheetAttachmentAdapter } from "./image-attachment";
 import "@fontsource-variable/inter";
 import "./standalone.css";
 import { setLocalStorageItem } from "../system/localStorageDiagnostics";
@@ -34,6 +34,7 @@ const threadAdapter = createLocalStorageAdapter({
 const attachments = new CompositeAttachmentAdapter([
   new VinzImageAttachmentAdapter(),
   new VinzPdfAttachmentAdapter(),
+  new VinzSpreadsheetAttachmentAdapter(),
   new SimpleTextAttachmentAdapter(),
 ]);
 

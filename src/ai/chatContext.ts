@@ -2,13 +2,13 @@ import { useApp } from '../state/store';
 import { compileCoreContext, type CoreContext } from './coreContext';
 import type { ContextDecision } from './contextSelection';
 import { loadProject } from '../projects/client';
-import { buildProjectContext } from '../engine/projects';
+import { buildProjectContext, GLOBAL_PROJECT_ID, WORLD_PROJECT_ID } from '../engine/projects';
 
 /** One context boundary for Web direct/tool runs; ingress uses its server owner. */
 export async function resolveChatContext(token: string, query: string, toolsAvailable: boolean, signal: AbortSignal, projectId?: string, recentText = '', onSelection?: (selection: ContextDecision[]) => void): Promise<string> {
   let prompt: string;
   try {
-    const response = await fetch('/api/core-context', { method: 'POST', signal, headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify({ query: projectId ? '' : query.slice(0, 2000), recentText: recentText.slice(-3000), toolsAvailable }) });
+    const response = await fetch('/api/core-context', { method: 'POST', signal, headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify({ query: projectId ? '' : query.slice(0, 2000), recentText: recentText.slice(-3000), toolsAvailable, projectId: projectId ?? null }) });
     if (!response.ok) throw new Error('Canonical context unavailable');
     const body = await response.json() as { context: CoreContext; systemPrompt: string; selection?: ContextDecision[] };
     if (typeof body.systemPrompt !== 'string' || (!body.context.monName && useApp.getState().activeMonName)) throw new Error('Form not synchronized');
@@ -31,7 +31,15 @@ export async function resolveChatContext(token: string, query: string, toolsAvai
     prompt = compiled.systemPrompt;
     onSelection?.(compiled.selection);
   }
-  // A missing selected project is an explicit error, never an unscoped answer.
-  if (projectId) prompt += `\n\n${buildProjectContext(await loadProject(token, projectId))}`;
+  // Project metadata enriches the prompt when available. Keep the selected
+  // project boundary even if the metadata endpoint is temporarily unavailable:
+  // the canonical prompt above has already excluded global World state.
+  if (projectId && projectId !== GLOBAL_PROJECT_ID && projectId !== WORLD_PROJECT_ID) {
+    try {
+      prompt += `\n\n${buildProjectContext(await loadProject(token, projectId))}`;
+    } catch {
+      // Chat must remain usable while project metadata is unavailable.
+    }
+  }
   return prompt;
 }

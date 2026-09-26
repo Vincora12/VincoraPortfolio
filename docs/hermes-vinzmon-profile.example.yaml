@@ -1,0 +1,84 @@
+# Dedicated Hermes profile for one VINZ.MON Project workspace.
+# Replace placeholders before use. Keep this separate from the user's normal
+# Hermes profile so Hermes execution state never becomes VINZ.MON product data.
+
+model:
+  default: "gpt-oss:20b"
+  provider: "custom"
+  base_url: "http://127.0.0.1:11434/v1"
+  api_key: "ollama"
+  # Hermes requires at least a 64k advertised window for agent execution.
+  # Per-run VINZ sessions keep the actual prompt far below Ollama's live cap.
+  context_length: 131072
+
+terminal:
+  backend: "local"
+  cwd: "/ABSOLUTE/PATH/TO/THE/FFUOCO/WORKSPACE"
+  timeout: 180
+  home_mode: "profile"
+
+approvals:
+  mode: "manual"
+  deny:
+    - "*git push*"
+    - "*git merge*"
+    - "*netlify deploy*"
+    - "*vercel deploy*"
+    - "*launchctl*"
+    - "*systemctl*"
+    - "*npm install*"
+    - "*npm i *"
+    - "*pnpm add*"
+    - "*yarn add*"
+    - "*pip install*"
+    - "*brew install*"
+
+# Never let a missing language server trigger an implicit dependency install.
+lsp:
+  enabled: true
+  install_strategy: "manual"
+
+# Hermes owns agent memory, session recall and procedural skills. VINZ.MON
+# remains canonical for structured ME/Sync/Mon/Project state and exposes that
+# state through the authenticated vinzmon MCP bridge.
+memory:
+  memory_enabled: true
+  user_profile_enabled: true
+  write_approval: false
+
+skills:
+  external_dirs:
+    - "/ABSOLUTE/PATH/TO/VinzMon/data/skills"
+  write_approval: true
+
+agent:
+  # A failed search must not be able to occupy the only run slot for hundreds
+  # of model/tool cycles.
+  max_turns: 24
+  disabled_toolsets:
+    - "web"
+    - "browser"
+    - "image_gen"
+    - "tts"
+    - "cronjob"
+
+mcp_servers:
+  vinzmon:
+    command: "node"
+    args: ["/ABSOLUTE/PATH/TO/VinzMon-v2/scripts/hermes-vinz-mcp-server.mjs"]
+    env:
+      VINZMON_CORE_URL: "http://127.0.0.1:8787"
+      VINZMON_TOKEN: "${VINZMON_TOKEN}"
+    timeout: 30
+    connect_timeout: 10
+
+platform_toolsets:
+  api_server: ["terminal", "file", "memory", "session_search", "skills", "connections", "vinzmon"]
+
+gateway:
+  api_server:
+    enabled: true
+    host: "127.0.0.1"
+    port: 8642
+    key: "REPLACE_WITH_A_LONG_RANDOM_LOCAL_API_KEY"
+    max_concurrent_runs: 2

@@ -419,8 +419,21 @@ body[data-scroll-locked] {
   padding: 0.85em 1em;
   border-radius: 12px;
   background: rgba(0, 0, 0, 0.045);
+  /* Senza un max-width esplicito, un blocco di testo largo (una tabella o un
+     grafico ASCII scritti in monospace su una riga sola) fa crescere la box
+     oltre il contenitore invece di scorrere al suo interno — e siccome è un
+     figlio flessibile lungo tutta la catena dei messaggi, quella crescita
+     trascina con sé la larghezza dell'intera pagina. overflow-x:auto da solo
+     non basta a impedirlo: serve anche il limite. */
+  max-width: 100%;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
+}
+
+.aui-md img,
+.aui-md svg {
+  max-width: 100%;
+  height: auto;
 }
 
 .dark .aui-md pre {
@@ -1187,6 +1200,12 @@ body[data-scroll-locked] {
    posizione e stessa "grandezza" (26px, 11px, bordo sottile) di quella che
    c'era prima — solo un indice minuscolo, non un cockpit — ma un solo
    bottone che apre un menu invece di una riga che scorre. */
+/* 🔷 «Anche dove c'è scritto Terra deve essere come se fosse da terminale.»
+   Stessa pillola, stessa logica (VOICE_CHOICES, setModel/setEffort — vedi
+   ModelEffortPill.tsx, non toccato: qui è solo l'estetica) — niente più
+   angoli tondi, monospace, testo verde-terminale come il resto della barra
+   di contesto, di cui questa pillola ora fa parte (vedi ContextIndicatorBar
+   in chatgpt.tsx: stesso contenitore, non più una riga a sé). */
 .vinz-model-pill {
   position: relative;
   flex: 0 0 auto;
@@ -1196,22 +1215,29 @@ body[data-scroll-locked] {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  min-height: 26px;
-  padding: 0 9px;
-  border: 1px solid rgb(255 255 255 / 14%);
-  border-radius: 13px;
+  min-height: 22px;
+  padding: 0 6px;
+  border: 1px solid #3a3a3a;
+  border-radius: 0;
   background: transparent;
-  color: #9a9a9a;
+  color: #8fbf8f;
+  font-family: var(--font-mono);
   font-size: 11px;
   line-height: 1.2;
   white-space: nowrap;
   cursor: pointer;
 }
 
+.vinz-model-pill > button::before {
+  content: "MODEL ";
+  color: #6b6b6b;
+}
+
 .vinz-model-pill > button:active,
 .vinz-model-pill > button[aria-expanded="true"] {
   color: #ececec;
-  border-color: rgb(255 255 255 / 32%);
+  border-color: #8fbf8f;
+  background: #171717;
 }
 
 .vinz-model-pill__menu {
@@ -1222,17 +1248,19 @@ body[data-scroll-locked] {
   margin-bottom: 6px;
   min-width: 168px;
   padding: 8px;
-  border: 1px solid rgb(255 255 255 / 14%);
-  border-radius: 12px;
-  background: #161616;
+  border: 1px solid #3a3a3a;
+  border-radius: 0;
+  background: #0a0a0a;
   box-shadow: 0 8px 24px rgb(0 0 0 / 40%);
+  font-family: var(--font-mono);
 }
 
 .vinz-model-pill__heading {
   margin: 6px 4px 4px;
   color: #6b6b6b;
   font-size: 10px;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .vinz-model-pill__heading:first-child {
@@ -1246,21 +1274,21 @@ body[data-scroll-locked] {
 }
 
 .vinz-model-pill__options > button {
-  min-height: 28px;
-  padding: 0 10px;
-  border: 1px solid transparent;
-  border-radius: 10px;
-  background: rgb(255 255 255 / 6%);
-  color: #d4d4d4;
-  font-size: 12px;
+  min-height: 26px;
+  padding: 0 8px;
+  border: 1px solid #2a2a2a;
+  border-radius: 0;
+  background: transparent;
+  color: #9a9a9a;
+  font-size: 11px;
   white-space: nowrap;
   cursor: pointer;
 }
 
 .vinz-model-pill__options > button[aria-current] {
-  border-color: rgb(255 255 255 / 32%);
-  background: rgb(255 255 255 / 12%);
-  color: #ececec;
+  border-color: #8fbf8f;
+  background: #171717;
+  color: #8fbf8f;
   font-weight: 600;
 }
 
@@ -1460,3 +1488,58 @@ body[data-scroll-locked] {
   font-size: 12px;
   color: #ff8b84;
 }
+
+/* Vinz.World uses the former context strip for the current scene and combat. */
+.vinz-world-event-bar {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding: 7px 10px;
+  border: 1px solid #333;
+  background: #0a0a0a;
+  color: #d8d8d8;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.vinz-world-event-bar__heading,
+.vinz-world-event-bar__hp {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.vinz-world-event-bar__heading strong {
+  color: var(--char-accent-on-dark, #f58ab9);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.vinz-world-event-bar__heading > span,
+.vinz-world-event-bar__progress,
+.vinz-world-event-bar__fighter {
+  color: #a4a4a4;
+}
+
+.vinz-world-event-bar__heading > span { white-space: nowrap; }
+.vinz-world-event-bar p { margin: 0; overflow-wrap: anywhere; }
+.vinz-world-event-bar__progress { font-size: 10px; letter-spacing: 0.04em; }
+.vinz-world-event-bar__hp { gap: 10px; padding-top: 3px; border-top: 1px solid #292929; }
+.vinz-world-event-bar__hp > span { min-width: 0; display: flex; gap: 4px; flex-wrap: wrap; }
+.vinz-world-event-bar__hp b { color: #f0f0f0; font-weight: 600; white-space: nowrap; }
+.vinz-world-event-bar__fighter { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Four contextual quest actions, only while Vinz.World is in combat. */
+.vinz-combat-moves { display: grid; gap: 6px; min-width: 0; }
+.vinz-combat-moves__intro { color: var(--char-accent-on-dark, #f58ab9); font-family: var(--font-mono); font-size: 10px; letter-spacing: .06em; }
+.vinz-combat-moves__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.vinz-combat-moves__grid button { min-width: 0; border: 1px solid #3a3a3a; border-radius: 8px; background: #171717; padding: 8px 10px; color: #ececec; font-size: 12px; text-align: left; }
+.vinz-combat-moves__grid button small { display: block; margin-top: 2px; color: #aaa; font-size: 10px; line-height: 1.25; }
+.vinz-combat-moves__grid button:hover:not(:disabled) { border-color: var(--char-accent-on-dark, #f58ab9); }
+.vinz-combat-moves__grid button:disabled { opacity: .45; }
+
+.vinz-world-event-bar__retry { justify-self: start; border: 1px solid var(--char-accent-on-dark, #f58ab9); border-radius: 6px; background: #171717; padding: 6px 10px; color: var(--char-accent-on-dark, #f58ab9); font-size: 11px; font-weight: 600; }
+.vinz-world-event-bar__retry:hover { background: #252025; }

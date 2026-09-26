@@ -26,6 +26,7 @@ import { applyPaletteDna } from './engine/colorDna';
 import { applySkin } from './engine/skin';
 import { applyLayout } from './engine/layout';
 import { preloadMonAssets, syncAssetsWithServer } from './assets-pipeline/assetStore';
+import { assetOwnerKey } from './assets-pipeline/assetIdentity';
 import { Icon } from './system/Icon';
 import { setLocalStorageItem } from './system/localStorageDiagnostics';
 import { haptic } from './system/haptics';
@@ -61,6 +62,7 @@ import { DailySurface } from './daily/DailySurface';
 import { ThoughtBubble, ThoughtBalloon } from './system/ThoughtBalloon';
 import { currentAnnouncement, dismissAnnouncement, subscribeAnnouncements } from './system/announcements';
 import { ProjectPill, type ProjectRef } from './assistant-original/ProjectPill';
+import { WORLD_PROJECT_ID, WORLD_PROJECT_TITLE } from './engine/projects';
 const IntegratedChat = lazy(() => import('./assistant-original/IntegratedChat').then((module) => ({ default: module.IntegratedChat })));
 /* Il cassetto di VINZ.LAB (§14-19) — `LabEmbed` monta i componenti nativi
    del lab in uno shadow root; caricato solo quando il cassetto viene
@@ -184,9 +186,14 @@ export function App() {
   const resumeFormEvolution = useApp((s) => s.resumeFormEvolution);
   const evolutionJob = useApp((s) => s.evolutionJob);
   const token = useApp((s) => s.token);
+  const lifeEvent = useApp((s) => s.ledger.lifeEvent);
+  const questActive = useApp((s) => s.ledger.quest?.status === 'investigate' || s.ledger.quest?.status === 'combat');
+  const completedQuest = useApp((s) => s.ledger.quest?.status === 'complete' ? s.ledger.quest : null);
+  const revealFormEvolution = useApp((s) => s.revealFormEvolution);
   const catchUpToRealDay = useApp((s) => s.catchUpToRealDay);
   const bootNeedsChat = useRef(phase === 'live').current;
   const [chatReady, setChatReady] = useState(false);
+  const [stateSyncReady, setStateSyncReady] = useState(false);
   const handleChatReady = useCallback(() => setChatReady(true), []);
 
   useEffect(() => {
@@ -222,6 +229,16 @@ export function App() {
     resumeFormEvolution();
   }, [resumeFormEvolution, evolutionJob?.serverJobId, evolutionJob?.status]);
 
+  useEffect(() => {
+    if (!stateSyncReady || phase !== 'live' || !completedQuest || completedQuest.completionReplyPending || evolutionJob?.status !== 'ready'
+      || evolutionJob.kind !== (completedQuest.kind === 'TUNE' ? 'evolution' : 'mega-evolution')
+      || evolutionJob.previousName !== activeMonName) return;
+    const current = useApp.getState();
+    if (completedQuest.worldId !== current.world?.id
+      || completedQuest.monNodeId !== current.mons[activeMonName ?? '']?.data.mindline_node) return;
+    revealFormEvolution();
+  }, [stateSyncReady, phase, completedQuest, evolutionJob, activeMonName, revealFormEvolution]);
+
   /* Pipeline Toy v2: le prime generazioni potevano conservare il rendering
      CEL pur essendo archiviate nello slot Toy. Si corregge una volta sola,
      usando il Master esistente e senza ricreare evoluzione, doodle o sticker. */
@@ -229,7 +246,7 @@ export function App() {
     if (!token || !activeMonName || evolutionJob?.status === 'running') return;
     const record = useApp.getState().mons[activeMonName];
     if (!record || record.data.asset_manifest_status.character_master !== 'resolved') return;
-    const migrationKey = `vinzmon:toy-pipeline-v2:${activeMonName}`;
+    const migrationKey = `vinzmon:toy-pipeline-v2:${assetOwnerKey(record)}`;
     if (localStorage.getItem(migrationKey) === 'ready' || toyRefreshes.has(activeMonName)) return;
     toyRefreshes.add(activeMonName);
     void import('./assets-pipeline/remoteGeneration')
@@ -245,6 +262,10 @@ export function App() {
   const [tab, setTab] = useState<Tab>('chat');
   const [overlay, setOverlay] = useState<Overlay>(null);
   const [visibleInsight, setVisibleInsight] = useState<InsightView | null>(null);
+  const [visibleLifeEventId, setVisibleLifeEventId] = useState<string | null>(null);
+  const [lifeEventStep, setLifeEventStep] = useState<'narrator' | 'mon'>('narrator');
+  const dismissedLifeEvents = useRef(new Set<string>());
+  const requestedLifeEventId = useRef(new URLSearchParams(window.location.search).get('lifeEvent'));
 
   /* 🔶 QUESTO STATO DICEVA «creatura o chat». Non serve più a quello: la chat
      è una tab sua. Adesso dice quale delle quattro viste di MON stai
@@ -458,7 +479,10 @@ export function App() {
 
   // Gli asset importati vivono in IndexedDB: vanno ricaricati a ogni avvio.
   useEffect(() => {
-    if (activeMonName) void preloadMonAssets(activeMonName);
+    if (activeMonName) {
+      const record = useApp.getState().mons[activeMonName];
+      if (record) void preloadMonAssets(assetOwnerKey(record));
+    }
   }, [activeMonName]);
 
   /* 🔷 v1.13 §20 — all'avvio si guarda se il server ha più storia di questo
@@ -471,6 +495,7 @@ export function App() {
      sempre, anche quando il telefono è quello più avanti. */
   useEffect(() => {
     void syncWithServer().then(async (outcome) => {
+      setStateSyncReady(true);
       if (outcome === 'scaricato') console.info('[sync] ripreso il salvataggio dal server');
       const token = useApp.getState().token;
       if (token) await syncAssetsWithServer(token);
@@ -520,7 +545,7 @@ export function App() {
          arrivati: «la giornata è quasi chiusa» ha senso solo dopo aver
          guardato cosa hanno lasciato le Shortcut stanotte. */
       maybeSpeakFirst();
-    });
+    }).catch(() => setStateSyncReady(true));
   }, [token]);
 
   /* ============================================================================
@@ -602,6 +627,39 @@ export function App() {
   // ne va quando sale la tastiera, senza un render in mezzo.
   const hasTabBar = phase === 'live' && overlay !== 'dev' && overlay !== 'activate';
   const bootReady = !bootNeedsChat || chatReady;
+
+  useEffect(() => {
+    if (questActive) setVisibleLifeEventId(null);
+  }, [questActive]);
+
+  useEffect(() => {
+    if (!bootReady || phase !== 'live' || questActive || visibleInsight || visibleLifeEventId || lifeEvent?.status !== 'open') return;
+    const requested = requestedLifeEventId.current === lifeEvent.id;
+    if (dismissedLifeEvents.current.has(lifeEvent.id)) return;
+    try {
+      if (!requested && localStorage.getItem(`vinzmon:life-event-intro:${lifeEvent.id}`) === 'seen') return;
+    } catch { /* local cache unavailable: the session guard still prevents repeats */ }
+    requestedLifeEventId.current = null;
+    setLifeEventStep('narrator');
+    setVisibleLifeEventId(lifeEvent.id);
+  }, [bootReady, lifeEvent?.id, lifeEvent?.status, phase, questActive, visibleInsight, visibleLifeEventId]);
+
+  const closeLifeEventIntro = () => {
+    if (visibleLifeEventId) {
+      dismissedLifeEvents.current.add(visibleLifeEventId);
+      try { localStorage.setItem(`vinzmon:life-event-intro:${visibleLifeEventId}`, 'seen'); } catch { /* best effort */ }
+    }
+    setVisibleLifeEventId(null);
+  };
+
+  const enterLifeEvent = () => {
+    closeLifeEventIntro();
+    setOverlay(null);
+    setTab('chat');
+    window.dispatchEvent(new CustomEvent('vinz-select-project', {
+      detail: { id: WORLD_PROJECT_ID, title: WORLD_PROJECT_TITLE },
+    }));
+  };
 
   return (
     <div className="proto-stage">
@@ -710,6 +768,15 @@ export function App() {
         insight={visibleInsight}
         onClose={() => setVisibleInsight(null)}
         onDiscuss={() => discussInsight(visibleInsight)}
+      />}
+      {!questActive && lifeEvent?.status === 'open' && lifeEvent.id === visibleLifeEventId && <ThoughtBalloon
+        titleId="life-event-intro-title"
+        kicker={lifeEventStep === 'narrator' ? 'VINZ.WORLD · UN NUOVO EVENTO' : activeMonName?.toLocaleUpperCase('it') ?? 'VINZ.MON'}
+        statement={lifeEventStep === 'narrator' ? lifeEvent.observedFact : lifeEvent.openingLine}
+        visual={lifeEventStep === 'narrator' ? 'world' : 'mon'}
+        actionLabel={lifeEventStep === 'narrator' ? 'AVANTI' : 'ENTRA IN VINZ.WORLD'}
+        onAction={lifeEventStep === 'narrator' ? () => setLifeEventStep('mon') : enterLifeEvent}
+        onClose={closeLifeEventIntro}
       />}
       {activeMonName && phase !== 'form-evolution' && <NewBranchScreen />}
       <AnnouncementBalloon />

@@ -2,6 +2,8 @@ import type { AssetType, MonRecord } from '../engine/types';
 import { generationOrder, assetTypeDef } from '../engine/assets';
 import { promptFor } from './promptFor';
 import { importAssetFile } from './assetStore';
+import { assetOwnerKey } from './assetIdentity';
+import { browserUuid } from '../system/browserUuid';
 
 export type RemoteEvolutionStatus = {
   events?: { at:string; text:string }[];
@@ -31,7 +33,7 @@ export async function queueRemoteGeneration(token: string, jobId: string, record
   const response = await fetch('/api/evolution-background', {
     method: 'POST',
     headers: headers(token),
-    body: JSON.stringify({ jobId, candidateName: record.data.name, imageModel, quality, items }),
+    body: JSON.stringify({ jobId, candidateName: record.data.name, assetOwnerId: assetOwnerKey(record), imageModel, quality, items }),
   });
   if (!response.ok && response.status !== 202) throw new Error(`Avvio server non riuscito (${response.status})`);
 }
@@ -67,7 +69,7 @@ export async function pollRemoteGeneration(
         if (!image.ok) return { made, error: `Download ${asset.assetId} non riuscito` };
         const blob = await image.blob();
         const def = assetTypeDef(asset.type);
-        await importAssetFile(record, new File([blob], `${def.assetId}.png`, { type: 'image/png' }), def.assetId);
+        await importAssetFile(record, new File([blob], `${def.assetId}.png`, { type: 'image/png' }), def.assetId, true);
         made.push(asset.type);
       }
       return { made, error: null };
@@ -84,7 +86,7 @@ export async function refreshToyAsset(
   record: MonRecord,
   imageModel?: string | null,
 ): Promise<void> {
-  const jobId = crypto.randomUUID();
+  const jobId = browserUuid();
   await queueRemoteGeneration(token, jobId, record, imageModel, ['character_toy']);
   const result = await pollRemoteGeneration(token, jobId, record, () => undefined);
   if (result.error) throw new Error(result.error);

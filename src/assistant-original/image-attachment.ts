@@ -7,6 +7,7 @@ import { savedToken } from "../brain/stream";
 import { getCurrentProjectScope } from "../state/currentProject";
 import { uploadWorkspaceFile } from "../connectors/vinzWorkspace";
 import { GLOBAL_PROJECT_ID } from "../engine/projects";
+import { extractSpreadsheetText } from "./spreadsheet";
 
 /* 🔷 «Quando gli mando foto e pdf bisogna che si carichino automaticamente
    nella cartella del progetto.» Prima restavano solo nella chat — un
@@ -15,14 +16,18 @@ import { GLOBAL_PROJECT_ID } from "../engine/projects";
    con `GLOBAL_PROJECT_ID`) resta per sempre. Un salvataggio in più, non al
    posto di quello in chat: se fallisce (rete assente, server non locale) il
    messaggio parte comunque — non è mai motivo per bloccare l'invio. */
-function saveToProjectWorkspace(name: string, dataUrl: string): void {
+async function persistToProjectWorkspace(name: string, dataUrl: string): Promise<void> {
   const token = savedToken();
   if (!token) return;
   const scope = getCurrentProjectScope();
   const workspaceId = scope.projectId ?? GLOBAL_PROJECT_ID;
   const workspaceTitle = scope.projectId ? scope.projectTitle : "Generale";
   const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
-  void uploadWorkspaceFile(token, workspaceId, workspaceTitle, name, base64).catch(() => {});
+  await uploadWorkspaceFile(token, workspaceId, workspaceTitle, name, base64);
+}
+
+function saveToProjectWorkspace(name: string, dataUrl: string): void {
+  void persistToProjectWorkspace(name, dataUrl).catch(() => {});
 }
 
 const dataUrlOf = (file: File): Promise<string> => new Promise((resolve, reject) => {
@@ -31,6 +36,18 @@ const dataUrlOf = (file: File): Promise<string> => new Promise((resolve, reject)
   reader.onerror = () => reject(reader.error ?? new Error("Foto non leggibile"));
   reader.readAsDataURL(file);
 });
+
+const XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+const MAX_SPREADSHEET_BYTES = 10 * 1024 * 1024;
+
+function base64Text(value: string): string {
+  const bytes = new TextEncoder().encode(value);
+  let binary = "";
+  for (let index = 0; index < bytes.length; index += 8192) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + 8192));
+  }
+  return btoa(binary);
+}
 
 const loadImage = (file: File): Promise<HTMLImageElement> => new Promise((resolve, reject) => {
   const url = URL.createObjectURL(file);
@@ -128,6 +145,42 @@ export class VinzPdfAttachmentAdapter implements AttachmentAdapter {
         filename: attachment.name,
         mimeType: "application/pdf",
         data: url.slice(url.indexOf(",") + 1),
+      }],
+    };
+  }
+
+  async remove() {}
+}
+
+/** XLSX: salva l'originale nel progetto e passa all'AI una copia testuale leggibile. */
+export class VinzSpreadsheetAttachmentAdapter implements AttachmentAdapter {
+  accept = `.xlsx,${XLSX_MIME}`;
+
+  async add({ file }: { file: File }): Promise<PendingAttachment> {
+    if (file.size > MAX_SPREADSHEET_BYTES) throw new Error("Foglio Excel troppo grande: massimo 10 MB");
+    return {
+      id: crypto.randomUUID?.() ?? `${Date.now()}-${Math.random()}`,
+      type: "document",
+      name: file.name,
+      contentType: XLSX_MIME,
+      file,
+      status: { type: "requires-action", reason: "composer-send" },
+    };
+  }
+
+  async send(attachment: PendingAttachment): Promise<CompleteAttachment> {
+    const original = await dataUrlOf(attachment.file);
+    const text = await extractSpreadsheetText(await attachment.file.arrayBuffer());
+    void persistToProjectWorkspace(attachment.name, original).catch(() => {});
+    const { file: _file, ...rest } = attachment;
+    return {
+      ...rest,
+      status: { type: "complete" },
+      content: [{
+        type: "file",
+        filename: `${attachment.name}.txt`,
+        mimeType: "text/plain",
+        data: base64Text(`CONTENUTO ESTRATTO DA ${attachment.name}\n\n${text}`),
       }],
     };
   }

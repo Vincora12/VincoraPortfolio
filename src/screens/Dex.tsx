@@ -41,6 +41,7 @@ import { SplashScreen } from './Splash';
 import { BioPanel } from './BioPanel';
 import { ASSET_TYPES } from '../engine/assets';
 import { keepAssetsOf } from '../assets-pipeline/assetStore';
+import { assetOwnerKey } from '../assets-pipeline/assetIdentity';
 
 export function DexScreen({ onGo: _onGo, onOpenMon }: { onGo: (o: Overlay) => void; onOpenMon: () => void }) {
   const mons = useApp((s) => s.mons);
@@ -100,7 +101,7 @@ export function DexScreen({ onGo: _onGo, onOpenMon }: { onGo: (o: Overlay) => vo
   // l'apertura della scheda li recupera e li archivia nel namespace kept/.
   useEffect(() => {
     if (!previewingKept || !selectedKept) return;
-    void keepAssetsOf(selectedKept.record.data.name);
+    void keepAssetsOf(assetOwnerKey(selectedKept.record));
   }, [previewingKept, selectedKept]);
 
   if (previewingKept && selectedKept) {

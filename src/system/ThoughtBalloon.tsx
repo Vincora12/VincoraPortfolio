@@ -30,12 +30,14 @@ export function ThoughtBubble({
   titleId,
   actionLabel,
   onAction,
+  visual = 'mon',
 }: {
   kicker: string;
   statement: string;
   titleId: string;
   actionLabel?: string;
   onAction?: () => void;
+  visual?: 'mon' | 'world';
 }): ReactNode {
   const activeMonName = useApp((state) => state.activeMonName ?? 'VINZ.MON');
   const art = useAssetUrlChain(activeMonName, ['reaction_pack', 'character_master']);
@@ -51,7 +53,11 @@ export function ThoughtBubble({
           </button>
         ) : null}
       </div>
-      <div className="machine-insight-balloon__mon" aria-label={activeMonName}>
+      {visual === 'world' ? (
+        <div className="machine-insight-balloon__world" aria-hidden="true">
+          <svg viewBox="0 0 120 120" fill="none"><path d="M30 100V53a30 30 0 0 1 60 0v47M43 100V53a17 17 0 0 1 34 0v47M20 100h80" stroke="currentColor" strokeWidth="3" strokeLinecap="round" /><path d="M60 11v9M16 49h9M95 49h9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
+        </div>
+      ) : <div className="machine-insight-balloon__mon" aria-label={activeMonName}>
         {art.url && art.resolvedType === 'reaction_pack' ? (
           <span
             aria-hidden="true"
@@ -66,7 +72,7 @@ export function ThoughtBubble({
         ) : (
           <strong>{activeMonName}</strong>
         )}
-      </div>
+      </div>}
     </>
   );
 }
@@ -79,6 +85,7 @@ export function ThoughtBalloon({
   onAction,
   onClose,
   titleId = 'thought-balloon-title',
+  visual = 'mon',
 }: {
   kicker: string;
   statement: string;
@@ -86,6 +93,7 @@ export function ThoughtBalloon({
   onAction?: () => void;
   onClose: () => void;
   titleId?: string;
+  visual?: 'mon' | 'world';
 }) {
   const dialogRef = useRef<HTMLElement>(null);
 
@@ -141,7 +149,7 @@ export function ThoughtBalloon({
     >
       <section
         ref={dialogRef}
-        className="machine-insight-balloon"
+        className={`machine-insight-balloon${visual === 'world' ? ' machine-insight-balloon--world' : ''}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
@@ -156,6 +164,7 @@ export function ThoughtBalloon({
           titleId={titleId}
           actionLabel={actionLabel}
           onAction={onAction}
+          visual={visual}
         />
       </section>
     </div>

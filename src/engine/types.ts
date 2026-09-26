@@ -409,6 +409,10 @@ export interface MindlineNode {
 /* --- RECORD COMPLETO --------------------------------------------------------- */
 
 export interface MonRecord {
+  /** Permanent asset namespace for this form; absent in saves made before asset IDs. */
+  assetOwnerId?: string;
+  /** Balanced game style frozen when this form is born; independent of live health. */
+  combatProfile?: import('./worldGame').CombatProfile;
   /** Stable provenance, using existing MindMap node ids and Heritage. */
   transition?: { kind: 'BABY' | 'TUNE' | 'RISE' | 'BREED'; parentNodeIds: string[]; previousWorldId?: string; wish?: string };
   narratorVersion?: number;

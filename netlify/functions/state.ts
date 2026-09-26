@@ -25,6 +25,7 @@
 
 import { getStore } from './_shared/localStore';
 import { authorize, denied, json } from './_shared/auth';
+import { sendPushNotification } from './_shared/pushDelivery';
 
 const KEY = 'save';
 
@@ -53,6 +54,14 @@ interface Save {
   savedAt: string;
   /** Lo stato dell'app, opaco per il server. */
   state: unknown;
+}
+
+function openLifeEventId(state: unknown): string | null {
+  if (!state || typeof state !== 'object') return null;
+  const snapshot = state as { world?: { id?: unknown }; ledger?: { lifeEvent?: { id?: unknown; worldId?: unknown; status?: unknown } } };
+  const event = snapshot.ledger?.lifeEvent;
+  return event?.status === 'open' && typeof event.id === 'string' && event.id.length > 0 && event.id.length <= 160
+    && typeof event.worldId === 'string' && event.worldId === snapshot.world?.id ? event.id : null;
 }
 
 const store = () => getStore({ name: 'vinzmon-state', consistency: 'strong' });
@@ -151,6 +160,14 @@ export default async function handler(request: Request): Promise<Response> {
      guarderai mai — ma se un bug corrompe il salvataggio di oggi, ieri c'è
      ancora, ed è la differenza fra un fastidio e la fine della partita. */
   try { await store().setJSON(`day-${incoming.day}`, save); } catch { console.warn('[state] daily backup unavailable; canonical save confirmed'); }
+
+  const lifeEventId = openLifeEventId(save.state);
+  if (lifeEventId && lifeEventId !== openLifeEventId(existing?.state)) {
+    try {
+      await sendPushNotification({ title: 'Vinz.World', body: 'Un nuovo evento è iniziato. Entra per scoprirlo.',
+        url: `/?lifeEvent=${encodeURIComponent(lifeEventId)}`, tag: `vinzmon-life-event-${lifeEventId}` });
+    } catch { console.warn('[state] notifica evento non disponibile'); }
+  }
 
   /* `payloadBytes`/`limitBytes` sulla risposta buona, non solo sul 413: è lo
      stesso numero (`MAX_BYTES`) che decide il rifiuto, mai un duplicato

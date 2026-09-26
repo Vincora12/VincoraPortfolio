@@ -18,6 +18,7 @@ import { Button, Row, SystemLabel } from '../system/components';
 import { ASSET_TYPES, assetTypeDef } from '../engine/assets';
 import type { AssetType, MonRecord } from '../engine/types';
 import { buildManifest } from '../assets-pipeline/manifest';
+import { assetOwnerKey } from '../assets-pipeline/assetIdentity';
 import { generationOrder } from '../assets-pipeline/generate';
 import { CopyButton } from '../system/CopyButton';
 import { NoMon } from './NoMon';
@@ -126,7 +127,7 @@ export function AssetImport() {
   };
 
   const drop = async (type: AssetType) => {
-    await removeAsset(mon.data.name, type);
+    await removeAsset(assetOwnerKey(mon), type);
     markAssetWaiting(mon.data.name, type);
   };
 

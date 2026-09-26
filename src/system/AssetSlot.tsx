@@ -25,6 +25,7 @@ import {
   subscribeToAssets,
 } from '../assets-pipeline/assetStore';
 import { ScannerFrame } from './components';
+import { useApp } from '../state/store';
 
 /* --- Hook ------------------------------------------------------------------ */
 
@@ -39,15 +40,16 @@ export function useAssetsSynced(): boolean {
 
 /** URL dell'asset, o `null` finché non è stato importato. */
 export function useAssetUrl(monName: string, type: AssetType): string | null {
+  const owner = useApp((state) => state.mons[monName]?.assetOwnerId ?? monName);
   const url = useSyncExternalStore(
     subscribeToAssets,
-    () => getAssetUrlSync(monName, type),
+    () => getAssetUrlSync(owner, type),
     () => null,
   );
 
   useEffect(() => {
-    void loadAsset(monName, type);
-  }, [monName, type]);
+    void loadAsset(owner, type);
+  }, [owner, type]);
 
   return url;
 }
@@ -61,18 +63,19 @@ export function useAssetUrlChain(monName: string, types: AssetType[]): {
   url: string | null;
   resolvedType: AssetType | null;
 } {
+  const owner = useApp((state) => state.mons[monName]?.assetOwnerId ?? monName);
   const urls = useSyncExternalStore(
     subscribeToAssets,
-    () => types.map((t) => getAssetUrlSync(monName, t)).join('|'),
+    () => types.map((t) => getAssetUrlSync(owner, t)).join('|'),
     () => types.map(() => '').join('|'),
   );
 
   useEffect(() => {
-    types.forEach((t) => void loadAsset(monName, t));
+    types.forEach((t) => void loadAsset(owner, t));
     // `types` è un array letterale a ogni render: la chiave stabile è la sua
     // forma serializzata.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [monName, types.join('|')]);
+  }, [owner, types.join('|')]);
 
   const parts = urls.split('|');
   const index = parts.findIndex((u) => u.length > 0);

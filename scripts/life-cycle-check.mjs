@@ -7,7 +7,7 @@ import { join } from 'node:path';
 const dir = mkdtempSync(join(tmpdir(), 'vinz-life-check-'));
 const entry = join(dir, 'entry.ts');
 const out = join(dir, 'entry.mjs');
-writeFileSync(entry, `export * from '${process.cwd()}/src/engine/lifeCycle.ts'; export { emptyLedger, ledgerBlock } from '${process.cwd()}/src/engine/world.ts'; export { buildNarrativeContext, narrativeContextBlock } from '${process.cwd()}/src/engine/narrativeContext.ts';`);
+writeFileSync(entry, `export * from '${process.cwd()}/src/engine/lifeCycle.ts'; export { emptyLedger, ledgerBlock, worldInquiry } from '${process.cwd()}/src/engine/world.ts'; export { buildNarrativeContext, narrativeContextBlock } from '${process.cwd()}/src/engine/narrativeContext.ts';`);
 await build({ entryPoints: [entry], bundle: true, platform: 'node', format: 'esm', outfile: out, logLevel: 'silent' });
 const life = await import(`file://${out}`);
 
@@ -32,6 +32,8 @@ const acceptedFact = life.acceptLifeEvent(context(world(), life.emptyLedger(), 1
 assert(acceptedFact && !acceptedFact.world.canon.some(c => c.text.includes('Costruisco')), 'D: user fact not copied into canon');
 const contradicted = world(); contradicted.canon.push({ id: 'no-bridge', day: 1, kind: 'connection', epistemic: 'WORLD_CANON', text: 'Qui non esiste alcun ponte di legno.', monName: 'v.test.mon' });
 assert(life.validateLifeEvent(proposal(contradicted, 'Un ponte di legno appare davanti al Mon.'), context(contradicted)).includes('canon-contradiction'), 'F: canon contradiction rejected');
+assert(life.validateLifeEvent(proposal(world(), 'Vedrai un veleth camminare sulla spiaggia vicino a te.'), context()).includes('future-scene'), 'An event must describe what happens now, not predict what the player will see');
+assert(!life.validateLifeEvent(proposal(world(), 'Un veleth cammina sulla spiaggia vicino a te.'), context()).includes('future-scene'), 'A present-tense observed event remains valid');
 const noPaths = world(); noPaths.canon.push({ id: 'no-paths', day: 1, kind: 'connection', epistemic: 'WORLD_CANON', text: 'Non ci sono sentieri antichi nella valle silenziosa.', monName: 'v.test.mon' });
 assert(!life.validateLifeEvent(proposal(noPaths, 'Una luce scivola nella valle silenziosa.'), context(noPaths)).includes('canon-contradiction'), 'shared location words are not an absent entity');
 assert(life.validateLifeEvent(proposal(noPaths, 'Un sentiero antico appare nella valle silenziosa.'), context(noPaths)).includes('canon-contradiction'), 'singular assertion of a canonically absent entity is rejected');
@@ -55,10 +57,19 @@ assert.deepEqual(life.lifeReferenceCatalog(factContext).personalFacts.map(f => f
 assert(life.validateLifeEvent({ ...proposal(world()), memoryRefsUsed: ['mem-3'] }, factContext).includes('unknown-ref'), 'undisplayed user fact ID is rejected');
 const started = life.acceptLifeEvent(context(), proposal(world()));
 assert(started && started.world.canon.at(-1).kind === 'life-event' && started.ledger.lifeEvent.status === 'open', 'G: event enters life');
+assert(life.worldInquiry(started.world).question && !life.worldInquiry(started.world).answer, 'World question starts open');
 assert.equal(life.canStartLifeEvent(mon(), started.world, started.ledger, 1), false, 'J: open event not regenerated');
 const action = { intent: 'narrative_action', eventId: started.id, worldId: started.world.id, playerActionQuote: 'mi avvicino', observedConsequence: 'L’ombra si ferma mentre il Mon si avvicina alla pietra.', signal: 'initiative' };
 const ended = life.acceptLifeConsequence(started.world, started.ledger, 1, 'message-1', 'mi avvicino con il Mon', action);
 assert(ended && ended.world.canon.at(-1).kind === 'life-consequence', 'H: action produces consequence');
+assert(!life.worldInquiry(ended.world).answer, 'ordinary consequence does not answer the World question automatically');
+const groundedAnswer = { ...action, worldQuestionAnswer: 'L’ombra reagisce quando ci avviciniamo alla pietra.', answerEvidenceQuote: 'L’ombra si ferma mentre il Mon si avvicina alla pietra.', sceneStatus: 'resolved' };
+assert(life.validateLifeConsequence({ ...groundedAnswer, answerEvidenceQuote: 'Una porta si apre altrove.' }, 'message-answer', 'mi avvicino', started.world, started.ledger).includes('world-answer-evidence'), 'World answer needs an exact consequence quote');
+const answered = life.acceptLifeConsequence(started.world, started.ledger, 1, 'message-answer', 'mi avvicino', groundedAnswer);
+assert.equal(answered?.world.inquiry?.answer, groundedAnswer.worldQuestionAnswer, 'validated action records the Mon’s provisional answer');
+assert.equal(answered?.world.inquiry?.evidenceEventId, answered?.world.canon.at(-1)?.id, 'answer cites the accepted canon event');
+assert.equal(JSON.parse(JSON.stringify(answered)).world.inquiry.answer, groundedAnswer.worldQuestionAnswer, 'World answer persists after reload');
+assert(life.validateLifeConsequence(groundedAnswer, 'message-reanswer', 'mi avvicino', answered.world, started.ledger).includes('world-answer'), 'a found answer cannot be silently rewritten');
 assert.equal(life.acceptLifeConsequence(ended.world, ended.ledger, 1, 'message-1', 'mi avvicino con il Mon', action), null, 'K: idempotence');
 assert.equal(life.validateLifeConsequence({ ...action, intent: 'assistant_request' }, 'message-2', 'che ore sono?', started.world, started.ledger).includes('not-action'), true, 'I: assistant request unaffected');
 assert.equal(life.mightActInLife('che ore sono?'), false, 'I: ordinary request does not invoke narrative classifier');

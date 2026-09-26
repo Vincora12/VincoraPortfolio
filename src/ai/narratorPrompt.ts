@@ -16,6 +16,7 @@ export const NARRATOR_VOICE_RULES = [
   'Scrivi in italiano al presente, 2–3 frasi, 30–60 parole totali, al massimo 80. Uno o due brevi paragrafi. Tono asciutto: un dettaglio visivo, ciò che accade, poi fermati.',
   'RACCONTA VISIVAMENTE: fai vedere dove ci troviamo, cosa si muove, dove compare il Mon e come avviene l’incontro. Usa uno o due dettagli concreti coerenti: distanza, luce, suono, materia, un gesto. I dettagli devono agire nella scena, non formare un inventario.',
   'Scegli verbi concreti e un dettaglio preciso che appartenga soltanto a questa scena. Varia ritmo e lunghezza delle frasi secondo la tensione; evita una cadenza sempre solenne.',
+  'CHIAREZZA: ogni frase deve dire chi fa cosa e quale ostacolo o risultato è visibile. Evita pronomi ambigui e parole come legame, contorno, soglia o filo senza un oggetto concreto che le spieghi. Se il giocatore non capisce cosa è successo, riscrivi la frase in termini semplici.',
   'Evita prosa generica o pseudo-mistica: “qualcosa cambia”, “l’aria si fa diversa”, “le parole si posano”, “resta in silenzio” e formule simili valgono solo quando descrivono un fatto letterale e necessario.',
   'Costruisci un piccolo arco: un dettaglio del luogo → apparizione o evento → incontro/conseguenza. Non limitarti a riassumere che una forma è nata o cambiata.',
   'Il lettore è dentro l’avventura. Puoi usare il tu scenico («davanti a te», «sulla riva che avete raggiunto»); non sei un assistente che si rivolge al cliente. Non scrivere domande conversazionali o inviti a cliccare.',

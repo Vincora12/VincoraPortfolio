@@ -12,6 +12,7 @@
 import { ASSET_TYPES, IDLE_SPEC } from '../engine/assets';
 import type { MonRecord } from '../engine/types';
 import { displayName } from '../engine/types';
+import { assetOwnerKey } from './assetIdentity';
 
 export interface ManifestEntry {
   asset_id: string;
@@ -34,6 +35,7 @@ export interface AssetManifest {
   mon: string;
   /** Nodo Mindline di appartenenza: il pacchetto non è ambiguo. */
   mindline_node: string;
+  asset_owner_id?: string;
   appearance: string;
   generated_at_day: number;
   /** Versione del contratto di manifest, per gli import futuri. */
@@ -73,7 +75,7 @@ const SLUG = (name: string) => displayName(name).toLowerCase();
 
 /** Nome file atteso per un asset. L'import lo usa per il match automatico. */
 export function expectedFileName(record: MonRecord, assetId: string): string {
-  return `${SLUG(record.data.name)}_${SUFFIXES[assetId] ?? assetId}.png`;
+  return `${SLUG(assetOwnerKey(record))}_${SUFFIXES[assetId] ?? assetId}.png`;
 }
 
 const SUFFIXES: Record<string, string> = {
@@ -130,6 +132,7 @@ export function buildManifest(record: MonRecord): AssetManifest {
   return {
     mon: record.data.name,
     mindline_node: record.data.mindline_node,
+    ...(record.assetOwnerId ? { asset_owner_id: record.assetOwnerId } : {}),
     appearance: record.data.appearance,
     generated_at_day: record.data.generated_at_day,
     manifest_version: '1.2',
@@ -162,7 +165,7 @@ export function resolveAssetIdFromFileName(
   if (byId) return byId.asset_id;
 
   const bySuffix = manifest.assets.find((a) => {
-    const suffix = suffixOf(a.file, `${SLUG(manifest.mon)}_`);
+    const suffix = suffixOf(a.file, `${SLUG(manifest.asset_owner_id ?? manifest.mon)}_`);
     /* 🔒 UN SUFFISSO CORTO O NUMERICO NON AGGANCIA MAI.
 
        È la seconda difesa contro il guasto descritto in testa al file: se

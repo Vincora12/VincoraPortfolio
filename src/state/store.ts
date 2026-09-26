@@ -15,7 +15,8 @@ import { configureRestDayCheck, configureSyncWallet, rememberEarnedSync, type Sy
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import { setLocalStorageItemBestEffort } from '../system/localStorageDiagnostics';
-import { getStateSyncStatus, readSyncReceipt, rememberSyncReceipt, reportStateSync, snapshotHash, syncComparable, syncDecision } from '../system/stateSync';
+import { forgetSyncReceipt, getStateSyncStatus, readSyncReceipt, rememberSyncReceipt, reportStateSync, snapshotHash, syncComparable, syncDecision } from '../system/stateSync';
+import { browserUuid } from '../system/browserUuid';
 
 const appPersistStorage = createJSONStorage(() => ({
   getItem: (name: string) => localStorage.getItem(name),
@@ -163,6 +164,7 @@ import {
   emptyLedger,
   seedWorld,
   riseWorld,
+  suspendLifeEventForQuest,
   withCanon,
   worldBlock,
   promoteConnection,
@@ -172,6 +174,7 @@ import {
   type StoryLedger,
   type World,
 } from '../engine/world';
+import { combatProfileFor, retryWorldQuest, startWorldQuest } from '../engine/worldGame';
 import { deservesThinking, extractFromMessage, extractionLabels } from '../engine/chatExtract';
 import { eggReply } from '../engine/eggVoice';
 import { resolveActiveMon } from '../engine/journey';
@@ -226,6 +229,7 @@ import type {
 } from '../engine/types';
 import { STAT_KEYS, UNKNOWN, displayName, isKnown } from '../engine/types';
 import { dropKeptAssets, keepAssetsOf, preloadMonAssets, restoreKeptAssets } from '../assets-pipeline/assetStore';
+import { assetOwnerKey } from '../assets-pipeline/assetIdentity';
 
 export type Phase =
   /**
@@ -1194,7 +1198,8 @@ async function resolveWorldIdentityOnce(
   );
   if (!identity) return pendingWorld;
 
-  const enriched: World = { ...pendingWorld, name: identity.name, identity: identity.identity, description: identity.descriptor };
+  const enriched: World = { ...pendingWorld, name: identity.name, identity: identity.identity, description: identity.descriptor,
+    inquiry: { question: identity.question ?? pendingWorld.inquiry?.question ?? 'Che cosa impedisce a questo luogo di mostrarsi per intero?' } };
   set((current) => ({
     evolutionJob:
       current.evolutionJob?.candidateName === candidateName && current.evolutionJob.pendingWorld
@@ -1632,7 +1637,7 @@ export const useApp = create<AppState>()(
             hiddenEvent: hiddenEventFor({ day: s.day, formNumber: 1, activeDays: s.progression.sync.lifetime }),
             allowedArchetypes: angelArchetypesForStage(0),
           }).record,
-        );
+        ).map((record) => ({ ...record, assetOwnerId: `mon_${browserUuid()}` }));
 
         /* ⚠️ LA FASE NON CAMBIA QUI, ed è una correzione a me stesso: la
            cambiavo, e la schermata del risultato non faceva in tempo a
@@ -1663,7 +1668,9 @@ export const useApp = create<AppState>()(
            vedi `firstEncounter` in engine/types.ts. */
         const recordWithWorld = {
           ...record,
+          assetOwnerId: record.assetOwnerId ?? `mon_${browserUuid()}`,
           worldId: world.id,
+          combatProfile: combatProfileFor(record, s.health),
           ...(record.identityMode === 'curiosity-first'
             ? { firstEncounter: { status: 'in-attesa-scelta' as const, day: s.day } }
             : {}),
@@ -1707,7 +1714,7 @@ export const useApp = create<AppState>()(
           ),
         });
 
-        void preloadMonAssets(record.data.name);
+        void preloadMonAssets(assetOwnerKey(record));
         if (s.token) void import('../system/pushNotifications').then(({ enableEvolutionNotifications }) => enableEvolutionNotifications(s.token as string));
         void get().resumeFormEvolution();
         requestIntroduction(set, get, record);
@@ -1989,7 +1996,9 @@ export const useApp = create<AppState>()(
         });
 
         const world = seedWorld(record, s.day);
+        record.assetOwnerId = `mon_${browserUuid()}`;
         record.worldId = world.id;
+        record.combatProfile = combatProfileFor(record, s.health);
         set({
           world,
           /* Come una trasformazione: l'app resta utilizzabile mentre il
@@ -2033,7 +2042,7 @@ export const useApp = create<AppState>()(
           ),
         });
 
-        void preloadMonAssets(record.data.name);
+        void preloadMonAssets(assetOwnerKey(record));
         if (s.token) void import('../system/pushNotifications').then(({ enableEvolutionNotifications }) => enableEvolutionNotifications(s.token as string));
         void get().resumeFormEvolution();
         requestIntroduction(set, get, record);
@@ -2041,7 +2050,7 @@ export const useApp = create<AppState>()(
 
       enterLive: () => set((s) => ({
         phase: 'live',
-        evolutionJob: s.evolutionJob?.status === 'ready' ? null : s.evolutionJob,
+        evolutionJob: s.evolutionJob?.status === 'ready' && (s.evolutionJob.kind === 'hatch' || s.phase === 'new-encounter') ? null : s.evolutionJob,
       })),
       openShift: () => set({ phase: 'shift' }),
 
@@ -2080,13 +2089,15 @@ export const useApp = create<AppState>()(
 
       startBreed: (first, second) => {
         const s = get();
+        if (s.ledger.quest && (s.ledger.quest.status === 'investigate' || s.ledger.quest.status === 'combat')) return 'Concludi prima la quest in Vinz.World.';
         if (s.breedJob) return 'Un BREED è già in corso.';
         if (s.evolutionJob?.status === 'running') return 'Attendi la trasformazione in corso.';
         const a=s.mons[first], b=s.mons[second];
         if (!a || !b || first===second || !s.nodes.some(n=>n.monName===first) || !s.nodes.some(n=>n.monName===second)) return 'Scegli due backup diversi dalla MindMap.';
         if (!syncRewardProgress('breed').ready) return 'Servono 15 SYNC.';
-        const nodeId = `node_breed_${crypto.randomUUID()}`;
+        const nodeId = `node_breed_${browserUuid()}`;
         const job = prepareBreed(a,b,{input:generatorInput(s),mindlineNodeId:nodeId,originNodeId:a.data.mindline_node,heritageOrigins:[],lineageNames:Object.keys(s.mons),previous:a,seed:randomSeed()},Date.now());
+        job.candidate.assetOwnerId = `mon_${browserUuid()}`;
         if (!claimSyncReward('breed')) return 'SYNC non disponibile.';
         set({breedJob:job});
         scheduleRemoteSave();
@@ -2094,15 +2105,18 @@ export const useApp = create<AppState>()(
       },
       revealBreed: () => {
         const s=get(), job=s.breedJob;
+        if (s.ledger.quest && (s.ledger.quest.status === 'investigate' || s.ledger.quest.status === 'combat')) return;
         if (!job || !(breedReady(job) || s.dev.skipBreedWait) || s.evolutionJob?.status==='running' || s.mons[job.candidate.data.name]) return;
         let world=seedWorld(job.candidate,s.day);
         const known=s.world?.id===world.id?s.world:[...s.worldHistory].reverse().find(w=>w.id===world.id);
         if (known) world=withCanon(known,world.canon[0]!);
-        const record={...job.candidate,bornOnDay:s.day,data:{...job.candidate.data,generated_at_day:s.day},worldId:world.id};
+        const switchingWorld = s.world?.id !== world.id;
+        const record={...job.candidate,bornOnDay:s.day,data:{...job.candidate.data,generated_at_day:s.day},worldId:world.id,combatProfile:combatProfileFor(job.candidate,s.health)};
         const node=createNode({index:s.nodes.length,kind:'branch',monName:record.data.name,parentId:record.data.origin_node,secondParentId:s.mons[job.parentNames[1]]?.data.mindline_node??null,day:s.day,chapter:nextChapter(s.nodes,'branch'),label:'BREED · BABY'});
         node.id=record.data.mindline_node;
         set({breedJob:null,mons:{...s.mons,[record.data.name]:record},activeMonName:record.data.name,world,
-          worldHistory:s.world && s.world.id!==world.id?[...s.worldHistory,s.world]:s.worldHistory,
+          ledger:switchingWorld ? world.ledgerSnapshot ?? emptyLedger() : s.ledger,
+          worldHistory:s.world && switchingWorld?[...s.worldHistory,{...s.world,ledgerSnapshot:s.ledger}]:s.worldHistory,
           nodes:[...s.nodes,node],formsDiscovered:s.formsDiscovered+1,phase:'live',lastTrace:job.trace,
           mood:applyMoodEvent(initialMood(record.data.mood_primary,s.day),'NATO',record.data.mood_primary,s.day),
           evolutionJob:{kind:'hatch',status:'running',previousName:null,candidateName:record.data.name,done:0,total:generationOrder().length,label:'BABY IN NUL',error:null,serverJobId:null},
@@ -2114,7 +2128,18 @@ export const useApp = create<AppState>()(
       beginFormEvolution: (kind) => {
         const s = get();
         const previous = activeRecord(s);
-        if (!previous || (!s.evolutionDialogOpen && s.phase !== 'form-evolution') || s.evolutionJob?.status === 'running') return;
+        if (!previous || !s.world || (!s.evolutionDialogOpen && s.phase !== 'form-evolution') || s.evolutionJob?.status === 'running') return;
+
+        const activeQuest = s.ledger.quest;
+        if (activeQuest && activeQuest.status !== 'complete') {
+          if (activeQuest.status !== 'failed' || activeQuest.kind !== (kind === 'evolution' ? 'TUNE' : 'RISE') || activeQuest.worldId !== s.world?.id) return;
+          const retry = retryWorldQuest(activeQuest);
+          if (!retry || !s.dev.forceBranch && !claimSyncReward(kind, gameDayStreak(s))) return;
+          set({ ledger: { ...suspendLifeEventForQuest(s.ledger), quest: retry }, evolutionDialogOpen: false, dev: { ...s.dev, forceBranch: false } });
+          scheduleRemoteSave();
+          return;
+        }
+        if (s.evolutionJob && s.evolutionJob.kind !== 'hatch') return;
 
         const streak = gameDayStreak(s);
         const wish = readEvolutionWish();
@@ -2152,6 +2177,7 @@ export const useApp = create<AppState>()(
           hiddenEvent: hiddenEventFor({ day: s.day, formNumber: s.nodes.length + 1, activeDays: s.progression.sync.lifetime }),
           allowedArchetypes: angelArchetypesForStage(nextStage),
         });
+        record.assetOwnerId = `mon_${browserUuid()}`;
         record.data.lifeStage = 'FORM';
         record.transition = { kind: kind === 'evolution' ? 'TUNE' : 'RISE', parentNodeIds: [previous.data.mindline_node], previousWorldId: s.world?.id, wish: usingWish ? wish?.text : undefined };
         if (usingWish && wish) record.data.user_wish = wish.text;
@@ -2191,6 +2217,8 @@ export const useApp = create<AppState>()(
             ? { ...record, worldId: s.world.id }
             : record;
 
+        recordWithWorld.combatProfile = combatProfileFor(recordWithWorld, s.health);
+
         recordWithWorld.bio = { ...recordWithWorld.bio,
           rememberedDetails: [
             `${kind === 'evolution' ? 'TUNE' : 'RISE'}: continuo il percorso di ${displayName(previous.data.name)} a ${(pendingWorld ?? s.world)?.name ?? 'un nuovo luogo'}. La memoria è condivisa.`,
@@ -2200,6 +2228,7 @@ export const useApp = create<AppState>()(
         };
         set({
           phase: 'live',
+          ledger: s.world ? { ...suspendLifeEventForQuest(s.ledger), quest: startWorldQuest(kind === 'evolution' ? 'TUNE' : 'RISE', s.world, previous, s.health, s.day) } : s.ledger,
           mons: { ...s.mons, [recordWithWorld.data.name]: recordWithWorld },
           evolutionJob: {
             kind,
@@ -2290,7 +2319,7 @@ export const useApp = create<AppState>()(
           let serverJobId = job.serverJobId;
           try {
             if (!serverJobId) {
-              serverJobId = crypto.randomUUID();
+              serverJobId = browserUuid();
               const id = serverJobId;
               set((current) => ({ evolutionJob: current.evolutionJob?.candidateName === job.candidateName ? { ...current.evolutionJob, serverJobId: id, total: generationOrder().length } : current.evolutionJob }));
               /* 🔷 La bozza passa di qui: è l'unica strada da cui nascono
@@ -2326,7 +2355,7 @@ export const useApp = create<AppState>()(
                 activeMonName: record.data.name,
                 evolutionJob: { ...(current.evolutionJob ?? job), serverJobId, status: 'ready', done: result.made.length, total: result.made.length, label: 'PRIMO MON PRONTO', error: null },
               });
-              void preloadMonAssets(record.data.name);
+              void preloadMonAssets(assetOwnerKey(record));
               void notifyEvolutionReady(record.data.name);
               return;
             }
@@ -2338,8 +2367,8 @@ export const useApp = create<AppState>()(
               mons: { ...current.mons, [record.data.name]: finished },
               evolutionJob: { ...(current.evolutionJob ?? job), serverJobId, status: 'ready', done: result.made.length, total: result.made.length, label: 'NUOVO MON PRONTO', error: null },
             });
-            void preloadMonAssets(record.data.name);
-            void notifyEvolutionReady(record.data.name);
+            void preloadMonAssets(assetOwnerKey(record));
+            if (get().ledger.quest?.status === 'complete') void notifyEvolutionReady(record.data.name);
           } catch (error) {
             set((current) => ({ evolutionJob: current.evolutionJob?.candidateName === job.candidateName ? { ...current.evolutionJob, status: 'error', error: String(error) } : current.evolutionJob }));
           } finally {
@@ -2369,6 +2398,9 @@ export const useApp = create<AppState>()(
           set({ phase: 'first-encounter' });
           return;
         }
+        if (!current.ledger.quest || current.ledger.quest.status !== 'complete'
+          || current.ledger.quest.kind !== (job.kind === 'evolution' ? 'TUNE' : 'RISE')
+          || current.ledger.quest.worldId !== current.world?.id) return;
         const previous = job.previousName ? current.mons[job.previousName] : null;
         const record = current.mons[job.candidateName];
         if (!previous || !record) return;
@@ -2386,9 +2418,10 @@ export const useApp = create<AppState>()(
         const worldTransition = isRiseTransition
           ? {
               world: { ...job.pendingWorld!, currentStoryFunction: record.data.narrativeDNA?.function },
+              ledger: emptyLedger(),
               worldHistory: [
                 ...current.worldHistory,
-                withCanon(current.world!, {
+                withCanon({ ...current.world!, ledgerSnapshot: current.ledger }, {
                   id: `canon_world-change_${record.data.mindline_node}`,
                   day: current.day,
                   kind: 'world-change',
@@ -3722,6 +3755,7 @@ export const useApp = create<AppState>()(
               previous: null,
             });
 
+        record.assetOwnerId = `mon_${browserUuid()}`;
         const mons = { ...s.mons };
         delete mons[rec.data.name];
         mons[record.data.name] = record;
@@ -3737,6 +3771,7 @@ export const useApp = create<AppState>()(
 
       restoreNode: (nodeId) => {
         const s = get();
+        if (s.ledger.quest && (s.ledger.quest.status === 'investigate' || s.ledger.quest.status === 'combat')) return;
         const node = s.nodes.find((n) => n.id === nodeId);
         if (!node) return;
         const rec = s.mons[node.monName];
@@ -3744,16 +3779,18 @@ export const useApp = create<AppState>()(
 
         const destination = rec.worldId === s.world?.id ? s.world : [...s.worldHistory].reverse().find(w => w.id === rec.worldId);
         const returnedWorld = destination ? withCanon(destination, {id:`return_${node.id}_${Date.now()}`,day:s.day,kind:'return',epistemic:'WORLD_CANON',text:`${displayName(rec.data.name)} riattiva questo percorso con la memoria di oggi.`,monName:rec.data.name}) : s.world;
+        const switchingWorld = Boolean(s.world && returnedWorld && s.world.id !== returnedWorld.id);
         set({
           world: returnedWorld,
-          worldHistory: s.world && returnedWorld && s.world.id !== returnedWorld.id ? [...s.worldHistory,s.world] : s.worldHistory,
+          ledger: switchingWorld ? returnedWorld?.ledgerSnapshot ?? emptyLedger() : s.ledger,
+          worldHistory: switchingWorld ? [...s.worldHistory,{...s.world!,ledgerSnapshot:s.ledger}] : s.worldHistory,
           activeMonName: node.monName,
           phase: 'live',
           mons: { ...s.mons, [node.monName]: { ...rec, worldId: returnedWorld?.id ?? rec.worldId, retiredOnDay: null } },
           chat: [openingMessage(rec, s.day, s.token !== null)],
         });
 
-        void preloadMonAssets(node.monName);
+        void preloadMonAssets(assetOwnerKey(rec));
       },
 
       cloneScenario: () => {
@@ -3774,6 +3811,7 @@ export const useApp = create<AppState>()(
           devForcedMood: s.dev.forcedMood,
         });
 
+        record.assetOwnerId = `mon_${browserUuid()}`;
         set({
           mons: { ...s.mons, [record.data.name]: record },
           nodes: [
@@ -3850,7 +3888,7 @@ export const useApp = create<AppState>()(
         if (!rec) return null;
 
         const already = s.kept.find((k) => k.record.data.name === rec.data.name);
-        const assetName = await keepAssetsOf(rec.data.name);
+        const assetName = await keepAssetsOf(assetOwnerKey(rec));
 
         const entry: KeptMon = {
           id: already?.id ?? `kept_${Date.now()}_${rec.data.name}`,
@@ -3933,7 +3971,7 @@ export const useApp = create<AppState>()(
           chat: [openingMessage(record, s.day, s.token !== null)],
         });
 
-        await restoreKeptAssets(entry.assetName, name);
+        await restoreKeptAssets(entry.assetName, assetOwnerKey(record));
         return true;
       },
 
@@ -4488,8 +4526,18 @@ export function scheduleRemoteSave(): void {
       }
       /* Un salvataggio fallito non si annuncia e non si ritenta a raffica: la
          copia locale c'è, e il prossimo cambiamento riproverà da solo. Se la
-         rete è giù, insistere non la riaccende. */
+         rete è giù, insistere non la riaccende.
+
+         🔴 Un 409 però lasciava la "ricevuta" (revision) com'era — quella
+         SBAGLIATA che ha appena causato il rifiuto — quindi ogni tentativo
+         successivo ripeteva la stessa richiesta e lo stesso rifiuto,
+         all'infinito: il banner tornava sempre uguale, anche dopo aver
+         scelto esplicitamente "conserva questo dispositivo". Dimenticare la
+         ricevuta qui forza il prossimo salvataggio a rileggere prima la
+         revisione vera dal server invece di ripetere una supposizione ormai
+         sbagliata. */
       console.warn('[sync] salvataggio non riuscito:', failure);
+      if (detail === 'STATE_CONFLICT') forgetSyncReceipt();
       reportStateSync({ status: detail === 'STATE_CONFLICT' ? 'conflict' : 'error', message: detail === 'STATE_CONFLICT' ? 'Le copie locale e server sono diverse. Nessuna è stata sovrascritta.' : 'Salvataggio server non confermato. I dati locali restano disponibili.' });
     } finally { remoteSaveRunning = false; }
   })().catch(() => reportStateSync({ status: 'error', message: 'Sincronizzazione non disponibile; copia locale preservata.' })); }, SAVE_DEBOUNCE_MS);
@@ -4847,7 +4895,22 @@ export async function resolveStateSyncConflict(choice: 'keep-local' | 'use-serve
   const { loadRemote } = await import('../ai/backend');
   const { data, failure } = await loadRemote(local.token);
   if (failure || !data) { reportStateSync({ status: 'error', message: 'Impossibile verificare la copia server.' }); return; }
-  if (before !== JSON.stringify(syncComparable(snapshotFor(useApp.getState())))) { reportStateSync({ status: 'conflict', message: 'Dati locali cambiati durante la verifica; ripeti la scelta.' }); return; }
+  const changedDuringVerification = before !== JSON.stringify(syncComparable(snapshotFor(useApp.getState())));
+  /* "Usa copia server" sovrascrive il locale: se nel frattempo è cambiato
+     qualcosa (un messaggio appena arrivato, per dire), quella modifica andrebbe
+     persa in silenzio — qui l'annullamento è corretto, si ripete la scelta.
+
+     "Conserva questo dispositivo" invece vuole GIÀ tenere il locale qualunque
+     cosa sia: un cambiamento nel frattempo non invalida la scelta, è solo
+     altro contenuto locale da salvare — cosa che scheduleRemoteSave() fa
+     comunque rileggendo lo stato fresco. Annullare qui, con l'app che scrive
+     di continuo (chat/attività in corso), rendeva il tasto silenziosamente
+     inutilizzabile: ogni tap ripresentava lo stesso banner senza spiegare
+     perché, perché il messaggio "ripeti la scelta" non è quello mostrato. */
+  if (changedDuringVerification && choice === 'use-server') {
+    reportStateSync({ status: 'conflict', message: 'Dati locali cambiati durante la verifica; ripeti la scelta.' });
+    return;
+  }
   if (choice === 'use-server') {
     if (!data.state || data.day < local.day || !applyRemoteSave(local, data)) { reportStateSync({ status: 'conflict', message: 'Ripristino non applicato: non si arretra il giorno e non si scartano dati se la cache non è scrivibile.' }); return; }
     rememberSyncReceipt({ revision: data.revision ?? null, hash: await snapshotHash(snapshotFor(useApp.getState())) });

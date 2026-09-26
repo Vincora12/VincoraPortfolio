@@ -49,6 +49,7 @@ import type { CalendarEvent, CalendarEventInput } from '../engine/calendarEvents
 import { loadLocation } from '../engine/locationSignal';
 import { ICON_NAME_LIST } from '../system/iconNames';
 import { loadDeviceSignals } from '../engine/deviceSignals';
+import { sha256Hex } from '../system/sha256';
 
 /* --- La forma di uno strumento ---------------------------------------------- */
 
@@ -1430,8 +1431,8 @@ async function executeReminderTool(use: ToolUse, token: string | null, projectId
     input = row ? { ...row.event, title, reminderAt, timezone } : { title, start: reminderAt, reminderAt, timezone, category: 'task', notes: '', status: 'planned', projectId };
     if (row && row.event.status !== 'planned') return fail('L’evento è annullato/completato: non viene riattivato implicitamente.');
     // Stable technical key makes an exact repeated request idempotent without another store.
-    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify([title, reminderAt, timezone, ...(projectId ? [projectId] : [])])));
-    id = row?.event.id ?? `reminder_${Array.from(new Uint8Array(digest)).slice(0, 16).map((n) => n.toString(16).padStart(2, '0')).join('')}`;
+    const digest = await sha256Hex(JSON.stringify([title, reminderAt, timezone, ...(projectId ? [projectId] : [])]));
+    id = row?.event.id ?? `reminder_${digest.slice(0, 32)}`;
     const existing = !row && rows.find(({event}) => event.id === id);
     if (existing) return { id: use.id, content: JSON.stringify({ status: 'already-exists', id, when: existing.event.reminderAt ?? null, eventStatus: existing.event.status, note: 'Nessun duplicato creato. Se disattivato, aggiorna esplicitamente usando id/versione.' }) };
   }
