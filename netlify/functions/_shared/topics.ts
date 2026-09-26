@@ -126,7 +126,9 @@ export async function closeTopic(threadId: string, messages: TopicMessage[]): Pr
     .slice(-MAX_SUMMARY_INPUT);
 
   /* vNext model gateway: route, local-only mode, cap and spend in one place. */
-  const result = await callModel({ capability: 'text-cheap', purpose: 'topics', action: 'topic-summary' }, {
+  /* vNext BACKGROUND MIND — local-first; escalates when local is unavailable
+     so a closed span is never left without its summary. */
+  const result = await callModel({ capability: 'text-cheap', purpose: 'topics', action: 'topic-summary', localFirst: true, onLocalFailure: 'escalate', acceptLocal: (r) => r.text.trim().length > 0 }, {
     system: [{ text: SUMMARY_RULES }],
     turns: [],
     user: transcript,

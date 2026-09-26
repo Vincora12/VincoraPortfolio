@@ -167,7 +167,14 @@ export async function writePersonalMemory(
   /* vNext model gateway: local-only mode is enforced here too; the monthly
      cap is still NOT applied to memory capture (deferred product decision,
      see the note above), and spend is recorded by the gateway. */
-  const response = await callModel({ capability: 'text-cheap', purpose: 'memory', action: 'me_chat_capture', preferredModel: input.preferredModel, enforceCap: false }, {
+  /* vNext BACKGROUND MIND — local-first extraction; if the local model is
+     down or returns invalid JSON it escalates to the cloud default rather
+     than losing the memory (a missed capture is data loss, not a retry). */
+  const response = await callModel({
+    capability: 'text-cheap', purpose: 'memory', action: 'me_chat_capture', preferredModel: input.preferredModel, enforceCap: false,
+    localFirst: !input.preferredModel, onLocalFailure: 'escalate',
+    acceptLocal: (result) => { try { extractJson(result.text); return true; } catch { return false; } },
+  }, {
     system: [{ text: `${SEMANTIC_POLICY}\n\n${EXTRACTION_INSTRUCTIONS}` }],
     turns: [],
     user: `RECENT CONTEXT (interpretive only):\n${context.map((item) => `${item.role}: ${item.text}`).join('\n')}\n\nCURRENT USER MESSAGE (source of any mutation):\n${input.text}`,

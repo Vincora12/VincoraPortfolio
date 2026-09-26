@@ -1,6 +1,7 @@
 import { NATURAL_VOICE } from '../../../src/ai/naturalVoice';
 import { culturalBackground } from '../../../src/engine/culturalDiscovery';
 import { getStore } from './localStore';
+import { createHash } from 'node:crypto';
 import { callModel } from './modelGateway';
 import { listPersonalMemory, searchPersonalMemory } from './core/memory';
 import { machineInsightPayload, sendPushNotification } from './pushDelivery';
@@ -62,6 +63,24 @@ export interface MachineState {
      «esecuzione esplicita o batch futuro» — il batch futuro è questo. */
   autoDaily?: { hour: number; timezone: string } | null;
   nextRunAt?: string | null;
+  /** vNext: fingerprint of the last input actually processed (idempotency). */
+  lastInputHash?: string | null;
+}
+
+/* vNext BACKGROUND MIND bounds — these are derived interpretations, not a
+   diary: they must not grow forever or repeat themselves. */
+const MAX_OBSERVATIONS = 60;
+const MAX_SETTLED_INSIGHTS = 30;
+
+function normalizedStatement(text: string): string {
+  return text.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+}
+
+/** Keeps every pending insight and only the most recent settled ones. */
+function boundInsights(insights: PendingInsight[]): PendingInsight[] {
+  const settled = insights.filter((item) => item.status !== 'pending');
+  const keep = new Set(settled.slice(-MAX_SETTLED_INSIGHTS));
+  return insights.filter((item) => item.status === 'pending' || keep.has(item));
 }
 
 const at = () => new Date().toISOString();
@@ -282,17 +301,32 @@ async function conversationSelfContext(state: Record<MachineId, MachineState>): 
   return { text: lines.join('\n'), sources: ['DI COSA PARLIAMO', 'COSA CREDO DI AVER CAPITO DI LUI', 'I MIEI PENSIERI'] };
 }
 
-async function runModel(machine: MachineId, prompt: string, sourceIds: string[], preferredModel?: string | null) {
-  /* vNext model gateway: route, local-only mode, cap and spend in one place. */
+const parseMachineJson = (text: string): Record<string, unknown> =>
+  JSON.parse(text.match(/```(?:json)?\s*([\s\S]*?)\s*```/i)?.[1]?.trim() ?? text.trim()) as Record<string, unknown>;
+
+async function runModel(machine: MachineId, prompt: string, sourceIds: string[], preferredModel: string | null | undefined, trigger: MachineTrigger) {
+  /* vNext BACKGROUND MIND — local-first. Without an explicit model choice the
+     machine runs on the local model; a scheduled run that cannot run locally
+     is SKIPPED (no silent cloud spend while nobody is looking), a manual run
+     the user is waiting for escalates to the cloud default. A local answer
+     that is not valid JSON counts as a local failure. Route, local-only mode,
+     cap and spend are the gateway's. */
   const response = await callModel(
-    { capability: 'text-cheap', purpose: 'machines', action: machine, preferredModel },
+    {
+      capability: 'text-cheap', purpose: 'machines', action: machine, preferredModel,
+      localFirst: !preferredModel,
+      onLocalFailure: trigger === 'scheduled' ? 'skip' : 'escalate',
+      acceptLocal: (result) => { try { parseMachineJson(result.text); return true; } catch { return false; } },
+    },
     { system: [{ text: 'Return compact JSON only. Never invent facts. Interpretations must cite source memory IDs.' }], turns: [], user: prompt, maxTokens: machine === 'me' ? 700 : 900 },
   );
-  if (!response.ok) throw new Error(response.error ?? 'machine provider failed');
+  if (!response.ok && !response.skipped) throw new Error(response.error ?? 'machine provider failed');
   return { response, costUsd: response.costUsd, sourceIds };
 }
 
-export async function runMachine(machine: MachineId, preferredModel?: string | null) {
+export type MachineTrigger = 'manual' | 'scheduled';
+
+export async function runMachine(machine: MachineId, preferredModel?: string | null, trigger: MachineTrigger = 'manual') {
   const { store, state } = await readState();
   const current = state[machine];
   current.status = 'RUNNING';
@@ -327,7 +361,11 @@ export async function runMachine(machine: MachineId, preferredModel?: string | n
 
     let context: string;
     let prompt: string;
+    /* vNext: the EVIDENCE a run is based on (not its own previous output),
+       used for idempotency below. */
+    let evidence: string;
     if (machine === 'reflection') {
+      evidence = [...recent, ...extended.older].map((item) => `${item.id ?? ''}:${item.text}`).join('\n');
       context = [
         'RECENT MEMORIES (user evidence):',
         ...recent.map((item) => `${item.id ?? 'memory'}: ${item.text}`),
@@ -351,6 +389,7 @@ export async function runMachine(machine: MachineId, preferredModel?: string | n
          .mon che vede quanti dei suoi pensieri non hai mai aperto può chiedersi
          se valgono qualcosa. Senza quel numero se lo chiederebbe a vuoto. */
       const conversation = await conversationSelfContext(state);
+      evidence = `${self!.text}\n${conversation.text}`;
       sourceIds.push(...conversation.sources);
 
       /* 🔴 DESCRIVERSI NON È PENSARE. Al primo giro usciva «Sono VAZELETH.mon,
@@ -397,6 +436,7 @@ export async function runMachine(machine: MachineId, preferredModel?: string | n
          e una sintesi sbagliata restava lì per sempre perché «nessun
          cambiamento significativo». */
       const reflections = state.reflection.observations.slice(-8);
+      evidence = [...recent.map((item) => `${item.id ?? ''}:${item.text}`), ...reflections.map((item) => item.statement)].join('\n');
       context = [
         current.meSummary ? `SINTESI ME PRECEDENTE (da correggere o confermare, non da ripetere):\n${current.meSummary.summary}` : 'SINTESI ME PRECEDENTE: nessuna.',
         '',
@@ -415,8 +455,22 @@ export async function runMachine(machine: MachineId, preferredModel?: string | n
         context,
       ].join('\n');
     }
-    const { response, costUsd } = await runModel(machine, prompt, sourceIds, preferredModel);
-    const parsed = JSON.parse(response.text.match(/```(?:json)?\s*([\s\S]*?)\s*```/i)?.[1]?.trim() ?? response.text.trim()) as Record<string, unknown>;
+    /* vNext BACKGROUND MIND — idempotent: the same input is never processed
+       twice, so repeated runs cannot pile up duplicate interpretations. */
+    const inputHash = createHash('sha256').update(machine).update('\0').update(evidence).digest('hex').slice(0, 32);
+    if (current.lastInputHash === inputHash) {
+      current.status = 'SLEEPING'; current.lastRun = at(); current.lastOutput = 'Nessun materiale nuovo dall’ultima elaborazione.';
+      await store.setJSON(MACHINE_STATE_KEY, state);
+      return current;
+    }
+    const { response, costUsd } = await runModel(machine, prompt, sourceIds, preferredModel, trigger);
+    if (response.skipped) {
+      current.status = 'SLEEPING'; current.lastRun = at(); current.lastOutput = 'Modello locale non disponibile: riprovo al prossimo giro.';
+      await store.setJSON(MACHINE_STATE_KEY, state);
+      return current;
+    }
+    const parsed = parseMachineJson(response.text);
+    current.lastInputHash = inputHash;
     if (machine !== 'me') {
       const observations: MachineState['observations'] = machine === 'memon'
         ? (Array.isArray(parsed.reflections) ? parsed.reflections : []).flatMap((item) => {
@@ -455,21 +509,30 @@ export async function runMachine(machine: MachineId, preferredModel?: string | n
           return kept.length ? [{ ...item, sourceIds: kept }] : [];
         })
         : observations;
-      current.observations.push(...grounded);
+      const known = new Set(current.observations.map((item) => normalizedStatement(item.statement)));
+      const fresh = grounded.filter((item) => {
+        const key = normalizedStatement(item.statement);
+        if (known.has(key)) return false;
+        known.add(key);
+        return true;
+      });
+      current.observations.push(...fresh);
+      current.observations = current.observations.slice(-MAX_OBSERVATIONS);
       const definition = MACHINE_DEFINITIONS.find((item) => item.id === machine)!;
       const dayKey = new Date().toISOString().slice(0, 10);
-      const firstKey = grounded[0]?.question ?? grounded[0]?.statement;
-      const canNotify = definition.delivery === 'notify_user' && grounded.some((item) => item.confidence >= 0.75)
+      const firstKey = fresh[0]?.question ?? fresh[0]?.statement;
+      const canNotify = definition.delivery === 'notify_user' && fresh.some((item) => item.confidence >= 0.75)
         && !current.pendingInsights.some((item) => item.dedupeKey === firstKey && item.status !== 'discussed')
         && !current.pendingInsights.some((item) => item.createdAt.slice(0, 10) === dayKey && item.notification === 'in_app');
       if (canNotify) {
-        const selected = grounded.find((item) => item.confidence >= 0.75)!;
+        const selected = fresh.find((item) => item.confidence >= 0.75)!;
         /* 🔒 Per Me.mon la chiave è la DOMANDA, non la frase intera: la stessa
            domanda con una risposta riformulata è la stessa domanda, e riceverla
            due volte la fa sembrare un ciclo invece di un pensiero. */
         current.pendingInsights.push({ id: `insight_${crypto.randomUUID()}`, machineId: machine, statement: selected.statement, question: selected.question, sourceIds: selected.sourceIds, importance: selected.confidence, confidence: selected.confidence, createdAt: at(), status: 'pending', notification: 'in_app', dedupeKey: selected.question ?? selected.statement });
       }
-      current.lastOutput = grounded.length ? `${grounded.length} osservazioni derivate` : 'Nessuna osservazione significativa.';
+      current.pendingInsights = boundInsights(current.pendingInsights);
+      current.lastOutput = fresh.length ? `${fresh.length} osservazioni derivate` : 'Nessuna osservazione significativa.';
     } else {
       const summary = typeof parsed.summary === 'string' ? parsed.summary.trim().slice(0, 1000) : '';
       if (summary) current.meSummary = { version: 1, summary, generatedAt: at(), basedOn: Array.isArray(parsed.basedOn) ? parsed.basedOn.filter((id): id is string => typeof id === 'string') : sourceIds };
@@ -542,7 +605,7 @@ export async function processDueMachines(now = new Date()): Promise<{ due: numbe
   let ok = 0;
   for (const id of due) {
     try {
-      await runMachine(id);
+      await runMachine(id, null, 'scheduled');
       ok += 1;
     } catch {
       /* Una macchina che non gira non deve fermare l'altra né lo scheduler. */

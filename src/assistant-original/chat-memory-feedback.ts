@@ -1,5 +1,11 @@
 import { savedToken } from '@/brain/stream';
-import { stepModel } from '@/state/store';
+import { useApp } from '@/state/store';
+
+/* vNext BACKGROUND MIND — only an EXPLICIT model choice (MEMORY step set by
+   hand) travels to the server; in AUTO the server extracts local-first. */
+function explicitMemoryModel(): string | null {
+  return useApp.getState().stepModels.memory ?? null;
+}
 import { postRuntimeEvent } from '@/system/runtimeLog';
 
 /* MEMORY CLEANUP — "ricordati che..." merita di sapere se ha funzionato.
@@ -49,7 +55,7 @@ export async function captureChatMemoryForClient(input: { text: string; messageI
   }
   postRuntimeEvent({ eventType: 'MEMORY_CAPTURE_START', status: 'START', scope: 'memory' });
   try {
-    const response = await fetch('/api/me-chat-capture', { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ ...input, preferredModel: stepModel('memory', 'everyday') }) });
+    const response = await fetch('/api/me-chat-capture', { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ ...input, ...(explicitMemoryModel() ? { preferredModel: explicitMemoryModel() } : {}) }) });
     const result = await response.json().catch(() => ({ status: 'failed' })) as { updated?: boolean; status?: string; warnings?: string[]; explicitRequest?: boolean };
     traces.set(input.messageId, { status: result.updated ? 'UPDATED' : String(result.status ?? (response.ok ? 'NO_CHANGE' : 'FAILED')).toUpperCase(), candidate: 'YES', context: input.context?.length ?? 0, feedback: result.updated ? 'SHOWN' : 'NOT_SHOWN', explicitRequest: result.explicitRequest ?? false, ...(result.warnings?.[0] ? { reason: result.warnings[0] } : {}) });
     if (!response.ok) {

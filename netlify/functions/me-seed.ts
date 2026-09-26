@@ -17,7 +17,11 @@ export default async function handler(request: Request): Promise<Response> {
   if (typeof body.seed !== 'string' || body.seed.trim().length === 0 || body.seed.length > 100_000) return json({ error: 'seed non valido' }, 400);
   const result = await importPersonalMemorySeed(body.seed, async (seed) => {
     /* vNext model gateway: route, local-only mode and spend recording (best-effort) in one place. */
-    const response = await callModel({ capability: 'text-cheap', purpose: 'memory', action: 'me_seed', preferredModel: body.preferredModel, enforceCap: false }, { system: [{ text: INSTRUCTIONS }], turns: [], user: seed, maxTokens: 4000 });
+    const response = await callModel({
+      capability: 'text-cheap', purpose: 'memory', action: 'me_seed', preferredModel: body.preferredModel, enforceCap: false,
+      localFirst: !body.preferredModel, onLocalFailure: 'escalate',
+      acceptLocal: (r) => { try { extractJson(r.text); return true; } catch { return false; } },
+    }, { system: [{ text: INSTRUCTIONS }], turns: [], user: seed, maxTokens: 4000 });
     if (!response.ok) throw new Error(response.error ?? 'estrazione non disponibile');
     return extractJson(response.text);
   });

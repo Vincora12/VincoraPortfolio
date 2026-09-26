@@ -76,7 +76,8 @@
     "verify:vnext-decision": "node scripts/vnext-decision-check.mjs",
     "verify:vnext-cerebro-boundary": "node scripts/vnext-cerebro-boundary-check.mjs",
     "verify:vnext-modes": "node scripts/vnext-modes-check.mjs",
-    "verify:vnext-gateway": "node scripts/vnext-gateway-check.mjs"
+    "verify:vnext-gateway": "node scripts/vnext-gateway-check.mjs",
+    "verify:vnext-background": "node scripts/vnext-background-check.mjs"
   },
   "dependencies": {
     "@assistant-ui/react": "^0.15.16",

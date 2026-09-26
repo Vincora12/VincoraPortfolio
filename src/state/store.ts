@@ -5123,10 +5123,16 @@ function maybeReflect(set: (p: Partial<AppState>) => void, get: () => AppState):
      due in parallelo sulla stessa settimana. */
   set({ lastReflectionDay: s.day });
 
+  /* vNext BACKGROUND MIND — through `runStep`: in AUTO it runs on the local
+     model; a failed local attempt is treated as "nothing learned this week"
+     (no silent cloud call for a background job). An explicit model choice in
+     LAB is still honoured. */
   void import('../ai/reflect')
-    .then((m) =>
-      m.reflectOnWeek(s.token, record, s.memories, s.opinions, s.day, stepModel('reflection')),
-    )
+    .then((m) => runStep(
+      'reflection',
+      (model) => m.reflectOnWeek(s.token, record, s.memories, s.opinions, s.day, model),
+      () => ({ ok: true }),
+    ))
     .then(({ formed, contradicted }) => {
       if (formed.length === 0 && contradicted.length === 0) return;
 
@@ -5164,7 +5170,8 @@ function maybeReview(set: (p: Partial<AppState>) => void, get: () => AppState): 
   set({ lastNotebookDay: s.day });
 
   void import('../ai/notebook')
-    .then((m) => m.reviewVoice(s.token, evidence, s.voiceNotes, s.day, stepModel('reflection')))
+    /* vNext BACKGROUND MIND — local-first via runStep, like the weekly reflection. */
+    .then((m) => runStep('reflection', (model) => m.reviewVoice(s.token, evidence, s.voiceNotes, s.day, model), () => ({ ok: true })))
     .then(({ note }) => {
       if (!note) return;
       set({ voiceNotes: addNote(get().voiceNotes, note) });
