@@ -28,11 +28,12 @@ import { readHealthJournal } from "@/engine/healthJournal";
 import { runStep, useApp } from "@/state/store";
 import type { ContextDecision } from '@/ai/contextSelection';
 import { resolveChatContext } from '@/ai/chatContext';
-import { buildCapabilitySummary } from "@/ai/toolLayer";
+import { buildCapabilitySummary, setRepoWritePermit } from "@/ai/toolLayer";
 import { persistChatTrace, recordChatTrace, systemPromptComposition, traceClock, type ChatTrace } from "@/ai/chatTrace";
 import { decideTurn, isWorkIntent, newTurnDecision, type TurnExecutor } from "@/mon-core/turnDecision";
 import { amendTurnDecision, finalizeTurnDecision, recordTurnDecision } from "@/mon-core/decisionLog";
 import { currentModeRequest } from "@/mon-core/modeStore";
+import { CONFIRMATION_QUESTIONS } from "@/mon-core/toolManifest";
 import { voiceCard } from "@/engine/voiceCard";
 import { captureChatMemoryForClient } from "@/assistant-original/chat-memory-feedback";
 import { postChatClientError, postChatDiagnostic, postRuntimeEvent } from "@/system/runtimeLog";
@@ -284,7 +285,7 @@ async function* runImageCreation(messages: readonly ThreadMessage[], abortSignal
 function hasPendingWorkout(messages: readonly ThreadMessage[]): boolean {
   const previous = precedingConversationAssistant(messages);
   return Boolean(previous
-    && /Confermi che registro questo \*\*allenamento\*\* in ME\?/i.test(textOf(previous)));
+    && textOf(previous).includes(CONFIRMATION_QUESTIONS.allenamento));
 }
 
 /** Recupera una modifica al piano proposta dall'AI e appena confermata. */
@@ -787,7 +788,7 @@ async function* runWithHermesProject(
   if (mealConfirmation?.status === 'needs-confirmation') {
     answer = `${answer.replace(/\b(?:segnat|registrat|salvat|aggiunt)\w*[^.!?]*[.!?]?/gi, '').trim()}\n\nConfermi che lo registro come **${mealConfirmation.slot === 'extra' ? 'extra / spuntino aggiuntivo' : mealConfirmation.slot}**?`.trim();
   } else if (workoutConfirmation?.status === 'needs-confirmation') {
-    answer = `${answer.trim()}\n\nConfermi che registro questo **allenamento** in ME?`.trim();
+    answer = `${answer.trim()}\n\n${CONFIRMATION_QUESTIONS.allenamento}`.trim();
   } else if (actionConfirmation?.action === 'peso' && actionConfirmation.status === 'needs-confirmation') {
     answer = `${answer.trim()}\n\n${CONFIRMABLE_ACTIONS.peso.question}`.trim();
   }
@@ -1301,7 +1302,21 @@ export function createNetlifyChatModel(
         systemPrompt += await connectorsSummaryForProject(projectId ?? null);
       }
       const fallbackStep = cerebroFallback ? [`CEREBRO non disponibile (${cerebroFallback})`] : [];
+      /* vNext SAFETY — a confirmed code change gets a SERVER-issued permit
+         (the server re-verifies the yes and the exact question) before the
+         tool loop runs; /api/repo-ops refuses repo writes without it. */
+      let repoPermitIssued = false;
+      if (runTool && toolTurn && actionConfirmation?.action === 'codice' && actionConfirmation.status === 'confirmed') {
+        const previous = precedingConversationAssistant(args.messages);
+        const permit = await fetch('/api/permits', {
+          method: 'POST',
+          headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+          body: JSON.stringify({ action: 'codice', requestId, userText: user, previousAssistantText: previous ? textOf(previous) : '' }),
+        }).catch(() => null);
+        if (permit?.ok) { setRepoWritePermit(requestId); repoPermitIssued = true; }
+      }
       if (runTool && toolTurn) {
+        try {
         yield* withMonCore(runWithLocalTools(
           args.messages,
           args.abortSignal,
@@ -1312,7 +1327,10 @@ export function createNetlifyChatModel(
           actionConfirmation,
           confirmedPlan,
           { systemPrompt, requestId, projectId, contextSelection },
-        ), monCore(['MON CORE', ...fallbackStep, 'ACTION', ...(contextSelection.length ? ['contesto caricato'] : []), 'strumenti VINZ']));
+        ), monCore(['MON CORE', ...fallbackStep, 'ACTION', ...(contextSelection.length ? ['contesto caricato'] : []), ...(repoPermitIssued ? ['permesso di modifica verificato'] : []), 'strumenti VINZ']));
+        } finally {
+          if (repoPermitIssued) setRepoWritePermit(null);
+        }
         return;
       }
       const result = createBaseNetlifyChatModel({ systemPrompt, requestId, contextSelection, worldNarration: projectId === WORLD_PROJECT_ID, questFrame: lifeTurn?.questFrame }).run(args);

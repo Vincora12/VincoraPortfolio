@@ -64,6 +64,7 @@ import { Sources } from "@/assistant-original/components/assistant-ui/sources";
 import { CloneThreadShell } from "./clone-thread-shell";
 import { ModelEffortPill, type ModelChoice } from "@/assistant-original/ModelEffortPill";
 import { ModePill } from "@/assistant-original/ModePill";
+import { CONFIRMATION_QUESTIONS } from "@/mon-core/toolManifest";
 import { useApp } from "@/state/store";
 import { WORLD_PROJECT_ID } from "@/engine/projects";
 import { reportLifeCycle, startLifeEventIfDue } from "@/assistant-original/life-cycle-runtime";
@@ -2526,60 +2527,63 @@ const ReactionMessageDispatcher: FC = () => {
    Il tocco manda la conferma come messaggio utente: la stessa strada delle
    parole scritte a mano, che `confirms()` riconosce già. Nessun percorso
    parallelo, nessuna scrittura che salti il giro degli strumenti. */
+/* vNext: the questions come from the canonical tool manifest — the same text
+   the app appends and the permit service verifies. */
+const questionPattern = (question: string) => new RegExp(question.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
 const CONFIRM_ACTIONS: { test: RegExp; label: string; busy: string; reply: string }[] = [
   {
     // Stessa forma letta da `pendingMealSlot` in netlify-runtime.ts.
-    test: /Confermi che lo registro come \*\*(?:colazione|spuntino|pranzo|merenda|cena|extra)(?:\s*\/[^*]+)?\*\*\?/i,
+    test: CONFIRMATION_QUESTIONS.pasto,
     label: "REGISTRA PASTO",
     busy: "REGISTRAZIONE…",
     reply: "Vai, registra",
   },
   {
-    test: /Confermi che registro questo \*\*allenamento\*\* in ME\?/i,
+    test: questionPattern(CONFIRMATION_QUESTIONS.allenamento),
     label: "REGISTRA ALLENAMENTO",
     busy: "REGISTRAZIONE…",
     reply: "Vai, registra",
   },
   // Le quattro qui sotto rispondono a `CONFIRMABLE_ACTIONS` in brain/stream.ts.
   {
-    test: /Confermi che registro questo \*\*peso\*\* in ME\?/i,
+    test: questionPattern(CONFIRMATION_QUESTIONS.peso),
     label: "REGISTRA PESO",
     busy: "REGISTRAZIONE…",
     reply: "Vai, registra",
   },
   {
     // vNext safety gate: `CONFIRMABLE_ACTIONS.codice` in brain/stream.ts.
-    test: /Confermi che modifico il \*\*codice\*\* del repository\?/i,
+    test: questionPattern(CONFIRMATION_QUESTIONS.codice),
     label: "MODIFICA CODICE",
     busy: "MODIFICA…",
     reply: "Sì, modifica",
   },
   {
-    test: /Confermi che creo questo \*\*promemoria\*\*\?/i,
+    test: questionPattern(CONFIRMATION_QUESTIONS.promemoria),
     label: "CREA PROMEMORIA",
     busy: "CREAZIONE…",
     reply: "Vai, crea",
   },
   {
-    test: /Confermi che creo questa \*\*automazione\*\*\?/i,
+    test: questionPattern(CONFIRMATION_QUESTIONS.automazione),
     label: "CREA AUTOMAZIONE",
     busy: "CREAZIONE…",
     reply: "Vai, crea",
   },
   {
-    test: /Confermi che aggiorno il \*\*piano di allenamento\*\*\?/i,
+    test: questionPattern(CONFIRMATION_QUESTIONS.piano),
     label: "AGGIORNA PIANO",
     busy: "AGGIORNAMENTO…",
     reply: "Vai, aggiorna",
   },
   {
-    test: /Confermi che aggiorno la \*\*dieta\*\*\?/i,
+    test: questionPattern(CONFIRMATION_QUESTIONS.dieta),
     label: "AGGIORNA DIETA",
     busy: "AGGIORNAMENTO…",
     reply: "Vai, aggiorna",
   },
   {
-    test: /Confermi che riavvio il servizio \*\*Local Core\*\* sul tuo Mac\?/i,
+    test: questionPattern(CONFIRMATION_QUESTIONS.riavvio),
     label: "RIAVVIA LOCAL CORE",
     busy: "RIAVVIO…",
     reply: "Vai, riavvia",

@@ -30,6 +30,7 @@
    normalizzato, un solo giro di rete dal browser invece di N.
    ========================================================================= */
 
+import { serverToolRisk } from '../../src/mon-core/toolManifest';
 import { authorize, denied, json } from './_shared/auth';
 import { type ToolDef, type ToolUse, type Turn } from './_shared/providers';
 import { resolveRoute } from './_shared/routing';
@@ -328,7 +329,8 @@ export default async function handler(request: Request): Promise<Response> {
   let exportFile: { filename: string; content: string } | undefined;
   const serverTools: ServerTool[] = TOOLS.map((definition) => ({
     definition,
-    risk: 'read',
+    /* vNext: risk comes from the canonical tool manifest. */
+    risk: serverToolRisk(definition.name),
     execute(use) {
       const outcome = executeTool(use);
       if (outcome.exportFile) exportFile = outcome.exportFile;

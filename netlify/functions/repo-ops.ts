@@ -9,6 +9,7 @@
    fra un elenco fisso, ogni voce chiama esattamente una funzione di
    `_shared/repoOps.ts`. Stessa forma di `vinz-workspace.ts`. */
 
+import { consumeActionPermit } from './_shared/actionPermits';
 import { authorize, denied, json } from './_shared/auth';
 import { isLocalCoreServer } from './_shared/vinzWorkspace';
 import { appendRuntimeEvent } from './_shared/runtimeLog';
@@ -78,6 +79,16 @@ export default async function handler(request: Request, platform?: Platform): Pr
     const result = gitShow(ref);
     log(result.ok ? 'PASS' : 'FAIL');
     return json(result);
+  }
+  /* vNext SAFETY — repository writes need a server-issued permit (the user's
+     verified yes to the `codice` question; see _shared/actionPermits.ts). The
+     protected-path gate in repoOps.ts still applies on top. */
+  if (action === 'repo-write' || action === 'repo-edit') {
+    const permitId = typeof body.permitId === 'string' ? body.permitId : '';
+    if (!(await consumeActionPermit(permitId, 'codice'))) {
+      log('FAIL', { reason: 'CONFIRMATION_REQUIRED' });
+      return json({ ok: false, error: 'CONFIRMATION_REQUIRED — nessuna conferma valida dell’utente per modificare il codice in questo turno.' }, 409);
+    }
   }
   if (action === 'repo-write') {
     const path = typeof body.path === 'string' ? body.path.slice(0, MAX_PATH_CHARS) : '';

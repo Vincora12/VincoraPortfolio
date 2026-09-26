@@ -290,6 +290,15 @@ async function postCodeTool(body: Record<string, unknown>): Promise<Response> {
   });
 }
 
+/* vNext SAFETY — the server-issued permit for this turn's confirmed code
+   change (see /api/permits). Set by the chat orchestrator right after the
+   user's verified yes; repo_write/repo_edit forward it, /api/repo-ops
+   consumes it. Without it the server refuses the write. */
+let repoWritePermit: string | null = null;
+export function setRepoWritePermit(permitId: string | null): void {
+  repoWritePermit = permitId;
+}
+
 async function postRepoOps(body: Record<string, unknown>): Promise<Response> {
   const token = toolLayerToken();
   if (!token) throw new Error('nessun token');
@@ -393,8 +402,9 @@ export async function runToolLayerTool(use: ToolUse): Promise<ToolResult | undef
       const percorso = typeof args.percorso === 'string' ? args.percorso.trim() : '';
       const contenuto = typeof args.contenuto === 'string' ? args.contenuto : '';
       if (!percorso) return { id: use.id, content: 'ISPEZIONE FALLITA — manca il percorso del file.', isError: true };
-      const response = await postRepoOps({ action: 'repo-write', path: percorso, content: contenuto });
+      const response = await postRepoOps({ action: 'repo-write', path: percorso, content: contenuto, ...(repoWritePermit ? { permitId: repoWritePermit } : {}) });
       if (response.status === 503) return { id: use.id, content: NOT_LOCAL_CORE, isError: true };
+      if (response.status === 409) return { id: use.id, content: 'SCRITTURA NEGATA — serve la conferma esplicita dell’utente (MODIFICA CODICE) in questo turno. Non dire che il file è stato modificato.', isError: true };
       if (!response.ok) return { id: use.id, content: `ISPEZIONE FALLITA — il servizio non ha risposto (${response.status}).`, isError: true };
       const res = (await response.json()) as WriteResponse;
       return res.ok
@@ -407,8 +417,9 @@ export async function runToolLayerTool(use: ToolUse): Promise<ToolResult | undef
       const oldStr = typeof args.testo_precedente === 'string' ? args.testo_precedente : '';
       const newStr = typeof args.testo_nuovo === 'string' ? args.testo_nuovo : '';
       if (!percorso || !oldStr) return { id: use.id, content: 'ISPEZIONE FALLITA — manca il percorso o il testo da sostituire.', isError: true };
-      const response = await postRepoOps({ action: 'repo-edit', path: percorso, oldStr, newStr });
+      const response = await postRepoOps({ action: 'repo-edit', path: percorso, oldStr, newStr, ...(repoWritePermit ? { permitId: repoWritePermit } : {}) });
       if (response.status === 503) return { id: use.id, content: NOT_LOCAL_CORE, isError: true };
+      if (response.status === 409) return { id: use.id, content: 'SCRITTURA NEGATA — serve la conferma esplicita dell’utente (MODIFICA CODICE) in questo turno. Non dire che il file è stato modificato.', isError: true };
       if (!response.ok) return { id: use.id, content: `ISPEZIONE FALLITA — il servizio non ha risposto (${response.status}).`, isError: true };
       const res = (await response.json()) as WriteResponse;
       return res.ok

@@ -14,7 +14,7 @@ import { existsSync, readdirSync } from 'node:fs';
 import { enabledSkillsExportDirectory } from './skills';
 import { assertRouteAllowed, ModelPolicyError, resolveWorkModel } from './_shared/modelGateway';
 import { INTERNAL_CAP_EXCEEDED, LOCAL_ONLY_BLOCKED, recordSpend } from './_shared/spend';
-import { issueHermesActionPermit, type HermesWriteAction } from './_shared/v2/hermesActionPermit';
+import { issueActionPermit, verifiedConfirmation } from './_shared/actionPermits';
 
 const PROFILES = new Set<RunProfile>(['chat', 'project-chat', 'lab', 'automation', 'inspection', 'coding']);
 const encoder = new TextEncoder();
@@ -61,20 +61,19 @@ function hermesUnavailable(message: string, status = 409): Response {
   return json({ error: message, code: message.split(':', 1)[0] }, status);
 }
 
-const confirms = (text: string) => /^\s*(?:s[iì]|yes|confermo|ok(?:ay)?|va bene|esatto|corretto|vai(?:\s+(?:pure|inserisci|registra|procedi))?|inserisci|registra|procedi|fallo|segna(?:lo)?)(?=\s|[.!?,;:]|$)/i.test(text);
+type HermesWriteAction = 'meal' | 'workout' | 'weight';
 
+/* vNext: the verification is the shared permit service's (same affirmative
+   set, same manifest questions as the chat and the button row). */
 function verifiedWriteAction(body: Record<string, unknown>, input: string, turns: Turn[]): HermesWriteAction | null {
-  if (!confirms(input)) return null;
   const hint = body.actionIntent && typeof body.actionIntent === 'object'
     ? body.actionIntent as { action?: unknown; status?: unknown }
     : null;
   if (hint?.status !== 'confirmed') return null;
   const previous = [...turns].reverse().find((turn) => turn.role === 'assistant');
   const previousText = previous && typeof previous.content === 'string' ? previous.content : '';
-  if (hint.action === 'meal' && /Confermi che lo registro come \*\*(?:colazione|spuntino|pranzo|merenda|cena|extra)(?:\s*\/[^*]+)?\*\*\?/i.test(previousText)) return 'meal';
-  if (hint.action === 'workout' && /Confermi che registro questo \*\*allenamento\*\* in ME\?/i.test(previousText)) return 'workout';
-  if (hint.action === 'weight' && previousText.includes('Confermi che registro questo **peso** in ME?')) return 'weight';
-  return null;
+  const action = hint.action === 'meal' || hint.action === 'workout' || hint.action === 'weight' ? hint.action : null;
+  return action && verifiedConfirmation(action, input, previousText) ? action : null;
 }
 
 function actionPolicy(body: Record<string, unknown>, requestId: string, verified: HermesWriteAction | null): string {
@@ -162,7 +161,7 @@ async function hermesStream(body: Record<string, unknown>, request: Request): Pr
   }
   const requestId = typeof body.runId === 'string' ? body.runId : crypto.randomUUID();
   const verifiedAction = verifiedWriteAction(body, input, turns);
-  if (verifiedAction) await issueHermesActionPermit(requestId, verifiedAction);
+  if (verifiedAction) await issueActionPermit(requestId, verifiedAction);
   /* Prima del turno: istantanea del workspace. Hermes scrive file dentro la
      sua stessa cartella di lavoro con i suoi strumenti — non passa mai da un
      evento VINZ.MON dedicato — quindi l'unico modo di sapere "ha creato o

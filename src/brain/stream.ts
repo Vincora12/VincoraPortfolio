@@ -5,6 +5,7 @@ import { useApp } from '../state/store';
 import { buildVoiceSystemPrompt } from '../ai/voicePrompt';
 import { persistChatTrace, recordChatTrace, systemPromptComposition, traceClock, type ChatTrace } from '../ai/chatTrace';
 import { amendTurnDecision, finalizeTurnDecision } from '../mon-core/decisionLog';
+import { CONFIRMATION_QUESTIONS } from '../mon-core/toolManifest';
 import { voiceCard } from '../engine/voiceCard';
 import { resolveChatContext } from '../ai/chatContext';
 import { CLOUD_CHEAP_ROUND_MODEL, LOCAL_CHEAP_ROUND_SENTINEL } from '../../netlify/functions/_shared/routing';
@@ -299,37 +300,37 @@ export const CONFIRMABLE_ACTIONS: Record<ConfirmableAction, {
 }> = {
   peso: {
     tool: 'registra_peso',
-    question: 'Confermi che registro questo **peso** in ME?',
+    question: CONFIRMATION_QUESTIONS.peso,
     hold: 'Read the weight the user stated and comment on it if useful, but DO NOT call registra_peso and do not ask the final confirmation question. The app will ask it. The weight is NOT stored yet: never say or imply that it was saved. The write tool is intentionally withheld until confirmation: never claim it is unavailable.',
     go: 'The user has just confirmed the weight. Call registra_peso now.',
   },
   promemoria: {
     tool: 'programma_promemoria',
-    question: 'Confermi che creo questo **promemoria**?',
+    question: CONFIRMATION_QUESTIONS.promemoria,
     hold: 'Restate the reminder you understood — what, which date and which time, with the timezone — but DO NOT call programma_promemoria and do not ask the final confirmation question. The app will ask it. Nothing is scheduled yet: never say or imply that the reminder exists. If the date or time is not certain, ask for it instead of guessing.',
     go: 'The user has just confirmed the reminder. Call programma_promemoria now with the date and time you restated.',
   },
   automazione: {
     tool: 'crea_automazione',
-    question: 'Confermi che creo questa **automazione**?',
+    question: CONFIRMATION_QUESTIONS.automazione,
     hold: 'Restate the automation you understood — what it will do and at which time, with the timezone — but DO NOT call crea_automazione and do not ask the final confirmation question. The app will ask it. Nothing is scheduled yet: never say or imply that the automation exists. If the time is not certain, ask for it instead of guessing. Say plainly that an automation is read-only: it searches and reports, it cannot record anything in ME.',
     go: 'The user has just confirmed the automation. Call crea_automazione now with the title, description and time you restated.',
   },
   piano: {
     tool: 'imposta_piano_allenamento',
-    question: 'Confermi che aggiorno il **piano di allenamento**?',
+    question: CONFIRMATION_QUESTIONS.piano,
     hold: 'Show the workout plan exactly as it would become, preserving every day not explicitly changed, but DO NOT call imposta_piano_allenamento and do not ask the final confirmation question. The app will ask it. The plan is NOT updated yet: never say or imply that it was saved.',
     go: 'The user has just confirmed the workout plan change. Call imposta_piano_allenamento now with the plan you showed.',
   },
   dieta: {
     tool: 'imposta_dieta',
-    question: 'Confermi che aggiorno la **dieta**?',
+    question: CONFIRMATION_QUESTIONS.dieta,
     hold: 'Show the diet exactly as it would become, but DO NOT call imposta_dieta and do not ask the final confirmation question. The app will ask it. The diet is NOT updated yet: never say or imply that it was saved.',
     go: 'The user has just confirmed the diet change. Call imposta_dieta now with the diet you showed.',
   },
   riavvio: {
     tool: RESTART_SERVICE_TOOL_NAME,
-    question: 'Confermi che riavvio il servizio **Local Core** sul tuo Mac?',
+    question: CONFIRMATION_QUESTIONS.riavvio,
     hold: 'The user is asking to restart the Local Core service. Explain what this does (a brief interruption of the local server, then it comes back), but DO NOT call the restart tool and do not ask the final confirmation question. The app will ask it. Nothing is restarted yet.',
     go: 'The user has just confirmed the restart. Call the restart tool now. After it responds, do not claim the service is already back online — only inspect_local_services can confirm that, and only in a later turn.',
   },
@@ -340,7 +341,7 @@ export const CONFIRMABLE_ACTIONS: Record<ConfirmableAction, {
   codice: {
     tool: 'repo_write',
     alsoHolds: ['repo_edit'],
-    question: 'Confermi che modifico il **codice** del repository?',
+    question: CONFIRMATION_QUESTIONS.codice,
     hold: 'The user wants a change to VINZ.MON\'s own source code. Read the relevant files with code_search/code_read, then show exactly which file(s) you would change and the precise edit, but DO NOT call repo_write or repo_edit and do not ask the final confirmation question. The app will ask it. Nothing is written yet: never say or imply that a file was changed.',
     go: 'The user has just confirmed the code change. Apply exactly the edit you showed, using repo_edit for existing files (repo_write only for new files). If the server answers SCRITTURA NEGATA, report it plainly: protected Core files can only be changed by hand.',
   },
@@ -989,7 +990,7 @@ export async function replyWithLocalTools(
         const confirmation = mealConfirmation?.status === 'needs-confirmation'
           ? `\n\nConfermi che lo registro come **${mealConfirmation.slot === 'extra' ? 'extra / spuntino aggiuntivo' : mealConfirmation.slot}**?`
           : workoutConfirmation?.status === 'needs-confirmation'
-            ? '\n\nConfermi che registro questo **allenamento** in ME?'
+            ? `\n\n${CONFIRMATION_QUESTIONS.allenamento}`
           : actionConfirmation?.status === 'needs-confirmation'
             ? `\n\n${CONFIRMABLE_ACTIONS[actionConfirmation.action].question}`
           : '';

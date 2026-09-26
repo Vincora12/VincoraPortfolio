@@ -1,7 +1,7 @@
 import { authorize, denied, json } from './_shared/auth';
 import { getStore } from './_shared/localStore';
 import { enqueuePendingAction, type MealSlot, type PendingAction } from './shortcut';
-import { consumeHermesActionPermit, type HermesWriteAction } from './_shared/v2/hermesActionPermit';
+import { consumeActionPermit, type PermitAction } from './_shared/actionPermits';
 
 const stateStore = () => getStore({ name: 'vinzmon-state', consistency: 'strong' });
 const id = (kind: string) => `hermes-${kind}-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
@@ -23,8 +23,8 @@ async function healthSnapshot(): Promise<unknown> {
   };
 }
 
-async function authorizedWrite(requestId: string, action: HermesWriteAction): Promise<Response | null> {
-  return await consumeHermesActionPermit(requestId, action)
+async function authorizedWrite(requestId: string, action: PermitAction): Promise<Response | null> {
+  return await consumeActionPermit(requestId, action)
     ? null
     : json({ error: 'CONFIRMATION_REQUIRED', message: 'Scrittura rifiutata: manca una conferma utente valida per questo turno.' }, 409);
 }

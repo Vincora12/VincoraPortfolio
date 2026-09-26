@@ -22,6 +22,7 @@
 import { authorize, denied, json } from './_shared/auth';
 import { type Capability } from './_shared/routing';
 import { assertRouteAllowed, resolveModelRoute } from './_shared/modelGateway';
+import { isModelOfferableTool } from '../../src/mon-core/toolManifest';
 import {
   callProvider,
   generateImage,
@@ -410,6 +411,13 @@ export default async function handler(request: Request): Promise<Response> {
   }
 
   const tools = payload.tools ?? [];
+  /* vNext TOOL MANIFEST — the model may only be offered tools VINZ.MON
+     declares (src/mon-core/toolManifest.ts). A client cannot smuggle an
+     undeclared tool into a turn. */
+  const undeclared = tools.filter((tool) => !isModelOfferableTool(tool?.name));
+  if (undeclared.length) {
+    return json({ error: `strumento non dichiarato nel manifest: ${undeclared.map((tool) => String(tool?.name)).slice(0, 3).join(', ')}`, code: 'TOOL_NOT_DECLARED' }, 400);
+  }
   if (tools.length > LIMITS.tools) {
     return json({ error: `troppi strumenti: ${tools.length} su un massimo di ${LIMITS.tools}` }, 413);
   }
