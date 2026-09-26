@@ -1,5 +1,52 @@
 # VINZ.MON vNext — Current Reality Map (2026-09-26)
 
+> **PATCHED for canonical `codex/vinzmon-v2` @ `16225c8`.** Sections below
+> were written for `79e46f1`. Stale statements are corrected here; full
+> reasoning is in the PATCH section of `docs/VINZMON_VNEXT_VALIDATION.md`.
+>
+> - **§0 / §2 — Hermes IS integrated** (was: "no adapter on any branch").
+>   Entry: `netlify-runtime.ts` → `runWithHermesProject` →
+>   `hermes-project-runtime.ts` → `POST /api/runs {stream, project-chat}` →
+>   `runs.ts` `hermesStream` → `_shared/v2/hermesAdapter.ts` (JSON-RPC over
+>   `ws://127.0.0.1:9119/api/ws`). Flag `VINZMON_ORCHESTRATOR=hermes`, Local
+>   Core only, one workspace root. Falls back to the legacy path on
+>   `HERMES_DISABLED` / `HERMES_WORKSPACE_MISMATCH`.
+> - **§2 — Loops: 3 live** (browser `replyWithLocalTools`; Hermes;
+>   `executeRun`). The tool-less direct path now runs as a background job
+>   (`ai-chat-background.ts` + `ai-chat-job.ts`, cap + local-only enforced).
+>   `/api/runs` now has a UI caller.
+> - **§3 — Routing adds** `needsLegacyProductTool` /
+>   `BROWSER_PRODUCT_TOOL_INTENT` (calendar, drive, email, reminders,
+>   automations, look/screen, repo ops, non-weight writes → legacy loop) and a
+>   second confirmation parser in `runs.ts` (`confirms`, `verifiedWriteAction`).
+>   Memory capture now runs **only on non-Hermes turns**.
+> - **§4 — Registries: 6.** Added Hermes-native toolsets (sandboxed
+>   workspace) and the VINZ MCP bridge (`scripts/hermes-vinz-mcp-server.mjs` →
+>   `/api/hermes-tools`: `vinz_leggi_me`, `vinz_registra_pasto/allenamento/peso`),
+>   writes gated by a server-side one-shot permit (`hermesActionPermit.ts`) and
+>   applied via the shortcut queue. `repo_write`/`repo_edit` still unconfirmed.
+> - **§5 — Context:** `assembleContext` gains `inputBudgetTokens` (Hermes uses
+>   16k window / 6k input); `loadCoreContext` gets `projectId` and drops World
+>   outside the World project.
+> - **§6 — Memory:** new stores `vinzmon-hermes-sessions` (pointer),
+>   `vinzmon-hermes-action-permits`, `vinzmon-ai-chat` (jobs). Hermes keeps its
+>   own session history and, per profile, its own personal memory/user profile
+>   (write approval off).
+> - **§7 — Background Mind:** code unchanged; Hermes memory is an additional,
+>   unaudited learner.
+> - **§8 — Routing:** Ollama models added to `VOICE_CHOICES` and
+>   `assistant-original/models.ts`; new hardcoded maps in `runs.ts`
+>   (`HERMES_PROVIDER`, `HERMES_LOCAL_MODELS`); `_shared/chatLimits.ts`
+>   duplicates `ai.ts` limits; Hermes path lacks local-only enforcement.
+>   Local image OCR (`localImageOcr.ts` + Swift/Vision) replaces cloud vision
+>   for Hermes image turns.
+> - **§9 — Skills:** source `hermes-official` added with nested-layout support
+>   (`directoryDepth: 2`) and 429 retry; Hermes loads `data/skills` directly.
+>   Still no commit/hash pin; model-created skills still enabled immediately.
+> - **§10 — Life/World:** `worldGame.ts` adds deterministic TUNE/RISE quests
+>   (HP, foe, clues, `resolveQuestTurn`); the model only classifies the action.
+>   Determinism holds.
+
 Companion to `docs/VINZMON_VNEXT_VALIDATION.md`. This file is the evidence
 base: what exists **today**, where, and who calls it. Read-only audit; no
 production code was changed.
