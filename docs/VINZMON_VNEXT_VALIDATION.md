@@ -940,3 +940,40 @@ Stage 0 (safety gate) is independent and should ship first or alongside.
     bounded Reflection); legacy surfaces (Brain page, `/api/brain`,
     `/v2-lobehub`, unused V2 modules) removed; price/model tables 5→2. The
     product layer (store, engine, UI) is not the problem and should not be cut.
+
+---
+
+## MIGRATION RESULT (branch `claude/vinzmon-vnext-migration`, base 16225c8)
+
+One commit per step, each with a focused `verify:vnext-*` check:
+
+| Step | Commit | Check |
+|---|---|---|
+| 1 Safety gate (protected paths, `codice` confirmation, skills born disabled, enabled-only export, isolated Hermes workspace) | 2d6f80e | `verify:vnext-safety` |
+| 2 Turn decision records (`src/mon-core/turnDecision.ts`, TraceLab) | 0703ea2 | `verify:vnext-decision` |
+| 3 CEREBRO boundary (no Hermes personal memory; 409 `HERMES_BOUNDARY_UNCONFIRMED` → fallback) | 4748f2d | `verify:vnext-cerebro-boundary` |
+| 4 Superseded agent paths removed | 5bf158c | existing checks updated |
+| 5 Canonical modes `decideTurn()` + `[AUTO][ANSWER][ACTION][WORK]` + real MON CORE line | 65b1bfa | `verify:vnext-modes` |
+| 6 Model gateway (`_shared/modelGateway.ts`, `_shared/prices.ts`) | e3d6752 | `verify:vnext-gateway` |
+| 7 Background Mind local-first, idempotent, bounded | 064179f | `verify:vnext-background` |
+| 8 Tool manifest + generalised permits (`/api/permits`) | 46d7554 | `verify:vnext-tools` |
+| 9 CEREBRO contract (`_shared/cerebro`), Hermes = v1 | 59382ae | `verify:vnext-cerebro-contract` |
+| 10 Skill provenance (pinned commit, sha256, classes A/B/C) | 79b291a | `verify:vnext-skills` |
+| 11 Canonical memory read contract (`_shared/recall.ts`) | 7501073 | `verify:vnext-recall` |
+
+### Deviations from the frozen target (deliberate)
+- Weekly reflection kept: its opinions feed `maybeSpeakFirst` (not a ghost).
+- `/brain` page kept.
+- CEREBRO approval policy is `deny` only; `ask` is reserved in the contract.
+- Memory capture keeps the monthly cap off (a missed capture is data loss) — product decision still open.
+- `src/ai/models.ts` UI list and `chatLimits.ts` still duplicate parts of the registry.
+- The browser-path permit is verified server-side from client-supplied message texts (the server has no chat transcript).
+- The `coding` profile in `permissions.ts` still maps to no tools.
+- Class B skills (scripts/config) stay readable as instructions by the chat; only WORK may use them as procedures with scripts.
+- World canon is not part of `recall()`; it is read only through its deterministic validators.
+- Skills installed before Step 10 are `unpinned`: they keep working; reinstalling pins them.
+
+### Operational requirements before merge
+- Local Core env: `VINZMON_HERMES_PERSONAL_MEMORY=off`, otherwise WORK falls back to ACTION.
+- Hermes profile: `skills.external_dirs` → `data/skills-enabled`; memory/profile toolsets off (see `docs/hermes-vinzmon-profile.example.yaml`).
+- Hermes workspace must not overlap the repository or `VINZMON_DATA_DIR`.
