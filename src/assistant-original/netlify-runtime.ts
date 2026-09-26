@@ -39,6 +39,7 @@ import { captureChatMemoryForClient } from "@/assistant-original/chat-memory-fee
 import { postChatClientError, postChatDiagnostic, postRuntimeEvent } from "@/system/runtimeLog";
 import { createV2Issue } from "@/ai/backend";
 import { activeThreadId, consumeTopicContext, readWatermark, topicArchive } from "./conversation-topics";
+import type { CerebroTimings } from "../../netlify/functions/_shared/cerebro/contract";
 import { lastHermesFallbackCode, lastTurnWasCerebro, openHermesProjectRun, readHermesProjectEvents, type ContextUsage, type HermesWorkspaceFile } from './hermes-project-runtime';
 import { classifyV2Issue, isV2IssueIntent, v2IssueConfirmationText } from "@/ai/v2Issues";
 import { browserUuid } from "@/system/browserUuid";
@@ -722,7 +723,7 @@ async function* runWithHermesProject(
   let answer = '';
   let model: string | undefined;
   let costUsd = 0;
-  let timings: Record<string, number> | undefined;
+  let timings: CerebroTimings | undefined;
   let contextUsage: { hermes?: ContextUsage; vinz?: ContextUsage } | undefined;
   let workspaceFiles: HermesWorkspaceFile[] | undefined;
   const updates: string[] = [];

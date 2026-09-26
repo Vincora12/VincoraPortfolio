@@ -1,31 +1,14 @@
 import type { ThreadMessage } from '@assistant-ui/react';
+import type { CerebroContextUsage, CerebroEvent, CerebroWorkspaceFile } from '../../netlify/functions/_shared/cerebro/contract';
 
-export type HermesClientEvent =
-  | { type: 'status'; runId: string; status: string; at: string }
-  | { type: 'progress'; runId: string; message: string; at: string }
-  | { type: 'text_delta'; runId: string; delta: string; at: string }
-  | { type: 'tool_started' | 'tool_progress'; runId: string; tool: string; preview?: string; at: string }
-  | { type: 'tool_completed'; runId: string; tool: string; durationMs?: number; error?: boolean; at: string }
-  | { type: 'approval_required'; runId: string; requestId?: string; reason?: string; at: string }
-  | { type: 'final'; runId: string; text: string; model?: string; usage?: Record<string, number>; costUsd?: number; timings: Record<string, number>; files?: HermesWorkspaceFile[]; at: string }
-  | { type: 'error'; runId: string; message: string; at: string }
-  | { type: 'context'; runId: string; hermes?: ContextUsage; vinz?: ContextUsage; at: string }
-  | { type: 'decision'; runId: string; mode: 'WORK'; executor: 'cerebro'; contextItems: number; skills: number; at: string };
-
-export interface ContextUsage {
-  usedTokens: number;
-  maxTokens: number;
-  percent: number;
-  estimated?: boolean;
-}
-
-/** A file Hermes created or changed in the Project workspace this turn —
+/* vNext Step 9 — the browser reads the same runtime-agnostic CEREBRO event
+   contract the server emits (netlify/functions/_shared/cerebro/contract.ts). */
+export type HermesClientEvent = CerebroEvent;
+export type ContextUsage = CerebroContextUsage;
+/** A file CEREBRO created or changed in the Project workspace this turn —
     path relative to the workspace root, downloadable via the existing
     /api/vinz-workspace `read-binary` action. */
-export interface HermesWorkspaceFile {
-  path: string;
-  size: number;
-}
+export type HermesWorkspaceFile = CerebroWorkspaceFile;
 
 function wasHermes(message: ThreadMessage): boolean {
   const custom = message.metadata?.custom as Record<string, unknown> | undefined;

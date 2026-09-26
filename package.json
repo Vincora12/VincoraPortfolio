@@ -78,7 +78,8 @@
     "verify:vnext-modes": "node scripts/vnext-modes-check.mjs",
     "verify:vnext-gateway": "node scripts/vnext-gateway-check.mjs",
     "verify:vnext-background": "node scripts/vnext-background-check.mjs",
-    "verify:vnext-tools": "node scripts/vnext-tools-check.mjs"
+    "verify:vnext-tools": "node scripts/vnext-tools-check.mjs",
+    "verify:vnext-cerebro-contract": "node scripts/vnext-cerebro-contract-check.mjs"
   },
   "dependencies": {
     "@assistant-ui/react": "^0.15.16",

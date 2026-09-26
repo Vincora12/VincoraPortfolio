@@ -3,7 +3,7 @@ import { cancelRun, executeRun } from './_shared/v2/runEngine';
 import { readRun } from './_shared/v2/runStore';
 import { canonicalDomains } from './_shared/v2/domains';
 import { ensureProjectWorkspace, isLocalCoreServer, listWorkspaceTree } from './_shared/vinzWorkspace';
-import { assertHermesWorkspace, forgetHermesSession, hermesConfig, hermesMemoryBoundaryConfirmed, hermesProviderFor, stopHermesRun, streamHermesProjectRun, type HermesVinzEvent } from './_shared/v2/hermesAdapter';
+import { activeCerebro, type CerebroEvent } from './_shared/cerebro';
 import { sendPushNotification } from './_shared/pushDelivery';
 import { assembleContext } from './_shared/v2/contextAssembler';
 import { localImages, readImagesLocally } from './_shared/v2/localImageOcr';
@@ -61,11 +61,11 @@ function hermesUnavailable(message: string, status = 409): Response {
   return json({ error: message, code: message.split(':', 1)[0] }, status);
 }
 
-type HermesWriteAction = 'meal' | 'workout' | 'weight';
+type StructuredWriteAction = 'meal' | 'workout' | 'weight';
 
 /* vNext: the verification is the shared permit service's (same affirmative
    set, same manifest questions as the chat and the button row). */
-function verifiedWriteAction(body: Record<string, unknown>, input: string, turns: Turn[]): HermesWriteAction | null {
+function verifiedWriteAction(body: Record<string, unknown>, input: string, turns: Turn[]): StructuredWriteAction | null {
   const hint = body.actionIntent && typeof body.actionIntent === 'object'
     ? body.actionIntent as { action?: unknown; status?: unknown }
     : null;
@@ -76,7 +76,7 @@ function verifiedWriteAction(body: Record<string, unknown>, input: string, turns
   return action && verifiedConfirmation(action, input, previousText) ? action : null;
 }
 
-function actionPolicy(body: Record<string, unknown>, requestId: string, verified: HermesWriteAction | null): string {
+function actionPolicy(body: Record<string, unknown>, requestId: string, verified: StructuredWriteAction | null): string {
   const hint = body.actionIntent && typeof body.actionIntent === 'object'
     ? body.actionIntent as { action?: unknown; status?: unknown; slot?: unknown }
     : null;
@@ -93,14 +93,15 @@ function actionPolicy(body: Record<string, unknown>, requestId: string, verified
 
 async function hermesStream(body: Record<string, unknown>, request: Request): Promise<Response> {
   let config;
-  try { config = hermesConfig(); }
+  const cerebro = activeCerebro();
+  try { config = cerebro.configured(); }
   catch (error) { return hermesUnavailable(error instanceof Error ? error.message : String(error), 503); }
   if (!config) return hermesUnavailable('HERMES_DISABLED: legacy orchestrator is active.');
   /* vNext MON CORE — this ingress is the WORK executor only. MON CORE decides
      the mode; a client that asks CEREBRO to do ANSWER/ACTION work is refused
      (older clients that send no mode keep working). */
   if (body.mode !== undefined && body.mode !== 'WORK') return hermesUnavailable('MODE_NOT_WORK: /api/runs stream serves only WORK turns.', 400);
-  if (!hermesMemoryBoundaryConfirmed()) {
+  if (!cerebro.boundaryConfirmed()) {
     return hermesUnavailable('HERMES_BOUNDARY_UNCONFIRMED: Hermes personal memory/profile must be disabled (VINZMON_HERMES_PERSONAL_MEMORY=off); legacy orchestrator stays active.');
   }
   const projectId = typeof body.projectId === 'string' ? body.projectId : '';
@@ -109,8 +110,8 @@ async function hermesStream(body: Record<string, unknown>, request: Request): Pr
      choice, else the configured runtime default) and enforces local-only
      mode + the cap on it; Hermes only receives the result. */
   const requestedModel = body.model !== undefined ? resolveWorkModel(body.model, config.model) : null;
-  const requestedHermesProvider = requestedModel ? hermesProviderFor(requestedModel.provider) : null;
-  if (body.model !== undefined && (!requestedModel || !requestedHermesProvider)) return hermesUnavailable('HERMES_MODEL_INVALID: scegli un modello configurato in VINZ.MON.', 400);
+  const requestedRuntimeProvider = requestedModel ? cerebro.providerFor(requestedModel.provider) : null;
+  if (body.model !== undefined && (!requestedModel || !requestedRuntimeProvider)) return hermesUnavailable('HERMES_MODEL_INVALID: scegli un modello configurato in VINZ.MON.', 400);
   const selectedModel = requestedModel ?? resolveWorkModel(undefined, config.model)!;
   try {
     await assertRouteAllowed({ provider: selectedModel.provider ?? 'openai', model: selectedModel.model, location: selectedModel.location }, { purpose: 'work' });
@@ -124,7 +125,7 @@ async function hermesStream(body: Record<string, unknown>, request: Request): Pr
   const project = await canonicalDomains.project(projectId);
   if (!project) return hermesUnavailable(`HERMES_PROJECT_NOT_FOUND: ${projectId}`, 404);
   const workspaceRoot = await ensureProjectWorkspace(project.id, project.title);
-  try { assertHermesWorkspace(config, workspaceRoot); }
+  try { cerebro.assertWorkspace(config, workspaceRoot); }
   catch (error) { return hermesUnavailable(error instanceof Error ? error.message : String(error)); }
   const turns = textTurns(body.turns);
   let images;
@@ -171,8 +172,8 @@ async function hermesStream(body: Record<string, unknown>, request: Request): Pr
      file nuovo o contenuto diverso — senza dover fidarsi del nome di un
      tool interno di Hermes, che potrebbe cambiare. */
   const workspaceBefore = new Map((await listWorkspaceTree(workspaceRoot)).filter((entry) => entry.type === 'file').map((entry) => [entry.path, entry.size ?? -1]));
-  let activeHermesRunId = '';
-  const iterator = streamHermesProjectRun(config, {
+  let activeRunId = '';
+  const iterator = cerebro.run(config, {
     requestId,
     projectId,
     projectName: project.title,
@@ -181,7 +182,7 @@ async function hermesStream(body: Record<string, unknown>, request: Request): Pr
     input,
     systemPrompt: context.system.map((block) => block.text).join('\n\n'),
     turns,
-    ...(requestedModel && requestedHermesProvider ? { model: requestedModel.model, provider: requestedHermesProvider } : {}),
+    ...(requestedModel && requestedRuntimeProvider ? { model: requestedModel.model, provider: requestedRuntimeProvider } : {}),
     ...(hermesEffort(body.effort) ? { effort: hermesEffort(body.effort) } : {}),
     actionPolicy: actionPolicy(body, requestId, verifiedAction),
   }, request.signal);
@@ -192,19 +193,19 @@ async function hermesStream(body: Record<string, unknown>, request: Request): Pr
     async pull(controller) {
       if (!decisionSent) {
         decisionSent = true;
-        const decision: HermesVinzEvent = { type: 'decision', runId: requestId, mode: 'WORK', executor: 'cerebro', contextItems: context.trace.filter((item) => item.selected).length, skills: enabledSkills, at: new Date().toISOString() };
+        const decision: CerebroEvent = { type: 'decision', runId: requestId, mode: 'WORK', executor: 'cerebro', contextItems: context.trace.filter((item) => item.selected).length, skills: enabledSkills, at: new Date().toISOString() };
         controller.enqueue(encoder.encode(`data: ${JSON.stringify(decision)}\n\n`));
         return;
       }
       try {
         const next = await iterator.next();
         if (next.done) return controller.close();
-        activeHermesRunId = next.value.runId;
+        activeRunId = next.value.runId;
         const event = await enrichEvent(next.value);
         notifyIfSettled(event);
         controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
       } catch (error) {
-        const event: HermesVinzEvent = { type: 'error', runId: activeHermesRunId || requestId, message: error instanceof Error ? error.message : String(error), at: new Date().toISOString() };
+        const event: CerebroEvent = { type: 'error', runId: activeRunId || requestId, message: error instanceof Error ? error.message : String(error), at: new Date().toISOString() };
         notifyIfSettled(event);
         controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
         controller.close();
@@ -236,7 +237,7 @@ async function hermesStream(body: Record<string, unknown>, request: Request): Pr
     },
   });
 
-  const enrichEvent = async (rawEvent: HermesVinzEvent): Promise<HermesVinzEvent> => {
+  const enrichEvent = async (rawEvent: CerebroEvent): Promise<CerebroEvent> => {
     let event = rawEvent;
     if (event.type === 'final' && selectedModel.location === 'cloud') {
       const costUsd = await recordSpend('character-voice', selectedModel.model, hermesUsage(event.usage), {
@@ -273,7 +274,7 @@ async function hermesStream(body: Record<string, unknown>, request: Request): Pr
      "l'app sembra in background" (non lo sappiamo da qui) — le notifiche in
      questo progetto sono sempre accese per scelta (vedi
      pushNotifications.ts), non opt-in silenzioso. */
-  const notifyIfSettled = (event: HermesVinzEvent): void => {
+  const notifyIfSettled = (event: CerebroEvent): void => {
     if (event.type !== 'final' && event.type !== 'error') return;
     void sendPushNotification({
       title: project.title,
@@ -291,7 +292,7 @@ async function hermesStream(body: Record<string, unknown>, request: Request): Pr
       while (true) {
         const next = await iterator.next();
         if (next.done) return;
-        activeHermesRunId = next.value.runId;
+        activeRunId = next.value.runId;
         const event = await enrichEvent(next.value);
         if (event.type === 'final' || event.type === 'error') {
           notifyIfSettled(event);
@@ -323,8 +324,9 @@ export default async function handler(request: Request): Promise<Response> {
     const runId = typeof body.runId === 'string' ? body.runId : '';
     if (!runId) return json({ error: 'Run non attivo.' }, 404);
     let config = null;
-    try { config = hermesConfig(); } catch { /* legacy cancellation remains available */ }
-    if (config && await stopHermesRun(config, runId)) return json({ ok: true });
+    const cerebro = activeCerebro();
+    try { config = cerebro.configured(); } catch { /* legacy cancellation remains available */ }
+    if (config && await cerebro.cancel(config, runId)) return json({ ok: true });
     return cancelRun(runId) ? json({ ok: true }) : json({ error: 'Run non attivo.' }, 404);
   }
   if (body.action === 'hermes-reset-session') {
@@ -335,7 +337,7 @@ export default async function handler(request: Request): Promise<Response> {
     const projectId = typeof body.projectId === 'string' ? body.projectId : '';
     const conversationId = typeof body.conversationId === 'string' ? body.conversationId : '';
     if (!projectId || !conversationId) return json({ error: 'projectId e conversationId richiesti.' }, 400);
-    await forgetHermesSession(projectId, conversationId);
+    await activeCerebro().resetSession(projectId, conversationId);
     return json({ ok: true });
   }
   /* Hermes nativo gira solo sul Mac (ws://127.0.0.1:9119 è il loopback del Local

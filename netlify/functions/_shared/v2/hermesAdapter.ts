@@ -5,78 +5,25 @@ import { isLocalCoreServer } from '../vinzWorkspace';
 import { getStore, localDataDirectory } from '../localStore';
 import { resolveRepoRoot } from '../agentLabFiles';
 import type { Turn } from '../providers';
+import type { CerebroConfig, CerebroContextUsage, CerebroEvent, CerebroRuntime, CerebroTimings, CerebroWorkRequest, CerebroWorkspaceFile } from '../cerebro/contract';
 
-export type HermesVinzEvent =
-  | { type: 'status'; runId: string; status: 'starting' | 'running' | 'completed' | 'cancelled'; at: string }
-  | { type: 'progress'; runId: string; message: string; at: string }
-  | { type: 'text_delta'; runId: string; delta: string; at: string }
-  | { type: 'tool_started'; runId: string; tool: string; preview?: string; at: string }
-  | { type: 'tool_progress'; runId: string; tool: string; preview?: string; at: string }
-  | { type: 'tool_completed'; runId: string; tool: string; durationMs?: number; error?: boolean; at: string }
-  | { type: 'approval_required'; runId: string; requestId?: string; reason?: string; at: string }
-  | { type: 'final'; runId: string; text: string; model?: string; usage?: Record<string, number>; costUsd?: number; timings: HermesTimings; files?: HermesWorkspaceFile[]; at: string }
-  | { type: 'error'; runId: string; message: string; at: string }
-  | { type: 'context'; runId: string; hermes?: HermesContextUsage; vinz?: VinzContextUsage; at: string }
-  /* vNext MON CORE: emitted by /api/runs (never by Hermes) before delegation —
-     real facts only: the WORK decision, how many context items VINZ selected
-     for the package, and how many enabled skills CEREBRO can load. */
-  | { type: 'decision'; runId: string; mode: 'WORK'; executor: 'cerebro'; contextItems: number; skills: number; at: string };
+/* vNext Step 9 — Hermes is CEREBRO implementation v1: its event, request and
+   file types ARE the runtime-agnostic CEREBRO contract (../cerebro/contract.ts).
+   The aliases keep existing imports working. */
+export type HermesVinzEvent = CerebroEvent;
+export type HermesContextUsage = CerebroContextUsage & { estimated: boolean };
+export type VinzContextUsage = CerebroContextUsage;
+export type HermesWorkspaceFile = CerebroWorkspaceFile;
+export type HermesTimings = CerebroTimings;
+export type HermesProjectRun = CerebroWorkRequest;
 
-export interface HermesContextUsage {
-  usedTokens: number;
-  maxTokens: number;
-  percent: number;
-  estimated: boolean;
-}
-
-/** Set by runs.ts (hermesAdapter.ts has no view of VINZ.MON's own context
-    assembly) once the event reaches the SSE stream. */
-export interface VinzContextUsage {
-  usedTokens: number;
-  maxTokens: number;
-  percent: number;
-}
-
-/** A file Hermes created or changed in the Project workspace during this
-    turn, set by runs.ts (a before/after workspace diff — hermesAdapter.ts
-    has no view of VINZ.MON's own workspace file listing). `path` is
-    relative to the workspace root, downloadable via the existing
-    /api/vinz-workspace `read-binary` action. */
-export interface HermesWorkspaceFile {
-  path: string;
-  size: number;
-}
-
-export interface HermesTimings {
-  requestReceivedMs: number;
-  runStartedMs?: number;
-  firstEventMs?: number;
-  firstTextDeltaMs?: number;
-  firstToolEventMs?: number;
-  completedMs?: number;
-}
-
-export interface HermesConfig {
+export interface HermesConfig extends CerebroConfig {
   baseUrl: string;
   apiKey: string;
   workspaceRoot: string;
   model: string;
 }
 
-export interface HermesProjectRun {
-  requestId: string;
-  projectId: string;
-  projectName: string;
-  workspaceRoot: string;
-  conversationId: string;
-  input: string;
-  systemPrompt: string;
-  turns: Turn[];
-  model?: string;
-  provider?: string;
-  effort?: 'low' | 'medium' | 'high';
-  actionPolicy?: string;
-}
 
 /* Native Hermes gateway event frame, verified against the installed Hermes
    Agent source (~/.hermes/hermes-agent): tui_gateway/server.py `_event_frame`
@@ -601,3 +548,17 @@ export async function* streamHermesProjectRun(
     socket.close();
   }
 }
+
+/* ── CEREBRO v1 ────────────────────────────────────────────────────────────
+   The only object the rest of VINZ.MON needs from this module. */
+export const hermesCerebro: CerebroRuntime = {
+  id: 'hermes',
+  approvalPolicy: 'deny',
+  configured: () => hermesConfig(),
+  boundaryConfirmed: () => hermesMemoryBoundaryConfirmed(),
+  assertWorkspace: (config, workspaceRoot) => assertHermesWorkspace(config as HermesConfig, workspaceRoot),
+  providerFor: hermesProviderFor,
+  run: (config, request, signal) => streamHermesProjectRun(config as HermesConfig, request, signal),
+  cancel: (config, runId) => stopHermesRun(config as HermesConfig, runId),
+  resetSession: forgetHermesSession,
+};
