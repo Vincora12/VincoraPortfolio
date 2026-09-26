@@ -72,7 +72,8 @@
     "verify:hermes-fixture": "node scripts/hermes-fixture-check.mjs",
     "verify:v2-files": "node scripts/v2-file-migration-check.mjs",
     "verify:cultural-discovery": "node scripts/cultural-discovery-check.mjs",
-    "verify:vnext-safety": "node scripts/vnext-safety-check.mjs"
+    "verify:vnext-safety": "node scripts/vnext-safety-check.mjs",
+    "verify:vnext-decision": "node scripts/vnext-decision-check.mjs"
   },
   "dependencies": {
     "@assistant-ui/react": "^0.15.16",

@@ -35,6 +35,9 @@ export function shouldUseHermesProject(messages: readonly ThreadMessage[], user:
   return Boolean(user.trim()) || messages.slice(-4, -1).some(wasHermes);
 }
 
+/** vNext Turn Decision Record: why the last CEREBRO delegation fell back to the legacy path. */
+export let lastHermesFallbackCode: string | null = null;
+
 export async function openHermesProjectRun(input: {
   token: string;
   requestId: string;
@@ -70,7 +73,10 @@ export async function openHermesProjectRun(input: {
   });
   if (response.status === 409) {
     const problem = await response.json().catch(() => null) as { code?: string } | null;
-    if (problem?.code === 'HERMES_DISABLED' || problem?.code === 'HERMES_WORKSPACE_MISMATCH') return null;
+    if (problem?.code === 'HERMES_DISABLED' || problem?.code === 'HERMES_WORKSPACE_MISMATCH') {
+      lastHermesFallbackCode = problem.code;
+      return null;
+    }
     throw new Error(problem?.code ?? 'Hermes Project workspace non disponibile.');
   }
   if (!response.ok || !response.body) {

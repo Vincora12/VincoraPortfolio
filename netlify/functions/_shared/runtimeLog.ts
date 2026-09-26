@@ -53,6 +53,8 @@ const ALLOWED_META = new Set([
      createOwnershipGatedHistoryAdapter() ha originato la lettura, mai
      inventato quando la lettura non è passata dal gate. */
   'gateId',
+  /* vNext MON CORE — Turn Decision Record (names/labels only, never content). */
+  'mode', 'executor', 'requested', 'rules', 'withheld', 'location',
 ]);
 
 const store = () => getStore(STORE);

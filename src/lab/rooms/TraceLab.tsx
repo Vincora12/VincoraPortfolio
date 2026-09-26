@@ -56,6 +56,22 @@ function ExchangeTrace() {
         />
       </Section>
 
+      {trace.decision && (
+        <Section title="MON CORE — DECISIONE">
+          <Rows
+            rows={[
+              ['MODO', `${trace.decision.mode}${trace.decision.requested !== 'AUTO' ? ` (richiesto ${trace.decision.requested})` : ' (AUTO)'}`],
+              ['ESECUTORE', trace.decision.executor],
+              ['FONTE', trace.decision.source],
+              ['REGOLE', trace.decision.rules.join(', ') || '—'],
+              ['STRUMENTI OFFERTI', trace.decision.toolsOffered?.join(', ') || '—'],
+              ['TRATTENUTI', trace.decision.toolsWithheld?.join(', ') || '—'],
+              ...(trace.decision.cerebro ? [['CEREBRO', trace.decision.cerebro.delegated ? 'delegato' : `non delegato — ${trace.decision.cerebro.fallbackReason ?? '—'}`] as [string, string]] : []),
+            ]}
+          />
+        </Section>
+      )}
+
       {trace.personality && (
         <Section title="PERSONA">
           <Rows

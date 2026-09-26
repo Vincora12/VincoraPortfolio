@@ -11,6 +11,7 @@ import {
   shouldUseLocalTools,
   isRepoOpsIntent,
   isCodeWriteIntent,
+  matchedIntentRules,
   type ChatMealSlot,
   type MealConfirmation,
   type WorkoutConfirmation,
@@ -29,12 +30,14 @@ import type { ContextDecision } from '@/ai/contextSelection';
 import { resolveChatContext } from '@/ai/chatContext';
 import { buildCapabilitySummary } from "@/ai/toolLayer";
 import { persistChatTrace, recordChatTrace, systemPromptComposition, traceClock, type ChatTrace } from "@/ai/chatTrace";
+import { newTurnDecision, type DecisionSource, type TurnExecutor } from "@/mon-core/turnDecision";
+import { finalizeTurnDecision, recordTurnDecision } from "@/mon-core/decisionLog";
 import { voiceCard } from "@/engine/voiceCard";
 import { captureChatMemoryForClient } from "@/assistant-original/chat-memory-feedback";
 import { postChatClientError, postChatDiagnostic, postRuntimeEvent } from "@/system/runtimeLog";
 import { createV2Issue } from "@/ai/backend";
 import { activeThreadId, consumeTopicContext, readWatermark, topicArchive } from "./conversation-topics";
-import { openHermesProjectRun, readHermesProjectEvents, type ContextUsage, type HermesWorkspaceFile } from './hermes-project-runtime';
+import { lastHermesFallbackCode, openHermesProjectRun, readHermesProjectEvents, type ContextUsage, type HermesWorkspaceFile } from './hermes-project-runtime';
 import { classifyV2Issue, isV2IssueIntent, v2IssueConfirmationText } from "@/ai/v2Issues";
 import { browserUuid } from "@/system/browserUuid";
 import { processLifeTurn } from "./life-cycle-runtime";
@@ -859,6 +862,8 @@ function createBaseNetlifyChatModel(shared: { systemPrompt: string; requestId: s
         } : {}),
         ...(retrieved.length ? { context: retrieved, contextKind: "sources" as const } : {}),
       };
+      const decision = finalizeTurnDecision(shared.requestId);
+      if (decision) trace.decision = decision;
       recordChatTrace(trace);
       return persistChatTrace(trace);
     };
@@ -1112,11 +1117,33 @@ export function createNetlifyChatModel(
          conferma esplicita c'è, comanda quella — due strade insieme
          scriverebbero il piano due volte. */
       const confirmedPlan = !actionConfirmation && pendingPlan && confirms(user) ? pendingPlan : undefined;
+      /* vNext MON CORE — Turn Decision Record. Pure observation of the routing
+         below (rule names, executor, fallback reason); it does not change it. */
+      const pendingConfirmed = Boolean((pendingSlot || pendingWorkout || waitingAction || pendingPlan) && confirms(user));
+      const decisionRules = [
+        ...matchedIntentRules(user),
+        ...(pendingConfirmed ? ['PENDING_CONFIRMATION'] : []),
+        ...(actionConfirmation ? [`ACTION:${actionConfirmation.action}:${actionConfirmation.status}`] : []),
+        ...(projectId === WORLD_PROJECT_ID ? ['WORLD_PROJECT'] : projectId ? ['PROJECT_SELECTED'] : []),
+      ];
+      const decide = (executor: TurnExecutor, source: DecisionSource, extra: Record<string, unknown> = {}) => recordTurnDecision(newTurnDecision({
+        turnId: requestId,
+        executor,
+        source: pendingConfirmed ? 'pending-confirmation' : source,
+        rules: decisionRules,
+        capability: 'character-voice',
+        project: projectId === WORLD_PROJECT_ID ? 'world' : projectId ? 'project' : 'global',
+        ...extra,
+      }));
       if (isV2IssueIntent(user)) {
+        decide('issue', 'special-route');
+        finalizeTurnDecision(requestId);
         yield* runV2IssueCapture(user);
         return;
       }
       if (isImageCreationIntent(user)) {
+        decide('image', 'special-route', { capability: 'image' });
+        finalizeTurnDecision(requestId);
         yield* runImageCreation(args.messages, args.abortSignal);
         return;
       }
@@ -1128,7 +1155,11 @@ export function createNetlifyChatModel(
       const useTools = Boolean(runTool && (shouldUseLocalTools(user) || (projectId && projectId !== WORLD_PROJECT_ID) || mealConfirmation || workoutConfirmation || actionConfirmation || confirmedPlan));
       const token = savedToken();
       if (!token) throw new Error('Prima attiva VINZ.MON: manca il token.');
-      if (projectId && projectId !== WORLD_PROJECT_ID && !needsLegacyProductTool(user, actionConfirmation, confirmedPlan)) {
+      const legacyProductTool = Boolean(projectId && projectId !== WORLD_PROJECT_ID && needsLegacyProductTool(user, actionConfirmation, confirmedPlan));
+      if (legacyProductTool) decisionRules.push('BROWSER_PRODUCT_TOOL');
+      let cerebroFallback: string | undefined;
+      if (projectId && projectId !== WORLD_PROJECT_ID && !legacyProductTool) {
+        decide('cerebro', 'rule', { cerebro: { attempted: true, delegated: true } });
         const hermes = runWithHermesProject(
           args.messages,
           args.abortSignal,
@@ -1146,7 +1177,11 @@ export function createNetlifyChatModel(
           yield next.value;
           next = await hermes.next();
         }
-        if (next.value === true) return;
+        if (next.value === true) {
+          finalizeTurnDecision(requestId);
+          return;
+        }
+        cerebroFallback = lastHermesFallbackCode ?? 'HERMES_UNAVAILABLE';
       }
       if (last?.role === 'user') {
         void captureChatMemoryForClient({ text: user, messageId: last.id, requestId, context: args.messages.slice(-5, -1).map((message) => ({ role: message.role === 'assistant' ? 'assistant' : 'user', text: textOf(message) })) });
@@ -1209,7 +1244,9 @@ export function createNetlifyChatModel(
         systemPrompt += await loadEnabledSkillsSummary(token);
         systemPrompt += await connectorsSummaryForProject(projectId ?? null);
       }
+      const cerebroInfo = cerebroFallback ? { cerebro: { attempted: true, delegated: false, fallbackReason: cerebroFallback } } : {};
       if (runTool && useTools) {
+        decide('legacy-tools', decisionRules.length ? 'rule' : 'default', cerebroInfo);
         yield* runWithLocalTools(
           args.messages,
           args.abortSignal,
@@ -1223,6 +1260,7 @@ export function createNetlifyChatModel(
         );
         return;
       }
+      decide('direct', decisionRules.length ? 'rule' : 'default', cerebroInfo);
       const result = createBaseNetlifyChatModel({ systemPrompt, requestId, contextSelection, worldNarration: projectId === WORLD_PROJECT_ID, questFrame: lifeTurn?.questFrame }).run(args);
       if (result instanceof Promise) {
         yield await result;

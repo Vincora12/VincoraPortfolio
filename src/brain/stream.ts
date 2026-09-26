@@ -4,6 +4,7 @@ import { CODE_TOOL_DEFS, EXPORT_REPORT_TOOL_DEF, REPO_OPS_TOOL_DEFS, RESTART_SER
 import { useApp } from '../state/store';
 import { buildVoiceSystemPrompt } from '../ai/voicePrompt';
 import { persistChatTrace, recordChatTrace, systemPromptComposition, traceClock, type ChatTrace } from '../ai/chatTrace';
+import { amendTurnDecision, finalizeTurnDecision } from '../mon-core/decisionLog';
 import { voiceCard } from '../engine/voiceCard';
 import { resolveChatContext } from '../ai/chatContext';
 import { LOCAL_CHEAP_ROUND_SENTINEL } from '../../netlify/functions/_shared/routing';
@@ -412,6 +413,27 @@ export function isWorkoutLogIntent(text: string): boolean {
 }
 
 /** Usa il loop strumenti solo quando la richiesta riguarda dati o azioni locali. */
+/** vNext TURN DECISION RECORD — the names of the existing intent rules that
+    match this text. Same regexes `shouldUseLocalTools` uses, reported instead
+    of collapsed into one boolean; no new classification. */
+export function matchedIntentRules(text: string): string[] {
+  const rules: Array<[string, boolean]> = [
+    ['TOOL_INTENT', TOOL_INTENT.test(text)],
+    ['CODE_INSPECTION_INTENT', CODE_INSPECTION_INTENT.test(text)],
+    ['AUDIT_INTENT', AUDIT_INTENT.test(text)],
+    ['EXPORT_INTENT', EXPORT_INTENT.test(text)],
+    ['REPO_OPS_INTENT', REPO_OPS_INTENT.test(text)],
+    ['CODE_WRITE_INTENT', CODE_WRITE_INTENT.test(text)],
+    ['DAILY_ENERGY_INTENT', isDailyEnergyIntent(text)],
+    ['FILE_WORDS', /\b(file|txt|markdown|csv|pdf|allegat\w*|caricat\w*|documento|artifact|progett\w*|sorgent\w*|codice|bmr|tdee|deficit|energia)\b/i.test(text)],
+    ['RECALL_INTENT', RECALL_INTENT.test(text)],
+    ['MEAL_LOG_INTENT', isMealLogIntent(text)],
+    ['WORKOUT_LOG_INTENT', isWorkoutLogIntent(text)],
+  ];
+  const write = requiredWriteTool(text);
+  return [...rules.filter(([, hit]) => hit).map(([name]) => name), ...(write ? [`REQUIRED_WRITE:${write}`] : [])];
+}
+
 export function shouldUseLocalTools(text: string): boolean {
   return TOOL_INTENT.test(text) || CODE_INSPECTION_INTENT.test(text) || AUDIT_INTENT.test(text) || EXPORT_INTENT.test(text) || REPO_OPS_INTENT.test(text) || isDailyEnergyIntent(text) || /\b(file|txt|markdown|csv|pdf|allegat\w*|caricat\w*|documento|artifact|progett\w*|sorgent\w*|codice|bmr|tdee|deficit|energia)\b/i.test(text)
     || RECALL_INTENT.test(text);
@@ -722,6 +744,14 @@ export async function replyWithLocalTools(
     if (tool.name === 'correggi_ultimo_allenamento' && workoutConfirmation?.status === 'needs-confirmation') return false;
     return true;
   }).slice(0, 12);
+  /* vNext MON CORE — the ACTION executor reports the pool it actually built:
+     tools offered, write tools held back by a pending confirmation or by the
+     repo-write gate, and the round cap. */
+  amendTurnDecision(shared?.requestId, {
+    toolsOffered: availableTools.map((tool) => tool.name),
+    toolsWithheld: toolPool.filter((tool) => !availableTools.some((offered) => offered.name === tool.name) && (REPO_WRITE_TOOLS.has(tool.name) || ['registra_pasto', 'registra_allenamento'].includes(tool.name) || (actionConfirmation ? confirmableTools(actionConfirmation.action).includes(tool.name) : false))).map((tool) => tool.name),
+    maxRounds: isAudit || Boolean(shared?.projectId) ? 8 : 4,
+  });
   const forcedWrite = mealConfirmation?.status === 'confirmed'
     ? 'registra_pasto'
     : workoutConfirmation?.status === 'confirmed'
@@ -1070,6 +1100,8 @@ export async function replyWithLocalTools(
         ? { context: traceContext(), contextKind: 'voice-notes' as const }
         : {}),
     };
+    const decision = finalizeTurnDecision(shared?.requestId);
+    if (decision) trace.decision = { ...decision, ...(lastModel ? { model: lastModel } : {}) };
     recordChatTrace(trace);
     const traceId = await persistChatTrace(trace);
     if (outcome && traceId) outcome.traceId = traceId;

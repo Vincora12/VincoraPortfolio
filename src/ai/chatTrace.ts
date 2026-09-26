@@ -23,6 +23,8 @@ export interface ChatTracePromptBlock {
 }
 
 export interface ChatTrace {
+  /** vNext MON CORE — the operational routing decision for this turn. */
+  decision?: import('../mon-core/turnDecision').TurnDecision;
   contextSelection?: import('./contextSelection').ContextDecision[];
   originatingUserMessageId?: string;
   /** `strumenti` = replyWithLocalTools, `diretto` = streamReply. */

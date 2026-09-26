@@ -35,6 +35,8 @@ export type RuntimeClientEvent = {
        e cosa è successo al retrieval/capture, per confermare la diagnosi
        sull'uso reale prima di toccare l'architettura. */
     | 'CHAT_ROUTE_SELECTED'
+    /* vNext MON CORE — one content-free record of the per-turn routing decision. */
+    | 'TURN_DECISION'
     | 'MEMORY_RETRIEVAL_START'
     | 'MEMORY_RETRIEVAL_OK'
     | 'MEMORY_RETRIEVAL_ERROR'
