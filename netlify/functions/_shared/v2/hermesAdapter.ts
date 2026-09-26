@@ -135,6 +135,19 @@ export function assertIsolatedHermesWorkspace(workspaceRoot: string, repoRoot = 
   }
 }
 
+/* 🔒 vNext CEREBRO BOUNDARY — CEREBRO must not own canonical personal
+   memory. Hermes' built-in memory and user profile are Hermes-side settings
+   VINZ cannot read, so the operator confirms them explicitly: the Hermes
+   profile has `memory.memory_enabled: false` and
+   `memory.user_profile_enabled: false`
+   (docs/hermes-vinzmon-profile.example.yaml) and the Local Core environment
+   sets VINZMON_HERMES_PERSONAL_MEMORY=off. Until then WORK is not delegated
+   and the chat keeps its legacy path (fail-closed, never a silent second
+   memory). */
+export function hermesMemoryBoundaryConfirmed(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env.VINZMON_HERMES_PERSONAL_MEMORY?.trim().toLowerCase() === 'off';
+}
+
 export function assertHermesWorkspace(config: HermesConfig, selectedWorkspace: string): void {
   const selected = resolve(selectedWorkspace);
   if (selected !== config.workspaceRoot) {
@@ -203,7 +216,7 @@ function textTurn(turn: Turn): { role: string; content: string } | null {
 function instructions(run: HermesProjectRun): string {
   return [
     run.systemPrompt,
-    'HERMES EXECUTION BOUNDARY — Hermes owns the agent loop, durable personal memory, session recall and procedural skills. VINZ.MON remains canonical for structured product state (Projects, ME/health, Sync, Mon evolution and lore). Use VINZ.MON MCP tools for that state; never imitate a successful write in prose.',
+    'CEREBRO EXECUTION BOUNDARY — you are the WORK executor for VINZ.MON. You own only this execution session: planning, tool use and continuity of this task. VINZ.MON is canonical for identity, personal memory, Projects, Skills, permissions, ME/health, Sync, Mon evolution and lore. Do not save facts about the user, their life or their preferences into your own memory or profile: VINZ.MON records personal memory itself. Use VINZ.MON MCP tools for structured state; never imitate a successful write in prose.',
     `ACTIVE PROJECT ID: ${run.projectId}`,
     `ACTIVE PROJECT NAME: ${run.projectName}`,
     `AUTHORIZED WORKSPACE: ${run.workspaceRoot}`,

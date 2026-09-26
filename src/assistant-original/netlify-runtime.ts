@@ -1155,6 +1155,13 @@ export function createNetlifyChatModel(
       const useTools = Boolean(runTool && (shouldUseLocalTools(user) || (projectId && projectId !== WORLD_PROJECT_ID) || mealConfirmation || workoutConfirmation || actionConfirmation || confirmedPlan));
       const token = savedToken();
       if (!token) throw new Error('Prima attiva VINZ.MON: manca il token.');
+      /* vNext CEREBRO BOUNDARY — VINZ.MON records personal memory for EVERY
+         user turn, whichever executor answers. Previously this ran only after
+         the Hermes branch returned, so Hermes-handled Project turns never
+         reached VINZ memory. Fire-and-forget, as before. */
+      if (last?.role === 'user') {
+        void captureChatMemoryForClient({ text: user, messageId: last.id, requestId, context: args.messages.slice(-5, -1).map((message) => ({ role: message.role === 'assistant' ? 'assistant' : 'user', text: textOf(message) })) });
+      }
       const legacyProductTool = Boolean(projectId && projectId !== WORLD_PROJECT_ID && needsLegacyProductTool(user, actionConfirmation, confirmedPlan));
       if (legacyProductTool) decisionRules.push('BROWSER_PRODUCT_TOOL');
       let cerebroFallback: string | undefined;
@@ -1182,9 +1189,6 @@ export function createNetlifyChatModel(
           return;
         }
         cerebroFallback = lastHermesFallbackCode ?? 'HERMES_UNAVAILABLE';
-      }
-      if (last?.role === 'user') {
-        void captureChatMemoryForClient({ text: user, messageId: last.id, requestId, context: args.messages.slice(-5, -1).map((message) => ({ role: message.role === 'assistant' ? 'assistant' : 'user', text: textOf(message) })) });
       }
       const lifeTurn = last?.role === 'user'
         ? await processLifeTurn(last.id, user, projectId, useTools).catch(() => null)

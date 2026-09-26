@@ -3,7 +3,7 @@ import { cancelRun, executeRun } from './_shared/v2/runEngine';
 import { readRun } from './_shared/v2/runStore';
 import { canonicalDomains } from './_shared/v2/domains';
 import { ensureProjectWorkspace, isLocalCoreServer, listWorkspaceTree } from './_shared/vinzWorkspace';
-import { assertHermesWorkspace, forgetHermesSession, hermesConfig, stopHermesRun, streamHermesProjectRun, type HermesVinzEvent } from './_shared/v2/hermesAdapter';
+import { assertHermesWorkspace, forgetHermesSession, hermesConfig, hermesMemoryBoundaryConfirmed, stopHermesRun, streamHermesProjectRun, type HermesVinzEvent } from './_shared/v2/hermesAdapter';
 import { sendPushNotification } from './_shared/pushDelivery';
 import { assembleContext } from './_shared/v2/contextAssembler';
 import { localImages, readImagesLocally } from './_shared/v2/localImageOcr';
@@ -11,7 +11,7 @@ import type { ContextWindow, RunProfile, RunRequest } from './_shared/v2/contrac
 import type { Turn } from './_shared/providers';
 import { validProjectId } from '../../src/engine/projects';
 import { VOICE_CHOICES, type Provider } from './_shared/routing';
-import { checkCap, INTERNAL_CAP_EXCEEDED, recordSpend } from './_shared/spend';
+import { checkCap, INTERNAL_CAP_EXCEEDED, LOCAL_ONLY_BLOCKED, readLocalOnlyMode, recordSpend } from './_shared/spend';
 import { issueHermesActionPermit, type HermesWriteAction } from './_shared/v2/hermesActionPermit';
 
 const PROFILES = new Set<RunProfile>(['chat', 'project-chat', 'lab', 'automation', 'inspection', 'coding']);
@@ -113,11 +113,21 @@ async function hermesStream(body: Record<string, unknown>, request: Request): Pr
   try { config = hermesConfig(); }
   catch (error) { return hermesUnavailable(error instanceof Error ? error.message : String(error), 503); }
   if (!config) return hermesUnavailable('HERMES_DISABLED: legacy orchestrator is active.');
+  if (!hermesMemoryBoundaryConfirmed()) {
+    return hermesUnavailable('HERMES_BOUNDARY_UNCONFIRMED: Hermes personal memory/profile must be disabled (VINZMON_HERMES_PERSONAL_MEMORY=off); legacy orchestrator stays active.');
+  }
   const projectId = typeof body.projectId === 'string' ? body.projectId : '';
   const conversationId = typeof body.conversationId === 'string' ? body.conversationId : '';
-  const selectedModel = hermesModel(body.model);
-  if (body.model !== undefined && !selectedModel) return hermesUnavailable('HERMES_MODEL_INVALID: scegli un modello configurato in VINZ.MON.', 400);
-  if (selectedModel?.cloud) {
+  const requestedModel = hermesModel(body.model);
+  if (body.model !== undefined && !requestedModel) return hermesUnavailable('HERMES_MODEL_INVALID: scegli un modello configurato in VINZ.MON.', 400);
+  /* The model Hermes will really use: the per-run choice, else the configured
+     default. Local-only mode, the spending cap and spend recording follow the
+     EFFECTIVE model — previously a cloud default slipped past all three. */
+  const selectedModel = requestedModel ?? hermesModel(config.model) ?? { model: config.model, provider: 'custom', cloud: !HERMES_LOCAL_MODELS.has(config.model) };
+  if (selectedModel.cloud && (await readLocalOnlyMode()).enabled) {
+    return json({ error: 'modalità solo-locale attiva — questa richiesta userebbe un modello cloud', code: LOCAL_ONLY_BLOCKED, wouldUseModel: selectedModel.model }, 403);
+  }
+  if (selectedModel.cloud) {
     const cap = await checkCap();
     if (cap.blocked) return json({ error: 'tetto mensile raggiunto', code: INTERNAL_CAP_EXCEEDED, spentUsd: cap.ledger.usd, capUsd: cap.capUsd, month: cap.ledger.month }, 402);
   }
@@ -183,7 +193,7 @@ async function hermesStream(body: Record<string, unknown>, request: Request): Pr
     input,
     systemPrompt: context.system.map((block) => block.text).join('\n\n'),
     turns,
-    ...(selectedModel ? { model: selectedModel.model, provider: selectedModel.provider } : {}),
+    ...(requestedModel ? { model: requestedModel.model, provider: requestedModel.provider } : {}),
     ...(hermesEffort(body.effort) ? { effort: hermesEffort(body.effort) } : {}),
     actionPolicy: actionPolicy(body, requestId, verifiedAction),
   }, request.signal);
@@ -231,7 +241,7 @@ async function hermesStream(body: Record<string, unknown>, request: Request): Pr
 
   const enrichEvent = async (rawEvent: HermesVinzEvent): Promise<HermesVinzEvent> => {
     let event = rawEvent;
-    if (event.type === 'final' && selectedModel?.cloud) {
+    if (event.type === 'final' && selectedModel.cloud) {
       const costUsd = await recordSpend('character-voice', selectedModel.model, hermesUsage(event.usage), {
         action: 'hermes-project-run',
         subsystem: 'hermes',

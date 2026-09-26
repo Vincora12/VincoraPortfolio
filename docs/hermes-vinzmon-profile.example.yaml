@@ -38,13 +38,16 @@ lsp:
   enabled: true
   install_strategy: "manual"
 
-# Hermes owns agent memory, session recall and procedural skills. VINZ.MON
-# remains canonical for structured ME/Sync/Mon/Project state and exposes that
-# state through the authenticated vinzmon MCP bridge.
+# vNext CEREBRO boundary: Hermes is the WORK executor only. It keeps session
+# continuity for a task, but it must NOT own personal memory or a user profile:
+# VINZ.MON is canonical for memory, identity, Projects, Skills and state, and
+# exposes structured state through the authenticated vinzmon MCP bridge.
+# VINZ.MON refuses to delegate (HERMES_BOUNDARY_UNCONFIRMED) until the Local
+# Core environment also sets VINZMON_HERMES_PERSONAL_MEMORY=off.
 memory:
-  memory_enabled: true
-  user_profile_enabled: true
-  write_approval: false
+  memory_enabled: false
+  user_profile_enabled: false
+  write_approval: true
 
 skills:
   # vNext: ONLY the enabled-only mirror rebuilt by VINZ.MON (/api/skills).
@@ -75,7 +78,7 @@ mcp_servers:
     connect_timeout: 10
 
 platform_toolsets:
-  api_server: ["terminal", "file", "memory", "session_search", "skills", "connections", "vinzmon"]
+  api_server: ["terminal", "file", "session_search", "skills", "connections", "vinzmon"]
 
 gateway:
   api_server:

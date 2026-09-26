@@ -73,7 +73,7 @@ export async function openHermesProjectRun(input: {
   });
   if (response.status === 409) {
     const problem = await response.json().catch(() => null) as { code?: string } | null;
-    if (problem?.code === 'HERMES_DISABLED' || problem?.code === 'HERMES_WORKSPACE_MISMATCH') {
+    if (problem?.code === 'HERMES_DISABLED' || problem?.code === 'HERMES_WORKSPACE_MISMATCH' || problem?.code === 'HERMES_BOUNDARY_UNCONFIRMED') {
       lastHermesFallbackCode = problem.code;
       return null;
     }
