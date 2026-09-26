@@ -34,7 +34,7 @@ import runtimeLog from '../netlify/functions/runtime-log';
 import setup from '../netlify/functions/setup';
 import shortcut from '../netlify/functions/shortcut';
 import shortcutStatus from '../netlify/functions/shortcut-status';
-import skills from '../netlify/functions/skills';
+import skills, { syncEnabledSkillsExport } from '../netlify/functions/skills';
 import state from '../netlify/functions/state';
 import topics from '../netlify/functions/topics';
 import transcribe from '../netlify/functions/transcribe';
@@ -304,6 +304,9 @@ async function shutdown(signal: string): Promise<void> {
 }
 
 await startLocalMem0();
+/* vNext safety gate: CEREBRO (Hermes) reads skills only from the enabled-only
+   mirror; rebuild it at boot so a disabled skill never survives a restart there. */
+try { syncEnabledSkillsExport(); } catch (error) { console.warn('[skills] export per CEREBRO non riuscito', error); }
 await runScheduler();
 const schedulerInterval = Math.max(1_000, Number(process.env.VINZMON_SCHEDULER_INTERVAL_MS || 60_000));
 const scheduler = setInterval(() => void runScheduler(), schedulerInterval);

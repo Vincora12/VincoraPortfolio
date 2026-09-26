@@ -47,8 +47,10 @@ memory:
   write_approval: false
 
 skills:
+  # vNext: ONLY the enabled-only mirror rebuilt by VINZ.MON (/api/skills).
+  # Never point Hermes at data/skills: that also contains disabled skills.
   external_dirs:
-    - "/ABSOLUTE/PATH/TO/VinzMon/data/skills"
+    - "/ABSOLUTE/PATH/TO/VinzMon/data/skills-enabled"
   write_approval: true
 
 agent:

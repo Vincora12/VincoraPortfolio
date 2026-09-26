@@ -1274,7 +1274,7 @@ async function executeManageSkillTool(use: ToolUse, token: string | null): Promi
     if (!nome || !descrizione || !contenuto.trim()) return fail('Servono nome, descrizione e contenuto della skill.');
     const { ok, body } = await call({ action: 'create', name: nome, description: descrizione, markdown: contenuto });
     if (!ok || !body?.skill) return fail(body?.error ?? 'Creazione non riuscita.');
-    return { id: use.id, content: JSON.stringify({ creata: true, id: body.skill.id, nome: body.skill.name, attiva: body.skill.enabled, nota: 'Vale per tutti i progetti e per Generale, non solo questa chat.' }) };
+    return { id: use.id, content: JSON.stringify({ creata: true, id: body.skill.id, nome: body.skill.name, attiva: body.skill.enabled, nota: 'Creata SPENTA: non è ancora in uso. Dillo all\'utente — la accende lui da MIND dopo averla letta. Poi varrà per tutti i progetti.' }) };
   }
 
   const skillId = str(args.id);
@@ -1290,7 +1290,7 @@ async function executeManageSkillTool(use: ToolUse, token: string | null): Promi
       ...(nome ? { name: nome } : {}), ...(descrizione ? { description: descrizione } : {}), ...(contenuto.trim() ? { markdown: contenuto } : {}),
     });
     if (!ok || !body?.skill) return fail(body?.error ?? 'Modifica non riuscita.');
-    return { id: use.id, content: JSON.stringify({ aggiornata: true, id: body.skill.id, nome: body.skill.name }) };
+    return { id: use.id, content: JSON.stringify({ aggiornata: true, id: body.skill.id, nome: body.skill.name, attiva: body.skill.enabled, nota: 'Una skill modificata torna SPENTA finché l\'utente non la riaccende da MIND.' }) };
   }
   if (azione === 'rimuovi') {
     const { ok, body } = await call({ action: 'uninstall', sourceId: 'local', id: skillId });

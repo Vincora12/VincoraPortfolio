@@ -285,11 +285,13 @@ export type WorkoutConfirmation = { status: 'needs-confirmation' | 'confirmed' }
    ⚠️ Queste quattro scrivono nel registro di ME: peso, promemoria, piano e
    dieta. Le CORREZIONI restano fuori apposta — sono già una richiesta
    esplicita, e chiedere conferma a una conferma è solo attrito. */
-export type ConfirmableAction = 'peso' | 'promemoria' | 'automazione' | 'piano' | 'dieta' | 'riavvio';
+export type ConfirmableAction = 'peso' | 'promemoria' | 'automazione' | 'piano' | 'dieta' | 'riavvio' | 'codice';
 export type ActionConfirmation = { action: ConfirmableAction; status: 'needs-confirmation' | 'confirmed' };
 
 export const CONFIRMABLE_ACTIONS: Record<ConfirmableAction, {
   tool: string;
+  /** Other tools held by the same confirmation (vNext safety gate: repo_edit rides with repo_write). */
+  alsoHolds?: string[];
   question: string;
   hold: string;
   go: string;
@@ -330,7 +332,33 @@ export const CONFIRMABLE_ACTIONS: Record<ConfirmableAction, {
     hold: 'The user is asking to restart the Local Core service. Explain what this does (a brief interruption of the local server, then it comes back), but DO NOT call the restart tool and do not ask the final confirmation question. The app will ask it. Nothing is restarted yet.',
     go: 'The user has just confirmed the restart. Call the restart tool now. After it responds, do not claim the service is already back online — only inspect_local_services can confirm that, and only in a later turn.',
   },
+  /* 🔒 vNext SAFETY GATE — repo_write/repo_edit change VINZ.MON's own code.
+     They are never in the pool unless this confirmation is `confirmed` in the
+     current turn (see `REPO_WRITE_TOOLS` below); protected Core files are
+     refused by the server anyway (`_shared/protectedPaths.ts`). */
+  codice: {
+    tool: 'repo_write',
+    alsoHolds: ['repo_edit'],
+    question: 'Confermi che modifico il **codice** del repository?',
+    hold: 'The user wants a change to VINZ.MON\'s own source code. Read the relevant files with code_search/code_read, then show exactly which file(s) you would change and the precise edit, but DO NOT call repo_write or repo_edit and do not ask the final confirmation question. The app will ask it. Nothing is written yet: never say or imply that a file was changed.',
+    go: 'The user has just confirmed the code change. Apply exactly the edit you showed, using repo_edit for existing files (repo_write only for new files). If the server answers SCRITTURA NEGATA, report it plainly: protected Core files can only be changed by hand.',
+  },
 };
+
+/** Tools that write VINZ.MON's own repository: held unless `codice` is confirmed in this turn. */
+export const REPO_WRITE_TOOLS = new Set(['repo_write', 'repo_edit']);
+
+/** Every tool a confirmable action holds back until the user says yes. */
+export function confirmableTools(action: ConfirmableAction): string[] {
+  const entry = CONFIRMABLE_ACTIONS[action];
+  return [entry.tool, ...(entry.alsoHolds ?? [])];
+}
+
+/** «Modifica il file X del repository», «cambia il codice di …»: a write request aimed at VINZ.MON's own source. */
+const CODE_WRITE_INTENT = /\b(?:modific\w*|cambi\w*|aggiorn\w*|corregg\w*|sistem\w*|riscriv\w*|scriv\w*|crea\w*|aggiung\w*|rimuov\w*|togli\w*|edit\w*|write|fix)\b[^.!?]{0,60}(?:\b(?:codice|sorgente|repository|repo)\b|\b(?:src|netlify|docs)\/)/i;
+export function isCodeWriteIntent(text: string): boolean {
+  return CODE_WRITE_INTENT.test(text);
+}
 
 const WEEKDAY = String.raw`(?:lune(?:di)?|martedi|mercoledi|giovedi|venerdi|sabato|domenica)`;
 const WORKOUT_ACTIVITY = String.raw`(?:allenament\w*|palestra|workout|hip\s*hop|danza|yoga|pilates|cors\w*|nuoto|calcio|tennis|padel|boxe|crossfit)`;
@@ -519,8 +547,8 @@ export async function replyWithLocalTools(
         isCodeInspectionIntent(user)
           ? 'The user is asking a technical question about your own real source code/repository. Use code_search to find real files and code_read to actually read them before answering — never claim a file path, function name or implementation detail you have not actually retrieved through these tools. If a search returns no results or a read fails, say inspection found nothing or failed — never invent evidence.'
           : '',
-        isRepoOpsIntent(user) || actionConfirmation?.action === 'riavvio'
-          ? 'The user is asking about the real git repository, running tests/build/typecheck, reading VINZ.MON\'s own service logs, or the status of Local Core/Mem0/Ollama on their Mac — or asking to restart the Local Core service. These tools (git_status, git_diff, git_log, git_branch, git_show, repo_list, repo_write, repo_edit, esegui_test, esegui_build, esegui_typecheck, esegui_typecheck_funzioni, leggi_log_vinzmon, stato_servizi_locali, and the restart tool) only work when you are actually running on the Local Core Server on the user\'s Mac — if a call reports it is not available there, say so plainly, never pretend it worked. Never claim a git status, a test result, a log line or a service state you have not actually retrieved through these tools. The restart tool requires the user\'s explicit confirmation first; after it responds "restart started" is not the same as "back online" — only stato_servizi_locali in a later turn can confirm that.'
+        isRepoOpsIntent(user) || actionConfirmation?.action === 'riavvio' || actionConfirmation?.action === 'codice'
+          ? 'The user is asking about the real git repository, running tests/build/typecheck, reading VINZ.MON\'s own service logs, or the status of Local Core/Mem0/Ollama on their Mac — or asking to restart the Local Core service. These tools (git_status, git_diff, git_log, git_branch, git_show, repo_list, repo_write, repo_edit, esegui_test, esegui_build, esegui_typecheck, esegui_typecheck_funzioni, leggi_log_vinzmon, stato_servizi_locali, and the restart tool) only work when you are actually running on the Local Core Server on the user\'s Mac — if a call reports it is not available there, say so plainly, never pretend it worked. Never claim a git status, a test result, a log line or a service state you have not actually retrieved through these tools. repo_write/repo_edit and the restart tool require the user\'s explicit confirmation first (the app asks it; they are only offered after a yes), and protected Core files are always refused; after it responds "restart started" is not the same as "back online" — only stato_servizi_locali in a later turn can confirm that.'
           : '',
         isAudit
           ? 'The user is asking for a real AUDIT of yourself (a subsystem or your whole system: tool layer, memory, persona, agent loop, ME...). This must be a grounded audit, never a generic or invented answer, and never "I cannot" when you have the tools to check. Use code_search/code_read to inspect the real repository for the subsystem in question (e.g. tool layer: src/ai/tools.ts, src/ai/toolLayer.ts, netlify/functions/code-tools.ts, src/brain/stream.ts; memory/ME: src/state/store.ts and its ME/journal fields; agent loop: src/brain/stream.ts replyWithLocalTools, netlify/functions/agent-lab.ts). Use leggi_me/leggi_i_miei_dati when the audit is about live ME/personal data, not source code. Structure the answer as TITLE / SCOPE / EXECUTIVE SUMMARY / CAPABILITY MATRIX (capability, status EXISTS or PARTIAL or MISSING or BROKEN, evidence with real file/path, risk, recommended action) / DETAILED FINDINGS / ROOT CAUSES / RECOMMENDED NEXT STEPS. Clearly separate FACT (verified via a tool) from INFERENCE (your reasoning) from RECOMMENDATION. If a capability genuinely does not exist, say so plainly — never claim it does.'
@@ -610,8 +638,12 @@ export async function replyWithLocalTools(
      vive qui, non in TOOLS) sparirebbe anche da confermato. */
   const repoOpsRequest = isRepoOpsIntent(user);
   const restartConfirmationActive = actionConfirmation?.action === 'riavvio';
+  /* The `codice` confirmation needs to read code (to show the edit) and, once
+     confirmed, to write it: same technical pool, never the health branch. */
+  const codeWriteConfirmationActive = actionConfirmation?.action === 'codice';
   const basePool = isAudit ? [...CODE_TOOL_DEFS, ...TOOLS.filter(tool => tool.name === 'leggi_me' || tool.name === 'leggi_i_miei_dati')]
     : restartConfirmationActive ? REPO_OPS_TOOL_DEFS
+    : codeWriteConfirmationActive ? [...CODE_TOOL_DEFS, ...REPO_OPS_TOOL_DEFS]
     : isCodeInspectionIntent(user) && !isHealthRequest ? CODE_TOOL_DEFS
     : repoOpsRequest && !isHealthRequest ? REPO_OPS_TOOL_DEFS
     : TOOLS.filter((tool) => (reminderRequest && tool.name === 'programma_promemoria')
@@ -638,7 +670,7 @@ export async function replyWithLocalTools(
        l'utente aveva appena detto di sì. Finché una conferma è in corso, il suo
        strumento resta disponibile: a trattenerlo prima del sì ci pensa il
        filtro qui sotto, non l'assenza dal pool. */
-    || (actionConfirmation && tool.name === CONFIRMABLE_ACTIONS[actionConfirmation.action].tool)
+    || (actionConfirmation && confirmableTools(actionConfirmation.action).includes(tool.name))
     || (shared?.projectId && projectTools.has(tool.name))
     || (isHealthRequest ? healthToolNames.has(tool.name) : !healthToolNames.has(tool.name) || tool.name === 'leggi_i_miei_dati'));
   const toolPool = wantsExport ? [...basePool, EXPORT_REPORT_TOOL_DEF] : basePool;
@@ -647,7 +679,7 @@ export async function replyWithLocalTools(
       const priority = (name: string) => name === explicitWrite
         || (name === 'registra_pasto' && mealConfirmation?.status === 'confirmed')
         || (name === 'registra_allenamento' && workoutConfirmation?.status === 'confirmed')
-        || (actionConfirmation?.status === 'confirmed' && name === CONFIRMABLE_ACTIONS[actionConfirmation.action].tool) ? 4
+        || (actionConfirmation?.status === 'confirmed' && confirmableTools(actionConfirmation.action).includes(name)) ? 4
         : energyRequest && name === 'calcola_energia_giornaliera' ? 3
         : reminderRequest && name === 'programma_promemoria' ? 3
         : fileRequest && WORKSPACE_TOOL_NAMES.includes(name) ? 3
@@ -678,7 +710,12 @@ export async function replyWithLocalTools(
     if (tool.name === 'registra_pasto') return mealConfirmation?.status === 'confirmed';
     if (tool.name === 'registra_allenamento') return workoutConfirmation?.status === 'confirmed';
     if (tool.name === 'gestisci_me' && mealConfirmation) return false;
-    if (actionConfirmation && tool.name === CONFIRMABLE_ACTIONS[actionConfirmation.action].tool) {
+    /* 🔒 vNext SAFETY GATE — writes to the repository exist only in the turn
+       right after an explicit «sì» to the `codice` question. */
+    if (REPO_WRITE_TOOLS.has(tool.name)) {
+      return actionConfirmation?.action === 'codice' && actionConfirmation.status === 'confirmed';
+    }
+    if (actionConfirmation && confirmableTools(actionConfirmation.action).includes(tool.name)) {
       return actionConfirmation.status === 'confirmed';
     }
     if (tool.name === 'correggi_ultimo_pasto' && mealConfirmation?.status === 'needs-confirmation') return false;

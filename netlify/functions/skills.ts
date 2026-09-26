@@ -20,7 +20,7 @@
    peso dei file. Nessun percorso arbitrario scelto dal client.
    ========================================================================= */
 
-import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync, existsSync } from 'node:fs';
+import { cpSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync, existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 import { authorize, denied, json } from './_shared/auth';
@@ -44,10 +44,9 @@ const FETCH_TIMEOUT_MS = 20_000;
    nessun repository da ispezionare prima — solo testo che il modello ha
    appena scritto in chat. Un solo file (`SKILL.md`, niente `scripts/`)
    elimina in radice il rischio di codice non fidato che la nota in cima al
-   file descrive: non è che sia "già ispezionato", è che qui non esiste
-   proprio la categoria di rischio. Per questo nasce ACCESA (a differenza di
-   una skill da catalogo, che nasce spenta) — l'utente l'ha appena vista
-   scrivere in tempo reale, non sta installando codice di uno sconosciuto. */
+   file descrive. 🔒 vNext: nasce comunque SPENTA, come una skill da
+   catalogo — una procedura scritta dal modello cambia come VINZ lavora, e
+   l'interruttore resta dell'utente (MIND). */
 const LOCAL_SOURCE_ID = 'local';
 const MAX_SKILL_NAME = 120;
 const MAX_SKILL_DESCRIPTION = 600;
@@ -353,10 +352,10 @@ function createLocalSkill(name: string, description: string, markdown: string): 
     ref: '',
     homepage: '',
     installedAt: new Date().toISOString(),
-    /* Nasce accesa: vedi la nota sopra su perché qui il rischio "codice non
-       fidato" non esiste — una sola skill spenta di default sarebbe solo
-       attrito senza motivo. */
-    enabled: true,
+    /* 🔒 vNext SAFETY GATE — nasce SPENTA come ogni altra skill. Una
+       procedura scritta dal modello cambia come VINZ lavora: la accende solo
+       l'utente, da MIND, dopo averla letta. (Prima nasceva accesa.) */
+    enabled: false,
     files: ['SKILL.md'],
     hasScripts: false,
   };
@@ -382,7 +381,9 @@ function updateLocalSkill(id: string, name: string | undefined, description: str
     writeFileSync(file, skillMarkdown(nextName, nextDescription, previousBody));
   }
 
-  const skill: InstalledSkill = { ...current, name: nextName, description: nextDescription };
+  /* 🔒 vNext SAFETY GATE — una skill modificata dal modello va riletta:
+     torna spenta finché l'utente non la riaccende. */
+  const skill: InstalledSkill = { ...current, name: nextName, description: nextDescription, enabled: false };
   writeMetadata(skill);
   return skill;
 }
@@ -438,6 +439,45 @@ async function install(sourceId: string, id: string): Promise<InstalledSkill> {
   };
   writeMetadata(skill);
   return skill;
+}
+
+/* ============================================================================
+   ENABLED-ONLY EXPORT FOR CEREBRO (Hermes)
+
+   🔒 vNext SAFETY GATE — Hermes loads skills from a directory (profile
+   `skills.external_dirs`). Pointing it at `data/skills/` exposed every
+   installed skill, including the ones that are switched OFF in VINZ. This
+   mirror holds a copy of ENABLED skills only and is rebuilt after every
+   change; the Hermes profile must point at it
+   (`docs/hermes-vinzmon-profile.example.yaml`). VINZ stays the owner: the
+   mirror is derived, never edited, and rebuilt from scratch each time.
+   ========================================================================= */
+export function enabledSkillsExportDirectory(): string {
+  return resolve(localDataDirectory(), 'skills-enabled');
+}
+
+export function syncEnabledSkillsExport(): { exported: number } {
+  const target = enabledSkillsExportDirectory();
+  const staging = `${target}.staging`;
+  rmSync(staging, { recursive: true, force: true });
+  mkdirSync(staging, { recursive: true, mode: 0o700 });
+  let exported = 0;
+  for (const skill of installedList()) {
+    if (!skill.enabled || !SAFE_ID.test(skill.id)) continue;
+    const key = keyOf(skill.sourceId, skill.id);
+    const source = installedDirectory(key);
+    if (!existsSync(join(source, 'SKILL.md'))) continue;
+    cpSync(source, join(staging, key), { recursive: true, dereference: false, filter: (path) => !path.endsWith('metadata.json') });
+    exported += 1;
+  }
+  rmSync(target, { recursive: true, force: true });
+  renameSync(staging, target);
+  return { exported };
+}
+
+function syncExportBestEffort(): void {
+  try { syncEnabledSkillsExport(); }
+  catch (error) { console.warn('[skills] export per CEREBRO non aggiornato:', error instanceof Error ? error.message : error); }
 }
 
 export default async function handler(request: Request): Promise<Response> {
@@ -502,7 +542,9 @@ export default async function handler(request: Request): Promise<Response> {
 
   if (body.action === 'create') {
     try {
-      return json({ skill: createLocalSkill(String(body.name ?? ''), String(body.description ?? ''), String(body.markdown ?? '')) });
+      const skill = createLocalSkill(String(body.name ?? ''), String(body.description ?? ''), String(body.markdown ?? ''));
+      syncExportBestEffort();
+      return json({ skill });
     } catch (error) {
       return json({ error: error instanceof Error ? error.message : 'Creazione non riuscita.' }, 400);
     }
@@ -517,7 +559,9 @@ export default async function handler(request: Request): Promise<Response> {
     if (sourceId !== LOCAL_SOURCE_ID) return json({ error: 'Solo le skill create da VINZ si possono modificare così.' }, 400);
     if (!SAFE_ID.test(id)) return json({ error: 'Skill non valida.' }, 400);
     try {
-      return json({ skill: updateLocalSkill(id, body.name, body.description, body.markdown) });
+      const skill = updateLocalSkill(id, body.name, body.description, body.markdown);
+      syncExportBestEffort();
+      return json({ skill });
     } catch (error) {
       return json({ error: error instanceof Error ? error.message : 'Modifica non riuscita.' }, 400);
     }
@@ -531,7 +575,9 @@ export default async function handler(request: Request): Promise<Response> {
   try {
     if (body.action === 'install') {
       if (sourceId === LOCAL_SOURCE_ID) return json({ error: 'Le skill create da VINZ non si installano da un catalogo: usa "aggiorna".' }, 400);
-      return json({ skill: await install(sourceId, id) });
+      const skill = await install(sourceId, id);
+      syncExportBestEffort();
+      return json({ skill });
     }
 
     const current = installedList().find((item) => item.sourceId === sourceId && item.id === id);
@@ -540,10 +586,12 @@ export default async function handler(request: Request): Promise<Response> {
     if (body.action === 'enable' || body.action === 'disable') {
       const next = { ...current, enabled: body.action === 'enable' };
       writeMetadata(next);
+      syncExportBestEffort();
       return json({ skill: next });
     }
     if (body.action === 'uninstall') {
       rmSync(installedDirectory(key), { recursive: true, force: true });
+      syncExportBestEffort();
       return json({ ok: true });
     }
     return json({ error: 'Azione non disponibile.' }, 400);

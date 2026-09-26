@@ -22,10 +22,11 @@
    dichiara esplicitamente di non avere scrittura al suo interno; quella
    vive qui, ma il "dove sei autorizzato a toccare" resta un'unica fonte. */
 
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { existsSync, lstatSync, readFileSync, realpathSync, writeFileSync, mkdirSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
-import { dirname, join } from 'node:path';
+import { dirname, join, relative } from 'node:path';
 import { resolveAllowedPath, resolveRepoRoot, TEXT_EXTENSIONS, type FileAccessError } from './agentLabFiles';
+import { protectedWriteReason } from './protectedPaths';
 
 const MAX_OUTPUT_CHARS = 8_000;
 
@@ -107,12 +108,37 @@ function checkWritableExtension(rel: string): string | null {
   return TEXT_EXTENSIONS.includes(ext) ? null : `estensione non scrivibile — solo ${TEXT_EXTENSIONS.join(', ')}`;
 }
 
-export function repoWrite(relPath: string, content: string): { ok: true } | FileAccessError {
-  if (content.length > MAX_WRITE_CHARS) return { ok: false, error: `contenuto troppo lungo (massimo ${MAX_WRITE_CHARS} caratteri)` };
-  const resolved = resolveAllowedPath(relPath);
+/** vNext SAFETY GATE — the single write-path check shared by repo_write and
+    repo_edit: the read confinement of `resolveAllowedPath`, then text-only
+    extensions, then the protected Core list (checked on the requested path
+    AND on the real path after symlinks), and no writes through symlinks. */
+export function resolveWritablePath(relPath: string): { abs: string; rel: string } | FileAccessError {
+  if (typeof relPath !== 'string' || !relPath.trim() || /[\0-\x1f]/.test(relPath)) return { ok: false, error: 'percorso non valido' };
+  const resolved = resolveAllowedPath(relPath.normalize('NFC'));
   if ('error' in resolved) return resolved;
   const extError = checkWritableExtension(resolved.rel);
   if (extError) return { ok: false, error: extError };
+  const reason = protectedWriteReason(resolved.rel);
+  if (reason) return { ok: false, error: `SCRITTURA NEGATA — ${reason}. Questi file si modificano solo a mano.` };
+  const root = realpathSync(resolveRepoRoot());
+  if (existsSync(resolved.abs) && lstatSync(resolved.abs).isSymbolicLink()) return { ok: false, error: 'SCRITTURA NEGATA — il percorso è un collegamento simbolico' };
+  let ancestor = dirname(resolved.abs);
+  while (!existsSync(ancestor) && ancestor !== dirname(ancestor)) ancestor = dirname(ancestor);
+  const realAncestor = realpathSync(ancestor);
+  const realRel = relative(root, realAncestor);
+  if (realRel.startsWith('..') || realRel.startsWith('/')) return { ok: false, error: 'SCRITTURA NEGATA — percorso fuori dal progetto' };
+  if (existsSync(resolved.abs)) {
+    const realTarget = relative(root, realpathSync(resolved.abs));
+    const realReason = protectedWriteReason(realTarget);
+    if (realReason || realTarget.startsWith('..')) return { ok: false, error: `SCRITTURA NEGATA — ${realReason ?? 'percorso fuori dal progetto'}` };
+  }
+  return resolved;
+}
+
+export function repoWrite(relPath: string, content: string): { ok: true } | FileAccessError {
+  if (typeof content !== 'string' || content.length > MAX_WRITE_CHARS) return { ok: false, error: `contenuto troppo lungo (massimo ${MAX_WRITE_CHARS} caratteri)` };
+  const resolved = resolveWritablePath(relPath);
+  if ('error' in resolved) return resolved;
   mkdirSync(dirname(resolved.abs), { recursive: true });
   writeFileSync(resolved.abs, content, 'utf8');
   return { ok: true };
@@ -123,10 +149,8 @@ export function repoWrite(relPath: string, content: string): { ok: true } | File
     univoco: un modello che "aggiusta" un frammento ambiguo rischia di
     colpire il pezzo sbagliato, meglio chiedergli più contesto. */
 export function repoEdit(relPath: string, oldStr: string, newStr: string): { ok: true } | FileAccessError {
-  const resolved = resolveAllowedPath(relPath);
+  const resolved = resolveWritablePath(relPath);
   if ('error' in resolved) return resolved;
-  const extError = checkWritableExtension(resolved.rel);
-  if (extError) return { ok: false, error: extError };
   if (!oldStr) return { ok: false, error: 'serve il testo da sostituire' };
   let current: string;
   try {
@@ -138,7 +162,7 @@ export function repoEdit(relPath: string, oldStr: string, newStr: string): { ok:
   if (occurrences === 0) return { ok: false, error: 'testo da sostituire non trovato — rileggi il file (code_read) prima di riprovare' };
   if (occurrences > 1) return { ok: false, error: `il testo compare ${occurrences} volte — aggiungi più contesto per renderlo univoco` };
   if (newStr.length > MAX_WRITE_CHARS) return { ok: false, error: `contenuto troppo lungo (massimo ${MAX_WRITE_CHARS} caratteri)` };
-  writeFileSync(resolved.abs, current.replace(oldStr, newStr), 'utf8');
+  writeFileSync(resolved.abs, current.replace(oldStr, () => newStr), 'utf8');
   return { ok: true };
 }
 

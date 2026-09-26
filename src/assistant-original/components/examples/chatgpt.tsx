@@ -2545,6 +2545,13 @@ const CONFIRM_ACTIONS: { test: RegExp; label: string; busy: string; reply: strin
     reply: "Vai, registra",
   },
   {
+    // vNext safety gate: `CONFIRMABLE_ACTIONS.codice` in brain/stream.ts.
+    test: /Confermi che modifico il \*\*codice\*\* del repository\?/i,
+    label: "MODIFICA CODICE",
+    busy: "MODIFICA…",
+    reply: "Sì, modifica",
+  },
+  {
     test: /Confermi che creo questo \*\*promemoria\*\*\?/i,
     label: "CREA PROMEMORIA",
     busy: "CREAZIONE…",

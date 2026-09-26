@@ -60,8 +60,10 @@ export function resolveRepoRoot(): string {
      questo repo) è ESM: qui non esiste. `import.meta.url` è l'equivalente
      che esiste davvero in ESM — da lì si risale alla cartella del modulo
      senza assumere quale bundler/runtime l'abbia messo dove. */
-  const here = fileURLToPath(new URL('.', import.meta.url));
-  const candidates = [process.cwd(), resolve(here, '../../..'), resolve(here, '../..'), resolve(here, '..'), '/var/task'];
+  /* A bundle loaded from a `data:` URL (offline checks) has no file location. */
+  let here: string | null = null;
+  try { here = fileURLToPath(new URL('.', import.meta.url)); } catch { here = null; }
+  const candidates = [process.cwd(), ...(here ? [resolve(here, '../../..'), resolve(here, '../..'), resolve(here, '..')] : []), '/var/task'];
   for (const candidate of candidates) {
     try {
       if (existsSync(join(candidate, 'package.json')) && existsSync(join(candidate, 'src'))) {

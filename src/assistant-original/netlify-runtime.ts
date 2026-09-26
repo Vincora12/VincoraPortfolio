@@ -10,6 +10,7 @@ import {
   isWorkoutLogIntent,
   shouldUseLocalTools,
   isRepoOpsIntent,
+  isCodeWriteIntent,
   type ChatMealSlot,
   type MealConfirmation,
   type WorkoutConfirmation,
@@ -343,6 +344,7 @@ function proposedAction(text: string): ConfirmableAction | undefined {
   const tool = requiredWriteTool(text);
   if (tool && ACTION_BY_TOOL[tool]) return ACTION_BY_TOOL[tool];
   if (RESTART_INTENT.test(text)) return 'riavvio';
+  if (isCodeWriteIntent(text)) return 'codice';
   if (AUTOMATION_INTENT.test(withoutAccents(text))) return 'automazione';
   if (REMINDER_INTENT.test(text)) return 'promemoria';
   if (DIET_INTENT.test(text)) return 'dieta';

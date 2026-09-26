@@ -1,8 +1,9 @@
 import { createHash } from 'node:crypto';
-import { resolve } from 'node:path';
+import { relative, resolve } from 'node:path';
 import { EventEmitter, on } from 'node:events';
 import { isLocalCoreServer } from '../vinzWorkspace';
-import { getStore } from '../localStore';
+import { getStore, localDataDirectory } from '../localStore';
+import { resolveRepoRoot } from '../agentLabFiles';
 import type { Turn } from '../providers';
 
 export type HermesVinzEvent =
@@ -105,12 +106,33 @@ export function hermesConfig(env: NodeJS.ProcessEnv = process.env): HermesConfig
   if (!baseUrl || !apiKey || !workspaceRoot || !model || env.VINZMON_HERMES_SANDBOXED !== '1') {
     throw new Error('HERMES_CONFIG_INCOMPLETE: API URL, API key, workspace root, explicit model and VINZMON_HERMES_SANDBOXED=1 are required.');
   }
+  assertIsolatedHermesWorkspace(resolve(workspaceRoot));
   return {
     baseUrl: cleanBaseUrl(baseUrl),
     apiKey,
     workspaceRoot: resolve(workspaceRoot),
     model,
   };
+}
+
+/** True when `inner` is `outer` itself or lies inside it. */
+function within(outer: string, inner: string): boolean {
+  const rel = relative(outer, inner);
+  return rel === '' || (!rel.startsWith('..') && !rel.startsWith('/'));
+}
+
+/* 🔒 vNext SAFETY GATE — CEREBRO works with its own file tools inside its
+   workspace, outside VINZ's write gate (`repoOps.ts` + protectedPaths). The
+   workspace must therefore never overlap the VINZ.MON code or its data
+   (SQLite, skills, Mem0): otherwise Hermes could rewrite the Core or the
+   canonical stores and bypass every VINZ write protection. */
+export function assertIsolatedHermesWorkspace(workspaceRoot: string, repoRoot = resolveRepoRoot(), dataRoot = localDataDirectory()): void {
+  const workspace = resolve(workspaceRoot);
+  for (const [label, protectedRoot] of [['repository VINZ.MON', resolve(repoRoot)], ['dati VINZ.MON', resolve(dataRoot)]] as const) {
+    if (within(protectedRoot, workspace) || within(workspace, protectedRoot)) {
+      throw new Error(`HERMES_WORKSPACE_UNSAFE: the Hermes workspace overlaps the ${label} (${protectedRoot}).`);
+    }
+  }
 }
 
 export function assertHermesWorkspace(config: HermesConfig, selectedWorkspace: string): void {
