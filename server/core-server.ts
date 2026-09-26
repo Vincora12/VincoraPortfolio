@@ -44,7 +44,6 @@ import v1ChatCompletions from '../netlify/functions/v1-chat-completions';
 import v1Models from '../netlify/functions/v1-models';
 import v1Responses from '../netlify/functions/v1-responses';
 import v2Issues from '../netlify/functions/v2-issues';
-import v2Lobehub from '../netlify/functions/v2-lobehub';
 import { processAutomations } from '../netlify/functions/_shared/automations';
 import { processDueMachines } from '../netlify/functions/_shared/machines';
 import { resumeIncompleteMemoryV1Captures } from '../netlify/functions/_shared/memoryV1';
@@ -94,7 +93,7 @@ const handlers: Record<string, Handler> = {
   '/api/ping': ping, '/api/projects': projects, '/api/push': push, '/api/runtime-log': runtimeLog,
   '/api/setup': setup, '/api/shortcut': shortcut, '/api/shortcut-status': shortcutStatus,
   '/api/skills': skills, '/api/state': state, '/api/topics': topics, '/api/transcribe': transcribe, '/api/usage': usage,
-  '/api/user-data': userData, '/api/v2-issues': v2Issues, '/api/v2-lobehub': v2Lobehub,
+  '/api/user-data': userData, '/api/v2-issues': v2Issues,
   '/v1/chat/completions': v1ChatCompletions, '/v1/models': v1Models, '/v1/responses': v1Responses,
 };
 /* Riga a parte apposta: `server/core-server.ts` è condiviso con lavoro

@@ -104,7 +104,7 @@ import {
   editPage,
   type Reminder,
 } from './pagesSlice';
-import { runTool, TOOLS, type ToolContext, type ToolResult, type ToolUse } from '../ai/tools';
+import { runTool, type ToolContext, type ToolResult, type ToolUse } from '../ai/tools';
 import { isCuriosityArea, recordCuriosityLearning } from '../engine/curiosity';
 import { calculateDailyEnergy } from '../engine/dailyEnergy';
 import { configureStorageTokenReader } from '../system/serverStorage';
@@ -134,7 +134,7 @@ import {
 import { selectHeritageOrigins, type HeritageOrigin } from '../engine/heritage';
 import { createNode, makeNodeId, nextChapter } from '../engine/mindline';
 import { makeMemory, rollDailyEvent } from '../engine/simulation';
-import { fallbackGreeting, fallbackReply } from '../engine/voiceDna';
+import { fallbackGreeting } from '../engine/voiceDna';
 import { buildPersonalityCard } from '../engine/voiceCard';
 import { makeRng, randomSeed, seedFromString } from '../engine/rng';
 import {
@@ -175,13 +175,11 @@ import {
   type World,
 } from '../engine/world';
 import { combatProfileFor, retryWorldQuest, startWorldQuest } from '../engine/worldGame';
-import { deservesThinking, extractFromMessage, extractionLabels } from '../engine/chatExtract';
+import { extractFromMessage, extractionLabels } from '../engine/chatExtract';
 import { eggReply } from '../engine/eggVoice';
 import { resolveActiveMon } from '../engine/journey';
 import { buildNarrativeContext, type NarrativeContext } from '../engine/narrativeContext';
-import { typingRhythmFor } from '../engine/typingRhythm';
 import { unpromptedFor, type UnpromptedKind } from '../engine/unprompted';
-import { buildMemoryBlock, recentTurns } from '../engine/memoryContext';
 import {
   addNote,
   decideNote,
@@ -192,15 +190,12 @@ import {
 import {
   addOpinion,
   contradictOpinion,
-  opinionsBlock,
   type Opinion,
 } from '../engine/opinions';
-import { planReveal, type RevealPlan } from '../engine/reveal';
 import {
   applyMoodEvent,
   decayMood,
   initialMood,
-  moodEventFromInputs,
   type MoodEvent,
   type MoodState,
 } from '../engine/mood';
@@ -811,9 +806,8 @@ interface AppState {
   /** Riparte dalla scelta se la rete ha interrotto la generazione. */
   retryFormEvolution: () => void;
 
-  sendMessage: (text: string) => void;
   /**
-   * 🔶 v1.10 §7.2 — parlare all'uovo. Registra esattamente come `sendMessage`,
+   * 🔶 v1.10 §7.2 — parlare all'uovo. Registra i segnali del messaggio,
    * ma la risposta è un suono e non una frase: durante l'incubazione non c'è
    * ancora nessuno che possa parlare. Vedi `eggVoice.ts`.
    */
@@ -2493,83 +2487,9 @@ export const useApp = create<AppState>()(
       /* --- Interazione --- */
 
       /**
-       * 🔶 v1.9 §5.1 — la chat è una superficie di REGISTRAZIONE, non solo di
-       * conversazione. Scrivere «oggi palestra e poi carbonara» riempie il
-       * giorno: non deve esistere un secondo posto dove dire le stesse cose.
-       */
-      sendMessage: (text) => {
-        const s = get();
-        const rec = activeRecord(s);
-        if (!rec || text.trim().length === 0) return;
-
-        const rng = makeRng(seedFromString(`reply:${rec.data.name}:${s.chat.length}:${text}`));
-        const found = extractFromMessage(text, s.protocol.diet);
-        const labels = extractionLabels(found);
-
-        const mine: ChatMessage = {
-          id: `msg_${s.chat.length}_v`,
-          from: 'vinz',
-          text: text.trim(),
-          day: s.day,
-          // Quello che ha capito si vede subito, sotto al messaggio. Registrare
-          // in silenzio sarebbe peggio che non registrare: non sapresti mai se
-          // hai già detto una cosa o no.
-          extracted: labels.length > 0 ? labels : undefined,
-        };
-        /* 🔷 v1.12 §17.4 — LA BOLLA NASCE VUOTA.
-           Prima nasceva con la frase deterministica dentro, e quando arrivava
-           la voce vera quella frase VENIVA SOSTITUITA: stavi leggendo e il
-           testo cambiava sotto gli occhi. Non è un compagno che ci ripensa, è
-           una macchina che si corregge, ed era la cosa più finta dell'app.
-
-           Adesso: se c'è una chiave la bolla resta vuota con i puntini, e il
-           fallback entra SOLO se la voce vera non arriva — quando non hai
-           ancora letto niente e non c'è niente da sostituire. Se la chiave non
-           c'è, il fallback è la risposta e compare col ritmo della creatura,
-           che è la stessa esperienza meno la qualità del testo. */
-        const spoken = fallbackReply(rng, rec.data.mood_primary, rec.data.voice_dna, rec.data.role);
-        const waiting = s.token !== null;
-        const theirs: ChatMessage = {
-          id: `msg_${s.chat.length}_m`,
-          from: 'mon',
-          text: '',
-          day: s.day,
-          fallback: !waiting,
-          pending: true,
-        };
-
-        const { days, moodHistory } = applyExtraction(s, found);
-
-        set({
-          chat: [...s.chat, mine, theirs].slice(-60),
-          days,
-          moodHistory,
-          progression: {
-            ...s.progression,
-            bond: Math.min(1, s.progression.bond + BOND_PER_INTERACTION),
-          },
-          // §10.6 — due eventi, in quest'ordine. Prima che ti sei fatto
-          // sentire, che vale sempre; poi, se hai detto come stai, la
-          // confidenza. Se non l'hai detto, il secondo semplicemente non c'è.
-          mood: touchMood(s, rec.data.mood_primary, [
-            'PARLATO',
-            moodEventFromInputs(found.moods),
-          ]),
-        });
-
-        if (waiting) {
-          requestReply(set, get, rec, theirs.id);
-        } else {
-          // Nessuna chiamata da aspettare: si va dritti alla comparsa.
-          const rhythm = typingRhythmFor(rec.data.voice_dna);
-          playReveal(set, get, theirs.id, spoken, planReveal(spoken, rhythm), true);
-        }
-      },
-
-      /**
        * 🔶 v1.10 §7.2 — la stessa chat, ma l'altro capo non sa parlare.
        *
-       * Registra identico a `sendMessage`: gli stessi segnali, gli stessi umori,
+       * Registra i segnali e gli umori del messaggio,
        * la stessa riga di conferma. Cambiano due cose, ed è di proposito:
        * la risposta è un suono, e non parte nessuna chiamata AI — non c'è
        * ancora nessuna voce da far scrivere a un modello, e sette giorni di
@@ -5345,117 +5265,6 @@ function openingMessage(record: MonRecord, day: number, pending: boolean): ChatM
   };
 }
 
-/* ============================================================================
-   🔷 v1.12 §17.4 — L'ESECUTORE DELLA COMPARSA
-
-   Il piano lo calcola `engine/reveal.ts`, che è puro e verificato da riga di
-   comando. Qui non c'è nessuna decisione: si rispettano degli orari.
-
-   ⚠️ NIENTE STREAMING, ed è una scelta, non una mancanza.
-
-   Lo streaming serve quando la risposta è lunga e l'attesa della fine sarebbe
-   insopportabile. Qui una risposta sono due frasi — una sessantina di token —
-   e con il ragionamento spento arriva in un paio di secondi, cioè dentro la
-   pausa di pensiero che il .mon si prende comunque. Lo streaming
-   guadagnerebbe quasi niente e costerebbe la parte più preziosa: un piano che
-   si può calcolare tutto insieme è un piano che si può CONTROLLARE tutto
-   insieme, e infatti lo si controlla.
-
-   Se un giorno le risposte diventassero lunghe — un racconto, un riepilogo
-   della settimana — la scelta va rifatta, e questo commento è il posto dove
-   scoprire perché era stata presa così.
-   ========================================================================= */
-
-/** I timer in volo. Un nuovo messaggio annulla la comparsa del precedente. */
-let revealTimers: ReturnType<typeof setTimeout>[] = [];
-
-function stopReveal(): void {
-  revealTimers.forEach(clearTimeout);
-  revealTimers = [];
-}
-
-/**
- * Fa comparire `text` nella bolla `messageId` secondo il ritmo della creatura.
- *
- * La seconda bolla — quella di chi prima reagisce e poi argomenta — viene
- * creata solo quando arriva il suo primo passo: una bolla vuota che aspetta
- * in fondo alla chat non è una pausa, è un difetto.
- */
-function playReveal(
-  set: (p: Partial<AppState>) => void,
-  get: () => AppState,
-  messageId: string,
-  text: string,
-  plan: RevealPlan,
-  fallback: boolean,
-): void {
-  stopReveal();
-
-  const secondId = `${messageId}_2`;
-  const patch = (id: string, fields: Partial<ChatMessage>) => {
-    const s = get();
-    const index = s.chat.findIndex((m) => m.id === id);
-    if (index === -1) return;
-    const chat = [...s.chat];
-    chat[index] = { ...chat[index]!, ...fields };
-    set({ chat });
-  };
-
-  set({ typingVisible: true });
-
-  if (plan.hesitation) {
-    revealTimers.push(setTimeout(() => set({ typingVisible: false }), plan.hesitation.from));
-    revealTimers.push(setTimeout(() => set({ typingVisible: true }), plan.hesitation.to));
-  }
-
-  for (const step of plan.steps) {
-    revealTimers.push(
-      setTimeout(() => {
-        if (step.bubble === 0) {
-          patch(messageId, { text: step.text, fallback, pending: true });
-          return;
-        }
-
-        const s = get();
-        if (!s.chat.some((m) => m.id === secondId)) {
-          const source = s.chat.find((m) => m.id === messageId);
-          if (!source) return;
-          set({
-            chat: [
-              ...s.chat,
-              { ...source, id: secondId, text: step.text, pending: true },
-            ].slice(-60),
-          });
-          return;
-        }
-        patch(secondId, { text: step.text });
-      }, step.at),
-    );
-  }
-
-  revealTimers.push(
-    setTimeout(() => {
-      patch(messageId, { pending: false });
-      patch(secondId, { pending: false });
-      set({ typingVisible: false });
-    }, plan.endsAt + 40),
-  );
-
-  /* Il testo intero è già deciso: se qualcosa andasse storto nei timer — la
-     scheda in background, il browser che rallenta — la bolla non deve restare
-     a metà per sempre. Questa è la rete, non il percorso normale. */
-  revealTimers.push(
-    setTimeout(() => {
-      const s = get();
-      const shown = s.chat.find((m) => m.id === messageId);
-      if (shown?.pending) {
-        patch(messageId, { text, pending: false, fallback });
-        set({ typingVisible: false });
-      }
-    }, plan.endsAt + 4000),
-  );
-}
-
 /**
  * Chiede all'AI la presentazione e sostituisce il messaggio d'apertura quando
  * arriva. Non blocca niente e non lancia mai: se fallisce, resta il fallback,
@@ -5531,166 +5340,6 @@ function requestIntroduction(
     });
 }
 
-/**
- * Chiede all'AI la vera risposta e sostituisce il fallback quando arriva.
- * Stessa forma di `requestIntroduction`: non blocca, non lancia, e se fallisce
- * resta il testo deterministico dichiarato come tale (§17).
- */
-function requestReply(
-  set: (p: Partial<AppState>) => void,
-  get: () => AppState,
-  record: MonRecord,
-  messageId: string,
-): void {
-  const s0 = get();
-  const token = s0.token;
-  if (!token) return;
-
-  // Cosa il sistema ha già capito da solo: serve al modello per non richiedere
-  // una cosa appena letta, non per farlo ringraziare.
-  const mine = s0.chat.find((m) => m.id === messageId.replace(/_m$/, '_v'));
-  const context =
-    mine?.extracted && mine.extracted.length > 0
-      ? `the system already recorded from this message: ${mine.extracted.join(', ')}`
-      : null;
-  const userText = mine?.text ?? '';
-
-  /* Il fallback si prepara PRIMA della chiamata e resta da parte: serve solo
-     se la voce vera non arriva. Preparandolo qui, il seme è quello del turno
-     — la stessa creatura, nello stesso punto della conversazione, ripiega
-     sempre sulla stessa frase invece che su una a caso. */
-  const spoken = fallbackReply(
-    makeRng(seedFromString(`reply:${record.data.name}:${messageId}`)),
-    record.data.mood_primary,
-    record.data.voice_dna,
-    record.data.role,
-  );
-  const rhythm = typingRhythmFor(record.data.voice_dna);
-
-  /* 🔷 v1.12 §15.2 — la memoria si compone ADESSO, non dentro il client: il
-     client parla all'API e basta, e cosa il .mon si ricorda è una domanda di
-     prodotto. La conversazione recente esclude il messaggio corrente e la
-     bolla vuota che sta aspettando questa risposta — sono già altrove nella
-     richiesta, e mandarli due volte gli farebbe leggere l'eco. */
-  const opinions = opinionsBlock(s0.opinions);
-  const memory = {
-    /* Le opinioni stanno nello STESSO blocco della memoria, non in uno terzo:
-       cambiano con la stessa lentezza — una volta a settimana — quindi
-       condividono la stessa voce di cache. Un blocco in più sarebbe un punto
-       di cache in più speso per niente. */
-    memory: [
-      buildMemoryBlock({ memories: s0.memories, bio: record.bio, today: s0.day }),
-      opinions,
-    ]
-      .filter((p) => p.length > 0)
-      .join('\n\n'),
-    turns: recentTurns(s0.chat.filter((m) => m.id !== messageId && m.id !== messageId.replace(/_m$/, '_v'))),
-  };
-
-  /* ════════════════════════════════════════════════════════════════════════
-     🔷 QUANTO PESA QUESTO TURNO — e quindi chi risponde.
-
-     La condizione era già qui e serviva a una cosa sola: accendere il
-     ragionamento. Adesso ne decide due, ed è giusto che sia una sola riga a
-     deciderle entrambe — un messaggio che merita di essere pensato merita il
-     modello che sa pensarlo, e uno che non lo merita non merita nemmeno di
-     essere pagato al prezzo pieno.
-
-     ⚠️ IN COSTRUZIONE È SEMPRE PESANTE, e non per generosità: lì si decide
-     quale strumento chiamare per modificare l'app, che è il lavoro meno
-     perdonabile di tutti.
-     ════════════════════════════════════════════════════════════════════════ */
-  const pesante =
-    s0.buildMode || deservesThinking(userText, extractFromMessage(userText, s0.protocol.diet));
-
-  void import('../ai/client')
-    .then((m) =>
-      m.generateReply(
-        token,
-        record,
-        userText,
-        context,
-        get().mood,
-        memory,
-        s0.voiceNotes,
-        /* 🔒 In costruzione il ragionamento si accende sempre: decidere QUALE
-           strumento chiamare è esattamente il lavoro che lo merita, e a
-           sforzo basso il modello sceglie la strada corta — rispondere. */
-        pesante,
-        /* §21 — gli strumenti. `run` passa dallo store, così una pagina scritta
-           dal modello entra nello stato vero e viene salvata come tutto il
-           resto, invece di vivere in una variabile che sparisce. */
-        {
-          defs: TOOLS,
-          run: (use) => get().runMonTool(use),
-          webSearch: true,
-          onUsed: (uses) => set({ lastToolUses: uses.map((u) => u.name) }),
-        },
-        /* §22.6 — quello che sa di te. Sono fatti, non lamentele: il voto che
-           gli hai dato, le facce che gli hai fatto rifare, e il fatto che
-           qualche giorno alle sue spalle l'hai saltato dal pannello DEV. */
-        {
-          rating: record.rating ?? null,
-          faceRedos: s0.faceRedos,
-          timeSkipped: s0.usedDevTime,
-        },
-        /* §19.2 — chi risponde. Ultimo argomento e non primo di proposito:
-           tutto quello che viene prima — il personaggio, l'umore, la memoria,
-           gli strumenti, quello che sa di te — è identico per chiunque.
-
-           🔷 E adesso non è più sempre lo stesso: `pesante` decide se questo
-           turno merita il modello grosso o quello di tutti i giorni. La
-           STESSA condizione che accende il ragionamento sceglie anche chi
-           risponde — un turno che vale il pensiero vale il modello, e uno che
-           non lo vale non vale nemmeno l'altro. Due decisioni separate qui
-           vorrebbero dire poter pagare Opus per non farlo ragionare. */
-        stepModel('voice', pesante ? 'full' : 'everyday'),
-        { build: s0.buildMode, effort: s0.buildMode ? 'medium' : undefined },
-      ),
-    )
-    .then(({ result, failure }) => {
-      // La partita può essere andata avanti mentre il modello scriveva: se
-      // quella bolla non c'è più, non si riscrive il passato.
-      if (get().chat.findIndex((m) => m.id === messageId) === -1) return;
-
-      /* 🔒 LA CINTURA, OLTRE ALLA BRETELLA. `client.ts` già rifiuta una risposta
-         senza testo, ma questa riga è l'ultimo posto prima dello schermo: una
-         stringa vuota qui diventa una bolla grigia vuota, che è peggio di un
-         ripiego perché sembra una scelta del .mon invece di un guasto. */
-      const vera = result?.text?.trim() ? result.text : null;
-
-      /* ════════════════════════════════════════════════════════════════════
-         🔷 «Staccagli la possibilità di fallback.»
-
-         ⚠️ IL RIPIEGO È GIUSTO IN CHAT E VELENOSO SU UN BANCO DI LAVORO.
-         In chat serve a non lasciare un buco: la creatura dice qualcosa di
-         suo e la conversazione tiene. Ma in modalità costruzione una frase
-         di ripiego dice «ok» dove non è successo NIENTE — e chi legge crede
-         che la modifica sia andata, non che la chiamata sia fallita. È
-         esattamente il modo in cui uno strumento sembra rotto quando invece
-         è muto.
-
-         🔒 Qui il guasto si vede, con il suo nome. */
-      const text = vera ?? (s0.buildMode ? `— nessuna risposta (${failure ?? 'errore'})` : spoken);
-      playReveal(set, get, messageId, text, planReveal(text, rhythm), !vera);
-    })
-    /* 🔴 STESSO GUASTO DELLA PRESENTAZIONE, e qui pesa di più: è la chat.
-
-       `.then` senza `.catch`. Un errore sincrono nella costruzione del
-       briefing — o qualunque altra eccezione lungo la strada — rifiuta la
-       promessa e `playReveal` non viene chiamato: la bolla resta `pending`
-       per sempre. I puntini vanno, e il .mon «non risponde».
-
-       🔒 Il ripiego era già pronto sopra, calcolato PRIMA della chiamata.
-       Bastava raggiungerlo. */
-    .catch((e: unknown) => {
-      console.warn('[voce] risposta fallita:', e);
-      if (get().chat.findIndex((m) => m.id === messageId) === -1) return;
-      /* Stessa regola: in costruzione l'errore si legge, non si maschera. */
-      const text = s0.buildMode ? `— errore: ${String(e).slice(0, 140)}` : spoken;
-      playReveal(set, get, messageId, text, planReveal(text, rhythm), true);
-    });
-}
 
 /**
  * 🔶 v1.9 §5.2 — fa leggere la foto al modello e aggiunge quello che trova.

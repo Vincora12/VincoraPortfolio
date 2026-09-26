@@ -23,18 +23,9 @@
 
 import type { MonRecord } from '../engine/types';
 import type { MoodState } from '../engine/mood';
-import type { Turn } from '../engine/memoryContext';
 import type { VoiceNote } from '../engine/notebook';
 import { buildOperatorPrompt, buildVoiceSystemPrompt, introductionRequest } from './voicePrompt';
 import { ask, type BackendFailure, type VoiceData } from './backend';
-import {
-  assistantTurn,
-  resultBlocks,
-  type ToolDef,
-  type ToolResult,
-  type ToolUse,
-} from './tools';
-import type { Awareness } from './voicePrompt';
 import { recordUsageEntry } from './usage';
 
 export interface VoiceResult {
@@ -64,149 +55,42 @@ function asVoiceFailure(failure: BackendFailure): VoiceFailure {
   return 'error';
 }
 
-/**
- * Quello che il .mon si porta dietro in questo turno.
- *
- * §15.2 — i due pezzi finiscono in POSTI diversi della richiesta perché
- * cambiano a ritmi diversi: `memory` una volta al giorno (secondo blocco di
- * sistema, in cache), `turns` a ogni messaggio (nei messaggi, dove il modello
- * si aspetta un dialogo e non una trascrizione).
- */
-export interface VoiceMemory {
-  memory: string;
-  turns: Turn[];
-}
 
-/**
- * Una battuta nella voce di un .mon.
- *
- * `deliberate` accende il ragionamento. Resta spento sulla conversazione — su
- * due frasi in personaggio non aggiunge niente e l'uscita si paga cinque volte
- * l'entrata — e si riaccende sulla nascita e sulle domande vere (§17.5).
- */
-/**
- * Come si eseguono gli strumenti, per chi chiama.
- *
- * È un oggetto e non un import diretto perché questo file non deve sapere da
- * dove arrivano i dati: li conosce lo store, e passarli qui dentro renderebbe
- * la voce impossibile da provare senza montare l'app.
- */
-export interface ToolRuntime {
-  defs: ToolDef[];
-  run: (use: ToolUse) => ToolResult;
-  /** Accende la ricerca sul web, che gira dal fornitore. */
-  webSearch?: boolean;
-  /** Per raccontare in chat cosa ha fatto, invece di lasciarlo invisibile. */
-  onUsed?: (uses: ToolUse[], results: ToolResult[]) => void;
-}
-
-/* ----------------------------------------------------------------------------
-   QUANTI GIRI DI STRUMENTI
-
-   ⚠️ Il ciclo DEVE avere un tetto. Un modello che chiama uno strumento, legge
-   un risultato che non gli piace e lo richiama uguale è un caso che capita, e
-   senza tetto diventa una conversazione che non finisce e un conto che sale
-   da solo mentre il telefono è in tasca.
-
-   Quattro giri bastano per la catena più lunga che abbia senso qui: guarda le
-   pagine, leggi quella giusta, guarda i dati, aggiornala.
-   -------------------------------------------------------------------------- */
-const MAX_TOOL_ROUNDS = 4;
-
+/* vNext cleanup — `speak` is now single-shot. Its tool loop served only
+   `generateReply` ← store `requestReply` ← store `sendMessage`, which had no
+   caller left (the chat runs through `assistant-original/netlify-runtime.ts`).
+   The only live callers are the birth introduction and DEV/LAB voice tests. */
 async function speak(
   token: string,
   record: MonRecord,
   userTurn: string,
-  subsystem: 'introduction' | 'reply',
+  subsystem: 'introduction',
   mood: MoodState | null,
-  memory: VoiceMemory | null,
   notes: VoiceNote[],
   deliberate = false,
-  tools?: ToolRuntime,
-  awareness?: Awareness,
-  /* 🔷 §19.2 — chi dà la voce, se non il predefinito. Viaggia fino in fondo
-     senza che niente lungo la strada cambi: il briefing, la memoria, i turni e
-     gli strumenti sono gli stessi per chiunque risponda. È esattamente il
-     motivo per cui cambiare fornitore non perde niente. */
+  /* 🔷 §19.2 — chi dà la voce, se non il predefinito. */
   voiceModel?: string | null,
-  /**
-   * 🔷 MODALITÀ COSTRUZIONE — «facciamolo neutro, e usiamolo solo per
-   * modificare l'app».
-   *
-   * ⚠️ Quando è accesa NON si aggiunge niente al briefing: se ne usa un ALTRO,
-   * corto, senza personaggio. Vedi `buildOperatorPrompt` per perché una riga
-   * in più dentro sedicimila caratteri che dicono di conversare è una regola
-   * in minoranza.
-   *
-   * 🔒 E la memoria non entra: memorie e opinioni sono materiale del
-   * personaggio, e qui il personaggio non c'è.
-   */
   opts?: { build?: boolean; effort?: 'none' | 'low' | 'medium' },
 ): Promise<VoiceOutcome> {
   const build = opts?.build === true;
 
   const system = build
     ? [{ text: buildOperatorPrompt(), cache: true }]
-    : [
-        /* Il briefing non cambia mai dentro una conversazione: in cache.
-           ⚠️ L'awareness ci sta DENTRO e non a parte: cambia raramente — un
-           voto, una faccia rifatta — e metterla in un blocco suo invaliderebbe
-           la cache del briefing ogni volta che tocchi una stellina. */
-        { text: buildVoiceSystemPrompt(record, mood, notes, awareness), cache: true },
-        // La memoria cambia una volta al giorno: seconda voce di cache, così
-        // quella del briefing non si invalida mai.
-        ...(memory ? [{ text: memory.memory, cache: true }] : []),
-      ];
+    : [{ text: buildVoiceSystemPrompt(record, mood, notes), cache: true }];
 
-  /* I turni crescono a ogni giro di strumenti: partono dalla conversazione
-     vera e ci si aggiungono le chiamate e i risultati. */
-  const turns: Turn[] = build ? [] : [...(memory?.turns ?? [])];
-  let userBlocks: Record<string, unknown>[] | undefined;
-  let data: (VoiceData & { usage?: Record<string, number> }) | null = null;
-  let failure: BackendFailure | null = null;
-
-  for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
-    const res = await ask<
-      VoiceData & {
-        usage?: Record<string, number>;
-        toolUses?: { id: string; name: string; input: unknown }[];
-      }
-    >(token, {
-      capability: 'character-voice',
-      voiceModel,
-      system,
-      turns,
-      user: userTurn,
-      userBlocks,
-      thinking: deliberate,
-      effort: opts?.effort,
-      /* All'ultimo giro gli strumenti si tolgono: se li avesse ancora
-         potrebbe chiuderne uno nuovo proprio mentre non c'è più nessuno a
-         eseguirlo, e la conversazione finirebbe senza una frase. */
-      ...(tools && round < MAX_TOOL_ROUNDS
-        ? { tools: tools.defs, webSearch: tools.webSearch }
-        : {}),
-      maxTokens: 2000,
-    });
-
-    data = res.data;
-    failure = res.failure;
-
-    recordVoiceUsage(subsystem, res.data);
-
-    const uses = res.data?.toolUses ?? [];
-    if (!res.data || uses.length === 0 || !tools || round === MAX_TOOL_ROUNDS) break;
-
-    turns.push(assistantTurn(res.data.text ?? '', uses) as unknown as Turn);
-    const results = uses.map((u) => tools.run(u));
-    tools.onUsed?.(uses, results);
-
-    /* Dal secondo giro in poi il messaggio di partenza è già nei turni: se lo
-       si rimandasse anche come ultimo messaggio, il modello lo leggerebbe due
-       volte e risponderebbe alla domanda invece che ai risultati. */
-    userBlocks = resultBlocks(results);
-    userTurn = '';
-  }
+  const res = await ask<VoiceData & { usage?: Record<string, number>; toolUses?: { id: string; name: string; input: unknown }[] }>(token, {
+    capability: 'character-voice',
+    voiceModel,
+    system,
+    turns: [],
+    user: userTurn,
+    thinking: deliberate,
+    effort: opts?.effort,
+    maxTokens: 2000,
+  });
+  const data = res.data;
+  const failure: BackendFailure | null = res.failure;
+  recordVoiceUsage(subsystem, res.data);
 
   if (!data) return { result: null, failure: asVoiceFailure(failure ?? 'error') };
 
@@ -253,7 +137,7 @@ async function speak(
    risposta può costare tre chiamate, e contarne una sola farebbe sembrare
    gratis proprio la parte nuova. */
 function recordVoiceUsage(
-  subsystem: 'introduction' | 'reply',
+  subsystem: 'introduction',
   data: (VoiceData & { usage?: Record<string, number> }) | null,
 ): void {
   if (!data) return;
@@ -273,38 +157,6 @@ function recordVoiceUsage(
 }
 
 /**
- * Una risposta in conversazione.
- *
- * `context` dice al modello cosa il sistema ha già registrato da quel
- * messaggio. Non è un ordine di ringraziare: è per non far chiedere una cosa
- * che si è appena letta.
- */
-export async function generateReply(
-  token: string | null,
-  record: MonRecord,
-  userText: string,
-  context: string | null,
-  mood: MoodState | null,
-  memory: VoiceMemory | null,
-  notes: VoiceNote[],
-  deliberate = false,
-  tools?: ToolRuntime,
-  awareness?: Awareness,
-  voiceModel?: string | null,
-  opts?: { build?: boolean; effort?: 'none' | 'low' | 'medium' },
-): Promise<VoiceOutcome> {
-  if (!token) return { result: null, failure: 'no-key' };
-  /* 🔒 In costruzione il contesto non si allega: dice cosa il sistema ha già
-     registrato dal messaggio, ed è una cortesia verso il personaggio. Qui
-     sarebbe rumore fra l'ordine e lo strumento. */
-  const turn = context && !opts?.build ? `${userText}\n\n[${context}]` : userText;
-  return speak(
-    token, record, turn, 'reply', mood, memory, notes, deliberate, tools, awareness, voiceModel,
-    opts,
-  );
-}
-
-/**
  * La prima frase di un .mon appena nato.
  *
  * È una delle due chiamate che ragionano. Succede una volta per creatura —
@@ -320,10 +172,7 @@ export async function generateIntroduction(
   if (!token) return { result: null, failure: 'no-key' };
   // Nessuna memoria: è il primo istante, non c'è niente prima. Una memoria
   // vuota lo farebbe partire come se avesse dimenticato qualcosa.
-  return speak(
-    token, record, introductionRequest(record), 'introduction', mood, null, notes, true,
-    undefined, undefined, voiceModel,
-  );
+  return speak(token, record, introductionRequest(record), 'introduction', mood, notes, true, voiceModel);
 }
 
 /* ============================================================================

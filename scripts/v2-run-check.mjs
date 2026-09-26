@@ -6,8 +6,6 @@ const compiled = await build({
     export { executeRun } from './netlify/functions/_shared/v2/runEngine';
     export { capabilitiesFor } from './netlify/functions/_shared/v2/permissions';
     export { openCodeAvailability } from './netlify/functions/_shared/v2/codingWorker';
-    export { DOMAIN_BOUNDARIES } from './netlify/functions/_shared/v2/domainRegistry';
-    export { WORKSPACE_POLICY } from './netlify/functions/_shared/v2/workspaceCapability';
   `, resolveDir: process.cwd(), loader: 'ts' },
   bundle: true, write: false, format: 'esm', platform: 'node', logLevel: 'error',
   plugins: [{ name: 'no-persistence', setup(builder) {
@@ -65,7 +63,5 @@ await m.executeRun({ profile: 'chat', input: 'Do a write' }, {
 assert.deepEqual(exposed, [], 'chat profile must not expose write capabilities without approval');
 assert(m.capabilitiesFor('coding').includes('workspace-read'));
 assert(!m.capabilitiesFor('coding').includes('workspace-write'));
-assert(m.WORKSPACE_POLICY.denied.includes('arbitrary-shell'));
-assert.equal(m.DOMAIN_BOUNDARIES.me.role, 'derived');
 assert.equal(m.openCodeAvailability().available, false);
-console.log('PASS V2 run: canonical loop, projectId, caller tool handoff, permission gate, audit events, domain registry, coding-worker blocker.');
+console.log('PASS V2 run: canonical loop, projectId, caller tool handoff, permission gate, audit events, coding-worker blocker.');

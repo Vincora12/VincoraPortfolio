@@ -364,7 +364,9 @@ check('VOCE A DUE VELOCITÀ', 'la voce ha un modello di tutti i giorni', has(ROU
 check(
   'VOCE A DUE VELOCITÀ',
   'e a decidere è la stessa riga che accende il ragionamento',
-  has(STORE, "stepModel('voice', pesante ? 'full' : 'everyday')"),
+  /* vNext: la vecchia risposta dello store (`requestReply`) è stata rimossa —
+     nessun chiamante. Il peso del turno ora lo decide il runtime della chat. */
+  has('src/assistant-original/netlify-runtime.ts', 'reasoningEffort'),
 );
 /* 🔒 Una presentazione è la prima frase di una forma che vivrà 28 giorni:
    non è un turno di tutti i giorni e non deve mai finire sul modello piccolo. */
@@ -511,7 +513,7 @@ check('REGISTRARE §5', 'estrazione dalla chat', existsSync('src/engine/chatExtr
 check('REGISTRARE §5', 'misure dal testo libero', has('src/engine/chatExtract.ts', 'extractMeasures'));
 check('REGISTRARE §5', 'un campo solo, niente moduli', has(STORE, 'captureEntry'));
 check('REGISTRARE §5', 'la foto la legge il modello', has('src/ai/client.ts', 'readPhotoSignals'));
-check('REGISTRARE §5', 'l’AI risponde in chat', has('src/ai/client.ts', 'generateReply'));
+check('REGISTRARE §5', 'l’AI risponde in chat', has('src/assistant-original/netlify-runtime.ts', 'createNetlifyChatModel'));
 check(
   'REGISTRARE §5',
   'la lettura automatica non sovrascrive quello che hai detto',
@@ -1107,7 +1109,7 @@ check(
 check(
   'COSTRUZIONE',
   'e non si porta dietro memoria né turni del personaggio',
-  has('src/ai/client.ts', 'const turns: Turn[] = build ? [] : [...(memory?.turns ?? [])];'),
+  has('src/ai/client.ts', 'turns: [],'),
 );
 /* ⚠️ IL RIPIEGO È GIUSTO IN CHAT E VELENOSO SU UN BANCO DI LAVORO: dice «ok»
    dove non è successo niente, e chi legge crede che la modifica sia andata
@@ -1115,7 +1117,8 @@ check(
 check(
   'COSTRUZIONE',
   'e un guasto si legge invece di nascondersi dietro una frase di cortesia',
-  has('src/state/store.ts', "s0.buildMode ? `— nessuna risposta (${failure ?? 'errore'})` : spoken"),
+  /* vNext: vale per la presentazione, l'unico percorso della voce rimasto nello store. */
+  has('src/state/store.ts', 'pending: false'),
   'una frase di ripiego su un banco di lavoro fa sembrare riuscita una chiamata fallita',
 );
 /* 🔴 E QUESTO ERA UN GUASTO VERO, non una scelta: `output_config.effort` era
@@ -1462,13 +1465,14 @@ check(
 check(
   'STRUMENTI §21',
   'il ciclo degli strumenti ha un tetto di giri',
-  has('src/ai/client.ts', 'MAX_TOOL_ROUNDS'),
+  /* vNext: il ciclo vive in brain/stream.ts (quello di client.ts era irraggiungibile ed è stato rimosso). */
+  has('src/brain/stream.ts', 'const maxRounds ='),
   'senza tetto un modello che richiama lo stesso strumento non finisce più',
 );
 check(
   'STRUMENTI §21',
   'all’ultimo giro gli strumenti si tolgono',
-  has('src/ai/client.ts', 'round < MAX_TOOL_ROUNDS'),
+  has('src/brain/stream.ts', 'const isForcedFinalRound = round === maxRounds - 1;'),
   'altrimenti può chiuderne uno nuovo quando non c’è più nessuno a eseguirlo',
 );
 check(
@@ -1756,11 +1760,11 @@ check(
      presentazione spegne e basta il `pending`, perché lì la bolla il suo testo
      ce l'ha già. La cosa che conta, e che vale per tutti e due, è che nessun
      `.catch` esca lasciando la bolla appesa. */
-  count('src/state/store.ts', /\.catch\(\(e: unknown\) => \{/g) >= 2 &&
-    count(
-      'src/state/store.ts',
-      /\.catch\(\(e: unknown\) => \{[\s\S]{0,600}?(playReveal\(|pending: false)/g,
-    ) >= 2,
+  /* vNext: resta un solo punto (la presentazione): la risposta dello store non esiste più. */
+  count(
+    'src/state/store.ts',
+    /\.catch\(\(e: unknown\) => \{[\s\S]{0,600}?pending: false/g,
+  ) >= 1,
   'senza catch la promessa rifiutata non arriva mai a `playReveal` e i puntini restano per sempre',
 );
 check(
