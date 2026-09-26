@@ -28,8 +28,6 @@ import { voiceCardBlock } from '../engine/voiceCard';
 import { curiosityChatBlock } from '../engine/curiosity';
 import { notesBlock, type VoiceNote } from '../engine/notebook';
 
-/** §29 — versionato come tutto il resto: i .mon sanno con cosa sono nati. */
-export const VOICE_MODEL = 'claude-opus-5';
 
 /* ============================================================================
    🔷 v1.12 §2.3 — QUANTO TI SPINGE, E DA DOVE VIENE

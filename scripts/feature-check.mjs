@@ -276,8 +276,10 @@ check('MONDO §10.2', 'il registro dice cosa non ripetere', has(WORLD, 'doNotRep
 
 const USAGE = 'src/ai/usage.ts';
 const SPEND = 'netlify/functions/_shared/spend.ts';
+/* vNext: one price table (`_shared/prices.ts`) read by both the ledger and the COSTI panel. */
+const PRICES_FILE = 'netlify/functions/_shared/prices.ts';
 const modelliDaPrezzare = ['gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna'];
-const senzaPrezzoClient = modelliDaPrezzare.filter((m) => !has(USAGE, `'${m}'`));
+const senzaPrezzoClient = modelliDaPrezzare.filter((m) => !(has(USAGE, `'${m}'`) || (has(USAGE, 'MODEL_PRICES') && has(PRICES_FILE, `'${m}'`))));
 check(
   'SPESA',
   'il pannello COSTI conosce i prezzi di tutti i modelli che usa',
@@ -2114,7 +2116,7 @@ check(
   '§22.4 CHI DISEGNA',
   'il prezzo stimato è dichiarato tale',
   has(ROUTING_FILE, 'arrotondati PER ECCESSO') &&
-    has('netlify/functions/_shared/spend.ts', 'arrotondati PER ECCESSO'),
+    has(PRICES_FILE, 'arrotondati PER ECCESSO'),
   'il listino non era raggiungibile: un contatore che sottostima è peggio di uno che non c’è',
 );
 

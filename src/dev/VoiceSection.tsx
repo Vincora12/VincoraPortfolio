@@ -17,7 +17,8 @@
 import { useState } from 'react';
 import { stepModel, useApp, useActiveMon } from '../state/store';
 import { Button, SystemLabel, TextField, Window } from '../system/components';
-import { VOICE_MODEL, buildVoiceSystemPrompt } from '../ai/voicePrompt';
+import { buildVoiceSystemPrompt } from '../ai/voicePrompt';
+import { ROUTING } from '../../netlify/functions/_shared/routing';
 
 export function VoiceSection() {
   const token = useApp((s) => s.token);
@@ -115,7 +116,7 @@ export function VoiceSection() {
         <p className="t-micro dev__note">
           Lo stesso token lo useranno le Shortcut di iPhone: è la stessa porta.
         </p>
-        <p className="t-micro dev__note">VOCE: {VOICE_MODEL} — le chiavi vivono sul server</p>
+        <p className="t-micro dev__note">VOCE: {ROUTING['character-voice'].model} (predefinito) — le chiavi vivono sul server</p>
       </Window>
 
       <Window title="PROVA LA VOCE">

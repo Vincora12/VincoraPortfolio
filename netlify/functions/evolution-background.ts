@@ -1,8 +1,9 @@
+import { assertRouteAllowed, ModelPolicyError } from './_shared/modelGateway';
 import { getStore } from './_shared/localStore';
 import { authorize } from './_shared/auth';
 import { generateImage, IMAGE_SIZES, IMAGE_QUALITIES, type ImageSize, type ImageQuality } from './_shared/providers';
 import { resolveRoute } from './_shared/routing';
-import { checkCap, recordSpend } from './_shared/spend';
+import { recordSpend } from './_shared/spend';
 import { sendPushNotification } from './_shared/pushDelivery';
 import { isNotificationEnabled } from './_shared/notificationPrefs';
 
@@ -168,10 +169,11 @@ export default async function evolutionBackground(request: Request): Promise<voi
 
   for (const item of items) {
     if (job.assets.some((asset) => asset.assetId === item.assetId)) continue;
-    const cap = await checkCap();
-    if (cap.blocked) {
+    /* vNext model gateway: local-only mode + monthly cap, one policy for every model call. */
+    const refusal = await assertRouteAllowed(route, { purpose: 'image' }).then(() => null, (error: unknown) => error);
+    if (refusal) {
       job.status = 'error';
-      job.error = 'Tetto mensile raggiunto';
+      job.error = refusal instanceof ModelPolicyError && refusal.code === 'LOCAL_ONLY_BLOCKED' ? 'Modalità solo-locale attiva: le immagini richiedono un modello cloud' : 'Tetto mensile raggiunto';
       await save(job);
       return;
     }

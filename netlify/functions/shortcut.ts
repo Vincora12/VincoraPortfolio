@@ -43,9 +43,8 @@ import { getStore } from './_shared/localStore';
 import { authorize, authorizeShortcut, denied, json } from './_shared/auth';
 import { isShortcutAction, SHORTCUT_ACTIONS, type ShortcutActionId } from './_shared/shortcutActions';
 import { recordShortcutCall } from './_shared/shortcutLog';
-import { resolveRoute } from './_shared/routing';
-import { callProvider } from './_shared/providers';
-import { checkCap, recordSpend, INTERNAL_CAP_EXCEEDED } from './_shared/spend';
+import { callModel } from './_shared/modelGateway';
+import { checkCap, INTERNAL_CAP_EXCEEDED } from './_shared/spend';
 import { appendRuntimeEvent } from './_shared/runtimeLog';
 import { loadCoreContext } from './_shared/coreContext';
 import { sendPushNotification } from './_shared/pushDelivery';
@@ -152,9 +151,11 @@ function parseMealJson(text: string): MealEstimate | null {
  * di una misura è peggio di nessun numero.
  */
 async function estimateMeal(text: string): Promise<{ estimate: MealEstimate; costUsd: number } | { estimate: null; costUsd: number }> {
-  const route = resolveRoute('text-cheap');
-  const result = await callProvider(route.provider, {
-    model: route.model,
+  /* vNext model gateway: route, local-only mode, cap and spend in one place;
+     a refused route is a null estimate, same as an unreadable one. */
+  let result;
+  try {
+    result = await callModel({ capability: 'text-cheap', purpose: 'shortcut', action: 'shortcut' }, {
     system: [
       {
         text: [
@@ -171,12 +172,12 @@ async function estimateMeal(text: string): Promise<{ estimate: MealEstimate; cos
     user: text,
     maxTokens: 300,
     effort: 'none',
-  });
-
-  let costUsd = 0;
-  if (result.usage.inputTokens || result.usage.outputTokens) {
-    costUsd = await recordSpend('text-cheap', result.model, result.usage, { action: 'shortcut', subsystem: 'shortcut' });
+    });
+  } catch {
+    return { estimate: null, costUsd: 0 };
   }
+
+  const costUsd = result.costUsd;
   if (!result.ok) return { estimate: null, costUsd };
   return { estimate: parseMealJson(result.text), costUsd };
 }
@@ -192,23 +193,16 @@ async function estimateMeal(text: string): Promise<{ estimate: MealEstimate; cos
 async function notifyShortcutReceived(label: string, summary: string): Promise<void> {
   try {
     if (!(await isNotificationEnabled('shortcut'))) return;
-    const cap = await checkCap();
-    if (cap.blocked) return;
-
     const { systemPrompt } = await loadCoreContext({ query: summary, toolsAvailable: false });
-    const route = resolveRoute('character-voice');
-    const result = await callProvider(route.provider, {
-      model: route.model,
+    /* vNext model gateway: cap and local-only mode are enforced there (a
+       refusal throws and, as every error here, stays silent). */
+    const result = await callModel({ capability: 'character-voice', purpose: 'shortcut', action: 'shortcut-comment' }, {
       system: [{ text: systemPrompt }],
       turns: [],
       user: `È appena arrivato questo da una Shortcut sul telefono — ${label}: «${summary}». Scrivi UN messaggio breve (una frase sola, meno di 140 caratteri: va dentro una notifica push) nel tuo tono, che commenta quello che hai appena saputo. Non è una conferma tecnica e non è un elenco: è un vero commento, come se lo notassi tu sul momento.`,
       maxTokens: 200,
       effort: 'low',
     });
-
-    if (result.usage.inputTokens || result.usage.outputTokens) {
-      await recordSpend('character-voice', result.model, result.usage, { action: 'shortcut-comment', subsystem: 'shortcut' });
-    }
     if (!result.ok || !result.text.trim()) return;
 
     /* 🔒 NON "VINZ.MON" come titolo: iOS aggiunge da sé «from VINZ.MON» sotto

@@ -20,7 +20,8 @@
    ========================================================================= */
 
 import { authorize, denied, json } from './_shared/auth';
-import { resolveRoute, LOCAL_CHEAP_ROUND_MODEL, LOCAL_CHEAP_ROUND_SENTINEL, type Capability } from './_shared/routing';
+import { type Capability } from './_shared/routing';
+import { assertRouteAllowed, resolveModelRoute } from './_shared/modelGateway';
 import {
   callProvider,
   generateImage,
@@ -37,7 +38,6 @@ import {
 } from './_shared/providers';
 import {
   checkCap,
-  readLocalOnlyMode,
   recordSpend,
   looksLikeProviderQuota,
   INTERNAL_CAP_EXCEEDED,
@@ -248,9 +248,9 @@ export default async function handler(request: Request): Promise<Response> {
      routing.ts): solo `replyWithLocalTools` lo manda, per i giri che nessuno
      legge. `resolveRoute` non lo vedrebbe comunque — Ollama non è, e non
      deve essere, nel catalogo VOICE_CHOICES che l'utente sceglie. */
-  const route = preferences.modelName === LOCAL_CHEAP_ROUND_SENTINEL
-    ? { provider: 'ollama' as const, model: LOCAL_CHEAP_ROUND_MODEL }
-    : resolveRoute(capability, preferences.modelName);
+  /* vNext model gateway: the same resolution every server feature uses
+     (sentinel, catalog choice, capability default). */
+  const route = resolveModelRoute(capability, preferences.modelName);
   const selectedEffort = preferences.effort;
 
   /* ════════════════════════════════════════════════════════════════════════
@@ -262,8 +262,11 @@ export default async function handler(request: Request): Promise<Response> {
      si rifiuta con un errore che l'app deve mostrare in chiaro — mai una
      riscrittura silenziosa verso un modello locale che l'utente non ha
      scelto per quella capacità, e mai un fallback muto sul cloud. */
-  const localOnly = await readLocalOnlyMode();
-  if (localOnly.enabled && route.provider !== 'ollama') {
+  /* vNext model gateway: the local-only rule itself lives in
+     `assertRouteAllowed`; the monthly cap was already checked above with this
+     endpoint's own 402 shape, so it is not re-checked here. */
+  const localOnlyRefusal = await assertRouteAllowed(route, { purpose: capability, enforceCap: false }).then(() => null, (error: unknown) => error);
+  if (localOnlyRefusal) {
     await appendRuntimeEvent({
       eventType: LOCAL_ONLY_BLOCKED,
       status: 'FAIL',

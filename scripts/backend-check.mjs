@@ -243,9 +243,10 @@ for (const tier of ['gpt-5.6-luna', 'gpt-5.6-terra', 'gpt-5.6-sol']) {
    che serve a spendere meno. */
 check(
   [...m.VOICE_CHOICES, ...m.COMPILER_CHOICES].every(
-    (c) => c.price.input > 0 && c.price.output > 0,
+    /* vNext: a local (Ollama) choice costs exactly zero — known, not guessed. */
+    (c) => c.provider === 'ollama' ? c.price.input === 0 && c.price.output === 0 : c.price.input > 0 && c.price.output > 0,
   ),
-  'ogni scelta ha un prezzo dichiarato, e nessuno e zero',
+  'ogni scelta cloud ha un prezzo dichiarato e non zero; quelle locali costano zero',
 );
 /* 🔒 E il prezzo del catalogo deve essere quello con cui il tetto conta: due
    listini diversi vorrebbero dire una schermata che promette una cifra e un

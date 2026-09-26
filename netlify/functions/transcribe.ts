@@ -1,4 +1,6 @@
 import { authorize, denied, json } from './_shared/auth';
+import { assertRouteAllowed, ModelPolicyError } from './_shared/modelGateway';
+import { TRANSCRIPTION_ROUTE } from './_shared/routing';
 
 const MAX_AUDIO_BYTES = 12 * 1024 * 1024;
 
@@ -6,6 +8,11 @@ export default async function handler(request: Request): Promise<Response> {
   const auth = authorize(request);
   if (!auth.ok) return denied();
   if (request.method !== 'POST') return json({ error: 'metodo non consentito' }, 405);
+
+  /* vNext model gateway: speech-to-text is a cloud route like any other —
+     local-only mode refuses it, the cap applies. */
+  const refusal = await assertRouteAllowed(TRANSCRIPTION_ROUTE, { purpose: 'transcription' }).then(() => null, (error: unknown) => error);
+  if (refusal instanceof ModelPolicyError) return json({ error: refusal.message, code: refusal.code }, refusal.code === 'LOCAL_ONLY_BLOCKED' ? 403 : 402);
 
   const key = process.env.OPENAI_API_KEY;
   if (!key) return json({ error: 'OPENAI_API_KEY mancante' }, 503);
@@ -17,7 +24,7 @@ export default async function handler(request: Request): Promise<Response> {
 
   const form = new FormData();
   form.set('file', audio, audio.name || 'voice.webm');
-  form.set('model', 'gpt-4o-mini-transcribe');
+  form.set('model', TRANSCRIPTION_ROUTE.model);
   form.set('language', 'it');
   form.set('response_format', 'json');
 

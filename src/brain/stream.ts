@@ -7,7 +7,7 @@ import { persistChatTrace, recordChatTrace, systemPromptComposition, traceClock,
 import { amendTurnDecision, finalizeTurnDecision } from '../mon-core/decisionLog';
 import { voiceCard } from '../engine/voiceCard';
 import { resolveChatContext } from '../ai/chatContext';
-import { LOCAL_CHEAP_ROUND_SENTINEL } from '../../netlify/functions/_shared/routing';
+import { CLOUD_CHEAP_ROUND_MODEL, LOCAL_CHEAP_ROUND_SENTINEL } from '../../netlify/functions/_shared/routing';
 
 /* ============================================================================
    🔷 «Riporta la chat a prima.» — e dentro, il problema vero.
@@ -803,7 +803,7 @@ export async function replyWithLocalTools(
      vera: si rifà la STESSA richiesta col modello scelto e `tools: []`, così
      quello che l'utente legge resta sempre scritto dal modello che ha
      scelto lui, mai da quello economico. */
-  const CHEAP_ROUND_FALLBACK_MODEL = 'gpt-5.6-luna';
+  const CHEAP_ROUND_FALLBACK_MODEL = CLOUD_CHEAP_ROUND_MODEL; // vNext: one routing constant, no literal here
 
   const baseRoundBody = (modelOverride: string | null | undefined, toolsForRound: typeof availableTools, toolChoiceForRound?: string) => ({
     capability: 'character-voice',

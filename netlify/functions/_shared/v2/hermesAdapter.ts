@@ -148,6 +148,23 @@ export function assertIsolatedHermesWorkspace(workspaceRoot: string, repoRoot = 
    sets VINZMON_HERMES_PERSONAL_MEMORY=off. Until then WORK is not delegated
    and the chat keeps its legacy path (fail-closed, never a silent second
    memory). */
+/* Hermes' own provider identifiers for the VINZ providers it can run.
+   VINZ.MON chooses provider/model (modelGateway.resolveWorkModel); this
+   adapter only translates the name. Local models run through Hermes'
+   OpenAI-compatible "custom" provider (Ollama). */
+const HERMES_PROVIDER_IDS: Partial<Record<string, string>> = {
+  openai: 'openai-api',
+  anthropic: 'anthropic',
+  moonshot: 'kimi-for-coding',
+  xai: 'xai',
+  ollama: 'custom',
+};
+
+/** Hermes provider id for a VINZ provider, or null when Hermes cannot run it. */
+export function hermesProviderFor(provider: string | undefined): string | null {
+  return provider ? HERMES_PROVIDER_IDS[provider] ?? null : null;
+}
+
 export function hermesMemoryBoundaryConfirmed(env: NodeJS.ProcessEnv = process.env): boolean {
   return env.VINZMON_HERMES_PERSONAL_MEMORY?.trim().toLowerCase() === 'off';
 }

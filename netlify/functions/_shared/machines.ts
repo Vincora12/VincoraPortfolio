@@ -1,9 +1,7 @@
 import { NATURAL_VOICE } from '../../../src/ai/naturalVoice';
 import { culturalBackground } from '../../../src/engine/culturalDiscovery';
 import { getStore } from './localStore';
-import { callProvider } from './providers';
-import { resolveRoute } from './routing';
-import { recordSpend } from './spend';
+import { callModel } from './modelGateway';
 import { listPersonalMemory, searchPersonalMemory } from './core/memory';
 import { machineInsightPayload, sendPushNotification } from './pushDelivery';
 import { isNotificationEnabled } from './notificationPrefs';
@@ -285,11 +283,13 @@ async function conversationSelfContext(state: Record<MachineId, MachineState>): 
 }
 
 async function runModel(machine: MachineId, prompt: string, sourceIds: string[], preferredModel?: string | null) {
-  const route = resolveRoute('text-cheap', preferredModel);
-  const response = await callProvider(route.provider, { model: route.model, system: [{ text: 'Return compact JSON only. Never invent facts. Interpretations must cite source memory IDs.' }], turns: [], user: prompt, maxTokens: machine === 'me' ? 700 : 900 });
+  /* vNext model gateway: route, local-only mode, cap and spend in one place. */
+  const response = await callModel(
+    { capability: 'text-cheap', purpose: 'machines', action: machine, preferredModel },
+    { system: [{ text: 'Return compact JSON only. Never invent facts. Interpretations must cite source memory IDs.' }], turns: [], user: prompt, maxTokens: machine === 'me' ? 700 : 900 },
+  );
   if (!response.ok) throw new Error(response.error ?? 'machine provider failed');
-  const costUsd = response.usage.inputTokens || response.usage.outputTokens ? await recordSpend('text-cheap', response.model, response.usage, { action: machine, subsystem: 'machines' }) : 0;
-  return { response, costUsd, sourceIds };
+  return { response, costUsd: response.costUsd, sourceIds };
 }
 
 export async function runMachine(machine: MachineId, preferredModel?: string | null) {
@@ -475,7 +475,7 @@ export async function runMachine(machine: MachineId, preferredModel?: string | n
       if (summary) current.meSummary = { version: 1, summary, generatedAt: at(), basedOn: Array.isArray(parsed.basedOn) ? parsed.basedOn.filter((id): id is string => typeof id === 'string') : sourceIds };
       current.lastOutput = summary ? 'Sintesi ME aggiornata.' : 'Nessun aggiornamento significativo.';
     }
-    current.status = 'SLEEPING'; current.lastRun = at(); current.usage = { provider: response.model.includes('claude') ? 'anthropic' : 'openai', model: response.model, costUsd };
+    current.status = 'SLEEPING'; current.lastRun = at(); current.usage = { provider: response.route.provider, model: response.model, costUsd };
     const latestInsight = current.pendingInsights.at(-1);
     if (latestInsight?.createdAt === current.lastRun || latestInsight?.machineId === machine && latestInsight.status === 'pending' && latestInsight.notification === 'in_app' && !latestInsight.pushAttemptedAt) {
       latestInsight.pushAttemptedAt = at();

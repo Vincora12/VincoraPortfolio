@@ -25,9 +25,7 @@
    ========================================================================= */
 
 import { getStore } from './localStore';
-import { callProvider } from './providers';
-import { resolveRoute } from './routing';
-import { checkCap, recordSpend } from './spend';
+import { callModel, ModelPolicyError } from './modelGateway';
 
 export interface ConversationTopic {
   id: string;
@@ -122,27 +120,23 @@ export async function closeTopic(threadId: string, messages: TopicMessage[]): Pr
   const usable = messages.filter((message) => message.text?.trim());
   if (usable.length < 2) return null;
 
-  const cap = await checkCap();
-  if (cap.blocked) throw new Error('Tetto mensile di spesa raggiunto.');
-
   const transcript = usable
     .map((message) => `${message.role === 'user' ? 'VINCENZO' : 'VINZ'}: ${message.text.slice(0, MAX_CHARS_PER_MESSAGE)}`)
     .join('\n')
     .slice(-MAX_SUMMARY_INPUT);
 
-  const route = resolveRoute('text-cheap');
-  const result = await callProvider(route.provider, {
-    model: route.model,
+  /* vNext model gateway: route, local-only mode, cap and spend in one place. */
+  const result = await callModel({ capability: 'text-cheap', purpose: 'topics', action: 'topic-summary' }, {
     system: [{ text: SUMMARY_RULES }],
     turns: [],
     user: transcript,
     maxTokens: 400,
     effort: 'low',
+  }).catch((error: unknown) => {
+    if (error instanceof ModelPolicyError && error.code === 'INTERNAL_CAP_EXCEEDED') throw new Error('Tetto mensile di spesa raggiunto.');
+    throw error;
   });
 
-  if (result.usage.inputTokens || result.usage.outputTokens) {
-    await recordSpend('text-cheap', result.model, result.usage, { action: 'topic-summary', subsystem: 'topics' });
-  }
   if (!result.ok || !result.text.trim()) throw new Error(result.error || 'Riassunto non riuscito.');
 
   const { title, summary } = parseSummary(result.text);

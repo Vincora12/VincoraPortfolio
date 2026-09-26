@@ -17,6 +17,8 @@
    come se fosse una fattura.
    ========================================================================= */
 
+import { MODEL_PRICES } from '../../netlify/functions/_shared/prices';
+
 /** Da dove è partita la chiamata. Serve a sapere COSA costa, non solo quanto. */
 export type UsageSubsystem = 'introduction' | 'reply' | 'photo' | 'image' | 'reflection' | 'notebook';
 
@@ -47,28 +49,8 @@ export interface UsageEntry {
  * sembrerebbe «gratis» ed è la bugia peggiore delle due.
  */
 export const PRICES: Record<string, { input: number; output: number }> = {
-  'claude-opus-5': { input: 5, output: 25 },
-  'claude-sonnet-5': { input: 3, output: 15 },
-  'claude-haiku-4-5': { input: 1, output: 5 },
-  'kimi-k3': { input: 3, output: 15 },
-  'kimi-k2.6': { input: 0.95, output: 4 },
-  /* 🔴 MANCAVANO TUTTI E TRE, e non era un buco innocuo.
-     Senza queste righe i modelli OpenAI cadevano su `default`, cioè $5/$25 —
-     e Luna costa $0,20/$1,20. Il pannello COSTI dichiarava venticinque volte
-     il vero su ogni chiamata di BIO, NARRATORE, INSEGNA e PROMPT IMMAGINI,
-     cioè su quasi tutto quello che gira durante una prova.
-
-     ⚠️ Un contatore che sovrastima non è «prudente»: manda a risparmiare
-     dove non serve. Guardando quei numeri la conclusione ovvia era «il testo
-     mi sta prosciugando», mentre il testo costa centesimi e sono le immagini
-     a pesare. Verificati sul listino di agosto 2026 — vedi `spend.ts`, che li
-     aveva giusti da sempre: erano due tabelle della stessa cosa, e solo una
-     era aggiornata. */
-  'gpt-5.6-sol': { input: 5, output: 30 },
-  'gpt-5.6-terra': { input: 2, output: 12 },
-  'gpt-5.6-luna': { input: 0.2, output: 1.2 },
-  'grok-4.6': { input: 2, output: 6 },
-  'gemini-2.5-flash': { input: 0.3, output: 2.5 },
+  /* vNext: the same table the server ledger uses (no second copy to drift). */
+  ...MODEL_PRICES,
   default: { input: 5, output: 25 },
 };
 

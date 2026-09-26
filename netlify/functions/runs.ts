@@ -3,7 +3,7 @@ import { cancelRun, executeRun } from './_shared/v2/runEngine';
 import { readRun } from './_shared/v2/runStore';
 import { canonicalDomains } from './_shared/v2/domains';
 import { ensureProjectWorkspace, isLocalCoreServer, listWorkspaceTree } from './_shared/vinzWorkspace';
-import { assertHermesWorkspace, forgetHermesSession, hermesConfig, hermesMemoryBoundaryConfirmed, stopHermesRun, streamHermesProjectRun, type HermesVinzEvent } from './_shared/v2/hermesAdapter';
+import { assertHermesWorkspace, forgetHermesSession, hermesConfig, hermesMemoryBoundaryConfirmed, hermesProviderFor, stopHermesRun, streamHermesProjectRun, type HermesVinzEvent } from './_shared/v2/hermesAdapter';
 import { sendPushNotification } from './_shared/pushDelivery';
 import { assembleContext } from './_shared/v2/contextAssembler';
 import { localImages, readImagesLocally } from './_shared/v2/localImageOcr';
@@ -12,30 +12,12 @@ import type { Turn } from './_shared/providers';
 import { validProjectId } from '../../src/engine/projects';
 import { existsSync, readdirSync } from 'node:fs';
 import { enabledSkillsExportDirectory } from './skills';
-import { VOICE_CHOICES, type Provider } from './_shared/routing';
-import { checkCap, INTERNAL_CAP_EXCEEDED, LOCAL_ONLY_BLOCKED, readLocalOnlyMode, recordSpend } from './_shared/spend';
+import { assertRouteAllowed, ModelPolicyError, resolveWorkModel } from './_shared/modelGateway';
+import { INTERNAL_CAP_EXCEEDED, LOCAL_ONLY_BLOCKED, recordSpend } from './_shared/spend';
 import { issueHermesActionPermit, type HermesWriteAction } from './_shared/v2/hermesActionPermit';
 
 const PROFILES = new Set<RunProfile>(['chat', 'project-chat', 'lab', 'automation', 'inspection', 'coding']);
 const encoder = new TextEncoder();
-
-const HERMES_PROVIDER: Partial<Record<Provider, string>> = {
-  openai: 'openai-api',
-  anthropic: 'anthropic',
-  moonshot: 'kimi-for-coding',
-  xai: 'xai',
-};
-
-const HERMES_LOCAL_MODELS = new Set(['gpt-oss:20b', 'qwen2.5:14b', 'llama3.2:3b']);
-
-function hermesModel(value: unknown): { model: string; provider: string; cloud: boolean } | null {
-  if (typeof value !== 'string' || !value.trim()) return null;
-  const model = value.trim();
-  if (HERMES_LOCAL_MODELS.has(model)) return { model, provider: 'custom', cloud: false };
-  const choice = VOICE_CHOICES.find((candidate) => candidate.model === model);
-  const provider = choice && HERMES_PROVIDER[choice.provider];
-  return choice && provider ? { model: choice.model, provider, cloud: true } : null;
-}
 
 function hermesEffort(value: unknown): 'low' | 'medium' | 'high' | undefined {
   return value === 'low' || value === 'medium' || value === 'high' ? value : undefined;
@@ -124,18 +106,19 @@ async function hermesStream(body: Record<string, unknown>, request: Request): Pr
   }
   const projectId = typeof body.projectId === 'string' ? body.projectId : '';
   const conversationId = typeof body.conversationId === 'string' ? body.conversationId : '';
-  const requestedModel = hermesModel(body.model);
-  if (body.model !== undefined && !requestedModel) return hermesUnavailable('HERMES_MODEL_INVALID: scegli un modello configurato in VINZ.MON.', 400);
-  /* The model Hermes will really use: the per-run choice, else the configured
-     default. Local-only mode, the spending cap and spend recording follow the
-     EFFECTIVE model — previously a cloud default slipped past all three. */
-  const selectedModel = requestedModel ?? hermesModel(config.model) ?? { model: config.model, provider: 'custom', cloud: !HERMES_LOCAL_MODELS.has(config.model) };
-  if (selectedModel.cloud && (await readLocalOnlyMode()).enabled) {
-    return json({ error: 'modalità solo-locale attiva — questa richiesta userebbe un modello cloud', code: LOCAL_ONLY_BLOCKED, wouldUseModel: selectedModel.model }, 403);
-  }
-  if (selectedModel.cloud) {
-    const cap = await checkCap();
-    if (cap.blocked) return json({ error: 'tetto mensile raggiunto', code: INTERNAL_CAP_EXCEEDED, spentUsd: cap.ledger.usd, capUsd: cap.capUsd, month: cap.ledger.month }, 402);
+  /* vNext model gateway — VINZ.MON chooses the WORK model (the per-run
+     choice, else the configured runtime default) and enforces local-only
+     mode + the cap on it; Hermes only receives the result. */
+  const requestedModel = body.model !== undefined ? resolveWorkModel(body.model, config.model) : null;
+  const requestedHermesProvider = requestedModel ? hermesProviderFor(requestedModel.provider) : null;
+  if (body.model !== undefined && (!requestedModel || !requestedHermesProvider)) return hermesUnavailable('HERMES_MODEL_INVALID: scegli un modello configurato in VINZ.MON.', 400);
+  const selectedModel = requestedModel ?? resolveWorkModel(undefined, config.model)!;
+  try {
+    await assertRouteAllowed({ provider: selectedModel.provider ?? 'openai', model: selectedModel.model, location: selectedModel.location }, { purpose: 'work' });
+  } catch (error) {
+    if (error instanceof ModelPolicyError && error.code === LOCAL_ONLY_BLOCKED) return json({ error: 'modalità solo-locale attiva — questa richiesta userebbe un modello cloud', code: LOCAL_ONLY_BLOCKED, wouldUseModel: selectedModel.model }, 403);
+    if (error instanceof ModelPolicyError) return json({ error: 'tetto mensile raggiunto', code: INTERNAL_CAP_EXCEEDED, ...error.detail }, 402);
+    throw error;
   }
   let input = typeof body.input === 'string' ? body.input.trim() : '';
   if (!projectId || !conversationId || !input) return hermesUnavailable('HERMES_REQUEST_INVALID: Project, conversation and input are required.', 400);
@@ -199,7 +182,7 @@ async function hermesStream(body: Record<string, unknown>, request: Request): Pr
     input,
     systemPrompt: context.system.map((block) => block.text).join('\n\n'),
     turns,
-    ...(requestedModel ? { model: requestedModel.model, provider: requestedModel.provider } : {}),
+    ...(requestedModel && requestedHermesProvider ? { model: requestedModel.model, provider: requestedHermesProvider } : {}),
     ...(hermesEffort(body.effort) ? { effort: hermesEffort(body.effort) } : {}),
     actionPolicy: actionPolicy(body, requestId, verifiedAction),
   }, request.signal);
@@ -256,7 +239,7 @@ async function hermesStream(body: Record<string, unknown>, request: Request): Pr
 
   const enrichEvent = async (rawEvent: HermesVinzEvent): Promise<HermesVinzEvent> => {
     let event = rawEvent;
-    if (event.type === 'final' && selectedModel.cloud) {
+    if (event.type === 'final' && selectedModel.location === 'cloud') {
       const costUsd = await recordSpend('character-voice', selectedModel.model, hermesUsage(event.usage), {
         action: 'hermes-project-run',
         subsystem: 'hermes',

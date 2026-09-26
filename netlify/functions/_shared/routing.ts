@@ -134,6 +134,11 @@ export interface Route {
    locale = sempre gratis. */
 export const LOCAL_CHEAP_ROUND_SENTINEL = 'local-cheap-round';
 export const LOCAL_CHEAP_ROUND_MODEL = 'qwen2.5:14b';
+/** vNext model gateway: the cloud model a failed local intermediate round escalates to
+    (was a literal inside brain/stream.ts). */
+export const CLOUD_CHEAP_ROUND_MODEL = 'gpt-5.6-luna';
+/** vNext model gateway: speech-to-text route (was a literal inside transcribe.ts). Cloud only. */
+export const TRANSCRIPTION_ROUTE: Route = { provider: 'openai', model: 'gpt-4o-mini-transcribe' };
 
 /* ============================================================================
    LA TABELLA.
@@ -458,6 +463,14 @@ export function voiceChoiceProblems(choices = VOICE_CHOICES): string[] {
   const problems: string[] = [];
 
   for (const c of choices) {
+    /* vNext: a LOCAL voice (Ollama) is an explicit, declared trade — no prompt
+       cache, no provider-side thinking, zero cost, data stays on the Mac. It
+       is exempt from the cloud voice requirements, not hidden from them: its
+       `data`/`it` copy says so, and local-only mode relies on it existing. */
+    if (c.provider === 'ollama') {
+      if (c.data.trim().length === 0) problems.push(`${c.label} non dice dove finiscono i dati`);
+      continue;
+    }
     for (const [need, required] of Object.entries(needs) as [keyof Needs, boolean][]) {
       if (required && !CAN[c.provider][need]) {
         problems.push(`${c.label} → ${c.provider} non offre ${need}`);

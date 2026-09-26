@@ -3,7 +3,7 @@ import { appendRuntimeEvent } from '../runtimeLog';
 import { recordSpend } from '../spend';
 import { assembleContext } from './contextAssembler';
 import { canonicalDomains } from './domains';
-import { resolveRunModel } from './modelRegistry';
+import { assertRouteAllowed, ModelPolicyError, resolveRunModel } from '../modelGateway';
 import { mayExecuteTool } from './permissions';
 import { saveRun } from './runStore';
 import type { ContextDomains, RunContext, RunEvent, RunRequest, RunResult, ServerTool, ToolExecutionResult } from './contracts';
@@ -88,6 +88,12 @@ export async function executeRun(request: RunRequest, dependencies: RunDependenc
   const toolUses: Array<{ name: string; ok: boolean }> = [];
   const sources: RunResult['sources'] = [];
   try {
+    /* vNext model gateway: local-only mode and the monthly cap apply to every
+       run (Agent Lab, automations, /v1 ingress), not only to /api/ai. */
+    if (!dependencies.provider) {
+      try { await assertRouteAllowed(route, { purpose: `run:${request.profile}` }); }
+      catch (error) { throw new Error(error instanceof ModelPolicyError ? `${error.code}: ${error.message}` : String(error)); }
+    }
     for (let round = 0; round < MAX_ROUNDS; round += 1) {
       if (controller.signal.aborted) throw new DOMException('Run cancelled', 'AbortError');
       event(events, runId, 'model-started', 'running');

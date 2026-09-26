@@ -26,9 +26,7 @@ import { createMeModelStore, type MeModelDocument, type MeModelStore } from '../
 import { projectMeModel, type MemoryProjection } from '../meMemoryProjection';
 import { importMeSeed, type SeedImportResult } from '../meSeed';
 import { listMem0 } from '../mem0MemoryClient';
-import { callProvider } from '../providers';
-import { resolveRoute } from '../routing';
-import { recordSpend } from '../spend';
+import { callModel } from '../modelGateway';
 /* 🔷 MEMORY V1 (2026-09-17) — quando `VINZMON_MEMORY_WRITER_MODE=mem0`
    (spento di default, mai impostato in produzione oggi), il ramo 'mem0' di
    questo file passa da qui invece che dalle chiamate dirette a Mem0: stessa
@@ -71,14 +69,8 @@ function extractJson(text: string): unknown {
    could start being silently blocked once a user is over budget, which is a product decision
    about fallback UX, not a telemetry fix) and is reported as deferred, not decided here.
 
-   Wrapped in try/catch: a spend-ledger write failure must never turn an otherwise-successful
-   personal-memory write into a reported failure — telemetry is not allowed to be that load-bearing. */
-async function recordExtractionSpendBestEffort(action: string, model: string, usage: { inputTokens?: number; outputTokens?: number }): Promise<void> {
-  if (!usage.inputTokens && !usage.outputTokens) return;
-  try {
-    await recordSpend('text-cheap', model, usage, { action, subsystem: 'memory' });
-  } catch { /* telemetry must not fail the write it is measuring */ }
-}
+   vNext: spend is now recorded by the model gateway (`../modelGateway.ts`, best-effort
+   there too), which also enforces local-only mode; the cap stays off for this call. */
 
 const emptyFrozenResult = (): ChatMemoryResult => ({
   status: 'no_change', updated: false, created: 0, updatedCount: 0,
@@ -171,17 +163,17 @@ export async function writePersonalMemory(
       backend,
     };
   }
-  const route = resolveRoute('text-cheap', input.preferredModel);
   const context = input.context ?? [];
-  const response = await callProvider(route.provider, {
-    model: route.model,
+  /* vNext model gateway: local-only mode is enforced here too; the monthly
+     cap is still NOT applied to memory capture (deferred product decision,
+     see the note above), and spend is recorded by the gateway. */
+  const response = await callModel({ capability: 'text-cheap', purpose: 'memory', action: 'me_chat_capture', preferredModel: input.preferredModel, enforceCap: false }, {
     system: [{ text: `${SEMANTIC_POLICY}\n\n${EXTRACTION_INSTRUCTIONS}` }],
     turns: [],
     user: `RECENT CONTEXT (interpretive only):\n${context.map((item) => `${item.role}: ${item.text}`).join('\n')}\n\nCURRENT USER MESSAGE (source of any mutation):\n${input.text}`,
     maxTokens: 1800,
   });
   if (!response.ok) throw new Error(response.error ?? 'estrazione non disponibile');
-  await recordExtractionSpendBestEffort('me_chat_capture', response.model, response.usage);
   const result = await captureChatMemory(store, {
     text: input.text,
     conversationId: input.conversationId,

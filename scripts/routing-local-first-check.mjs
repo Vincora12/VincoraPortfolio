@@ -22,18 +22,22 @@ console.log('\n═══ LOCAL-FIRST / LOCAL ONLY MODE / REPO OPS INTENT ══�
 
 /* ── STATICO — ai.ts: la guardia sta DOVE deve stare ──────────────────────── */
 const aiSource = readFileSync(`${cwd}/netlify/functions/ai.ts`, 'utf8');
-const routeAt = aiSource.indexOf('const route = preferences.modelName === LOCAL_CHEAP_ROUND_SENTINEL');
+/* vNext model gateway: the resolution and the local-only rule moved to
+   `_shared/modelGateway.ts` (resolveModelRoute / assertRouteAllowed); ai.ts
+   must call them, in that order, before any provider call. */
+const gatewaySource = readFileSync(`${cwd}/netlify/functions/_shared/modelGateway.ts`, 'utf8');
+const routeAt = aiSource.indexOf('const route = resolveModelRoute(capability, preferences.modelName)');
 const guardAt = aiSource.indexOf('eventType: LOCAL_ONLY_BLOCKED');
 const firstCallProviderAt = aiSource.indexOf('callProvider(route.provider');
-check(routeAt > -1, 'ai.ts risolve ancora `route` con lo stesso sentinel/resolveRoute di sempre');
+check(routeAt > -1 && gatewaySource.includes('LOCAL_CHEAP_ROUND_SENTINEL') && gatewaySource.includes('resolveRoute(capability, preferredModel)'), 'ai.ts risolve ancora `route` con lo stesso sentinel/resolveRoute di sempre (via il gateway)');
 check(guardAt > routeAt, 'la guardia LOCAL ONLY sta DOPO che `route` è risolta');
 check(firstCallProviderAt === -1 || guardAt < firstCallProviderAt, 'la guardia LOCAL ONLY sta PRIMA di qualunque chiamata a callProvider');
 check(
-  aiSource.includes('localOnly.enabled && route.provider !== ') && aiSource.includes('403'),
+  aiSource.includes('assertRouteAllowed(route') && gatewaySource.includes('localOnly.enabled') && aiSource.includes('403'),
   'la guardia rifiuta con 403 quando attiva e la rotta non è locale — mai un ripiego silenzioso',
 );
 check(
-  aiSource.match(/resolveRoute\(capability, preferences\.modelName\)/),
+  Boolean(gatewaySource.match(/resolveRoute\(capability, preferredModel\)/)) && !aiSource.match(/resolveRoute\(/),
   '⚠️ resolveRoute resta l\'UNICA porta per un modello scelto a mano — nessun bypass nuovo introdotto per la Control Room',
 );
 

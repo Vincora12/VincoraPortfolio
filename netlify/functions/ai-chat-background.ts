@@ -34,9 +34,10 @@
    risposta HTTP che qualcuno deve tenere aperta. */
 
 import { authorize } from './_shared/auth';
-import { resolveRoute, type Capability } from './_shared/routing';
+import { type Capability } from './_shared/routing';
+import { assertRouteAllowed, ModelPolicyError, resolveModelRoute } from './_shared/modelGateway';
 import { callProvider, type SystemBlock, type Turn } from './_shared/providers';
-import { checkCap, readLocalOnlyMode, recordSpend } from './_shared/spend';
+import { LOCAL_ONLY_BLOCKED, recordSpend } from './_shared/spend';
 import { getStore } from './_shared/localStore';
 import { sendPushNotification } from './_shared/pushDelivery';
 import { CHAT_LIMITS, resolveChatPreferences } from './_shared/chatLimits';
@@ -92,21 +93,17 @@ export default async function aiChatBackground(request: Request): Promise<void> 
   const job: Job = { id, status: 'running', updatedAt: new Date().toISOString() };
   await save(job);
 
-  const cap = await checkCap();
-  if (cap.blocked) {
-    job.status = 'error';
-    job.error = 'tetto mensile raggiunto';
-    await save(job);
-    return;
-  }
-
   const preferences = resolveChatPreferences(body.config);
-  const route = resolveRoute(CAPABILITY, preferences.modelName);
-
-  const localOnly = await readLocalOnlyMode();
-  if (localOnly.enabled && route.provider !== 'ollama') {
+  /* vNext model gateway: one resolution and one policy check (local-only
+     mode + monthly cap for cloud routes; a local route is free). */
+  const route = resolveModelRoute(CAPABILITY, preferences.modelName);
+  try {
+    await assertRouteAllowed(route, { purpose: 'chat' });
+  } catch (error) {
     job.status = 'error';
-    job.error = 'modalità solo-locale attiva — questa richiesta userebbe un modello cloud';
+    job.error = error instanceof ModelPolicyError && error.code === LOCAL_ONLY_BLOCKED
+      ? 'modalità solo-locale attiva — questa richiesta userebbe un modello cloud'
+      : error instanceof ModelPolicyError ? 'tetto mensile raggiunto' : 'modello non disponibile';
     await save(job);
     return;
   }

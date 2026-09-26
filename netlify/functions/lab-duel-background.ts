@@ -1,8 +1,9 @@
+import { assertRouteAllowed, ModelPolicyError } from './_shared/modelGateway';
 import { getStore } from './_shared/localStore';
 import { authorize } from './_shared/auth';
 import { generateImage, IMAGE_SIZES, type ImageSize } from './_shared/providers';
 import { resolveRoute } from './_shared/routing';
-import { checkCap, recordSpend } from './_shared/spend';
+import { recordSpend } from './_shared/spend';
 
 type DuelItem = { seed: number; prompt: string; size: ImageSize };
 type DuelJob = {
@@ -75,10 +76,11 @@ export default async function labDuelBackground(request: Request): Promise<void>
       continue;
     }
 
-    const cap = await checkCap();
-    if (cap.blocked) {
+    /* vNext model gateway: local-only mode + monthly cap, one policy for every model call. */
+    const refusal = await assertRouteAllowed(route, { purpose: 'image' }).then(() => null, (error: unknown) => error);
+    if (refusal) {
       job.status = 'error';
-      job.error = 'Tetto mensile raggiunto';
+      job.error = refusal instanceof ModelPolicyError && refusal.code === 'LOCAL_ONLY_BLOCKED' ? 'Modalità solo-locale attiva: le immagini richiedono un modello cloud' : 'Tetto mensile raggiunto';
       await save(job);
       return;
     }
