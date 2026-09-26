@@ -80,7 +80,8 @@
     "verify:vnext-background": "node scripts/vnext-background-check.mjs",
     "verify:vnext-tools": "node scripts/vnext-tools-check.mjs",
     "verify:vnext-cerebro-contract": "node scripts/vnext-cerebro-contract-check.mjs",
-    "verify:vnext-skills": "node scripts/vnext-skills-check.mjs"
+    "verify:vnext-skills": "node scripts/vnext-skills-check.mjs",
+    "verify:vnext-recall": "node scripts/vnext-recall-check.mjs"
   },
   "dependencies": {
     "@assistant-ui/react": "^0.15.16",

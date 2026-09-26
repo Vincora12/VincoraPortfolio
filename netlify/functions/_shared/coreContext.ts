@@ -4,11 +4,13 @@ import type { MonRecord } from '../../../src/engine/types';
 import type { MoodState } from '../../../src/engine/mood';
 import type { World } from '../../../src/engine/world';
 import type { VoiceNote } from '../../../src/engine/notebook';
-import { searchPersonalMemory } from './core/memory';
+import { recall } from './recall';
 import { machineConversationContext } from './machineConversationContext';
 import { WORLD_PROJECT_ID } from '../../../src/engine/projects';
 
-export interface CoreContextOptions { query?: string; recentText?: string; projectId?: string | null; body?: 'web' | 'external'; toolsAvailable?: boolean }
+export interface CoreContextOptions { query?: string; recentText?: string; projectId?: string | null; body?: 'web' | 'external'; toolsAvailable?: boolean;
+  /** vNext Step 11: false when the caller recalls the ME projection itself (assembleContext), so it is not injected twice. */
+  includeMe?: boolean }
 /** No writes, second state store or persisted prompts. Strong read of the existing save. */
 export async function loadCoreContext(options: CoreContextOptions = {}) {
   const saved = await getStore({ name: 'vinzmon-state', consistency: 'strong' }).get('save', { type: 'json' }) as {
@@ -21,10 +23,10 @@ export async function loadCoreContext(options: CoreContextOptions = {}) {
   let memoryIds: string[] = [];
   let memoryStatus: CoreContext['memoryStatus'] = 'not-requested';
   const machineContext = await machineConversationContext().catch(() => ({ meSummary: null, selfReflections: [], selfReflectionIds: [], selfReflectionCount: 0 }));
-  if (machineContext.meSummary) meFacts = [machineContext.meSummary];
+  if (machineContext.meSummary && options.includeMe !== false) meFacts = [machineContext.meSummary];
   if (options.query?.trim()) {
     try {
-      const memories = (await searchPersonalMemory(options.query.slice(0, 2000), 5)).slice(0, 5);
+      const memories = await recall(options.query, { sources: ['personal'], limit: 5 });
       memoryFacts = memories.map(m => m.text);
       memoryIds = memories.map((m, i) => m.id ?? `memory:${i}`);
       memoryStatus = 'available';
