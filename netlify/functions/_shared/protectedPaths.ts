@@ -29,6 +29,7 @@ const PROTECTED_FILES = [
   'netlify/functions/repo-ops.ts',
   'netlify/functions/code-tools.ts',
   'netlify/functions/skills.ts',
+  'netlify/functions/_shared/skillprovenance.ts',
   'netlify/functions/hermes-tools.ts',
   'netlify/functions/state.ts',
   'netlify/functions/setup.ts',

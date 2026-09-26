@@ -25,6 +25,10 @@ import { join, resolve } from 'node:path';
 
 import { authorize, denied, json } from './_shared/auth';
 import { localDataDirectory } from './_shared/localStore';
+import {
+  COMMIT_SHA, compatibilityClass, executorsFor, provenanceFor, readSkillRequirements, verifyIntegrity,
+  type SkillCompatibility, type SkillExecutor, type SkillProvenance,
+} from './_shared/skillProvenance';
 
 const SAFE_ID = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const MAX_FILES = 40;
@@ -96,6 +100,11 @@ interface CatalogEntry {
   files: string[];
   hasScripts: boolean;
   bytes: number;
+  /** vNext Step 10: the exact commit this catalog was read at; install downloads from it. */
+  commit: string;
+  platforms: string[];
+  requiresConfig: boolean;
+  compatibility: SkillCompatibility;
 }
 
 interface InstalledSkill {
@@ -111,6 +120,19 @@ interface InstalledSkill {
   enabled: boolean;
   files: string[];
   hasScripts: boolean;
+  /** vNext Step 10: pinned commit + sha256 of each file. Absent on skills installed before pinning. */
+  provenance?: SkillProvenance | null;
+}
+
+/** What /api/skills reports: the stored record plus derived, never-persisted policy. */
+interface SkillView extends InstalledSkill {
+  platforms: string[];
+  requiresConfig: boolean;
+  compatibility: SkillCompatibility;
+  /** Executors that may use it once enabled (A: ACTION+WORK, B: WORK, C: none). */
+  executors: SkillExecutor[];
+  /** `verified`: files match the pin; `modified`: they do not; `unpinned`: installed before pinning. */
+  integrity: 'verified' | 'modified' | 'unpinned';
 }
 
 let catalogCache: { at: number; entries: CatalogEntry[] } | null = null;
@@ -200,8 +222,18 @@ function readFrontmatter(markdown: string): { name?: string; description?: strin
   return out;
 }
 
-function rawUrl(source: Source, file: string): string {
-  return `https://raw.githubusercontent.com/${source.repo}/${source.ref}/${file}`;
+/* 🔒 vNext STEP 10 — PINNED SOURCE. `ref` is a branch; what gets listed,
+   inspected and installed is the one commit it pointed at when the catalog
+   was read, so an install is reproducible and its hashes mean something. */
+async function resolveCommit(source: Source): Promise<string> {
+  const response = await get(`https://api.github.com/repos/${source.repo}/commits/${source.ref}`, 'application/vnd.github.sha');
+  const sha = response.ok ? (await response.text()).trim() : '';
+  if (!COMMIT_SHA.test(sha)) throw new Error(`Sorgente ${source.label}: commit non risolvibile (${response.status}).`);
+  return sha;
+}
+
+function rawUrl(source: Source, commit: string, file: string): string {
+  return `https://raw.githubusercontent.com/${source.repo}/${commit}/${file}`;
 }
 
 async function buildCatalog(): Promise<CatalogEntry[]> {
@@ -210,8 +242,9 @@ async function buildCatalog(): Promise<CatalogEntry[]> {
   for (const source of SOURCES) {
     /* Un solo colpo all'API di GitHub per tutto l'albero: chiedere cartella per
        cartella brucerebbe il limite di 60 richieste/ora senza token. */
+    const commit = await resolveCommit(source);
     const tree = await get(
-      `https://api.github.com/repos/${source.repo}/git/trees/${source.ref}?recursive=1`,
+      `https://api.github.com/repos/${source.repo}/git/trees/${commit}?recursive=1`,
       'application/vnd.github+json',
     );
     if (!tree.ok) throw new Error(`Sorgente ${source.label} non raggiungibile (${tree.status}).`);
@@ -237,19 +270,25 @@ async function buildCatalog(): Promise<CatalogEntry[]> {
       const files = blobs
         .filter((node) => node.path.startsWith(`${catalogPath}/`))
         .map((node) => ({ path: node.path, size: node.size ?? 0 }));
-      const manifest = await get(rawUrl(source, manifestNode.path));
-      const front = manifest.ok ? readFrontmatter(await manifest.text()) : {};
+      const manifest = await get(rawUrl(source, commit, manifestNode.path));
+      const manifestText = manifest.ok ? await manifest.text() : '';
+      const front = readFrontmatter(manifestText);
+      const requirements = readSkillRequirements(manifestText);
+      const hasScripts = files.some((file) => /(?:^|\/)scripts\//.test(file.path.slice(`${catalogPath}/`.length)) || /\.(sh|py|js|mjs|ts)$/.test(file.path));
       return {
         id,
         sourceId: source.id,
         sourceLabel: source.label,
         name: front.name ?? id,
         description: front.description ?? '',
-        homepage: `${source.homepage}/tree/${source.ref}/${catalogPath}`,
+        homepage: `${source.homepage}/tree/${commit}/${catalogPath}`,
         catalogPath,
         files: files.map((file) => file.path.slice(`${catalogPath}/`.length)).sort(),
-        hasScripts: files.some((file) => /(?:^|\/)scripts\//.test(file.path.slice(`${catalogPath}/`.length)) || /\.(sh|py|js|mjs|ts)$/.test(file.path)),
+        hasScripts,
         bytes: files.reduce((total, file) => total + file.size, 0),
+        commit,
+        ...requirements,
+        compatibility: compatibilityClass({ hasScripts, ...requirements }),
       };
     });
     entries.push(...sourceEntries.filter((entry): entry is CatalogEntry => entry !== null));
@@ -265,7 +304,7 @@ async function catalog(): Promise<CatalogEntry[]> {
   return entries;
 }
 
-function installedList(): InstalledSkill[] {
+function storedList(): InstalledSkill[] {
   const root = skillsDirectory();
   if (!existsSync(root)) return [];
   const out: InstalledSkill[] = [];
@@ -282,6 +321,27 @@ function installedList(): InstalledSkill[] {
   return out.sort((a, b) => a.name.localeCompare(b.name));
 }
 
+/** Derived policy for one stored skill: compatibility from its own SKILL.md, integrity against its pin. */
+function viewOf(skill: InstalledSkill): SkillView {
+  const directory = installedDirectory(keyOf(skill.sourceId, skill.id));
+  const manifest = join(directory, 'SKILL.md');
+  const requirements = readSkillRequirements(existsSync(manifest) ? readFileSync(manifest, 'utf8') : '');
+  const compatibility = compatibilityClass({ hasScripts: skill.hasScripts, ...requirements });
+  const integrity = !skill.provenance ? 'unpinned' : verifyIntegrity(directory, skill.provenance) ? 'verified' : 'modified';
+  return { ...skill, ...requirements, compatibility, executors: executorsFor(compatibility), integrity };
+}
+
+function installedList(): SkillView[] {
+  return storedList().map(viewOf);
+}
+
+/** Why an enabled skill may not be used by any executor (null = usable). */
+function unusableReason(skill: SkillView): string | null {
+  if (skill.compatibility === 'C') return `Skill non compatibile con questo Mac (piattaforme: ${skill.platforms.join(', ')}).`;
+  if (skill.integrity === 'modified') return 'I file della skill non corrispondono più a quelli installati: reinstallala prima di usarla.';
+  return null;
+}
+
 function installedDirectory(key: string): string {
   return join(skillsDirectory(), key);
 }
@@ -290,7 +350,9 @@ function keyOf(sourceId: string, id: string): string {
   return `${sourceId}__${id}`;
 }
 
-function writeMetadata(skill: InstalledSkill): void {
+function writeMetadata(view: InstalledSkill): void {
+  /* Only the stored record: compatibility/integrity are always re-derived. */
+  const { platforms: _p, requiresConfig: _r, compatibility: _c, executors: _e, integrity: _i, ...skill } = view as SkillView;
   writeFileSync(join(installedDirectory(keyOf(skill.sourceId, skill.id)), 'metadata.json'), JSON.stringify(skill, null, 2));
 }
 
@@ -358,9 +420,10 @@ function createLocalSkill(name: string, description: string, markdown: string): 
     enabled: false,
     files: ['SKILL.md'],
     hasScripts: false,
+    provenance: provenanceFor({ source: LOCAL_SOURCE_ID, repo: '', commit: null, path: `skills/${keyOf(LOCAL_SOURCE_ID, id)}` }, [{ relative: 'SKILL.md', body: readFileSync(join(target, 'SKILL.md')) }]),
   };
   writeMetadata(skill);
-  return skill;
+  return viewOf(skill);
 }
 
 function updateLocalSkill(id: string, name: string | undefined, description: string | undefined, markdown: string | undefined): InstalledSkill {
@@ -383,9 +446,10 @@ function updateLocalSkill(id: string, name: string | undefined, description: str
 
   /* 🔒 vNext SAFETY GATE — una skill modificata dal modello va riletta:
      torna spenta finché l'utente non la riaccende. */
-  const skill: InstalledSkill = { ...current, name: nextName, description: nextDescription, enabled: false };
+  const provenance = provenanceFor({ source: LOCAL_SOURCE_ID, repo: '', commit: null, path: `skills/${keyOf(LOCAL_SOURCE_ID, id)}` }, [{ relative: 'SKILL.md', body: readFileSync(file) }]);
+  const skill: InstalledSkill = { ...current, name: nextName, description: nextDescription, enabled: false, provenance };
   writeMetadata(skill);
-  return skill;
+  return viewOf(skill);
 }
 
 async function install(sourceId: string, id: string): Promise<InstalledSkill> {
@@ -407,7 +471,7 @@ async function install(sourceId: string, id: string): Promise<InstalledSkill> {
   const payload: { relative: string; body: Buffer }[] = [];
   for (const relative of entry.files) {
     if (relative.includes('..') || relative.startsWith('/')) throw new Error('Percorso file non valido.');
-    const response = await get(rawUrl(source, `${entry.catalogPath}/${relative}`));
+    const response = await get(rawUrl(source, entry.commit, `${entry.catalogPath}/${relative}`));
     if (!response.ok) throw new Error(`File «${relative}» non scaricabile (${response.status}).`);
     const body = Buffer.from(await response.arrayBuffer());
     if (body.byteLength > MAX_FILE_BYTES) throw new Error(`File «${relative}» troppo grande.`);
@@ -432,13 +496,15 @@ async function install(sourceId: string, id: string): Promise<InstalledSkill> {
     ref: source.ref,
     homepage: entry.homepage,
     installedAt: new Date().toISOString(),
-    /* Aggiornare una skill già accesa non la spegne; una nuova nasce spenta. */
-    enabled: previous?.enabled ?? false,
+    /* Aggiornare una skill già accesa non la spegne; una nuova nasce spenta.
+       🔒 vNext: una skill che su questo Mac non gira (classe C) non resta accesa. */
+    enabled: (previous?.enabled ?? false) && entry.compatibility !== 'C',
     files: entry.files,
     hasScripts: entry.hasScripts,
+    provenance: provenanceFor({ source: source.id, repo: source.repo, commit: entry.commit, path: entry.catalogPath }, payload),
   };
   writeMetadata(skill);
-  return skill;
+  return viewOf(skill);
 }
 
 /* ============================================================================
@@ -463,7 +529,9 @@ export function syncEnabledSkillsExport(): { exported: number } {
   mkdirSync(staging, { recursive: true, mode: 0o700 });
   let exported = 0;
   for (const skill of installedList()) {
-    if (!skill.enabled || !SAFE_ID.test(skill.id)) continue;
+    /* 🔒 vNext STEP 10 — only skills CEREBRO may run (class A/B), whose files
+       still match their pin. */
+    if (!skill.enabled || !SAFE_ID.test(skill.id) || !skill.executors.includes('WORK') || unusableReason(skill)) continue;
     const key = keyOf(skill.sourceId, skill.id);
     const source = installedDirectory(key);
     if (!existsSync(join(source, 'SKILL.md'))) continue;
@@ -509,6 +577,8 @@ export default async function handler(request: Request): Promise<Response> {
       const skill = installedList().find((item) => item.sourceId === sourceId && item.id === id);
       if (!skill) return json({ error: 'Skill non installata.' }, 404);
       if (!skill.enabled) return json({ error: 'Skill installata ma spenta.' }, 403);
+      const unusable = unusableReason(skill);
+      if (unusable) return json({ error: unusable }, 409);
       const file = join(installedDirectory(keyOf(sourceId, id)), 'SKILL.md');
       if (!existsSync(file)) return json({ error: 'SKILL.md non trovato per questa skill.' }, 404);
       return json({ skill, manifest: readFileSync(file, 'utf8').slice(0, 20_000) });
@@ -521,7 +591,7 @@ export default async function handler(request: Request): Promise<Response> {
       try {
         const entry = (await catalog()).find((item) => item.sourceId === sourceId && item.id === id);
         if (!entry) return json({ error: 'Skill non trovata.' }, 404);
-        const manifest = await get(rawUrl(source, `${entry.catalogPath}/SKILL.md`));
+        const manifest = await get(rawUrl(source, entry.commit, `${entry.catalogPath}/SKILL.md`));
         const markdown = manifest.ok ? (await manifest.text()).slice(0, 20_000) : '';
         return json({ skill: entry, manifest: markdown });
       } catch (error) {
@@ -584,6 +654,10 @@ export default async function handler(request: Request): Promise<Response> {
     if (!current) return json({ error: 'Skill non installata.' }, 404);
 
     if (body.action === 'enable' || body.action === 'disable') {
+      /* 🔒 vNext STEP 10 — enabling is the user's explicit act, and it is
+         refused for a skill no executor may use. Disabling always works. */
+      const unusable = body.action === 'enable' ? unusableReason(current) : null;
+      if (unusable) return json({ error: unusable }, 409);
       const next = { ...current, enabled: body.action === 'enable' };
       writeMetadata(next);
       syncExportBestEffort();
