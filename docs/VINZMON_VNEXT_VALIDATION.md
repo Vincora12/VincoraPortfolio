@@ -1,5 +1,300 @@
 # VINZ.MON vNext — Architecture Validation & Simplification Audit (2026-09-26)
 
+> **PATCHED against canonical `codex/vinzmon-v2` @ `16225c8`.** The body
+> below this patch was written against `79e46f1`. Where the patch and the
+> body disagree, **the patch wins**. Sections not mentioned in the patch
+> remain valid.
+
+---
+
+## PATCH — 79e46f1 → 16225c8 (architecture freeze)
+
+Diff: 4 commits, 86 files, +6790/−488. Relevant new code [FACT]:
+`_shared/v2/hermesAdapter.ts`, `_shared/v2/hermesActionPermit.ts`,
+`netlify/functions/hermes-tools.ts`, `scripts/hermes-vinz-mcp-server.mjs`,
+`src/assistant-original/hermes-project-runtime.ts`, `runs.ts` (+320),
+`netlify-runtime.ts` (+616/−), `ai-chat-background.ts` + `ai-chat-job.ts`,
+`_shared/v2/localImageOcr.ts` + `scripts/local-image-ocr.swift`,
+`src/engine/worldGame.ts`, `skills.ts` (Hermes source), `routing.ts`
+(Ollama voice choices), `docs/hermes-vinzmon-profile.example.yaml`,
+`docs/VINZ_MON_V2_HERMES_ORCHESTRATION_REPORT.md`,
+`docs/VINZ_MON_RUNTIME_BUILD_VS_ADOPT_AUDIT.md`.
+**Unchanged** since 79e46f1: `runEngine.ts`, `permissions.ts`,
+`machines.ts`, `core/memory.ts`, `memoryV1.ts`, `topics.ts`, `repoOps.ts`,
+`toolLayer.ts`, `brain/stream.ts`, `agent-lab.ts`, `automations.ts`.
+
+### P1. Hermes — PREVIOUS: "not integrated anywhere"
+
+→ **NEW EVIDENCE** [FACT]
+- `netlify-runtime.ts` `createNetlifyChatModel().run`: when
+  `projectId && projectId !== WORLD_PROJECT_ID && !needsLegacyProductTool(...)`,
+  the turn goes to `runWithHermesProject` → `POST /api/runs {stream:true, profile:'project-chat'}`.
+  Fallback to the legacy path only on `409 HERMES_DISABLED` or
+  `HERMES_WORKSPACE_MISMATCH` (`hermes-project-runtime.ts`).
+- `runs.ts` `hermesStream`: requires `isLocalCoreServer()`; resolves Project +
+  workspace server-side; local OCR for images; inlines XLSX text;
+  `assembleContext(..., windowTokens 16k, inputBudgetTokens 6k)`; builds an
+  action policy; issues a permit; streams SSE; diffs the workspace to offer
+  changed files; records spend; push notification on settle; keeps draining
+  after client disconnect.
+- `hermesAdapter.ts`: JSON-RPC over `ws://127.0.0.1:9119/api/ws` (Hermes
+  dashboard gateway); `session.create/resume/interrupt`, `prompt.submit`;
+  one persistent Hermes session per Project conversation (`vinzmon-hermes-sessions`);
+  translates Hermes events to `HermesVinzEvent`; **auto-denies every
+  `approval.request`**.
+- Enabled only when `VINZMON_ORCHESTRATOR=hermes` + URL/key/workspace/model +
+  `VINZMON_HERMES_SANDBOXED=1`. `hermesConfig` holds **one**
+  `workspaceRoot`; any other Project → mismatch → legacy path.
+- VINZ→Hermes tools: stdio MCP bridge with 4 tools (`vinz_leggi_me`,
+  `vinz_registra_pasto/allenamento/peso`) → `/api/hermes-tools`; writes need a
+  one-shot, 5-minute permit (`hermesActionPermit.ts`) issued by `runs.ts`
+  after it re-verifies the "sì" and the exact prior confirmation question.
+  Writes are enqueued to the existing shortcut queue and applied by the browser.
+- Profile (`hermes-vinzmon-profile.example.yaml`): Hermes memory **on**
+  (`memory_enabled`, `user_profile_enabled`, `write_approval: false`),
+  skills from `data/skills` as external dir, toolsets terminal/file/memory/
+  session_search/skills/connections/vinzmon, web/browser/cron disabled,
+  `max_turns: 24`, default model `gpt-oss:20b`.
+
+→ **UPDATED CONCLUSION**: Hermes **is integrated and live** on the Local Core
+as the agent loop for Project chat in **one** configured workspace. It is
+feature-flagged, fails over to the legacy path, and is the only agent loop
+with server-side enforced write confirmation.
+
+### P2. What Hermes owns vs VINZ.MON Core
+
+| Hermes owns (today, per code + profile) | VINZ.MON Core owns | Boundary problems [FACT → REC] |
+|---|---|---|
+| agent loop, tool choice, retries, file/terminal work in the sandboxed workspace, session continuity (its own session store), streaming events, skill loading | UI, routing decision, Project identity + workspace resolution, context package (`assembleContext`), confirmation + permit, structured writes (via shortcut queue → browser), spend ledger, push, cancellation authority | **Hermes memory + user profile are enabled with no write approval** → a second writable personal memory, contradicting "one memory". **Hermes turns skip VINZ memory capture** (`captureChatMemoryForClient` now runs *after* the Hermes branch returns). → Disable Hermes `memory`/`user_profile` (or scope them to execution notes only) and call VINZ capture for Hermes turns. |
+| Hermes-side model execution | model *choice* (`runs.ts` `hermesModel`) | Hermes path does **not** check `readLocalOnlyMode`; model maps are hardcoded in `runs.ts` (`HERMES_PROVIDER`, `HERMES_LOCAL_MODELS`). → route through the model gateway (§J). |
+| approvals (Hermes-native) | product approvals | adapter auto-denies → no WORK step needing approval can ever proceed. → map `approval_required` to a VINZ confirmation + resume. |
+| skill reading (full directories) | skill install / enable | Hermes reads `data/skills` as an external dir; nothing indicates it honours VINZ's `metadata.json` `enabled` flag [INFERENCE]. → pass only enabled skills (separate export dir or allow-list). |
+
+### P3. Is Hermes the CEREBRO candidate?
+
+PREVIOUS: "No; in-process `executeRun` `work` profile first, Hermes later."
+→ NEW EVIDENCE: Hermes adapter, permits, MCP bridge, event translation,
+cancellation, background continuation and push are implemented and validated
+(`hermes-adapter-check.mjs`, `hermes-vinz-mcp-check.mjs`, report
+"End-to-end … PASS"). `executeRun` still has no streaming, no approval
+continuation, no durable in-progress state.
+→ **UPDATED**: **Hermes is the CEREBRO v1 implementation.** Do not build an
+in-process WORK loop. Conditions before widening its scope: P2 fixes
+(memory, local-only, skill enable flag, approval continuation) and multi-
+workspace support. `HermesProjectRun` + `HermesVinzEvent` are already ~90% of
+the CEREBRO contract in §E; rename them to runtime-agnostic types and keep
+`hermesAdapter.ts` as the only Hermes-aware module. `codingWorker.ts` is
+superseded (REMOVE). Note: `docs/VINZ_MON_RUNTIME_BUILD_VS_ADOPT_AUDIT.md`
+recommends a Vellum/Pydantic AI spike and never mentions Hermes; the code has
+already chosen Hermes — treat that doc's *runtime choice* as superseded, its
+ownership principles (§2, §20–22) as still valid.
+
+### P4. Real agent/orchestration loops
+
+PREVIOUS: 2 live loops.
+→ **UPDATED: 3 live loops + 1 background transport** [FACT]
+1. **Browser `replyWithLocalTools`** — global chat with tools, World, and any
+   Project turn where `needsLegacyProductTool` (calendar, drive, email,
+   reminders, automations, look/screen, repo ops, non-weight writes,
+   confirmed plans) or Hermes is off/mismatched.
+2. **Hermes** (external) — all other Project turns on the configured workspace.
+3. **`executeRun`** — Agent Lab, automations, `/v1/*`, `/api/runs` non-stream.
+4. `ai-chat-background.ts` — **not a loop**: the tool-less direct path now
+   runs as a background job (`/api/ai-chat-background` + poll
+   `/api/ai-chat-job`), enforcing `checkCap` and local-only.
+`speak`'s loop is still dead; the Brain page still reuses loop 1.
+
+### P5. MON CORE — does it change? **Yes.**
+
+PREVIOUS: MON CORE = `executeRun` + shared `decideTurn()`.
+→ NEW EVIDENCE: the routing decision now selects among *four* executors
+(browser loop, Hermes, background single-shot, image/issue routes) and is
+split across `netlify-runtime.ts` (`needsLegacyProductTool`,
+`BROWSER_PRODUCT_TOOL_INTENT`, confirmation state) and `runs.ts`
+(`verifiedWriteAction` with a **second copy** of the `confirms` regex and the
+confirmation-question regexes). `executeRun` is explicitly de-prioritised by
+both new docs.
+→ **UPDATED**: MON CORE = **`decideTurn()` + context package + permit + unified
+event stream**, not a loop. It dispatches to executors; it does not become
+one. `executeRun` is demoted to a **headless ACTION executor** (Agent Lab,
+automations, `/v1`) — KEEP, do not grow.
+
+### P6. ANSWER / ACTION / WORK — does it change? **Mapping yes, contract no.**
+
+→ **UPDATED mapping**: ANSWER → background single-shot (`ai-chat-background`);
+ACTION → lightweight VINZ tool loop (browser loop today, server tools via the
+canonical registry tomorrow); WORK → CEREBRO (Hermes). Today Hermes receives
+**every** Project turn, including plain answers (local run measured ~32 s in
+the Hermes report) — the mode decision is exactly what should keep ANSWER and
+simple ACTION out of Hermes. The `TurnDecision` contract (§D) stands; add
+`executor: 'direct' | 'legacy-tools' | 'hermes' | 'image' | 'issue'` and
+`fallbackReason`. Event stream: **adopt `HermesVinzEvent` as the base of
+`MonEvent`** (it already carries status/progress/tool_started/tool_completed/
+approval_required/final/context from real events) and emit the same shape
+from the other executors.
+
+### P7. Skills portability — does it change? **Partly.**
+
+→ NEW EVIDENCE [FACT]: `skills.ts` adds source `hermes-official`
+(`NousResearch/hermes-agent`, `optional-skills`, `directoryDepth: 2`) with a
+nested-layout catalog walk, id de-duplication, 429 retry. Hermes loads
+`data/skills` as external skills ("67 effective skills").
+→ **UPDATED**: blocker 1 (nested layout) **fixed**. Blockers 2 (VINZ chat
+reads only `SKILL.md`) and 3 (tool-name mismatch) now matter only for the
+non-Hermes path: installed skills run **fully** inside Hermes (scripts,
+references, native tool names). Remaining blockers: 4 (no commit/hash pin,
+`ref: 'main'`), 5 (frontmatter `platforms`/`config` ignored), 6′ (Hermes may
+load disabled skills). Classification A/B/C stands; C skills are now
+*executable* via CEREBRO, which is the portability answer: **installed skill
+= VINZ data with provenance; execution = whichever executor can satisfy its
+`requires`.**
+
+### P8. Canonical tool system — does it change? **Yes, and it gets simpler.**
+
+→ NEW EVIDENCE: `/api/hermes-tools` + MCP bridge is the **first server-side
+VINZ tool surface with server-enforced confirmation** (`hermesActionPermit`).
+Tool registries are now 6 (TOOLS, toolLayer, Agent Lab, V2 ServerTool,
+Hermes-native toolsets, VINZ MCP).
+→ **UPDATED**: the canonical registry is **the VINZ server tool surface**
+(generalise `/api/hermes-tools` → one `ToolSpec` manifest §G + permit
+enforcement), exposed through **two adapters**: MCP (for Hermes/any CEREBRO)
+and `ServerTool` (for `executeRun`/light ACTION). Browser-state tools keep the
+existing "server enqueues, browser applies" pattern already used by
+`hermes-tools` → shortcut queue. Hermes-native tools stay Hermes' (workspace
+execution) and are governed by the profile sandbox, not the VINZ manifest.
+Generalise the permit to every `write`/`destructive` tool, including
+`repo_write`/`repo_edit`.
+
+### P9. Memory — does it change? **Yes (new conflict).**
+
+→ NEW EVIDENCE: Hermes memory/user profile enabled without approval; Hermes
+turns skip VINZ capture; Hermes session store holds Project conversation
+history in parallel with VINZ threads (`vinzmon-hermes-sessions` only stores
+the pointer).
+→ **UPDATED**: the §H read contract stands. Add a hard rule: **CEREBRO never
+owns personal memory.** Hermes session history = disposable execution
+scratch; Hermes memory = off (or execution-procedure notes only, never facts
+about Vincenzo). VINZ capture must run on every user turn regardless of
+executor.
+
+### P10. Background Mind — does it change? **Only by addition.**
+
+Machines, memory capture, topics, weekly/monthly reflection: code unchanged
+→ §I stands. New: Hermes memory is an **unaudited background learner** writing
+user facts outside VINZ (see P9). `ai-chat-background` is a foreground
+transport, not Background Mind.
+
+### P11. Model router — does it change? **Yes.**
+
+→ NEW EVIDENCE [FACT]: `VOICE_CHOICES` now includes Ollama
+(`gpt-oss:20b`, `qwen2.5:14b`, `llama3.2:3b`) — local main chat is selectable
+(removes the Q12 "no Ollama voice choice" blocker); `NEEDS['character-voice']`
+still requires `promptCache`+`thinking`, so `voiceChoiceProblems()` should now
+report these entries [INFERENCE, not executed]. New selection paths: `runs.ts`
+`hermesModel` (hardcoded maps), `_shared/chatLimits.ts` `resolveChatPreferences`
+(copy of `ai.ts` limits), Hermes profile default `gpt-oss:20b`. Hermes path
+lacks local-only enforcement; `ai-chat-background` has it.
+→ **UPDATED**: the `callModel`/`ModelClass` contract (§J) stands and gains one
+more consumer: **CEREBRO receives a resolved `{provider, model}` from the VINZ
+router**, never picks its own. Selection paths are now 6 → target 1.
+
+### P12. KEEP / MERGE / ADAPT / REMOVE — deltas only
+
+| Component | Previous | Now |
+|---|---|---|
+| `hermesAdapter.ts`, `hermes-project-runtime.ts`, `runs.ts` Hermes stream | — | **KEEP** as CEREBRO v1 (ADAPT: runtime-agnostic types) |
+| `hermesActionPermit.ts` | — | **KEEP → generalise** to all write tools |
+| `hermes-tools.ts` + MCP bridge | — | **ADAPT** into the canonical server tool surface |
+| `localImageOcr.ts` | — | **KEEP** (local-first vision; make it available to all executors) |
+| `ai-chat-background.ts` / `ai-chat-job.ts` | — | **KEEP** as the ANSWER executor; MERGE `chatLimits.ts` with `ai.ts` limits |
+| `executeRun` | ADAPT → MON CORE executor | **KEEP, frozen** as headless ACTION executor |
+| `codingWorker.ts` | ADAPT → CEREBRO | **REMOVE** (superseded by Hermes contract) |
+| `/api/runs` | OPTIONAL | **KEEP** (now the CEREBRO ingress) |
+| Hermes profile memory/user_profile | — | **ADAPT: disable** |
+| `worldGame.ts` | — | **KEEP** (deterministic combat; LLM only classifies action via `classifyQuestAction`, with `explicitQuestAction` fallback) |
+| `runs.ts` `confirms` + `verifiedWriteAction` regexes | — | **MERGE** with `netlify-runtime.ts` confirmation logic into `decideTurn()` |
+| `VINZ_MON_RUNTIME_BUILD_VS_ADOPT_AUDIT.md` runtime choice | — | superseded by Hermes (principles kept) |
+All other rows of §L unchanged.
+
+### P13. Security re-check [FACT on 16225c8]
+
+- `repo_write` / `repo_edit` without confirmation: **STILL PRESENT**
+  (`ConfirmableAction` = `peso|promemoria|automazione|piano|dieta|riavvio`;
+  `agentLabFiles.ts` `ALLOWED_ROOTS` unchanged; no deny-list in `repoOps.ts`).
+  These are legacy-path tools; `needsLegacyProductTool` routes repo-ops intents
+  to the legacy loop even inside Projects.
+- Model-created skills enabled immediately: **STILL PRESENT**
+  (`skills.ts` local skill `enabled: true`) — and now these skills also reach
+  Hermes via `external_dirs`.
+- New: Hermes memory writes without approval; Hermes path skips local-only.
+
+### P14. Life / World
+
+`worldGame.ts` adds TUNE/RISE quests with HP, foe stats, clues and deterministic
+`resolveQuestTurn`; the model only classifies intent (`classifyQuestAction`)
+and may propose a provisional World answer that is length/safety-checked.
+Canon writes still go through `withCanon`/validated life-cycle functions.
+**Deterministic principle holds** [FACT]. Hermes is excluded from the World
+project by routing.
+
+---
+
+## FROZEN ARCHITECTURE DECISION (16225c8)
+
+**CURRENT →** browser-side routing picks one of: browser tool loop
+(`replyWithLocalTools`), Hermes (Project chat, one workspace), background
+single-shot, or `executeRun` (headless); 6 tool registries; 6 model-selection
+paths; personal memory split between VINZ capture and Hermes memory;
+confirmation enforced in the browser except for 3 Hermes MCP writes.
+
+**→ TARGET:** **MON CORE** = one `decideTurn()` + one context package
+(`assembleContext`) + one permit service + one event schema (`HermesVinzEvent`
+generalised), dispatching to three executors — **ANSWER** single-shot
+(`ai-chat-background`), **ACTION** light VINZ tool loop over **one server tool
+manifest** (MCP + ServerTool adapters, browser-apply queue for client state),
+**WORK** → **CEREBRO** interface, implementation **Hermes** (sandboxed, no
+personal memory, model chosen by VINZ router, approvals mapped to VINZ
+confirmations). **Memory** = VINZ only, one read contract. **Model router** =
+one `callModel` gateway with cap + local-only for every executor including
+Hermes. **Life/World** and **Core** unchanged.
+
+### Migration sequence (replaces §M ordering)
+
+1. **Safety gate** — permit/confirmation for `repo_write`/`repo_edit`, Core
+   path deny-list, model-created skills born disabled.
+2. **Turn Decision Record** — record `mode`, `executor`, `source`, `rules`,
+   `fallbackReason`, tool pool per turn in `ChatTrace` + runtime event (§N,
+   extended with the Hermes branch). No behaviour change. ← **Migration Step 1
+   for implementation** (can ship together with 1).
+3. **Hermes boundary hardening** — disable Hermes memory/user profile; run VINZ
+   memory capture on Hermes turns; local-only check in `runs.ts`; pass only
+   enabled skills.
+4. **Delete dead paths** — `speak` loop/`generateReply`/store `sendMessage`
+   chain, weekly reflection + opinions, Brain page + `/api/brain`,
+   `/api/v2-lobehub`, `codingWorker.ts`, unused V2 modules.
+5. **One confirmation/decision module** — merge `runs.ts` `confirms`/
+   `verifiedWriteAction` with the browser state machine into shared
+   `decideTurn()`; mode gates Hermes (ANSWER never goes to Hermes).
+6. **One model gateway** — `callModel` for all server callers + Hermes model
+   mapping; cap + local-only everywhere.
+7. **Background local-first** — memory capture, topics, machines on local
+   classes with skip-on-failure; bound Reflection data.
+8. **One tool manifest + generalised permits** — `/api/hermes-tools` →
+   canonical server tool surface; migrate legacy product tools family by
+   family (MCP for Hermes, ServerTool for `executeRun`).
+9. **CEREBRO contract** — rename Hermes types to runtime-agnostic; approval
+   continuation; multi-workspace.
+10. **Skills provenance** — commit+hash pin, `requires`/compat class, enable
+    flag honoured by every executor.
+11. **Memory read API** — `recall()` over existing stores; remove duplicate ME
+    injection.
+
+---
+
+*Original audit (79e46f1) follows. Read it through the patch above.*
+
+---
+
 Read-only audit. No production code changed. Audited ref:
 `origin/codex/vinzmon-v2` @ `79e46f1` (strict superset of the production
 branch `claude/project-prototype-jxjc3d` @ `43f12e8`). Evidence and file-level
