@@ -1,0 +1,18 @@
+{
+  "status": "FAIL",
+  "motivoFail": "entrambi i fatti coesistono: il secondo add ha prodotto ADD, non UPDATE",
+  "fridayScore": 0.42921606620422975,
+  "mondayScore": 0.40932961180573635,
+  "fridayOutranksMonday": true,
+  "searchMs": 594,
+  "righeNonEntita": [
+    {
+      "memory": "User mentioned that the Atlas project will be launched on Friday, September 18, 2026",
+      "score": 0.42921606620422975
+    },
+    {
+      "memory": "User mentioned that the launch of the Atlas project has been rescheduled to Monday, September 22, 2026",
+      "score": 0.40932961180573635
+    }
+  ]
+}

@@ -15,7 +15,8 @@ import { configureRestDayCheck, configureSyncWallet, rememberEarnedSync, type Sy
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import { setLocalStorageItemBestEffort } from '../system/localStorageDiagnostics';
-import { getStateSyncStatus, readSyncReceipt, rememberSyncReceipt, reportStateSync, snapshotHash, syncComparable, syncDecision } from '../system/stateSync';
+import { forgetSyncReceipt, getStateSyncStatus, readSyncReceipt, rememberSyncReceipt, reportStateSync, snapshotHash, syncComparable, syncDecision } from '../system/stateSync';
+import { browserUuid } from '../system/browserUuid';
 
 const appPersistStorage = createJSONStorage(() => ({
   getItem: (name: string) => localStorage.getItem(name),
@@ -104,6 +105,7 @@ import {
   type Reminder,
 } from './pagesSlice';
 import { runTool, TOOLS, type ToolContext, type ToolResult, type ToolUse } from '../ai/tools';
+import { isCuriosityArea, recordCuriosityLearning } from '../engine/curiosity';
 import { calculateDailyEnergy } from '../engine/dailyEnergy';
 import { configureStorageTokenReader } from '../system/serverStorage';
 import {
@@ -162,6 +164,7 @@ import {
   emptyLedger,
   seedWorld,
   riseWorld,
+  suspendLifeEventForQuest,
   withCanon,
   worldBlock,
   promoteConnection,
@@ -171,6 +174,7 @@ import {
   type StoryLedger,
   type World,
 } from '../engine/world';
+import { combatProfileFor, retryWorldQuest, startWorldQuest } from '../engine/worldGame';
 import { deservesThinking, extractFromMessage, extractionLabels } from '../engine/chatExtract';
 import { eggReply } from '../engine/eggVoice';
 import { resolveActiveMon } from '../engine/journey';
@@ -225,6 +229,7 @@ import type {
 } from '../engine/types';
 import { STAT_KEYS, UNKNOWN, displayName, isKnown } from '../engine/types';
 import { dropKeptAssets, keepAssetsOf, preloadMonAssets, restoreKeptAssets } from '../assets-pipeline/assetStore';
+import { assetOwnerKey } from '../assets-pipeline/assetIdentity';
 
 export type Phase =
   /**
@@ -709,6 +714,24 @@ interface AppState {
    */
   chooseEgg: (index: number) => void;
 
+  /**
+   * LIFE SIMULATION V0 — il giocatore sceglie una delle tre intenzioni del
+   * primo incontro (PRESENTARSI/CHIEDERE DEL MON/ESPLORARE NUL). Idempotente:
+   * agisce solo se il BABY attivo è ancora `in-attesa-scelta`, quindi un
+   * doppio tap o un retry non produce una seconda conseguenza.
+   */
+  chooseFirstEncounterIntent: (intent: 'presentarsi' | 'chiedere_del_mon' | 'esplorare_nul') => boolean;
+
+  /**
+   * LIFE SIMULATION V0 — Fase B: percorso esplicito e affidabile per
+   * PRESENTARSI, che non dipende dalla decisione probabilistica del modello
+   * di chiamare `registra_scoperta`. L'utente conferma un testo vero nella
+   * UI; `text` vuoto o stato non in attesa non fanno nulla — mai inventato.
+   * Torna `true` se ha davvero applicato la conseguenza (per il feedback in
+   * UI: "salvato" solo dopo un successo reale).
+   */
+  completeIntroduction: (text: string) => boolean;
+
   /* --- 🔷 v4 §13/§14 — mondo, canone, ritorno --- */
 
   /**
@@ -1175,7 +1198,8 @@ async function resolveWorldIdentityOnce(
   );
   if (!identity) return pendingWorld;
 
-  const enriched: World = { ...pendingWorld, name: identity.name, identity: identity.identity, description: identity.descriptor };
+  const enriched: World = { ...pendingWorld, name: identity.name, identity: identity.identity, description: identity.descriptor,
+    inquiry: { question: identity.question ?? pendingWorld.inquiry?.question ?? 'Che cosa impedisce a questo luogo di mostrarsi per intero?' } };
   set((current) => ({
     evolutionJob:
       current.evolutionJob?.candidateName === candidateName && current.evolutionJob.pendingWorld
@@ -1468,6 +1492,51 @@ function activeRecord(s: AppState): MonRecord | null {
   return resolveActiveMon(s.mons, s.activeMonName);
 }
 
+/**
+ * LIFE SIMULATION V0 — l'ultimo passo di PRESENTARSI: dato un record che ha
+ * GIÀ ricevuto il suo apprendimento vero (`recordCuriosityLearning`, con
+ * qualunque collegamento a domanda/area il chiamante avesse), chiude
+ * l'attesa e scrive la conseguenza nel canone. Pura, e non ripete la
+ * scrittura della Learning — chi chiama l'ha già fatta, con i SUOI
+ * parametri (questionId/kind/emergedQuestion inclusi se venivano da
+ * `registra_scoperta`): duplicarla qui perderebbe quei dettagli.
+ */
+function finalizePresentarsi(updatedRecord: MonRecord, world: World, day: number): { record: MonRecord; world: World } {
+  return {
+    record: { ...updatedRecord, firstEncounter: { status: 'completato', choice: 'presentarsi', day } },
+    world: withCanon(world, {
+      id: `canon_connection_presentarsi_${updatedRecord.data.mindline_node}`,
+      day,
+      kind: 'connection',
+      epistemic: 'WORLD_CANON',
+      text: `Tu ti sei presentato a ${displayName(updatedRecord.data.name)}, a NUL.`,
+      monName: updatedRecord.data.name,
+    }),
+  };
+}
+
+/**
+ * LIFE SIMULATION V0 — il percorso ESPLICITO e affidabile: l'utente conferma
+ * un testo vero nella UI (non il modello che decide se chiamare uno
+ * strumento). §5: «se clicca senza dare informazioni, non si inventa
+ * un'introduzione» — testo vuoto o stato non in attesa restituiscono null,
+ * niente viene inventato o applicato due volte.
+ */
+function completePresentarsiFromText(rec: MonRecord, world: World, text: string, day: number): { record: MonRecord; world: World } | null {
+  const clean = text.trim();
+  if (!clean) return null;
+  if (rec.firstEncounter?.status !== 'in-attesa-informazione' || rec.firstEncounter.choice !== 'presentarsi') return null;
+  const learned = recordCuriosityLearning(rec, {
+    kind: 'informazione',
+    about: 'utente',
+    text: clean,
+    source: { kind: 'conversazione', day },
+    day,
+  });
+  if (!learned.ok || !learned.record) return null;
+  return finalizePresentarsi(learned.record, world, day);
+}
+
 /** Costruisce l'input del generatore da tutto ciò che il prodotto misura. */
 /**
  * 🔶 Esportata da quando DEV → PROVE compone una forma a mano: quella
@@ -1560,12 +1629,15 @@ export const useApp = create<AppState>()(
             originNodeId: null,
             lineageNames: [],
             seed: randomSeed(),
+            // Ogni nuova nascita: nessuna personalità già scritta, solo un
+            // Curiosity Seed — vedi la nota su `birthMode` in characterGenerator.ts.
+            birthMode: 'curiosity-first',
             devUnlockAll: s.dev.unlockAll,
             devForcedMood: s.dev.forcedMood,
             hiddenEvent: hiddenEventFor({ day: s.day, formNumber: 1, activeDays: s.progression.sync.lifetime }),
             allowedArchetypes: angelArchetypesForStage(0),
           }).record,
-        );
+        ).map((record) => ({ ...record, assetOwnerId: `mon_${browserUuid()}` }));
 
         /* ⚠️ LA FASE NON CAMBIA QUI, ed è una correzione a me stesso: la
            cambiavo, e la schermata del risultato non faceva in tempo a
@@ -1590,7 +1662,19 @@ export const useApp = create<AppState>()(
         /* 🔒 LE ALTRE DUE NON VENGONO SALVATE DA NESSUNA PARTE. §4: «they do
            not enter Dex». `eggs: []` non è pulizia — è la regola. */
         const world = seedWorld(record, s.day);
-        const recordWithWorld = { ...record, worldId: world.id };
+        /* LIFE SIMULATION V0 — solo un BABY curiosity-first vive il primo
+           incontro in chat: un Mon legacy non ha domande da cui farlo partire,
+           e non se ne inventano qui. Si decide una volta sola, alla nascita:
+           vedi `firstEncounter` in engine/types.ts. */
+        const recordWithWorld = {
+          ...record,
+          assetOwnerId: record.assetOwnerId ?? `mon_${browserUuid()}`,
+          worldId: world.id,
+          combatProfile: combatProfileFor(record, s.health),
+          ...(record.identityMode === 'curiosity-first'
+            ? { firstEncounter: { status: 'in-attesa-scelta' as const, day: s.day } }
+            : {}),
+        };
 
         set({
           phase: 'live',
@@ -1630,10 +1714,73 @@ export const useApp = create<AppState>()(
           ),
         });
 
-        void preloadMonAssets(record.data.name);
+        void preloadMonAssets(assetOwnerKey(record));
         if (s.token) void import('../system/pushNotifications').then(({ enableEvolutionNotifications }) => enableEvolutionNotifications(s.token as string));
         void get().resumeFormEvolution();
         requestIntroduction(set, get, record);
+      },
+
+      /* ========================================================================
+         LIFE SIMULATION V0 — IL PRIMO INCONTRO IN CHAT
+
+         Tre intenzioni, tre conseguenze distinte e persistite, non tre testi
+         che convergono nello stesso posto. ESPLORARE NUL e CHIEDERE DEL MON
+         si chiudono subito: un evento di canone («connection», già esistente
+         in `CanonKind` — non se ne inventa uno nuovo), idempotente per id
+         come tutto il resto del canone. PRESENTARSI non si chiude qui: senza
+         un'informazione vera non si inventa un'introduzione (§5), quindi
+         resta `in-attesa-informazione` finché il giocatore non lo dice
+         davvero e il modello non lo registra con `registra_scoperta` — vedi
+         `ctx.recordCuriosityLearning` più sotto, in `runMonTool`.
+         ==================================================================== */
+      chooseFirstEncounterIntent: (intent) => {
+        const s = get();
+        const rec = activeRecord(s);
+        if (!rec || rec.firstEncounter?.status !== 'in-attesa-scelta') return false;
+
+        if (intent === 'presentarsi') {
+          set({
+            mons: {
+              ...s.mons,
+              [rec.data.name]: { ...rec, firstEncounter: { status: 'in-attesa-informazione', choice: 'presentarsi', day: s.day } },
+            },
+          });
+          return true;
+        }
+
+        if (!s.world) return false;
+        const node = rec.data.mindline_node;
+        const text = intent === 'chiedere_del_mon'
+          ? `${displayName(rec.data.name)} lascia che tu gli chieda di sé, a NUL. Non c'è ancora una risposta definitiva.`
+          : `Tu e ${displayName(rec.data.name)} guardate insieme NUL, la prima volta: sabbia chiara, mare, l'orizzonte aperto.`;
+        set({
+          world: withCanon(s.world, {
+            id: `canon_connection_${intent}_${node}`,
+            day: s.day,
+            kind: 'connection',
+            epistemic: 'WORLD_CANON',
+            text,
+            monName: rec.data.name,
+          }),
+          mons: {
+            ...s.mons,
+            [rec.data.name]: { ...rec, firstEncounter: { status: 'completato', choice: intent, day: s.day } },
+          },
+        });
+        return true;
+      },
+
+      completeIntroduction: (text) => {
+        const s = get();
+        const rec = activeRecord(s);
+        if (!rec || !s.world) return false;
+        const completion = completePresentarsiFromText(rec, s.world, text, s.day);
+        if (!completion) return false;
+        set({
+          mons: { ...s.mons, [rec.data.name]: completion.record },
+          world: completion.world,
+        });
+        return true;
       },
 
       /* ========================================================================
@@ -1837,6 +1984,7 @@ export const useApp = create<AppState>()(
           originNodeId: null,
           lineageNames: [],
           seed: randomSeed(),
+          birthMode: 'curiosity-first',
           devUnlockAll: s.dev.unlockAll,
           devForcedMood: s.dev.forcedMood,
           hiddenEvent: hiddenEventFor({
@@ -1848,7 +1996,9 @@ export const useApp = create<AppState>()(
         });
 
         const world = seedWorld(record, s.day);
+        record.assetOwnerId = `mon_${browserUuid()}`;
         record.worldId = world.id;
+        record.combatProfile = combatProfileFor(record, s.health);
         set({
           world,
           /* Come una trasformazione: l'app resta utilizzabile mentre il
@@ -1892,7 +2042,7 @@ export const useApp = create<AppState>()(
           ),
         });
 
-        void preloadMonAssets(record.data.name);
+        void preloadMonAssets(assetOwnerKey(record));
         if (s.token) void import('../system/pushNotifications').then(({ enableEvolutionNotifications }) => enableEvolutionNotifications(s.token as string));
         void get().resumeFormEvolution();
         requestIntroduction(set, get, record);
@@ -1900,7 +2050,7 @@ export const useApp = create<AppState>()(
 
       enterLive: () => set((s) => ({
         phase: 'live',
-        evolutionJob: s.evolutionJob?.status === 'ready' ? null : s.evolutionJob,
+        evolutionJob: s.evolutionJob?.status === 'ready' && (s.evolutionJob.kind === 'hatch' || s.phase === 'new-encounter') ? null : s.evolutionJob,
       })),
       openShift: () => set({ phase: 'shift' }),
 
@@ -1939,13 +2089,15 @@ export const useApp = create<AppState>()(
 
       startBreed: (first, second) => {
         const s = get();
+        if (s.ledger.quest && (s.ledger.quest.status === 'investigate' || s.ledger.quest.status === 'combat')) return 'Concludi prima la quest in Vinz.World.';
         if (s.breedJob) return 'Un BREED è già in corso.';
         if (s.evolutionJob?.status === 'running') return 'Attendi la trasformazione in corso.';
         const a=s.mons[first], b=s.mons[second];
         if (!a || !b || first===second || !s.nodes.some(n=>n.monName===first) || !s.nodes.some(n=>n.monName===second)) return 'Scegli due backup diversi dalla MindMap.';
         if (!syncRewardProgress('breed').ready) return 'Servono 15 SYNC.';
-        const nodeId = `node_breed_${crypto.randomUUID()}`;
+        const nodeId = `node_breed_${browserUuid()}`;
         const job = prepareBreed(a,b,{input:generatorInput(s),mindlineNodeId:nodeId,originNodeId:a.data.mindline_node,heritageOrigins:[],lineageNames:Object.keys(s.mons),previous:a,seed:randomSeed()},Date.now());
+        job.candidate.assetOwnerId = `mon_${browserUuid()}`;
         if (!claimSyncReward('breed')) return 'SYNC non disponibile.';
         set({breedJob:job});
         scheduleRemoteSave();
@@ -1953,15 +2105,18 @@ export const useApp = create<AppState>()(
       },
       revealBreed: () => {
         const s=get(), job=s.breedJob;
+        if (s.ledger.quest && (s.ledger.quest.status === 'investigate' || s.ledger.quest.status === 'combat')) return;
         if (!job || !(breedReady(job) || s.dev.skipBreedWait) || s.evolutionJob?.status==='running' || s.mons[job.candidate.data.name]) return;
         let world=seedWorld(job.candidate,s.day);
         const known=s.world?.id===world.id?s.world:[...s.worldHistory].reverse().find(w=>w.id===world.id);
         if (known) world=withCanon(known,world.canon[0]!);
-        const record={...job.candidate,bornOnDay:s.day,data:{...job.candidate.data,generated_at_day:s.day},worldId:world.id};
+        const switchingWorld = s.world?.id !== world.id;
+        const record={...job.candidate,bornOnDay:s.day,data:{...job.candidate.data,generated_at_day:s.day},worldId:world.id,combatProfile:combatProfileFor(job.candidate,s.health)};
         const node=createNode({index:s.nodes.length,kind:'branch',monName:record.data.name,parentId:record.data.origin_node,secondParentId:s.mons[job.parentNames[1]]?.data.mindline_node??null,day:s.day,chapter:nextChapter(s.nodes,'branch'),label:'BREED · BABY'});
         node.id=record.data.mindline_node;
         set({breedJob:null,mons:{...s.mons,[record.data.name]:record},activeMonName:record.data.name,world,
-          worldHistory:s.world && s.world.id!==world.id?[...s.worldHistory,s.world]:s.worldHistory,
+          ledger:switchingWorld ? world.ledgerSnapshot ?? emptyLedger() : s.ledger,
+          worldHistory:s.world && switchingWorld?[...s.worldHistory,{...s.world,ledgerSnapshot:s.ledger}]:s.worldHistory,
           nodes:[...s.nodes,node],formsDiscovered:s.formsDiscovered+1,phase:'live',lastTrace:job.trace,
           mood:applyMoodEvent(initialMood(record.data.mood_primary,s.day),'NATO',record.data.mood_primary,s.day),
           evolutionJob:{kind:'hatch',status:'running',previousName:null,candidateName:record.data.name,done:0,total:generationOrder().length,label:'BABY IN NUL',error:null,serverJobId:null},
@@ -1973,7 +2128,18 @@ export const useApp = create<AppState>()(
       beginFormEvolution: (kind) => {
         const s = get();
         const previous = activeRecord(s);
-        if (!previous || (!s.evolutionDialogOpen && s.phase !== 'form-evolution') || s.evolutionJob?.status === 'running') return;
+        if (!previous || !s.world || (!s.evolutionDialogOpen && s.phase !== 'form-evolution') || s.evolutionJob?.status === 'running') return;
+
+        const activeQuest = s.ledger.quest;
+        if (activeQuest && activeQuest.status !== 'complete') {
+          if (activeQuest.status !== 'failed' || activeQuest.kind !== (kind === 'evolution' ? 'TUNE' : 'RISE') || activeQuest.worldId !== s.world?.id) return;
+          const retry = retryWorldQuest(activeQuest);
+          if (!retry || !s.dev.forceBranch && !claimSyncReward(kind, gameDayStreak(s))) return;
+          set({ ledger: { ...suspendLifeEventForQuest(s.ledger), quest: retry }, evolutionDialogOpen: false, dev: { ...s.dev, forceBranch: false } });
+          scheduleRemoteSave();
+          return;
+        }
+        if (s.evolutionJob && s.evolutionJob.kind !== 'hatch') return;
 
         const streak = gameDayStreak(s);
         const wish = readEvolutionWish();
@@ -2001,12 +2167,17 @@ export const useApp = create<AppState>()(
           lineageNames: [...Object.keys(s.mons), ...(s.breedJob ? [s.breedJob.candidate.data.name] : [])],
           previous,
           continuity,
+          // TUNE e RISE sono la stessa identità che cambia forma: il nucleo
+          // caratteriale (traits/drives/contradictions) non si ri-estrae a
+          // caso — vedi la nota su `preserveCharacterCore` in characterGenerator.ts.
+          preserveCharacterCore: true,
           seed: randomSeed(),
           devUnlockAll: s.dev.unlockAll,
           devForcedMood: s.dev.forcedMood,
           hiddenEvent: hiddenEventFor({ day: s.day, formNumber: s.nodes.length + 1, activeDays: s.progression.sync.lifetime }),
           allowedArchetypes: angelArchetypesForStage(nextStage),
         });
+        record.assetOwnerId = `mon_${browserUuid()}`;
         record.data.lifeStage = 'FORM';
         record.transition = { kind: kind === 'evolution' ? 'TUNE' : 'RISE', parentNodeIds: [previous.data.mindline_node], previousWorldId: s.world?.id, wish: usingWish ? wish?.text : undefined };
         if (usingWish && wish) record.data.user_wish = wish.text;
@@ -2046,6 +2217,8 @@ export const useApp = create<AppState>()(
             ? { ...record, worldId: s.world.id }
             : record;
 
+        recordWithWorld.combatProfile = combatProfileFor(recordWithWorld, s.health);
+
         recordWithWorld.bio = { ...recordWithWorld.bio,
           rememberedDetails: [
             `${kind === 'evolution' ? 'TUNE' : 'RISE'}: continuo il percorso di ${displayName(previous.data.name)} a ${(pendingWorld ?? s.world)?.name ?? 'un nuovo luogo'}. La memoria è condivisa.`,
@@ -2055,6 +2228,7 @@ export const useApp = create<AppState>()(
         };
         set({
           phase: 'live',
+          ledger: s.world ? { ...suspendLifeEventForQuest(s.ledger), quest: startWorldQuest(kind === 'evolution' ? 'TUNE' : 'RISE', s.world, previous, s.health, s.day) } : s.ledger,
           mons: { ...s.mons, [recordWithWorld.data.name]: recordWithWorld },
           evolutionJob: {
             kind,
@@ -2145,7 +2319,7 @@ export const useApp = create<AppState>()(
           let serverJobId = job.serverJobId;
           try {
             if (!serverJobId) {
-              serverJobId = crypto.randomUUID();
+              serverJobId = browserUuid();
               const id = serverJobId;
               set((current) => ({ evolutionJob: current.evolutionJob?.candidateName === job.candidateName ? { ...current.evolutionJob, serverJobId: id, total: generationOrder().length } : current.evolutionJob }));
               /* 🔷 La bozza passa di qui: è l'unica strada da cui nascono
@@ -2181,7 +2355,7 @@ export const useApp = create<AppState>()(
                 activeMonName: record.data.name,
                 evolutionJob: { ...(current.evolutionJob ?? job), serverJobId, status: 'ready', done: result.made.length, total: result.made.length, label: 'PRIMO MON PRONTO', error: null },
               });
-              void preloadMonAssets(record.data.name);
+              void preloadMonAssets(assetOwnerKey(record));
               void notifyEvolutionReady(record.data.name);
               return;
             }
@@ -2193,8 +2367,8 @@ export const useApp = create<AppState>()(
               mons: { ...current.mons, [record.data.name]: finished },
               evolutionJob: { ...(current.evolutionJob ?? job), serverJobId, status: 'ready', done: result.made.length, total: result.made.length, label: 'NUOVO MON PRONTO', error: null },
             });
-            void preloadMonAssets(record.data.name);
-            void notifyEvolutionReady(record.data.name);
+            void preloadMonAssets(assetOwnerKey(record));
+            if (get().ledger.quest?.status === 'complete') void notifyEvolutionReady(record.data.name);
           } catch (error) {
             set((current) => ({ evolutionJob: current.evolutionJob?.candidateName === job.candidateName ? { ...current.evolutionJob, status: 'error', error: String(error) } : current.evolutionJob }));
           } finally {
@@ -2224,6 +2398,9 @@ export const useApp = create<AppState>()(
           set({ phase: 'first-encounter' });
           return;
         }
+        if (!current.ledger.quest || current.ledger.quest.status !== 'complete'
+          || current.ledger.quest.kind !== (job.kind === 'evolution' ? 'TUNE' : 'RISE')
+          || current.ledger.quest.worldId !== current.world?.id) return;
         const previous = job.previousName ? current.mons[job.previousName] : null;
         const record = current.mons[job.candidateName];
         if (!previous || !record) return;
@@ -2241,9 +2418,10 @@ export const useApp = create<AppState>()(
         const worldTransition = isRiseTransition
           ? {
               world: { ...job.pendingWorld!, currentStoryFunction: record.data.narrativeDNA?.function },
+              ledger: emptyLedger(),
               worldHistory: [
                 ...current.worldHistory,
-                withCanon(current.world!, {
+                withCanon({ ...current.world!, ledgerSnapshot: current.ledger }, {
                   id: `canon_world-change_${record.data.mindline_node}`,
                   day: current.day,
                   kind: 'world-change',
@@ -2752,6 +2930,13 @@ export const useApp = create<AppState>()(
         const rec = s.mons[monName];
         if (!rec) return 'nessuna creatura con questo nome';
         if (rec.writtenBio) return null;
+        /* 🔷 CURIOSITY FIRST — bioWriter.ts scrive un `culturalPortrait` di
+           gusti fittizi e una bio in prima persona costruita da drives/
+           contradictions: esattamente la personalità inventata che questo
+           Mon non deve ricevere. Niente `writtenBio`: `readableBio()` (già
+           esistente) ricade sulla `bio` deterministica, che resta quella
+           costruita dai segnali reali — nessuna nuova biografia da scrivere. */
+        if (rec.identityMode === 'curiosity-first') return null;
 
         const { writeBioWithAi } = await import('../ai/bioWriter');
         const bornDay = rec.data.generated_at_day;
@@ -3345,6 +3530,45 @@ export const useApp = create<AppState>()(
           protocol: s.protocol,
           days: s.days,
           memories: s.memories,
+          curiosityQuestions: rec?.curiosityQuestions,
+          recordCuriosityLearning: (input) => {
+            const active = activeRecord(get());
+            if (!active) return { ok: false, error: 'Nessun Mon attivo.' };
+            const result = recordCuriosityLearning(active, {
+              questionId: input.questionId,
+              kind: input.kind,
+              about: input.about,
+              text: input.text,
+              questionStatus: input.questionStatus,
+              emergedQuestion: input.emergedQuestion && isCuriosityArea(input.emergedQuestion.area)
+                ? { area: input.emergedQuestion.area, text: input.emergedQuestion.text }
+                : undefined,
+              source: { kind: 'conversazione', day: get().day, toolCallId: input.toolCallId },
+              day: get().day,
+            });
+            if (!result.ok || !result.record) return { ok: false, error: result.error };
+
+            /* LIFE SIMULATION V0 — se questa scoperta riguarda l'utente E
+               PRESENTARSI è in attesa, il modello ha appena fatto da solo
+               quello che il percorso esplicito fa su conferma (Fase B: non è
+               più l'UNICA strada, ma resta valida se capita davvero). Si
+               riusa `result.record` — la Learning che il modello ha appena
+               scritto, coi SUOI questionId/emergedQuestion — non se ne scrive
+               una seconda: `finalizePresentarsi` chiude solo l'attesa e il
+               canone sopra quello che c'è già. */
+            const world = get().world;
+            const eligible =
+              active.firstEncounter?.status === 'in-attesa-informazione' &&
+              active.firstEncounter.choice === 'presentarsi' &&
+              input.about === 'utente' &&
+              world;
+            const completion = eligible ? finalizePresentarsi(result.record, world!, get().day) : null;
+            set({
+              mons: { ...get().mons, [active.data.name]: completion ? completion.record : result.record },
+              ...(completion ? { world: completion.world } : {}),
+            });
+            return { ok: true };
+          },
           pages: s.pages,
           monName: rec?.data.name ?? null,
 
@@ -3531,6 +3755,7 @@ export const useApp = create<AppState>()(
               previous: null,
             });
 
+        record.assetOwnerId = `mon_${browserUuid()}`;
         const mons = { ...s.mons };
         delete mons[rec.data.name];
         mons[record.data.name] = record;
@@ -3546,6 +3771,7 @@ export const useApp = create<AppState>()(
 
       restoreNode: (nodeId) => {
         const s = get();
+        if (s.ledger.quest && (s.ledger.quest.status === 'investigate' || s.ledger.quest.status === 'combat')) return;
         const node = s.nodes.find((n) => n.id === nodeId);
         if (!node) return;
         const rec = s.mons[node.monName];
@@ -3553,16 +3779,18 @@ export const useApp = create<AppState>()(
 
         const destination = rec.worldId === s.world?.id ? s.world : [...s.worldHistory].reverse().find(w => w.id === rec.worldId);
         const returnedWorld = destination ? withCanon(destination, {id:`return_${node.id}_${Date.now()}`,day:s.day,kind:'return',epistemic:'WORLD_CANON',text:`${displayName(rec.data.name)} riattiva questo percorso con la memoria di oggi.`,monName:rec.data.name}) : s.world;
+        const switchingWorld = Boolean(s.world && returnedWorld && s.world.id !== returnedWorld.id);
         set({
           world: returnedWorld,
-          worldHistory: s.world && returnedWorld && s.world.id !== returnedWorld.id ? [...s.worldHistory,s.world] : s.worldHistory,
+          ledger: switchingWorld ? returnedWorld?.ledgerSnapshot ?? emptyLedger() : s.ledger,
+          worldHistory: switchingWorld ? [...s.worldHistory,{...s.world!,ledgerSnapshot:s.ledger}] : s.worldHistory,
           activeMonName: node.monName,
           phase: 'live',
           mons: { ...s.mons, [node.monName]: { ...rec, worldId: returnedWorld?.id ?? rec.worldId, retiredOnDay: null } },
           chat: [openingMessage(rec, s.day, s.token !== null)],
         });
 
-        void preloadMonAssets(node.monName);
+        void preloadMonAssets(assetOwnerKey(rec));
       },
 
       cloneScenario: () => {
@@ -3583,6 +3811,7 @@ export const useApp = create<AppState>()(
           devForcedMood: s.dev.forcedMood,
         });
 
+        record.assetOwnerId = `mon_${browserUuid()}`;
         set({
           mons: { ...s.mons, [record.data.name]: record },
           nodes: [
@@ -3659,7 +3888,7 @@ export const useApp = create<AppState>()(
         if (!rec) return null;
 
         const already = s.kept.find((k) => k.record.data.name === rec.data.name);
-        const assetName = await keepAssetsOf(rec.data.name);
+        const assetName = await keepAssetsOf(assetOwnerKey(rec));
 
         const entry: KeptMon = {
           id: already?.id ?? `kept_${Date.now()}_${rec.data.name}`,
@@ -3742,7 +3971,7 @@ export const useApp = create<AppState>()(
           chat: [openingMessage(record, s.day, s.token !== null)],
         });
 
-        await restoreKeptAssets(entry.assetName, name);
+        await restoreKeptAssets(entry.assetName, assetOwnerKey(record));
         return true;
       },
 
@@ -4297,8 +4526,18 @@ export function scheduleRemoteSave(): void {
       }
       /* Un salvataggio fallito non si annuncia e non si ritenta a raffica: la
          copia locale c'è, e il prossimo cambiamento riproverà da solo. Se la
-         rete è giù, insistere non la riaccende. */
+         rete è giù, insistere non la riaccende.
+
+         🔴 Un 409 però lasciava la "ricevuta" (revision) com'era — quella
+         SBAGLIATA che ha appena causato il rifiuto — quindi ogni tentativo
+         successivo ripeteva la stessa richiesta e lo stesso rifiuto,
+         all'infinito: il banner tornava sempre uguale, anche dopo aver
+         scelto esplicitamente "conserva questo dispositivo". Dimenticare la
+         ricevuta qui forza il prossimo salvataggio a rileggere prima la
+         revisione vera dal server invece di ripetere una supposizione ormai
+         sbagliata. */
       console.warn('[sync] salvataggio non riuscito:', failure);
+      if (detail === 'STATE_CONFLICT') forgetSyncReceipt();
       reportStateSync({ status: detail === 'STATE_CONFLICT' ? 'conflict' : 'error', message: detail === 'STATE_CONFLICT' ? 'Le copie locale e server sono diverse. Nessuna è stata sovrascritta.' : 'Salvataggio server non confermato. I dati locali restano disponibili.' });
     } finally { remoteSaveRunning = false; }
   })().catch(() => reportStateSync({ status: 'error', message: 'Sincronizzazione non disponibile; copia locale preservata.' })); }, SAVE_DEBOUNCE_MS);
@@ -4352,10 +4591,37 @@ export function stepModel(
  * (MANUALE, non AUTO) o uno step qualityCritical restano intoccati: non è
  * mai un declassamento silenzioso di qualcosa che l'utente ha scelto o che
  * il prodotto protegge di proposito. */
+/* 🔴 «Ci mette molto a rispondere» — trovato lo stesso giorno in cui l'AUTO
+   local-first è arrivato, e non è un caso: `ask()`/`post()` (ai/backend.ts)
+   non hanno MAI avuto un tetto di tempo proprio, si affidavano al fatto che
+   Netlify uccide una funzione sincrona a dieci secondi. Il Local Core
+   Server (dove Ollama può davvero rispondere) non ha quel muro — è un
+   `node:http` semplice — quindi un tentativo locale lento non falliva mai
+   da solo: aspettava Ollama fino alla fine, POI (se falliva) si passava al
+   cloud, sommando i due tempi. Su un modello da 14 miliardi di parametri
+   senza una GPU dedicata, "fino alla fine" può essere molti secondi — ed è
+   esattamente il ritardo che si è visto su TEACH, che risponde dentro una
+   chat dal vivo. Questo tetto non annulla la richiesta locale (nessun
+   `AbortSignal` da qui: `job` è una funzione opaca, cambiarne la firma
+   avrebbe voluto dire toccare sei chiamanti diversi) — la lascia perdere e
+   passa al cloud, buttando via la risposta locale quando arriva. */
+const LOCAL_FIRST_TIMEOUT_MS = 8_000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`locale troppo lento (oltre ${ms / 1000}s)`)), ms);
+    promise.then(
+      (value) => { clearTimeout(timer); resolve(value); },
+      (err) => { clearTimeout(timer); reject(err); },
+    );
+  });
+}
+
 export async function runStep<T>(
   step: AiStepId,
   job: (model: string) => Promise<T>,
   esito: (out: T) => { ok: boolean; why?: string },
+  options?: { localTimeoutMs?: number },
 ): Promise<T> {
   const stepDef = AI_STEPS[step];
   const isAuto = !useApp.getState().stepModels[step];
@@ -4365,7 +4631,7 @@ export async function runStep<T>(
 
   if (canTryLocalFirst) {
     try {
-      const localOut = await job(LOCAL_CHEAP_ROUND_SENTINEL);
+      const localOut = await withTimeout(job(LOCAL_CHEAP_ROUND_SENTINEL), options?.localTimeoutMs ?? LOCAL_FIRST_TIMEOUT_MS);
       const { ok, why } = esito(localOut);
       if (ok) {
         noteRun(step, { model: LOCAL_CHEAP_ROUND_MODEL, ms: Date.now() - from, background: stepDef.background, ok: true });
@@ -4629,7 +4895,22 @@ export async function resolveStateSyncConflict(choice: 'keep-local' | 'use-serve
   const { loadRemote } = await import('../ai/backend');
   const { data, failure } = await loadRemote(local.token);
   if (failure || !data) { reportStateSync({ status: 'error', message: 'Impossibile verificare la copia server.' }); return; }
-  if (before !== JSON.stringify(syncComparable(snapshotFor(useApp.getState())))) { reportStateSync({ status: 'conflict', message: 'Dati locali cambiati durante la verifica; ripeti la scelta.' }); return; }
+  const changedDuringVerification = before !== JSON.stringify(syncComparable(snapshotFor(useApp.getState())));
+  /* "Usa copia server" sovrascrive il locale: se nel frattempo è cambiato
+     qualcosa (un messaggio appena arrivato, per dire), quella modifica andrebbe
+     persa in silenzio — qui l'annullamento è corretto, si ripete la scelta.
+
+     "Conserva questo dispositivo" invece vuole GIÀ tenere il locale qualunque
+     cosa sia: un cambiamento nel frattempo non invalida la scelta, è solo
+     altro contenuto locale da salvare — cosa che scheduleRemoteSave() fa
+     comunque rileggendo lo stato fresco. Annullare qui, con l'app che scrive
+     di continuo (chat/attività in corso), rendeva il tasto silenziosamente
+     inutilizzabile: ogni tap ripresentava lo stesso banner senza spiegare
+     perché, perché il messaggio "ripeti la scelta" non è quello mostrato. */
+  if (changedDuringVerification && choice === 'use-server') {
+    reportStateSync({ status: 'conflict', message: 'Dati locali cambiati durante la verifica; ripeti la scelta.' });
+    return;
+  }
   if (choice === 'use-server') {
     if (!data.state || data.day < local.day || !applyRemoteSave(local, data)) { reportStateSync({ status: 'conflict', message: 'Ripristino non applicato: non si arretra il giorno e non si scartano dati se la cache non è scrivibile.' }); return; }
     rememberSyncReceipt({ revision: data.revision ?? null, hash: await snapshotHash(snapshotFor(useApp.getState())) });

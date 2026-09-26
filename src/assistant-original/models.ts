@@ -43,6 +43,27 @@ export const MODELS = [
     description: "Moonshot · un gradino sotto K3, costa meno",
     efforts: true,
   },
+  {
+    id: "grok-4.6",
+    name: "Grok 4.6",
+    description: "xAI · richiede la chiave xAI",
+    efforts: true,
+  },
+  {
+    id: "gpt-oss:20b",
+    name: "GPT-OSS 20B",
+    description: "Locale · gratuito · consigliato per i compiti semplici",
+  },
+  {
+    id: "qwen2.5:14b",
+    name: "Qwen 2.5 14B",
+    description: "Locale · gratuito",
+  },
+  {
+    id: "llama3.2:3b",
+    name: "Llama 3.2 3B",
+    description: "Locale · gratuito · solo richieste basilari",
+  },
 ] as const satisfies readonly ModelOption[];
 
 export const DEFAULT_MODEL_ID = MODELS[0].id;

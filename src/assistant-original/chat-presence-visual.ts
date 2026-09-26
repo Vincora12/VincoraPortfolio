@@ -1,9 +1,11 @@
+import { browserUuid } from '../system/browserUuid';
+
 export const PRESENCE_STEP_MS = 320;
 
 const pendingArrivalIds = new Set<string>();
 
 export function revealMetadata(delayMs: number) {
-  const revealArrivalId = crypto.randomUUID();
+  const revealArrivalId = browserUuid();
   pendingArrivalIds.add(revealArrivalId);
   return {
     revealArrivalId,

@@ -45,6 +45,64 @@ const AFFINITY_LENS: Record<string, string> = {
   FISH: 'notices context and movement around the subject, not only the subject itself',
 };
 
+/* 🔷 AUDIT CARATTERI (2026-09-19) — «un Mon taciturno può rispondere
+   brevemente, ma deve mantenere un punto di vista personale». Queste due
+   tabelle traducono il TRATTO PRIMARIO e la MOTIVAZIONE PRIMARIA (già estratti
+   dal generatore, mai un secondo sorteggio) in cosa il Mon nota per primo e
+   in come prende iniziativa — lo stesso meccanismo già usato sopra per
+   Family/Affinity, non un nuovo sistema. Chiavi = `TRAITS`/`DRIVES` in
+   `characterGenerator.ts`; se quelle liste cambiano, il lookup fallback
+   generico qui sotto (`?? ...`) evita che manchi la riga, non la nasconde. */
+const TRAIT_LENS: Record<string, string> = {
+  ostinato: 'notices attempts to talk him out of something, and holds his ground rather than folds',
+  ironico: 'notices the gap between what is said and what is meant',
+  protettivo: 'notices signs of difficulty before they are named',
+  vanitoso: 'notices how something looks, including how his own words land',
+  curioso: 'notices the one odd detail nobody else mentioned',
+  diffidente: 'notices inconsistencies first, checks before it trusts',
+  generoso: 'notices what someone needs before they ask for it',
+  impaziente: 'notices delay and friction before he notices content',
+  metodico: 'notices when a step is missing or out of order',
+  teatrale: 'notices the shape of a moment, the beat that deserves emphasis',
+  schivo: 'notices plenty and says little of it; a pause carries what a sentence would',
+  competitivo: 'notices who is ahead, himself included',
+  nostalgico: 'notices what something used to be',
+  pragmatico: 'notices what actually works, skips what only sounds good',
+  permaloso: 'notices a slight long after everyone else has forgotten it',
+  affettuoso: 'notices small changes in someone he is close to',
+  sarcastico: 'notices the obvious thing everyone else is too polite to say',
+  leale: 'notices who showed up and who did not',
+  tecnico: 'notices how something is built, not only that it works',
+};
+
+const DRIVE_INITIATIVE: Record<string, string> = {
+  'essere visto': 'takes initiative to make sure his part of something is actually noticed',
+  'non deludere': 'takes initiative to fix a problem quietly before anyone has to ask',
+  'capire come funziona': 'takes initiative by pulling something apart, literally or in conversation',
+  'arrivare primo': 'takes initiative before being asked, whenever there is a race to be had',
+  'proteggere qualcosa': 'takes initiative the moment something he cares about looks at risk',
+  'lasciare un segno': 'takes initiative on anything that will still matter later',
+  'restare libero': 'takes initiative to keep his own options open rather than get pinned down',
+  appartenere: 'takes initiative to stay included, rarely to stand apart from the group',
+  'migliorare il corpo': 'takes initiative on anything physical or practical he can visibly get better at',
+  'finire quello che ha iniziato': 'takes initiative to close loops other people have abandoned',
+  'avere ragione': 'takes initiative to correct something, even uninvited',
+  'non fermarsi mai': 'takes initiative constantly; stillness is the exception for him, not the default',
+};
+
+/* 🔷 «Come cambia il registro fra situazioni quotidiane, serie e giocose.»
+   Deriva da due assi già esistenti (`humor`, `emotion`), stesso stile di
+   `pushStyle()` in `ai/voicePrompt.ts`: poche soglie leggibili, non una
+   nuova tabella per combinazione. */
+function registerShift(d: CharacterData): string {
+  const humor = value(d, 'humor');
+  const emotion = value(d, 'emotion');
+  if (humor > 65 && emotion > 55) return 'in ordinary moments he plays; when something turns serious, the humour drops out completely rather than softening it';
+  if (humor > 65) return 'jokes freely about small things, but a real problem gets a flat, humourless read with no punchline';
+  if (humor <= 35) return 'stays roughly the same register whether the moment is light or serious; what changes is what he chooses to say, not how he says it';
+  return 'loosens in ordinary moments and tightens when something actually matters, without announcing the shift';
+}
+
 /* 🔷 «Le bestie magari fanno anche dei versi da bestia» — un cane che abbaia,
    una regola per archetipo BEAST, non un ruggito generico incollato su
    tutti. Resta un TIC PERSONALE come gli altri sopra: uno su otto-nove
@@ -325,6 +383,11 @@ export function voiceCard(record: MonRecord): PersonalityCard {
 export function voiceCardBlock(record: MonRecord): string {
   const card = voiceCard(record);
   const dna = record.data.character_dna;
+  const primaryTrait = dna.traits[0];
+  const primaryDrive = dna.drives[0];
+  const noticeLine = primaryTrait ? TRAIT_LENS[primaryTrait] ?? 'has a specific way of noticing what matters to him' : null;
+  const initiativeLine = primaryDrive ? DRIVE_INITIATIVE[primaryDrive] ?? 'takes initiative on what he actually cares about' : null;
+  const lowWriting = value(record.data, 'writing') < 35;
   return [
     'VOICE CARD — one character shared by biography and conversation. Internal guidance, never recite it.',
     'WHAT MATTERS TO YOU',
@@ -332,12 +395,17 @@ export function voiceCardBlock(record: MonRecord): string {
     `Disposition: ${dna.traits.slice(0,3).join('; ')}.`,
     `Unresolved tensions: ${dna.contradictions.slice(0,2).map(c=>`${c.a} / ${c.b}`).join('; ')}.`,
     'Let these affect what you notice, prefer, resist or ask about. They are not goals to impose on the other person. Choose the relevant reaction, not a performance of every trait.',
+    /* 🔷 AUDIT CARATTERI — dal tratto e dalla motivazione PRIMARI (§40, già
+       estratti, non un nuovo sorteggio): cosa nota per primo e come prende
+       iniziativa. Concreto e individuale, non un secondo elenco di aggettivi. */
+    ...(noticeLine && initiativeLine ? [`How he engages: he ${noticeLine}; he ${initiativeLine}.`] : []),
     'HOW YOU DEAL WITH SOMEONE',
     `Disagreement: ${card.decisions.disagreement}.`,
     `Care: ${card.decisions.care}.`,
     `Uncertainty: ${card.decisions.uncertainty}.`,
     `Attention: ${card.familyLens}.`,
     ...(record.data.lifeStage === 'BABY' ? ['Affinity and role are latent; do not act out an adult role.'] : [`Secondary perspective: ${card.affinityLens}.`]),
+    `Register: ${registerShift(record.data)}.`,
     'YOUR VOICE',
     ...card.tendencies.map(line=>`- ${line}`),
     `Rhythm: ${card.writingStyle?.rhythm}; paragraph length: ${card.writingStyle?.paragraphs}.`,
@@ -346,6 +414,11 @@ export function voiceCardBlock(record: MonRecord): string {
     'EMOTIONAL EXPRESSION: in ordinary conversation always let a feeling or attitude be perceptible. Use the channel that fits your voice: an emoji, a text emoticon, a brief reaction such as mh, uff or ah, or an explicit personal reaction. One fitting cue is enough; never append a random symbol as a signature.',
     'A restrained voice can use :/ or a quiet admission; an exuberant voice can use a stronger emoji. The existing reaction preferences guide the channel, not emotional absence. Match the situation; no cheerful decoration on distress. Preserve exact requested formats, code and quotations.',
     'Writing texture supports the thought. Do not insert a tic, catchphrase, metaphor or joke just to prove you have a personality.',
+    /* 🔷 AUDIT CARATTERI — la riga sotto esiste solo per gli assi bassi di
+       `writing`: rinforza, dove serve davvero, che la brevità non è
+       l'assenza di un punto di vista. Non è un blocco nuovo, una frase
+       condizionale in più su quella già esistente qui sopra. */
+    ...(lowWriting ? ['Saying little is not the same as having nothing to say: a short reply can still carry the notice and the initiative above — one sharp line beats a paragraph that only fills space.'] : []),
     'In conversation, respond to the actual detail the person offered. Take a position when you have one and explain it concretely if useful. If you ask something, let the answer affect your next reply. Do not turn every conversation into advice, an interview or an explanation of your identity.',
   ].join('\n');
 }

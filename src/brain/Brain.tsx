@@ -26,7 +26,7 @@ import { replyWithLocalTools, savedToken, shouldUseLocalTools, streamReply, type
 import { loadSetup, type ModelChoice } from '../ai/backend';
 import type { BrainMessage } from './store/types';
 import type { ToolResult, ToolUse } from '../ai/tools';
-import { VinzImageAttachmentAdapter } from '../assistant-original/image-attachment';
+import { VinzImageAttachmentAdapter, VinzPdfAttachmentAdapter, VinzSpreadsheetAttachmentAdapter } from '../assistant-original/image-attachment';
 import { setLocalStorageItem } from '../system/localStorageDiagnostics';
 
 const storage = {
@@ -43,6 +43,8 @@ const threadAdapter = createLocalStorageAdapter({
 
 const attachments = new CompositeAttachmentAdapter([
   new VinzImageAttachmentAdapter(),
+  new VinzPdfAttachmentAdapter(),
+  new VinzSpreadsheetAttachmentAdapter(),
   new SimpleTextAttachmentAdapter(),
 ]);
 

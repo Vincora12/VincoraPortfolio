@@ -42,25 +42,28 @@ const block=m.narrativeContextBlock(nctx);assert.match(block,/LUOGO LASCIATO: NU
 assert.doesNotMatch(m.narratorFallbackLine(baby),/SEGNALE|TRACCIA|sistema/);assert.match(m.narratorFallbackLine(baby),/NUL/);assert.match(m.narratorFallbackLine(risen,nctx),/NUL/);assert.doesNotMatch(m.returnFallbackLine({world,record:risen,elapsedDays:10,ledger:m.emptyLedger()}),/non ti ha aspettato|consumat/);
 console.log('PASS shared narrative provenance, birth/RISE/return prose and no automatic invented changes.');
 
+const completeQuest=()=>{const s=m.useApp.getState();assert.ok(s.ledger.quest);m.useApp.setState({ledger:{...s.ledger,quest:{...s.ledger.quest,status:'complete',foe:{...s.ledger.quest.foe,hp:0}}}});};
 m.useApp.setState({evolutionJob:null,phase:'live',syncWallet:{earnedDates:wallet.earnedDates,spent:0}});
 m.useApp.getState().openFormEvolution();m.useApp.getState().beginFormEvolution('evolution');
 assert.equal(m.syncBalance(),58);assert.equal(m.useApp.getState().evolutionJob.kind,'evolution');
 const tuned=m.useApp.getState().mons[m.useApp.getState().evolutionJob.candidateName];assert.equal(tuned.data.lifeStage,'FORM');assert.equal(tuned.data.evolution_state.label,'ROOKIE');assert.equal(tuned.worldId,nul.id);assert.equal(tuned.transition.kind,'TUNE');
-m.useApp.setState({evolutionJob:{...m.useApp.getState().evolutionJob,status:'ready'}});m.useApp.getState().revealFormEvolution();assert.equal(m.useApp.getState().world.id,nul.id);assert.ok(m.useApp.getState().mons[base.data.name]);assert.deepEqual(m.useApp.getState().memories,memories);
+m.useApp.setState({evolutionJob:{...m.useApp.getState().evolutionJob,status:'ready'}});m.useApp.getState().revealFormEvolution();assert.equal(m.useApp.getState().activeMonName,base.data.name,'TUNE cannot reveal before quest victory');completeQuest();m.useApp.getState().revealFormEvolution();assert.equal(m.useApp.getState().world.id,nul.id);assert.ok(m.useApp.getState().mons[base.data.name]);assert.deepEqual(m.useApp.getState().memories,memories);
 m.useApp.setState({evolutionJob:null,phase:'live'});m.useApp.getState().openFormEvolution();m.useApp.getState().beginFormEvolution('evolution');
 assert.equal(m.useApp.getState().mons[m.useApp.getState().evolutionJob.candidateName].data.evolution_state.label,'ROOKIE');
 assert.equal(m.useApp.getState().mons[m.useApp.getState().evolutionJob.candidateName].data.evolution_state.stage,1);
-m.useApp.setState({evolutionJob:{...m.useApp.getState().evolutionJob,status:'ready'}});m.useApp.getState().revealFormEvolution();
+m.useApp.setState({evolutionJob:{...m.useApp.getState().evolutionJob,status:'ready'}});completeQuest();m.useApp.getState().revealFormEvolution();
 m.useApp.setState({syncWallet:{earnedDates:wallet.earnedDates,spent:2}});
 m.useApp.setState({evolutionJob:null,phase:'live'});m.useApp.getState().openFormEvolution();m.saveEvolutionWish({text:'Un posto dove tutto si è già realizzato',kind:'mega-evolution'});m.useApp.getState().beginFormEvolution('mega-evolution');assert.equal(m.syncBalance(),28);
+const nulLedger={...m.useApp.getState().ledger,openThreads:['Una traccia rimasta sulla spiaggia.']};m.useApp.setState({ledger:nulLedger});
 const riseJob=m.useApp.getState().evolutionJob;assert.equal(m.useApp.getState().mons[riseJob.candidateName].data.evolution_state.label,'BASIC FORM');assert.ok(riseJob.pendingWorld);assert.notEqual(riseJob.pendingWorld.id,nul.id);assert.equal(m.useApp.getState().world.id,nul.id,'World changes only at reveal');
-m.useApp.setState({evolutionJob:{...riseJob,status:'ready'}});m.useApp.getState().revealFormEvolution();assert.equal(m.useApp.getState().world.id,riseJob.pendingWorld.id);assert.ok(m.useApp.getState().worldHistory.some(w=>w.id===nul.id));assert.deepEqual(m.useApp.getState().opinions,opinions);
+m.useApp.setState({evolutionJob:{...riseJob,status:'ready'}});completeQuest();m.useApp.getState().revealFormEvolution();assert.equal(m.useApp.getState().world.id,riseJob.pendingWorld.id);assert.ok(m.useApp.getState().worldHistory.some(w=>w.id===nul.id));assert.deepEqual(m.useApp.getState().opinions,opinions);
+assert.deepEqual(m.useApp.getState().worldHistory.at(-1).ledgerSnapshot.openThreads,nulLedger.openThreads,'RISE archives the previous World ledger');assert.equal(m.useApp.getState().ledger.openThreads.length,0,'new World starts with its own ledger');
 m.useApp.setState({evolutionJob:null,phase:'live'});m.useApp.getState().openFormEvolution();m.useApp.getState().beginFormEvolution('evolution');
 const powerJob=m.useApp.getState().evolutionJob;assert.equal(m.useApp.getState().mons[powerJob.candidateName].data.evolution_state.label,'POWER FORM');assert.equal(m.useApp.getState().mons[powerJob.candidateName].worldId,riseJob.pendingWorld.id);
-m.useApp.setState({evolutionJob:{...powerJob,status:'ready'}});m.useApp.getState().revealFormEvolution();
+m.useApp.setState({evolutionJob:{...powerJob,status:'ready'}});completeQuest();m.useApp.getState().revealFormEvolution();
 m.useApp.setState({evolutionJob:null,phase:'live'});m.useApp.getState().openFormEvolution();m.useApp.getState().beginFormEvolution('mega-evolution');
 const nextRise=m.useApp.getState().evolutionJob;assert.equal(m.useApp.getState().mons[nextRise.candidateName].data.evolution_state.label,'BASIC FORM');assert.notEqual(nextRise.pendingWorld.id,riseJob.pendingWorld.id);
-console.log('PASS actual store TUNE preserves backup/World, BABY becomes ROOKIE, RISE changes World at reveal, Wish costs 30 total.');
+console.log('PASS quest-gated TUNE/RISE preserve backup and World transitions; Wish costs 30 total.');
 const day='2026-01-01T12:00:00';values.set('vinzmon.health.journal.v1',JSON.stringify({meals:['colazione','spuntino','pranzo','merenda','cena'].map(slot=>({at:day,slot})),workouts:[{at:day}]}));
 m.useApp.setState({syncWallet:{earnedDates:[],spent:0}});m.rememberEarnedSync();assert.equal(m.syncBalance(),1);values.set('vinzmon.health.journal.v1',JSON.stringify({meals:[],workouts:[]}));assert.equal(m.syncBalance(),1,'earned SYNC survives gaps and edited logs');
 console.log('PASS earned SYNC survives interrupted series and log removal. No production data or network.');
@@ -74,3 +77,4 @@ for(const child of [tuned,m.useApp.getState().mons[powerJob.candidateName]]) {
  assert.deepEqual(child.personalityCard.writingStyle,parent.personalityCard.writingStyle);
 }
 console.log('PASS voice axes, base preset and expression style survive TUNE from young and mature forms.');
+m.useApp.getState().restoreNode(base.data.mindline_node);assert.equal(m.useApp.getState().world.id,riseJob.pendingWorld.id,'Return cannot interrupt an active RISE');m.useApp.setState({evolutionJob:null,ledger:{...m.useApp.getState().ledger,quest:undefined}});m.useApp.getState().restoreNode(base.data.mindline_node);assert.equal(m.useApp.getState().world.id,nul.id);assert.deepEqual(m.useApp.getState().ledger.openThreads,nulLedger.openThreads,'Return restores the archived World ledger');

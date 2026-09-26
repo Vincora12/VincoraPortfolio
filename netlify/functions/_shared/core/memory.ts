@@ -25,10 +25,17 @@ import { captureChatMemory, shouldCaptureChatMessage, type ChatMemoryResult } fr
 import { createMeModelStore, type MeModelDocument, type MeModelStore } from '../meModel';
 import { projectMeModel, type MemoryProjection } from '../meMemoryProjection';
 import { importMeSeed, type SeedImportResult } from '../meSeed';
-import { addToMem0, listMem0, searchMem0 } from '../mem0MemoryClient';
+import { listMem0 } from '../mem0MemoryClient';
 import { callProvider } from '../providers';
 import { resolveRoute } from '../routing';
 import { recordSpend } from '../spend';
+/* 🔷 MEMORY V1 (2026-09-17) — quando `VINZMON_MEMORY_WRITER_MODE=mem0`
+   (spento di default, mai impostato in produzione oggi), il ramo 'mem0' di
+   questo file passa da qui invece che dalle chiamate dirette a Mem0: stessa
+   idea, ma con isolamento per .mon, cattura resistente ai riavvii, e la
+   correzione nativa verificata in `experiments/memory-poc/`. Vedi
+   `_shared/memoryV1.ts` per il perché e le prove. */
+import { activeMonNameFromSavedState, assertMemoryV1Ready, captureMemoryV1, searchScopedPersonalMemory } from '../memoryV1';
 
 export type MemoryWriterMode = 'custom' | 'mem0' | 'frozen';
 
@@ -141,9 +148,26 @@ export async function writePersonalMemory(
   const backend = memoryBackendMode(mode);
   if (backend === 'frozen') return { result: emptyFrozenResult(), backend };
   if (backend === 'mem0') {
-    const written = await addToMem0({ text: input.text, conversationId: input.conversationId, messageId: input.messageId });
+    assertMemoryV1Ready(); // fallisce rumorosamente, non ripiega mai sul vecchio addToMem0 non protetto
+    if (!input.messageId) {
+      // La cattura resistente ai riavvii ha bisogno di una chiave stabile.
+      // Senza un messageId non c'è idempotenza possibile: si rifiuta invece
+      // di scrivere senza quella garanzia.
+      throw new Error('Memory V1: messageId è richiesto per la cattura');
+    }
+    const agentId = await activeMonNameFromSavedState();
+    const capture = await captureMemoryV1({ text: input.text, agentId, conversationId: input.conversationId, messageId: input.messageId });
+    if (capture.status === 'error') {
+      return {
+        result: { ...emptyFrozenResult(), status: 'failed', warnings: [capture.error ?? 'memory v1 capture failed'] },
+        backend,
+      };
+    }
+    const outcomes = (capture.outcome?.outcomes ?? []) as Array<{ action?: string }>;
+    const created = outcomes.filter((o) => o.action === 'ADD').length;
+    const updated = capture.status === 'done' && outcomes.length > 0;
     return {
-      result: { ...emptyFrozenResult(), status: written.updated ? 'updated' : 'no_change', updated: written.updated, created: written.stored, warnings: [] },
+      result: { ...emptyFrozenResult(), status: updated ? 'updated' : 'no_change', updated, created, warnings: capture.status === 'skipped' ? [`memory v1: ${capture.reason}`] : [] },
       backend,
     };
   }
@@ -180,7 +204,12 @@ export async function listPersonalMemory(store: MeModelStore = createMeModelStor
 export async function searchPersonalMemory(query: string, limit = 5, store: MeModelStore = createMeModelStore()): Promise<PersonalMemoryItem[]> {
   const backend = memoryBackendMode();
   if (backend === 'frozen') return [];
-  if (backend === 'mem0') return searchMem0(query, limit);
+  if (backend === 'mem0') {
+    assertMemoryV1Ready();
+    const agentId = await activeMonNameFromSavedState();
+    const scoped = await searchScopedPersonalMemory({ query, agentId, limitPerScope: limit });
+    return scoped.map((item) => ({ id: item.id, text: item.text, score: item.score }));
+  }
   return filterByQuery(await listPersonalMemory(store), query, limit);
 }
 

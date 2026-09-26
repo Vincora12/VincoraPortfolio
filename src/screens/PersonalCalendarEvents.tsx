@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { savedToken } from '../brain/stream';
 import type { CalendarCategory, CalendarEvent, CalendarEventInput } from '../engine/calendarEvents';
 import { calendarDateKey } from './MeCalendar';
+import { browserUuid } from '../system/browserUuid';
 
 type Row = { event: CalendarEvent; version: string };
 const LABELS: Record<CalendarCategory, string> = { meal: 'PASTO PIANIFICATO', workout: 'ALLENAMENTO PIANIFICATO', appointment: 'APPUNTAMENTO', task: 'ATTIVITÀ', personal: 'PERSONALE' };
@@ -29,7 +30,7 @@ export function PersonalCalendarEvents({ date }: { date: Date }) {
   };
   useEffect(() => { void load(); }, []);
   const open = (row: Row | 'new') => {
-    if (row === 'new') draftId.current = crypto.randomUUID();
+    if (row === 'new') draftId.current = browserUuid();
     setEditing(row); setTitle(row === 'new' ? '' : row.event.title);
     setStart(localInput(row === 'new' ? new Date(date.getFullYear(), date.getMonth(), date.getDate(), 9) : new Date(row.event.start)));
     setCategory(row === 'new' ? 'personal' : row.event.category); setNotes(row === 'new' ? '' : row.event.notes); setError('');

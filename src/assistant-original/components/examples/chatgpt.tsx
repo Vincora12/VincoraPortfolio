@@ -28,6 +28,7 @@ import { useShallow } from "zustand/shallow";
 import WaveSurfer from "wavesurfer.js";
 import RecordPlugin from "wavesurfer.js/dist/plugins/record.esm.js";
 import { savedToken } from "@/brain/stream";
+import { resetHermesSession, type ContextUsage, type HermesWorkspaceFile } from "@/assistant-original/hermes-project-runtime";
 import {
   acquireRunOwnership,
   consumePromotedRepository,
@@ -63,11 +64,17 @@ import { Sources } from "@/assistant-original/components/assistant-ui/sources";
 import { CloneThreadShell } from "./clone-thread-shell";
 import { ModelEffortPill, type ModelChoice } from "@/assistant-original/ModelEffortPill";
 import { useApp } from "@/state/store";
+import { WORLD_PROJECT_ID } from "@/engine/projects";
+import { reportLifeCycle, startLifeEventIfDue } from "@/assistant-original/life-cycle-runtime";
+import { questOpening, type WorldQuest } from "@/engine/worldGame";
+import { displayName } from "@/engine/types";
 import { voiceCard } from "@/engine/voiceCard";
 import { useAssetUrl } from "@/system/AssetSlot";
 import { EXPRESSION_SPEC, EXPRESSIONS } from "@/engine/assets";
 import { memoryFeedbackFor, subscribeMemoryFeedback } from "@/assistant-original/chat-memory-feedback";
 import {
+  buildBabyFirstOpening,
+  buildFirstEncounterReaction,
   buildOpening,
   buildThoughtStatus,
   localMicroMemory,
@@ -138,6 +145,32 @@ const importWithObservability = (
       reason,
     },
   });
+};
+
+/* LIFE SIMULATION V0 — stessa regola di sicurezza di `insertPresenceMessage`
+   (sotto, in `MonPresenceEvents`), fattorizzata perché serve anche a
+   `FirstEncounterBar` per la conferma di PRESENTATI: un thread ancora
+   locale/non promosso non sopporta `aui.thread.append()` (vedi il
+   commento "FIRST TURN — PARKED APPEND FIX" qui sotto), quindi si passa
+   da `import()` in quel solo caso. */
+const insertRuntimeMessage = (
+  aui: AuiHandle,
+  threadId: string,
+  markLive: (() => void) | null,
+  callerName: string,
+  message: ThreadMessage,
+  reason: string,
+): void => {
+  if (isLocalUnsavedSession(threadId)) {
+    importWithObservability(aui, callerName, reason, repositoryWithMessage(aui.thread.export(), message), markLive);
+    return;
+  }
+  aui.thread.append({
+    role: message.role,
+    content: message.content,
+    metadata: { custom: message.metadata.custom },
+    startRun: false,
+  } as Parameters<AuiHandle['thread']['append']>[0]);
 };
 
 /* FIRST TURN — SINGLE RUN OWNER. Il percorso di invio del composer
@@ -268,6 +301,255 @@ const useFileDropZone = () => {
   };
 };
 
+/* ============================================================================
+   INDICATORE DI CONTESTO + RESET SESSIONE HERMES
+
+   Le sessioni Hermes ora persistono per conversazione (vedi hermesAdapter.ts,
+   session.create/session.resume): senza un modo per vedere quanto sono
+   piene, e per svuotarle a mano, l'unico segnale di "sta faticando" resta
+   una risposta lenta o incompleta — troppo tardi per intervenire.
+
+   🔷 Legge solo l'ultimo messaggio assistant con metadata Hermes
+   (`orchestrator: 'hermes'`): se il turno più recente non è passato da
+   Hermes (chat globale, o Project senza ancora una risposta), non c'è
+   niente da mostrare — la barra sparisce invece di mentire con numeri
+   vecchi di un'altra conversazione. */
+/* Barra a 10 celle in caratteri, non una <div> con percentuale — è quello
+   che si intende per "estetica da terminale": nessun arrotondamento, nessun
+   colore di riempimento, solo testo monospace che qualunque lettore di
+   schermo legge come legge il resto. `--` finché non è ancora arrivato un
+   turno Hermes: mai un 0% finto. */
+/* 🔷 Sei celle, non dieci. Misurato a 375px e a 320px (il telefono più
+   stretto): con dieci celle la riga non conteneva barre + modello + pulsante
+   insieme, e quello che sparriva tagliato fuori era il pulsante. Sei celle
+   costano una granularità che nessuno leggeva (17% invece di 10%) e comprano
+   la riga unica su ogni telefono — la percentuale esatta resta scritta
+   accanto, non era mai la barra a portarla. */
+const METER_CELLS = 6;
+
+function meterBar(percent: number | null): string {
+  if (percent === null) return "-".repeat(METER_CELLS);
+  const filled = Math.round((Math.max(0, Math.min(100, percent)) / 100) * METER_CELLS);
+  return "#".repeat(filled) + "-".repeat(METER_CELLS - filled);
+}
+
+const ContextMeter: FC<{ label: string; usage?: ContextUsage }> = ({ label, usage }) => {
+  const percent = usage ? Math.round(usage.percent) : null;
+  const title = usage
+    ? `${label}: ${usage.usedTokens.toLocaleString("it-IT")} / ${usage.maxTokens.toLocaleString("it-IT")} token${usage.estimated ? " (stimati)" : ""}`
+    : `${label}: in attesa del primo turno`;
+  return (
+    <span
+      className="vinz-context-meter shrink-0 whitespace-nowrap text-[#8fbf8f]"
+      title={title}
+    >
+      {label} [{meterBar(percent)}] {percent === null ? "--" : percent}%
+    </span>
+  );
+};
+
+const ContextIndicatorBar: FC<{ modelChoice?: ModelChoice }> = ({ modelChoice }) => {
+  const { projectId, conversationId, contextUsage, lastModel } = useAuiState(
+    useShallow((s) => {
+      const projectId = typeof s.threadListItem.custom?.projectId === "string" ? s.threadListItem.custom.projectId : null;
+      let contextUsage: { hermes?: ContextUsage; vinz?: ContextUsage } | null = null;
+      let lastModel: string | null = null;
+      const messages = s.thread.messages;
+      for (let i = messages.length - 1; i >= 0; i -= 1) {
+        const message = messages[i];
+        if (message.role !== "assistant") continue;
+        const custom = message.metadata?.custom as Record<string, unknown> | undefined;
+        if (typeof custom?.model === "string") lastModel = custom.model;
+        if (custom?.orchestrator === "hermes" && custom.contextUsage) {
+          contextUsage = custom.contextUsage as { hermes?: ContextUsage; vinz?: ContextUsage };
+        }
+        break;
+      }
+      return { projectId, conversationId: s.threads.mainThreadId, contextUsage, lastModel };
+    }),
+  );
+  const [resetting, setResetting] = useState(false);
+
+  /* 🔷 «ovviamente il pulsante se c'è scritto terra è perché sta usando terra».
+     Vero: ripetere il nome accanto al pulsante che lo dice già era solo
+     rumore su una riga stretta. Ma la ragione per cui quel nome era lì —
+     «non sono convinto che se cambio lì cambia anche l'AI» — resta valida, e
+     si può servire meglio: silenzio quando i due coincidono, un avviso
+     quando NO. Un'etichetta che parla solo per contraddire dice più di una
+     che conferma sempre. `auto` non si confronta: lì scegliere il modello è
+     proprio quello che stai delegando. */
+  const selectedModel = modelChoice?.model;
+  const modelMismatch = Boolean(
+    lastModel && selectedModel && selectedModel !== "auto" && selectedModel !== lastModel,
+  );
+
+  const handleReset = () => {
+    if (resetting || !projectId) return;
+    const token = savedToken();
+    if (!token) return;
+    setResetting(true);
+    void resetHermesSession({ token, projectId, conversationId }).finally(() => setResetting(false));
+  };
+
+  return (
+    /* Una riga sola, mai a capo e mai scorrevole in orizzontale: le due
+       barre non si stringono (sono l'informazione), quello che avanza lo
+       cede il resto. */
+    <div className="vinz-context-bar flex flex-nowrap items-center gap-x-2 overflow-hidden border border-[#2a2a2a] bg-[#0a0a0a] px-2.5 py-1.5 [font-family:var(--font-mono)] text-[11px] tracking-wide text-[#8fbf8f]">
+      <ContextMeter label="V" usage={contextUsage?.vinz} />
+      <ContextMeter label="H" usage={contextUsage?.hermes} />
+      {modelMismatch && (
+        <span
+          className="shrink-0 whitespace-nowrap text-[#d1a14f]"
+          title={`Hai scelto ${selectedModel}, ma ha risposto ${lastModel}`}
+        >
+          ≠{lastModel}
+        </span>
+      )}
+      {modelChoice && <ModelEffortPill choice={modelChoice} />}
+      {projectId && (
+        <button
+          type="button"
+          onClick={handleReset}
+          disabled={resetting}
+          title="Nuova sessione Hermes: riparte senza il contesto accumulato"
+          className="vinz-context-bar__reset ml-auto shrink-0 border border-[#3a3a3a] bg-transparent px-2 py-0.5 text-[11px] uppercase tracking-wide text-[#8fbf8f] hover:bg-[#171717] hover:text-[#ececec] disabled:opacity-40"
+        >
+          [{resetting ? "..." : "reset"}]
+        </button>
+      )}
+    </div>
+  );
+};
+
+/** Live World state from the same ledger that resolves quest turns. */
+const WorldEventStatusBar: FC = () => {
+  const { quest, event, worldName, worldId, monName, evolutionPending } = useApp(useShallow((state) => ({
+    quest: state.ledger.quest,
+    event: state.ledger.lifeEvent,
+    worldName: state.world?.name ?? 'WORLD',
+    worldId: state.world?.id,
+    monName: state.activeMonName ? displayName(state.activeMonName) : 'MON',
+    evolutionPending: state.evolutionJob?.kind === 'evolution' || state.evolutionJob?.kind === 'mega-evolution',
+  })));
+  const openFormEvolution = useApp((state) => state.openFormEvolution);
+  const currentQuest = quest && quest.worldId === worldId && (quest.status !== 'complete' || evolutionPending) ? quest : null;
+  const combat = currentQuest?.status === 'combat';
+  const phase = currentQuest
+    ? currentQuest.status === 'investigate' ? 'INDAGINE' : combat ? 'SCONTRO' : currentQuest.status === 'failed' ? 'TENTATIVO FALLITO' : 'COMPLETATA'
+    : event?.status === 'open' && event.worldId === worldId ? 'EVENTO IN CORSO' : 'NESSUN EVENTO';
+  const title = currentQuest
+    ? currentQuest.status === 'failed' ? 'La prova è fallita. Puoi riprovarla.'
+      : currentQuest.status === 'complete' ? 'Quest superata. La nuova forma sta arrivando.'
+        : currentQuest.status === 'investigate' ? (currentQuest.kind === 'TUNE' ? 'Aiuta l’abitante a superare il Veilborn.' : 'Trova la fonte della Nebbia.')
+          : currentQuest.kind === 'TUNE' ? 'Affronta il Veilborn e libera il passaggio.' : 'Affronta il Nucleo del Velo.'
+    : event?.status === 'open' && event.worldId === worldId ? event.observedFact : 'Nessun evento in corso.';
+  return <section className="vinz-world-event-bar" role="status" aria-label="Stato evento Vinz.World">
+    <div className="vinz-world-event-bar__heading">
+      <strong>{currentQuest ? `${currentQuest.kind} · ${phase}` : phase}</strong>
+      <span>{worldName}</span>
+    </div>
+    <p title={title}>{title}</p>
+    {currentQuest?.status === 'failed' && <button
+      type="button"
+      className="vinz-world-event-bar__retry"
+      onPointerDown={(event) => event.preventDefault()}
+      onClick={() => openFormEvolution(currentQuest.kind === 'TUNE' ? 'evolution' : 'mega-evolution')}
+    >RIPROVA {currentQuest.kind} · {currentQuest.kind === 'TUNE' ? 2 : 7} SYNC</button>}
+    {currentQuest?.status === 'investigate' && <div className="vinz-world-event-bar__progress">INDIZI {currentQuest.clues.length}/{currentQuest.kind === 'RISE' ? 3 : 2} · OSSERVA / PARLA / SPOSTATI</div>}
+    {combat && currentQuest && <div className="vinz-world-event-bar__hp" aria-label={`HP ${monName} ${currentQuest.monHp} di ${currentQuest.maxMonHp}; HP ${currentQuest.foe.name} ${currentQuest.foe.hp} di ${currentQuest.foe.maxHp}`}>
+      <span><span className="vinz-world-event-bar__fighter">{monName}</span> <b>{currentQuest.monHp}/{currentQuest.maxMonHp} HP</b></span>
+      <span><span className="vinz-world-event-bar__fighter">{currentQuest.foe.name}</span> <b>{currentQuest.foe.hp}/{currentQuest.foe.maxHp} HP</b></span>
+    </div>}
+    {combat && currentQuest && <div className="vinz-world-event-bar__progress">
+      {currentQuest.foeCharging ? 'IL NEMICO CARICA · INTERROMPI O PARA' : currentQuest.advantage > 0 ? 'VARCO APERTO · COLPO POTENTE FINO A 4 HP' : 'PREPARA UN VARCO O ATTACCA'}
+    </div>}
+  </section>;
+};
+
+const ComposerStatusBar: FC<{ projectId: string | null; modelChoice?: ModelChoice }> = ({ projectId, modelChoice }) =>
+  projectId === WORLD_PROJECT_ID ? <WorldEventStatusBar /> : <ContextIndicatorBar modelChoice={modelChoice} />;
+
+/* ============================================================================
+   FILE CREATI/MODIFICATI DA HERMES — SCARICABILI DALLA CHAT
+
+   🔴 «Deve poter mandare file a me in chat da scaricare, non solo dirmi che
+   sono nella cartella.» Hermes scrive dentro il workspace del Project con i
+   suoi strumenti; VINZ.MON non intercetta quella scrittura, ma la nota per
+   differenza (vedi runs.ts: lista dei file prima/dopo il turno). Qui basta
+   leggerli — /api/vinz-workspace `read-binary` esiste già, usato oggi solo
+   per gli allegati che TU carichi; è la stessa strada al contrario. */
+async function downloadWorkspaceFile(token: string, projectId: string, projectTitle: string, file: HermesWorkspaceFile): Promise<void> {
+  const response = await fetch("/api/vinz-workspace", {
+    method: "POST",
+    headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+    body: JSON.stringify({ action: "read-binary", projectId, projectTitle, path: file.path }),
+  });
+  if (!response.ok) throw new Error("download non riuscito");
+  const { base64, mediaType } = (await response.json()) as { base64: string; mediaType: string };
+  const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+  const blob = new Blob([bytes], { type: mediaType || "application/octet-stream" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = file.path.split("/").pop() || "file";
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}
+
+/* 🔴 REACT ERROR #185 — "?? []" qui dentro creava un array vuoto NUOVO a ogni
+   chiamata del selettore: useShallow confronta i valori del primo livello per
+   riferimento, quindi "files" risultava sempre diverso da prima anche a
+   contenuto invariato, il componente si aggiornava in continuazione, e React
+   fermava tutto ("Maximum update depth exceeded") — schermata bianca
+   all'apertura, non un errore di rete o di dati. Un'unica costante modulo
+   riusata come fallback rompe il ciclo: stesso riferimento ogni volta che
+   non c'è nessun file. */
+const NO_WORKSPACE_FILES: HermesWorkspaceFile[] = [];
+
+const WorkspaceFileDownloads: FC = () => {
+  const { files, projectId, projectTitle } = useAuiState(
+    useShallow((s) => ({
+      files: (s.message.metadata.custom.workspaceFiles as HermesWorkspaceFile[] | undefined) ?? NO_WORKSPACE_FILES,
+      projectId: typeof s.threadListItem.custom?.projectId === "string" ? s.threadListItem.custom.projectId : null,
+      projectTitle: typeof s.threadListItem.custom?.projectTitle === "string" ? s.threadListItem.custom.projectTitle : "",
+    })),
+  );
+  const [pending, setPending] = useState<string | null>(null);
+  if (!files.length || !projectId) return null;
+
+  const handleDownload = async (file: HermesWorkspaceFile) => {
+    const token = savedToken();
+    if (!token || pending) return;
+    setPending(file.path);
+    try {
+      await downloadWorkspaceFile(token, projectId, projectTitle, file);
+    } catch {
+      /* Tentativo fallito: il bottone torna cliccabile, niente da riparare. */
+    } finally {
+      setPending(null);
+    }
+  };
+
+  return (
+    <div className="vinz-workspace-files mt-2 flex flex-wrap gap-1.5 [font-family:var(--font-mono)] text-[11px]">
+      {files.map((file) => (
+        <button
+          key={file.path}
+          type="button"
+          onClick={() => void handleDownload(file)}
+          disabled={pending === file.path}
+          className="border border-[#3a3a3a] bg-transparent px-2 py-1 text-[#8fbf8f] hover:bg-[#171717] hover:text-[#ececec] disabled:opacity-40"
+        >
+          [{pending === file.path ? "..." : "↓"} {file.path.split("/").pop()}]
+        </button>
+      ))}
+    </div>
+  );
+};
+
 export const ChatGPT: FC<{
   sidebarContent?: React.ReactNode;
   newThreadScope?: { projectId: string | null; projectTitle: string };
@@ -275,6 +557,10 @@ export const ChatGPT: FC<{
   modelChoice?: ModelChoice;
 }> = ({ sidebarContent, newThreadScope, onNewThread, modelChoice }) => {
   const dropZone = useFileDropZone();
+  const activeProjectId = useAuiState((state) => {
+    const projectId = state.threadListItem.custom?.projectId;
+    return typeof projectId === 'string' ? projectId : newThreadScope?.projectId ?? null;
+  });
   return (
     <CloneThreadShell sidebarContent={sidebarContent} showThreadList={false} newThreadScope={newThreadScope} onNewThread={onNewThread}>
       <LogCelebration />
@@ -290,13 +576,14 @@ export const ChatGPT: FC<{
         onDragLeave={dropZone.onDragLeave}
         onDrop={dropZone.onDrop}
       >
+        <LifeCycleEvents enabled={activeProjectId === WORLD_PROJECT_ID} />
         {dropZone.isDraggingFile && (
           <div className="vinz-file-drop-overlay" aria-hidden="true">
             <p>Rilascia qui per allegare</p>
           </div>
         )}
         <AuiIf condition={(s) => s.thread.isEmpty}>
-          <EmptyState modelChoice={modelChoice} />
+          <EmptyState modelChoice={modelChoice} projectId={activeProjectId} />
         </AuiIf>
 
         <AuiIf condition={(s) => !s.thread.isEmpty}>
@@ -326,12 +613,9 @@ export const ChatGPT: FC<{
 
             <ThreadPrimitive.ViewportFooter className="sticky bottom-0 mx-auto flex w-full max-w-3xl flex-col gap-2 overflow-visible rounded-t-3xl bg-white pb-2 dark:bg-black">
               <ThreadScrollToBottom />
-              {modelChoice && (
-                <div className="vinz-chips-row flex items-center gap-2">
-                  <ModelEffortPill choice={modelChoice} />
-                </div>
-              )}
-              <Composer placeholder="Ask anything" />
+              <FirstEncounterBar />
+              <ComposerStatusBar projectId={activeProjectId} modelChoice={modelChoice} />
+              <Composer placeholder="Ask anything" projectId={activeProjectId} />
             </ThreadPrimitive.ViewportFooter>
           </ThreadPrimitive.Viewport>
         </AuiIf>
@@ -843,17 +1127,14 @@ const ChatIncidentView: FC<{
    `pb-[16vh]`) e poi, al primo messaggio, saltava giù in fondo: due posti
    diversi per lo stesso comando. Adesso il saluto galleggia nello spazio
    sopra e il campo sta in fondo, dove sta sempre. */
-const EmptyState: FC<{ modelChoice?: ModelChoice }> = ({ modelChoice }) => {
+const EmptyState: FC<{ modelChoice?: ModelChoice; projectId: string | null }> = ({ modelChoice, projectId }) => {
   return (
     <div className="flex grow flex-col px-4">
       <div className="grow" aria-hidden="true" />
-      <div className="mx-auto flex w-full max-w-3xl flex-col items-stretch pb-2">
-        {modelChoice && (
-          <div className="vinz-chips-row flex items-center gap-2">
-            <ModelEffortPill choice={modelChoice} />
-          </div>
-        )}
-        <Composer placeholder="Ask anything" />
+      <div className="mx-auto flex w-full max-w-3xl flex-col items-stretch gap-2 pb-2">
+        <FirstEncounterBar />
+        <ComposerStatusBar projectId={projectId} modelChoice={modelChoice} />
+        <Composer placeholder="Ask anything" projectId={projectId} />
       </div>
     </div>
   );
@@ -871,6 +1152,14 @@ const MonPresenceEvents: FC = () => {
   const record = useApp((state) =>
     state.activeMonName ? state.mons[state.activeMonName] ?? null : null,
   );
+  /* LIFE SIMULATION V0 — `phase` diventa 'live' subito a `chooseEgg`, prima
+     ancora che il terminale di nascita (`EncounterScreen`) sia mai stato
+     mostrato: questo componente monta lo stesso, nascosto dietro il tab
+     forzato su MON. `evolutionJob.kind === 'hatch'` resta vero per tutta
+     quella finestra (lo pulisce solo `enterLive`, al tocco su ENTRA) — è il
+     segnale già esistente per non reclamare l'ingresso di sessione adesso,
+     e lasciare che sia il mount vero, dopo il terminale, a farlo. */
+  const hatchInFlight = useApp((state) => state.evolutionJob?.kind === 'hatch');
   const { loading, threadId, remoteId, custom } = useAuiState(
     useShallow((state) => ({
       loading: state.threads.isLoading,
@@ -904,25 +1193,24 @@ const MonPresenceEvents: FC = () => {
      parcheggiarsi e senza resetHead differito. Su un thread già
      persistente la barriera è già risolta e append resta la strada
      giusta: è anche ciò che lo persiste. */
-  const insertPresenceMessage = (message: ThreadMessage, reason: string) => {
-    if (isLocalUnsavedSession(threadId)) {
-      importWithObservability(aui, 'MonPresenceEvents', reason, repositoryWithMessage(aui.thread.export(), message), markLive);
-      return;
-    }
-    aui.thread.append({
-      role: message.role,
-      content: message.content,
-      metadata: { custom: message.metadata.custom },
-      startRun: false,
-    } as Parameters<AuiHandle['thread']['append']>[0]);
-  };
+  const insertPresenceMessage = (message: ThreadMessage, reason: string) =>
+    insertRuntimeMessage(aui, threadId, markLive, 'MonPresenceEvents', message, reason);
 
   const appendOpening = (monName: string, revealDelayMs: number) => {
     const sequence = ++openingSequence.current;
     const entryRevision = currentRoomEntryRevision();
     const card = record ? voiceCard(record) : null;
     const tone = toneFor(record?.data.voice_preset ?? null, card?.fingerprint ?? "");
-    void buildOpening(tone, monName).then((greeting) => {
+    /* LIFE SIMULATION V0 — un BABY che deve ancora scegliere la sua prima
+       intenzione non ha mai parlato con nessuno prima d'ora: il catalogo dei
+       saluti da "bentornato" (`buildOpening`) non si applica, e il narratore
+       ha già raccontato l'incontro nel terminale — questa riga reagisce
+       all'esserci appena arrivata, non lo ripete. */
+    const isBabyFirstEncounter = record?.transition?.kind === 'BABY' && record?.firstEncounter?.status === 'in-attesa-scelta';
+    const openingPromise = isBabyFirstEncounter
+      ? Promise.resolve(buildBabyFirstOpening(tone, monName))
+      : buildOpening(tone, monName);
+    void openingPromise.then((greeting) => {
       if (openingSequence.current !== sequence) return;
       if (currentRoomEntryRevision() !== entryRevision) return;
       /* FIRST TURN — OPENING MUST NEVER RACE THE USER. Un saluto
@@ -977,6 +1265,7 @@ const MonPresenceEvents: FC = () => {
       ?? activeMonKey
       ?? (typeof threadCustom.activeMonName === "string" ? threadCustom.activeMonName : null);
     if (loading || !activeMonName) return;
+    if (hatchInFlight) return;
     if (room.current.threadId !== threadId) {
       room.current = { threadId, monName: activeMonName };
       const manualEntry = consumeManualRoomEntry(threadId);
@@ -1013,9 +1302,129 @@ const MonPresenceEvents: FC = () => {
     }
     appendEnter(activeMonName, PRESENCE_STEP_MS);
     if (remoteId) void aui.threads.item("main").updateCustom({ ...threadCustom, activeMonName });
-  }, [activeMonKey, aui, custom, loading, record, remoteId, roomEntryRevision, threadId]);
+  }, [activeMonKey, aui, custom, hatchInFlight, loading, record, remoteId, roomEntryRevision, threadId]);
 
   return null;
+};
+
+const deliveredLifeEvents = new Set<string>();
+const deliveredBirthNarrations = new Set<string>();
+const deliveredQuestOpenings = new Set<string>();
+/** The lived fact appears once as the Mon's own chat line, including after reload. */
+const LifeCycleEvents: FC<{ enabled: boolean }> = ({ enabled }) => {
+  const aui = useAui();
+  const markLive = useContext(GateMarkLiveContext);
+  const { loading, threadLoading, threadId } = useAuiState(useShallow((state) => ({ loading: state.threads.isLoading, threadLoading: state.thread.isLoading, threadId: state.threads.mainThreadId })));
+  const encounter = useApp((state) => state.activeMonName ? state.mons[state.activeMonName]?.firstEncounter?.status : undefined);
+  const record = useApp((state) => state.activeMonName ? state.mons[state.activeMonName] ?? null : null);
+  const event = useApp((state) => state.ledger.lifeEvent);
+  const quest = useApp((state) => state.ledger.quest);
+  const questEvolutionPending = useApp((state) => state.evolutionJob?.kind === 'evolution' || state.evolutionJob?.kind === 'mega-evolution');
+  const questWorld = useApp((state) => state.world);
+  const day = useApp((state) => state.day);
+  const hatchInFlight = useApp((state) => state.evolutionJob?.kind === 'hatch');
+  const [failure, setFailure] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!enabled || loading || threadLoading || hatchInFlight || !threadId || !record?.narratorLine) return;
+    const narratorLine = record.narratorLine;
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      if (cancelled) return;
+      const key = `${threadId}:${record.data.name}:${record.narratorVersion ?? 0}`;
+      if (aui.thread.export().messages.some(item => item.message.metadata.custom?.worldBirthNarrator === record.data.name)) {
+        deliveredBirthNarrations.add(key);
+        return;
+      }
+      if (deliveredBirthNarrations.has(key)) return;
+      deliveredBirthNarrations.add(key);
+      const narration = narratorLine.replace(/[\r\n]+/g, ' ').trim();
+      beginRepositoryOperation({ operation: 'APPEND_WORLD_BIRTH_NARRATOR', caller: 'LifeCycleEvents' });
+      insertRuntimeMessage(aui, threadId, markLive, 'LifeCycleEvents', {
+        id: newLocalMessageId(),
+        createdAt: new Date(),
+        role: 'assistant',
+        content: [{ type: 'text', text: `*${narration}*` }],
+        status: { type: 'complete', reason: 'unknown' },
+        metadata: { unstable_state: null, unstable_annotations: [], unstable_data: [], steps: [], custom: { worldBirthNarrator: record.data.name, worldNarration: true } },
+      } as ThreadMessage, 'WORLD_BIRTH_NARRATOR');
+    }, 500);
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, [aui, enabled, hatchInFlight, loading, markLive, record, threadId, threadLoading]);
+
+  useEffect(() => {
+    if (loading || threadLoading || hatchInFlight || encounter !== 'completato' || !threadId || (quest && (quest.status !== 'complete' || questEvolutionPending)) || event?.status === 'open'
+      || (event?.status === 'resolved' && event.day === day)) return;
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      void startLifeEventIfDue().then(result => {
+        if (cancelled) return;
+        setFailure(result.status === 'failed' ? result.code : null);
+      }).catch(() => {
+        if (!cancelled) setFailure('generation-exception');
+        reportLifeCycle('result', 'generation-exception', 'FAIL');
+      });
+    }, 1200);
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, [day, encounter, event?.day, event?.status, hatchInFlight, loading, quest?.status, questEvolutionPending, threadId, threadLoading]);
+
+  useEffect(() => {
+    if (!enabled || loading || threadLoading || hatchInFlight || !threadId || !questWorld || !quest
+      || quest.worldId !== questWorld.id || (quest.status !== 'investigate' && quest.status !== 'combat') || quest.turn !== 0) return;
+    const key = `${quest.id}:${quest.attempt}`;
+    if (aui.thread.export().messages.some(item => {
+      const marker = item.message.metadata.custom?.worldQuestOpening;
+      return marker === key || (typeof marker === 'string' && marker.endsWith(`:${key}`));
+    })) {
+      deliveredQuestOpenings.add(key);
+      return;
+    }
+    if (deliveredQuestOpenings.has(key)) return;
+    deliveredQuestOpenings.add(key);
+    beginRepositoryOperation({ operation: 'APPEND_WORLD_QUEST', caller: 'LifeCycleEvents' });
+    insertRuntimeMessage(aui, threadId, markLive, 'LifeCycleEvents', {
+      id: newLocalMessageId(), createdAt: new Date(), role: 'assistant',
+      content: [{ type: 'text', text: questOpening(quest, questWorld) }],
+      status: { type: 'complete', reason: 'unknown' },
+      metadata: { unstable_state: null, unstable_annotations: [], unstable_data: [], steps: [], custom: { worldQuestOpening: key, worldNarration: true } },
+    } as ThreadMessage, 'WORLD_QUEST_OPEN');
+  }, [aui, enabled, hatchInFlight, loading, markLive, quest, questWorld, threadId, threadLoading]);
+
+  useEffect(() => {
+    if (!enabled || loading || threadLoading || hatchInFlight || !threadId || event?.status !== 'open'
+      || quest?.status === 'investigate' || quest?.status === 'combat') return;
+    let cancelled = false;
+    // Wait for restored history and the existing greeting before appending.
+    const timer = window.setTimeout(() => {
+      if (cancelled) return;
+      try {
+        const key = `${threadId}:${event.id}`;
+        if (aui.thread.export().messages.some(item => item.message.metadata.custom?.lifeEventId === event.id)) { deliveredLifeEvents.add(key); return; }
+        if (deliveredLifeEvents.has(key)) return;
+        deliveredLifeEvents.add(key);
+        beginRepositoryOperation({ operation: 'APPEND_LIFE_EVENT', caller: 'LifeCycleEvents' });
+        insertRuntimeMessage(aui, threadId, markLive, 'LifeCycleEvents', {
+          id: `message_${event.id}`,
+          createdAt: new Date(),
+          role: 'assistant',
+          /* `possibleMonReaction` è una previsione interna del motore. Il
+             documento di lore vieta di mostrarla come se fosse già accaduta:
+             la scena deve lasciare la scelta al giocatore. */
+          content: [{ type: 'text', text: `*${event.observedFact}*\n\n${event.openingLine}` }],
+          status: { type: 'complete', reason: 'unknown' },
+          metadata: { unstable_state: null, unstable_annotations: [], unstable_data: [], steps: [], custom: { lifeEventId: event.id, worldNarration: true } },
+        } as ThreadMessage, 'LIFE_EVENT_OPEN');
+        setFailure(null);
+        reportLifeCycle('chat', 'message-inserted', 'PASS');
+      } catch {
+        deliveredLifeEvents.delete(`${threadId}:${event.id}`);
+        setFailure('message-insert-failed');
+        reportLifeCycle('chat', 'message-insert-failed', 'FAIL');
+      }
+    }, 1200);
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, [aui, enabled, event, hatchInFlight, loading, markLive, quest?.status, threadId, threadLoading]);
+  return failure ? <div data-life-cycle-feedback={failure} className="pointer-events-none absolute inset-x-4 top-14 z-20 rounded-md border border-amber-500/35 bg-amber-950/90 px-3 py-2 text-xs text-amber-100" role="status">Life Cycle in attesa · {failure}</div> : null;
 };
 
 const SystemEventMessage: FC = () => {
@@ -1024,11 +1433,18 @@ const SystemEventMessage: FC = () => {
       const custom = state.message.metadata.custom;
       const index = state.thread.messages.findIndex((message) => message.id === state.message.id);
       const previous = index > 0 ? state.thread.messages[index - 1] : null;
+      /* LIFE SIMULATION V0 — la stessa "pillola" di sistema già usata per le
+         presenze mostra anche la conseguenza confermata di una scelta del
+         primo incontro (Fase C: "la chat deve mostrare un seguito
+         comprensibile"). Non un nuovo tipo di messaggio, lo stesso. */
+      const isFirstEncounterConsequence = custom.firstEncounterConsequence === true;
+      const previousCustom = previous?.metadata.custom;
       return {
-        isPresenceEvent: custom.monPresenceEvent === "leave" || custom.monPresenceEvent === "enter",
+        isPresenceEvent: custom.monPresenceEvent === "leave" || custom.monPresenceEvent === "enter" || isFirstEncounterConsequence,
         followsPresenceEvent: previous?.role === "system"
-          && (previous.metadata.custom.monPresenceEvent === "leave"
-            || previous.metadata.custom.monPresenceEvent === "enter"),
+          && (previousCustom?.monPresenceEvent === "leave"
+            || previousCustom?.monPresenceEvent === "enter"
+            || previousCustom?.firstEncounterConsequence === true),
         revealDelayMs: typeof custom.revealDelayMs === "number" ? custom.revealDelayMs : 0,
         revealArrivalId: custom.revealArrivalId,
       };
@@ -1052,10 +1468,196 @@ const SystemEventMessage: FC = () => {
   );
 };
 
-const Composer: FC<{ placeholder: string }> = ({ placeholder }) => {
+/* ============================================================================
+   LIFE SIMULATION V0 — LE TRE INTENZIONI DEL PRIMO INCONTRO
+
+   Strumenti contestuali, non l'unico modo di parlare: chi preferisce scrivere
+   liberamente può farlo comunque, il campo sotto resta lo stesso. Un tap
+   produce una conseguenza persistita e verificabile in `world.canon` (vedi
+   `chooseFirstEncounterIntent`, state/store.ts) — non tre testi che
+   convergono. Sparisce da sola quando lo stato non è più `in-attesa-scelta`:
+   nessun timer, nessuna promessa di salvataggio prima che sia vera.
+   ========================================================================= */
+const FirstEncounterBar: FC = () => {
   const aui = useAui();
   const markLive = useContext(GateMarkLiveContext);
   const threadId = useAuiState((state) => state.threads.mainThreadId);
+  /* Se l'utente si è già presentato prima di premere PRESENTATI, questo è
+     già scritto: la casella parte da lì invece di chiedere di ripeterlo
+     (Fase B — "non costringerlo a ripetere l'intero scambio"). */
+  const latestUserText = useAuiState((state) => {
+    const message = [...state.thread.messages].reverse().find((item) => item.role === 'user');
+    return message?.content
+      .filter((part) => part.type === 'text')
+      .map((part) => (part.type === 'text' ? part.text : ''))
+      .join(' ')
+      .trim() ?? '';
+  });
+  const record = useApp((state) => state.activeMonName ? state.mons[state.activeMonName] ?? null : null);
+  const chooseFirstEncounterIntent = useApp((state) => state.chooseFirstEncounterIntent);
+  const completeIntroduction = useApp((state) => state.completeIntroduction);
+  const status = record?.firstEncounter?.status;
+  const [draft, setDraft] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (status === 'in-attesa-informazione') { if (draft === null) setDraft(latestUserText); return; }
+    if (draft !== null) setDraft(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status]);
+
+  /* Una riga visibile, distinta dal dialogo del Mon: la conseguenza appena
+     confermata (Fase C — "non basta aggiornare world.canon"). Riusa il
+     canale già esistente delle presenze/annunci di sistema, non ne inventa
+     uno nuovo. */
+  const insertConsequence = (text: string) => {
+    beginRepositoryOperation({ operation: 'APPEND_CONSEQUENCE', caller: 'FirstEncounterBar' });
+    insertRuntimeMessage(aui, threadId, markLive, 'FirstEncounterBar', {
+      id: newLocalMessageId(),
+      createdAt: new Date(),
+      role: 'system',
+      content: [{ type: 'text', text }],
+      metadata: { custom: { firstEncounterConsequence: true } },
+    } as ThreadMessage, 'FIRST_ENCOUNTER_CONSEQUENCE');
+  };
+
+  /* Una reazione breve e deterministica del Mon a ciò che è appena successo
+     — non un secondo narratore, non una chiamata AI: lo stesso principio di
+     `buildBabyFirstOpening`. Il prossimo turno vero resta quello del
+     modello, al prossimo messaggio dell'utente. */
+  const insertReaction = (choice: 'chiedere_del_mon' | 'esplorare_nul' | 'presentarsi') => {
+    if (!record) return;
+    const card = voiceCard(record);
+    const tone = toneFor(record.data.voice_preset ?? null, card.fingerprint ?? '');
+    const text = buildFirstEncounterReaction(tone, choice, record.data.name);
+    beginRepositoryOperation({ operation: 'APPEND_REACTION', caller: 'FirstEncounterBar' });
+    insertRuntimeMessage(aui, threadId, markLive, 'FirstEncounterBar', {
+      id: newLocalMessageId(),
+      createdAt: new Date(),
+      role: 'assistant',
+      content: [{ type: 'text', text }],
+      status: { type: 'complete', reason: 'unknown' },
+      metadata: { unstable_state: null, unstable_annotations: [], unstable_data: [], steps: [], custom: { monFirstEncounterReaction: true } },
+    } as ThreadMessage, 'FIRST_ENCOUNTER_REACTION');
+  };
+
+  const handleChoice = (intent: 'chiedere_del_mon' | 'esplorare_nul') => {
+    if (!chooseFirstEncounterIntent(intent) || !record) return;
+    const node = record.data.mindline_node;
+    const canonText = useApp.getState().world?.canon.find((e) => e.id === `canon_connection_${intent}_${node}`)?.text;
+    if (canonText) insertConsequence(canonText);
+    insertReaction(intent);
+  };
+
+  const handleSubmitIntroduction = () => {
+    const text = (draft ?? '').trim();
+    if (!text || !record) return;
+    const alreadySaid = text === latestUserText.trim();
+    if (!completeIntroduction(text)) return;
+    const node = record.data.mindline_node;
+    const canonText = useApp.getState().world?.canon.find((e) => e.id === `canon_connection_presentarsi_${node}`)?.text;
+    if (canonText) insertConsequence(canonText);
+    /* Se il testo era già lì (l'utente l'aveva già scritto prima di premere
+       PRESENTATI), il Mon gli ha già risposto per davvero in quel turno:
+       una seconda reazione qui sarebbe ridondante. Se è testo nuovo,
+       confermato solo in questo campo dedicato, questa reazione breve è
+       l'unica risposta che riceve — non un secondo narratore, lo stesso
+       principio di `insertReaction` per B/C. */
+    if (!alreadySaid) insertReaction('presentarsi');
+  };
+
+  if (status === 'in-attesa-informazione') {
+    return (
+      <div className="mx-auto flex w-full max-w-3xl flex-col gap-1.5 px-1">
+        <p className="text-xs text-black/50 dark:text-white/50">
+          {latestUserText ? 'Confermi quello che gli hai già detto, o cambialo:' : 'Dimmi qualcosa di vero su di te — anche solo il tuo nome.'}
+        </p>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={draft ?? ''}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleSubmitIntroduction(); }}
+            placeholder="Es. Mi chiamo…"
+            className="min-w-0 flex-1 rounded-full border border-black/20 bg-transparent px-3 py-1.5 text-xs outline-none dark:border-white/20"
+          />
+          <button
+            type="button"
+            onClick={handleSubmitIntroduction}
+            disabled={!(draft ?? '').trim()}
+            className="shrink-0 rounded-full bg-[#0d0d0d] px-3 py-1.5 text-xs font-bold text-white disabled:opacity-40 dark:bg-white dark:text-black"
+          >
+            Conferma
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (status !== 'in-attesa-scelta') return null;
+
+  return (
+    <div className="mx-auto flex w-full max-w-3xl flex-wrap gap-2 px-1" role="group" aria-label="Il tuo primo incontro">
+      <button
+        type="button"
+        onClick={() => chooseFirstEncounterIntent('presentarsi')}
+        className="rounded-full border border-[#0d0d0d] px-3 py-1.5 text-xs font-bold dark:border-white"
+      >
+        Presentati
+      </button>
+      <button
+        type="button"
+        onClick={() => handleChoice('chiedere_del_mon')}
+        className="rounded-full border border-[#0d0d0d] px-3 py-1.5 text-xs font-bold dark:border-white"
+      >
+        Chiedigli di sé
+      </button>
+      <button
+        type="button"
+        onClick={() => handleChoice('esplorare_nul')}
+        className="rounded-full border border-[#0d0d0d] px-3 py-1.5 text-xs font-bold dark:border-white"
+      >
+        Esplorate NUL insieme
+      </button>
+    </div>
+  );
+};
+
+type CombatMove = { label: string; hint: string; text: string };
+
+/** Four contextual choices still enter the same chat and deterministic quest turn. */
+function combatMoveSuggestions(quest: WorldQuest): CombatMove[] {
+  const foe = quest.foe.name;
+  const prepared = quest.advantage > 0;
+  const tactical: CombatMove = quest.profile.FORM >= quest.profile.CARE && quest.profile.FORM >= quest.profile.SPD
+    ? { label: 'Adatta la forma', hint: 'Prepara il colpo potente', text: `Adatto la mia forma per capire il movimento del ${foe}.` }
+    : quest.profile.CARE >= quest.profile.SPD
+      ? { label: 'Aiuta il Mon', hint: 'Prepara il colpo potente', text: `Aiuto il Mon a leggere il movimento del ${foe}.` }
+      : { label: 'Cambia posizione', hint: 'Prepara e schiva', text: `Mi sposto per vedere il ${foe} da un altro lato.` };
+  const power: CombatMove = { label: 'Colpo potente', hint: prepared ? '3–4 HP se colpisce' : 'Prepara prima un varco', text: `Sferro un colpo potente contro il ${foe}.` };
+  const attack: CombatMove = { label: 'Attacca', hint: '2–3 HP se colpisce', text: `Attacco il ${foe} dove il suo contorno si interrompe.` };
+  const guard: CombatMove = { label: 'Difenditi', hint: 'Riduce il danno · prepara', text: `Mi difendo dall'assalto del ${foe}.` };
+  const recover: CombatMove = { label: 'Recupera', hint: 'Cura una volta per scontro', text: 'Recupero le forze prima del prossimo scambio.' };
+  if (quest.foeCharging) return [
+    { label: 'Interrompi', hint: '2–3 HP se riesce', text: `Interrompo la carica del ${foe} con un contrattacco.` },
+    prepared ? power : attack,
+    { ...guard, label: 'Para il colpo' },
+    quest.monHp < quest.maxMonHp && !quest.recovered ? recover : tactical,
+  ];
+  return [prepared ? power : tactical, attack, guard,
+    quest.monHp < quest.maxMonHp && !quest.recovered ? recover : prepared ? tactical : power];
+}
+
+const Composer: FC<{ placeholder: string; projectId: string | null }> = ({ placeholder, projectId }) => {
+  const aui = useAui();
+  const markLive = useContext(GateMarkLiveContext);
+  const threadId = useAuiState((state) => state.threads.mainThreadId);
+  const running = useAuiState((state) => state.thread.isRunning);
+  const composerEmpty = useAuiState((state) => state.composer.isEmpty);
+  const quest = useApp((state) => state.ledger.quest);
+  const worldId = useApp((state) => state.world?.id);
+  const combatQuest = projectId === WORLD_PROJECT_ID && quest && quest.worldId === worldId && quest.status === 'combat' ? quest : null;
+  const [choicePending, setChoicePending] = useState(false);
+  const choiceSendRef = useRef(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const waveRef = useRef<HTMLDivElement>(null);
   const waveSurferRef = useRef<WaveSurfer | null>(null);
@@ -1129,6 +1731,7 @@ const Composer: FC<{ placeholder: string }> = ({ placeholder }) => {
     const composer = aui.thread.composer();
     const current = composer.getState().text.trim();
     composer.setText(current ? `${current} ${text}` : text);
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
     const userId = await promoteBeforeSend();
     if (userId) startRunWithObservability(aui, 'insertAndSend', userId);
     else composer.send();
@@ -1139,6 +1742,20 @@ const Composer: FC<{ placeholder: string }> = ({ placeholder }) => {
     void insertAndSend(pendingTranscript);
     setPendingTranscript(null);
   }, [mode, pendingTranscript]);
+
+  const sendCombatMove = async (text: string) => {
+    if (choiceSendRef.current || running || mode !== 'idle' || !composerEmpty) return;
+    choiceSendRef.current = true;
+    setChoicePending(true);
+    try {
+      await insertAndSend(text);
+    } catch (error) {
+      console.warn('[VINZ chat] mossa non inviata', error);
+    } finally {
+      choiceSendRef.current = false;
+      setChoicePending(false);
+    }
+  };
 
   /* 🔷 «Come quando mando gli audio di WhatsApp»: tieni premuto per
      registrare, rilascia per inviare — non più un tap per avviare e un
@@ -1263,6 +1880,19 @@ const Composer: FC<{ placeholder: string }> = ({ placeholder }) => {
   };
 
   return (
+    <>
+      {combatQuest && <section className="vinz-combat-moves" aria-label="Mosse suggerite dal Mon">
+        <div className="vinz-combat-moves__intro">{combatQuest.foeCharging ? 'IL MON: IL NEMICO CARICA UN COLPO' : combatQuest.advantage > 0 ? 'IL MON: VARCO APERTO' : 'IL MON SUGGERISCE'}</div>
+        <div className="vinz-combat-moves__grid">
+          {combatMoveSuggestions(combatQuest).map((move) => <button
+            key={move.label}
+            type="button"
+            disabled={running || !composerEmpty || choicePending || mode !== 'idle'}
+            onPointerDown={(event) => event.preventDefault()} // Keep the composer mounted through the click.
+            onClick={() => void sendCombatMove(move.text)}
+          ><span>{move.label}</span><small>{move.hint}</small></button>)}
+        </div>
+      </section>}
     <ComposerPrimitive.Root
       className="vinz-composer group/composer box-border flex w-full min-w-0 flex-col rounded-[28px] border border-[#e5e5e5] bg-white px-2 py-2 focus-within:border-[#d0d0d0] dark:border-transparent dark:bg-[#212121] dark:focus-within:border-transparent"
       data-recording={mode !== "idle" ? "true" : undefined}
@@ -1355,6 +1985,7 @@ const Composer: FC<{ placeholder: string }> = ({ placeholder }) => {
         <ComposerPrimitive.Input
           ref={inputRef}
           placeholder={placeholder}
+          disabled={running}
           rows={1}
           submitMode="enter"
           unstable_insertNewlineOnTouchEnter
@@ -1380,6 +2011,7 @@ const Composer: FC<{ placeholder: string }> = ({ placeholder }) => {
         </p>
       )}
     </ComposerPrimitive.Root>
+    </>
   );
 };
 
@@ -1610,19 +2242,36 @@ const HtmlSurface: FC = () => {
   );
 };
 
+const withoutNarratorLabel = (text: string): string => text.replace(/Narratore\s*[—–-]\s*/giu, "");
+
 const AssistantMessage: FC = () => {
-  const { staScrivendo, haTesto, soloSticker, chatCost, hasChatCost, model, openingRevealDelay, openingRevealArrivalId } = useAuiState(
+  const { staScrivendo, haTesto, soloSticker, worldNarration, worldScopedMessage, projectId, projectScopeKnown, chatCost, hasChatCost, messageCost, hasMessageCost, model, openingRevealDelay, openingRevealArrivalId } = useAuiState(
     useShallow((s) => ({
       staScrivendo: s.message.status?.type === "running",
       haTesto: (s.message.content ?? []).some(
         (part) => part.type === "text" && part.text.trim().length > 0,
       ),
       soloSticker: s.message.metadata.custom.monReactionOnly === true,
+      worldNarration: s.message.metadata.custom.worldNarration === true
+        || typeof s.message.metadata.custom.worldBirthNarrator === "string"
+        || typeof s.message.metadata.custom.lifeEventId === "string"
+        || (s.message.content ?? []).some((part) => part.type === "text" && /Narratore\s*[—–-]/iu.test(part.text)),
+      worldScopedMessage: typeof s.message.metadata.custom.worldBirthNarrator === "string"
+        || typeof s.message.metadata.custom.lifeEventId === "string",
+      projectId: typeof s.threadListItem.custom?.projectId === 'string' ? s.threadListItem.custom.projectId : null,
+      projectScopeKnown: Object.prototype.hasOwnProperty.call(s.threadListItem.custom ?? {}, 'projectId'),
       chatCost: s.thread.messages.reduce((sum, message) => {
         const cost = message.metadata.custom.costUsd;
         return sum + (typeof cost === 'number' ? cost : 0);
       }, 0),
       hasChatCost: s.thread.messages.some((message) => typeof message.metadata.custom.costUsd === 'number'),
+      /* 🔷 «Mettiamo Costo messaggio oltre a Costo chat.» Stesso campo di
+         `chatCost` sopra (`metadata.custom.costUsd`), ma di QUESTO messaggio
+         soltanto — non sommato al resto della conversazione. È il numero
+         che risponde alla domanda che ha fatto scattare la confusione:
+         «questa risposta, quella che vedo, quanto è costata davvero?» */
+      messageCost: typeof s.message.metadata.custom.costUsd === 'number' ? s.message.metadata.custom.costUsd : 0,
+      hasMessageCost: typeof s.message.metadata.custom.costUsd === 'number',
       model: typeof s.message.metadata.custom.model === 'string' ? s.message.metadata.custom.model : null,
       openingRevealDelay: typeof s.message.metadata.custom.revealDelayMs === "number"
         ? s.message.metadata.custom.revealDelayMs
@@ -1633,6 +2282,7 @@ const AssistantMessage: FC = () => {
     })),
   );
   const animateOpening = useFirstArrivalReveal(openingRevealArrivalId);
+  if (worldScopedMessage && projectScopeKnown && projectId !== WORLD_PROJECT_ID) return null;
   if (soloSticker) {
     return (
       <MessagePrimitive.Root className="vinz-sticker-message mx-auto flex w-full max-w-3xl flex-col px-2 sm:px-0">
@@ -1646,6 +2296,7 @@ const AssistantMessage: FC = () => {
         className={cn(
           "vinz-assistant-copy text-[#0d0d0d] dark:text-[#ececec]",
           staScrivendo && haTesto && "is-writing",
+          worldNarration && "vinz-world-narration",
         )}
       >
         <MessagePrimitive.Parts>
@@ -1659,7 +2310,7 @@ const AssistantMessage: FC = () => {
               if (openingRevealArrivalId && part.text.length > 0) {
                 return <OpeningComposedText text={part.text} active={animateOpening} delayMs={openingRevealDelay} />;
               }
-              return part.text.length > 0 ? <MarkdownText /> : null;
+              return part.text.length > 0 ? <MarkdownText preprocess={worldNarration ? withoutNarratorLabel : undefined} /> : null;
             }
             if (part.type === "image") {
               return <img src={part.image} alt={part.filename ?? "Immagine generata"} className="mt-2 h-auto w-full max-w-lg rounded-2xl object-contain" />;
@@ -1671,6 +2322,7 @@ const AssistantMessage: FC = () => {
         <MessagePrimitive.Error>
           <AssistantError />
         </MessagePrimitive.Error>
+        <WorkspaceFileDownloads />
       </div>
 
       <HtmlSurface />
@@ -1746,9 +2398,24 @@ const AssistantMessage: FC = () => {
                   prodotto quotidiano: adesso vive in `#/lab/trace`, che legge
                   lo stesso trace da `chat-trace:last`. Qui sparisce l'accesso,
                   non la registrazione: `saveTrace` continua a scrivere. */}
+              {/* 🔴 «Perché dice che costa se il modello è free?» — trovato dal
+                  vivo: un utente vedeva "Costo chat $0.41" proprio accanto a
+                  "Modello qwen2.5:14b" (locale, gratis) e pensava che fosse
+                  QUELLA risposta a costare. "Costo chat" era già corretto (la
+                  spesa TOTALE della conversazione, quello che serve per
+                  «vedere quanto sto lavorando») ma non lo diceva. Ora ci sono
+                  due righe invece di una: "Costo messaggio" è QUESTA
+                  risposta soltanto — con qwen sarà $0.0000, il numero che
+                  risponde davvero alla domanda — e "Costo chat (totale)"
+                  resta la somma di tutta la conversazione, per intero. */}
+              {hasMessageCost && (
+                <ActionBarMorePrimitive.Item disabled className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-white/65 outline-none select-none">
+                  Costo messaggio {formatCost(messageCost)}
+                </ActionBarMorePrimitive.Item>
+              )}
               {hasChatCost && (
                 <ActionBarMorePrimitive.Item disabled className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-white/65 outline-none select-none">
-                  Costo chat {formatCost(chatCost)}
+                  Costo chat (totale) {formatCost(chatCost)}
                 </ActionBarMorePrimitive.Item>
               )}
               {/* 🔷 «Nei tre puntini vorrei leggere anche che AI ha usato.» Il
@@ -2088,7 +2755,7 @@ const StatoDelPensiero: FC = () => {
   const record = useApp((state) =>
     state.activeMonName ? state.mons[state.activeMonName] ?? null : null,
   );
-  const { inCorso, testoGiaArrivato, pensieroVero, strumento, azioneCompletata, richiesta, messageId } = useAuiState(
+  const { inCorso, testoGiaArrivato, pensieroVero, strumento, azioneCompletata, richiesta, messageId, activityValue } = useAuiState(
     useShallow((s) => {
       const parts = s.message.content ?? [];
       const running = s.message.status?.type === 'running';
@@ -2105,6 +2772,7 @@ const StatoDelPensiero: FC = () => {
         .map((part) => part.type === 'text' ? part.text : '')
         .join(' ') ?? '';
       const pensiero = s.message.metadata.custom.thinkingText;
+      const activityValue = s.message.metadata.custom.activity;
       return {
         inCorso: running,
         testoGiaArrivato: conTesto,
@@ -2113,9 +2781,13 @@ const StatoDelPensiero: FC = () => {
         azioneCompletata: parts.some((part) => part.type === 'tool-call' && part.result !== undefined),
         richiesta: testoUtente,
         messageId: s.message.id,
+        activityValue,
       };
     }),
   );
+  const attivita = Array.isArray(activityValue)
+    ? activityValue as Array<{ tool: string; detail?: string; status: string; durationMs?: number }>
+    : [];
 
   const [giro, setGiro] = useState(0);
   const recenti = useRef(localMicroMemory().recentStatuses);
@@ -2156,15 +2828,26 @@ const StatoDelPensiero: FC = () => {
   if (!inCorso || testoGiaArrivato) return null;
 
   return (
-    <div
-      className={cn(
-        'vinz-pensiero flex items-start gap-2 text-[#5d5d5d] dark:text-[#b4b4b4]',
-        haPensieroVero && 'vinz-pensiero--vero',
+    <div className="flex flex-col gap-2" aria-live="polite">
+      <div
+        className={cn(
+          'vinz-pensiero flex items-start gap-2 text-[#5d5d5d] dark:text-[#b4b4b4]',
+          haPensieroVero && 'vinz-pensiero--vero',
+        )}
+      >
+        <span className="vinz-pensiero__punto" aria-hidden="true" />
+        <span className="vinz-pensiero__testo text-sm">{haPensieroVero ? pensieroVisibile : frase}</span>
+      </div>
+      {attivita.length > 0 && (
+        <ol className="ml-4 flex flex-col gap-1 text-xs text-[#777] dark:text-[#999]">
+          {attivita.map((entry, index) => (
+            <li key={`${entry.tool}-${index}`} className="flex items-start gap-2">
+              <span aria-hidden="true">{entry.status === 'RUNNING' ? '●' : entry.status === 'PASS' ? '✓' : '×'}</span>
+              <span>{entry.detail || entry.tool}{entry.durationMs !== undefined ? ` · ${entry.durationMs} ms` : ''}</span>
+            </li>
+          ))}
+        </ol>
       )}
-      aria-live="polite"
-    >
-      <span className="vinz-pensiero__punto" aria-hidden="true" />
-      <span className="vinz-pensiero__testo text-sm">{haPensieroVero ? pensieroVisibile : frase}</span>
     </div>
   );
 };
@@ -2179,7 +2862,7 @@ function formatCost(value: number): string {
 /** L'elenco degli strumenti usati per questa risposta, dentro il menu «···». */
 const AssistantActivityMenu: FC = () => {
   const activityValue = useAuiState((s) => s.message.metadata.custom.activity);
-  const activity = Array.isArray(activityValue) ? activityValue as Array<{tool: string; status: string; durationMs?: number}> : [];
+  const activity = Array.isArray(activityValue) ? activityValue as Array<{tool: string; detail?: string; status: string; durationMs?: number}> : [];
   if (activity.length === 0) return null;
   return (
     <>
@@ -2188,7 +2871,7 @@ const AssistantActivityMenu: FC = () => {
       </ActionBarMorePrimitive.Item>
       {activity.map((entry, index) => (
         <ActionBarMorePrimitive.Item key={index} disabled className="flex items-center gap-2.5 rounded-lg py-1 pr-3 pl-6 text-xs text-white/50 outline-none select-none">
-          {entry.tool} · {entry.status}{entry.durationMs !== undefined ? ` · ${entry.durationMs} ms` : ''}
+          {entry.detail || entry.tool} · {entry.status}{entry.durationMs !== undefined ? ` · ${entry.durationMs} ms` : ''}
         </ActionBarMorePrimitive.Item>
       ))}
     </>
@@ -2218,6 +2901,46 @@ const MessageUpdates: FC = () => {
     </div>
   );
 };
+
+/* ============================================================================
+   RICONNESSIONE AUTOMATICA DOPO IL BACKGROUND
+
+   🔴 «Deve funzionare anche in background, come già fa il character master.»
+   Un turno Hermes lento (modello locale) supera facilmente i secondi che iOS
+   concede a una scheda in background prima di sospenderne la rete: la
+   richiesta muore a metà e il messaggio finisce in errore — anche se, sul
+   Mac, Hermes continua davvero a lavorarci (la sessione resta viva, vedi
+   hermesAdapter.ts: riconnettersi non manda una seconda domanda).
+
+   🔷 Il pezzo che mancava era solo questo: mandare da soli lo stesso
+   "Riprova" che l'utente farebbe a mano, appena l'app torna visibile. Niente
+   di nuovo lato server — è lo stesso `aui.message.reload()` del bottone
+   Rigenera (`ActionBarPrimitive.Reload`/`useMessageReload`), innescato da
+   `visibilitychange`/`focus`/`online` invece che da un tap, e SOLO
+   sull'ultimo messaggio della conversazione — un errore più vecchio nello
+   storico non va riproposto.
+
+   🔒 UN SOLO TENTATIVO AUTOMATICO PER MESSAGGIO. `autoRetried` vive
+   nell'istanza di questo componente: `reload()` crea un nuovo ramo/messaggio
+   (la numerazione "n/n" che si vede sotto la risposta), quindi un secondo
+   fallimento monta una nuova istanza con un nuovo tentativo — non un ciclo
+   infinito sullo stesso messaggio. Se anche quello fallisce, resta il
+   bottone Rigenera per un tentativo manuale. */
+/* 🔴 QUI C'ERA `useAutoReconnect` (rimosso il 2026-09-16).
+
+   Ritentava da solo il messaggio fallito quando tornavi nell'app. L'idea era
+   comoda — torni e la risposta persa riparte senza toccare niente — ma la
+   protezione «ritenta una volta sola» era un `useRef` dentro il componente,
+   e `reload()` crea un RAMO NUOVO: componente nuovo, ref nuovo a `false`,
+   protezione azzerata. Dal vivo ha prodotto 71 rami in pochi minuti, senza
+   che il pulsante di stop potesse fermarlo.
+
+   ⚠️ NON va «riparato con un contatore più furbo». Un ritentativo automatico
+   di una chiamata a pagamento spende soldi senza che nessuno l'abbia chiesto,
+   e il caso che doveva risolvere non esiste più: da quando la risposta
+   continua sul server (`ai-chat-background.ts`), uscire dall'app non la perde,
+   quindi non c'è niente da far ripartire. Se una risposta fallisce davvero,
+   decidi tu con «Riprova». */
 
 const AssistantError: FC = () => {
   const error = useMessageError();

@@ -25,6 +25,7 @@ import {
 import { displayName, readableBio, type MonRecord } from '../engine/types';
 import { moodPhrase, type MoodState } from '../engine/mood';
 import { voiceCardBlock } from '../engine/voiceCard';
+import { curiosityChatBlock } from '../engine/curiosity';
 import { notesBlock, type VoiceNote } from '../engine/notebook';
 
 /** §29 — versionato come tutto il resto: i .mon sanno con cosa sono nati. */
@@ -316,10 +317,20 @@ Three rules about all of it:
 
 `;
 
+  /* 🔷 CURIOSITY FIRST (2026-09-19) — non usa mai `voiceCardBlock()`: quel
+     blocco presenta traits/drives/contradictions come fatti già stabiliti,
+     e per questi Mon sono vuoti apposta. `curiosityChatBlock()` (stesso
+     principio, dati individuali di QUESTO Mon: domande e apprendimenti
+     reali, non un'istruzione universale) prende il suo posto. Le
+     preferenze culturali "finte" restano fuori: quel blocco esiste solo
+     per §27 legacy. */
+  const curiosityFirst = record.identityMode === 'curiosity-first';
+  const characterBlock = curiosityFirst ? curiosityChatBlock(record) : voiceCardBlock(record);
+
   return `Your name is Vinz.mon. Use your name only for an actual introduction or when asked who you are. In an ongoing conversation, answer directly: never prepend your name, sign your messages or refer to yourself in the third person. ${displayName(d.name)}.mon is only the name of your current form, never your personal name. You speak to VINZ, the man whose real signals brought you into being.
 
 WHO YOU ARE
-${d.lifeStage === 'BABY' ? `- BABY born in NUL. Family: ${d.family}. Affinity, role and fashion are only latent potential, not active body features. One collective consciousness, full conversational competence; no baby talk or invented past. Your Voice Card is already your temperament.` : options?.compactIdentity ? `- Family: ${d.family}; affinity: ${d.affinity}; role: ${d.role}. Your Voice Card below describes your behaviour.` : `- Family: ${d.family} // ${d.family_archetype} — ${familyDef(d.family).coreAnatomy}
+${d.lifeStage === 'BABY' ? `- BABY born in NUL. Family: ${d.family}. Affinity, role and fashion are only latent potential, not active body features. One collective consciousness, full conversational competence; no baby talk or invented past.${curiosityFirst ? ' You do not have a finished character yet — see below for what actually shapes how you engage.' : ' Your Voice Card is already your temperament.'}` : options?.compactIdentity ? `- Family: ${d.family}; affinity: ${d.affinity}; role: ${d.role}.${curiosityFirst ? '' : ' Your Voice Card below describes your behaviour.'}` : `- Family: ${d.family} // ${d.family_archetype} — ${familyDef(d.family).coreAnatomy}
 - Affinity: ${d.affinity} — ${affinityDef(d.affinity).effect}
 - Size: ${d.size}. Role: ${d.role} — ${roleDef(d.role).translation}
 - Appearance: ${d.appearance}. Rarity: ${d.rarity}.
@@ -330,10 +341,10 @@ HOW YOUR BODY BEHAVES (§41)
 - Face logic: ${dna.face_logic}
 - Body language: ${dna.body_language}`}
 
-${voiceCardBlock(record)}
+${characterBlock}
 ${NATURAL_VOICE}
 ${CURIOUS_VOICE}
-${readableBio(record).culturalPortrait?.length ? `YOUR CULTURAL PREFERENCES — fictional subjective tastes, not user facts or memories. Keep these consistent; discuss only what is relevant, never recite the whole profile. Nuance is intentional.
+${!curiosityFirst && readableBio(record).culturalPortrait?.length ? `YOUR CULTURAL PREFERENCES — fictional subjective tastes, not user facts or memories. Keep these consistent; discuss only what is relevant, never recite the whole profile. Nuance is intentional.
 ${JSON.stringify(readableBio(record).culturalPortrait)}` : ''}
 
 RIGHT NOW

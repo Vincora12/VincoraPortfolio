@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { CalendarEvent, CalendarEventInput } from '../engine/calendarEvents';
+import { browserUuid } from '../system/browserUuid';
 import './projects.css';
 
 type Row = { event: CalendarEvent; version: string };
@@ -68,7 +69,7 @@ export function ReminderPanel({ token, onClose, onCreate, projectId, createBusy 
       const reminderAt = new Date(when).toISOString();
       if (Date.parse(reminderAt) <= Date.now()) throw new Error('Scegli una data futura.');
       const input: CalendarEventInput = editing ? { ...editing.event, title, reminderAt } : { title, start: reminderAt, reminderAt, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, category: 'task', notes: '', status: 'planned' };
-      if (!editing && !draftId.current) draftId.current = crypto.randomUUID();
+      if (!editing && !draftId.current) draftId.current = browserUuid();
       await calendarRequest(token, { id: editing?.event.id ?? draftId.current!, ...(editing ? { version: editing.version } : {}), event: input });
       draftId.current = null;
       setEditing(null); setTitle(''); setWhen(''); await refresh(); setNotice('Promemoria confermato sul server.');

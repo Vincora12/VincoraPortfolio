@@ -1,6 +1,6 @@
 import { getStore } from './_shared/localStore';
 import { authorize, denied, json } from './_shared/auth';
-import { createProject, updateProject, mutationProblem, projectSummary, validProjectId, PROJECT_LIMITS, GLOBAL_PROJECT_ID } from '../../src/engine/projects';
+import { createProject, updateProject, mutationProblem, projectSummary, validProjectId, PROJECT_LIMITS, GLOBAL_PROJECT_ID, WORLD_PROJECT_ID, WORLD_PROJECT_TITLE } from '../../src/engine/projects';
 import type { Project, ProjectMutation } from '../../src/engine/projects';
 
 const projectStore = () => getStore({ name: 'vinzmon-projects', consistency: 'strong' });
@@ -11,6 +11,10 @@ export default async function handler(request: Request): Promise<Response> {
   try {
     const store = projectStore();
     if (request.method === 'GET') {
+      const worldKey = `projects/${WORLD_PROJECT_ID}`;
+      if (!(await store.getWithMetadata(worldKey, { type: 'json' }))) {
+        await store.setJSON(worldKey, createProject({ action: 'create', title: WORLD_PROJECT_TITLE }, WORLD_PROJECT_ID, new Date().toISOString()), { onlyIfNew: true });
+      }
       const id = new URL(request.url).searchParams.get('projectId');
       if (id !== null) {
         if (!validProjectId(id)) return json({ error: 'Progetto non valido.' }, 400);
@@ -41,7 +45,7 @@ export default async function handler(request: Request): Promise<Response> {
     if (input.action === 'create') {
       // Content is kept in bounded individual records, not a giant global snapshot.
       const { blobs } = await store.list({ prefix: 'projects/' });
-      const active = await Promise.all(blobs.filter(b => b.key !== `projects/${GLOBAL_PROJECT_ID}`).map(b => store.get(b.key, { type: 'json' })));
+      const active = await Promise.all(blobs.filter(b => b.key !== `projects/${GLOBAL_PROJECT_ID}` && b.key !== `projects/${WORLD_PROJECT_ID}`).map(b => store.get(b.key, { type: 'json' })));
       if (active.filter(p => p && !(p as Project).trashedAt).length >= PROJECT_LIMITS.projects) return json({ error: 'Limite progetti raggiunto.' }, 409);
       const project = createProject(input, crypto.randomUUID(), now);
       const written = await store.setJSON(`projects/${project.id}`, project, { onlyIfNew: true });

@@ -46,6 +46,7 @@ import { generationOrder as ordineCanonico } from '../engine/assets';
 import type { AssetType, MonRecord } from '../engine/types';
 import { promptFor } from './promptFor';
 import { assetBase64, getAssetUrlSync, importAssetFile } from './assetStore';
+import { assetOwnerKey } from './assetIdentity';
 import { assetTypeDef } from '../engine/assets';
 
 /**
@@ -123,9 +124,10 @@ export async function generateMissingAssets(
   imageModel?: string | null,
 ): Promise<{ made: AssetType[]; failure: BackendFailure | null; detail?: string }> {
   const name = record.data.name;
+  const owner = assetOwnerKey(record);
   const wanted = generationOrder()
     .filter((t) => (opts.only ? opts.only.includes(t) : true))
-    .filter((t) => opts.replace || getAssetUrlSync(name, t) === null);
+    .filter((t) => opts.replace || getAssetUrlSync(owner, t) === null);
   const made: AssetType[] = [];
 
   for (const type of wanted) {
@@ -152,7 +154,7 @@ export async function generateMissingAssets(
        riga non cambia.
        ════════════════════════════════════════════════════════════════════ */
     const dipende = assetTypeDef(type).dependsOn[0] ?? null;
-    const reference = dipende ? await assetBase64(name, dipende) : null;
+    const reference = dipende ? await assetBase64(owner, dipende) : null;
 
     const res = await askImage(
       token,

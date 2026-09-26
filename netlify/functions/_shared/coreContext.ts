@@ -6,8 +6,9 @@ import type { World } from '../../../src/engine/world';
 import type { VoiceNote } from '../../../src/engine/notebook';
 import { searchPersonalMemory } from './core/memory';
 import { machineConversationContext } from './machineConversationContext';
+import { WORLD_PROJECT_ID } from '../../../src/engine/projects';
 
-export interface CoreContextOptions { query?: string; recentText?: string; body?: 'web' | 'external'; toolsAvailable?: boolean }
+export interface CoreContextOptions { query?: string; recentText?: string; projectId?: string | null; body?: 'web' | 'external'; toolsAvailable?: boolean }
 /** No writes, second state store or persisted prompts. Strong read of the existing save. */
 export async function loadCoreContext(options: CoreContextOptions = {}) {
   const saved = await getStore({ name: 'vinzmon-state', consistency: 'strong' }).get('save', { type: 'json' }) as {
@@ -38,7 +39,9 @@ export async function loadCoreContext(options: CoreContextOptions = {}) {
   return { context, ...compileCoreContext({
     query: options.query,
     recentText: options.recentText,
-    world: state?.world,
+    // The global chat and every non-World project must not inherit the
+    // narrative state. Only Vinz.World gets the canonical world context.
+    world: options.projectId === undefined || options.projectId === WORLD_PROJECT_ID ? state?.world : null,
     memoryIds,
     selfReflectionIds: machineContext.selfReflectionIds,
     mon,

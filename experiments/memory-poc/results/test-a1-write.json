@@ -1,0 +1,18 @@
+{
+  "status": "SCRITTO",
+  "fact": "Il mio gatto si chiama Pixel ed è nato nel 2019.",
+  "userId": "vinz-poc",
+  "agentId": "mon-a",
+  "elapsedMs": 50313,
+  "addResult": {
+    "results": [
+      {
+        "id": "105b6fc9-b8da-4bc8-b619-85c81d11be06",
+        "memory": "User's cat is named Pixel and was born in 2019",
+        "metadata": {
+          "event": "ADD"
+        }
+      }
+    ]
+  }
+}

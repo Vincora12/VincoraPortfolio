@@ -19,6 +19,7 @@ import { del, get, keys, set } from 'idb-keyval';
 import type { AssetType, MonRecord } from '../engine/types';
 import { ASSET_TYPES, assetTypeDef } from '../engine/assets';
 import { buildManifest, resolveAssetIdFromFileName } from './manifest';
+import { assetOwnerKey } from './assetIdentity';
 
 /** Chiave di storage: un .mon può avere un solo file per slot. */
 function storageKey(monName: string, assetId: string): string {
@@ -292,6 +293,7 @@ export async function importAssetFile(
   record: MonRecord,
   file: File,
   forcedAssetId?: string,
+  skipRemoteUpload = false,
 ): Promise<ImportResult> {
   if (!file.type.startsWith('image/')) {
     return {
@@ -328,10 +330,11 @@ export async function importAssetFile(
   }
 
   const type = assetTypeFromId(assetId);
-  const key = storageKey(record.data.name, assetId);
+  const owner = assetOwnerKey(record);
+  const key = storageKey(owner, assetId);
 
   await set(key, file);
-  void uploadRemote(record.data.name, assetId, file);
+  if (!skipRemoteUpload) void uploadRemote(owner, assetId, file);
 
   // Sostituisce l'eventuale URL precedente, così la UI aggiorna subito.
   const old = urlCache.get(key);
@@ -388,19 +391,20 @@ export async function removeAsset(monName: string, type: AssetType): Promise<voi
 /** Porta le immagini locali sul server e ripristina quelle mancanti sul dispositivo. */
 export async function syncAssetsWithServer(token: string): Promise<void> {
   try {
-    const all = await keys();
-    for (const key of all) {
-      if (typeof key !== 'string' || !key.startsWith('asset:')) continue;
-      const match = key.match(/^asset:(.+):([^:]+)$/);
-      if (!match) continue;
-      const blob = await get<Blob>(key);
-      if (blob) await uploadRemote(match[1], match[2], blob);
-    }
-
     try {
       const listResponse = await fetch('/api/assets', { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' });
       if (!listResponse.ok) return;
       const { assets } = await listResponse.json() as { assets: { monName: string; assetId: string }[] };
+      const remoteKeys = new Set(assets.map((asset) => storageKey(asset.monName, asset.assetId)));
+      // Server is canonical. An old phone must never overwrite a newer image
+      // or erase generation metadata while restoring its local cache.
+      for (const key of await keys()) {
+        if (typeof key !== 'string' || !key.startsWith('asset:') || remoteKeys.has(key)) continue;
+        const match = key.match(/^asset:(.+):([^:]+)$/);
+        if (!match) continue;
+        const blob = await get<Blob>(key);
+        if (blob) await uploadRemote(match[1], match[2], blob);
+      }
       for (const remote of assets) {
         const key = storageKey(remote.monName, remote.assetId);
         if (await get(key)) continue;

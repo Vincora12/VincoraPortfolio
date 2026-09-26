@@ -1,0 +1,63 @@
+{
+  "status": "PASS",
+  "query": "Come si chiama il mio gatto?",
+  "expectedSubstring": "pixel",
+  "found": true,
+  "elapsedMs": 648,
+  "processo": "nuovo processo node, nessuna conversazione passata nel prompt",
+  "results": {
+    "results": [
+      {
+        "id": "66c4490f-b882-4113-ac09-83037e6c3d8e",
+        "memory": "and was born in",
+        "score": 0.4057691870724751,
+        "metadata": {
+          "entityType": "TOPIC",
+          "linkedMemoryIds": [
+            "105b6fc9-b8da-4bc8-b619-85c81d11be06"
+          ]
+        },
+        "user_id": "vinz-poc",
+        "agent_id": "mon-a"
+      },
+      {
+        "id": "105b6fc9-b8da-4bc8-b619-85c81d11be06",
+        "memory": "User's cat is named Pixel and was born in 2019",
+        "hash": "622b043e59d0fe3467e2d1d227a9cc30",
+        "createdAt": "2026-09-17T09:40:08.224Z",
+        "updatedAt": "2026-09-17T09:40:08.224Z",
+        "score": 0.40354304016939313,
+        "metadata": {},
+        "user_id": "vinz-poc",
+        "agent_id": "mon-a",
+        "attributedTo": "user"
+      },
+      {
+        "id": "d6f3d800-4091-4475-8aff-eab3b3aa71a5",
+        "memory": "s cat is named",
+        "score": 0.40332334588031,
+        "metadata": {
+          "entityType": "TOPIC",
+          "linkedMemoryIds": [
+            "105b6fc9-b8da-4bc8-b619-85c81d11be06"
+          ]
+        },
+        "user_id": "vinz-poc",
+        "agent_id": "mon-a"
+      },
+      {
+        "id": "b673aa2b-ddd7-4c39-ab2e-1fd2460cf9eb",
+        "memory": "Pixel",
+        "score": 0.3954354606187418,
+        "metadata": {
+          "entityType": "PROPER",
+          "linkedMemoryIds": [
+            "105b6fc9-b8da-4bc8-b619-85c81d11be06"
+          ]
+        },
+        "user_id": "vinz-poc",
+        "agent_id": "mon-a"
+      }
+    ]
+  }
+}

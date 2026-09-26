@@ -18,6 +18,7 @@
 
 import { get, set, del, keys } from 'idb-keyval';
 import type { MonRecord } from '../../engine/types';
+import { browserUuid } from '../../system/browserUuid';
 
 const PREFISSO = 'vinzlab/duel/';
 const CHIAVE_JOB = 'vinzlab/duel/job';
@@ -216,7 +217,7 @@ export async function avviaJob({
   if (timer !== null) window.clearTimeout(timer);
   timer = null;
 
-  const id = `duel-${crypto.randomUUID().replace(/-/g, '')}`;
+  const id = `duel-${browserUuid().replace(/-/g, '')}`;
 
   const stato: StatoJob = {
     id,

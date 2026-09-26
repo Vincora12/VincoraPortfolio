@@ -39,6 +39,7 @@ import { displayName, type MonRecord } from '../engine/types';
 import { haptic } from '../system/haptics';
 import { t } from '../i18n/it';
 import { GenerationDial } from '../system/GenerationDial';
+import { WORLD_PROJECT_ID, WORLD_PROJECT_TITLE } from '../engine/projects';
 
 export function SplashScreen({ onEnter, previewMonName }: { onEnter: () => void; previewMonName?: string }) {
   const phase = useApp((s) => s.phase);
@@ -48,6 +49,7 @@ export function SplashScreen({ onEnter, previewMonName }: { onEnter: () => void;
   const inc = useIncubation();
   const health = useApp((s) => s.health);
   const evolutionJob = useApp((s) => s.evolutionJob);
+  const quest = useApp((s) => s.ledger.quest);
   const revealFormEvolution = useApp((s) => s.revealFormEvolution);
   const retryFormEvolution = useApp((s) => s.retryFormEvolution);
 
@@ -69,6 +71,12 @@ export function SplashScreen({ onEnter, previewMonName }: { onEnter: () => void;
   const enter = () => {
     haptic('tick');
     onEnter();
+  };
+
+  const continueQuest = () => {
+    enter();
+    window.dispatchEvent(new Event('vinzmon-open-chat'));
+    window.dispatchEvent(new CustomEvent('vinz-select-project', { detail: { id: WORLD_PROJECT_ID, title: WORLD_PROJECT_TITLE } }));
   };
 
   const poke = () => {
@@ -115,11 +123,16 @@ export function SplashScreen({ onEnter, previewMonName }: { onEnter: () => void;
 
   return (
     <div className="splash">
+      {!previewMonName && quest && (quest.status === 'investigate' || quest.status === 'combat') && (
+        <Button block variant="character" onClick={continueQuest}>CONTINUA LA {quest.kind} IN VINZ.WORLD</Button>
+      )}
       {!previewMonName && !incubating && evolutionJob && <GenerationActivity job={evolutionJob}/>}
-      {!previewMonName && !incubating && evolutionJob?.status === 'ready' ? (
+      {!previewMonName && !incubating && evolutionJob?.status === 'ready' && (!quest || quest.status === 'complete') ? (
         <HoldButton className="splash__evolution-hold" onComplete={revealFormEvolution}>
           {evolutionJob.kind === 'hatch' ? 'PRIMO MON PRONTO' : 'NUOVO MON PRONTO'}
         </HoldButton>
+      ) : !previewMonName && !incubating && evolutionJob?.status === 'ready' ? (
+        <p className="t-meta">FORMA PREPARATA · completa la {quest?.kind ?? 'quest'} in VINZ.WORLD</p>
       ) : !previewMonName && !incubating && evolutionJob ? (
         <button
           type="button"

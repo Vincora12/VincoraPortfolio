@@ -1,0 +1,134 @@
+/* DNA TECNICO — stessa grana editoriale di mon-character.css: fondo bianco,
+   righe con filo orizzontale, etichette monospaziate, dettaglio nel colore
+   del personaggio. Nessuna card colorata, nessun radar chart. */
+
+.mchardna {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.mchardna__section { min-width: 0; }
+
+.mchardna .mchardna__eyebrow { margin: 0 0 14px; }
+
+.mchardna__caption {
+  margin: 0 0 14px;
+  font-size: var(--type-small);
+  line-height: 24px;
+  color: var(--muted-strong);
+}
+
+.mchardna__subhead {
+  margin: 21px 0 7px;
+  font-family: var(--font-mono);
+  font-size: var(--type-meta);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted-strong);
+}
+
+.mchardna__missing {
+  margin: 0;
+  padding: var(--u3) 0;
+  font-size: var(--type-small);
+  color: var(--muted-strong);
+  font-style: italic;
+}
+
+.mchardna__list {
+  margin: 0;
+  padding-left: var(--u4);
+}
+.mchardna__list li {
+  font-size: var(--type-small);
+  line-height: 26px;
+  overflow-wrap: anywhere;
+}
+.mchardna__list li::marker { color: var(--char-accent); }
+
+/* --- ASSI VOICE DNA ---------------------------------------------------- */
+
+.mchardna__axes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--u3);
+}
+
+.mchardna__axis {
+  padding: var(--u3) 0;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.mchardna__axishead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--u2);
+}
+
+.mchardna__axisname {
+  font-family: var(--font-mono);
+  font-size: var(--type-meta);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.mchardna__axisvalue {
+  font-family: var(--font-mono);
+  font-size: var(--type-meta);
+  color: var(--muted-strong);
+  white-space: nowrap;
+}
+
+.mchardna__axisbar {
+  margin-top: 7px;
+  height: 6px;
+  background: var(--hairline);
+}
+
+.mchardna__axisfill {
+  height: 100%;
+  background: var(--char-accent, var(--ink));
+}
+
+.mchardna__axisdesc {
+  margin: 7px 0 0;
+  font-size: var(--type-micro);
+  line-height: 18px;
+  color: var(--muted-strong);
+}
+
+/* --- BLOCCO ESPRESSIONE IN CHAT ------------------------------------------ */
+
+.mchardna__block {
+  margin: 0;
+  padding: var(--u3);
+  border: 1px solid var(--hairline);
+  background: var(--surface);
+  font-family: var(--font-mono);
+  font-size: var(--type-micro);
+  line-height: 20px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.mchardna__code {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+}
+
+.mchardna__note {
+  margin: 14px 0 0;
+  font-size: var(--type-micro);
+  line-height: 20px;
+  color: var(--muted-strong);
+}
+
+/* --- TOGGLE PROFILO / DNA TECNICO (dentro CARATTERE) -------------------- */
+
+.mchar-toggle {
+  margin-bottom: 21px;
+}

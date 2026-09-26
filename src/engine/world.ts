@@ -76,7 +76,9 @@ export type CanonKind =
   | 'mega-evolution'
   | 'world-change'
   | 'return'
-  | 'connection';
+  | 'connection'
+  | 'life-event'
+  | 'life-consequence';
 
 export interface CanonEvent {
   id: string;
@@ -87,6 +89,19 @@ export interface CanonEvent {
   text: string;
   /** La forma che c'era quando è successo. Etichetta, non contenitore. */
   monName: string;
+}
+
+/** Stato runtime persistente della scena corrente di Vinz.World. */
+export interface ActiveScene {
+  id: string;
+  location: string;
+  objective: string;
+  obstacle: string;
+  question: string;
+  stakes: string;
+  status: 'open' | 'resolved' | 'abandoned';
+  beatCount: number;
+  lastConsequence?: string;
 }
 
 /* --- Il mondo -------------------------------------------------------------- */
@@ -112,7 +127,21 @@ export interface World {
    * su ogni World legacy: non si fabbrica una provenienza che non c'era.
    */
   previousWorldId?: string;
+  /** Una domanda del Mon in questo luogo; la risposta resta un'interpretazione
+   * fondata su una conseguenza, non una nuova voce del canone. */
+  inquiry?: { question: string; answer?: string; evidenceEventId?: string };
+  /** Registro della scena conservato quando questo World viene archiviato. */
+  ledgerSnapshot?: StoryLedger;
   canon: CanonEvent[];
+}
+
+/** Anche i World salvati prima di questa regola conservano una domanda stabile. */
+export function worldInquiry(world: World): NonNullable<World['inquiry']> {
+  return world.inquiry ?? {
+    question: world.id === 'world_NUL'
+      ? 'Che cosa possiamo rendere possibile qui, prima di partire?'
+      : 'Che cosa impedisce a questo luogo di mostrarsi per intero?',
+  };
 }
 
 /**
@@ -174,12 +203,48 @@ export interface StoryLedger {
   setups: Setup[];
   /** Cosa è già stato raccolto. Serve a non raccoglierlo due volte. */
   pastPayoffs: string[];
+  /** Quest attiva nel World; i turni sono risolti dal motore e salvati con il ledger. */
+  quest?: import('./worldGame').WorldQuest;
   /** Cose che il narratore ha già fatto e non deve rifare. */
   doNotRepeat: string[];
+  /** One lived situation. World canon keeps its observed fact and consequence. */
+  lifeEvent?: {
+    id: string;
+    worldId: string;
+    monNodeId: string;
+    day: number;
+    status: 'open' | 'resolved' | 'abandoned';
+    eventType: string;
+    observedFact: string;
+    openingLine: string;
+    possibleMonReaction: string;
+    openThreadRefs: string[];
+    memoryRefsUsed: string[];
+    consequence?: string;
+    resolvedByMessageId?: string;
+    scene?: ActiveScene;
+  };
+  /** La scena corrente è una proiezione narrativa, non un secondo archivio. */
+  activeScene?: ActiveScene;
+  /** Observed actions only, each linked to a canonical life event. */
+  lifeSignals?: Array<{ id: string; eventId: string; kind: string; evidence: string; day: number }>;
 }
 
 export function emptyLedger(): StoryLedger {
   return { recurringMotifs: [], openThreads: [], setups: [], pastPayoffs: [], doNotRepeat: [] };
+}
+
+/** A quest takes the scene; an unfinished daily event must stop claiming it. */
+export function suspendLifeEventForQuest(ledger: StoryLedger): StoryLedger {
+  if (ledger.lifeEvent?.status !== 'open') return ledger;
+  const scene = ledger.activeScene;
+  return {
+    ...ledger,
+    lifeEvent: { ...ledger.lifeEvent, status: 'abandoned' },
+    activeScene: scene && scene.id === ledger.lifeEvent.scene?.id
+      ? { ...scene, status: 'abandoned' }
+      : scene,
+  };
 }
 
 /**
@@ -192,6 +257,14 @@ export function emptyLedger(): StoryLedger {
 export function ledgerBlock(ledger: StoryLedger): string {
   const open = ledger.setups.filter((s) => s.status === 'open');
   const lines: string[] = [];
+
+  if (ledger.quest) {
+    const quest = ledger.quest;
+    lines.push(`QUEST ${quest.kind} [${quest.status}] tentativo ${quest.attempt}: Mon ${quest.monHp}/${quest.maxMonHp} HP; ${quest.foe.name} ${quest.foe.hp}/${quest.foe.maxHp} HP.`,
+      `VEILBORN: ${quest.foe.behavior}. Indizi diversi: ${quest.clues.length}/${quest.kind === 'RISE' ? 3 : 2}.`,
+      quest.status === 'combat' ? (quest.foeCharging ? 'Il nemico sta caricando un colpo; può essere interrotto o parato.' : quest.advantage > 0 ? 'Il Mon ha un varco pronto per un colpo potente.' : 'Il Mon può preparare un varco per un colpo potente.') : '',
+      'La quest e i suoi HP cambiano soltanto dopo un esito accettato dal motore del gioco.', '');
+  }
 
   if (ledger.doNotRepeat.length > 0) {
     lines.push('COSE CHE HAI GIÀ FATTO E NON DEVI RIFARE:');
@@ -217,6 +290,16 @@ export function ledgerBlock(ledger: StoryLedger): string {
   if (ledger.pastPayoffs.length > 0) {
     lines.push(`GIÀ RACCOLTO, non richiuderlo di nuovo: ${ledger.pastPayoffs.slice(-5).join(' · ')}`);
   }
+  const questActive = ledger.quest?.status === 'investigate' || ledger.quest?.status === 'combat';
+  if (!questActive && ledger.lifeEvent?.status === 'open') lines.push(`SITUAZIONE APERTA [${ledger.lifeEvent.id}]: ${ledger.lifeEvent.observedFact.slice(0, 300)}`);
+  if (!questActive && ledger.activeScene?.status === 'open') {
+    const scene = ledger.activeScene;
+    lines.push(
+      `SCENA [${scene.status}] · luogo: ${scene.location.slice(0, 180)} · obiettivo del Mon: ${scene.objective.slice(0, 180)} · ostacolo: ${scene.obstacle.slice(0, 180)} · domanda: ${scene.question.slice(0, 180)} · posta: ${scene.stakes.slice(0, 180)} · beat: ${scene.beatCount}`,
+    );
+    if (scene.lastConsequence) lines.push(`ULTIMO CAMBIAMENTO DELLA SCENA: ${scene.lastConsequence.slice(0, 220)}`);
+  }
+  if (ledger.lifeSignals?.length) lines.push('EVIDENZE VISSUTE (non tratti di personalità):', ...ledger.lifeSignals.slice(-6).map(s => `- [${s.eventId} · ${s.kind}] ${s.evidence.slice(0, 240)}`));
 
   return lines.length > 0
     ? lines.join('\n')
@@ -270,9 +353,12 @@ export function worldBlock(world: World | null): string {
   if (!world) return 'NESSUN MONDO ANCORA: quello che scrivi adesso è la prima cosa che esiste.';
 
   const recent = world.canon.slice(-10);
+  const inquiry = worldInquiry(world);
   return [
     `IL MONDO: ${world.name}`,
     world.description.slice(0, 1200),
+    `DOMANDA CHE IL MON PORTA IN QUESTO WORLD: ${inquiry.question.slice(0, 200)}`,
+    ...(inquiry.answer ? [`RISPOSTA PROVVISORIA DEL MON, FONDATA SU ${inquiry.evidenceEventId ?? 'UNA CONSEGUENZA VISSUTA'}: ${inquiry.answer.slice(0, 240)}`] : ['La risposta non è ancora emersa: non anticiparla.']),
     `Emerso il giorno ${world.emergedOnDay}, con ${displayName(world.emergedWith)}.`,
     /* 🔷 Narrative System Phase 2 — GOAL 5: il World Cultural DNA esisteva già
        (`resolveWorldCulturalDna`) ma nessun prompt lo leggeva mai. È tono e
@@ -351,6 +437,7 @@ export function seedWorld(record: MonRecord, day: number): World {
     description: 'Una spiaggia-soglia: sabbia chiara, mare, un cielo aperto e un orizzonte ampio. Pochissimi elementi. Nessuna direzione è ancora obbligata.',
     identity: 'Il luogo comune di origine dei BABY. Sabbia, mare e cielo prima che il viaggio prenda una direzione; nessun tema psicologico imposto.',
     worldCulturalDna: [], currentStoryFunction: 'ORIGIN', emergedOnDay: day, emergedWith: d.name,
+    inquiry: { question: 'Che cosa possiamo rendere possibile qui, prima di partire?' },
     canon: [{ id: `canon_origin_${d.mindline_node}`, day, kind: 'origin', epistemic: 'WORLD_CANON', text: `${displayName(d.name)} nasce BABY a NUL.`, monName: d.name }],
   };
   const affinity = d.affinity.toLowerCase();
@@ -364,6 +451,7 @@ export function seedWorld(record: MonRecord, day: number): World {
     worldCulturalDna,
     emergedOnDay: day,
     emergedWith: d.name,
+    inquiry: { question: 'Che cosa impedisce a questo luogo di mostrarsi per intero?' },
     canon: [
       {
         id: `canon_origin_${d.mindline_node}`,
@@ -410,14 +498,14 @@ export function riseWorld(previous: World, record: MonRecord, day: number): Worl
   const id = `world_${d.mindline_node}`;
   const worldCulturalDna = resolveWorldCulturalDna(record, day);
   const places = [
-    {name:'VETRAVIA', description:'Un porto di vetro opaco attraversato da passerelle basse. Piccole lampade segnano gli approdi; ogni porta si apre soltanto dal lato del mare.'},
-    {name:'CARTAVENTO', description:'Case di carta pressata attorno a una stazione senza binari. Il vento sposta le insegne; qui gli indirizzi si riconoscono dai suoni.'},
-    {name:'FERRALUCE', description:'Un quartiere di scale in ferro e cortili tiepidi. Le insegne restano accese anche a mezzogiorno; gli oggetti riparati portano il segno della riparazione.'},
+    {name:'VETRAVIA', description:'Un porto di vetro opaco attraversato da passerelle basse. Piccole lampade segnano gli approdi; ogni porta si apre soltanto dal lato del mare.', question:'Perché le porte di questo porto si aprono solo dal mare?'},
+    {name:'CARTAVENTO', description:'Case di carta pressata attorno a una stazione senza binari. Il vento sposta le insegne; qui gli indirizzi si riconoscono dai suoni.', question:'Come possiamo trovare una strada se gli indirizzi cambiano col vento?'},
+    {name:'FERRALUCE', description:'Un quartiere di scale in ferro e cortili tiepidi. Le insegne restano accese anche a mezzogiorno; gli oggetti riparati portano il segno della riparazione.', question:'Che cosa cambia qui quando qualcosa viene riparato?'},
   ];
   const wish = d.user_wish?.toLowerCase() ?? '';
   const place = /(?:tutto|desider).*realizzat|euphoria/.test(wish)
-    ? {name:'EUPHORIA',description:'Una discoteca infinita senza orologi né finestre. La musica e le luci restano sempre al massimo; non c’è un segnale che dica quando uscire.'}
-    : /hellsire/.test(wish) ? {name:'HELLSIRE',description:'Un luogo caldo, verticale e industriale, pieno di promesse e segnali. Ogni insegna del desiderio indica un piano più in alto.'}
+    ? {name:'EUPHORIA',description:'Una discoteca infinita senza orologi né finestre. La musica e le luci restano sempre al massimo; non c’è un segnale che dica quando uscire.',question:'Come capiremo quando uscire da un luogo senza orologi?'}
+    : /hellsire/.test(wish) ? {name:'HELLSIRE',description:'Un luogo caldo, verticale e industriale, pieno di promesse e segnali. Ogni insegna del desiderio indica un piano più in alto.',question:'Che cosa indicano davvero le insegne ai piani più alti?'}
     : places[Math.abs(d.seed ?? day) % places.length]!;
   return {
     id,
@@ -429,6 +517,7 @@ export function riseWorld(previous: World, record: MonRecord, day: number): Worl
     emergedOnDay: day,
     emergedWith: d.name,
     previousWorldId: previous.id,
+    inquiry: { question: place.question },
     canon: [
       {
         id: `canon_world-change_origin_${d.mindline_node}`,

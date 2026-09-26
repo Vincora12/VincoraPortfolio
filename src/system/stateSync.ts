@@ -1,3 +1,5 @@
+import { sha256Hex } from './sha256';
+
 /** Small acknowledgement cache, never another copy of application data. */
 export interface SyncReceipt { revision: string | null; hash: string }
 export type SyncStatus = { status: 'idle' | 'syncing' | 'synced' | 'pending' | 'conflict' | 'error'; message?: string };
@@ -21,6 +23,18 @@ export function rememberSyncReceipt(next: SyncReceipt): void {
   receipt = next;
   try { localStorage.setItem(KEY, JSON.stringify(next)); } catch { /* Cache full: in-memory receipt remains usable, reload is conservative. */ }
 }
+/** A failed save never updates the receipt (only a success does) — so a
+    stale `baseRevision` (e.g. from a receipt set right before the server
+    accepted a DIFFERENT write) makes every future retry repeat the exact
+    same 409 forever, since nothing ever re-reads the server's real current
+    revision. Forgetting the receipt on a STATE_CONFLICT breaks that loop:
+    the next save first re-syncs (see store.ts `scheduleRemoteSave`'s
+    `if (!readSyncReceipt())` branch) instead of resending the same stale
+    guess. */
+export function forgetSyncReceipt(): void {
+  receipt = null;
+  try { localStorage.removeItem(KEY); } catch { /* in-memory already cleared */ }
+}
 
 // Rebuildable prompts and local routing/progress indicators cannot mark a
 // server snapshot dirty on reload. Canonical data itself is not removed.
@@ -33,8 +47,7 @@ export function syncComparable(value: unknown, depth = 0): unknown {
   return value;
 }
 export async function snapshotHash(value: unknown): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(syncComparable(value))));
-  return Array.from(new Uint8Array(digest), (v) => v.toString(16).padStart(2,'0')).join('');
+  return sha256Hex(JSON.stringify(syncComparable(value)));
 }
 export function syncDecision(input: {
   localHash: string; remoteHash: string; receipt: SyncReceipt | null;

@@ -20,11 +20,10 @@
 
 import { getStore } from './localStore';
 import { sendPushNotification } from './pushDelivery';
-import { callProvider } from './providers';
 import { resolveRoute } from './routing';
-import { checkCap, recordSpend } from './spend';
-import { loadCoreContext } from './coreContext';
+import { checkCap } from './spend';
 import { isNotificationEnabled } from './notificationPrefs';
+import { executeRun } from './v2/runEngine';
 
 /* ============================================================================
    LA CADENZA
@@ -244,29 +243,15 @@ function splitLead(text: string): { lead: string; body: string } {
 
 async function runOne(automation: Automation, now: Date): Promise<AutomationResult> {
   const route = resolveRoute('character-voice');
-  const { systemPrompt } = await loadCoreContext({
-    query: automation.prompt,
-    body: 'external',
-    toolsAvailable: false,
-  });
-
-  const result = await callProvider(route.provider, {
-    model: route.model,
-    system: [{ text: systemPrompt }, { text: AUTOMATION_RULES }],
-    turns: [],
-    user: automation.prompt,
+  const result = await executeRun({
+    profile: 'automation',
+    input: automation.prompt,
+    system: [{ text: AUTOMATION_RULES }],
+    modelPreference: route.model,
     webSearch: true,
-    maxTokens: 1600,
-    effort: 'low',
+    maxOutputTokens: 1600,
   });
-
-  if (result.usage.inputTokens || result.usage.outputTokens) {
-    await recordSpend('character-voice', result.model, result.usage, {
-      action: 'automation',
-      subsystem: 'automation',
-    });
-  }
-  if (!result.ok || !result.text.trim()) {
+  if (result.status !== 'completed' || !result.text.trim()) {
     throw new Error(result.error || 'Il modello non ha risposto.');
   }
 

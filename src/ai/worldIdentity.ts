@@ -27,6 +27,7 @@ export interface WorldIdentity {
   name: string;
   identity: string;
   descriptor: string;
+  question?: string;
 }
 
 export interface WorldIdentityOutcome {
@@ -40,6 +41,7 @@ const WORLD_IDENTITY_RULES = [
   'Dai un nome e un\'identità a un posto narrativo nuovo — un World nel senso di VINZ.MON: un territorio',
   'concreto che la creatura sta esplorando: architettura, atmosfera, oggetti e una regola del luogo.',
   'Traduci il Cultural DNA e l’eventuale scoperta in una geografia originale; nessun collage di citazioni.',
+  'Dai al Mon UNA domanda concreta su questo luogo che possa esplorare con il giocatore e a cui gli eventi del World possano dare una risposta. Non svelare il tema nascosto e non formulare diagnosi sull’utente.',
   'La scoperta documentata è un fatto pubblico; il World che ne nasce è invenzione narrativa, non un fatto sull’utente.',
   '',
   'COSA NON PUOI FARE',
@@ -52,7 +54,8 @@ const WORLD_IDENTITY_RULES = [
   '{',
   '  "name": "un riferimento breve, come un\'etichetta di soglia (2-5 parole).",',
   '  "identity": "una frase sola: cosa rende stabile e riconoscibile questo posto.",',
-  '  "descriptor": "1-2 frasi: com\'è adesso, appena aperto — non ancora esplorato fino in fondo."',
+  '  "descriptor": "1-2 frasi: com\'è adesso, appena aperto — non ancora esplorato fino in fondo.",',
+  '  "question": "una domanda breve, concreta e aperta che il Mon porta in questo World"',
   '}',
   '',
   'Solo il JSON. Nessuna premessa, nessun commento, nessun blocco di codice.',
@@ -120,10 +123,12 @@ function parseWorldIdentity(raw: string): WorldIdentity | null {
   const name = typeof o.name === 'string' ? o.name.trim() : '';
   const identity = typeof o.identity === 'string' ? o.identity.trim() : '';
   const descriptor = typeof o.descriptor === 'string' ? o.descriptor.trim() : '';
+  const question = typeof o.question === 'string' ? o.question.trim() : '';
 
   if (name.length < 2 || name.length > 60) return null;
   if (identity.length < 10 || identity.length > 400) return null;
   if (descriptor.length < 10 || descriptor.length > 600) return null;
+  if (question && (question.length < 12 || question.length > 200 || !question.endsWith('?'))) return null;
 
-  return { name, identity, descriptor };
+  return { name, identity, descriptor, ...(question ? { question } : {}) };
 }

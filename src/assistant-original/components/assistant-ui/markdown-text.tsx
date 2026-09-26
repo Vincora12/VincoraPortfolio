@@ -16,11 +16,12 @@ const TableScroll = (props: ComponentPropsWithoutRef<"table">) => (
   </div>
 );
 
-export function MarkdownText() {
+export function MarkdownText({ preprocess }: { preprocess?: (text: string) => string } = {}) {
   return (
     <MarkdownTextPrimitive
       remarkPlugins={[remarkGfm]}
       className="aui-md"
+      preprocess={preprocess}
       defer
       /* 🔷 «Le parole della chat devono entrare una alla volta.» Il testo
          arriva già intero per i modelli che non trasmettono a pezzi (solo

@@ -38,6 +38,17 @@ await build({
   external: ['@netlify/blobs'],
 });
 
+/* 🔴 TROVATO SISTEMANDO MEMORY V1 (2026-09-17), NON INTRODOTTO ORA: la
+   modalità 'custom' più sotto chiama `recordSpend` (per l'estrazione), che
+   scrive nel registro di spesa reale via `getStore('vinzmon-spend')` —
+   verificato con una chiamata isolata: senza questa riga, quella scrittura
+   finiva davvero in `data/vinzmon.sqlite`, il database di produzione.
+   `getStore()` inizializza la connessione al primo uso e la tiene in
+   cache per processo: va isolata QUI, prima di ogni altra chiamata in
+   questo file, non più giù dove serviva solo alla sezione mem0 — a quel
+   punto la cache punterebbe già al percorso reale. */
+process.env.VINZMON_DATA_DIR = mkdtempSync(join(tmpdir(), 'vinz-core-memory-data-'));
+
 const m = await import(`file://${out}?v=${Date.now()}`);
 let failures = 0;
 const check = (ok, label) => {
@@ -170,28 +181,44 @@ try {
 }
 
 // ── mem0 mode: fake Mem0 HTTP service, no real credentials ─────────────
+// MEMORY V1 (2026-09-17): writePersonalMemory/searchPersonalMemory in
+// modalità mem0 ora passano da _shared/memoryV1.ts (isolamento per mon,
+// cattura resistente ai riavvii, correzione nativa) invece del vecchio
+// addToMem0/searchMem0 diretto. La cattura scrive un job in
+// getStore('vinzmon-memory-v1-jobs') — isolato da VINZMON_DATA_DIR, già
+// impostato in cima al file.
 process.env.VINZMON_MEMORY_WRITER_MODE = 'mem0';
 process.env.VINZMON_MEMORY_SERVICE_URL = 'https://mem0.test';
 process.env.VINZMON_MEMORY_SERVICE_SECRET = 'test-secret';
+process.env.VINZMON_LOCAL_CORE = '1';
+process.env.MEM0_LLM_PROVIDER = 'ollama';
+process.env.MEM0_EMBEDDER_PROVIDER = 'ollama';
 let lastMem0Path;
 globalThis.fetch = async (url) => {
   lastMem0Path = String(url);
-  if (lastMem0Path.includes('/memory/add')) return new Response(JSON.stringify({ results: [{ id: 'm-new', memory: 'Sto lavorando ad ARCADIA' }] }), { status: 200 });
+  if (lastMem0Path.includes('/memory/upsert')) return new Response(JSON.stringify({ action: 'ADD', outcomes: [{ action: 'ADD', id: 'm-new', text: 'Sto lavorando ad ARCADIA' }] }), { status: 200 });
   if (lastMem0Path.includes('/memory/list')) return new Response(JSON.stringify({ results: [{ id: 'm1', memory: 'Vive a Milano' }] }), { status: 200 });
   if (lastMem0Path.includes('/memory/search')) return new Response(JSON.stringify({ results: [{ id: 'm1', memory: 'Vive a Milano', score: 0.9 }] }), { status: 200 });
   return new Response(JSON.stringify({ results: [] }), { status: 200 });
 };
 
 try {
-  const mem0Write = await m.writePersonalMemory({ text: 'Sto lavorando ad ARCADIA', messageId: 'mem0-1' }, 'mem0', untouchedStore);
-  check(mem0Write.backend === 'mem0' && mem0Write.result.updated === true, 'la modalità mem0 scrive su Mem0, mai sul ME Model');
-  check(lastMem0Path.includes('/memory/add'), 'la scrittura raggiunge davvero l’endpoint Mem0 giusto');
+  const mem0Write = await m.writePersonalMemory({ text: 'Sto lavorando ad ARCADIA', messageId: 'mem0-check-1' }, 'mem0', untouchedStore);
+  check(mem0Write.backend === 'mem0' && mem0Write.result.updated === true, 'la modalità mem0 scrive su Mem0 (via Memory V1), mai sul ME Model');
+  check(lastMem0Path.includes('/memory/upsert'), 'la scrittura raggiunge l’endpoint di correzione nativa, non più il vecchio /memory/add diretto');
+
+  // Un secondo tentativo con LO STESSO messageId non deve richiamare Mem0:
+  // idempotenza della cattura, verificata qui e non solo dichiarata.
+  lastMem0Path = undefined;
+  const mem0WriteRetry = await m.writePersonalMemory({ text: 'Sto lavorando ad ARCADIA', messageId: 'mem0-check-1' }, 'mem0', untouchedStore);
+  check(mem0WriteRetry.result.warnings?.[0]?.includes('already_done'), 'un retry con lo stesso messageId trova il lavoro già fatto, non lo ripete');
+  check(lastMem0Path === undefined, 'il retry idempotente non ha nemmeno chiamato il servizio Mem0');
 
   const mem0List = await m.listPersonalMemory(untouchedStore);
   check(mem0List.length === 1 && mem0List[0].text === 'Vive a Milano', 'in modalità mem0 la lista personale legge Mem0, non il ME Model — questo è esattamente il bug che machines.ts aveva prima di questa fase');
 
   const mem0Search = await m.searchPersonalMemory('Milano', 5, untouchedStore);
-  check(mem0Search[0]?.score === 0.9, 'in modalità mem0 la ricerca è la ricerca semantica reale di Mem0, non il filtro per parole');
+  check(mem0Search[0]?.score === 0.9, 'in modalità mem0 la ricerca è la ricerca semantica reale di Mem0 (via il merge USER/MON di Memory V1), non il filtro per parole');
 
   const mem0View = await m.readMeMemoryView(untouchedStore);
   check(
@@ -201,11 +228,23 @@ try {
 
   const mem0Search2 = await m.searchMeMemoryView('Milano', untouchedStore);
   check(Array.isArray(mem0Search2.memories), 'POST /api/me-memory in modalità mem0 resta la ricerca Mem0, stessa forma di prima');
+
+  // Il flag deve rifiutarsi rumorosamente, non ripiegare in silenzio, se
+  // 'mem0' è attivo senza le condizioni di "solo locale".
+  delete process.env.MEM0_LLM_PROVIDER;
+  let guardThrew = false;
+  try { await m.writePersonalMemory({ text: 'non deve arrivare da nessuna parte', messageId: 'mem0-check-guard' }, 'mem0', untouchedStore); }
+  catch (error) { guardThrew = /ollama/i.test(error.message); }
+  check(guardThrew, 'senza MEM0_LLM_PROVIDER=ollama, la modalità mem0 rifiuta di scrivere invece di rischiare un ripiego cloud');
 } finally {
   globalThis.fetch = originalFetch;
   delete process.env.VINZMON_MEMORY_SERVICE_URL;
   delete process.env.VINZMON_MEMORY_SERVICE_SECRET;
   delete process.env.VINZMON_MEMORY_WRITER_MODE;
+  delete process.env.VINZMON_DATA_DIR;
+  delete process.env.VINZMON_LOCAL_CORE;
+  delete process.env.MEM0_LLM_PROVIDER;
+  delete process.env.MEM0_EMBEDDER_PROVIDER;
 }
 
 if (failures) {

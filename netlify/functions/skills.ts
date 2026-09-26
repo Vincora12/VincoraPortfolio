@@ -59,6 +59,7 @@ interface Source {
   label: string;
   repo: string;
   path: string;
+  directoryDepth: number;
   ref: string;
   homepage: string;
 }
@@ -66,10 +67,20 @@ interface Source {
 /** Il registro delle sorgenti. Aggiungerne una è aggiungere una riga qui. */
 const SOURCES: Source[] = [
   {
+    id: 'hermes-official',
+    label: 'Hermes Skills Hub · ufficiali',
+    repo: 'NousResearch/hermes-agent',
+    path: 'optional-skills',
+    directoryDepth: 2,
+    ref: 'main',
+    homepage: 'https://github.com/NousResearch/hermes-agent',
+  },
+  {
     id: 'anthropics-skills',
     label: 'Agent Skills',
     repo: 'anthropics/skills',
     path: 'skills',
+    directoryDepth: 1,
     ref: 'main',
     homepage: 'https://github.com/anthropics/skills',
   },
@@ -82,6 +93,7 @@ interface CatalogEntry {
   name: string;
   description: string;
   homepage: string;
+  catalogPath: string;
   files: string[];
   hasScripts: boolean;
   bytes: number;
@@ -108,7 +120,10 @@ function skillsDirectory(): string {
   return resolve(localDataDirectory(), 'skills');
 }
 
-async function get(url: string, accept?: string): Promise<Response> {
+const RATE_LIMIT_RETRIES = 3;
+const RATE_LIMIT_FALLBACK_DELAY_MS = 1_500;
+
+async function fetchOnce(url: string, accept?: string): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
@@ -119,6 +134,38 @@ async function get(url: string, accept?: string): Promise<Response> {
   } finally {
     clearTimeout(timer);
   }
+}
+
+/* 🔴 «File non scaricabile (429).» api.github.com e raw.githubusercontent.com
+   hanno limiti per IP separati: il primo lo evitiamo con una sola chiamata per
+   l'albero (vedi sopra), ma i FILE di una skill sono uno scaricamento a testa
+   — 28 per una skill media — e senza retry un singolo 429 di passaggio
+   buttava via l'intera installazione. Qui si rispetta `Retry-After` quando
+   c'è, altrimenti un'attesa fissa breve; solo sul 429, mai su un 4xx/5xx
+   genuino (un 404 non diventa vero riprovando). */
+async function get(url: string, accept?: string): Promise<Response> {
+  let response = await fetchOnce(url, accept);
+  for (let attempt = 0; response.status === 429 && attempt < RATE_LIMIT_RETRIES; attempt += 1) {
+    const retryAfterHeader = Number(response.headers.get('retry-after'));
+    const delayMs = Number.isFinite(retryAfterHeader) && retryAfterHeader > 0
+      ? retryAfterHeader * 1000
+      : RATE_LIMIT_FALLBACK_DELAY_MS * (attempt + 1);
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
+    response = await fetchOnce(url, accept);
+  }
+  return response;
+}
+
+async function mapConcurrent<T, R>(values: T[], concurrency: number, each: (value: T) => Promise<R>): Promise<R[]> {
+  const results = new Array<R>(values.length);
+  let cursor = 0;
+  await Promise.all(Array.from({ length: Math.min(concurrency, values.length) }, async () => {
+    while (cursor < values.length) {
+      const index = cursor++;
+      results[index] = await each(values[index]);
+    }
+  }));
+  return results;
 }
 
 /** Nome e descrizione stanno nel frontmatter YAML di SKILL.md. Solo quei due.
@@ -171,32 +218,42 @@ async function buildCatalog(): Promise<CatalogEntry[]> {
     if (!tree.ok) throw new Error(`Sorgente ${source.label} non raggiungibile (${tree.status}).`);
     const body = (await tree.json()) as { tree?: { path: string; type: string; size?: number }[] };
 
-    const bySkill = new Map<string, { path: string; size: number }[]>();
-    for (const node of body.tree ?? []) {
-      if (node.type !== 'blob') continue;
-      const match = new RegExp(`^${source.path}/([^/]+)/(.+)$`).exec(node.path);
-      if (!match || !SAFE_ID.test(match[1])) continue;
-      const list = bySkill.get(match[1]) ?? [];
-      list.push({ path: node.path, size: node.size ?? 0 });
-      bySkill.set(match[1], list);
-    }
+    const blobs = (body.tree ?? []).filter((node) => node.type === 'blob');
+    const prefix = `${source.path}/`;
+    const manifests = blobs.filter((node) => {
+      if (!node.path.startsWith(prefix)) return false;
+      const parts = node.path.slice(prefix.length).split('/');
+      return parts.length === source.directoryDepth + 1 && parts.at(-1) === 'SKILL.md';
+    });
+    const baseIds = manifests.map((node) => node.path.slice(prefix.length, -'/SKILL.md'.length).split('/').at(-1) ?? '');
+    const duplicateIds = new Set(baseIds.filter((id, index) => baseIds.indexOf(id) !== index));
 
-    for (const [id, files] of bySkill) {
-      if (!files.some((file) => file.path.endsWith('/SKILL.md'))) continue;
-      const manifest = await get(rawUrl(source, `${source.path}/${id}/SKILL.md`));
+    const sourceEntries = await mapConcurrent(manifests, 8, async (manifestNode): Promise<CatalogEntry | null> => {
+      const relativeDirectory = manifestNode.path.slice(prefix.length, -'/SKILL.md'.length);
+      const baseId = relativeDirectory.split('/').at(-1) ?? '';
+      const rawId = duplicateIds.has(baseId) ? relativeDirectory : baseId;
+      const id = rawId.replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '').slice(0, 64);
+      if (!SAFE_ID.test(id)) return null;
+      const catalogPath = `${source.path}/${relativeDirectory}`;
+      const files = blobs
+        .filter((node) => node.path.startsWith(`${catalogPath}/`))
+        .map((node) => ({ path: node.path, size: node.size ?? 0 }));
+      const manifest = await get(rawUrl(source, manifestNode.path));
       const front = manifest.ok ? readFrontmatter(await manifest.text()) : {};
-      entries.push({
+      return {
         id,
         sourceId: source.id,
         sourceLabel: source.label,
         name: front.name ?? id,
         description: front.description ?? '',
-        homepage: `${source.homepage}/tree/${source.ref}/${source.path}/${id}`,
-        files: files.map((file) => file.path.slice(`${source.path}/${id}/`.length)).sort(),
-        hasScripts: files.some((file) => /\/scripts\//.test(file.path) || /\.(sh|py|js|mjs|ts)$/.test(file.path)),
+        homepage: `${source.homepage}/tree/${source.ref}/${catalogPath}`,
+        catalogPath,
+        files: files.map((file) => file.path.slice(`${catalogPath}/`.length)).sort(),
+        hasScripts: files.some((file) => /(?:^|\/)scripts\//.test(file.path.slice(`${catalogPath}/`.length)) || /\.(sh|py|js|mjs|ts)$/.test(file.path)),
         bytes: files.reduce((total, file) => total + file.size, 0),
-      });
-    }
+      };
+    });
+    entries.push(...sourceEntries.filter((entry): entry is CatalogEntry => entry !== null));
   }
 
   return entries.sort((a, b) => a.name.localeCompare(b.name));
@@ -349,7 +406,7 @@ async function install(sourceId: string, id: string): Promise<InstalledSkill> {
   const payload: { relative: string; body: Buffer }[] = [];
   for (const relative of entry.files) {
     if (relative.includes('..') || relative.startsWith('/')) throw new Error('Percorso file non valido.');
-    const response = await get(rawUrl(source, `${source.path}/${id}/${relative}`));
+    const response = await get(rawUrl(source, `${entry.catalogPath}/${relative}`));
     if (!response.ok) throw new Error(`File «${relative}» non scaricabile (${response.status}).`);
     const body = Buffer.from(await response.arrayBuffer());
     if (body.byteLength > MAX_FILE_BYTES) throw new Error(`File «${relative}» troppo grande.`);
@@ -424,7 +481,7 @@ export default async function handler(request: Request): Promise<Response> {
       try {
         const entry = (await catalog()).find((item) => item.sourceId === sourceId && item.id === id);
         if (!entry) return json({ error: 'Skill non trovata.' }, 404);
-        const manifest = await get(rawUrl(source, `${source.path}/${id}/SKILL.md`));
+        const manifest = await get(rawUrl(source, `${entry.catalogPath}/SKILL.md`));
         const markdown = manifest.ok ? (await manifest.text()).slice(0, 20_000) : '';
         return json({ skill: entry, manifest: markdown });
       } catch (error) {

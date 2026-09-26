@@ -163,6 +163,11 @@ export function SkillStore({ token, onClose, onInstalled }: { token: string | nu
             {detail.skill.sourceLabel} · {detail.skill.files.length} file · {sizeLabel(detail.skill.bytes)}
             {detail.skill.hasScripts ? ' · CONTIENE SCRIPT' : ' · nessuno script'}
           </p>
+          {detail.skill.homepage && (
+            <p className="daily-row__meta">
+              <a href={detail.skill.homepage} target="_blank" rel="noreferrer">Apri il repository originale ↗</a>
+            </p>
+          )}
 
           {/* 🔒 Prima di installare: cosa c'è dentro, non dopo. Chiusa di
               default — la trasparenza non deve significare aprire un dump

@@ -1,13 +1,15 @@
 import assert from 'node:assert/strict';
 import { build } from 'esbuild';
 
-globalThis.__syncTest = { records: new Map(), sequence: 0, writeFailure: false };
+globalThis.__syncTest = { records: new Map(), sequence: 0, writeFailure: false, notifications: [] };
 const compiled = await build({
   stdin: { contents: `export { default as handler } from './netlify/functions/state'; export * from './src/system/stateSync';`, resolveDir: process.cwd(), loader: 'ts' },
   bundle: true, write: false, platform: 'node', format: 'esm', logLevel: 'silent',
   plugins: [{ name: 'fake-atomic-blob', setup(b) {
     b.onResolve({ filter: /^@netlify\/blobs$|\/localStore$|^\.\/_shared\/localStore$/ }, () => ({ path: 'blobs', namespace: 'fixture' }));
-    b.onLoad({ filter: /.*/, namespace: 'fixture' }, () => ({ contents: `
+    b.onResolve({ filter: /\/pushDelivery$/ }, () => ({ path: 'push', namespace: 'fixture' }));
+    b.onLoad({ filter: /^push$/, namespace: 'fixture' }, () => ({ contents: `export async function sendPushNotification(payload){globalThis.__syncTest.notifications.push(payload);return {sent:1,removed:0};}` }));
+    b.onLoad({ filter: /^blobs$/, namespace: 'fixture' }, () => ({ contents: `
       export function getStore(){return {
         async getWithMetadata(key){const r=globalThis.__syncTest.records.get(key);return r?structuredClone(r):null;},
         async get(key){return globalThis.__syncTest.records.get(key)?.data??null;},
@@ -47,6 +49,17 @@ globalThis.__syncTest.writeFailure = false;
 assert.equal((await m.handler(request({ day: 1, reset: true, state: { day: 1, resetAt: '2099-01-01T00:00:00Z' }, baseRevision: current.revision }))).status, 200, 'explicit known-baseline reset still works');
 assert.ok(globalThis.__syncTest.records.has('day-12'), 'old daily backup retained');
 
+const afterReset = await (await m.handler(request())).json();
+const openEventState = { world: { id: 'world_NUL' }, ledger: { lifeEvent: { id: 'life_world_NUL_1', worldId: 'world_NUL', status: 'open' } } };
+const openedEventSave = await (await m.handler(request({ day: 1, state: openEventState, baseRevision: afterReset.revision }))).json();
+assert.equal(globalThis.__syncTest.notifications.length, 1, 'new canonical event sends one push');
+assert.equal(globalThis.__syncTest.notifications[0].url, '/?lifeEvent=life_world_NUL_1');
+const sameEventSave = await (await m.handler(request({ day: 1, state: { ...openEventState, marker: 'later' }, baseRevision: openedEventSave.revision }))).json();
+assert.equal(globalThis.__syncTest.notifications.length, 1, 'saving same open event does not notify twice');
+assert.equal((await m.handler(request({ day: 1, state: { ...openEventState, marker: 'stale' }, baseRevision: openedEventSave.revision }))).status, 409);
+assert.equal(globalThis.__syncTest.notifications.length, 1, 'rejected save sends no push');
+assert.ok(sameEventSave.revision);
+
 const baseline = { localHash: 'old', remoteHash: 'new', receipt: { revision: 'r1', hash: 'old' }, localDay: 12, remoteDay: 12, remoteRevision: 'r2' };
 assert.equal(m.syncDecision(baseline), 'download', 'same-day clean cache hydrates');
 assert.equal(m.syncDecision({ ...baseline, localHash: 'offline-edits' }), 'conflict', 'offline edits preserved');
@@ -55,6 +68,13 @@ assert.equal(m.syncDecision({ ...baseline, receipt: null }), 'conflict', 'legacy
 assert.equal(m.syncDecision({ ...baseline, receipt: null, emptyLocal: true }), 'download', 'new browser hydrates existing server');
 assert.equal(m.syncDecision({ ...baseline, localDay: 20 }), 'conflict', 'future DEV never rolled back');
 assert.equal(m.syncDecision({ ...baseline, explicitReset: true }), 'conflict', 'reset not undone by remote');
+assert.equal(await m.snapshotHash('abc'), '6cc43f858fbb763301637b5af970e2a46b46f461f27e5a0f41e009c59b827b25', 'snapshot hashing remains stable');
+const multiBlockHash = await m.snapshotHash({ payload: 'VINZ.MON—'.repeat(250) });
+const cryptoDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'crypto');
+Object.defineProperty(globalThis, 'crypto', { configurable: true, value: undefined });
+assert.equal(await m.snapshotHash('abc'), '6cc43f858fbb763301637b5af970e2a46b46f461f27e5a0f41e009c59b827b25', 'snapshot hashing works without WebCrypto');
+assert.equal(await m.snapshotHash({ payload: 'VINZ.MON—'.repeat(250) }), multiBlockHash, 'fallback matches WebCrypto for multi-block Unicode state');
+if (cryptoDescriptor) Object.defineProperty(globalThis, 'crypto', cryptoDescriptor);
 assert.equal(await m.snapshotHash({ mons: { a: { data: { a: 1 }, compiledPrompts: 'large' } }, typingVisible: true }), await m.snapshotHash({ mons: { a: { data: { a: 1 } } }, typingVisible: false }), 'ephemeral/cache differences do not invalidate acknowledgement');
 const realStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
 Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: { getItem: () => null, setItem: () => { throw new DOMException('full', 'QuotaExceededError'); } } });

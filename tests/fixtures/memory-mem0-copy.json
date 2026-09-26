@@ -1,0 +1,4 @@
+[
+  { "id": "mem0-1", "memory": "Vincenzo vive a Roma", "metadata": { "source": "fixture" } },
+  { "id": "mem0-2", "memory": "Preferisce risposte concise", "metadata": { "source": "fixture" } }
+]

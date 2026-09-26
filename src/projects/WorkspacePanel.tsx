@@ -6,6 +6,7 @@ import { ReminderPanel } from './ReminderPanel';
 import { Markdown } from '../system/Markdown';
 import './workspace-panel.css';
 import { MODELS } from '../assistant-original/models';
+import { browserUuid } from '../system/browserUuid';
 
 export type WorkspaceIntent = 'artifact' | 'automation';
 export function WorkspacePanel({ token, projectId, onSelectProject, onBeginChat, model, onModel }: {
@@ -63,7 +64,7 @@ export function WorkspacePanel({ token, projectId, onSelectProject, onBeginChat,
     if (files.reduce((n, f) => n + f.size, 0) > 5 * 1024 * 1024) throw new Error('Carica al massimo 5 MB per volta.');
     const prepared: ProjectFile[] = await Promise.all(files.map(async file => {
       const data = await new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result).split(',')[1] ?? ''); reader.onerror = () => reject(new Error(`Impossibile leggere ${file.name}`)); reader.readAsDataURL(file); });
-      return { id: crypto.randomUUID(), name: file.name, size: file.size, data };
+      return { id: browserUuid(), name: file.name, size: file.size, data };
     }));
     setProject(await mutateProject(token, { action: 'upload-files', projectId: project.id, revision: project.revision, files: prepared }));
     await refresh(); setNotice(`${files.length} file caricati.`);

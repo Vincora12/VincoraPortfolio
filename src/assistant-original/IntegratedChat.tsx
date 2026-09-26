@@ -13,7 +13,7 @@ import {
 import { createLocalStorageAdapter } from "@assistant-ui/core/react";
 import type { ToolResult, ToolUse } from "@/ai/tools";
 import { createNetlifyChatModel } from "./netlify-runtime";
-import { VinzImageAttachmentAdapter, VinzPdfAttachmentAdapter } from "./image-attachment";
+import { VinzImageAttachmentAdapter, VinzPdfAttachmentAdapter, VinzSpreadsheetAttachmentAdapter } from "./image-attachment";
 import { ChatSurface } from "./chat-surface";
 import "./styles.css";
 import { migrateStoragePrefix, serverBackedStorage } from "@/system/serverStorage";
@@ -105,6 +105,7 @@ const threadAdapter = withLocalUnsavedSession(
 const attachments = new CompositeAttachmentAdapter([
   new VinzImageAttachmentAdapter(),
   new VinzPdfAttachmentAdapter(),
+  new VinzSpreadsheetAttachmentAdapter(),
   new SimpleTextAttachmentAdapter(),
 ]);
 

@@ -1098,6 +1098,7 @@ async function openAiProtocol(
   url: string,
   key: string,
   req: ProviderRequest,
+  initialRequest: { tokensField: 'max_completion_tokens' | 'max_tokens'; reasoning: boolean } = { tokensField: 'max_completion_tokens', reasoning: true },
 ): Promise<ProviderResult> {
   /* ⚠️ QUANTO DEVE RAGIONARE, DETTO.
      🔷 «Il prompt carica ma non va.»
@@ -1167,7 +1168,7 @@ async function openAiProtocol(
     });
 
   try {
-    let res = await send('max_completion_tokens', true);
+    let res = await send(initialRequest.tokensField, initialRequest.reasoning);
 
     if (!res.ok) {
       const detail = await res.text();
@@ -1269,13 +1270,12 @@ async function xai(req: ProviderRequest): Promise<ProviderResult> {
    sia acceso o non abbia ancora scaricato quel modello: lo dice `fetch`
    stesso, con l'errore di connessione o il 404 del modello mancante.
 
-   ⚠️ NIENTE RAGIONAMENTO DA CHIEDERE. Un modello da 3 miliardi di parametri
-   non ha una manopola di sforzo che significhi qualcosa — `openAiProtocol`
-   proverebbe comunque a mandare `reasoning_effort`, Ollama lo ignora come
-   ignora ogni campo che non riconosce, e la richiesta funziona lo stesso. */
+   Ollama riceve `max_tokens` senza `reasoning_effort`: qwen2.5:14b rifiuta
+   esplicitamente la richiesta con "does not support thinking" se quel campo
+   viene inviato. */
 async function ollama(req: ProviderRequest): Promise<ProviderResult> {
   const base = (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434').replace(/\/$/, '');
-  return openAiProtocol('ollama', `${base}/v1/chat/completions`, 'ollama-non-serve-chiave', req);
+  return openAiProtocol('ollama', `${base}/v1/chat/completions`, 'ollama-non-serve-chiave', req, { tokensField: 'max_tokens', reasoning: false });
 }
 
 /** Stessa `base()`/chiave finta di `ollama()` sopra, ma in streaming per i

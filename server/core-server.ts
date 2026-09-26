@@ -6,6 +6,8 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import agentLab from '../netlify/functions/agent-lab';
 import ai from '../netlify/functions/ai';
+import aiChatBackground from '../netlify/functions/ai-chat-background';
+import aiChatJob from '../netlify/functions/ai-chat-job';
 import assets from '../netlify/functions/assets';
 import automations from '../netlify/functions/automations';
 import brain from '../netlify/functions/brain';
@@ -45,10 +47,13 @@ import v2Issues from '../netlify/functions/v2-issues';
 import v2Lobehub from '../netlify/functions/v2-lobehub';
 import { processAutomations } from '../netlify/functions/_shared/automations';
 import { processDueMachines } from '../netlify/functions/_shared/machines';
+import { resumeIncompleteMemoryV1Captures } from '../netlify/functions/_shared/memoryV1';
 import { closeLocalStore, localDatabasePath } from '../netlify/functions/_shared/localStore';
 import memoryReset from '../netlify/functions/memory-reset';
 import localLlm from '../netlify/functions/local-llm';
 import repoOps from '../netlify/functions/repo-ops';
+import runs from '../netlify/functions/runs';
+import hermesTools from '../netlify/functions/hermes-tools';
 import notificationPrefs from '../netlify/functions/notification-prefs';
 import vinzWorkspace from '../netlify/functions/vinz-workspace';
 
@@ -81,7 +86,7 @@ loadEnv();
 process.env.VINZMON_LOCAL_CORE = '1';
 
 const handlers: Record<string, Handler> = {
-  '/api/agent-lab': agentLab, '/api/ai': ai, '/api/assets': assets, '/api/brain': brain,
+  '/api/agent-lab': agentLab, '/api/ai': ai, '/api/ai-chat-job': aiChatJob, '/api/assets': assets, '/api/brain': brain,
   '/api/automations': automations, '/api/calendar': calendar, '/api/code-tools': codeTools, '/api/core-context': coreContext,
   '/api/narrative-material': narrativeMaterial, '/api/cultural-discovery': culturalDiscovery, '/api/evolution-job': evolutionJob, '/api/food': food, '/api/ingest': ingest,
   '/api/lab-duel-job': labDuelJob, '/api/lessons': lessons, '/api/machines': machines,
@@ -100,10 +105,13 @@ handlers['/api/local-llm'] = localLlm;
 handlers['/api/repo-ops'] = repoOps;
 handlers['/api/notification-prefs'] = notificationPrefs;
 handlers['/api/vinz-workspace'] = vinzWorkspace;
+handlers['/api/runs'] = runs;
+handlers['/api/hermes-tools'] = hermesTools;
 
 const background: Record<string, (request: Request) => Promise<void>> = {
   '/api/evolution-background': evolutionBackground,
   '/api/lab-duel-background': labDuelBackground,
+  '/api/ai-chat-background': aiChatBackground,
 };
 
 const contentTypes: Record<string, string> = {
@@ -140,12 +148,32 @@ async function sendResponse(response: Response, res: ServerResponse): Promise<vo
   response.headers.forEach((value, key) => res.setHeader(key, value));
   if (!response.body) return void res.end();
   const reader = response.body.getReader();
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    if (!res.write(Buffer.from(value))) await new Promise<void>((done) => res.once('drain', done));
+  let disconnected = false;
+  const cancel = () => {
+    disconnected = true;
+    void reader.cancel('client disconnected').catch(() => undefined);
+  };
+  res.once('close', cancel);
+  try {
+    while (!disconnected) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      if (!res.write(Buffer.from(value))) {
+        await new Promise<void>((done) => {
+          const finish = () => {
+            res.off('drain', finish);
+            res.off('close', finish);
+            done();
+          };
+          res.once('drain', finish);
+          res.once('close', finish);
+        });
+      }
+    }
+  } finally {
+    res.off('close', cancel);
   }
-  res.end();
+  if (!disconnected) res.end();
 }
 
 function serveStatic(pathname: string, res: ServerResponse): void {
@@ -173,6 +201,17 @@ let memoryProcess: ChildProcess | undefined;
 let memoryStatus = process.env.VINZMON_MEMORY_WRITER_MODE === 'mem0' ? 'starting' : 'custom-ready';
 async function startLocalMem0(): Promise<void> {
   if (process.env.VINZMON_MEMORY_WRITER_MODE !== 'mem0') return;
+  /* 🔒 MEMORY V1 (2026-09-17) — senza questo controllo, accendere
+     `VINZMON_MEMORY_WRITER_MODE=mem0` da solo (senza impostare ANCHE
+     MEM0_LLM_PROVIDER/MEM0_EMBEDDER_PROVIDER) faceva ripiegare `mem0ai` sul
+     provider 'openai' di default (verificato in `services/mem0/server.ts`),
+     e le due righe qui sotto passavano la vera OPENAI_API_KEY del progetto
+     al processo — un ripiego cloud silenzioso proprio per i ricordi
+     personali, il contrario di quanto richiesto per Memory V1. Si rifiuta
+     di partire piuttosto che rischiarlo. */
+  if (process.env.MEM0_LLM_PROVIDER !== 'ollama' || process.env.MEM0_EMBEDDER_PROVIDER !== 'ollama') {
+    throw new Error('VINZMON_MEMORY_WRITER_MODE=mem0 richiede MEM0_LLM_PROVIDER=ollama e MEM0_EMBEDDER_PROVIDER=ollama — rifiutato per non rischiare un ripiego cloud silenzioso sui ricordi personali.');
+  }
   process.env.VINZMON_MEMORY_SERVICE_URL ||= 'http://127.0.0.1:8788';
   process.env.VINZMON_MEMORY_SERVICE_SECRET ||= process.env.VINZMON_TOKEN;
   const secret = process.env.VINZMON_MEMORY_SERVICE_SECRET;
@@ -180,11 +219,13 @@ async function startLocalMem0(): Promise<void> {
   const env = {
     ...process.env,
     VINZMON_MEMORY_SERVICE_SECRET: secret,
+    MEM0_TELEMETRY: process.env.MEM0_TELEMETRY ?? 'false',
     MEM0_HISTORY_DB_PATH: resolve(process.env.VINZMON_DATA_DIR || join(root, 'data'), 'mem0-history.sqlite'),
     MEM0_VECTOR_DB_PATH: resolve(process.env.VINZMON_DATA_DIR || join(root, 'data'), 'mem0-vectors.sqlite'),
     HOST: '127.0.0.1', PORT: '8788',
-    MEM0_LLM_API_KEY: process.env.MEM0_LLM_API_KEY || process.env.OPENAI_API_KEY || '',
-    MEM0_EMBEDDER_API_KEY: process.env.MEM0_EMBEDDER_API_KEY || process.env.OPENAI_API_KEY || '',
+    /* Ollama non usa una API key: niente più ripiego su OPENAI_API_KEY qui. */
+    MEM0_LLM_API_KEY: '',
+    MEM0_EMBEDDER_API_KEY: '',
   };
   memoryProcess = spawn(process.execPath, [join(root, 'services/mem0/dist/server.js')], { cwd: join(root, 'services/mem0'), env, stdio: 'inherit' });
   memoryProcess.once('exit', () => { memoryStatus = 'stopped'; });
@@ -214,6 +255,11 @@ async function runScheduler(): Promise<void> {
        diceva «esecuzione esplicita o batch futuro», e questo è il batch. */
     try { await processDueMachines(); }
     catch (error) { console.warn('[machines] esecuzione non riuscita', error); }
+    /* MEMORY V1 — riprende catture rimaste a metà (processo morto durante
+       una scrittura). No-op quando il flag è spento (`isMemoryV1Enabled()`
+       torna false), quindi sicuro da lasciare sempre nel battito. */
+    try { await resumeIncompleteMemoryV1Captures(); }
+    catch (error) { console.warn('[memory-v1] ripresa non riuscita', error); }
     schedulerStatus = 'ready';
   }
   catch { schedulerStatus = 'error'; }

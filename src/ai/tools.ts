@@ -49,6 +49,7 @@ import type { CalendarEvent, CalendarEventInput } from '../engine/calendarEvents
 import { loadLocation } from '../engine/locationSignal';
 import { ICON_NAME_LIST } from '../system/iconNames';
 import { loadDeviceSignals } from '../engine/deviceSignals';
+import { sha256Hex } from '../system/sha256';
 
 /* --- La forma di uno strumento ---------------------------------------------- */
 
@@ -125,6 +126,23 @@ export interface ToolContext {
   configureTargets: (targets: Partial<{ kcal: number; protein: number; carbs: number; fat: number }>) => void;
   configureHealth: (focus: 'today' | 'diet' | 'sport' | 'progress', goal: string) => void;
   manageMe: (input: { action: 'create' | 'update' | 'delete' | 'move'; id?: string; section?: 'today' | 'diet' | 'sport'; type?: 'text' | 'list' | 'calendar' | 'metric'; title?: string; content?: string; items?: string[]; position?: number }) => { ok: boolean; id?: string; error?: string };
+  /**
+   * 🔷 CURIOSITY FIRST — le domande che il Mon attivo porta adesso, sola
+   * lettura (il modello le vede già nel prompt; questo campo esiste per
+   * validare `domanda_id` prima di scrivere). `undefined` per un Mon
+   * legacy o senza `ToolContext` esteso in questo runtime.
+   */
+  curiosityQuestions?: readonly { id: string; area: string; text: string; status: string }[];
+  /** Registra un apprendimento e aggiorna lo stato della domanda collegata. Assente/`ok:false` per un Mon non curiosity-first. */
+  recordCuriosityLearning?: (input: {
+    questionId: string;
+    kind: 'esperienza' | 'informazione' | 'ipotesi';
+    about: 'utente' | 'mon' | 'mondo';
+    text: string;
+    questionStatus: 'aperta' | 'approfondita' | 'parzialmente chiarita' | 'chiusa';
+    emergedQuestion?: { area: string; text: string };
+    toolCallId: string;
+  }) => { ok: boolean; error?: string };
 }
 
 /* ============================================================================
@@ -561,6 +579,24 @@ export const TOOLS: ToolDef[] = [
       contenuto: { type: 'string', description: 'Solo il corpo in Markdown della skill (titolo, passi, esempi) — NIENTE frontmatter "---": nome e descrizione li mette già questo strumento, dai campi sopra. Richiesto per crea; opzionale per aggiorna se cambi solo nome/descrizione.' },
     }, required: ['azione'] },
   },
+  {
+    name: 'registra_scoperta',
+    description:
+      'SOLO per i Mon Curiosity First (chi non ne fa parte non ha domande da collegare: lo strumento rifiuta). Registra che una delle tue domande aperte ha ricevuto qualcosa — un\'esperienza vissuta, un\'informazione con una fonte, o una tua ipotesi provvisoria — e aggiorna lo stato di quella domanda. Non un\'opinione dell\'utente diventata tua: se VINZ dice di amare qualcosa, riguarda="utente", mai "mon". Usalo solo quando una risposta reale fa davvero avanzare una domanda che porti — non ad ogni messaggio, e mai per inventare un ricordo. Puoi anche far emergere una nuova domanda, se nasce davvero da questo scambio.',
+    schema: {
+      type: 'object',
+      properties: {
+        domanda_id: { type: 'string', description: 'Id della domanda a cui si collega, fra quelle che porti adesso.' },
+        tipo: { type: 'string', enum: ['esperienza', 'informazione', 'ipotesi'], description: 'esperienza = qualcosa realmente accaduto; informazione = un fatto/dichiarazione con una fonte; ipotesi = una TUA interpretazione provvisoria, non un fatto.' },
+        riguarda: { type: 'string', enum: ['utente', 'mon', 'mondo'], description: 'Di chi parla questo apprendimento — utente per qualcosa che ha detto/fatto VINZ, mai automaticamente tuo.' },
+        testo: { type: 'string', maxLength: 400, description: 'Breve. Cosa hai registrato, non l\'intero messaggio.' },
+        nuovo_stato: { type: 'string', enum: ['aperta', 'approfondita', 'parzialmente chiarita', 'chiusa'], description: 'Nuovo stato della domanda collegata.' },
+        nuova_domanda_area: { type: 'string', enum: ['identità', 'relazione', 'funzionamento', 'etica', 'cultura', 'mondo'], description: 'Solo se emerge davvero una nuova domanda da questo scambio.' },
+        nuova_domanda_testo: { type: 'string', maxLength: 200 },
+      },
+      required: ['domanda_id', 'tipo', 'riguarda', 'testo', 'nuovo_stato'],
+    },
+  },
 ];
 
 /** I nomi, per i controlli. */
@@ -896,6 +932,33 @@ export function runTool(use: ToolUse, ctx: ToolContext): ToolResult {
             ? `Fatto: glielo dirò fra ${inDays} giorni e poi ogni ${every}.`
             : `Fatto: glielo dirò il giorno ${ctx.day + inDays}.`,
         );
+      }
+
+      case 'registra_scoperta': {
+        if (!ctx.recordCuriosityLearning) return fail('Non disponibile: questo Mon non usa il sistema Curiosity First.');
+        const questionId = str(args.domanda_id);
+        const kind = str(args.tipo) as 'esperienza' | 'informazione' | 'ipotesi';
+        const about = str(args.riguarda) as 'utente' | 'mon' | 'mondo';
+        const text = str(args.testo);
+        const status = str(args.nuovo_stato) as 'aperta' | 'approfondita' | 'parzialmente chiarita' | 'chiusa';
+        if (!questionId) return fail('Manca a quale domanda si collega.');
+        if (!['esperienza', 'informazione', 'ipotesi'].includes(kind)) return fail('Il tipo non è valido.');
+        if (!['utente', 'mon', 'mondo'].includes(about)) return fail('«riguarda» non è valido.');
+        if (!text) return fail('Manca il testo di cosa hai registrato.');
+        if (!['aperta', 'approfondita', 'parzialmente chiarita', 'chiusa'].includes(status)) return fail('Il nuovo stato non è valido.');
+        const emergedArea = str(args.nuova_domanda_area);
+        const emergedText = str(args.nuova_domanda_testo);
+        const res = ctx.recordCuriosityLearning({
+          questionId,
+          kind,
+          about,
+          text,
+          questionStatus: status,
+          ...(emergedArea && emergedText ? { emergedQuestion: { area: emergedArea, text: emergedText } } : {}),
+          toolCallId: use.id,
+        });
+        if (!res.ok) return fail(res.error ?? 'Non registrato.');
+        return ok('Registrato.');
       }
 
       default:
@@ -1368,8 +1431,8 @@ async function executeReminderTool(use: ToolUse, token: string | null, projectId
     input = row ? { ...row.event, title, reminderAt, timezone } : { title, start: reminderAt, reminderAt, timezone, category: 'task', notes: '', status: 'planned', projectId };
     if (row && row.event.status !== 'planned') return fail('L’evento è annullato/completato: non viene riattivato implicitamente.');
     // Stable technical key makes an exact repeated request idempotent without another store.
-    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify([title, reminderAt, timezone, ...(projectId ? [projectId] : [])])));
-    id = row?.event.id ?? `reminder_${Array.from(new Uint8Array(digest)).slice(0, 16).map((n) => n.toString(16).padStart(2, '0')).join('')}`;
+    const digest = await sha256Hex(JSON.stringify([title, reminderAt, timezone, ...(projectId ? [projectId] : [])]));
+    id = row?.event.id ?? `reminder_${digest.slice(0, 32)}`;
     const existing = !row && rows.find(({event}) => event.id === id);
     if (existing) return { id: use.id, content: JSON.stringify({ status: 'already-exists', id, when: existing.event.reminderAt ?? null, eventStatus: existing.event.status, note: 'Nessun duplicato creato. Se disattivato, aggiorna esplicitamente usando id/versione.' }) };
   }
