@@ -30,14 +30,15 @@ import type { ContextDecision } from '@/ai/contextSelection';
 import { resolveChatContext } from '@/ai/chatContext';
 import { buildCapabilitySummary } from "@/ai/toolLayer";
 import { persistChatTrace, recordChatTrace, systemPromptComposition, traceClock, type ChatTrace } from "@/ai/chatTrace";
-import { newTurnDecision, type DecisionSource, type TurnExecutor } from "@/mon-core/turnDecision";
-import { finalizeTurnDecision, recordTurnDecision } from "@/mon-core/decisionLog";
+import { decideTurn, isWorkIntent, newTurnDecision, type TurnExecutor } from "@/mon-core/turnDecision";
+import { amendTurnDecision, finalizeTurnDecision, recordTurnDecision } from "@/mon-core/decisionLog";
+import { currentModeRequest } from "@/mon-core/modeStore";
 import { voiceCard } from "@/engine/voiceCard";
 import { captureChatMemoryForClient } from "@/assistant-original/chat-memory-feedback";
 import { postChatClientError, postChatDiagnostic, postRuntimeEvent } from "@/system/runtimeLog";
 import { createV2Issue } from "@/ai/backend";
 import { activeThreadId, consumeTopicContext, readWatermark, topicArchive } from "./conversation-topics";
-import { lastHermesFallbackCode, openHermesProjectRun, readHermesProjectEvents, type ContextUsage, type HermesWorkspaceFile } from './hermes-project-runtime';
+import { lastHermesFallbackCode, lastTurnWasCerebro, openHermesProjectRun, readHermesProjectEvents, type ContextUsage, type HermesWorkspaceFile } from './hermes-project-runtime';
 import { classifyV2Issue, isV2IssueIntent, v2IssueConfirmationText } from "@/ai/v2Issues";
 import { browserUuid } from "@/system/browserUuid";
 import { processLifeTurn } from "./life-cycle-runtime";
@@ -736,6 +737,10 @@ async function* runWithHermesProject(
   for await (const event of readHermesProjectEvents(response)) {
     if (event.type === 'text_delta') answer += event.delta;
     if (event.type === 'progress') thinkingText = event.message;
+    /* vNext MON CORE — the WORK package VINZ.MON actually handed to CEREBRO. */
+    if (event.type === 'decision') {
+      activity.push({ tool: 'mon-core', detail: `MON CORE → WORK · contesto progetto: ${event.contextItems} elementi · skill attive: ${event.skills} · delegato a CEREBRO`, status: 'PASS' });
+    }
     if (event.type === 'tool_started') {
       const detail = toolDetail(event.tool, event.preview);
       activity.push({ tool: event.tool, detail, status: 'RUNNING' });
@@ -1061,6 +1066,19 @@ function createBaseNetlifyChatModel(shared: { systemPrompt: string; requestId: s
   };
 }
 
+/* vNext MON CORE — every chunk of the answer carries the operational
+   decision that produced it (`metadata.custom.monCore`): mode, executor and
+   the real steps taken. The chat renders it as a compact execution line. */
+type MonCoreSummary = { mode: string; executor: string; requested: string; overrideRejected?: string; steps: string[] };
+function annotateMonCore<T>(chunk: T, summary: MonCoreSummary): T {
+  if (!chunk || typeof chunk !== 'object') return chunk;
+  const value = chunk as { metadata?: { custom?: Record<string, unknown> } & Record<string, unknown> };
+  return { ...value, metadata: { ...(value.metadata ?? {}), custom: { ...(value.metadata?.custom ?? {}), monCore: summary } } } as T;
+}
+async function* withMonCore<T>(source: AsyncGenerator<T, unknown, unknown> | AsyncIterable<T>, summary: MonCoreSummary): AsyncGenerator<T, void, unknown> {
+  for await (const chunk of source as AsyncIterable<T>) yield annotateMonCore(chunk, summary);
+}
+
 export function createNetlifyChatModel(
   runTool?: (use: ToolUse) => ToolResult | Promise<ToolResult>,
 ): ChatModelAdapter {
@@ -1117,42 +1135,72 @@ export function createNetlifyChatModel(
          conferma esplicita c'è, comanda quella — due strade insieme
          scriverebbero il piano due volte. */
       const confirmedPlan = !actionConfirmation && pendingPlan && confirms(user) ? pendingPlan : undefined;
-      /* vNext MON CORE — Turn Decision Record. Pure observation of the routing
-         below (rule names, executor, fallback reason); it does not change it. */
+      /* ════════════════════════════════════════════════════════════════════
+         vNext MON CORE — ONE canonical routing decision per turn.
+
+         `decideTurn()` (src/mon-core/turnDecision.ts) turns facts that this
+         function already computes with the existing intent rules and the
+         confirmation state machine into ANSWER / ACTION / WORK and an
+         executor. MON CORE decides and records; it is not another loop:
+           ANSWER → single-shot answer (createBaseNetlifyChatModel)
+           ACTION → bounded VINZ tool loop (replyWithLocalTools)
+           WORK   → CEREBRO (Hermes v1) via /api/runs
+         A Project being selected is no longer enough to wake CEREBRO.
+         ════════════════════════════════════════════════════════════════════ */
       const pendingConfirmed = Boolean((pendingSlot || pendingWorkout || waitingAction || pendingPlan) && confirms(user));
+      const projectKind = projectId === WORLD_PROJECT_ID ? 'world' as const : projectId ? 'project' as const : 'global' as const;
+      const requestedMode = currentModeRequest();
+      const specialRoute = isV2IssueIntent(user) ? 'issue' as const : isImageCreationIntent(user) ? 'image' as const : undefined;
+      const structuredAction = Boolean(mealConfirmation || workoutConfirmation || actionConfirmation || confirmedPlan);
+      const browserProductTool = needsLegacyProductTool(user, actionConfirmation, confirmedPlan);
+      const toolRules = shouldUseLocalTools(user);
+      const attachments = imagesForRun(args.messages).length > 0 || filesForRun(args.messages).some((file) => file.mediaType === 'text/plain');
+      const routing = decideTurn({
+        requested: requestedMode,
+        text: user,
+        project: projectKind,
+        pendingConfirmed,
+        structuredAction,
+        specialRoute,
+        browserProductTool,
+        toolRules,
+        attachments,
+        previousWasCerebro: lastTurnWasCerebro(args.messages),
+        toolsAvailable: Boolean(runTool),
+      });
       const decisionRules = [
         ...matchedIntentRules(user),
         ...(pendingConfirmed ? ['PENDING_CONFIRMATION'] : []),
         ...(actionConfirmation ? [`ACTION:${actionConfirmation.action}:${actionConfirmation.status}`] : []),
-        ...(projectId === WORLD_PROJECT_ID ? ['WORLD_PROJECT'] : projectId ? ['PROJECT_SELECTED'] : []),
+        ...(browserProductTool ? ['BROWSER_PRODUCT_TOOL'] : []),
+        ...(attachments ? ['ATTACHMENTS'] : []),
+        ...(isWorkIntent(user) ? ['WORK_INTENT'] : []),
+        ...(projectKind === 'world' ? ['WORLD_PROJECT'] : projectKind === 'project' ? ['PROJECT_SELECTED'] : []),
       ];
-      const decide = (executor: TurnExecutor, source: DecisionSource, extra: Record<string, unknown> = {}) => recordTurnDecision(newTurnDecision({
+      let executor: TurnExecutor = routing.executor;
+      recordTurnDecision(newTurnDecision({
         turnId: requestId,
+        requested: requestedMode,
+        mode: routing.mode,
         executor,
-        source: pendingConfirmed ? 'pending-confirmation' : source,
+        source: routing.source,
         rules: decisionRules,
-        capability: 'character-voice',
-        project: projectId === WORLD_PROJECT_ID ? 'world' : projectId ? 'project' : 'global',
-        ...extra,
+        capability: executor === 'image' ? 'image' : 'character-voice',
+        project: projectKind,
+        ...(routing.overrideRejected ? { overrideRejected: routing.overrideRejected } : {}),
+        ...(executor === 'cerebro' ? { cerebro: { attempted: true, delegated: true } } : {}),
       }));
-      if (isV2IssueIntent(user)) {
-        decide('issue', 'special-route');
+      const monCore = (steps: string[]) => ({ mode: routing.mode, executor, requested: requestedMode, ...(routing.overrideRejected ? { overrideRejected: routing.overrideRejected } : {}), steps });
+      if (executor === 'issue') {
         finalizeTurnDecision(requestId);
-        yield* runV2IssueCapture(user);
+        yield* withMonCore(runV2IssueCapture(user), monCore(['MON CORE', 'ACTION', 'segnalazione']));
         return;
       }
-      if (isImageCreationIntent(user)) {
-        decide('image', 'special-route', { capability: 'image' });
+      if (executor === 'image') {
         finalizeTurnDecision(requestId);
-        yield* runImageCreation(args.messages, args.abortSignal);
+        yield* withMonCore(runImageCreation(args.messages, args.abortSignal), monCore(['MON CORE', 'ACTION', 'immagine']));
         return;
       }
-      /* La decisione semantica appena calcolata deve bastare per entrare nel
-         percorso salute anche PRIMA della conferma. Prima controllavamo solo
-         `confirmed`: una frase naturale come «ho cenato» produceva
-         `needs-confirmation`, ma poi ricadeva nella chat senza strumenti e il
-         modello poteva inventare «registrato». */
-      const useTools = Boolean(runTool && (shouldUseLocalTools(user) || (projectId && projectId !== WORLD_PROJECT_ID) || mealConfirmation || workoutConfirmation || actionConfirmation || confirmedPlan));
       const token = savedToken();
       if (!token) throw new Error('Prima attiva VINZ.MON: manca il token.');
       /* vNext CEREBRO BOUNDARY — VINZ.MON records personal memory for EVERY
@@ -1162,11 +1210,8 @@ export function createNetlifyChatModel(
       if (last?.role === 'user') {
         void captureChatMemoryForClient({ text: user, messageId: last.id, requestId, context: args.messages.slice(-5, -1).map((message) => ({ role: message.role === 'assistant' ? 'assistant' : 'user', text: textOf(message) })) });
       }
-      const legacyProductTool = Boolean(projectId && projectId !== WORLD_PROJECT_ID && needsLegacyProductTool(user, actionConfirmation, confirmedPlan));
-      if (legacyProductTool) decisionRules.push('BROWSER_PRODUCT_TOOL');
       let cerebroFallback: string | undefined;
-      if (projectId && projectId !== WORLD_PROJECT_ID && !legacyProductTool) {
-        decide('cerebro', 'rule', { cerebro: { attempted: true, delegated: true } });
+      if (executor === 'cerebro' && projectId) {
         const hermes = runWithHermesProject(
           args.messages,
           args.abortSignal,
@@ -1179,19 +1224,26 @@ export function createNetlifyChatModel(
           workoutConfirmation,
           actionConfirmation,
         );
+        const cerebroSteps = monCore(['MON CORE', 'WORK', 'delegato a CEREBRO']);
         let next = await hermes.next();
         while (!next.done) {
-          yield next.value;
+          yield annotateMonCore(next.value, cerebroSteps);
           next = await hermes.next();
         }
         if (next.value === true) {
           finalizeTurnDecision(requestId);
           return;
         }
+        /* CEREBRO not available (disabled, boundary unconfirmed, other
+           workspace): the turn is still served, as bounded ACTION, and the
+           reason is recorded — never a silent downgrade. */
         cerebroFallback = lastHermesFallbackCode ?? 'HERMES_UNAVAILABLE';
+        executor = runTool ? 'legacy-tools' : 'direct';
+        amendTurnDecision(requestId, { executor, mode: executor === 'direct' ? 'ANSWER' : 'ACTION', cerebro: { attempted: true, delegated: false, fallbackReason: cerebroFallback } });
       }
+      const toolTurn = executor === 'legacy-tools';
       const lifeTurn = last?.role === 'user'
-        ? await processLifeTurn(last.id, user, projectId, useTools).catch(() => null)
+        ? await processLifeTurn(last.id, user, projectId, toolTurn).catch(() => null)
         : null;
       postChatDiagnostic('CHAT_MEMORY_FETCH_START', 'canonical-context');
       let contextSelection: ContextDecision[] = [];
@@ -1201,7 +1253,7 @@ export function createNetlifyChatModel(
          nella risposta della chat normale. Lo scope globale esplicito
          mantiene la memoria unica ma separa il contesto narrativo del World. */
       const contextProjectId = projectId ?? GLOBAL_PROJECT_ID;
-      let systemPrompt = await resolveChatContext(token, user, useTools, args.abortSignal, contextProjectId, args.messages.slice(-5, -1).map(textOf).join('\n'), selection => { contextSelection = selection; });
+      let systemPrompt = await resolveChatContext(token, user, toolTurn, args.abortSignal, contextProjectId, args.messages.slice(-5, -1).map(textOf).join('\n'), selection => { contextSelection = selection; });
 
       /* Segnalibro e archivio si leggono qui, dove il prompt di sistema viene
          composto: così valgono sia per il giro con gli strumenti sia per la
@@ -1248,10 +1300,9 @@ export function createNetlifyChatModel(
         systemPrompt += await loadEnabledSkillsSummary(token);
         systemPrompt += await connectorsSummaryForProject(projectId ?? null);
       }
-      const cerebroInfo = cerebroFallback ? { cerebro: { attempted: true, delegated: false, fallbackReason: cerebroFallback } } : {};
-      if (runTool && useTools) {
-        decide('legacy-tools', decisionRules.length ? 'rule' : 'default', cerebroInfo);
-        yield* runWithLocalTools(
+      const fallbackStep = cerebroFallback ? [`CEREBRO non disponibile (${cerebroFallback})`] : [];
+      if (runTool && toolTurn) {
+        yield* withMonCore(runWithLocalTools(
           args.messages,
           args.abortSignal,
           runTool,
@@ -1261,15 +1312,15 @@ export function createNetlifyChatModel(
           actionConfirmation,
           confirmedPlan,
           { systemPrompt, requestId, projectId, contextSelection },
-        );
+        ), monCore(['MON CORE', ...fallbackStep, 'ACTION', ...(contextSelection.length ? ['contesto caricato'] : []), 'strumenti VINZ']));
         return;
       }
-      decide('direct', decisionRules.length ? 'rule' : 'default', cerebroInfo);
       const result = createBaseNetlifyChatModel({ systemPrompt, requestId, contextSelection, worldNarration: projectId === WORLD_PROJECT_ID, questFrame: lifeTurn?.questFrame }).run(args);
+      const directSteps = monCore(['MON CORE', ...fallbackStep, 'ANSWER', ...(contextSelection.length ? ['contesto caricato'] : [])]);
       if (result instanceof Promise) {
-        yield await result;
+        yield annotateMonCore(await result, directSteps);
       } else {
-        yield* result;
+        yield* withMonCore(result, directSteps);
       }
       if (lifeTurn?.questFrame && last?.role === 'user') {
         useApp.setState(current => {

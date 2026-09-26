@@ -86,3 +86,90 @@ export function decisionLogMetadata(decision: TurnDecision): Record<string, stri
     ...(decision.modelLocation ? { location: decision.modelLocation } : {}),
   };
 }
+
+/* ============================================================================
+   decideTurn — THE canonical routing decision (vNext Step 5)
+
+   Deterministic and synchronous: every input is a fact the orchestrator has
+   already computed with the existing intent rules (brain/stream.ts) and the
+   confirmation state machine. No model call, no second classifier.
+
+     pending confirmation   → ACTION (a "sì" always finishes what was asked)
+     explicit override      → honoured when valid, otherwise recorded as
+                              rejected and AUTO decides
+     special routes         → image / issue (ACTION)
+     structured writes,
+     product tools          → ACTION (bounded VINZ tool loop)
+     multi-step Project work→ WORK (CEREBRO) — never merely because a
+                              Project is selected
+     other tool rules       → ACTION
+     everything else        → ANSWER
+   ========================================================================= */
+
+/** Multi-step production/analysis over Project material: the WORK signal. */
+const WORK_INTENT = /\b(?:lavora\w*|analizz\w*|prepar\w*|elabor\w*|riorganizz\w*|confront\w*|calcol\w*|gener\w*|redig\w*|riscriv\w*|aggiorn\w*|modific\w*|crea\w*|scriv\w*|sistem\w*|compil\w*|complet\w*|verific\w*)\b[^.!?]{0,80}\b(?:file|document\w*|report|foglio|fogli|excel|xlsx|csv|pdf|business\s*plan|presentazion\w*|slide|cartella|workspace|bozza|contratto|preventiv\w*|listino|tabell\w*|dati|piano\s+(?:marketing|editoriale|di\s+lavoro|commerciale))\b|\b(?:passo\s+per\s+passo|in\s+più\s+passaggi|occupatene|fai\s+tutto\s+tu|lavoraci)\b/i;
+/** A short follow-up that continues the previous CEREBRO work («sì, procedi», «continua»). */
+const WORK_CONTINUATION = /^\s*(?:s[iì]|ok(?:ay)?|va bene|procedi|continua|vai(?:\s+avanti)?|prosegui|fallo|fai pure|perfetto)(?=[\s,.;:!]|$)[^?]{0,80}$/i;
+
+export function isWorkIntent(text: string): boolean {
+  return WORK_INTENT.test(text);
+}
+
+export interface TurnFacts {
+  requested: ModeRequest;
+  text: string;
+  project: 'global' | 'project' | 'world';
+  /** A pending app-asked confirmation was just answered with a yes. */
+  pendingConfirmed: boolean;
+  /** A structured write/confirmation is proposed or confirmed in this turn (meal, workout, weight, plan, reminder, code…). */
+  structuredAction: boolean;
+  specialRoute?: 'image' | 'issue';
+  /** Needs a browser-bound product tool CEREBRO cannot reach (calendar, drive, email, reminders, look, repo ops…). */
+  browserProductTool: boolean;
+  /** The existing tool rules (`shouldUseLocalTools`) matched. */
+  toolRules: boolean;
+  /** Images or spreadsheets are attached to this turn. */
+  attachments: boolean;
+  /** The previous assistant turn was answered by CEREBRO. */
+  previousWasCerebro: boolean;
+  /** A tool executor is available in this client at all. */
+  toolsAvailable: boolean;
+}
+
+export interface RoutingOutcome {
+  mode: ExecutionMode;
+  executor: TurnExecutor;
+  source: DecisionSource;
+  overrideRejected?: string;
+}
+
+function autoRoute(f: TurnFacts): RoutingOutcome {
+  if (f.specialRoute) return { mode: 'ACTION', executor: f.specialRoute, source: 'special-route' };
+  const action: RoutingOutcome = { mode: 'ACTION', executor: f.toolsAvailable ? 'legacy-tools' : 'direct', source: 'rule' };
+  if (f.structuredAction || f.browserProductTool) return action;
+  if (f.project === 'project') {
+    if (isWorkIntent(f.text) || f.attachments || (f.previousWasCerebro && WORK_CONTINUATION.test(f.text))) {
+      return { mode: 'WORK', executor: 'cerebro', source: 'rule' };
+    }
+  }
+  if (f.toolRules) return action;
+  return { mode: 'ANSWER', executor: 'direct', source: 'default' };
+}
+
+export function decideTurn(f: TurnFacts): RoutingOutcome {
+  if (f.pendingConfirmed) return { mode: 'ACTION', executor: f.toolsAvailable ? 'legacy-tools' : 'direct', source: 'pending-confirmation' };
+  const auto = autoRoute(f);
+  if (f.requested === 'AUTO') return auto;
+  if (f.requested === 'ANSWER') return { mode: 'ANSWER', executor: 'direct', source: 'override' };
+  if (f.requested === 'ACTION') {
+    return f.toolsAvailable
+      ? { mode: 'ACTION', executor: 'legacy-tools', source: 'override' }
+      : { ...auto, overrideRejected: 'action-needs-tools' };
+  }
+  // WORK
+  if (f.project === 'world') return { ...auto, overrideRejected: 'world-is-deterministic' };
+  if (f.project !== 'project') return { ...auto, overrideRejected: 'work-needs-project' };
+  if (f.structuredAction) return { ...auto, overrideRejected: 'structured-write-is-action' };
+  if (f.browserProductTool) return { ...auto, overrideRejected: 'tool-not-available-to-cerebro' };
+  return { mode: 'WORK', executor: 'cerebro', source: 'override' };
+}

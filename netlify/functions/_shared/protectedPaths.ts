@@ -53,7 +53,7 @@ const PROTECTED_FILES = [
 /** Whole directories (prefix match on the normalized path). */
 const PROTECTED_DIRECTORIES = [
   'netlify/functions/_shared/v2/', // run policy, permits, CEREBRO adapter
-  'netlify/functions/_shared/mon-core/', // canonical turn decision (vNext)
+  'src/mon-core/', // MON CORE: canonical turn decision + mode policy (vNext)
   'server/',
   'scripts/',
 ];

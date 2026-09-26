@@ -10,6 +10,8 @@ import { localImages, readImagesLocally } from './_shared/v2/localImageOcr';
 import type { ContextWindow, RunProfile, RunRequest } from './_shared/v2/contracts';
 import type { Turn } from './_shared/providers';
 import { validProjectId } from '../../src/engine/projects';
+import { existsSync, readdirSync } from 'node:fs';
+import { enabledSkillsExportDirectory } from './skills';
 import { VOICE_CHOICES, type Provider } from './_shared/routing';
 import { checkCap, INTERNAL_CAP_EXCEEDED, LOCAL_ONLY_BLOCKED, readLocalOnlyMode, recordSpend } from './_shared/spend';
 import { issueHermesActionPermit, type HermesWriteAction } from './_shared/v2/hermesActionPermit';
@@ -113,6 +115,10 @@ async function hermesStream(body: Record<string, unknown>, request: Request): Pr
   try { config = hermesConfig(); }
   catch (error) { return hermesUnavailable(error instanceof Error ? error.message : String(error), 503); }
   if (!config) return hermesUnavailable('HERMES_DISABLED: legacy orchestrator is active.');
+  /* vNext MON CORE — this ingress is the WORK executor only. MON CORE decides
+     the mode; a client that asks CEREBRO to do ANSWER/ACTION work is refused
+     (older clients that send no mode keep working). */
+  if (body.mode !== undefined && body.mode !== 'WORK') return hermesUnavailable('MODE_NOT_WORK: /api/runs stream serves only WORK turns.', 400);
   if (!hermesMemoryBoundaryConfirmed()) {
     return hermesUnavailable('HERMES_BOUNDARY_UNCONFIRMED: Hermes personal memory/profile must be disabled (VINZMON_HERMES_PERSONAL_MEMORY=off); legacy orchestrator stays active.');
   }
@@ -197,8 +203,17 @@ async function hermesStream(body: Record<string, unknown>, request: Request): Pr
     ...(hermesEffort(body.effort) ? { effort: hermesEffort(body.effort) } : {}),
     actionPolicy: actionPolicy(body, requestId, verifiedAction),
   }, request.signal);
+  let enabledSkills = 0;
+  try { const dir = enabledSkillsExportDirectory(); enabledSkills = existsSync(dir) ? readdirSync(dir).length : 0; } catch { enabledSkills = 0; }
+  let decisionSent = false;
   const stream = new ReadableStream<Uint8Array>({
     async pull(controller) {
+      if (!decisionSent) {
+        decisionSent = true;
+        const decision: HermesVinzEvent = { type: 'decision', runId: requestId, mode: 'WORK', executor: 'cerebro', contextItems: context.trace.filter((item) => item.selected).length, skills: enabledSkills, at: new Date().toISOString() };
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify(decision)}\n\n`));
+        return;
+      }
       try {
         const next = await iterator.next();
         if (next.done) return controller.close();

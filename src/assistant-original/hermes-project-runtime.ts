@@ -9,7 +9,8 @@ export type HermesClientEvent =
   | { type: 'approval_required'; runId: string; requestId?: string; reason?: string; at: string }
   | { type: 'final'; runId: string; text: string; model?: string; usage?: Record<string, number>; costUsd?: number; timings: Record<string, number>; files?: HermesWorkspaceFile[]; at: string }
   | { type: 'error'; runId: string; message: string; at: string }
-  | { type: 'context'; runId: string; hermes?: ContextUsage; vinz?: ContextUsage; at: string };
+  | { type: 'context'; runId: string; hermes?: ContextUsage; vinz?: ContextUsage; at: string }
+  | { type: 'decision'; runId: string; mode: 'WORK'; executor: 'cerebro'; contextItems: number; skills: number; at: string };
 
 export interface ContextUsage {
   usedTokens: number;
@@ -31,8 +32,10 @@ function wasHermes(message: ThreadMessage): boolean {
   return custom?.orchestrator === 'hermes';
 }
 
-export function shouldUseHermesProject(messages: readonly ThreadMessage[], user: string): boolean {
-  return Boolean(user.trim()) || messages.slice(-4, -1).some(wasHermes);
+/** vNext MON CORE: was the previous assistant turn answered by CEREBRO? (WORK continuity) */
+export function lastTurnWasCerebro(messages: readonly ThreadMessage[]): boolean {
+  const previous = [...messages.slice(0, -1)].reverse().find((message) => message.role === 'assistant');
+  return Boolean(previous && wasHermes(previous));
 }
 
 /** vNext Turn Decision Record: why the last CEREBRO delegation fell back to the legacy path. */
@@ -59,6 +62,7 @@ export async function openHermesProjectRun(input: {
     body: JSON.stringify({
       stream: true,
       profile: 'project-chat',
+      mode: 'WORK',
       runId: input.requestId,
       projectId: input.projectId,
       conversationId: input.conversationId,

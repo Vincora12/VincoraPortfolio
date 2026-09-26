@@ -16,7 +16,11 @@ export type HermesVinzEvent =
   | { type: 'approval_required'; runId: string; requestId?: string; reason?: string; at: string }
   | { type: 'final'; runId: string; text: string; model?: string; usage?: Record<string, number>; costUsd?: number; timings: HermesTimings; files?: HermesWorkspaceFile[]; at: string }
   | { type: 'error'; runId: string; message: string; at: string }
-  | { type: 'context'; runId: string; hermes?: HermesContextUsage; vinz?: VinzContextUsage; at: string };
+  | { type: 'context'; runId: string; hermes?: HermesContextUsage; vinz?: VinzContextUsage; at: string }
+  /* vNext MON CORE: emitted by /api/runs (never by Hermes) before delegation —
+     real facts only: the WORK decision, how many context items VINZ selected
+     for the package, and how many enabled skills CEREBRO can load. */
+  | { type: 'decision'; runId: string; mode: 'WORK'; executor: 'cerebro'; contextItems: number; skills: number; at: string };
 
 export interface HermesContextUsage {
   usedTokens: number;

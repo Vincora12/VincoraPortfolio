@@ -63,6 +63,7 @@ import { ToolFallback } from "@/assistant-original/components/assistant-ui/tool-
 import { Sources } from "@/assistant-original/components/assistant-ui/sources";
 import { CloneThreadShell } from "./clone-thread-shell";
 import { ModelEffortPill, type ModelChoice } from "@/assistant-original/ModelEffortPill";
+import { ModePill } from "@/assistant-original/ModePill";
 import { useApp } from "@/state/store";
 import { WORLD_PROJECT_ID } from "@/engine/projects";
 import { reportLifeCycle, startLifeEventIfDue } from "@/assistant-original/life-cycle-runtime";
@@ -406,6 +407,7 @@ const ContextIndicatorBar: FC<{ modelChoice?: ModelChoice }> = ({ modelChoice })
           ≠{lastModel}
         </span>
       )}
+      <ModePill workAvailable={Boolean(projectId && projectId !== WORLD_PROJECT_ID)} />
       {modelChoice && <ModelEffortPill choice={modelChoice} />}
       {projectId && (
         <button
@@ -2439,6 +2441,7 @@ const AssistantMessage: FC = () => {
         <BranchPicker className="ml-1" />
       </div>
 
+      <MonCoreLine />
       <MessageUpdates />
 
       <div className="vinz-assistant-meta mt-1 flex flex-wrap items-center gap-1 text-xs text-[#8e8e8e]">
@@ -2882,6 +2885,25 @@ const AssistantActivityMenu: FC = () => {
         </ActionBarMorePrimitive.Item>
       ))}
     </>
+  );
+};
+
+/* vNext MON CORE — the operational decision behind this answer, as real
+   steps (mode, context, delegation), never reasoning text. Written by
+   `createNetlifyChatModel` into `metadata.custom.monCore`. */
+const MonCoreLine: FC = () => {
+  const value = useAuiState((s) => s.message.metadata.custom.monCore) as
+    | { mode?: string; steps?: unknown; requested?: string; overrideRejected?: string }
+    | undefined;
+  const steps = Array.isArray(value?.steps) ? value.steps.filter((step): step is string => typeof step === "string") : [];
+  if (steps.length === 0) return null;
+  return (
+    <small
+      className="vinz-mon-core-line mt-1 block text-[11px] leading-4 text-[#7a7a7a] [font-family:var(--font-mono)]"
+      title={value?.overrideRejected ? `Richiesto ${value.requested}: non applicabile (${value.overrideRejected})` : undefined}
+    >
+      {steps.join(" → ")}
+    </small>
   );
 };
 
